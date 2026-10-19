@@ -18,10 +18,14 @@ from . import (
     check_session,
     check_single_peer,
     packet_interface_ns,
+    remaining_packet_size,
     stack_schema,
 )
 
 CONF_PORT_ID = "port_id"
+
+# The destination and source addresses
+HEADER_SIZE = 4
 
 BasicAddressing = packet_interface_ns.class_("BasicAddressing", cg.Component)
 AddressingPort = packet_interface_ns.class_("AddressingPort", PacketInterface)
@@ -103,7 +107,11 @@ async def _new_port(
     return port
 
 
-@ADDRESSING.register("basic", schema_factory=_basic_addressing_schema)
+@ADDRESSING.register(
+    "basic",
+    schema_factory=_basic_addressing_schema,
+    packet_size=lambda config, size: remaining_packet_size(size, HEADER_SIZE),
+)
 async def build_basic_addressing(
     config: ConfigType, link: MockObj
 ) -> list[tuple[MockObj, ConfigType | None]]:

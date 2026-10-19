@@ -22,6 +22,7 @@ from .layers import (
     STACK_ORDER,
     PacketInterface,
     build_stack,
+    check_packet_sizes,
     check_session,
     check_single_peer,
     packet_interface_ns,
@@ -74,8 +75,11 @@ def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
 def _validate_layers(config: ConfigType) -> ConfigType:
     """With peers, the layers go in each peer; otherwise check them against the one destination."""
     check_session(config)
+    size = config[CONF_MAX_PACKET_SIZE]
     if (addressing := config.get(CONF_ADDRESSING)) is None:
+        check_packet_sizes(config, size)
         return config
+    size = ADDRESSING.get_type(addressing).packet_size(addressing, size)
     if CONF_PEERS in addressing:
         for kind in STACK_ORDER:
             if kind.key in config:
@@ -83,9 +87,16 @@ def _validate_layers(config: ConfigType) -> ConfigType:
                     f"With '{CONF_PEERS}', '{kind.key}' goes in each peer",
                     path=[kind.key],
                 )
+        for index, peer in enumerate(addressing[CONF_PEERS]):
+            try:
+                check_packet_sizes(peer, size)
+            except cv.Invalid as err:
+                err.prepend([CONF_ADDRESSING, CONF_PEERS, index])
+                raise
         return config
     addressing.setdefault(CONF_DESTINATION, BROADCAST_ADDRESS)
     check_single_peer(config, addressing[CONF_DESTINATION])
+    check_packet_sizes(config, size)
     return config
 
 
@@ -108,14 +119,12 @@ def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
 
     def validator(config: ConfigType) -> ConfigType:
         interface_id: ID = config[key]
-        for interface in fv.full_config.get().get(DOMAIN, []):
-            if interface[CONF_ID].id == interface_id.id and CONF_PEERS in interface.get(
-                CONF_ADDRESSING, {}
-            ):
-                raise cv.Invalid(
-                    f"'{interface_id.id}' has several peers, so use the id of one of them",
-                    path=[key],
-                )
+        interface = interface_layers(interface_id)
+        if interface is not None and CONF_PEERS in interface.get(CONF_ADDRESSING, {}):
+            raise cv.Invalid(
+                f"'{interface_id.id}' has several peers, so use the id of one of them",
+                path=[key],
+            )
         return config
 
     return validator

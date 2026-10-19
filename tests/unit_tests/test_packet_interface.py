@@ -1,4 +1,4 @@
-"""Unit tests for the packet_interface component and its platforms."""
+"""Unit tests for the packet_interface component."""
 
 import hashlib
 from typing import Any
@@ -72,6 +72,62 @@ def test_reliability_queue_length_limit(setup_core) -> None:
         uart_packet_interface.CONFIG_SCHEMA(
             {CONF_RELIABILITY: {CONF_MAX_QUEUE_LENGTH: 8}}
         )
+
+
+def test_reliability_timeout_minimum(setup_core) -> None:
+    """A timeout shorter than a few loop passes cannot work."""
+    uart_packet_interface.CONFIG_SCHEMA({CONF_RELIABILITY: {"timeout": "50ms"}})
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_RELIABILITY: {"timeout": "40ms"}})
+
+
+def test_ack_delay_shorter_than_timeout(setup_core) -> None:
+    """The acknowledgement must not wait longer than the peer's timeout."""
+    reliability = uart_packet_interface.CONFIG_SCHEMA(
+        {CONF_RELIABILITY: {"timeout": "500ms", "ack_delay": "100ms"}}
+    )[CONF_RELIABILITY]
+    assert reliability["ack_delay"].total_milliseconds == 100
+    with pytest.raises(cv.Invalid, match="shorter"):
+        uart_packet_interface.CONFIG_SCHEMA(
+            {CONF_RELIABILITY: {"timeout": "500ms", "ack_delay": "500ms"}}
+        )
+
+
+def test_layer_types_registered() -> None:
+    """Importing packet_interface registers the built-in layer types."""
+    assert {kind.key: set(kind.types) for kind in STACK_ORDER} == {
+        CONF_ENCRYPTION: {"xxtea"},
+        CONF_RELIABILITY: {"hdlc"},
+        CONF_FRAGMENTATION: {"basic"},
+        CONF_SESSION: {"basic"},
+    }
+
+
+async def _build(config: dict, lower: Any) -> Any:
+    return lower
+
+
+def test_registered_type_selectable(setup_core) -> None:
+    """A newly registered layer type can be selected with type."""
+    kind = LayerKind("test_kind", "test")
+    kind.register("test", schema=cv.Schema({}))(_build)
+    config = kind.schema()({"type": "test"})
+    assert config["type"] == "test"
+    assert kind.get_type(config).build is _build
+
+
+def test_duplicate_layer_type_rejected(setup_core) -> None:
+    """Registering a type under a name already in use is an error, not a silent replacement."""
+    kind = LayerKind("test_kind", "test")
+    kind.register("test", schema=cv.Schema({}))(_build)
+    with pytest.raises(ValueError, match="already registered"):
+        kind.register("test", schema=cv.Schema({}))(_build)
+
+
+def test_late_registration_rejected(setup_core) -> None:
+    """A type registered after the schemas were built would be missing from them, so it is an error."""
+    with pytest.raises(ValueError, match="after the schemas were built"):
+        RELIABILITY.register("late", schema=cv.Schema({}))(_build)
 
 
 def test_session_defaults(setup_core) -> None:
@@ -156,7 +212,7 @@ def test_two_device_layers_need_destination(setup_core, layers: dict) -> None:
     )
 
 
-def _peer(peer_id: str, destination: Any, **layers: Any) -> dict:
+def _peer(peer_id: str | ID, destination: Any, **layers: Any) -> dict:
     return {"id": peer_id, "destination": destination, **layers}
 
 
@@ -198,62 +254,6 @@ def test_addressing_peers_invalid(
         )
 
 
-def test_layer_types_registered() -> None:
-    """Importing packet_interface registers the built-in layer types."""
-    assert {kind.key: set(kind.types) for kind in STACK_ORDER} == {
-        CONF_ENCRYPTION: {"xxtea"},
-        CONF_RELIABILITY: {"hdlc"},
-        CONF_FRAGMENTATION: {"basic"},
-        CONF_SESSION: {"basic"},
-    }
-
-
-async def _build(config: dict, lower: Any) -> Any:
-    return lower
-
-
-def test_registered_type_selectable(setup_core) -> None:
-    """A newly registered layer type can be selected with type."""
-    kind = LayerKind("test_kind", "test")
-    kind.register("test", schema=cv.Schema({}))(_build)
-    config = kind.schema()({"type": "test"})
-    assert config["type"] == "test"
-    assert kind.get_type(config).build is _build
-
-
-def test_duplicate_layer_type_rejected(setup_core) -> None:
-    """Registering a type under a name already in use is an error, not a silent replacement."""
-    kind = LayerKind("test_kind", "test")
-    kind.register("test", schema=cv.Schema({}))(_build)
-    with pytest.raises(ValueError, match="already registered"):
-        kind.register("test", schema=cv.Schema({}))(_build)
-
-
-def test_late_registration_rejected(setup_core) -> None:
-    """A type registered after the schemas were built would be missing from them, so it is an error."""
-    with pytest.raises(ValueError, match="after the schemas were built"):
-        RELIABILITY.register("late", schema=cv.Schema({}))(_build)
-
-
-def test_reliability_timeout_minimum(setup_core) -> None:
-    """A timeout shorter than a few loop passes cannot work."""
-    uart_packet_interface.CONFIG_SCHEMA({CONF_RELIABILITY: {"timeout": "50ms"}})
-    with pytest.raises(cv.Invalid):
-        uart_packet_interface.CONFIG_SCHEMA({CONF_RELIABILITY: {"timeout": "40ms"}})
-
-
-def test_ack_delay_shorter_than_timeout(setup_core) -> None:
-    """The acknowledgement must not wait longer than the peer's timeout."""
-    reliability = uart_packet_interface.CONFIG_SCHEMA(
-        {CONF_RELIABILITY: {"timeout": "500ms", "ack_delay": "100ms"}}
-    )[CONF_RELIABILITY]
-    assert reliability["ack_delay"].total_milliseconds == 100
-    with pytest.raises(cv.Invalid, match="shorter"):
-        uart_packet_interface.CONFIG_SCHEMA(
-            {CONF_RELIABILITY: {"timeout": "500ms", "ack_delay": "500ms"}}
-        )
-
-
 def test_fragmentation_defaults(setup_core) -> None:
     """An empty fragmentation key joins packets of up to 1024 bytes."""
     fragmentation = uart_packet_interface.CONFIG_SCHEMA({CONF_FRAGMENTATION: None})[
@@ -268,11 +268,70 @@ def test_fragmentation_defaults(setup_core) -> None:
 
 
 @pytest.mark.parametrize(
+    ("layers", "valid"),
+    [
+        # 508 - 3 leaves fragments of 503 bytes: 1024 bytes take 3, 2048 bytes take 5
+        ({CONF_RELIABILITY: None, CONF_FRAGMENTATION: None}, True),
+        (
+            {CONF_RELIABILITY: None, CONF_FRAGMENTATION: {"max_packet_size": 2048}},
+            False,
+        ),
+        (
+            {
+                CONF_RELIABILITY: {CONF_MAX_QUEUE_LENGTH: 5},
+                CONF_FRAGMENTATION: {"max_packet_size": 2048},
+            },
+            True,
+        ),
+        ({CONF_FRAGMENTATION: {"max_packet_size": 16384}}, True),
+    ],
+)
+def test_fragments_fit_reliability_queue(setup_core, layers: dict, valid: bool) -> None:
+    """Every fragment of the largest packet must fit in the reliability queue at once."""
+    if valid:
+        uart_packet_interface.CONFIG_SCHEMA(layers)
+        return
+    with pytest.raises(cv.Invalid, match="5 fragments") as err:
+        uart_packet_interface.CONFIG_SCHEMA(layers)
+    assert err.value.path == [CONF_FRAGMENTATION, CONF_MAX_PACKET_SIZE]
+
+
+@pytest.mark.parametrize(
+    ("link", "match"),
+    [
+        # 256 - 4 for addressing - 16 for the rolling code - 3 for reliability leaves fragments of 231 bytes
+        ({}, "5 fragments of 231 bytes"),
+        # 24 - 4 - 16 - 3 leaves 1 byte, too few for the fragment header
+        ({CONF_MAX_PACKET_SIZE: 24}, "no room"),
+    ],
+)
+def test_fragments_checked_in_peers(setup_core, link: dict, match: str) -> None:
+    """Fragments are checked against the layers of each peer, below the addressing layer."""
+    peer = _peer(
+        "a",
+        2,
+        encryption={"key": "secret", "rolling_code_enable": True},
+        reliability=None,
+        fragmentation=None,
+        session=None,
+    )
+    with pytest.raises(cv.Invalid, match=match) as err:
+        uart_packet_interface.CONFIG_SCHEMA(
+            {
+                CONF_MAX_PACKET_SIZE: 256,
+                **link,
+                CONF_ADDRESSING: {"address": 1, "peers": [peer]},
+            }
+        )
+    assert err.value.path[:4] == [CONF_ADDRESSING, "peers", 0, CONF_FRAGMENTATION]
+
+
+@pytest.mark.parametrize(
     ("config", "loads"),
     [
         ({}, []),
-        ({CONF_RELIABILITY: None, "session": None}, []),
-        ({"session": {"binary_sensor": {"name": "Link"}}}, ["binary_sensor"]),
+        ({CONF_RELIABILITY: None, CONF_SESSION: None}, []),
+        ({CONF_SESSION: {"binary_sensor": {"name": "Link"}}}, ["binary_sensor"]),
         ({CONF_ENCRYPTION: "secret"}, ["xxtea"]),
         (
             {
@@ -333,7 +392,7 @@ def test_application_needs_peer_id_with_several_peers(setup_core) -> None:
     token = fv.full_config.set(
         {
             "packet_interface": [
-                {"id": ID("bus"), CONF_ADDRESSING: {"peers": [_peer("a", 2)]}},
+                {"id": ID("bus"), CONF_ADDRESSING: {"peers": [_peer(ID("a"), 2)]}},
                 {"id": ID("single"), CONF_ADDRESSING: {"destination": 2}},
             ]
         }

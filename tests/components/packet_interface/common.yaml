@@ -29,8 +29,9 @@ packet_interface:
         - id: packet_interface_peer_b
           destination: 0x0003
           reliability:
+            max_queue_length: 5
           fragmentation:
-            max_packet_size: 2048
+            max_packet_size: 1024
           session:
         - id: packet_interface_bus
           destination: broadcast

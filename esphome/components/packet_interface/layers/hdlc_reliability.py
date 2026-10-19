@@ -6,11 +6,14 @@ from esphome.const import CONF_ID, CONF_TIMEOUT
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import RELIABILITY, PacketInterface, packet_interface_ns
+from . import RELIABILITY, PacketInterface, packet_interface_ns, remaining_packet_size
 
 CONF_ACK_DELAY = "ack_delay"
 CONF_MAX_QUEUE_LENGTH = "max_queue_length"
 CONF_MAX_RETRIES = "max_retries"
+
+# The control byte and the CRC-16
+FRAME_OVERHEAD = 3
 
 HdlcReliability = packet_interface_ns.class_("HdlcReliability", PacketInterface)
 
@@ -47,7 +50,13 @@ HDLC_SCHEMA = cv.All(
 )
 
 
-@RELIABILITY.register("hdlc", schema=HDLC_SCHEMA, single_peer=lambda config: True)
+@RELIABILITY.register(
+    "hdlc",
+    schema=HDLC_SCHEMA,
+    single_peer=lambda config: True,
+    packet_size=lambda config, size: remaining_packet_size(size, FRAME_OVERHEAD),
+    send_capacity=lambda config: config[CONF_MAX_QUEUE_LENGTH],
+)
 async def build_hdlc(config: ConfigType, lower: MockObj) -> MockObj:
     cg.add_define("USE_PACKET_INTERFACE_HDLC")
     var = cg.new_Pvariable(config[CONF_ID], lower)

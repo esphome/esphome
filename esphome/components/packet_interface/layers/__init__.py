@@ -44,6 +44,18 @@ def _nothing(config: ConfigType) -> list[str]:
     return []
 
 
+def _same_size(config: ConfigType, size: int) -> int:
+    return size
+
+
+def _no_limit(config: ConfigType) -> int | None:
+    return None
+
+
+def _fits(config: ConfigType, size: int, capacity: int | None) -> None:
+    """Accept any layer below."""
+
+
 @dataclass(frozen=True)
 class LayerType:
     """One implementation of a kind of layer."""
@@ -57,6 +69,12 @@ class LayerType:
     needs_session: Callable[[ConfigType], bool]
     # The components this configuration needs loaded
     auto_load: Callable[[ConfigType], list[str]]
+    # The largest packet this configuration takes, from the largest that the layer below takes, as the C++ works it out
+    packet_size: Callable[[ConfigType, int], int]
+    # How many packets this configuration takes at once, or None for no limit
+    send_capacity: Callable[[ConfigType], int | None]
+    # Raises cv.Invalid if this configuration cannot work above a layer with this packet size and send capacity
+    check_lower: Callable[[ConfigType, int, int | None], None]
 
 
 class LayerKind:
@@ -82,6 +100,9 @@ class LayerKind:
         single_peer: Callable[[ConfigType], bool] = _never,
         needs_session: Callable[[ConfigType], bool] = _never,
         auto_load: Callable[[ConfigType], list[str]] = _nothing,
+        packet_size: Callable[[ConfigType, int], int] = _same_size,
+        send_capacity: Callable[[ConfigType], int | None] = _no_limit,
+        check_lower: Callable[[ConfigType, int, int | None], None] = _fits,
     ) -> Callable[[LayerBuilder], LayerBuilder]:
         """Register a type with its schema, or with a function returning a schema that contains other layers."""
 
@@ -104,6 +125,9 @@ class LayerKind:
                 single_peer,
                 needs_session,
                 auto_load,
+                packet_size,
+                send_capacity,
+                check_lower,
             )
             return build
 
@@ -176,6 +200,26 @@ def check_single_peer(config: ConfigType, destination: int) -> None:
                 "broadcast",
                 path=[kind.key],
             )
+
+
+def remaining_packet_size(size: int, used: int) -> int:
+    return max(size - used, 0)
+
+
+def check_packet_sizes(config: ConfigType, size: int) -> None:
+    """Check each layer in config against the layer below it; size is the largest packet that the stack sits on takes."""
+    capacity = None
+    for kind in STACK_ORDER:
+        if (layer := config.get(kind.key)) is None:
+            continue
+        layer_type = kind.get_type(layer)
+        try:
+            layer_type.check_lower(layer, size, capacity)
+        except cv.Invalid as err:
+            err.prepend([kind.key])
+            raise
+        size = layer_type.packet_size(layer, size)
+        capacity = layer_type.send_capacity(layer)
 
 
 def stack_auto_load(config: ConfigType) -> set[str]:

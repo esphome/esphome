@@ -8,7 +8,7 @@ from esphome.const import CONF_ID, CONF_KEY
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import ENCRYPTION, PacketInterface, packet_interface_ns
+from . import ENCRYPTION, PacketInterface, packet_interface_ns, remaining_packet_size
 
 CONF_ROLLING_CODE_ENABLE = "rolling_code_enable"
 
@@ -17,6 +17,10 @@ CONF_ROLLING_CODE_ENABLE = "rolling_code_enable"
 # PBKDF2 from applying here.
 KEY_SALT = b"esphome packet_interface xxtea"
 KEY_ITERATIONS = 600_000
+
+# The check word, and with the rolling code the boot numbers and counter
+CHECK_SIZE = 4
+ROLLING_SIZE = 12
 
 XxteaEncryption = packet_interface_ns.class_("XxteaEncryption", PacketInterface)
 
@@ -43,6 +47,11 @@ def derive_key(text: str) -> list[int]:
     single_peer=lambda config: config[CONF_ROLLING_CODE_ENABLE],
     needs_session=lambda config: config[CONF_ROLLING_CODE_ENABLE],
     auto_load=lambda config: ["xxtea"],
+    # XXTEA works on whole 32-bit words
+    packet_size=lambda config, size: remaining_packet_size(
+        size & ~3,
+        CHECK_SIZE + (ROLLING_SIZE if config[CONF_ROLLING_CODE_ENABLE] else 0),
+    ),
 )
 async def build_xxtea(config: ConfigType, lower: MockObj) -> MockObj:
     cg.add_define("USE_PACKET_INTERFACE_XXTEA")
