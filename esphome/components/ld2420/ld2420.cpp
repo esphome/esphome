@@ -683,6 +683,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       this->handle_cmd_error(this->cmd_reply_.error);
     }
   }
+  this->cmd_active_ = false;  // Resend and give-up are done; let loop() read the UART again
   return error;
 }
 

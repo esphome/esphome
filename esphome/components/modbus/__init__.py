@@ -9,7 +9,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_ROLE
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.const import CONF_ADDRESS, CONF_CONTINUOUS, CONF_FLOW_CONTROL_PIN
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
@@ -301,10 +301,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config: ConfigType) -> None:
     cg.add_global(modbus_ns.using)
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
 
