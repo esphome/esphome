@@ -372,8 +372,7 @@ async def _to_code_esp32(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
-    tracker = await cg.get_variable(config[esp32_ble_tracker.CONF_ESP32_BLE_ID])
-    cg.add(var.set_ble_hub(tracker))
+    await cg.add_variable(var.set_ble_hub, config[esp32_ble_tracker.CONF_ESP32_BLE_ID])
 
     # Compiles the scanner-state push slot into the tracker and the matching
     # registration into the proxy; the other hubs are polled instead.
@@ -390,8 +389,7 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
-    hub = await cg.get_variable(config[ble_device_base.CONF_BLE_HUB_ID])
-    cg.add(var.set_ble_hub(hub))
+    await cg.add_variable(var.set_ble_hub, config[ble_device_base.CONF_BLE_HUB_ID])
 
     await _connections_to_code(var, config)
 

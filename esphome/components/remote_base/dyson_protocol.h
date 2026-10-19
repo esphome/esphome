@@ -28,17 +28,4 @@ class DysonProtocol : public RemoteProtocol<DysonData> {
 
 DECLARE_REMOTE_PROTOCOL(Dyson)
 
-template<typename... Ts> class DysonAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, code)
-  TEMPLATABLE_VALUE(uint8_t, index)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    DysonData data{};
-    data.code = this->code_.value(x...);
-    data.index = this->index_.value(x...);
-    DysonProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

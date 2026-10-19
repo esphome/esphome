@@ -58,10 +58,7 @@ SpeakerMediaPlayer = speaker_ns.class_(
 
 AudioPipeline = speaker_ns.class_("AudioPipeline")
 AudioPipelineType = speaker_ns.enum("AudioPipelineType", is_class=True)
-AUDIO_PIPELINE_TYPE_ENUM = {
-    "MEDIA": AudioPipelineType.MEDIA,
-    "ANNOUNCEMENT": AudioPipelineType.ANNOUNCEMENT,
-}
+AUDIO_PIPELINE_TYPE_ENUM = AudioPipelineType.options("MEDIA", "ANNOUNCEMENT")
 
 StopStreamAction = speaker_ns.class_(
     "StopStreamAction", automation.Action, cg.Parented.template(SpeakerMediaPlayer)
@@ -189,14 +186,9 @@ async def to_code(config):
     cg.add(var.set_volume_min(config[CONF_VOLUME_MIN]))
 
     announcement_pipeline_config = config[CONF_ANNOUNCEMENT_PIPELINE]
-    spkr = await cg.get_variable(announcement_pipeline_config[CONF_SPEAKER])
-    cg.add(var.set_announcement_speaker(spkr))
-    if start_condition := announcement_pipeline_config.get(CONF_START_CONDITION):
-        cg.add(
-            var.set_announcement_start_condition(
-                await cg.process_lambda(start_condition, [], return_type=cg.bool_)
-            )
-        )
+    await cg.add_variable(
+        var.set_announcement_speaker, announcement_pipeline_config[CONF_SPEAKER]
+    )
     if announcement_pipeline_config[CONF_FORMAT] != "NONE":
         cg.add(
             var.set_announcement_format(
@@ -207,14 +199,9 @@ async def to_code(config):
         )
 
     if media_pipeline_config := config.get(CONF_MEDIA_PIPELINE):
-        spkr = await cg.get_variable(media_pipeline_config[CONF_SPEAKER])
-        cg.add(var.set_media_speaker(spkr))
-        if start_condition := media_pipeline_config.get(CONF_START_CONDITION):
-            cg.add(
-                var.set_media_start_condition(
-                    await cg.process_lambda(start_condition, [], return_type=cg.bool_)
-                )
-            )
+        await cg.add_variable(
+            var.set_media_speaker, media_pipeline_config[CONF_SPEAKER]
+        )
         if media_pipeline_config[CONF_FORMAT] != "NONE":
             cg.add(
                 var.set_media_format(
@@ -222,6 +209,17 @@ async def to_code(config):
                         media_pipeline_config, _PURPOSE_MAP["MEDIA"]
                     )
                 )
+            )
+
+    for pipeline_config, setter in (
+        (announcement_pipeline_config, var.set_announcement_start_condition),
+        (config.get(CONF_MEDIA_PIPELINE), var.set_media_start_condition),
+    ):
+        if pipeline_config is not None and (
+            start_condition := pipeline_config.get(CONF_START_CONDITION)
+        ):
+            cg.add(
+                setter(await cg.process_lambda(start_condition, [], return_type=cg.bool_))
             )
 
     if on_mute := config.get(CONF_ON_MUTE):

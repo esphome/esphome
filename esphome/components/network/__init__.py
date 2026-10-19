@@ -27,7 +27,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # High performance networking tracking infrastructure
 # Components can request high performance networking and this configures lwip and WiFi settings
-KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
+KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"  # lwip tier
+KEY_HIGH_PERFORMANCE_WIFI = "high_performance_wifi"  # WiFi driver buffers
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 CONF_TCP_SEND_BUFFER = "tcp_send_buffer"
 
@@ -100,6 +101,37 @@ if (
 
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
+
+_request_active_interface_listener_slot = cg.slot_counter(
+    "NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT"
+)
+
+
+def has_active_interface() -> bool:
+    """Return True when NetworkComponent tracks the interface holding the default route.
+
+    That is ESP32 with more than one interface in 'network: priority:', the same
+    condition that emits USE_NETWORK_DEFAULT_ROUTE.
+    """
+    return CORE.is_esp32 and len(CORE.config.get(DOMAIN, {}).get(CONF_PRIORITY, [])) > 1
+
+
+async def register_active_interface_listener(listener: cg.MockObj) -> bool:
+    """Register an ActiveInterfaceListener with the NetworkComponent.
+
+    The listener is notified from the main loop when the interface holding the
+    default route changes. Returns False, and registers nothing, when
+    has_active_interface() is False; the caller then needs another way to
+    follow interface changes.
+    """
+    if not has_active_interface():
+        return False
+    _request_active_interface_listener_slot()
+    network = await cg.get_variable(CORE.config[DOMAIN][CONF_ID])
+    cg.add(network.add_active_interface_listener(listener))
+    return True
+
+
 IPAddress = network_ns.class_("IPAddress")
 
 
@@ -194,9 +226,26 @@ def require_high_performance_networking() -> None:
             _request_high_performance_networking,
         )
     """
-    # Only set up once (idempotent - multiple components can call this)
-    if not CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False):
-        CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
+    CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
+    require_high_performance_wifi()
+
+
+def require_high_performance_wifi() -> None:
+    """Request only the WiFi driver part of high performance networking.
+
+    For traffic that passes through the device below its own sockets, such as the
+    NAT of a WISP access point: more RX/TX buffers, AMPDU aggregation and a deeper
+    lwip input mailbox help every forwarded packet, while the larger TCP windows
+    would only serve the device's own connections and cost internal RAM for nothing.
+    ``network: enable_high_performance: false`` turns the mailbox part off like the
+    lwip tier; the WiFi driver settings follow the component request alone.
+    """
+    CORE.data[KEY_HIGH_PERFORMANCE_WIFI] = True
+
+
+def has_high_performance_wifi() -> bool:
+    """True when a component asked for the high performance WiFi driver settings."""
+    return CORE.data.get(KEY_HIGH_PERFORMANCE_WIFI, False)
 
 
 def has_high_performance_networking() -> bool:
@@ -402,7 +451,7 @@ async def to_code(config: ConfigType) -> None:
         # frameworks build from source.
         # The ethernet/wifi-only assumption behind the arbitration is enforced in
         # _final_validate() so a future unsupported type fails as a config error.
-        if len(priority_list) > 1 and CORE.is_esp32:
+        if has_active_interface():
             cg.add_define("USE_NETWORK_DEFAULT_ROUTE")
             # Have lwIP switch to the DNS servers of the netif that owns the
             # default route whenever the arbitration changes it.
@@ -488,6 +537,13 @@ async def to_code(config: ConfigType) -> None:
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", tcp_window)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", tcpip_mailbox)
+    elif (
+        CORE.is_esp32 and enable_high_perf is not False and has_high_performance_wifi()
+    ):
+        # Forwarded frames still queue through tcpip_input, so the WiFi-only tier deepens that mailbox too
+        add_idf_sdkconfig_option(
+            "CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", TCPIP_RECVMBOX_OPTIMIZED
+        )
 
     # After the high performance block so an explicit size wins over the
     # bundle's 65534 (last write wins in the sdkconfig store).

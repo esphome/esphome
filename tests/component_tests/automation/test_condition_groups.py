@@ -15,7 +15,7 @@ def test_single_condition_groups_are_unwrapped(
     assert "IfAction<false>(lambdacondition_id);" in main_cpp
     assert "IfAction<false>(lambdacondition_id_2);" in main_cpp
     group = re.search(
-        r"new\((\w+)\) AndCondition<2>\(\{lambdacondition_id_3, lambdacondition_id_4\}\);",
+        r"new\((\w+)\) AndCondition<2>\(lambdacondition_id_3, lambdacondition_id_4\);",
         main_cpp,
     )
     assert group is not None
