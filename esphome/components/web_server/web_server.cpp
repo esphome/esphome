@@ -654,8 +654,9 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 // Helper functions to reduce code size by avoiding macro expansion
 // Build unique id as: {domain}/{device_name}/{entity_name} or {domain}/{entity_name}
 // Uses names (not object_id) to avoid UTF-8 collision issues
-static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
-  size_t prefix_len = strlen(prefix);
+static void set_json_id(JsonObject root, EntityBase *obj, ProgmemStr prefix, JsonDetail start_config) {
+  const char *prefix_p = reinterpret_cast<const char *>(prefix);  // in flash on ESP8266
+  size_t prefix_len = ESPHOME_strlen_P(prefix_p);
 
 #ifdef USE_DEVICES
   Device *device = obj->get_device();
@@ -674,7 +675,7 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
   static constexpr size_t ID_BUF_SIZE = ESPHOME_DOMAIN_MAX_LEN + 1 + ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
 #endif
   char id_buf[ID_BUF_SIZE];
-  memcpy(id_buf, prefix, prefix_len);  // NOLINT(bugprone-not-null-terminated-result)
+  progmem_memcpy(id_buf, prefix_p, prefix_len);
 
   char *p = id_buf + prefix_len;
   *p++ = '/';
@@ -692,7 +693,7 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
   root[ESPHOME_F("id")] = static_cast<const char *>(id_buf);
 
   if (start_config == DETAIL_ALL) {
-    root[ESPHOME_F("domain")] = linked(prefix, prefix_len);
+    root[ESPHOME_F("domain")] = linked(prefix);
 #ifdef USE_ESP8266
     root[ESPHOME_F("name")] = name;  // in id_buf on the stack, so copied
 #else
@@ -718,13 +719,13 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
 // Keep as separate function even though only used once: reduces code size by ~48 bytes
 // by allowing compiler to share code between template instantiations (bool, float, etc.)
 template<typename T>
-static void set_json_value(JsonObject root, EntityBase *obj, const char *prefix, T value, JsonDetail start_config) {
+static void set_json_value(JsonObject root, EntityBase *obj, ProgmemStr prefix, T value, JsonDetail start_config) {
   set_json_id(root, obj, prefix, start_config);
   root[ESPHOME_F("value")] = value;
 }
 
 template<typename S, typename T>
-static void set_json_icon_state_value(JsonObject root, EntityBase *obj, const char *prefix, S state, T value,
+static void set_json_icon_state_value(JsonObject root, EntityBase *obj, ProgmemStr prefix, S state, T value,
                                       JsonDetail start_config) {
   set_json_value(root, obj, prefix, value, start_config);
   root[ESPHOME_F("state")] = state;
@@ -771,7 +772,7 @@ void WebServer::sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_
   const char *state = std::isnan(value)
                           ? "NA"
                           : (value_accuracy_with_uom_to_buf(buf, value, obj->get_accuracy_decimals(), uom_ref), buf);
-  set_json_icon_state_value(root, obj, "sensor", state, value, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("sensor"), state, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
     if (!uom_ref.empty())
@@ -816,7 +817,7 @@ void WebServer::text_sensor_json_(text_sensor::TextSensor *obj, const std::strin
 
   // Not linked: the main loop can rewrite the state before the document is serialized
   const JsonString state(value.c_str(), value.size());
-  set_json_icon_state_value(root, obj, "text_sensor", state, state, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("text_sensor"), state, state, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -890,7 +891,7 @@ void WebServer::switch_all_json_generator(WebServer *web_server, void *source, j
 void WebServer::switch_json_(switch_::Switch *obj, bool value, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "switch", value ? "ON" : "OFF", value, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("switch"), value ? "ON" : "OFF", value, start_config);
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("assumed_state")] = obj->assumed_state();
     this->add_sorting_info_(root, obj);
@@ -926,7 +927,7 @@ void WebServer::button_all_json_generator(WebServer *web_server, void *source, j
 void WebServer::button_json_(button::Button *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "button", start_config);
+  set_json_id(root, obj, ESPHOME_F("button"), start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -967,7 +968,7 @@ void WebServer::binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value
                                     json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "binary_sensor", value ? "ON" : "OFF", value, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("binary_sensor"), value ? "ON" : "OFF", value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1039,7 +1040,7 @@ void WebServer::fan_all_json_generator(WebServer *web_server, void *source, json
 void WebServer::fan_json_(fan::Fan *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "fan", obj->state ? "ON" : "OFF", obj->state, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("fan"), obj->state ? "ON" : "OFF", obj->state, start_config);
   const auto traits = obj->get_traits();
   if (traits.supports_speed()) {
     root[ESPHOME_F("speed_level")] = obj->speed;
@@ -1118,7 +1119,7 @@ void WebServer::light_all_json_generator(WebServer *web_server, void *source, js
 void WebServer::light_json_(light::LightState *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_value(root, obj, "light", obj->get_reported_values().is_on() ? "ON" : "OFF", start_config);
+  set_json_value(root, obj, ESPHOME_F("light"), obj->get_reported_values().is_on() ? "ON" : "OFF", start_config);
 
   light::LightJSONSchema::dump_json(*obj, root);
   if (start_config == DETAIL_ALL) {
@@ -1191,8 +1192,8 @@ void WebServer::cover_all_json_generator(WebServer *web_server, void *source, js
 void WebServer::cover_json_(cover::Cover *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "cover", linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"), obj->position,
-                            start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("cover"), linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"),
+                            obj->position, start_config);
   root[ESPHOME_F("current_operation")] = json_state_str(cover::cover_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
@@ -1266,7 +1267,7 @@ void WebServer::number_json_(number::Number *obj, JsonDetail start_config, json:
     val_str = JsonString(val_buf);
     state_str = JsonString(state_buf);
   }
-  set_json_icon_state_value(root, obj, "number", state_str, val_str, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("number"), state_str, val_str, start_config);
   if (start_config == DETAIL_ALL) {
     // ArduinoJson copies the string immediately, so we can reuse val_buf
     root[ESPHOME_F("min_value")] = (value_accuracy_to_buf(val_buf, obj->traits.get_min_value(), accuracy), val_buf);
@@ -1332,7 +1333,7 @@ void WebServer::date_json_(datetime::DateEntity *obj, JsonDetail start_config, j
   // Format: YYYY-MM-DD (max 10 chars + null)
   char value[12];
   buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d", obj->year, obj->month, obj->day);
-  set_json_icon_state_value<const char *, const char *>(root, obj, "date", value, value, start_config);
+  set_json_icon_state_value<const char *, const char *>(root, obj, ESPHOME_F("date"), value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1390,7 +1391,7 @@ void WebServer::time_json_(datetime::TimeEntity *obj, JsonDetail start_config, j
   // Format: HH:MM:SS (8 chars + null)
   char value[12];
   buf_append_printf(value, sizeof(value), 0, "%02d:%02d:%02d", obj->hour, obj->minute, obj->second);
-  set_json_icon_state_value<const char *, const char *>(root, obj, "time", value, value, start_config);
+  set_json_icon_state_value<const char *, const char *>(root, obj, ESPHOME_F("time"), value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1449,7 +1450,7 @@ void WebServer::datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_c
   char value[24];
   buf_append_printf(value, sizeof(value), 0, "%d-%02d-%02d %02d:%02d:%02d", obj->year, obj->month, obj->day, obj->hour,
                     obj->minute, obj->second);
-  set_json_icon_state_value<const char *, const char *>(root, obj, "datetime", value, value, start_config);
+  set_json_icon_state_value<const char *, const char *>(root, obj, ESPHOME_F("datetime"), value, value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1507,7 +1508,7 @@ void WebServer::text_json_(text::Text *obj, const std::string &value, JsonDetail
   // A password entity shows the mask and prefills the input with nothing, so the secret never
   // reaches the JSON and the mask cannot be written back as the value
   const bool password = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD;
-  set_json_icon_state_value(root, obj, "text", password ? linked("********") : copied_value,
+  set_json_icon_state_value(root, obj, ESPHOME_F("text"), password ? linked("********") : copied_value,
                             password ? linked("") : copied_value, start_config);
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
@@ -1568,7 +1569,7 @@ void WebServer::select_json_(select::Select *obj, StringRef value, JsonDetail st
   JsonObject root = builder.root();
 
   const JsonString state = linked(value);
-  set_json_icon_state_value(root, obj, "select", state, state, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("select"), state, state, start_config);
   if (start_config == DETAIL_ALL) {
     JsonArray opt = root[ESPHOME_F("option")].to<JsonArray>();
     for (auto &option : obj->traits.get_options()) {
@@ -1647,7 +1648,7 @@ void WebServer::climate_all_json_generator(WebServer *web_server, void *source, 
 void WebServer::climate_json_(climate::Climate *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   JsonObject root = builder.root();
-  set_json_id(root, obj, "climate", start_config);
+  set_json_id(root, obj, ESPHOME_F("climate"), start_config);
   const auto traits = obj->get_traits();
   int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
   int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
@@ -1816,7 +1817,8 @@ void WebServer::lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail st
                            json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "lock", json_state_str(lock::lock_state_to_string(value)), value, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("lock"), json_state_str(lock::lock_state_to_string(value)), value,
+                            start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
   }
@@ -1880,8 +1882,8 @@ void WebServer::valve_all_json_generator(WebServer *web_server, void *source, js
 void WebServer::valve_json_(valve::Valve *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "valve", linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"), obj->position,
-                            start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("valve"), linked(obj->is_fully_closed() ? "CLOSED" : "OPEN"),
+                            obj->position, start_config);
   root[ESPHOME_F("current_operation")] = json_state_str(valve::valve_operation_to_str(obj->current_operation));
 
   if (obj->get_traits().get_supports_position())
@@ -1954,7 +1956,7 @@ void WebServer::alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel
                                           json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "alarm_control_panel",
+  set_json_icon_state_value(root, obj, ESPHOME_F("alarm_control_panel"),
                             json_state_str(alarm_control_panel_state_to_string(value)), value, start_config);
   if (start_config == DETAIL_ALL) {
     this->add_sorting_info_(root, obj);
@@ -2028,8 +2030,8 @@ void WebServer::water_heater_json_(water_heater::WaterHeater *obj, JsonDetail st
   JsonObject root = builder.root();
 
   const auto mode = obj->get_mode();
-  set_json_icon_state_value(root, obj, "water_heater", json_state_str(water_heater::water_heater_mode_to_string(mode)),
-                            mode, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("water_heater"),
+                            json_state_str(water_heater::water_heater_mode_to_string(mode)), mode, start_config);
 
   auto traits = obj->get_traits();
 
@@ -2151,7 +2153,7 @@ void WebServer::infrared_all_json_generator(WebServer *web_server, void *source,
 void WebServer::infrared_json_(infrared::Infrared *obj, JsonDetail start_config, json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "infrared", "", 0, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("infrared"), "", 0, start_config);
 
   root[ESPHOME_F("supports_transmitter")] = obj->get_supports_transmitter();
   root[ESPHOME_F("supports_receiver")] = obj->get_supports_receiver();
@@ -2240,7 +2242,7 @@ void WebServer::radio_frequency_json_(radio_frequency::RadioFrequency *obj, Json
                                       json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_icon_state_value(root, obj, "radio_frequency", "", 0, start_config);
+  set_json_icon_state_value(root, obj, ESPHOME_F("radio_frequency"), "", 0, start_config);
 
   const auto &traits = obj->get_traits();
   auto caps = obj->get_capability_flags();
@@ -2298,7 +2300,7 @@ void WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail 
                             json::JsonBuilder &builder) {
   JsonObject root = builder.root();
 
-  set_json_id(root, obj, "event", start_config);
+  set_json_id(root, obj, ESPHOME_F("event"), start_config);
   if (!event_type.empty()) {
     root[ESPHOME_F("event_type")] = linked(event_type);
   }
@@ -2358,7 +2360,7 @@ void WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_config,
 
   // Not linked: the main loop can rewrite update_info before the document is serialized
   const auto &info = obj->update_info;
-  set_json_icon_state_value(root, obj, "update", json_state_str(update::update_state_to_string(obj->state)),
+  set_json_icon_state_value(root, obj, ESPHOME_F("update"), json_state_str(update::update_state_to_string(obj->state)),
                             info.latest_version.c_str(), start_config);
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("current_version")] = info.current_version;
