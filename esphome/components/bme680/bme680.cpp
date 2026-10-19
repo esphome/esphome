@@ -1,5 +1,6 @@
 #include "bme680.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bme680 {
@@ -92,8 +93,8 @@ bool BME680Component::setup_registers_() {
     return false;
   }
 
-  this->calibration_.t1 = coeff2[9] << 8 | coeff2[8];
-  this->calibration_.t2 = coeff1[2] << 8 | coeff1[1];
+  this->calibration_.t1 = encode_value_le<uint16_t>(&coeff2[8]);
+  this->calibration_.t2 = encode_value_le<int16_t>(&coeff1[1]);
   this->calibration_.t3 = coeff1[3];
 
   this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
@@ -104,19 +105,19 @@ bool BME680Component::setup_registers_() {
   this->calibration_.h6 = coeff2[6];
   this->calibration_.h7 = coeff2[7];
 
-  this->calibration_.p1 = coeff1[6] << 8 | coeff1[5];
-  this->calibration_.p2 = coeff1[8] << 8 | coeff1[7];
+  this->calibration_.p1 = encode_value_le<uint16_t>(&coeff1[5]);
+  this->calibration_.p2 = encode_value_le<int16_t>(&coeff1[7]);
   this->calibration_.p3 = coeff1[9];
-  this->calibration_.p4 = coeff1[12] << 8 | coeff1[11];
-  this->calibration_.p5 = coeff1[14] << 8 | coeff1[13];
+  this->calibration_.p4 = encode_value_le<int16_t>(&coeff1[11]);
+  this->calibration_.p5 = encode_value_le<int16_t>(&coeff1[13]);
   this->calibration_.p6 = coeff1[16];
   this->calibration_.p7 = coeff1[15];
-  this->calibration_.p8 = coeff1[20] << 8 | coeff1[19];
-  this->calibration_.p9 = coeff1[22] << 8 | coeff1[21];
+  this->calibration_.p8 = encode_value_le<int16_t>(&coeff1[19]);
+  this->calibration_.p9 = encode_value_le<int16_t>(&coeff1[21]);
   this->calibration_.p10 = coeff1[23];
 
   this->calibration_.gh1 = coeff2[14];
-  this->calibration_.gh2 = coeff2[12] << 8 | coeff2[13];
+  this->calibration_.gh2 = encode_value<int16_t>(&coeff2[12]);
   this->calibration_.gh3 = coeff2[15];
 
   uint8_t temp_var = 0;

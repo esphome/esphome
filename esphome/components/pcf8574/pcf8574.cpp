@@ -1,4 +1,5 @@
 #include "pcf8574.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pcf8574 {
@@ -88,7 +89,7 @@ bool PCF8574Component::read_gpio_() {
   uint8_t data[2]{};  // Keep the bytes zero for the PCF8574's one-byte read.
   if (!this->status_comm_result(this->read_bytes_raw(data, this->pcf8575_ ? 2 : 1)))
     return false;
-  this->input_mask_ = (uint16_t(data[1]) << 8) | data[0];
+  this->input_mask_ = encode_value_le<uint16_t>(data);
   return true;
 }
 bool PCF8574Component::write_gpio_() {

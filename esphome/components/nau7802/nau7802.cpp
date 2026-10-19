@@ -1,5 +1,6 @@
 #include "nau7802.h"
 #include <cmath>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -226,11 +227,7 @@ int32_t NAU7802Sensor::read_value_(uint8_t start_reg, size_t size) {
   for (size_t i = 0; i < size; i++) {
     result |= data[i] << (size - 1 - i) * 8;
   }
-  // extend sign bit
-  if (result & 0x800000 && size == 3) {
-    result |= 0xFF000000;
-  }
-  return result;
+  return size == 3 ? sign_extend<24>(result) : result;
 }
 
 bool NAU7802Sensor::calibrate_(enum NAU7802CalibrationModes mode) {

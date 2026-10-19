@@ -43,7 +43,7 @@ void SenseAirComponent::update() {
   }
 
   uint16_t calc_checksum = crc16(response, 11);
-  uint16_t resp_checksum = (uint16_t(response[12]) << 8) | response[11];
+  uint16_t resp_checksum = encode_value_le<uint16_t>(&response[11]);
   if (!this->status_comm_result(resp_checksum == calc_checksum)) {
     ESP_LOGW(TAG, "SenseAir checksum doesn't match: 0x%02X!=0x%02X", resp_checksum, calc_checksum);
     return;
