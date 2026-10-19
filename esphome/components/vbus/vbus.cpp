@@ -13,6 +13,9 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
 
+// Keep a busy UART from monopolizing the component loop.
+static constexpr size_t VBUS_MAX_BYTES_PER_LOOP = 64;
+
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
 
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
@@ -40,7 +43,7 @@ void VBus::loop() {
     return;
   }
 
-  this->read_available([this](uint8_t c) {
+  auto on_byte = [this](uint8_t c) {
     this->last_rx_ms_ = App.get_loop_component_start_time();
     if (c == 0xaa) {
       this->state_ = 1;
@@ -123,7 +126,8 @@ void VBus::loop() {
       this->state_ = 0;
       return;
     }
-  });
+  };
+  this->read_available(on_byte, std::min(this->available(), VBUS_MAX_BYTES_PER_LOOP));
 }
 
 void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message) {
