@@ -293,11 +293,18 @@ void USBAudioSpeaker::on_transfer_taken() {
     }
     const int64_t now_us = esp_timer_get_time();
     this->last_taken_us_ = static_cast<uint32_t>(now_us);
-    // The bus plays one packet per millisecond, so a transfer finishes one transfer after the one taken before it,
-    // however late this callback runs; only after the bus ran dry does it start from now. The first one after a
-    // start plays behind the silent transfers the driver queues when it resumes.
-    const int64_t finish_us = this->last_finish_us_ == 0 ? now_us + this->in_flight_us_
-                                                         : std::max(this->last_finish_us_, now_us) + this->transfer_us_;
+    // The bus plays one packet per millisecond, so while it streams a transfer finishes one transfer after the one
+    // taken before it, however late this callback runs. It cannot finish later than now plus the transfers in flight,
+    // so a callback that runs on time pulls back any lateness the chain picked up. Only after the bus ran dry does it
+    // start from now. The first one after a start plays behind the silent transfers the driver queues when resuming.
+    int64_t finish_us;
+    if (this->last_finish_us_ == 0) {
+      finish_us = now_us + this->in_flight_us_;
+    } else if (this->last_finish_us_ < now_us) {
+      finish_us = now_us + this->transfer_us_;
+    } else {
+      finish_us = std::min(this->last_finish_us_ + this->transfer_us_, now_us + this->in_flight_us_);
+    }
     this->last_finish_us_ = finish_us;
     this->unreported_frames_ += this->usb_stream_info_.bytes_to_frames(audio);
     // Batched like the I2S speaker's DMA buffers: about every 10 ms, and once the caller's audio runs out.
