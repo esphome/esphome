@@ -66,6 +66,15 @@ static Packet header(uint8_t packet_type, uint32_t id) {
           static_cast<uint8_t>(id >> 24)};
 }
 
+// The start of a dictionary packet from this device's name: the header, the part byte, then the name
+static Packet dictionary_start(uint32_t id, uint8_t part = 0x80) {
+  Packet packet = header(PACKET_DICTIONARY, id);
+  packet.push_back(part);
+  packet.push_back(strlen(DEVICE_NAME));
+  packet.insert(packet.end(), DEVICE_NAME, DEVICE_NAME + strlen(DEVICE_NAME));
+  return packet;
+}
+
 class EntityTransportTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -110,9 +119,7 @@ TEST_F(EntityTransportTest, SendsDictionaryThenStates) {
   auto sender = this->make_sender_();
   sender->loop();
   uint32_t id = sender->get_dictionary_id();
-  Packet dictionary = header(PACKET_DICTIONARY, id);
-  dictionary.push_back(strlen(DEVICE_NAME));
-  dictionary.insert(dictionary.end(), DEVICE_NAME, DEVICE_NAME + strlen(DEVICE_NAME));
+  Packet dictionary = dictionary_start(id);
   dictionary.insert(dictionary.end(), {1, 0, 1, 4, 't', 'e', 'm', 'p', 2, 0, 1, 4, 'd', 'o', 'o', 'r'});
   Packet data = header(PACKET_DATA, id);
   // Tags: sensor 0 with a 4 byte state, then binary sensor 0 with its state in the top bit
@@ -155,7 +162,7 @@ TEST_F(EntityTransportTest, StatesReachRemoteEntities) {
 }
 
 TEST_F(EntityTransportTest, SplitsAcrossPackets) {
-  MockInterface link(5 + 1 + strlen(DEVICE_NAME) + 3 + 5);
+  MockInterface link(5 + 2 + strlen(DEVICE_NAME) + 3 + 5);
   this->temp_.publish_state(1.0f);
   this->door_.publish_state(true);
   auto sender = this->make_sender_(&link);
@@ -217,6 +224,48 @@ TEST_F(EntityTransportTest, ChangedDictionaryRequested) {
   changed.loop();
   link.deliver_to(this->link_b_);
   EXPECT_EQ(this->remote_temp_.get_state(), 6.0f);
+}
+
+TEST_F(EntityTransportTest, LostDictionaryPartRequested) {
+  // One entity in each dictionary packet
+  MockInterface link(5 + 2 + strlen(DEVICE_NAME) + 3 + 5);
+  this->temp_.publish_state(2.0f);
+  this->door_.publish_state(true);
+  auto sender = this->make_sender_(&link);
+  auto receiver = this->make_receiver_();
+  sender->loop();
+  ASSERT_EQ(link.sent.size(), 3);
+  EXPECT_EQ(link.sent[0][5], 0x00);
+  EXPECT_EQ(link.sent[1][5], 0x81);
+  link.sent.erase(link.sent.begin() + 1);  // the part naming the binary sensor is lost
+  link.deliver_to(this->link_b_);
+  EXPECT_EQ(this->remote_temp_.get_state(), 2.0f);
+  EXPECT_FALSE(this->remote_door_.has_state());
+  // The sensor is known, but the dictionary is not complete, so it is asked for
+  ASSERT_EQ(this->link_b_.sent.size(), 1);
+  EXPECT_EQ(this->link_b_.sent[0], header(PACKET_REQUEST, sender->get_dictionary_id()));
+  this->link_b_.deliver_to(link);
+  sender->loop();
+  link.deliver_to(this->link_b_);
+  EXPECT_TRUE(this->remote_door_.state);
+  // Now complete, it is not asked for again
+  { LoopBlockingGuard guard{nullptr, nullptr, 10000}; }
+  this->door_.publish_state(false);
+  sender->loop();
+  link.deliver_to(this->link_b_);
+  EXPECT_FALSE(this->remote_door_.state);
+  EXPECT_TRUE(this->link_b_.sent.empty());
+}
+
+TEST_F(EntityTransportTest, RefusedRequestSentAgain) {
+  auto receiver = this->make_receiver_();
+  Packet data = header(PACKET_DATA, 0x12345678);
+  this->link_b_.accept = false;
+  this->link_b_.inject(data);
+  this->link_b_.accept = true;
+  this->link_b_.inject(data);
+  ASSERT_EQ(this->link_b_.sent.size(), 1);
+  EXPECT_EQ(this->link_b_.sent[0], header(PACKET_REQUEST, 0x12345678));
 }
 
 TEST_F(EntityTransportTest, RequestsLimited) {
@@ -307,9 +356,7 @@ TEST_F(EntityTransportRecordTest, UnknownTypesSkipped) {
 TEST_F(EntityTransportTest, PartlyValidDictionaryNotLearnt) {
   auto receiver = this->make_receiver_();
   static constexpr uint32_t OTHER_ID = 0x0BADF00D;
-  Packet dictionary = header(PACKET_DICTIONARY, OTHER_ID);
-  dictionary.push_back(strlen(DEVICE_NAME));
-  dictionary.insert(dictionary.end(), DEVICE_NAME, DEVICE_NAME + strlen(DEVICE_NAME));
+  Packet dictionary = dictionary_start(OTHER_ID);
   // A good section naming the sensor, then sections cut short, of type 0, and of more than 255 numbers
   dictionary.insert(dictionary.end(), {1, 0, 1, 4, 't', 'e', 'm', 'p'});
   for (Packet bad : {Packet{2, 0, 2, 4, 'd', 'o', 'o', 'r'}, Packet{0, 0, 1, 1, 'x'}, Packet{2, 255, 2, 1, 'a', 1, 'b'},
@@ -357,7 +404,7 @@ TEST_F(EntityTransportTest, SessionConnectSendsAllAndLossClearsRemote) {
 
 TEST_F(EntityTransportTest, RefusedDictionaryPartResumes) {
   // One entity in each dictionary packet
-  MockInterface link(5 + 1 + strlen(DEVICE_NAME) + 3 + 5);
+  MockInterface link(5 + 2 + strlen(DEVICE_NAME) + 3 + 5);
   this->temp_.publish_state(4.0f);
   this->door_.publish_state(true);
   auto sender = this->make_sender_(&link);
@@ -397,9 +444,7 @@ TEST_F(EntityTransportTest, RemoteStatesTimeOut) {
 TEST_F(EntityTransportTest, IdMatchingOnlyUpToNulNotLearnt) {
   auto receiver = this->make_receiver_();
   static constexpr uint32_t OTHER_ID = 0x0BADF00D;
-  Packet dictionary = header(PACKET_DICTIONARY, OTHER_ID);
-  dictionary.push_back(strlen(DEVICE_NAME));
-  dictionary.insert(dictionary.end(), DEVICE_NAME, DEVICE_NAME + strlen(DEVICE_NAME));
+  Packet dictionary = dictionary_start(OTHER_ID);
   // The id "temp" followed by a NUL and more bytes, nine in all
   dictionary.insert(dictionary.end(), {1, 0, 1, 9, 't', 'e', 'm', 'p', 0, 'a', 'b', 'c', 'd'});
   this->link_b_.inject(dictionary);
@@ -411,7 +456,7 @@ TEST_F(EntityTransportTest, IdMatchingOnlyUpToNulNotLearnt) {
 
 TEST_F(EntityTransportTest, PacketTooSmallForIdsFailsSetup) {
   // One byte short of a dictionary packet holding the device name and a four character id
-  MockInterface small_link(5 + 1 + strlen(DEVICE_NAME) + 3 + 1 + 4 - 1);
+  MockInterface small_link(5 + 2 + strlen(DEVICE_NAME) + 3 + 1 + 4 - 1);
   auto sender = this->make_sender_(&small_link);
   EXPECT_TRUE(sender->is_failed());
   EXPECT_FALSE(this->make_sender_()->is_failed());

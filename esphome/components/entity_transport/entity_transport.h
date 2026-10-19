@@ -29,6 +29,8 @@ namespace esphome::entity_transport {
  * Dictionary packet:
  * - type: 1 byte, PACKET_DICTIONARY;
  * - dictionary id: 4 bytes;
+ * - part: 1 byte, the packet's index in the dictionary in bits 0-6, counting from 0 and wrapping, and bit 7 set on
+ *   the last packet;
  * - sender's device name: length (1 byte), then the name;
  * - one or more sections, each: entity type (1 byte), first number (1 byte), count (1 byte), then for each entity
  *   its id: length (1 byte), then the id.
@@ -43,8 +45,8 @@ namespace esphome::entity_transport {
  *
  * Every packet is checked in full before anything in it is used, so a damaged or forged packet changes no state.
  *
- * Dictionary request packet, sent by a device that receives data with a dictionary id it has not received a dictionary
- * for:
+ * Dictionary request packet, sent by a device that receives data with a dictionary id it has not received in full,
+ * with every part in order:
  * - type: 1 byte, PACKET_REQUEST;
  * - the dictionary id wanted: 4 bytes.
  *
@@ -123,6 +125,7 @@ class EntityTransport : public Component {
               size_t id_length, uint32_t dictionary_id);
   void request_dictionary_(uint32_t dictionary_id);
   bool dictionary_seen_(uint32_t dictionary_id) const;
+  bool warning_due_();
   void on_session_(bool connected);
   void clear_remote_states_(bool timed_out_only);
 
@@ -142,14 +145,20 @@ class EntityTransport : public Component {
   uint32_t remote_timeout_ms_{0};
   uint32_t dictionary_id_{0};
   uint32_t last_request_ms_{0};
-  // The last dictionary ids received, so a provider whose dictionary names none of our entities is not asked again
+  uint32_t last_warning_ms_{0};
+  uint32_t rx_dictionary_id_{0};  // the dictionary whose parts are arriving
+  // The last dictionary ids received in full, so a provider whose dictionary names none of our entities is not asked
+  // again
   std::array<uint32_t, 8> seen_dictionaries_{};
   uint8_t seen_next_{0};
+  uint8_t rx_next_part_{0};     // the index of its next part, or PART_NONE if one was missed
+  uint8_t dictionary_part_{0};  // the index of the next dictionary packet to send
   uint8_t sensor_count_{0};
   uint8_t binary_sensor_count_{0};
   size_t dictionary_next_{0};  // the first entity of the next dictionary packet to send
   bool dictionary_pending_{true};
   bool request_sent_{false};
+  bool warned_{false};
 };
 
 }  // namespace esphome::entity_transport

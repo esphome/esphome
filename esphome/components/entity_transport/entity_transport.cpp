@@ -13,6 +13,7 @@ using packet_interface::PacketMetaData;
 ESPHOME_LOG_TAG(TAG, "entity_transport");
 
 // The packet type byte holds the format version in its high nibble
+static constexpr uint8_t FORMAT_VERSION = 1;
 static constexpr uint8_t PACKET_DICTIONARY = 0x11;
 static constexpr uint8_t PACKET_DATA = 0x12;
 static constexpr uint8_t PACKET_REQUEST = 0x13;
@@ -22,6 +23,10 @@ static constexpr uint8_t TYPE_BINARY_SENSOR = 2;
 static constexpr uint8_t MAX_TYPE = 31;
 // Packet type and dictionary id
 static constexpr size_t HEADER_SIZE = 5;
+// A dictionary packet's part byte follows the header: the part's index in bits 0-6, and on the last part, bit 7
+static constexpr uint8_t PART_INDEX_MASK = 0x7F;
+static constexpr uint8_t PART_LAST = 0x80;
+static constexpr uint8_t PART_NONE = 0xFF;  // no dictionary is being received in order
 // A data record starts with a 16-bit tag: the entity's number in bits 0-7, its type in bits 8-12, the payload form in
 // bits 13-14, and with PAYLOAD_NONE, the state in bit 15. Any record can be skipped without knowing its type.
 static constexpr size_t TAG_SIZE = 2;
@@ -42,6 +47,7 @@ static constexpr uint32_t REQUEST_INTERVAL_MS = 5000;
 static constexpr uint32_t RETRY_DELAY_MS = 1000;
 static constexpr uint32_t RETRY_TIMER_ID = 0;
 static constexpr uint32_t TIMEOUT_CHECK_INTERVAL_MS = 1000;
+static constexpr uint32_t WARNING_INTERVAL_MS = 60000;
 
 static void put_uint32(uint8_t *buf, uint32_t value) {
   for (size_t i = 0; i != 4; i++)
@@ -105,8 +111,8 @@ static bool data_well_formed(std::span<const uint8_t> packet) {
 
 // Checks the device name and every section of a dictionary packet before anything is learnt from it
 static bool dictionary_well_formed(std::span<const uint8_t> packet) {
-  size_t pos = HEADER_SIZE;
-  if (pos == packet.size())
+  size_t pos = HEADER_SIZE + 1;
+  if (pos >= packet.size())
     return false;
   pos += 1 + packet[pos];
   if (pos > packet.size())
@@ -141,7 +147,7 @@ void EntityTransport::setup() {
     longest_id = std::max(longest_id, strlen(entity.id));
   // A dictionary packet must hold the device name and any one id, which also leaves room for a data record
   if (name.size() > MAX_STRING_LENGTH || longest_id > MAX_STRING_LENGTH ||
-      HEADER_SIZE + 1 + name.size() + SECTION_HEADER_SIZE + 1 + longest_id > this->max_packet_size_) {
+      HEADER_SIZE + 2 + name.size() + SECTION_HEADER_SIZE + 1 + longest_id > this->max_packet_size_) {
     this->mark_failed(LOG_STR("max_packet_size too small for the device name and entity ids"));
     return;
   }
@@ -236,6 +242,7 @@ void EntityTransport::dump_config() {
 void EntityTransport::send_all_() {
   this->dictionary_pending_ = true;
   this->dictionary_next_ = 0;
+  this->dictionary_part_ = 0;
   for (auto &entity : this->entities_)
     entity.updated = true;
   this->enable_loop();
@@ -263,6 +270,7 @@ bool EntityTransport::send_dictionary_() {
   uint8_t *buf = this->buffer_;
   const auto &name = App.get_name();
   size_t header = this->write_header_(PACKET_DICTIONARY);
+  size_t part_offset = header++;
   buf[header++] = name.size();
   memcpy(buf + header, name.c_str(), name.size());
   header += name.size();
@@ -276,9 +284,11 @@ bool EntityTransport::send_dictionary_() {
     size_t id_length = strlen(entity.id);
     bool new_section = type != section_type;
     if (length + (new_section ? SECTION_HEADER_SIZE : 0) + 1 + id_length > this->max_packet_size_) {
+      buf[part_offset] = this->dictionary_part_ & PART_INDEX_MASK;
       if (!this->interface_->send_to_interface(PacketBuffer(buf, length), {}))
         return false;
       this->dictionary_next_ = i;
+      this->dictionary_part_++;
       length = header;
       new_section = true;
     }
@@ -294,10 +304,14 @@ bool EntityTransport::send_dictionary_() {
     memcpy(buf + length, entity.id, id_length);
     length += id_length;
   }
-  if (length != header && !this->interface_->send_to_interface(PacketBuffer(buf, length), {}))
-    return false;
+  if (length != header) {
+    buf[part_offset] = (this->dictionary_part_ & PART_INDEX_MASK) | PART_LAST;
+    if (!this->interface_->send_to_interface(PacketBuffer(buf, length), {}))
+      return false;
+  }
   this->dictionary_pending_ = false;
   this->dictionary_next_ = 0;
+  this->dictionary_part_ = 0;
   return true;
 }
 
@@ -377,8 +391,19 @@ void EntityTransport::receive_(const PacketBuffer &data) {
     return;
   }
   auto packet = data.as_span();
-  if (packet.size() < HEADER_SIZE)
+  if (packet.size() < HEADER_SIZE) {
+    if (this->warning_due_()) {
+      ESP_LOGW(TAG, "Packet of %zu bytes is too short", packet.size());
+    }
     return;
+  }
+  if (packet[0] >> 4 != FORMAT_VERSION) {
+    if (this->warning_due_()) {
+      ESP_LOGW(TAG, "Packet format version %u not supported; the sender may run another ESPHome version",
+               packet[0] >> 4);
+    }
+    return;
+  }
   uint32_t dictionary_id = encode_uint32(packet[4], packet[3], packet[2], packet[1]);
   if (dictionary_id == this->dictionary_id_) {
     // Either a request for our dictionary, or our own packet heard on a broadcast channel
@@ -399,11 +424,19 @@ void EntityTransport::receive_(const PacketBuffer &data) {
 
 void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint32_t dictionary_id) {
   if (!dictionary_well_formed(packet)) {
-    ESP_LOGV(TAG, "Dictionary packet of %zu bytes is malformed", packet.size());
+    if (this->warning_due_()) {
+      ESP_LOGW(TAG, "Dictionary packet of %zu bytes is malformed", packet.size());
+    }
     return;
   }
   size_t pos = HEADER_SIZE;
-  if (!this->dictionary_seen_(dictionary_id)) {
+  uint8_t part = packet[pos++];
+  uint8_t index = part & PART_INDEX_MASK;
+  // The dictionary is complete, and need not be asked for again, once its last part follows all the others in order
+  bool in_order = index == 0 || (this->rx_dictionary_id_ == dictionary_id && index == this->rx_next_part_);
+  this->rx_dictionary_id_ = dictionary_id;
+  this->rx_next_part_ = in_order ? (index + 1) & PART_INDEX_MASK : PART_NONE;
+  if (in_order && (part & PART_LAST) != 0 && !this->dictionary_seen_(dictionary_id)) {
     this->seen_dictionaries_[this->seen_next_] = dictionary_id;
     this->seen_next_ = (this->seen_next_ + 1) % this->seen_dictionaries_.size();
   }
@@ -470,15 +503,16 @@ void EntityTransport::receive_data_(std::span<const uint8_t> packet, uint32_t di
     has_remotes = true;
   }
 #endif
-  if (!known) {
-    // A dictionary not yet received may name our entities, or be a provider's new one; one already received named
-    // none of them, so asking again would only make that provider resend everything
-    if (has_remotes && !this->dictionary_seen_(dictionary_id))
-      this->request_dictionary_(dictionary_id);
+  // A dictionary not yet received in full may name our entities, or be a provider's new one; one received in full
+  // named all of them it could, so asking again would only make that provider resend everything
+  if (has_remotes && !this->dictionary_seen_(dictionary_id))
+    this->request_dictionary_(dictionary_id);
+  if (!known)
     return;
-  }
   if (!data_well_formed(packet)) {
-    ESP_LOGV(TAG, "Data packet of %zu bytes is malformed", packet.size());
+    if (this->warning_due_()) {
+      ESP_LOGW(TAG, "Data packet of %zu bytes is malformed", packet.size());
+    }
     return;
   }
   [[maybe_unused]] uint32_t now = App.get_loop_component_start_time();
@@ -522,12 +556,26 @@ void EntityTransport::request_dictionary_(uint32_t dictionary_id) {
   uint32_t now = App.get_loop_component_start_time();
   if (this->request_sent_ && now - this->last_request_ms_ < REQUEST_INTERVAL_MS)
     return;
-  this->request_sent_ = true;
-  this->last_request_ms_ = now;
-  ESP_LOGD(TAG, "Requesting dictionary %08" PRIX32, dictionary_id);
   uint8_t packet[HEADER_SIZE] = {PACKET_REQUEST};
   put_uint32(packet + 1, dictionary_id);
-  this->interface_->send_to_interface(PacketBuffer(packet, sizeof(packet)), {});
+  // A refused request is tried again with the next data packet under that dictionary id
+  if (!this->interface_->send_to_interface(PacketBuffer(packet, sizeof(packet)), {})) {
+    ESP_LOGV(TAG, "Request for dictionary %08" PRIX32 " not accepted", dictionary_id);
+    return;
+  }
+  this->request_sent_ = true;
+  this->last_request_ms_ = now;
+  ESP_LOGD(TAG, "Requested dictionary %08" PRIX32, dictionary_id);
+}
+
+// Dropped packets point to a device with other firmware or a fault, and may arrive steadily, so warn only now and then
+bool EntityTransport::warning_due_() {
+  uint32_t now = App.get_loop_component_start_time();
+  if (this->warned_ && now - this->last_warning_ms_ < WARNING_INTERVAL_MS)
+    return false;
+  this->warned_ = true;
+  this->last_warning_ms_ = now;
+  return true;
 }
 
 // A newly connected or restarted peer needs the dictionary and every state; while it is lost, its entities have no
