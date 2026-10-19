@@ -31,7 +31,6 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("15s"))
 )
 
-
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

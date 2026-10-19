@@ -3,7 +3,6 @@
 #ifdef USE_ESP32
 
 #include <array>
-
 #include "esphome/core/component.h"
 #include "esphome/components/button/button.h"
 #include "esphome/components/ble_client/ble_client.h"
@@ -17,10 +16,8 @@
 #endif
 
 namespace esphome::delta_wallbox {
-
 // Largest FC03 response: unit, function, byte count, 255 data bytes, CRC.
 static constexpr size_t MAX_FRAME_LEN = 260;
-
 enum class DeltaState {
   DELTA_STATE_IDLE,
   DELTA_STATE_GET_MODEL,
@@ -62,14 +59,12 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   void set_charging_time_sensor(sensor::Sensor *s) { charging_time_sensor_ = s; }
   void set_charger_state_sensor(sensor::Sensor *s) { charger_state_sensor_ = s; }
   void set_max_current_sensor(sensor::Sensor *s) { max_current_sensor_ = s; }
-
   // Text Sensors
   void set_serial_number_sensor(text_sensor::TextSensor *s) { serial_number_sensor_ = s; }
   void set_fw_version_sensor(text_sensor::TextSensor *s) { fw_version_sensor_ = s; }
   void set_bt_fw_version_sensor(text_sensor::TextSensor *s) { bt_fw_version_sensor_ = s; }
   void set_model_name_sensor(text_sensor::TextSensor *s) { model_name_sensor_ = s; }
   void set_error_code_sensor(text_sensor::TextSensor *s) { error_code_sensor_ = s; }
-
   // Switch Interface
   void set_charging_state(bool state);
   void start_charging();
@@ -82,12 +77,12 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   }
 
  protected:
-  void write_frame(const uint8_t *frame, size_t len);
-  void send_frame(const uint8_t *body, size_t len);
-  void send_next_state_command();
-  void handle_frame(const uint8_t *frame, size_t len);
-  void drop_rx_bytes(size_t count);
-  void reset_state();
+  void write_frame_(const uint8_t *frame, size_t len);
+  void send_frame_(const uint8_t *body, size_t len);
+  void send_next_state_command_();
+  void handle_frame_(const uint8_t *frame, size_t len);
+  void drop_rx_bytes_(size_t count);
+  void reset_state_();
 
   StringRef user_;
   StringRef password_;
@@ -133,7 +128,5 @@ class DeltaWallboxStopChargingButton : public button::Button, public Parented<De
  protected:
   void press_action() override { this->parent_->stop_charging(); }
 };
-
 }  // namespace esphome::delta_wallbox
-
 #endif

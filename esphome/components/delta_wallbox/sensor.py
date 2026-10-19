@@ -3,6 +3,7 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENERGY,
+    CONF_MAX_CURRENT,
     CONF_POWER,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
@@ -21,7 +22,6 @@ DEPENDENCIES = ["delta_wallbox"]
 
 CONF_CHARGING_TIME = "charging_time"
 CONF_CHARGER_STATE = "charger_state"
-CONF_MAX_CURRENT = "max_current"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -51,7 +51,6 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 )
-
 
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_DELTA_WALLBOX_ID])
