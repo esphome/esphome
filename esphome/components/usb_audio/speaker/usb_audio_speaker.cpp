@@ -91,27 +91,56 @@ void USBAudioSpeaker::loop() {
   }
 }
 
-bool USBAudioSpeaker::has_audio_tail_() const {
-  // Less than a transfer of the caller's audio: the driver parks its transfers until the ring holds a whole one.
+// Called with taken_lock_ held. The accumulator mirrors the driver's packet sizing at fractional sample rates.
+uint32_t USBAudioSpeaker::next_transfer_bytes_(uint32_t &accum) const {
+  uint32_t size = 0;
+  for (int i = 0; i < CONFIG_UAC_NUM_PACKETS_PER_URB; i++) {
+    accum += this->packet_frac_;
+    size += this->packet_bytes_;
+    if (accum >= 1000) {
+      size += this->frame_bytes_;
+      accum -= 1000;
+    }
+  }
+  return size;
+}
+
+// Less than the next transfer of the caller's audio: the driver parks its transfers until the ring holds a whole one.
+uint32_t USBAudioSpeaker::audio_tail_bytes_() {
+  if (this->state_ != speaker::STATE_RUNNING) {
+    return 0;
+  }
+  portENTER_CRITICAL(&this->taken_lock_);
+  uint32_t accum = this->packet_frac_accum_;
+  const uint32_t next = this->next_transfer_bytes_(accum);
   const uint32_t ring = this->ring_bytes_;
-  return this->state_ == speaker::STATE_RUNNING && ring < this->transfer_bytes_ && ring > this->ring_padding_;
+  const uint32_t padding = this->ring_padding_;
+  portEXIT_CRITICAL(&this->taken_lock_);
+  return ring < next && ring > padding ? next - ring : 0;
 }
 
 // Pads an audio tail to a whole transfer once the bus has gone idle, so the driver takes it and the frames get
 // reported; a caller that stops mid-transfer (the mixer at the end of a stream) would otherwise wait for them forever.
 // Returns true while a tail is still pending, so loop() keeps running.
 bool USBAudioSpeaker::flush_tail_() {
-  if (!this->has_audio_tail_()) {
+  if (this->audio_tail_bytes_() == 0) {
     return false;
   }
   const auto since_taken_us = static_cast<int32_t>(static_cast<uint32_t>(esp_timer_get_time()) - this->last_taken_us_);
-  // A write in progress appends after the padding; play_internal_() wakes the loop again when it is done.
-  if (since_taken_us < static_cast<int32_t>(this->in_flight_us_) || this->writes_in_flight_ > 0) {
+  if (since_taken_us < static_cast<int32_t>(this->in_flight_us_)) {
     return true;
   }
-  this->pad_remaining_ = this->transfer_bytes_ - this->ring_bytes_;
+  // Padding must sit at the end of the ring, so no caller write may interleave with it: the flag is raised before the
+  // in-flight count is read and play_internal_() reads it after raising the count, so one side always sees the other.
+  this->flushing_ = true;
+  if (this->writes_in_flight_ > 0) {
+    this->flushing_ = false;
+    return true;
+  }
+  this->pad_remaining_ = this->audio_tail_bytes_();
   this->pad_with_silence_();
-  return this->has_audio_tail_();
+  this->flushing_ = false;
+  return this->audio_tail_bytes_() > 0;
 }
 
 void USBAudioSpeaker::request_(uint8_t set, uint8_t clear) {
@@ -218,9 +247,10 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     if (budget_ms > 0 && elapsed >= budget_ms) {
       break;
     }
-    const size_t chunk = std::min<size_t>({length - written, this->write_chunk_, this->ring_room_()});
+    const size_t chunk =
+        this->flushing_ ? 0 : std::min<size_t>({length - written, this->write_chunk_, this->ring_room_()});
     if (chunk == 0) {
-      // Back-pressure: wait for the driver to take a transfer.
+      // Back-pressure: wait for the driver to take a transfer, or for loop() to finish padding a tail.
       if (budget_ms == 0) {
         break;
       }
@@ -246,7 +276,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     }
   }
   this->writes_in_flight_.fetch_sub(1);
-  if (this->has_audio_tail_()) {
+  if (this->audio_tail_bytes_() > 0) {
     this->enable_loop_soon_any_context();
   }
   return written;
@@ -301,15 +331,7 @@ void USBAudioSpeaker::on_transfer_taken() {
   // Mirror the driver: the next transfer is CONFIG_UAC_NUM_PACKETS_PER_URB packets, and the driver takes it only when
   // the ring buffer holds all of it; otherwise it parks the transfer until the next write.
   uint32_t accum = this->packet_frac_accum_;
-  uint32_t size = 0;
-  for (int i = 0; i < CONFIG_UAC_NUM_PACKETS_PER_URB; i++) {
-    accum += this->packet_frac_;
-    size += this->packet_bytes_;
-    if (accum >= 1000) {
-      size += this->frame_bytes_;
-      accum -= 1000;
-    }
-  }
+  const uint32_t size = this->next_transfer_bytes_(accum);
   const uint32_t ring = this->ring_bytes_;
   if (ring >= size) {
     this->packet_frac_accum_ = accum;
@@ -340,7 +362,7 @@ void USBAudioSpeaker::on_transfer_taken() {
     }
   }
   portEXIT_CRITICAL(&this->taken_lock_);
-  if (report || this->has_audio_tail_()) {
+  if (report || this->audio_tail_bytes_() > 0) {
     // The listeners can block, so loop() calls them; the frames and their finish time travel together, so the delay
     // does not change what they compute. A tail left behind is flushed from loop() once the bus is idle.
     this->enable_loop_soon_any_context();

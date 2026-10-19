@@ -62,7 +62,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   /// Bytes that can be written without filling the driver's ring buffer past buffer_size_.
   size_t ring_room_() const;
   bool has_buffered_data_(int64_t now_us) const;
-  bool has_audio_tail_() const;
+  uint32_t next_transfer_bytes_(uint32_t &accum) const;
+  uint32_t audio_tail_bytes_();
   bool flush_tail_();
 
   // The configured format the USB stream runs with. Callers such as the media pipeline set audio_stream_info_ for
@@ -102,6 +103,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   std::atomic<uint8_t> commands_{0};
   // play() calls and silence padding that may be using the device handle; the hub closes a lost device only at zero.
   std::atomic<uint8_t> writes_in_flight_{0};
+  // Set by loop() while it pads a tail; play_internal_() waits instead of writing after the padding.
+  std::atomic<bool> flushing_{false};
   // Set while play() rejects audio in a format other than usb_stream_info_, so the error is logged once.
   std::atomic<bool> format_mismatch_{false};
   bool finishing_{false};
