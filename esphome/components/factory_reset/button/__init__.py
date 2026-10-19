@@ -1,22 +1,14 @@
-import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     DEVICE_CLASS_RESTART,
     ENTITY_CATEGORY_CONFIG,
     ICON_RESTART_ALERT,
 )
 from esphome.types import ConfigType
 
-from .. import factory_reset_ns
-
-FactoryResetButton = factory_reset_ns.class_(
-    "FactoryResetButton", button.Button, cg.Component
-)
-
 CONFIG_SCHEMA = button.button_schema(
-    FactoryResetButton,
+    button.ApplyButton,
     device_class=DEVICE_CLASS_RESTART,
     entity_category=ENTITY_CATEGORY_CONFIG,
     icon=ICON_RESTART_ALERT,
@@ -24,6 +16,6 @@ CONFIG_SCHEMA = button.button_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await button.register_button(var, config)
+    await button.sub_buttons(config).create(
+        config, None, apply="factory_reset::factory_reset_device()"
+    )

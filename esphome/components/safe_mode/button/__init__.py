@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
@@ -9,15 +8,13 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import SafeModeComponent, safe_mode_ns
+from .. import SafeModeComponent
 
 DEPENDENCIES = ["safe_mode"]
 
-SafeModeButton = safe_mode_ns.class_("SafeModeButton", button.Button, cg.Component)
-
 CONFIG_SCHEMA = (
     button.button_schema(
-        SafeModeButton,
+        button.ApplyButton,
         device_class=DEVICE_CLASS_RESTART,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RESTART_ALERT,
@@ -28,7 +25,5 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await button.new_button(config)
-    await cg.register_component(var, config)
-
-    await cg.add_variable(var.set_safe_mode, config[CONF_SAFE_MODE])
+    buttons = button.sub_buttons(config, parent=config[CONF_SAFE_MODE])
+    await buttons.create(config, None, apply="restart_in_safe_mode()")
