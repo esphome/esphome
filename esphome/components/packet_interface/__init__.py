@@ -115,14 +115,16 @@ def interface_layers(interface_id: ID) -> ConfigType | None:
 
 
 def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
-    """Final validation for an application: a link with several peers must be used through one of the peers."""
+    """Final validation for an application: a link with peers must be used through one of the peers."""
 
     def validator(config: ConfigType) -> ConfigType:
         interface_id: ID = config[key]
         interface = interface_layers(interface_id)
-        if interface is not None and CONF_PEERS in interface.get(CONF_ADDRESSING, {}):
+        if interface is not None and (
+            peers := interface.get(CONF_ADDRESSING, {}).get(CONF_PEERS)
+        ):
             raise cv.Invalid(
-                f"'{interface_id.id}' has several peers, so use the id of one of them",
+                f"'{interface_id.id}' has peers, so use the id of one of them, such as '{peers[0][CONF_ID].id}'",
                 path=[key],
             )
         return config

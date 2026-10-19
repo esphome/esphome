@@ -386,8 +386,8 @@ def test_addressing_own_address_rejected(setup_core, addressing: dict) -> None:
         uart_packet_interface.CONFIG_SCHEMA({CONF_ADDRESSING: addressing})
 
 
-def test_application_needs_peer_id_with_several_peers(setup_core) -> None:
-    """An application must use one peer's id, not the id of a link with several peers."""
+def test_application_needs_peer_id_with_peers(setup_core) -> None:
+    """An application must use one peer's id, not the id of a link with peers."""
     validator = packet_interface.final_validate_interface("packet_interface")
     token = fv.full_config.set(
         {
@@ -398,7 +398,9 @@ def test_application_needs_peer_id_with_several_peers(setup_core) -> None:
         }
     )
     try:
-        with pytest.raises(cv.Invalid, match="several peers"):
+        with pytest.raises(
+            cv.Invalid, match="has peers, so use the id of one of them, such as 'a'"
+        ):
             validator({"packet_interface": ID("bus")})
         assert validator({"packet_interface": ID("single")})
         assert validator({"packet_interface": ID("a")})
