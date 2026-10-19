@@ -134,11 +134,8 @@ void BH1745Component::update() {
     return;
 
   uint16_t buffer[BH1745_CHANNELS];
-  if (!this->read_bytes_16_le(REG_RED_DATA_LSB, buffer, BH1745_CHANNELS)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_result(this->read_bytes_16_le(REG_RED_DATA_LSB, buffer, BH1745_CHANNELS)))
     return;
-  }
-  this->status_clear_warning();
 
   const uint16_t red = buffer[0];
   const uint16_t green = buffer[1];

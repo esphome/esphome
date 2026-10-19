@@ -109,17 +109,6 @@ bool PCF8574Component::write_gpio_() {
 }
 float PCF8574Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PCF8574GPIOPin::setup() { pin_mode(flags_); }
-void PCF8574GPIOPin::set_flags(gpio::Flags flags) {
-  this->flags_ = flags;
-  if (flags & gpio::FLAG_INPUT)
-    this->parent_->register_input_pin(this->pin_);
-}
-void PCF8574GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool PCF8574GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PCF8574GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t PCF8574GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PCF8574", this->pin_);
-}
-
 }  // namespace esphome::pcf8574
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pcf8574::PCF8574Component, "%u via PCF8574")
