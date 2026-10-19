@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <span>
 
 #include "esphome/components/packet_interface/packet_interface.h"
@@ -130,7 +129,7 @@ class EntityTransport : public Component {
       remote_binary_sensors_;
 #endif
   // Packets are built here, allocated in setup()
-  std::unique_ptr<uint8_t[]> buffer_;
+  uint8_t *buffer_{nullptr};
   size_t max_packet_size_{0};
   uint32_t update_interval_ms_{0};
   uint32_t remote_timeout_ms_{0};

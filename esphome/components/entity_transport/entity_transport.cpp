@@ -58,7 +58,12 @@ void EntityTransport::setup() {
     this->mark_failed(LOG_STR("max_packet_size too small for the device name and entity ids"));
     return;
   }
-  this->buffer_ = std::make_unique<uint8_t[]>(this->max_packet_size_);
+  RAMAllocator<uint8_t> allocator;
+  this->buffer_ = allocator.allocate(this->max_packet_size_);
+  if (this->buffer_ == nullptr) {
+    this->mark_failed(LOG_STR("Not enough memory for the packet buffer"));
+    return;
+  }
   // The dictionary id changes when the device name or any entity changes
   uint32_t hash = fnv1a_hash(name.c_str());
   for (const auto &entity : this->entities_) {
@@ -163,12 +168,12 @@ void EntityTransport::loop() {
 
 size_t EntityTransport::write_header_(uint8_t type) const {
   this->buffer_[0] = type;
-  put_uint32(this->buffer_.get() + 1, this->dictionary_id_);
+  put_uint32(this->buffer_ + 1, this->dictionary_id_);
   return HEADER_SIZE;
 }
 
 bool EntityTransport::send_dictionary_() {
-  uint8_t *buf = this->buffer_.get();
+  uint8_t *buf = this->buffer_;
   const auto &name = App.get_name();
   size_t header = this->write_header_(PACKET_DICTIONARY);
   buf[header++] = name.size();
@@ -227,7 +232,7 @@ bool EntityTransport::send_updated_() {
       this->buffer_[SENSOR_COUNT_OFFSET] = 0;
       first = i;
     }
-    uint8_t *record = this->buffer_.get() + length;
+    uint8_t *record = this->buffer_ + length;
     record[0] = entity.number;
 #ifdef USE_SENSOR
     if (entity.is_sensor) {
@@ -253,7 +258,7 @@ bool EntityTransport::send_updated_() {
 bool EntityTransport::flush_(size_t length, size_t first, size_t last) {
   if (length == DATA_HEADER_SIZE)
     return true;
-  if (!this->interface_->send_to_interface(PacketBuffer(this->buffer_.get(), length), {})) {
+  if (!this->interface_->send_to_interface(PacketBuffer(this->buffer_, length), {})) {
     ESP_LOGV(TAG, "Packet of %zu bytes not accepted, will retry", length);
     return false;
   }
