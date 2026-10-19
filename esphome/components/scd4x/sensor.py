@@ -112,9 +112,10 @@ async def to_code(config: ConfigType) -> None:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
 
-    if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config:
-        sens = await cg.get_variable(config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE])
-        cg.add(var.set_ambient_pressure_source(sens))
+    await cg.add_variable(
+        var.set_ambient_pressure_source,
+        config.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE),
+    )
 
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
 

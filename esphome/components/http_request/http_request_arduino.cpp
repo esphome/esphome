@@ -40,7 +40,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const char *url, cons
 
   const uint32_t start = millis();
 
-  bool secure = ESPHOME_strstr_P(url, ESPHOME_PSTR("https:")) != nullptr;
+  // Only the scheme counts; "https:" later in the URL (a query string) does not make it secure
+  bool secure = ESPHOME_strncasecmp_P(url, ESPHOME_PSTR("https:"), 6) == 0;
   container->set_secure(secure);
   container->set_watchdog_timeout(this->get_watchdog_timeout(timeout_ms));
 

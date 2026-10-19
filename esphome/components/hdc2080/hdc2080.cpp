@@ -1,5 +1,6 @@
 #include "hdc2080.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::hdc2080 {
@@ -52,11 +53,11 @@ void HDC2080Component::update() {
     if (!this->status_comm_result(this->read_register(REG_TEMPERATURE_LOW, raw_data, 4) == i2c::ERROR_OK))
       return;
     if (this->temperature_sensor_ != nullptr) {
-      float temp = encode_uint16(raw_data[1], raw_data[0]) * (165.0f / 65536.0f) - 40.5f;
+      float temp = encode_value_le<uint16_t>(raw_data) * (165.0f / 65536.0f) - 40.5f;
       this->temperature_sensor_->publish_state(temp);
     }
     if (this->humidity_sensor_ != nullptr) {
-      float humidity = encode_uint16(raw_data[3], raw_data[2]) * (100.0f / 65536.0f);
+      float humidity = encode_value_le<uint16_t>(&raw_data[2]) * (100.0f / 65536.0f);
       this->humidity_sensor_->publish_state(humidity);
     }
   });

@@ -51,11 +51,11 @@ uint16_t WaveshareIOCH32V003Component::get_adc_value() {
   if (this->is_failed())
     return 0;
 
-  uint8_t data[2];
-  if (!this->status_comm_result(this->read_bytes(IO_EXTENSION_ADC_ADDR, data, 2),
+  uint16_t adc_value;
+  if (!this->status_comm_result(this->read_byte_16_le(IO_EXTENSION_ADC_ADDR, &adc_value),
                                 LOG_STR("Failed to read ADC register")))
     return 0;
-  return (data[1] << 8) | data[0];
+  return adc_value;
 }
 
 uint8_t WaveshareIOCH32V003Component::get_rtc_interrupt_status() {
