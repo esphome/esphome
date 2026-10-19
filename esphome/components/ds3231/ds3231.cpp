@@ -367,6 +367,13 @@ void DS3231Component::set_alarm_enabled_(uint8_t alarm, bool enabled) {
   ESP_LOGD(TAG, "Alarm %u %s.", alarm, enabled ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 }
 
+void DS3231Component::enable_alarm(uint8_t alarm) {
+  // The chip sets the flag on every match even while the alarm is disabled; enabling with it set
+  // would fire the trigger (and INT/SQW) for that old match right away.
+  if (this->clear_alarm_flag_(alarm))
+    this->set_alarm_enabled_(alarm, true);
+}
+
 void DS3231Component::clear_alarm(uint8_t alarm) { this->clear_alarm_flag_(alarm); }
 
 bool DS3231Component::clear_alarm_flag_(uint8_t alarm) {

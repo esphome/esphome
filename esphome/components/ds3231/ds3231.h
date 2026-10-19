@@ -81,7 +81,8 @@ class DS3231Component final : public Component, public i2c::I2CDevice {
   /// Program alarm 2 (minute resolution, fires at second 00).
   void set_alarm_2(AlarmMode mode, uint8_t minute, uint8_t hour, uint8_t day_of_month, uint8_t day_of_week,
                    bool enabled);
-  void enable_alarm(uint8_t alarm) { this->set_alarm_enabled_(alarm, true); }
+  /// Enable @p alarm. A match from while it was disabled is cleared first, so only the next one fires.
+  void enable_alarm(uint8_t alarm);
   void disable_alarm(uint8_t alarm) { this->set_alarm_enabled_(alarm, false); }
   /// Clear the alarm flag, which also releases the INT/SQW line.
   void clear_alarm(uint8_t alarm);
