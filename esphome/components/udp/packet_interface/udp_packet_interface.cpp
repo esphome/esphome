@@ -51,15 +51,12 @@ void UdpPacketInterface::warn_dropped_(const sockaddr *source) {
     return;
   this->drop_warned_ = true;
   this->last_drop_warning_ms_ = now;
-  uint32_t address = 0;
-  socket::sockaddr_to_ipv4(source, &address);
-  uint8_t from[4];
-  memcpy(from, &address, sizeof(from));
+  char from[socket::SOCKADDR_STR_LEN];
+  socket::format_sockaddr_to(source, sizeof(sockaddr_storage), from);
   ESP_LOGW(TAG,
-           "%s: Packet from %u.%u.%u.%u dropped, as only %u.%u.%u.%u is accepted; set point_to_point: false if that "
-           "is a broadcast address",
-           this->name_, from[0], from[1], from[2], from[3], this->peer_[0], this->peer_[1], this->peer_[2],
-           this->peer_[3]);
+           "%s: Packet from %s dropped, as only %u.%u.%u.%u is accepted; set point_to_point: false if that is a "
+           "broadcast address",
+           this->name_, from, this->peer_[0], this->peer_[1], this->peer_[2], this->peer_[3]);
 }
 
 bool UdpPacketInterface::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {

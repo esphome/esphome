@@ -88,8 +88,12 @@ bool ESPNowPacketInterface::on_unknown_peer(const ESPNowRecvInfo &info, const ui
 }
 
 void ESPNowPacketInterface::receive_(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) {
-  if (size == 0 || size > this->max_packet_size_)
+  if (size == 0)
     return;
+  if (size > this->max_packet_size_) {
+    ESP_LOGV(TAG, "%s: Packet of %u bytes is larger than %zu, dropped", this->name_, size, this->max_packet_size_);
+    return;
+  }
   if (!this->is_broadcast_() && memcmp(info.src_addr, this->peer_address_.data(), ESP_NOW_ETH_ALEN) != 0)
     return;
   PacketMetaData meta_data;
