@@ -12,8 +12,7 @@ namespace esphome::water_heater {
 class WaterHeater;
 struct WaterHeaterCallInternal;
 
-void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj);
-#define LOG_WATER_HEATER(prefix, type, obj) log_water_heater(TAG, prefix, LOG_STR_LITERAL(type), obj)
+#define LOG_WATER_HEATER(prefix, type, obj) log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))
 
 enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_OFF = 0,

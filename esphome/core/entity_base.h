@@ -276,6 +276,7 @@ class EntityBase {
 
 /// Log "<prefix><type> '<name>'" for a dump_config header; returns false when obj is null.
 bool log_entity_header(const char *tag, const char *prefix, const char *type, const EntityBase *obj);
+
 /// Log entity icon if set (for use in dump_config)
 #ifdef USE_ENTITY_ICON
 #define LOG_ENTITY_ICON(tag, prefix, obj) log_entity_icon(tag, prefix, obj)
