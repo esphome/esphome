@@ -162,7 +162,7 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 
   void loop();
 
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
 };
@@ -176,7 +176,7 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
   /// Returns true if there are event sources remaining (including pending cleanup).
   bool loop();
 
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
 

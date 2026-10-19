@@ -278,7 +278,7 @@ void DeferredUpdateEventSource::loop() {
   this->entities_iterator_.try_advance(1);
 }
 
-void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *event_type,
+void DeferredUpdateEventSource::deferrable_send_state(void *source, bool detail_all,
                                                       message_generator_t *message_generator) {
   // Skip if no connected clients to avoid unnecessary deferred queue processing
   if (this->count() == 0)
@@ -286,19 +286,13 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, const char *
 
   // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
   // up in the web GUI and reduces event load during initial connect
-  if (!entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
+  if (!detail_all && !this->entities_iterator_.completed())
     return;
 
   if (source == nullptr)
     return;
-  if (event_type == nullptr)
-    return;
   if (message_generator == nullptr)
     return;
-
-  if (0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
-    ESP_LOGE(TAG, "Can't defer non-state event");
-  }
 
   if (!deferred_queue_.empty())
     process_deferred_queue_();
@@ -332,13 +326,13 @@ bool DeferredUpdateEventSourceList::loop() {
   return !this->empty();
 }
 
-void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const char *event_type,
+void DeferredUpdateEventSourceList::deferrable_send_state(void *source, bool detail_all,
                                                           message_generator_t *message_generator) {
   // Skip if no event sources (no connected clients) to avoid unnecessary iteration
   if (this->empty())
     return;
   for (DeferredUpdateEventSource *dues : *this) {
-    dues->deferrable_send_state(source, event_type, message_generator);
+    dues->deferrable_send_state(source, detail_all, message_generator);
   }
 }
 
@@ -734,7 +728,7 @@ static void set_json_icon_state_value(JsonObject root, EntityBase *obj, const ch
 void WebServer::on_sensor_update(sensor::Sensor *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", sensor_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, sensor_state_json_generator);
 }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
@@ -779,7 +773,7 @@ void WebServer::sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", text_sensor_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, text_sensor_state_json_generator);
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
@@ -840,7 +834,7 @@ static void execute_switch_action(switch_::Switch *obj, SwitchAction action) {
 void WebServer::on_switch_update(switch_::Switch *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", switch_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, switch_state_json_generator);
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
@@ -932,7 +926,7 @@ void WebServer::button_json_(button::Button *obj, JsonDetail start_config, json:
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", binary_sensor_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, binary_sensor_state_json_generator);
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
@@ -973,7 +967,7 @@ void WebServer::binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value
 void WebServer::on_fan_update(fan::Fan *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", fan_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, fan_state_json_generator);
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
@@ -1052,7 +1046,7 @@ void WebServer::fan_json_(fan::Fan *obj, JsonDetail start_config, json::JsonBuil
 void WebServer::on_light_update(light::LightState *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", light_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, light_state_json_generator);
 }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
@@ -1131,7 +1125,7 @@ void WebServer::light_json_(light::LightState *obj, JsonDetail start_config, jso
 void WebServer::on_cover_update(cover::Cover *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", cover_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, cover_state_json_generator);
 }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
@@ -1205,7 +1199,7 @@ void WebServer::cover_json_(cover::Cover *obj, JsonDetail start_config, json::Js
 void WebServer::on_number_update(number::Number *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", number_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, number_state_json_generator);
 }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
@@ -1279,7 +1273,7 @@ void WebServer::number_json_(number::Number *obj, JsonDetail start_config, json:
 void WebServer::on_date_update(datetime::DateEntity *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", date_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, date_state_json_generator);
 }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
@@ -1338,7 +1332,7 @@ void WebServer::date_json_(datetime::DateEntity *obj, JsonDetail start_config, j
 void WebServer::on_time_update(datetime::TimeEntity *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", time_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, time_state_json_generator);
 }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
@@ -1396,7 +1390,7 @@ void WebServer::time_json_(datetime::TimeEntity *obj, JsonDetail start_config, j
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", datetime_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, datetime_state_json_generator);
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
@@ -1455,7 +1449,7 @@ void WebServer::datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_c
 void WebServer::on_text_update(text::Text *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", text_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, text_state_json_generator);
 }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
@@ -1518,7 +1512,7 @@ void WebServer::text_json_(text::Text *obj, const std::string &value, JsonDetail
 void WebServer::on_select_update(select::Select *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", select_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, select_state_json_generator);
 }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
@@ -1578,7 +1572,7 @@ void WebServer::select_json_(select::Select *obj, StringRef value, JsonDetail st
 void WebServer::on_climate_update(climate::Climate *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", climate_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, climate_state_json_generator);
 }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
@@ -1765,7 +1759,7 @@ static void execute_lock_action(lock::Lock *obj, LockAction action) {
 void WebServer::on_lock_update(lock::Lock *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", lock_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, lock_state_json_generator);
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
@@ -1822,7 +1816,7 @@ void WebServer::lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail st
 void WebServer::on_valve_update(valve::Valve *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", valve_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, valve_state_json_generator);
 }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
@@ -1891,7 +1885,7 @@ void WebServer::valve_json_(valve::Valve *obj, JsonDetail start_config, json::Js
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", alarm_control_panel_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, alarm_control_panel_state_json_generator);
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
@@ -1961,7 +1955,7 @@ void WebServer::alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel
 void WebServer::on_water_heater_update(water_heater::WaterHeater *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", water_heater_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, water_heater_state_json_generator);
 }
 void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (water_heater::WaterHeater *obj : App.get_water_heaters()) {
@@ -2257,7 +2251,7 @@ void WebServer::radio_frequency_json_(radio_frequency::RadioFrequency *obj, Json
 void WebServer::on_event(event::Event *obj) {
   if (!this->include_internal_ && obj->is_internal())
     return;
-  this->events_.deferrable_send_state(obj, "state", event_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, event_state_json_generator);
 }
 
 void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
@@ -2312,7 +2306,7 @@ void WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail 
 
 #ifdef USE_UPDATE
 void WebServer::on_update(update::UpdateEntity *obj) {
-  this->events_.deferrable_send_state(obj, "state", update_state_json_generator);
+  this->events_.deferrable_send_state(obj, false, update_state_json_generator);
 }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
