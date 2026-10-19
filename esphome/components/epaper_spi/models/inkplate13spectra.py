@@ -6,8 +6,10 @@
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.const import CONF_CS_PIN
+import esphome.config_validation as cv
+from esphome.const import CONF_CS_PIN, CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
 from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import EpaperModel
 
@@ -34,6 +36,17 @@ class Inkplate13SpectraModel(EpaperModel):
         # write_command_to_chip_() must not toggle the DC pin -- cmd/data is inferred by
         # byte position instead.
         return (False,)
+
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        # The panel is fixed on the board and the init sequence sets its resolution, so other
+        # dimensions would only mismatch the frame buffer and the panel.
+        width, height = self.get_default(CONF_WIDTH), self.get_default(CONF_HEIGHT)
+        if self.get_dimensions(config) != (width, height):
+            raise cv.Invalid(
+                f"{self.name} has a fixed {width}x{height} panel; remove 'dimensions'",
+                path=[CONF_DIMENSIONS],
+            )
+        return config
 
     def get_config_options(self) -> dict:
         return {

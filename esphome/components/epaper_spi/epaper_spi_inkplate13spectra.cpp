@@ -51,7 +51,7 @@ void EPaperInkplate13Spectra::send_init_sequence_() {
   this->write_command_to_chip_(0x60, {0x03, 0x03}, CHIP_BOTH);                             // TCON
   this->write_command_to_chip_(0x86, {0x10}, CHIP_BOTH);                                   // AGID
   this->write_command_to_chip_(0xE3, {0x22}, CHIP_BOTH);                                   // PWS
-  this->write_command_to_chip_(0xE0, {0x01}, CHIP_BOTH);                                   // CCSET
+  this->write_command_to_chip_(REG_CCSET, {0x01}, CHIP_BOTH);                              // CCSET
   this->write_command_to_chip_(0x61, {0x04, 0xB0, 0x03, 0x20}, CHIP_BOTH);                 // TRES
   this->write_command_to_chip_(0x01, {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38}, CHIP_PRIMARY);  // PWR
   this->write_command_to_chip_(0xB6, {0x07}, CHIP_PRIMARY);                                // EN_BUF

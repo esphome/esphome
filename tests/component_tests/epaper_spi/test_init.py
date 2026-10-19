@@ -732,3 +732,35 @@ def test_test_card_overrides_update_interval(
     match = re.search(r"epaper_display->set_update_interval\((\d+)\);", main_cpp)
     assert match is not None
     assert int(match.group(1)) != 4294967295
+
+
+@pytest.mark.parametrize(
+    ("dimensions", "accepted"),
+    [
+        ({"width": 1200, "height": 1600}, True),
+        ({"width": 800, "height": 600}, False),
+    ],
+)
+def test_inkplate13spectra_dimensions_fixed(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    dimensions: dict[str, int],
+    accepted: bool,
+) -> None:
+    """The Inkplate 13 Spectra panel is fixed, so only its own dimensions are accepted."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 38, "mosi_pin": 40})
+
+    config = {
+        "id": "test_display",
+        "model": "inkplate13spectra",
+        "dimensions": dimensions,
+    }
+    if accepted:
+        run_schema_validation(config)
+    else:
+        with pytest.raises(cv.Invalid, match="fixed 1200x1600 panel"):
+            run_schema_validation(config)
