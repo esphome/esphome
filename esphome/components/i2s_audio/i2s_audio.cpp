@@ -101,7 +101,7 @@ void I2SAudioComponent::release_tx_channel() {
 bool I2SAudioComponent::start_idle_tx_() {
   // Keep one ISR callback registered while TX runs, forwarding completion events only
   // while a speaker owns the channel.
-  const i2s_event_callbacks_t callbacks{.on_sent = on_bus_tx_sent_};
+  const i2s_event_callbacks_t callbacks{.on_sent = on_bus_tx_sent};
   esp_err_t err = i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
   if (err == ESP_OK)
     err = i2s_channel_enable(this->tx_handle_);
@@ -113,10 +113,10 @@ bool I2SAudioComponent::start_idle_tx_() {
   return true;
 }
 
-bool IRAM_ATTR I2SAudioComponent::on_bus_tx_sent_(i2s_chan_handle_t handle, i2s_event_data_t *event, void *context) {
+bool IRAM_ATTR I2SAudioComponent::on_bus_tx_sent(i2s_chan_handle_t handle, i2s_event_data_t *event, void *context) {
   auto *self = static_cast<I2SAudioComponent *>(context);
   const auto callback = self->tx_sent_callback_.load(std::memory_order_acquire);
-  const auto callback_context = self->tx_sent_callback_context_.load(std::memory_order_acquire);
+  auto *const callback_context = self->tx_sent_callback_context_.load(std::memory_order_acquire);
   if (callback != nullptr && callback_context != nullptr)
     return callback(handle, event, callback_context);
   return false;
