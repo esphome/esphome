@@ -42,4 +42,15 @@ TEST(EntityBaseName, PrecomputedHashIsKept) {
   EXPECT_EQ(entity.get_object_id_hash(), 0x1234u);
 }
 
+TEST(EntityBaseStrings, UnsetIconAndDeviceClassAreEmpty) {
+  TestEntity entity;
+  entity.configure("Living Room Temp", 0x1234);
+  EXPECT_TRUE(entity.get_icon_progmem().empty());
+  EXPECT_TRUE(entity.get_device_class_progmem().empty());
+  char icon_buf[MAX_ICON_LENGTH];
+  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+  EXPECT_STREQ(entity.get_icon_to(icon_buf), "");
+  EXPECT_STREQ(entity.get_device_class_to(dc_buf), "");
+}
+
 }  // namespace esphome::core::testing

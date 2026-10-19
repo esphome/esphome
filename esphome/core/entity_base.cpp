@@ -108,22 +108,22 @@ __attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return "
 __attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
 __attribute__((weak)) const char *entity_icon_lookup(uint8_t) { return ""; }
 
-// Entity device class — buffer-based API for PROGMEM safety on ESP8266
-const char *EntityBase::get_device_class_to([[maybe_unused]] std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const {
+static ProgmemStringRef table_ref(const char *s) { return {s, ESPHOME_strlen_P(s)}; }
+
+ProgmemStringRef EntityBase::get_device_class_progmem() const {
 #ifdef USE_ENTITY_DEVICE_CLASS
-  const uint8_t idx = this->device_class_idx_;
+  return table_ref(entity_device_class_lookup(this->device_class_idx_));
 #else
-  const uint8_t idx = 0;
+  return table_ref(entity_device_class_lookup(0));
 #endif
+}
+
+const char *EntityBase::get_device_class_to([[maybe_unused]] std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const {
 #ifdef USE_ESP8266
-  if (idx == 0)
-    return "";
-  const char *dc = entity_device_class_lookup(idx);
-  ESPHOME_strncpy_P(buffer.data(), dc, buffer.size() - 1);
-  buffer[buffer.size() - 1] = '\0';
+  this->get_device_class_progmem().write_to(buffer.data(), buffer.size());
   return buffer.data();
 #else
-  return entity_device_class_lookup(idx);
+  return this->get_device_class_progmem().progmem_ptr();
 #endif
 }
 
@@ -135,22 +135,20 @@ StringRef EntityBase::get_unit_of_measurement_ref() const {
   return StringRef(entity_uom_lookup(0));
 #endif
 }
-// Entity icon — buffer-based API for PROGMEM safety on ESP8266
-const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
+ProgmemStringRef EntityBase::get_icon_progmem() const {
 #ifdef USE_ENTITY_ICON
-  const uint8_t idx = this->icon_idx_;
+  return table_ref(entity_icon_lookup(this->icon_idx_));
 #else
-  const uint8_t idx = 0;
+  return table_ref(entity_icon_lookup(0));
 #endif
+}
+
+const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
 #ifdef USE_ESP8266
-  if (idx == 0)
-    return "";
-  const char *icon = entity_icon_lookup(idx);
-  ESPHOME_strncpy_P(buffer.data(), icon, buffer.size() - 1);
-  buffer[buffer.size() - 1] = '\0';
+  this->get_icon_progmem().write_to(buffer.data(), buffer.size());
   return buffer.data();
 #else
-  return entity_icon_lookup(idx);
+  return this->get_icon_progmem().progmem_ptr();
 #endif
 }
 
@@ -189,19 +187,17 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
 
 #ifdef USE_ENTITY_ICON
 void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj) {
-  char icon_buf[MAX_ICON_LENGTH];
-  const char *icon = obj.get_icon_to(icon_buf);
-  if (icon[0] != '\0') {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, icon);
+  ProgmemStringRef icon = obj.get_icon_progmem();
+  if (!icon.empty()) {
+    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, icon.progmem_ptr());
   }
 }
 #endif
 
 void log_entity_device_class(const char *tag, const char *prefix, const EntityBase &obj) {
-  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-  const char *dc = obj.get_device_class_to(dc_buf);
-  if (dc[0] != '\0') {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, dc);
+  ProgmemStringRef dc = obj.get_device_class_progmem();
+  if (!dc.empty()) {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, dc.progmem_ptr());
   }
 }
 

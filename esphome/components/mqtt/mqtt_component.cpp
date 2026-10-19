@@ -216,15 +216,13 @@ bool MQTTComponent::send_discovery_() {
 
         if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
-        char icon_buf[MAX_ICON_LENGTH];
-        const char *icon = this->get_icon_to_(icon_buf);
-        if (icon[0] != '\0') {
-          root[MQTT_ICON] = icon;
+        ProgmemStringRef icon = this->get_entity()->get_icon_progmem();
+        if (!icon.empty()) {
+          root[MQTT_ICON] = reinterpret_cast<ProgmemStr>(icon.progmem_ptr());
         }
-        char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-        const char *dc = this->get_entity()->get_device_class_to(dc_buf);
-        if (dc[0] != '\0') {
-          root[MQTT_DEVICE_CLASS] = dc;
+        ProgmemStringRef dc = this->get_entity()->get_device_class_progmem();
+        if (!dc.empty()) {
+          root[MQTT_DEVICE_CLASS] = reinterpret_cast<ProgmemStr>(dc.progmem_ptr());
         }
 
         const auto entity_category = this->get_entity()->get_entity_category();
