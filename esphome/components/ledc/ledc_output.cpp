@@ -132,10 +132,18 @@ void LEDCOutput::write_state(float state) {
     state = 1.0f - state;
 
   this->duty_ = state;
+  this->write_duty_();
+}
+
+void LEDCOutput::loop() { this->write_duty_(); }
+
+void LEDCOutput::write_duty_() {
   const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
-  const float duty_rounded = roundf(state * max_duty);
+  const float duty_rounded = roundf(this->duty_ * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
   if (duty == this->last_duty_) {
+    this->status_clear_warning();
+    this->disable_loop();
     return;
   }
 
@@ -143,26 +151,38 @@ void LEDCOutput::write_state(float state) {
   auto speed_mode = get_speed_mode(this->channel_);
   auto chan_num = static_cast<ledc_channel_t>(this->channel_ % 8);
   int hpoint = ledc_angle_to_htop(this->phase_angle_, this->bit_depth_);
+  esp_err_t err;
   if (duty == max_duty) {
-    ledc_stop(speed_mode, chan_num, 1);
-    this->last_duty_ = duty;
-  } else if (duty == 0) {
-    ledc_stop(speed_mode, chan_num, 0);
-    this->last_duty_ = duty;
+    err = ledc_stop(speed_mode, chan_num, 1);
   } else {
 #if !defined(SOC_LEDC_SUPPORT_FADE_STOP)
     if (ledc_duty_update_pending(speed_mode, chan_num)) {
-      ESP_LOGV(TAG, "Skipping LEDC duty update on channel %u while previous duty_start is still set", this->channel_);
+      ESP_LOGV(TAG, "Deferring LEDC duty update on channel %u while previous duty_start is still set", this->channel_);
+      this->enable_loop();
       return;
     }
 #endif
-    ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
-    ledc_update_duty(speed_mode, chan_num);
-    this->last_duty_ = duty;
+    // Apply zero duty at the next PWM cycle. ledc_stop() can truncate the last
+    // servo pulse, which the servo may interpret as a new position.
+    err = ledc_set_duty_with_hpoint(speed_mode, chan_num, duty, hpoint);
+    if (err == ESP_OK)
+      err = ledc_update_duty(speed_mode, chan_num);
   }
+  if (err != ESP_OK) {
+    if (!this->status_has_warning()) {
+      ESP_LOGW(TAG, "Setting duty on channel %u failed: %s", this->channel_, esp_err_to_name(err));
+    }
+    this->status_set_warning();
+    this->enable_loop();
+    return;
+  }
+  this->last_duty_ = duty;
+  this->status_clear_warning();
+  this->disable_loop();
 }
 
 void LEDCOutput::setup() {
+  this->disable_loop();
   if (!ledc_peripheral_reset_done) {
     ESP_LOGV(TAG, "Resetting LEDC peripheral to clear stale state after reboot");
     // Skip under clang-tidy: the inlined HAL MMIO writes trip clang-analyzer-core.FixedAddressDereference
@@ -206,7 +226,9 @@ void LEDCOutput::setup() {
   chan_conf.intr_type = LEDC_INTR_DISABLE;
 #endif
   chan_conf.timer_sel = timer_num;
-  chan_conf.duty = this->inverted_ == this->pin_->is_inverted() ? 0 : (1U << this->bit_depth_);
+  // Cache the physical off level before any runtime frequency change can reapply it.
+  this->duty_ = this->inverted_ == this->pin_->is_inverted() ? 0.0f : 1.0f;
+  chan_conf.duty = this->duty_ == 0.0f ? 0 : (1U << this->bit_depth_);
   chan_conf.hpoint = hpoint;
   ledc_channel_config(&chan_conf);
   this->initialized_ = true;
@@ -271,7 +293,7 @@ void LEDCOutput::update_frequency(float frequency) {
 
   // re-apply duty
   this->last_duty_ = UINT32_MAX;
-  this->write_state(this->duty_);
+  this->write_duty_();
 }
 
 uint8_t next_ledc_channel = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
