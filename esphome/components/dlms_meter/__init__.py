@@ -3,6 +3,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32, uart
+from esphome.components.const import CONF_PROVIDER
 import esphome.config_validation as cv
 from esphome.const import CONF_NAME, CONF_PATTERN, CONF_PRIORITY, CONF_RECEIVE_TIMEOUT
 from esphome.core import CORE
@@ -20,7 +21,6 @@ CONF_OBIS_CODE = "obis_code"
 CONF_CUSTOM_PATTERNS = "custom_patterns"
 CONF_SKIP_CRC = "skip_crc"
 CONF_DEFAULT_OBIS = "default_obis"
-CONF_PROVIDER = "provider"
 
 DLMS_PARSER_VERSION = "2.2.0"
 

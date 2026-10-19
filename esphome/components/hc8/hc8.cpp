@@ -55,13 +55,10 @@ void HC8Component::update() {
       return;
     }
 
-    if (crc16(response.data(), 12) != encode_uint16(response[13], response[12])) {
+    if (!this->status_comm_result(crc16(response.data(), 12) == encode_uint16(response[13], response[12]))) {
       ESP_LOGW(TAG, "HC8 Checksum mismatch");
-      this->status_set_warning();
       return;
     }
-
-    this->status_clear_warning();
 
     const uint16_t ppm = encode_uint16(response[5], response[4]);
     ESP_LOGD(TAG, "HC8 Received CO₂=%uppm", ppm);
