@@ -161,8 +161,21 @@ TEST_F(BasicFragmentationTest, InterleavedSourcesNotMixed) {
   this->link_b_.inject(from_c[0], 2);
   this->link_b_.inject(from_a[1], 1);
   this->link_b_.inject(from_c[1], 2);
-  for (auto &packet : b.received)
-    EXPECT_EQ(packet, make_packet(20));  // nothing mixed from the two
+  // Nothing is mixed from the two, and the packet started last gets through
+  EXPECT_EQ(b.received, std::vector<Packet>{make_packet(20)});
+}
+
+TEST_F(BasicFragmentationTest, OneFragmentPacketFromAnotherSourceKeepsJoin) {
+  Peer a(&this->link_a_), c(&this->link_a_), b(&this->link_b_);
+  a.send(make_packet(20));
+  auto from_a = std::move(this->link_a_.sent);
+  this->link_a_.sent.clear();
+  c.send(make_packet(5));
+  auto from_c = std::move(this->link_a_.sent);
+  this->link_b_.inject(from_a[0], 1);
+  this->link_b_.inject(from_c[0], 2);
+  this->link_b_.inject(from_a[1], 1);
+  EXPECT_EQ(b.received, (std::vector<Packet>{make_packet(5), make_packet(20)}));
 }
 
 TEST_F(BasicFragmentationTest, OverReliabilityWithLosses) {

@@ -21,8 +21,8 @@ BASIC_FRAGMENTATION_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-# Fragments from different devices are told apart by the addressing layer's source address, so several devices can
-# share a channel; without addressing, two devices sending fragmented packets at once can make the receiver drop both
+# Fragments from different devices are told apart by the addressing layer's source address, so of two devices sending
+# fragmented packets at once, one still gets through; without addressing, the receiver can drop both
 @FRAGMENTATION.register("basic", schema=BASIC_FRAGMENTATION_SCHEMA)
 async def build_basic_fragmentation(config: ConfigType, lower: MockObj) -> MockObj:
     cg.add_define("USE_PACKET_INTERFACE_BASIC_FRAGMENTATION")

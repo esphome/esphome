@@ -19,7 +19,8 @@ class AddressingPort;
  * Above this layer are one or more ports, each the bottom of its own stack of layers. A port with a destination
  * address is a point-to-point link to that device: it sends to it and receives only its packets, so the reliability
  * and session layers and the rolling code, which work between two devices only, can be used above it. A port with
- * the broadcast destination sends to every device, and receives packets from devices that have no port of their own.
+ * the broadcast destination sends to every device, and receives every broadcast, as well as packets from devices
+ * that have no port of their own. Without a broadcast port, a device's broadcasts go to its own port.
  */
 class BasicAddressing : public Component {
  public:

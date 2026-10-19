@@ -40,16 +40,20 @@ void BasicAddressing::receive_(const PacketBuffer &data, const PacketMetaData &m
   uint16_t source = encode_uint16(packet[3], packet[2]);
   if (source == this->address_ || (destination != this->address_ && destination != BROADCAST_ADDRESS))
     return;
-  // A device with a port of its own is heard only there; the broadcast port hears the rest
-  AddressingPort *target = nullptr;
+  AddressingPort *source_port = nullptr;
+  AddressingPort *broadcast_port = nullptr;
   for (auto *port : this->ports_) {
     if (port->destination_ == source) {
-      target = port;
-      break;
+      source_port = port;
+    } else if (port->destination_ == BROADCAST_ADDRESS) {
+      broadcast_port = port;
     }
-    if (port->destination_ == BROADCAST_ADDRESS)
-      target = port;
   }
+  // A broadcast goes to the broadcast port, even from a device with a port of its own, as that port's layers expect
+  // only its point-to-point packets; anything else goes to the source's port, or to the broadcast port if it has none
+  AddressingPort *target = source_port;
+  if (broadcast_port != nullptr && (destination == BROADCAST_ADDRESS || source_port == nullptr))
+    target = broadcast_port;
   if (target == nullptr) {
     ESP_LOGV(TAG, "%s: Packet from 0x%04X dropped", this->link_->get_name(), source);
     return;

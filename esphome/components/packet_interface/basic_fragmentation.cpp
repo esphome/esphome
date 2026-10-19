@@ -33,10 +33,16 @@ void BasicFragmentation::setup() {
     this->mark_failed(LOG_STR("max_packet_size needs more than 128 fragments"));
     return;
   }
-  // Checked now, while the layer below holds nothing
-  this->queue_too_short_ = this->fragments_for_(this->max_packet_size_) > this->lower_->get_send_capacity();
-  this->tx_buffer_ = std::make_unique<uint8_t[]>(this->fragment_size_());
-  this->rx_buffer_ = std::make_unique<uint8_t[]>(this->max_packet_size_);
+  // Checked now, while the layer below holds nothing; a failed layer below reports its own failure instead
+  this->queue_too_short_ =
+      !this->lower_->is_failed() && this->fragments_for_(this->max_packet_size_) > this->lower_->get_send_capacity();
+  RAMAllocator<uint8_t> allocator;
+  this->tx_buffer_ = allocator.allocate(this->fragment_size_() + this->max_packet_size_);
+  if (this->tx_buffer_ == nullptr) {
+    this->mark_failed(LOG_STR("Not enough memory for the packet buffers"));
+    return;
+  }
+  this->rx_buffer_ = this->tx_buffer_ + this->fragment_size_();
   // Numbering from a random start makes it unlikely that a packet joins fragments from before a restart
   this->tx_number_ = random_uint32();
   this->lower_->add_packet_interface_listener(
@@ -58,7 +64,7 @@ void BasicFragmentation::dump_config() {
 }
 
 bool BasicFragmentation::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {
-  if (this->is_failed())
+  if (this->tx_buffer_ == nullptr)
     return false;
   size_t size = data.size();
   if (size > this->max_packet_size_) {
@@ -77,9 +83,9 @@ bool BasicFragmentation::send_to_interface(const PacketBuffer &data, const Packe
   }
   size_t fragment_size = this->fragment_size_();
   for (size_t index = 0; index != fragments; index++) {
-    size_t length = data.copy_to(this->tx_buffer_.get(), fragment_size, index * fragment_size);
+    size_t length = data.copy_to(this->tx_buffer_, fragment_size, index * fragment_size);
     header[1] = index | (index + 1 == fragments ? LAST_FRAGMENT : 0);
-    PacketBuffer body(this->tx_buffer_.get(), length);
+    PacketBuffer body(this->tx_buffer_, length);
     if (!this->lower_->send_to_interface(PacketBuffer(header, HEADER_SIZE, &body, nullptr, 0), meta_data)) {
       // The peer drops the part already sent when the next packet starts
       ESP_LOGV(TAG, "%s: Fragment %zu of %zu not accepted", this->name_, index, fragments);
@@ -103,26 +109,33 @@ void BasicFragmentation::receive_(const PacketBuffer &data, const PacketMetaData
   bool last = (fragment[1] & LAST_FRAGMENT) != 0;
   const uint8_t *payload = fragment.data() + HEADER_SIZE;
   size_t length = fragment.size() - HEADER_SIZE;
+  if (index == 0 && last) {
+    // A packet in one fragment leaves a packet being joined from another device intact
+    if (this->rx_joining_ && meta_data.source_address == this->rx_source_) {
+      ESP_LOGV(TAG, "%s: Incomplete packet %u dropped", this->name_, this->rx_number_);
+      this->rx_joining_ = false;
+    }
+    if (length > this->max_packet_size_) {
+      ESP_LOGV(TAG, "%s: Packet %u is larger than %zu, dropped", this->name_, number, this->max_packet_size_);
+      return;
+    }
+    this->on_receive_from_interface_(PacketBuffer(payload, length), meta_data);
+    return;
+  }
   if (index == 0) {
     if (this->rx_joining_) {
       ESP_LOGV(TAG, "%s: Incomplete packet %u dropped", this->name_, this->rx_number_);
-    }
-    this->rx_joining_ = false;
-    if (last) {
-      if (length > this->max_packet_size_) {
-        ESP_LOGV(TAG, "%s: Packet %u is larger than %zu, dropped", this->name_, number, this->max_packet_size_);
-        return;
-      }
-      this->on_receive_from_interface_(PacketBuffer(payload, length), meta_data);
-      return;
     }
     this->rx_joining_ = true;
     this->rx_number_ = number;
     this->rx_source_ = meta_data.source_address;
     this->rx_next_index_ = 0;
     this->rx_length_ = 0;
-  } else if (!this->rx_joining_ || number != this->rx_number_ || meta_data.source_address != this->rx_source_ ||
-             index != this->rx_next_index_) {
+  } else if (this->rx_joining_ && meta_data.source_address != this->rx_source_) {
+    // Only this fragment is lost, so of two devices sending at once, the one that started last still gets through
+    ESP_LOGV(TAG, "%s: Fragment %u from 0x%04X dropped", this->name_, index, meta_data.source_address);
+    return;
+  } else if (!this->rx_joining_ || number != this->rx_number_ || index != this->rx_next_index_) {
     ESP_LOGV(TAG, "%s: Fragment %u of packet %u dropped", this->name_, index, number);
     this->rx_joining_ = false;
     return;
@@ -132,12 +145,12 @@ void BasicFragmentation::receive_(const PacketBuffer &data, const PacketMetaData
     this->rx_joining_ = false;
     return;
   }
-  memcpy(this->rx_buffer_.get() + this->rx_length_, payload, length);
+  memcpy(this->rx_buffer_ + this->rx_length_, payload, length);
   this->rx_length_ += length;
   this->rx_next_index_++;
   if (last) {
     this->rx_joining_ = false;
-    this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_.get(), this->rx_length_), meta_data);
+    this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_, this->rx_length_), meta_data);
   }
 }
 

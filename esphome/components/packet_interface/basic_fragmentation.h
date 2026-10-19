@@ -2,7 +2,6 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_PACKET_INTERFACE_BASIC_FRAGMENTATION
-#include <memory>
 
 #include "packet_interface.h"
 
@@ -18,8 +17,9 @@ namespace esphome::packet_interface {
  *
  * A packet is started only if the layer below can take all of its fragments now (get_send_capacity()), so a full
  * reliability queue does not leave the peer with part of a packet. The receiver joins one packet at a time, and drops
- * it when a fragment is missing, or one arrives with another packet number or from another source address. Above a
- * reliability layer, fragments arrive in order and none are missing.
+ * it when a fragment is missing or arrives with another packet number, or when the same source, or another one,
+ * starts a new packet of several fragments. Other fragments from another source address are dropped, leaving the
+ * packet being joined intact. Above a reliability layer, fragments arrive in order and none are missing.
  */
 class BasicFragmentation : public PacketInterface {
  public:
@@ -43,9 +43,10 @@ class BasicFragmentation : public PacketInterface {
   size_t fragments_for_(size_t size) const;
 
   PacketInterface *lower_;
-  // One fragment being sent, and the packet being joined; both allocated in setup()
-  std::unique_ptr<uint8_t[]> tx_buffer_;
-  std::unique_ptr<uint8_t[]> rx_buffer_;
+  // One fragment being sent, and the packet being joined; one block allocated in setup(), and tx_buffer_ stays null
+  // if that fails
+  uint8_t *tx_buffer_{nullptr};
+  uint8_t *rx_buffer_{nullptr};
   size_t rx_length_{0};
   uint16_t rx_source_{0};
   uint8_t tx_number_{0};

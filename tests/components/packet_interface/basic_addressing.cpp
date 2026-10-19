@@ -143,6 +143,24 @@ TEST(BasicAddressingTest, PeersHaveSeparateStacks) {
   EXPECT_TRUE(d.port().received.empty());
 }
 
+TEST(BasicAddressingTest, BroadcastFromPeerReachesBroadcastPort) {
+  Device hub(1, {2, BROADCAST}), b(2, {1, BROADCAST});
+  hub.port(1).send({0x10});  // a state every device needs
+  hub.port(0).send({0x11});  // point to point
+  hub.deliver({&b});
+  EXPECT_EQ(b.port(0).received, std::vector<Packet>{{0x11}});
+  EXPECT_EQ(b.port(1).received, std::vector<Packet>{{0x10}});
+  EXPECT_EQ(b.port(1).sources, std::vector<uint16_t>{1});
+}
+
+TEST(BasicAddressingTest, WithoutBroadcastPortPeerBroadcastReachesItsPort) {
+  Device hub(1, {2, 3}), b(2, BROADCAST);
+  b.port().send({0x20});
+  b.deliver({&hub});
+  EXPECT_EQ(hub.port(0).received, std::vector<Packet>{{0x20}});
+  EXPECT_TRUE(hub.port(1).received.empty());
+}
+
 TEST(BasicAddressingTest, WithoutBroadcastPortUnknownDevicesDropped) {
   Device hub(1, {2, 3}), d(4);
   d.port().send({0x04});
