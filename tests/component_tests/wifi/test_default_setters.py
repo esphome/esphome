@@ -6,7 +6,9 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.parametrize("config_file", ["bare.yaml", "defaults.yaml"])
+@pytest.mark.parametrize(
+    "config_file", ["bare.yaml", "defaults.yaml", "bare_ln882x.yaml"]
+)
 def test_default_values_are_not_emitted(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

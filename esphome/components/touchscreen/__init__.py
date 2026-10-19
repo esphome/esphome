@@ -23,6 +23,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz", "@nielsnl68"]
 DEPENDENCIES = ["display"]
+DOMAIN = "touchscreen"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -154,8 +155,7 @@ TOUCHSCREEN_SCHEMA = touchscreen_schema(cv.UNDEFINED)
 async def register_touchscreen(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
-    disp = await cg.get_variable(config[CONF_DISPLAY])
-    cg.add(var.set_display(disp))
+    await cg.add_variable(var.set_display, config[CONF_DISPLAY])
 
     if CONF_TOUCH_TIMEOUT in config:
         cg.add(var.set_touch_timeout(config[CONF_TOUCH_TIMEOUT]))

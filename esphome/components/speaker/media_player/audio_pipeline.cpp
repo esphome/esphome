@@ -21,7 +21,7 @@ static const uint32_t DECODE_TASK_STACK_SIZE = 3 * 1024;
 
 static const uint32_t INFO_ERROR_QUEUE_COUNT = 5;
 
-static const char *const TAG = "speaker_media_player.pipeline";
+ESPHOME_LOG_TAG(TAG, "speaker_media_player.pipeline");
 
 enum EventGroupBits : uint32_t {
   // MESSAGE_* bits are only set by their respective tasks
@@ -66,7 +66,7 @@ void AudioPipeline::start_url(const std::string &uri) {
   this->pending_url_ = true;
 }
 
-void AudioPipeline::start_file(audio::AudioFile *audio_file) {
+void AudioPipeline::start_file(const audio::AudioFile *audio_file) {
   if (this->is_playing_) {
     xEventGroupSetBits(this->event_group_, PIPELINE_COMMAND_STOP);
   }

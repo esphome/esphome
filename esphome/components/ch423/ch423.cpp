@@ -12,7 +12,7 @@ static constexpr uint8_t CH423_REG_IO_RD = 0x26;  // Read IO7-IO0 (0x4D >> 1, ro
 static constexpr uint8_t CH423_REG_OCL = 0x22;    // Write OC7-OC0 (0x44 >> 1)
 static constexpr uint8_t CH423_REG_OCH = 0x23;    // Write OC15-OC8 (0x46 >> 1)
 
-static const char *const TAG = "ch423";
+ESPHOME_LOG_TAG(TAG, "ch423");
 
 void CH423Component::setup() {
   // set outputs before mode
@@ -24,8 +24,7 @@ void CH423Component::setup() {
     success = this->read_inputs_();
   }
   if (!success) {
-    ESP_LOGE(TAG, "CH423 not detected");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("CH423 not detected"));
     return;
   }
 
@@ -38,12 +37,7 @@ void CH423Component::loop() {
   this->pin_read_flags_ = 0x00;
 }
 
-void CH423Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "CH423:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
-}
+void CH423Component::dump_config() { ESP_LOGCONFIG(TAG, "CH423:"); }
 
 void CH423Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (pin < 8) {
@@ -129,16 +123,6 @@ bool CH423Component::write_outputs_() {
 
 float CH423Component::get_setup_priority() const { return setup_priority::IO; }
 
-void CH423GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool CH423GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
-
-void CH423GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value ^ this->inverted_); }
-size_t CH423GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "EXIO%u via CH423", this->pin_);
-}
-void CH423GPIOPin::set_flags(gpio::Flags flags) {
-  flags_ = flags;
-  this->parent_->pin_mode(this->pin_, flags);
-}
-
 }  // namespace esphome::ch423
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::ch423::CH423Component, "EXIO%u via CH423")

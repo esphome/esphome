@@ -5,7 +5,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.water_heater";
+ESPHOME_LOG_TAG(TAG, "template.water_heater");
 
 TemplateWaterHeater::TemplateWaterHeater() = default;
 
@@ -91,7 +91,11 @@ void TemplateWaterHeater::loop() {
     }
   }
 
-  if (changed) {
+  // The first value always publishes, even one equal to the default (mode OFF, say), or the
+  // entity would report unknown forever.
+  const bool has_value =
+      curr_temp.has_value() || target_temp.has_value() || new_mode.has_value() || away.has_value() || is_on.has_value();
+  if (changed || (has_value && !this->has_state())) {
     this->publish_state();
   }
 }

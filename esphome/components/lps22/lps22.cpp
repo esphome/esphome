@@ -1,8 +1,9 @@
 #include "lps22.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::lps22 {
 
-static constexpr const char *const TAG = "lps22";
+ESPHOME_LOG_TAG(TAG, "lps22");
 
 static constexpr uint8_t WHO_AM_I = 0x0F;
 static constexpr uint8_t LPS22HB_ID = 0xB1;
@@ -65,7 +66,7 @@ void LPS22Component::try_read_() {
   if (this->temperature_sensor_ != nullptr) {
     uint8_t t_buf[2]{0};
     this->read_register(TEMP_L, t_buf, 2);
-    int16_t encoded = static_cast<int16_t>(encode_uint16(t_buf[1], t_buf[0]));
+    int16_t encoded = encode_value_le<int16_t>(t_buf);
     float temp = TEMPERATURE_SCALE * static_cast<float>(encoded);
     this->temperature_sensor_->publish_state(temp);
   }

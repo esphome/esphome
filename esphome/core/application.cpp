@@ -36,7 +36,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "app";
+ESPHOME_LOG_TAG(TAG, "app");
 
 // Delay after setup() finishes before trimming the scheduler freelist of its post-boot peak.
 // 10 s is well past the bulk of post-setup async work (Wi-Fi/MQTT connects, first-read latency).
@@ -559,7 +559,7 @@ void Application::get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> b
 
 uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
 
-uint32_t Application::get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+uint32_t Application::get_config_version_hash() { return ESPHOME_CONFIG_VERSION_HASH; }
 
 time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
 
