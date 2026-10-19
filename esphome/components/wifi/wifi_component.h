@@ -1158,7 +1158,7 @@ class WiFiComponent final : public Component {
 #endif
 #ifdef USE_WIFI_AP
   // Stations joined to the AP; they hold the reboot timeout and keep an exclusive AP from pausing.
-  // Counted on the main loop on ESP32 and LibreTiny (queued events), in the SDK callback on ESP8266 and
+  // Counted on the main loop on ESP32, LibreTiny and Zephyr (queued events), in the SDK callback on ESP8266 and
   // in the driver's interrupt context on the Pico W. The main loop only reads the byte while the AP is up
   // and only writes it (a reset) while the AP is down, so no lock is needed.
   uint8_t ap_clients_{0};
