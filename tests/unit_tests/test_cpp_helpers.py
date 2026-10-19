@@ -1,5 +1,11 @@
+from collections.abc import Awaitable, Callable
+import importlib.util
 import logging
-from unittest.mock import Mock
+from pathlib import Path
+import sys
+from types import ModuleType
+from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -243,3 +249,93 @@ def test_slot_counter_request_after_emit_raises() -> None:
     assert _define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
     with pytest.raises(ValueError, match="TEST_SLOT_COUNT_TOO_LATE"):
         request()
+
+
+def _load_module(
+    monkeypatch: pytest.MonkeyPatch, name: str, path: Path, source: str
+) -> ModuleType:
+    path.write_text(source, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, module)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize(
+    ("wrapper", "expected"),
+    [
+        # A plain wrapper returns the coroutine, so its frame is gone when
+        # register_component looks for the source; an async one is still on the stack.
+        ("def new_component(config):\n    return ", "fake_dev"),
+        ("async def new_component(config):\n    return await ", "fake_bus"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_new_bus_component_source_is_the_caller(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, wrapper: str, expected: str
+) -> None:
+    bus = _load_module(
+        monkeypatch,
+        "esphome.components.fake_bus",
+        tmp_path / "fake_bus.py",
+        "from esphome import cpp_helpers as ch\n"
+        "async def register_device(var, config):\n"
+        "    pass\n"
+        f"{wrapper}ch.new_bus_component(register_device, config)\n",
+    )
+    dev = _load_module(
+        monkeypatch,
+        "esphome.components.fake_dev",
+        tmp_path / "fake_dev.py",
+        "async def to_code(new_component, config):\n"
+        "    return await new_component(config)\n",
+    )
+    base = Mock()
+    base.__str__ = lambda self: "foo.bar"
+    var = Mock(base=base)
+    monkeypatch.setattr(ch, "new_Pvariable", Mock(return_value=var))
+    monkeypatch.setattr(ch, "CORE", Mock(component_ids=["foo.bar"], data={}))
+    monkeypatch.setattr(ch, "add", Mock())
+    monkeypatch.setattr(ch, "App", Mock())
+    source = Mock(return_value=1)
+    monkeypatch.setattr(ch, "register_component_source", source)
+    result = await dev.to_code(bus.new_component, {const.CONF_ID: "foo.bar"})
+    assert result is var
+    source.assert_called_once_with(expected)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("helper", [ch.add_pin, ch.add_variable])
+async def test_add_helpers_skip_none(
+    monkeypatch: pytest.MonkeyPatch, helper: Callable[..., Awaitable[Any]]
+) -> None:
+    add_mock = Mock()
+    monkeypatch.setattr(ch, "add", add_mock)
+    setter = Mock()
+
+    assert await helper(setter, None) is None
+    setter.assert_not_called()
+    add_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("helper", "lookup"),
+    [("add_pin", "gpio_pin_expression"), ("add_variable", "get_variable")],
+)
+async def test_add_helpers_pass_value_to_setter(
+    monkeypatch: pytest.MonkeyPatch, helper: str, lookup: str
+) -> None:
+    value = Mock()
+    lookup_mock = AsyncMock(return_value=value)
+    monkeypatch.setattr(ch, lookup, lookup_mock)
+    add_mock = Mock()
+    monkeypatch.setattr(ch, "add", add_mock)
+    setter = Mock()
+    arg = Mock()
+
+    assert await getattr(ch, helper)(setter, arg) is value
+    lookup_mock.assert_awaited_once_with(arg)
+    setter.assert_called_once_with(value)
+    add_mock.assert_called_once_with(setter.return_value)

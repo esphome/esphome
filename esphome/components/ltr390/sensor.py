@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AMBIENT_LIGHT,
     CONF_GAIN,
-    CONF_ID,
     CONF_LIGHT,
     CONF_RESOLUTION,
     DEVICE_CLASS_EMPTY,
@@ -119,9 +118,7 @@ TYPES = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_wfac_value(config[CONF_WINDOW_CORRECTION_FACTOR]))
 

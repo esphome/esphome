@@ -39,12 +39,8 @@ def validate_pwm_limits(config: ConfigType) -> ConfigType:
 
 CONF_SAFE_PWM_LEVELS_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_MIN_VALUE, default=DUTY_DEFAULT_MIN): cv.int_range(
-            min=0, max=255
-        ),
-        cv.Optional(CONF_MAX_VALUE, default=DUTY_DEFAULT_MAX): cv.int_range(
-            min=0, max=255
-        ),
+        cv.Optional(CONF_MIN_VALUE, default=DUTY_DEFAULT_MIN): cv.uint8_t,
+        cv.Optional(CONF_MAX_VALUE, default=DUTY_DEFAULT_MAX): cv.uint8_t,
     }
 )
 
