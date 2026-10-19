@@ -561,6 +561,19 @@ def test_registry_lock_deadline_skips_registration(tmp_path: Path) -> None:
     manager.set_download_utime.assert_not_called()
 
 
+def test_prefetch_creates_http_cache_dir_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Eight resolve threads each build a registry client whose cache
+    init has no exist_ok; the dir must exist before any of them run."""
+    from platformio.project import helpers
+
+    monkeypatch.setattr(helpers, "get_project_cache_dir", lambda: str(tmp_path))
+    with patch.object(pf, "_project_platform_and_config", return_value=(None, None)):
+        pf._prefetch(tmp_path, "testenv")
+    assert (tmp_path / "http").is_dir()
+
+
 def test_main_interrupt_exits_quietly(tmp_path: Path) -> None:
     """Ctrl-C reaches the child via the shared process group; it must exit
     without a traceback."""

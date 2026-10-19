@@ -28,12 +28,4 @@ class CoolixProtocol : public RemoteProtocol<CoolixData> {
 
 DECLARE_REMOTE_PROTOCOL(Coolix)
 
-template<typename... Ts> class CoolixAction : public RemoteTransmitterActionBase<Ts...> {
-  TEMPLATABLE_VALUE(uint32_t, first)
-  TEMPLATABLE_VALUE(uint32_t, second)
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    CoolixProtocol().encode(dst, {this->first_.value(x...), this->second_.value(x...)});
-  }
-};
-
 }  // namespace esphome::remote_base
