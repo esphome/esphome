@@ -350,7 +350,7 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t
 }
 
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
-  DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, "/events");
+  DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
   this->push_back(es);
 
   es->onConnect([this, es](AsyncEventSourceClient *client) { this->on_client_connect_(es); });
@@ -533,11 +533,7 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 #ifdef USE_WEBSERVER_LOCAL
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response = request->beginResponse(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
-#else
-  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
 #ifdef USE_WEBSERVER_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
 #else
@@ -547,13 +543,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 }
 #elif USE_WEBSERVER_VERSION >= 2
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response =
-      request->beginResponse(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
-#else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/html"), ESPHOME_WEBSERVER_INDEX_HTML,
+                                                            ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
   // No gzip header here because the HTML file is so small
   request->send(response);
 }
@@ -625,13 +616,8 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response =
-      request->beginResponse(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
-#else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/css"), ESPHOME_WEBSERVER_CSS_INCLUDE,
+                                                            ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
@@ -639,13 +625,8 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response =
-      request->beginResponse(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
-#else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(
+      200, ESPHOME_F("text/javascript"), ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
