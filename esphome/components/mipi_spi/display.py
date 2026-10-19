@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
@@ -227,11 +226,7 @@ def model_schema(config: ConfigType) -> cv.All | cv.Schema:
     )
     if model.get_default(CONF_BRIGHTNESS, None) is not None or model.name == "CUSTOM":
         schema = schema.extend(
-            {
-                model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.int_range(
-                    0, 0xFF, min_included=True, max_included=True
-                ),
-            }
+            {model.option(CONF_BRIGHTNESS, cv.UNDEFINED): cv.uint8_t}
         )
     if bus_mode != TYPE_SINGLE:
         return cv.All(schema, cv.only_on_esp32)
@@ -413,10 +408,6 @@ async def to_code(config: ConfigType) -> None:
 
     if config.get(CONF_INVERT_COLORS):
         cg.add(var.set_invert_colors(True))
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)
