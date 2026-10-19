@@ -303,7 +303,7 @@ async def test_zephyr_add_usb_baud_rate_creates_the_declared_component() -> None
 
     config = {"usb_baud_rate": "declared_id"}
     with (
-        patch("esphome.components.zephyr.zephyr_add_cdc_acm") as mock_cdc,
+        patch("esphome.components.zephyr.zephyr_claim_cdc_acm") as mock_claim,
         patch("esphome.components.zephyr.zephyr_add_prj_conf") as mock_conf,
         patch("esphome.codegen.add_define") as mock_define,
         patch("esphome.codegen.new_Pvariable", return_value="var") as mock_new,
@@ -311,7 +311,9 @@ async def test_zephyr_add_usb_baud_rate_creates_the_declared_component() -> None
     ):
         assert await zephyr_add_usb_baud_rate(config) == "var"
     mock_define.assert_called_once_with("USE_ZEPHYR_USB_BAUD_RATE")
-    mock_cdc.assert_called_once_with(config, 0)
+    mock_claim.assert_called_once_with(
+        0, "usb_baud_rate", write_only=True, allow_write_only=True
+    )
     mock_conf.assert_called_once_with("UART_LINE_CTRL", True)
     mock_new.assert_called_once_with("declared_id")
     mock_register.assert_awaited_once()

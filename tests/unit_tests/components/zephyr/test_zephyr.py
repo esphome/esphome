@@ -12,6 +12,7 @@ from esphome.components.ota import reject_swap_method_off_zephyr
 from esphome.components.zephyr import (
     _MODULE_SCHEMA,
     ZephyrData,
+    _cdc_acm_add_ports,
     _resolve_board_source,
     _resolve_shield_source,
     _resolve_snippet_source,
@@ -29,6 +30,8 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_add_sysbuild_conf,
     zephyr_add_user,
+    zephyr_cdc_acm_label,
+    zephyr_claim_cdc_acm,
     zephyr_dts_board_id,
     zephyr_only_on_variant,
     zephyr_set_module_override,
@@ -2415,3 +2418,76 @@ def test_reject_swap_method_off_zephyr_allows_zephyr() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
     conf = {"swap_method": "move"}
     assert reject_swap_method_off_zephyr(conf) == conf
+
+
+# ---------------------------------------------------------------------------
+# CDC ACM ports on platform: zephyr
+# ---------------------------------------------------------------------------
+
+
+def _zephyr_cdc_core(board_label: str | None) -> object:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF52")
+    return patch(
+        "esphome.components.zephyr.dts_lookup.get_existing_cdc_acm_uart_label",
+        return_value=board_label,
+    )
+
+
+@pytest.mark.parametrize(
+    ("board_label", "port", "expected"),
+    [
+        ("board_cdc_acm_uart", 0, "board_cdc_acm_uart"),
+        ("board_cdc_acm_uart", 1, "cdc_acm_uart1"),
+        (None, 0, "cdc_acm_uart0"),
+    ],
+)
+def test_zephyr_cdc_acm_label(
+    board_label: str | None, port: int, expected: str
+) -> None:
+    with _zephyr_cdc_core(board_label):
+        assert zephyr_cdc_acm_label(port) == expected
+
+
+def test_zephyr_cdc_acm_ports_reuse_board_node() -> None:
+    """Port 0 is the board's node; only port 1 is merged into the devicetree."""
+    with _zephyr_cdc_core("board_cdc_acm_uart"):
+        zephyr_claim_cdc_acm(0, "logger", write_only=True)
+        zephyr_claim_cdc_acm(1, "zephyr_mcumgr", allow_write_only=True)
+        _cdc_acm_add_ports()
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "cdc_acm_uart1: cdc_acm_uart1" in overlay
+    assert "cdc_acm_uart0" not in overlay
+    assert "board_cdc_acm_uart:" not in overlay
+    prj_conf = CORE.data[KEY_ZEPHYR]["prj_conf"][""]
+    assert prj_conf["CONFIG_USB_DEVICE_STACK_NEXT"][0] is True
+    assert "CONFIG_USB_DEVICE_STACK" not in prj_conf
+
+
+def test_zephyr_cdc_acm_ports_board_node_only_adds_no_overlay() -> None:
+    with _zephyr_cdc_core("board_cdc_acm_uart"):
+        zephyr_claim_cdc_acm(0, "logger", write_only=True)
+        _cdc_acm_add_ports()
+    assert "zephyr_udc0" not in CORE.data[KEY_ZEPHYR]["overlay"][""]
+
+
+def test_zephyr_cdc_acm_no_claims_adds_nothing() -> None:
+    with _zephyr_cdc_core(None):
+        _cdc_acm_add_ports()
+    assert "CONFIG_USB_DEVICE_STACK_NEXT" not in CORE.data[KEY_ZEPHYR]["prj_conf"].get(
+        "", {}
+    )
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        ("logger", {"write_only": True}),
+        ("zephyr_mcumgr", {"allow_write_only": True}),
+    ],
+)
+def test_zephyr_usb_baud_rate_shares_port_0(other: tuple[str, dict]) -> None:
+    with _zephyr_cdc_core(None):
+        zephyr_claim_cdc_acm(0, other[0], **other[1])
+        zephyr_claim_cdc_acm(0, "usb_baud_rate", write_only=True, allow_write_only=True)
+    assert len(CORE.data[KEY_ZEPHYR]["cdc_acm_users"][0]) == 2

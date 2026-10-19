@@ -15,10 +15,10 @@ from esphome.components.zephyr import (
     VARIANTS,
     HexValue,
     mcuboot,
-    zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_add_sysbuild_conf,
+    zephyr_cdc_acm_label,
     zephyr_claim_cdc_acm,
     zephyr_data,
     zephyr_variant,
@@ -207,8 +207,7 @@ def _final_validate(config: ConfigType) -> None:
         )
     if (uart := config[CONF_TRANSPORT].get(CONF_HARDWARE_UART)) is not None:
         cdc_id = UARTS[uart][1]
-        # platform: zephyr sets up its CDC ports with zephyr_add_cdc_acm() in to_code
-        if cdc_id >= 0 and CORE.is_nrf52:
+        if cdc_id >= 0:
             # SMP frames are marked, so log text from the logger on the same port is skipped
             zephyr_claim_cdc_acm(cdc_id, "zephyr_mcumgr", allow_write_only=True)
 
@@ -269,14 +268,10 @@ async def to_code(config: ConfigType) -> None:
         if CORE.is_nrf52:
             uart_name = UARTS[transport[CONF_HARDWARE_UART]][0]
         elif hw_uart in CDC_IDS:
-            # zephyr_add_cdc_acm() reuses a board-provided cdc-acm-uart node (e.g.
-            # Nordic's common cdc_acm_serial.dtsi, which several boards -- including
-            # xiao_ble -- already include) instead of declaring a new cdc_acm_uart{id}
-            # node, whenever one is already present. Its return value is the label
-            # that actually ended up in the devicetree; a hardcoded cdc_acm_uart{id}
-            # name may not have been declared at all when that happens, so it can't
-            # be used directly below or the devicetree reference is left dangling.
-            uart_name = zephyr_add_cdc_acm(config, CDC_IDS[hw_uart])
+            # Port 0 may be a board-provided cdc-acm-uart node (e.g. Nordic's common
+            # cdc_acm_serial.dtsi, which xiao_ble includes), so a hardcoded
+            # cdc_acm_uart{id} name could leave the devicetree reference dangling.
+            uart_name = zephyr_cdc_acm_label(CDC_IDS[hw_uart])
         else:
             # Physical UART peripherals are numbered/named differently per variant
             # (e.g. nRF54 uses uart20/uart30, EFR32MG24 has only usart0), and some

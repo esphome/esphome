@@ -860,6 +860,9 @@ def zephyr_claim_cdc_acm(
 
 def _cdc_acm_add_ports() -> None:
     """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
+    if not CORE.is_nrf52:
+        _zephyr_cdc_acm_add_ports()
+        return
     users = zephyr_data()["cdc_acm_users"]
     if not users:
         return
@@ -889,41 +892,50 @@ def _cdc_acm_add_ports() -> None:
     )
 
 
-def zephyr_add_cdc_acm(config: ConfigType, id: int) -> str:
-    """Ensure a CDC-ACM UART is available and return the devicetree label to
-    reference it by (e.g. for `zephyr,console`/`zephyr,shell-uart`).
+def zephyr_cdc_acm_label(id: int) -> str:
+    """Return the devicetree label of CDC ACM port `id` on platform: zephyr, for
+    `zephyr,console`/`zephyr,shell-uart` and DT_NODELABEL().
 
-    Reuses the board's own `zephyr,cdc-acm-uart` node if one is already
-    declared -- e.g. boards/common/usb/cdc_acm_serial.dtsi, labeled
-    `board_cdc_acm_uart` -- instead of unconditionally declaring a second,
-    separate USB interface with its own `cdc_acm_uart{id}` node. Two CDC-ACM
-    interfaces on the same device is needless USB complexity, and means
-    "which port do I talk to" changes depending on whether MCUboot (which
-    only ever sees the board's own node) or the app is currently running.
-
-    platform: zephyr only; platform: nrf52 uses zephyr_claim_cdc_acm().
+    Port 0 is the board's own `zephyr,cdc-acm-uart` node when it declares one -- e.g.
+    boards/common/usb/cdc_acm_serial.dtsi, labeled `board_cdc_acm_uart` -- instead of a
+    second, separate USB interface. Two CDC-ACM interfaces on the same device is needless
+    USB complexity, and means "which port do I talk to" changes depending on whether
+    MCUboot (which only ever sees the board's own node) or the app is currently running.
     """
+    if id == 0:
+        from .dts_lookup import get_existing_cdc_acm_uart_label  # noqa: PLC0415
+
+        if (
+            label := get_existing_cdc_acm_uart_label(zephyr_data()[KEY_BOARD])
+        ) is not None:
+            return label
+    return f"cdc_acm_uart{id}"
+
+
+def _zephyr_cdc_acm_add_ports() -> None:
+    """platform: zephyr's half of _cdc_acm_add_ports(): the device_next USB stack, and a
+    node merged into the devicetree only for ports the board does not provide itself."""
+    users = zephyr_data()["cdc_acm_users"]
+    if not users:
+        return
     zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", True)
     zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
     zephyr_add_prj_conf("SERIAL", True)
-
-    from .dts_lookup import get_existing_cdc_acm_uart_label
-
-    existing_label = get_existing_cdc_acm_uart_label(zephyr_data()[KEY_BOARD])
-    if existing_label is not None:
-        return existing_label
-
-    label = f"cdc_acm_uart{id}"
-    zephyr_add_overlay(
+    nodes = "".join(
         f"""
-            &zephyr_udc0 {{
                 {label}: {label} {{
                     compatible = "zephyr,cdc-acm-uart";
-                }};
+                }};"""
+        for id in sorted(users)
+        if (label := zephyr_cdc_acm_label(id)) == f"cdc_acm_uart{id}"
+    )
+    if nodes:
+        zephyr_add_overlay(
+            f"""
+            &zephyr_udc0 {{{nodes}
             }};
         """
-    )
-    return label
+        )
 
 
 async def zephyr_add_usb_baud_rate(config: ConfigType) -> MockObj:
@@ -932,7 +944,9 @@ async def zephyr_add_usb_baud_rate(config: ConfigType) -> MockObj:
     subscribe to. config must hold the CONF_USB_BAUD_RATE id declared at validation (the
     Pico family keeps it in advanced:), because components are counted then."""
     cg.add_define("USE_ZEPHYR_USB_BAUD_RATE")
-    zephyr_add_cdc_acm(config, 0)
+    # Reads the line settings only: no IRQ callback and no output, so it shares port 0 with anything.
+    # Claimed here rather than at validation since its users are variant code, before the FINAL port setup
+    zephyr_claim_cdc_acm(0, "usb_baud_rate", write_only=True, allow_write_only=True)
     # Needed to read the rate the host set.
     zephyr_add_prj_conf("UART_LINE_CTRL", True)
     var = cg.new_Pvariable(config[CONF_USB_BAUD_RATE])
