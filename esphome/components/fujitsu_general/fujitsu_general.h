@@ -88,8 +88,7 @@ class FujitsuGeneralClimate final : public climate_ir::ClimateIR {
                   {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL,
                    climate::CLIMATE_SWING_BOTH}) {}
 
-  /// Transmit via IR a util command.
-  /// Send a util message that does not change the climate state (the button commands above)
+  /// Transmit a util message that does not change the climate state (economy, vane steps)
   void transmit_util(uint8_t command);
 
  protected:
