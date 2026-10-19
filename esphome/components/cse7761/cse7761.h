@@ -21,9 +21,15 @@ struct CSE7761EnergyChannel {
   float wh_per_pulse{0.0f};
 };
 
+enum class CSE7761CurrentInput : uint8_t {
+  CSE7761_CURRENT_INPUT_SHUNT,
+  CSE7761_CURRENT_INPUT_CURRENT_TRANSFORMER,
+};
+
 /// This class implements support for the CSE7761 UART power sensor.
 class CSE7761Component final : public PollingComponent, public uart::UARTDevice {
  public:
+  explicit CSE7761Component(CSE7761CurrentInput current_input) : current_input_(current_input) {}
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { frequency_sensor_ = frequency_sensor; }
   void set_power_factor_1_sensor(sensor::Sensor *power_factor_sensor_1) {
@@ -51,7 +57,11 @@ class CSE7761Component final : public PollingComponent, public uart::UARTDevice 
   sensor::Sensor *energy_sensors_[2]{nullptr, nullptr};
   CSE7761DataStruct data_;
   CSE7761EnergyChannel energy_[2];
+  const CSE7761CurrentInput current_input_;
 
+  bool is_current_transformer_() const {
+    return this->current_input_ == CSE7761CurrentInput::CSE7761_CURRENT_INPUT_CURRENT_TRANSFORMER;
+  }
   void write_(uint8_t reg, uint16_t data);
   bool read_once_(uint8_t reg, uint8_t size, uint32_t *value);
   bool read_(uint8_t reg, uint8_t size, uint32_t *value);
