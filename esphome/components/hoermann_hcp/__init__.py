@@ -31,6 +31,7 @@ HCP2_DEFAULT_ADDRESS = 0x2A
 #   0x0A = Hörmann KNX Gateway
 #   0x0F = Loxone Hörmann Air
 #
+# Update in 2027.04.0
 # 0x02 (UAP 1 HCP) is intentionally not in this tuple during the deprecation
 # window. See _validate_deprecated_hcp2_address below.
 RESERVED_HCP2_ADDRESSES = (0x01, 0x0A, 0x0F)
@@ -49,50 +50,58 @@ def _validate_hcp2_address(value: int) -> int:
     return value
 
 
-# Scheduled for removal in 2027.06.0.
+# Remove in 2027.04.0
 #
-# Remove _DEPRECATED_HCP2_ADDRESS, _validate_deprecated_hcp2_address and the
-# _validate_deprecated_hcp2_address call in CONFIG_SCHEMA below, then
-# add 0x02 back to RESERVED_HCP2_ADDRESSES so the address is hard-rejected
-# like the other official accessory addresses.
-#
-# The previous hoermann_hcp default was 0x02, which collides with the Hörmann's
-# UAP 1 HCP accessory. Existing configs that pin `address: 0x02` in YAML still build
-# during the deprecation window but will throw a warning.
+# The previous hoermann_hcp default was 0x02, which collides with the Hörmann
+# UAP 1 HCP accessory on the HCP2 bus. During the deprecation window the
+# default stays 0x02 (with a warning). In 2027.04.0 our address changes to 0x2A
+# and 0x02 will be hard-rejected.
 _DEPRECATED_HCP2_ADDRESS = 0x02
 
 
+# Remove in 2027.04.0
 def _validate_deprecated_hcp2_address(value: int) -> int:
     """Warn (but accept) the old default 0x02 during the deprecation window."""
     if value == _DEPRECATED_HCP2_ADDRESS:
         _LOGGER.warning(
-            "[hoermann_hcp] 'address: 0x02' is deprecated! It collides with the "
-            "official UAP 1 HCP accessory on the HCP2 bus. Default address has changed to "
-            "0x2A. Remove 'address: 0x02' and run a bus scan on the drive. 'address: "
-            "0x02' will be rejected in 2027.06.0."
+            "[hoermann_hcp] Using 'address: 0x02' is being deprecated because "
+            "it is a reserved HCP2 address. In 2027.04.0 the default address "
+            "will change to 0x2A and 0x02 will be rejected. "
+            "Set 'address: 0x2A' and run a bus scan now to future-proof your setup."
         )
     return value
 
 
-CONFIG_SCHEMA = (
-    cv.Schema({cv.GenerateID(): cv.declare_id(HoermannHcp)})
-    .extend(cv.polling_component_schema("500ms"))
-    # Pass default_address=None so the modbus helper declares CONF_ADDRESS
-    # without a default. Hörmann-specific re-declaration below is the single
-    # source of the default. The helper's server-address validator is replaced
-    # by this re-declaration, but cv.int_range(min=1, ...) still rejects the
-    # broadcast address (0).
-    .extend(modbus.modbus_device_schema(None, role="server"))
-    .extend(
-        {
-            cv.Optional(CONF_ADDRESS, default=HCP2_DEFAULT_ADDRESS): cv.All(
-                cv.hex_uint8_t,
-                cv.int_range(min=1, max=HCP2_MAX_ADDRESS),
-                _validate_deprecated_hcp2_address,
-                _validate_hcp2_address,
-            )
-        }
-    )
+# Remove in 2027.04.0
+def _warn_missing_hcp2_address(config: ConfigType) -> ConfigType:
+    """Keep the old default 0x02 (and warn) when 'address' is not set."""
+    if CONF_ADDRESS not in config:
+        _LOGGER.warning(
+            "[hoermann_hcp] 'address' not set. Using 0x02 for now. Default HCP2 address "
+            "will change to 0x2A in 2027.04.0. Set 'address: 0x2A' explicitly to silence "
+            "this warning."
+        )
+        config[CONF_ADDRESS] = _DEPRECATED_HCP2_ADDRESS
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    (
+        cv.Schema({cv.GenerateID(): cv.declare_id(HoermannHcp)})
+        .extend(cv.polling_component_schema("500ms"))
+        .extend(modbus.modbus_device_schema(None, role="server"))
+        .extend(
+            {
+                cv.Optional(CONF_ADDRESS): cv.All(
+                    cv.hex_uint8_t,
+                    cv.int_range(min=1, max=HCP2_MAX_ADDRESS),
+                    _validate_deprecated_hcp2_address,  # Remove in 2027.04.0
+                    _validate_hcp2_address,
+                )
+            }
+        )
+    ),
+    _warn_missing_hcp2_address,  # Remove in 2027.04.0
 )
 
 FINAL_VALIDATE_SCHEMA = modbus.final_validate_modbus_device(
