@@ -96,6 +96,7 @@ class TsdbComponent : public PollingComponent {
   uint32_t reopen_errors_{0};
   uint32_t dropped_{0};
   uint32_t dropped_missing_{0};
+  uint32_t dropped_backwards_{0};
   uint32_t saturated_{0};
   uint32_t held_{0};
   uint32_t sentinel_{0};
@@ -107,7 +108,6 @@ class TsdbComponent : public PollingComponent {
   bool db_lost_{false};
   bool dirty_{false};
   bool warned_time_{false};
-  bool warned_backwards_{false};
   // Raised by a failed sync and cleared by the next one, never by a successful write.
   bool sync_failed_{false};
 };
