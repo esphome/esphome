@@ -3,7 +3,7 @@ from collections.abc import Callable
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID as CONF_ID, CONF_MODE, CONF_MODEL
+from esphome.const import CONF_MODE, CONF_MODEL
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
