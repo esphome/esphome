@@ -1,6 +1,7 @@
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj, MockObjClass
@@ -10,7 +11,6 @@ CODEOWNERS = ["@clydebarrow"]
 DOMAIN = "packet_interface"
 IS_PLATFORM_COMPONENT = True
 
-CONF_MAX_PACKET_SIZE = "max_packet_size"
 CONF_PACKET_INTERFACE = "packet_interface"
 
 packet_interface_ns = cg.esphome_ns.namespace("packet_interface")
