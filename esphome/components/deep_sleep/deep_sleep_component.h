@@ -7,6 +7,9 @@
 #ifdef USE_ESP32
 #include <esp_sleep.h>
 #endif
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+#include "esphome/components/zephyr/gpio.h"
+#endif
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -17,7 +20,7 @@
 
 namespace esphome::deep_sleep {
 
-#if defined(USE_ESP32) || defined(USE_BK72XX)
+#if defined(USE_ESP32) || defined(USE_BK72XX) || defined(USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN)
 
 /** The values of this enum define what should be done if deep sleep is set up with a wakeup pin on the ESP32
  * and the scenario occurs that the wakeup pin is already in the wakeup state.
@@ -140,6 +143,12 @@ class DeepSleepComponent final : public Component {
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
 #endif  // USE_ESP32
 
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+  /// Wakes the chip from sys_poweroff(), and ends a sleep_duration wait early. Inverted sets the level.
+  void set_wakeup_pin(zephyr::ZephyrGPIOPin *pin) { this->wakeup_pin_ = pin; }
+  void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) { this->wakeup_pin_mode_ = wakeup_pin_mode; }
+#endif
+
 #if defined(USE_BK72XX)
   void init_wakeup_pins(size_t capacity) { this->wakeup_pins_.init(capacity); }
   void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
@@ -216,6 +225,14 @@ class DeepSleepComponent final : public Component {
 
   optional<WakeupCauseToRunDuration> wakeup_cause_to_run_duration_;
 #endif  // USE_ESP32
+
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+  /// The physical level that wakes the chip, after wakeup_pin_mode_ is applied
+  bool wakeup_level_() const;
+
+  zephyr::ZephyrGPIOPin *wakeup_pin_{nullptr};
+  WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
+#endif
 
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};

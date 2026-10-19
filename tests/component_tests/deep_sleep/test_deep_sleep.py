@@ -8,6 +8,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components import deep_sleep
 from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
+from esphome.core import CORE
 
 from ..types import SetCoreConfigCallable
 
@@ -218,3 +219,14 @@ def test_deep_sleep_esp32_wakeup_pin_mode_at_both_levels_rejected(
     with pytest.raises(cv.Invalid, match="not both") as exc:
         deep_sleep.validate_config(config)
     assert exc.value.path == [CONF_WAKEUP_PIN, 0, deep_sleep.CONF_WAKEUP_PIN_MODE]
+
+
+def test_deep_sleep_zephyr_wakeup_pin(generate_main) -> None:
+    """platform: zephyr arms the pin before sys_poweroff() and keeps the mode."""
+    main_cpp = generate_main(
+        "tests/component_tests/deep_sleep/test_deep_sleep_zephyr_wakeup_pin.yaml"
+    )
+
+    assert "deep_sleep_deepsleepcomponent_id->set_wakeup_pin(" in main_cpp
+    assert "set_wakeup_pin_mode(deep_sleep::WAKEUP_PIN_MODE_INVERT_WAKEUP)" in main_cpp
+    assert any(d.name == "USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN" for d in CORE.defines)

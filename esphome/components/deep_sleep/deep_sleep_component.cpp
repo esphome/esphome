@@ -12,6 +12,10 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+  // An input before it is read for wakeup_pin_mode or armed for System OFF
+  this->wakeup_pin_->setup();
+#endif
   this->schedule_sleep_();
 }
 

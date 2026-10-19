@@ -319,11 +319,11 @@ CONFIG_SCHEMA = cv.All(
                 _validate_sleep_duration,
             ),
             cv.Optional(CONF_WAKEUP_PIN): cv.All(
-                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
+                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_ZEPHYR]),
                 validate_wakeup_pin,
             ),
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
-                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
+                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_ZEPHYR]),
                 cv.enum(WAKEUP_PIN_MODES, upper=True),
             ),
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
@@ -400,6 +400,11 @@ async def to_code(config: ConfigType) -> None:
                 )
         else:
             await cg.add_pin(var.set_wakeup_pin, wakeup_pins[0][CONF_PIN])
+            if CORE.is_zephyr:
+                cg.add_define("USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN")
+                if zephyr_variant_family() == "stm32":
+                    # Maps the pin to its PWR wake-up line
+                    zephyr_add_prj_conf("STM32_WKUP_PINS", True)
     if CONF_WAKEUP_PIN_MODE in config:
         cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
     if CONF_RUN_DURATION in config:

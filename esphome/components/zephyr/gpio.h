@@ -41,6 +41,11 @@ class ZephyrGPIOPin final : public GPIOPin {
     this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, type);
   }
   ISRInternalGPIOPin to_isr() const;
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_STM32)
+  /// Make the pin wake the chip from sys_poweroff() at the physical `level`; returns the Zephyr error code.
+  int arm_wakeup(bool level);
+#endif
   uint8_t get_pin() const { return this->pin_; }
   bool is_inverted() const { return this->inverted_; }
   bool is_internal() override { return true; }

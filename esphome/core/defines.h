@@ -819,6 +819,13 @@
 #define USE_ZEPHYR_USB_BAUD_RATE
 #endif
 
+// Emitted by deep_sleep/__init__.py when wakeup_pin: is set on platform: zephyr, whose
+// deep_sleep families are these (see ZephyrGPIOPin::arm_wakeup()).
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_STM32)
+#define USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+#endif
+
 // Emitted for every platform: zephyr/nrf52 target with real watchdog hardware
 // (not native_sim). esp32-family and platform: zephyr's nordic-family/silabs-family
 // variants get a user-configurable value (zephyr: watchdog_timeout:); platform: nrf52
