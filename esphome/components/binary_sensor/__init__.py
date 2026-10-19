@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_ON_DOUBLE_CLICK,
     CONF_ON_MULTI_CLICK,
     CONF_ON_PRESS,
+    CONF_ON_RAW_VALUE,
     CONF_ON_RELEASE,
     CONF_ON_STATE,
     CONF_PUBLISH_INITIAL_STATE,
@@ -501,6 +502,7 @@ _BINARY_SENSOR_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation({}),
         }
     )
@@ -552,6 +554,9 @@ _CALLBACK_AUTOMATIONS = (
         CONF_ON_STATE, "add_on_state_callback", [(bool, "x")]
     ),
     automation.CallbackAutomation(
+        CONF_ON_RAW_VALUE, "add_on_raw_state_callback", [(bool, "x")]
+    ),
+    automation.CallbackAutomation(
         CONF_ON_STATE_CHANGE,
         "add_full_state_callback",
         [(cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")],
@@ -567,6 +572,8 @@ async def _build_binary_sensor_automations(var, config):
         cg.add_define("USE_BINARY_SENSOR_CLICK_TRIGGER")
     if config.get(CONF_ON_MULTI_CLICK):
         cg.add_define("USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER")
+    if config.get(CONF_ON_RAW_VALUE):
+        cg.add_define("USE_BINARY_SENSOR_RAW_CALLBACK")
 
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(

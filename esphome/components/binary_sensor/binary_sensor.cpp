@@ -18,6 +18,9 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
 }
 
 void BinarySensor::publish_state(bool new_state) {
+#ifdef USE_BINARY_SENSOR_RAW_CALLBACK
+  this->raw_callback_.call(new_state);
+#endif
 #ifdef USE_BINARY_SENSOR_FILTER
   if (this->filter_list_ == nullptr) {
 #endif
