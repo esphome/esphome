@@ -28,6 +28,18 @@ def test_provided_layers_rejected(setup_core, layer: str) -> None:
         )
 
 
+def test_rolling_code_rejected(setup_core) -> None:
+    """The rolling code needs the session's keep-alives, which TCP does not send through the layers."""
+    with pytest.raises(cv.Invalid, match="cannot be used on this link"):
+        tcp_packet_interface.CONFIG_SCHEMA(
+            {
+                "host": "192.168.1.50",
+                "port": 6060,
+                "encryption": {"key": "secret", "rolling_code_enable": True},
+            }
+        )
+
+
 def test_auto_load_binary_sensor_for_connected(setup_core) -> None:
     """The binary_sensor component is loaded only for the connected sensor."""
     assert tcp_packet_interface.AUTO_LOAD() == ["socket", "binary_sensor"]

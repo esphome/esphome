@@ -19,6 +19,7 @@ from .layers import (
     CONF_ADDRESSING,
     CONF_DESTINATION,
     CONF_PEERS,
+    CONF_SESSION,
     STACK_ORDER,
     PacketInterface,
     build_stack,
@@ -132,6 +133,20 @@ def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
     return validator
 
 
+def _check_provided_session(config: ConfigType) -> ConfigType:
+    """A link's own session does not send packets through the layers, so none can need them from the peer."""
+    for kind in STACK_ORDER:
+        if (layer := config.get(kind.key)) is not None and kind.get_type(
+            layer
+        ).needs_session(layer):
+            raise cv.Invalid(
+                f"This '{kind.key}' needs packets from the peer, which this link does not send through its layers, "
+                "so it cannot be used on this link",
+                path=[kind.key],
+            )
+    return config
+
+
 def packet_interface_schema(
     class_: MockObjClass,
     default_max_packet_size: int,
@@ -147,19 +162,18 @@ def packet_interface_schema(
         )
         for key, schema in LINK_LAYER_SCHEMAS.items()
     }
-    return (
-        cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(class_),
-                cv.Optional(
-                    CONF_MAX_PACKET_SIZE, default=default_max_packet_size
-                ): cv.int_range(16, max_packet_size_limit),
-                **link_layers,
-            }
-        )
-        .extend(cv.COMPONENT_SCHEMA)
-        .add_extra(_validate_layers)
-    )
+    schema = cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(class_),
+            cv.Optional(
+                CONF_MAX_PACKET_SIZE, default=default_max_packet_size
+            ): cv.int_range(16, max_packet_size_limit),
+            **link_layers,
+        }
+    ).extend(cv.COMPONENT_SCHEMA)
+    if CONF_SESSION in provides:
+        schema = schema.add_extra(_check_provided_session)
+    return schema.add_extra(_validate_layers)
 
 
 async def new_packet_interface(config: ConfigType, *args: Any) -> MockObj:
