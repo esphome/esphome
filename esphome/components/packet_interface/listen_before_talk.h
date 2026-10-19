@@ -8,9 +8,9 @@ namespace esphome::packet_interface {
  * Decides whether a half-duplex radio link may send while its radio reports that it is receiving a packet.
  *
  * Sending is refused while the radio is busy, so the packet being received is not lost. A busy period starts when a
- * send first finds the radio busy, and ends when one finds it free. Once a busy period has lasted max_busy_ms, sends
- * go ahead, so a busy flag that never clears cannot stop sending for good, however often sends are tried. Code
- * generation sets max_busy_ms from the time the radio takes to receive the largest packet.
+ * send first finds the radio busy, and ends when a send finds it free or end_busy() is called. Once a busy period has
+ * lasted max_busy_ms, sends go ahead, so a busy flag that never clears cannot stop sending for good, however often
+ * sends are tried. Code generation sets max_busy_ms from the time the radio takes to receive the largest packet.
  */
 class ListenBeforeTalk {
  public:
@@ -31,6 +31,8 @@ class ListenBeforeTalk {
     }
     return now - this->busy_since_ms_ >= this->max_busy_ms_;
   }
+  /// Ends the busy period, when the radio is seen to be free other than by a send.
+  void end_busy() { this->busy_ = false; }
   /// How long the current busy period has lasted at \p now.
   uint32_t busy_for(uint32_t now) const { return now - this->busy_since_ms_; }
 

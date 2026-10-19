@@ -1,28 +1,10 @@
 #pragma once
 
-#include "esphome/components/packet_interface/listen_before_talk.h"
-#include "esphome/components/packet_interface/packet_interface.h"
+#include "esphome/components/packet_interface/radio_link.h"
 #include "esphome/components/sx127x/sx127x.h"
 
 namespace esphome::sx127x {
 
-/// A packet interface link over an SX127x radio: each packet is one radio packet, with the RSSI and SNR of received
-/// packets in the metadata. Sending waits for the radio to finish transmitting. A radio cannot hear while it
-/// sends, so sending is refused while the radio is receiving a packet; the layers above send again shortly.
-class SX127xPacketInterface : public packet_interface::PacketInterface, public SX127xListener {
- public:
-  SX127xPacketInterface(SX127x *radio, size_t max_packet_size)
-      : packet_interface::PacketInterface(max_packet_size), radio_(radio) {}
-
-  void setup() override { this->radio_->register_listener(this); }
-  void set_max_busy(uint32_t max_busy_ms) { this->listen_before_talk_.set_max_busy(max_busy_ms); }
-  bool send_to_interface(const packet_interface::PacketBuffer &data,
-                         const packet_interface::PacketMetaData &meta_data) override;
-  void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) override;
-
- protected:
-  SX127x *radio_;
-  packet_interface::ListenBeforeTalk listen_before_talk_;
-};
+using SX127xPacketInterface = packet_interface::RadioLink<SX127x, SX127xListener, SX127xError, SX127X_MAX_PACKET_SIZE>;
 
 }  // namespace esphome::sx127x

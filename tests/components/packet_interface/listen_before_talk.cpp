@@ -41,6 +41,15 @@ TEST(ListenBeforeTalkTest, FreeRadioEndsBusyPeriod) {
   EXPECT_EQ(lbt.busy_for(START + MAX_BUSY + 100), 0);
 }
 
+TEST(ListenBeforeTalkTest, EndBusyStartsNewPeriod) {
+  ListenBeforeTalk lbt;
+  EXPECT_FALSE(lbt.may_send(true, START));
+  // The link saw the radio free between sends, so a later reception is a new busy period
+  lbt.end_busy();
+  EXPECT_FALSE(lbt.may_send(true, START + MAX_BUSY + 100));
+  EXPECT_EQ(lbt.busy_for(START + MAX_BUSY + 100), 0);
+}
+
 TEST(ListenBeforeTalkTest, LimitCanBeLonger) {
   ListenBeforeTalk lbt;
   lbt.set_max_busy(8000);
