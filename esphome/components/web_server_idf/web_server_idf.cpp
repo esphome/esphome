@@ -1129,13 +1129,14 @@ void AsyncEventSourceResponse::loop() {
 #endif
 AsyncEventSourceResponse::JsonPrepareResult AsyncEventSourceResponse::prepare_json_(void *source,
                                                                                     message_generator_t *generator,
-                                                                                    char *buffer, size_t *size) {
+                                                                                    char *buffer, size_t *size_out) {
+  // Log sends during generation could fill tail_ before we overwrite it; suppress them for this session.
   SendGuard guard{*this};
   json::JsonArena<json::JSON_ARENA_SIZE> arena;
   json::JsonBuilder builder(&arena);
   generator(this->web_server_, source, builder);
-  *size = builder.serialize_to(buffer, JSON_BUF_SIZE);
-  if (*size < JSON_BUF_SIZE) {
+  *size_out = builder.serialize_to(buffer, JSON_BUF_SIZE);
+  if (*size_out < JSON_BUF_SIZE) {
     return JsonPrepareResult::JSON_PREPARE_RESULT_BUFFER;
   }
 
@@ -1147,7 +1148,7 @@ AsyncEventSourceResponse::JsonPrepareResult AsyncEventSourceResponse::prepare_js
   size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
   for (;;) {
     if (!this->reserve_tail_(cap)) {
-      *size = cap;
+      *size_out = cap;
       return JsonPrepareResult::JSON_PREPARE_RESULT_NO_MEMORY;
     }
     const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
@@ -1156,7 +1157,7 @@ AsyncEventSourceResponse::JsonPrepareResult AsyncEventSourceResponse::prepare_js
       break;
     }
     if (cap >= TAIL_MAX_SIZE) {
-      *size = room;
+      *size_out = room;
       return JsonPrepareResult::JSON_PREPARE_RESULT_TOO_LARGE;
     }
     cap = std::min<size_t>(cap * 2, TAIL_MAX_SIZE);

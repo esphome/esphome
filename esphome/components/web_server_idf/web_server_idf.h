@@ -334,8 +334,10 @@ class AsyncEventSourceResponse {
     JSON_PREPARE_RESULT_TOO_LARGE,
   };
   // Keep the arena out of the caller's frame so it is gone before the state send.
+  // size_out: BUFFER = JSON length, NO_MEMORY = requested tail capacity, TOO_LARGE = available JSON room;
+  // unused for TAIL.
   JsonPrepareResult __attribute__((noinline))
-  prepare_json_(void *source, message_generator_t *generator, char *buffer, size_t *size);
+  prepare_json_(void *source, message_generator_t *generator, char *buffer, size_t *size_out);
   // Warn once, and close the session once the stall timeout passes with no memory for the tail
   void tail_alloc_failed_(size_t cap);
   void request_close_();
