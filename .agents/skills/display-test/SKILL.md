@@ -21,20 +21,22 @@ The bundled Swift tool uses AVFoundation and avoids the frame-grabbing problems 
 cameras have with other tools:
 
 ```bash
-mkdir -p /tmp/camsnap
+mkdir -p /tmp/camsnap /tmp/display-test
 swiftc -O "$SKILL/scripts/camsnap.swift" -o /tmp/camsnap/camsnap
 /tmp/camsnap/camsnap <camera-name-substring> /tmp/display-test/after.jpg 30
 ```
 
 The camera argument is a case-insensitive substring of the name AVFoundation reports. If it does
-not match, the tool lists the cameras it found. Other options include `ffmpeg` with
-`avfoundation` input, `imagesnap`, or Photo Booth's still capture.
+not match, the tool lists the cameras it found. It creates the output directory if needed and
+reports encoding or write errors on stderr. Other options include `ffmpeg` with `avfoundation`
+input, `imagesnap`, or Photo Booth's still capture.
 
 ### Linux
 
 Use `ffmpeg` with the v4l2 input, `fswebcam`, or `v4l2-ctl`:
 
 ```bash
+mkdir -p /tmp/display-test
 ffmpeg -f v4l2 -i /dev/video0 -frames:v 1 -y /tmp/display-test/after.jpg
 # or
 fswebcam -d /dev/video0 --skip 10 /tmp/display-test/after.jpg
@@ -47,6 +49,7 @@ List devices with `v4l2-ctl --list-devices`.
 Use `ffmpeg` with the DirectShow input, or any camera application that can save a still image:
 
 ```powershell
+mkdir C:\temp -Force | Out-Null
 ffmpeg -f dshow -list_devices true -i dummy   # find the device name
 ffmpeg -f dshow -i video="<device name>" -frames:v 1 -y C:\temp\after.jpg
 ```

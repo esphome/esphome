@@ -33,8 +33,19 @@ final class Grabber: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     guard seen > skip, let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
     let image = CIImage(cvPixelBuffer: pixels)
     let rep = NSBitmapImageRep(ciImage: image)
-    guard let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) else { exit(1) }
-    do { try jpeg.write(to: URL(fileURLWithPath: out)) } catch { exit(1) }
+    guard let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.9]) else {
+      FileHandle.standardError.write("failed to encode \(out) as JPEG\n".data(using: .utf8)!)
+      exit(1)
+    }
+    let url = URL(fileURLWithPath: out)
+    try? FileManager.default.createDirectory(
+      at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    do {
+      try jpeg.write(to: url)
+    } catch {
+      FileHandle.standardError.write("failed to write \(out): \(error)\n".data(using: .utf8)!)
+      exit(1)
+    }
     print("saved \(out) after \(seen) frames")
     exit(0)
   }
