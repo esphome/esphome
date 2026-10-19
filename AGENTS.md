@@ -437,7 +437,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         - **Hub forwarding entities need no C++ class:** a button, switch, number or select that only calls its hub
           uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
           and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
-          `index`/`option` in scope; `publish="before"` or `"after"` publishes the new state.
+          `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the state.
           ```python
           switches = switch.sub_switches(config, parent=hub)
           await switches(CONF_BLUETOOTH, None, apply="set_bluetooth(state)", publish="after")
@@ -446,8 +446,9 @@ file does, and it is the authority when they disagree. The most useful starting 
         - **Other codegen helpers:** `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`,
           `spi.new_spi_component`, `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`)
           constructs, registers and attaches in one call; `display.add_writer(var, config)` sets the lambda;
-          `MyEnum.options("A", "B")` builds an enum dict; `button.restart_button_schema(cls)` (and `factory_reset_`,
-          `query_`) are button presets; `fv.get_declaring_config(id)` finds a hub's config in final validation.
+          `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict; `button.restart_button_schema(cls)` (and
+          `factory_reset_`, `query_`) are button presets; `fv.get_declaring_config(id)` finds a hub's config in
+          final validation.
 
 *   **Automations (Triggers, Actions, Conditions):**
 
