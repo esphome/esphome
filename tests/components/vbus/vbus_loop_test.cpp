@@ -89,7 +89,8 @@ TEST_F(VBusLoopTest, YieldsWhenReadsKeepReplenishingTheUart) {
   // Refill finitely so a regressed parser fails instead of hanging the test runner.
   this->uart_.refill_reads(256);
   this->bus_.loop();
-  EXPECT_EQ(this->uart_.read_count(), 64u);
+  // The shared helper snapshots availability: bytes arriving during reads wait for the next loop.
+  EXPECT_EQ(this->uart_.read_count(), 1u);
   EXPECT_EQ(this->uart_.available(), 1u);
   EXPECT_TRUE(this->listener_.messages.empty());
 }
