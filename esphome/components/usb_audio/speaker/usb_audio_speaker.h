@@ -95,7 +95,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   uint32_t unreported_frames_{0};
   uint32_t report_frames_pending_{0};
   int64_t report_finish_us_{0};
-  // When the last transfer taken finishes playing; zero until the first one after a start.
+  // When the last transfer taken finishes playing; reset on a start, so the next one starts the chain from now.
   int64_t last_finish_us_{0};
   std::atomic<uint8_t> commands_{0};
   // play() calls and silence padding that may be using the device handle; the hub closes a lost device only at zero.

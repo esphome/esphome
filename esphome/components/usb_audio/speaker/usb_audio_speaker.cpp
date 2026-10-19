@@ -58,7 +58,8 @@ void USBAudioSpeaker::loop() {
     portENTER_CRITICAL(&this->taken_lock_);
     this->ring_bytes_ = 0;
     this->ring_padding_ = 0;
-    this->packet_frac_accum_ = 0;
+    // Resuming resets the driver's accumulator, then prepares every transfer, which advances it by their packets.
+    this->packet_frac_accum_ = CONFIG_UAC_NUM_ISOC_URBS * CONFIG_UAC_NUM_PACKETS_PER_URB * this->packet_frac_ % 1000;
     this->unreported_frames_ = 0;
     this->report_frames_pending_ = 0;
     this->last_finish_us_ = 0;
@@ -295,16 +296,11 @@ void USBAudioSpeaker::on_transfer_taken() {
     this->last_taken_us_ = static_cast<uint32_t>(now_us);
     // The bus plays one packet per millisecond, so while it streams a transfer finishes one transfer after the one
     // taken before it, however late this callback runs. It cannot finish later than now plus the transfers in flight,
-    // so a callback that runs on time pulls back any lateness the chain picked up. Only after the bus ran dry does it
-    // start from now. The first one after a start plays behind the silent transfers the driver queues when resuming.
-    int64_t finish_us;
-    if (this->last_finish_us_ == 0) {
-      finish_us = now_us + this->in_flight_us_;
-    } else if (this->last_finish_us_ < now_us) {
-      finish_us = now_us + this->transfer_us_;
-    } else {
-      finish_us = std::min(this->last_finish_us_ + this->transfer_us_, now_us + this->in_flight_us_);
-    }
+    // so a callback that runs on time pulls back any lateness the chain picked up. When the bus is idle, after a start
+    // (the driver submits nothing until the first write) or once it ran dry, the transfer plays right away.
+    const int64_t finish_us = this->last_finish_us_ < now_us
+                                  ? now_us + this->transfer_us_
+                                  : std::min(this->last_finish_us_ + this->transfer_us_, now_us + this->in_flight_us_);
     this->last_finish_us_ = finish_us;
     this->unreported_frames_ += this->usb_stream_info_.bytes_to_frames(audio);
     // Batched like the I2S speaker's DMA buffers: about every 10 ms, and once the caller's audio runs out.
