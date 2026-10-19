@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_COLOR_TEMPERATURE,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    CONF_ID,
     CONF_ILLUMINANCE,
     CONF_INTEGRATION_TIME,
     DEVICE_CLASS_ILLUMINANCE,
@@ -102,9 +101,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))

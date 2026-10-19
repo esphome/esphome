@@ -43,8 +43,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     # Can't use register_i2c_device because there is no CONF_ADDRESS
-    parent = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_bus(parent))
+    await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
 
 
 # This is used as a final validation step so that modes have been fully transformed.
