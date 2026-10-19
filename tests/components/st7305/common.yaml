@@ -1,0 +1,9 @@
+display:
+  - platform: st7305
+    model: WAVESHARE-400X300
+    id: st7305_display
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    reset_pin: ${reset_pin}
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
