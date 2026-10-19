@@ -1,5 +1,6 @@
 #include "apds9930.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -64,16 +65,8 @@ static constexpr uint16_t ALS_SATURATION = 1024 * (256 - APDS9930_ATIME_VALUE);
 bool APDS9930Component::write_reg_(uint8_t reg, uint8_t value) { return this->write_byte(reg | APDS9930_CMD, value); }
 
 void APDS9930Component::setup() {
-  uint8_t id;
-  if (!this->read_byte(APDS9930_ID | APDS9930_CMD, &id)) {
-    this->mark_failed(LOG_STR("Communication failed"));
+  if (!this->check_chip_id(this, APDS9930_ID | APDS9930_CMD, APDS9930_CHIP_ID))
     return;
-  }
-  if (id != APDS9930_CHIP_ID) {
-    ESP_LOGE(TAG, "Wrong ID 0x%02X (expected 0x%02X)", id, APDS9930_CHIP_ID);
-    this->mark_failed(LOG_STR("Wrong chip ID"));
-    return;
-  }
 
   const uint8_t control =
       (this->led_drive_ & 0b11) << CONTROL_PDRIVE_SHIFT | CONTROL_PDIODE_CH1 << CONTROL_PDIODE_SHIFT |
@@ -119,8 +112,8 @@ void APDS9930Component::update() {
   const uint8_t status = raw[0];
 
   if (this->illuminance_sensor_ != nullptr && (status & APDS9930_AVALID) != 0) {
-    const uint16_t ch0 = encode_uint16(raw[2], raw[1]);
-    const uint16_t ch1 = encode_uint16(raw[4], raw[3]);
+    const uint16_t ch0 = encode_value_le<uint16_t>(&raw[1]);
+    const uint16_t ch1 = encode_value_le<uint16_t>(&raw[3]);
     if (ch0 >= ALS_SATURATION || ch1 >= ALS_SATURATION) {
       // A saturated channel would give a lux value that is too low, not too high
       ESP_LOGW(TAG, "Light channel saturated, lower ambient_light_gain");
@@ -133,7 +126,7 @@ void APDS9930Component::update() {
   }
 
   if (this->proximity_sensor_ != nullptr && (status & APDS9930_PVALID) != 0) {
-    this->proximity_sensor_->publish_state(encode_uint16(raw[6], raw[5]));
+    this->proximity_sensor_->publish_state(encode_value_le<uint16_t>(&raw[5]));
   }
 }
 

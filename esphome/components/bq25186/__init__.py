@@ -339,9 +339,7 @@ CONFIGURE_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     if config[CONF_CONFIGURE_ON_BOOT]:
         cg.add(var.set_setup_registers(cg.ArrayInitializer(*pack_registers(config))))

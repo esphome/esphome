@@ -24,8 +24,9 @@ AES-CCM decryption for encrypted advertisements is provided portably in
 ble_aes_ccm.h.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 import re
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_WINDOW
@@ -180,6 +181,13 @@ async def register_ble_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj
     cg.add(hub.register_listener(var))
     _request_listener_slot()
     return var
+
+
+def new_ble_device_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Construct, register and attach to the BLE hub; args go to the constructor."""
+    return cg.new_bus_component(register_ble_device, config, *args)
 
 
 # ---- shared validation / codegen helpers (platform-neutral) ----

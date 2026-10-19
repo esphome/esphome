@@ -6,7 +6,7 @@ sensor:
 
   - platform: mics_5524
     id: mics_5524_module
-    # 10k/20k divider: the 5 V breakout's 3.33 V stays under the ADC limit.
+    # A 10k/20k divider brings the 5 V output down to 3.33 V on the pin; x1.5 scales it back.
     voltage: mics_5524_adc
     voltage_multiplier: 1.5
     sample_count: 3
@@ -15,6 +15,11 @@ sensor:
       delay: 5s
       sample_count: 3
       sample_interval: 20ms
+    # rs_sensor: only exists in the datasheet model.
+    voltage_sensor:
+      name: MiCS-5524 volts
+    ratio_sensor:
+      name: MiCS-5524 ratio
     carbon_monoxide:
       name: MiCS-5524 CO
       max_ppm: 500.0

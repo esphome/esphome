@@ -60,8 +60,7 @@ void SY6970Component::setup() {
   // Try to read chip ID
   uint8_t reg_value;
   if (!this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)) {
-    ESP_LOGE(TAG, "Failed to communicate with SY6970");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -116,9 +115,6 @@ void SY6970Component::dump_config() {
                 LOG_STR_ARG(i2c_watchdog_timeout_to_string(this->i2c_watchdog_timeout_)));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with SY6970 failed!");
-  }
 }
 
 void SY6970Component::update() {
