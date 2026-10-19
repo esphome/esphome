@@ -99,16 +99,13 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await i2c.new_i2c_component(config)
     device = DEVICES[config[CONF_DEVICE]]
     cg.add(var.set_pin_count(device.pins))
     if device.pcal:
         # Only a build with a PCAL part carries the code for its extra registers
         cg.add_define("USE_PCA9554_PCAL")
         cg.add(var.set_pcal())
-
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
     await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
