@@ -44,8 +44,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_auto_clear(config[CONF_AUTO_CLEAR_ENABLED]))
     cg.add(var.set_validity_period(config[CONF_VALIDITY_PERIOD].total_seconds))
 
-    if CONF_TIME_ID in config:
-        time_ = await cg.get_variable(config[CONF_TIME_ID])
-        cg.add(var.set_time(time_))
+    await cg.add_variable(var.set_time, config.get(CONF_TIME_ID))
 
     await display.add_writer(var, config, PVVXDisplayRef)

@@ -38,9 +38,7 @@ void HydreonRGxxComponent::dump_config() {
 }
 
 void HydreonRGxxComponent::setup() {
-  while (this->available() != 0) {
-    this->read();
-  }
+  this->discard_available();
   this->schedule_reboot_();
 }
 
@@ -108,18 +106,14 @@ void HydreonRGxxComponent::update() {
 }
 
 void HydreonRGxxComponent::loop() {
-  uint8_t data;
-  while (this->available() > 0) {
-    if (!this->read_byte(&data)) {
-      continue;
-    }
+  this->read_available([this](uint8_t data) {
     size_t len;
     const char *line = this->line_reader_.feed(data, len);
     this->line_reader_.log_if_overflowed(TAG);
     if (line != nullptr) {
       this->process_line_(StringRef(line, len));
     }
-  }
+  });
 }
 
 /**

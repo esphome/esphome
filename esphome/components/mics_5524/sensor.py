@@ -434,8 +434,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
     cg.add(var.set_preference_key(_preference_key(config)))
 
-    if (enable := config.get(CONF_ENABLE_PIN)) is not None:
-        cg.add(var.set_enable_pin(await cg.gpio_pin_expression(enable)))
+    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
     if (reference := config.get(CONF_AIR_REFERENCE, config.get(CONF_R0))) is not None:
         cg.add(var.set_reference(reference))
     # A request on a hub without `calibration:` uses the schema defaults, never persisted.
