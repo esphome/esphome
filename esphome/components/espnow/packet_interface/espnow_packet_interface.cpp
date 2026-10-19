@@ -4,6 +4,7 @@
 
 #include <cstring>
 
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -62,10 +63,25 @@ bool ESPNowPacketInterface::send_to_interface(const PacketBuffer &data, const Pa
   }
   esp_err_t err = this->parent_->send(this->peer_address_.data(), payload, size);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "%s: Send failed: %d", this->name_, static_cast<int>(err));
+    this->send_failed_(err);
     return false;
   }
   return true;
+}
+
+// A full send queue is logged by the espnow component, and ESP-NOW is not running before setup or while disabled.
+// Other errors, such as a peer that could not be added, repeat on every send, so warn now and then
+void ESPNowPacketInterface::send_failed_(esp_err_t err) {
+  static constexpr uint32_t WARNING_INTERVAL_MS = 60000;
+  uint32_t now = App.get_loop_component_start_time();
+  if (err == ESP_ERR_ESPNOW_NO_MEM || err == ESP_ERR_ESPNOW_NOT_INIT ||
+      (this->send_warned_ && now - this->last_send_warning_ms_ < WARNING_INTERVAL_MS)) {
+    ESP_LOGV(TAG, "%s: Send failed: %s", this->name_, LOG_STR_ARG(espnow_error_to_str(err)));
+    return;
+  }
+  this->send_warned_ = true;
+  this->last_send_warning_ms_ = now;
+  ESP_LOGW(TAG, "%s: Send failed: %s", this->name_, LOG_STR_ARG(espnow_error_to_str(err)));
 }
 
 bool ESPNowPacketInterface::on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint16_t size) {

@@ -25,6 +25,9 @@ namespace esphome::espnow {
 
 using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 
+/// A short description of an ESP-NOW error code, for logging.
+const LogString *espnow_error_to_str(esp_err_t error);
+
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
   ON_NEW_PEER = 1,
