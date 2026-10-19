@@ -47,19 +47,20 @@ void USBAudioSpeaker::dump_config() {
 }
 
 void USBAudioSpeaker::loop() {
+  this->deliver_reports_();
   const uint8_t commands = this->commands_.exchange(0);
   if (commands & COMMAND_STOP) {
     this->stop_();
   }
   if ((commands & COMMAND_START) && this->state_ == speaker::STATE_STOPPED) {
     // Suspending flushed the driver's ring buffer, and resuming restarts its packet sizing.
-    {
-      LockGuard guard(this->taken_lock_);
-      this->ring_bytes_ = 0;
-      this->ring_padding_ = 0;
-      this->packet_frac_accum_ = 0;
-      this->unreported_frames_ = 0;
-    }
+    portENTER_CRITICAL(&this->taken_lock_);
+    this->ring_bytes_ = 0;
+    this->ring_padding_ = 0;
+    this->packet_frac_accum_ = 0;
+    this->unreported_frames_ = 0;
+    this->report_frames_pending_ = 0;
+    portEXIT_CRITICAL(&this->taken_lock_);
     this->state_ = speaker::STATE_STARTING;
     // Answers through on_stream_state() now or once the device connects.
     this->parent_->resume(Endpoint::SPEAKER);
@@ -248,26 +249,22 @@ void USBAudioSpeaker::pad_with_silence_() {
 }
 
 void USBAudioSpeaker::on_transfer_taken() {
-  uint32_t report = 0;
-  int64_t now_us = 0;
-  {
-    LockGuard guard(this->taken_lock_);
-    // Mirror the driver: the next transfer is CONFIG_UAC_NUM_PACKETS_PER_URB packets, and the driver takes it only
-    // when the ring buffer holds all of it; otherwise it parks the transfer until the next write.
-    uint32_t accum = this->packet_frac_accum_;
-    uint32_t size = 0;
-    for (int i = 0; i < CONFIG_UAC_NUM_PACKETS_PER_URB; i++) {
-      accum += this->packet_frac_;
-      size += this->packet_bytes_;
-      if (accum >= 1000) {
-        size += this->frame_bytes_;
-        accum -= 1000;
-      }
+  bool report = false;
+  portENTER_CRITICAL(&this->taken_lock_);
+  // Mirror the driver: the next transfer is CONFIG_UAC_NUM_PACKETS_PER_URB packets, and the driver takes it only when
+  // the ring buffer holds all of it; otherwise it parks the transfer until the next write.
+  uint32_t accum = this->packet_frac_accum_;
+  uint32_t size = 0;
+  for (int i = 0; i < CONFIG_UAC_NUM_PACKETS_PER_URB; i++) {
+    accum += this->packet_frac_;
+    size += this->packet_bytes_;
+    if (accum >= 1000) {
+      size += this->frame_bytes_;
+      accum -= 1000;
     }
-    const uint32_t ring = this->ring_bytes_;
-    if (ring < size) {
-      return;
-    }
+  }
+  const uint32_t ring = this->ring_bytes_;
+  if (ring >= size) {
     this->packet_frac_accum_ = accum;
     this->ring_bytes_.fetch_sub(size);
     // Padding sits at the end of the ring buffer and is not audio from the caller, so it is not reported.
@@ -276,18 +273,34 @@ void USBAudioSpeaker::on_transfer_taken() {
     if (audio < size) {
       this->ring_padding_.fetch_sub(std::min(size - audio, padding));
     }
-    now_us = esp_timer_get_time();
+    const int64_t now_us = esp_timer_get_time();
     this->last_taken_us_ = static_cast<uint32_t>(now_us);
     this->unreported_frames_ += this->usb_stream_info_.bytes_to_frames(audio);
-    // Reported like the I2S speaker's DMA buffers: about every 10 ms, and once the caller's audio runs out.
-    if (this->unreported_frames_ >= this->report_frames_ || audio == ring - padding) {
-      report = this->unreported_frames_;
+    // Batched like the I2S speaker's DMA buffers: about every 10 ms, and once the caller's audio runs out. The
+    // transfer just taken finishes playing after those already in flight.
+    if (this->unreported_frames_ > 0 && (this->unreported_frames_ >= this->report_frames_ || audio == ring - padding)) {
+      this->report_frames_pending_ += this->unreported_frames_;
+      this->report_finish_us_ = now_us + this->in_flight_us_;
       this->unreported_frames_ = 0;
+      report = true;
     }
   }
-  if (report > 0) {
-    // The transfer just taken finishes playing after those already in flight.
-    this->audio_output_callback_(report, now_us + this->in_flight_us_);
+  portEXIT_CRITICAL(&this->taken_lock_);
+  if (report) {
+    // The listeners can block, so loop() calls them; the frames and their finish time travel together, so the delay
+    // does not change what they compute.
+    this->enable_loop_soon_any_context();
+  }
+}
+
+void USBAudioSpeaker::deliver_reports_() {
+  portENTER_CRITICAL(&this->taken_lock_);
+  const uint32_t frames = this->report_frames_pending_;
+  const int64_t finish_us = this->report_finish_us_;
+  this->report_frames_pending_ = 0;
+  portEXIT_CRITICAL(&this->taken_lock_);
+  if (frames > 0) {
+    this->audio_output_callback_(frames, finish_us);
   }
 }
 

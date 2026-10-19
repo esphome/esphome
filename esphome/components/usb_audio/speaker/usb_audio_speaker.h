@@ -51,6 +51,7 @@ class USBAudioSpeaker : public speaker::Speaker,
   static constexpr uint8_t COMMAND_STOP = 1 << 1;
   static constexpr uint8_t COMMAND_FINISH = 1 << 2;
   void request_(uint8_t set, uint8_t clear);
+  void deliver_reports_();
   void begin_finishing_();
   void stop_();
   size_t play_internal_(const uint8_t *data, size_t length, uint32_t budget_ms);
@@ -84,11 +85,13 @@ class USBAudioSpeaker : public speaker::Speaker,
   std::atomic<uint32_t> ring_padding_{0};
   // Low 32 bits of esp_timer_get_time() when the driver last took a transfer.
   std::atomic<uint32_t> last_taken_us_{0};
-  // on_transfer_taken() runs on the USB driver's task and inside writes, so its state is guarded; reset while the
-  // stream is stopped.
-  Mutex taken_lock_;
+  // on_transfer_taken() runs on the USB driver's task, which must not block, and inside writes, so its state is
+  // guarded by a spinlock and the reports it collects are delivered from loop(). Reset while the stream is stopped.
+  portMUX_TYPE taken_lock_ = portMUX_INITIALIZER_UNLOCKED;
   uint32_t packet_frac_accum_{0};
   uint32_t unreported_frames_{0};
+  uint32_t report_frames_pending_{0};
+  int64_t report_finish_us_{0};
   std::atomic<uint8_t> commands_{0};
   // play() calls and silence padding that may be using the device handle; the hub closes a lost device only at zero.
   std::atomic<uint8_t> writes_in_flight_{0};
