@@ -1,5 +1,4 @@
 from esphome.components import button
-import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_RESTART,
     ENTITY_CATEGORY_CONFIG,
@@ -12,7 +11,7 @@ CONFIG_SCHEMA = button.button_schema(
     device_class=DEVICE_CLASS_RESTART,
     entity_category=ENTITY_CATEGORY_CONFIG,
     icon=ICON_RESTART_ALERT,
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config: ConfigType) -> None:

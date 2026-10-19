@@ -12,16 +12,12 @@ from .. import SafeModeComponent
 
 DEPENDENCIES = ["safe_mode"]
 
-CONFIG_SCHEMA = (
-    button.button_schema(
-        button.ApplyButton,
-        device_class=DEVICE_CLASS_RESTART,
-        entity_category=ENTITY_CATEGORY_CONFIG,
-        icon=ICON_RESTART_ALERT,
-    )
-    .extend({cv.GenerateID(CONF_SAFE_MODE): cv.use_id(SafeModeComponent)})
-    .extend(cv.COMPONENT_SCHEMA)
-)
+CONFIG_SCHEMA = button.button_schema(
+    button.ApplyButton,
+    device_class=DEVICE_CLASS_RESTART,
+    entity_category=ENTITY_CATEGORY_CONFIG,
+    icon=ICON_RESTART_ALERT,
+).extend({cv.GenerateID(CONF_SAFE_MODE): cv.use_id(SafeModeComponent)})
 
 
 async def to_code(config: ConfigType) -> None:
