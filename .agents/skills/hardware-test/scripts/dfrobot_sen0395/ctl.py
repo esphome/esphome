@@ -1,5 +1,5 @@
 """Drive the SEN0395 test device over the API and print its binary sensor and switch updates.
-usage: ctl.py HOST KEY OP [OP ...]   OP: press:NAME | sw:NAME=on|off | wait:SECONDS
+usage: ctl.py HOST KEY(- for plaintext) OP [OP ...]   OP: press:NAME | sw:NAME=on|off | wait:SECONDS
 """
 
 import asyncio
@@ -20,7 +20,7 @@ T0 = time.time()
 
 
 async def main() -> None:
-    c = APIClient(HOST, 6053, None, noise_psk=KEY)
+    c = APIClient(HOST, 6053, None, noise_psk=None if KEY == "-" else KEY)
     await c.connect(login=True)
     ents, _ = await c.list_entities_services()
     by_key = {e.key: e for e in ents}
