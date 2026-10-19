@@ -1,10 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_MAX_CURRENT,
-    UNIT_AMPERE,
-)
+from esphome.const import CONF_MAX_CURRENT, UNIT_AMPERE
 from esphome.types import ConfigType
 
 from . import CONF_DELTA_WALLBOX_ID, DeltaWallbox
