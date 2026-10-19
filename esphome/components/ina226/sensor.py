@@ -7,7 +7,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
-    CONF_ID,
     CONF_MAX_CURRENT,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
@@ -115,9 +114,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_shunt_resistance_ohm(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_max_current_a(config[CONF_MAX_CURRENT]))

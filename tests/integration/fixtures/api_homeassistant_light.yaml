@@ -1,0 +1,39 @@
+esphome:
+  name: ha-light
+
+host:
+
+api:
+  actions:
+    - action: set_force_off
+      variables:
+        value: bool
+      then:
+        - globals.set:
+            id: force_off
+            value: !lambda return value;
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: force_off
+    type: bool
+    initial_value: "false"
+
+light:
+  - platform: homeassistant
+    name: HA Light
+    id: ha_light
+    entity_id: light.kitchen
+    internal: false
+    report_timeout: 2s
+    on_turn_off:
+      - logger.log: "turned off"
+    on_turn_on:
+      # An automation reacting to a state reported by Home Assistant with a local change
+      - if:
+          condition:
+            lambda: return id(force_off);
+          then:
+            - light.turn_off: ha_light
