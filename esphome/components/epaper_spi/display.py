@@ -245,11 +245,7 @@ async def to_code(config):
 
     await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     await cg.add_pin(var.set_busy_pin, config.get(CONF_BUSY_PIN))
     if enable_pin := config.get(CONF_ENABLE_PIN):
