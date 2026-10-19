@@ -350,7 +350,7 @@ void DeferredUpdateEventSourceList::try_send_nodefer(const char *message, size_t
 }
 
 void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServerRequest *request) {
-  DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, "/events");
+  DeferredUpdateEventSource *es = new DeferredUpdateEventSource(ws, ESPHOME_F("/events"));
   this->push_back(es);
 
   es->onConnect([this, es](AsyncEventSourceClient *client) { this->on_client_connect_(es); });
@@ -423,7 +423,7 @@ json::SerializationBuffer<> WebServer::get_config_json() {
   root[ESPHOME_F("ota")] = true;
 #endif
   root[ESPHOME_F("log")] = this->expose_log_;
-  root[ESPHOME_F("lang")] = "en";
+  root[ESPHOME_F("lang")] = linked(ESPHOME_F("en"));
   root[ESPHOME_F("uptime")] = uptime_seconds();
 
   return builder.serialize();
@@ -533,11 +533,7 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 #ifdef USE_WEBSERVER_LOCAL
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response = request->beginResponse(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
-#else
-  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
 #ifdef USE_WEBSERVER_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
 #else
@@ -547,13 +543,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 }
 #elif USE_WEBSERVER_VERSION >= 2
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response =
-      request->beginResponse(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
-#else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/html"), ESPHOME_WEBSERVER_INDEX_HTML,
+                                                            ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
   // No gzip header here because the HTML file is so small
   request->send(response);
 }
@@ -625,13 +616,8 @@ void WebServer::handle_pna_cors_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response =
-      request->beginResponse(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
-#else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_CSS_INCLUDE, ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(200, ESPHOME_F("text/css"), ESPHOME_WEBSERVER_CSS_INCLUDE,
+                                                            ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE);
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
@@ -639,13 +625,8 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
-#ifndef USE_ESP8266
-  AsyncWebServerResponse *response =
-      request->beginResponse(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
-#else
-  AsyncWebServerResponse *response =
-      request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
-#endif
+  AsyncWebServerResponse *response = request->beginResponse(
+      200, ESPHOME_F("text/javascript"), ESPHOME_WEBSERVER_JS_INCLUDE, ESPHOME_WEBSERVER_JS_INCLUDE_SIZE);
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
   request->send(response);
 }
@@ -1502,8 +1483,12 @@ void WebServer::text_json_(text::Text *obj, const std::string &value, JsonDetail
   // A password entity shows the mask and prefills the input with nothing, so the secret never
   // reaches the JSON and the mask cannot be written back as the value
   const bool password = obj->traits.get_mode() == text::TextMode::TEXT_MODE_PASSWORD;
-  set_json_icon_state_value(root, obj, "text", password ? linked("********") : copied_value,
-                            password ? linked("") : copied_value, start_config);
+  set_json_value(root, obj, "text", password ? linked("") : copied_value, start_config);
+  if (password) {
+    root[ESPHOME_F("state")] = linked(ESPHOME_F("********"));
+  } else {
+    root[ESPHOME_F("state")] = copied_value;
+  }
   root[ESPHOME_F("min_length")] = obj->traits.get_min_length();
   root[ESPHOME_F("max_length")] = obj->traits.get_max_length();
   root[ESPHOME_F("pattern")] = linked(obj->traits.get_pattern_c_str());
