@@ -2239,9 +2239,7 @@ void WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail 
 #endif
 
 #ifdef USE_UPDATE
-void WebServer::on_update(update::UpdateEntity *obj) {
-  this->events_.deferrable_send_state(obj, false, update_state_json_generator);
-}
+void WebServer::on_update(update::UpdateEntity *obj) { this->send_state_event_(obj, update_state_json_generator); }
 void WebServer::handle_update_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (update::UpdateEntity *obj : App.get_updates()) {
     auto entity_match = match.match_entity(obj);
