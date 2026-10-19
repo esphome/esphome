@@ -88,7 +88,7 @@ bool MAX31888Sensor::read_temperature_(int16_t &raw) {
     this->status_set_warning(LOG_STR("checksum invalid"));
     return false;
   }
-  raw = static_cast<int16_t>(encode_uint16(frame[3], frame[4]));
+  raw = encode_value<int16_t>(&frame[3]);
   return true;
 }
 
