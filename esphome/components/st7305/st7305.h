@@ -74,9 +74,14 @@ class ST7305 : public display::DisplayBuffer,
   bool init_buffer_();
   void reset_();
   void send_init_sequence_();
+  void finish_init_();
   void write_full_frame_();
   void write_window_(const Window &window);
   Window compute_window_() const;
+
+  /// Scheduler id for the non-blocking reset and init sequence. The steps are sequential,
+  /// so one id is enough; a new timeout replaces any pending one.
+  static constexpr uint32_t STARTUP_TIMEOUT_ID = 0;
 
   void send_command_(uint8_t command) {
     this->dc_pin_->digital_write(false);
@@ -110,6 +115,8 @@ class ST7305 : public display::DisplayBuffer,
   size_t buffer_length_;
   const uint8_t *init_sequence_;
   size_t init_sequence_length_;
+  size_t init_index_{0};
+  bool ready_{false};
 
   int x_low_{0};
   int x_high_{-1};

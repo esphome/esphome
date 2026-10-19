@@ -20,12 +20,6 @@ void ST7305::setup() {
     return;
 
   this->reset_();
-  this->send_init_sequence_();
-  if (this->is_failed())
-    return;
-
-  this->write_full_frame_();
-  this->clear_dirty_();
 }
 
 bool ST7305::init_buffer_() {
@@ -43,35 +37,42 @@ bool ST7305::init_buffer_() {
 }
 
 void ST7305::reset_() {
+  static constexpr uint32_t RESET_HIGH_MS = 50;
+  static constexpr uint32_t RESET_LOW_MS = 20;
+  static constexpr uint32_t RESET_SETTLE_MS = 50;
+  static constexpr uint32_t SOFT_RESET_MS = 5;
+
   if (this->reset_pin_ == nullptr) {
     this->enable();
     this->send_command_(0x01);  // software reset
     this->disable();
-    delay(5);
+    this->set_timeout(STARTUP_TIMEOUT_ID, SOFT_RESET_MS, [this]() { this->send_init_sequence_(); });
     return;
   }
   this->reset_pin_->digital_write(true);
-  delay(50);  // NOLINT
-  this->reset_pin_->digital_write(false);
-  delay(20);
-  this->reset_pin_->digital_write(true);
-  delay(50);  // NOLINT
+  this->set_timeout(STARTUP_TIMEOUT_ID, RESET_HIGH_MS, [this]() {
+    this->reset_pin_->digital_write(false);
+    this->set_timeout(STARTUP_TIMEOUT_ID, RESET_LOW_MS, [this]() {
+      this->reset_pin_->digital_write(true);
+      this->set_timeout(STARTUP_TIMEOUT_ID, RESET_SETTLE_MS, [this]() { this->send_init_sequence_(); });
+    });
+  });
 }
 
 void ST7305::send_init_sequence_() {
-  size_t index = 0;
-  while (index < this->init_sequence_length_) {
-    if (this->init_sequence_length_ - index < 2) {
+  while (this->init_index_ < this->init_sequence_length_) {
+    if (this->init_sequence_length_ - this->init_index_ < 2) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
-    const uint8_t command = progmem_read_byte(&this->init_sequence_[index++]);
-    const uint8_t count = progmem_read_byte(&this->init_sequence_[index++]);
+    const uint8_t command = progmem_read_byte(&this->init_sequence_[this->init_index_++]);
+    const uint8_t count = progmem_read_byte(&this->init_sequence_[this->init_index_++]);
     if (count == 0xFF) {
-      delay(command);
-      continue;
+      // Resume the sequence after the delay instead of blocking the main loop.
+      this->set_timeout(STARTUP_TIMEOUT_ID, command, [this]() { this->send_init_sequence_(); });
+      return;
     }
-    if (this->init_sequence_length_ - index < count) {
+    if (this->init_sequence_length_ - this->init_index_ < count) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
@@ -80,11 +81,18 @@ void ST7305::send_init_sequence_() {
     if (count != 0) {
       this->dc_pin_->digital_write(true);
       for (uint8_t i = 0; i < count; i++)
-        this->write_byte(progmem_read_byte(&this->init_sequence_[index + i]));
+        this->write_byte(progmem_read_byte(&this->init_sequence_[this->init_index_ + i]));
     }
     this->disable();
-    index += count;
+    this->init_index_ += count;
   }
+  this->finish_init_();
+}
+
+void ST7305::finish_init_() {
+  this->write_full_frame_();
+  this->clear_dirty_();
+  this->ready_ = true;
 }
 
 void ST7305::write_full_frame_() {
@@ -150,6 +158,9 @@ void ST7305::write_window_(const Window &window) {
 }
 
 void ST7305::update() {
+  if (!this->ready_)
+    return;
+
   this->do_update_();
   if (!this->is_dirty_())
     return;
