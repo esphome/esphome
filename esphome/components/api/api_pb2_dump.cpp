@@ -970,7 +970,7 @@ const char *HelloResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HelloResponse"));
   dump_field(out, ESPHOME_PSTR("api_version_major"), this->api_version_major);
   dump_field(out, ESPHOME_PSTR("api_version_minor"), this->api_version_minor);
-  dump_field(out, ESPHOME_PSTR("server_info"), this->server_info);
+  dump_progmem_string_field(out, ESPHOME_PSTR("server_info"), this->server_info);
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   return out.c_str();
 }
@@ -1021,17 +1021,17 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceInfoResponse"));
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("mac_address"), this->mac_address);
-  dump_field(out, ESPHOME_PSTR("esphome_version"), this->esphome_version);
+  dump_progmem_string_field(out, ESPHOME_PSTR("esphome_version"), this->esphome_version);
   dump_field(out, ESPHOME_PSTR("compilation_time"), this->compilation_time);
-  dump_field(out, ESPHOME_PSTR("model"), this->model);
+  dump_progmem_string_field(out, ESPHOME_PSTR("model"), this->model);
 #ifdef USE_DEEP_SLEEP
   dump_field(out, ESPHOME_PSTR("has_deep_sleep"), this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  dump_field(out, ESPHOME_PSTR("project_name"), this->project_name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("project_name"), this->project_name);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  dump_field(out, ESPHOME_PSTR("project_version"), this->project_version);
+  dump_progmem_string_field(out, ESPHOME_PSTR("project_version"), this->project_version);
 #endif
 #ifdef USE_WEBSERVER
   dump_field(out, ESPHOME_PSTR("webserver_port"), this->webserver_port);
@@ -1039,7 +1039,7 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_BLUETOOTH_PROXY
   dump_field(out, ESPHOME_PSTR("bluetooth_proxy_feature_flags"), this->bluetooth_proxy_feature_flags);
 #endif
-  dump_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
+  dump_progmem_string_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
   dump_field(out, ESPHOME_PSTR("friendly_name"), this->friendly_name);
 #ifdef USE_VOICE_ASSISTANT
   dump_field(out, ESPHOME_PSTR("voice_assistant_feature_flags"), this->voice_assistant_feature_flags);
