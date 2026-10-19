@@ -91,8 +91,8 @@ class LightState : public EntityBase, public Component {
   /// True from the call that starts a transition or flash until it reaches its target.
   bool is_transitioning() const { return this->transformer_ != nullptr; }
 
-  /// Counts the calls performed, wrapping after 16: an output compares it with the value it noted
-  /// no more than a loop pass earlier to see whether a call came after what it noted
+  /// Counts the calls performed, wrapping after 16, so an output can tell whether a call came after
+  /// the value it noted. Every call that changes the light reaches update_state() within a loop pass.
   uint8_t get_call_count() const { return this->call_count_; }
   LightCall make_call();
 

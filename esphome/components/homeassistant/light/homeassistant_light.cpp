@@ -277,8 +277,8 @@ void HomeassistantLight::update_state(LightState *state) {
     }
     this->initial_seen_ = true;
   }
-  // Reached on every loop of a transition or flash and at once by a call without one: a call since
-  // the held report was read replaces whatever it was held for and is newer than it
+  // Every call that changes the light reaches here within a loop pass (a new transformer's first
+  // apply() or set_immediately_()), and a call since the held report was read is newer than it
   if (this->report_held_ && this->report_call_ != state->get_call_count()) {
     this->report_held_ = false;
   }
