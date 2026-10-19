@@ -2927,3 +2927,27 @@ def rename_key(
         return config
 
     return validator
+
+
+def ignored_key(key: str, *, removed_in: str, component: str | None = None):
+    """Drop ``key``, which no longer has any effect, with a warning that it will be rejected.
+
+    Place it before the schema in ``cv.All`` so existing configs keep validating until
+    ``removed_in``. Input that is not a dictionary is returned unchanged.
+    """
+
+    def validator(config: dict) -> dict:
+        if not isinstance(config, dict) or key not in config:
+            return config
+        prefix = f"[{component}] " if component else ""
+        _LOGGER.warning(
+            "%s'%s' has no effect and can be removed. It will be rejected in %s",
+            prefix,
+            key,
+            removed_in,
+        )
+        config = config.copy()
+        del config[key]
+        return config
+
+    return validator

@@ -3153,6 +3153,24 @@ def test_rename_key_absent() -> None:
     assert cv.rename_key("old", "new")({"other": 5}) == {"other": 5}
 
 
+def test_ignored_key_drops_key_with_warning(caplog: pytest.LogCaptureFixture) -> None:
+    config = {"setup_priority": 600.0, "name": "x"}
+    result = cv.ignored_key("setup_priority", removed_in="2027.5.0", component="copy")(
+        config
+    )
+    assert result == {"name": "x"}
+    assert config == {"setup_priority": 600.0, "name": "x"}
+    assert "[copy] 'setup_priority' has no effect" in caplog.text
+    assert "2027.5.0" in caplog.text
+
+
+def test_ignored_key_absent_or_not_a_dict(caplog: pytest.LogCaptureFixture) -> None:
+    validator = cv.ignored_key("setup_priority", removed_in="2027.5.0")
+    assert validator({"name": "x"}) == {"name": "x"}
+    assert validator("text") == "text"
+    assert caplog.text == ""
+
+
 @pytest.mark.parametrize("value", ["an_id", 1, None, ["old"]])
 def test_rename_key_non_dict_passes_through(value: object) -> None:
     assert cv.rename_key("old", "new")(value) == value
