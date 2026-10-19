@@ -299,8 +299,7 @@ void DeltaWallbox::send_next_state_command_() {
 }
 
 void DeltaWallbox::advance_to_(DeltaState next) {
-  ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-           delta_state_to_string(next));
+  ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_), delta_state_to_string(next));
   this->state_ = next;
   this->send_next_state_command_();
 }
