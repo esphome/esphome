@@ -67,6 +67,8 @@ WAKEUP_SOURCES = {
 # The S2/S3 ULP RISC-V build needs the RISC-V compiler, which the native
 # toolchain install skips for Xtensa variants; any RISC-V chip pulls it in.
 RISCV_TOOLCHAIN_TARGET = "esp32c3"
+# Both backends store the period in a uint32_t of microseconds
+WAKEUP_PERIOD_MAX_US = 2**32 - 1
 
 ULP_SOURCE_SUFFIXES = (".c", ".S", ".s")
 ULP_HEADER_SUFFIXES = (".h",)
@@ -135,7 +137,13 @@ CONFIG_SCHEMA = cv.All(
                 cv.Length(min=1),
                 _validate_sources,
             ),
-            cv.Optional(CONF_WAKEUP_PERIOD): cv.positive_time_period_microseconds,
+            cv.Optional(CONF_WAKEUP_PERIOD): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(
+                    min=cv.TimePeriod(microseconds=1),
+                    max=cv.TimePeriod(microseconds=WAKEUP_PERIOD_MAX_US),
+                ),
+            ),
             cv.Optional(CONF_WAKEUP_SOURCES): cv.ensure_list(
                 cv.one_of(*WAKEUP_SOURCES, lower=True)
             ),

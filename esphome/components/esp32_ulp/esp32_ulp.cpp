@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 
+#include <esp_attr.h>
 #include <esp_sleep.h>
 #include <esp_system.h>
 #if SOC_RISCV_COPROC_SUPPORTED
@@ -16,6 +17,10 @@ extern const uint8_t ULP_MAIN_BIN_END[] asm("_binary_ulp_main_bin_end");
 namespace esphome::esp32_ulp {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ulp");
+
+// Survives deep sleep (RTC memory) so a program loaded before sleeping is known
+// to still be running on wake, however it was started.
+static RTC_DATA_ATTR bool s_program_loaded = false;
 
 #if SOC_RISCV_COPROC_SUPPORTED
 static constexpr const char *BACKEND = "ULP RISC-V";
@@ -39,13 +44,11 @@ void ESP32ULP::setup() {
 #endif
   // After a deep sleep the program is still running in RTC memory; reloading
   // it would discard its state.
-  const bool from_deep_sleep = esp_reset_reason() == ESP_RST_DEEPSLEEP;
-  if (this->run_on_boot_ && !from_deep_sleep && !this->load_and_run()) {
+  if (esp_reset_reason() == ESP_RST_DEEPSLEEP && s_program_loaded) {
+    this->loaded_ = true;
+  } else if (this->run_on_boot_ && !this->load_and_run()) {
     this->mark_failed();
     return;
-  }
-  if (this->run_on_boot_ && from_deep_sleep) {
-    this->loaded_ = true;
   }
   if (this->wakeup_from_sleep_) {
     esp_err_t err = esp_sleep_enable_ulp_wakeup();
@@ -83,6 +86,7 @@ bool ESP32ULP::load_and_run() {
     return false;
   }
   this->loaded_ = true;
+  s_program_loaded = true;
   ESP_LOGD(TAG, "Loaded and started %u byte program", static_cast<unsigned>(size));
   return true;
 }
