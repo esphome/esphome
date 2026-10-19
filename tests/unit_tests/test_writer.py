@@ -1944,6 +1944,7 @@ def test_generate_build_info_data_h_format() -> None:
 
     assert "#pragma once" in result
     assert "extern const uint32_t ESPHOME_CONFIG_HASH;" in result
+    assert "extern const uint32_t ESPHOME_CONFIG_VERSION_HASH;" in result
     assert "extern const time_t ESPHOME_BUILD_TIME;" in result
     assert "extern const size_t ESPHOME_COMMENT_SIZE;" in result
     assert "extern const char ESPHOME_BUILD_TIME_STR[]" in result
@@ -1958,6 +1959,13 @@ def test_generate_build_info_data_h_esp8266_progmem() -> None:
     assert "#ifdef USE_ESP8266" in result
     assert "#include <pgmspace.h>" in result
     assert "PROGMEM" in result
+
+
+def test_generate_build_info_data_cpp_config_version_hash() -> None:
+    """The config version hash is folded from the config hash and ESPHOME_VERSION."""
+    result = generate_build_info_data_cpp(0x12345678, 1700000000, "", "")
+    assert "fnv1a_hash_extend(0x12345678U, ESPHOME_VERSION);" in result
+    assert "ESPHOME_CONFIG_VERSION_HASH = CONFIG_VERSION_HASH;" in result
 
 
 def test_generate_build_info_data_cpp_format() -> None:

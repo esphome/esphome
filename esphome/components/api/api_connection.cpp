@@ -28,6 +28,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 #ifdef USE_PROVISIONING
 #include "esphome/components/provisioning/provisioning.h"
@@ -84,7 +85,10 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
 
-static const char ESPHOME_VERSION_P[] PROGMEM = ESPHOME_VERSION;
+// A flash string on ESP8266, a mergeable literal elsewhere
+#define PROGMEM_STRING_REF(s) ProgmemStringRef(ESPHOME_PSTR(s), sizeof(s) - 1)
+// One flash copy for the hello and device info replies
+static ProgmemStringRef esphome_version_ref() { return PROGMEM_STRING_REF(ESPHOME_VERSION); }
 
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
 static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
@@ -1914,7 +1918,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   resp.api_version_major = 1;
   resp.api_version_minor = 19;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
-  resp.server_info = ProgmemStringRef::from_lit(ESPHOME_VERSION_P);
+  resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
 
 #ifdef USE_PROVISIONING
@@ -1969,7 +1973,7 @@ bool APIConnection::send_device_info_response_() {
   format_mac_addr_upper(mac, mac_address);
   resp.mac_address = StringRef(mac_address);
 
-  resp.esphome_version = ProgmemStringRef::from_lit(ESPHOME_VERSION_P);
+  resp.esphome_version = esphome_version_ref();
 
   // Stack buffer for build time string
   char build_time_str[Application::BUILD_TIME_STR_SIZE];
@@ -1992,22 +1996,19 @@ bool APIConnection::send_device_info_response_() {
 #define ESPHOME_MANUFACTURER "Host"
 #endif
 
-  static const char MANUFACTURER[] PROGMEM = ESPHOME_MANUFACTURER;
-  resp.manufacturer = ProgmemStringRef::from_lit(MANUFACTURER);
-  static_assert(sizeof(MANUFACTURER) - 1 <= 20, "Update max_data_length for manufacturer in api.proto");
+  resp.manufacturer = PROGMEM_STRING_REF(ESPHOME_MANUFACTURER);
+  static_assert(sizeof(ESPHOME_MANUFACTURER) - 1 <= 20, "Update max_data_length for manufacturer in api.proto");
 #undef ESPHOME_MANUFACTURER
 
-  static const char MODEL[] PROGMEM = ESPHOME_BOARD;
-  resp.model = ProgmemStringRef::from_lit(MODEL);
+  resp.model = PROGMEM_STRING_REF(ESPHOME_BOARD);
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  static const char PROJECT_NAME[] PROGMEM = ESPHOME_PROJECT_NAME;
-  static const char PROJECT_VERSION[] PROGMEM = ESPHOME_PROJECT_VERSION;
-  resp.project_name = ProgmemStringRef::from_lit(PROJECT_NAME);
-  resp.project_version = ProgmemStringRef::from_lit(PROJECT_VERSION);
+  resp.project_name = PROGMEM_STRING_REF(ESPHOME_PROJECT_NAME);
+  resp.project_version = PROGMEM_STRING_REF(ESPHOME_PROJECT_VERSION);
 #endif
+#undef PROGMEM_STRING_REF
 #ifdef USE_WEBSERVER
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
