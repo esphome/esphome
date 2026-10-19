@@ -407,8 +407,8 @@ async with run_compiled(yaml_config, line_callback=check_output):
 ##### Timeout Handling
 Always use timeouts for async operations. `wait_or_fail` (`wait_utils.py`) awaits a future,
 coroutine or `asyncio.Event` and fails the test with a message on timeout. Keyword arguments
-are added to the message only on failure, so pass live lists and dicts; lists show their last
-20 items.
+are added to the message only on failure, so pass live collections; lists, tuples, deques and
+mappings show their last 20 items.
 ```python
 from .wait_utils import wait_or_fail
 
