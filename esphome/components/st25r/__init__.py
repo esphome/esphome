@@ -38,8 +38,6 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def setup_st25r(var: MockObj, config: ConfigType) -> None:
-    await cg.register_component(var, config)
-
     await cg.add_pin(var.set_irq_pin, config.get(CONF_IRQ_PIN))
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 

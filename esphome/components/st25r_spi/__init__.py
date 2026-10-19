@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import spi, st25r
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["st25r"]
@@ -21,6 +20,5 @@ CONFIG_SCHEMA = st25r.ST25R_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await spi.new_spi_component(config)
     await st25r.setup_st25r(var, config)
-    await spi.register_spi_device(var, config)
