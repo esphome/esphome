@@ -40,8 +40,8 @@ void VBus::loop() {
     return;
   }
 
-  this->read_available([this, now](uint8_t c) {
-    this->last_rx_ms_ = now;
+  this->read_available([this](uint8_t c) {
+    this->last_rx_ms_ = App.get_loop_component_start_time();
     if (c == 0xaa) {
       this->state_ = 1;
       this->buffer_.clear();
