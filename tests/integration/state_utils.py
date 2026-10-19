@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 import logging
 from typing import TypeVar
 
@@ -91,6 +92,22 @@ class StateWaiter:
         entry = (predicate, asyncio.get_running_loop().create_future())
         self._waiters.append(entry)
         return self._wait(entry, timeout, label)
+
+    def next_state[T: EntityState](
+        self,
+        key: int | None = None,
+        state_type: type[T] = EntityState,
+        timeout: float = 5.0,
+    ) -> Awaitable[T]:
+        """Arm a wait for the next ``state_type`` state, for entity ``key`` if given.
+
+        Like :meth:`expect`, call it before sending the command and await the result afterwards.
+        """
+        return self.expect(
+            lambda s: isinstance(s, state_type) and (key is None or s.key == key),
+            timeout,
+            state_type.__name__ if key is None else f"{state_type.__name__} key={key}",
+        )
 
     async def _wait(
         self,
@@ -320,6 +337,13 @@ class InitialStateHelper:
 
         return wrapper
 
+    @property
+    def pending_object_ids(self) -> list[str]:
+        """Object ids of the entities whose initial state has not arrived yet."""
+        return sorted(
+            self._entities_by_id[k].object_id for k in self._wait_initial_states
+        )
+
     async def wait_for_initial_states(self, timeout: float = 5.0) -> None:
         """Wait for all initial states to be received.
 
@@ -330,6 +354,60 @@ class InitialStateHelper:
             asyncio.TimeoutError: If initial states aren't received within timeout
         """
         await asyncio.wait_for(self._initial_states_received, timeout=timeout)
+
+
+@dataclass(frozen=True, slots=True)
+class StateSubscription:
+    """A state subscription that is past the connect time states."""
+
+    initial_states: dict[int, EntityState]
+    waiter: StateWaiter
+
+
+async def subscribe_after_initial_states(
+    client: APIClient,
+    entities: list[EntityInfo],
+    on_state: Callable[[EntityState], None] | None = None,
+    timeout: float = 5.0,
+) -> StateSubscription:
+    """Subscribe to states and wait until every entity has sent its connect time state.
+
+    Later states go to ``on_state`` (if given) and to the returned ``waiter``. The connect time
+    states are kept in ``initial_states`` by key. Fails the test listing the entities still missing.
+    """
+    helper = InitialStateHelper(entities)
+    waiter = StateWaiter()
+
+    def forward(state: EntityState) -> None:
+        waiter.on_state(state)
+        if on_state is not None:
+            on_state(state)
+
+    client.subscribe_states(helper.on_state_wrapper(forward))
+    try:
+        await helper.wait_for_initial_states(timeout)
+    except TimeoutError:
+        import pytest
+
+        pytest.fail(
+            f"Timeout waiting for initial states, missing: {helper.pending_object_ids}"
+        )
+    return StateSubscription(helper.initial_states, waiter)
+
+
+async def press_and_wait[T: EntityState](
+    client: APIClient,
+    entities: list[EntityInfo],
+    waiter: StateWaiter,
+    button: str,
+    state_type: type[T],
+    timeout: float = 5.0,
+) -> T:
+    """Press the button whose object_id contains ``button`` and return the next ``state_type`` state."""
+    btn = require_entity(entities, button, ButtonInfo)
+    next_state = waiter.next_state(state_type=state_type, timeout=timeout)
+    client.button_command(btn.key)
+    return await next_state
 
 
 class SensorStateCollector:

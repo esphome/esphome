@@ -61,6 +61,31 @@ The `InitialStateHelper` class solves a common problem in integration tests: whe
 **Future work:**
 Consider converting existing integration tests to use `InitialStateHelper` for more reliable state tracking and to eliminate race conditions related to initial state broadcasts.
 
+#### Subscribing after the initial states (`state_utils.py`)
+
+`subscribe_after_initial_states()` does the `InitialStateHelper` setup in one call: it subscribes, waits
+for every entity's connect time state, and fails the test with the entities still missing on timeout.
+It returns a `StateSubscription` with `initial_states` (by key) and a `waiter`, a `StateWaiter` that sees
+every later state. `waiter.next_state(key=..., state_type=...)` arms a wait for the next matching state;
+call it before sending the command. `press_and_wait()` presses a button and returns the next state of a
+type:
+
+```python
+from .state_utils import press_and_wait, subscribe_after_initial_states
+
+entities, _ = await client.list_entities_services()
+sub = await subscribe_after_initial_states(client, entities)
+
+state = await press_and_wait(client, entities, sub.waiter, "set_position", CoverState)
+assert state.position == pytest.approx(0.5, abs=0.01)
+
+next_light = sub.waiter.next_state(key=light.key, state_type=LightState)
+client.light_command(key=light.key, state=True)
+assert (await next_light).state is True
+```
+
+Pass `on_state=` as well when the test also needs to collect every state.
+
 #### Entity Lookup Helpers (`state_utils.py`)
 
 Two helper functions simplify finding entities in test code:
@@ -183,49 +208,24 @@ async def test_my_sensor(
 
 ##### State Subscription Pattern
 
-**Recommended: Using InitialStateHelper**
+**Recommended: Using subscribe_after_initial_states**
 
-When an API client connects, ESPHome automatically sends the current state of all entities. The `InitialStateHelper` (from `state_utils.py`) handles this by swallowing these initial states and only forwarding subsequent state changes to your test callback:
+When an API client connects, ESPHome automatically sends the current state of all entities.
+`subscribe_after_initial_states()` (from `state_utils.py`) swallows these initial states and only forwards
+subsequent state changes, to your callback and to the returned `waiter`:
 
 ```python
-from .state_utils import InitialStateHelper
+from .state_utils import subscribe_after_initial_states
 
-# Track state changes with futures
-loop = asyncio.get_running_loop()
-states: dict[int, EntityState] = {}
-state_future: asyncio.Future[EntityState] = loop.create_future()
-
-
-def on_state(state: EntityState) -> None:
-    """This callback only receives NEW state changes, not initial states."""
-    states[state.key] = state
-    # Check for specific condition using isinstance
-    if isinstance(state, SensorState) and state.state == expected_value:
-        if not state_future.done():
-            state_future.set_result(state)
-
-
-# Get entities and set up state synchronization
 entities, services = await client.list_entities_services()
-initial_state_helper = InitialStateHelper(entities)
+sub = await subscribe_after_initial_states(client, entities)
 
-# Subscribe with the wrapper that filters initial states
-client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
-# Wait for all initial states to be broadcast
-try:
-    await initial_state_helper.wait_for_initial_states()
-except TimeoutError:
-    pytest.fail("Timeout waiting for initial states")
-
-# Now perform your test actions - on_state will only receive new changes
+# Arm the wait before the action that produces the state
+expected = sub.waiter.expect(
+    lambda s: isinstance(s, SensorState) and s.state == expected_value
+)
 # ... trigger state changes ...
-
-# Wait for expected state
-try:
-    result = await asyncio.wait_for(state_future, timeout=5.0)
-except asyncio.TimeoutError:
-    pytest.fail(f"Expected state not received. Got: {list(states.values())}")
+result = await expected
 ```
 
 **Legacy: Manual State Tracking**
