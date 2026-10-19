@@ -23,8 +23,10 @@ void ST7305::setup() {
 }
 
 bool ST7305::init_buffer_() {
-  // Keep the framebuffer in internal RAM: ESP-IDF SPI DMA cannot read a PSRAM buffer unless
-  // the device opts into psram_dma, and boards with PSRAM often enable it.
+  // Keep the framebuffer in internal RAM. With a PSRAM buffer, ESP-IDF copies every SPI
+  // transfer chunk through an internal bounce buffer, allocating and freeing heap on each
+  // write; partial updates send many small chunks. PREFER_INTERNAL still falls back to PSRAM
+  // if internal RAM is exhausted.
   RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::PREFER_INTERNAL);
   this->buffer_ = allocator.allocate(this->buffer_length_);
   if (this->buffer_ == nullptr) {
