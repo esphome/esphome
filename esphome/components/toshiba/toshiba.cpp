@@ -3,8 +3,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-#include <vector>
-
 namespace esphome::toshiba {
 
 struct RacPt1411hwruFanSpeed {
@@ -69,8 +67,8 @@ const uint8_t RAC_PT1411HWRU_CS_FOOTER_COOL = 0x72;
 const uint8_t RAC_PT1411HWRU_CS_FOOTER_HEAT = 0x7E;
 // RAC-PT1411HWRU Swing
 const uint8_t RAC_PT1411HWRU_SWING_HEADER = 0xB9;
-const std::vector<uint8_t> RAC_PT1411HWRU_SWING_VERTICAL{0xB9, 0x46, 0xF5, 0x0A, 0x04, 0xFB};
-const std::vector<uint8_t> RAC_PT1411HWRU_SWING_OFF{0xB9, 0x46, 0xF5, 0x0A, 0x05, 0xFA};
+static constexpr uint8_t RAC_PT1411HWRU_SWING_VERTICAL[] PROGMEM = {0xB9, 0x46, 0xF5, 0x0A, 0x04, 0xFB};
+static constexpr uint8_t RAC_PT1411HWRU_SWING_OFF[] PROGMEM = {0xB9, 0x46, 0xF5, 0x0A, 0x05, 0xFA};
 // RAC-PT1411HWRU Fan speeds
 const uint8_t RAC_PT1411HWRU_FAN_OFF = 0x7B;
 constexpr RacPt1411hwruFanSpeed RAC_PT1411HWRU_FAN_AUTO{0xBF, 0x66};
@@ -92,12 +90,12 @@ const uint8_t RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY = 0x0E;
 //  Hence these look-up tables. In addition, the upper nibble is used here for additional
 //  "negative" and "fractional value" flags as required for some temperatures.
 // RAC-PT1411HWRU °C Temperatures (short codes)
-const std::vector<uint8_t> RAC_PT1411HWRU_TEMPERATURE_C{0x10, 0x00, 0x01, 0x03, 0x02, 0x06, 0x07, 0x05,
-                                                        0x04, 0x0C, 0x0D, 0x09, 0x08, 0x0A, 0x0B};
+static constexpr uint8_t RAC_PT1411HWRU_TEMPERATURE_C[] PROGMEM = {0x10, 0x00, 0x01, 0x03, 0x02, 0x06, 0x07, 0x05,
+                                                                   0x04, 0x0C, 0x0D, 0x09, 0x08, 0x0A, 0x0B};
 // RAC-PT1411HWRU °F Temperatures (short codes)
-const std::vector<uint8_t> RAC_PT1411HWRU_TEMPERATURE_F{0x10, 0x30, 0x00, 0x20, 0x01, 0x21, 0x03, 0x23, 0x02,
-                                                        0x22, 0x06, 0x26, 0x07, 0x05, 0x25, 0x04, 0x24, 0x0C,
-                                                        0x2C, 0x0D, 0x2D, 0x09, 0x08, 0x28, 0x0A, 0x2A, 0x0B};
+static constexpr uint8_t RAC_PT1411HWRU_TEMPERATURE_F[] PROGMEM = {
+    0x10, 0x30, 0x00, 0x20, 0x01, 0x21, 0x03, 0x23, 0x02, 0x22, 0x06, 0x26, 0x07, 0x05,
+    0x25, 0x04, 0x24, 0x0C, 0x2C, 0x0D, 0x2D, 0x09, 0x08, 0x28, 0x0A, 0x2A, 0x0B};
 
 // RAS-2819T protocol constants
 const uint16_t RAS_2819T_HEADER1 = 0xC23D;
@@ -213,7 +211,7 @@ static constexpr uint8_t SEIYA_SWING_HORIZONTAL = 0x09;
 static constexpr uint8_t SEIYA_SWING_NEUTRAL = 0x17;  // no swing change in this frame
 
 // RAS-2819T temperature codes for 18-30°C
-static const uint8_t RAS_2819T_TEMP_CODES[] = {
+static constexpr uint8_t RAS_2819T_TEMP_CODES[] PROGMEM = {
     0x10,  // 18°C
     0x30,  // 19°C
     0x20,  // 20°C
@@ -328,7 +326,7 @@ static uint8_t get_ras_2819t_temp_code(float temperature) {
     return 0x40;  // Default to 24°C
   }
 
-  return RAS_2819T_TEMP_CODES[temp_index];
+  return progmem_read_byte(&RAS_2819T_TEMP_CODES[temp_index]);
 }
 
 /**
@@ -339,7 +337,7 @@ static float decode_ras_2819t_temperature(uint8_t temp_code) {
 
   // Find the code in the temperature array
   for (size_t temp_index = 0; temp_index < sizeof(RAS_2819T_TEMP_CODES); temp_index++) {
-    if (RAS_2819T_TEMP_CODES[temp_index] == base_temp_code) {
+    if (progmem_read_byte(&RAS_2819T_TEMP_CODES[temp_index]) == base_temp_code) {
       return static_cast<float>(temp_index + 18);  // 18°C is the minimum
     }
   }
@@ -546,9 +544,7 @@ void ToshibaClimate::transmit_generic_() {
   }
 
   // The last byte is the xor of all bytes from [4]
-  for (uint8_t i = 4; i < message_length - 1; i++) {
-    message[message_length - 1] ^= message[i];
-  }
+  message[message_length - 1] = xor_bytes(message + 4, message_length - 5);
 
   // Transmit
   auto transmit = this->transmitter_->transmit();
@@ -680,10 +676,10 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   index = static_cast<uint8_t>(roundf(temp_adjd));
 
   if (this->model_ == MODEL_RAC_PT1411HWRU_F) {
-    code = RAC_PT1411HWRU_TEMPERATURE_F[index];
+    code = progmem_read_byte(&RAC_PT1411HWRU_TEMPERATURE_F[index]);
     message[9] |= RAC_PT1411HWRU_FLAG_FAH;
   } else {
-    code = RAC_PT1411HWRU_TEMPERATURE_C[index];
+    code = progmem_read_byte(&RAC_PT1411HWRU_TEMPERATURE_C[index]);
   }
   if ((this->mode == climate::CLIMATE_MODE_FAN_ONLY) || (this->mode == climate::CLIMATE_MODE_OFF)) {
     code = RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY;
@@ -752,15 +748,11 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
   // Swing Mode
   data->reset();
   data->space(TOSHIBA_PACKET_SPACE);
-  switch (this->swing_mode) {
-    case climate::CLIMATE_SWING_VERTICAL:
-      this->encode_(data, &RAC_PT1411HWRU_SWING_VERTICAL[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
-      break;
-
-    case climate::CLIMATE_SWING_OFF:
-    default:
-      this->encode_(data, &RAC_PT1411HWRU_SWING_OFF[0], RAC_PT1411HWRU_MESSAGE_LENGTH, 1);
-  }
+  const uint8_t *swing_frame =
+      this->swing_mode == climate::CLIMATE_SWING_VERTICAL ? RAC_PT1411HWRU_SWING_VERTICAL : RAC_PT1411HWRU_SWING_OFF;
+  uint8_t swing[RAC_PT1411HWRU_MESSAGE_LENGTH];
+  progmem_memcpy(swing, swing_frame, sizeof(swing));
+  this->encode_(data, swing, sizeof(swing), 1);
 
   data->space(TOSHIBA_PACKET_SPACE);
   transmit.perform();
@@ -1300,14 +1292,14 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         temperature_code =
             (message[4] >> 4) | (message[14] & RAC_PT1411HWRU_FLAG_FRAC) | (message[15] & RAC_PT1411HWRU_FLAG_NEG);
         if (message[15] & RAC_PT1411HWRU_FLAG_FAH) {
-          for (size_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_F.size(); i++) {
-            if (RAC_PT1411HWRU_TEMPERATURE_F[i] == temperature_code) {
+          for (size_t i = 0; i < sizeof(RAC_PT1411HWRU_TEMPERATURE_F); i++) {
+            if (progmem_read_byte(&RAC_PT1411HWRU_TEMPERATURE_F[i]) == temperature_code) {
               this->target_temperature = static_cast<float>((i + TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN - 32) * 5) / 9;
             }
           }
         } else {
-          for (size_t i = 0; i < RAC_PT1411HWRU_TEMPERATURE_C.size(); i++) {
-            if (RAC_PT1411HWRU_TEMPERATURE_C[i] == temperature_code) {
+          for (size_t i = 0; i < sizeof(RAC_PT1411HWRU_TEMPERATURE_C); i++) {
+            if (progmem_read_byte(&RAC_PT1411HWRU_TEMPERATURE_C[i]) == temperature_code) {
               this->target_temperature = i + TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
             }
           }
@@ -1333,7 +1325,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
     // Swing mode
     case RAC_PT1411HWRU_SWING_HEADER:
-      if (message[4] == RAC_PT1411HWRU_SWING_VERTICAL[4]) {
+      if (message[4] == progmem_read_byte(&RAC_PT1411HWRU_SWING_VERTICAL[4])) {
         this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
       } else {
         this->swing_mode = climate::CLIMATE_SWING_OFF;
@@ -1341,13 +1333,10 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
     // Generic (old) Toshiba packet
     default:
-      uint8_t checksum = 0;
       // Add back the length of the header (we pruned it above)
       message_length += TOSHIBA_HEADER_LENGTH;
       // Validate the second checksum before trusting any more of the message
-      for (uint8_t i = TOSHIBA_HEADER_LENGTH; i < message_length - 1; i++) {
-        checksum ^= message[i];
-      }
+      const uint8_t checksum = xor_bytes(message + TOSHIBA_HEADER_LENGTH, message_length - 1 - TOSHIBA_HEADER_LENGTH);
       // Did our computed checksum and the provided checksum match?
       if (checksum != message[message_length - 1]) {
         return false;

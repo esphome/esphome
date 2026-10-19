@@ -841,6 +841,10 @@ def _prefetch(build_dir: Path, env: str) -> None:
     from platformio.package.meta import PackageCompatibility, PackageSpec
     from platformio.platform.factory import PlatformFactory
 
+    from esphome.platformio.runner import ensure_http_cache_dir
+
+    # The resolve and install pools each build their own registry client
+    ensure_http_cache_dir()
     platform_spec, config = _project_platform_and_config(
         build_dir / "platformio.ini", env
     )
