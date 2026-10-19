@@ -64,9 +64,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
 
-    if wakeup_pin_config := config.get(CONF_WAKEUP_PIN):
-        pin = await cg.gpio_pin_expression(wakeup_pin_config)
-        cg.add(var.set_wakeup_pin(pin))
+    await cg.add_pin(var.set_wakeup_pin, config.get(CONF_WAKEUP_PIN))
 
     cg.add(var.set_wakeup_pulse_ms(config[CONF_WAKEUP_PULSE].total_milliseconds))
 

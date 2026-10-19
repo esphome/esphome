@@ -33,14 +33,14 @@ void VEML3235Sensor::setup() {
 }
 
 bool VEML3235Sensor::refresh_config_reg() {
-  uint16_t data = 0x1;  // mandatory 1 per RM; shutdown bits cleared (device powered on)
+  uint16_t data = 0x100;  // mandatory 1 per RM; shutdown bits cleared (device powered on)
 
   data |= (uint16_t(this->integration_time_) << CONFIG_REG_IT_BIT);
   data |= (uint16_t(this->digital_gain_) << CONFIG_REG_DG_BIT);
   data |= (uint16_t(this->gain_) << CONFIG_REG_G_BIT);
 
   ESP_LOGVV(TAG, "Writing 0x%.4x to register 0x%.2x", data, CONFIG_REG);
-  return this->write_byte_16(CONFIG_REG, data);
+  return this->write_byte_16_le(CONFIG_REG, data);
 }
 
 void VEML3235Sensor::update() {
@@ -54,16 +54,13 @@ void VEML3235Sensor::update() {
 
 void VEML3235Sensor::read_and_publish_(uint8_t adjustments_left) {
   uint8_t als_regs[] = {0, 0};
-  if ((this->read_register(ALS_REG, als_regs, sizeof als_regs) != i2c::ERROR_OK)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_register(ALS_REG, als_regs, sizeof als_regs) == i2c::ERROR_OK)) {
     this->publish_state(NAN);
     this->measurement_in_progress_ = false;
     return;
   }
 
-  this->status_clear_warning();
-
-  uint16_t als_counts = encode_uint16(als_regs[1], als_regs[0]);
+  uint16_t als_counts = encode_value_le<uint16_t>(als_regs);
 
   if (this->auto_gain_ && adjustments_left > 0) {
     // A sample integrated with the previous settings may still be in the data register after the
