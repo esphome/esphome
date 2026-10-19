@@ -117,6 +117,8 @@ def _validate_variant(config: ConfigType) -> ConfigType:
                 f"{CONF_WAKEUP_SOURCES} is only available on the LP core ({', '.join(v for v, b in VARIANT_BACKEND.items() if b == BACKEND_LP_CORE)})",
                 path=[CONF_WAKEUP_SOURCES],
             )
+        if CONF_WAKEUP_PERIOD not in config:
+            raise cv.Invalid(f"{CONF_WAKEUP_PERIOD} is required")
     elif CONF_WAKEUP_PERIOD not in config and not config.get(CONF_WAKEUP_SOURCES):
         raise cv.Invalid(
             f"The LP core needs {CONF_WAKEUP_PERIOD} or {CONF_WAKEUP_SOURCES} to know when to run"
