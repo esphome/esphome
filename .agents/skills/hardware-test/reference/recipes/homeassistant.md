@@ -23,7 +23,7 @@ packages:
 ```
 
 Flash by USB, start a bounded `esphome logs` capture per device, then press buttons with
-`scripts/homeassistant_light/drive.py DEV_IP KEY press "Button"` and read the bulb with `bulb.py`. Cases: each
+`scripts/api_button.py DEV_IP KEY press "Button"` and read the bulb with `bulb.py`. Cases: each
 button against the bulb and the device log; a direct bulb change that both mirrors follow; restart the bulb, send a
 change, expect the 5 s `did not report the change back` and the fallback (with an off and with an on last report);
 OTA reboot with a serial capture running to see the boot-time change (the API log client reconnects too late).

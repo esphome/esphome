@@ -21,7 +21,7 @@ Results: https://github.com/esphome/esphome/pull/21077#issuecomment-6254098014
 
 `templates/outgoing-wifi-drop-dut.yaml`: classic ESP32, `outgoing_connection: delay: 2s`, a "Wifi cycle" button doing
 `wifi.disable`, 4 s, `wifi.enable`, a `debug` loop-time sensor, millis from the wifi and api triggers. Flash by USB,
-`serial_capture.py PORT SECONDS OUT --ms`, press the button N times 40 s apart with `drive.py DEV_IP KEY press
+`serial_capture.py PORT SECONDS OUT --ms`, press the button N times 40 s apart with `api_button.py DEV_IP KEY press
 "Wifi cycle"`, then `wificycles.py CAPTURE LABEL` prints per drop the Wi-Fi-to-dial gap, dials and dials closed, who
 connected first, and the loop-time maxima. For the loop cost of polling, repeat with an unreachable
 `host: 192.0.2.1`. Home Assistant refuses a dial-in while its own session is READY (`Refusing dial-in adoption`),

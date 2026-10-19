@@ -7,7 +7,7 @@ the host port, so there is no console), `usb_audio` hub, a 48 kHz 16-bit microph
 speakerphones offer only 24-bit; a wrong format logs the device's alternates), buttons for capture start and stop,
 a non-blocking beep fed from an 8 ms interval with `play(buf, len, 0)` (a blocking `play()` on the main loop trips
 the task watchdog), and a status interval with mic bytes, speaker state and heap. Drive the buttons with
-`scripts/homeassistant_light/drive.py IP KEY press "Beep"`. Expect 192 kB/s microphone bytes and the FIFO split
+`scripts/api_button.py IP KEY press "Beep"`. Expect 192 kB/s microphone bytes and the FIFO split
 RX 80 / NPTX 16 / PTX 104 in the build's `defines.h`; with the balanced split the 294-byte OUT pipe is refused
 (`EP MPS (294) exceeds supported limit (128)`). A device whose OUT endpoint is larger than 600 bytes cannot be
 claimed on an S3 at all.

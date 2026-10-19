@@ -100,6 +100,8 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
   strap (DTR). `flash read` needs the family `realtek-ambz2`; `flash write` does not.
 - `flash_bk72xx.py`: ltchiptool wrapper for BK72xx boards whose RTS drives CEN. It misses the link now
   and then; retry up to three times.
+- `api_button.py HOST KEY list|press NAME [...]`: list a device's template buttons or press them over the API; the
+  recipes drive their test configs with it.
 - `wifisave_hammer.sh KIND DUT_PORT DUT_YAML DUT_TREE CLIENT_PORT CLIENT_YAML CLIENT_TREE [SETTLE]`:
   the fallback AP plus captive portal hammer end to end (compile, flash, capture, counts) with the
   templates below. KIND is `esp`, `pico`, `bw15` or `bk`. It ends with `RESULT PASS` (exit 0),
@@ -113,8 +115,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
 Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
-capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `homeassistant_light/` (button
-driver, direct bulb driver), `usb_audio/` (URL player).
+capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `homeassistant_light/` (direct bulb driver), `usb_audio/` (URL player).
 
 ## Templates in `$SKILL/templates`
 

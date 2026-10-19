@@ -1,6 +1,6 @@
 """Press a template button on the test device over the API, or list its buttons.
 
-usage: drive.py HOST KEY list | press "Button name" [...]
+usage: api_button.py HOST KEY list | press "Button name" [...]
 """
 
 import asyncio
