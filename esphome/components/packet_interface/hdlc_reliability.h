@@ -92,6 +92,7 @@ class HdlcReliability : public PacketInterface {
   bool rej_sent_{false};
   bool peer_frame_seen_{false};  // a numbered frame has arrived since the link came up
   bool oversize_warned_{false};
+  bool reset_wait_logged_{false};  // the queue filled while waiting for this reset to be answered
 };
 
 }  // namespace esphome::packet_interface

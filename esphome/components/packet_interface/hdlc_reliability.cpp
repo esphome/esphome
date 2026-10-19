@@ -113,7 +113,9 @@ bool HdlcReliability::send_to_interface(const PacketBuffer &data, const PacketMe
   if (outstanding >= this->max_queue_length_) {
     if (this->state_ == LinkState::LINK_STATE_CONNECTED) {
       ESP_LOGV(TAG, "%s: Send queue full", this->name_);
-    } else {
+    } else if (!this->reset_wait_logged_) {
+      // Once for each reset; the layers above keep trying while the peer is away
+      this->reset_wait_logged_ = true;
       ESP_LOGD(TAG, "%s: Send queue full, waiting for the peer to answer the link reset", this->name_);
     }
     return false;
@@ -230,6 +232,7 @@ void HdlcReliability::start_reset_() {
 void HdlcReliability::link_up_() {
   ESP_LOGD(TAG, "%s: Link connected", this->name_);
   this->state_ = LinkState::LINK_STATE_CONNECTED;
+  this->reset_wait_logged_ = false;
   this->peer_frame_seen_ = false;
   this->retries_ = 0;
   this->cancel_timeout(RETRANSMIT_TIMER_ID);
