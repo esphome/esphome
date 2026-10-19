@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 import textwrap
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 
 import yaml
 
@@ -185,6 +185,14 @@ class Section:
         )
 
 
+class CdcAcmUser(NamedTuple):
+    name: str
+    # Only writes with uart_poll_out() and never sets the IRQ callback (the logger)
+    write_only: bool
+    # Can share the port with write-only users (protocols that skip unframed text)
+    allow_write_only: bool
+
+
 class ZephyrData(TypedDict):
     board: str
     board_root: Path | None  # resolved zephyr: board_source: dir, or None if unset
@@ -249,6 +257,8 @@ class ZephyrData(TypedDict):
     # Set by zephyr_mcumgr/ota's to_code() when sysbuild is actually in use; consulted
     # by nrf52/framework.py's west-project-filter to decide whether to fetch "mcuboot".
     sysbuild: bool
+    # CDC ACM port number -> components that use it (platform: nrf52 only)
+    cdc_acm_users: dict[int, list[CdcAcmUser]]
 
 
 # platform: nrf52 use only
@@ -268,6 +278,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
             "": "",
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
+        cdc_acm_users={},
         extra_build_files={},
         pm_static=[],
         partition_requirements=[],
@@ -771,6 +782,9 @@ async def _overlays_to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _cdc_acm_to_code(config: ConfigType) -> None:
+    # Runs last so these required options override the optional defaults that
+    # platforms (nrf52) set during their own to_code
+    _cdc_acm_add_ports()
     need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
         "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
     )[0]
@@ -802,6 +816,72 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
+def zephyr_claim_cdc_acm(
+    id: int,
+    user: str,
+    *,
+    write_only: bool = False,
+    allow_write_only: bool = False,
+) -> None:
+    """Reserve CDC ACM port `id` for `user`. Call from FINAL_VALIDATE_SCHEMA.
+
+    zephyr_to_code() later adds the device tree node and Kconfig options for
+    every claimed port, so components do not set up the port themselves.
+
+    Components on the same port share one device, and the device has only one
+    IRQ callback slot: the component set up last takes all received data from
+    the other. So a port normally has one user. The exception is a `write_only`
+    user (the logger), which never sets the IRQ callback; it may share the port
+    with a user that sets `allow_write_only` because its protocol skips text
+    that is not part of its own frames (mcumgr).
+    """
+    new = CdcAcmUser(user, write_only, allow_write_only)
+    users = zephyr_data()["cdc_acm_users"].setdefault(id, [])
+    for other in users:
+        if other.name == user:
+            return
+        if (new.write_only and other.allow_write_only) or (
+            other.write_only and new.allow_write_only
+        ):
+            continue
+        raise cv.Invalid(
+            f"USB CDC ACM port {id} (cdc_acm_uart{id}) is used by both "
+            f"'{other.name}' and '{user}'. Each port can only be used by one component."
+        )
+    users.append(new)
+
+
+def _cdc_acm_add_ports() -> None:
+    """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
+    users = zephyr_data()["cdc_acm_users"]
+    if not users:
+        return
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
+        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
+    zephyr_add_prj_conf("SERIAL", True)
+    # prevent device to go to susspend, without this communication stop working in python
+    # there should be a way to solve it
+    zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+    # prevent logging when buffer is full
+    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    nodes = "".join(
+        f"""
+                cdc_acm_uart{id}: cdc_acm_uart{id} {{
+                    compatible = "zephyr,cdc-acm-uart";
+                }};"""
+        for id in sorted(users)
+    )
+    zephyr_add_overlay(
+        f"""
+            &zephyr_udc0 {{{nodes}
+            }};
+        """
+    )
+
+
 def zephyr_add_cdc_acm(config: ConfigType, id: int) -> str:
     """Ensure a CDC-ACM UART is available and return the devicetree label to
     reference it by (e.g. for `zephyr,console`/`zephyr,shell-uart`).
@@ -813,26 +893,12 @@ def zephyr_add_cdc_acm(config: ConfigType, id: int) -> str:
     interfaces on the same device is needless USB complexity, and means
     "which port do I talk to" changes depending on whether MCUboot (which
     only ever sees the board's own node) or the app is currently running.
+
+    platform: zephyr only; platform: nrf52 uses zephyr_claim_cdc_acm().
     """
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.is_nrf52:
-        # platform: nrf52 stays pinned to the legacy USB device stack -- untested
-        # against the newer device_next stack, not touching working behavior.
-        if framework_ver >= cv.Version(3, 2, 0):
-            zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
-        zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-        zephyr_add_prj_conf("USB_CDC_ACM", True)
-        # nrf52/__init__.py disables SERIAL by default to save power; CDC-ACM needs it back
-        zephyr_add_prj_conf("SERIAL", True)
-        # prevent device to go to susspend, without this communication stop working in python
-        # there should be a way to solve it
-        zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
-        # prevent logging when buffer is full
-        zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
-    else:
-        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", True)
-        zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
-        zephyr_add_prj_conf("SERIAL", True)
+    zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", True)
+    zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
+    zephyr_add_prj_conf("SERIAL", True)
 
     from .dts_lookup import get_existing_cdc_acm_uart_label
 

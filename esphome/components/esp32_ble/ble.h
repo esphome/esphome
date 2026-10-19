@@ -259,27 +259,6 @@ class ESP32BLE final : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BLE *global_ble;
 
-template<typename... Ts> class BLEEnabledCondition final : public Condition<Ts...> {
- public:
-  bool check(const Ts &...x) override { return global_ble != nullptr && global_ble->is_active(); }
-};
-
-template<typename... Ts> class BLEEnableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override {
-    if (global_ble != nullptr)
-      global_ble->enable();
-  }
-};
-
-template<typename... Ts> class BLEDisableAction final : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override {
-    if (global_ble != nullptr)
-      global_ble->disable();
-  }
-};
-
 }  // namespace esphome::esp32_ble
 
 #endif

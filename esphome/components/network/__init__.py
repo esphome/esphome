@@ -34,7 +34,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # High performance networking tracking infrastructure
 # Components can request high performance networking and this configures lwip and WiFi settings
-KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
+KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"  # lwip tier
+KEY_HIGH_PERFORMANCE_WIFI = "high_performance_wifi"  # WiFi driver buffers
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 CONF_TCP_SEND_BUFFER = "tcp_send_buffer"
 
@@ -242,9 +243,26 @@ def require_high_performance_networking() -> None:
             _request_high_performance_networking,
         )
     """
-    # Only set up once (idempotent - multiple components can call this)
-    if not CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False):
-        CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
+    CORE.data[KEY_HIGH_PERFORMANCE_NETWORKING] = True
+    require_high_performance_wifi()
+
+
+def require_high_performance_wifi() -> None:
+    """Request only the WiFi driver part of high performance networking.
+
+    For traffic that passes through the device below its own sockets, such as the
+    NAT of a WISP access point: more RX/TX buffers, AMPDU aggregation and a deeper
+    lwip input mailbox help every forwarded packet, while the larger TCP windows
+    would only serve the device's own connections and cost internal RAM for nothing.
+    ``network: enable_high_performance: false`` turns the mailbox part off like the
+    lwip tier; the WiFi driver settings follow the component request alone.
+    """
+    CORE.data[KEY_HIGH_PERFORMANCE_WIFI] = True
+
+
+def has_high_performance_wifi() -> bool:
+    """True when a component asked for the high performance WiFi driver settings."""
+    return CORE.data.get(KEY_HIGH_PERFORMANCE_WIFI, False)
 
 
 def has_high_performance_networking() -> bool:
@@ -596,6 +614,13 @@ async def to_code(config: ConfigType) -> None:
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", tcp_window)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", tcpip_mailbox)
+    elif (
+        CORE.is_esp32 and enable_high_perf is not False and has_high_performance_wifi()
+    ):
+        # Forwarded frames still queue through tcpip_input, so the WiFi-only tier deepens that mailbox too
+        add_idf_sdkconfig_option(
+            "CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", TCPIP_RECVMBOX_OPTIMIZED
+        )
 
     # After the high performance block so an explicit size wins over the
     # bundle's 65534 (last write wins in the sdkconfig store).

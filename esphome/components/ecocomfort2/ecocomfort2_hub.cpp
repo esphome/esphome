@@ -205,6 +205,10 @@ void Ecocomfort2Hub::publish_unknown_() {
       sensor->publish_state(NAN);
   }
 #endif
+#ifdef USE_BINARY_SENSOR
+  if (this->boost_binary_sensor_ != nullptr)
+    this->boost_binary_sensor_->invalidate_state();
+#endif
 }
 
 // C_OPER: mode byte, speed/flags byte
@@ -216,10 +220,6 @@ void Ecocomfort2Hub::on_oper_(const uint8_t *data, uint16_t len) {
   this->mode_ = data[0];
   this->speed_ = data[1];
   ESP_LOGD(TAG, "[%s] C_OPER: mode=0x%02x, speed=0x%02x", this->parent_->address_str(), this->mode_, this->speed_);
-#ifdef USE_BINARY_SENSOR
-  if (this->boost_binary_sensor_ != nullptr)
-    this->boost_binary_sensor_->publish_state((this->speed_ & FLAG_BOOST) != 0);
-#endif
 #ifdef ECOCOMFORT2_CHILD_COUNT
   for (auto *child : this->children_) {
     child->on_status();
@@ -227,17 +227,23 @@ void Ecocomfort2Hub::on_oper_(const uint8_t *data, uint16_t len) {
 #endif
 }
 
-// C_STATE: bytes 3-4 temperature and 5-6 humidity in hundredths, 7-8 VOC in ppb, byte 2 the air flow direction
+// C_STATE: bytes 0-1 the mode and speed the unit runs; byte 1 also has the boost flag (0x40) and the advanced
+// control step (0x20). Byte 2 the air flow direction, bytes 3-4 temperature and 5-6 humidity in hundredths,
+// 7-8 VOC in ppb
 void Ecocomfort2Hub::on_state_(const uint8_t *data, uint16_t len) {
   if (len < 9) {
     ESP_LOGW(TAG, "[%s] C_STATE too short: %u bytes", this->parent_->address_str(), len);
     return;
   }
-  const float temperature = static_cast<int16_t>(encode_uint16(data[3], data[4])) / 100.0f;
+  const float temperature = encode_value<int16_t>(&data[3]) / 100.0f;
   const float humidity = encode_uint16(data[5], data[6]) / 100.0f;
   const uint16_t voc = encode_uint16(data[7], data[8]);
-  ESP_LOGD(TAG, "[%s] C_STATE: %.2f °C, %.2f %%, %u ppb, direction=%u", this->parent_->address_str(), temperature,
-           humidity, voc, data[2]);
+  ESP_LOGD(TAG, "[%s] C_STATE: mode=0x%02x, speed=0x%02x, %.2f °C, %.2f %%, %u ppb, direction=%u",
+           this->parent_->address_str(), data[0], data[1], temperature, humidity, voc, data[2]);
+#ifdef USE_BINARY_SENSOR
+  if (this->boost_binary_sensor_ != nullptr)
+    this->boost_binary_sensor_->publish_state((data[1] & FLAG_BOOST) != 0);
+#endif
 #ifdef USE_SENSOR
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
@@ -267,7 +273,7 @@ void Ecocomfort2Hub::on_info_(const uint8_t *data, uint16_t len) {
 }
 
 #ifdef USE_TIME
-// C_CLOCK: hour, minute, second, weekday with Monday as 0, day, month, year as two bytes
+// C_CLOCK: two-digit year, month, day, weekday with Monday as 0, hour, minute, second, automatic DST flag
 void Ecocomfort2Hub::sync_clock_() {
   if (!this->is_ready() || this->char_handle_clock_ == 0)
     return;
@@ -276,15 +282,11 @@ void Ecocomfort2Hub::sync_clock_() {
     return;
   // ESPTime counts Sunday=1 .. Saturday=7, the unit Monday=0 .. Sunday=6
   const uint8_t weekday = (now.day_of_week + 5) % 7;
-  uint8_t data[8]{now.hour,
-                  now.minute,
-                  now.second,
-                  weekday,
-                  now.day_of_month,
-                  now.month,
-                  static_cast<uint8_t>(now.year >> 8),
-                  static_cast<uint8_t>(now.year)};
-  ESP_LOGD(TAG, "[%s] Syncing clock to %02u:%02u:%02u", this->parent_->address_str(), now.hour, now.minute, now.second);
+  // The time source already applies DST and every sync rewrites the clock, so the unit must not shift it again
+  uint8_t data[8]{
+      static_cast<uint8_t>(now.year % 100), now.month, now.day_of_month, weekday, now.hour, now.minute, now.second, 0};
+  ESP_LOGD(TAG, "[%s] Syncing clock to %04u-%02u-%02u %02u:%02u:%02u", this->parent_->address_str(), now.year,
+           now.month, now.day_of_month, now.hour, now.minute, now.second);
   auto status =
       esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_clock_,
                                sizeof(data), data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);

@@ -36,6 +36,7 @@ from esphome.components.zephyr import (
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_claim_cdc_acm,
     zephyr_data,
     zephyr_variant,
     zephyr_variant_family,
@@ -434,6 +435,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate(config: ConfigType) -> None:
+    # Serial logging over USB CDC writes to CDC ACM port 0 with uart_poll_out()
+    if (
+        CORE.is_nrf52
+        and config[CONF_BAUD_RATE] != 0
+        and config.get(CONF_HARDWARE_UART) == USB_CDC
+    ):
+        zephyr_claim_cdc_acm(0, "logger", write_only=True)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 @coroutine_with_priority(CoroPriority.EARLY_INIT)
 async def to_code(config: ConfigType) -> None:
     baud_rate: int = config[CONF_BAUD_RATE]
@@ -606,8 +620,6 @@ async def _late_logger_init(config: ConfigType) -> None:
             if config[CONF_HARDWARE_UART] == USB_CDC:
                 cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
-                label = zephyr_add_cdc_acm(config, 0)
-                cg.add_define("LOGGER_CDC_ACM_UART_LABEL", cg.RawExpression(label))
     if CORE.is_zephyr and has_serial_logging:
         zephyr_add_prj_conf("SERIAL", True)
         hw_uart = config.get(CONF_HARDWARE_UART, UART0)

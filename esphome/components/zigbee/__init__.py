@@ -201,9 +201,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Length(max=31),
                 _validate_ascii,
             ),
-            cv.Optional(CONF_VERSION, default=0): cv.All(
-                cv.int_range(min=0x00, max=0xFF),
-            ),
+            cv.Optional(CONF_VERSION, default=0): cv.uint8_t,
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(CONF_ON_JOIN): automation.validate_automation({}),
             cv.Optional(CONF_ON_START): automation.validate_automation({}),

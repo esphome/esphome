@@ -12,6 +12,7 @@ esphome:
 
 bq25186:
   - id: bq25186_charger
+    i2c_id: i2c_bus
     configure_on_boot: false
     fast_charge_current: 150mA
     battery_regulation_voltage: 4.2V
@@ -20,6 +21,7 @@ bq25186:
     charge_enabled: true
   # Second charger with the boot-time write enabled
   - id: bq25186_boot
+    i2c_id: i2c_bus
     address: 0x6B
     configure_on_boot: true
     fast_charge_current: 20mA
