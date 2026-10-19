@@ -12,7 +12,6 @@ from .. import (
     CONF_MODULATION,
     CONF_PACKET_MODE,
     CONF_PAYLOAD_LENGTH,
-    CONF_PREAMBLE_DETECT,
     CONF_RX_START,
     CONF_SX127X_ID,
     CONF_SYNC_VALUE,
@@ -38,7 +37,7 @@ CONFIG_SCHEMA = radio_link_schema(SX127xPacketInterface, CONF_SX127X_ID, SX127x)
 def _check_fsk(config: ConfigType, radio: ConfigType) -> None:
     """Without LoRa, the radio must send packets, not a continuous bit stream, and holds fewer bytes.
 
-    It can tell that a packet is arriving only from a detected preamble or sync word, which listen before talk needs.
+    It can tell that a packet is arriving only from its sync word, which listen before talk needs.
     """
     if radio[CONF_MODULATION] == "LORA":
         return
@@ -47,10 +46,10 @@ def _check_fsk(config: ConfigType, radio: ConfigType) -> None:
             f"Without LoRa modulation the radio's '{CONF_PACKET_MODE}' must be true, as a link sends packets",
             path=[CONF_SX127X_ID],
         )
-    if not radio.get(CONF_SYNC_VALUE) and not radio.get(CONF_PREAMBLE_DETECT):
+    if not radio.get(CONF_SYNC_VALUE):
         raise cv.Invalid(
-            f"Without LoRa modulation the radio needs a '{CONF_SYNC_VALUE}' or '{CONF_PREAMBLE_DETECT}', so that "
-            "the link can tell when a packet is arriving and not send over it",
+            f"Without LoRa modulation the radio needs a '{CONF_SYNC_VALUE}', so that the link can tell when a "
+            "packet is arriving and not send over it",
             path=[CONF_SX127X_ID],
         )
     if config[CONF_MAX_PACKET_SIZE] > FSK_MAX_PACKET_SIZE:
