@@ -30,11 +30,7 @@ CONF_COLOR_TYPE_LOWERCASE = "color_type_lowercase"
 
 TuyaColorType = tuya_ns.enum("TuyaColorType")
 
-COLOR_TYPES = {
-    "RGB": TuyaColorType.RGB,
-    "HSV": TuyaColorType.HSV,
-    "RGBHSV": TuyaColorType.RGBHSV,
-}
+COLOR_TYPES = TuyaColorType.options("RGB", "HSV", "RGBHSV")
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)
 
@@ -116,5 +112,4 @@ async def to_code(config):
         )
 
     cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])

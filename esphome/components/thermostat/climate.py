@@ -96,22 +96,20 @@ ThermostatClimateTargetTempConfig = thermostat_ns.struct(
 ThermostatPresetEntry = thermostat_ns.struct("ThermostatPresetEntry")
 ThermostatCustomPresetEntry = thermostat_ns.struct("ThermostatCustomPresetEntry")
 OnBootRestoreFrom = thermostat_ns.enum("OnBootRestoreFrom")
-ON_BOOT_RESTORE_FROM = {
-    "MEMORY": OnBootRestoreFrom.MEMORY,
-    "DEFAULT_PRESET": OnBootRestoreFrom.DEFAULT_PRESET,
-}
+ON_BOOT_RESTORE_FROM = OnBootRestoreFrom.options("MEMORY", "DEFAULT_PRESET")
 validate_on_boot_restore_from = cv.enum(ON_BOOT_RESTORE_FROM, upper=True)
 
 ClimateMode = climate_ns.enum("ClimateMode")
-CLIMATE_MODES = {
-    "OFF": ClimateMode.CLIMATE_MODE_OFF,
-    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,
-    "COOL": ClimateMode.CLIMATE_MODE_COOL,
-    "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
-    "DRY": ClimateMode.CLIMATE_MODE_DRY,
-    "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
-}
+CLIMATE_MODES = ClimateMode.options(
+    "OFF",
+    "HEAT_COOL",
+    "COOL",
+    "HEAT",
+    "DRY",
+    "FAN_ONLY",
+    "AUTO",
+    prefix="CLIMATE_MODE_",
+)
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 ClimatePreset = climate_ns.enum("ClimatePreset")
@@ -718,9 +716,7 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_sensor(sens))
 
-    if CONF_HUMIDITY_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
-        cg.add(var.set_humidity_sensor(sens))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
     cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
