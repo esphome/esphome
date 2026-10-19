@@ -986,8 +986,29 @@ def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> boo
     return False
 
 
+def _remove_stale_image_files(written: set[Path]) -> bool:
+    """Remove app.overlay and sysbuild/<image>.conf/.overlay files this config did not write.
+
+    Zephyr picks these files up by name, so one left by an earlier config in the same
+    build directory still applies. Returns True if a file was removed.
+    """
+    candidates = [CORE.relative_build_path("zephyr/app.overlay")]
+    sysbuild_dir = CORE.relative_build_path("zephyr/sysbuild")
+    if sysbuild_dir.is_dir():
+        candidates += [
+            p for p in sysbuild_dir.iterdir() if p.suffix in (".conf", ".overlay")
+        ]
+    removed = False
+    for path in candidates:
+        if path not in written and path.is_file():
+            path.unlink()
+            removed = True
+    return removed
+
+
 def copy_files() -> None:
     changed = False
+    written: set[Path] = set()
 
     for builder_func in zephyr_data()[KEY_OVERLAY_BUILDER]:
         overlay_contents = builder_func()
@@ -1013,6 +1034,7 @@ def copy_files() -> None:
         else:
             path = CORE.relative_build_path("zephyr/prj.conf")
 
+        written.add(path)
         changed |= write_file_if_changed(path, prj_conf)
 
     for image, content in zephyr_data()[KEY_OVERLAY].items():
@@ -1033,7 +1055,10 @@ def copy_files() -> None:
                 )
         else:
             path = CORE.relative_build_path("zephyr/app.overlay")
+        written.add(path)
         changed |= write_file_if_changed(path, content)
+
+    changed |= _remove_stale_image_files(written)
 
     for filename, path in zephyr_data()[KEY_EXTRA_BUILD_FILES].items():
         changed |= copy_file_if_changed(

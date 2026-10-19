@@ -14,6 +14,7 @@ from esphome.components.zephyr import (
     _MODULE_SCHEMA,
     ZephyrData,
     _cdc_acm_add_ports,
+    _remove_stale_image_files,
     _resolve_board_source,
     _resolve_shield_source,
     _resolve_snippet_source,
@@ -2539,3 +2540,22 @@ def test_usb_cdc_acm_zephyr_interface_uses_port_label(
     ]
     prj_conf = CORE.data[KEY_ZEPHYR]["prj_conf"][""]
     assert "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" not in prj_conf
+
+
+def test_remove_stale_image_files_keeps_only_written_files(tmp_path: Path) -> None:
+    CORE.build_path = tmp_path
+    sysbuild = tmp_path / "zephyr" / "sysbuild"
+    sysbuild.mkdir(parents=True)
+    app_overlay = tmp_path / "zephyr" / "app.overlay"
+    kept = sysbuild / "mcuboot.conf"
+    stale_overlay = sysbuild / "mcuboot.overlay"
+    cmake = sysbuild / "CMakeLists.txt"
+    for path in (app_overlay, kept, stale_overlay, cmake):
+        path.write_text("x")
+
+    assert _remove_stale_image_files({kept})
+    assert not app_overlay.exists()
+    assert not stale_overlay.exists()
+    assert kept.exists()
+    assert cmake.exists()
+    assert not _remove_stale_image_files({kept})
