@@ -370,37 +370,31 @@ async with run_compiled(yaml_config, line_callback=on_log_line):
     # Test implementation
 ```
 
-Example using futures for specific log patterns:
+To wait for log lines, use `LineWaiter` (`log_utils.py`) instead of a hand written
+callback with one future per pattern:
 ```python
 import re
 
-loop = asyncio.get_running_loop()
-connected_future = loop.create_future()
-service_future = loop.create_future()
+from .log_utils import LineWaiter
 
-# Patterns to match
-connected_pattern = re.compile(r"Client .* connected from")
-service_pattern = re.compile(r"Service called")
+log = LineWaiter()
+# Arm expectations before the action that logs them; any number may be pending.
+connected = log.expect(re.compile(r"Client .* connected from"))
+value = log.expect(re.compile(r"value=(\d+)"))
 
-
-def check_output(line: str) -> None:
-    """Check log output for expected messages."""
-    if not connected_future.done() and connected_pattern.search(line):
-        connected_future.set_result(True)
-    elif not service_future.done() and service_pattern.search(line):
-        service_future.set_result(True)
-
-
-async with run_compiled(yaml_config, line_callback=check_output):
+async with run_compiled(yaml_config, line_callback=log.callback):
     async with api_client_connected() as client:
-        # Wait for specific log message
-        await asyncio.wait_for(connected_future, timeout=5.0)
-
-        # Do test actions...
-
-        # Wait for service log
-        await asyncio.wait_for(service_future, timeout=5.0)
+        await log.wait(connected)
+        match = await log.wait(value, timeout=5.0, msg="no value logged")
+        assert match.group(1) == "42"
+        assert log.count("Service called") == 1
 ```
+
+- `expect(pattern)` only matches lines that arrive after the call. A `str` matches as a
+  substring and resolves to the line; a compiled regex is searched and resolves to its match.
+- `wait(future)` fails the test on timeout with the pattern and the last 20 log lines.
+- `wait_for(*needles)` also matches lines seen before the call, but only one may be pending.
+- `count(pattern)` counts the lines seen so far.
 
 **Note**: Tests that monitor log messages typically have fewer race conditions compared to state-based testing, making them more reliable. However, be aware that the host platform currently does not have a thread-safe logger, so logging from threads will not work correctly.
 
