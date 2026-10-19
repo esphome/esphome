@@ -47,17 +47,15 @@ void UponorSmatrixComponent::loop() {
   }
 
   // Read incoming data
-  while (this->available()) {
+  this->read_available([this, now](uint8_t byte) {
     // The controller polls devices every 10 seconds in some units or continuously in others with around 200 ms between
     // devices. Remember timestamps so we can send our own packets when the bus is expected to be silent.
     this->last_rx_ = now;
 
-    uint8_t byte;
-    this->read_byte(&byte);
     if (this->parse_byte_(byte)) {
       this->rx_buffer_.clear();
     }
-  }
+  });
 
   // Send packets during bus silence
   if (this->rx_buffer_.empty() && (now - this->last_rx_ > 50) && (now - this->last_rx_ < 100) &&

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import importlib
 import io
 import json
@@ -11,7 +12,7 @@ from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
 import pytest
 import voluptuous as vol
 
-from esphome import config_validation as cv
+from esphome import config_validation as cv, cpp_generator
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -69,6 +70,8 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
 from esphome.yaml_util import (
     ESPHomeDataBase,
+    SensitiveHexInt,
+    SensitiveInt,
     SensitiveStr,
     load_yaml,
     make_data_base,
@@ -201,12 +204,13 @@ def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
     assert result == "hunter2"
 
 
-def test_sensitive__does_not_double_tag_already_sensitive() -> None:
-    # If the inner validator already returns a SensitiveStr (e.g., nested
+@pytest.mark.parametrize(
+    "pre_tagged", [SensitiveStr("hunter2"), SensitiveInt(5), SensitiveHexInt(0x12)]
+)
+def test_sensitive__does_not_double_tag_already_sensitive(pre_tagged: object) -> None:
+    # If the inner validator already returns a tagged value (e.g., nested
     # cv.sensitive wrappers), re-tagging is a no-op rather than a new
-    # SensitiveStr around the same value.
-    pre_tagged = SensitiveStr("hunter2")
-
+    # wrapper around the same value.
     def inner(_value):
         return pre_tagged
 
@@ -216,16 +220,33 @@ def test_sensitive__does_not_double_tag_already_sensitive() -> None:
     assert result is pre_tagged
 
 
-def test_sensitive__non_string_result_passes_through() -> None:
-    # If an inner validator returns something other than a string (e.g., a
-    # Lambda template), the sensitive wrapper must not coerce it.
-    sentinel = object()
-
+@pytest.mark.parametrize("passthrough", [object(), True, False])
+def test_sensitive__non_string_result_passes_through(passthrough: object) -> None:
+    # If an inner validator returns something other than a string or integer
+    # (e.g., a Lambda template or a bool), the sensitive wrapper must not
+    # coerce it.
     def inner(_value):
-        return sentinel
+        return passthrough
 
     validator = cv.sensitive(inner)
-    assert validator("anything") is sentinel
+    assert validator("anything") is passthrough
+
+
+@pytest.mark.parametrize("inner", [cv.uint32_t, cv.hex_int])
+def test_sensitive__integer_preserves_codegen(inner: Callable[[str], int]) -> None:
+    """Tag credentials without changing their firmware expressions."""
+    original = inner("0x12345678")
+    tagged = cv.sensitive(inner)("0x12345678")
+    assert isinstance(tagged, SensitiveInt)
+    assert tagged == original
+    assert str(cpp_generator.safe_exp(tagged)) == str(cpp_generator.safe_exp(original))
+    assert isinstance(tagged, HexInt) == isinstance(original, HexInt)
+
+
+def test_sensitive__integer_validation_still_rejects_out_of_range() -> None:
+    """Keep the inner validator's range checks."""
+    with pytest.raises(Invalid):
+        cv.sensitive(cv.uint32_t)(1 << 32)
 
 
 def test_sensitive__is_detectable_via_isinstance() -> None:
@@ -2078,6 +2099,18 @@ def test_float_with_unit_optional_unit_with_suffix() -> None:
 
 def test_float_with_unit_with_suffix() -> None:
     assert cv.frequency("10kHz") == 10000.0
+
+
+def test_float_with_unit_matches_the_literal() -> None:
+    """The scaled decimal is parsed once, so it equals the same value written as a literal."""
+    assert cv.current("91uA") == 91e-6
+    assert cv.current("0.091mA") == 91e-6
+    assert cv.frequency("5.8GHz") == 5.8e9
+
+
+def test_float_with_unit_empty_mantissa() -> None:
+    with pytest.raises(cv.Invalid):
+        cv.current("uA")
 
 
 def test_float_with_unit_no_match() -> None:
