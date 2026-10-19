@@ -105,6 +105,16 @@ TEST_F(RadioLinkTest, FailedRadioRefusesSends) {
   EXPECT_TRUE(this->radio_.sent.empty());
 }
 
+TEST_F(RadioLinkTest, RadioFailingWhileBusyEndsBusyPeriod) {
+  set_time(START);
+  this->radio_.receiving = true;
+  EXPECT_FALSE(this->send_());
+  EXPECT_TRUE(this->link_.is_in_loop_state());
+  this->radio_.fail();
+  this->link_.loop();
+  EXPECT_TRUE(this->link_.is_idle());
+}
+
 TEST_F(RadioLinkTest, ReceivedPacketCarriesSignal) {
   Packet received;
   PacketMetaData meta;

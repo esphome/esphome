@@ -49,9 +49,10 @@ class RadioLink : public RadioLinkBase, public Listener {
     this->radio_->register_listener(this);
     this->disable_loop();
   }
-  // Runs only during a busy period; a busy flag that never clears keeps it running
+  // Runs only during a busy period; a busy flag that never clears keeps it running. A radio that failed meanwhile
+  // is not read again, as reading it may wait on the radio every time
   void loop() override {
-    if (!this->radio_->is_receiving())
+    if (!this->radio_->is_ready() || !this->radio_->is_receiving())
       this->radio_free_();
   }
 
