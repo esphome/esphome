@@ -141,27 +141,21 @@ def test_task_log_buffer_size_unaligned_allowed_on_libretiny(
     assert validate_task_log_buffer_alignment(641) == 641
 
 
-@pytest.mark.parametrize(
-    ("config", "define", "value"),
-    [
-        (
-            "test_logger_nrf52_usb_cdc.yaml",
-            "LOGGER_CDC_ACM_UART_LABEL",
-            "cdc_acm_uart0",
-        ),
-        ("test_logger_nrf52_uart0.yaml", "LOGGER_UART_NODE_LABEL", "uart0"),
-    ],
-)
 def test_nrf52_emits_logger_node_label(
-    config: str,
-    define: str,
-    value: str,
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """logger_zephyr.cpp only binds a device when this label is defined."""
-    generate_main(f"tests/component_tests/logger/{config}")
+    """logger_zephyr.cpp only binds a UART when this label is defined."""
+    generate_main("tests/component_tests/logger/test_logger_nrf52_uart0.yaml")
     defines = {d.name: str(d.value) for d in CORE.defines}
-    assert defines.get(define) == value
+    assert defines.get("LOGGER_UART_NODE_LABEL") == "uart0"
+
+
+def test_nrf52_usb_cdc_leaves_label_to_cpp_fallback(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """platform: nrf52 claims CDC port 0; logger_zephyr.cpp falls back to cdc_acm_uart0."""
+    generate_main("tests/component_tests/logger/test_logger_nrf52_usb_cdc.yaml")
+    assert not any(d.name == "LOGGER_CDC_ACM_UART_LABEL" for d in CORE.defines)
 
 
 def test_any_uart_number_accepted_on_zephyr(
