@@ -1,5 +1,6 @@
 #include "hdc2080.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::hdc2080 {
@@ -33,9 +34,6 @@ void HDC2080Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void HDC2080Component::update() {
@@ -58,11 +56,11 @@ void HDC2080Component::update() {
     }
     this->status_clear_warning();
     if (this->temperature_sensor_ != nullptr) {
-      float temp = encode_uint16(raw_data[1], raw_data[0]) * (165.0f / 65536.0f) - 40.5f;
+      float temp = encode_value_le<uint16_t>(raw_data) * (165.0f / 65536.0f) - 40.5f;
       this->temperature_sensor_->publish_state(temp);
     }
     if (this->humidity_sensor_ != nullptr) {
-      float humidity = encode_uint16(raw_data[3], raw_data[2]) * (100.0f / 65536.0f);
+      float humidity = encode_value_le<uint16_t>(&raw_data[2]) * (100.0f / 65536.0f);
       this->humidity_sensor_->publish_state(humidity);
     }
   });

@@ -96,9 +96,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     # Pre-create all sensor variables so automations that reference
     # sibling sensors don't deadlock waiting for unregistered IDs.

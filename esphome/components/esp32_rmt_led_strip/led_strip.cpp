@@ -215,16 +215,14 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   esp_err_t error =
       rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, len * sizeof(rmt_symbol_word_t), &config);
 #endif
-  if (error != ESP_OK) {
+  if (!this->status_comm_result(error == ESP_OK, nullptr)) {
     ESP_LOGE(TAG, "RMT TX error");
-    this->status_set_warning();
     // retry next loop iteration so the frame is not lost
     this->schedule_show();
     return;
   }
   // Stamped after the transfer started so the gate above stays conservative
   this->last_refresh_ = micros();
-  this->status_clear_warning();
 }
 
 light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {

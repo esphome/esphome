@@ -83,8 +83,7 @@ void PMSX003Component::loop() {
         if (now - this->fan_on_time_ < STABILISING_MS)
           return;
         // consume any command responses that are in the serial buffer
-        while (this->available())
-          this->read_byte(&this->data_[0]);
+        this->discard_available();
         // Trigger a new read
         this->send_command_(Command::MANUAL_MEASUREMENT, 0);
         this->state_ = State::WAITING;
@@ -100,27 +99,30 @@ void PMSX003Component::loop() {
     this->data_index_ = 0;
   }
 
-  if (this->available() == 0)
+  const size_t avail = this->available();
+  if (avail == 0)
     return;
 
   this->last_transmission_ = now;
-  while (this->available() != 0) {
-    this->read_byte(&this->data_[this->data_index_]);
-    auto check = this->check_byte_();
-    if (!check.has_value()) {
-      if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
-        this->parse_data_();
-        this->last_update_ = now;
-      }
-      this->data_index_ = 0;
-    } else if (!*check) {
-      // wrong data
-      this->data_index_ = 0;
-    } else {
-      // next byte
-      this->data_index_++;
-    }
-  }
+  this->read_available(
+      [this, now](uint8_t byte) {
+        this->data_[this->data_index_] = byte;
+        auto check = this->check_byte_();
+        if (!check.has_value()) {
+          if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
+            this->parse_data_();
+            this->last_update_ = now;
+          }
+          this->data_index_ = 0;
+        } else if (!*check) {
+          // wrong data
+          this->data_index_ = 0;
+        } else {
+          // next byte
+          this->data_index_++;
+        }
+      },
+      avail);
 }
 
 optional<bool> PMSX003Component::check_byte_() {
@@ -159,10 +161,7 @@ optional<bool> PMSX003Component::check_byte_() {
   }
 
   // checksum is without checksum bytes
-  uint16_t checksum = 0;
-  for (uint16_t i = 0; i < total_size - 2; i++) {
-    checksum += this->data_[i];
-  }
+  const uint16_t checksum = sum16_bytes(this->data_, total_size - 2);
 
   const uint16_t check = this->get_16_bit_uint_(total_size - 2);
   if (checksum != check) {
@@ -207,10 +206,7 @@ void PMSX003Component::send_command_(Command cmd, uint16_t data) {
   };
 
   // Calculate checksum
-  uint16_t checksum = 0;
-  for (uint8_t i = 0; i < 5; i++) {
-    checksum += send_data[i];
-  }
+  const uint16_t checksum = sum16_bytes(send_data, 5);
   send_data[5] = (checksum >> 8) & 0xFF;  // Verify Byte 1
   send_data[6] = (checksum >> 0) & 0xFF;  // Verify Byte 2
 

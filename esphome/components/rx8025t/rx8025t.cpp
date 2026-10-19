@@ -19,7 +19,7 @@ constexpr uint8_t dec2bcd(uint8_t val) { return ((val / 10) << 4) + (val % 10); 
 void RX8025TComponent::setup() {
   uint8_t flags;
   if (!this->read_flags_(&flags)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -33,9 +33,6 @@ void RX8025TComponent::update() { this->read_time(); }
 void RX8025TComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8025T:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   time::RealTimeClock::dump_config();
 }
 
@@ -55,12 +52,10 @@ void RX8025TComponent::read_time() {
   }
 
   uint8_t date[7];
-  if (!this->read_bytes(RX8025T_REG_SEC, date, sizeof(date))) {
+  if (!this->status_comm_result(this->read_bytes(RX8025T_REG_SEC, date, sizeof(date)))) {
     ESP_LOGE(TAG, "Can't read I2C data.");
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  this->status_clear_warning();
 
   if (flags & RX8025T_FLAG_VLF) {
     ESP_LOGW(TAG, "VLF flag is set - time data may be invalid, not syncing to system clock.");
