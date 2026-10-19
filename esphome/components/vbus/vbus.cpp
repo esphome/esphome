@@ -151,7 +151,12 @@ void VBus::loop() {
       return;
     }
   };
+#ifdef USE_VBUS_TX
+  // Keep queued bytes visible to bus-grant and collision checks.
+  this->read_available<1>(on_byte, std::min(this->available(), VBUS_MAX_BYTES_PER_LOOP));
+#else
   this->read_available(on_byte, std::min(this->available(), VBUS_MAX_BYTES_PER_LOOP));
+#endif
 }
 
 void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message) {
