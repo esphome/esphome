@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cinttypes>
 
-#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esp_err.h"
@@ -66,7 +65,7 @@ void USBAudioSpeaker::loop() {
     this->pad_with_silence_();
   }
   // has_buffered_data_() turns false once the queued audio, including the transfers in flight, has had time to play.
-  if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_(App.get_loop_component_start_time())) {
+  if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_(esp_timer_get_time())) {
     this->stop_();
   }
   if (!this->finishing_) {
@@ -199,7 +198,7 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
   this->writes_in_flight_.fetch_sub(1);
 
   if (written > 0) {
-    this->track_written_(written, now, true);
+    this->track_written_(written, esp_timer_get_time(), true);
   }
   return written;
 }
@@ -225,39 +224,52 @@ void USBAudioSpeaker::pad_with_silence_() {
   this->writes_in_flight_.fetch_sub(1);
   if (written > 0) {
     // Padding is not audio from the caller, so it is not reported as played.
-    this->track_written_(written, millis(), false);
+    this->track_written_(written, esp_timer_get_time(), false);
   }
 }
 
-void USBAudioSpeaker::track_written_(size_t bytes, uint32_t now, bool report) {
+// Durations in 64 bits rather than through AudioStreamInfo::frames_to_microseconds(), which wraps above 4294 frames
+// (about 90 ms at 48 kHz) in releases before #21089.
+static int64_t bytes_to_us(const audio::AudioStreamInfo &info, uint32_t bytes) {
+  return static_cast<int64_t>(info.bytes_to_frames(bytes)) * 1000000 / info.get_sample_rate();
+}
+
+// Far longer than any queue, and short enough that the microsecond difference has not wrapped.
+static constexpr int32_t STALE_WRITE_MS = 30 * 60 * 1000;
+
+static int32_t ms_since(int64_t now_us, uint32_t then_ms) {
+  return static_cast<int32_t>(static_cast<uint32_t>(now_us / 1000) - then_ms);
+}
+
+void USBAudioSpeaker::track_written_(size_t bytes, int64_t now_us, bool report) {
   const auto &info = this->usb_stream_info_;
-  // Whatever was queued at the last write has partly played out since. The driver holds at most buffer_size_ in its
-  // ring buffer plus the transfers it has in flight.
-  const uint32_t queued = this->queued_bytes_;
-  const uint32_t elapsed_ms = now - this->last_write_ms_;
-  const uint32_t remaining = elapsed_ms < info.bytes_to_ms(queued) ? queued - info.ms_to_bytes(elapsed_ms) : 0;
+  // Whatever was queued at the last write has partly played out since, counted in microseconds so the estimate does
+  // not jitter by a millisecond per write. The driver holds at most buffer_size_ in its ring buffer plus the
+  // transfers it has in flight.
+  const uint32_t queued = ms_since(now_us, this->last_write_ms_) < STALE_WRITE_MS ? this->queued_bytes_.load() : 0;
+  const uint32_t elapsed_us = static_cast<uint32_t>(now_us) - this->last_write_us_;
+  const uint64_t drained = static_cast<uint64_t>(elapsed_us) * info.frames_to_bytes(info.get_sample_rate()) / 1000000;
+  const uint32_t remaining = drained < queued ? queued - static_cast<uint32_t>(drained) : 0;
   this->queued_bytes_ = std::min<uint32_t>(remaining + bytes, this->buffer_size_ + this->in_flight_bytes_);
-  this->last_write_ms_ = now;
+  this->last_write_us_ = static_cast<uint32_t>(now_us);
+  this->last_write_ms_ = static_cast<uint32_t>(now_us / 1000);
   if (report) {
     // Reported when written, with the time the last of them finishes playing: after the audio queued ahead of them
     // and their own duration. Sendspin and the other listeners take that as when the next written audio starts.
-    // In 64 bits here rather than through AudioStreamInfo::frames_to_microseconds(), which wraps above 4294 frames
-    // (about 90 ms at 48 kHz) in releases before #21089.
-    const int64_t queued_us =
-        static_cast<int64_t>(info.bytes_to_frames(this->queued_bytes_)) * 1000000 / info.get_sample_rate();
-    const int64_t finished_at_us = esp_timer_get_time() + queued_us;
-    this->audio_output_callback_(info.bytes_to_frames(bytes), finished_at_us);
+    this->audio_output_callback_(info.bytes_to_frames(bytes), now_us + bytes_to_us(info, this->queued_bytes_));
   }
 }
 
-bool USBAudioSpeaker::has_buffered_data_(uint32_t now) const {
-  // Signed, since the cached loop time can be a little older than a write made on another task.
-  const auto elapsed_ms = static_cast<int32_t>(now - this->last_write_ms_);
-  return this->state_ == speaker::STATE_RUNNING &&
-         elapsed_ms < static_cast<int32_t>(this->usb_stream_info_.bytes_to_ms(this->queued_bytes_));
+bool USBAudioSpeaker::has_buffered_data_(int64_t now_us) const {
+  if (this->state_ != speaker::STATE_RUNNING || ms_since(now_us, this->last_write_ms_) >= STALE_WRITE_MS) {
+    return false;
+  }
+  // Signed, since another task can write between reading now_us and this check.
+  const auto elapsed_us = static_cast<int32_t>(static_cast<uint32_t>(now_us) - this->last_write_us_);
+  return elapsed_us < bytes_to_us(this->usb_stream_info_, this->queued_bytes_);
 }
 
-bool USBAudioSpeaker::has_buffered_data() const { return this->has_buffered_data_(millis()); }
+bool USBAudioSpeaker::has_buffered_data() const { return this->has_buffered_data_(esp_timer_get_time()); }
 
 // The hub's worker sends volume and mute to the device.
 void USBAudioSpeaker::set_volume(float volume) {

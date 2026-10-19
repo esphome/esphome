@@ -56,8 +56,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   /// Write silence until a whole USB transfer is padded, so the driver sends a final partial transfer.
   void pad_with_silence_();
   /// Account for bytes the driver accepted; reports them as played when `report` is set.
-  void track_written_(size_t bytes, uint32_t now, bool report);
-  bool has_buffered_data_(uint32_t now) const;
+  void track_written_(size_t bytes, int64_t now_us, bool report);
+  bool has_buffered_data_(int64_t now_us) const;
 
   // The configured format the USB stream runs with. Callers such as the media pipeline set audio_stream_info_ for
   // each item, so play() checks it against this instead of reopening the stream with another format.
@@ -71,7 +71,10 @@ class USBAudioSpeaker : public speaker::Speaker,
   // Silence still to write while finishing.
   uint32_t pad_remaining_{0};
   // Written by play() on the caller's task: an estimate of the bytes still queued in the driver, in its ring buffer
-  // and in flight, as of the last write.
+  // and in flight, as of the last write. The write time is kept as the low 32 bits of esp_timer_get_time() in
+  // microseconds and in milliseconds, since a 64-bit atomic is not lock-free here: the milliseconds tell an old write
+  // from one whose microseconds have wrapped.
+  std::atomic<uint32_t> last_write_us_{0};
   std::atomic<uint32_t> last_write_ms_{0};
   std::atomic<uint32_t> queued_bytes_{0};
   std::atomic<uint8_t> commands_{0};
