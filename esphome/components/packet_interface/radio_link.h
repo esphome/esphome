@@ -20,11 +20,14 @@ class RadioLinkBase : public PacketInterface {
   bool may_send_(bool busy);
   /// Returns true for an empty packet, which the radios cannot send, so there is nothing to retry.
   bool skip_empty_() const;
+  /// Warns once when a send finds the radio failed; until its setup has run, sends are refused quietly.
+  void radio_not_ready_(bool failed);
   /// Ends the busy period when loop() finds the radio free.
   void radio_free_();
   void receive_(const std::vector<uint8_t> &packet, float rssi, float snr);
 
   ListenBeforeTalk listen_before_talk_;
+  bool failed_warned_{false};
 };
 
 /**
@@ -54,8 +57,10 @@ class RadioLink : public RadioLinkBase, public Listener {
 
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override {
     // The radio is set up after the layers above, which may send from their own setup
-    if (!this->radio_->is_ready())
+    if (!this->radio_->is_ready()) {
+      this->radio_not_ready_(this->radio_->is_failed());
       return false;
+    }
     size_t size = data.size();
     if (size == 0)
       return this->skip_empty_();
