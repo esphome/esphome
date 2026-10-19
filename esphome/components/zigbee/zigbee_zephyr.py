@@ -392,8 +392,7 @@ async def _add_zigbee_ep(
     cg.add(var.set_endpoint(slot_index + 1))
     cg.add(var.set_cluster_attributes(attrs))
 
-    hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
-    cg.add(var.set_parent(hub))
+    await cg.register_parented(var, config[CONF_ZIGBEE_ID])
 
 
 async def add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:

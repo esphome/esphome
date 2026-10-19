@@ -206,7 +206,6 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   static const size_t COMMAND_TIMEOUT = 5000;
   static const size_t POLLING_COMMANDS_MAX = 15;
   void add_polling_command_(const char *command, ENUMPollingCommand polling_command);
-  void empty_uart_buffer_();
   uint8_t check_incoming_crc_();
   uint8_t check_incoming_length_(uint8_t length);
   uint16_t pipsolar_crc_(uint8_t *msg, uint8_t len);
