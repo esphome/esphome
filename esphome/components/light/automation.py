@@ -46,7 +46,6 @@ from .types import (
     DimRelativeAction,
     LightEffectCycleAction,
     LightState,
-    ToggleAction,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,9 +75,8 @@ def validate_light_state(value: Any) -> Any:
         ) from err
 
 
-@automation.register_action(
+automation.register_apply_action(
     "light.toggle",
-    ToggleAction,
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(LightState),
@@ -87,19 +85,9 @@ def validate_light_state(value: Any) -> Any:
             ),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32),
+    call="toggle",
 )
-async def light_toggle_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    has_transition_length = CONF_TRANSITION_LENGTH in config
-    toggle_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
-    var = cg.new_Pvariable(action_id, toggle_template_arg, paren)
-    if has_transition_length:
-        template_ = await cg.templatable(
-            config[CONF_TRANSITION_LENGTH], args, cg.uint32
-        )
-        cg.add(var.set_transition_length(template_))
-    return var
 
 
 class LightStateField(NamedTuple):

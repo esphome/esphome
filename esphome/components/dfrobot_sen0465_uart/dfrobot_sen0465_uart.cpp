@@ -40,11 +40,7 @@ void DFRobotSEN0465UARTComponent::loop() {
 
 bool DFRobotSEN0465UARTComponent::write_frame(const uint8_t *frame) {
   // Drop anything left over, such as the answer to the mode change or readings sent before passive mode was set
-  uint8_t byte;
-  while (this->available() > 0) {
-    if (!this->read_byte(&byte))
-      break;
-  }
+  this->discard_available();
   this->rx_count_ = 0;
   this->write_array(frame, FRAME_SIZE);
   return true;
