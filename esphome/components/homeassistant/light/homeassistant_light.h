@@ -4,6 +4,7 @@
 
 #include "esphome/components/light/light_output.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
@@ -42,6 +43,11 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   optional<uint16_t> parse_integer_(const char *name, StringRef value, uint16_t max);
   /// A state or attribute report: answers a pending echo when it changed something, and schedules the apply
   void on_report_(bool changed);
+  /// Takes over a reported attribute, reporting whether it changed
+  template<typename T> void import_(T &field, const T &value) {
+    this->on_report_(field != value);
+    field = value;
+  }
   /// A state at the resolution Home Assistant gets, to see a transition retargeted by a newer call
   static uint32_t state_hash(const light::LightColorValues &values);
   /// Schedules apply_imported_() once for the attributes of one update
@@ -56,15 +62,15 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   light::LightState *state_{nullptr};
   light::LightTraits traits_{};
   Attributes imported_{};
-  uint32_t held_hash_{0};  // state_hash() of what the transition a report was held for ends at
   bool apply_scheduled_ : 1 {false};
-  bool initial_write_ : 1 {true};    // the light core's own first write is not a local change
-  bool initial_seen_ : 1 {false};    // the light core's setup call has set the initial state
-  bool echo_pending_ : 1 {false};    // a sent change waits for Home Assistant to report it back
-  bool report_held_ : 1 {false};     // a report arrived during a transition or flash; applied when it ends
-  bool transitioned_ : 1 {false};    // a transition or flash ran since the last write sent
-  bool report_changed_ : 1 {false};  // the reports since the last apply changed an attribute
+  bool initial_write_ : 1 {true};          // the light core's own first write is not a local change
+  bool initial_seen_ : 1 {false};          // the light core's setup call has set the initial state
+  bool echo_pending_ : 1 {false};          // a sent change waits for Home Assistant to report it back
+  bool report_held_ : 1 {false};           // a report arrived during a transition or flash; applied when it ends
+  bool transitioned_ : 1 {false};          // a transition or flash ran since the last write sent
+  bool report_in_transition_ : 1 {false};  // the last changed report, not yet applied, arrived during a transition
   uint8_t report_timeout_s_{10};
+  uint32_t held_hash_{0};  // state_hash() of what the transition a report was held for ends at
 };
 
 }  // namespace esphome::homeassistant

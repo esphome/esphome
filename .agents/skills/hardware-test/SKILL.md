@@ -93,13 +93,15 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 - `ports.py`: list ports with VID:PID, product, serial and a board guess; `--wait VID[:PID]`,
   `--product NAME`, `--serial SN` (one specific board, whatever path it comes back under) and
   `--serial-of PORT` (the serial number behind a path).
-- `serial_capture.py PORT SECONDS OUT [--baud] [--released] [--reset] [--append]`: bounded timestamped
-  capture, ANSI stripped, `LOG_SECRET` text written as `<secret>`, reopens a vanished port, exits at the
+- `serial_capture.py PORT SECONDS OUT [--baud] [--released] [--reset] [--append] [--ms]`: bounded timestamped
+  capture (`--ms` adds milliseconds for timing work), ANSI stripped, `LOG_SECRET` text written as `<secret>`, reopens a vanished port, exits at the
   deadline. OUT is truncated unless `--append` is given, so counts over it cover one run.
 - `flash_rtl87xx_kit.py`: ltchiptool wrapper for the BW15 kit whose CH340 drives CEN (RTS) and the boot
   strap (DTR). `flash read` needs the family `realtek-ambz2`; `flash write` does not.
 - `flash_bk72xx.py`: ltchiptool wrapper for BK72xx boards whose RTS drives CEN. It misses the link now
   and then; retry up to three times.
+- `api_button.py HOST KEY list|press NAME [...]`: list a device's template buttons or press them over the API; the
+  recipes drive their test configs with it.
 - `wifisave_hammer.sh KIND DUT_PORT DUT_YAML DUT_TREE CLIENT_PORT CLIENT_YAML CLIENT_TREE [SETTLE]`:
   the fallback AP plus captive portal hammer end to end (compile, flash, capture, counts) with the
   templates below. KIND is `esp`, `pico`, `bw15` or `bk`. It ends with `RESULT PASS` (exit 0),
@@ -113,7 +115,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
 Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
-capture decoder).
+capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `homeassistant_light/` (direct bulb driver), `usb_audio/` (URL player).
 
 ## Templates in `$SKILL/templates`
 
@@ -125,7 +127,10 @@ capture decoder).
 - Per-topic device configs, each described in `reference/recipes/<component>.md`: `online-image-dut.yaml`,
   `usb-cdc-acm-dongle-dut.yaml`, `nrf52-preferences-dut.yaml`, `rtsp-waveshare-s3-eth-dut.yaml`,
   `waveshare-s3-eth-camdiag.yaml`, `s31-cse7766-dut.yaml`, `nrf52-coredump-crash-dut.yaml`,
-  `bk72xx-rtc-prefs-dut.yaml`, `bk72xx-crash-probe-dut.yaml`, `dut-ap-only-wipe-once-bk72xx.yaml`.
+  `bk72xx-rtc-prefs-dut.yaml`, `bk72xx-crash-probe-dut.yaml`, `dut-ap-only-wipe-once-bk72xx.yaml`,
+  `homeassistant-light-dut.yaml`, `deep-sleep-outgoing-dut.yaml`, `outgoing-wifi-drop-dut.yaml`,
+  `globals-storage-dut.yaml`, `usb-audio-waveshare-s3-eth-dut.yaml`, `usb-audio-sendspin-s3-eth-dut.yaml`,
+  `cast-pro-1-sendspin-control.yaml`, `aux-2-preprod-stock-dut.yaml`, `aux-2-preprod-usb-audio-dut.yaml`.
 
 ## When something looks wrong
 

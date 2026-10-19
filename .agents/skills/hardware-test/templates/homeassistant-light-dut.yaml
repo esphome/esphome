@@ -1,0 +1,145 @@
+# shared part: two Home Assistant lights mirrored on the device plus buttons that drive them
+esphome:
+  # A local change made before the light core's first write (b19a776 sends it instead of merging it).
+  on_boot:
+    priority: -100
+    then:
+      - lambda: 'ESP_LOGI("halight", "on_boot turning B on at 35 percent before the first write");'
+      - light.turn_on:
+          id: bulb_b
+          brightness: 35%
+logger:
+  level: VERBOSE
+  logs:
+    api: DEBUG
+    api.connection: DEBUG
+    api.service: DEBUG
+    wifi: DEBUG
+    scheduler: DEBUG
+    component: DEBUG
+    sensor: DEBUG
+    mdns: DEBUG
+    ota: DEBUG
+    socket: DEBUG
+    esp-idf: DEBUG
+    preferences: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+light:
+  - platform: homeassistant
+    id: bulb_a
+    name: Mirror A
+    entity_id: light.ENTITY_A
+    report_timeout: 5s
+    on_turn_on:
+      - logger.log: "bulb_a on_turn_on"
+    on_turn_off:
+      - logger.log: "bulb_a on_turn_off"
+  - platform: homeassistant
+    id: bulb_b
+    name: Mirror B
+    entity_id: light.ENTITY_B
+    report_timeout: 5s
+
+button:
+  - platform: template
+    name: A warm 40
+    id: a_warm_40
+    on_press:
+      - light.turn_on:
+          id: bulb_a
+          brightness: 40%
+          color_temperature: 370 mireds
+  - platform: template
+    name: A cool 100
+    on_press:
+      - light.turn_on:
+          id: bulb_a
+          brightness: 100%
+          color_temperature: 153 mireds
+  - platform: template
+    name: A red
+    on_press:
+      - light.turn_on:
+          id: bulb_a
+          brightness: 80%
+          red: 100%
+          green: 0%
+          blue: 0%
+  - platform: template
+    name: A green dim
+    on_press:
+      - light.turn_on:
+          id: bulb_a
+          brightness: 20%
+          red: 0%
+          green: 100%
+          blue: 0%
+  - platform: template
+    name: A brightness only 60
+    on_press:
+      - light.turn_on:
+          id: bulb_a
+          brightness: 60%
+  - platform: template
+    name: A transition 100
+    on_press:
+      - light.turn_on:
+          id: bulb_a
+          brightness: 100%
+          transition_length: 3s
+  - platform: template
+    name: A flash
+    on_press:
+      - light.turn_on:
+          id: bulb_a
+          flash_length: 1s
+  - platform: template
+    name: A off
+    on_press:
+      - light.turn_off: bulb_a
+  - platform: template
+    name: A toggle
+    on_press:
+      - light.toggle: bulb_a
+  - platform: template
+    name: B warm 50
+    on_press:
+      - light.turn_on:
+          id: bulb_b
+          brightness: 50%
+          color_temperature: 300 mireds
+  - platform: template
+    name: B off
+    on_press:
+      - light.turn_off: bulb_b
+  - platform: template
+    name: Log state
+    on_press:
+      - lambda: |-
+          auto v = id(bulb_a).current_values;
+          ESP_LOGI("halight", "A: on=%d mode=%d bri=%.2f ct=%.1f rgb=%.2f/%.2f/%.2f  B: on=%d bri=%.2f",
+                   v.is_on(), (int) v.get_color_mode(), v.get_brightness(), v.get_color_temperature(),
+                   v.get_red(), v.get_green(), v.get_blue(), id(bulb_b).current_values.is_on(),
+                   id(bulb_b).current_values.get_brightness());
+
+interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          auto v = id(bulb_a).current_values;
+          ESP_LOGI("halight", "alive A: on=%d mode=%d bri=%.2f ct=%.1f rgb=%.2f/%.2f/%.2f  B: on=%d bri=%.2f",
+                   v.is_on(), (int) v.get_color_mode(), v.get_brightness(), v.get_color_temperature(),
+                   v.get_red(), v.get_green(), v.get_blue(), id(bulb_b).current_values.is_on(),
+                   id(bulb_b).current_values.get_brightness());

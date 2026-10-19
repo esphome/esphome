@@ -4,6 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::mcp23016 {
 
@@ -56,26 +57,8 @@ class MCP23016 final : public Component, public i2c::I2CDevice, public gpio_expa
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-class MCP23016GPIOPin final : public GPIOPin {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_parent(MCP23016 *parent) { parent_ = parent; }
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  MCP23016 *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
+using MCP23016GPIOPin = gpio_expander::ExpanderGPIOPin<MCP23016>;
 
 }  // namespace esphome::mcp23016
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::mcp23016::MCP23016);

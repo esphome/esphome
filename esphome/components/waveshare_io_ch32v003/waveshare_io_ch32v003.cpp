@@ -124,16 +124,6 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
 bool WaveshareIOCH32V003Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 float WaveshareIOCH32V003Component::get_setup_priority() const { return setup_priority::IO; }
 
-void WaveshareIOCH32V003GPIOPin::setup() { this->pin_mode(this->flags_); }
-void WaveshareIOCH32V003GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool WaveshareIOCH32V003GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
-
-void WaveshareIOCH32V003GPIOPin::digital_write(bool value) {
-  this->parent_->digital_write(this->pin_, value ^ this->inverted_);
-}
-
-size_t WaveshareIOCH32V003GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "EXIO%u via WaveshareIO", this->pin_);
-}
-
 }  // namespace esphome::waveshare_io_ch32v003
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::waveshare_io_ch32v003::WaveshareIOCH32V003Component, "EXIO%u via WaveshareIO")
