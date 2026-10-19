@@ -33,7 +33,6 @@ from esphome.components.zephyr import (
     zephyr_add_user,
     zephyr_cdc_acm_label,
     zephyr_claim_cdc_acm,
-    zephyr_dts_board_id,
     zephyr_only_on_variant,
     zephyr_set_module_override,
     zephyr_setup_i2c_pinctrl,
@@ -1567,39 +1566,6 @@ def test_zephyr_setup_spi_pinctrl_silabs_partial_override_preserves_other_signal
     assert "USART0_TX_PA5" in overlay
     # MISO's original real value is restated as its raw integer, not dropped.
     assert f"<{_SILABS_RX_PINS}>" in overlay
-
-
-# ---------------------------------------------------------------------------
-# zephyr_dts_board_id
-# ---------------------------------------------------------------------------
-
-
-def test_zephyr_dts_board_id_returns_input_unchanged_for_non_nrf52() -> None:
-    _set_non_nrf52_target_platform()
-    assert zephyr_dts_board_id("esp32h2_devkitm/esp32h2") == "esp32h2_devkitm/esp32h2"
-
-
-def test_zephyr_dts_board_id_falls_back_to_input_when_no_west_board_override() -> None:
-    # No BOARDS_ZEPHYR entry currently sets "west_board" (the HWMv2 translation
-    # this function documents is dormant, not yet needed by any real board) --
-    # confirms the .get(..., esphome_board) fallback path, not a hardcoded value.
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "nrf52"}
-    assert (
-        zephyr_dts_board_id("adafruit_itsybitsy_nrf52840")
-        == "adafruit_itsybitsy_nrf52840"
-    )
-
-
-def test_zephyr_dts_board_id_uses_west_board_override_when_present(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from esphome.components.nrf52.boards import BOARDS_ZEPHYR
-
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "nrf52"}
-    monkeypatch.setitem(
-        BOARDS_ZEPHYR, "some_board", {"west_board": "some_board/nrf52840"}
-    )
-    assert zephyr_dts_board_id("some_board") == "some_board/nrf52840"
 
 
 # ---------------------------------------------------------------------------

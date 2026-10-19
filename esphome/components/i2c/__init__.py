@@ -31,7 +31,6 @@ from esphome.components.esp32.gpio_esp32_s31 import esp32_s31_validate_lp_i2c
 from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
-    zephyr_dts_board_id,
     zephyr_setup_i2c_pinctrl,
     zephyr_variant,
 )
@@ -406,7 +405,7 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("I2C_EMUL", True)
             i2c = resolve_zephyr_bus(
                 DOMAIN,
-                zephyr_dts_board_id(board),
+                board,
                 override_key=CONF_DTS_NODE_OVERRIDE,
                 override=config.get(CONF_DTS_NODE_OVERRIDE),
             )
@@ -433,7 +432,7 @@ async def to_code(config: ConfigType) -> None:
             else:
                 i2c = resolve_zephyr_bus(
                     DOMAIN,
-                    zephyr_dts_board_id(board),
+                    board,
                     override_key=CONF_DTS_NODE_OVERRIDE,
                     override=config.get(CONF_DTS_NODE_OVERRIDE),
                 )

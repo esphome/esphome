@@ -23,7 +23,6 @@ from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
-    zephyr_dts_board_id,
     zephyr_setup_spi_pinctrl,
     zephyr_variant,
 )
@@ -547,7 +546,7 @@ def _zephyr_setup_spi(spi, resolved_buses: set[str]) -> tuple[str, str]:
     override = interface if interface not in ("hardware", "any") else None
     bus = resolve_zephyr_bus(
         DOMAIN,
-        zephyr_dts_board_id(board),
+        board,
         override_key=CONF_INTERFACE,
         override=override,
     )

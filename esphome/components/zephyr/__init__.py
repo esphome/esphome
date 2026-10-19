@@ -327,20 +327,6 @@ def zephyr_variant_family() -> str | None:
     return zephyr_data().get("family")
 
 
-def zephyr_dts_board_id(esphome_board: str) -> str:
-    """Return the board id to use for DTS lookups (west's HWMv2 board/soc form on nrf52).
-
-    Mirrors the west_board resolution in run_compile() -- NCS 3.3.0+ uses HWMv2
-    board/soc names that don't match ESPHome's flat board id. Checks CORE.is_nrf52
-    (not zephyr_variant(), which is never set for the standalone nrf52 platform).
-    """
-    if CORE.is_nrf52:
-        from esphome.components.nrf52.boards import BOARDS_ZEPHYR  # noqa: PLC0415
-
-        return BOARDS_ZEPHYR.get(esphome_board, {}).get("west_board", esphome_board)
-    return esphome_board
-
-
 def zephyr_only_on_variant(*variant_names: str):
     """Return a cv validator that requires the Zephyr variant to be one of variant_names."""
 
