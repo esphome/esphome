@@ -67,6 +67,9 @@ WAKEUP_SOURCES = {
 # The S2/S3 ULP RISC-V build needs the RISC-V compiler, which the native
 # toolchain install skips for Xtensa variants; any RISC-V chip pulls it in.
 RISCV_TOOLCHAIN_TARGET = "esp32c3"
+# The ULP RISC-V linker puts the stack top at the end of the reservation as
+# is, and the RISC-V ABI wants the stack pointer 16-byte aligned
+RISCV_STACK_ALIGNMENT = 16
 # Both backends store the period in a uint32_t of microseconds
 WAKEUP_PERIOD_MAX_US = 2**32 - 1
 
@@ -122,6 +125,11 @@ def _validate_variant(config: ConfigType) -> ConfigType:
             path=[CONF_RESERVE_MEMORY],
         )
     if backend == BACKEND_RISCV:
+        if reserve % RISCV_STACK_ALIGNMENT:
+            raise cv.Invalid(
+                f"{CONF_RESERVE_MEMORY} must be a multiple of {RISCV_STACK_ALIGNMENT} bytes on {variant}",
+                path=[CONF_RESERVE_MEMORY],
+            )
         if CONF_WAKEUP_SOURCES in config:
             raise cv.Invalid(
                 f"{CONF_WAKEUP_SOURCES} is only available on the LP core ({', '.join(v for v, b in VARIANT_BACKEND.items() if b == BACKEND_LP_CORE)})",

@@ -68,6 +68,18 @@ def _set_variant(set_core_config: SetCoreConfigCallable, variant: str) -> None:
             id="s3_reserve_too_large",
         ),
         pytest.param(
+            VARIANT_ESP32S3,
+            TIMER | {CONF_RESERVE_MEMORY: 4097},
+            pytest.raises(cv.Invalid, match="multiple of 16 bytes on ESP32S3"),
+            id="s3_reserve_unaligned",
+        ),
+        pytest.param(
+            VARIANT_ESP32C6,
+            TIMER | {CONF_RESERVE_MEMORY: 4097},
+            nullcontext(),
+            id="c6_reserve_unaligned_ok",
+        ),
+        pytest.param(
             VARIANT_ESP32C6,
             TIMER | {CONF_RESERVE_MEMORY: 16352},
             nullcontext(),
