@@ -1,4 +1,5 @@
 #include "ds3231.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 // Datasheet:
@@ -37,7 +38,7 @@ bool DS3231Component::read_temperature(float &out) {
     return false;
   }
   // 10-bit two's complement, 0.25 degC per LSB.
-  int16_t value = static_cast<int16_t>((raw[0] << 8) | raw[1]) >> 6;
+  int16_t value = encode_value<int16_t>(raw) >> 6;
   out = value * 0.25f;
   return true;
 }

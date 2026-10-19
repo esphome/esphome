@@ -73,11 +73,7 @@ void LP5562Output::dump_config() {
 void LP5562Output::set_channel_value_(uint8_t channel, uint8_t value) {
   if (this->is_failed())
     return;
-  if (!this->write_byte(progmem_read_byte(&LP5562_REG_PWM[channel]), value)) {
-    this->status_set_warning();
-    return;
-  }
-  this->status_clear_warning();
+  this->status_comm_result(this->write_byte(progmem_read_byte(&LP5562_REG_PWM[channel]), value));
 }
 
 void LP5562Channel::write_state(float state) {

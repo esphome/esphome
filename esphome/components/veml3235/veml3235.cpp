@@ -54,14 +54,11 @@ void VEML3235Sensor::update() {
 
 void VEML3235Sensor::read_and_publish_(uint8_t adjustments_left) {
   uint8_t als_regs[] = {0, 0};
-  if ((this->read_register(ALS_REG, als_regs, sizeof als_regs) != i2c::ERROR_OK)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_register(ALS_REG, als_regs, sizeof als_regs) == i2c::ERROR_OK)) {
     this->publish_state(NAN);
     this->measurement_in_progress_ = false;
     return;
   }
-
-  this->status_clear_warning();
 
   uint16_t als_counts = encode_value_le<uint16_t>(als_regs);
 

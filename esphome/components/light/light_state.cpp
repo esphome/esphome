@@ -121,6 +121,11 @@ void LightState::dump_config() {
   }
 }
 void LightState::loop() {
+  this->apply_effect_and_transformer_();
+  this->write_if_pending_();
+}
+
+void LightState::apply_effect_and_transformer_() {
   // Apply effect (if any)
   auto *effect = this->get_active_effect_();
   if (effect != nullptr) {
@@ -171,8 +176,9 @@ void LightState::loop() {
       this->disable_loop_if_idle_();
     }
   }
+}
 
-  // Write state to the light
+void LightState::write_if_pending_() {
   if (this->next_write_) {
     this->next_write_ = false;
     this->output_->write_state(this);

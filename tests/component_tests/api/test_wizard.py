@@ -303,6 +303,16 @@ def test_entity_id_is_optional_only_for_wizard_inputs(
         ), errors
 
 
+def test_light_is_a_wizard_input(tmp_path: Path) -> None:
+    entities = "light:\n  - platform: homeassistant\n    id: ha_light\n"
+    errors = config_errors(
+        write_config(
+            tmp_path, ESP32_HEADER, wizard_inputs("- entity: ha_light"), entities
+        )
+    )
+    assert errors == []
+
+
 def test_entity_id_is_optional_for_an_input_and_its_domain_is_checked(
     tmp_path: Path,
 ) -> None:
