@@ -12,6 +12,7 @@ from .. import (
     CONF_MODULATION,
     CONF_PACKET_MODE,
     CONF_PAYLOAD_LENGTH,
+    CONF_RX_START,
     CONF_SX127X_ID,
     DOMAIN,
     SX127x,
@@ -49,7 +50,7 @@ def _check_fsk(config: ConfigType, radio: ConfigType) -> None:
 
 
 FINAL_VALIDATE_SCHEMA = radio_link_final_validate(
-    CONF_SX127X_ID, CONF_PAYLOAD_LENGTH, _check_fsk
+    CONF_SX127X_ID, CONF_PAYLOAD_LENGTH, CONF_RX_START, _check_fsk
 )
 
 

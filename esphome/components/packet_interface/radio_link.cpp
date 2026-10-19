@@ -21,7 +21,7 @@ bool RadioLinkBase::may_send_(bool busy) {
   if (!this->listen_before_talk_.may_send(busy, now))
     return false;
   if (busy) {
-    ESP_LOGV(TAG, "Radio busy for %" PRIu32 "ms, sending anyway", this->listen_before_talk_.busy_for(now));
+    ESP_LOGD(TAG, "Radio busy for %" PRIu32 "ms, sending anyway", this->listen_before_talk_.busy_for(now));
   }
   return true;
 }

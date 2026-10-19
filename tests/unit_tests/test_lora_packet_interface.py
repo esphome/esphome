@@ -74,7 +74,7 @@ class _FullConfig(dict):
     """Enough of the full configuration for the radio links' final validation."""
 
     def __init__(self, domain: str, radio: dict) -> None:
-        super().__init__({domain: [radio]})
+        super().__init__({domain: [{"rx_start": True, **radio}]})
         self.domain = domain
 
     def get_path_for_id(self, id_: object) -> list:
@@ -138,5 +138,40 @@ def test_radio_settings_checked(
         if fix is not None:
             fv.full_config.set(_FullConfig(domain, {**radio, **fix}))
             assert module.FINAL_VALIDATE_SCHEMA(config)
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize(
+    ("link", "match"),
+    [
+        ({}, None),
+        ({"encryption": "secret"}, None),
+        ({"reliability": {}}, "reliability"),
+        (
+            {
+                "addressing": {
+                    "address": 1,
+                    "peers": [
+                        {"id": "a", "destination": 2, "session": {}},
+                        {"id": "b", "destination": 3},
+                    ],
+                }
+            },
+            "session",
+        ),
+    ],
+)
+def test_rx_start_needed_for_replies(setup_core, link: dict, match: str | None) -> None:
+    """A radio that sleeps after sending suits only a link whose layers need no packets back."""
+    sleeping = {"payload_length": 0, "rx_start": False}
+    config = sx126x_packet_interface.CONFIG_SCHEMA({"sx126x_id": "radio", **link})
+    token = fv.full_config.set(_FullConfig("sx126x", sleeping))
+    try:
+        if match is None:
+            assert sx126x_packet_interface.FINAL_VALIDATE_SCHEMA(config)
+            return
+        with pytest.raises(cv.Invalid, match=f"'{match}'.*rx_start"):
+            sx126x_packet_interface.FINAL_VALIDATE_SCHEMA(config)
     finally:
         fv.full_config.reset(token)

@@ -8,6 +8,7 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_PAYLOAD_LENGTH,
+    CONF_RX_START,
     CONF_SX126X_ID,
     DOMAIN,
     SX126x,
@@ -24,7 +25,9 @@ SX126xPacketInterface = sx126x_ns.class_(
 
 CONFIG_SCHEMA = radio_link_schema(SX126xPacketInterface, CONF_SX126X_ID, SX126x)
 
-FINAL_VALIDATE_SCHEMA = radio_link_final_validate(CONF_SX126X_ID, CONF_PAYLOAD_LENGTH)
+FINAL_VALIDATE_SCHEMA = radio_link_final_validate(
+    CONF_SX126X_ID, CONF_PAYLOAD_LENGTH, CONF_RX_START
+)
 
 
 async def to_code(config: ConfigType) -> None:
