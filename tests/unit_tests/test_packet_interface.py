@@ -142,6 +142,10 @@ def test_session_timeout(setup_core) -> None:
         )
     with pytest.raises(cv.Invalid):
         uart_packet_interface.CONFIG_SCHEMA({CONF_SESSION: {CONF_KEEP_ALIVE: "500ms"}})
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_SESSION: {CONF_KEEP_ALIVE: "2h"}})
+    with pytest.raises(cv.Invalid):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_SESSION: {"timeout": "4h"}})
 
 
 def test_encryption_key_only(setup_core) -> None:

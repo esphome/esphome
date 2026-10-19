@@ -38,9 +38,12 @@ BASIC_SESSION_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(BasicSession),
             cv.Optional(CONF_KEEP_ALIVE, default="10s"): cv.All(
                 cv.positive_time_period_milliseconds,
-                cv.Range(min=cv.TimePeriod(seconds=1)),
+                cv.Range(min=cv.TimePeriod(seconds=1), max=cv.TimePeriod(hours=1)),
             ),
-            cv.Optional(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_TIMEOUT): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=cv.TimePeriod(hours=3)),
+            ),
             cv.Optional(CONF_BINARY_SENSOR): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_CONNECTIVITY,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
