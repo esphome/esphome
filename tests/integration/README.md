@@ -118,7 +118,7 @@ async def test_my_feature(
     # Write, compile and run the ESPHome device, then connect to API
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Test your feature using the connected client
-        await assert_device_name(client, "my-feature")
+        await assert_device_name(client, "my-test-device")
 ```
 
 ### Creating YAML Fixtures
