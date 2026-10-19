@@ -46,21 +46,18 @@ fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
-FAN_DIRECTION_ENUM = {
-    "FORWARD": FanDirection.FORWARD,
-    "REVERSE": FanDirection.REVERSE,
-}
+FAN_DIRECTION_ENUM = FanDirection.options("FORWARD", "REVERSE")
 
 FanRestoreMode = fan_ns.enum("FanRestoreMode", is_class=True)
-RESTORE_MODES = {
-    "NO_RESTORE": FanRestoreMode.NO_RESTORE,
-    "ALWAYS_OFF": FanRestoreMode.ALWAYS_OFF,
-    "ALWAYS_ON": FanRestoreMode.ALWAYS_ON,
-    "RESTORE_DEFAULT_OFF": FanRestoreMode.RESTORE_DEFAULT_OFF,
-    "RESTORE_DEFAULT_ON": FanRestoreMode.RESTORE_DEFAULT_ON,
-    "RESTORE_INVERTED_DEFAULT_OFF": FanRestoreMode.RESTORE_INVERTED_DEFAULT_OFF,
-    "RESTORE_INVERTED_DEFAULT_ON": FanRestoreMode.RESTORE_INVERTED_DEFAULT_ON,
-}
+RESTORE_MODES = FanRestoreMode.options(
+    "NO_RESTORE",
+    "ALWAYS_OFF",
+    "ALWAYS_ON",
+    "RESTORE_DEFAULT_OFF",
+    "RESTORE_DEFAULT_ON",
+    "RESTORE_INVERTED_DEFAULT_OFF",
+    "RESTORE_INVERTED_DEFAULT_ON",
+)
 
 # Actions
 CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)

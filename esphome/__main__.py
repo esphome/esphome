@@ -483,12 +483,9 @@ def has_ota() -> bool:
 
 def has_native_ota() -> bool:
     """Check if native API OTA upload is available (``platform: esphome``)."""
-    if CONF_OTA not in CORE.config:
-        return False
-    return any(
-        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
-        for ota_item in CORE.config[CONF_OTA]
-    )
+    from esphome.espota2 import esphome_ota_items
+
+    return bool(esphome_ota_items(CORE.config))
 
 
 def has_web_server_ota() -> bool:
@@ -794,6 +791,7 @@ def write_cpp(config: ConfigType) -> int:
 
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
+    writer.check_build_tree_not_tracked()
 
     generate_cpp_contents(config)
     return write_cpp_file()
@@ -1359,14 +1357,17 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     return CONF_WEB_SERVER
 
 
+def _esphome_ota_conf(config: ConfigType) -> ConfigType | None:
+    """The validated esphome OTA platform block, if configured."""
+    from esphome.espota2 import esphome_ota_items
+
+    return next(iter(esphome_ota_items(config)), None)
+
+
 def _upload_via_native_api(
     config: ConfigType, network_devices: list[str], args: ArgsProtocol
 ) -> tuple[int, str | None]:
-    ota_conf: ConfigType = {}
-    for ota_item in config.get(CONF_OTA, []):
-        if ota_item.get(CONF_PLATFORM) == CONF_ESPHOME:
-            ota_conf = ota_item
-            break
+    ota_conf = _esphome_ota_conf(config) or {}
 
     from esphome import espota2
     from esphome.components.noise import static_encryption_key
@@ -1376,6 +1377,7 @@ def _upload_via_native_api(
     # Fail closed: an encryption block whose key did not resolve must never
     # fall back to a plaintext upload
     noise_psk = None
+    old_noise_psk = None
     plaintext_fallback = False
     allow_plaintext_upload = False
     if ota_key := getattr(args, "ota_key", None):
@@ -1396,6 +1398,8 @@ def _upload_via_native_api(
         # Ensure the key is a string, as required by the underlying OTA implementation.
         # It arrives here as a SensitiveStr which aioesphomeapi rejects.
         noise_psk = str(noise_psk)
+        if old_key := encryption_conf.get(espota2.CONF_OLD_KEY):
+            old_noise_psk = str(old_key)
     elif api_key := static_encryption_key(config.get(CONF_API) or {}):
         # Remove before 2027.3.0: the api key is tried, falling back to plaintext
         noise_psk = str(api_key)
@@ -1445,19 +1449,30 @@ def _upload_via_native_api(
         noise_psk,
         plaintext_fallback=plaintext_fallback,
         allow_plaintext_upload=allow_plaintext_upload,
+        old_noise_psk=old_noise_psk,
     )
+
+
+def _old_key_notice(config: ConfigType) -> None:
+    """After `run`, whose image was just built from this config; a plain
+    `upload` may send a stale image that still carries the previous key."""
+    from esphome import espota2
+
+    for item in espota2.esphome_ota_items(config):
+        if (item.get(CONF_ENCRYPTION) or {}).get(espota2.CONF_OLD_KEY):
+            _LOGGER.warning(espota2.OLD_KEY_REMOVE_NOTICE)
 
 
 def _upload_via_web_server(
     config: ConfigType, network_devices: list[str], binary: Path
 ) -> tuple[int, str | None]:
     from esphome import web_server_ota
+    from esphome.espota2 import esphome_ota_items
     from esphome.web_server_helpers import get_web_server_connection
 
     if any(
-        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
-        and ota_item.get(CONF_ENCRYPTION) is not None
-        for ota_item in config.get(CONF_OTA, [])
+        ota_item.get(CONF_ENCRYPTION) is not None
+        for ota_item in esphome_ota_items(config)
     ):
         _LOGGER.warning(
             "This config has OTA encryption, but the web_server OTA path sends "
@@ -1892,6 +1907,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code, successful_device = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
+        _old_key_notice(config)
     else:
         _LOGGER.warning("Failed to upload to %s", devices)
         return exit_code

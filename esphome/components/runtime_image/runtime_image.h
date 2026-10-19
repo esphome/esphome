@@ -96,6 +96,9 @@ class RuntimeImage : public image::Image {
    */
   bool is_decode_finished() const;
 
+  /// True while decoding and the decoder can tell a complete image from a cut-off one
+  bool decoder_knows_end() const;
+
   /**
    * @brief Check if an image is currently loaded.
    */
@@ -227,13 +230,10 @@ class RuntimeImage : public image::Image {
 
   // Configuration
   bool progressive_display_{false};
-  /**
-   * Whether the image is stored in big-endian format.
-   * This is used to determine how to store 16 bit colors in the buffer.
-   */
-  bool is_big_endian_{false};
   /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
   bool external_buffer_{false};
+
+  friend class ImageDecoder;
 };
 
 }  // namespace esphome::runtime_image

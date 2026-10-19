@@ -1,3 +1,4 @@
-# The disconnects counter is compiled only with USE_SENSOR; declaring the
-# sensor domain makes the C++ unit test build define it.
+# The connection entities are compiled only with USE_BINARY_SENSOR and
+# USE_SENSOR; declaring the domains makes the C++ unit test build define them.
+binary_sensor:
 sensor:

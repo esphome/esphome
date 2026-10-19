@@ -69,6 +69,7 @@ from esphome.__main__ import (
     upload_using_esptool,
     upload_using_picotool,
     upload_using_platformio,
+    write_cpp,
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
@@ -108,6 +109,7 @@ from esphome.const import (
     CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WIFI,
+    ENV_NOGITIGNORE,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
@@ -1558,6 +1560,14 @@ class MockArgs:
     env_ota_key: str | None = None
 
 
+# The keyword half of every run_ota call; a test overrides the one it is about
+RUN_OTA_DEFAULT_KWARGS = {
+    "plaintext_fallback": False,
+    "allow_plaintext_upload": False,
+    "old_noise_psk": None,
+}
+
+
 def test_upload_program_serial_esp32(
     mock_upload_using_esptool: Mock,
     mock_get_port_type: Mock,
@@ -2120,32 +2130,39 @@ def test_upload_program_ota_success(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
+@pytest.mark.parametrize(
+    "old_key",
+    [None, "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="],
+    ids=["key", "old_key"],
+)
 def test_upload_program_ota_encryption_key(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
     tmp_path: Path,
+    old_key: str | None,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The resolved encryption key is passed through to run_ota."""
+    """The resolved encryption key, and the previous one when set, are passed
+    through to run_ota."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
     mock_get_port_type.return_value = "NETWORK"
     mock_run_ota.return_value = (0, "192.168.1.100")
 
     key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    encryption = {CONF_KEY: key}
+    if old_key is not None:
+        encryption["old_key"] = old_key
     config = {
         CONF_OTA: [
-            {
-                CONF_PLATFORM: CONF_ESPHOME,
-                CONF_PORT: 3232,
-                CONF_ENCRYPTION: {CONF_KEY: key},
-            }
+            {CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232, CONF_ENCRYPTION: encryption}
         ]
     }
-    exit_code, host = upload_program(config, MockArgs(), ["192.168.1.100"])
+    with caplog.at_level(logging.WARNING):
+        exit_code, host = upload_program(config, MockArgs(), ["192.168.1.100"])
 
     assert exit_code == 0
     assert host == "192.168.1.100"
@@ -2159,9 +2176,10 @@ def test_upload_program_ota_encryption_key(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         key,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS | {"old_noise_psk": old_key},
     )
+    # The notice belongs to run, whose image was just built from this config
+    assert not any("remove 'old_key'" in r.message for r in caplog.records)
 
 
 def test_upload_program_bare_encryption_block_never_falls_back(
@@ -2191,10 +2209,7 @@ def test_upload_program_bare_encryption_block_never_falls_back(
     with patch("esphome.espota2.run_ota", return_value=(0, "192.168.1.100")) as run_ota:
         upload_program(config, MockArgs(), ["192.168.1.100"])
     assert run_ota.call_args.args[5] == key
-    assert run_ota.call_args.kwargs == {
-        "plaintext_fallback": False,
-        "allow_plaintext_upload": False,
-    }
+    assert run_ota.call_args.kwargs == RUN_OTA_DEFAULT_KWARGS
 
 
 def test_upload_program_ota_allow_plaintext_upload(
@@ -2223,9 +2238,8 @@ def test_upload_program_ota_allow_plaintext_upload(
     assert exit_code == 0
     assert mock_run_ota.call_args.args[2] == "pw"
     assert mock_run_ota.call_args.args[5] == key
-    assert mock_run_ota.call_args.kwargs == {
-        "plaintext_fallback": False,
-        "allow_plaintext_upload": True,
+    assert mock_run_ota.call_args.kwargs == RUN_OTA_DEFAULT_KWARGS | {
+        "allow_plaintext_upload": True
     }
 
 
@@ -2235,6 +2249,7 @@ def test_upload_program_ota_allow_plaintext_upload(
         {
             CONF_ENCRYPTION: {
                 CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                "old_key": "AgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICE=",
                 "allow_plaintext_upload": True,
             }
         },
@@ -2265,10 +2280,7 @@ def test_upload_program_ota_prompted_key_is_presented(
 
     assert exit_code == 0
     assert mock_run_ota.call_args.args[5] == old_key
-    assert mock_run_ota.call_args.kwargs == {
-        "plaintext_fallback": False,
-        "allow_plaintext_upload": False,
-    }
+    assert mock_run_ota.call_args.kwargs == RUN_OTA_DEFAULT_KWARGS
 
 
 def test_upload_program_serial_ignores_prompted_key(
@@ -2318,6 +2330,46 @@ def test_command_run_prompts_for_ota_key_before_compile() -> None:
     ):
         assert command_run(args, CORE.config) == 1
     assert calls == ["prompt", "compile"]
+
+
+@pytest.mark.parametrize(
+    "old_key", [None, "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="]
+)
+def test_command_run_says_when_old_key_can_go(
+    caplog: pytest.LogCaptureFixture, old_key: str | None
+) -> None:
+    """Only run has just built the image from this config, so only run can
+    say the device will run `key` alone once it boots."""
+    encryption = {CONF_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}
+    if old_key is not None:
+        encryption["old_key"] = old_key
+    setup_core(
+        config={
+            CONF_OTA: [
+                {
+                    CONF_PLATFORM: CONF_ESPHOME,
+                    CONF_PORT: 3232,
+                    CONF_ENCRYPTION: encryption,
+                }
+            ]
+        },
+        platform=PLATFORM_ESP32,
+    )
+    args = MockArgs()
+    args.device = ["dev.local"]
+    args.no_logs = True
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch("esphome.__main__.choose_upload_log_host", return_value=["dev.local"]),
+        patch("esphome.__main__.get_serial_ports", return_value=[]),
+        patch("esphome.__main__.upload_program", return_value=(0, "dev.local")),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert command_run(args, CORE.config) == 0
+    assert any("remove 'old_key'" in r.message for r in caplog.records) is (
+        old_key is not None
+    )
 
 
 def test_upload_program_platform_hook_ignores_prompted_key(
@@ -2636,8 +2688,7 @@ def test_upload_program_ota_api_key_opportunistic(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         key,
-        plaintext_fallback=True,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS | {"plaintext_fallback": True},
     )
 
 
@@ -2666,10 +2717,7 @@ def test_upload_program_ota_no_usable_api_key_stays_plaintext(
 
     assert exit_code == 0
     assert mock_run_ota.call_args.args[5] is None
-    assert mock_run_ota.call_args.kwargs == {
-        "plaintext_fallback": False,
-        "allow_plaintext_upload": False,
-    }
+    assert mock_run_ota.call_args.kwargs == RUN_OTA_DEFAULT_KWARGS
 
 
 def test_upload_program_ota_encryption_without_key_fails_closed(
@@ -2728,8 +2776,7 @@ def test_upload_program_ota_with_file_arg(
         Path("custom.bin"),
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -2785,8 +2832,7 @@ def test_upload_program_ota_partition_table_with_file_arg(
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -2849,8 +2895,7 @@ def test_upload_program_ota_partition_table_mqttip(
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -3039,8 +3084,7 @@ def test_upload_program_ota_bootloader_with_file_arg(
         bootloader_file,
         OTA_TYPE_UPDATE_BOOTLOADER,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -3551,8 +3595,7 @@ def test_upload_program_ota_with_mqtt_resolution(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -3608,8 +3651,7 @@ def test_upload_program_ota_with_mqtt_empty_broker(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
     # Verify warning was logged
     assert "MQTT IP discovery failed" in caplog.text
@@ -4821,6 +4863,52 @@ def test_run_esphome_dashboard_redirects_to_device_builder(
     assert "esphome-device-builder" in caplog.text
 
 
+def test_write_cpp_writes_gitignore_and_checks_build_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """write_cpp writes the .gitignore and checks the build tree isn't tracked."""
+    monkeypatch.delenv(ENV_NOGITIGNORE, raising=False)
+
+    with (
+        patch("esphome.writer.update_storage_json") as mock_update_storage,
+        patch("esphome.writer.write_gitignore") as mock_write_gitignore,
+        patch("esphome.writer.check_build_tree_not_tracked") as mock_check_tracked,
+        patch("esphome.__main__.generate_cpp_contents") as mock_generate,
+        patch("esphome.__main__.write_cpp_file", return_value=0) as mock_write_file,
+    ):
+        result = write_cpp({})
+
+    assert result == 0
+    mock_update_storage.assert_called_once()
+    mock_write_gitignore.assert_called_once()
+    mock_check_tracked.assert_called_once()
+    mock_generate.assert_called_once_with({})
+    mock_write_file.assert_called_once()
+
+
+def test_write_cpp_skips_gitignore_but_still_checks_build_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_NOGITIGNORE skips writing .gitignore.
+
+    The (read-only) tracked-file check still runs -- it isn't tied to
+    whether ESPHome is allowed to write files.
+    """
+    monkeypatch.setenv(ENV_NOGITIGNORE, "true")
+
+    with (
+        patch("esphome.writer.update_storage_json"),
+        patch("esphome.writer.write_gitignore") as mock_write_gitignore,
+        patch("esphome.writer.check_build_tree_not_tracked") as mock_check_tracked,
+        patch("esphome.__main__.generate_cpp_contents"),
+        patch("esphome.__main__.write_cpp_file", return_value=0),
+    ):
+        write_cpp({})
+
+    mock_write_gitignore.assert_not_called()
+    mock_check_tracked.assert_called_once()
+
+
 def test_command_config_hash(
     tmp_path: Path,
     capfd: CaptureFixture[str],
@@ -5161,8 +5249,7 @@ def test_upload_program_ota_static_ip_with_mqttip(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -5213,8 +5300,7 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 
@@ -5398,8 +5484,7 @@ def test_upload_program_ota_mqtt_timeout_fallback(
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
         None,
-        plaintext_fallback=False,
-        allow_plaintext_upload=False,
+        **RUN_OTA_DEFAULT_KWARGS,
     )
 
 

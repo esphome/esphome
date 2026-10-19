@@ -9,7 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from esphome.components.network import require_high_performance_networking
+from esphome.components.network import (
+    require_high_performance_networking,
+    require_high_performance_wifi,
+)
 from tests.component_tests.network import sdkconfig_option
 
 
@@ -52,3 +55,15 @@ def test_lwip_tier(
     assert sdkconfig_option("CONFIG_LWIP_WND_SCALE") is window_scale
     # Wifi RX buffers really go to PSRAM, so the wifi tier is never downgraded
     assert sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM") == wifi_rx_buffers
+
+
+def test_wifi_only_request_leaves_lwip_alone(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A WiFi-only request sizes the driver buffers but not the TCP windows."""
+    require_high_performance_wifi()
+    generate_main(component_config_path("high_perf_wifi_only.yaml"))
+    assert sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT") is None
+    assert sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE") == 64
+    assert sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM") == 64
