@@ -54,10 +54,8 @@ void ST25R::setup() {
     this->irq_pin_->attach_interrupt(ST25R::isr, this, gpio::INTERRUPT_RISING_EDGE);
   }
 
-  if (!this->reset_chip_()) {
-    ESP_LOGE(TAG, "Failed to reset chip");
-    this->mark_failed();
-  }
+  if (!this->reset_chip_())
+    this->mark_failed(LOG_STR("Failed to reset chip"));
 }
 
 void ST25R::update() {
@@ -209,7 +207,7 @@ void ST25R::process_state_() {
 
       uint8_t resp[5];
       this->read_fifo(resp, 5);
-      uint8_t bcc = resp[0] ^ resp[1] ^ resp[2] ^ resp[3];
+      uint8_t bcc = xor_bytes(resp, 4);
       if (bcc != resp[4]) {
         ESP_LOGV(TAG, "Anticollision BCC mismatch");
         this->finish_scan_();

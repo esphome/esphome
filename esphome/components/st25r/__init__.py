@@ -40,11 +40,8 @@ _CALLBACK_AUTOMATIONS = (
 async def setup_st25r(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
-    if (irq_pin := config.get(CONF_IRQ_PIN)) is not None:
-        cg.add(var.set_irq_pin(await cg.gpio_pin_expression(irq_pin)))
-
-    if (reset_pin := config.get(CONF_RESET_PIN)) is not None:
-        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
+    await cg.add_pin(var.set_irq_pin, config.get(CONF_IRQ_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     cg.add(var.set_rf_power(config[CONF_RF_POWER]))
 
