@@ -90,6 +90,10 @@ class LightState : public EntityBase, public Component {
 
   /// True from the call that starts a transition or flash until it reaches its target.
   bool is_transitioning() const { return this->transformer_ != nullptr; }
+
+  /// Counts the calls performed, wrapping after 16: an output compares it with the value it noted
+  /// no more than a loop pass earlier to see whether a call came after what it noted
+  uint8_t get_call_count() const { return this->call_count_; }
   LightCall make_call();
 
   /// Take over the state of a light mirrored from elsewhere: current and target values at once,
@@ -416,6 +420,7 @@ class LightState : public EntityBase, public Component {
   bool next_write_{true};  // a plain bool: it is the most written flag, and still shares the index's word
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_ : 1 {false};
+  uint8_t call_count_ : 4 {0};  // see get_call_count()
   /// Whether this light persists its state to preferences at all.
   bool save_enabled_ : 1 {false};
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL

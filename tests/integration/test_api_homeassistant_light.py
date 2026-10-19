@@ -318,6 +318,16 @@ async def test_api_homeassistant_light(
         ha.report("brightness", "255")
         await ha.next_state(lambda s: s.brightness == 1.0)
 
+        # Or a transition to where the one the report was held for was already going
+        ha.command(brightness=0.5, transition_length=1.0)
+        ha.report("brightness", "50")
+        await asyncio.sleep(0.1)
+        ha.command(brightness=0.5, transition_length=1.0)
+        call = await ha.expect_call()
+        assert call.data["brightness"] == "128"
+        ha.report("brightness", "128")
+        await ha.next_state(lambda s: s.brightness == pytest.approx(128 / 255))
+
         # And when it goes back to the state the transition started from
         ha.command(state=False)
         await ha.expect_call("light.turn_off")

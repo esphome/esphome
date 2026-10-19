@@ -76,6 +76,7 @@ static void log_percent(const LogString *param, float value) {
 void LightCall::perform() {
   const char *name = this->parent_->get_name().c_str();
   LightColorValues v = this->validate_();
+  this->parent_->call_count_++;
   const bool publish = this->get_publish_();
 
   if (publish) {
