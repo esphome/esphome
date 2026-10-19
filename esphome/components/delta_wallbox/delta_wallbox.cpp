@@ -143,11 +143,22 @@ static std::array<uint8_t, LOGIN_BODY_LEN> build_login_body(StringRef user, Stri
 static std::array<uint8_t, TIME_SYNC_BODY_LEN> build_time_sync_body(int year, int month, int day, int hour, int minute,
                                                                     int second, int weekday) {
   const uint8_t weekday_bitmap = static_cast<uint8_t>(1 << weekday);  // Sunday=bit0, Mon=bit1...
-  return {0x01,0x10,0x01,0x14,0x00,0x04,0x08,  // Unit, FC16, register 0x0114, 4 registers, 8 bytes
+  return {
+      0x01,
+      0x10,
+      0x01,
+      0x14,
+      0x00,
+      0x04,
+      0x08,  // Unit, FC16, register 0x0114, 4 registers, 8 bytes
       static_cast<uint8_t>(year % 100),
-      static_cast<uint8_t>(month),weekday_bitmap,
-      static_cast<uint8_t>(day),static_cast<uint8_t>(hour),
-      static_cast<uint8_t>(minute),static_cast<uint8_t>(second),0x00,
+      static_cast<uint8_t>(month),
+      weekday_bitmap,
+      static_cast<uint8_t>(day),
+      static_cast<uint8_t>(hour),
+      static_cast<uint8_t>(minute),
+      static_cast<uint8_t>(second),
+      0x00,
   };
 }
 
@@ -288,8 +299,7 @@ void DeltaWallbox::send_next_state_command_() {
 }
 
 void DeltaWallbox::advance_to_(DeltaState next) {
-  ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_),
-           delta_state_to_string(next));
+  ESP_LOGD(TAG, "State transition: %s -> %s", delta_state_to_string(this->state_), delta_state_to_string(next));
   this->state_ = next;
   this->send_next_state_command_();
 }
