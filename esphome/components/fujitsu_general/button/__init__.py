@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.types import ConfigType
@@ -10,8 +9,6 @@ CONF_FUJITSU_GENERAL_ID = "fujitsu_general_id"
 CONF_STEP_VERTICAL = "step_vertical"
 CONF_STEP_HORIZONTAL = "step_horizontal"
 CONF_ECONOMY = "economy"
-
-FujitsuGeneralButton = fujitsu_general_ns.class_("FujitsuGeneralButton", button.Button)
 
 # Config key, the command byte the button sends, icon
 BUTTONS = (
@@ -32,7 +29,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_FUJITSU_GENERAL_ID): cv.use_id(FujitsuGeneralClimate),
         **{
-            cv.Optional(key): button.button_schema(FujitsuGeneralButton, icon=icon)
+            cv.Optional(key): button.button_schema(button.ApplyButton, icon=icon)
             for key, _, icon in BUTTONS
         },
     }
@@ -40,9 +37,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_FUJITSU_GENERAL_ID])
+    buttons = button.sub_buttons(config, parent=config[CONF_FUJITSU_GENERAL_ID])
     for key, command, _ in BUTTONS:
-        if (conf := config.get(key)) is None:
-            continue
-        var = await button.new_button(conf, command)
-        await cg.register_parented(var, parent)
+        await buttons(key, None, apply=f"transmit_util({command})")
