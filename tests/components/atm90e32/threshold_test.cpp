@@ -197,4 +197,39 @@ TEST_F(ATM90E32ThresholdRegisters, CombinesNativeCurrentWithOtherPhaseAlarms) {
   EXPECT_EQ(status.state, "Over Current; Over Voltage");
 }
 
+TEST_F(ATM90E32ThresholdRegisters, IgnoresLegacyCurrentFlagAndPreservesRmsLimit) {
+  text_sensor::TextSensor status;
+  this->component_.set_ct_gain(1, 10000);
+  this->component_.set_phase_status_text_sensor(1, &status);
+  this->component_.setup();
+  this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] = ATM90E32_STATUS_S0_OIPHASEBST;
+  this->delegate_.registers[ATM90E32_REGISTER_IRMS + 1] = 30000;
+
+  this->component_.update();
+  EXPECT_EQ(status.state, "Okay");
+
+  this->delegate_.registers[ATM90E32_REGISTER_IRMS + 1] = 65535;
+  this->component_.update();
+  EXPECT_EQ(status.state, "Over Current");
+
+  this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] |= ATM90E32_STATUS_S0_OVPHASEBST;
+  this->delegate_.registers[ATM90E32_REGISTER_IRMS + 1] = 30000;
+  this->component_.update();
+  EXPECT_EQ(status.state, "Over Voltage");
+}
+
+TEST_F(ATM90E32ThresholdRegisters, ReportsConfiguredCurrentFlagBelowRmsLimit) {
+  text_sensor::TextSensor status;
+  this->component_.set_ct_gain(1, 27961);
+  this->component_.set_phase_status_text_sensor(1, &status);
+  this->component_.set_threshold_current_peak_a(10.0f);
+  this->component_.setup();
+  this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] =
+      ATM90E32_STATUS_S0_OIPHASEBST | ATM90E32_STATUS_S0_OVPHASEBST;
+  this->delegate_.registers[ATM90E32_REGISTER_IRMS + 1] = 6000;
+
+  this->component_.update();
+  EXPECT_EQ(status.state, "Over Current; Over Voltage");
+}
+
 }  // namespace esphome::atm90e32::testing

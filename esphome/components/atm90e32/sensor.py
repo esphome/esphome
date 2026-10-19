@@ -71,7 +71,6 @@ CONF_VOLTAGE_PEAK_PCT = "voltage_peak_pct"
 CONF_VOLTAGE_SAG_V = "voltage_sag_v"
 CONF_VOLTAGE_PEAK_V = "voltage_peak_v"
 CONF_CURRENT_PEAK = "current_peak"
-CONF_DEFAULT_OITH = "default_oith"
 CONF_FREQUENCY_LOW_HZ = "frequency_low_hz"
 CONF_FREQUENCY_HIGH_HZ = "frequency_high_hz"
 UNIT_DEG = "degrees"
@@ -231,8 +230,6 @@ def _default_voltage_nominal(line_frequency: int) -> float:
 
 def _resolve_thresholds(config: ConfigType) -> ConfigType:
     resolved = dict(config.get(CONF_THRESHOLDS, {}))
-    resolved[CONF_DEFAULT_OITH] = 0 if CONF_CURRENT_PEAK in resolved else 0xC000
-    resolved.setdefault(CONF_CURRENT_PEAK, DEFAULT_CURRENT_PEAK_A)
     resolved.setdefault(CONF_ALLOW_UNSAFE_THRESHOLDS, False)
     nominal_voltage = resolved.setdefault(
         CONF_VOLTAGE_NOMINAL, _default_voltage_nominal(config[CONF_LINE_FREQUENCY])
@@ -294,35 +291,35 @@ def _validate_thresholds(config: ConfigType) -> ConfigType:
             "Frequency thresholds must remain distinct at the register resolution of 0.01Hz."
         )
 
-    for gain_key, keys, scale in (
-        (CONF_GAIN_VOLTAGE, (CONF_VOLTAGE_SAG_V, CONF_VOLTAGE_PEAK_V), 100),
-        (CONF_GAIN_CT, (CONF_CURRENT_PEAK,), 1000),
+    for gain_key, triggers, registers, scale in (
+        (
+            CONF_GAIN_VOLTAGE,
+            (
+                CONF_VOLTAGE_NOMINAL,
+                CONF_VOLTAGE_SAG_PCT,
+                CONF_VOLTAGE_PEAK_PCT,
+                CONF_VOLTAGE_SAG_V,
+                CONF_VOLTAGE_PEAK_V,
+            ),
+            ((CONF_VOLTAGE_SAG_V, min), (CONF_VOLTAGE_PEAK_V, max)),
+            100,
+        ),
+        (CONF_GAIN_CT, (CONF_CURRENT_PEAK,), ((CONF_CURRENT_PEAK, max),), 1000),
     ):
-        voltage_keys = (
-            CONF_VOLTAGE_NOMINAL,
-            CONF_VOLTAGE_SAG_PCT,
-            CONF_VOLTAGE_PEAK_PCT,
-            *keys,
-        )
-        if not any(
-            key in configured for key in (voltage_keys if scale == 100 else keys)
-        ):
+        if not any(key in configured for key in triggers):
             continue
         gains = {
             config[phase][gain_key]
             for phase in (CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C)
             if phase in config
         }
-        if len(gains) != 1:
+        if not gains or 0 in gains:
             raise cv.Invalid(
-                f"Threshold registers are shared: configure at least one phase and use the same {gain_key} on all phases."
+                f"Thresholds require at least one phase and a nonzero {gain_key} on every configured phase."
             )
-        gain = gains.pop()
-        for key in keys:
-            if (
-                gain == 0
-                or thresholds[key] * scale * math.sqrt(2) * 16384 / gain > 65535
-            ):
+        for key, select_gain in registers:
+            gain = select_gain(gains)
+            if thresholds[key] * scale * math.sqrt(2) * 16384 / gain > 65535:
                 raise cv.Invalid(
                     f"thresholds.{key} cannot fit the 16-bit threshold register with {gain_key}: {gain}; "
                     f"increase {gain_key} or lower the threshold."
@@ -434,7 +431,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_threshold_voltage_peak_v(thresholds[CONF_VOLTAGE_PEAK_V]))
     cg.add(
         var.set_threshold_current_peak_a(
-            thresholds[CONF_CURRENT_PEAK], thresholds[CONF_DEFAULT_OITH]
+            thresholds.get(CONF_CURRENT_PEAK, DEFAULT_CURRENT_PEAK_A),
+            0 if CONF_CURRENT_PEAK in thresholds else 0xC000,
         )
     )
     cg.add(

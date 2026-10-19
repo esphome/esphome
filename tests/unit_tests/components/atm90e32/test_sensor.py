@@ -19,7 +19,7 @@ def _validate(
     line_frequency: int = 60,
 ) -> ConfigType:
     config = {"line_frequency": line_frequency}
-    for phase, values in (phases or {"phase_a": {}}).items():
+    for phase, values in ({"phase_a": {}} if phases is None else phases).items():
         config[phase] = atm90e32.ATM90E32_PHASE_SCHEMA(values)
     if thresholds is not None:
         config["thresholds"] = atm90e32.THRESHOLDS_SCHEMA(thresholds)
@@ -34,7 +34,8 @@ def test_resolves_defaults_without_threshold_block(
     assert thresholds["voltage_nominal"] == nominal
     assert thresholds["voltage_sag_v"] == pytest.approx(nominal * 0.78)
     assert thresholds["voltage_peak_v"] == pytest.approx(nominal * 1.22)
-    assert thresholds["current_peak"] == 65.53
+    assert "current_peak" not in thresholds
+    assert "default_oith" not in thresholds
     assert thresholds["frequency_low_hz"] == line_frequency - 3
     assert thresholds["frequency_high_hz"] == line_frequency + 3
 
@@ -80,6 +81,16 @@ def test_absolute_and_percent_voltages_require_safety_override(
         ({"current_peak": "50A"}, {"phase_a": {"gain_ct": 10000}}),
         ({"voltage_peak_v": "150V"}, {"phase_b": {"gain_voltage": 0}}),
         ({"current_peak": "10A"}, {"phase_c": {"gain_ct": 0}}),
+        (
+            {"current_peak": "10A"},
+            {"phase_a": {"gain_ct": 0}, "phase_b": {}},
+        ),
+        (
+            {"voltage_nominal": "120V"},
+            {"phase_a": {"gain_voltage": 0}, "phase_b": {}},
+        ),
+        ({"current_peak": "10A"}, {}),
+        ({"voltage_nominal": "120V"}, {}),
     ],
 )
 def test_rejects_thresholds_unrepresentable_at_configured_gain(
@@ -102,11 +113,56 @@ def test_single_phase_threshold_does_not_require_phase_a(phase: str) -> None:
         ({"voltage_nominal": "120V"}, "gain_voltage"),
     ],
 )
-def test_rejects_different_gains_for_a_shared_threshold(
+def test_accepts_different_gains_for_a_shared_threshold(
     thresholds: ConfigType, gain: str
 ) -> None:
-    with pytest.raises(cv.Invalid, match="shared"):
-        _validate(thresholds, {"phase_a": {gain: 15000}, "phase_b": {gain: 20000}})
+    _validate(thresholds, {"phase_a": {gain: 15000}, "phase_b": {gain: 20000}})
+
+
+@pytest.mark.parametrize(
+    "thresholds, phases",
+    [
+        (
+            {"current_peak": "50A"},
+            {"phase_a": {"gain_ct": 10000}, "phase_b": {"gain_ct": 27961}},
+        ),
+        (
+            {"voltage_peak_v": "150V"},
+            {"phase_a": {"gain_voltage": 4000}, "phase_b": {}},
+        ),
+    ],
+)
+def test_peak_register_fit_uses_highest_phase_gain(
+    thresholds: ConfigType, phases: ConfigType
+) -> None:
+    _validate(thresholds, phases)
+
+
+@pytest.mark.parametrize(
+    "thresholds, phases, key",
+    [
+        (
+            {"voltage_sag_v": "96V"},
+            {"phase_a": {"gain_voltage": 3000}, "phase_b": {}},
+            "voltage_sag_v",
+        ),
+        (
+            {"voltage_nominal": "200V", "voltage_sag_v": "100V"},
+            {"phase_a": {"gain_voltage": 4000}, "phase_b": {}},
+            "voltage_peak_v",
+        ),
+        (
+            {"current_peak": "50A"},
+            {"phase_a": {"gain_ct": 5000}, "phase_b": {"gain_ct": 10000}},
+            "current_peak",
+        ),
+    ],
+)
+def test_rejects_overflow_at_the_gain_used_by_shared_register(
+    thresholds: ConfigType, phases: ConfigType, key: str
+) -> None:
+    with pytest.raises(cv.Invalid, match=key):
+        _validate(thresholds, phases)
 
 
 @pytest.mark.parametrize(
@@ -132,9 +188,27 @@ def test_default_thresholds_do_not_reject_legacy_phase_gains() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("current_peak, default_oith", [(None, 49152), ("10A", 0)])
+@pytest.mark.parametrize(
+    "thresholds, current_peak, default_oith, low, high",
+    [
+        (None, 65.53, 49152, 5700, 6300),
+        (
+            {"frequency_low_hz": "59.95Hz", "frequency_high_hz": "60.01Hz"},
+            65.53,
+            49152,
+            5995,
+            6001,
+        ),
+        ({"current_peak": "10A"}, 10.0, 0, 5700, 6300),
+        ({"current_peak": "65.53A"}, 65.53, 0, 5700, 6300),
+    ],
+)
 async def test_codegen_rounds_frequency_and_emits_current_defaults(
-    current_peak: str | None, default_oith: int
+    thresholds: ConfigType | None,
+    current_peak: float,
+    default_oith: int,
+    low: int,
+    high: int,
 ) -> None:
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "esp32",
@@ -142,9 +216,6 @@ async def test_codegen_rounds_frequency_and_emits_current_defaults(
     }
     CORE.data["esp32"] = {"variant": "ESP32", "board": "esp32dev"}
     esphome_config.path_context.set([])
-    thresholds = {"frequency_low_hz": "59.95Hz", "frequency_high_hz": "60.01Hz"}
-    if current_peak is not None:
-        thresholds["current_peak"] = current_peak
     config = atm90e32.CONFIG_SCHEMA(
         {
             "id": "meter",
@@ -152,7 +223,7 @@ async def test_codegen_rounds_frequency_and_emits_current_defaults(
             "cs_pin": 4,
             "line_frequency": "60Hz",
             "phase_b": {},
-            "thresholds": thresholds,
+            **({"thresholds": thresholds} if thresholds is not None else {}),
         }
     )
     cg.new_Pvariable(config["spi_id"])
@@ -162,8 +233,6 @@ async def test_codegen_rounds_frequency_and_emits_current_defaults(
     CORE.flush_tasks()
 
     source = CORE.cpp_main_section
-    assert "set_frequency_thresholds(5995, 6001)" in source
-    assert (
-        f"set_threshold_current_peak_a({10.0 if current_peak else 65.53}f, {default_oith})"
-        in source
-    )
+    assert "default_oith" not in config["thresholds"]
+    assert f"set_frequency_thresholds({low}, {high})" in source
+    assert f"set_threshold_current_peak_a({current_peak}f, {default_oith})" in source

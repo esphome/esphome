@@ -1300,7 +1300,8 @@ void ATM90E32Component::check_phase_status() {
     std::string status;
 
     const float current = this->has_config_current_gain_[phase] ? this->get_phase_current_(phase) : 0.0f;
-    if ((state0 & this->over_current_flags[phase]) || current > this->threshold_current_peak_a_)
+    if ((this->default_oith_ == 0 && (state0 & this->over_current_flags[phase])) ||
+        current > this->threshold_current_peak_a_)
       status += "Over Current; ";
     if (state0 & over_voltage_flags[phase])
       status += "Over Voltage; ";
