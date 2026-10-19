@@ -43,12 +43,9 @@ SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
 
 # Enums
 SelectOperation = select_ns.enum("SelectOperation")
-SELECT_OPERATION_OPTIONS = {
-    "NEXT": SelectOperation.SELECT_OP_NEXT,
-    "PREVIOUS": SelectOperation.SELECT_OP_PREVIOUS,
-    "FIRST": SelectOperation.SELECT_OP_FIRST,
-    "LAST": SelectOperation.SELECT_OP_LAST,
-}
+SELECT_OPERATION_OPTIONS = SelectOperation.options(
+    "NEXT", "PREVIOUS", "FIRST", "LAST", prefix="SELECT_OP_"
+)
 
 
 _SELECT_SCHEMA = (
