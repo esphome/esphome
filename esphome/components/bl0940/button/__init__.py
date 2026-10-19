@@ -1,19 +1,14 @@
-import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG, ICON_RESTART
 from esphome.types import ConfigType
 
-from .. import CONF_BL0940_ID, bl0940_ns
+from .. import CONF_BL0940_ID
 from ..sensor import BL0940
 
-CalibrationResetButton = bl0940_ns.class_(
-    "CalibrationResetButton", button.Button, cg.Component
-)
-
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     button.button_schema(
-        CalibrationResetButton,
+        button.ApplyButton,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_RESTART,
     )
@@ -23,6 +18,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await button.new_button(config)
-    await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_BL0940_ID])
+    await button.sub_buttons(config, parent=config[CONF_BL0940_ID]).create(
+        config, None, apply="reset_calibration()"
+    )
