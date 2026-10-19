@@ -184,6 +184,23 @@ TEST_F(EntityTransportTest, RefusedPacketSentAgain) {
   EXPECT_EQ(this->link_a_.sent.size(), 2);
 }
 
+TEST_F(EntityTransportTest, LongRefusalWarns) {
+  this->link_a_.accept = false;
+  auto sender = this->make_sender_();
+  { LoopBlockingGuard guard{nullptr, nullptr, 1000}; }
+  sender->loop();
+  { LoopBlockingGuard guard{nullptr, nullptr, 60999}; }
+  sender->loop();
+  EXPECT_FALSE(sender->status_has_warning());
+  { LoopBlockingGuard guard{nullptr, nullptr, 61000}; }
+  sender->loop();
+  EXPECT_TRUE(sender->status_has_warning());
+  this->link_a_.accept = true;
+  sender->loop();
+  EXPECT_FALSE(sender->status_has_warning());
+  EXPECT_EQ(this->link_a_.sent.size(), 2);
+}
+
 TEST_F(EntityTransportTest, UnknownDictionaryRequested) {
   this->temp_.publish_state(5.0f);
   auto sender = this->make_sender_();
@@ -254,6 +271,31 @@ TEST_F(EntityTransportTest, EntityLeftOutOfNewDictionaryCleared) {
   changed.loop();
   link.deliver_to(this->link_b_);
   EXPECT_EQ(this->remote_temp_.get_state(), 6.0f);
+  EXPECT_FALSE(this->remote_door_.has_state());
+}
+
+TEST_F(EntityTransportTest, EntityLeftOutOfSeenDictionaryCleared) {
+  // The provider names only the sensor, then both entities, then goes back to naming only the sensor
+  sensor::Sensor temp;
+  MockInterface link;
+  auto make_temp_only = [&] {
+    auto transport = std::make_unique<TestTransport>(&link);
+    transport->set_entity_count(1);
+    transport->add_sensor("temp", &temp);
+    transport->setup();
+    return transport;
+  };
+  temp.publish_state(4.0f);
+  auto receiver = this->make_receiver_();
+  make_temp_only()->loop();
+  link.deliver_to(this->link_b_);
+  this->door_.publish_state(true);
+  this->make_sender_()->loop();
+  this->link_a_.deliver_to(this->link_b_);
+  EXPECT_TRUE(this->remote_door_.state);
+  make_temp_only()->loop();
+  link.deliver_to(this->link_b_);
+  EXPECT_EQ(this->remote_temp_.get_state(), 4.0f);
   EXPECT_FALSE(this->remote_door_.has_state());
 }
 

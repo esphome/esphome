@@ -53,7 +53,8 @@ namespace esphome::entity_transport {
  * Changed states are sent from loop(). The dictionary and all states are sent at boot, when a session layer reports
  * the peer connected, when the dictionary is requested, and every update interval. Unless the interface has both a
  * session and a reliability layer, the update interval defaults to DEFAULT_UPDATE_INTERVAL_MS. When the interface
- * refuses a packet, sending is tried again after a delay. With a remote timeout, a remote entity loses its state when
+ * refuses a packet, sending is tried again after a delay, and a warning is set once it has refused every packet for a
+ * minute. With a remote timeout, a remote entity loses its state when
  * none arrives for it within the timeout.
  */
 class EntityTransport : public Component {
@@ -125,9 +126,11 @@ class EntityTransport : public Component {
               size_t id_length, uint32_t dictionary_id);
   void request_dictionary_(uint32_t dictionary_id);
   bool dictionary_seen_(uint32_t dictionary_id) const;
-  /// Warns about, and clears, each remote entity of \p provider that its complete dictionary does not name.
-  void forget_unnamed_(const char *provider, size_t provider_length, uint32_t dictionary_id);
+  /// Clears each remote entity of \p provider that its complete dictionary does not name, warning if the entity was
+  /// known or the dictionary is \p first_time seen, so a resent dictionary does not repeat the warning.
+  void forget_unnamed_(const char *provider, size_t provider_length, uint32_t dictionary_id, bool first_time);
   bool warning_due_();
+  void sending_refused_();
   void on_session_(bool connected);
   void clear_remote_states_(bool timed_out_only);
 
@@ -148,6 +151,7 @@ class EntityTransport : public Component {
   uint32_t dictionary_id_{0};
   uint32_t last_request_ms_{0};
   uint32_t last_warning_ms_{0};
+  uint32_t refused_since_ms_{0};  // when the interface began refusing every packet
   uint32_t rx_dictionary_id_{0};  // the dictionary whose parts are arriving
   // The last dictionary ids received in full, so a provider whose dictionary names none of our entities is not asked
   // again
@@ -161,6 +165,7 @@ class EntityTransport : public Component {
   bool dictionary_pending_{true};
   bool request_sent_{false};
   bool warned_{false};
+  bool refusing_{false};
 };
 
 }  // namespace esphome::entity_transport

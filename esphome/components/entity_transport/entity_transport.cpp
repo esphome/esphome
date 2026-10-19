@@ -48,6 +48,8 @@ static constexpr uint32_t RETRY_DELAY_MS = 1000;
 static constexpr uint32_t RETRY_TIMER_ID = 0;
 static constexpr uint32_t TIMEOUT_CHECK_INTERVAL_MS = 1000;
 static constexpr uint32_t WARNING_INTERVAL_MS = 60000;
+// How long the interface may refuse every packet before it is reported
+static constexpr uint32_t REFUSED_WARNING_MS = 60000;
 
 static void put_uint32(uint8_t *buf, uint32_t value) {
   for (size_t i = 0; i != 4; i++)
@@ -256,8 +258,31 @@ void EntityTransport::mark_updated_(LocalEntity &entity) {
 void EntityTransport::loop() {
   this->disable_loop();
   // States are only sent once the dictionary that names them has been accepted
-  if ((this->dictionary_pending_ && !this->send_dictionary_()) || !this->send_updated_())
+  if ((this->dictionary_pending_ && !this->send_dictionary_()) || !this->send_updated_()) {
+    this->sending_refused_();
     this->set_timeout(RETRY_TIMER_ID, RETRY_DELAY_MS, [this] { this->enable_loop(); });
+    return;
+  }
+  this->refusing_ = false;
+  if (this->status_has_warning()) {
+    ESP_LOGI(TAG, "Packets are accepted again");
+    this->status_clear_warning();
+  }
+}
+
+// A link that is down or full refuses packets for a while; one that refuses them for long sends nothing at all
+void EntityTransport::sending_refused_() {
+  uint32_t now = App.get_loop_component_start_time();
+  if (!this->refusing_) {
+    this->refusing_ = true;
+    this->refused_since_ms_ = now;
+    return;
+  }
+  if (!this->status_has_warning() && now - this->refused_since_ms_ >= REFUSED_WARNING_MS) {
+    ESP_LOGW(TAG, "The packet interface has accepted no packets for %" PRIu32 "s, so no states are sent",
+             (now - this->refused_since_ms_) / 1000);
+    this->status_set_warning();
+  }
 }
 
 size_t EntityTransport::write_header_(uint8_t type) const {
@@ -285,8 +310,10 @@ bool EntityTransport::send_dictionary_() {
     bool new_section = type != section_type;
     if (length + (new_section ? SECTION_HEADER_SIZE : 0) + 1 + id_length > this->max_packet_size_) {
       buf[part_offset] = this->dictionary_part_ & PART_INDEX_MASK;
-      if (!this->interface_->send_to_interface(PacketBuffer(buf, length), {}))
+      if (!this->interface_->send_to_interface(PacketBuffer(buf, length), {})) {
+        ESP_LOGV(TAG, "Dictionary packet of %zu bytes not accepted, will retry", length);
         return false;
+      }
       this->dictionary_next_ = i;
       this->dictionary_part_++;
       length = header;
@@ -306,8 +333,10 @@ bool EntityTransport::send_dictionary_() {
   }
   if (length != header) {
     buf[part_offset] = (this->dictionary_part_ & PART_INDEX_MASK) | PART_LAST;
-    if (!this->interface_->send_to_interface(PacketBuffer(buf, length), {}))
+    if (!this->interface_->send_to_interface(PacketBuffer(buf, length), {})) {
+      ESP_LOGV(TAG, "Dictionary packet of %zu bytes not accepted, will retry", length);
       return false;
+    }
   }
   this->dictionary_pending_ = false;
   this->dictionary_next_ = 0;
@@ -436,8 +465,9 @@ void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint3
   bool in_order = index == 0 || (this->rx_dictionary_id_ == dictionary_id && index == this->rx_next_part_);
   this->rx_dictionary_id_ = dictionary_id;
   this->rx_next_part_ = in_order ? (index + 1) & PART_INDEX_MASK : PART_NONE;
-  bool completed = in_order && (part & PART_LAST) != 0 && !this->dictionary_seen_(dictionary_id);
-  if (completed) {
+  bool completed = in_order && (part & PART_LAST) != 0;
+  bool first_time = completed && !this->dictionary_seen_(dictionary_id);
+  if (first_time) {
     this->seen_dictionaries_[this->seen_next_] = dictionary_id;
     this->seen_next_ = (this->seen_next_ + 1) % this->seen_dictionaries_.size();
   }
@@ -456,18 +486,22 @@ void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint3
       pos += id_length;
     }
   }
+  // A provider may go back to a dictionary already seen, so every complete one is checked
   if (completed)
-    this->forget_unnamed_(provider, provider_length, dictionary_id);
+    this->forget_unnamed_(provider, provider_length, dictionary_id, first_time);
 }
 
-void EntityTransport::forget_unnamed_(const char *provider, size_t provider_length, uint32_t dictionary_id) {
+void EntityTransport::forget_unnamed_(const char *provider, size_t provider_length, uint32_t dictionary_id,
+                                      bool first_time) {
   // A remote entity that its provider's whole dictionary does not name would otherwise keep no or a stale state
   // silently
 #ifdef ENTITY_TRANSPORT_REMOTE_SENSOR_COUNT
   for (auto &remote : this->remote_sensors_) {
     if (!matches(remote.provider, provider, provider_length) || (remote.known && remote.dictionary_id == dictionary_id))
       continue;
-    ESP_LOGW(TAG, "'%s' does not send '%s'", remote.provider, remote.remote_id);
+    if (remote.known || first_time) {
+      ESP_LOGW(TAG, "'%s' does not send '%s'", remote.provider, remote.remote_id);
+    }
     remote.known = false;
     if (remote.has_state) {
       remote.has_state = false;
@@ -479,7 +513,9 @@ void EntityTransport::forget_unnamed_(const char *provider, size_t provider_leng
   for (auto &remote : this->remote_binary_sensors_) {
     if (!matches(remote.provider, provider, provider_length) || (remote.known && remote.dictionary_id == dictionary_id))
       continue;
-    ESP_LOGW(TAG, "'%s' does not send '%s'", remote.provider, remote.remote_id);
+    if (remote.known || first_time) {
+      ESP_LOGW(TAG, "'%s' does not send '%s'", remote.provider, remote.remote_id);
+    }
     remote.known = false;
     if (remote.has_state) {
       remote.has_state = false;
