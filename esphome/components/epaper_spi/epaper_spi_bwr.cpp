@@ -15,7 +15,7 @@ void HOT EPaperBWR::draw_pixel_at(int x, int y, Color color) {
   const auto bwr =
       color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
-  if (bwr == BwrColor::BWR_COLOR_BLACK) {
+  if (bwr == BwrColor::BWR_COLOR_BLACK || (bwr == BwrColor::BWR_COLOR_RED && this->red_sets_black_)) {
     this->buffer_[pos] |= bit;
   } else {
     this->buffer_[pos] &= ~bit;
@@ -38,10 +38,11 @@ void EPaperBWR::fill(Color color) {
   const auto bwr =
       color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
-  const uint8_t bw_byte = bwr == BwrColor::BWR_COLOR_BLACK ? 0xFF : 0x00;
-  const uint8_t red_byte = bwr == BwrColor::BWR_COLOR_RED ? 0xFF : 0x00;
+  const bool red = bwr == BwrColor::BWR_COLOR_RED;
+  const uint8_t bw_byte = (bwr == BwrColor::BWR_COLOR_BLACK || (red && this->red_sets_black_)) ? 0xFF : 0x00;
+  const uint8_t red_byte = red ? 0xFF : 0x00;
   if (bw_byte == red_byte) {
-    this->buffer_.fill(bw_byte);  // white: both planes 0x00
+    this->buffer_.fill(bw_byte);  // white, or red when red_sets_black_ is set
   } else {
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = bw_byte;

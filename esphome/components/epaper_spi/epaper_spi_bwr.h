@@ -8,16 +8,18 @@ namespace esphome::epaper_spi {
  * Intermediate base for black/white/red panels with two 1-bit-per-pixel planes (8 pixels per byte).
  *
  * Owns buffer sizing, fill()/draw_pixel_at() and the chunked SPI transfer of both planes:
- * - Buffer first half: Black/White plane (1=black, 0=white or red), sent inverted with 0x10
+ * - Buffer first half: Black/White plane (1=black, 0=white or red; 1=black or red when red_sets_black is set),
+ *   sent inverted with 0x10
  * - Buffer second half: Red plane (1=red, 0=no red), sent with 0x13; inverted when invert_red is set
  * Concrete subclasses supply only their IC-specific power/refresh/sleep command sequences.
  */
 class EPaperBWR : public EPaperBase {
  public:
   EPaperBWR(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-            size_t init_sequence_length, bool invert_red)
+            size_t init_sequence_length, bool invert_red, bool red_sets_black = false)
       : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR, 1, 2),
-        invert_red_(invert_red) {}
+        invert_red_(invert_red),
+        red_sets_black_(red_sets_black) {}
 
   void fill(Color color) override;
 
@@ -31,6 +33,8 @@ class EPaperBWR : public EPaperBase {
 
   // Send the red plane as 0=red, 1=no red
   bool invert_red_;
+  // Red pixels also set their bit in the black/white plane, for panels that need black under red
+  bool red_sets_black_;
 };
 
 }  // namespace esphome::epaper_spi

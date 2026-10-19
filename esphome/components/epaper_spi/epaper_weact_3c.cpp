@@ -1,77 +1,12 @@
 #include "epaper_weact_3c.h"
-#include "colorconv.h"
+
+#include <algorithm>
+
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
 
 ESPHOME_LOG_TAG(TAG, "epaper_weact_3c");
-
-// SSD1680 3-color display notes:
-// - Buffer uses 1 bit per pixel, 8 pixels per byte
-// - Buffer first half (black_offset): Black/White plane (0=black, 1=white)
-// - Buffer second half (red_offset): Red plane (1=red, 0=no red)
-// - Total buffer: width * height / 4 bytes = 2 * (width * height / 8)
-// - For 128x296: 128*296/4 = 9472 bytes total (4736 per color)
-
-void EPaperWeAct3C::draw_pixel_at(int x, int y, Color color) {
-  if (!this->rotate_coordinates_(x, y))
-    return;
-
-  // Calculate position in the 1-bit buffer
-  const uint32_t pos = (x / 8) + (y * this->row_width_);
-  const uint8_t bit = 0x80 >> (x & 0x07);
-  const uint32_t red_offset = this->buffer_length_ / 2u;
-
-  auto bwr =
-      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
-
-  // Update black/white plane (first half of buffer)
-  if (bwr == BwrColor::BWR_COLOR_WHITE) {
-    // White pixel - set bit in black plane
-    this->buffer_[pos] |= bit;
-  } else {
-    // Black pixel - clear bit in black plane
-    this->buffer_[pos] &= ~bit;
-  }
-
-  // Update red plane (second half of buffer)
-  if (bwr == BwrColor::BWR_COLOR_RED) {
-    // Red pixel - set bit in red plane
-    this->buffer_[red_offset + pos] |= bit;
-  } else {
-    // Not red - clear bit in red plane
-    this->buffer_[red_offset + pos] &= ~bit;
-  }
-}
-
-void EPaperWeAct3C::fill(Color color) {
-  // For 3-color e-paper with 1-bit buffer format:
-  // - Black/White plane: 0=black, 1=white
-  // - Red plane: 1=red, 0=no red
-  // The buffer is stored as two halves: [B/W plane][red plane]
-  const size_t half_buffer = this->buffer_length_ / 2u;
-
-  auto bits =
-      color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
-
-  // Fill both planes
-  if (bits == BwrColor::BWR_COLOR_BLACK) {
-    // Black - B/W plane = 0x00, red plane = 0x00
-    this->buffer_.fill(0x00);
-  } else if (bits == BwrColor::BWR_COLOR_RED) {
-    // Red - B/W plane = 0x00, red plane = 0xFF
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[i] = 0x00;
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = 0xFF;
-  } else {
-    // White - B/W plane = 0xFF, red plane = 0x00
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[i] = 0xFF;
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = 0x00;
-  }
-}
 
 void EPaperWeAct3C::set_window_() {
   // For full screen refresh, we always start from (0,0)
@@ -118,12 +53,13 @@ bool HOT EPaperWeAct3C::transfer_data() {
     }
 
     this->start_data_();
-    size_t red_offset = half_buffer;
+    const size_t red_offset = half_buffer;
+    const uint8_t red_mask = this->invert_red_ ? 0xFF : 0x00;
     while (this->current_data_index_ < half_buffer) {
       size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, half_buffer - this->current_data_index_);
 
       for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = this->transform_red_byte(this->buffer_[red_offset + this->current_data_index_ + i]);
+        bytes_to_send[i] = this->buffer_[red_offset + this->current_data_index_ + i] ^ red_mask;
       }
 
       this->write_array(bytes_to_send, bytes_to_copy);
@@ -161,7 +97,7 @@ bool HOT EPaperWeAct3C::transfer_data() {
       size_t buffer_offset = this->current_data_index_ - half_buffer;
 
       for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = this->buffer_[buffer_offset + i];
+        bytes_to_send[i] = ~this->buffer_[buffer_offset + i];  // the panel wants 1=white
       }
 
       this->write_array(bytes_to_send, bytes_to_copy);
