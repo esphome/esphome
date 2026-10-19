@@ -3,7 +3,7 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE, radio_airtime
+from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE, radio_link
 from esphome.components.sx126x import packet_interface as sx126x_packet_interface
 from esphome.components.sx127x import packet_interface as sx127x_packet_interface
 import esphome.final_validate as fv
@@ -50,22 +50,22 @@ def _lora(**options: object) -> dict:
 )
 def test_lora_airtime(radio: dict, airtime_ms: float) -> None:
     """The airtime of the largest LoRa packet follows the Semtech formula."""
-    assert radio_airtime.packet_airtime_ms(radio, 255) == pytest.approx(
+    assert radio_link.packet_airtime_ms(radio, 255) == pytest.approx(
         airtime_ms, abs=0.5
     )
 
 
 def test_max_busy_follows_airtime() -> None:
     """Listen before talk waits at least 2 s, and longer than the largest packet takes."""
-    assert radio_airtime.max_busy_ms(_lora(), 255) == 2000
-    assert radio_airtime.max_busy_ms(_lora(spreading_factor=12), 255) > 9019
+    assert radio_link.max_busy_ms(_lora(), 255) == 2000
+    assert radio_link.max_busy_ms(_lora(spreading_factor=12), 255) > 9019
     fsk = {
         "modulation": "FSK",
         "preamble_size": 4,
         "bitrate": 1200,
         "sync_value": [1, 2],
     }
-    assert radio_airtime.packet_airtime_ms(fsk, 64) == pytest.approx(
+    assert radio_link.packet_airtime_ms(fsk, 64) == pytest.approx(
         (4 + 2 + 1 + 64 + 2) * 8 / 1200 * 1000
     )
 
@@ -85,7 +85,7 @@ class _FullConfig(dict):
 
 
 @pytest.mark.parametrize(
-    ("module", "domain", "radio", "link", "match"),
+    ("module", "domain", "radio", "link", "match", "fix"),
     [
         (
             sx126x_packet_interface,
@@ -93,6 +93,7 @@ class _FullConfig(dict):
             {"payload_length": 10},
             {},
             "payload_length",
+            {"payload_length": 0},
         ),
         (
             sx127x_packet_interface,
@@ -100,31 +101,42 @@ class _FullConfig(dict):
             _lora(payload_length=10),
             {},
             "payload_length",
+            {"payload_length": 0},
         ),
         (
             sx127x_packet_interface,
             "sx127x",
-            {"modulation": "FSK", "payload_length": 0},
+            {"modulation": "FSK", "packet_mode": False, "payload_length": 0},
+            {},
+            "packet_mode",
+            {"packet_mode": True},
+        ),
+        (
+            sx127x_packet_interface,
+            "sx127x",
+            {"modulation": "OOK", "packet_mode": True, "payload_length": 0},
             {CONF_MAX_PACKET_SIZE: 65},
             "at most 64",
+            None,
         ),
     ],
 )
 def test_radio_settings_checked(
-    module: object, domain: str, radio: dict, link: dict, match: str
+    module: object,
+    domain: str,
+    radio: dict,
+    link: dict,
+    match: str,
+    fix: dict | None,
 ) -> None:
-    """Packets vary in length, and FSK on an SX127x holds at most 64 bytes."""
+    """Packets vary in length, and FSK or OOK on an SX127x needs packet mode and holds at most 64 bytes."""
+    config = {f"{domain}_id": "radio", CONF_MAX_PACKET_SIZE: 64, **link}
     token = fv.full_config.set(_FullConfig(domain, radio))
     try:
         with pytest.raises(cv.Invalid, match=match):
-            module._final_validate(
-                {f"{domain}_id": "radio", CONF_MAX_PACKET_SIZE: 64, **link}
-            )
-        fixed = {**radio, "payload_length": 0}
-        fv.full_config.set(_FullConfig(domain, fixed))
-        if CONF_MAX_PACKET_SIZE not in link:
-            assert module._final_validate(
-                {f"{domain}_id": "radio", CONF_MAX_PACKET_SIZE: 64}
-            )
+            module.FINAL_VALIDATE_SCHEMA(config)
+        if fix is not None:
+            fv.full_config.set(_FullConfig(domain, {**radio, **fix}))
+            assert module.FINAL_VALIDATE_SCHEMA(config)
     finally:
         fv.full_config.reset(token)
