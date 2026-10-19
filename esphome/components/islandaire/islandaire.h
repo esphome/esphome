@@ -4,20 +4,21 @@
 
 namespace esphome::islandaire {
 
-// Temperature limits in Celsius corresponding to 61°F - 88°F
-const float ISLANDAIRE_TEMP_MIN = 16.11f;  // 61°F
-const float ISLANDAIRE_TEMP_MAX = 31.11f;  // 88°F
-
 class IslandaireClimate final : public climate_ir::ClimateIR {
  public:
+  // The unit works in whole degrees Fahrenheit (see traits())
+  static constexpr uint8_t TEMP_MIN = 61;
+  static constexpr uint8_t TEMP_MAX = 88;
+
   IslandaireClimate()
-      : climate_ir::ClimateIR(ISLANDAIRE_TEMP_MIN, ISLANDAIRE_TEMP_MAX, 0.5f, false, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_HIGH}, {}) {}
+      : ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, false, true,
+                  {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_HIGH}, {}) {}
 
  protected:
-  /// Transmit via IR the state of this climate controller.
+  void setup() override;
+  void dump_config() override;
+  climate::ClimateTraits traits() override;
   void transmit_state() override;
-  /// Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
 };
 

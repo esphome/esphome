@@ -1,174 +1,173 @@
 #include "islandaire.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
 #include <algorithm>
 #include <cmath>
 
 namespace esphome::islandaire {
 
-static const char *const TAG = "islandaire.climate";
+ESPHOME_LOG_TAG(TAG, "islandaire.climate");
 
 // 14-byte frame, LSB first:
 //   Bytes 0-4: 0x22 preamble
 //   Byte 5:    power (0x20 off, 0x24 on); bit 3 (0x08) set while the auto-off timer is active
 //   Byte 6:    mode (0x01 heat, 0x03 cool, 0x04 fan only)
 //   Byte 7:    target temperature in °F (61-88)
-//   Byte 8:    fan speed (0x00 auto, 0x02 low, 0x04 high); bit 6 (0x40) set while the timer is active
+//   Byte 8:    fan speed (0x00 auto, 0x02 low, 0x04 high, 0x01 read as low too); bit 6 (0x40) set while the
+//              timer is active
 //   Byte 9:    0x00
 //   Byte 10:   auto-off timer in hours (1-12, 0 = off)
 //   Bytes 11-12: 0x00
 //   Byte 13:   sum of bytes 0-12
 // The auto-off timer is not implemented: the unit switches itself off with no feedback, which
 // would leave the climate state stale.
-const uint16_t ISLANDAIRE_STATE_LENGTH = 14;
-const uint8_t ISLANDAIRE_PREAMBLE_LENGTH = 5;
-const uint8_t ISLANDAIRE_PREAMBLE = 0x22;
+static constexpr uint8_t STATE_LENGTH = 14;
+static constexpr uint8_t PREAMBLE_LENGTH = 5;
+static constexpr uint8_t PREAMBLE = 0x22;
 
-const uint8_t ISLANDAIRE_POWER_OFF = 0x20;
-const uint8_t ISLANDAIRE_POWER_ON = 0x24;
-const uint8_t ISLANDAIRE_POWER_MASK = 0x04;
+static constexpr uint8_t POWER_OFF = 0x20;
+static constexpr uint8_t POWER_MASK = 0x04;
+static constexpr uint8_t POWER_ON = POWER_OFF | POWER_MASK;
 
-const uint8_t ISLANDAIRE_HEAT = 0x01;
-const uint8_t ISLANDAIRE_COOL = 0x03;
-const uint8_t ISLANDAIRE_FAN = 0x04;
+static constexpr uint8_t MODE_HEAT = 0x01;
+static constexpr uint8_t MODE_COOL = 0x03;
+static constexpr uint8_t MODE_FAN = 0x04;
 
-const uint8_t ISLANDAIRE_FAN_AUTO = 0x00;
-const uint8_t ISLANDAIRE_FAN_LOW = 0x02;
-const uint8_t ISLANDAIRE_FAN_HIGH = 0x04;
+static constexpr uint8_t FAN_AUTO = 0x00;
+static constexpr uint8_t FAN_LOW_ALT = 0x01;
+static constexpr uint8_t FAN_LOW = 0x02;
+static constexpr uint8_t FAN_HIGH = 0x04;
+static constexpr uint8_t FAN_TIMER_FLAG = 0x40;
 
-const uint8_t ISLANDAIRE_FAN_TIMER_FLAG = 0x40;  // Byte 8 Bit 6: Set when Timer is active
+static constexpr uint8_t TEMP_DEFAULT = 72;
 
-const uint8_t ISLANDAIRE_TEMP_MIN_F = 61;
-const uint8_t ISLANDAIRE_TEMP_MAX_F = 88;
+static constexpr uint16_t HEADER_MARK = 3608;
+static constexpr uint16_t HEADER_SPACE = 1520;
+static constexpr uint16_t BIT_MARK = 560;
+static constexpr uint16_t ONE_SPACE = 1208;
+static constexpr uint16_t ZERO_SPACE = 408;
+static constexpr uint32_t CARRIER_FREQUENCY = 38000;
 
-const uint16_t ISLANDAIRE_HEADER_MARK = 3608;
-const uint16_t ISLANDAIRE_HEADER_SPACE = 1520;
-const uint16_t ISLANDAIRE_BIT_MARK = 560;
-const uint16_t ISLANDAIRE_ONE_SPACE = 1208;
-const uint16_t ISLANDAIRE_ZERO_SPACE = 408;
+void IslandaireClimate::setup() {
+  ClimateIR::setup();
+  // The base class default assumes Celsius
+  if (std::isnan(this->target_temperature) || this->target_temperature < TEMP_MIN)
+    this->target_temperature = TEMP_DEFAULT;
+}
 
-static uint8_t calc_checksum(const uint8_t *state) {
-  uint8_t sum = 0;
-  for (uint8_t i = 0; i < ISLANDAIRE_STATE_LENGTH - 1; i++)
-    sum += state[i];
-  return sum;
+void IslandaireClimate::dump_config() {
+  // ClimateIR::dump_config() is not called: it prints the temperature range in Celsius
+  LOG_CLIMATE("", "Islandaire Climate", this);
+  ESP_LOGCONFIG(TAG, "  Temperature range: %u to %u °F", TEMP_MIN, TEMP_MAX);
+}
+
+climate::ClimateTraits IslandaireClimate::traits() {
+  auto traits = ClimateIR::traits();
+  traits.set_temperature_unit(TemperatureUnit::FAHRENHEIT);
+  return traits;
 }
 
 void IslandaireClimate::transmit_state() {
-  uint8_t remote_state[ISLANDAIRE_STATE_LENGTH] = {0};
+  uint8_t remote_state[STATE_LENGTH] = {0};
 
-  for (uint8_t i = 0; i < ISLANDAIRE_PREAMBLE_LENGTH; i++)
-    remote_state[i] = ISLANDAIRE_PREAMBLE;
+  std::fill_n(remote_state, PREAMBLE_LENGTH, PREAMBLE);
 
-  remote_state[5] = this->mode == climate::CLIMATE_MODE_OFF ? ISLANDAIRE_POWER_OFF : ISLANDAIRE_POWER_ON;
+  remote_state[5] = this->mode == climate::CLIMATE_MODE_OFF ? POWER_OFF : POWER_ON;
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_HEAT:
-      remote_state[6] = ISLANDAIRE_HEAT;
+      remote_state[6] = MODE_HEAT;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      remote_state[6] = ISLANDAIRE_FAN;
+      remote_state[6] = MODE_FAN;
       break;
     case climate::CLIMATE_MODE_COOL:
     default:
-      remote_state[6] = ISLANDAIRE_COOL;
+      remote_state[6] = MODE_COOL;
       break;
   }
 
-  // Target temperature is sent as whole degrees Fahrenheit.
-  auto temp_f = (uint8_t) std::round(this->target_temperature * 1.8f + 32.0f);
-  remote_state[7] = std::clamp(temp_f, ISLANDAIRE_TEMP_MIN_F, ISLANDAIRE_TEMP_MAX_F);
+  remote_state[7] = static_cast<uint8_t>(std::clamp<float>(std::round(this->target_temperature), TEMP_MIN, TEMP_MAX));
 
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:
-      remote_state[8] = ISLANDAIRE_FAN_LOW;
+      remote_state[8] = FAN_LOW;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      remote_state[8] = ISLANDAIRE_FAN_HIGH;
+      remote_state[8] = FAN_HIGH;
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
-      remote_state[8] = ISLANDAIRE_FAN_AUTO;
+      remote_state[8] = FAN_AUTO;
       break;
   }
 
-  remote_state[ISLANDAIRE_STATE_LENGTH - 1] = calc_checksum(remote_state);
+  remote_state[STATE_LENGTH - 1] = sum_bytes(remote_state, STATE_LENGTH - 1);
 
-  ESP_LOGV(TAG, "Sending: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X", remote_state[0],
-           remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6],
-           remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11], remote_state[12],
-           remote_state[13]);
+  ESP_LOGV_HEX(TAG, remote_state, STATE_LENGTH, STATE_LENGTH, "Sending: %s");
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
 
-  data->set_carrier_frequency(38000);
+  data->set_carrier_frequency(CARRIER_FREQUENCY);
 
-  // Header
-  data->mark(ISLANDAIRE_HEADER_MARK);
-  data->space(ISLANDAIRE_HEADER_SPACE);
-  // Data (LSB first)
-  for (uint8_t i : remote_state) {
-    for (uint8_t j = 0; j < 8; j++) {
-      data->mark(ISLANDAIRE_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? ISLANDAIRE_ONE_SPACE : ISLANDAIRE_ZERO_SPACE);
-    }
+  data->reserve(2 + STATE_LENGTH * 16 + 1);
+  data->item(HEADER_MARK, HEADER_SPACE);
+  for (uint8_t byte : remote_state) {
+    for (uint8_t bit = 0; bit < 8; bit++)
+      data->item(BIT_MARK, byte & (1 << bit) ? ONE_SPACE : ZERO_SPACE);
   }
-  // Footer
-  data->mark(ISLANDAIRE_BIT_MARK);
+  data->mark(BIT_MARK);
 
   transmit.perform();
 }
 
 bool IslandaireClimate::on_receive(remote_base::RemoteReceiveData data) {
-  if (!data.expect_item(ISLANDAIRE_HEADER_MARK, ISLANDAIRE_HEADER_SPACE)) {
+  if (!data.expect_item(HEADER_MARK, HEADER_SPACE)) {
     ESP_LOGVV(TAG, "Header fail");
     return false;
   }
 
-  uint8_t remote_state[ISLANDAIRE_STATE_LENGTH] = {0};
-  // Read all bytes (LSB first)
-  for (int i = 0; i < ISLANDAIRE_STATE_LENGTH; i++) {
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(ISLANDAIRE_BIT_MARK, ISLANDAIRE_ONE_SPACE)) {
-        remote_state[i] |= 1 << j;
-      } else if (!data.expect_item(ISLANDAIRE_BIT_MARK, ISLANDAIRE_ZERO_SPACE)) {
-        ESP_LOGVV(TAG, "Byte %d bit %d fail", i, j);
+  uint8_t remote_state[STATE_LENGTH] = {0};
+  for (uint8_t byte = 0; byte < STATE_LENGTH; byte++) {
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      if (data.expect_item(BIT_MARK, ONE_SPACE)) {
+        remote_state[byte] |= 1 << bit;
+      } else if (!data.expect_item(BIT_MARK, ZERO_SPACE)) {
+        ESP_LOGVV(TAG, "Byte %d bit %d fail", byte, bit);
         return false;
       }
     }
   }
-  if (!data.expect_mark(ISLANDAIRE_BIT_MARK)) {
+  if (!data.expect_mark(BIT_MARK)) {
     ESP_LOGVV(TAG, "Footer fail");
     return false;
   }
 
-  if (calc_checksum(remote_state) != remote_state[ISLANDAIRE_STATE_LENGTH - 1]) {
+  if (sum_bytes(remote_state, STATE_LENGTH - 1) != remote_state[STATE_LENGTH - 1]) {
     ESP_LOGVV(TAG, "Checksum fail");
     return false;
   }
 
-  for (uint8_t i = 0; i < ISLANDAIRE_PREAMBLE_LENGTH; i++) {
-    if (remote_state[i] != ISLANDAIRE_PREAMBLE)
+  for (uint8_t i = 0; i < PREAMBLE_LENGTH; i++) {
+    if (remote_state[i] != PREAMBLE)
       return false;
   }
 
-  ESP_LOGV(TAG, "Received: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X",
-           remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
-           remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
-           remote_state[12], remote_state[13]);
+  ESP_LOGV_HEX(TAG, remote_state, STATE_LENGTH, STATE_LENGTH, "Received: %s");
 
-  if ((remote_state[5] & ISLANDAIRE_POWER_MASK) == 0) {
+  if ((remote_state[5] & POWER_MASK) == 0) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
     switch (remote_state[6]) {
-      case ISLANDAIRE_HEAT:
+      case MODE_HEAT:
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
-      case ISLANDAIRE_COOL:
+      case MODE_COOL:
         this->mode = climate::CLIMATE_MODE_COOL;
         break;
-      case ISLANDAIRE_FAN:
+      case MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       default:
@@ -177,21 +176,19 @@ bool IslandaireClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
-  uint8_t temp_f = remote_state[7];
-  if (temp_f >= ISLANDAIRE_TEMP_MIN_F && temp_f <= ISLANDAIRE_TEMP_MAX_F)
-    this->target_temperature = (temp_f - 32.0f) / 1.8f;
+  const uint8_t temp_f = remote_state[7];
+  if (temp_f >= TEMP_MIN && temp_f <= TEMP_MAX)
+    this->target_temperature = temp_f;
 
-  // Byte 8: Fan speed (Bit 6 is timer active indicator)
-  uint8_t fan = remote_state[8] & ~ISLANDAIRE_FAN_TIMER_FLAG;
-  switch (fan) {
-    case ISLANDAIRE_FAN_HIGH:
+  switch (remote_state[8] & ~FAN_TIMER_FLAG) {
+    case FAN_HIGH:
       this->fan_mode = climate::CLIMATE_FAN_HIGH;
       break;
-    case ISLANDAIRE_FAN_LOW:
-    case 0x01:
+    case FAN_LOW:
+    case FAN_LOW_ALT:
       this->fan_mode = climate::CLIMATE_FAN_LOW;
       break;
-    case ISLANDAIRE_FAN_AUTO:
+    case FAN_AUTO:
     default:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
