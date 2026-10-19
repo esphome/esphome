@@ -1,29 +1,23 @@
-import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
-    CONF_ID,
+    CONF_SETUP_PRIORITY,
     CONF_SOURCE_ID,
 )
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
 
-from .. import copy_ns
-
-CopyButton = copy_ns.class_("CopyButton", button.Button, cg.Component)
-
-
-CONFIG_SCHEMA = (
-    button.button_schema(CopyButton)
-    .extend(
+CONFIG_SCHEMA = cv.All(
+    # The copy button is no longer a Component
+    cv.ignored_key(CONF_SETUP_PRIORITY, removed_in="2027.5.0", component="copy"),
+    button.button_schema(button.ApplyButton).extend(
         {
             cv.Required(CONF_SOURCE_ID): cv.use_id(button.Button),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+    ),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -34,8 +28,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await button.register_button(var, config)
-    await cg.register_component(var, config)
-
-    await cg.add_variable(var.set_source, config[CONF_SOURCE_ID])
+    await button.sub_buttons(config, parent=config[CONF_SOURCE_ID]).create(
+        config, None, apply="press()"
+    )
