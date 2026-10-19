@@ -111,7 +111,7 @@ class TsdbComponent : public PollingComponent {
   void invalidate_database_(const LogString *reason);
   void reopen_if_lost_();
   bool read_saved_index_stride_(uint32_t *stride) const;
-  bool resolve_timestamp_(uint32_t *timestamp);
+  bool resolve_timestamp_(uint32_t *timestamp, const LogString *&degraded);
   bool collect_values_(const LogString *&degraded);
   bool write_record_();
   void publish_errors_();
@@ -163,11 +163,11 @@ class TsdbComponent : public PollingComponent {
   uint32_t dump_requested_{0};
   uint32_t writes_{0};
   uint32_t write_errors_{0};
-  // Apart from write_errors_: a database that never returns is not a write failure.
   uint32_t reopen_errors_{0};
   uint32_t dropped_{0};
   uint32_t dropped_missing_{0};
   uint32_t dropped_backwards_{0};
+  uint32_t uptime_timestamps_{0};
   uint32_t saturated_{0};
   uint32_t held_{0};
   uint32_t sentinel_{0};
@@ -179,7 +179,6 @@ class TsdbComponent : public PollingComponent {
   bool require_time_{true};
   bool paged_allocation_{false};
   bool mounted_{false};
-  // A handle esp_tsdb invalidated; reopened on a later interval.
   bool db_lost_{false};
   bool dirty_{false};
   bool flush_requested_{false};

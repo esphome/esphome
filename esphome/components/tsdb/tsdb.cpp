@@ -328,11 +328,10 @@ bool TsdbComponent::open_database_() {
 
   tsdb_stats_t stats = {};
   if (tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) != ESP_OK) {
-    // The newest stored timestamp seeds the ordering guard and is only available here.
     this->invalidate_database_(LOG_STR("the stored statistics could not be read - no record can be ordered"));
     return true;
   }
-  // A reopen must not lower the guard: the engine's header may lag the newest record.
+  // The guard only moves forward: seed it from the newest stored record, never lower it on a reopen.
   this->last_timestamp_ = std::max(this->last_timestamp_, stats.newest_timestamp);
   this->uptime_offset_ = this->last_timestamp_ + 1 - static_cast<uint32_t>(::time(nullptr));
   this->sync_failed_ = false;
@@ -358,7 +357,6 @@ bool TsdbComponent::open_database_() {
   return true;
 }
 
-// The engine has no getter for a saved file's index stride; read it from the header.
 bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
   const std::string path = this->mount_point_ + "/" + this->file_;
   FILE *file = fopen(path.c_str(), "rb");
@@ -496,7 +494,7 @@ void TsdbComponent::handle_requests_() {
   }
 }
 
-bool TsdbComponent::resolve_timestamp_(uint32_t *timestamp) {
+bool TsdbComponent::resolve_timestamp_(uint32_t *timestamp, const LogString *&degraded) {
   // Any synced time platform also sets the system clock, so ::time() is a usable fallback.
   uint32_t value = static_cast<uint32_t>(::time(nullptr));
   bool have_time = tsdbmath::is_valid_timestamp(value);
@@ -523,6 +521,7 @@ bool TsdbComponent::resolve_timestamp_(uint32_t *timestamp) {
   } else {
     // Without a clock the value is seconds since boot, so the offset continues the series.
     value += this->uptime_offset_;
+    degraded = LOG_STR("storing uptime timestamps");
     if (!this->warned_time_) {
       this->warned_time_ = true;
       ESP_LOGW(TAG, "%s: no valid time yet - storing an uptime timestamp", this->file_.c_str());
@@ -532,9 +531,11 @@ bool TsdbComponent::resolve_timestamp_(uint32_t *timestamp) {
   if (this->last_timestamp_ != 0 && value < this->last_timestamp_) {
     this->dropped_++;
     this->publish_errors_();
-    // Rate limited like the missing-value path: one future-dated record refuses every later one.
     this->dropped_backwards_++;
-    if (this->dropped_backwards_ == 1 || this->dropped_backwards_ % DROP_LOG_EVERY == 0) {
+    if (this->dropped_backwards_ == DROP_LOG_EVERY) {
+      ESP_LOGE(TAG, "%s: %" PRIu32 " records dropped, newest stored %" PRIu32 " s ahead - recreate the history",
+               this->file_.c_str(), this->dropped_backwards_, this->last_timestamp_ - value);
+    } else if (this->dropped_backwards_ == 1 || this->dropped_backwards_ % DROP_LOG_EVERY == 0) {
       ESP_LOGW(TAG, "%s: time is %" PRIu32 " s earlier than the last stored record - no record written",
                this->file_.c_str(), this->last_timestamp_ - value);
     } else {
@@ -600,7 +601,6 @@ bool TsdbComponent::collect_values_(const LogString *&degraded) {
       continue;
     }
     this->dropped_++;
-    // Rate limited on its own count: dropped_ also counts unsynced-clock skips.
     this->dropped_missing_++;
     if (this->dropped_missing_ == 1 || this->dropped_missing_ % DROP_LOG_EVERY == 0) {
       ESP_LOGW(TAG, "%s: %s has no value - record dropped", this->file_.c_str(), column.name.c_str());
@@ -616,11 +616,10 @@ bool TsdbComponent::collect_values_(const LogString *&degraded) {
 
 bool TsdbComponent::write_record_() {
   uint32_t timestamp = 0;
-  if (!this->resolve_timestamp_(&timestamp))
-    return false;
-
-  // The first value that needed a substitute decides the warning reason of this record.
+  // The first substitution of a record decides its warning reason: the timestamp before the values.
   const LogString *degraded = nullptr;
+  if (!this->resolve_timestamp_(&timestamp, degraded))
+    return false;
   if (!this->collect_values_(degraded))
     return false;
 
@@ -636,6 +635,8 @@ bool TsdbComponent::write_record_() {
     return false;
   }
   this->writes_++;
+  if (this->warned_time_)
+    this->uptime_timestamps_++;
   this->last_timestamp_ = timestamp;
   this->dropped_backwards_ = 0;
   this->dirty_ = true;
@@ -711,8 +712,9 @@ void TsdbComponent::dump_config() {
                 this->aggregate_window_, this->aggregate_interval_, this->dump_rows_);
   ESP_LOGCONFIG(TAG,
                 "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32 ", held: %" PRIu32
-                ", sentinel: %" PRIu32,
-                this->writes_, this->write_errors_, this->dropped_, this->saturated_, this->held_, this->sentinel_);
+                ", sentinel: %" PRIu32 ", uptime: %" PRIu32,
+                this->writes_, this->write_errors_, this->dropped_, this->saturated_, this->held_, this->sentinel_,
+                this->uptime_timestamps_);
   if (this->reopen_errors_ > 0) {
     ESP_LOGCONFIG(TAG, "  failed reopens: %" PRIu32, this->reopen_errors_);
   }
