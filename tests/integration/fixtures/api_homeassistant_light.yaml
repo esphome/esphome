@@ -27,7 +27,7 @@ light:
     id: ha_light
     entity_id: light.kitchen
     internal: false
-    report_timeout: 2s
+    report_timeout: 1s
     on_turn_off:
       - logger.log: "turned off"
     on_turn_on:
