@@ -8,7 +8,7 @@ class ST7305Test : public ::testing::Test {
  protected:
   void SetUp() override { ASSERT_TRUE(this->display_.init_buffer()); }
 
-  void reset_screen() {
+  void reset_screen_() {
     this->display_.fill(Color::BLACK);
     this->display_.clear_dirty();
   }
@@ -99,7 +99,7 @@ TEST_F(ST7305Test, FillOnlyDirtiesChangedBytes) {
 }
 
 TEST_F(ST7305Test, WindowAlignsToAddressBlocks) {
-  this->reset_screen();
+  this->reset_screen_();
   this->display_.draw_pixel_at(0, 299, Color::WHITE);
   this->display_.draw_pixel_at(1, 299, Color::WHITE);
 
@@ -112,7 +112,7 @@ TEST_F(ST7305Test, WindowAlignsToAddressBlocks) {
   EXPECT_EQ(window.caset_end, 0x12);
   EXPECT_EQ(window.data_length(), 3u);
 
-  this->reset_screen();
+  this->reset_screen_();
   this->display_.draw_pixel_at(200, 150, Color::WHITE);
 
   const auto middle = this->display_.compute_window();
@@ -124,7 +124,7 @@ TEST_F(ST7305Test, WindowAlignsToAddressBlocks) {
   EXPECT_EQ(middle.caset_end, 0x1E);
   EXPECT_EQ(middle.data_length(), 3u);
 
-  this->reset_screen();
+  this->reset_screen_();
   this->display_.draw_pixel_at(0, 0, Color::WHITE);
   this->display_.draw_pixel_at(0, 299, Color::WHITE);
 

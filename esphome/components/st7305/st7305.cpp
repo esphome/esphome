@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstring>
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::st7305 {
@@ -23,12 +22,7 @@ void ST7305::setup() {
 }
 
 bool ST7305::init_buffer_() {
-  // Keep the framebuffer in internal RAM. With a PSRAM buffer, ESP-IDF copies every SPI
-  // transfer chunk through an internal bounce buffer, allocating and freeing heap on each
-  // write; partial updates send many small chunks. PREFER_INTERNAL still falls back to PSRAM
-  // if internal RAM is exhausted.
-  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::PREFER_INTERNAL);
-  this->buffer_ = allocator.allocate(this->buffer_length_);
+  this->init_internal_(this->buffer_length_);
   if (this->buffer_ == nullptr) {
     this->mark_failed(LOG_STR("Buffer allocation failed"));
     return false;
