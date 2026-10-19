@@ -1,10 +1,10 @@
 # globals
 
-## Restoring globals with storage: rtc and flash (#13954, 2026-10-18)
+## Restoring globals with storage: rtc and flash (#13954)
 
 `templates/globals-storage-dut.yaml` is the shared package: five restoring globals (rtc int, flash int, default int,
 rtc `std::string`, rtc `uint8_t[2]`), bumped and logged with the reset reason on every boot, saved and synced after
-2 s, odd boots `App.safe_reboot()`. Platform files add the board, the `debug` reset-reason text sensor and, on the
+2 s, odd boots `App.safe_reboot()`. Platform files add the board (`packages: dut: !include globals-storage-dut.yaml`), the `debug` reset-reason text sensor and, on the
 ESP32, `deep_sleep: run_duration: 12s, sleep_duration: 8s` (even boots sleep). No network needed: flash by USB,
 `serial_capture.py PORT 110 OUT --reset` gives the reset pulse plus a run of soft restarts and sleeps; the ESP32's
 EN pulse is a `POWERON_RESET` that empties RTC memory, the D1 mini's RST pulse (`rst cause:2`) keeps it, so the

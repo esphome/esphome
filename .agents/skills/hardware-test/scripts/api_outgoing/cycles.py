@@ -46,14 +46,6 @@ for line in cap:
     m = re.search(r"first HA state '(.*?)' at (\d+) ms", line)
     if m and "state" not in cur:
         cur["state"] = int(m.group(2))
-    if "Remembered" in line:
-        cur["remembered"] = True
-    if (
-        "Beginning Deep Sleep" in line
-        or "deep sleep" in line.lower()
-        and "Beginning" in line
-    ):
-        cur["sleep_cap"] = secs(line)
 
 print(f"{label} cycles: {len(cycles)}")
 print(
