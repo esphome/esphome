@@ -64,7 +64,7 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   bool report_held_ : 1 {false};           // a report arrived during a transition or flash; applied when it ends
   bool transitioned_ : 1 {false};          // a transition or flash ran since the last write sent
   bool report_changed_ : 1 {false};        // the reports since the last apply changed an attribute
-  bool report_in_transition_ : 1 {false};  // the reports waiting to be applied arrived during a transition
+  bool report_in_transition_ : 1 {false};  // the last changed report arrived during a transition
   uint8_t report_timeout_s_{10};
 };
 

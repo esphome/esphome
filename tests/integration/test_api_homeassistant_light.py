@@ -350,6 +350,37 @@ async def test_api_homeassistant_light(
         ha.report(None, "on")
         ha.report("brightness", "255")
         await ha.next_state(lambda s: s.state and s.brightness == 1.0)
+
+        # And a report read after that call in the same pass is newer than it: the hold follows the
+        # last changed report, even when a trait opened the batch, so it is applied at the end
+        ha.send_together(
+            HomeAssistantStateResponse(
+                entity_id=ENTITY, attribute="max_color_temp_kelvin", state="6500"
+            ),
+            LightCommandRequest(
+                key=ha.key,
+                has_brightness=True,
+                brightness=0.5,
+                has_transition_length=True,
+                transition_length=1000,
+            ),
+            HomeAssistantStateResponse(
+                entity_id=ENTITY, attribute="brightness", state="50"
+            ),
+            LightCommandRequest(
+                key=ha.key,
+                has_brightness=True,
+                brightness=0.8,
+                has_transition_length=True,
+                transition_length=1000,
+            ),
+            HomeAssistantStateResponse(
+                entity_id=ENTITY, attribute="brightness", state="77"
+            ),
+        )
+        state = await ha.next_state(lambda s: s.brightness == pytest.approx(77 / 255))
+        assert state.state
+        assert ha.calls.empty()
         ha.client.light_command(ha.key, state=False)
         assert (await ha.next_call()).service == "light.turn_off"
         ha.report(None, "off")
