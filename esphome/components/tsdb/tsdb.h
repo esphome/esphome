@@ -1,6 +1,5 @@
 #pragma once
 
-// tsdb hub header; ESP-IDF only (esp_tsdb + LittleFS engine).
 #ifdef USE_ESP_IDF
 
 #include <array>
@@ -112,6 +111,8 @@ class TsdbComponent : public PollingComponent {
   void invalidate_database_(const LogString *reason);
   void reopen_if_lost_();
   bool read_saved_index_stride_(uint32_t *stride) const;
+  bool resolve_timestamp_(uint32_t *timestamp);
+  bool collect_values_(const LogString *&degraded);
   bool write_record_();
   void publish_errors_();
   void flush_(bool force);

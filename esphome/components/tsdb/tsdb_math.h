@@ -1,6 +1,5 @@
 #pragma once
-// Core math of the tsdb logger: int16 encoding and esp_tsdb file geometry.
-// Geometry from esp_tsdb 2.4.3; tsdb.cpp static_asserts it against the engine.
+// Core math of the tsdb logger: int16 encoding and esp_tsdb 2.4.3 file geometry, checked in tsdb.cpp.
 
 #include <cmath>
 #include <cstdint>
@@ -31,7 +30,6 @@ static constexpr uint32_t HEADER_BYTES = 584;
 static constexpr uint32_t TIMESTAMP_BYTES = 4;
 static constexpr uint32_t COLUMN_BYTES = 2;
 static constexpr uint32_t INDEX_ENTRY_BYTES = 8;
-// New files put the sparse index at 1024, after the 584-byte header; data blocks follow.
 static constexpr uint32_t INDEX_OFFSET = 1024;
 static constexpr uint32_t INDEX_DEFAULT_STRIDE = 380;  // mirrors TSDB_DEFAULT_INDEX_STRIDE in __init__.py
 static constexpr uint32_t MAX_RECORDS_RESERVE = 2048;
@@ -68,7 +66,6 @@ constexpr uint32_t records_per_block(uint32_t columns) {
   return (BLOCK_SIZE - BLOCK_HEADER_SIZE) / record;
 }
 
-// Upstream TSDB_CALC_MAX_RECORDS(bytes, columns) arithmetic.
 constexpr uint32_t max_records_for_bytes(uint64_t bytes, uint32_t columns) {
   const uint32_t record = record_bytes(columns);
   if (record == 0 || bytes <= MAX_RECORDS_RESERVE)
