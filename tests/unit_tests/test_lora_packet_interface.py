@@ -90,7 +90,7 @@ class _FullConfig(dict):
         (
             sx126x_packet_interface,
             "sx126x",
-            {"payload_length": 10},
+            _lora(payload_length=10),
             {},
             "payload_length",
             {"payload_length": 0},
@@ -143,6 +143,14 @@ class _FullConfig(dict):
             "sync_value",
             {"preamble_detect": 2},
         ),
+        (
+            sx126x_packet_interface,
+            "sx126x",
+            {"modulation": "FSK", "payload_length": 0, "sync_value": []},
+            {},
+            "sync_value",
+            {"sync_value": [0x12, 0x34]},
+        ),
     ],
 )
 def test_radio_settings_checked(
@@ -154,7 +162,7 @@ def test_radio_settings_checked(
     fix: dict | None,
 ) -> None:
     """Packets vary in length; FSK or OOK on an SX127x needs packet mode, a sync word or preamble detection, and
-    holds at most 64 bytes.
+    holds at most 64 bytes; FSK on an SX126x needs a sync word.
     """
     config = {f"{domain}_id": "radio", CONF_MAX_PACKET_SIZE: 64, **link}
     token = fv.full_config.set(_FullConfig(domain, radio))
@@ -190,7 +198,7 @@ def test_radio_settings_checked(
 )
 def test_rx_start_needed_for_replies(setup_core, link: dict, match: str | None) -> None:
     """A radio that sleeps after sending suits only a link whose layers need no packets back."""
-    sleeping = {"payload_length": 0, "rx_start": False}
+    sleeping = _lora(payload_length=0, rx_start=False)
     config = sx126x_packet_interface.CONFIG_SCHEMA({"sx126x_id": "radio", **link})
     token = fv.full_config.set(_FullConfig("sx126x", sleeping))
     try:
