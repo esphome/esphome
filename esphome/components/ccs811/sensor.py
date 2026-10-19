@@ -72,9 +72,5 @@ async def to_code(config: ConfigType) -> None:
     if (baseline := config.get(CONF_BASELINE)) is not None:
         cg.add(var.set_baseline(baseline))
 
-    if temperature_id := config.get(CONF_TEMPERATURE):
-        sens = await cg.get_variable(temperature_id)
-        cg.add(var.set_temperature(sens))
-    if humidity_id := config.get(CONF_HUMIDITY):
-        sens = await cg.get_variable(humidity_id)
-        cg.add(var.set_humidity(sens))
+    await cg.add_variable(var.set_temperature, config.get(CONF_TEMPERATURE))
+    await cg.add_variable(var.set_humidity, config.get(CONF_HUMIDITY))
