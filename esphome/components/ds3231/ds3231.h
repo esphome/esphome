@@ -114,12 +114,18 @@ class DS3231Component final : public Component, public i2c::I2CDevice {
   static constexpr uint8_t STATUS_OSF = 0x80;
   static constexpr uint8_t STATUS_FLAGS = STATUS_A1F | STATUS_A2F | STATUS_OSF;
 
+  /// Scheduler ids: one pulse timer per alarm (id + alarm - 1).
+  static constexpr uint32_t ALARM_PULSE_TIMEOUT_ID = 0;
+
   static void IRAM_ATTR interrupt_handler(DS3231Component *arg);
 
+  /// Read the control and status registers into the cached copies. Sets the warning flag on failure.
   bool read_control_status_();
-  bool write_control_();
+  /// Replace the bits in @p mask of the control register with @p value, on the chip and in the cache.
+  bool update_control_(uint8_t mask, uint8_t value);
   /// Write the status register, clearing the flags in @p clear (writing 1 to a flag leaves it unchanged).
   bool write_status_(uint8_t clear);
+  bool write_aging_offset_(int8_t offset);
   /// Clear the flag of @p alarm and report it off. Returns false (state unchanged) if that fails.
   bool clear_alarm_flag_(uint8_t alarm);
   void set_alarm_enabled_(uint8_t alarm, bool enabled);

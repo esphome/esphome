@@ -14,12 +14,8 @@ void DS3231Time::dump_config() {
 
 void DS3231Time::read_time() {
   ESPTime rtc_time;
-  if (!this->parent_->read_time(rtc_time)) {
-    ESP_LOGW(TAG, "Not syncing the system clock from the RTC.");
-    this->status_set_warning();
+  if (!this->status_comm_result(this->parent_->read_time(rtc_time), LOG_STR("No valid time from the RTC")))
     return;
-  }
-  this->status_clear_warning();
   this->synchronize_epoch_(rtc_time.timestamp);
 }
 
@@ -29,11 +25,7 @@ void DS3231Time::write_time() {
     ESP_LOGE(TAG, "Invalid system time, not syncing to RTC.");
     return;
   }
-  if (this->parent_->write_time(now)) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning();
-  }
+  this->status_comm_result(this->parent_->write_time(now));
 }
 
 }  // namespace esphome::ds3231

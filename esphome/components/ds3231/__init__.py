@@ -37,36 +37,29 @@ ds3231_ns = cg.esphome_ns.namespace("ds3231")
 DS3231Component = ds3231_ns.class_("DS3231Component", cg.Component, i2c.I2CDevice)
 
 AlarmMode = ds3231_ns.enum("AlarmMode")
-ALARM_1_MODES = {
-    "every_second": AlarmMode.ALARM_MODE_EVERY_SECOND,
-    "every_minute": AlarmMode.ALARM_MODE_EVERY_MINUTE,
-    "hourly": AlarmMode.ALARM_MODE_HOURLY,
-    "daily": AlarmMode.ALARM_MODE_DAILY,
-    "monthly": AlarmMode.ALARM_MODE_MONTHLY,
-    "weekly": AlarmMode.ALARM_MODE_WEEKLY,
-}
+ALARM_1_MODES = AlarmMode.options(
+    "every_second",
+    "every_minute",
+    "hourly",
+    "daily",
+    "monthly",
+    "weekly",
+    prefix="ALARM_MODE_",
+)
 # Alarm 2 has no seconds register.
 ALARM_2_MODES = {k: v for k, v in ALARM_1_MODES.items() if k != "every_second"}
 
 SquareWaveFrequency = ds3231_ns.enum("SquareWaveFrequency")
+# Keyed by the frequency in Hz; cv.frequency turns "1024Hz", "1.024kHz" or 1024 into it.
 SQUARE_WAVE_FREQUENCIES = {
-    "1Hz": SquareWaveFrequency.SQUARE_WAVE_1HZ,
-    "1024Hz": SquareWaveFrequency.SQUARE_WAVE_1024HZ,
-    "4096Hz": SquareWaveFrequency.SQUARE_WAVE_4096HZ,
-    "8192Hz": SquareWaveFrequency.SQUARE_WAVE_8192HZ,
+    1: SquareWaveFrequency.SQUARE_WAVE_1HZ,
+    1024: SquareWaveFrequency.SQUARE_WAVE_1024HZ,
+    4096: SquareWaveFrequency.SQUARE_WAVE_4096HZ,
+    8192: SquareWaveFrequency.SQUARE_WAVE_8192HZ,
 }
-
-
-def _validate_square_wave_frequency(value):
-    value = cv.string_strict(value).replace(" ", "")
-    for key in SQUARE_WAVE_FREQUENCIES:
-        if value.lower() == key.lower():
-            return cv.enum(SQUARE_WAVE_FREQUENCIES)(key)
-    raise cv.Invalid(
-        f"Unknown square wave frequency '{value}', must be one of "
-        f"{', '.join(SQUARE_WAVE_FREQUENCIES)}"
-    )
-
+validate_square_wave_frequency = cv.All(
+    cv.frequency, cv.enum(SQUARE_WAVE_FREQUENCIES, int=True)
+)
 
 validate_aging_offset = cv.int_range(min=-128, max=127)
 
@@ -75,7 +68,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(DS3231Component),
             cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Optional(CONF_SQUARE_WAVE_FREQUENCY): _validate_square_wave_frequency,
+            cv.Optional(CONF_SQUARE_WAVE_FREQUENCY): validate_square_wave_frequency,
             cv.Optional(CONF_BATTERY_BACKED_SQUARE_WAVE): cv.boolean,
             cv.Optional(CONF_OUTPUT_32KHZ): cv.boolean,
             cv.Optional(CONF_AGING_OFFSET): validate_aging_offset,
@@ -96,9 +89,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
-    if (pin := config.get(CONF_INTERRUPT_PIN)) is not None:
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(pin)))
-        cg.add(var.set_monitor_alarms(True))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
     if (frequency := config.get(CONF_SQUARE_WAVE_FREQUENCY)) is not None:
         cg.add(var.set_square_wave_frequency(frequency))
     if (bbsqw := config.get(CONF_BATTERY_BACKED_SQUARE_WAVE)) is not None:
@@ -109,14 +100,19 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_aging_offset_config(aging_offset))
     cg.add(var.set_auto_clear_alarms(config[CONF_AUTO_CLEAR_ALARMS]))
     cg.add(var.set_alarm_check_interval(config[CONF_ALARM_CHECK_INTERVAL]))
+    # The alarm flags are only read when something uses them; the binary sensor platform
+    # turns this on as well. With an interrupt pin the check also releases INT/SQW.
+    if any(
+        key in config for key in (CONF_INTERRUPT_PIN, CONF_ON_ALARM_1, CONF_ON_ALARM_2)
+    ):
+        cg.add(var.set_monitor_alarms(True))
 
     for conf_key, trigger in (
         (CONF_ON_ALARM_1, var.get_alarm_1_trigger()),
         (CONF_ON_ALARM_2, var.get_alarm_2_trigger()),
     ):
-        if conf_key in config:
-            cg.add(var.set_monitor_alarms(True))
-            await automation.build_automation(trigger, [], config[conf_key])
+        if (conf := config.get(conf_key)) is not None:
+            await automation.build_automation(trigger, [], conf)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -228,7 +224,7 @@ automation.register_apply_action(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(DS3231Component),
-            cv.Required(CONF_FREQUENCY): _validate_square_wave_frequency,
+            cv.Required(CONF_FREQUENCY): validate_square_wave_frequency,
         }
     ),
     automation.ApplyField(CONF_FREQUENCY, "enable_square_wave", SquareWaveFrequency),

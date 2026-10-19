@@ -53,24 +53,21 @@ void DS3231Component::setup() {
     return;
   }
 
-  this->control_reg_ &= ~CONTROL_EOSC;  // keep the oscillator running on battery
+  // Keep the oscillator running on battery. INT/SQW is the alarm interrupt line unless a square
+  // wave is configured. The alarm interrupt enables (A1IE/A2IE) are kept as they are: the alarms
+  // live on the chip and survive a reboot of the ESP on battery.
+  uint8_t mask = CONTROL_EOSC | CONTROL_INTCN;
+  uint8_t value = CONTROL_INTCN;
   if (this->square_wave_configured_) {
-    this->control_reg_ &= ~(CONTROL_INTCN | CONTROL_RS_MASK);
-    this->control_reg_ |= (this->square_wave_frequency_ << CONTROL_RS_SHIFT) & CONTROL_RS_MASK;
-  } else {
-    // INT/SQW is the alarm interrupt line rather than a square-wave output.
-    this->control_reg_ |= CONTROL_INTCN;
+    mask |= CONTROL_RS_MASK;
+    value = this->square_wave_frequency_ << CONTROL_RS_SHIFT;
   }
   if (this->battery_backed_square_wave_ >= 0) {
-    if (this->battery_backed_square_wave_ != 0) {
-      this->control_reg_ |= CONTROL_BBSQW;
-    } else {
-      this->control_reg_ &= ~CONTROL_BBSQW;
-    }
+    mask |= CONTROL_BBSQW;
+    if (this->battery_backed_square_wave_ != 0)
+      value |= CONTROL_BBSQW;
   }
-  // The alarm interrupt enables (A1IE/A2IE) are kept as they are: the alarms live on the chip and
-  // survive a reboot of the ESP on battery.
-  if (!this->write_control_()) {
+  if (!this->update_control_(mask, value)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
@@ -87,8 +84,7 @@ void DS3231Component::setup() {
     }
   }
 
-  if (this->aging_offset_configured_ &&
-      !this->write_byte(DS3231_REG_AGING_OFFSET, static_cast<uint8_t>(this->aging_offset_))) {
+  if (this->aging_offset_configured_ && !this->write_aging_offset_(this->aging_offset_)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
@@ -166,10 +162,8 @@ void DS3231Component::dump_config() {
 
 bool DS3231Component::read_time(ESPTime &out) {
   uint8_t raw[7];
-  if (this->is_failed() || !this->read_bytes(DS3231_REG_SECONDS, raw, sizeof(raw))) {
-    ESP_LOGW(TAG, "Can't read time registers.");
+  if (this->is_failed() || !this->status_comm_result(this->read_bytes(DS3231_REG_SECONDS, raw, sizeof(raw))))
     return false;
-  }
   // Without a valid status the oscillator-stop flag is unknown, so the time can't be trusted.
   if (!this->read_control_status_())
     return false;
@@ -226,10 +220,8 @@ bool DS3231Component::write_time(const ESPTime &time) {
   raw[4] = uint8_to_bcd(time.day_of_month);
   raw[5] = uint8_to_bcd(time.month) | (year >= 100 ? MONTH_CENTURY : 0);
   raw[6] = uint8_to_bcd(year % 100);
-  if (!this->write_bytes(DS3231_REG_SECONDS, raw, sizeof(raw))) {
-    ESP_LOGW(TAG, "Can't write time registers.");
+  if (!this->status_comm_result(this->write_bytes(DS3231_REG_SECONDS, raw, sizeof(raw))))
     return false;
-  }
   ESP_LOGD(TAG, "Wrote UTC time: %04u-%02u-%02u %02u:%02u:%02u", time.year, time.month, time.day_of_month, time.hour,
            time.minute, time.second);
 
@@ -271,10 +263,8 @@ void DS3231Component::force_temperature_conversion() {
     ESP_LOGW(TAG, "A temperature conversion is already in progress.");
     return;
   }
-  this->control_reg_ |= CONTROL_CONV;
-  this->write_control_();
-  // CONV is a one-shot command bit: don't keep it in the cached value.
-  this->control_reg_ &= ~CONTROL_CONV;
+  // CONV is a one-shot command bit, so it is not kept in the cached value.
+  this->status_comm_result(this->write_byte(DS3231_REG_CONTROL, this->control_reg_ | CONTROL_CONV));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -350,10 +340,8 @@ void DS3231Component::set_alarm_2(AlarmMode mode, uint8_t minute, uint8_t hour, 
 void DS3231Component::write_alarm_(uint8_t alarm, const uint8_t *regs, size_t len, bool enabled) {
   if (this->is_failed())
     return;
-  if (!this->write_bytes(alarm == 1 ? DS3231_REG_ALARM_1 : DS3231_REG_ALARM_2, regs, len)) {
-    ESP_LOGW(TAG, "Can't write alarm %u registers.", alarm);
+  if (!this->status_comm_result(this->write_bytes(alarm == 1 ? DS3231_REG_ALARM_1 : DS3231_REG_ALARM_2, regs, len)))
     return;
-  }
   // Changing the registers may have matched on the way: start from a clean flag. Enabling the
   // alarm with a stale flag would assert INT/SQW right away.
   if (!this->clear_alarm_flag_(alarm)) {
@@ -368,20 +356,15 @@ void DS3231Component::set_alarm_enabled_(uint8_t alarm, bool enabled) {
     ESP_LOGE(TAG, "Invalid alarm number %u.", alarm);
     return;
   }
-  if (this->is_failed() || !this->read_control_status_())
+  if (this->is_failed())
     return;
   const uint8_t bit = alarm == 1 ? CONTROL_A1IE : CONTROL_A2IE;
-  if (enabled) {
-    this->control_reg_ |= bit;
-    if ((this->control_reg_ & CONTROL_INTCN) == 0) {
-      ESP_LOGW(TAG, "Alarm %u enabled, but INT/SQW is a square-wave output: only the flag will be set.", alarm);
-    }
-  } else {
-    this->control_reg_ &= ~bit;
+  if (!this->update_control_(bit, enabled ? bit : 0))
+    return;
+  if (enabled && (this->control_reg_ & CONTROL_INTCN) == 0) {
+    ESP_LOGW(TAG, "Alarm %u enabled, but INT/SQW is a square-wave output: only the flag will be set.", alarm);
   }
-  if (this->write_control_()) {
-    ESP_LOGD(TAG, "Alarm %u %s.", alarm, enabled ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
-  }
+  ESP_LOGD(TAG, "Alarm %u %s.", alarm, enabled ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 }
 
 void DS3231Component::clear_alarm(uint8_t alarm) { this->clear_alarm_flag_(alarm); }
@@ -449,7 +432,7 @@ void DS3231Component::check_alarms_() {
       this->alarm_active_[alarm - 1] = false;
 #ifdef USE_BINARY_SENSOR
       // Keep the binary sensor on long enough for the state to be seen, then turn it off again.
-      this->set_timeout(static_cast<uint32_t>(alarm), ALARM_PULSE_MS,
+      this->set_timeout(ALARM_PULSE_TIMEOUT_ID + alarm - 1, ALARM_PULSE_MS,
                         [this, alarm]() { this->publish_alarm_state_(alarm, false); });
 #endif
     }
@@ -480,20 +463,17 @@ void DS3231Component::enable_square_wave(SquareWaveFrequency frequency) {
     ESP_LOGE(TAG, "Can't enable the square wave: INT/SQW is used as the alarm interrupt pin.");
     return;
   }
-  if (this->is_failed() || !this->read_control_status_())
+  if (this->is_failed())
     return;
-  this->control_reg_ &= ~(CONTROL_INTCN | CONTROL_RS_MASK);
-  this->control_reg_ |= (frequency << CONTROL_RS_SHIFT) & CONTROL_RS_MASK;
-  if (this->write_control_()) {
+  if (this->update_control_(CONTROL_INTCN | CONTROL_RS_MASK, frequency << CONTROL_RS_SHIFT)) {
     ESP_LOGD(TAG, "Square wave enabled at %s.", LOG_STR_ARG(square_wave_to_string(frequency)));
   }
 }
 
 void DS3231Component::disable_square_wave() {
-  if (this->is_failed() || !this->read_control_status_())
+  if (this->is_failed())
     return;
-  this->control_reg_ |= CONTROL_INTCN;
-  if (this->write_control_()) {
+  if (this->update_control_(CONTROL_INTCN, CONTROL_INTCN)) {
     ESP_LOGD(TAG, "Square wave disabled, INT/SQW is the alarm interrupt.");
   }
 }
@@ -514,11 +494,8 @@ void DS3231Component::set_output_32khz(bool enabled) {
 void DS3231Component::set_aging_offset(int8_t offset) {
   if (this->is_failed())
     return;
-  if (!this->write_byte(DS3231_REG_AGING_OFFSET, static_cast<uint8_t>(offset))) {
-    ESP_LOGW(TAG, "Can't write aging offset.");
+  if (!this->write_aging_offset_(offset))
     return;
-  }
-  this->aging_offset_ = offset;
   ESP_LOGD(TAG, "Aging offset set to %d.", offset);
   // The new offset takes effect with the next temperature conversion.
   this->force_temperature_conversion();
@@ -530,30 +507,33 @@ void DS3231Component::set_aging_offset(int8_t offset) {
 
 bool DS3231Component::read_control_status_() {
   uint8_t raw[2];
-  if (!this->read_bytes(DS3231_REG_CONTROL, raw, sizeof(raw))) {
-    ESP_LOGW(TAG, "Can't read control/status registers.");
+  if (!this->status_comm_result(this->read_bytes(DS3231_REG_CONTROL, raw, sizeof(raw))))
     return false;
-  }
   this->control_reg_ = raw[0] & ~CONTROL_CONV;
   this->status_reg_ = raw[1];
   return true;
 }
 
-bool DS3231Component::write_control_() {
-  if (!this->write_byte(DS3231_REG_CONTROL, this->control_reg_)) {
-    ESP_LOGW(TAG, "Can't write control register.");
+bool DS3231Component::update_control_(uint8_t mask, uint8_t value) {
+  // CONV is a one-shot command bit: always write it back as 0 so a control change never starts
+  // a temperature conversion.
+  if (!this->status_comm_result(this->update_register(DS3231_REG_CONTROL, mask | CONTROL_CONV, value)))
     return false;
-  }
+  this->control_reg_ = (this->control_reg_ & ~mask) | (value & mask);
   return true;
 }
 
 bool DS3231Component::write_status_(uint8_t clear) {
-  // The flags can only be written to 0; writing 1 leaves them unchanged.
+  // The flags can only be written to 0; writing 1 leaves them unchanged, so a flag that was set
+  // between the read and this write is never lost.
   const uint8_t value = ((this->status_reg_ & STATUS_EN32KHZ) | STATUS_FLAGS) & ~clear;
-  if (!this->write_byte(DS3231_REG_STATUS, value)) {
-    ESP_LOGW(TAG, "Can't write status register.");
+  return this->status_comm_result(this->write_byte(DS3231_REG_STATUS, value));
+}
+
+bool DS3231Component::write_aging_offset_(int8_t offset) {
+  if (!this->status_comm_result(this->write_byte(DS3231_REG_AGING_OFFSET, static_cast<uint8_t>(offset))))
     return false;
-  }
+  this->aging_offset_ = offset;
   return true;
 }
 
