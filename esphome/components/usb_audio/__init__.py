@@ -143,6 +143,9 @@ def stream_info(config: ConfigType) -> MockObj:
 async def to_code(config: ConfigType) -> None:
     # Keep in sync with esphome/idf_component.yml. usb_host adds espressif/usb on IDF 6.0 and later.
     esp32.add_idf_component(name="espressif/usb_host_uac", ref="1.5.0")
+    # 18 ms of transfers in flight instead of the driver's 9 ms, so a late transfer completion does not leave the bus
+    # idle while the ring buffer still holds audio.
+    esp32.set_idf_sdkconfig_default("CONFIG_UAC_NUM_ISOC_URBS", 6)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
