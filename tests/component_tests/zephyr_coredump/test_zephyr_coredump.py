@@ -1,23 +1,40 @@
 """Tests for the placement of the zephyr_coredump flash partition."""
 
+import asyncio
 from collections.abc import Callable
 import logging
 from pathlib import Path
 import re
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from esphome.components.nrf52 import set_core_data
 from esphome.components.zephyr import zephyr_data
-from esphome.components.zephyr.const import KEY_OVERLAY, KEY_PM_STATIC
+from esphome.components.zephyr.const import (
+    KEY_OVERLAY,
+    KEY_PARTITION_REQUIREMENTS,
+    KEY_PM_STATIC,
+    KEY_PRJ_CONF,
+    KEY_ZEPHYR,
+)
 from esphome.components.zephyr_coredump import (
     DUMP_THREADS_MIN_VERSION,
     PARTITION_SIZE,
     _partition_address,
+    _validate_platform,
+    to_code,
 )
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
-from esphome.core import CORE
+from esphome.const import (
+    CONF_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ZEPHYR,
+)
+from esphome.core import CORE, ID
+from tests.unit_tests.components.zephyr.zephyr_state import empty_zephyr_data
 
 
 def _core_data(
@@ -102,3 +119,50 @@ def test_mcumgr_warns_that_the_slots_move(
     with caplog.at_level(logging.WARNING):
         generate_main(component_config_path("mcumgr_adafruit.yaml"))
     assert "zephyr_coredump moves the OTA image slots" in caplog.text
+
+
+def _zephyr_core_data(variant: str) -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant=variant)
+
+
+@pytest.mark.parametrize("variant", ["ESP32H2", "NRF54L15", "ESP32S3"])
+def test_zephyr_platform_accepted(variant: str) -> None:
+    _zephyr_core_data(variant)
+    assert _validate_platform({}) == {}
+
+
+def test_zephyr_native_sim_rejected() -> None:
+    _zephyr_core_data("NATIVESIM")
+    with pytest.raises(cv.Invalid, match="real hardware"):
+        _validate_platform({})
+
+
+@pytest.mark.parametrize(
+    ("variant", "dump_option"),
+    [
+        ("NRF54L15", "CONFIG_DEBUG_COREDUMP_MEMORY_DUMP_THREADS"),
+        ("ESP32H2", "CONFIG_DEBUG_COREDUMP_MEMORY_DUMP_THREADS"),
+        ("ESP32", "CONFIG_DEBUG_COREDUMP_MEMORY_DUMP_MIN"),
+        ("ESP32S3", "CONFIG_DEBUG_COREDUMP_MEMORY_DUMP_MIN"),
+    ],
+)
+def test_zephyr_to_code(variant: str, dump_option: str) -> None:
+    """platform: zephyr requires a devicetree partition instead of placing one."""
+    _zephyr_core_data(variant)
+    with (
+        patch("esphome.codegen.new_Pvariable"),
+        patch("esphome.codegen.register_component", new=AsyncMock()),
+    ):
+        asyncio.run(to_code({CONF_ID: ID("coredump", is_declaration=True)}))
+
+    prj_conf = zephyr_data()[KEY_PRJ_CONF][""]
+    assert prj_conf["CONFIG_DEBUG_COREDUMP"][0] is True
+    assert prj_conf["CONFIG_DEBUG_COREDUMP_BACKEND_FLASH_PARTITION"][0] is True
+    assert prj_conf[dump_option][0] is True
+    assert "CONFIG_PARTITION_MANAGER_ENABLED" not in prj_conf
+    assert zephyr_data()[KEY_PARTITION_REQUIREMENTS] == [
+        ("coredump_partition", "zephyr_coredump")
+    ]
+    assert any(d.name == "USE_CRASH_HANDLER" for d in CORE.defines)
+    assert not any(d.name == "USE_ZEPHYR_COREDUMP_SP_FIX" for d in CORE.defines)
