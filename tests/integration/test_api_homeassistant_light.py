@@ -369,6 +369,22 @@ async def test_api_homeassistant_light(
         await ha.expect_call("light.turn_off")
         await ha.report_off()
 
+        # A repeated report is not held even when the call count has wrapped back to the value
+        # noted for the last changed report
+        ha.report(None, "on")
+        await ha.next_state(lambda s: s.state)
+        await ha.report_off()
+        for _ in range(15):
+            ha.command(state=False)
+        ha.command(state=True, transition_length=1.0)
+        ha.report(None, "off")
+        await ha.expect_call()
+        ha.report(None, "on")
+        await ha.next_state(lambda s: s.state)
+        ha.command(state=False)
+        await ha.expect_call("light.turn_off")
+        await ha.report_off()
+
         # A flash ends where it began, which Home Assistant has, so nothing is sent and the user is told
         ha.command(state=True, flash_length=0.5)
         await ha.waiter.wait_for("nothing to send (a flash never is)", timeout=5.0)

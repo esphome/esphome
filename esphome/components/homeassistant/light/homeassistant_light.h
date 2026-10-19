@@ -66,6 +66,7 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   bool echo_pending_ : 1 {false};  // a sent change waits for Home Assistant to report it back
   bool report_held_ : 1 {false};   // a report arrived during a transition or flash; applied when it ends
   bool transitioned_ : 1 {false};  // a transition or flash ran since the last write sent
+  bool report_fresh_ : 1 {false};  // a changed report waits for apply_imported_()
   uint8_t report_timeout_s_{10};
   uint8_t report_call_{0};  // the light's call count when the last changed report was read
 };
