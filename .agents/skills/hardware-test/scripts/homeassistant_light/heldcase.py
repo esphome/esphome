@@ -1,5 +1,5 @@
 """Held-report cases for esphome#21144 with persistent API connections, so the steps land inside the 3 s fade.
-usage: heldcase.py DEV_IP KEY BULB_IP same|many
+usage: heldcase.py DEV_IP KEY BULB_IP same|many [BULB_KEY]   (KEY or BULB_KEY of - means plaintext)
   t0      press "A 50 fade 3s" on the mirror device (3 s fade to 50%)
   t0+0.7  set the bulb directly to 90% (Home Assistant reports it to the mirror during the fade: held)
   t0+1.4  same:  press "A 50 fade 3s" again (same target as the running fade)
@@ -14,6 +14,9 @@ import time
 from aioesphomeapi import APIClient, ButtonInfo, LightInfo, LightState
 
 DEV, KEY, BULB, CASE = sys.argv[1:5]
+BULB_KEY = sys.argv[5] if len(sys.argv) > 5 else "-"
+if CASE not in ("same", "many"):
+    sys.exit(f"case must be same or many, got {CASE!r}")
 T0 = time.time()
 
 
@@ -22,8 +25,8 @@ def stamp() -> str:
 
 
 async def main() -> None:
-    dev = APIClient(DEV, 6053, None, noise_psk=KEY)
-    bulb = APIClient(BULB, 6053, None, noise_psk=None)
+    dev = APIClient(DEV, 6053, None, noise_psk=None if KEY == "-" else KEY)
+    bulb = APIClient(BULB, 6053, None, noise_psk=None if BULB_KEY == "-" else BULB_KEY)
     await dev.connect(login=True)
     await bulb.connect(login=True)
     dents, _ = await dev.list_entities_services()
@@ -57,7 +60,10 @@ async def main() -> None:
     dev.button_command(buttons["Log state"].key)
     await asyncio.sleep(1.0)
     b = states.get("bulb")
-    print(f"{stamp()} RESULT bulb bri={b.brightness:.2f}")
+    print(
+        f"{stamp()} RESULT bulb "
+        + (f"bri={b.brightness:.2f}" if b is not None else "no state")
+    )
     await dev.disconnect()
     await bulb.disconnect()
 
