@@ -6,9 +6,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT_PIN,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
@@ -52,14 +49,6 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
-def validate_mode(value: ConfigType) -> ConfigType:
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
-    return value
-
-
 PI4IOE5V6408_PIN_SCHEMA = pins.gpio_base_schema(
     PI4IOE5V6408GPIOPin,
     cv.int_range(min=0, max=7),
@@ -69,7 +58,7 @@ PI4IOE5V6408_PIN_SCHEMA = pins.gpio_base_schema(
         CONF_PULLUP,
         CONF_PULLDOWN,
     ],
-    mode_validator=validate_mode,
+    mode_validator=pins.gpio_validate_input_xor_output,
 ).extend(
     {
         cv.Required(CONF_PI4IOE5V6408): pins.use_id_or_address(PI4IOE5V6408Component),
@@ -79,10 +68,4 @@ PI4IOE5V6408_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PI4IOE5V6408, PI4IOE5V6408_PIN_SCHEMA)
 async def pi4ioe5v6408_pin_schema(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_parented(var, config[CONF_PI4IOE5V6408])
-
-    cg.add(var.set_pin(config[CONF_NUMBER]))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+    return await pins.new_parented_pin(config, CONF_PI4IOE5V6408)
