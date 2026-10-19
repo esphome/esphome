@@ -39,17 +39,18 @@ swiftc -O "$SKILL/scripts/camsnap.swift" -o /tmp/camsnap/camsnap
 
 The camera argument is a case-insensitive substring of the name AVFoundation reports. If it does
 not match, the tool lists the cameras it found, so a run with a name that matches nothing lists
-the cameras without capturing. Use a substring that matches only the camera the user approved. It creates the output directory if needed and
-reports encoding or write errors on stderr. Other options include `ffmpeg` with `avfoundation`
+the cameras without capturing. Use a substring that matches only the camera the user approved.
+It creates the output directory if needed and reports encoding or write errors on stderr. Other options include `ffmpeg` with `avfoundation`
 input, `imagesnap`, or Photo Booth's still capture.
 
 ### Linux
 
-Use `ffmpeg` with the v4l2 input, `fswebcam`, or `v4l2-ctl`:
+Use `ffmpeg` with the v4l2 input, `fswebcam`, or `v4l2-ctl`. With `ffmpeg`, `-ss 2` after the
+input discards the first two seconds of frames while exposure settles:
 
 ```bash
 mkdir -p /tmp/display-test
-ffmpeg -f v4l2 -i /dev/video0 -frames:v 1 -y /tmp/display-test/after.jpg
+ffmpeg -f v4l2 -i /dev/video0 -ss 2 -frames:v 1 -y /tmp/display-test/after.jpg
 # or
 fswebcam -d /dev/video0 --skip 10 /tmp/display-test/after.jpg
 ```
@@ -58,12 +59,13 @@ List devices with `v4l2-ctl --list-devices`.
 
 ### Windows
 
-Use `ffmpeg` with the DirectShow input, or any camera application that can save a still image:
+Use `ffmpeg` with the DirectShow input (`-ss 2` skips the first frames, as on Linux), or any
+camera application that can save a still image:
 
 ```powershell
 mkdir C:\temp -Force | Out-Null
 ffmpeg -f dshow -list_devices true -i dummy   # find the device name
-ffmpeg -f dshow -i video="<device name>" -frames:v 1 -y C:\temp\after.jpg
+ffmpeg -f dshow -i video="<device name>" -ss 2 -frames:v 1 -y C:\temp\after.jpg
 ```
 
 ### Camera caveats
@@ -90,12 +92,11 @@ Native-USB ESP32-S3/C3/C6/H2 boards show up as `USB JTAG/serial debug unit` and 
 
 Write a scratch config outside the checkout. Use one `name:` per board and include:
 
-- a white background and a black border;
-- a filled black square in each of the four corners (orientation and full-window check);
-- a centre marker (orientation and scale);
-- for partial-update drivers, draw one additional marker per update with
-  `auto_clear_enabled: false`, so each marker is written by its own window. Corners and edges
-  exercise the window alignment.
+- a white background, a black border and a filled square at the centre, drawn in the first
+  update (full-window check and scale);
+- a 60x20 bar near each corner, one bar per later update with `auto_clear_enabled: false`, so
+  each bar is written by its own partial window. The bars are wider than tall, which shows a
+  90 or 270 degree rotation; the corners exercise the window alignment.
 
 Use `Color::BLACK` and `Color::WHITE` in lambdas. Do not use the old `COLOR_OFF`/`COLOR_ON`
 constants; black must mean black.
@@ -125,13 +126,13 @@ power is removed, which is useful for checking that an image is bistable.
 
 ## What to check
 
-1. **Orientation**: the corner markers are in the expected corners and the image is not mirrored
-   or upside down. Test `rotation:` values with the same pattern; the logical width/height swap,
-   so a marker that is 20x60 in the lambda should appear 60x20 on the physical landscape panel.
+1. **Orientation**: test `rotation:` values with the same pattern. The logical width and height
+   swap at 90 and 270 degrees, so the 60x20 corner bars should then appear taller than wide on
+   the physical panel.
 2. **Coverage**: the border touches all four edges, with no dead rows or columns at the edges.
 3. **Partial updates**: with `auto_clear_enabled: false`, draw one marker per update. Each should
    appear exactly at its requested position with no smearing, offset or mirrored placement.
-   Include all four corners and both edges.
+   Include all four corners.
 4. **Text and contrast**: sharp glyphs, correct polarity (black text on white, not inverted), no
    ghosting from the previous frame.
 5. **Speed**: if the driver logs transfer sizes, check that a full refresh and a partial window
