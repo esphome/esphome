@@ -161,6 +161,7 @@ async def test_api_homeassistant_light(
         yaml_config, run_compiled, api_client_connected, "['color_temp', 'rgb']"
     ) as ha:
         set_force_off = next(s for s in ha.services if s.name == "set_force_off")
+        retarget_many = next(s for s in ha.services if s.name == "retarget_many")
         # Normal while Home Assistant starts, so no warning
         ha.report(None, "unavailable")
         ha.report(None, "unknown")
@@ -369,8 +370,21 @@ async def test_api_homeassistant_light(
         await ha.expect_call("light.turn_off")
         await ha.report_off()
 
-        # A repeated report is not held even when the call count has wrapped back to the value
-        # noted for the last changed report
+        # Calls made in one pass replace a held report however many there are
+        ha.command(state=True, brightness=0.5, transition_length=1.0)
+        ha.report(None, "on")
+        ha.report("brightness", "50")
+        await asyncio.sleep(0.1)
+        await ha.client.execute_service(retarget_many, {})
+        call = await ha.expect_call()
+        assert call.data["brightness"] == "255"
+        ha.report("brightness", "255")
+        await ha.next_state(lambda s: s.state and s.brightness == 1.0)
+        ha.command(state=False)
+        await ha.expect_call("light.turn_off")
+        await ha.report_off()
+
+        # A repeated report is not held, however many calls came since the last changed one
         ha.report(None, "on")
         await ha.next_state(lambda s: s.state)
         await ha.report_off()

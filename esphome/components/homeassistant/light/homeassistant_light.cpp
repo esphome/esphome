@@ -204,8 +204,7 @@ void HomeassistantLight::on_report_(bool changed) {
     }
     // Noted as the report arrives, not when the deferred apply runs: a call read from the same loop
     // pass before this report is older than it, one read after it is newer
-    this->report_call_ = this->state_->get_call_count();
-    this->report_fresh_ = true;
+    this->state_->clear_called();
   }
   this->schedule_apply_();
 }
@@ -220,9 +219,6 @@ void HomeassistantLight::schedule_apply_() {
 
 void HomeassistantLight::apply_imported_() {
   this->apply_scheduled_ = false;
-  // report_call_ is only compared in the pass that noted it, so a wrapped count cannot match it
-  const bool fresh = this->report_fresh_;
-  this->report_fresh_ = false;
   // Nothing to apply before the first state; while a sent change waits for its report the reported
   // state is the old one, so a trait that arrives then does not bring it back
   if (!this->imported_.state.has_value() || this->echo_pending_) {
@@ -259,7 +255,7 @@ void HomeassistantLight::apply_imported_() {
     // A report that changed something during a transition or flash is applied once it ends, in
     // place of the values it ends at, unless a call came after the report; a trait or a repeated
     // report has nothing newer to say
-    if (fresh && this->state_->is_transitioning() && this->report_call_ == this->state_->get_call_count()) {
+    if (this->state_->is_transitioning() && !this->state_->called_since_clear()) {
       this->report_held_ = true;
       return;
     }
@@ -283,7 +279,7 @@ void HomeassistantLight::update_state(LightState *state) {
   }
   // Every call that changes the light reaches here within a loop pass (a new transformer's first
   // apply() or set_immediately_()), and a call since the held report was read is newer than it
-  if (this->report_held_ && this->report_call_ != state->get_call_count()) {
+  if (this->report_held_ && state->called_since_clear()) {
     this->report_held_ = false;
   }
 }
