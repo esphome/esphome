@@ -11,32 +11,31 @@ void SMT100Component::update() {
 }
 
 void SMT100Component::loop() {
-  while (this->available() != 0) {
-    const int readch = this->read();
-    if (readch <= 0)
-      continue;
+  this->read_available([this](uint8_t readch) {
+    if (readch == 0)
+      return;
     char *line = this->line_reader_.feed(readch);
     this->line_reader_.log_if_overflowed(TAG);
     if (line != nullptr && line[0] != '\0') {
       char *token = strtok(line, ",");
       if (!token)
-        continue;
+        return;
       int counts = (int) strtol(token, nullptr, 10);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float permittivity = (float) strtod(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float moisture = (float) strtod(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float temperature = (float) strtod(token, nullptr);
       token = strtok(nullptr, ",");
       if (!token)
-        continue;
+        return;
       float voltage = (float) strtod(token, nullptr);
 
       if (this->counts_sensor_ != nullptr) {
@@ -59,7 +58,7 @@ void SMT100Component::loop() {
         voltage_sensor_->publish_state(voltage);
       }
     }
-  }
+  });
 }
 
 void SMT100Component::dump_config() {

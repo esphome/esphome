@@ -72,12 +72,7 @@ void MPR121Component::dump_config() {
 }
 void MPR121Component::loop() {
   uint16_t val = 0;
-  this->read_byte_16(MPR121_TOUCHSTATUS_L, &val);
-
-  // Flip order
-  uint8_t lsb = val >> 8;
-  uint8_t msb = val;
-  val = (uint16_t(msb) << 8) | lsb;
+  this->read_byte_16_le(MPR121_TOUCHSTATUS_L, &val);
 
   for (auto *channel : this->channels_)
     channel->process(val);
@@ -117,13 +112,7 @@ bool MPR121Component::flush_gpio_() {
   this->write_byte(MPR121_GPIOEN, this->gpio_enable_);
   this->write_byte(MPR121_GPIODIR, this->gpio_direction_);
 
-  if (!this->write_byte(MPR121_GPIODATA, this->gpio_output_)) {
-    this->status_set_warning();
-    return false;
-  }
-
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write_byte(MPR121_GPIODATA, this->gpio_output_));
 }
 
 void MPR121GPIOPin::setup() { this->pin_mode(this->flags_); }

@@ -47,8 +47,7 @@ async def register_mcp23xxx(config: ConfigType, num_pins: int) -> MockObj:
     await cg.register_component(var, config)
     CORE.data.setdefault(CONF_MCP23XXX, {})[id.id] = num_pins
     cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
     return var
 
 
