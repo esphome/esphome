@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -71,6 +72,7 @@ from esphome.components.zephyr.variants.silabs_family import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FRAMEWORK,
+    CONF_ID,
     CONF_NAME,
     CONF_PATH,
     CONF_REFRESH,
@@ -81,6 +83,7 @@ from esphome.const import (
     CONF_VERSION,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_NRF52,
@@ -88,7 +91,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, ID, EsphomeError
 from tests.unit_tests.components.zephyr.zephyr_state import empty_zephyr_data
 
 
@@ -2491,3 +2494,53 @@ def test_zephyr_usb_baud_rate_shares_port_0(other: tuple[str, dict]) -> None:
         zephyr_claim_cdc_acm(0, other[0], **other[1])
         zephyr_claim_cdc_acm(0, "usb_baud_rate", write_only=True, allow_write_only=True)
     assert len(CORE.data[KEY_ZEPHYR]["cdc_acm_users"][0]) == 2
+
+
+@pytest.mark.parametrize(("variant", "ok"), [("RP2040", True), ("ESP32H2", False)])
+def test_usb_cdc_acm_only_on_zephyr_usb(variant: str, ok: bool) -> None:
+    from esphome.components.usb_cdc_acm import _only_on_zephyr_usb
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant=variant)
+    if ok:
+        assert _only_on_zephyr_usb({}) == {}
+    else:
+        with pytest.raises(cv.Invalid, match="variants with USB"):
+            _only_on_zephyr_usb({})
+
+
+@pytest.mark.parametrize(
+    ("board_label", "port", "label"),
+    [("board_cdc_acm_uart", 0, "board_cdc_acm_uart"), (None, 1, "cdc_acm_uart1")],
+)
+def test_usb_cdc_acm_zephyr_interface_uses_port_label(
+    board_label: str | None, port: int, label: str
+) -> None:
+    """The device and the TX FIFO size come from the node the port actually uses."""
+    from esphome.components.usb_cdc_acm import to_code
+
+    interfaces = [{CONF_ID: ID(f"itf{i}", is_declaration=True)} for i in range(2)]
+    interfaces[1 - port]["disabled"] = True
+    config = {
+        CONF_ID: ID("usb", is_declaration=True),
+        "interfaces": interfaces,
+        "rx_buffer_size": 256,
+        "tx_buffer_size": 256,
+    }
+    patch_board = _zephyr_cdc_core(board_label)
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "zephyr"
+    with (
+        patch_board,
+        patch("esphome.codegen.new_Pvariable") as new_var,
+        patch("esphome.codegen.register_component", new=AsyncMock()),
+        patch("esphome.codegen.register_parented", new=AsyncMock()),
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(to_code(config))
+    args = [str(a) for a in new_var.call_args_list[1].args[1:]]
+    assert args == [
+        f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({label}))",
+        f"DT_PROP(DT_NODELABEL({label}), tx_fifo_size)",
+    ]
+    prj_conf = CORE.data[KEY_ZEPHYR]["prj_conf"][""]
+    assert "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" not in prj_conf
