@@ -524,7 +524,7 @@ class SubEntities:
         """Create the entity from ``conf``; ``setter`` may be None when the hub keeps no pointer.
 
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
-        ``parent->apply``, or ``apply`` as a free statement when no parent is bound, with
+        ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
         ``publish`` ("before"/"after") placing the domain's publish.
         """
         entity_id: ID = conf[CONF_ID]
@@ -536,6 +536,13 @@ class SubEntities:
         if apply is not None and not is_apply_class:
             raise ValueError(
                 f"{entity_id}: apply= needs the domain's Apply class, not {entity_id.type}"
+            )
+        # A parentless statement is a namespaced free function, so a hub platform that forgot
+        # parent= fails here instead of in the generated C++
+        if apply is not None and self.parent is None and "::" not in apply:
+            raise ValueError(
+                f"{entity_id}: apply= without a parent must call a namespaced free function "
+                f"(ns::fn()); bind parent= for a hub method"
             )
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
