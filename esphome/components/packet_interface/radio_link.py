@@ -13,6 +13,7 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from . import new_packet_interface, packet_interface_schema
+from .layers import CONF_ADDRESSING, CONF_PEERS, STACK_ORDER
 
 # The radios' payload length register is 8 bits
 MAX_PACKET_SIZE = 255
@@ -77,18 +78,38 @@ def _radio_config(config: ConfigType, radio_id_key: str) -> ConfigType:
     )
 
 
+def _two_way_layer(config: ConfigType) -> str | None:
+    """The first layer on the link or in a peer that keeps state for one peer, so needs packets back from it."""
+    for stack in (config, *config.get(CONF_ADDRESSING, {}).get(CONF_PEERS, [])):
+        for kind in STACK_ORDER:
+            if (layer := stack.get(kind.key)) is not None and kind.get_type(
+                layer
+            ).single_peer(layer):
+                return kind.key
+    return None
+
+
 def radio_link_final_validate(
     radio_id_key: str,
     payload_length_key: str,
+    rx_start_key: str,
     check: Callable[[ConfigType, ConfigType], None] | None = None,
 ) -> Callable[[ConfigType], ConfigType]:
-    """Final validation for a radio link: packets vary in length, and check(link, radio) checks the rest."""
+    """Final validation for a radio link: packets vary in length, the radio listens after sending when a layer needs
+    replies, and check(link, radio) checks the rest.
+    """
 
     def validator(config: ConfigType) -> ConfigType:
         radio = _radio_config(config, radio_id_key)
         if radio[payload_length_key] != 0:
             raise cv.Invalid(
                 f"Packets vary in length, so the radio's '{payload_length_key}' must be 0",
+                path=[radio_id_key],
+            )
+        if not radio[rx_start_key] and (layer := _two_way_layer(config)) is not None:
+            raise cv.Invalid(
+                f"This '{layer}' needs packets from the peer, but the radio sleeps after sending unless "
+                f"'{rx_start_key}' is true",
                 path=[radio_id_key],
             )
         if check is not None:
