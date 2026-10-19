@@ -172,7 +172,7 @@ TEST(EPaperFastLoop, FastLoopResumesWhenALongBusyWaitEnds) {
 
 class TestableT133A01 : public EPaperT133A01 {
  public:
-  TestableT133A01() : EPaperT133A01("test", 8, 2, nullptr, 0) {}
+  TestableT133A01() : EPaperT133A01("test", 8, 2, nullptr, 0, true) {}
   ~TestableT133A01() { this->high_frequency_loop_.stop(); }
 
   void install(spi::SPIDelegate *delegate) {
