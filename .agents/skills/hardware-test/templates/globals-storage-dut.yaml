@@ -1,5 +1,6 @@
-# Restoring globals with every storage choice; each boot bumps the counters, logs them with the reset reason,
-# then (ESP32) sleeps or (D1 mini) idles. A soft restart button and the host's reset pulse give the other reset kinds.
+# Restoring globals with every storage choice; each boot bumps the counters, logs them with the reset reason, saves
+# and syncs; odd boots soft restart, even boots deep sleep (ESP32) or idle (D1 mini). The host's reset pulse and a
+# power cut give the other reset kinds.
 logger:
   level: DEBUG
 

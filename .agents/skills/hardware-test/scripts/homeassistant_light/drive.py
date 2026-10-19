@@ -21,6 +21,8 @@ async def main() -> None:
         print("\n".join(sorted(buttons)))
     else:
         for name in ARGS:
+            if name not in buttons:
+                sys.exit(f"no button named {name!r}; have {sorted(buttons)}")
             c.button_command(buttons[name].key)
             print("pressed", name)
             await asyncio.sleep(0.3)

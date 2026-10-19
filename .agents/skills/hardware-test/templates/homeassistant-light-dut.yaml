@@ -1,4 +1,13 @@
 # shared part: two Home Assistant lights mirrored on the device plus buttons that drive them
+esphome:
+  # A local change made before the light core's first write (b19a776 sends it instead of merging it).
+  on_boot:
+    priority: -100
+    then:
+      - lambda: 'ESP_LOGI("halight", "on_boot turning B on at 35 percent before the first write");'
+      - light.turn_on:
+          id: bulb_b
+          brightness: 35%
 logger:
   level: VERBOSE
   logs:

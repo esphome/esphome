@@ -18,6 +18,8 @@ async def main() -> None:
     ents, _ = await c.list_entities_services()
     players = {e.name: e for e in ents if isinstance(e, MediaPlayerInfo)}
     print("media players:", sorted(players))
+    if PLAYER not in players:
+        sys.exit(f"no media player named {PLAYER!r}; have {sorted(players)}")
     p = players[PLAYER]
     c.media_player_command(p.key, media_url=URL)
     print("sent play_media to", PLAYER)

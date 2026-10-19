@@ -49,7 +49,7 @@ for line in cap:
 
 print(f"{label} cycles: {len(cycles)}")
 print(
-    f"{'n':>2} {'wifi ms':>8} {'dial +ms':>9} {'client ms':>10} {'state ms':>9} {'client-wifi':>11} {'state-client':>12}  client"
+    f"{'n':>2} {'wifi ms':>8} {'dial +ms':>9} {'client ms':>10} {'state ms':>9} {'client-wifi':>11} {'state-client':>12}  client  reset"
 )
 for i, c in enumerate(cycles, 1):
     dial = ""
@@ -58,7 +58,7 @@ for i, c in enumerate(cycles, 1):
     cw = c["client"] - c["wifi"] if "client" in c and "wifi" in c else ""
     sc = c["state"] - c["client"] if "state" in c and "client" in c else ""
     print(
-        f"{i:>2} {c.get('wifi', ''):>8} {dial:>9} {c.get('client', ''):>10} {c.get('state', ''):>9} {cw:>11} {sc:>12}  {c.get('who', '')}"
+        f"{i:>2} {c.get('wifi', ''):>8} {dial:>9} {c.get('client', ''):>10} {c.get('state', ''):>9} {cw:>11} {sc:>12}  {c.get('who', '')}  {c.get('reset', '')[:28]}"
     )
 for c in cycles:
     if "client" in c and "wifi" in c:
