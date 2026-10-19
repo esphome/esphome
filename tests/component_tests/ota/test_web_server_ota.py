@@ -60,18 +60,21 @@ def test_web_server_ota_idf_multipart(generate_main: Callable[[str], str]) -> No
     assert "web_server::WebServerOTAComponent" in main_cpp
 
 
-def test_web_server_ota_without_web_server_fails(
-    generate_main: Callable[[str], str],
-) -> None:
-    """Test that web_server OTA requires web_server component."""
-    # This should fail during validation since web_server_base is required
-    # but we can't test validation failures with generate_main
-    # Instead, verify that both components are needed in valid config
-    main_cpp = generate_main("tests/component_tests/ota/test_web_server_ota.yaml")
-
-    # Both web server and OTA components should be present
-    assert "WebServer" in main_cpp
-    assert "WebServerOTAComponent" in main_cpp
+def test_web_server_ota_without_web_server_fails() -> None:
+    """Web server OTA refuses a configuration without the HTTP server."""
+    ota_config = {
+        CONF_PLATFORM: CONF_WEB_SERVER,
+        CONF_ID: ID("ota_web", is_manual=False),
+    }
+    token = fv.full_config.set({CONF_OTA: [ota_config]})
+    try:
+        with pytest.raises(
+            cv.Invalid,
+            match="web_server OTA platform requires the 'web_server:' component",
+        ):
+            _web_server_ota_final_validate(ota_config)
+    finally:
+        fv.full_config.reset(token)
 
 
 def test_multiple_ota_platforms(generate_main: Callable[[str], str]) -> None:
@@ -171,7 +174,7 @@ def test_web_server_ota_instance_merging(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test web_server OTA instance merging behavior."""
-    full_conf = {CONF_OTA: ota_configs.copy()}
+    full_conf = {CONF_WEB_SERVER: {}, CONF_OTA: ota_configs.copy()}
 
     token = fv.full_config.set(full_conf)
     try:
@@ -211,7 +214,7 @@ def test_web_server_ota_consistent_manual_ids(
         },
     ]
 
-    full_conf = {CONF_OTA: ota_configs}
+    full_conf = {CONF_WEB_SERVER: {}, CONF_OTA: ota_configs}
 
     token = fv.full_config.set(full_conf)
     try:
@@ -242,7 +245,7 @@ def test_web_server_ota_inconsistent_manual_ids() -> None:
         },
     ]
 
-    full_conf = {CONF_OTA: ota_configs}
+    full_conf = {CONF_WEB_SERVER: {}, CONF_OTA: ota_configs}
 
     token = fv.full_config.set(full_conf)
     try:
