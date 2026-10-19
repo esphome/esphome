@@ -219,7 +219,9 @@ async def to_code(config):
             start_condition := pipeline_config.get(CONF_START_CONDITION)
         ):
             cg.add(
-                setter(await cg.process_lambda(start_condition, [], return_type=cg.bool_))
+                setter(
+                    await cg.process_lambda(start_condition, [], return_type=cg.bool_)
+                )
             )
 
     if on_mute := config.get(CONF_ON_MUTE):
