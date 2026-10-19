@@ -295,11 +295,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
 
-    if (sens := config.get(CONF_SENSOR)) is not None:
-        cg.add(var.set_sensor(await cg.get_variable(sens)))
-
-    if (sens := config.get(CONF_HUMIDITY_SENSOR)) is not None:
-        cg.add(var.set_humidity_sensor(await cg.get_variable(sens)))
+    await cg.add_variable(var.set_sensor, config.get(CONF_SENSOR))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     for key, flag in (
         (CONF_SUPPORTS_ACTION, climate_ns.CLIMATE_SUPPORTS_ACTION),

@@ -288,12 +288,10 @@ bool QMP6988Component::calculate_pressure_() {
   int32_t t_int, p_int;
 
   err = this->read_register(QMP6988_PRESSURE_MSB_REG, a_data_uint8_tr, 6);
-  if (err != i2c::ERROR_OK) {
+  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "Error reading raw pressure/temp values");
-    this->status_set_warning();
     return false;
   }
-  this->status_clear_warning();
 
   p_read = encode_uint24(a_data_uint8_tr[0], a_data_uint8_tr[1], a_data_uint8_tr[2]);
   p_raw = (int32_t) (p_read - SUBTRACTOR);

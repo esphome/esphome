@@ -1,8 +1,4 @@
-"""Integration test for light::ToggleAction.
-
-Tests both ToggleAction<HasTransitionLength=false> and
-ToggleAction<HasTransitionLength=true> instantiations.
-"""
+"""Integration test for the light.toggle action, with and without transition_length."""
 
 from __future__ import annotations
 
