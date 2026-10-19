@@ -71,7 +71,6 @@ void TsdbComponent::setup() {
     this->mark_failed(LOG_STR("no columns configured"));
     return;
   }
-  // Size the write buffer once so write_record_() never allocates.
   this->values_.reserve(this->columns_.size());
   if (!this->mount_filesystem_()) {
     this->mark_failed(LOG_STR("mounting the LittleFS partition"));
@@ -82,7 +81,6 @@ void TsdbComponent::setup() {
     this->mark_failed(LOG_STR("opening the database"));
     return;
   }
-  // A handle that opened without readable statistics was already dropped again.
   if (this->db_ != nullptr) {
     ESP_LOGI(TAG, "%s: history opened", this->file_.c_str());
   }
@@ -107,7 +105,6 @@ bool TsdbComponent::mount_filesystem_() {
              this->partition_label_.c_str());
     return false;
   }
-  // A stale, smaller partition would make max_file_size wrong (later ENOSPC).
   if (partition->size < this->partition_size_) {
     ESP_LOGE(TAG, "%s: partition '%s' is %" PRIu32 " bytes but %" PRIu32 " configured - flash the partition table",
              this->file_.c_str(), this->partition_label_.c_str(), static_cast<uint32_t>(partition->size),
@@ -268,7 +265,6 @@ void TsdbComponent::invalidate_database_(const LogString *reason) {
 void TsdbComponent::reopen_if_lost_() {
   if (!this->db_lost_)
     return;
-  // A failed open logs an error, so retry at most every REOPEN_RETRY_MS.
   const uint32_t now = App.get_loop_component_start_time();
   if (this->last_reopen_ != 0 && now - this->last_reopen_ < REOPEN_RETRY_MS)
     return;
@@ -293,44 +289,39 @@ void TsdbComponent::update() {
   this->flush_(false);
 }
 
-bool TsdbComponent::write_record_() {
+bool TsdbComponent::resolve_timestamp_(uint32_t *timestamp) {
   // Any synced time platform also sets the system clock, so ::time() is a usable fallback.
-  uint32_t timestamp = static_cast<uint32_t>(::time(nullptr));
-  bool have_time = tsdbmath::is_valid_timestamp(timestamp);
+  uint32_t value = static_cast<uint32_t>(::time(nullptr));
+  bool have_time = tsdbmath::is_valid_timestamp(value);
 #ifdef USE_TIME
   if (this->time_ != nullptr) {
     const ESPTime now = this->time_->now();
     if (now.is_valid()) {
-      timestamp = static_cast<uint32_t>(now.timestamp);
+      value = static_cast<uint32_t>(now.timestamp);
       have_time = true;
     }
   }
 #endif
-
-  if (!have_time) {
-    // The uptime offset below is applied only when a real time is not required.
-    if (this->require_time_) {
-      if (!this->warned_time_) {
-        this->warned_time_ = true;
-        ESP_LOGW(TAG, "%s: no valid time yet - no record written", this->file_.c_str());
-      }
-      // Count the skipped interval so a clock that never syncs is visible.
-      this->dropped_++;
-      this->status_set_warning(LOG_STR("no valid time yet"));
-      return false;
+  if (have_time) {
+    this->warned_time_ = false;
+  } else if (this->require_time_) {
+    if (!this->warned_time_) {
+      this->warned_time_ = true;
+      ESP_LOGW(TAG, "%s: no valid time yet - no record written", this->file_.c_str());
     }
+    this->dropped_++;
+    this->status_set_warning(LOG_STR("no valid time yet"));
+    return false;
+  } else {
     // Without a clock the value is seconds since boot, so the offset continues the series.
-    timestamp += this->uptime_offset_;
+    value += this->uptime_offset_;
     if (!this->warned_time_) {
       this->warned_time_ = true;
       ESP_LOGW(TAG, "%s: no valid time yet - storing an uptime timestamp", this->file_.c_str());
     }
-  } else {
-    this->warned_time_ = false;
   }
-
   // Records are ordered by timestamp, so refuse one that sorts before the newest stored.
-  if (this->last_timestamp_ != 0 && timestamp < this->last_timestamp_) {
+  if (this->last_timestamp_ != 0 && value < this->last_timestamp_) {
     if (!this->warned_backwards_) {
       this->warned_backwards_ = true;
       ESP_LOGW(TAG, "%s: time is earlier than the last stored record - no record written", this->file_.c_str());
@@ -339,10 +330,12 @@ bool TsdbComponent::write_record_() {
     this->status_set_warning(LOG_STR("clock moved back"));
     return false;
   }
+  *timestamp = value;
+  return true;
+}
 
+bool TsdbComponent::collect_values_(const LogString *&degraded) {
   this->values_.clear();
-  // The first value that needed a substitute decides the warning reason of this record.
-  const LogString *degraded = nullptr;
   for (TsdbColumn &column : this->columns_) {
     const bool has_value =
         column.source != nullptr && column.source->has_state() && !tsdbmath::is_missing(column.source->state);
@@ -368,7 +361,6 @@ bool TsdbComponent::write_record_() {
       continue;
     }
     if (this->missing_policy_ == tsdbmath::MISSING_HOLD && column.held != tsdbmath::RAW_UNKNOWN) {
-      // A held value is a stale one: count it so data loss stays visible.
       this->held_++;
       if (!column.hold_warned) {
         column.hold_warned = true;
@@ -380,7 +372,6 @@ bool TsdbComponent::write_record_() {
       continue;
     }
     if (this->missing_policy_ == tsdbmath::MISSING_SENTINEL) {
-      // An unknown value is not a healthy one: count it and say so once per column.
       this->sentinel_++;
       if (!column.sentinel_warned) {
         column.sentinel_warned = true;
@@ -402,6 +393,18 @@ bool TsdbComponent::write_record_() {
     this->status_set_warning(LOG_STR("a column has no value"));
     return false;
   }
+  return true;
+}
+
+bool TsdbComponent::write_record_() {
+  uint32_t timestamp = 0;
+  if (!this->resolve_timestamp_(&timestamp))
+    return false;
+
+  // The first value that needed a substitute decides the warning reason of this record.
+  const LogString *degraded = nullptr;
+  if (!this->collect_values_(degraded))
+    return false;
 
   const esp_err_t err = tsdb_write_h(static_cast<tsdb_t *>(this->db_), timestamp, this->values_.data());
   if (err != ESP_OK) {
@@ -444,7 +447,6 @@ void TsdbComponent::flush_(bool force) {
     ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
     // A later successful write must not clear this: only a sync that works may.
     this->status_set_warning(LOG_STR("syncing the history failed"));
-    // A failed sync closes the handle; reopen rather than write into a dead database.
     if (!tsdb_is_initialized_h(static_cast<tsdb_t *>(this->db_)))
       this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
     return;
