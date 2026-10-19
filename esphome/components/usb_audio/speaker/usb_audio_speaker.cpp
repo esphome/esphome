@@ -63,6 +63,8 @@ void USBAudioSpeaker::loop() {
     this->unreported_frames_ = 0;
     this->report_frames_pending_ = 0;
     this->last_finish_us_ = 0;
+    // The idle window for a tail flush starts now, not at the last take of the previous stream.
+    this->last_taken_us_ = static_cast<uint32_t>(esp_timer_get_time());
     portEXIT_CRITICAL(&this->taken_lock_);
     this->state_ = speaker::STATE_STARTING;
     // Answers through on_stream_state() now or once the device connects.
@@ -103,7 +105,8 @@ bool USBAudioSpeaker::flush_tail_() {
     return false;
   }
   const auto since_taken_us = static_cast<int32_t>(static_cast<uint32_t>(esp_timer_get_time()) - this->last_taken_us_);
-  if (since_taken_us < static_cast<int32_t>(this->in_flight_us_)) {
+  // A write in progress appends after the padding; play_internal_() wakes the loop again when it is done.
+  if (since_taken_us < static_cast<int32_t>(this->in_flight_us_) || this->writes_in_flight_ > 0) {
     return true;
   }
   this->pad_remaining_ = this->transfer_bytes_ - this->ring_bytes_;
