@@ -82,7 +82,7 @@ CONFIG_SCHEMA = (
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.All(
-                pressure_hpa, cv.Any(0, cv.float_range(min=700, max=1200))
+                pressure_hpa, cv.Any(cv.float_range(min=700, max=1200), 0)
             ),
             cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature_delta,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(

@@ -24,3 +24,9 @@ sensor:
     co2:
       name: SCD4X CO2 (bar)
     ambient_pressure_compensation: 0.961bar
+  - platform: scd4x
+    i2c_id: i2c_bus
+    co2:
+      name: SCD4X CO2 (altitude only)
+    altitude_compensation: 500m
+    ambient_pressure_compensation: 0
