@@ -20,8 +20,7 @@ void WaveshareIOCH32V003Component::setup() {
   bool step2 = this->write_gpio_outputs_();
 
   if (!step1 || !step2) {
-    ESP_LOGE(TAG, "Failed to initialize Waveshare IO expander");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to initialize Waveshare IO expander"));
     return;
   }
 
@@ -46,21 +45,17 @@ void WaveshareIOCH32V003Component::loop() { this->reset_pin_cache_(); }
 void WaveshareIOCH32V003Component::dump_config() {
   ESP_LOGCONFIG(TAG, "WaveshareIO:");
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 uint16_t WaveshareIOCH32V003Component::get_adc_value() {
   if (this->is_failed())
     return 0;
 
-  uint8_t data[2];
-  if (!this->read_bytes(IO_EXTENSION_ADC_ADDR, data, 2)) {
+  uint16_t adc_value;
+  if (!this->read_byte_16_le(IO_EXTENSION_ADC_ADDR, &adc_value)) {
     this->status_set_warning(LOG_STR("Failed to read ADC register"));
     return 0;
   }
-  uint16_t adc_value = (data[1] << 8) | data[0];
   this->status_clear_warning();
   return adc_value;
 }

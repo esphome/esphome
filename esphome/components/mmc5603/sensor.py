@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
     CONF_HEADING,
-    CONF_ID,
     CONF_UPDATE_INTERVAL,
     ICON_MAGNET,
     ICON_SCREEN_ROTATION,
@@ -77,9 +76,7 @@ def auto_data_rate(config: ConfigType) -> MockObj:
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_datarate(auto_data_rate(config)))
     sensors = sensor.sub_sensors(config)
