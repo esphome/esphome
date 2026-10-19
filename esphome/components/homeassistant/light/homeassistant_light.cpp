@@ -301,7 +301,7 @@ void HomeassistantLight::update_state(LightState *state) {
 
 bool HomeassistantLight::is_imported_(const Attributes &outgoing) const {
   const Attributes &imported = this->imported_;
-  if (imported.state != outgoing.state) {
+  if (!outgoing.state.has_value() || imported.state != outgoing.state) {
     return false;
   }
   if (!*outgoing.state) {
