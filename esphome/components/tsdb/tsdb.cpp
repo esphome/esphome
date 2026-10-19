@@ -439,9 +439,9 @@ bool TsdbComponent::write_record_() {
 void TsdbComponent::flush_(bool force) {
   if (this->db_ == nullptr)
     return;
-  const uint32_t now = App.get_loop_component_start_time();
-  if (!force && !this->dirty_)
+  if (!this->dirty_)
     return;
+  const uint32_t now = App.get_loop_component_start_time();
   if (!force && this->last_sync_ != 0 && this->sync_interval_ > 0 && now - this->last_sync_ < this->sync_interval_)
     return;
   this->last_sync_ = now == 0 ? 1 : now;
