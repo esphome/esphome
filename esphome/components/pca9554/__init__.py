@@ -72,7 +72,7 @@ DRIVE_STRENGTHS = {0.25: 0, 0.5: 1, 0.75: 2, 1.0: 3}
 def _validate_hub(config: ConfigType) -> ConfigType:
     count = config.get(CONF_PIN_COUNT)
     if (device := config.get(CONF_DEVICE)) is None:
-        device = config[CONF_DEVICE] = _LEGACY_DEVICES[config.get(CONF_PIN_COUNT, 8)]
+        device = config[CONF_DEVICE] = _LEGACY_DEVICES[8 if count is None else count]
     elif count is not None and count != DEVICES[device].pins:
         raise cv.Invalid(
             f"'{CONF_PIN_COUNT}' ({count}) does not match the {DEVICES[device].pins} "
