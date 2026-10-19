@@ -117,12 +117,9 @@ void ATM90E32Component::loop() {
 }
 
 void ATM90E32Component::update() {
-  if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read16_(ATM90E32_REGISTER_METEREN) == 1, nullptr))
     return;
-  }
   this->set_publish_interval_flag_(true);
-  this->status_clear_warning();
 
 #ifdef USE_TEXT_SENSOR
   this->check_phase_status();
