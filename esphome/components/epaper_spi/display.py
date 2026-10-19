@@ -243,20 +243,11 @@ async def to_code(config):
     config = await model.to_code(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
+    await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
-    if busy_pin := config.get(CONF_BUSY_PIN):
-        busy = await cg.gpio_pin_expression(busy_pin)
-        cg.add(var.set_busy_pin(busy))
+    await display.add_writer(var, config)
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    await cg.add_pin(var.set_busy_pin, config.get(CONF_BUSY_PIN))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))

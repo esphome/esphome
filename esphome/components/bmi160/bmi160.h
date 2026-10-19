@@ -34,9 +34,6 @@ class BMI160Component final : public PollingComponent, public i2c::I2CDevice {
   /// Run one setup stage; false on an I2C failure.
   bool setup_stage_(int stage);
   bool setup_complete_{false};
-
-  /** reads `len` 16-bit little-endian integers from the given i2c register */
-  i2c::ErrorCode read_le_int16_(uint8_t reg, int16_t *value, uint8_t len);
 };
 
 }  // namespace esphome::bmi160

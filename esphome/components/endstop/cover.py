@@ -43,15 +43,13 @@ async def to_code(config: ConfigType) -> None:
         var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
     )
 
-    bin = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
-    cg.add(var.set_open_endstop(bin))
+    await cg.add_variable(var.set_open_endstop, config[CONF_OPEN_ENDSTOP])
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     await automation.build_automation(
         var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
     )
 
-    bin = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
-    cg.add(var.set_close_endstop(bin))
+    await cg.add_variable(var.set_close_endstop, config[CONF_CLOSE_ENDSTOP])
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     await automation.build_automation(
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]

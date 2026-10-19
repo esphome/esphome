@@ -221,8 +221,7 @@ async def to_code(config):
     if CONF_TRANSMITTER_ID in config:
         remote_base.request_protocol("midea")  # ir_transmitter.h uses it from C++
         cg.add_define("USE_REMOTE_TRANSMITTER")
-        transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
-        cg.add(var.set_transmitter(transmitter_))
+        await cg.add_variable(var.set_transmitter, config[CONF_TRANSMITTER_ID])
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
     cg.add(var.set_display_control(config[CONF_DISPLAY_CONTROL]))
