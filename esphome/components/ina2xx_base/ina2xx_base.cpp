@@ -172,11 +172,7 @@ void INA2XX::loop() {
         break;
 
       case State::DATA_COLLECTION_8:
-        if (this->full_loop_is_okay_) {
-          this->status_clear_warning();
-        } else {
-          this->status_set_warning();
-        }
+        this->status_comm_result(this->full_loop_is_okay_);
         this->state_ = State::IDLE;
         break;
 

@@ -8,6 +8,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_ALLOW_OTHER_USES,
+    CONF_ID,
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INPUT,
     CONF_INVERTED,
@@ -19,9 +20,10 @@ from esphome.const import (
     CONF_PULLUP,
 )
 from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.schema_extractors import schema_extractor
+from esphome.types import ConfigType, SafeExpType
 
 
 class PinRegistry(dict):
@@ -346,6 +348,38 @@ def gpio_validate_modes(value):
     if not value[CONF_INPUT] and not value[CONF_OUTPUT]:
         raise cv.Invalid("Mode must be input or output")
     return value
+
+
+def gpio_validate_input_xor_output(value: dict[str, bool]) -> dict[str, bool]:
+    """Mode validator for pins that are either an input or an output, never both."""
+    if value[CONF_INPUT] == value[CONF_OUTPUT]:
+        raise cv.Invalid("Mode must be either input or output")
+    return value
+
+
+def gpio_validate_input_xor_output_pullup(value: dict[str, bool]) -> dict[str, bool]:
+    """``gpio_validate_input_xor_output`` for chips whose pull-up only works on inputs."""
+    gpio_validate_input_xor_output(value)
+    if value[CONF_PULLUP] and not value[CONF_INPUT]:
+        raise cv.Invalid("Pullup only available with input")
+    return value
+
+
+async def new_parented_pin(
+    config: ConfigType, parent_key: str, *args: SafeExpType
+) -> MockObj:
+    """Create a pin parented to ``config[parent_key]`` and set its number, inversion and mode flags.
+
+    ``args`` go to ``cg.new_Pvariable``, e.g. ``cg.TemplateArguments`` for a templated pin class.
+    """
+    import esphome.codegen as cg
+
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await cg.register_parented(var, config[parent_key])
+    cg.add(var.set_pin(config[CONF_NUMBER]))
+    cg.add(var.set_inverted(config[CONF_INVERTED]))
+    cg.add(var.set_flags(gpio_flags_expr(config[CONF_MODE])))
+    return var
 
 
 def gpio_base_schema(

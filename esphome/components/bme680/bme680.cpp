@@ -284,7 +284,7 @@ uint8_t BME680Component::calc_heater_duration_(uint16_t duration) {
 }
 void BME680Component::read_data_() {
   uint8_t data[15];
-  if (!this->read_bytes(BME680_REGISTER_FIELD0, data, 15)) {
+  if (!this->status_comm_result(this->read_bytes(BME680_REGISTER_FIELD0, data, 15))) {
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(NAN);
     if (this->pressure_sensor_ != nullptr)
@@ -294,10 +294,8 @@ void BME680Component::read_data_() {
     if (this->gas_resistance_sensor_ != nullptr)
       this->gas_resistance_sensor_->publish_state(NAN);
     ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
     return;
   }
-  this->status_clear_warning();
 
   uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
   uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);

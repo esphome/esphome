@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DATA,
@@ -16,9 +17,7 @@ from esphome.types import ConfigType
 from . import (
     CONF_ENCRYPTION,
     CONF_PING_PONG_ENABLE,
-    CONF_PROVIDER,
     CONF_PROVIDERS,
-    CONF_REMOTE_ID,
     CONF_TRANSPORT_ID,
     PacketTransport,
     packet_transport_sensor_schema,
