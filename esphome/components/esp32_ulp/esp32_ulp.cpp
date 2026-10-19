@@ -1,6 +1,6 @@
 #include "esp32_ulp.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && (SOC_RISCV_COPROC_SUPPORTED || SOC_LP_CORE_SUPPORTED)
 
 #include "esphome/core/log.h"
 
@@ -10,8 +10,8 @@
 #include <ulp_riscv.h>
 #endif
 
-extern const uint8_t ulp_main_bin_start[] asm("_binary_ulp_main_bin_start");
-extern const uint8_t ulp_main_bin_end[] asm("_binary_ulp_main_bin_end");
+extern const uint8_t ULP_MAIN_BIN_START[] asm("_binary_ulp_main_bin_start");
+extern const uint8_t ULP_MAIN_BIN_END[] asm("_binary_ulp_main_bin_end");
 
 namespace esphome::esp32_ulp {
 
@@ -62,16 +62,16 @@ void ESP32ULP::dump_config() {
                 "  Run on boot: %s\n"
                 "  Wakeup from sleep: %s\n"
                 "  Loaded: %s",
-                BACKEND, static_cast<unsigned>(ulp_main_bin_end - ulp_main_bin_start), this->wakeup_period_us_,
+                BACKEND, static_cast<unsigned>(ULP_MAIN_BIN_END - ULP_MAIN_BIN_START), this->wakeup_period_us_,
                 YESNO(this->run_on_boot_), YESNO(this->wakeup_from_sleep_), YESNO(this->loaded_));
 }
 
 bool ESP32ULP::load_and_run() {
-  const size_t size = ulp_main_bin_end - ulp_main_bin_start;
+  const size_t size = ULP_MAIN_BIN_END - ULP_MAIN_BIN_START;
 #if SOC_RISCV_COPROC_SUPPORTED
-  esp_err_t err = ulp_riscv_load_binary(ulp_main_bin_start, size);
+  esp_err_t err = ulp_riscv_load_binary(ULP_MAIN_BIN_START, size);
 #else
-  esp_err_t err = ulp_lp_core_load_binary(ulp_main_bin_start, size);
+  esp_err_t err = ulp_lp_core_load_binary(ULP_MAIN_BIN_START, size);
 #endif
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Loading the program failed: %s", esp_err_to_name(err));
@@ -119,4 +119,4 @@ void ESP32ULP::timer_resume() {
 
 }  // namespace esphome::esp32_ulp
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 && (SOC_RISCV_COPROC_SUPPORTED || SOC_LP_CORE_SUPPORTED)

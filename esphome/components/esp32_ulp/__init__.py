@@ -8,6 +8,7 @@ from pathlib import Path
 
 import esphome.codegen as cg
 from esphome.components import esp32
+from esphome.components.const import CONF_SOURCES
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
@@ -30,7 +31,6 @@ CODEOWNERS = ["@swoboda1337"]
 DEPENDENCIES = ["esp32"]
 DOMAIN = "esp32_ulp"
 
-CONF_SOURCES = "sources"
 CONF_WAKEUP_PERIOD = "wakeup_period"
 CONF_WAKEUP_SOURCES = "wakeup_sources"
 CONF_RESERVE_MEMORY = "reserve_memory"

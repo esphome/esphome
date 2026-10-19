@@ -1,6 +1,6 @@
 esp32_ulp:
   sources:
-    - ulp/main.c
+    - $component_dir/ulp/main.c
   wakeup_period: 100ms
   reserve_memory: 4096
 
