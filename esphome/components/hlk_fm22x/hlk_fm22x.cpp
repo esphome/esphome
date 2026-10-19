@@ -192,7 +192,7 @@ void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
         int16_t info[8];
         uint8_t offset = 1;
         for (int16_t &i : info) {
-          i = ((int16_t) data[offset + 1] << 8) | data[offset];
+          i = encode_value_le<int16_t>(&data[offset]);
           offset += 2;
         }
         ESP_LOGV(TAG, "Face state: status: %d, left: %d, top: %d, right: %d, bottom: %d, yaw: %d, pitch: %d, roll: %d",
@@ -259,7 +259,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
         ESP_LOGE(TAG, "VERIFY response too short: %zu bytes", length);
         break;
       }
-      int16_t face_id = ((int16_t) data[2] << 8) | data[3];
+      int16_t face_id = encode_value<int16_t>(&data[2]);
       const char *name_ptr = reinterpret_cast<const char *>(data + 4);
       ESP_LOGD(TAG, "Face verified. ID: %d, name: %.*s", face_id, (int) HLK_FM22X_NAME_SIZE, name_ptr);
       if (this->last_face_id_sensor_ != nullptr) {
@@ -272,7 +272,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
       break;
     }
     case HlkFm22xCommand::ENROLL: {
-      int16_t face_id = ((int16_t) data[2] << 8) | data[3];
+      int16_t face_id = encode_value<int16_t>(&data[2]);
       HlkFm22xFaceDirection direction = (HlkFm22xFaceDirection) data[4];
       ESP_LOGI(TAG, "Face enrolled. ID: %d, Direction: 0x%.2X", face_id, direction);
       this->enrollment_done_callback_.call(face_id, (uint8_t) direction);

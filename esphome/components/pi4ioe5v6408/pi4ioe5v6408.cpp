@@ -105,15 +105,13 @@ bool PI4IOE5V6408Component::read_gpio_modes_() {
     return false;
 
   uint8_t data;
-  if (!this->read_byte(PI4IOE5V6408_REGISTER_IO_DIR, &data)) {
-    this->status_set_warning(LOG_STR("Failed to read GPIO modes"));
+  if (!this->status_comm_result(this->read_byte(PI4IOE5V6408_REGISTER_IO_DIR, &data),
+                                LOG_STR("Failed to read GPIO modes")))
     return false;
-  }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "Read GPIO modes: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(data));
 #endif
   this->mode_mask_ = data;
-  this->status_clear_warning();
   return true;
 }
 
@@ -140,14 +138,12 @@ void PI4IOE5V6408Component::digital_write_hw(uint8_t pin, bool value) {
   } else {
     this->output_mask_ &= ~(1 << pin);
   }
-  if (!this->write_byte(PI4IOE5V6408_REGISTER_OUT_SET, this->output_mask_)) {
-    this->status_set_warning(LOG_STR("Failed to write output register"));
+  if (!this->status_comm_result(this->write_byte(PI4IOE5V6408_REGISTER_OUT_SET, this->output_mask_),
+                                LOG_STR("Failed to write output register")))
     return;
-  }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG, "Wrote GPIO output: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(this->output_mask_));
 #endif
-  this->status_clear_warning();
 }
 
 bool PI4IOE5V6408Component::write_gpio_modes_() {
