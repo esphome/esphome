@@ -96,11 +96,8 @@ void RX8111Component::write_time() {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  if (!this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_result(this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS)))
     return;
-  }
-  this->status_clear_warning();
   ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
            now.minute, now.second);
 }

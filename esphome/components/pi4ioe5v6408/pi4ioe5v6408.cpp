@@ -90,13 +90,11 @@ bool PI4IOE5V6408Component::read_gpio_outputs_() {
   if (this->is_failed())
     return false;
 
-  uint8_t data;
-  if (!this->read_byte(PI4IOE5V6408_REGISTER_OUT_SET, &data)) {
-    this->status_set_warning(LOG_STR("Failed to read output register"));
+  uint8_t data{0};
+  if (!this->status_comm_result(this->read_byte(PI4IOE5V6408_REGISTER_OUT_SET, &data),
+                                LOG_STR("Failed to read output register")))
     return false;
-  }
   this->output_mask_ = data;
-  this->status_clear_warning();
   return true;
 }
 
@@ -104,7 +102,7 @@ bool PI4IOE5V6408Component::read_gpio_modes_() {
   if (this->is_failed())
     return false;
 
-  uint8_t data;
+  uint8_t data{0};
   if (!this->status_comm_result(this->read_byte(PI4IOE5V6408_REGISTER_IO_DIR, &data),
                                 LOG_STR("Failed to read GPIO modes")))
     return false;
@@ -119,13 +117,11 @@ bool PI4IOE5V6408Component::digital_read_hw(uint8_t pin) {
   if (this->is_failed())
     return false;
 
-  uint8_t data;
-  if (!this->read_byte(PI4IOE5V6408_REGISTER_IN_STATE, &data)) {
-    this->status_set_warning(LOG_STR("Failed to read GPIO state"));
+  uint8_t data{0};
+  if (!this->status_comm_result(this->read_byte(PI4IOE5V6408_REGISTER_IN_STATE, &data),
+                                LOG_STR("Failed to read GPIO state")))
     return false;
-  }
   this->input_mask_ = data;
-  this->status_clear_warning();
   return true;
 }
 
