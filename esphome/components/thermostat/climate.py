@@ -716,9 +716,7 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_sensor(sens))
 
-    if CONF_HUMIDITY_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
-        cg.add(var.set_humidity_sensor(sens))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
     cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))

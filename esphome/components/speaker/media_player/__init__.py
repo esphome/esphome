@@ -189,8 +189,9 @@ async def to_code(config):
         cg.add(var.set_announcement_volume(announcement_volume))
 
     announcement_pipeline_config = config[CONF_ANNOUNCEMENT_PIPELINE]
-    spkr = await cg.get_variable(announcement_pipeline_config[CONF_SPEAKER])
-    cg.add(var.set_announcement_speaker(spkr))
+    await cg.add_variable(
+        var.set_announcement_speaker, announcement_pipeline_config[CONF_SPEAKER]
+    )
     if announcement_pipeline_config[CONF_FORMAT] != "NONE":
         cg.add(
             var.set_announcement_format(
@@ -201,8 +202,9 @@ async def to_code(config):
         )
 
     if media_pipeline_config := config.get(CONF_MEDIA_PIPELINE):
-        spkr = await cg.get_variable(media_pipeline_config[CONF_SPEAKER])
-        cg.add(var.set_media_speaker(spkr))
+        await cg.add_variable(
+            var.set_media_speaker, media_pipeline_config[CONF_SPEAKER]
+        )
         if media_pipeline_config[CONF_FORMAT] != "NONE":
             cg.add(
                 var.set_media_format(

@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import audio, media_player, media_source, speaker
 from esphome.components.const import (
     CONF_ANNOUNCEMENT_VOLUME,
+    CONF_SOURCES,
     CONF_VOLUME_INCREMENT,
     CONF_VOLUME_INITIAL,
     CONF_VOLUME_MAX,
@@ -31,7 +32,6 @@ CONF_ON_MUTE = "on_mute"
 CONF_PIPELINE = "pipeline"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
-CONF_SOURCES = "sources"
 
 speaker_source_ns = cg.esphome_ns.namespace("speaker_source")
 

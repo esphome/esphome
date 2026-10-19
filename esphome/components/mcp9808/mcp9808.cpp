@@ -68,14 +68,11 @@ void MCP9808Sensor::update() {
     temp = (uint16_t) (msb) *16 + lsb / 16.0f;
   }
 
-  if (std::isnan(temp)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(!std::isnan(temp), nullptr))
     return;
-  }
 
   ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", this->name_.c_str(), temp);
   this->publish_state(temp);
-  this->status_clear_warning();
 }
 
 }  // namespace esphome::mcp9808
