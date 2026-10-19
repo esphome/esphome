@@ -15,12 +15,12 @@ def test_mixed_entities_state_subscription_count(
     generate_main(DIR / "mixed_entities.yaml")
 
     # sensor (2*1) + binary_sensor (1) + text_sensor (1) + switch (1)
-    # + select (2) + number (4) + text (4) + button (0) = 15
+    # + select (2) + number (4) + text (4) + button (0) + light (8) = 23
     define_match = [
         d for d in CORE.defines if d.name == "HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT"
     ]
     assert len(define_match) == 1
-    assert str(define_match[0].value) == "15"
+    assert str(define_match[0].value) == "23"
     assert any(d.name == "USE_API_HOMEASSISTANT_STATES" for d in CORE.defines)
 
 

@@ -1,5 +1,7 @@
 """Unit tests for esphome/pins.py."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 from esphome import config_validation as cv, pins
@@ -108,3 +110,59 @@ def test_use_id_or_address_registers_as_use_id_schema(monkeypatch) -> None:
     validator = pins.use_id_or_address(SomeHub)
 
     assert schema_extractors.hidden_schemas.get(repr(validator)) == "use_id"
+
+
+def _mode(input_: bool, output: bool, pullup: bool = False) -> dict[str, bool]:
+    return {"input": input_, "output": output, "pullup": pullup}
+
+
+@pytest.mark.parametrize(("input_", "output"), [(True, False), (False, True)])
+def test_input_xor_output_accepts_one(input_: bool, output: bool) -> None:
+    mode = _mode(input_, output)
+    assert pins.gpio_validate_input_xor_output(mode) is mode
+
+
+@pytest.mark.parametrize(("input_", "output"), [(True, True), (False, False)])
+def test_input_xor_output_rejects_both_or_neither(input_: bool, output: bool) -> None:
+    with pytest.raises(cv.Invalid, match="either input or output"):
+        pins.gpio_validate_input_xor_output(_mode(input_, output))
+
+
+def test_input_xor_output_pullup_allows_input_pullup() -> None:
+    mode = _mode(True, False, pullup=True)
+    assert pins.gpio_validate_input_xor_output_pullup(mode) is mode
+
+
+def test_input_xor_output_pullup_rejects_output_pullup() -> None:
+    with pytest.raises(cv.Invalid, match="Pullup only available with input"):
+        pins.gpio_validate_input_xor_output_pullup(_mode(False, True, pullup=True))
+
+
+def test_input_xor_output_pullup_still_requires_one_mode() -> None:
+    with pytest.raises(cv.Invalid, match="either input or output"):
+        pins.gpio_validate_input_xor_output_pullup(_mode(True, True))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("args", [(), ("templ",)])
+async def test_new_parented_pin(args: tuple[str, ...]) -> None:
+    config = {
+        "id": "pin_id",
+        "hub": "hub_id",
+        "number": 5,
+        "inverted": True,
+        "mode": {"input": True, "output": False},
+    }
+    var = MagicMock()
+    with (
+        patch("esphome.codegen.new_Pvariable", return_value=var) as new_pvariable,
+        patch("esphome.codegen.register_parented", new=AsyncMock()) as parented,
+        patch("esphome.codegen.add") as add,
+    ):
+        assert await pins.new_parented_pin(config, "hub", *args) is var
+    new_pvariable.assert_called_once_with("pin_id", *args)
+    parented.assert_awaited_once_with(var, "hub_id")
+    var.set_pin.assert_called_once_with(5)
+    var.set_inverted.assert_called_once_with(True)
+    var.set_flags.assert_called_once()
+    assert add.call_count == 3

@@ -291,11 +291,8 @@ void LIS2DW12Component::loop() {
 
   // SIXD_SRC and ALL_INT_SRC are adjacent, so one read captures both before any latch clears
   uint8_t regs[2];
-  if (!this->read_bytes(static_cast<uint8_t>(RegisterMap::SIXD_SRC), regs, sizeof(regs))) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_bytes(static_cast<uint8_t>(RegisterMap::SIXD_SRC), regs, sizeof(regs))))
     return;
-  }
-  this->status_clear_warning();
   RegSixdSrc sixd;
   sixd.raw = regs[0];
   RegAllIntSrc src;
@@ -315,11 +312,9 @@ void LIS2DW12Component::loop() {
 }
 
 void LIS2DW12Component::update() {
-  float x, y, z;
-  if (!this->read_acceleration_data_(x, y, z)) {
-    this->status_set_warning();
+  float x{}, y{}, z{};
+  if (!this->status_comm_result(this->read_acceleration_data_(x, y, z)))
     return;
-  }
 
   ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s², y = %+1.3f m/s², z = %+1.3f m/s²}", x, y, z);
 
@@ -331,8 +326,6 @@ void LIS2DW12Component::update() {
   if (this->acceleration_z_sensor_ != nullptr)
     this->acceleration_z_sensor_->publish_state(z);
 #endif
-
-  this->status_clear_warning();
 }
 
 void LIS2DW12Component::set_offset(float offset_x, float offset_y, float offset_z) {

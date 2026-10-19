@@ -5,6 +5,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_REMOTE_ID
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -72,7 +73,6 @@ CONF_CONTROL = "control"
 CONF_CONTROL_IN_KEY = "control_in_key"
 CONF_ROLLING_CODE = "rolling_code"
 CONF_EXTENSION = "extension"
-CONF_REMOTE_ID = "remote_id"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")

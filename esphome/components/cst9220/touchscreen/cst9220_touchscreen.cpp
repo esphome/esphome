@@ -87,12 +87,10 @@ void CST9220Touchscreen::update_touches() {
   // Only an actual I2C failure should skip the update; a successful read with no
   // touches is a real "all fingers lifted" state that must flow through so the
   // base class can generate the release event.
-  if (this->read_register16(REG_TOUCH_DATA, data, sizeof(data)) != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_register16(REG_TOUCH_DATA, data, sizeof(data)) == i2c::ERROR_OK)) {
     this->skip_update_ = true;
     return;
   }
-  this->status_clear_warning();
 
   // Acknowledge the report so the controller can prepare the next one.
   uint8_t ack = TOUCH_ACK;

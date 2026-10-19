@@ -72,15 +72,15 @@ async def to_code(config: ConfigType) -> None:
 
     if (is_on := config.get(CONF_IS_ON)) is not None:
         cg.add(var.set_is_on_lambda(await cg.templatable(is_on, [], bool)))
-    elif (is_on_sensor := config.get(CONF_IS_ON_SENSOR)) is not None:
-        cg.add(var.set_is_on_sensor(await cg.get_variable(is_on_sensor)))
+    await cg.add_variable(var.set_is_on_sensor, config.get(CONF_IS_ON_SENSOR))
 
     if (current_speed := config.get(CONF_CURRENT_SPEED)) is not None:
         cg.add(
             var.set_current_speed_lambda(await cg.templatable(current_speed, [], float))
         )
-    elif (speed_sensor := config.get(CONF_CURRENT_SPEED_SENSOR)) is not None:
-        cg.add(var.set_current_speed_sensor(await cg.get_variable(speed_sensor)))
+    await cg.add_variable(
+        var.set_current_speed_sensor, config.get(CONF_CURRENT_SPEED_SENSOR)
+    )
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_RUNTIME_HOURS, var.set_runtime_hours_sensor)
