@@ -226,6 +226,37 @@ TEST_F(EntityTransportTest, ChangedDictionaryRequested) {
   EXPECT_EQ(this->remote_temp_.get_state(), 6.0f);
 }
 
+TEST_F(EntityTransportTest, MalformedDataNotRequested) {
+  auto receiver = this->make_receiver_();
+  // A data packet under an unknown dictionary, cut off inside its first record
+  Packet data = header(PACKET_DATA, 0x12345678);
+  data.insert(data.end(), {0x00, 0x21, 0x00});
+  this->link_b_.inject(data);
+  EXPECT_TRUE(this->link_b_.sent.empty());
+}
+
+TEST_F(EntityTransportTest, EntityLeftOutOfNewDictionaryCleared) {
+  this->temp_.publish_state(5.0f);
+  this->door_.publish_state(true);
+  auto sender = this->make_sender_();
+  auto receiver = this->make_receiver_();
+  sender->loop();
+  this->link_a_.deliver_to(this->link_b_);
+  EXPECT_TRUE(this->remote_door_.state);
+  // The provider restarts without the door
+  sensor::Sensor temp;
+  MockInterface link;
+  TestTransport changed(&link);
+  changed.set_entity_count(1);
+  changed.add_sensor("temp", &temp);
+  changed.setup();
+  temp.publish_state(6.0f);
+  changed.loop();
+  link.deliver_to(this->link_b_);
+  EXPECT_EQ(this->remote_temp_.get_state(), 6.0f);
+  EXPECT_FALSE(this->remote_door_.has_state());
+}
+
 TEST_F(EntityTransportTest, LostDictionaryPartRequested) {
   // One entity in each dictionary packet
   MockInterface link(5 + 2 + strlen(DEVICE_NAME) + 3 + 5);
@@ -271,7 +302,7 @@ TEST_F(EntityTransportTest, RefusedRequestSentAgain) {
 TEST_F(EntityTransportTest, RequestsLimited) {
   auto receiver = this->make_receiver_();
   Packet data = header(PACKET_DATA, 0x12345678);
-  data.push_back(0);
+  data.insert(data.end(), {0x00, 0x61});  // sensor 0 with no state
   this->link_b_.inject(data);
   this->link_b_.inject(data);
   EXPECT_EQ(this->link_b_.sent.size(), 1);

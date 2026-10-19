@@ -125,6 +125,8 @@ class EntityTransport : public Component {
               size_t id_length, uint32_t dictionary_id);
   void request_dictionary_(uint32_t dictionary_id);
   bool dictionary_seen_(uint32_t dictionary_id) const;
+  /// Warns about, and clears, each remote entity of \p provider that its complete dictionary does not name.
+  void forget_unnamed_(const char *provider, size_t provider_length, uint32_t dictionary_id);
   bool warning_due_();
   void on_session_(bool connected);
   void clear_remote_states_(bool timed_out_only);

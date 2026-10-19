@@ -436,7 +436,8 @@ void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint3
   bool in_order = index == 0 || (this->rx_dictionary_id_ == dictionary_id && index == this->rx_next_part_);
   this->rx_dictionary_id_ = dictionary_id;
   this->rx_next_part_ = in_order ? (index + 1) & PART_INDEX_MASK : PART_NONE;
-  if (in_order && (part & PART_LAST) != 0 && !this->dictionary_seen_(dictionary_id)) {
+  bool completed = in_order && (part & PART_LAST) != 0 && !this->dictionary_seen_(dictionary_id);
+  if (completed) {
     this->seen_dictionaries_[this->seen_next_] = dictionary_id;
     this->seen_next_ = (this->seen_next_ + 1) % this->seen_dictionaries_.size();
   }
@@ -455,6 +456,37 @@ void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint3
       pos += id_length;
     }
   }
+  if (completed)
+    this->forget_unnamed_(provider, provider_length, dictionary_id);
+}
+
+void EntityTransport::forget_unnamed_(const char *provider, size_t provider_length, uint32_t dictionary_id) {
+  // A remote entity that its provider's whole dictionary does not name would otherwise keep no or a stale state
+  // silently
+#ifdef ENTITY_TRANSPORT_REMOTE_SENSOR_COUNT
+  for (auto &remote : this->remote_sensors_) {
+    if (!matches(remote.provider, provider, provider_length) || (remote.known && remote.dictionary_id == dictionary_id))
+      continue;
+    ESP_LOGW(TAG, "'%s' does not send '%s'", remote.provider, remote.remote_id);
+    remote.known = false;
+    if (remote.has_state) {
+      remote.has_state = false;
+      remote.entity->publish_state(NAN);
+    }
+  }
+#endif
+#ifdef ENTITY_TRANSPORT_REMOTE_BINARY_SENSOR_COUNT
+  for (auto &remote : this->remote_binary_sensors_) {
+    if (!matches(remote.provider, provider, provider_length) || (remote.known && remote.dictionary_id == dictionary_id))
+      continue;
+    ESP_LOGW(TAG, "'%s' does not send '%s'", remote.provider, remote.remote_id);
+    remote.known = false;
+    if (remote.has_state) {
+      remote.has_state = false;
+      remote.entity->invalidate_state();
+    }
+  }
+#endif
 }
 
 void EntityTransport::learn_(const char *provider, size_t provider_length, uint8_t type, uint8_t number, const char *id,
@@ -503,18 +535,21 @@ void EntityTransport::receive_data_(std::span<const uint8_t> packet, uint32_t di
     has_remotes = true;
   }
 #endif
-  // A dictionary not yet received in full may name our entities, or be a provider's new one; one received in full
-  // named all of them it could, so asking again would only make that provider resend everything
-  if (has_remotes && !this->dictionary_seen_(dictionary_id))
-    this->request_dictionary_(dictionary_id);
-  if (!known)
+  if (!has_remotes)
     return;
+  // Checked first, so a damaged packet does not make the provider resend everything
   if (!data_well_formed(packet)) {
     if (this->warning_due_()) {
       ESP_LOGW(TAG, "Data packet of %zu bytes is malformed", packet.size());
     }
     return;
   }
+  // A dictionary not yet received in full may name our entities, or be a provider's new one; one received in full
+  // named all of them it could, so asking again would only make that provider resend everything
+  if (!this->dictionary_seen_(dictionary_id))
+    this->request_dictionary_(dictionary_id);
+  if (!known)
+    return;
   [[maybe_unused]] uint32_t now = App.get_loop_component_start_time();
   for (size_t pos = HEADER_SIZE; pos != packet.size(); pos += record_size(packet, pos)) {
     [[maybe_unused]] Record record = parse_record(packet, pos);
