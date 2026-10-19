@@ -352,6 +352,12 @@ inline void convertToJson(const StringRef &src, JsonVariant dst) {
 namespace json {
 // For a StringRef that outlives the document, see json_util.h. A null, empty view links "" too
 inline JsonString linked(const StringRef &s) { return JsonString(s.empty() ? "" : s.c_str(), s.size(), true); }
+#ifdef USE_ESP8266
+// ArduinoJson copies a flash string into the document
+inline ProgmemStr linked(const ProgmemStringRef &s) { return reinterpret_cast<ProgmemStr>(s.progmem_ptr()); }
+#else
+inline JsonString linked(const ProgmemStringRef &s) { return JsonString(s.progmem_ptr(), s.size(), true); }
+#endif
 }  // namespace json
 #endif  // USE_JSON
 

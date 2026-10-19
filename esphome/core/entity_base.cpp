@@ -114,7 +114,7 @@ ProgmemStringRef EntityBase::get_device_class_progmem() const {
 #ifdef USE_ENTITY_DEVICE_CLASS
   return table_ref(entity_device_class_lookup(this->device_class_idx_));
 #else
-  return table_ref(entity_device_class_lookup(0));
+  return {};
 #endif
 }
 
@@ -139,7 +139,7 @@ ProgmemStringRef EntityBase::get_icon_progmem() const {
 #ifdef USE_ENTITY_ICON
   return table_ref(entity_icon_lookup(this->icon_idx_));
 #else
-  return table_ref(entity_icon_lookup(0));
+  return {};
 #endif
 }
 
