@@ -42,6 +42,14 @@ TEST(EntityBaseName, PrecomputedHashIsKept) {
   EXPECT_EQ(entity.get_object_id_hash(), 0x1234u);
 }
 
+// The getters return {} when the feature define is absent; get_*_to() must still hand back "", not null
+TEST(EntityBaseStrings, DefaultProgmemStringRefIsEmptyNotNull) {
+  constexpr ProgmemStringRef ref{};
+  ASSERT_NE(ref.progmem_ptr(), nullptr);
+  EXPECT_STREQ(ref.progmem_ptr(), "");
+  EXPECT_TRUE(ref.empty());
+}
+
 TEST(EntityBaseStrings, UnsetIconAndDeviceClassAreEmpty) {
   TestEntity entity;
   entity.configure("Living Room Temp", 0x1234);
