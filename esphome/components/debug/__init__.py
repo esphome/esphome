@@ -3,8 +3,11 @@ from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import (
     ZEPHYR_VARIANT_NATIVE_SIM,
     zephyr_add_prj_conf,
+    zephyr_family_uart_drivers,
     zephyr_variant,
 )
+from esphome.components.zephyr.const import SEGGER_RTT_UART
+from esphome.components.zephyr.rtt import DEBUG_OWNER, claim_rtt_channel
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -79,6 +82,20 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("INIT_STACKS", True)
             zephyr_add_prj_conf("THREAD_STACK_INFO", True)
             zephyr_add_prj_conf("CONFIG_STATS_NAMES", True)
+            if SEGGER_RTT_UART in zephyr_family_uart_drivers():
+                # Same RTT console as nrf52 above, for reading a crash in full: it
+                # retries while a probe reads and blocking mode drops nothing (an RTT0
+                # logger port drops bytes when full). With no probe a full buffer blocks.
+                claim_rtt_channel(0, DEBUG_OWNER)
+                zephyr_add_prj_conf("USE_SEGGER_RTT", True)
+                # RTT_CONSOLE only exists with CONSOLE, which platform: zephyr turns off
+                zephyr_add_prj_conf("CONSOLE", True)
+                zephyr_add_prj_conf("RTT_CONSOLE", True)
+                zephyr_add_prj_conf("LOG", True)
+                zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
+                zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
+                zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
+                zephyr_add_prj_conf("PRINTK", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add_define("USE_DEBUG")
