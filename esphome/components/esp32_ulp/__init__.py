@@ -74,6 +74,14 @@ ULP_SOURCE_SUFFIXES = (".c", ".S", ".s")
 ULP_HEADER_SUFFIXES = (".h",)
 ULP_BUILD_SUBDIR = "ulp"
 ULP_APP_NAME = "ulp_main"
+# CMake appended to the generated src/CMakeLists.txt; IDF's ulp_embed_binary builds
+# the program, embeds it and generates ulp_main.h for the listed dependents.
+ULP_CMAKE = """
+# ULP program (esp32_ulp)
+ulp_embed_binary({app} "{sources}" "{dependents}")"""
+# Sources that include the generated header must be compiled after the ULP
+# program is built: main.cpp for lambdas and this component.
+ULP_HEADER_DEPENDENTS = ("main.cpp", "esphome/components/esp32_ulp/esp32_ulp.cpp")
 
 esp32_ulp_ns = cg.esphome_ns.namespace("esp32_ulp")
 ESP32ULP = esp32_ulp_ns.class_("ESP32ULP", cg.Component)
@@ -199,16 +207,11 @@ async def to_code(config: ConfigType) -> None:
     sources = ";".join(
         f"${{CMAKE_CURRENT_SOURCE_DIR}}/../{ULP_BUILD_SUBDIR}/{name}" for name in names
     )
-    # Sources that include the generated ulp_main.h must be compiled after
-    # the ULP program is built: main.cpp for lambdas and this component.
-    dep_srcs = ";".join(
-        f"${{CMAKE_CURRENT_SOURCE_DIR}}/{src}"
-        for src in ("main.cpp", "esphome/components/esp32_ulp/esp32_ulp.cpp")
+    dependents = ";".join(
+        f"${{CMAKE_CURRENT_SOURCE_DIR}}/{src}" for src in ULP_HEADER_DEPENDENTS
     )
     add_src_cmake(
-        f"""
-# ULP program (esp32_ulp)
-ulp_embed_binary({ULP_APP_NAME} "{sources}" "{dep_srcs}")"""
+        ULP_CMAKE.format(app=ULP_APP_NAME, sources=sources, dependents=dependents)
     )
     # Expose the program's global variables (ulp_<name>) to lambdas.
     cg.add_global(cg.RawStatement(f'#include "{ULP_APP_NAME}.h"'))
