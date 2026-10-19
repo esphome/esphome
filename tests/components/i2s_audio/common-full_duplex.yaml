@@ -4,6 +4,7 @@ i2s_audio:
     i2s_lrclk_pin: ${i2s_lrclk_pin}
     i2s_mclk_pin: ${i2s_mclk_pin}
     full_duplex: true
+    keep_tx_active: ${keep_tx_active}
 
 microphone:
   - platform: i2s_audio

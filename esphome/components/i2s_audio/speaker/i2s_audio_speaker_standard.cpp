@@ -119,6 +119,11 @@ void I2SAudioSpeaker::run_speaker_task() {
   const size_t dma_buffer_input_bytes = this->current_stream_info_.frames_to_bytes(frames_per_dma_buffer);
 
   bool successful_setup = false;
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  const bool continuous_tx = this->parent_->is_full_duplex() && this->parent_->is_keep_tx_active();
+#else
+  const bool continuous_tx = false;
+#endif
 
   std::unique_ptr<audio::RingBufferAudioSource> audio_source;
 
@@ -161,11 +166,27 @@ void I2SAudioSpeaker::run_speaker_task() {
     return true;
   };
 
-  if (successful_setup) {
+  if (successful_setup && !continuous_tx) {
     successful_setup = preload_silence();
   }
 
-  if (successful_setup) {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (successful_setup && continuous_tx) {
+    // TX is already running. Its in-flight DMA descriptors all contain silence; seed their matching
+    // lockstep records before allowing the bus ISR to forward completion events to this speaker.
+    for (size_t i = 0; i < DMA_BUFFERS_COUNT; i++) {
+      const uint32_t zero_real_frames = 0;
+      if (xQueueSend(this->write_records_queue_, &zero_real_frames, 0) != pdTRUE) {
+        successful_setup = false;
+        break;
+      }
+    }
+    if (successful_setup)
+      this->parent_->set_tx_sent_callback(i2s_on_sent_cb, this);
+  }
+#endif
+
+  if (successful_setup && !continuous_tx) {
     // Register the on_sent callback BEFORE enabling the channel so the very first transmitted buffer
     // generates a queued event that pairs with the first preloaded silence record.
     const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
@@ -392,6 +413,10 @@ void I2SAudioSpeaker::run_speaker_task() {
     }
   }
 
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (continuous_tx)
+    this->parent_->set_tx_sent_callback(nullptr, nullptr);
+#endif
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
 
   audio_source.reset();
@@ -457,7 +482,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
       return ESP_ERR_NOT_SUPPORTED;
     }
     this->current_stream_info_ = audio_stream_info;
-    // The speaker task will enable the channel after preloading.
+    // The speaker task enables TX after preloading unless continuous TX is already running.
     return this->acquire_full_duplex_channel_(I2S_EVENT_QUEUE_COUNT);
   }
 #endif  // USE_I2S_AUDIO_FULL_DUPLEX

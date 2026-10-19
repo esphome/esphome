@@ -7,6 +7,9 @@
 #include "esphome/core/helpers.h"
 #include <esp_idf_version.h>
 #include <driver/i2s_std.h>
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+#include <atomic>
+#endif
 
 namespace esphome::i2s_audio {
 
@@ -62,10 +65,25 @@ class I2SAudioOut : public I2SAudioBase {
 class I2SAudioComponent final : public Component {
  public:
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  using TxSentCallback = bool (*)(i2s_chan_handle_t, i2s_event_data_t *, void *);
+  void set_tx_sent_callback(TxSentCallback callback, void *context) {
+    if (callback == nullptr) {
+      this->tx_sent_callback_.store(nullptr, std::memory_order_release);
+      this->tx_sent_callback_context_.store(nullptr, std::memory_order_release);
+      return;
+    }
+    this->tx_sent_callback_context_.store(context, std::memory_order_release);
+    this->tx_sent_callback_.store(callback, std::memory_order_release);
+  }
+  bool is_keep_tx_active() const { return this->keep_tx_active_; }
   void setup() override;
 
   void set_audio_in(I2SAudioIn *audio_in) { this->audio_in_ = audio_in; }
   void set_audio_out(I2SAudioOut *audio_out) { this->audio_out_ = audio_out; }
+  void set_keep_tx_active(bool keep_tx_active) { this->keep_tx_active_ = keep_tx_active; }
+  void set_continuous_tx_running(bool running) {
+    this->continuous_tx_running_.store(running, std::memory_order_release);
+  }
 
   /// @brief True when a microphone and a speaker share this bus at the same time.
   bool is_full_duplex() const { return this->audio_in_ != nullptr && this->audio_out_ != nullptr; }
@@ -73,14 +91,14 @@ class I2SAudioComponent final : public Component {
   /// @brief Enables the full duplex RX channel. Main loop only.
   /// @return The enabled RX handle, or nullptr if the channel pair is unavailable
   i2s_chan_handle_t acquire_rx_channel();
-  /// @brief Releases the RX channel; it keeps running while the TX side needs its clocks. Main loop only.
+  /// @brief Releases RX; it remains enabled while the TX side uses the bus. Main loop only.
   void release_rx_channel();
 
-  /// @brief Starts the shared clocks and hands over the full duplex TX channel, still disabled, so the caller
-  /// can register callbacks and preload data before enabling it. Main loop only.
+  /// @brief Hands over full duplex TX; it is already running with keep_tx_active, otherwise the caller starts it.
+  /// Main loop only.
   /// @return The TX handle, or nullptr if the channel pair is unavailable or another speaker holds it
   i2s_chan_handle_t acquire_tx_channel();
-  /// @brief Disables the TX channel and stops the shared clocks if the RX side is idle. Only the speaker that
+  /// @brief Releases TX; it stays clocked with keep_tx_active, otherwise it is disabled. Only the speaker that
   /// acquired the channel may call this. Main loop only.
   void release_tx_channel();
   /// @brief True while another speaker holds the full duplex TX channel
@@ -119,8 +137,11 @@ class I2SAudioComponent final : public Component {
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
   /// @brief Marks one side active and brings the shared clocks up; undoes the mark if that fails.
   i2s_chan_handle_t acquire_(bool &in_use, i2s_chan_handle_t handle);
-  /// @brief Enables the RX channel while either side is active, since it drives the shared clocks.
+  /// @brief Enables RX while either side uses the bus (TX owns the clocks when keep_tx_active is set).
   bool update_rx_channel_();
+  /// @brief Run the TX clock with zeroed DMA buffers while no speaker owns the channel.
+  bool start_idle_tx_();
+  static bool IRAM_ATTR on_bus_tx_sent_(i2s_chan_handle_t handle, i2s_event_data_t *event, void *context);
 
   I2SAudioIn *audio_in_{nullptr};
   I2SAudioOut *audio_out_{nullptr};
@@ -129,6 +150,10 @@ class I2SAudioComponent final : public Component {
   bool rx_in_use_{false};
   bool tx_in_use_{false};
   bool rx_enabled_{false};
+  bool keep_tx_active_{false};
+  std::atomic<bool> continuous_tx_running_{false};
+  std::atomic<TxSentCallback> tx_sent_callback_{nullptr};
+  std::atomic<void *> tx_sent_callback_context_{nullptr};
 #endif
   int mclk_pin_{I2S_GPIO_UNUSED};
   int bclk_pin_{I2S_GPIO_UNUSED};
