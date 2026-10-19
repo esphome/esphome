@@ -62,6 +62,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   /// Bytes that can be written without filling the driver's ring buffer past buffer_size_.
   size_t ring_room_() const;
   bool has_buffered_data_(int64_t now_us) const;
+  bool has_audio_tail_() const;
+  bool flush_tail_();
 
   // The configured format the USB stream runs with. Callers such as the media pipeline set audio_stream_info_ for
   // each item, so play() checks it against this instead of reopening the stream with another format.

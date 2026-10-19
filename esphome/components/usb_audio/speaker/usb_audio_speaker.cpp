@@ -84,9 +84,31 @@ void USBAudioSpeaker::loop() {
   if (this->finishing_ && this->pad_remaining_ == 0 && !this->has_buffered_data_(esp_timer_get_time())) {
     this->stop_();
   }
-  if (!this->finishing_) {
+  if (!this->finishing_ && !this->flush_tail_()) {
     this->disable_loop();
   }
+}
+
+bool USBAudioSpeaker::has_audio_tail_() const {
+  // Less than a transfer of the caller's audio: the driver parks its transfers until the ring holds a whole one.
+  const uint32_t ring = this->ring_bytes_;
+  return this->state_ == speaker::STATE_RUNNING && ring < this->transfer_bytes_ && ring > this->ring_padding_;
+}
+
+// Pads an audio tail to a whole transfer once the bus has gone idle, so the driver takes it and the frames get
+// reported; a caller that stops mid-transfer (the mixer at the end of a stream) would otherwise wait for them forever.
+// Returns true while a tail is still pending, so loop() keeps running.
+bool USBAudioSpeaker::flush_tail_() {
+  if (!this->has_audio_tail_()) {
+    return false;
+  }
+  const auto since_taken_us = static_cast<int32_t>(static_cast<uint32_t>(esp_timer_get_time()) - this->last_taken_us_);
+  if (since_taken_us < static_cast<int32_t>(this->in_flight_us_)) {
+    return true;
+  }
+  this->pad_remaining_ = this->transfer_bytes_ - this->ring_bytes_;
+  this->pad_with_silence_();
+  return this->has_audio_tail_();
 }
 
 void USBAudioSpeaker::request_(uint8_t set, uint8_t clear) {
@@ -221,6 +243,9 @@ size_t USBAudioSpeaker::play_internal_(const uint8_t *data, size_t length, uint3
     }
   }
   this->writes_in_flight_.fetch_sub(1);
+  if (this->has_audio_tail_()) {
+    this->enable_loop_soon_any_context();
+  }
   return written;
 }
 
@@ -312,9 +337,9 @@ void USBAudioSpeaker::on_transfer_taken() {
     }
   }
   portEXIT_CRITICAL(&this->taken_lock_);
-  if (report) {
+  if (report || this->has_audio_tail_()) {
     // The listeners can block, so loop() calls them; the frames and their finish time travel together, so the delay
-    // does not change what they compute.
+    // does not change what they compute. A tail left behind is flushed from loop() once the bus is idle.
     this->enable_loop_soon_any_context();
   }
 }
