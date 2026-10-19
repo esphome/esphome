@@ -6,7 +6,7 @@ namespace esphome::epaper_spi {
 
 // Soldered Inkplate 2: 104x212 black/white/red (BWR) e-paper, UC8xxx-family controller.
 // The init sequence sets DDX=11, so the red plane is sent inverted.
-class EPaperInkplate2 final : public EPaperBWR {
+class EPaperInkplate2 : public EPaperBWR {
  public:
   EPaperInkplate2(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                   size_t init_sequence_length)
