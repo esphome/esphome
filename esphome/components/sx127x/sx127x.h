@@ -36,7 +36,7 @@ enum SX127xBw : uint8_t {
   SX127X_BW_500_0,
 };
 
-enum class SX127xError { NONE = 0, TIMEOUT, INVALID_PARAMS };
+enum class SX127xError { NONE = 0, TIMEOUT, INVALID_PARAMS, SX127X_ERROR_NOT_READY };
 
 class SX127xListener {
  public:

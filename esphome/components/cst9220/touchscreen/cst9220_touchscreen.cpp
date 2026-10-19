@@ -51,9 +51,9 @@ void CST9220Touchscreen::continue_setup_() {
   // Read the panel resolution unless the user supplied calibration values.
   if (this->read_register16(REG_RESOLUTION, buffer, 4) == i2c::ERROR_OK) {
     if (this->x_raw_max_ == this->x_raw_min_)
-      this->x_raw_max_ = encode_uint16(buffer[1], buffer[0]);
+      this->x_raw_max_ = encode_value_le<uint16_t>(buffer);
     if (this->y_raw_max_ == this->y_raw_min_)
-      this->y_raw_max_ = encode_uint16(buffer[3], buffer[2]);
+      this->y_raw_max_ = encode_value_le<uint16_t>(&buffer[2]);
   }
 
   // Read the chip type and project id and validate the controller.
@@ -62,8 +62,8 @@ void CST9220Touchscreen::continue_setup_() {
     this->mark_failed();
     return;
   }
-  this->chip_id_ = encode_uint16(buffer[3], buffer[2]);
-  this->project_id_ = encode_uint16(buffer[1], buffer[0]);
+  this->chip_id_ = encode_value_le<uint16_t>(&buffer[2]);
+  this->project_id_ = encode_value_le<uint16_t>(buffer);
   if (this->chip_id_ != CST9220_CHIP_ID && this->chip_id_ != CST9217_CHIP_ID) {
     ESP_LOGE(TAG, "Unknown chip ID: 0x%04X", this->chip_id_);
     this->status_set_error(LOG_STR("Unknown chip ID"));
@@ -87,12 +87,10 @@ void CST9220Touchscreen::update_touches() {
   // Only an actual I2C failure should skip the update; a successful read with no
   // touches is a real "all fingers lifted" state that must flow through so the
   // base class can generate the release event.
-  if (this->read_register16(REG_TOUCH_DATA, data, sizeof(data)) != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_register16(REG_TOUCH_DATA, data, sizeof(data)) == i2c::ERROR_OK)) {
     this->skip_update_ = true;
     return;
   }
-  this->status_clear_warning();
 
   // Acknowledge the report so the controller can prepare the next one.
   uint8_t ack = TOUCH_ACK;

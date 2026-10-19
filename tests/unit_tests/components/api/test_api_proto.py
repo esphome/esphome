@@ -71,7 +71,7 @@ NEW_CAPABILITY_FIELDS: dict[str, dict[str, int]] = {
         "sendspin": 6,
     },
     "WizardCapabilities": {"configured": 1},
-    "SendspinCapabilities": {"feature_flags": 1},
+    "SendspinCapabilities": {"feature_flags": 1, "client_id": 2},
     "BluetoothProxyCapabilities": {
         "feature_flags": 1,
         "mac_address": 2,

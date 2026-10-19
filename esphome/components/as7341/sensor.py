@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLEAR,
     CONF_GAIN,
-    CONF_ID,
     DEVICE_CLASS_EMPTY,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
@@ -74,7 +73,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CLEAR): SENSOR_SCHEMA,
             cv.Optional(CONF_NIR): SENSOR_SCHEMA,
             cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS),
-            cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_ATIME, default=29): cv.uint8_t,
             cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),
         }
     )
@@ -97,9 +96,7 @@ SENSORS = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_atime(config[CONF_ATIME]))

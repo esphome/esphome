@@ -3,7 +3,6 @@ from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FREQUENCY,
-    CONF_ID,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
@@ -36,11 +35,20 @@ CONF_ACTIVE_POWER_2 = "active_power_2"
 CONF_ENERGY_1 = "energy_1"
 CONF_ENERGY_2 = "energy_2"
 CONF_POWER_FACTOR_1 = "power_factor_1"
+CONF_CURRENT_INPUT = "current_input"
+
+CSE7761CurrentInput = cse7761_ns.enum("CSE7761CurrentInput", is_class=True)
+CURRENT_INPUTS = CSE7761CurrentInput.options(
+    "shunt", "current_transformer", prefix="CSE7761_CURRENT_INPUT_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(CSE7761Component),
+            cv.Optional(CONF_CURRENT_INPUT, default="shunt"): cv.enum(
+                CURRENT_INPUTS, lower=True
+            ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
@@ -112,9 +120,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config, config[CONF_CURRENT_INPUT])
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
