@@ -797,8 +797,7 @@ void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len,
   }
 }
 
-void AsyncEventSource::deferrable_send_state(void *source, bool detail_all,
-                                             message_generator_t *message_generator) {
+void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator) {
   // Skip if no connected clients to avoid unnecessary processing
   if (this->empty())
     return;

@@ -162,6 +162,7 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 
   void loop();
 
+  // detail_all events go out while entities are still being listed; state events wait until listing is done
   void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
@@ -543,6 +544,9 @@ class WebServer final : public Component, public AsyncWebHandler {
  protected:
   // Declared here so it packs into the padding after include_internal_
   bool expose_log_{true};
+
+  // Out of line so the per-domain update callbacks stay small
+  void send_state_event_(void *source, bool internal, message_generator_t *generator);
 
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
 

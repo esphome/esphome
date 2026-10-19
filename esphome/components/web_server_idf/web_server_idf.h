@@ -301,6 +301,7 @@ class AsyncEventSourceResponse {
  public:
   bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
+  // detail_all events go out while entities are still being listed; state events wait until listing is done
   void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
   void loop();
 
