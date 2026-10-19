@@ -10,6 +10,17 @@ Point a camera at the panel to get visual evidence that a driver renders correct
 and capture tool works; this skill covers the common ones. `$SKILL` below is this directory
 (`.agents/skills/display-test`).
 
+## Ask before using a camera
+
+A camera can show people and rooms, not only the panel. Before the first capture, ask the user
+for permission and for which camera to use. List the cameras the host has (the commands below
+show how), name the one you intend to use, and wait for the user to confirm it. Do not pick a
+camera yourself, and do not fall back to another camera if the chosen one fails; ask again.
+
+The permission covers this session and the camera the user named. Ask again for a different
+camera or in a new session. If the user declines, stop and report that the display was not
+checked visually.
+
 ## Capturing a frame
 
 Grab a still image, skipping the first few frames so auto-exposure and white balance settle.
@@ -27,7 +38,8 @@ swiftc -O "$SKILL/scripts/camsnap.swift" -o /tmp/camsnap/camsnap
 ```
 
 The camera argument is a case-insensitive substring of the name AVFoundation reports. If it does
-not match, the tool lists the cameras it found. It creates the output directory if needed and
+not match, the tool lists the cameras it found, so a run with a name that matches nothing lists
+the cameras without capturing. Use a substring that matches only the camera the user approved. It creates the output directory if needed and
 reports encoding or write errors on stderr. Other options include `ffmpeg` with `avfoundation`
 input, `imagesnap`, or Photo Booth's still capture.
 
