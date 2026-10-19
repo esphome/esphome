@@ -54,14 +54,21 @@ async def test_wait_or_fail_timeout_cancels_and_reports_context() -> None:
 async def test_wait_or_fail_trims_deques_and_mappings() -> None:
     lines = deque(f"line {i}" for i in range(30))
     states = {f"key{i}": i for i in range(25)}
+    pairs = tuple(range(25))
     with pytest.raises(pytest.fail.Exception) as err:
         await wait_or_fail(
-            asyncio.Event(), 0.01, "no state", lines=lines, states=states
+            asyncio.Event(),
+            0.01,
+            "no state",
+            lines=lines,
+            states=states,
+            pairs=pairs,
         )
     message = str(err.value)
     assert "lines (last 20 of 30):\n  line 10\n" in message
     assert "states (last 20 of 25):\n  key5: 5\n" in message
     assert "key4: 4" not in message
+    assert "pairs (last 20 of 25):\n  5\n" in message
 
 
 @pytest.mark.asyncio
