@@ -80,6 +80,7 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   void write_frame_(const uint8_t *frame, size_t len);
   void send_frame_(const uint8_t *body, size_t len);
   void send_next_state_command_();
+  void advance_to_(DeltaState next);
   void handle_frame_(const uint8_t *frame, size_t len);
   void drop_rx_bytes_(size_t count);
   void reset_state_();
