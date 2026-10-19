@@ -186,6 +186,32 @@ TEST_F(EntityTransportTest, UnknownDictionaryRequested) {
   EXPECT_EQ(this->remote_temp_.get_state(), 5.0f);
 }
 
+TEST_F(EntityTransportTest, ChangedDictionaryRequested) {
+  this->temp_.publish_state(5.0f);
+  auto sender = this->make_sender_();
+  auto receiver = this->make_receiver_();
+  sender->loop();
+  this->link_a_.deliver_to(this->link_b_);
+  EXPECT_EQ(this->remote_temp_.get_state(), 5.0f);
+  // The provider restarts with other entities, and its new dictionary is lost
+  sensor::Sensor temp;
+  MockInterface link;
+  TestTransport changed(&link);
+  changed.set_entity_count(1);
+  changed.add_sensor("temp", &temp);
+  changed.setup();
+  temp.publish_state(6.0f);
+  changed.loop();
+  link.sent.erase(link.sent.begin());
+  link.deliver_to(this->link_b_);
+  ASSERT_EQ(this->link_b_.sent.size(), 1);
+  EXPECT_EQ(this->link_b_.sent[0], header(PACKET_REQUEST, changed.get_dictionary_id()));
+  this->link_b_.deliver_to(link);
+  changed.loop();
+  link.deliver_to(this->link_b_);
+  EXPECT_EQ(this->remote_temp_.get_state(), 6.0f);
+}
+
 TEST_F(EntityTransportTest, RequestsLimited) {
   auto receiver = this->make_receiver_();
   Packet data = header(PACKET_DATA, 0x12345678);
@@ -203,6 +229,8 @@ TEST_F(EntityTransportTest, OtherProviderAndOwnPacketsIgnored) {
   auto packets = this->link_a_.sent;
   this->link_a_.deliver_to(this->link_b_);
   EXPECT_FALSE(this->remote_temp_.has_state());
+  // The dictionary named none of the receiver's entities, so it is not asked for again
+  EXPECT_TRUE(this->link_b_.sent.empty());
   for (auto &packet : packets)
     this->link_a_.inject(packet);
   this->link_a_.inject(header(PACKET_REQUEST, 0x12345678));

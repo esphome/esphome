@@ -298,6 +298,10 @@ void EntityTransport::receive_dictionary_(std::span<const uint8_t> packet, uint3
   size_t pos = HEADER_SIZE;
   if (pos == packet.size() || pos + 1 + packet[pos] > packet.size())
     return;
+  if (!this->dictionary_seen_(dictionary_id)) {
+    this->seen_dictionaries_[this->seen_next_] = dictionary_id;
+    this->seen_next_ = (this->seen_next_ + 1) % this->seen_dictionaries_.size();
+  }
   size_t provider_length = packet[pos++];
   const auto *provider = reinterpret_cast<const char *>(packet.data() + pos);
   pos += provider_length;
@@ -345,24 +349,30 @@ void EntityTransport::learn_(const char *provider, size_t provider_length, uint8
 #endif
 }
 
+bool EntityTransport::dictionary_seen_(uint32_t dictionary_id) const {
+  return std::find(this->seen_dictionaries_.begin(), this->seen_dictionaries_.end(), dictionary_id) !=
+         this->seen_dictionaries_.end();
+}
+
 void EntityTransport::receive_data_(std::span<const uint8_t> packet, uint32_t dictionary_id) {
   bool known = false;
-  bool unresolved = false;
+  bool has_remotes = false;
 #ifdef ENTITY_TRANSPORT_REMOTE_SENSOR_COUNT
   for (const auto &remote : this->remote_sensors_) {
     known |= remote.known && remote.dictionary_id == dictionary_id;
-    unresolved |= !remote.known;
+    has_remotes = true;
   }
 #endif
 #ifdef ENTITY_TRANSPORT_REMOTE_BINARY_SENSOR_COUNT
   for (const auto &remote : this->remote_binary_sensors_) {
     known |= remote.known && remote.dictionary_id == dictionary_id;
-    unresolved |= !remote.known;
+    has_remotes = true;
   }
 #endif
   if (!known) {
-    // The packet may come from the provider of an entity whose number is not yet known
-    if (unresolved)
+    // A dictionary not yet received may name our entities, or be a provider's new one; one already received named
+    // none of them, so asking again would only make that provider resend everything
+    if (has_remotes && !this->dictionary_seen_(dictionary_id))
       this->request_dictionary_(dictionary_id);
     return;
   }

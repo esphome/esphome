@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <span>
 
 #include "esphome/components/packet_interface/packet_interface.h"
@@ -39,7 +40,8 @@ namespace esphome::entity_transport {
  * - sensor records: number (1 byte), then the state as a 4 byte float;
  * - binary sensor records, to the end: number (1 byte), then 0, 1, or 2 for no state.
  *
- * Dictionary request packet, sent by a device that receives data with a dictionary id it does not know:
+ * Dictionary request packet, sent by a device that receives data with a dictionary id it has not received a dictionary
+ * for:
  * - type: 1 byte, PACKET_REQUEST;
  * - the dictionary id wanted: 4 bytes.
  *
@@ -116,6 +118,7 @@ class EntityTransport : public Component {
   void learn_(const char *provider, size_t provider_length, uint8_t type, uint8_t number, const char *id,
               size_t id_length, uint32_t dictionary_id);
   void request_dictionary_(uint32_t dictionary_id);
+  bool dictionary_seen_(uint32_t dictionary_id) const;
   void on_session_(bool connected);
   void clear_remote_states_(bool timed_out_only);
 
@@ -135,6 +138,9 @@ class EntityTransport : public Component {
   uint32_t remote_timeout_ms_{0};
   uint32_t dictionary_id_{0};
   uint32_t last_request_ms_{0};
+  // The last dictionary ids received, so a provider whose dictionary names none of our entities is not asked again
+  std::array<uint32_t, 8> seen_dictionaries_{};
+  uint8_t seen_next_{0};
   uint8_t sensor_count_{0};
   uint8_t binary_sensor_count_{0};
   size_t dictionary_next_{0};  // the first entity of the next dictionary packet to send
