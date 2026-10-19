@@ -108,6 +108,7 @@ def test_registered_type_selectable(setup_core) -> None:
     assert config["type"] == "test"
     assert kind.get_type(config).build is _build
 
+
 def test_duplicate_layer_type_rejected(setup_core) -> None:
     """Registering a type under a name already in use is an error, not a silent replacement."""
     kind = LayerKind("test_kind", "test")
