@@ -45,10 +45,13 @@ def get_declaring_config(
     """Return the config block that declares id_, such as a hub's own config.
 
     Uses the full config being validated unless config is given.
-    Raises KeyError if the id was not declared.
+    Raises KeyError if the id was not declared, TypeError if its parent is not a dict.
     """
     fconf = full_config.get() if config is None else config
-    return fconf.get_config_for_path(fconf.get_path_for_id(id_)[:-1])
+    declaring = fconf.get_config_for_path(fconf.get_path_for_id(id_)[:-1])
+    if not isinstance(declaring, dict):
+        raise TypeError(f"ID {id_} is not declared in a config block")
+    return declaring
 
 
 def id_declaration_match_schema(schema):
