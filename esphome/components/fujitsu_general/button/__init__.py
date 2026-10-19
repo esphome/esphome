@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 from .. import fujitsu_general_ns
@@ -45,6 +44,5 @@ async def to_code(config: ConfigType) -> None:
     for key, command, _ in BUTTONS:
         if (conf := config.get(key)) is None:
             continue
-        var = cg.new_Pvariable(conf[CONF_ID], command)
-        await button.register_button(var, conf)
+        var = await button.new_button(conf, command)
         await cg.register_parented(var, parent)
