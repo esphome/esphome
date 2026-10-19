@@ -546,7 +546,11 @@ class WebServer final : public Component, public AsyncWebHandler {
   bool expose_log_{true};
 
   // Out of line so the per-domain update callbacks stay small
-  void send_state_event_(void *source, bool internal, message_generator_t *generator);
+  // source stays the concrete entity pointer, since the generators cast it back to that type
+  template<typename T> void send_state_event_(T *obj, message_generator_t *generator) {
+    this->send_state_event_(obj, static_cast<const EntityBase *>(obj), generator);
+  }
+  void send_state_event_(void *source, const EntityBase *entity, message_generator_t *generator);
 
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
 

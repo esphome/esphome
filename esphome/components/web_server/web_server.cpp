@@ -284,14 +284,9 @@ void DeferredUpdateEventSource::deferrable_send_state(void *source, bool detail_
   if (this->count() == 0)
     return;
 
-  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
-  // up in the web GUI and reduces event load during initial connect
+  // Let the detail_all listing finish before bare state events, so the web UI never shows unnamed entries and
+  // initial connect sends less
   if (!detail_all && !this->entities_iterator_.completed())
-    return;
-
-  if (source == nullptr)
-    return;
-  if (message_generator == nullptr)
     return;
 
   if (!deferred_queue_.empty())
@@ -724,15 +719,13 @@ static void set_json_icon_state_value(JsonObject root, EntityBase *obj, const ch
   return request->arg(ESPHOME_F("detail")) == "all" ? DETAIL_ALL : DETAIL_STATE;
 }
 
-void WebServer::send_state_event_(void *source, bool internal, message_generator_t *generator) {
-  if (!internal || this->include_internal_)
+void WebServer::send_state_event_(void *source, const EntityBase *entity, message_generator_t *generator) {
+  if (!entity->is_internal() || this->include_internal_)
     this->events_.deferrable_send_state(source, false, generator);
 }
 
 #ifdef USE_SENSOR
-void WebServer::on_sensor_update(sensor::Sensor *obj) {
-  this->send_state_event_(obj, obj->is_internal(), sensor_state_json_generator);
-}
+void WebServer::on_sensor_update(sensor::Sensor *obj) { this->send_state_event_(obj, sensor_state_json_generator); }
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (sensor::Sensor *obj : App.get_sensors()) {
     auto entity_match = match.match_entity(obj);
@@ -774,7 +767,7 @@ void WebServer::sensor_json_(sensor::Sensor *obj, float value, JsonDetail start_
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj) {
-  this->send_state_event_(obj, obj->is_internal(), text_sensor_state_json_generator);
+  this->send_state_event_(obj, text_sensor_state_json_generator);
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
@@ -832,9 +825,7 @@ static void execute_switch_action(switch_::Switch *obj, SwitchAction action) {
   }
 }
 
-void WebServer::on_switch_update(switch_::Switch *obj) {
-  this->send_state_event_(obj, obj->is_internal(), switch_state_json_generator);
-}
+void WebServer::on_switch_update(switch_::Switch *obj) { this->send_state_event_(obj, switch_state_json_generator); }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (switch_::Switch *obj : App.get_switches()) {
     auto entity_match = match.match_entity(obj);
@@ -923,7 +914,7 @@ void WebServer::button_json_(button::Button *obj, JsonDetail start_config, json:
 
 #ifdef USE_BINARY_SENSOR
 void WebServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj) {
-  this->send_state_event_(obj, obj->is_internal(), binary_sensor_state_json_generator);
+  this->send_state_event_(obj, binary_sensor_state_json_generator);
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (binary_sensor::BinarySensor *obj : App.get_binary_sensors()) {
@@ -961,9 +952,7 @@ void WebServer::binary_sensor_json_(binary_sensor::BinarySensor *obj, bool value
 #endif
 
 #ifdef USE_FAN
-void WebServer::on_fan_update(fan::Fan *obj) {
-  this->send_state_event_(obj, obj->is_internal(), fan_state_json_generator);
-}
+void WebServer::on_fan_update(fan::Fan *obj) { this->send_state_event_(obj, fan_state_json_generator); }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (fan::Fan *obj : App.get_fans()) {
     auto entity_match = match.match_entity(obj);
@@ -1038,9 +1027,7 @@ void WebServer::fan_json_(fan::Fan *obj, JsonDetail start_config, json::JsonBuil
 #endif
 
 #ifdef USE_LIGHT
-void WebServer::on_light_update(light::LightState *obj) {
-  this->send_state_event_(obj, obj->is_internal(), light_state_json_generator);
-}
+void WebServer::on_light_update(light::LightState *obj) { this->send_state_event_(obj, light_state_json_generator); }
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (light::LightState *obj : App.get_lights()) {
     auto entity_match = match.match_entity(obj);
@@ -1115,9 +1102,7 @@ void WebServer::light_json_(light::LightState *obj, JsonDetail start_config, jso
 #endif
 
 #ifdef USE_COVER
-void WebServer::on_cover_update(cover::Cover *obj) {
-  this->send_state_event_(obj, obj->is_internal(), cover_state_json_generator);
-}
+void WebServer::on_cover_update(cover::Cover *obj) { this->send_state_event_(obj, cover_state_json_generator); }
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (cover::Cover *obj : App.get_covers()) {
     auto entity_match = match.match_entity(obj);
@@ -1187,9 +1172,7 @@ void WebServer::cover_json_(cover::Cover *obj, JsonDetail start_config, json::Js
 #endif
 
 #ifdef USE_NUMBER
-void WebServer::on_number_update(number::Number *obj) {
-  this->send_state_event_(obj, obj->is_internal(), number_state_json_generator);
-}
+void WebServer::on_number_update(number::Number *obj) { this->send_state_event_(obj, number_state_json_generator); }
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_numbers()) {
     auto entity_match = match.match_entity(obj);
@@ -1259,9 +1242,7 @@ void WebServer::number_json_(number::Number *obj, JsonDetail start_config, json:
 #endif
 
 #ifdef USE_DATETIME_DATE
-void WebServer::on_date_update(datetime::DateEntity *obj) {
-  this->send_state_event_(obj, obj->is_internal(), date_state_json_generator);
-}
+void WebServer::on_date_update(datetime::DateEntity *obj) { this->send_state_event_(obj, date_state_json_generator); }
 void WebServer::handle_date_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_dates()) {
     auto entity_match = match.match_entity(obj);
@@ -1316,9 +1297,7 @@ void WebServer::date_json_(datetime::DateEntity *obj, JsonDetail start_config, j
 #endif  // USE_DATETIME_DATE
 
 #ifdef USE_DATETIME_TIME
-void WebServer::on_time_update(datetime::TimeEntity *obj) {
-  this->send_state_event_(obj, obj->is_internal(), time_state_json_generator);
-}
+void WebServer::on_time_update(datetime::TimeEntity *obj) { this->send_state_event_(obj, time_state_json_generator); }
 void WebServer::handle_time_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_times()) {
     auto entity_match = match.match_entity(obj);
@@ -1373,7 +1352,7 @@ void WebServer::time_json_(datetime::TimeEntity *obj, JsonDetail start_config, j
 
 #ifdef USE_DATETIME_DATETIME
 void WebServer::on_datetime_update(datetime::DateTimeEntity *obj) {
-  this->send_state_event_(obj, obj->is_internal(), datetime_state_json_generator);
+  this->send_state_event_(obj, datetime_state_json_generator);
 }
 void WebServer::handle_datetime_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_datetimes()) {
@@ -1429,9 +1408,7 @@ void WebServer::datetime_json_(datetime::DateTimeEntity *obj, JsonDetail start_c
 #endif  // USE_DATETIME_DATETIME
 
 #ifdef USE_TEXT
-void WebServer::on_text_update(text::Text *obj) {
-  this->send_state_event_(obj, obj->is_internal(), text_state_json_generator);
-}
+void WebServer::on_text_update(text::Text *obj) { this->send_state_event_(obj, text_state_json_generator); }
 void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_texts()) {
     auto entity_match = match.match_entity(obj);
@@ -1490,9 +1467,7 @@ void WebServer::text_json_(text::Text *obj, const std::string &value, JsonDetail
 #endif
 
 #ifdef USE_SELECT
-void WebServer::on_select_update(select::Select *obj) {
-  this->send_state_event_(obj, obj->is_internal(), select_state_json_generator);
-}
+void WebServer::on_select_update(select::Select *obj) { this->send_state_event_(obj, select_state_json_generator); }
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_selects()) {
     auto entity_match = match.match_entity(obj);
@@ -1548,9 +1523,7 @@ void WebServer::select_json_(select::Select *obj, StringRef value, JsonDetail st
 #endif
 
 #ifdef USE_CLIMATE
-void WebServer::on_climate_update(climate::Climate *obj) {
-  this->send_state_event_(obj, obj->is_internal(), climate_state_json_generator);
-}
+void WebServer::on_climate_update(climate::Climate *obj) { this->send_state_event_(obj, climate_state_json_generator); }
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (auto *obj : App.get_climates()) {
     auto entity_match = match.match_entity(obj);
@@ -1733,9 +1706,7 @@ static void execute_lock_action(lock::Lock *obj, LockAction action) {
   }
 }
 
-void WebServer::on_lock_update(lock::Lock *obj) {
-  this->send_state_event_(obj, obj->is_internal(), lock_state_json_generator);
-}
+void WebServer::on_lock_update(lock::Lock *obj) { this->send_state_event_(obj, lock_state_json_generator); }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (lock::Lock *obj : App.get_locks()) {
     auto entity_match = match.match_entity(obj);
@@ -1788,9 +1759,7 @@ void WebServer::lock_json_(lock::Lock *obj, lock::LockState value, JsonDetail st
 #endif
 
 #ifdef USE_VALVE
-void WebServer::on_valve_update(valve::Valve *obj) {
-  this->send_state_event_(obj, obj->is_internal(), valve_state_json_generator);
-}
+void WebServer::on_valve_update(valve::Valve *obj) { this->send_state_event_(obj, valve_state_json_generator); }
 void WebServer::handle_valve_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (valve::Valve *obj : App.get_valves()) {
     auto entity_match = match.match_entity(obj);
@@ -1856,7 +1825,7 @@ void WebServer::valve_json_(valve::Valve *obj, JsonDetail start_config, json::Js
 
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
-  this->send_state_event_(obj, obj->is_internal(), alarm_control_panel_state_json_generator);
+  this->send_state_event_(obj, alarm_control_panel_state_json_generator);
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
@@ -1924,7 +1893,7 @@ void WebServer::alarm_control_panel_json_(alarm_control_panel::AlarmControlPanel
 
 #ifdef USE_WATER_HEATER
 void WebServer::on_water_heater_update(water_heater::WaterHeater *obj) {
-  this->send_state_event_(obj, obj->is_internal(), water_heater_state_json_generator);
+  this->send_state_event_(obj, water_heater_state_json_generator);
 }
 void WebServer::handle_water_heater_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (water_heater::WaterHeater *obj : App.get_water_heaters()) {
@@ -2217,9 +2186,7 @@ void WebServer::radio_frequency_json_(radio_frequency::RadioFrequency *obj, Json
 #endif
 
 #ifdef USE_EVENT
-void WebServer::on_event(event::Event *obj) {
-  this->send_state_event_(obj, obj->is_internal(), event_state_json_generator);
-}
+void WebServer::on_event(event::Event *obj) { this->send_state_event_(obj, event_state_json_generator); }
 
 void WebServer::handle_event_request(AsyncWebServerRequest *request, const UrlMatch &match) {
   for (event::Event *obj : App.get_events()) {

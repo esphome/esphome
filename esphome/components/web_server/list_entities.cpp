@@ -14,155 +14,158 @@ ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource
 ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es)
     : web_server_(ws), events_(es) {}
 #endif
+void ListEntitiesIterator::send_all_(void *source, message_generator_t *generator) {
+  this->events_->deferrable_send_state(source, true, generator);
+}
+
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::binary_sensor_all_json_generator);
+  this->send_all_(obj, WebServer::binary_sensor_all_json_generator);
   return true;
 }
 #endif
 #ifdef USE_COVER
 bool ListEntitiesIterator::on_cover(cover::Cover *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::cover_all_json_generator);
+  this->send_all_(obj, WebServer::cover_all_json_generator);
   return true;
 }
 #endif
 #ifdef USE_FAN
 bool ListEntitiesIterator::on_fan(fan::Fan *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::fan_all_json_generator);
+  this->send_all_(obj, WebServer::fan_all_json_generator);
   return true;
 }
 #endif
 #ifdef USE_LIGHT
 bool ListEntitiesIterator::on_light(light::LightState *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::light_all_json_generator);
+  this->send_all_(obj, WebServer::light_all_json_generator);
   return true;
 }
 #endif
 #ifdef USE_SENSOR
 bool ListEntitiesIterator::on_sensor(sensor::Sensor *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::sensor_all_json_generator);
+  this->send_all_(obj, WebServer::sensor_all_json_generator);
   return true;
 }
 #endif
 #ifdef USE_SWITCH
 bool ListEntitiesIterator::on_switch(switch_::Switch *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::switch_all_json_generator);
+  this->send_all_(obj, WebServer::switch_all_json_generator);
   return true;
 }
 #endif
 #ifdef USE_BUTTON
 bool ListEntitiesIterator::on_button(button::Button *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::button_all_json_generator);
+  this->send_all_(obj, WebServer::button_all_json_generator);
   return true;
 }
 #endif
 #ifdef USE_TEXT_SENSOR
 bool ListEntitiesIterator::on_text_sensor(text_sensor::TextSensor *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::text_sensor_all_json_generator);
+  this->send_all_(obj, WebServer::text_sensor_all_json_generator);
   return true;
 }
 #endif
 #ifdef USE_LOCK
 bool ListEntitiesIterator::on_lock(lock::Lock *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::lock_all_json_generator);
+  this->send_all_(obj, WebServer::lock_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_VALVE
 bool ListEntitiesIterator::on_valve(valve::Valve *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::valve_all_json_generator);
+  this->send_all_(obj, WebServer::valve_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_CLIMATE
 bool ListEntitiesIterator::on_climate(climate::Climate *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::climate_all_json_generator);
+  this->send_all_(obj, WebServer::climate_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_NUMBER
 bool ListEntitiesIterator::on_number(number::Number *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::number_all_json_generator);
+  this->send_all_(obj, WebServer::number_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_DATETIME_DATE
 bool ListEntitiesIterator::on_date(datetime::DateEntity *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::date_all_json_generator);
+  this->send_all_(obj, WebServer::date_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_DATETIME_TIME
 bool ListEntitiesIterator::on_time(datetime::TimeEntity *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::time_all_json_generator);
+  this->send_all_(obj, WebServer::time_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_DATETIME_DATETIME
 bool ListEntitiesIterator::on_datetime(datetime::DateTimeEntity *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::datetime_all_json_generator);
+  this->send_all_(obj, WebServer::datetime_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_TEXT
 bool ListEntitiesIterator::on_text(text::Text *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::text_all_json_generator);
+  this->send_all_(obj, WebServer::text_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_SELECT
 bool ListEntitiesIterator::on_select(select::Select *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::select_all_json_generator);
+  this->send_all_(obj, WebServer::select_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
 bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::alarm_control_panel_all_json_generator);
+  this->send_all_(obj, WebServer::alarm_control_panel_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_WATER_HEATER
 bool ListEntitiesIterator::on_water_heater(water_heater::WaterHeater *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::water_heater_all_json_generator);
+  this->send_all_(obj, WebServer::water_heater_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_INFRARED
 bool ListEntitiesIterator::on_infrared(infrared::Infrared *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::infrared_all_json_generator);
+  this->send_all_(obj, WebServer::infrared_all_json_generator);
   return true;
 }
 #endif
 #ifdef USE_RADIO_FREQUENCY
 bool ListEntitiesIterator::on_radio_frequency(radio_frequency::RadioFrequency *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::radio_frequency_all_json_generator);
+  this->send_all_(obj, WebServer::radio_frequency_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_EVENT
 bool ListEntitiesIterator::on_event(event::Event *obj) {
-  // Null event type, since we are just iterating over entities
-  this->events_->deferrable_send_state(obj, true, WebServer::event_all_json_generator);
+  this->send_all_(obj, WebServer::event_all_json_generator);
   return true;
 }
 #endif
 
 #ifdef USE_UPDATE
 bool ListEntitiesIterator::on_update(update::UpdateEntity *obj) {
-  this->events_->deferrable_send_state(obj, true, WebServer::update_all_json_generator);
+  this->send_all_(obj, WebServer::update_all_json_generator);
   return true;
 }
 #endif

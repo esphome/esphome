@@ -1269,14 +1269,9 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
 
 void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_all,
                                                      message_generator_t *message_generator) {
-  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
-  // up in the web GUI and reduces event load during initial connect
+  // Let the detail_all listing finish before bare state events, so the web UI never shows unnamed entries and
+  // initial connect sends less
   if (!detail_all && !this->entities_iterator_.completed())
-    return;
-
-  if (source == nullptr)
-    return;
-  if (message_generator == nullptr)
     return;
 
   drain_tail_();
