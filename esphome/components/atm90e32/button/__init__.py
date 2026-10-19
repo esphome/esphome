@@ -1,7 +1,7 @@
+import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, ENTITY_CATEGORY_CONFIG, ICON_SCALE
-from esphome.helpers import cpp_string_escape
 from esphome.types import ConfigType
 
 from ..sensor import ATM90E32Component
@@ -34,7 +34,7 @@ CONFIG_SCHEMA = {
 def _press(action: str, hint: str | None = None, hint2: str | None = None) -> str:
     """press_calibration_button() logs at most two hint lines."""
     args = "".join(
-        f", LOG_STR({cpp_string_escape(h)})" for h in (hint, hint2) if h is not None
+        f", {cg.LogStringLiteral(h)}" for h in (hint, hint2) if h is not None
     )
     return f"press_calibration_button(entity, &{ATM90E32Component}::{action}{args})"
 
