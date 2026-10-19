@@ -6,7 +6,9 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_MAX_PACKET_SIZE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import ID
 from esphome.cpp_generator import MockObj, MockObjClass
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from . import layers
@@ -34,6 +36,7 @@ LINK_LAYER_SCHEMAS = stack_schema()
 __all__ = [
     "CONF_MAX_PACKET_SIZE",
     "CONF_PACKET_INTERFACE",
+    "interface_layers",
     "PacketInterface",
     "new_packet_interface",
     "packet_interface_ns",
@@ -57,6 +60,14 @@ def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
 def _validate_layers(config: ConfigType) -> ConfigType:
     check_session(config)
     return config
+
+
+def interface_layers(interface_id: ID) -> ConfigType | None:
+    """During final validation, the configuration holding the layers of the packet interface with this id."""
+    for interface in fv.full_config.get().get(DOMAIN, []):
+        if interface[CONF_ID].id == interface_id.id:
+            return interface
+    return None
 
 
 def packet_interface_schema(

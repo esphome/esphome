@@ -2,7 +2,6 @@ packet_interface:
   - platform: uart
     id: entity_transport_link
     reliability:
-    session:
 
 sensor:
   - platform: template
