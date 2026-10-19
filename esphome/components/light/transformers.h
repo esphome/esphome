@@ -27,8 +27,8 @@ class LightTransitionTransformer : public LightTransformer {
     }
 
     // When changing color mode, go through off state, as color modes are orthogonal and there can't be two active.
-    if (this->start_values_.get_color_mode() != this->end_values_.get_color_mode()) {
-      this->changing_color_mode_ = true;
+    this->changing_color_mode_ = this->start_values_.get_color_mode() != this->end_values_.get_color_mode();
+    if (this->changing_color_mode_) {
       this->intermediate_values_ = this->start_values_;
       this->intermediate_values_.set_state(false);
     }
@@ -73,36 +73,33 @@ class LightFlashTransformer : public LightTransformer {
     // first transition to original target
     this->transformer_ = this->state_.get_output()->create_default_transition();
     this->transformer_->setup(this->state_.current_values, this->target_values_, this->transition_length_);
+    this->transition_running_ = true;
   }
 
   optional<LightColorValues> apply() override {
-    optional<LightColorValues> result = {};
-
-    if (this->transformer_ == nullptr && millis() - this->start_time_ > this->length_ - this->transition_length_) {
-      // second transition back to start value
-      this->transformer_ = this->state_.get_output()->create_default_transition();
+    if (!this->transition_running_ && !this->begun_lightstate_restore_ &&
+        millis() - this->start_time_ > this->length_ - this->transition_length_) {
+      // second transition back to start value, run by the same transformer as the first
       this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
       this->begun_lightstate_restore_ = true;
+      this->transition_running_ = true;
     }
 
-    if (this->transformer_ != nullptr) {
-      result = this->transformer_->apply();
+    if (!this->transition_running_)
+      return {};
 
-      if (this->transformer_->is_finished()) {
-        this->transformer_->stop();
-        this->transformer_ = nullptr;
-      }
+    optional<LightColorValues> result = this->transformer_->apply();
+    if (this->transformer_->is_finished()) {
+      this->transformer_->stop();
+      this->transition_running_ = false;
     }
-
     return result;
   }
 
   // Restore the original values after the flash.
   void stop() override {
-    if (this->transformer_ != nullptr) {
+    if (this->transition_running_)
       this->transformer_->stop();
-      this->transformer_ = nullptr;
-    }
     this->state_.current_values = this->get_start_values();
     this->state_.remote_values = this->get_start_values();
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
@@ -120,6 +117,7 @@ class LightFlashTransformer : public LightTransformer {
   std::unique_ptr<LightTransformer> transformer_{nullptr};
   uint32_t transition_length_;
   bool begun_lightstate_restore_;
+  bool transition_running_;
 };
 
 }  // namespace esphome::light

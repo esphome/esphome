@@ -170,6 +170,8 @@ void AddressableLight::update_state(LightState *state) {
 }
 
 void AddressableLightTransformer::start() {
+  this->last_transition_progress_ = 0.0f;
+
   // don't try to transition over running effects.
   if (this->light_.is_effect_active())
     return;

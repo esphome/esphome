@@ -19,6 +19,7 @@ byte of each LED, so we can observe the transition directly.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 
 from aioesphomeapi import LightInfo, SensorInfo, SensorState
 import pytest
@@ -117,3 +118,51 @@ async def test_addressable_light_transition(
         assert max(final_samples) >= 250, (
             f"final raw byte was {max(final_samples)}, expected >= 250"
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.shared_yaml("addressable_light_transition")
+async def test_addressable_light_flash_restores_leds(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A flash writes the LEDs back to where they were when it ends."""
+    async with run_compiled(yaml_config), api_client_connected() as client:
+        entities, _ = await client.list_entities_services()
+        light = require_entity(entities, "test_strip", LightInfo)
+        sensor = require_entity(entities, "led0_red_raw", SensorInfo)
+
+        changed = asyncio.Event()
+        raw: list[float] = []
+
+        def on_state(state: object) -> None:
+            if not isinstance(state, SensorState) or state.key != sensor.key:
+                return
+            raw.append(state.state)
+            changed.set()
+
+        async def wait_for_raw(matches: Callable[[float], bool]) -> None:
+            async def wait() -> None:
+                while not raw or not matches(raw[-1]):
+                    changed.clear()
+                    await changed.wait()
+
+            await asyncio.wait_for(wait(), timeout=2.0)
+
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        await initial_state_helper.wait_for_initial_states()
+
+        client.light_command(
+            key=light.key, state=True, rgb=(1.0, 1.0, 1.0), brightness=1.0
+        )
+        await wait_for_raw(lambda v: v == 255)
+
+        # The flash dims the strip, then its fade back must write the LEDs again:
+        # the light core does not rewrite them itself when the flash ends.
+        client.light_command(
+            key=light.key, state=True, brightness=0.5, flash_length=0.5
+        )
+        await wait_for_raw(lambda v: v < 255)
+        await wait_for_raw(lambda v: v == 255)

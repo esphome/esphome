@@ -11,6 +11,8 @@ class LightTransformer {
  public:
   virtual ~LightTransformer() = default;
 
+  /// Starts a run from start_values to target_values over length ms. A transformer that has finished may be set up
+  /// again for another run, as a flash does for its fade back, so start() must reset every member apply() reads.
   void setup(const LightColorValues &start_values, const LightColorValues &target_values, uint32_t length) {
     this->start_time_ = millis();
     this->length_ = length;
@@ -22,7 +24,7 @@ class LightTransformer {
   /// Indicates whether this transformation is finished.
   virtual bool is_finished() { return this->get_progress_() >= 1.0f; }
 
-  /// This will be called before the transition is started.
+  /// This will be called by setup() before each run of the transition.
   virtual void start() {}
 
   /// This will be called while the transformer is active to apply the transition to the light. Can either write to the
