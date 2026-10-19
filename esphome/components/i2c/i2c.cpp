@@ -75,6 +75,15 @@ bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
   return true;
 }
 
+bool I2CDevice::update_register(uint8_t a_register, uint8_t mask, uint8_t value) {
+  uint8_t data;
+  if (!this->read_byte(a_register, &data))
+    return false;
+  const uint8_t updated = (data & ~mask) | (value & mask);
+  ESP_LOGV(TAG, "Register 0x%02X: 0x%02X -> 0x%02X", a_register, data, updated);
+  return this->write_byte(a_register, updated);
+}
+
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const {
   const size_t size = 1 + len * 2;
   SmallBufferWithHeapFallback<17> buffer_alloc(size);  // Register plus up to 8 words
@@ -91,6 +100,11 @@ bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t
 
 bool I2CDevice::write_byte_16(uint8_t a_register, uint16_t data) const {
   const uint8_t buffer[3] = {a_register, static_cast<uint8_t>(data >> 8), static_cast<uint8_t>(data)};
+  return this->bus_->write_readv(this->address_, buffer, sizeof(buffer), nullptr, 0) == ERROR_OK;
+}
+
+bool I2CDevice::write_byte_16_le(uint8_t a_register, uint16_t data) const {
+  const uint8_t buffer[3] = {a_register, static_cast<uint8_t>(data), static_cast<uint8_t>(data >> 8)};
   return this->bus_->write_readv(this->address_, buffer, sizeof(buffer), nullptr, 0) == ERROR_OK;
 }
 

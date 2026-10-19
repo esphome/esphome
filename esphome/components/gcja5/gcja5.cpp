@@ -20,55 +20,53 @@ void GCJA5Component::loop() {
     this->rx_message_.clear();
   }
 
-  if (this->available() == 0) {
+  const size_t avail = this->available();
+  if (avail == 0) {
     return;
   }
 
   // There must now be data waiting
   this->last_transmission_ = now;
-  uint8_t val;
-  while (this->available() != 0) {
-    this->read_byte(&val);
-    this->rx_message_.push_back(val);
+  this->read_available(
+      [this](uint8_t val) {
+        this->rx_message_.push_back(val);
 
-    // check if rx_message_ has 32 bytes of data
-    if (this->rx_message_.size() == 32) {
-      this->parse_data_();
+        // check if rx_message_ has 32 bytes of data
+        if (this->rx_message_.size() == 32) {
+          this->parse_data_();
 
-      if (this->have_good_data_) {
-        if (this->pm_1_0_sensor_ != nullptr)
-          this->pm_1_0_sensor_->publish_state(get_32_bit_uint_(1));
-        if (this->pm_2_5_sensor_ != nullptr)
-          this->pm_2_5_sensor_->publish_state(get_32_bit_uint_(5));
-        if (this->pm_10_0_sensor_ != nullptr)
-          this->pm_10_0_sensor_->publish_state(get_32_bit_uint_(9));
-        if (this->pmc_0_3_sensor_ != nullptr)
-          this->pmc_0_3_sensor_->publish_state(get_16_bit_uint_(13));
-        if (this->pmc_0_5_sensor_ != nullptr)
-          this->pmc_0_5_sensor_->publish_state(get_16_bit_uint_(15));
-        if (this->pmc_1_0_sensor_ != nullptr)
-          this->pmc_1_0_sensor_->publish_state(get_16_bit_uint_(17));
-        if (this->pmc_2_5_sensor_ != nullptr)
-          this->pmc_2_5_sensor_->publish_state(get_16_bit_uint_(21));
-        if (this->pmc_5_0_sensor_ != nullptr)
-          this->pmc_5_0_sensor_->publish_state(get_16_bit_uint_(23));
-        if (this->pmc_10_0_sensor_ != nullptr)
-          this->pmc_10_0_sensor_->publish_state(get_16_bit_uint_(25));
-      } else {
-        this->status_set_warning();
-        ESP_LOGV(TAG, "Have 32 bytes but not good data. Skipping.");
-      }
+          if (this->have_good_data_) {
+            if (this->pm_1_0_sensor_ != nullptr)
+              this->pm_1_0_sensor_->publish_state(get_32_bit_uint_(1));
+            if (this->pm_2_5_sensor_ != nullptr)
+              this->pm_2_5_sensor_->publish_state(get_32_bit_uint_(5));
+            if (this->pm_10_0_sensor_ != nullptr)
+              this->pm_10_0_sensor_->publish_state(get_32_bit_uint_(9));
+            if (this->pmc_0_3_sensor_ != nullptr)
+              this->pmc_0_3_sensor_->publish_state(get_16_bit_uint_(13));
+            if (this->pmc_0_5_sensor_ != nullptr)
+              this->pmc_0_5_sensor_->publish_state(get_16_bit_uint_(15));
+            if (this->pmc_1_0_sensor_ != nullptr)
+              this->pmc_1_0_sensor_->publish_state(get_16_bit_uint_(17));
+            if (this->pmc_2_5_sensor_ != nullptr)
+              this->pmc_2_5_sensor_->publish_state(get_16_bit_uint_(21));
+            if (this->pmc_5_0_sensor_ != nullptr)
+              this->pmc_5_0_sensor_->publish_state(get_16_bit_uint_(23));
+            if (this->pmc_10_0_sensor_ != nullptr)
+              this->pmc_10_0_sensor_->publish_state(get_16_bit_uint_(25));
+          } else {
+            this->status_set_warning();
+            ESP_LOGV(TAG, "Have 32 bytes but not good data. Skipping.");
+          }
 
-      this->rx_message_.clear();
-    }
-  }
+          this->rx_message_.clear();
+        }
+      },
+      avail);
 }
 
 bool GCJA5Component::calculate_checksum_() {
-  uint8_t crc = 0;
-
-  for (uint8_t i = 1; i < 30; i++)
-    crc = crc ^ this->rx_message_[i];
+  uint8_t crc = xor_bytes(&this->rx_message_[1], 29);
 
   ESP_LOGVV(TAG, "Checksum packet was (0x%02X), calculated checksum was (0x%02X)", this->rx_message_[30], crc);
 
