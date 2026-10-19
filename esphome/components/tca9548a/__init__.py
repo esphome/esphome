@@ -78,9 +78,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     root_bus_id = _root_bus_id(config[CONF_I2C_ID])
     if (frequency := config.get(CONF_FREQUENCY)) is not None:
         await _add_frequency(root_bus_id, int(frequency))

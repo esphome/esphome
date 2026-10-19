@@ -30,11 +30,7 @@ void GDK101Component::update() {
     return;
   }
 
-  if (!this->read_measurement_duration_(data)) {
-    this->status_set_warning(LOG_STR("Failed to read measurement duration"));
-    return;
-  }
-  this->status_clear_warning();
+  this->status_comm_result(this->read_measurement_duration_(data), LOG_STR("Failed to read measurement duration"));
 }
 
 void GDK101Component::setup() {
