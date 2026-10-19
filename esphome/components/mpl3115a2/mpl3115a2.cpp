@@ -8,15 +8,8 @@ namespace esphome::mpl3115a2 {
 ESPHOME_LOG_TAG(TAG, "mpl3115a2");
 
 void MPL3115A2Component::setup() {
-  uint8_t whoami = 0xFF;
-  if (!this->read_byte(MPL3115A2_WHOAMI, &whoami)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->check_chip_id(this, MPL3115A2_WHOAMI, 0xC4))
     return;
-  }
-  if (whoami != 0xC4) {
-    this->mark_failed(LOG_STR("MPL3115A2 has invalid id"));
-    return;
-  }
 
   // reset
   this->write_byte(MPL3115A2_CTRL_REG1, MPL3115A2_CTRL_REG1_RST);
@@ -68,7 +61,7 @@ void MPL3115A2Component::update() {
     if (this->pressure_ != nullptr)
       this->pressure_->publish_state(pressure);
   }
-  int16_t t = encode_uint16(buffer[3], buffer[4]);
+  int16_t t = encode_value<int16_t>(&buffer[3]);
   float temperature = float(t) / 256.0f;
   if (this->temperature_ != nullptr)
     this->temperature_->publish_state(temperature);

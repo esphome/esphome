@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 import logging
 import re
 import sys
@@ -389,9 +390,18 @@ async def register_i2c_device(var: MockObj, config: ConfigType) -> None:
 
     This is a coroutine, you need to await it with an 'await' expression!
     """
-    parent = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_bus(parent))
+    await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
+
+
+def new_i2c_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on an i2c bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_i2c_device, config, *args)
 
 
 def final_validate_device_schema(
