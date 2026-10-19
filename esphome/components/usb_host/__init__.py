@@ -2,7 +2,7 @@ import itertools
 import logging
 
 import esphome.codegen as cg
-from esphome.components.const import CONF_MANUFACTURER
+from esphome.components.const import CONF_MANUFACTURER, CONF_MAX_PACKET_SIZE
 from esphome.components.esp32 import (
     VARIANT_ESP32H4,
     VARIANT_ESP32P4,
@@ -38,7 +38,6 @@ CONF_PID = "pid"
 CONF_PRODUCT = "product"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
-CONF_MAX_PACKET_SIZE = "max_packet_size"
 
 
 # VID/PID set to 0 or `None` product/manufacturer are wildcards
