@@ -390,8 +390,7 @@ async def register_i2c_device(var: MockObj, config: ConfigType) -> None:
 
     This is a coroutine, you need to await it with an 'await' expression!
     """
-    parent = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_bus(parent))
+    await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
 
 

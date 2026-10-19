@@ -84,6 +84,10 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
             ),
             cv.Length(min=1),
         ),
+        cv.Optional(light.CONF_POWER_ESTIMATION): cv.invalid(
+            "power_estimation belongs on the strip a partition draws from; "
+            "the strip's limit covers every partition on it"
+        ),
     }
 )
 
