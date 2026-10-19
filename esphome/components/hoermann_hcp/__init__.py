@@ -20,8 +20,8 @@ HoermannHcp = hoermann_hcp_ns.class_(
     "HoermannHcp", cg.PollingComponent, modbus.ModbusServerDevice
 )
 
-# Default Modbus server address: 0x2A (42), a free accessory slot in the middle
-# of the unit ID range the drive sweeps during its bus scan.
+# Default Modbus server address from 2027.04.0 on is a free accessory slot
+# in the middle of the unit ID range the drive sweeps during its bus scan.
 HCP2_DEFAULT_ADDRESS = 0x2A
 
 # Addresses that must not be used by a custom accessory, because they are
@@ -66,8 +66,10 @@ def _validate_deprecated_hcp2_address(value: int) -> int:
         _LOGGER.warning(
             "[hoermann_hcp] Using 'address: 0x02' is being deprecated because "
             "it is a reserved HCP2 address. In 2027.04.0 the default address "
-            "will change to 0x2A and 0x02 will be rejected. "
-            "Set 'address: 0x2A' and run a bus scan now to future-proof your setup."
+            "will change to 0x%02X and 0x02 will be rejected. "
+            "Set 'address: 0x%02X' and run a bus scan now to future-proof your setup.",
+            HCP2_DEFAULT_ADDRESS,
+            HCP2_DEFAULT_ADDRESS,
         )
     return value
 
@@ -78,8 +80,9 @@ def _warn_missing_hcp2_address(config: ConfigType) -> ConfigType:
     if CONF_ADDRESS not in config:
         _LOGGER.warning(
             "[hoermann_hcp] 'address' not set. Using 0x02 for now. Default HCP2 address "
-            "will change to 0x2A in 2027.04.0. Set 'address: 0x2A' explicitly to silence "
-            "this warning."
+            "will change to 0x%02X in 2027.04.0. Set 'address: 0x2A' explicitly to silence "
+            "this warning.",
+            HCP2_DEFAULT_ADDRESS,
         )
         config[CONF_ADDRESS] = _DEPRECATED_HCP2_ADDRESS
     return config

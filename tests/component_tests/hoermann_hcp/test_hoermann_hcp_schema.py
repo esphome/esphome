@@ -56,5 +56,5 @@ def test_explicit_valid_address_emits_no_warning(
     """A user who pins a non-deprecated address gets neither warning."""
     config = hoermann_hcp.CONFIG_SCHEMA({"address": 0x2A})
     assert config["address"] == 0x2A
-    assert "deprecated" not in caplog.text
     assert "is not set" not in caplog.text
+    assert "address will change to" not in caplog.text
