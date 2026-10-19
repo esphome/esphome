@@ -91,6 +91,12 @@ TEST_F(RadioLinkTest, BusyFlagThatNeverClearsIsSentOver) {
   EXPECT_EQ(this->radio_.sent[0], (Packet{1, 2, 3}));
 }
 
+TEST_F(RadioLinkTest, EmptyPacketCountsAsSentWithoutTransmitting) {
+  static const Packet EMPTY;
+  EXPECT_TRUE(this->link_.send_to_interface(PacketBuffer(EMPTY), {}));
+  EXPECT_TRUE(this->radio_.sent.empty());
+}
+
 TEST_F(RadioLinkTest, ReceivedPacketCarriesSignal) {
   Packet received;
   PacketMetaData meta;
