@@ -40,8 +40,8 @@ swiftc -O "$SKILL/scripts/camsnap.swift" -o /tmp/camsnap/camsnap
 The camera argument is a case-insensitive substring of the name AVFoundation reports. If it does
 not match, the tool lists the cameras it found, so a run with a name that matches nothing lists
 the cameras without capturing. Use a substring that matches only the camera the user approved.
-It creates the output directory if needed and reports encoding or write errors on stderr. Other options include `ffmpeg` with `avfoundation`
-input, `imagesnap`, or Photo Booth's still capture.
+It creates the output directory if needed and reports encoding or write errors on stderr. Other
+options include `ffmpeg` with `avfoundation` input, `imagesnap`, or Photo Booth's still capture.
 
 ### Linux
 
