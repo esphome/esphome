@@ -600,11 +600,15 @@ void USBAudioComponent::run_op_(const Op &op) {
   switch (op.type) {
     case Op::Type::OPEN: {
       const uint32_t buffer_size = this->endpoint_(op.endpoint).platform->get_buffer_size();
+      // The driver raises TX_DONE after taking a transfer only while the ring buffer holds at most the threshold, so
+      // the speaker sets it just below the size (the driver needs it smaller) to hear about every transfer.
+      const uint32_t threshold =
+          op.endpoint == Endpoint::SPEAKER ? buffer_size - 1 : std::max<uint32_t>(buffer_size / 4, 1U);
       uac_host_device_config_t dev_cfg = {
           .addr = op.addr,
           .iface_num = op.iface_num,
           .buffer_size = buffer_size,
-          .buffer_threshold = std::max<uint32_t>(buffer_size / 4, 1U),
+          .buffer_threshold = threshold,
           .callback = &USBAudioComponent::device_event_stub,
           .callback_arg = this,
       };
@@ -835,7 +839,13 @@ void USBAudioComponent::driver_event_stub(uint8_t addr, uint8_t iface_num, const
 void USBAudioComponent::device_event_stub(uac_host_device_handle_t handle, const uac_host_device_event_t event,
                                           void *user_data) {
   auto *self = static_cast<USBAudioComponent *>(user_data);
-  if (event == UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR) {
+  if (event == UAC_HOST_DEVICE_EVENT_TX_DONE) {
+    auto &speaker = self->endpoint_(Endpoint::SPEAKER);
+    // Only the speaker's own interface; the handle is cleared first when the device goes away.
+    if (speaker.platform != nullptr && handle == speaker.handle.load()) {
+      speaker.platform->on_transfer_taken();
+    }
+  } else if (event == UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR) {
     self->transfer_errors_.fetch_add(1, std::memory_order_relaxed);
     self->enable_loop_soon_any_context();
   } else if (event == UAC_HOST_DRIVER_EVENT_DISCONNECTED) {

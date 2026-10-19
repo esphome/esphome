@@ -46,6 +46,10 @@ class USBAudioStream {
   virtual void on_stream_state(StreamEvent event) = 0;
   /// No platform task is inside a read or write call on the device; the hub closes a lost device only then.
   virtual bool stream_idle() const = 0;
+  /// Speaker only: the driver tried to take its next transfer from the ring buffer, which it does each time a transfer
+  /// completes and on each write, and takes it only when the ring buffer holds all of it. Called on the USB driver's
+  /// task or inside a write.
+  virtual void on_transfer_taken() {}
 
  protected:
   uint32_t buffer_size_;
