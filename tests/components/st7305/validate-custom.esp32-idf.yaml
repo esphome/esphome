@@ -8,9 +8,10 @@ packages:
 display:
   - platform: st7305
     model: CUSTOM
-    width: 200
-    height: 160
+    width: 168
+    height: 384
     portrait: true
+    column_start: 0x17
     cs_pin: ${cs_pin}
     dc_pin: ${dc_pin}
     init_sequence:

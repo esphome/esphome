@@ -107,19 +107,19 @@ def _resolve(config: ConfigType, model: DriverChip) -> None:
         config[CONF_PORTRAIT] = default
 
     if config[CONF_PORTRAIT]:
-        if width % 4 or height % 2:
+        if width % 12 or height % 2:
             raise cv.Invalid(
-                "portrait orientation requires a width divisible by 4 and a height divisible by 2"
+                "portrait panels require a width divisible by 12 and a height divisible by 2"
             )
-        columns = (width + 11) // 12
-        rows = (height + 1) // 2
+        columns = width // 12
+        rows = height // 2
     else:
-        if width % 2 or height % 4:
+        if width % 2 or height % 12:
             raise cv.Invalid(
-                "landscape orientation requires a width divisible by 2 and a height divisible by 4"
+                "landscape panels require a width divisible by 2 and a height divisible by 12"
             )
-        columns = (height + 11) // 12
-        rows = (width + 1) // 2
+        columns = height // 12
+        rows = width // 2
 
     column_start = config.get(
         CONF_COLUMN_START, model.get_default(CONF_COLUMN_START, 0)
