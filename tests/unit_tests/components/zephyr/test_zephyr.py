@@ -17,6 +17,7 @@ from esphome.components.zephyr import (
     _resolve_snippet_source,
     _restore_upload_data,
     _variant_config_schema,
+    _watchdog_to_code,
     add_extra_build_file,
     add_extra_script,
     request_zephyr_module,
@@ -1707,6 +1708,92 @@ def test_variant_config_schema_defaults_watchdog_timeout_for_real_hardware() -> 
     _init_variant_schema_core()
     config = _variant_config_schema({"variant": "ESP32H2"})
     assert config["watchdog_timeout"] == cv.TimePeriod(seconds=10)
+
+
+@pytest.mark.parametrize("watchdog_timeout", [0, "0s"])
+def test_variant_config_schema_accepts_watchdog_timeout_zero(
+    watchdog_timeout: object,
+) -> None:
+    _init_variant_schema_core()
+    config = _variant_config_schema(
+        {"variant": "ESP32H2", "watchdog_timeout": watchdog_timeout}
+    )
+    assert config["watchdog_timeout"].total_milliseconds == 0
+
+
+@pytest.mark.parametrize("name", ["WATCHDOG", "CONFIG_WATCHDOG"])
+@pytest.mark.parametrize("value", [True, "y"])
+def test_variant_config_schema_rejects_kconfig_watchdog_with_timeout_zero(
+    name: str, value: object
+) -> None:
+    _init_variant_schema_core()
+    with pytest.raises(cv.Invalid, match="conflicts with 'watchdog_timeout: 0'"):
+        _variant_config_schema(
+            {
+                "variant": "ESP32H2",
+                "watchdog_timeout": "0s",
+                "kconfig_options": {name: value},
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "kconfig_options",
+    [{"WATCHDOG": False}, {"WATCHDOG": {"mcuboot": True}}],
+)
+def test_variant_config_schema_allows_kconfig_watchdog_off_or_other_image(
+    kconfig_options: dict,
+) -> None:
+    _init_variant_schema_core()
+    _variant_config_schema(
+        {
+            "variant": "ESP32H2",
+            "watchdog_timeout": "0s",
+            "kconfig_options": kconfig_options,
+        }
+    )
+
+
+def test_variant_config_schema_allows_kconfig_watchdog_with_timeout() -> None:
+    _init_variant_schema_core()
+    _variant_config_schema(
+        {
+            "variant": "ESP32H2",
+            "watchdog_timeout": "10s",
+            "kconfig_options": {"WATCHDOG": True},
+        }
+    )
+
+
+def _defined(name: str) -> bool:
+    return any(define.name == name for define in CORE.defines)
+
+
+def test_watchdog_to_code_zero_forces_watchdog_off() -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF54L15")
+    _watchdog_to_code({"watchdog_timeout": cv.TimePeriod(seconds=0)})
+    assert CORE.data[KEY_ZEPHYR]["prj_conf"][""]["CONFIG_WATCHDOG"] == (False, True)
+    assert not _defined("USE_WATCHDOG")
+    assert not _defined("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS")
+
+
+def test_watchdog_to_code_timeout_arms_watchdog() -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF54L15")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_watchdog_node_label",
+        return_value=("wdt31", True),
+    ):
+        _watchdog_to_code({"watchdog_timeout": cv.TimePeriod(seconds=10)})
+    assert CORE.data[KEY_ZEPHYR]["prj_conf"][""]["CONFIG_WATCHDOG"] == (True, True)
+    assert _defined("USE_WATCHDOG")
+    assert _defined("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS")
+
+
+def test_watchdog_to_code_skips_native_sim() -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NATIVESIM")
+    _watchdog_to_code({})
+    assert "CONFIG_WATCHDOG" not in CORE.data[KEY_ZEPHYR]["prj_conf"].get("", {})
+    assert not _defined("USE_WATCHDOG")
 
 
 def _nrf52_advanced(**advanced: object) -> dict:

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from esphome import config_validation as cv, core
+from esphome import config_validation as cv, core, final_validate as fv
 import esphome.codegen as cg
 from esphome.components.safe_mode import to_code as safe_mode_to_code
 from esphome.const import (
@@ -21,13 +21,16 @@ from esphome.const import (
     CONF_INCLUDES_C,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ZEPHYR,
     Toolchain,
 )
 from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
+    CONF_LOOP_INTERVAL,
     CONF_SUSPEND_LOOP,
     Area,
     make_app_name_cpp,
@@ -36,6 +39,7 @@ from esphome.core.config import (
     valid_project_name,
     validate_area_config,
     validate_hostname,
+    validate_loop_interval,
 )
 
 from .common import load_config_from_fixture, load_config_from_yaml
@@ -144,6 +148,26 @@ def test_multiple_areas_and_devices(yaml_file: Callable[[str], str]) -> None:
         "device2": "area1",
         "device3": "area2",
     }
+
+
+@pytest.mark.parametrize(
+    ("watchdog_timeout", "warns"),
+    [(cv.TimePeriod(seconds=0), False), (cv.TimePeriod(seconds=10), True)],
+)
+def test_loop_interval_zephyr_watchdog(
+    caplog: pytest.LogCaptureFixture, watchdog_timeout: cv.TimePeriod, warns: bool
+) -> None:
+    """With the Zephyr watchdog disabled the loop sleep is not capped."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    token = fv.full_config.set(
+        {PLATFORM_ZEPHYR: {CONF_WATCHDOG_TIMEOUT: watchdog_timeout}}
+    )
+    try:
+        validate_loop_interval({CONF_LOOP_INTERVAL: cv.TimePeriod(seconds=7)})
+    finally:
+        fv.full_config.reset(token)
+
+    assert ("maximum sleep" in caplog.text) is warns
 
 
 @pytest.mark.asyncio

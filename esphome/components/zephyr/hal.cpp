@@ -23,7 +23,13 @@ namespace esphome::zephyr {}  // namespace esphome::zephyr
 
 namespace esphome {
 
-#ifdef CONFIG_WATCHDOG
+// Armed only when ESPHome configured it: platform: nrf52 always, platform: zephyr unless
+// watchdog_timeout: 0. A user-enabled CONFIG_WATCHDOG alone must not arm a fallback timeout.
+#if defined(CONFIG_WATCHDOG) && (defined(USE_WATCHDOG) || defined(USE_NRF52))
+#define ESPHOME_ZEPHYR_ARM_WATCHDOG
+#endif
+
+#ifdef ESPHOME_ZEPHYR_ARM_WATCHDOG
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
@@ -69,7 +75,7 @@ static void wdt_warning_cb(const device *dev, int channel_id) {
 
 void arch_init() {
   main_loop_thread() = k_current_get();
-#ifdef CONFIG_WATCHDOG
+#ifdef ESPHOME_ZEPHYR_ARM_WATCHDOG
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
@@ -111,7 +117,7 @@ void arch_init() {
 }
 
 void arch_feed_wdt() {
-#ifdef CONFIG_WATCHDOG
+#ifdef ESPHOME_ZEPHYR_ARM_WATCHDOG
   if (wdt_channel_id >= 0) {
     wdt_feed(WDT, wdt_channel_id);
   }

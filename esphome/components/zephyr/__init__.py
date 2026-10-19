@@ -656,37 +656,7 @@ def zephyr_to_code(config: ConfigType) -> None:
         # threads. Gated on wifi: since DYNAMIC_THREAD is only selected when WiFi is enabled.
         zephyr_add_prj_conf("DYNAMIC_THREAD_STACK_SIZE", 2048, required=False)
 
-    # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
-    # setup separately (nrf52/__init__.py) but defines the same consumer macro.
-    # native_sim has no real watchdog hardware.
-    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
-        timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
-        # 0 disables the watchdog: leave CONFIG_WATCHDOG unset so hal.cpp's #ifdef
-        # compiles it out entirely, rather than requesting a timeout of zero.
-        if timeout_ms != 0:
-            zephyr_add_prj_conf("WATCHDOG", True)
-            zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-            cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", timeout_ms)
-            # hal.cpp needs DT_ALIAS(watchdog0); some boards never define it
-            # themselves -- found generically, not per-family, so new vendors
-            # with the same gap are covered without new code here.
-            from .dts_lookup import get_watchdog_node_label
-
-            wdt_label, wdt_already_working = get_watchdog_node_label(
-                zephyr_data()[KEY_BOARD]
-            )
-            if wdt_label is not None and not wdt_already_working:
-                zephyr_add_overlay(
-                    f'&{wdt_label} {{ status = "okay"; }};\n'
-                    f"/ {{ aliases {{ watchdog0 = &{wdt_label}; }}; }};"
-                )
-            # Identifies the stalled thread on the console from the watchdog callback (see
-            # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.
-            zephyr_add_prj_conf("THREAD_NAME", True)
-            # arch_stack_walk() isn't implemented for Xtensa (ESP32, S3); the call
-            # would silently do nothing there.
-            if zephyr_variant() not in (ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_ESP32_S3):
-                cg.add_define("USE_ZEPHYR_ARCH_STACKWALK")
+    _watchdog_to_code(config)
 
     # As nrf52: off unless a component needs them, since board defconfigs turn
     # them on (UART pins, flash, idle current). Weak, so logger/uart/kconfig_options win.
@@ -719,6 +689,43 @@ def zephyr_to_code(config: ConfigType) -> None:
     CORE.add_job(_modules_to_code, config)
     CORE.add_job(_overlays_to_code, config)
     CORE.add_job(_cdc_acm_to_code, config)
+
+
+def _watchdog_to_code(config: ConfigType) -> None:
+    # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
+    # setup separately (nrf52/__init__.py) but defines the same consumer macro.
+    # native_sim has no real watchdog hardware.
+    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+        timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
+        # 0 disables the watchdog: forced off so a board defconfig can't build a driver that
+        # nothing arms or feeds.
+        if timeout_ms == 0:
+            zephyr_add_prj_conf("WATCHDOG", False)
+        else:
+            zephyr_add_prj_conf("WATCHDOG", True)
+            zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+            cg.add_define("USE_WATCHDOG")
+            cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", timeout_ms)
+            # hal.cpp needs DT_ALIAS(watchdog0); some boards never define it
+            # themselves -- found generically, not per-family, so new vendors
+            # with the same gap are covered without new code here.
+            from .dts_lookup import get_watchdog_node_label
+
+            wdt_label, wdt_already_working = get_watchdog_node_label(
+                zephyr_data()[KEY_BOARD]
+            )
+            if wdt_label is not None and not wdt_already_working:
+                zephyr_add_overlay(
+                    f'&{wdt_label} {{ status = "okay"; }};\n'
+                    f"/ {{ aliases {{ watchdog0 = &{wdt_label}; }}; }};"
+                )
+            # Identifies the stalled thread on the console from the watchdog callback (see
+            # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.
+            zephyr_add_prj_conf("THREAD_NAME", True)
+            # arch_stack_walk() isn't implemented for Xtensa (ESP32, S3); the call
+            # would silently do nothing there.
+            if zephyr_variant() not in (ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_ESP32_S3):
+                cg.add_define("USE_ZEPHYR_ARCH_STACKWALK")
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -1471,6 +1478,22 @@ def _resolve_snippet_source(
     )
 
 
+def _reject_kconfig_watchdog(kconfig_options: ConfigType) -> None:
+    # kconfig_options win over every component setting, and a watchdog that is built but never
+    # armed or fed resets any chip whose watchdog already runs at boot
+    for name, value in kconfig_options.items():
+        if (
+            name.removeprefix("CONFIG_") == "WATCHDOG"
+            and not isinstance(value, dict)
+            and value in (True, "y", "Y")
+        ):
+            raise cv.Invalid(
+                f"'{CONF_KCONFIG_OPTIONS}: {name}' conflicts with "
+                f"'{CONF_WATCHDOG_TIMEOUT}: 0' -- set '{CONF_WATCHDOG_TIMEOUT}' instead",
+                [CONF_KCONFIG_OPTIONS, name],
+            )
+
+
 def _variant_config_schema(config: ConfigType) -> ConfigType:
     # CORE.is_zephyr can't be used here: for a genuine `platform: zephyr` config, this
     # very function is what sets target_platform. Only skip when some OTHER platform
@@ -1520,6 +1543,8 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         ):
             default_timeout = cv.TimePeriod(milliseconds=max_timeout_ms)
         config.setdefault(CONF_WATCHDOG_TIMEOUT, default_timeout)
+        if config[CONF_WATCHDOG_TIMEOUT].total_milliseconds == 0:
+            _reject_kconfig_watchdog(config[CONF_KCONFIG_OPTIONS])
     board_root = None
     if CONF_BOARD_SOURCE in config:
         if CONF_BOARD not in config:
