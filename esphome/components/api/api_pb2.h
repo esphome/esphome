@@ -466,7 +466,7 @@ class HelloResponse final : public ProtoMessage {
 #endif
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
-  StringRef server_info{};
+  ProgmemStringRef server_info{};
   StringRef name{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -608,17 +608,17 @@ class DeviceInfoResponse final : public ProtoMessage {
 #endif
   StringRef name{};
   StringRef mac_address{};
-  StringRef esphome_version{};
+  ProgmemStringRef esphome_version{};
   StringRef compilation_time{};
-  StringRef model{};
+  ProgmemStringRef model{};
 #ifdef USE_DEEP_SLEEP
   bool has_deep_sleep{false};
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  StringRef project_name{};
+  ProgmemStringRef project_name{};
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  StringRef project_version{};
+  ProgmemStringRef project_version{};
 #endif
 #ifdef USE_WEBSERVER
   uint32_t webserver_port{0};
@@ -626,7 +626,7 @@ class DeviceInfoResponse final : public ProtoMessage {
 #ifdef USE_BLUETOOTH_PROXY
   uint32_t bluetooth_proxy_feature_flags{0};
 #endif
-  StringRef manufacturer{};
+  ProgmemStringRef manufacturer{};
   StringRef friendly_name{};
 #ifdef USE_VOICE_ASSISTANT
   uint32_t voice_assistant_feature_flags{0};
