@@ -12,7 +12,7 @@
 #endif
 
 extern const uint8_t ULP_MAIN_BIN_START[] asm("_binary_ulp_main_bin_start");
-extern const uint8_t ULP_MAIN_BIN_END[] asm("_binary_ulp_main_bin_end");
+extern const size_t ULP_MAIN_BIN_LENGTH asm("ulp_main_bin_length");
 
 namespace esphome::esp32_ulp {
 
@@ -20,6 +20,7 @@ ESPHOME_LOG_TAG(TAG, "esp32_ulp");
 
 // Survives deep sleep (RTC memory) so a program loaded before sleeping is known
 // to still be running on wake, however it was started.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static RTC_DATA_ATTR bool s_program_loaded = false;
 
 #if SOC_RISCV_COPROC_SUPPORTED
@@ -67,12 +68,12 @@ void ESP32ULP::dump_config() {
                 "  Run on boot: %s\n"
                 "  Wakeup from sleep: %s\n"
                 "  Loaded: %s",
-                BACKEND, static_cast<unsigned>(ULP_MAIN_BIN_END - ULP_MAIN_BIN_START), this->wakeup_period_us_,
-                YESNO(this->run_on_boot_), YESNO(this->wakeup_from_sleep_), YESNO(this->loaded_));
+                BACKEND, static_cast<unsigned>(ULP_MAIN_BIN_LENGTH), this->wakeup_period_us_, YESNO(this->run_on_boot_),
+                YESNO(this->wakeup_from_sleep_), YESNO(this->loaded_));
 }
 
 bool ESP32ULP::load_and_run() {
-  const size_t size = ULP_MAIN_BIN_END - ULP_MAIN_BIN_START;
+  const size_t size = ULP_MAIN_BIN_LENGTH;
 #if SOC_RISCV_COPROC_SUPPORTED
   // ulp_riscv_load_binary() overwrites RTC memory without stopping a running
   // program; the LP core variant stops the core itself.

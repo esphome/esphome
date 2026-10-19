@@ -1006,19 +1006,19 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 S3
             # yamllint disable-line rule:line-length
-            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC --grep SOC_I2S_SUPPORTS_TDM --grep USE_OPENTHREAD
+            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep SOC_RISCV_COPROC_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC --grep SOC_I2S_SUPPORTS_TDM --grep USE_OPENTHREAD
             tidy_environment: esp32s3-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
             # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
             # so their code paths differ -- lint them under the P4 build too.
             # yamllint disable-line rule:line-length
-            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep CONFIG_IDF_TARGET_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
+            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep SOC_LP_CORE_SUPPORTED --grep CONFIG_IDF_TARGET_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
             tidy_environment: esp32p4-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
             # yamllint disable-line rule:line-length
-            options: --environment esp32c6-idf-tidy --grep SOC_LP_I2C_SUPPORTED --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
+            options: --environment esp32c6-idf-tidy --grep SOC_LP_I2C_SUPPORTED --grep SOC_LP_CORE_SUPPORTED --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
             tidy_environment: esp32c6-idf-tidy
 
     steps:
