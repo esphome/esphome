@@ -58,26 +58,16 @@ bool DPS310Component::setup_registers_() {
     return false;
   }
 
-  this->c0_ =  // we only ever use c0/2, so just divide by 2 here to save time later
-      DPS310Component::twos_complement(
-          int16_t(((uint16_t) coef_data_raw[0] << 4) | (((uint16_t) coef_data_raw[1] >> 4) & 0x0F)), 12) /
-      2;
-
-  this->c1_ =
-      DPS310Component::twos_complement(int16_t((((uint16_t) coef_data_raw[1] & 0x0F) << 8) | coef_data_raw[2]), 12);
-
-  this->c00_ = ((uint32_t) coef_data_raw[3] << 12) | ((uint32_t) coef_data_raw[4] << 4) |
-               (((uint32_t) coef_data_raw[5] >> 4) & 0x0F);
-  this->c00_ = DPS310Component::twos_complement(c00_, 20);
-
-  this->c10_ = encode_uint24(coef_data_raw[5] & 0x0F, coef_data_raw[6], coef_data_raw[7]);
-  this->c10_ = DPS310Component::twos_complement(c10_, 20);
-
-  this->c01_ = int16_t(((uint16_t) coef_data_raw[8] << 8) | (uint16_t) coef_data_raw[9]);
-  this->c11_ = int16_t(((uint16_t) coef_data_raw[10] << 8) | (uint16_t) coef_data_raw[11]);
-  this->c20_ = int16_t(((uint16_t) coef_data_raw[12] << 8) | (uint16_t) coef_data_raw[13]);
-  this->c21_ = int16_t(((uint16_t) coef_data_raw[14] << 8) | (uint16_t) coef_data_raw[15]);
-  this->c30_ = int16_t(((uint16_t) coef_data_raw[16] << 8) | (uint16_t) coef_data_raw[17]);
+  // we only ever use c0/2, so just divide by 2 here to save time later
+  this->c0_ = sign_extend<12>(encode_uint16(coef_data_raw[0], coef_data_raw[1]) >> 4) / 2;
+  this->c1_ = sign_extend<12>(encode_uint16(coef_data_raw[1], coef_data_raw[2]));
+  this->c00_ = sign_extend<20>(encode_uint24(coef_data_raw[3], coef_data_raw[4], coef_data_raw[5]) >> 4);
+  this->c10_ = sign_extend<20>(encode_uint24(coef_data_raw[5], coef_data_raw[6], coef_data_raw[7]));
+  this->c01_ = encode_value<int16_t>(&coef_data_raw[8]);
+  this->c11_ = encode_value<int16_t>(&coef_data_raw[10]);
+  this->c20_ = encode_value<int16_t>(&coef_data_raw[12]);
+  this->c21_ = encode_value<int16_t>(&coef_data_raw[14]);
+  this->c30_ = encode_value<int16_t>(&coef_data_raw[16]);
   return true;
 }
 
@@ -133,7 +123,7 @@ void DPS310Component::read_pressure_() {
     return;
   }
   this->got_pres_ = true;
-  this->raw_pressure_ = DPS310Component::twos_complement(encode_uint24(bytes[0], bytes[1], bytes[2]), 24);
+  this->raw_pressure_ = sign_extend<24>(encode_uint24(bytes[0], bytes[1], bytes[2]));
 }
 
 void DPS310Component::read_temperature_() {
@@ -143,7 +133,7 @@ void DPS310Component::read_temperature_() {
     return;
   }
   this->got_temp_ = true;
-  this->raw_temperature_ = DPS310Component::twos_complement(encode_uint24(bytes[0], bytes[1], bytes[2]), 24);
+  this->raw_temperature_ = sign_extend<24>(encode_uint24(bytes[0], bytes[1], bytes[2]));
 }
 
 // Calculations are taken from the datasheet which can be found here:
@@ -166,13 +156,6 @@ void DPS310Component::calculate_values_(int32_t raw_temperature, int32_t raw_pre
   if (this->pressure_sensor_ != nullptr) {
     this->pressure_sensor_->publish_state(pressure);
   }
-}
-
-int32_t DPS310Component::twos_complement(int32_t val, uint8_t bits) {
-  if (val & ((uint32_t) 1 << (bits - 1))) {
-    val -= (uint32_t) 1 << bits;
-  }
-  return val;
 }
 
 }  // namespace esphome::dps310
