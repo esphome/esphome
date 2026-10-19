@@ -23,6 +23,8 @@ CODEOWNERS = ["@clydebarrow"]
 
 DEPENDENCIES = ["udp"]
 
+CONF_POINT_TO_POINT = "point_to_point"
+
 # Size of the receive buffer of the udp component
 MAX_PACKET_SIZE = 508
 
@@ -31,21 +33,35 @@ UdpPacketInterface = udp_ns.class_(
     packet_interface.PacketInterface,
 )
 
-CONFIG_SCHEMA = packet_interface_schema(
-    UdpPacketInterface, MAX_PACKET_SIZE, MAX_PACKET_SIZE
-).extend(UDP_SCHEMA)
+CONFIG_SCHEMA = (
+    packet_interface_schema(UdpPacketInterface, MAX_PACKET_SIZE, MAX_PACKET_SIZE)
+    .extend(UDP_SCHEMA)
+    .extend(
+        {
+            # Overrides the guess from the udp component's addresses, which cannot see the subnet
+            cv.Optional(CONF_POINT_TO_POINT): cv.boolean,
+        }
+    )
+)
 
 
-def _peer(udp_config: ConfigType) -> IPv4Address | None:
+def _peer(udp_config: ConfigType, config: ConfigType) -> IPv4Address | None:
     """The one peer, when the UDP component sends to a single unicast IPv4 address.
 
-    An address ending in .255 is taken as a subnet broadcast, as the subnet is not known here.
+    Unless point_to_point says otherwise, an address ending in .255 is taken as a subnet broadcast, as the subnet is
+    not known here.
     """
+    point_to_point = config.get(CONF_POINT_TO_POINT)
     match udp_config[CONF_ADDRESSES]:
-        case [IPv4Address() as address] if not (
-            address.is_multicast or address.packed[3] == 255
-        ):
-            return address
+        case [IPv4Address() as address] if not address.is_multicast:
+            if point_to_point is None:
+                point_to_point = address.packed[3] != 255
+            return address if point_to_point else None
+    if point_to_point:
+        raise cv.Invalid(
+            f"'{CONF_POINT_TO_POINT}' needs the UDP component to send to one unicast IPv4 address",
+            path=[CONF_POINT_TO_POINT],
+        )
     return None
 
 
@@ -56,7 +72,7 @@ def _udp_config(full_config: ConfigType, config: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    if (peer := _peer(_udp_config(fv.full_config.get(), config))) is None:
+    if (peer := _peer(_udp_config(fv.full_config.get(), config), config)) is None:
         check_broadcast_link(config)
     elif CONF_ADDRESSING in config:
         raise cv.Invalid(
@@ -75,7 +91,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(udp_var.set_should_listen())
     # The udp component sends to its addresses through its broadcast socket
     cg.add(udp_var.set_should_broadcast())
-    peer = _peer(_udp_config(CORE.config, config))
+    peer = _peer(_udp_config(CORE.config, config), config)
     peer_bytes = peer.packed if peer is not None else bytes(4)
     # The copy buffer's size is known here, so it is a static array rather than allocated at run time
     tx_buffer = f"{config[CONF_ID].id}__tx_buffer"

@@ -18,7 +18,8 @@ namespace esphome::udp {
  *
  * When the UDP component sends to one unicast IPv4 address, the link joins exactly two devices: it accepts packets
  * only from that address, and provides the addressing capability itself. Otherwise every packet is accepted, and an
- * addressing layer can tell the devices apart.
+ * addressing layer can tell the devices apart. Packets from other senders are dropped with a warning at most once a
+ * minute, as they suggest that the address is a broadcast address the link took for a device.
  */
 class UdpPacketInterface : public packet_interface::PacketInterface {
  public:
@@ -34,10 +35,13 @@ class UdpPacketInterface : public packet_interface::PacketInterface {
   void receive_(std::span<const uint8_t> data, const sockaddr *source);
   /// True if packets from \p source are accepted: from anywhere, or with a peer, only from the peer.
   bool accepts_from_(const sockaddr *source) const;
+  void warn_dropped_(const sockaddr *source);
 
   UDPComponent *parent_;
   const std::span<uint8_t> tx_buffer_;
   std::array<uint8_t, 4> peer_;
+  uint32_t last_drop_warning_ms_{0};
+  bool drop_warned_{false};
 };
 }  // namespace esphome::udp
 #endif

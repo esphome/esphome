@@ -2,6 +2,7 @@
 #ifdef USE_NETWORK
 #include <cstring>
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::udp {
@@ -24,8 +25,10 @@ void UdpPacketInterface::setup() {
 }
 
 void UdpPacketInterface::receive_(std::span<const uint8_t> data, const sockaddr *source) {
-  if (!this->accepts_from_(source))
+  if (!this->accepts_from_(source)) {
+    this->warn_dropped_(source);
     return;
+  }
   if (data.size() > this->max_packet_size_) {
     ESP_LOGV(TAG, "%s: Packet of %zu bytes is larger than %zu, dropped", this->name_, data.size(),
              this->max_packet_size_);
@@ -39,6 +42,24 @@ bool UdpPacketInterface::accepts_from_(const sockaddr *source) const {
     return true;
   uint32_t address;
   return socket::sockaddr_to_ipv4(source, &address) && memcmp(&address, this->peer_.data(), sizeof(address)) == 0;
+}
+
+void UdpPacketInterface::warn_dropped_(const sockaddr *source) {
+  static constexpr uint32_t WARNING_INTERVAL_MS = 60000;
+  uint32_t now = App.get_loop_component_start_time();
+  if (this->drop_warned_ && now - this->last_drop_warning_ms_ < WARNING_INTERVAL_MS)
+    return;
+  this->drop_warned_ = true;
+  this->last_drop_warning_ms_ = now;
+  uint32_t address = 0;
+  socket::sockaddr_to_ipv4(source, &address);
+  uint8_t from[4];
+  memcpy(from, &address, sizeof(from));
+  ESP_LOGW(TAG,
+           "%s: Packet from %u.%u.%u.%u dropped, as only %u.%u.%u.%u is accepted; set point_to_point: false if that "
+           "is a broadcast address",
+           this->name_, from[0], from[1], from[2], from[3], this->peer_[0], this->peer_[1], this->peer_[2],
+           this->peer_[3]);
 }
 
 bool UdpPacketInterface::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {

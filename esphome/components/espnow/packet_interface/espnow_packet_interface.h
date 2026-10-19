@@ -18,7 +18,7 @@ namespace esphome::espnow {
  * it are received, so the link provides the addressing capability itself. With the broadcast address, packets go to
  * every device on the channel and every broadcast packet is received, from known and unknown senders; an addressing
  * layer then tells the devices apart. ESP8266 does not report a packet's destination, so there a broadcast link also
- * receives packets sent to this device.
+ * receives packets sent to this device, and a peer link also receives the peer's broadcasts.
  *
  * ESP-NOW queues each packet and reports later whether it was delivered; a reliability layer above resends what is
  * lost.
