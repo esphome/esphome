@@ -16,7 +16,9 @@ async def main() -> None:
     c = APIClient(HOST, 6053, None, noise_psk=None if KEY == "-" else KEY)
     await c.connect(login=True)
     ents, _ = await c.list_entities_services()
-    light = next(e for e in ents if isinstance(e, LightInfo))
+    light = next((e for e in ents if isinstance(e, LightInfo)), None)
+    if light is None:
+        sys.exit("no light entity on this device; is HOST a bulb?")
     if CMD == "state":
         fut = asyncio.get_running_loop().create_future()
 
@@ -58,8 +60,15 @@ async def main() -> None:
         print("bulb off")
     elif CMD == "restart":
         btn = next(
-            e for e in ents if isinstance(e, ButtonInfo) and "restart" in e.name.lower()
+            (
+                e
+                for e in ents
+                if isinstance(e, ButtonInfo) and "restart" in e.name.lower()
+            ),
+            None,
         )
+        if btn is None:
+            sys.exit("no restart button on this device")
         c.button_command(btn.key)
         print("bulb restart pressed")
     await asyncio.sleep(0.5)

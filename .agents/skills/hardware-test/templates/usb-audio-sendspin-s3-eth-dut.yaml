@@ -3,6 +3,10 @@
 packages:
   base: !include usb-audio-waveshare-s3-eth-dut.yaml
 
+# Logs over the API only: a DEBUG line per report would saturate UART0 and trip the task watchdog.
+logger:
+  baud_rate: 0
+
 speaker:
   - id: !extend usb_speaker
     buffer_size: 28800
