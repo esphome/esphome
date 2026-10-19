@@ -1,5 +1,6 @@
 // camsnap <camera name substring> <output.jpg> [frames to skip]
-// Grabs one frame from an AVFoundation camera after letting exposure settle.
+// macOS only: grabs one frame from an AVFoundation camera after letting exposure settle.
+// See SKILL.md for capture tools on other systems.
 import AVFoundation
 import AppKit
 import CoreImage

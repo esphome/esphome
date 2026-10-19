@@ -1,41 +1,64 @@
 ---
 name: display-test
-description: Test an ESPHome display driver on a real panel with the bench camera. Use when a task asks to verify a display (LCD, e-paper, OLED, RLCD) on hardware, check orientation/rotation, partial updates, colours, contrast, or that text and shapes render correctly. Covers finding the USB port, flashing a test pattern, capturing the panel with the UC60 camera, and reading the photo.
+description: Test an ESPHome display driver on a real panel with a camera. Use when a task asks to verify a display (LCD, e-paper, OLED, RLCD) on hardware, check orientation/rotation, partial updates, colours, contrast, or that text and shapes render correctly. Covers finding the USB port, flashing a test pattern, capturing the panel with any camera, and reading the photo.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
-# Display testing with the bench camera
+# Display testing with a camera
 
-The bench camera is the **UC60 Video** AVFoundation device. It looks down at the display board on the
-bench. `ffmpeg` capture from it is unreliable; use the small Swift tool bundled here.
+Point a camera at the panel to get visual evidence that a driver renders correctly. Any camera
+and capture tool works; this skill covers the common ones. `$SKILL` below is this directory
+(`.agents/skills/display-test`).
 
-`$SKILL` below is this directory (`.agents/skills/display-test`).
+## Capturing a frame
 
-## Camera
+Grab a still image, skipping the first few frames so auto-exposure and white balance settle.
+Read the JPEG with the Read tool; the image is shown visually.
 
-Build once per machine (the binary is not checked in):
+### macOS
+
+The bundled Swift tool uses AVFoundation and avoids the frame-grabbing problems some USB
+cameras have with other tools:
 
 ```bash
 mkdir -p /tmp/camsnap
 swiftc -O "$SKILL/scripts/camsnap.swift" -o /tmp/camsnap/camsnap
+/tmp/camsnap/camsnap <camera-name-substring> /tmp/display-test/after.jpg 30
 ```
 
-Capture one frame after the exposure settles:
+The camera argument is a case-insensitive substring of the name AVFoundation reports. If it does
+not match, the tool lists the cameras it found. Other options include `ffmpeg` with
+`avfoundation` input, `imagesnap`, or Photo Booth's still capture.
+
+### Linux
+
+Use `ffmpeg` with the v4l2 input, `fswebcam`, or `v4l2-ctl`:
 
 ```bash
-/tmp/camsnap/camsnap UC60 /tmp/display-test/after.jpg 30
+ffmpeg -f v4l2 -i /dev/video0 -frames:v 1 -y /tmp/display-test/after.jpg
+# or
+fswebcam -d /dev/video0 --skip 10 /tmp/display-test/after.jpg
 ```
 
-The third argument is the number of frames to skip (default 30). If the name does not match, the tool
-prints the cameras it found. Read the JPEG with the Read tool; the image is shown visually.
+List devices with `v4l2-ctl --list-devices`.
 
-Camera caveats:
+### Windows
 
-- The board sits at an angle. Do not trust absolute pixel positions or aspect ratios from the photo.
-  Judge orientation, ordering and approximate spacing, and use corner markers as references.
-- Reflections and the acrylic cover can brighten one side. Capture again if a region is unclear.
-- A single frame catches a moving pattern at an arbitrary phase. For a moving test, take several
-  captures or use a static marker per position.
+Use `ffmpeg` with the DirectShow input, or any camera application that can save a still image:
+
+```powershell
+ffmpeg -f dshow -list_devices true -i dummy   # find the device name
+ffmpeg -f dshow -i video="<device name>" -frames:v 1 -y C:\temp\after.jpg
+```
+
+### Camera caveats
+
+- The board may sit at an angle. Do not trust absolute pixel positions or aspect ratios from the
+  photo; judge orientation, ordering and approximate spacing, using the corner markers as
+  references.
+- Reflections or a glossy cover can brighten one side. Capture again if a region is unclear.
+- A moving pattern is caught at an arbitrary phase. Take several captures, or use a static marker
+  per position.
 
 ## Board and port
 
@@ -56,18 +79,19 @@ Write a scratch config outside the checkout. Use one `name:` per board and inclu
 - a filled black square in each of the four corners (orientation and full-window check);
 - a centre marker (orientation and scale);
 - for partial-update drivers, draw one additional marker per update with
-  `auto_clear_enabled: false`, so each marker is written by its own window. Corners and edges exercise
-  the window alignment.
+  `auto_clear_enabled: false`, so each marker is written by its own window. Corners and edges
+  exercise the window alignment.
 
 Use `Color::BLACK` and `Color::WHITE` in lambdas. Do not use the old `COLOR_OFF`/`COLOR_ON`
 constants; black must mean black.
 
-A ready template is in `$SKILL/templates/display-pattern.yaml`. Substitute the display platform, pins
-and (for a driver with fonts) a font. The marker pattern needs no font.
+A ready template is in `$SKILL/templates/display-pattern.yaml`. Substitute the display platform,
+pins and (for a driver with fonts) a font. The marker pattern needs no font.
 
 ## Build, flash, capture
 
-Run from the worktree under test so `python -m esphome` imports the checkout, not an installed copy:
+Run from the worktree under test so `python -m esphome` imports the checkout, not an installed
+copy:
 
 ```bash
 cd <worktree>
@@ -76,36 +100,37 @@ PYTHONUNBUFFERED=1 python3 -m esphome compile /tmp/display-test/display-pattern.
 PYTHONUNBUFFERED=1 python3 -m esphome upload /tmp/display-test/display-pattern.yaml \
   --device /dev/cu.usbmodemXXXX
 sleep 6   # boot plus a few update intervals
-/tmp/camsnap/camsnap UC60 /tmp/display-test/after.jpg 30
+<capture command> /tmp/display-test/after.jpg
 ```
 
-If the USB console wedges during flashing (esptool `No serial data received`), replug the board and
-retry. A board powered only by the 18650 may need the USB cable for flashing; the panel keeps its
-image when power is removed, which is useful for checking that an image is bistable.
+The device path differs by OS and host; use the path printed by `ports.py`. If the USB console
+wedges during flashing (esptool `No serial data received`), replug the board and retry. A board
+powered only by a battery may need the USB cable for flashing; the panel keeps its image when
+power is removed, which is useful for checking that an image is bistable.
 
 ## What to check
 
-1. **Orientation**: the corner markers are in the expected corners and the image is not mirrored or
-   upside down. Test `rotation:` values with the same pattern; the logical width/height swap, so a
-   marker that is 20x60 in the lambda should appear 60x20 on the physical landscape panel.
+1. **Orientation**: the corner markers are in the expected corners and the image is not mirrored
+   or upside down. Test `rotation:` values with the same pattern; the logical width/height swap,
+   so a marker that is 20x60 in the lambda should appear 60x20 on the physical landscape panel.
 2. **Coverage**: the border touches all four edges, with no dead rows or columns at the edges.
 3. **Partial updates**: with `auto_clear_enabled: false`, draw one marker per update. Each should
-   appear exactly at its requested position with no smearing, offset or mirrored placement. Include
-   all four corners and both edges.
+   appear exactly at its requested position with no smearing, offset or mirrored placement.
+   Include all four corners and both edges.
 4. **Text and contrast**: sharp glyphs, correct polarity (black text on white, not inverted), no
    ghosting from the previous frame.
-5. **Speed**: if the driver logs transfer sizes, check that a full refresh and a partial window take
-   the expected times.
+5. **Speed**: if the driver logs transfer sizes, check that a full refresh and a partial window
+   take the expected times.
 
 Record the build commit, board, config, and the captured image path when reporting results.
 
 ## When a partial update looks wrong
 
 Take a marker-only capture before assuming the mapping is wrong: the camera's perspective makes
-absolute positions deceptive. If markers land in mirrored positions, the controller's address order
-(`MADCTL` MX/MY/MV) or the RAM block mapping is inverted for the window; verify the full-frame path
-separately, then fix the window computation.
+absolute positions deceptive. If markers land in mirrored positions, the controller's address
+order (`MADCTL` MX/MY/MV) or the RAM block mapping is inverted for the window; verify the
+full-frame path separately, then fix the window computation.
 
 ## Add findings
 
-Add new camera names, panel quirks, or recovery steps here so the next session starts ahead.
+Add new capture tools, panel quirks, or recovery steps here so the next session starts ahead.
