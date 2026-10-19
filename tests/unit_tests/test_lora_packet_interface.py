@@ -106,7 +106,12 @@ class _FullConfig(dict):
         (
             sx127x_packet_interface,
             "sx127x",
-            {"modulation": "FSK", "packet_mode": False, "payload_length": 0},
+            {
+                "modulation": "FSK",
+                "packet_mode": False,
+                "payload_length": 0,
+                "sync_value": [0x12],
+            },
             {},
             "packet_mode",
             {"packet_mode": True},
@@ -114,10 +119,29 @@ class _FullConfig(dict):
         (
             sx127x_packet_interface,
             "sx127x",
-            {"modulation": "OOK", "packet_mode": True, "payload_length": 0},
+            {
+                "modulation": "OOK",
+                "packet_mode": True,
+                "payload_length": 0,
+                "sync_value": [0x12],
+            },
             {CONF_MAX_PACKET_SIZE: 65},
             "at most 64",
             None,
+        ),
+        (
+            sx127x_packet_interface,
+            "sx127x",
+            {
+                "modulation": "FSK",
+                "packet_mode": True,
+                "payload_length": 0,
+                "sync_value": [],
+                "preamble_detect": 0,
+            },
+            {},
+            "sync_value",
+            {"preamble_detect": 2},
         ),
     ],
 )
@@ -129,7 +153,9 @@ def test_radio_settings_checked(
     match: str,
     fix: dict | None,
 ) -> None:
-    """Packets vary in length, and FSK or OOK on an SX127x needs packet mode and holds at most 64 bytes."""
+    """Packets vary in length; FSK or OOK on an SX127x needs packet mode, a sync word or preamble detection, and
+    holds at most 64 bytes.
+    """
     config = {f"{domain}_id": "radio", CONF_MAX_PACKET_SIZE: 64, **link}
     token = fv.full_config.set(_FullConfig(domain, radio))
     try:

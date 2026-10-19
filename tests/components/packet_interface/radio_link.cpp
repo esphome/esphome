@@ -22,6 +22,7 @@ class FakeRadio : public Component {
  public:
   bool is_receiving() { return this->receiving; }
   void register_listener(FakeListener *listener) { this->listener = listener; }
+  void fail() { this->mark_failed(); }
   FakeError transmit_packet(const uint8_t *data, size_t length) {
     this->sent.emplace_back(data, data + length);
     return FakeError::NONE;
@@ -94,6 +95,13 @@ TEST_F(RadioLinkTest, BusyFlagThatNeverClearsIsSentOver) {
 TEST_F(RadioLinkTest, EmptyPacketCountsAsSentWithoutTransmitting) {
   static const Packet EMPTY;
   EXPECT_TRUE(this->link_.send_to_interface(PacketBuffer(EMPTY), {}));
+  EXPECT_TRUE(this->radio_.sent.empty());
+}
+
+TEST_F(RadioLinkTest, FailedRadioRefusesSends) {
+  this->radio_.fail();
+  EXPECT_FALSE(this->send_());
+  EXPECT_FALSE(this->send_());
   EXPECT_TRUE(this->radio_.sent.empty());
 }
 

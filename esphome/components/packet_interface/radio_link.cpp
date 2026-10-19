@@ -32,6 +32,13 @@ bool RadioLinkBase::skip_empty_() const {
   return true;
 }
 
+void RadioLinkBase::radio_not_ready_(bool failed) {
+  if (!failed || this->failed_warned_)
+    return;
+  this->failed_warned_ = true;
+  ESP_LOGW(TAG, "%s: The radio failed to set up, so nothing can be sent", this->name_);
+}
+
 void RadioLinkBase::radio_free_() {
   this->listen_before_talk_.end_busy();
   this->disable_loop();
