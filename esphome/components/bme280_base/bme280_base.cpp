@@ -236,7 +236,7 @@ void BME280Component::update() {
   });
 }
 float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
-  int32_t adc = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
+  int32_t adc = encode_uint24(data[3], data[4], data[5]);
   adc >>= 4;
   if (adc == 0x80000) {
     // temperature was disabled
@@ -256,7 +256,7 @@ float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
 }
 
 float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
-  int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
+  int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
   if (adc == 0x80000) {
     // pressure was disabled
