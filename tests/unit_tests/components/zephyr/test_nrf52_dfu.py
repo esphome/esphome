@@ -330,7 +330,11 @@ async def _run_dfu_to_code(dfu_config: dict) -> MagicMock:
         patch("esphome.codegen.add_define") as mock_define,
         patch("esphome.codegen.new_Pvariable", return_value=var) as mock_new,
         patch("esphome.codegen.add"),
-        patch("esphome.codegen.gpio_pin_expression", new=AsyncMock(return_value="pin")),
+        patch(
+            "esphome.cpp_helpers.gpio_pin_expression",
+            new=AsyncMock(side_effect=lambda conf: None if conf is None else "pin"),
+        ),
+        patch("esphome.cpp_helpers.add"),
         patch("esphome.codegen.register_component", new=AsyncMock()),
     ):
         await nrf52._dfu_to_code(dfu_config)

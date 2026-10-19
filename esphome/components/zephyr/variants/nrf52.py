@@ -236,8 +236,7 @@ async def _dfu_to_code(dfu_config: ConfigType) -> None:
     cg.add_define("USE_ZEPHYR_NRF52_DFU")
     usb_baud_rate = await zephyr_add_usb_baud_rate(dfu_config)
     var = cg.new_Pvariable(dfu_config[CONF_ID], usb_baud_rate)
-    if (reset_pin := dfu_config.get(CONF_RESET_PIN)) is not None:
-        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
+    await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
     await cg.register_component(var, dfu_config)
 
 
