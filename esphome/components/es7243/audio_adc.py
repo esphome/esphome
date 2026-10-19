@@ -4,11 +4,10 @@ from esphome.components.audio_adc import AudioAdc
 from esphome.components.i2s_audio import (
     CONF_I2S_AUDIO_ID,
     CONF_I2S_MCLK_PIN,
-    DOMAIN as I2S_AUDIO_DOMAIN,
     I2SAudioComponent,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MIC_GAIN
+from esphome.const import CONF_MIC_GAIN
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -38,10 +37,9 @@ CONFIG_SCHEMA = (
 
 def _validate_mclk_pin(config: ConfigType) -> None:
     """The chip only answers on I2C after it has seen MCLK, so the bus must drive that pin."""
-    i2s_id = str(config[CONF_I2S_AUDIO_ID])
-    for i2s_config in fv.full_config.get()[I2S_AUDIO_DOMAIN]:
-        if str(i2s_config[CONF_ID]) == i2s_id and CONF_I2S_MCLK_PIN not in i2s_config:
-            raise cv.Invalid(f"es7243 needs {CONF_I2S_MCLK_PIN} on i2s_audio {i2s_id}")
+    i2s_id = config[CONF_I2S_AUDIO_ID]
+    if CONF_I2S_MCLK_PIN not in fv.get_declaring_config(i2s_id):
+        raise cv.Invalid(f"es7243 needs {CONF_I2S_MCLK_PIN} on i2s_audio {i2s_id}")
 
 
 FINAL_VALIDATE_SCHEMA = _validate_mclk_pin
@@ -49,8 +47,6 @@ FINAL_VALIDATE_SCHEMA = _validate_mclk_pin
 
 async def to_code(config: ConfigType) -> None:
     i2s = await cg.get_variable(config[CONF_I2S_AUDIO_ID])
-    var = cg.new_Pvariable(config[CONF_ID], i2s)
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config, i2s)
 
     cg.add(var.set_mic_gain(config[CONF_MIC_GAIN]))

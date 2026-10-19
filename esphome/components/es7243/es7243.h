@@ -6,7 +6,6 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/i2s_audio/i2s_audio.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 
 namespace esphome::es7243 {
 
@@ -18,15 +17,17 @@ class ES7243 final : public audio_adc::AudioAdc, public Component, public i2c::I
 
   void setup() override;
   void dump_config() override;
+  // Before i2s_audio (DATA) routes the MCLK pin to the I2S peripheral, after the I2C bus
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   bool set_mic_gain(float mic_gain) override;
-  float mic_gain() override { return this->mic_gain_; }
+  float mic_gain() override;
 
  protected:
   bool write_mic_gain_();
 
   const i2s_audio::I2SAudioComponent *i2s_;
-  float mic_gain_{0};
+  uint8_t gain_index_{0};  // into GAIN_TABLE in the .cpp
   bool setup_complete_{false};
 };
 

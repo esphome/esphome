@@ -8,6 +8,7 @@
 #include <driver/gpio.h>
 
 #include <cmath>
+#include <iterator>
 
 namespace esphome::es7243 {
 
@@ -32,13 +33,13 @@ static constexpr GainEntry GAIN_TABLE[] = {
 };
 
 // The table entry nearest the requested gain; values outside the table snap to its ends
-static const GainEntry &nearest_gain(float gain_db) {
-  const GainEntry *best = GAIN_TABLE;
-  for (const auto &entry : GAIN_TABLE) {
-    if (std::fabs(gain_db - entry.db) < std::fabs(gain_db - best->db))
-      best = &entry;
+static uint8_t nearest_gain_index(float gain_db) {
+  uint8_t best = 0;
+  for (uint8_t i = 1; i < std::size(GAIN_TABLE); i++) {
+    if (std::fabs(gain_db - GAIN_TABLE[i].db) < std::fabs(gain_db - GAIN_TABLE[best].db))
+      best = i;
   }
-  return *best;
+  return best;
 }
 
 void ES7243::setup() {
@@ -68,28 +69,20 @@ void ES7243::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "ES7243 audio ADC:\n"
                 "  Mic gain: %.1f dB",
-                this->mic_gain_);
+                this->mic_gain());
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Failed to initialize");
-  }
 }
+
+float ES7243::mic_gain() { return GAIN_TABLE[this->gain_index_].db; }
 
 bool ES7243::set_mic_gain(float mic_gain) {
-  // Store the gain the chip will use, so mic_gain() and dump_config() report it
-  this->mic_gain_ = nearest_gain(mic_gain).db;
+  this->gain_index_ = nearest_gain_index(mic_gain);
   if (!this->setup_complete_)
     return true;
-  const bool ok = this->write_mic_gain_();
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning();
-  }
-  return ok;
+  return this->status_comm_result(this->write_mic_gain_());
 }
 
-bool ES7243::write_mic_gain_() { return this->write_byte(REG_GAIN, nearest_gain(this->mic_gain_).reg); }
+bool ES7243::write_mic_gain_() { return this->write_byte(REG_GAIN, GAIN_TABLE[this->gain_index_].reg); }
 
 }  // namespace esphome::es7243
 
