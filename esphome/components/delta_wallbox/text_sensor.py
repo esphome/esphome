@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
-from esphome.components.const import CONF_SERIAL_NUMBER
+from esphome.components.const import CONF_ERROR_CODE, CONF_SERIAL_NUMBER
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -11,7 +11,6 @@ DEPENDENCIES = ["delta_wallbox"]
 CONF_FW_VERSION = "fw_version"
 CONF_BT_FW_VERSION = "bt_fw_version"
 CONF_MODEL_NAME = "model_name"
-CONF_ERROR_CODE = "error_code"
 
 CONFIG_SCHEMA = cv.Schema(
     {
