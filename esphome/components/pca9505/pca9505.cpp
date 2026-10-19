@@ -109,24 +109,16 @@ bool PCA9505Component::read_bank_(uint8_t bank) {
   if (this->is_failed())
     return false;
 
-  if (this->read_register(INPUT_REG + bank, &this->input_[bank], 1) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR("Failed to read input register"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->read_register(INPUT_REG + bank, &this->input_[bank], 1) == i2c::ERROR_OK,
+                                  LOG_STR("Failed to read input register"));
 }
 
 bool PCA9505Component::write_bank_(uint8_t reg, uint8_t bank, uint8_t value) {
   if (this->is_failed())
     return false;
 
-  if (this->write_register(reg + bank, &value, 1) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR("Failed to write register"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write_register(reg + bank, &value, 1) == i2c::ERROR_OK,
+                                  LOG_STR("Failed to write register"));
 }
 
 bool PCA9505Component::write_all_banks_(uint8_t reg, uint8_t value) {
@@ -137,12 +129,8 @@ bool PCA9505Component::write_all_banks_(uint8_t reg, uint8_t value) {
   for (uint8_t &bank : values) {
     bank = value;
   }
-  if (this->write_register(reg | AUTO_INCREMENT, values, sizeof(values)) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR("Failed to write register"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write_register(reg | AUTO_INCREMENT, values, sizeof(values)) == i2c::ERROR_OK,
+                                  LOG_STR("Failed to write register"));
 }
 
 float PCA9505Component::get_setup_priority() const { return setup_priority::IO; }

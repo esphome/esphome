@@ -81,7 +81,7 @@ static_assert(SOFTWARE_VERSION_RESPONSE_SIZE <= PASSIVE_FRAME_MAX_SIZE, "softwar
 static constexpr size_t SOFTWARE_VERSION_CHECKSUM_INDEX = 5;
 static constexpr size_t SOFTWARE_VERSION_STOP_INDEX = 6;
 
-static float to_float(uint8_t data) { return (data >> 4) * 10 + (data & 0x0F); }
+static float to_float(uint8_t data) { return bcd_to_uint8(data); }
 
 static bool bcd_to_digits(const uint8_t *data, size_t len, char *out) {
   bool all_zero = true;
