@@ -207,6 +207,14 @@ void HomeassistantLight::on_report_(bool changed) {
     this->cancel_timeout(ECHO_TIMEOUT_ID);
   }
   this->report_changed_ |= changed;
+  // Noted as the report arrives, not when the deferred apply runs: a call read from the same loop
+  // pass is newer than the report, and its transition must not pass for the one the report is held for
+  if (!this->apply_scheduled_) {
+    this->report_in_transition_ = this->state_->is_transitioning();
+    if (this->report_in_transition_) {
+      this->held_hash_ = state_hash(this->state_->remote_values);
+    }
+  }
   this->schedule_apply_();
 }
 
@@ -255,9 +263,8 @@ void HomeassistantLight::apply_imported_() {
   if (!this->state_->set_external_state(values)) {
     // A report that changed something during a transition or flash is applied once it ends, in
     // place of the values it ends at; a trait or a repeated report has nothing newer to say
-    if (this->state_->is_transitioning() && this->report_changed_) {
+    if (this->report_in_transition_ && this->report_changed_) {
       this->report_held_ = true;
-      this->held_hash_ = state_hash(this->state_->remote_values);
       return;
     }
     // A local change still waits for LightState::loop() to send it. Home Assistant reports again
@@ -289,9 +296,11 @@ void HomeassistantLight::update_state(LightState *state) {
     }
     this->initial_seen_ = true;
   }
-  // A call without a transition replaces whatever ran, so a report held for it is older than the call
+  // A call without a transition replaces whatever ran, so a report held for it, or still waiting to
+  // be applied, is older than the call
   if (!state->is_transitioning()) {
     this->report_held_ = false;
+    this->report_in_transition_ = false;
   }
 }
 

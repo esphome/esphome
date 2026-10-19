@@ -15,6 +15,8 @@ from aioesphomeapi import (
     LightState,
     UserService,
 )
+from aioesphomeapi.api_pb2 import HomeAssistantStateResponse, LightCommandRequest
+from google.protobuf import message
 import pytest
 
 from .log_utils import LineWaiter
@@ -65,6 +67,10 @@ class FakeHomeAssistant:
 
     def report(self, attribute: str | None, value: str) -> None:
         self.client.send_home_assistant_state(ENTITY, attribute, value)
+
+    def send_together(self, *messages: message.Message) -> None:
+        """One write, so the device reads all of them in one loop pass."""
+        self.client._get_connection().send_messages(messages)
 
 
 @asynccontextmanager
@@ -310,6 +316,40 @@ async def test_api_homeassistant_light(
         ha.report(None, "on")
         ha.report("brightness", "60")
         await asyncio.sleep(0.1)
+        ha.client.light_command(ha.key, state=False)
+        assert (await ha.next_call()).service == "light.turn_off"
+        ha.report(None, "off")
+        await ha.next_state(lambda s: not s.state)
+
+        # Also when the report and the call that replaces the transition are read in the same loop
+        # pass: the report is applied after the call, but it is older
+        ha.send_together(
+            LightCommandRequest(
+                key=ha.key,
+                has_state=True,
+                state=True,
+                has_brightness=True,
+                brightness=0.5,
+                has_transition_length=True,
+                transition_length=1000,
+            ),
+            HomeAssistantStateResponse(
+                entity_id=ENTITY, attribute="brightness", state="50"
+            ),
+            LightCommandRequest(
+                key=ha.key,
+                has_brightness=True,
+                brightness=1.0,
+                has_transition_length=True,
+                transition_length=1000,
+            ),
+        )
+        call = await ha.next_call()
+        assert call.service == "light.turn_on"
+        assert call.data["brightness"] == "255"
+        ha.report(None, "on")
+        ha.report("brightness", "255")
+        await ha.next_state(lambda s: s.state and s.brightness == 1.0)
         ha.client.light_command(ha.key, state=False)
         assert (await ha.next_call()).service == "light.turn_off"
         ha.report(None, "off")

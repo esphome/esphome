@@ -58,12 +58,13 @@ class HomeassistantLight final : public light::LightOutput, public Component {
   Attributes imported_{};
   uint32_t held_hash_{0};  // state_hash() of what the transition a report was held for ends at
   bool apply_scheduled_ : 1 {false};
-  bool initial_write_ : 1 {true};    // the light core's own first write is not a local change
-  bool initial_seen_ : 1 {false};    // the light core's setup call has set the initial state
-  bool echo_pending_ : 1 {false};    // a sent change waits for Home Assistant to report it back
-  bool report_held_ : 1 {false};     // a report arrived during a transition or flash; applied when it ends
-  bool transitioned_ : 1 {false};    // a transition or flash ran since the last write sent
-  bool report_changed_ : 1 {false};  // the reports since the last apply changed an attribute
+  bool initial_write_ : 1 {true};          // the light core's own first write is not a local change
+  bool initial_seen_ : 1 {false};          // the light core's setup call has set the initial state
+  bool echo_pending_ : 1 {false};          // a sent change waits for Home Assistant to report it back
+  bool report_held_ : 1 {false};           // a report arrived during a transition or flash; applied when it ends
+  bool transitioned_ : 1 {false};          // a transition or flash ran since the last write sent
+  bool report_changed_ : 1 {false};        // the reports since the last apply changed an attribute
+  bool report_in_transition_ : 1 {false};  // the reports waiting to be applied arrived during a transition
   uint8_t report_timeout_s_{10};
 };
 
