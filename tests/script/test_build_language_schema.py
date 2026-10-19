@@ -392,7 +392,11 @@ def test_child_of_empty_base_schema_keeps_config_vars(
 def test_uart_debug_schema_is_walked(language_schema_dir: Path) -> None:
     debug = _config_vars(language_schema_dir, "uart", "uart")["debug"]
     assert debug["type"] == "schema"
-    after = debug["schema"]["config_vars"]["after"]
+    # shared with usb_cdc_acm, so it stays a named schema instead of being inlined
+    (ref,) = debug["schema"]["extends"]
+    after = _config_vars(language_schema_dir, "uart", "uart", ref.split(".", 1)[1])[
+        "after"
+    ]
     assert "delimiter" in after["schema"]["config_vars"]
 
 
@@ -434,3 +438,44 @@ def test_registry_entry_not_overwritten_by_following_entry(
     assert (
         reset_energy["schema"]["config_vars"]["id"]["use_id_type"] == "pzemdc::PZEMDC"
     )
+
+
+def test_expander_pin_schema_is_resolvable(language_schema_dir: Path) -> None:
+    """A pin provider's schema was dropped as unreachable, leaving ``pin`` dangling."""
+    pca9554 = json.loads((language_schema_dir / "pca9554.json").read_text())
+    pin = pca9554["pca9554"]["pin"]
+    config_vars = pin["schema"]["config_vars"]
+    assert "number" in config_vars
+    assert "mode" in config_vars
+    assert "inverted" in config_vars
+
+
+def test_union_extends_keeps_referenced_schema(language_schema_dir: Path) -> None:
+    """cv.Any(cv.boolean, SCHEMA) keeps its boolean type and a resolvable extends."""
+    config_vars = _config_vars(language_schema_dir, "cm1106", "cm1106.sensor")
+    abc = config_vars["automatic_baseline_calibration"]
+    assert abc["type"] == "boolean"
+    extends = abc["schema"]["extends"]
+    assert extends == ["cm1106.sensor._ABC_SETTINGS_SCHEMA"]
+    settings = _config_vars(
+        language_schema_dir, "cm1106", "cm1106.sensor", "_ABC_SETTINGS_SCHEMA"
+    )
+    assert "cycle" in settings
+    assert "baseline" in settings
+
+
+def test_it8951_model_schema_is_extracted(language_schema_dir: Path) -> None:
+    """A per-model CONFIG_SCHEMA function exposes a representative schema."""
+    config_vars = _config_vars(language_schema_dir, "it8951", "it8951.display")
+    assert "busy_pin" in config_vars
+    assert "vcom" in config_vars
+    assert "M5STACK-M5PAPER" in config_vars["model"]["values"]
+
+
+def test_gsl3670_model_schema_is_extracted(language_schema_dir: Path) -> None:
+    config_vars = _config_vars(language_schema_dir, "gsl3670", "gsl3670.touchscreen")
+    assert "firmware" in config_vars
+    assert "interrupt_pin" in config_vars
+    assert config_vars["model"]["key"] == "Optional"
+    assert config_vars["model"]["default"] == "CUSTOM"
+    assert "CUSTOM" in config_vars["model"]["values"]

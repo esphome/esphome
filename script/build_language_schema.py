@@ -487,14 +487,18 @@ def add_logger_tags():
     logs.pop("string")
 
 
+# Config vars whose own type is not a schema but that still extend one, e.g. the
+# cv.Any(cv.boolean, SETTINGS_SCHEMA) union keeps type boolean next to the
+# extends. The reference must survive so the schema is kept, but merging the
+# schema into the key would overwrite its type.
+INLINE_TYPES = ["schema", "trigger", "maybe"]
+
+
 def add_referenced_recursive(referenced_schemas, config_var, path, eat_schema=False):
     assert (
         S_CONFIG_VARS not in config_var and S_EXTENDS not in config_var
     )  # S_TYPE in cv or "key" in cv or len(cv) == 0
-    if (
-        config_var.get(S_TYPE) in ["schema", "trigger", "maybe"]
-        and S_SCHEMA in config_var
-    ):
+    if isinstance(config_var.get(S_SCHEMA), dict):
         schema = config_var[S_SCHEMA]
         for k, v in schema.get(S_CONFIG_VARS, {}).items():
             if eat_schema:
@@ -608,14 +612,21 @@ def shrink():
 
         for k, v in output.items():
             for kv, vv in v.items():
-                if kv != "pin" and isinstance(vv, dict):
-                    for kvv, vvv in vv.items():
-                        add_referenced_recursive(referenced_schemas, vvv, [k, kv, kvv])
+                if not isinstance(vv, dict):
+                    continue
+                if kv == "pin":
+                    # the pin provider entry is a config var itself
+                    add_referenced_recursive(referenced_schemas, vv, [k, kv])
+                    continue
+                for kvv, vvv in vv.items():
+                    add_referenced_recursive(referenced_schemas, vvv, [k, kv, kvv])
 
         for x, paths in referenced_schemas.items():
             if len(paths) == 1 and not is_platform_schema(x):
                 key_s = get_str_path_schema(x)
                 arr_s = get_arr_path_schema(paths[0])
+                if S_SCHEMA in arr_s and arr_s.get(S_TYPE) not in INLINE_TYPES:
+                    continue
                 # key_s |= arr_s
                 # key_s.pop(S_EXTENDS)
                 pass_again = True
@@ -640,10 +651,14 @@ def shrink():
         if key_s and key_s.get(S_TYPE) in ["enum", "registry", "integer", "string"]:
             if key_s[S_TYPE] == "registry":
                 print("Spreading registry: " + x)
+            still_referenced = False
             for target in paths:
                 target_s = get_arr_path_schema(target)
                 if S_SCHEMA not in target_s:
                     print("skipping simple spread for " + ".".join(target))
+                    continue
+                if target_s.get(S_TYPE) not in INLINE_TYPES:
+                    still_referenced = True
                     continue
                 assert target_s[S_SCHEMA][S_EXTENDS] == [x]
                 target_s.pop(S_SCHEMA)
@@ -651,7 +666,8 @@ def shrink():
                 if key_s[S_TYPE] in ["integer", "string"]:
                     target_s["data_type"] = x.split(".")[1]
             # remove this dangling again
-            pop_str_path_schema(x)
+            if not still_referenced:
+                pop_str_path_schema(x)
         elif not key_s:
             for target in paths:
                 target_s = get_arr_path_schema(target)

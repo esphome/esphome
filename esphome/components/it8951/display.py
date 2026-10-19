@@ -9,6 +9,7 @@ from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
+from esphome.components.mipi import model_schema_extractor
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
@@ -298,6 +299,7 @@ def _model_schema(config: ConfigType) -> cv.Schema:
     return schema.extend(pin_extra)
 
 
+@model_schema_extractor(IT8951Model.models, _model_schema)
 def _customise_schema(config: ConfigType) -> ConfigType:
     config = cv.Schema(
         {
