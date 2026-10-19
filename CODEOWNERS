@@ -30,6 +30,9 @@ esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_base/* @jeromelaban @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban @precurse
+esphome/components/airton/* @Procsiab
+esphome/components/airton/select/* @Procsiab
+esphome/components/airton/switch/* @Procsiab
 esphome/components/alarm_control_panel/* @grahambrown11 @hwstar
 esphome/components/alpha3/* @jan-hofmeier
 esphome/components/am2315c/* @swoboda1337
@@ -276,6 +279,7 @@ esphome/components/hmac_sha256/* @dwmw2
 esphome/components/hoermann_hcp/* @zweckj
 esphome/components/homeassistant/* @esphome/core @OttoWinter
 esphome/components/homeassistant/button/* @jesserockz
+esphome/components/homeassistant/light/* @egormanga
 esphome/components/homeassistant/number/* @landonr
 esphome/components/homeassistant/select/* @jesserockz
 esphome/components/homeassistant/switch/* @Links2004
@@ -688,6 +692,7 @@ esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
+esphome/components/vevor_dtx/* @Bofr5555
 esphome/components/voice_assistant/* @jesserockz @kahrendt
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher

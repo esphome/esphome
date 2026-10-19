@@ -208,6 +208,7 @@ WIZARD_SCHEMA = cv.All(
 WIZARD_INPUT_DOMAINS = (
     "binary_sensor",
     "button",
+    "light",
     "number",
     "select",
     "sensor",
@@ -216,7 +217,14 @@ WIZARD_INPUT_DOMAINS = (
     "text_sensor",
 )
 # Platforms that act on one family of Home Assistant domains, which the input's filters must stay within
-WIZARD_DOMAIN_LIMITED_PLATFORMS = ("button", "number", "select", "switch", "text")
+WIZARD_DOMAIN_LIMITED_PLATFORMS = (
+    "button",
+    "light",
+    "number",
+    "select",
+    "switch",
+    "text",
+)
 
 
 def wizard_input_ids(api_config: ConfigType) -> set[str]:

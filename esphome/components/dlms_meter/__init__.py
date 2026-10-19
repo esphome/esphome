@@ -4,13 +4,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components import esp32, uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_NAME,
-    CONF_PATTERN,
-    CONF_PRIORITY,
-    CONF_RECEIVE_TIMEOUT,
-)
+from esphome.const import CONF_NAME, CONF_PATTERN, CONF_PRIORITY, CONF_RECEIVE_TIMEOUT
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -146,17 +140,14 @@ async def to_code(config: ConfigType) -> None:
         for pattern in config.get(CONF_CUSTOM_PATTERNS, [])
     ]
 
-    var = cg.new_Pvariable(
-        config[CONF_ID],
+    await uart.new_uart_component(
+        config,
         config[CONF_RECEIVE_TIMEOUT],
         config[CONF_SKIP_CRC],
         config.get(CONF_DECRYPTION_KEY, cg.nullptr),
         config.get(CONF_AUTH_KEY, cg.nullptr),
         cg.ArrayInitializer(*custom_patterns, multiline=True),
     )
-
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
 
     if CORE.is_esp32:
         esp32.add_idf_component(name="esphome/dlms_parser", ref=DLMS_PARSER_VERSION)

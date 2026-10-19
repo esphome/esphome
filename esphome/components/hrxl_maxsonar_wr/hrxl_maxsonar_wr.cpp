@@ -20,10 +20,7 @@ ESPHOME_LOG_TAG(TAG, "hrxl.maxsonar.wr.sensor");
  * The 123 means 123cm
  */
 void HrxlMaxsonarWrComponent::loop() {
-  uint8_t data;
-  while (this->available() > 0) {
-    if (!this->read_byte(&data))
-      continue;
+  this->read_available([this](uint8_t data) {
     size_t len;
     const char *line = this->line_reader_.feed(data, len);
     if (line != nullptr) {
@@ -34,7 +31,7 @@ void HrxlMaxsonarWrComponent::loop() {
       ESP_LOGW(TAG, "Invalid data read from sensor: %s", this->line_reader_.partial());
       this->line_reader_.reset();
     }
-  }
+  });
 }
 
 void HrxlMaxsonarWrComponent::handle_line_(const char *line, size_t len) {

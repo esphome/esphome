@@ -180,11 +180,7 @@ void Nextion::release_queue_entry_(NextionQueue *nb) {
 }
 
 void Nextion::reset_(bool reset_nextion) {
-  uint8_t d;
-
-  while (this->available()) {  // Clear receive buffer
-    this->read_byte(&d);
-  }
+  this->discard_available();
   for (auto *entry : this->nextion_queue_) {
     this->release_queue_entry_(entry);
   }

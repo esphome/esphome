@@ -41,8 +41,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
 def validate_mode(value: ConfigType) -> ConfigType:

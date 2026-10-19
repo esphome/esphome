@@ -164,15 +164,6 @@ static inline int16_t decode_speed(uint8_t low_byte, uint8_t high_byte) {
   return speed * 10;  // mm/s
 }
 
-static inline int16_t hex_to_signed_int(const uint8_t *buffer, uint8_t offset) {
-  uint16_t hex_val = (buffer[offset + 1] << 8) | buffer[offset];
-  int16_t dec_val = static_cast<int16_t>(hex_val);
-  if (dec_val & 0x8000) {
-    dec_val -= 65536;
-  }
-  return dec_val;
-}
-
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
@@ -376,10 +367,10 @@ void LD2450Component::process_zone_() {
   uint8_t index, start;
   for (index = 0; index < MAX_ZONES; index++) {
     start = 12 + index * 8;
-    this->zone_config_[index].x1 = ld2450::hex_to_signed_int(this->buffer_data_, start);
-    this->zone_config_[index].y1 = ld2450::hex_to_signed_int(this->buffer_data_, start + 2);
-    this->zone_config_[index].x2 = ld2450::hex_to_signed_int(this->buffer_data_, start + 4);
-    this->zone_config_[index].y2 = ld2450::hex_to_signed_int(this->buffer_data_, start + 6);
+    this->zone_config_[index].x1 = encode_value_le<int16_t>(&this->buffer_data_[start]);
+    this->zone_config_[index].y1 = encode_value_le<int16_t>(&this->buffer_data_[start + 2]);
+    this->zone_config_[index].x2 = encode_value_le<int16_t>(&this->buffer_data_[start + 4]);
+    this->zone_config_[index].y2 = encode_value_le<int16_t>(&this->buffer_data_[start + 6]);
 #ifdef USE_NUMBER
     // only one null check as all coordinates are required for a single zone
     if (this->zone_numbers_[index].x1 != nullptr) {
@@ -492,7 +483,7 @@ void LD2450Component::handle_periodic_data_() {
 #ifdef USE_SENSOR
     // RESOLUTION
     start = TARGET_RESOLUTION + index * 8;
-    res = (this->buffer_data_[start + 1] << 8) | this->buffer_data_[start];
+    res = encode_value_le<uint16_t>(&this->buffer_data_[start]);
 #endif
     // SPEED
     start = TARGET_SPEED + index * 8;
