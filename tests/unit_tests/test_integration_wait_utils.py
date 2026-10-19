@@ -62,3 +62,12 @@ async def test_wait_or_fail_trims_deques_and_mappings() -> None:
     assert "lines (last 20 of 30):\n  line 10\n" in message
     assert "states (last 20 of 25):\n  key5: 5\n" in message
     assert "key4: 4" not in message
+
+
+@pytest.mark.asyncio
+async def test_wait_or_fail_reraises_a_timeout_from_the_awaitable() -> None:
+    async def inner() -> None:
+        raise TimeoutError("api call timed out")
+
+    with pytest.raises(TimeoutError, match="api call timed out"):
+        await wait_or_fail(inner(), 5.0, "no reply")

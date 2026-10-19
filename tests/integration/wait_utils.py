@@ -37,15 +37,19 @@ async def wait_or_fail[T](
 ) -> T:
     """Await ``aw``, or wait for an ``asyncio.Event`` to be set, and fail the test on timeout.
 
-    Behaves like ``asyncio.wait_for``, so a timed out future is cancelled. ``context`` values
-    are formatted only on failure, so pass live collections; lists, tuples, deques and mappings
-    show their last 20 items.
+    Behaves like ``asyncio.wait_for``, so a timed out future is cancelled; a TimeoutError raised
+    by ``aw`` itself propagates unchanged. ``context`` values are formatted only on failure, so
+    pass live collections; lists, tuples, deques and mappings show their last 20 items.
     """
     if isinstance(aw, asyncio.Event):
         aw = aw.wait()
+    deadline = asyncio.timeout(timeout)
     try:
-        return await asyncio.wait_for(aw, timeout)
+        async with deadline:
+            return await aw
     except TimeoutError:
-        pass
+        # A TimeoutError raised by aw itself is not this wait running out
+        if not deadline.expired():
+            raise
     # Failing outside the except block keeps the TimeoutError traceback out of the report.
     pytest.fail(f"{msg} (after {timeout}s){_format_context(context)}")
