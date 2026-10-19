@@ -214,10 +214,7 @@ static bool read_flow_rate_out_of_range(const uint8_t data[FRAME_SIZE]) {
 }
 
 void UFM01Component::flush_rx_() {
-  while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-  }
+  this->discard_available();
   this->read_index_ = 0;
 }
 

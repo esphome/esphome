@@ -48,8 +48,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pcf8575(config[CONF_PCF8575]))
     if (reset := config[CONF_RESET]) != DEFAULT_RESET:
         cg.add(var.set_reset(reset))
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
 def validate_mode(value: ConfigType) -> ConfigType:

@@ -138,13 +138,10 @@ bool PCA6416AComponent::read_register_(uint8_t reg, uint8_t *value) {
   }
 
   this->last_error_ = this->read_register(reg, value, 1);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->last_error_ == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
-
-  this->status_clear_warning();
   return true;
 }
 
@@ -155,13 +152,10 @@ bool PCA6416AComponent::write_register_(uint8_t reg, uint8_t value) {
   }
 
   this->last_error_ = this->write_register(reg, &value, 1);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->last_error_ == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
-
-  this->status_clear_warning();
   return true;
 }
 
