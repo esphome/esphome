@@ -5,15 +5,11 @@ from esphome.types import ConfigType
 
 from ..display import CONF_TM1638_ID, TM1638Component
 
-CONFIG_SCHEMA = (
-    switch.switch_schema(switch.ApplySwitch)
-    .extend(
-        {
-            cv.GenerateID(CONF_TM1638_ID): cv.use_id(TM1638Component),
-            cv.Required(CONF_LED): cv.int_range(min=0, max=7),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = switch.switch_schema(switch.ApplySwitch).extend(
+    {
+        cv.GenerateID(CONF_TM1638_ID): cv.use_id(TM1638Component),
+        cv.Required(CONF_LED): cv.int_range(min=0, max=7),
+    }
 )
 
 
