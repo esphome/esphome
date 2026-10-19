@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT_PIN,
-    CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OUTPUT,
@@ -111,8 +110,7 @@ async def to_code(config: ConfigType) -> None:
 
 def validate_mode(value: ConfigType) -> ConfigType:
     """Reject contradictory modes; whether the device supports a mode is checked in final validation."""
-    if value[CONF_INPUT] == value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
+    pins.gpio_validate_input_xor_output(value)
     if value[CONF_PULLDOWN] and value[CONF_PULLUP]:
         raise cv.Invalid("Pull-up and pull-down are mutually exclusive")
     return value
@@ -161,15 +159,9 @@ def pca9554_pin_final_validate(
     CONF_PCA9554, PCA9554_PIN_SCHEMA, pca9554_pin_final_validate
 )
 async def pca9554_pin_to_code(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await pins.new_parented_pin(config, CONF_PCA9554)
     parent = await cg.get_variable(config[CONF_PCA9554])
-
-    cg.add(var.set_parent(parent))
-
     num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
     # Final validation only lets these through on a PCAL hub
     if config[CONF_LATCH]:
         cg.add(parent.set_latch(num))
