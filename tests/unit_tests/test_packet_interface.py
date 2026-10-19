@@ -11,6 +11,7 @@ from esphome.components.packet_interface.layers import (
     CONF_RELIABILITY,
     RELIABILITY,
     STACK_ORDER,
+    LayerKind,
 )
 from esphome.components.packet_interface.layers.hdlc_reliability import (
     CONF_MAX_QUEUE_LENGTH,
@@ -90,30 +91,28 @@ def test_layer_types_registered() -> None:
     }
 
 
+async def _build(config: dict, lower: Any) -> Any:
+    return lower
+
+
 def test_registered_type_selectable(setup_core) -> None:
     """A newly registered layer type can be selected with type."""
-
-    async def build(config: dict, lower: Any) -> Any:
-        return lower
-
-    RELIABILITY.register("test", schema=cv.Schema({}))(build)
-    try:
-        config = RELIABILITY.schema()({"type": "test"})
-        assert config["type"] == "test"
-        assert RELIABILITY.get_type(config).build is build
-    finally:
-        del RELIABILITY.types["test"]
+    kind = LayerKind("test_kind", "test")
+    kind.register("test", schema=cv.Schema({}))(_build)
+    config = kind.schema()({"type": "test"})
+    assert config["type"] == "test"
+    assert kind.get_type(config).build is _build
 
 
 def test_duplicate_layer_type_rejected(setup_core) -> None:
     """Registering a type under a name already in use is an error, not a silent replacement."""
+    kind = LayerKind("test_kind", "test")
+    kind.register("test", schema=cv.Schema({}))(_build)
+    with pytest.raises(ValueError, match="already registered"):
+        kind.register("test", schema=cv.Schema({}))(_build)
 
-    async def build(config: dict, lower: Any) -> Any:
-        return lower
 
-    RELIABILITY.register("test", schema=cv.Schema({}))(build)
-    try:
-        with pytest.raises(ValueError, match="already registered"):
-            RELIABILITY.register("test", schema=cv.Schema({}))(build)
-    finally:
-        del RELIABILITY.types["test"]
+def test_late_registration_rejected(setup_core) -> None:
+    """A type registered after the schemas were built would be missing from them, so it is an error."""
+    with pytest.raises(ValueError, match="after the schemas were built"):
+        RELIABILITY.register("late", schema=cv.Schema({}))(_build)
