@@ -27,7 +27,8 @@ void USBAudioSpeaker::setup() {
   this->packet_bytes_ = info.frames_to_bytes(info.get_sample_rate() / 1000);
   this->packet_frac_ = info.get_sample_rate() % 1000;
   this->transfer_bytes_ = info.frames_to_bytes((info.get_sample_rate() + 999) / 1000 * CONFIG_UAC_NUM_PACKETS_PER_URB);
-  this->in_flight_us_ = CONFIG_UAC_NUM_ISOC_URBS * CONFIG_UAC_NUM_PACKETS_PER_URB * 1000;
+  this->transfer_us_ = CONFIG_UAC_NUM_PACKETS_PER_URB * 1000;
+  this->in_flight_us_ = CONFIG_UAC_NUM_ISOC_URBS * this->transfer_us_;
   // About 10 ms per report, like the I2S speaker's DMA buffers.
   this->report_frames_ = std::max<uint32_t>(info.get_sample_rate() / 100, 1);
   // start(), stop() and finish() wake the loop.
@@ -60,6 +61,7 @@ void USBAudioSpeaker::loop() {
     this->packet_frac_accum_ = 0;
     this->unreported_frames_ = 0;
     this->report_frames_pending_ = 0;
+    this->last_finish_us_ = 0;
     portEXIT_CRITICAL(&this->taken_lock_);
     this->state_ = speaker::STATE_STARTING;
     // Answers through on_stream_state() now or once the device connects.
@@ -291,12 +293,17 @@ void USBAudioSpeaker::on_transfer_taken() {
     }
     const int64_t now_us = esp_timer_get_time();
     this->last_taken_us_ = static_cast<uint32_t>(now_us);
+    // The bus plays one packet per millisecond, so a transfer finishes one transfer after the one taken before it,
+    // however late this callback runs; only after the bus ran dry does it start from now. The first one after a
+    // start plays behind the silent transfers the driver queues when it resumes.
+    const int64_t finish_us = this->last_finish_us_ == 0 ? now_us + this->in_flight_us_
+                                                         : std::max(this->last_finish_us_, now_us) + this->transfer_us_;
+    this->last_finish_us_ = finish_us;
     this->unreported_frames_ += this->usb_stream_info_.bytes_to_frames(audio);
-    // Batched like the I2S speaker's DMA buffers: about every 10 ms, and once the caller's audio runs out. The
-    // transfer just taken finishes playing after those already in flight.
+    // Batched like the I2S speaker's DMA buffers: about every 10 ms, and once the caller's audio runs out.
     if (this->unreported_frames_ > 0 && (this->unreported_frames_ >= this->report_frames_ || audio == ring - padding)) {
       this->report_frames_pending_ += this->unreported_frames_;
-      this->report_finish_us_ = now_us + this->in_flight_us_;
+      this->report_finish_us_ = finish_us;
       this->unreported_frames_ = 0;
       report = true;
     }

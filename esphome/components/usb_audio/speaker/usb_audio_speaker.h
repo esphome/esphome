@@ -74,9 +74,10 @@ class USBAudioSpeaker : public speaker::Speaker,
   uint32_t frame_bytes_{0};
   uint32_t packet_bytes_{0};
   uint32_t packet_frac_{0};
-  // Bytes in the largest USB transfer, how long a transfer just taken has until it has played, and the batch of
-  // frames reported at a time; set in setup().
+  // Bytes in the largest USB transfer, how long one transfer plays and how long all the driver keeps in flight play,
+  // and the batch of frames reported at a time; set in setup().
   uint32_t transfer_bytes_{0};
+  uint32_t transfer_us_{0};
   uint32_t in_flight_us_{0};
   uint32_t report_frames_{0};
   // Silence still to write while finishing.
@@ -94,6 +95,8 @@ class USBAudioSpeaker : public speaker::Speaker,
   uint32_t unreported_frames_{0};
   uint32_t report_frames_pending_{0};
   int64_t report_finish_us_{0};
+  // When the last transfer taken finishes playing; zero until the first one after a start.
+  int64_t last_finish_us_{0};
   std::atomic<uint8_t> commands_{0};
   // play() calls and silence padding that may be using the device handle; the hub closes a lost device only at zero.
   std::atomic<uint8_t> writes_in_flight_{0};
