@@ -154,4 +154,21 @@ TEST_F(SettingsActionTest, QueuesNothingWithoutRoomForWholeSequence) {
   EXPECT_FALSE(this->radar_.has_queue_room(8));
 }
 
+// A running sensor needs stop, change, save and start queued together
+TEST_F(SettingsActionTest, RunningSensorQueuesNothingWithThreeFreeSlots) {
+  this->radar_.set_active(true);
+  for (int i = 0; i < COMMAND_QUEUE_SIZE - 3; i++)
+    ASSERT_TRUE(this->radar_.enqueue(CommandType::COMMAND_TYPE_SAVE_CFG));
+  this->radar_.enqueue_saved_setting(CommandType::COMMAND_TYPE_LED_MODE, true);
+  EXPECT_TRUE(this->radar_.has_queue_room(3));
+}
+
+TEST_F(SettingsActionTest, RunningSensorQueuesAllFourWithFourFreeSlots) {
+  this->radar_.set_active(true);
+  for (int i = 0; i < COMMAND_QUEUE_SIZE - 4; i++)
+    ASSERT_TRUE(this->radar_.enqueue(CommandType::COMMAND_TYPE_SAVE_CFG));
+  this->radar_.enqueue_saved_setting(CommandType::COMMAND_TYPE_LED_MODE, true);
+  EXPECT_FALSE(this->radar_.has_queue_room(1));
+}
+
 }  // namespace esphome::dfrobot_sen0395::testing
