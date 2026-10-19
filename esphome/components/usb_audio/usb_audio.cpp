@@ -18,7 +18,9 @@ namespace esphome::usb_audio {
 
 ESPHOME_LOG_TAG(TAG, "usb_audio");
 
-static constexpr UBaseType_t UAC_TASK_PRIORITY = 8;
+// The driver task completes and resubmits the speaker's transfers, with only CONFIG_UAC_NUM_ISOC_URBS of them (9 ms)
+// queued on the bus, so it runs above the network stack like the I2S speaker task; each wakeup is short.
+static constexpr UBaseType_t UAC_TASK_PRIORITY = 19;
 static constexpr uint32_t UAC_TASK_STACK_SIZE = 4096;
 // Below the driver's task, so its transfers are not held up by control requests.
 static constexpr UBaseType_t WORKER_TASK_PRIORITY = 5;
