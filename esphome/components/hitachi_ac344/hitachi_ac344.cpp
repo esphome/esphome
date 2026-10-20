@@ -1,5 +1,7 @@
 #include "hitachi_ac344.h"
 
+#include <cstring>
+
 namespace esphome::hitachi_ac344 {
 
 ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac344");
@@ -136,10 +138,13 @@ static bool swing_vertical(climate::ClimateSwingMode mode) {
 }
 
 void HitachiClimate::setup() {
-  climate_ir::ClimateIR::setup();
   // The restored swing mode is the best guess of where the unit's vertical swing is, so the first command after a
-  // reboot does not toggle it the wrong way.
-  set_swing_v_(swing_vertical(this->swing_mode));
+  // reboot does not toggle it the wrong way. Seeded before the base publishes the restored state, since an on_state
+  // automation may transmit from that callback.
+  if (auto restore = this->restore_state_()) {
+    set_swing_v_(swing_vertical(restore->swing_mode));
+  }
+  climate_ir::ClimateIR::setup();
 }
 
 void HitachiClimate::transmit_state() {
@@ -337,9 +342,9 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->parse_fan_(recv_state);
   // parse swingv
   this->parse_swing_(recv_state);
+  // Copied before publishing, so an on_state automation that transmits builds on the frame just received.
+  memcpy(remote_state_, recv_state, HITACHI_AC344_STATE_LENGTH);
   this->publish_state();
-  for (uint8_t i = 0; i < HITACHI_AC344_STATE_LENGTH; i++)
-    remote_state_[i] = recv_state[i];
 
   return true;
 }
