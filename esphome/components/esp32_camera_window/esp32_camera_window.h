@@ -22,7 +22,9 @@ namespace esphome::esp32_camera_window {
 /// The OV3660 and OV5640 scale the part of the picture a window covers back up to the frame, so a
 /// window on them also zooms and the camera keeps publishing frames of the size it is configured
 /// with. The OV2640 crops a window out of its readout and scales that to the size the window has in
-/// the frame, so the published frame takes the size of the window instead. The SC101IOT and
+/// the frame, so the published frame takes the size of the window instead. That needs JPEG output:
+/// in every other pixel format the driver captures a frame of the configured size, which the window
+/// would come up short of, so no window is available on it then. The SC101IOT and
 /// SC030IOT read a window out as it is and cannot scale it, so a window on them has to be the size
 /// of the frame and only moves which part of the sensor the frame shows. Every other sensor the
 /// driver knows, such as the OV7725, is read out through registers of its own that do not take a
@@ -79,8 +81,8 @@ class Esp32CameraWindow : public Component {
   /// Changing the frame size through the camera does the same on its own.
   bool reset_window();
 
-  /// True when the camera has a sensor that accepts a window. Meant for use from lambdas: the
-  /// component checks the sensor itself before every write.
+  /// True when the camera has a sensor that accepts a window in the configured pixel format.
+  /// Meant for use from lambdas: the component checks the sensor itself before every write.
   bool supports_window() const;
 
   /// Window to apply in setup(), in frame pixels. No window is applied by default.

@@ -244,6 +244,14 @@ static int ov2640_mode_for(framesize_t framesize) {
   return OV2640_MODE_UXGA;
 }
 
+/// True when the sensor can output a frame whose size is not the configured frame size.
+///
+/// The driver sizes its capture for the configured frame size in every pixel format but JPEG, so
+/// in the others a frame the sensor reads out at the size of a window would be captured short.
+static bool window_output_supported(sensor_t *sensor) {
+  return sensor->id.PID != OV2640_PID || sensor->pixformat == PIXFORMAT_JPEG;
+}
+
 /// Reads out a window on an OV2640.
 static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, int frame_width,
                               int frame_height) {
@@ -439,7 +447,7 @@ bool Esp32CameraWindow::supports_window() const {
   if (this->camera_ == nullptr)
     return false;
   sensor_t *sensor = esp_camera_sensor_get();
-  return sensor != nullptr && is_window_supported(sensor);
+  return sensor != nullptr && is_window_supported(sensor) && window_output_supported(sensor);
 }
 
 bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &window) {
@@ -448,6 +456,10 @@ bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &windo
     return false;
   }
   const resolution_info_t frame = resolution[sensor->status.framesize];
+  if (!window_output_supported(sensor)) {
+    ESP_LOGE(TAG, "%s can only read out a window with JPEG output; set pixel_format to JPEG", sensor_name(sensor));
+    return false;
+  }
   switch (sensor->id.PID) {
     case OV2640_PID:
       return set_ov2640_window(sensor, window, frame.width, frame.height);
