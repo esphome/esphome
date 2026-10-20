@@ -231,20 +231,15 @@ void AcDimmer::dump_config() {
                 this->store_.min_power / 10.0f, YESNO(this->init_with_half_cycle_));
   LOG_PIN("  Output Pin: ", this->gate_pin_);
   LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
-  if (this->zero_cross_interrupt_type_ == gpio::INTERRUPT_RISING_EDGE) {
-    ESP_LOGCONFIG(TAG, "  Interrupt Type: rising");
-  } else if (this->zero_cross_interrupt_type_ == gpio::INTERRUPT_FALLING_EDGE) {
-    ESP_LOGCONFIG(TAG, "  Interrupt Type: falling");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Interrupt Type: any");
-  }
-  if (method_ == DIM_METHOD_LEADING_PULSE) {
-    ESP_LOGCONFIG(TAG, "  Method: leading pulse");
-  } else if (method_ == DIM_METHOD_LEADING) {
-    ESP_LOGCONFIG(TAG, "  Method: leading");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Method: trailing");
-  }
+  ESP_LOGCONFIG(TAG,
+                "  Interrupt Type: %s\n"
+                "  Method: %s",
+                this->zero_cross_interrupt_type_ == gpio::INTERRUPT_RISING_EDGE    ? LOG_STR_LITERAL("rising")
+                : this->zero_cross_interrupt_type_ == gpio::INTERRUPT_FALLING_EDGE ? LOG_STR_LITERAL("falling")
+                                                                                   : LOG_STR_LITERAL("any"),
+                this->method_ == DIM_METHOD_LEADING_PULSE ? LOG_STR_LITERAL("leading pulse")
+                : this->method_ == DIM_METHOD_LEADING     ? LOG_STR_LITERAL("leading")
+                                                          : LOG_STR_LITERAL("trailing"));
   LOG_FLOAT_OUTPUT(this);
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }

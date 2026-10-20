@@ -6,19 +6,13 @@
 
 namespace esphome::ac_dimmer {
 
-enum DimMethod { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING };
+enum DimMethod : uint8_t { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING };
 
 struct AcDimmerDataStore {
   /// Zero-cross pin
   ISRInternalGPIOPin zero_cross_pin;
-  /// Zero-cross pin number - used to share ZC pin across multiple dimmers
-  uint8_t zero_cross_pin_number;
   /// Output pin to write to
   ISRInternalGPIOPin gate_pin;
-  /// Value of the dimmer - 0 to 65535.
-  uint16_t value;
-  /// Minimum power for activation
-  uint16_t min_power;
   /// Time between the last two ZC pulses
   uint32_t cycle_time_us;
   /// Time (in micros()) of last ZC signal
@@ -27,6 +21,12 @@ struct AcDimmerDataStore {
   uint32_t enable_time_us;
   /// Time since last ZC pulse to disable gate pin. 0 means no disable.
   uint32_t disable_time_us;
+  /// Value of the dimmer - 0 to 65535.
+  uint16_t value;
+  /// Minimum power for activation
+  uint16_t min_power;
+  /// Zero-cross pin number - used to share ZC pin across multiple dimmers
+  uint8_t zero_cross_pin_number;
   /// Set to send the first half ac cycle complete
   bool init_cycle;
   /// Dimmer method
@@ -57,8 +57,8 @@ class AcDimmer final : public output::FloatOutput, public Component {
 
   InternalGPIOPin *gate_pin_;
   InternalGPIOPin *zero_cross_pin_;
-  gpio::InterruptType zero_cross_interrupt_type_;
   AcDimmerDataStore store_;
+  gpio::InterruptType zero_cross_interrupt_type_;
   bool init_with_half_cycle_;
   DimMethod method_;
 };
