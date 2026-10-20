@@ -28,8 +28,10 @@ namespace esphome::esp32_camera_window {
 /// driver knows, such as the OV7725, is read out through registers of its own that do not take a
 /// window, so a window is reported as unsupported and every call to set_window() fails on it.
 ///
-/// The OV2640 can only be told to crop in whole four-pixel steps of its readout, so a window on it
-/// is rounded down to one; the frame it publishes is the size of the window in the same steps.
+/// The OV2640 can only be told to crop in whole four-pixel steps of its readout, and its JPEG
+/// encoder compresses whole 16 by 8 pixel blocks, so a window on it is rounded down to those steps;
+/// the frame it publishes is the size of the window in the same steps. With another pixel format a
+/// window is only rounded down to whole four-pixel steps.
 ///
 /// Repeated set_window() calls replace the previous window; they never nest inside it. Changing
 /// the frame size clears any window back to the whole sensor, so re-apply the window afterwards.
@@ -60,9 +62,12 @@ class Esp32CameraWindow : public Component {
   ///
   /// A window that reaches past the frame is clamped to it, and so is its size. On the OV3660
   /// and OV5640 the frame size the camera publishes is left as it is; on the OV2640 the published
-  /// frame takes the size of the window instead, rounded down to whole four-pixel steps. Returns
-  /// false when no sensor is available, when the sensor cannot take a window, or when it rejects
-  /// the settings. Calling it again replaces the previous window.
+  /// frame takes the size of the window instead, rounded down to whole 16 by 8 pixel blocks with
+  /// JPEG output and to whole four-pixel steps with another pixel format. The camera still reports
+  /// the frame size it is configured with, so on the OV2640 the window size only shows in the
+  /// dimensions of the JPEG frame itself. Returns false when no sensor is available, when the
+  /// sensor cannot take a window, or when it rejects the settings. Calling it again replaces the
+  /// previous window.
   ///
   /// The SC101IOT and SC030IOT read a window out as it is and cannot scale it, so the size of a
   /// window on them has to be the frame size and the offsets are counted from the corner of the

@@ -20,6 +20,12 @@ static constexpr int OV2640_REG_VHYX = 0x0055;
 // A size register of the OV2640 covers four pixels of its readout, so a crop is a multiple of
 // four and is set in steps of four.
 static constexpr int OV2640_CROP_STEP = 4;
+// The JPEG encoder of the OV2640 compresses whole macro blocks of 16 by 8 pixels, the block of the
+// 4:2:2 sampling it uses. A frame that does not fill whole blocks is announced at the block-rounded
+// size while the encoder still runs on the larger one, which leaves the frame striped, so a JPEG
+// frame has to be a whole number of blocks. Other output formats have no such block.
+static constexpr int OV2640_JPEG_BLOCK_WIDTH = 16;
+static constexpr int OV2640_JPEG_BLOCK_HEIGHT = 8;
 // The readout the OV2640 crops out of, one per group of frame sizes. set_res_raw() takes it in
 // the place of startX; the values are in the order of the driver's own enumeration, which is not
 // part of an exported header.
@@ -241,7 +247,19 @@ static int ov2640_mode_for(framesize_t framesize) {
 /// Reads out a window on an OV2640.
 static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window &window, int frame_width,
                               int frame_height) {
-  const Rect frame_window = clamp_window(window, frame_width, frame_height);
+  Rect frame_window = clamp_window(window, frame_width, frame_height);
+  // A JPEG frame has to fill whole macro blocks of the encoder. Rounding the window itself, rather
+  // than only the size it is scaled to, keeps the crop and the frame it fills on the same part of
+  // the picture instead of squeezing a wider crop into a narrower frame.
+  if (sensor->pixformat == PIXFORMAT_JPEG) {
+    frame_window.width =
+        std::max(frame_window.width - frame_window.width % OV2640_JPEG_BLOCK_WIDTH, OV2640_JPEG_BLOCK_WIDTH);
+    frame_window.height =
+        std::max(frame_window.height - frame_window.height % OV2640_JPEG_BLOCK_HEIGHT, OV2640_JPEG_BLOCK_HEIGHT);
+    // A window smaller than one block grows to it, which can push it past the far edge.
+    frame_window.offset_x = std::clamp(frame_window.offset_x, 0, frame_width - frame_window.width);
+    frame_window.offset_y = std::clamp(frame_window.offset_y, 0, frame_height - frame_window.height);
+  }
   // A window the size of the frame is the full readout: restoring it already puts the sensor
   // back to the driver's defaults, so there is nothing more to write.
   if (frame_window.width == frame_width && frame_window.height == frame_height)
@@ -275,7 +293,8 @@ static bool set_ov2640_window(sensor_t *sensor, const Esp32CameraWindow::Window 
   // in the pixels of the readout, which is larger than the frame below UXGA: read out 1:1 the
   // published frame would take the size of the crop instead of the window, and a crop larger than
   // the frame overruns the buffers the driver sized for it. The size the pipeline is asked for is
-  // in steps of four pixels as well, so it is rounded down to one.
+  // in steps of four pixels as well, so it is rounded down to one; a JPEG window is already a
+  // whole number of blocks.
   const int output_x = std::max(frame_window.width - frame_window.width % OV2640_CROP_STEP, OV2640_CROP_STEP);
   const int output_y = std::max(frame_window.height - frame_window.height % OV2640_CROP_STEP, OV2640_CROP_STEP);
   const int ret =
