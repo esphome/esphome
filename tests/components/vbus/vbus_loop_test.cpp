@@ -84,7 +84,7 @@ TEST_F(VBusLoopTest, YieldsWithNoiseStillQueuedAndThenRecovers) {
   EXPECT_EQ(this->listener_.messages[0], LOOP_TEST_PAYLOAD);
 }
 
-TEST_F(VBusLoopTest, YieldsWhenReadsKeepReplenishingTheUart) {
+TEST_F(VBusLoopTest, DefersBytesArrivingAfterTheReadSnapshot) {
   this->uart_.inject({0x00});
   // Refill finitely so a regressed parser fails instead of hanging the test runner.
   this->uart_.refill_reads(256);
