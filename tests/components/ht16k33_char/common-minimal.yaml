@@ -1,0 +1,5 @@
+display:
+  - platform: ht16k33_char
+    device: ADAFRUIT_7_SEG_.56IN
+    lambda: |-
+      it.print("8254");
