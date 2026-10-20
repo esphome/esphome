@@ -21,9 +21,10 @@ jobs:
         with:
           client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
-          # pulls.listFiles + issues.{list,create,update}Comment on PRs. For PR resources
+          # pulls.{list,listFiles} + issues.{list,create,update}Comment on PRs. For PR resources
           # the issues.*Comment APIs require the pull-requests scope, not issues.
           permission-pull-requests: write
+          permission-contents: read  # repos.compareCommitsWithBasehead for stacked PRs
 
       - name: Add external component comment
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
