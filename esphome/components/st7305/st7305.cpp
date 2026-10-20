@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::st7305 {

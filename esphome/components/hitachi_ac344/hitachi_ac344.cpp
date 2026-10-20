@@ -1,4 +1,5 @@
 #include "hitachi_ac344.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::hitachi_ac344 {
 

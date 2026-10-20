@@ -1,5 +1,6 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::gree {
 

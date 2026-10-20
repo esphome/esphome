@@ -1,6 +1,7 @@
 #include "es8156.h"
 #include "es8156_const.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 

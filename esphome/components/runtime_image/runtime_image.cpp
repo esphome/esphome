@@ -1,5 +1,6 @@
 #include "runtime_image.h"
 #include "image_decoder.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cstdint>

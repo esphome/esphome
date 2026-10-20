@@ -1,4 +1,5 @@
 #include "epaper_waveshare_bwr.h"
+#include "esphome/core/helpers.h"
 
 #include <algorithm>
 
