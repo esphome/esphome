@@ -24,7 +24,6 @@ HT16K33CharDisplay = ht16k33_char_ns.class_(
     "HT16K33CharDisplay", cg.PollingComponent, i2c.I2CDevice
 )
 HT16K33CharDisplayRef = HT16K33CharDisplay.operator("ref")
-Glyph = ht16k33_char_ns.struct("Glyph")
 
 _request_secondary_slot = cg.slot_counter("HT16K33_CHAR_SECONDARY_COUNT")
 
@@ -102,15 +101,12 @@ async def to_code(config: ConfigType) -> None:
         for char, segments in config.get(CONF_ADD_CHARACTERS, {}).items()
     }
     if glyphs:
-        # A code point of 0 ends the table
+        # One word per entry, code point low and segments high; 0 ends the table
         table = cg.shared_progmem_array(
             "ht16k33_char_glyphs",
-            Glyph,
-            [
-                cg.RawExpression(f"{{{codepoint}, {segments}}}")
-                for codepoint, segments in glyphs.items()
-            ]
-            + [cg.RawExpression("{0, 0}")],
+            cg.uint32,
+            [codepoint | segments << 16 for codepoint, segments in glyphs.items()]
+            + [0],
         )
         cg.add_define("USE_HT16K33_CHAR_GLYPH_OVERRIDES")
         cg.add(var.set_glyph_overrides(table))

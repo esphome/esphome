@@ -12,12 +12,6 @@ namespace esphome::ht16k33_char {
 class HT16K33CharDisplay;
 using ht16k33_char_writer_t = display::DisplayWriter<HT16K33CharDisplay>;
 
-/// One add_characters entry; a code point of 0 ends the table
-struct Glyph {
-  uint16_t codepoint;
-  uint8_t segments;
-};
-
 class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice {
  public:
   /// message holds capacity bytes of UTF-8 text
@@ -35,7 +29,9 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   void add_secondary_display(uint8_t address) { this->secondary_addresses_.push_back(address); }
 #endif
 #ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
-  void set_glyph_overrides(const Glyph *glyphs) { this->glyph_overrides_ = glyphs; }
+  /// add_characters entries, each a word with the code point in the low half and the segments in the high half,
+  /// ending with 0. A word is read from flash directly on every platform.
+  void set_glyph_overrides(const uint32_t *glyphs) { this->glyph_overrides_ = glyphs; }
 #endif
 
   /// For printing from automations; the lambda starts from an empty message
@@ -81,7 +77,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   StaticVector<uint8_t, HT16K33_CHAR_SECONDARY_COUNT> secondary_addresses_;
 #endif
 #ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
-  const Glyph *glyph_overrides_{nullptr};
+  const uint32_t *glyph_overrides_{nullptr};
 #endif
 };
 
