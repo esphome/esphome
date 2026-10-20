@@ -3,6 +3,7 @@
 #include <vector>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/color.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/core/component.h"
 
 namespace esphome {
@@ -117,7 +118,7 @@ class GraphTrace final {
   void set_line_color(Color val) { this->line_color_ = val; }
   bool get_continuous() { return this->continuous_; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
-  const char *get_name() const { return this->name_; }
+  StringRef get_name() const { return StringRef(this->name_); }
   const HistoryData *get_tracedata() { return &data_; }
 
  protected:
