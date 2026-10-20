@@ -104,7 +104,7 @@ void BalluClimate::transmit_state() {
   data->mark(BALLU_HEADER_MARK);
   data->space(BALLU_HEADER_SPACE);
   // Data
-  data->item_bytes_lsb<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH);
+  data->item_bytes<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH);
   // Footer
   data->mark(BALLU_BIT_MARK);
 
@@ -119,7 +119,7 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t remote_state[BALLU_STATE_LENGTH];
-  if (!data.expect_bytes_lsb<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH))
+  if (!data.expect_bytes<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH))
     return false;
   // Validate footer
   if (!data.expect_mark(BALLU_BIT_MARK)) {

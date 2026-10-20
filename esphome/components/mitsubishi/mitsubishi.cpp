@@ -102,8 +102,8 @@ void MitsubishiClimate::transmit_state() {
   // Byte 15: HVAC specfic, i.e. POWERFUL, SMART SET, PLASMA, always 0x00
   // Byte 16: Left vane control (for specific models). Constants match right vane controls.
   // Byte 17: Checksum: SUM[Byte0...Byte16]
-  uint8_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00,
-                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  uint8_t remote_state[MITSUBISHI_FRAME_SIZE] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00,
+                                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_HEAT:
@@ -259,7 +259,7 @@ void MitsubishiClimate::transmit_state() {
     data->mark(MITSUBISHI_HEADER_MARK);
     data->space(MITSUBISHI_HEADER_SPACE);
     // Data
-    data->item_bytes_lsb<MITSUBISHI_BIT_TIMINGS>(remote_state, sizeof(remote_state));
+    data->item_bytes<MITSUBISHI_BIT_TIMINGS>(remote_state, sizeof(remote_state));
     // Footer
     if (r == 0) {
       data->mark(MITSUBISHI_BIT_MARK);
@@ -281,7 +281,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  if (!data.expect_bytes_lsb<MITSUBISHI_BIT_TIMINGS>(state_frame, sizeof(state_frame)))
+  if (!data.expect_bytes<MITSUBISHI_BIT_TIMINGS>(state_frame, sizeof(state_frame)))
     return false;
 
   // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).
