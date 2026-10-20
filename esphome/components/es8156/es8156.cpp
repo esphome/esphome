@@ -100,11 +100,7 @@ bool ES8156::set_mute_state_(bool mute_state) {
 
   ESP_LOGV(TAG, "Read ES8156_REG13_DAC_MUTE: %u", reg13);
 
-  if (mute_state) {
-    reg13 |= BIT(1) | BIT(2);
-  } else {
-    reg13 &= ~(BIT(1) | BIT(2));
-  }
+  assign_bits(reg13, BIT(1) | BIT(2), mute_state);
 
   ESP_LOGV(TAG, "Setting ES8156_REG13_DAC_MUTE to %u (muted: %s)", reg13, YESNO(mute_state));
   return this->write_byte(ES8156_REG13_DAC_MUTE, reg13);
