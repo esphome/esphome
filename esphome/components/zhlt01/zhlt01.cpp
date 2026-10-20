@@ -104,7 +104,7 @@ void ZHLT01Climate::transmit_state() {
   ir_message[11] = 0xD5;
 
   // Set checksum bytes
-  for (int i = 0; i < 12; i += 2) {
+  for (int i = 0; i < ZHLT01_MESSAGE_LENGTH; i += 2) {
     ir_message[i] = ~ir_message[i + 1];
   }
 
@@ -149,7 +149,7 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Validate checksum
-  for (int i = 0; i < 12; i += 2) {
+  for (int i = 0; i < ZHLT01_MESSAGE_LENGTH; i += 2) {
     if (ir_message[i] != (uint8_t) (~ir_message[i + 1])) {
       ESP_LOGV(TAG, "Byte %d checksum incorrect (%02X != %02X)", i, ir_message[i], (uint8_t) (~ir_message[i + 1]));
       return false;
