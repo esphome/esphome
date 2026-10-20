@@ -8,12 +8,11 @@
 #ifdef USE_EQUITHERM_HEAT_OUTPUT
 #include "esphome/components/output/float_output.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
 
 #include "pid_controller.h"
-
-namespace esphome::number {
-class Number;
-}  // namespace esphome::number
 
 namespace esphome::equitherm {
 
@@ -26,17 +25,19 @@ class EquithermClimate : public climate::Climate, public Component {
   void setup() override;
   void dump_config() override;
 
+#ifdef USE_NUMBER
   /// Flow temperature in °C, for example an OpenTherm setpoint number
   void set_flow_setpoint_output(number::Number *number) { this->flow_setpoint_output_ = number; }
-#ifdef USE_EQUITHERM_HEAT_OUTPUT
-  /// Flow temperature as a share of the configured range
-  void set_heat_output(output::FloatOutput *output) { this->heat_output_ = output; }
-#endif
   /// Enables the "Manual" preset, which sends this number's value instead of the curve
   void set_manual_flow_temp(number::Number *number) {
     this->manual_flow_temp_ = number;
     this->set_supported_custom_presets({"Manual"});
   }
+#endif
+#ifdef USE_EQUITHERM_HEAT_OUTPUT
+  /// Flow temperature as a share of the configured range
+  void set_heat_output(output::FloatOutput *output) { this->heat_output_ = output; }
+#endif
   /// A restored state replaces this in setup()
   void set_default_target_temperature(float temp) { this->target_temperature = temp; }
 
@@ -87,11 +88,13 @@ class EquithermClimate : public climate::Climate, public Component {
 
   sensor::Sensor *outdoor_sensor_;
   sensor::Sensor *indoor_sensor_;
+#ifdef USE_NUMBER
   number::Number *flow_setpoint_output_{nullptr};
+  number::Number *manual_flow_temp_{nullptr};
+#endif
 #ifdef USE_EQUITHERM_HEAT_OUTPUT
   output::FloatOutput *heat_output_{nullptr};
 #endif
-  number::Number *manual_flow_temp_{nullptr};
 
   PIDController pid_controller_;
   float hc_{1.0f};

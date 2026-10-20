@@ -1,10 +1,6 @@
 #include "equitherm.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_NUMBER
-#include "esphome/components/number/number.h"
-#endif
-
 #include <cmath>
 
 namespace esphome::equitherm {
@@ -56,8 +52,10 @@ climate::ClimateTraits EquithermClimate::traits() {
   traits.set_visual_min_temperature(15.0f);
   traits.set_visual_max_temperature(25.0f);
   traits.set_visual_temperature_step(0.5f);
+#ifdef USE_NUMBER
   if (this->manual_flow_temp_ != nullptr)
     traits.add_supported_preset(climate::CLIMATE_PRESET_NONE);
+#endif
   return traits;
 }
 
