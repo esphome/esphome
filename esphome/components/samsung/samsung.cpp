@@ -177,22 +177,22 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Decode into a local buffer so a bad frame leaves the stored state untouched
   uint8_t frame[EXTENDED_LENGTH];
   uint8_t length = EXTENDED_LENGTH;
-  for (uint8_t i = 0; i < EXTENDED_LENGTH; i += SAMSUNG_AC_SECTION_LENGTH) {
-    if (i != 0) {
+  for (uint8_t s = 0; s < EXTENDED_LENGTH / SAMSUNG_AC_SECTION_LENGTH; s++) {
+    if (s != 0) {
       const bool have_separator =
           data.expect_item(BIT_MARK_US, SECTION_SPACE_US) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US);
       if (!have_separator) {
         // A third section is optional; a missing separator after the second one ends the frame
-        if (i >= SAMSUNG_AC_STATE_LENGTH) {
-          length = i;
+        if (s >= SAMSUNG_AC_STATE_LENGTH / SAMSUNG_AC_SECTION_LENGTH) {
+          length = s * SAMSUNG_AC_SECTION_LENGTH;
           break;
         }
-        ESP_LOGW(TAG, "Missing section separator before byte %u", i);
+        ESP_LOGW(TAG, "Missing section separator before section %u", s);
         return false;
       }
     }
-    if (!data.expect_bytes<BIT_TIMINGS>(frame + i, SAMSUNG_AC_SECTION_LENGTH)) {
-      ESP_LOGW(TAG, "Bad bit in section %u", i / SAMSUNG_AC_SECTION_LENGTH);
+    if (!data.expect_bytes<BIT_TIMINGS>(frame + s * SAMSUNG_AC_SECTION_LENGTH, SAMSUNG_AC_SECTION_LENGTH)) {
+      ESP_LOGW(TAG, "Bad bit in section %u", s);
       return false;
     }
   }
