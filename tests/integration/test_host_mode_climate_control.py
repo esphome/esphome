@@ -10,6 +10,7 @@ import pytest
 
 from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -65,10 +66,9 @@ async def test_host_mode_climate_control(
             target_temperature_high=26.5,
         )
 
-        try:
-            climate_state = await asyncio.wait_for(climate_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Climate state not received within 5 seconds")
+        climate_state = await wait_or_fail(
+            climate_future, 5.0, "Climate state not received within 5 seconds"
+        )
 
         assert isinstance(climate_state, aioesphomeapi.ClimateState)
         assert climate_state.mode == ClimateMode.HEAT

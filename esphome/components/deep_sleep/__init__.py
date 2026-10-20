@@ -364,8 +364,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CONF_SLEEP_DURATION in config:
-        cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
+    cg.add_optional(var.set_sleep_duration, config.get(CONF_SLEEP_DURATION))
     if (wakeup_pins := config.get(CONF_WAKEUP_PIN)) is not None:
         if CORE.is_bk72xx:
             cg.add(var.init_wakeup_pins(len(wakeup_pins)))
@@ -379,10 +378,8 @@ async def to_code(config: ConfigType) -> None:
                     )
                 )
         else:
-            pin = await cg.gpio_pin_expression(wakeup_pins[0][CONF_PIN])
-            cg.add(var.set_wakeup_pin(pin))
-    if CONF_WAKEUP_PIN_MODE in config:
-        cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
+            await cg.add_pin(var.set_wakeup_pin, wakeup_pins[0][CONF_PIN])
+    cg.add_optional(var.set_wakeup_pin_mode, config.get(CONF_WAKEUP_PIN_MODE))
     if CONF_RUN_DURATION in config:
         run_duration_config = config[CONF_RUN_DURATION]
         if not isinstance(run_duration_config, dict):
@@ -428,8 +425,7 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_automation(trigger, [(WakeupCause, "cause")], wake_conf)
         cg.add_define("USE_DEEP_SLEEP_ON_WAKE")
 
-    if CONF_TOUCH_WAKEUP in config:
-        cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
+    cg.add_optional(var.set_touch_wakeup, config.get(CONF_TOUCH_WAKEUP))
     if CORE.using_zephyr:
         # Devices are suspended when CPU is entering a low power state
         # https://github.com/nrfconnect/sdk-zephyr/blob/v3.7.99-ncs2-2/doc/services/pm/device.rst#system-managed-device-power-management
@@ -492,8 +488,7 @@ async def deep_sleep_enter_to_code(
         until = config[CONF_UNTIL]
         cg.add(var.set_until(until[CONF_HOUR], until[CONF_MINUTE], until[CONF_SECOND]))
 
-        time_ = await cg.get_variable(config[CONF_TIME_ID])
-        cg.add(var.set_time(time_))
+        await cg.add_variable(var.set_time, config[CONF_TIME_ID])
 
     return var
 

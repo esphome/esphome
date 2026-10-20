@@ -24,7 +24,7 @@ from esphome.cpp_generator import (
 )
 from esphome.cpp_types import App
 from esphome.helpers import cpp_string_escape
-from esphome.types import ConfigFragmentType, ConfigType
+from esphome.types import ConfigFragmentType, ConfigType, Expression
 from esphome.util import Registry, RegistryEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -229,6 +229,33 @@ async def gpio_pin_expression(conf):
         if key in conf:
             return await coroutine(func)(conf)
     return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
+
+
+async def add_pin(
+    setter: Callable[[MockObj], Expression], pin_config: ConfigType | None
+) -> MockObj | None:
+    """Pass the pin built from ``pin_config`` to ``setter`` and return it; skip None."""
+    if (pin := await gpio_pin_expression(pin_config)) is not None:
+        add(setter(pin))
+    return pin
+
+
+async def add_variable(
+    setter: Callable[[MockObj], Expression], id_: ID | None
+) -> MockObj | None:
+    """Pass the variable declared by ``id_`` to ``setter`` and return it; skip None."""
+    if id_ is None:
+        return None
+    var = await get_variable(id_)
+    add(setter(var))
+    return var
+
+
+def add_optional[T](setter: Callable[[T], Expression], value: T | None) -> T | None:
+    """Pass ``value`` to ``setter`` and return it; skip None."""
+    if value is not None:
+        add(setter(value))
+    return value
 
 
 def set_setup_priority(var, priority: float) -> None:

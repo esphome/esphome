@@ -10,6 +10,7 @@ import pytest
 
 from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -97,10 +98,11 @@ async def test_climate_custom_fan_modes_and_presets(
         # Test changing to "Super Saver" custom preset
         client.climate_command(test_climate.key, custom_preset="Super Saver")
 
-        try:
-            super_saver_state = await asyncio.wait_for(super_saver_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Super Saver preset change not received within 5 seconds")
+        super_saver_state = await wait_or_fail(
+            super_saver_future,
+            5.0,
+            "Super Saver preset change not received within 5 seconds",
+        )
 
         assert isinstance(super_saver_state, aioesphomeapi.ClimateState)
         assert super_saver_state.custom_preset == "Super Saver"
@@ -110,10 +112,11 @@ async def test_climate_custom_fan_modes_and_presets(
         # Test changing to "Vacation Mode" custom preset
         client.climate_command(test_climate.key, custom_preset="Vacation Mode")
 
-        try:
-            vacation_state = await asyncio.wait_for(vacation_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Vacation Mode preset change not received within 5 seconds")
+        vacation_state = await wait_or_fail(
+            vacation_future,
+            5.0,
+            "Vacation Mode preset change not received within 5 seconds",
+        )
 
         assert isinstance(vacation_state, aioesphomeapi.ClimateState)
         assert vacation_state.custom_preset == "Vacation Mode"

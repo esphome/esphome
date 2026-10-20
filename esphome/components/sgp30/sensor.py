@@ -90,15 +90,16 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_ECO2_BASELINE, var.set_eco2_baseline_sensor)
     await sensors(CONF_TVOC_BASELINE, var.set_tvoc_baseline_sensor)
 
-    if (store_baseline := config.get(CONF_STORE_BASELINE)) is not None:
-        cg.add(var.set_store_baseline(store_baseline))
+    cg.add_optional(var.set_store_baseline, config.get(CONF_STORE_BASELINE))
 
     if baseline_config := config.get(CONF_BASELINE):
         cg.add(var.set_eco2_baseline(baseline_config[CONF_ECO2_BASELINE]))
         cg.add(var.set_tvoc_baseline(baseline_config[CONF_TVOC_BASELINE]))
 
     if compensation_config := config.get(CONF_COMPENSATION):
-        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
-        cg.add(var.set_humidity_sensor(sens))
-        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
-        cg.add(var.set_temperature_sensor(sens))
+        await cg.add_variable(
+            var.set_humidity_sensor, compensation_config[CONF_HUMIDITY_SOURCE]
+        )
+        await cg.add_variable(
+            var.set_temperature_sensor, compensation_config[CONF_TEMPERATURE_SOURCE]
+        )

@@ -10,6 +10,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -46,10 +47,9 @@ async def test_sensor_timeout_throttle_filter(
             e.key for e in entities if isinstance(e, ButtonInfo) and e.name == "Drive"
         )
         client.button_command(button)
-        try:
-            await asyncio.wait_for(asyncio.gather(*done.values()), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Timed out: {values}")
+        await wait_or_fail(
+            asyncio.gather(*done.values()), 5.0, "Timed out", values=values
+        )
 
         merged, reference = values["merged"], values["reference"]
         assert len(merged) == len(reference), (merged, reference)
