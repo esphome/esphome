@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <array>
 #include "esphome/components/hitachi_ac344/hitachi_ac344.h"
 
 namespace esphome::hitachi_ac344::testing {
@@ -41,6 +42,21 @@ class HitachiSwingTest : public ::testing::Test {
     return this->frame_byte_(HITACHI_AC344_BUTTON_BYTE);
   }
 
+  // Feed the unit's own frame to the receiver: header, 43 bytes least significant bit first, footer mark.
+  void receive_(const std::array<uint8_t, HITACHI_AC344_STATE_LENGTH> &frame) {
+    remote_base::RawTimings timings{HITACHI_AC344_HDR_MARK, -static_cast<int32_t>(HITACHI_AC344_HDR_SPACE)};
+    for (uint8_t byte : frame) {
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        timings.push_back(HITACHI_AC344_BIT_MARK);
+        timings.push_back(
+            -static_cast<int32_t>(byte & (1 << bit) ? HITACHI_AC344_ONE_SPACE : HITACHI_AC344_ZERO_SPACE));
+      }
+    }
+    timings.push_back(HITACHI_AC344_BIT_MARK);
+    remote_base::RemoteReceiveData data(timings, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+    ASSERT_TRUE(static_cast<remote_base::RemoteReceiverListener &>(this->climate_).on_receive(data));
+  }
+
   HitachiClimate climate_;
   CapturingTransmitter transmitter_;
 };
@@ -58,6 +74,25 @@ TEST_F(HitachiSwingTest, HorizontalSwingTravelsInTheFrameBits) {
   EXPECT_EQ(this->frame_byte_(HITACHI_AC344_SWINGH_BYTE) & 0x07, HITACHI_AC344_SWINGH_AUTO);
   this->button_after_swing_(climate::CLIMATE_SWING_OFF);
   EXPECT_EQ(this->frame_byte_(HITACHI_AC344_SWINGH_BYTE) & 0x07, HITACHI_AC344_SWINGH_MIDDLE);
+}
+
+TEST_F(HitachiSwingTest, ReceivedFrameResyncsTheVerticalSwingState) {
+  // A cooling frame from the remote with vertical swing on: power on, mode cool, swing bit set.
+  std::array<uint8_t, HITACHI_AC344_STATE_LENGTH> frame{};
+  frame[HITACHI_AC344_POWER_BYTE] = HITACHI_AC344_POWER_ON;
+  frame[HITACHI_AC344_MODE_BYTE] = HITACHI_AC344_MODE_COOL | (HITACHI_AC344_FAN_AUTO << 4);
+  frame[HITACHI_AC344_TEMP_BYTE] = 24 << HITACHI_AC344_TEMP_OFFSET;
+  frame[HITACHI_AC344_SWINGH_BYTE] = HITACHI_AC344_SWINGH_MIDDLE;
+  frame[HITACHI_AC344_SWINGV_BYTE] = 1 << HITACHI_AC344_SWINGV_OFFSET;
+  this->receive_(frame);
+  EXPECT_EQ(this->climate_.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+
+  // The tracked state now says the vanes swing, so a temperature change must not press the swing button again.
+  auto call = this->climate_.make_call();
+  call.set_target_temperature(22);
+  call.perform();
+  EXPECT_EQ(this->frame_byte_(HITACHI_AC344_BUTTON_BYTE), HITACHI_AC344_BUTTON_POWER);
+  EXPECT_EQ(this->button_after_swing_(climate::CLIMATE_SWING_OFF), HITACHI_AC344_BUTTON_SWINGV);
 }
 
 }  // namespace esphome::hitachi_ac344::testing
