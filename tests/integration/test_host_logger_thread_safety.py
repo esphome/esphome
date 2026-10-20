@@ -12,6 +12,7 @@ import re
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 # Expected pattern for log messages from threads
 # Format: THREADn_MSGnnn_LEVEL_MESSAGE_WITH_DATA_xxxxxxxx
@@ -72,13 +73,12 @@ async def test_host_logger_thread_safety(
         client.button_command(button_key)
 
         # Wait for test to complete (with timeout)
-        try:
-            await asyncio.wait_for(test_complete_event.wait(), timeout=30.0)
-        except TimeoutError:
-            pytest.fail(
-                "Test did not complete within timeout. "
-                f"Collected {len(collected_lines)} lines."
-            )
+        await wait_or_fail(
+            test_complete_event,
+            30.0,
+            "Test did not complete within timeout",
+            collected_lines=collected_lines,
+        )
 
         # Give a bit more time for any remaining buffered messages
         await asyncio.sleep(0.5)
