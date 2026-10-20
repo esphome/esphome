@@ -64,7 +64,7 @@ void EPaperBWR::fill_range_(size_t index, size_t end, uint8_t value) {
 bool HOT EPaperBWR::send_buffer_range_(size_t end, uint8_t invert_mask, uint32_t start_time) {
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
   this->start_data_();
-  while (this->current_data_index_ != end) {
+  while (this->current_data_index_ < end) {
     const size_t chunk = std::min(MAX_TRANSFER_SIZE, end - this->current_data_index_);
     // The chunk may cross from one SplitBuffer part to the next, so copy it a span at a time
     for (size_t filled = 0; filled != chunk;) {
@@ -77,7 +77,7 @@ bool HOT EPaperBWR::send_buffer_range_(size_t end, uint8_t invert_mask, uint32_t
     }
     this->write_array(bytes_to_send, chunk);
     this->current_data_index_ += chunk;
-    if (this->current_data_index_ != end && millis() - start_time > MAX_TRANSFER_TIME) {
+    if (this->current_data_index_ < end && millis() - start_time > MAX_TRANSFER_TIME) {
       this->disable();
       return false;  // yield; resume next loop
     }
