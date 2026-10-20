@@ -40,8 +40,7 @@ void CTClampSensor::update() {
     if (rms_ac_squared > 0)
       rms_ac = std::sqrt(rms_ac_squared);
     ESP_LOGD(TAG, "'%s' - Raw AC Value: %.3fA after %" PRIu32 " different samples (%" PRIu32 " SPS)",
-             LOG_STR_ARG(this->get_log_name()), rms_ac, this->num_samples_,
-             1000 * this->num_samples_ / this->sample_duration_);
+             this->name_.c_str(), rms_ac, this->num_samples_, 1000 * this->num_samples_ / this->sample_duration_);
     this->publish_state(rms_ac);
   });
 

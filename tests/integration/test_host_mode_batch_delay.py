@@ -9,6 +9,7 @@ from aioesphomeapi import EntityState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -42,13 +43,12 @@ async def test_host_mode_batch_delay(
         client.subscribe_states(on_state)
 
         # Wait for states from all entities with timeout
-        try:
-            entity_count = await asyncio.wait_for(entity_count_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Did not receive states from at least 7 entities within 5 seconds. "
-                f"Received {len(states)} states"
-            )
+        entity_count = await wait_or_fail(
+            entity_count_future,
+            5.0,
+            "Did not receive states from at least 7 entities within 5 seconds",
+            states=states,
+        )
 
         # Verify we received all states
         assert entity_count >= 7, f"Expected at least 7 entities, got {entity_count}"

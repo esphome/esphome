@@ -123,7 +123,7 @@ void HomeassistantSelect::control(size_t index) {
 
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(this->get_log_name()));
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
     return;
   }
 #endif

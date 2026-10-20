@@ -63,7 +63,7 @@ void BLEClientRSSISensor::gap_event_handler(esp_gap_ble_cb_event_t event, esp_bl
 
 void BLEClientRSSISensor::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", LOG_STR_ARG(this->get_log_name()));
+    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
     this->should_update_ = true;
     return;
   }

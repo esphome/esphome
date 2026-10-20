@@ -37,6 +37,22 @@ static bool matches(const uint8_t *bytes, const uint8_t *pattern) {
 static constexpr uint8_t FRAME_PREFIX_SIZE = 7;
 static uint16_t frame_length(const uint8_t *frame) { return encode_uint16(frame[6], frame[5]); }
 
+// First offset after 0 whose bytes, as far as they go, match a header; len when there is none (len >= 1)
+static uint8_t next_header_start(const uint8_t *buffer, uint8_t len) {
+  uint8_t data_header[HEADER_FOOTER_SIZE];
+  uint8_t cmd_header[HEADER_FOOTER_SIZE];
+  progmem_memcpy(data_header, DATA_FRAME_HEADER, sizeof(data_header));
+  progmem_memcpy(cmd_header, CMD_FRAME_HEADER, sizeof(cmd_header));
+  uint8_t start = 1;
+  for (; start < len; start++) {
+    const size_t n = std::min<size_t>(len - start, HEADER_FOOTER_SIZE);
+    if (std::memcmp(&buffer[start], data_header, n) == 0 || std::memcmp(&buffer[start], cmd_header, n) == 0) {
+      break;
+    }
+  }
+  return start;
+}
+
 static constexpr float RADIANS_TO_DEGREES = 180.0f / std::numbers::pi_v<float>;
 
 void LD2460Component::setup() { this->send_query_(); }
@@ -155,8 +171,17 @@ void LD2460Component::handle_periodic_data_() {
 
 void LD2460Component::readline_(uint8_t readch) {
   if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
-    ESP_LOGW(TAG, "Max frame length exceeded; ignoring");
-    this->buffer_pos_ = 0;
+    // Keep the bytes from the next offset that could start a header, so a frame already partly
+    // buffered behind stray bytes survives; it is still fully validated once its footer arrives
+    const uint8_t start = next_header_start(this->buffer_data_, this->buffer_pos_);
+    this->buffer_pos_ -= start;
+    std::memmove(this->buffer_data_, &this->buffer_data_[start], this->buffer_pos_);
+    // Header-shaped noise keeps a whole header; warning only otherwise bounds the warning rate
+    if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
+      ESP_LOGW(TAG, "Max frame length exceeded; ignoring");
+    } else {
+      ESP_LOGV(TAG, "Max frame length exceeded; kept %u bytes", this->buffer_pos_);
+    }
   }
   this->buffer_data_[this->buffer_pos_++] = readch;
 

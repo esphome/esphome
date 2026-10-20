@@ -42,10 +42,8 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   // Add data attributes for hierarchical URL support
   stream->print("\" data-domain=\"");
   stream->print(klass.c_str());
-  char name_buf[ENTITY_NAME_BUF_SIZE];
-  const char *name = obj->get_name_to(name_buf).c_str();
   stream->print("\" data-name=\"");
-  write_html_escaped(stream, name);
+  write_html_escaped(stream, obj->get_name().c_str());
 #ifdef USE_DEVICES
   Device *device = obj->get_device();
   if (device != nullptr) {
@@ -61,7 +59,7 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
     stream->print("] ");
   }
 #endif
-  write_html_escaped(stream, name);
+  write_html_escaped(stream, obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
   if (action_func) {

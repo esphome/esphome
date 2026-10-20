@@ -29,8 +29,7 @@ class PIDAutotuner {
 
   void dump_config();
 
-  /// Name shown in log lines; must outlive the autotuner.
-  void set_autotuner_id(const LogString *id) { this->id_ = id; }
+  void set_autotuner_id(std::string id) { this->id_ = std::move(id); }
 
   void set_noiseband(float noiseband) {
     relay_function_.noiseband = noiseband;
@@ -107,7 +106,7 @@ class PIDAutotuner {
   } state_ = AUTOTUNE_RUNNING;
   float ku_;
   float pu_;
-  const LogString *id_{reinterpret_cast<const LogString *>("")};  // empty until set, like the old std::string
+  std::string id_;
 };
 
 }  // namespace esphome::pid

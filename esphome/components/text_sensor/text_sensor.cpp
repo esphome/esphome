@@ -28,7 +28,7 @@ void TextSensor::publish_state(const char *state, size_t len) {
 #ifdef USE_TEXT_SENSOR_FILTER
     this->raw_callback_.call(this->state);
 #endif
-    ESP_LOGV(TAG, "'%s': Received new state %s", LOG_STR_ARG(this->get_log_name()), this->state.c_str());
+    ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->state.c_str());
     this->notify_frontend_();
 #ifdef USE_TEXT_SENSOR_FILTER
   } else {
@@ -38,7 +38,7 @@ void TextSensor::publish_state(const char *state, size_t len) {
       this->raw_state_.assign(state, len);
     }
     this->raw_callback_.call(this->raw_state_);
-    ESP_LOGV(TAG, "'%s': Received new state %s", LOG_STR_ARG(this->get_log_name()), this->raw_state_.c_str());
+    ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->raw_state_.c_str());
     this->filter_list_->input(this->raw_state_);
   }
 #endif
@@ -95,7 +95,7 @@ void TextSensor::internal_send_state_to_frontend(const char *state, size_t len) 
 
 void TextSensor::notify_frontend_() {
   this->set_has_state(true);
-  ESP_LOGV(TAG, "'%s' >> '%s'", LOG_STR_ARG(this->get_log_name()), this->state.c_str());
+  ESP_LOGV(TAG, "'%s' >> '%s'", this->name_.c_str(), this->state.c_str());
   this->callback_.call(this->state);
 #if defined(USE_TEXT_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_text_sensor_update(this);

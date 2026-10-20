@@ -100,8 +100,7 @@ void ModbusSelect::control(size_t index) {
   }
 
   if (!queued) {
-    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published",
-             LOG_STR_ARG(this->get_log_name()));
+    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
     return;
   }
   if (this->optimistic_)

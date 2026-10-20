@@ -10,9 +10,9 @@ void OpenthermSwitch::setup() {
   auto restored = this->get_initial_state_with_restore_mode();
   bool state = false;
   if (!restored.has_value()) {
-    ESP_LOGD(TAG, "Couldn't restore state for OpenTherm switch '%s'", LOG_STR_ARG(this->get_log_name()));
+    ESP_LOGD(TAG, "Couldn't restore state for OpenTherm switch '%s'", this->get_name().c_str());
   } else {
-    ESP_LOGD(TAG, "Restored state for OpenTherm switch '%s': %d", LOG_STR_ARG(this->get_log_name()), restored.value());
+    ESP_LOGD(TAG, "Restored state for OpenTherm switch '%s': %d", this->get_name().c_str(), restored.value());
     state = restored.value();
   }
   this->write_state(state);

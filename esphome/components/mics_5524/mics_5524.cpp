@@ -35,7 +35,7 @@ void MiCS5524GasSensor::publish_ratio(float ratio, micsmath::ConversionModel mod
         micsmath::clamp_ppm(micsmath::ppm_from_power_law(this->p0_, this->p1_, ratio), this->min_ppm_, this->max_ppm_);
   }
 #endif
-  ESP_LOGD(TAG, "'%s': ratio=%.4f -> %.1f ppm", LOG_STR_ARG(this->get_log_name()), ratio, ppm);
+  ESP_LOGD(TAG, "'%s': ratio=%.4f -> %.1f ppm", this->get_name().c_str(), ratio, ppm);
   this->publish_state(ppm);
 }
 

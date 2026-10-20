@@ -9,6 +9,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -112,10 +113,9 @@ async def test_sensor_timeout_filter(
 
         # === Test 1: TimeoutFilter - last mode ===
         client.button_command(test1_button_key)
-        try:
-            await asyncio.wait_for(test1_complete, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Test 1 timeout. Received states: {timeout_last_states}")
+        await wait_or_fail(
+            test1_complete, 2.0, "Test 1 timeout", received_states=timeout_last_states
+        )
 
         assert len(timeout_last_states) == 2, (
             f"Test 1: Should have 2 states, got {len(timeout_last_states)}: {timeout_last_states}"
@@ -129,10 +129,9 @@ async def test_sensor_timeout_filter(
 
         # === Test 2: TimeoutFilter - reset behavior ===
         client.button_command(test2_button_key)
-        try:
-            await asyncio.wait_for(test2_complete, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Test 2 timeout. Received states: {timeout_reset_states}")
+        await wait_or_fail(
+            test2_complete, 2.0, "Test 2 timeout", received_states=timeout_reset_states
+        )
 
         assert len(timeout_reset_states) == 4, (
             f"Test 2: Should have 4 states, got {len(timeout_reset_states)}: {timeout_reset_states}"
@@ -152,10 +151,9 @@ async def test_sensor_timeout_filter(
 
         # === Test 3: TimeoutFilterConfigured - static value ===
         client.button_command(test3_button_key)
-        try:
-            await asyncio.wait_for(test3_complete, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Test 3 timeout. Received states: {timeout_static_states}")
+        await wait_or_fail(
+            test3_complete, 2.0, "Test 3 timeout", received_states=timeout_static_states
+        )
 
         assert len(timeout_static_states) == 2, (
             f"Test 3: Should have 2 states, got {len(timeout_static_states)}: {timeout_static_states}"
@@ -169,10 +167,9 @@ async def test_sensor_timeout_filter(
 
         # === Test 4: TimeoutFilterConfigured - lambda ===
         client.button_command(test4_button_key)
-        try:
-            await asyncio.wait_for(test4_complete, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Test 4 timeout. Received states: {timeout_lambda_states}")
+        await wait_or_fail(
+            test4_complete, 2.0, "Test 4 timeout", received_states=timeout_lambda_states
+        )
 
         assert len(timeout_lambda_states) == 2, (
             f"Test 4: Should have 2 states, got {len(timeout_lambda_states)}: {timeout_lambda_states}"

@@ -133,7 +133,7 @@ esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/cm1106/* @andrewjswan
 esphome/components/color_temperature/* @jesserockz
-esphome/components/combination/* @Cat-Ion @kahrendt
+esphome/components/combination/* @kahrendt
 esphome/components/const/* @esphome/core
 esphome/components/coolix/* @glmnet
 esphome/components/copy/* @OttoWinter
@@ -601,7 +601,10 @@ esphome/components/ssd1331_base/* @kbx81
 esphome/components/ssd1331_spi/* @kbx81
 esphome/components/ssd1351_base/* @kbx81
 esphome/components/ssd1351_spi/* @kbx81
+esphome/components/st25r/* @JohnMcLear
+esphome/components/st25r_spi/* @JohnMcLear
 esphome/components/st7123/* @miniskipper
+esphome/components/st7305/* @clydebarrow
 esphome/components/st7567_base/* @latonita
 esphome/components/st7567_i2c/* @latonita
 esphome/components/st7567_spi/* @latonita

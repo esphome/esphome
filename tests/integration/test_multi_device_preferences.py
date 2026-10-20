@@ -9,6 +9,7 @@ from aioesphomeapi import ButtonInfo, NumberInfo, SelectInfo, SwitchInfo
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -104,10 +105,9 @@ async def test_multi_device_preferences(
         client.button_command(test_button.key)
 
         # Wait for preference hashes to be logged
-        try:
-            await asyncio.wait_for(preferences_logged, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Preference hashes not logged within timeout")
+        await wait_or_fail(
+            preferences_logged, 5.0, "Preference hashes not logged within timeout"
+        )
 
         # Verify all switch preference hashes are unique
         assert len(switch_hashes) == 3, (

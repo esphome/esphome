@@ -26,6 +26,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -104,10 +105,11 @@ async def test_entity_missing_state(
         futures = {info.key: loop.create_future() for info in stateful}
         client.button_command(publish_button.key)
 
-        try:
-            await asyncio.wait_for(asyncio.gather(*futures.values()), timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for published states")
+        await wait_or_fail(
+            asyncio.gather(*futures.values()),
+            5.0,
+            "Timeout waiting for published states",
+        )
 
         switch_state = futures[switch_info.key].result()
         assert isinstance(switch_state, SwitchState)

@@ -37,13 +37,13 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
-        ESP_LOGI(TAG, "[%s] Connected successfully!", LOG_STR_ARG(this->get_log_name()));
+        ESP_LOGI(TAG, "[%s] Connected successfully!", this->get_name().c_str());
         break;
       }
       break;
     }
     case ESP_GATTC_CLOSE_EVT: {
-      ESP_LOGW(TAG, "[%s] Disconnected!", LOG_STR_ARG(this->get_log_name()));
+      ESP_LOGW(TAG, "[%s] Disconnected!", this->get_name().c_str());
       this->status_set_warning();
       this->publish_state(NAN);
       break;
@@ -102,10 +102,10 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     }
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.value_len == 0) {
-        ESP_LOGW(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: empty value", LOG_STR_ARG(this->get_log_name()));
+        ESP_LOGW(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: empty value", this->get_name().c_str());
         break;
       }
-      ESP_LOGD(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", LOG_STR_ARG(this->get_log_name()),
+      ESP_LOGD(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
                param->notify.handle, param->notify.value[0]);
       if (param->notify.handle != this->handle)
         break;
@@ -143,11 +143,11 @@ float BLESensor::parse_data_(uint8_t *value, uint16_t value_len) {
 
 void BLESensor::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", LOG_STR_ARG(this->get_log_name()));
+    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
     return;
   }
   if (this->handle == 0) {
-    ESP_LOGW(TAG, "[%s] Cannot poll, no service or characteristic found", LOG_STR_ARG(this->get_log_name()));
+    ESP_LOGW(TAG, "[%s] Cannot poll, no service or characteristic found", this->get_name().c_str());
     return;
   }
 
@@ -156,7 +156,7 @@ void BLESensor::update() {
   if (status) {
     this->status_set_warning();
     this->publish_state(NAN);
-    ESP_LOGW(TAG, "[%s] Error sending read request for sensor, status=%d", LOG_STR_ARG(this->get_log_name()), status);
+    ESP_LOGW(TAG, "[%s] Error sending read request for sensor, status=%d", this->get_name().c_str(), status);
   }
 }
 
