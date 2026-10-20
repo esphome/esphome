@@ -312,3 +312,5 @@ void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8
 }
 
 }  // namespace esphome::sx1509
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::sx1509::SX1509Component, "%u via sx1509")

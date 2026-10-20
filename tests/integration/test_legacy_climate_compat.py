@@ -11,7 +11,6 @@ in 2026.11.0 when the deprecated ClimateTraits setters are removed.
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 import aioesphomeapi
 from aioesphomeapi import ClimateInfo
@@ -28,13 +27,6 @@ async def test_legacy_climate_compat(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that deprecated ClimateTraits custom mode setters still work end-to-end."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
 
     async with run_compiled(yaml_config), api_client_connected() as client:

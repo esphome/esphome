@@ -26,10 +26,10 @@ class TcpUart : public uart::UARTComponent, public Component {
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
-  void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_BINARY_SENSOR
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
 #endif
+  void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_SENSOR
   void set_disconnects_sensor(sensor::Sensor *sensor) { this->disconnects_sensor_ = sensor; }
 #endif
