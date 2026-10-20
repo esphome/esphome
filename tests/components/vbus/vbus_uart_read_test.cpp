@@ -18,7 +18,8 @@ class FailingUART : public uart::UARTComponent {
     ++this->read_attempts_;
     if (this->fail_next_read_) {
       this->fail_next_read_ = false;
-      // A failed read does not provide a valid byte, even if it wrote to the buffer.
+      // This mock leaves pending bytes untouched; real drivers need not preserve them after a failure.
+      // The shared reader must not deliver this invalid byte to the parser.
       *data = 0xaa;
       return false;
     }
@@ -60,7 +61,7 @@ const std::vector<uint8_t> PACKET = {0xaa, 0x10, 0x00, 0x11, 0x22, 0x10, 0x00, 0
                                      0x02, 0x03, 0x04, 0x00, 0x75, 0x10, 0x20, 0x30, 0x40, 0x0f, 0x50};
 const std::vector<uint8_t> EXPECTED_PAYLOAD = {0x01, 0x02, 0x03, 0x04, 0x90, 0xa0, 0xb0, 0xc0};
 
-class VBusUARTReadFailureTest : public ::testing::TestWithParam<size_t> {
+class VBusUARTReadResumeTest : public ::testing::TestWithParam<size_t> {
  protected:
   void SetUp() override {
     this->bus_.set_uart_parent(&this->uart_);
@@ -75,7 +76,7 @@ class VBusUARTReadFailureTest : public ::testing::TestWithParam<size_t> {
   UARTReadListener listener_;
 };
 
-TEST_P(VBusUARTReadFailureTest, YieldsOnReadFailureAndResumesThePartialPacket) {
+TEST_P(VBusUARTReadResumeTest, PreservesThePartialPacketAcrossFailedReads) {
   const auto split = PACKET.begin() + GetParam();
   this->uart_.inject({PACKET.begin(), split});
   this->bus_.loop();
@@ -104,7 +105,7 @@ TEST_P(VBusUARTReadFailureTest, YieldsOnReadFailureAndResumesThePartialPacket) {
 }
 
 // Before sync, inside the header, inside a frame, and before the final checksum.
-INSTANTIATE_TEST_SUITE_P(PacketPositions, VBusUARTReadFailureTest, ::testing::Values(0u, 5u, 13u, 21u));
+INSTANTIATE_TEST_SUITE_P(PacketPositions, VBusUARTReadResumeTest, ::testing::Values(0u, 5u, 13u, 21u));
 
 }  // namespace
 }  // namespace esphome::vbus::testing

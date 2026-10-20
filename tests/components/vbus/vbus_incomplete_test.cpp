@@ -13,9 +13,13 @@ namespace {
 class IncompleteTestUART : public uart::UARTComponent {
  public:
   void inject(const std::vector<uint8_t> &bytes) { this->rx_.insert(this->rx_.end(), bytes.begin(), bytes.end()); }
-  size_t available() override { return this->rx_.size() - this->position_; }
+  size_t available_calls() const { return this->available_calls_; }
+  size_t available() override {
+    ++this->available_calls_;
+    return this->rx_.size() - this->position_;
+  }
   bool read_array(uint8_t *data, size_t size) override {
-    if (size > this->available())
+    if (size > this->rx_.size() - this->position_)
       return false;
     std::copy_n(this->rx_.data() + this->position_, size, data);
     this->position_ += size;
@@ -37,6 +41,7 @@ class IncompleteTestUART : public uart::UARTComponent {
  protected:
   std::vector<uint8_t> rx_;
   size_t position_{0};
+  size_t available_calls_{0};
 };
 
 class IncompleteTestListener : public VBusListener {
@@ -61,7 +66,7 @@ class VBusIncompleteTest : public ::testing::Test {
     this->bus_.register_listener(&this->listener_);
   }
   void loop_at_(uint32_t now) {
-    LoopBlockingGuard{nullptr, nullptr, now};
+    LoopBlockingGuard clock{nullptr, nullptr, now};
     this->bus_.loop();
   }
   void feed_at_(const std::vector<uint8_t> &bytes, uint32_t now) {
@@ -73,6 +78,14 @@ class VBusIncompleteTest : public ::testing::Test {
   VBus bus_;
   IncompleteTestListener listener_;
 };
+
+TEST_F(VBusIncompleteTest, ChecksUartAvailabilityOncePerLoop) {
+  this->feed_at_(INCOMPLETE_TEST_PACKET, 1000);
+  ASSERT_EQ(this->listener_.messages.size(), 1u);
+  EXPECT_EQ(this->uart_.available_calls(), 1u);
+  this->loop_at_(1001);
+  EXPECT_EQ(this->uart_.available_calls(), 2u);
+}
 
 class VBusTruncationTest : public VBusIncompleteTest, public ::testing::WithParamInterface<size_t> {};
 
