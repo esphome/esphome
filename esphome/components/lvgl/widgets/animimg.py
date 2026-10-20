@@ -17,7 +17,7 @@ CONF_ANIMIMG = "animimg"
 def lv_repeat_count(value):
     if isinstance(value, str) and value.lower() in ("forever", "infinite"):
         value = 0xFFFF
-    return cv.int_range(min=0, max=0xFFFF)(value)
+    return cv.uint16_t(value)
 
 
 ANIMIMG_BASE_SCHEMA = cv.Schema(

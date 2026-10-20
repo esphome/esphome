@@ -9,6 +9,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -99,17 +100,12 @@ async def test_sensor_filters_ring_buffer(
         client.button_command(publish_button.key)
 
         # Wait for all sensors to receive their values
-        try:
-            await asyncio.wait_for(all_updates_received, timeout=10.0)
-        except TimeoutError:
-            # Provide detailed failure info
-            pytest.fail(
-                f"Timeout waiting for updates. Received states:\n"
-                f"  min: {sensor_states['sliding_min']}\n"
-                f"  max: {sensor_states['sliding_max']}\n"
-                f"  median: {sensor_states['sliding_median']}\n"
-                f"  moving_avg: {sensor_states['sliding_moving_avg']}"
-            )
+        await wait_or_fail(
+            all_updates_received,
+            10.0,
+            "Timeout waiting for updates",
+            sensor_states=sensor_states,
+        )
 
         # Verify we got 5 outputs per sensor (positions 1, 3, 5, 7, 9)
         assert len(sensor_states["sliding_min"]) == 5, (

@@ -213,6 +213,9 @@ class APIServer final : public Component
 
   bool is_connected() const { return this->api_connection_count_ != 0; }
   bool is_connected_with_state_subscription() const;
+  bool is_connected(bool state_subscription_only) const {
+    return state_subscription_only ? this->is_connected_with_state_subscription() : this->is_connected();
+  }
 
   // Range-for view over the populated slice [0, api_connection_count_). Read-only with respect
   // to ownership; callers get `const unique_ptr&` so they can invoke non-const methods on the
@@ -406,17 +409,6 @@ class APIServer final : public Component
 };
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-template<typename... Ts> class APIConnectedCondition final : public Condition<Ts...> {
-  TEMPLATABLE_VALUE(bool, state_subscription_only)
- public:
-  bool check(const Ts &...x) override {
-    if (this->state_subscription_only_.value(x...)) {
-      return global_api_server->is_connected_with_state_subscription();
-    }
-    return global_api_server->is_connected();
-  }
-};
 
 }  // namespace esphome::api
 #endif
