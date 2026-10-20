@@ -9,6 +9,7 @@ import re
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -70,10 +71,7 @@ async def test_action_concurrent_reentry(
         assert device_info.name == "action-concurrent-reentry"
 
         # Wait for tests to complete with timeout
-        try:
-            await asyncio.wait_for(test_complete.wait(), timeout=8.0)
-        except TimeoutError:
-            pytest.fail("test timed out")
+        await wait_or_fail(test_complete, 8.0, "test timed out")
 
         # order may change, but all args must be present
         for args in in_repeat_args.values():
