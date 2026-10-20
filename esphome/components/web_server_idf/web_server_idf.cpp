@@ -1129,7 +1129,8 @@ void AsyncEventSourceResponse::loop() {
 AsyncEventSourceResponse::JsonPrepareResult AsyncEventSourceResponse::prepare_json_(void *source,
                                                                                     message_generator_t *generator,
                                                                                     char *buffer, size_t *size_out) {
-  // Log sends during generation could fill tail_ before we overwrite it; suppress them for this session.
+  // Log lines emitted while the generator runs are dropped for this session: on the large path they would fill
+  // tail_ before it is overwritten, and on the small path they would go out ahead of the event being built.
   SendGuard guard{*this};
   json::JsonArena<json::JSON_ARENA_SIZE> arena;
   json::JsonBuilder builder(&arena);
