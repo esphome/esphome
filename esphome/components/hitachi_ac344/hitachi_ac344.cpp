@@ -1,5 +1,7 @@
 #include "hitachi_ac344.h"
 
+#include <cstring>
+
 namespace esphome::hitachi_ac344 {
 
 ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac344");
@@ -378,9 +380,9 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->parse_fan_(recv_state);
   // parse swingv
   this->parse_swing_(recv_state);
+  // Copied before publishing, so an on_state automation that transmits builds on the frame just received.
+  memcpy(remote_state_, recv_state, HITACHI_AC344_STATE_LENGTH);
   this->publish_state();
-  for (uint8_t i = 0; i < HITACHI_AC344_STATE_LENGTH; i++)
-    remote_state_[i] = recv_state[i];
   this->publish_mildew_proof_();
 
   return true;
