@@ -472,6 +472,7 @@ def generate_build_info_data_h() -> str:
 
 namespace esphome {
 extern const uint32_t ESPHOME_CONFIG_HASH;
+extern const uint32_t ESPHOME_CONFIG_VERSION_HASH;
 extern const time_t ESPHOME_BUILD_TIME;
 extern const size_t ESPHOME_COMMENT_SIZE;
 #ifdef USE_ESP8266
@@ -500,9 +501,14 @@ def generate_build_info_data_cpp(
     comment_size = len(comment.encode("utf-8")) + 1  # +1 for NUL
     return f"""// Auto-generated build_info data
 #include "esphome/core/build_info_data.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/version.h"
 
 namespace esphome {{
 const uint32_t ESPHOME_CONFIG_HASH = 0x{config_hash:08x}U;  // NOLINT
+// Folded at compile time, so the version string is not kept in RAM
+static constexpr uint32_t CONFIG_VERSION_HASH = fnv1a_hash_extend(0x{config_hash:08x}U, ESPHOME_VERSION);
+const uint32_t ESPHOME_CONFIG_VERSION_HASH = CONFIG_VERSION_HASH;  // NOLINT
 const time_t ESPHOME_BUILD_TIME = {build_time};  // NOLINT
 const size_t ESPHOME_COMMENT_SIZE = {comment_size};  // NOLINT
 #ifdef USE_ESP8266
