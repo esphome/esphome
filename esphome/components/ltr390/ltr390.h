@@ -7,7 +7,7 @@
 
 namespace esphome::ltr390 {
 
-enum LTR390CTRL : uint8_t {
+enum LTR390CTRL {
   LTR390_CTRL_EN = 1,
   LTR390_CTRL_MODE = 3,
   LTR390_CTRL_RST = 4,
