@@ -1,0 +1,6 @@
+# The logger keeps CDC ACM port 0, so the host gets a second port for this component
+usb_cdc_acm:
+  interfaces:
+    - id: usb_cdc_acm0
+      disabled: true
+    - id: usb_cdc_acm1

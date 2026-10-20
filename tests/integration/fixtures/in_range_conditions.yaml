@@ -1,0 +1,158 @@
+esphome:
+  name: test-in-range-conditions
+
+host:
+
+api:
+  actions:
+    - action: run_cases
+      then:
+        - script.execute:
+            id: check
+            label: neg
+            value: !lambda "return -10.0f;"
+        - script.wait: check
+        - script.execute:
+            id: check
+            label: low
+            value: !lambda "return 0.0f;"
+        - script.wait: check
+        - script.execute:
+            id: check
+            label: mid
+            value: !lambda "return 5.0f;"
+        - script.wait: check
+        - script.execute:
+            id: check
+            label: high
+            value: !lambda "return 10.0f;"
+        - script.wait: check
+        - script.execute:
+            id: check
+            label: over
+            value: !lambda "return 20.0f;"
+        - script.wait: check
+        - script.execute:
+            id: check
+            label: nan
+            value: !lambda "return NAN;"
+        - script.wait: check
+        - script.execute:
+            id: check
+            label: neginf
+            value: !lambda "return -INFINITY;"
+        - script.wait: check
+        - script.execute:
+            id: check
+            label: posinf
+            value: !lambda "return INFINITY;"
+        - script.wait: check
+        - logger.log: "INRANGE done"
+
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    id: range_sensor
+    name: Range Sensor
+
+number:
+  - platform: template
+    id: range_number
+    name: Range Number
+    optimistic: true
+    min_value: -100
+    max_value: 100
+    step: 0.5
+
+script:
+  - id: check
+    parameters:
+      label: string
+      value: float
+    then:
+      # Set the states directly so NaN and infinities reach the conditions unchanged
+      - lambda: |-
+          id(range_sensor).publish_state(value);
+          id(range_number).publish_state(value);
+      - if:
+          condition:
+            sensor.in_range:
+              id: range_sensor
+              above: 0
+          then:
+            - logger.log:
+                format: "INRANGE %s sensor_above 1"
+                args: [label.c_str()]
+          else:
+            - logger.log:
+                format: "INRANGE %s sensor_above 0"
+                args: [label.c_str()]
+      - if:
+          condition:
+            sensor.in_range:
+              id: range_sensor
+              below: 10
+          then:
+            - logger.log:
+                format: "INRANGE %s sensor_below 1"
+                args: [label.c_str()]
+          else:
+            - logger.log:
+                format: "INRANGE %s sensor_below 0"
+                args: [label.c_str()]
+      - if:
+          condition:
+            sensor.in_range:
+              id: range_sensor
+              above: 0
+              below: 10
+          then:
+            - logger.log:
+                format: "INRANGE %s sensor_both 1"
+                args: [label.c_str()]
+          else:
+            - logger.log:
+                format: "INRANGE %s sensor_both 0"
+                args: [label.c_str()]
+      - if:
+          condition:
+            number.in_range:
+              id: range_number
+              above: 0
+          then:
+            - logger.log:
+                format: "INRANGE %s number_above 1"
+                args: [label.c_str()]
+          else:
+            - logger.log:
+                format: "INRANGE %s number_above 0"
+                args: [label.c_str()]
+      - if:
+          condition:
+            number.in_range:
+              id: range_number
+              below: 10
+          then:
+            - logger.log:
+                format: "INRANGE %s number_below 1"
+                args: [label.c_str()]
+          else:
+            - logger.log:
+                format: "INRANGE %s number_below 0"
+                args: [label.c_str()]
+      - if:
+          condition:
+            number.in_range:
+              id: range_number
+              above: 0
+              below: 10
+          then:
+            - logger.log:
+                format: "INRANGE %s number_both 1"
+                args: [label.c_str()]
+          else:
+            - logger.log:
+                format: "INRANGE %s number_both 0"
+                args: [label.c_str()]

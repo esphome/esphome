@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 import textwrap
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 
 import yaml
 
@@ -185,6 +185,14 @@ class Section:
         )
 
 
+class CdcAcmUser(NamedTuple):
+    name: str
+    # Only writes with uart_poll_out() and never sets the IRQ callback (the logger)
+    write_only: bool
+    # Can share the port with write-only users (protocols that skip unframed text)
+    allow_write_only: bool
+
+
 class ZephyrData(TypedDict):
     board: str
     board_root: Path | None  # resolved zephyr: board_source: dir, or None if unset
@@ -249,6 +257,8 @@ class ZephyrData(TypedDict):
     # Set by zephyr_mcumgr/ota's to_code() when sysbuild is actually in use; consulted
     # by nrf52/framework.py's west-project-filter to decide whether to fetch "mcuboot".
     sysbuild: bool
+    # CDC ACM port number -> components that use it (platform: nrf52 only)
+    cdc_acm_users: dict[int, list[CdcAcmUser]]
 
 
 # platform: nrf52 use only
@@ -268,6 +278,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
             "": "",
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
+        cdc_acm_users={},
         extra_build_files={},
         pm_static=[],
         partition_requirements=[],
@@ -314,20 +325,6 @@ def zephyr_framework_type() -> str | None:
 def zephyr_variant_family() -> str | None:
     """Return the active variant's silicon family (e.g. "esp32"), or None if unset/unfamilied."""
     return zephyr_data().get("family")
-
-
-def zephyr_dts_board_id(esphome_board: str) -> str:
-    """Return the board id to use for DTS lookups (west's HWMv2 board/soc form on nrf52).
-
-    Mirrors the west_board resolution in run_compile() -- NCS 3.3.0+ uses HWMv2
-    board/soc names that don't match ESPHome's flat board id. Checks CORE.is_nrf52
-    (not zephyr_variant(), which is never set for the standalone nrf52 platform).
-    """
-    if CORE.is_nrf52:
-        from esphome.components.nrf52.boards import BOARDS_ZEPHYR  # noqa: PLC0415
-
-        return BOARDS_ZEPHYR.get(esphome_board, {}).get("west_board", esphome_board)
-    return esphome_board
 
 
 def zephyr_only_on_variant(*variant_names: str):
@@ -645,37 +642,7 @@ def zephyr_to_code(config: ConfigType) -> None:
         # threads. Gated on wifi: since DYNAMIC_THREAD is only selected when WiFi is enabled.
         zephyr_add_prj_conf("DYNAMIC_THREAD_STACK_SIZE", 2048, required=False)
 
-    # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
-    # setup separately (nrf52/__init__.py) but defines the same consumer macro.
-    # native_sim has no real watchdog hardware.
-    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
-        timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
-        # 0 disables the watchdog: leave CONFIG_WATCHDOG unset so hal.cpp's #ifdef
-        # compiles it out entirely, rather than requesting a timeout of zero.
-        if timeout_ms != 0:
-            zephyr_add_prj_conf("WATCHDOG", True)
-            zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-            cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", timeout_ms)
-            # hal.cpp needs DT_ALIAS(watchdog0); some boards never define it
-            # themselves -- found generically, not per-family, so new vendors
-            # with the same gap are covered without new code here.
-            from .dts_lookup import get_watchdog_node_label
-
-            wdt_label, wdt_already_working = get_watchdog_node_label(
-                zephyr_data()[KEY_BOARD]
-            )
-            if wdt_label is not None and not wdt_already_working:
-                zephyr_add_overlay(
-                    f'&{wdt_label} {{ status = "okay"; }};\n'
-                    f"/ {{ aliases {{ watchdog0 = &{wdt_label}; }}; }};"
-                )
-            # Identifies the stalled thread on the console from the watchdog callback (see
-            # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.
-            zephyr_add_prj_conf("THREAD_NAME", True)
-            # arch_stack_walk() isn't implemented for Xtensa (ESP32, S3); the call
-            # would silently do nothing there.
-            if zephyr_variant() not in (ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_ESP32_S3):
-                cg.add_define("USE_ZEPHYR_ARCH_STACKWALK")
+    _watchdog_to_code(config)
 
     # As nrf52: off unless a component needs them, since board defconfigs turn
     # them on (UART pins, flash, idle current). Weak, so logger/uart/kconfig_options win.
@@ -708,6 +675,43 @@ def zephyr_to_code(config: ConfigType) -> None:
     CORE.add_job(_modules_to_code, config)
     CORE.add_job(_overlays_to_code, config)
     CORE.add_job(_cdc_acm_to_code, config)
+
+
+def _watchdog_to_code(config: ConfigType) -> None:
+    # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
+    # setup separately (nrf52/__init__.py) but defines the same consumer macro.
+    # native_sim has no real watchdog hardware.
+    if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+        timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
+        # 0 disables the watchdog: forced off so a board defconfig can't build a driver that
+        # nothing arms or feeds.
+        if timeout_ms == 0:
+            zephyr_add_prj_conf("WATCHDOG", False)
+        else:
+            zephyr_add_prj_conf("WATCHDOG", True)
+            zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
+            cg.add_define("USE_WATCHDOG")
+            cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", timeout_ms)
+            # hal.cpp needs DT_ALIAS(watchdog0); some boards never define it
+            # themselves -- found generically, not per-family, so new vendors
+            # with the same gap are covered without new code here.
+            from .dts_lookup import get_watchdog_node_label
+
+            wdt_label, wdt_already_working = get_watchdog_node_label(
+                zephyr_data()[KEY_BOARD]
+            )
+            if wdt_label is not None and not wdt_already_working:
+                zephyr_add_overlay(
+                    f'&{wdt_label} {{ status = "okay"; }};\n'
+                    f"/ {{ aliases {{ watchdog0 = &{wdt_label}; }}; }};"
+                )
+            # Identifies the stalled thread on the console from the watchdog callback (see
+            # hal.cpp) -- without THREAD_NAME, k_thread_name_get() just returns NULL.
+            zephyr_add_prj_conf("THREAD_NAME", True)
+            # arch_stack_walk() isn't implemented for Xtensa (ESP32, S3); the call
+            # would silently do nothing there.
+            if zephyr_variant() not in (ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_ESP32_S3):
+                cg.add_define("USE_ZEPHYR_ARCH_STACKWALK")
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -771,6 +775,9 @@ async def _overlays_to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _cdc_acm_to_code(config: ConfigType) -> None:
+    # Runs last so these required options override the optional defaults that
+    # platforms (nrf52) set during their own to_code
+    _cdc_acm_add_ports()
     need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
         "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
     )[0]
@@ -802,55 +809,123 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
-def zephyr_add_cdc_acm(config: ConfigType, id: int) -> str:
-    """Ensure a CDC-ACM UART is available and return the devicetree label to
-    reference it by (e.g. for `zephyr,console`/`zephyr,shell-uart`).
+def zephyr_claim_cdc_acm(
+    id: int,
+    user: str,
+    *,
+    write_only: bool = False,
+    allow_write_only: bool = False,
+) -> None:
+    """Reserve CDC ACM port `id` for `user`. Call from FINAL_VALIDATE_SCHEMA.
 
-    Reuses the board's own `zephyr,cdc-acm-uart` node if one is already
-    declared -- e.g. boards/common/usb/cdc_acm_serial.dtsi, labeled
-    `board_cdc_acm_uart` -- instead of unconditionally declaring a second,
-    separate USB interface with its own `cdc_acm_uart{id}` node. Two CDC-ACM
-    interfaces on the same device is needless USB complexity, and means
-    "which port do I talk to" changes depending on whether MCUboot (which
-    only ever sees the board's own node) or the app is currently running.
+    zephyr_to_code() later adds the device tree node and Kconfig options for
+    every claimed port, so components do not set up the port themselves.
+
+    Components on the same port share one device, and the device has only one
+    IRQ callback slot: the component set up last takes all received data from
+    the other. So a port normally has one user. The exception is a `write_only`
+    user (the logger), which never sets the IRQ callback; it may share the port
+    with a user that sets `allow_write_only` because its protocol skips text
+    that is not part of its own frames (mcumgr).
     """
+    new = CdcAcmUser(user, write_only, allow_write_only)
+    users = zephyr_data()["cdc_acm_users"].setdefault(id, [])
+    for other in users:
+        if other.name == user:
+            return
+        if (new.write_only and other.allow_write_only) or (
+            other.write_only and new.allow_write_only
+        ):
+            continue
+        raise cv.Invalid(
+            f"USB CDC ACM port {id} (cdc_acm_uart{id}) is used by both "
+            f"'{other.name}' and '{user}'. Each port can only be used by one component."
+        )
+    users.append(new)
+
+
+def _cdc_acm_add_ports() -> None:
+    """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
+    if not CORE.is_nrf52:
+        _zephyr_cdc_acm_add_ports()
+        return
+    users = zephyr_data()["cdc_acm_users"]
+    if not users:
+        return
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if CORE.is_nrf52:
-        # platform: nrf52 stays pinned to the legacy USB device stack -- untested
-        # against the newer device_next stack, not touching working behavior.
-        if framework_ver >= cv.Version(3, 2, 0):
-            zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
-        zephyr_add_prj_conf("USB_DEVICE_STACK", True)
-        zephyr_add_prj_conf("USB_CDC_ACM", True)
-        # nrf52/__init__.py disables SERIAL by default to save power; CDC-ACM needs it back
-        zephyr_add_prj_conf("SERIAL", True)
-        # prevent device to go to susspend, without this communication stop working in python
-        # there should be a way to solve it
-        zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
-        # prevent logging when buffer is full
-        zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
-    else:
-        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", True)
-        zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
-        zephyr_add_prj_conf("SERIAL", True)
-
-    from .dts_lookup import get_existing_cdc_acm_uart_label
-
-    existing_label = get_existing_cdc_acm_uart_label(zephyr_data()[KEY_BOARD])
-    if existing_label is not None:
-        return existing_label
-
-    label = f"cdc_acm_uart{id}"
+    if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
+        zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
+    zephyr_add_prj_conf("SERIAL", True)
+    # prevent device to go to susspend, without this communication stop working in python
+    # there should be a way to solve it
+    zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
+    # prevent logging when buffer is full
+    zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
+    nodes = "".join(
+        f"""
+                cdc_acm_uart{id}: cdc_acm_uart{id} {{
+                    compatible = "zephyr,cdc-acm-uart";
+                }};"""
+        for id in sorted(users)
+    )
     zephyr_add_overlay(
         f"""
-            &zephyr_udc0 {{
-                {label}: {label} {{
-                    compatible = "zephyr,cdc-acm-uart";
-                }};
+            &zephyr_udc0 {{{nodes}
             }};
         """
     )
-    return label
+
+
+def zephyr_cdc_acm_label(id: int) -> str:
+    """Return the devicetree label of CDC ACM port `id` on platform: zephyr, for
+    `zephyr,console`/`zephyr,shell-uart` and DT_NODELABEL().
+
+    Port 0 is the board's own `zephyr,cdc-acm-uart` node when it declares one -- e.g.
+    boards/common/usb/cdc_acm_serial.dtsi, labeled `board_cdc_acm_uart` -- instead of a
+    second, separate USB interface. Two CDC-ACM interfaces on the same device is needless
+    USB complexity, and means "which port do I talk to" changes depending on whether
+    MCUboot (which only ever sees the board's own node) or the app is currently running.
+    """
+    if id == 0:
+        from .dts_lookup import get_existing_cdc_acm_uart_label  # noqa: PLC0415
+
+        if (
+            label := get_existing_cdc_acm_uart_label(zephyr_data()[KEY_BOARD])
+        ) is not None:
+            return label
+    return f"cdc_acm_uart{id}"
+
+
+def _zephyr_cdc_acm_add_ports() -> None:
+    """platform: zephyr's half of _cdc_acm_add_ports(): the device_next USB stack, and a
+    node merged into the devicetree only for ports the board does not provide itself."""
+    users = zephyr_data()["cdc_acm_users"]
+    if not users:
+        return
+    zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", True)
+    # Zephyr's boot-time setup registers only port 0; usb_device.cpp registers every port
+    multi_port = max(users) > 0
+    zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", not multi_port)
+    if multi_port:
+        cg.add_define("USE_ZEPHYR_USB_DEVICE")
+    zephyr_add_prj_conf("SERIAL", True)
+    nodes = "".join(
+        f"""
+                {label}: {label} {{
+                    compatible = "zephyr,cdc-acm-uart";
+                }};"""
+        for id in sorted(users)
+        if (label := zephyr_cdc_acm_label(id)) == f"cdc_acm_uart{id}"
+    )
+    if nodes:
+        zephyr_add_overlay(
+            f"""
+            &zephyr_udc0 {{{nodes}
+            }};
+        """
+        )
 
 
 async def zephyr_add_usb_baud_rate(config: ConfigType) -> MockObj:
@@ -859,10 +934,13 @@ async def zephyr_add_usb_baud_rate(config: ConfigType) -> MockObj:
     subscribe to. config must hold the CONF_USB_BAUD_RATE id declared at validation (the
     Pico family keeps it in advanced:), because components are counted then."""
     cg.add_define("USE_ZEPHYR_USB_BAUD_RATE")
-    zephyr_add_cdc_acm(config, 0)
+    # Reads the line settings only: no IRQ callback and no output, so it shares port 0 with anything.
+    # Claimed here rather than at validation since its users are variant code, before the FINAL port setup
+    zephyr_claim_cdc_acm(0, "usb_baud_rate", write_only=True, allow_write_only=True)
     # Needed to read the rate the host set.
     zephyr_add_prj_conf("UART_LINE_CTRL", True)
-    var = cg.new_Pvariable(config[CONF_USB_BAUD_RATE])
+    port = MockObj(f"DEVICE_DT_GET(DT_NODELABEL({zephyr_cdc_acm_label(0)}))")
+    var = cg.new_Pvariable(config[CONF_USB_BAUD_RATE], port)
     await cg.register_component(var, {})
     return var
 
@@ -913,8 +991,29 @@ def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> boo
     return False
 
 
+def _remove_stale_image_files(written: set[Path]) -> bool:
+    """Remove app.overlay and sysbuild/<image>.conf/.overlay files this config did not write.
+
+    Zephyr picks these files up by name, so one left by an earlier config in the same
+    build directory still applies. Returns True if a file was removed.
+    """
+    candidates = [CORE.relative_build_path("zephyr/app.overlay")]
+    sysbuild_dir = CORE.relative_build_path("zephyr/sysbuild")
+    if sysbuild_dir.is_dir():
+        candidates += [
+            p for p in sysbuild_dir.iterdir() if p.suffix in (".conf", ".overlay")
+        ]
+    removed = False
+    for path in candidates:
+        if path not in written and path.is_file():
+            path.unlink()
+            removed = True
+    return removed
+
+
 def copy_files() -> None:
     changed = False
+    written: set[Path] = set()
 
     for builder_func in zephyr_data()[KEY_OVERLAY_BUILDER]:
         overlay_contents = builder_func()
@@ -940,6 +1039,7 @@ def copy_files() -> None:
         else:
             path = CORE.relative_build_path("zephyr/prj.conf")
 
+        written.add(path)
         changed |= write_file_if_changed(path, prj_conf)
 
     for image, content in zephyr_data()[KEY_OVERLAY].items():
@@ -960,7 +1060,10 @@ def copy_files() -> None:
                 )
         else:
             path = CORE.relative_build_path("zephyr/app.overlay")
+        written.add(path)
         changed |= write_file_if_changed(path, content)
+
+    changed |= _remove_stale_image_files(written)
 
     for filename, path in zephyr_data()[KEY_EXTRA_BUILD_FILES].items():
         changed |= copy_file_if_changed(
@@ -1405,6 +1508,22 @@ def _resolve_snippet_source(
     )
 
 
+def _reject_kconfig_watchdog(kconfig_options: ConfigType) -> None:
+    # kconfig_options win over every component setting, and a watchdog that is built but never
+    # armed or fed resets any chip whose watchdog already runs at boot
+    for name, value in kconfig_options.items():
+        if (
+            name.removeprefix("CONFIG_") == "WATCHDOG"
+            and not isinstance(value, dict)
+            and value in (True, "y", "Y")
+        ):
+            raise cv.Invalid(
+                f"'{CONF_KCONFIG_OPTIONS}: {name}' conflicts with "
+                f"'{CONF_WATCHDOG_TIMEOUT}: 0' -- set '{CONF_WATCHDOG_TIMEOUT}' instead",
+                [CONF_KCONFIG_OPTIONS, name],
+            )
+
+
 def _variant_config_schema(config: ConfigType) -> ConfigType:
     # CORE.is_zephyr can't be used here: for a genuine `platform: zephyr` config, this
     # very function is what sets target_platform. Only skip when some OTHER platform
@@ -1454,6 +1573,8 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         ):
             default_timeout = cv.TimePeriod(milliseconds=max_timeout_ms)
         config.setdefault(CONF_WATCHDOG_TIMEOUT, default_timeout)
+        if config[CONF_WATCHDOG_TIMEOUT].total_milliseconds == 0:
+            _reject_kconfig_watchdog(config[CONF_KCONFIG_OPTIONS])
     board_root = None
     if CONF_BOARD_SOURCE in config:
         if CONF_BOARD not in config:

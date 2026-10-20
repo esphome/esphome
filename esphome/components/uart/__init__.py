@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 from dataclasses import dataclass, field
 from logging import getLogger
 import math
@@ -64,6 +65,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
 
 _LOGGER = getLogger(__name__)
@@ -137,6 +139,12 @@ UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
+
+
+def is_host_uart(uart_id: ID, full_config: ConfigType) -> bool:
+    return CORE.is_host and any(
+        conf[CONF_ID] == uart_id for conf in full_config.get(DOMAIN) or []
+    )
 
 
 def validate_raw_data(value):
@@ -251,11 +259,9 @@ def _uart_declare_type(value):
 
 
 UARTParityOptions = uart_ns.enum("UARTParityOptions")
-UART_PARITY_OPTIONS = {
-    "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
-    "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
-    "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
-}
+UART_PARITY_OPTIONS = UARTParityOptions.options(
+    "NONE", "EVEN", "ODD", prefix="UART_CONFIG_PARITY_"
+)
 
 CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
@@ -327,13 +333,9 @@ def validate_uart_emulation_config(config):
 CONF_CLOCK_SOURCE = "clock_source"
 
 UARTClockSource = cg.global_ns.enum("uart_sclk_t")
-UART_CLOCK_SOURCES = {
-    "DEFAULT": UARTClockSource.UART_SCLK_DEFAULT,
-    "APB": UARTClockSource.UART_SCLK_APB,
-    "XTAL": UARTClockSource.UART_SCLK_XTAL,
-    "RTC": UARTClockSource.UART_SCLK_RTC,
-    "REF_TICK": UARTClockSource.UART_SCLK_REF_TICK,
-}
+UART_CLOCK_SOURCES = UARTClockSource.options(
+    "DEFAULT", "APB", "XTAL", "RTC", "REF_TICK", prefix="UART_SCLK_"
+)
 
 # Keep in sync with SOC_UART_SUPPORT_* in ESP-IDF's per-variant soc_caps.h.
 UART_CLOCK_SOURCES_BY_VARIANT = {
@@ -353,11 +355,7 @@ UART_CLOCK_SOURCES_BY_VARIANT = {
 }
 
 UARTDirection = uart_ns.enum("UARTDirection")
-UART_DIRECTIONS = {
-    "RX": UARTDirection.UART_DIRECTION_RX,
-    "TX": UARTDirection.UART_DIRECTION_TX,
-    "BOTH": UARTDirection.UART_DIRECTION_BOTH,
-}
+UART_DIRECTIONS = UARTDirection.options("RX", "TX", "BOTH", prefix="UART_DIRECTION_")
 
 # The reason for having CONF_BYTES at 150 by default:
 #
@@ -522,15 +520,10 @@ async def to_code(config):
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
 
-    if CONF_TX_PIN in config and not CORE.is_zephyr:
-        tx_pin = await cg.gpio_pin_expression(config[CONF_TX_PIN])
-        cg.add(var.set_tx_pin(tx_pin))
-    if CONF_RX_PIN in config and not CORE.is_zephyr:
-        rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
-        cg.add(var.set_rx_pin(rx_pin))
-    if CONF_FLOW_CONTROL_PIN in config:
-        flow_control_pin = await cg.gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
-        cg.add(var.set_flow_control_pin(flow_control_pin))
+    if not CORE.is_zephyr:
+        await cg.add_pin(var.set_tx_pin, config.get(CONF_TX_PIN))
+        await cg.add_pin(var.set_rx_pin, config.get(CONF_RX_PIN))
+    await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
     if CONF_PORT in config:
         if CORE.is_zephyr:
             from esphome.components.zephyr import (
@@ -865,8 +858,17 @@ async def register_uart_device(var, config):
 
     This is a coroutine, you need to await it with an 'await' expression!
     """
-    parent = await cg.get_variable(config[CONF_UART_ID])
-    cg.add(var.set_uart_parent(parent))
+    await cg.add_variable(var.set_uart_parent, config[CONF_UART_ID])
+
+
+def new_uart_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on a UART bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_uart_device, config, *args)
 
 
 def _uart_write_id(value: Any) -> ID:

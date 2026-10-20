@@ -1,3 +1,4 @@
+from collections.abc import Coroutine
 import re
 from typing import Any
 
@@ -22,7 +23,6 @@ from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
-    zephyr_dts_board_id,
     zephyr_setup_spi_pinctrl,
     zephyr_variant,
 )
@@ -546,7 +546,7 @@ def _zephyr_setup_spi(spi, resolved_buses: set[str]) -> tuple[str, str]:
     override = interface if interface not in ("hardware", "any") else None
     bus = resolve_zephyr_bus(
         DOMAIN,
-        zephyr_dts_board_id(board),
+        board,
         override_key=CONF_INTERFACE,
         override=override,
     )
@@ -578,12 +578,10 @@ async def to_code(configs: list[ConfigType]) -> None:
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
         await cg.register_component(var, spi)
-        if clk_conf := spi.get(CONF_CLK_PIN):
-            cg.add(var.set_clk(await cg.gpio_pin_expression(clk_conf)))
-        if miso := spi.get(CONF_MISO_PIN):
-            cg.add(var.set_miso(await cg.gpio_pin_expression(miso)))
-        if mosi := spi.get(CONF_MOSI_PIN):
-            cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
+        # clk_pin is optional on Zephyr (devicetree pinctrl may supply it)
+        await cg.add_pin(var.set_clk, spi.get(CONF_CLK_PIN))
+        await cg.add_pin(var.set_miso, spi.get(CONF_MISO_PIN))
+        await cg.add_pin(var.set_mosi, spi.get(CONF_MOSI_PIN))
         if data_pins := spi.get(CONF_DATA_PINS):
             cg.add(var.set_data_pins(data_pins))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
@@ -634,13 +632,10 @@ def spi_device_schema(
 async def register_spi_device(
     var: cg.MockObj, config: ConfigType, write_only: bool = False
 ) -> None:
-    parent = await cg.get_variable(config[CONF_SPI_ID])
-    cg.add(var.set_spi_parent(parent))
+    await cg.add_variable(var.set_spi_parent, config[CONF_SPI_ID])
     if write_only:
         cg.add(var.set_write_only(True))
-    if cs_pin := config.get(CONF_CS_PIN):
-        pin = await cg.gpio_pin_expression(cs_pin)
-        cg.add(var.set_cs_pin(pin))
+    await cg.add_pin(var.set_cs_pin, config.get(CONF_CS_PIN))
     if data_rate := config.get(CONF_DATA_RATE):
         cg.add(var.set_data_rate(data_rate))
     if spi_mode := config.get(CONF_SPI_MODE):
@@ -650,6 +645,17 @@ async def register_spi_device(
     if psram_dma := config.get(CONF_PSRAM_DMA):
         cg.add_define("USE_SPI_PSRAM_DMA")
         cg.add(var.set_psram_dma(psram_dma))
+
+
+def new_spi_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on an SPI bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor. Write-only devices call register_spi_device
+    themselves with write_only=True.
+    """
+    return cg.new_bus_component(register_spi_device, config, *args)
 
 
 def final_validate_device_schema(

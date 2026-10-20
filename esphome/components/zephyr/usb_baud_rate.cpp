@@ -14,7 +14,7 @@ ESPHOME_LOG_TAG(TAG, "usb_baud_rate");
 static UsbBaudRate *instance{nullptr};   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool callback_registered{false};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-UsbBaudRate::UsbBaudRate() {
+UsbBaudRate::UsbBaudRate(const device *port) : port_(port) {
   if (instance == nullptr)
     instance = this;
 }
@@ -34,7 +34,8 @@ void UsbBaudRate::setup() {
 // Runs on the USB thread: queue the rate and wake the main loop, which runs the callbacks.
 void UsbBaudRate::usbd_message_callback(usbd_context *const, const usbd_msg *const msg) {
   uint32_t rate;
-  if (instance == nullptr || msg->type != USBD_MSG_CDC_ACM_LINE_CODING ||
+  // Other CDC ports carry user data, where 1200 baud must not reboot the board
+  if (instance == nullptr || msg->type != USBD_MSG_CDC_ACM_LINE_CODING || msg->dev != instance->port_ ||
       uart_line_ctrl_get(msg->dev, UART_LINE_CTRL_BAUD_RATE, &rate) != 0)
     return;
   const uint8_t next = (instance->queue_head_ + 1) % RATE_QUEUE_SIZE;

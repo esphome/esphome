@@ -26,7 +26,8 @@ def to_code(config: ConfigType) -> None:
     """REQUIRES_FULL_LIBCPP selects GLIBCXX_LIBCPP; without it Zephyr defaults
     to MINIMAL_LIBCPP, which has no STL and breaks ESPHome's C++ headers."""
     import esphome.codegen as cg  # noqa: PLC0415
-    from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
+    from esphome.const import CONF_AP, CONF_LOG_LEVEL, CONF_WIFI  # noqa: PLC0415
+    from esphome.core import CORE  # noqa: PLC0415
 
     from .. import zephyr_add_prj_conf, zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
 
@@ -46,6 +47,10 @@ def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("EXCEPTION_STACK_TRACE", True)
     # Consumed by C++ code shared across every esp32-family variant (core.cpp, etc.).
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_FAMILY_ESP32")
+    # Without ESP32_WIFI_AP_STA_MODE (needs WIFI_NM) the driver drops the AP on every
+    # station scan or connect, so the fallback AP takes turns with the networks.
+    if CORE.config.get(CONF_WIFI, {}).get(CONF_AP):
+        cg.add_define("USE_WIFI_AP_EXCLUSIVE")
 
 
 # I2C pinctrl group/state to assume when DTS resolution fails.

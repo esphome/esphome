@@ -2,6 +2,9 @@
 #include "gpio.h"
 #include "esphome/core/hal.h"
 #include <zephyr/drivers/gpio.h>
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_STM32
+#include <zephyr/dt-bindings/gpio/stm32-gpio.h>
+#endif
 #include <zephyr/sys/util.h>
 #include "esphome/core/log.h"
 
@@ -129,6 +132,28 @@ void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
     ESP_LOGE(TAG, "gpio %u cannot be configured %d.", this->pin_, ret);
   }
 }
+
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_STM32)
+int ZephyrGPIOPin::arm_wakeup(bool level) {
+  const gpio_pin_t pin = this->pin_ % this->gpio_size_;
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_NORDIC
+  // GPIO sense on the pin is what wakes the chip from System OFF
+  return gpio_pin_interrupt_configure(this->gpio_, pin, level ? GPIO_INT_LEVEL_HIGH : GPIO_INT_LEVEL_LOW);
+#else
+  // The drivers read the wake level from GPIO_ACTIVE_LOW; the pull resistor keeps its setting
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_ESP32
+  const gpio_flags_t wake = GPIO_INT_WAKEUP;
+#else
+  const gpio_flags_t wake = STM32_GPIO_WKUP;
+#endif
+  return gpio_pin_configure(
+      this->gpio_, pin,
+      flags_to_mode(gpio::FLAG_INPUT | (this->flags_ & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)), false, false) |
+          wake | (level ? 0 : GPIO_ACTIVE_LOW));
+#endif
+}
+#endif
 
 size_t ZephyrGPIOPin::dump_summary(char *buffer, size_t len) const {
   // Secondary "P0.n"-style label only for families with real GPIO port banks;

@@ -294,8 +294,7 @@ async def to_code(config: ConfigType) -> None:
         # Remove before 2027.2.0
         cg.add(var.set_is_temperature())
     elif not CORE.is_nrf52 or config[CONF_PIN][CONF_NUMBER] not in EXTRA_ADC:
-        pin = await cg.gpio_pin_expression(config[CONF_PIN])
-        cg.add(var.set_pin(pin))
+        await cg.add_pin(var.set_pin, config[CONF_PIN])
 
     # Skip the setters when the config matches the C++ initializers.
     if config[CONF_RAW]:
