@@ -84,9 +84,13 @@ void I2SAudioComponent::release_tx_channel() {
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to restore idle TX: %s", esp_err_to_name(err));
         this->status_set_warning();
+        this->idle_tx_restore_warning_ = true;
       } else {
         this->set_continuous_tx_running(true);
-        this->status_clear_warning();
+        if (this->idle_tx_restore_warning_) {
+          this->status_clear_warning();
+          this->idle_tx_restore_warning_ = false;
+        }
       }
     }
     this->update_rx_channel_();

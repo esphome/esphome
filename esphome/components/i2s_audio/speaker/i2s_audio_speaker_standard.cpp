@@ -166,36 +166,37 @@ void I2SAudioSpeaker::run_speaker_task() {
     return true;
   };
 
-  if (successful_setup && !continuous_tx) {
-    successful_setup = preload_silence();
-  }
-
 #ifdef USE_I2S_AUDIO_FULL_DUPLEX
   if (successful_setup && continuous_tx) {
-    // TX is already running. Its in-flight DMA descriptors all contain silence; seed their matching
-    // lockstep records before allowing the bus ISR to forward completion events to this speaker.
-    for (size_t i = 0; i < DMA_BUFFERS_COUNT; i++) {
-      const uint32_t zero_real_frames = 0;
-      if (xQueueSend(this->write_records_queue_, &zero_real_frames, 0) != pdTRUE) {
-        successful_setup = false;
-        break;
-      }
-    }
-    if (successful_setup)
-      this->parent_->set_tx_sent_callback(i2s_on_sent_cb, this);
+    // A running TX channel has free descriptors queued by the driver, not five descriptors still ahead of
+    // the first write. Rebuild the same known lockstep used at a cold start before forwarding DMA events.
+    this->drain_lockstep_(0);
   }
 #endif
 
-  if (successful_setup && !continuous_tx) {
-    // Register the on_sent callback BEFORE enabling the channel so the very first transmitted buffer
-    // generates a queued event that pairs with the first preloaded silence record.
-    const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
-    i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
+  if (successful_setup)
+    successful_setup = preload_silence();
+
+  if (successful_setup) {
+    // Attach the callback BEFORE enabling TX so the first completion pairs with the first preload record.
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+    if (continuous_tx) {
+      this->parent_->set_tx_sent_callback(i2s_on_sent_cb, this);
+    } else
+#endif
+    {
+      const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
+      i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
+    }
 
     if (i2s_channel_enable(this->tx_handle_) != ESP_OK) {
       ESP_LOGV(TAG, "Failed to enable I2S channel");
       successful_setup = false;
     }
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+    if (successful_setup && continuous_tx)
+      this->parent_->set_continuous_tx_running(true);
+#endif
   }
 
   if (!successful_setup) {

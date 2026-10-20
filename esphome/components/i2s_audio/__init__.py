@@ -382,7 +382,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_mclk_pin(config[CONF_I2S_MCLK_PIN]))
     if config[CONF_FULL_DUPLEX]:
         cg.add_define("USE_I2S_AUDIO_FULL_DUPLEX")
-        cg.add(var.set_keep_tx_active(config[CONF_KEEP_TX_ACTIVE]))
+        if config[CONF_KEEP_TX_ACTIVE]:
+            cg.add(var.set_keep_tx_active(True))
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(

@@ -151,6 +151,7 @@ class I2SAudioComponent final : public Component {
   bool tx_in_use_{false};
   bool rx_enabled_{false};
   bool keep_tx_active_{false};
+  bool idle_tx_restore_warning_{false};
   std::atomic<bool> continuous_tx_running_{false};
   std::atomic<TxSentCallback> tx_sent_callback_{nullptr};
   std::atomic<void *> tx_sent_callback_context_{nullptr};
