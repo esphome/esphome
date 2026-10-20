@@ -18,7 +18,7 @@ extern "C" int __sanitizer_install_malloc_and_free_hooks(void (*malloc_hook)(con
                                                          void (*free_hook)(const volatile void *));
 #endif
 
-namespace esphome::atm90e32::testing {
+namespace esphome::atm90e32 {
 
 static_assert(std::is_final_v<ATM90E32Component>);
 
@@ -301,4 +301,4 @@ TEST_F(ATM90E32ThresholdRegisters, RepeatedCombinedAlarmsDoNotAllocate) {
 #endif
 }
 
-}  // namespace esphome::atm90e32::testing
+}  // namespace esphome::atm90e32

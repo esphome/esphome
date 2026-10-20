@@ -16,10 +16,6 @@
 
 namespace esphome::atm90e32 {
 
-namespace testing {
-class ATM90E32ThresholdRegisters;
-}
-
 inline bool offset_register_value_matches(uint16_t actual, int16_t expected) {
   return actual == static_cast<uint16_t>(expected);
 }
@@ -192,7 +188,7 @@ class ATM90E32Component final : public PollingComponent,
   static uint16_t calculate_current_threshold_from_amps(float current_rms, uint16_t igain);
 
  protected:
-  friend class testing::ATM90E32ThresholdRegisters;
+  friend class ATM90E32ThresholdRegisters;
   void setup_registers_();
 #ifdef USE_NUMBER
   number::Number *ref_voltages_[3]{nullptr, nullptr, nullptr};
