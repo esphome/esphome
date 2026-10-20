@@ -139,7 +139,6 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
     SETUP_STEP_COUNT,
   };
 
-  static Sen6xType infer_type_from_product_name_(const char *product_name);
   void run_next_setup_step_();
   bool write_setup_step_(SetupStep step);
   void finish_setup_();

@@ -13,6 +13,11 @@ ESPHOME_LOG_TAG(TAG, "sen6x");
 // Indexed by Sen6xType
 PROGMEM_STRING_TABLE(TypeStrings, "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", "UNKNOWN");
 
+static SEN6XComponent::Sen6xType infer_type_from_product_name(const char *product_name) {
+  const int16_t type = progmem_string_table_find<TypeStrings>(product_name, strnlen(product_name, 32));
+  return type < 0 ? SEN6XComponent::UNKNOWN : static_cast<SEN6XComponent::Sen6xType>(type);
+}
+
 #ifdef SEN6X_STATUS_SENSOR_COUNT
 // Bit of the status register behind each kind; the CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C
 static uint8_t status_bit(Sen6xStatus status, SEN6XComponent::Sen6xType type) {
@@ -137,8 +142,9 @@ void SEN6XComponent::setup() {
         this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      const char *serial_number = SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16);
-      snprintf(this->serial_number_, sizeof(this->serial_number_), "%s", serial_number);
+      // The last byte of serial_number_ stays 0, so a full 32-byte serial is still terminated
+      memcpy(this->serial_number_, SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16),
+             sizeof(this->serial_number_) - 1);
       ESP_LOGI(TAG, "Serial number: %s", this->serial_number_);
 
       // Step 2: Read product name in next loop iteration
@@ -152,7 +158,7 @@ void SEN6XComponent::setup() {
 
         const char *product_name = SEN6XComponent::sensirion_convert_to_string_in_place(raw_product_name, 16);
 
-        Sen6xType inferred_type = infer_type_from_product_name_(product_name);
+        Sen6xType inferred_type = infer_type_from_product_name(product_name);
         if (this->sen6x_type_ == UNKNOWN) {
           this->sen6x_type_ = inferred_type;
           if (inferred_type == UNKNOWN) {
@@ -815,11 +821,6 @@ void SEN6XComponent::activate_sht_heater() {
     return;
   }
   this->set_command_wait_(SHT_HEATER_DELAY);
-}
-
-SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const char *product_name) {
-  const int16_t type = progmem_string_table_find<TypeStrings>(product_name, strlen(product_name));
-  return type < 0 ? UNKNOWN : static_cast<Sen6xType>(type);
 }
 
 }  // namespace esphome::sen6x
