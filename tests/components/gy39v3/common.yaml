@@ -10,6 +10,8 @@ sensor:
       name: GY39v3 Pressure
     humidity:
       name: GY39v3 Humidity
-    elevation:
-      name: GY39v3 Elevation
+    altitude:
+      name: GY39v3 Elevation/Altitude [m]
+    vapor_pressure_deficit:
+      name: GY39v3 VPD (calculated)
     update_interval: 60s
