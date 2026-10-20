@@ -14,7 +14,6 @@ struct PIDController {
   /// Forget the accumulated error and the timing, so the next update() starts afresh
   void reset() {
     this->accumulated_integral_ = 0;
-    this->previous_setpoint_ = NAN;
     this->last_time_ = 0;
     this->derivative_window_.clear();
   }
@@ -41,7 +40,6 @@ struct PIDController {
 
   float error_{0};
   float previous_error_{0};
-  float previous_setpoint_{NAN};
   float accumulated_integral_{0};
   uint32_t last_time_{0};
   /// Smooths the derivative over the configured samples; stays empty for a single sample

@@ -147,8 +147,10 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
     const bool outdoor_valid = this->outdoor_sensor_->has_state() && t_outdoor >= OUTDOOR_SENSOR_MIN_VALID &&
                                t_outdoor <= OUTDOOR_SENSOR_MAX_VALID;
     if (!outdoor_valid) {
-      // The curve cannot be computed, so the last setpoint stays
+      // The curve cannot be computed, so the last setpoint stays; the PID is not stepped meanwhile
       ESP_LOGV(TAG, "Outdoor sensor invalid, holding the last setpoint");
+      this->pid_controller_.reset();
+      this->pid_correction_ = 0.0f;
       this->publish_state();
       return;
     }

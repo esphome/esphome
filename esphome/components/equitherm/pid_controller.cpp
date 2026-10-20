@@ -21,15 +21,10 @@ float PIDController::update(float setpoint, float process_value) {
   this->accumulated_integral_ += this->error_ * dt * this->ki_ * (deadband ? this->ki_multiplier_ : 1.0f);
   this->accumulated_integral_ = clamp(this->accumulated_integral_, this->min_integral_, this->max_integral_);
 
-  // d(t) := K_d * de(t)/dt, with a setpoint change taken out of the error
-  float derivative = 0.0f;
-  if (dt != 0.0f) {
-    if (!std::isnan(this->previous_setpoint_) && this->previous_setpoint_ != setpoint)
-      this->previous_error_ -= this->previous_setpoint_ - setpoint;
-    derivative = (this->error_ - this->previous_error_) / dt;
-  }
+  // d(t) := K_d * de(t)/dt; a target change resets the controller, so no kick needs taking out
+  const float derivative = dt != 0.0f ? (this->error_ - this->previous_error_) / dt : 0.0f;
   this->previous_error_ = this->error_;
-  this->previous_setpoint_ = setpoint;
+  float smoothed = derivative;
   if (this->derivative_window_.capacity() > 1) {
     if (this->derivative_window_.full())
       this->derivative_window_.pop();
@@ -37,9 +32,9 @@ float PIDController::update(float setpoint, float process_value) {
     float sum = 0;
     for (float value : this->derivative_window_)
       sum += value;
-    derivative = sum / this->derivative_window_.size();
+    smoothed = sum / this->derivative_window_.size();
   }
-  const float derivative_term = this->kd_ * derivative * (deadband ? this->kd_multiplier_ : 1.0f);
+  const float derivative_term = this->kd_ * smoothed * (deadband ? this->kd_multiplier_ : 1.0f);
 
   return proportional + this->accumulated_integral_ + derivative_term;
 }
