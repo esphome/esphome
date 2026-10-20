@@ -65,7 +65,6 @@ const uint8_t HITACHI_AC344_SWINGH_LEFT_MAX = 5;   // 0b101
 
 const uint8_t HITACHI_AC344_SWINGV_BYTE = 37;
 const uint8_t HITACHI_AC344_SWINGV_OFFSET = 5;  // Mask 0b00x00000
-const uint8_t HITACHI_AC344_SWINGV_SIZE = 1;    // Mask 0b00x00000
 
 const uint8_t HITACHI_AC344_MILDEWPROOF_BYTE = HITACHI_AC344_SWINGV_BYTE;
 const uint8_t HITACHI_AC344_MILDEWPROOF_OFFSET = 2;  // Mask 0b00000x00
@@ -91,7 +90,7 @@ class HitachiClimate final : public climate_ir::ClimateIR {
                                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
                                                     0x80, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   uint8_t previous_temp_{27};
-  bool prev_swingv_on_{false};
+  void setup() override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   bool get_power_();
@@ -101,7 +100,6 @@ class HitachiClimate final : public climate_ir::ClimateIR {
   void set_temp_(uint8_t celsius, bool set_previous = true);
   uint8_t get_fan_();
   void set_fan_(uint8_t speed);
-  void set_swing_v_toggle_(bool on);
   void set_swing_v_(bool on);
   bool get_swing_v_();
   void set_swing_h_(uint8_t position);

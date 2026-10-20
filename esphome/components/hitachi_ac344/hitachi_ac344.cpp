@@ -109,20 +109,12 @@ void HitachiClimate::set_fan_(uint8_t speed) {
   remote_state_[29] = 0x01;
 }
 
-void HitachiClimate::set_swing_v_toggle_(bool on) {
-  if (on != prev_swingv_on_) {  // Only initiate a swing v change if the state is different than the previous state.
-    set_button_(HITACHI_AC344_BUTTON_SWINGV);  // Set the button to SwingV.
-  } else {
-    // Set to default button
-    set_button_(HITACHI_AC344_BUTTON_POWER);
-  }
-  prev_swingv_on_ = on;  // Remember the state for next time.
-}
-
 void HitachiClimate::set_swing_v_(bool on) {
-  set_swing_v_toggle_(on);  // The toggle relied on the previous state.
-  set_bit(&remote_state_[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET,
-          on);  // The remote state may be inconsistent with the air conditioner state
+  // The unit ignores this bit and toggles vertical swing on the button byte instead, so the bit only records the
+  // state last sent or received and a change goes out as a button press.
+  if (on != get_swing_v_())
+    set_button_(HITACHI_AC344_BUTTON_SWINGV);
+  set_bit(&remote_state_[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET, on);
 }
 
 bool HitachiClimate::get_swing_v_() {
@@ -134,10 +126,7 @@ void HitachiClimate::set_swing_h_(uint8_t position) {
     set_swing_h_(HITACHI_AC344_SWINGH_MIDDLE);
     return;
   }
-  if (position == get_swing_h_())
-    return;
   set_bits(&remote_state_[HITACHI_AC344_SWINGH_BYTE], HITACHI_AC344_SWINGH_OFFSET, HITACHI_AC344_SWINGH_SIZE, position);
-  set_button_(HITACHI_AC344_BUTTON_SWINGH);
 }
 
 uint8_t HitachiClimate::get_swing_h_() {
@@ -147,6 +136,14 @@ uint8_t HitachiClimate::get_swing_h_() {
 uint8_t HitachiClimate::get_button_() { return remote_state_[HITACHI_AC344_BUTTON_BYTE]; }
 
 void HitachiClimate::set_button_(uint8_t button) { remote_state_[HITACHI_AC344_BUTTON_BYTE] = button; }
+
+void HitachiClimate::setup() {
+  climate_ir::ClimateIR::setup();
+  // The restored swing mode is the best guess of where the unit's vertical swing is, so the first command after a
+  // reboot does not toggle it the wrong way.
+  set_bit(&remote_state_[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET,
+          this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_BOTH);
+}
 
 void HitachiClimate::transmit_state() {
   switch (this->mode) {
@@ -193,8 +190,10 @@ void HitachiClimate::transmit_state() {
       set_fan_(HITACHI_AC344_FAN_AUTO);
   }
 
+  // Every change goes out as a power press, as the physical remote does; only a vertical swing change needs its
+  // own button, so set_swing_v_ comes last.
+  set_button_(HITACHI_AC344_BUTTON_POWER);
   switch (this->swing_mode) {
-    // set_swing_v has to be the last call in all state settings as it relies on the button type to initiate an action.
     case climate::CLIMATE_SWING_BOTH:
       set_swing_h_(HITACHI_AC344_SWINGH_AUTO);
       set_swing_v_(true);
@@ -313,8 +312,6 @@ bool HitachiClimate::parse_swing_(const uint8_t remote_state[]) {
   } else {
     this->swing_mode = swing_v ? climate::CLIMATE_SWING_BOTH : climate::CLIMATE_SWING_HORIZONTAL;
   }
-
-  prev_swingv_on_ = swing_v;  // Save the previous state of the swing v for future reference.
 
   return true;
 }
