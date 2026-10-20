@@ -31,21 +31,21 @@ RawTimings expected_items(uint8_t byte, bool msb_first) {
 TEST(RemoteBaseByteItemsTest, LsbItemSequence) {
   RemoteTransmitData tx;
   const uint8_t byte = 0x4B;
-  tx.item_bytes_lsb(&byte, 1, TIMINGS);
+  tx.item_bytes_lsb<TIMINGS>(&byte, 1);
   EXPECT_EQ(tx.get_data(), expected_items(byte, false));
 }
 
 TEST(RemoteBaseByteItemsTest, MsbItemSequence) {
   RemoteTransmitData tx;
   const uint8_t byte = 0x4B;
-  tx.item_bytes_msb(&byte, 1, TIMINGS);
+  tx.item_bytes_msb<TIMINGS>(&byte, 1);
   EXPECT_EQ(tx.get_data(), expected_items(byte, true));
 }
 
 TEST(RemoteBaseByteItemsTest, AppendsAfterExistingItems) {
   RemoteTransmitData tx;
   tx.item(9000, 4500);
-  tx.item_bytes_lsb(FRAME.data(), FRAME.size(), TIMINGS);
+  tx.item_bytes_lsb<TIMINGS>(FRAME.data(), FRAME.size());
   tx.mark(BIT_MARK);
   ASSERT_EQ(tx.get_data().size(), 2 + FRAME.size() * 16 + 1);
   EXPECT_EQ(tx.get_data()[0], 9000);
@@ -55,43 +55,43 @@ TEST(RemoteBaseByteItemsTest, AppendsAfterExistingItems) {
 
 TEST(RemoteBaseByteItemsTest, LsbRoundTrip) {
   RemoteTransmitData tx;
-  tx.item_bytes_lsb(FRAME.data(), FRAME.size(), TIMINGS);
+  tx.item_bytes_lsb<TIMINGS>(FRAME.data(), FRAME.size());
   auto rx = receive(tx.get_data());
   std::array<uint8_t, FRAME.size()> out{};
-  ASSERT_TRUE(rx.expect_bytes_lsb(out.data(), out.size(), TIMINGS));
+  ASSERT_TRUE(rx.expect_bytes_lsb<TIMINGS>(out.data(), out.size()));
   EXPECT_EQ(out, FRAME);
   EXPECT_FALSE(rx.is_valid());
 }
 
 TEST(RemoteBaseByteItemsTest, MsbRoundTrip) {
   RemoteTransmitData tx;
-  tx.item_bytes_msb(FRAME.data(), FRAME.size(), TIMINGS);
+  tx.item_bytes_msb<TIMINGS>(FRAME.data(), FRAME.size());
   auto rx = receive(tx.get_data());
   std::array<uint8_t, FRAME.size()> out{};
-  ASSERT_TRUE(rx.expect_bytes_msb(out.data(), out.size(), TIMINGS));
+  ASSERT_TRUE(rx.expect_bytes_msb<TIMINGS>(out.data(), out.size()));
   EXPECT_EQ(out, FRAME);
 }
 
 TEST(RemoteBaseByteItemsTest, BitOrderMismatchReversesBits) {
   RemoteTransmitData tx;
   const uint8_t byte = 0x01;
-  tx.item_bytes_lsb(&byte, 1, TIMINGS);
+  tx.item_bytes_lsb<TIMINGS>(&byte, 1);
   auto rx = receive(tx.get_data());
   uint8_t out = 0;
-  ASSERT_TRUE(rx.expect_bytes_msb(&out, 1, TIMINGS));
+  ASSERT_TRUE(rx.expect_bytes_msb<TIMINGS>(&out, 1));
   EXPECT_EQ(out, 0x80);
 }
 
 TEST(RemoteBaseByteItemsTest, FailsMidByteAndStopsThere) {
   RemoteTransmitData tx;
-  tx.item_bytes_lsb(FRAME.data(), FRAME.size(), TIMINGS);
+  tx.item_bytes_lsb<TIMINGS>(FRAME.data(), FRAME.size());
   RawTimings timings = tx.get_data();
   // Bit 3 of byte 1 gets a space that matches neither length
   const size_t bad = (8 + 3) * 2 + 1;
   timings[bad] = -3000;
   auto rx = receive(timings);
   std::array<uint8_t, FRAME.size()> out = {0x11, 0x22, 0x33, 0x44};
-  EXPECT_FALSE(rx.expect_bytes_lsb(out.data(), out.size(), TIMINGS));
+  EXPECT_FALSE(rx.expect_bytes_lsb<TIMINGS>(out.data(), out.size()));
   EXPECT_EQ(rx.get_index(), bad - 1);
   // Byte 0 was read in full, the partial byte and the rest are untouched
   EXPECT_EQ(out[0], FRAME[0]);
@@ -101,23 +101,23 @@ TEST(RemoteBaseByteItemsTest, FailsMidByteAndStopsThere) {
 
 TEST(RemoteBaseByteItemsTest, FailsWhenDataRunsOut) {
   RemoteTransmitData tx;
-  tx.item_bytes_msb(FRAME.data(), 1, TIMINGS);
+  tx.item_bytes_msb<TIMINGS>(FRAME.data(), 1);
   auto rx = receive(tx.get_data());
   std::array<uint8_t, 2> out{};
-  EXPECT_FALSE(rx.expect_bytes_msb(out.data(), out.size(), TIMINGS));
+  EXPECT_FALSE(rx.expect_bytes_msb<TIMINGS>(out.data(), out.size()));
   EXPECT_EQ(out[0], FRAME[0]);
 }
 
 TEST(RemoteBaseByteItemsTest, ZeroLength) {
   RemoteTransmitData tx;
-  tx.item_bytes_lsb(nullptr, 0, TIMINGS);
-  tx.item_bytes_msb(nullptr, 0, TIMINGS);
+  tx.item_bytes_lsb<TIMINGS>(nullptr, 0);
+  tx.item_bytes_msb<TIMINGS>(nullptr, 0);
   EXPECT_TRUE(tx.get_data().empty());
 
   const RawTimings empty;
   auto rx = receive(empty);
-  EXPECT_TRUE(rx.expect_bytes_lsb(nullptr, 0, TIMINGS));
-  EXPECT_TRUE(rx.expect_bytes_msb(nullptr, 0, TIMINGS));
+  EXPECT_TRUE(rx.expect_bytes_lsb<TIMINGS>(nullptr, 0));
+  EXPECT_TRUE(rx.expect_bytes_msb<TIMINGS>(nullptr, 0));
   EXPECT_EQ(rx.get_index(), 0u);
 }
 
