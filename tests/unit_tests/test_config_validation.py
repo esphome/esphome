@@ -1876,6 +1876,80 @@ def test_has_none_or_all_keys_none() -> None:
     assert cv.has_none_or_all_keys("a", "b")(obj) is obj
 
 
+def test_only_when_not_dict() -> None:
+    with pytest.raises(Invalid, match="expected dictionary"):
+        cv.only_when("path", "transport", "ws")(5)
+
+
+@pytest.mark.parametrize(
+    "obj",
+    [
+        {"transport": "ws", "path": "/mqtt"},
+        {"transport": "wss", "path": "/mqtt"},
+        {"transport": "tcp"},
+        {},
+    ],
+)
+def test_only_when_ok(obj: dict) -> None:
+    assert cv.only_when("path", "transport", ("ws", "wss"))(obj) is obj
+
+
+def test_only_when_rejects_each_key() -> None:
+    with pytest.raises(vol.MultipleInvalid) as exc:
+        cv.only_when(("a", "b"), "mode", "range")({"mode": "normal", "a": 1, "b": 2})
+    assert [str(e) for e in exc.value.errors] == [
+        "'a' is only valid when 'mode' is 'range' @ data['a']",
+        "'b' is only valid when 'mode' is 'range' @ data['b']",
+    ]
+
+
+def test_only_when_missing_selector() -> None:
+    with pytest.raises(
+        Invalid, match="'path' is only valid when 'transport' is 'ws' or 'wss'"
+    ):
+        cv.only_when("path", "transport", ("ws", "wss"))({"path": "/mqtt"})
+
+
+def test_only_when_boolean_selector() -> None:
+    validator = cv.only_when("connections", "active", True)
+    assert validator({"active": True, "connections": []})
+    with pytest.raises(Invalid, match="when 'active' is true"):
+        validator({"active": False, "connections": []})
+
+
+def test_only_when_negate() -> None:
+    validator = cv.only_when("dc_pin", "bus_mode", "quad", negate=True)
+    assert validator({"bus_mode": "single", "dc_pin": 4})
+    with pytest.raises(Invalid, match="when 'bus_mode' is not 'quad'"):
+        validator({"bus_mode": "quad", "dc_pin": 4})
+
+
+def test_key_requires_not_dict() -> None:
+    with pytest.raises(Invalid, match="expected dictionary"):
+        cv.key_requires("a", "b")(5)
+
+
+@pytest.mark.parametrize("obj", [{"a": 1, "b": 2, "c": 3}, {"b": 2}, {}])
+def test_key_requires_ok(obj: dict) -> None:
+    assert cv.key_requires("a", "b", "c")(obj) is obj
+
+
+def test_key_requires_all() -> None:
+    with pytest.raises(Invalid, match="'a' requires 'b' and 'c'"):
+        cv.key_requires("a", "b", "c")({"a": 1, "b": 2})
+
+
+def test_key_requires_any_of() -> None:
+    validator = cv.key_requires(("a", "x"), "b", "c", any_of=True)
+    assert validator({"a": 1, "c": 3})
+    with pytest.raises(vol.MultipleInvalid) as exc:
+        validator({"a": 1, "x": 2})
+    assert [str(e) for e in exc.value.errors] == [
+        "'a' requires 'b' or 'c' @ data['a']",
+        "'x' requires 'b' or 'c' @ data['x']",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # time_period_str_colon / time_period_str_unit
 # ---------------------------------------------------------------------------

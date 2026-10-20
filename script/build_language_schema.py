@@ -1068,6 +1068,10 @@ def convert(schema, config_var, path):
             # A callable CONFIG_SCHEMA that returned a representative schema
             # for extraction (model-driven components); walk it as usual.
             convert(data, config_var, path)
+        elif schema_type == "key_constraint":
+            config_var.setdefault(S_SCHEMA, {}).setdefault("constraints", []).append(
+                data
+            )
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":

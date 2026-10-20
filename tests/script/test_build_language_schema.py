@@ -141,6 +141,38 @@ def test_convert_walks_callable_schema_extractor() -> None:
     assert "foo" in config_var["schema"]["config_vars"]
 
 
+def test_convert_emits_key_constraints() -> None:
+    base = cv.Schema({cv.Optional("transport", default="tcp"): cv.string})
+    schema = cv.All(
+        base.extend({cv.Optional("path"): cv.string}),
+        cv.only_when("path", "transport", ("ws", "wss")),
+        cv.only_when(("path", "transport"), "mode", "tls", negate=True),
+        cv.key_requires("path", "a", "b", any_of=True),
+    )
+    assert _bls.convert_config(schema, "/test")["schema"]["constraints"] == [
+        {
+            "type": "only_when",
+            "keys": ["path"],
+            "selector": "transport",
+            "values": ["ws", "wss"],
+            "negate": False,
+        },
+        {
+            "type": "only_when",
+            "keys": ["path", "transport"],
+            "selector": "mode",
+            "values": ["tls"],
+            "negate": True,
+        },
+        {
+            "type": "key_requires",
+            "keys": ["path"],
+            "required": ["a", "b"],
+            "any_of": True,
+        },
+    ]
+
+
 def test_convert_emits_variant_enum() -> None:
     """A per-variant enum is dumped with each value tagged by its variants."""
     from esphome.components.esp32 import (

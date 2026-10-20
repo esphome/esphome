@@ -1019,6 +1019,96 @@ def has_none_or_all_keys(*keys):
     return validate
 
 
+def _as_tuple(value: typing.Any) -> tuple:
+    return tuple(value) if isinstance(value, (list, tuple)) else (value,)
+
+
+def _quote_value(value: typing.Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return f"'{value}'"
+
+
+def _key_constraint(
+    record: dict[str, typing.Any],
+    passes: typing.Callable[[dict], bool],
+    message: str,
+):
+    """Reject each of ``record["keys"]`` that is set when *passes* fails.
+
+    The schema dump appends *record* to the schema's ``constraints`` list.
+    """
+
+    @schema_extractor("key_constraint")
+    def validate(obj):
+        if obj is SCHEMA_EXTRACT:
+            return copy.deepcopy(record)
+        if not isinstance(obj, dict):
+            raise Invalid("expected dictionary")
+        if passes(obj):
+            return obj
+        if errors := [
+            Invalid(f"'{key}' {message}", path=[key])
+            for key in record["keys"]
+            if key in obj
+        ]:
+            raise MultipleInvalid(errors)
+        return obj
+
+    return validate
+
+
+def only_when(
+    keys: str | list[str] | tuple[str, ...],
+    selector: str,
+    values: typing.Any,
+    *,
+    negate: bool = False,
+):
+    """Allow *keys* only when *selector* is one of *values* (none of them with *negate*).
+
+    Place it after the schema in ``cv.All`` so the selector's default counts. Prefer
+    ``cv.typed_schema`` when most of the schema depends on the selector.
+    """
+    keys = _as_tuple(keys)
+    values = _as_tuple(values)
+    assert all(isinstance(v, (str, int, float, bool)) for v in values)
+    shown = " or ".join(_quote_value(v) for v in values)
+    return _key_constraint(
+        {
+            "type": "only_when",
+            "keys": list(keys),
+            "selector": selector,
+            "values": list(values),
+            "negate": negate,
+        },
+        lambda obj: (obj.get(selector) in values) != negate,
+        f"is only valid when '{selector}' is {'not ' if negate else ''}{shown}",
+    )
+
+
+def key_requires(
+    keys: str | list[str] | tuple[str, ...], *required: str, any_of: bool = False
+):
+    """Allow *keys* only when all of *required* are set (any one of them with *any_of*).
+
+    Place it after the schema in ``cv.All``.
+    """
+    assert required
+    check = any if any_of else all
+    joiner = " or " if any_of else " and "
+    return _key_constraint(
+        {
+            "type": "key_requires",
+            "keys": list(_as_tuple(keys)),
+            "required": list(required),
+            "any_of": any_of,
+        },
+        lambda obj: check(key in obj for key in required),
+        f"requires {joiner.join(_quote_value(key) for key in required)}",
+    )
+
+
 TIME_PERIOD_ERROR = (
     "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 )
