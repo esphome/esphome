@@ -647,8 +647,7 @@ async def to_code(config):
             )
         )
     )
-    if CONF_MANUFACTURER_DATA in config:
-        cg.add(var.set_manufacturer_data(config[CONF_MANUFACTURER_DATA]))
+    cg.add_optional(var.set_manufacturer_data, config.get(CONF_MANUFACTURER_DATA))
     for service_config in config[CONF_SERVICES]:
         # Calculate the optimal number of handles based on the number of characteristics and descriptors
         num_handles = calculate_num_handles(service_config)
