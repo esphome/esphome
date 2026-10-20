@@ -18,7 +18,7 @@ def test_missing_address_defaults_to_0x02_with_warning(
     0x02 (no silent move to 0x2A) and warns that the default will change."""
     config = hoermann_hcp.CONFIG_SCHEMA({})
     assert config["address"] == 0x02
-    assert "'address' not set. Using 0x02 for now." in caplog.text
+    assert "'address' is not set. Using 0x02 for now." in caplog.text
 
 
 @pytest.mark.parametrize("address", RESERVED_ADDRESSES)
