@@ -259,7 +259,7 @@ void MitsubishiClimate::transmit_state() {
     data->mark(MITSUBISHI_HEADER_MARK);
     data->space(MITSUBISHI_HEADER_SPACE);
     // Data
-    data->item_bytes_lsb(remote_state, sizeof(remote_state), MITSUBISHI_BIT_TIMINGS);
+    data->item_bytes_lsb<MITSUBISHI_BIT_TIMINGS>(remote_state, sizeof(remote_state));
     // Footer
     if (r == 0) {
       data->mark(MITSUBISHI_BIT_MARK);
@@ -281,7 +281,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  if (!data.expect_bytes_lsb(state_frame, sizeof(state_frame), MITSUBISHI_BIT_TIMINGS))
+  if (!data.expect_bytes_lsb<MITSUBISHI_BIT_TIMINGS>(state_frame, sizeof(state_frame)))
     return false;
 
   // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).

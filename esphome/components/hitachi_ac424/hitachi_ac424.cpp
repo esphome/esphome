@@ -224,7 +224,7 @@ void HitachiClimate::transmit_state() {
     // Header
     data->item(HITACHI_AC424_HDR_MARK, HITACHI_AC424_HDR_SPACE);
     // Data
-    data->item_bytes_lsb(remote_state_, HITACHI_AC424_STATE_LENGTH, HITACHI_AC424_BIT_TIMINGS);
+    data->item_bytes_lsb<HITACHI_AC424_BIT_TIMINGS>(remote_state_, HITACHI_AC424_STATE_LENGTH);
     // Footer
     data->item(HITACHI_AC424_BIT_MARK, HITACHI_AC424_MIN_GAP);
   }
@@ -315,7 +315,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t recv_state[HITACHI_AC424_STATE_LENGTH];
-  if (!data.expect_bytes_lsb(recv_state, HITACHI_AC424_STATE_LENGTH, HITACHI_AC424_BIT_TIMINGS))
+  if (!data.expect_bytes_lsb<HITACHI_AC424_BIT_TIMINGS>(recv_state, HITACHI_AC424_STATE_LENGTH))
     return false;
 
   // Validate footer

@@ -136,7 +136,7 @@ void AirtonClimate::transmit_state() {
   data->set_carrier_frequency(AIRTON_IR_FREQUENCY);
   data->mark(AIRTON_HEADER_MARK);
   data->space(AIRTON_HEADER_SPACE);
-  data->item_bytes_lsb(remote_state, AIRTON_STATE_FRAME_SIZE, AIRTON_BIT_TIMINGS);
+  data->item_bytes_lsb<AIRTON_BIT_TIMINGS>(remote_state, AIRTON_STATE_FRAME_SIZE);
 
   data->mark(AIRTON_BIT_MARK);
   data->space(AIRTON_MESSAGE_SPACE);
@@ -283,7 +283,7 @@ bool AirtonClimate::on_receive(remote_base::RemoteReceiveData data) {
     ESP_LOGV(TAG, "Wrong header encoding detected!");
     return false;
   }
-  if (!data.expect_bytes_lsb(remote_state, AIRTON_STATE_FRAME_SIZE, AIRTON_BIT_TIMINGS))
+  if (!data.expect_bytes_lsb<AIRTON_BIT_TIMINGS>(remote_state, AIRTON_STATE_FRAME_SIZE))
     return false;
 
   if (remote_state[0] != AIRTON_HEADER_BYTE0 || remote_state[1] != AIRTON_HEADER_BYTE1) {
