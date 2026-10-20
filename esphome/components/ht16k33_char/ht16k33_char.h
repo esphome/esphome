@@ -50,6 +50,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   /// 0 steady, 1 at 2 Hz, 2 at 1 Hz, 3 at 0.5 Hz; before setup only the value is kept
   void set_blink(uint8_t blink);
   void display_off(bool turn_off);
+  /// Stop the oscillator, the lowest power state; before setup only the value is kept
   void display_standby(bool standby);
   /// Clear the display memory; the next update redraws the message
   void blank();
@@ -62,6 +63,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
       f(address);
 #endif
   }
+  uint8_t system_setup_() const;
   bool write_all_(uint8_t command);
   bool clear_all_();
   uint8_t find_segments_(uint32_t codepoint) const;
@@ -71,7 +73,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   const uint8_t capacity_;
   uint8_t length_{0};
   uint8_t intensity_{15};
-  /// Display setup register: on bit and blink rate
+  /// Display setup register: on bit and blink rate; bit 7 remembers standby, which the register does not use
   uint8_t display_setup_{1};
   ht16k33_char_writer_t writer_{};
 #ifdef HT16K33_CHAR_SECONDARY_COUNT

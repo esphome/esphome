@@ -17,6 +17,8 @@ static constexpr uint8_t COMMAND_DISPLAY_DATA = 0x00;
 static constexpr uint8_t COMMAND_SYSTEM_SETUP = 0x20;   // bit 0 runs the oscillator
 static constexpr uint8_t COMMAND_DISPLAY_SETUP = 0x80;  // bit 0 turns the display on, bits 1 and 2 pick the blink rate
 static constexpr uint8_t BLINK_MASK = 0x06;
+static constexpr uint8_t DISPLAY_SETUP_MASK = 0x07;
+static constexpr uint8_t STANDBY_FLAG = 0x80;     // kept in display_setup_, not sent
 static constexpr uint8_t COMMAND_DIMMING = 0xE0;  // bits 0 to 3 are the duty cycle, 1/16 to 16/16
 static constexpr uint8_t OSCILLATOR_ON = 0x01;
 static constexpr uint8_t DISPLAY_ON = 0x01;
@@ -65,8 +67,8 @@ static constexpr uint8_t FONT[] PROGMEM = {
 
 void HT16K33CharDisplay::setup() {
   // Cleared before the display turns on, so a message from before an MCU-only reboot never shows
-  if (!this->write_all_(COMMAND_SYSTEM_SETUP | OSCILLATOR_ON) || !this->clear_all_() ||
-      !this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_) ||
+  if (!this->write_all_(this->system_setup_()) || !this->clear_all_() ||
+      !this->write_all_(COMMAND_DISPLAY_SETUP | (this->display_setup_ & DISPLAY_SETUP_MASK)) ||
       !this->write_all_(COMMAND_DIMMING | this->intensity_)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
@@ -93,6 +95,10 @@ void HT16K33CharDisplay::dump_config() {
   }
 #endif
   LOG_UPDATE_INTERVAL(this);
+}
+
+uint8_t HT16K33CharDisplay::system_setup_() const {
+  return COMMAND_SYSTEM_SETUP | ((this->display_setup_ & STANDBY_FLAG) ? 0 : OSCILLATOR_ON);
 }
 
 bool HT16K33CharDisplay::clear_all_() {
@@ -228,19 +234,24 @@ void HT16K33CharDisplay::set_blink(uint8_t blink) {
     blink = 0;
   this->display_setup_ = (this->display_setup_ & ~BLINK_MASK) | (blink << 1);
   if (this->is_ready())
-    this->status_comm_result(this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_));
+    this->status_comm_result(this->write_all_(COMMAND_DISPLAY_SETUP | (this->display_setup_ & DISPLAY_SETUP_MASK)));
 }
 
 void HT16K33CharDisplay::display_off(bool turn_off) {
   this->display_setup_ = (this->display_setup_ & ~DISPLAY_ON) | (turn_off ? 0 : DISPLAY_ON);
   if (this->is_ready())
-    this->status_comm_result(this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_));
+    this->status_comm_result(this->write_all_(COMMAND_DISPLAY_SETUP | (this->display_setup_ & DISPLAY_SETUP_MASK)));
 }
 
 void HT16K33CharDisplay::display_standby(bool standby) {
-  this->status_comm_result(this->write_all_(COMMAND_SYSTEM_SETUP | (standby ? 0 : OSCILLATOR_ON)));
+  this->display_setup_ = (this->display_setup_ & ~STANDBY_FLAG) | (standby ? STANDBY_FLAG : 0);
+  if (this->is_ready())
+    this->status_comm_result(this->write_all_(this->system_setup_()));
 }
 
-void HT16K33CharDisplay::blank() { this->status_comm_result(this->clear_all_()); }
+void HT16K33CharDisplay::blank() {
+  if (this->is_ready())
+    this->status_comm_result(this->clear_all_());
+}
 
 }  // namespace esphome::ht16k33_char
