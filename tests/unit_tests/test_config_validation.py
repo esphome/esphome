@@ -1917,6 +1917,11 @@ def test_only_when_boolean_selector() -> None:
         validator({"active": False, "connections": []})
 
 
+def test_only_when_bool_never_matches_number() -> None:
+    with pytest.raises(Invalid, match="when 'mode' is '1'"):
+        cv.only_when("a", "mode", 1)({"mode": True, "a": 1})
+
+
 def test_only_when_negate() -> None:
     validator = cv.only_when("dc_pin", "bus_mode", "quad", negate=True)
     assert validator({"bus_mode": "single", "dc_pin": 4})

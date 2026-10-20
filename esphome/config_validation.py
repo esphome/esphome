@@ -1074,6 +1074,18 @@ def only_when(
     values = _as_tuple(values)
     assert all(isinstance(v, (str, int, float, bool)) for v in values)
     shown = " or ".join(_quote_value(v) for v in values)
+
+    def passes(obj: dict) -> bool:
+        actual = obj.get(selector)
+        # Compare bools by identity so True never matches 1
+        matched = any(
+            v is actual
+            if isinstance(actual, bool) or isinstance(v, bool)
+            else v == actual
+            for v in values
+        )
+        return matched != negate
+
     return _key_constraint(
         {
             "type": "only_when",
@@ -1082,7 +1094,7 @@ def only_when(
             "values": list(values),
             "negate": negate,
         },
-        lambda obj: (obj.get(selector) in values) != negate,
+        passes,
         f"is only valid when '{selector}' is {'not ' if negate else ''}{shown}",
     )
 

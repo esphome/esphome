@@ -575,12 +575,18 @@ def merge(source, destination):
             # get node or create one
             node = destination.setdefault(key, {})
             merge(value, node)
-        elif key == "constraints":
-            destination[key] = value + destination.get(key, [])
+        elif key == "constraints" and isinstance(value, list):
+            destination[key] = value + (destination.get(key) or [])
         else:
             destination[key] = value
 
     return destination
+
+
+def pop_schema_keep_constraints(node):
+    """Drop *node*'s schema but keep its key constraints."""
+    if constraints := node.pop(S_SCHEMA).get("constraints"):
+        node[S_SCHEMA] = {"constraints": constraints}
 
 
 def is_platform_schema(schema_name):
@@ -629,7 +635,7 @@ def shrink():
                         print("expected extends here!" + x)
                     arr_s = merge(key_s, arr_s)
                     if arr_s[S_TYPE] in ["enum", "typed"]:
-                        arr_s.pop(S_SCHEMA)
+                        pop_schema_keep_constraints(arr_s)
                 else:
                     arr_s.pop(S_EXTENDS)
                     arr_s |= key_s[S_SCHEMA]
@@ -649,7 +655,7 @@ def shrink():
                     print("skipping simple spread for " + ".".join(target))
                     continue
                 assert target_s[S_SCHEMA][S_EXTENDS] == [x]
-                target_s.pop(S_SCHEMA)
+                pop_schema_keep_constraints(target_s)
                 target_s |= key_s
                 if key_s[S_TYPE] in ["integer", "string"]:
                     target_s["data_type"] = x.split(".")[1]
@@ -663,7 +669,7 @@ def shrink():
                     target_s[S_EXTENDS].remove(x)
                     continue
                 assert x in target_s[S_SCHEMA][S_EXTENDS]
-                target_s.pop(S_SCHEMA)
+                pop_schema_keep_constraints(target_s)
                 target_s.pop(S_TYPE)  # undefined
                 target_s["data_type"] = x.split(".")[1]
             # remove this dangling again
