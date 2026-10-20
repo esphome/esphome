@@ -8,6 +8,7 @@ import re
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -86,17 +87,13 @@ async def test_api_string_lambda(
 
         # Wait for all service log messages
         # This confirms the lambdas compiled successfully and executed
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(
-                    string_called_future,
-                    int_called_future,
-                    float_called_future,
-                    char_ptr_called_future,
-                ),
-                timeout=5.0,
-            )
-        except TimeoutError:
-            pytest.fail(
-                "One or more service log messages not received - lambda may have failed to compile or execute"
-            )
+        await wait_or_fail(
+            asyncio.gather(
+                string_called_future,
+                int_called_future,
+                float_called_future,
+                char_ptr_called_future,
+            ),
+            5.0,
+            "One or more service log messages not received - lambda may have failed to compile or execute",
+        )

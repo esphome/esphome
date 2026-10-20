@@ -14,16 +14,14 @@ import pytest
 
 from .log_utils import LineWaiter
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 GREETING = b"hi"
 RECONNECT_GREETING = b"yo"
 
 
 async def _wait(event: asyncio.Event, timeout: float, message: str) -> None:
-    try:
-        await asyncio.wait_for(event.wait(), timeout)
-    except TimeoutError:
-        pytest.fail(message)
+    await wait_or_fail(event, timeout, message)
 
 
 @pytest.mark.asyncio
