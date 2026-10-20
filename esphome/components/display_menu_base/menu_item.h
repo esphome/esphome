@@ -118,6 +118,7 @@ class MenuItemNumber final : public MenuItemEditable {
  public:
   explicit MenuItemNumber() : MenuItemEditable(MENU_ITEM_NUMBER) {}
   void set_number_variable(number::Number *var) { this->number_var_ = var; }
+  // Keeps the pointer; the string must outlive the item (codegen passes a literal)
   void set_format(const char *fmt) { this->format_ = fmt; }
 
   bool has_value() const override { return true; }
@@ -139,6 +140,7 @@ class MenuItemSwitch final : public MenuItemEditable {
  public:
   explicit MenuItemSwitch() : MenuItemEditable(MENU_ITEM_SWITCH) {}
   void set_switch_variable(switch_::Switch *var) { this->switch_var_ = var; }
+  // Both keep the pointer; the strings must outlive the item (codegen passes literals)
   void set_on_text(const char *t) { this->switch_on_text_ = t; }
   void set_off_text(const char *t) { this->switch_off_text_ = t; }
 
