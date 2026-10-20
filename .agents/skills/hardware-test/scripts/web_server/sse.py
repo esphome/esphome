@@ -139,20 +139,24 @@ if args.churn:
 
 for c in clients:
     c.join()
+stall_closed = None
 if stall_sock is not None:
+    # Drain what the small buffer holds: a close shows as b"" or a reset after it, an open session keeps feeding data
+    stall_sock.settimeout(2.0)
     try:
-        stall_sock.settimeout(0.5)
-        peek = stall_sock.recv(1)
-        print(
-            "stalled client: still open, had data"
-            if peek
-            else "stalled client: closed by device",
-            flush=True,
-        )
+        while stall_sock.recv(65536):
+            pass
+        stall_closed = True
     except TimeoutError:
-        print("stalled client: still open, no data read", flush=True)
-    except OSError as e:
-        print("stalled client: closed by device", e, flush=True)
+        stall_closed = False
+    except OSError:
+        stall_closed = True
+    print(
+        "stalled client: closed by device"
+        if stall_closed
+        else "stalled client: still open",
+        flush=True,
+    )
     stall_sock.close()
 
 for c in clients:
@@ -171,3 +175,7 @@ if failed:
     sys.exit(
         f"{len(failed)} client(s) did not run clean to the deadline with valid state events"
     )
+if stall_closed is False:
+    sys.exit("stalled session was not closed by the device")
+if churn_done < args.churn:
+    sys.exit(f"only {churn_done} of {args.churn} churn connections were made")
