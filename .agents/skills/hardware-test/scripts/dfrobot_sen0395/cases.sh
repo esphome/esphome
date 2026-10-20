@@ -3,7 +3,7 @@
 # templates/dfrobot-sen0395-dut.yaml, with a serial capture of the device running into CAPTURE
 D=$1; K=$2; LOG=$3; LABEL=$4; PY=${PYTHON:-python3}; CTL="$(dirname "$0")/ctl.py"
 show() { tail -n +$(($1+1)) "$LOG" | sed 's/\x1b\[[0-9;]*m//g' | grep -a 'dfrobot\|Detected\|\[W\]\|\[E\]\|sen\]' | grep -a -v 'JYBSS\|took a long time' | cut -c1-200; }
-step() { n0=$(wc -l < "$LOG"); echo "=== $LABEL: $1 ($(date +%T))"; shift; $PY "$CTL" "$D" "$K" "$@" 2>&1 | grep -v '^$'; echo "--- device log:"; show "$n0"; }
+step() { n0=$(wc -l < "$LOG"); echo "=== $LABEL: $1 ($(date +%T))"; shift; $PY "$CTL" "$D" "$K" "$@" || { rc=$?; echo "driver failed ($rc), aborting"; exit $rc; }; echo "--- device log:"; show "$n0"; }
 frames() { echo "frames: $(tail -n +$(($1+1)) "$LOG" | grep -a -c 'JYBSS,1') present, $(tail -n +$(($1+1)) "$LOG" | grep -a -c 'JYBSS,0') absent"; }
 n0=$(wc -l < "$LOG"); echo "=== $LABEL: 20 s of frames ($(date +%T))"; sleep 20; frames "$n0"
 step "range 0 to 3 m" "press:Range 0 to 3m" wait:12
