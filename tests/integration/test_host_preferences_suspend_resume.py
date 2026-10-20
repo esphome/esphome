@@ -12,6 +12,7 @@ from aioesphomeapi import ButtonInfo, EntityInfo
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 DEVICE_NAME = "test_suspend_resume_device"
 
@@ -29,10 +30,7 @@ async def _wait_for(
     awaitable: Awaitable[Any], message: str, timeout: float = 5.0
 ) -> None:
     """Await a future or coroutine, failing the test with a clear message on timeout."""
-    try:
-        await asyncio.wait_for(awaitable, timeout=timeout)
-    except TimeoutError:
-        pytest.fail(message)
+    await wait_or_fail(awaitable, timeout, message)
 
 
 async def _poll_until_exists(path: Path) -> None:
