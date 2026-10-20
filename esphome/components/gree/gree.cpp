@@ -103,13 +103,12 @@ void GreeClimate::transmit_state() {
   auto *data = transmit.get_data();
   data->set_carrier_frequency(GREE_IR_FREQUENCY);
 
+  const bool long_gaps = model == GREE_YAC1FB9 || model == GREE_YAW1F;
+  const uint32_t header_space = long_gaps ? GREE_YAC1FB9_HEADER_SPACE : GREE_HEADER_SPACE;
+  const uint32_t message_space = long_gaps ? GREE_YAC1FB9_MESSAGE_SPACE : GREE_MESSAGE_SPACE;
   auto encode = [&](const uint8_t *state) {
     data->mark(GREE_HEADER_MARK);
-    if (model == GREE_YAC1FB9 || model == GREE_YAW1F) {
-      data->space(GREE_YAC1FB9_HEADER_SPACE);
-    } else {
-      data->space(GREE_HEADER_SPACE);
-    }
+    data->space(header_space);
 
     for (int i = 0; i < 4; i++) {
       for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
@@ -127,11 +126,7 @@ void GreeClimate::transmit_state() {
     data->space(GREE_ZERO_SPACE);
 
     data->mark(GREE_BIT_MARK);
-    if (model == GREE_YAC1FB9 || model == GREE_YAW1F) {
-      data->space(GREE_YAC1FB9_MESSAGE_SPACE);
-    } else {
-      data->space(GREE_MESSAGE_SPACE);
-    }
+    data->space(message_space);
 
     for (int i = 4; i < 8; i++) {
       for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
@@ -147,7 +142,7 @@ void GreeClimate::transmit_state() {
   encode(remote_state);
   if (model == GREE_YAW1F) {
     // The YAW1F remote follows every command with a second message, 00 00 00 A0 | 00 00 00 A0
-    static const uint8_t FOLLOWUP[8] = {0x00, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0xA0};
+    static constexpr uint8_t FOLLOWUP[8] = {0x00, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0xA0};
     data->space(GREE_YAW1F_FOLLOWUP_SPACE);
     encode(FOLLOWUP);
   }

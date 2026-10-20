@@ -40,6 +40,7 @@ static constexpr uint32_t GREE_YAC_HEADER_SPACE = 3000;
 static constexpr uint32_t GREE_YAC_BIT_MARK = 650;
 
 // Timing specific to YAC1FB9
+// Also used by YAW1F
 static constexpr uint32_t GREE_YAC1FB9_HEADER_SPACE = 4500;
 static constexpr uint32_t GREE_YAC1FB9_MESSAGE_SPACE = 19980;
 
