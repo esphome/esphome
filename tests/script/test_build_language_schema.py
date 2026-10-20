@@ -187,6 +187,16 @@ def test_merge_enum_option_named_constraints() -> None:
     assert _bls.merge(base, {"values": {}}) == {"values": {"constraints": None}}
 
 
+def test_inline_schema_keeps_base_and_local_constraints() -> None:
+    node = {"constraints": [{"type": "only_when"}]}
+    base = {"config_vars": {"a": {}}, "constraints": [{"type": "key_requires"}]}
+    _bls.inline_schema(node, base)
+    assert node == {
+        "config_vars": {"a": {}},
+        "constraints": [{"type": "key_requires"}, {"type": "only_when"}],
+    }
+
+
 def test_pop_schema_keeps_constraints() -> None:
     node = {"type": "typed", "schema": {"extends": ["x"], "constraints": [{"a": 1}]}}
     _bls.pop_schema_keep_constraints(node)

@@ -589,6 +589,14 @@ def pop_schema_keep_constraints(node):
         node[S_SCHEMA] = {"constraints": constraints}
 
 
+def inline_schema(node, base):
+    """Copy *base* into *node*, keeping the key constraints of both."""
+    local = node.get("constraints", [])
+    node |= base
+    if local:
+        node["constraints"] = base.get("constraints", []) + local
+
+
 def is_platform_schema(schema_name):
     # added mostly because of schema_name == "microphone.MICROPHONE_SCHEMA"
     # and "alarm_control_panel"
@@ -638,7 +646,7 @@ def shrink():
                         pop_schema_keep_constraints(arr_s)
                 else:
                     arr_s.pop(S_EXTENDS)
-                    arr_s |= key_s[S_SCHEMA]
+                    inline_schema(arr_s, key_s[S_SCHEMA])
 
     # simple types should be spread on each component,
     # for enums so far these are logger.is_log_level, cover.validate_cover_state and pulse_counter.sensor.COUNT_MODE_SCHEMA
