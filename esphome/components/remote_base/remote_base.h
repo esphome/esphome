@@ -29,10 +29,20 @@ class RemoteTransmitData {
   }
   void reserve(uint32_t len) { this->data_.reserve(len); }
   /// Append one (bit_mark, one_space or zero_space) item per bit of each byte, least significant bit first.
-  /// Reserves room for the 16 * len timings it adds.
-  void item_bytes_lsb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space);
+  /// Inline: one driver's loop is smaller than a shared out-of-line copy.
+  void item_bytes_lsb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
+    for (size_t i = 0; i < len; i++) {
+      for (uint8_t mask = 1; mask != 0; mask <<= 1)
+        this->item(bit_mark, (bytes[i] & mask) ? one_space : zero_space);
+    }
+  }
   /// Same as item_bytes_lsb() with the most significant bit of each byte first.
-  void item_bytes_msb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space);
+  void item_bytes_msb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
+    for (size_t i = 0; i < len; i++) {
+      for (uint8_t mask = 0x80; mask != 0; mask >>= 1)
+        this->item(bit_mark, (bytes[i] & mask) ? one_space : zero_space);
+    }
+  }
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
   const RawTimings &get_data() const { return this->data_; }
@@ -85,9 +95,13 @@ class RemoteReceiveData {
   /// Read len bytes, least significant bit first, one (bit_mark, one_space or zero_space) item per bit.
   /// Returns false at the first item matching neither, with the read position left on that item.
   /// Only the bytes read in full are written to out.
-  bool expect_bytes_lsb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space);
+  bool expect_bytes_lsb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
+    return this->expect_bytes_<false>(out, len, bit_mark, one_space, zero_space);
+  }
   /// Same as expect_bytes_lsb() with the most significant bit of each byte first.
-  bool expect_bytes_msb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space);
+  bool expect_bytes_msb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
+    return this->expect_bytes_<true>(out, len, bit_mark, one_space, zero_space);
+  }
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
 
@@ -99,6 +113,22 @@ class RemoteReceiveData {
   ToleranceMode get_tolerance_mode() { return this->tolerance_mode_; }
 
  protected:
+  template<bool MSB_FIRST>
+  bool expect_bytes_(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
+    for (size_t i = 0; i < len; i++) {
+      uint8_t byte = 0;
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        if (this->expect_item(bit_mark, one_space)) {
+          byte |= mask;
+        } else if (!this->expect_item(bit_mark, zero_space)) {
+          return false;
+        }
+      }
+      out[i] = byte;
+    }
+    return true;
+  }
   int32_t lower_bound_(uint32_t length) const {
     if (this->tolerance_mode_ == TOLERANCE_MODE_TIME) {
       return int32_t(length - this->tolerance_);

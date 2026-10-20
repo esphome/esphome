@@ -8,35 +8,6 @@ ESPHOME_LOG_TAG(TAG, "remote_base");
 
 /* RemoteReceiveData */
 
-template<bool MSB_FIRST>
-static bool expect_bytes_impl(RemoteReceiveData &data, uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space,
-                              uint32_t zero_space) {
-  for (size_t i = 0; i < len; i++) {
-    uint8_t byte = 0;
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      const uint8_t mask = MSB_FIRST ? (0x80 >> bit) : (1 << bit);
-      if (data.expect_item(bit_mark, one_space)) {
-        byte |= mask;
-      } else if (!data.expect_item(bit_mark, zero_space)) {
-        ESP_LOGVV(TAG, "Byte %u bit %u fail", static_cast<unsigned>(i), bit);
-        return false;
-      }
-    }
-    out[i] = byte;
-  }
-  return true;
-}
-
-bool RemoteReceiveData::expect_bytes_lsb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space,
-                                         uint32_t zero_space) {
-  return expect_bytes_impl<false>(*this, out, len, bit_mark, one_space, zero_space);
-}
-
-bool RemoteReceiveData::expect_bytes_msb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space,
-                                         uint32_t zero_space) {
-  return expect_bytes_impl<true>(*this, out, len, bit_mark, one_space, zero_space);
-}
-
 bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset) const {
   if (!this->is_valid(offset))
     return false;
@@ -175,29 +146,6 @@ void RemoteReceiverBase::call_listeners_dumpers_() {
 void RemoteReceiverBinarySensorBase::dump_config() { LOG_BINARY_SENSOR("", "Remote Receiver Binary Sensor", this); }
 
 /* RemoteTransmitData */
-
-template<bool MSB_FIRST>
-static void item_bytes_impl(RemoteTransmitData &data, const uint8_t *bytes, size_t len, uint32_t bit_mark,
-                            uint32_t one_space, uint32_t zero_space) {
-  data.reserve(data.get_data().size() + len * 16);
-  for (size_t i = 0; i < len; i++) {
-    const uint8_t byte = bytes[i];
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      const uint8_t mask = MSB_FIRST ? (0x80 >> bit) : (1 << bit);
-      data.item(bit_mark, (byte & mask) ? one_space : zero_space);
-    }
-  }
-}
-
-void RemoteTransmitData::item_bytes_lsb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space,
-                                        uint32_t zero_space) {
-  item_bytes_impl<false>(*this, bytes, len, bit_mark, one_space, zero_space);
-}
-
-void RemoteTransmitData::item_bytes_msb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space,
-                                        uint32_t zero_space) {
-  item_bytes_impl<true>(*this, bytes, len, bit_mark, one_space, zero_space);
-}
 
 void RemoteTransmitData::set_data_from_packed_sint32(const uint8_t *data, size_t len, size_t count) {
   this->data_.clear();
