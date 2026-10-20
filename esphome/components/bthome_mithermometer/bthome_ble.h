@@ -13,6 +13,10 @@
 // decryption availability is selected per platform in the .cpp.
 namespace esphome::bthome_mithermometer {
 
+namespace testing {
+class ReplayClockAccess;
+}  // namespace testing
+
 class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, public Component {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
@@ -31,6 +35,9 @@ class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, p
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
 
  protected:
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
+  friend class testing::ReplayClockAccess;
+#endif
   bool handle_service_data_(const ble_device_base::ServiceData &service_data,
                             const ble_device_base::ESPBTDevice &device);
   bool decrypt_bthome_payload_(const std::vector<uint8_t> &data, uint64_t source_address,

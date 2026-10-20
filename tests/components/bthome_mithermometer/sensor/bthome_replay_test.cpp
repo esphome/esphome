@@ -7,6 +7,14 @@
 
 namespace esphome::bthome_mithermometer::testing {
 
+// Ages the last accepted frame past the resync window; the host loop clock stays at 0.
+class ReplayClockAccess {
+ public:
+  static void expire_window(BTHomeMiThermometer &thermometer) {
+    thermometer.last_accepted_ms_ = static_cast<uint32_t>(0) - (10 * 60 * 1000 + 1);
+  }
+};
+
 namespace {
 
 // Encrypted BTHome v2 frames for SENSOR_ADDRESS, generated with Python `cryptography`
@@ -94,6 +102,20 @@ TEST(BTHomeMiThermometerReplay, OtherDeviceDoesNotAffectCounter) {
   EXPECT_FALSE(h.thermometer.parse_device(advert(OTHER_COUNTER_100, OTHER_ADDRESS)));
   ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_10)));
   EXPECT_NEAR(h.temperature.state, 22.5f, 0.001f);
+}
+
+// A lower counter is accepted again once no frame has been accepted for ten minutes, so a sensor whose counter
+// restarted recovers; the warning flag set by the rejection clears with the accepted frame.
+TEST(BTHomeMiThermometerReplay, AcceptsLowerCounterAfterTheResyncWindow) {
+  Harness h;
+  ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_11)));
+  EXPECT_FALSE(h.thermometer.parse_device(advert(COUNTER_9)));
+  ReplayClockAccess::expire_window(h.thermometer);
+  ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_9)));
+  EXPECT_NEAR(h.temperature.state, 4.0f, 0.001f);
+  ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_10)));
+  EXPECT_NEAR(h.temperature.state, 22.5f, 0.001f);
+  EXPECT_FALSE(h.thermometer.parse_device(advert(COUNTER_9)));
 }
 
 }  // namespace esphome::bthome_mithermometer::testing
