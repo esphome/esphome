@@ -38,9 +38,14 @@ def _within_glyph_table(value: str) -> str:
     return value
 
 
-single_character = cv.All(
+_SINGLE_CHARACTER = cv.All(
     cv.string_strict, cv.Length(min=1, max=1), _within_glyph_table
 )
+
+
+def single_character(value: object) -> str:
+    """A plain function, which the language schema builder expects as a mapping key."""
+    return _SINGLE_CHARACTER(value)
 
 
 SECONDARY_DISPLAY_SCHEMA = cv.Schema({cv.Required(CONF_ADDRESS): cv.i2c_address})
