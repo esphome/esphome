@@ -38,7 +38,6 @@ LimitMode = light_ns.enum("LimitMode", is_class=True)
 LIMIT_MODES = LimitMode.options("CLAMP", "DO_NOTHING")
 
 # Actions
-ToggleAction = light_ns.class_("ToggleAction", automation.Action)
 LightEffectCycleAction = light_ns.class_("LightEffectCycleAction", automation.Action)
 DimRelativeAction = light_ns.class_("DimRelativeAction", automation.Action)
 AddressableSet = light_ns.class_("AddressableSet", automation.Action)

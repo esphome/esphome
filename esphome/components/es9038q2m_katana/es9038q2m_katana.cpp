@@ -69,16 +69,8 @@ const LogString *deemphasis_to_str(DeemphasisMode mode) {
 }  // namespace
 
 void ES9038Q2MKatana::setup() {
-  uint8_t chip_id = 0;
-  if (!this->read_byte(KATANA_REG_CHIP_ID, &chip_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->check_chip_id(this, KATANA_REG_CHIP_ID, KATANA_CHIP_ID))
     return;
-  }
-  if (chip_id != KATANA_CHIP_ID) {
-    ESP_LOGE(TAG, "Unexpected chip ID 0x%02X", chip_id);
-    this->mark_failed(LOG_STR("Unexpected chip ID"));
-    return;
-  }
   if (!this->write_byte(KATANA_REG_RESET, 0x01)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
@@ -127,14 +119,7 @@ bool ES9038Q2MKatana::write_volume_() {
 }
 
 // Records the outcome of a runtime write; the cached state only changes on success.
-bool ES9038Q2MKatana::check_write_(bool ok) {
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
-  return ok;
-}
+bool ES9038Q2MKatana::check_write_(bool ok) { return this->status_comm_result(ok); }
 
 bool ES9038Q2MKatana::set_volume(float volume) {
   if (this->is_failed())

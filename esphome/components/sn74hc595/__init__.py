@@ -72,18 +72,13 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if config[CONF_TYPE] == TYPE_GPIO:
-        data_pin = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
-        cg.add(var.set_data_pin(data_pin))
-        clock_pin = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
-        cg.add(var.set_clock_pin(clock_pin))
+        await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+        await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
     else:
         await spi.register_spi_device(var, config)
 
-    latch_pin = await cg.gpio_pin_expression(config[CONF_LATCH_PIN])
-    cg.add(var.set_latch_pin(latch_pin))
-    if oe_pin := config.get(CONF_OE_PIN):
-        oe_pin = await cg.gpio_pin_expression(oe_pin)
-        cg.add(var.set_oe_pin(oe_pin))
+    await cg.add_pin(var.set_latch_pin, config[CONF_LATCH_PIN])
+    await cg.add_pin(var.set_oe_pin, config.get(CONF_OE_PIN))
     cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
 
 

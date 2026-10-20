@@ -59,13 +59,10 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
     final_dout = this->dout_pin_->digital_read();
   }
 
-  if (!final_dout) {
+  if (!this->status_comm_result(final_dout)) {
     ESP_LOGW(TAG, "HX711 DOUT pin not high after reading (data 0x%" PRIx32 ")!", data);
-    this->status_set_warning();
     return false;
   }
-
-  this->status_clear_warning();
 
   data = static_cast<uint32_t>(sign_extend<24>(data));
 
