@@ -161,7 +161,9 @@ void BTHomeMiThermometer::dump_config() {
   if (this->has_bindkey_) {
     char bindkey_hex[format_hex_pretty_size(BTHOME_BINDKEY_SIZE)];
     ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, BTHOME_BINDKEY_SIZE, '.'));
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
     ESP_LOGCONFIG(TAG, "  Replay Protection: %s", YESNO(this->replay_protection_));
+#endif
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
@@ -259,36 +261,30 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
   return true;
 }
 
-// Optional replay protection (replay_protection: true). The device increases
-// the counter of encrypted frames with every new transmission; some firmwares
-// (e.g. PVVX) also send new data under the same counter. So a frame is dropped
-// only if it is an exact repeat of the last one (same counter and MIC) or has a
-// lower counter than the last accepted one. A lower counter is accepted again
-// once no frame was accepted for BTHOME_REPLAY_RESYNC_MS, so a device that
-// restarted its counter (e.g. after a battery change) recovers on its own. The
-// last counter is kept in RAM only, so the first frame after a reboot of the
-// ESP is always accepted.
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
+// Some firmwares (e.g. PVVX) send new data under an unchanged counter, so only an exact repeat (same counter and
+// MIC) is dropped as a duplicate; the lower-counter rule is the replay defence. The state is RAM only, so the first
+// frame after a reboot of the ESP is always accepted.
 bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter, uint32_t mic) {
   const uint32_t now = millis();
-  if (this->last_counter_.has_value()) {
-    if (counter == *this->last_counter_ && mic == this->last_mic_) {
-      ESP_LOGVV(TAG, "Duplicate BTHome frame (counter %" PRIu32 ")", counter);
+  if (counter == this->last_counter_ && mic == this->last_mic_) {
+    ESP_LOGVV(TAG, "Duplicate BTHome frame (counter %" PRIu32 ")", counter);
+    return false;
+  }
+  if (counter < this->last_counter_) {
+    if (now - this->last_accepted_ms_ < BTHOME_REPLAY_RESYNC_MS) {
+      ESP_LOGW(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32 " (replay?)", counter,
+               this->last_counter_);
       return false;
     }
-    if (counter < *this->last_counter_) {
-      if (now - this->last_accepted_ms_ < BTHOME_REPLAY_RESYNC_MS) {
-        ESP_LOGW(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32 " (replay?)", counter,
-                 *this->last_counter_);
-        return false;
-      }
-      ESP_LOGW(TAG, "BTHome counter restarted (%" PRIu32 " -> %" PRIu32 "), resync", *this->last_counter_, counter);
-    }
+    ESP_LOGW(TAG, "BTHome counter restarted (%" PRIu32 " -> %" PRIu32 "), resync", this->last_counter_, counter);
   }
   this->last_counter_ = counter;
   this->last_mic_ = mic;
   this->last_accepted_ms_ = now;
   return true;
 }
+#endif
 
 bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceData &service_data,
                                                const ble_device_base::ESPBTDevice &device) {
@@ -376,17 +372,16 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
     return false;
   }
 
-  // Only checked once the MIC has authenticated the frame and the source address
-  // matches, so frames from other devices never touch the replay state. The
-  // counter is little-endian and sits right before the MIC.
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
+  // Only once the MIC has authenticated the frame and the address matched, so other devices never touch the state.
   if (is_encrypted && this->replay_protection_) {
-    const size_t ctr = data.size() - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
-    const size_t mic = data.size() - BTHOME_MIC_SIZE;
-    const uint32_t counter = encode_uint32(data[ctr + 3], data[ctr + 2], data[ctr + 1], data[ctr]);
-    if (!this->check_replay_counter_(counter, encode_uint32(data[mic], data[mic + 1], data[mic + 2], data[mic + 3]))) {
+    const uint8_t *tail = data.data() + data.size() - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
+    if (!this->check_replay_counter_(encode_value_le<uint32_t>(tail),
+                                     encode_value_le<uint32_t>(tail + BTHOME_COUNTER_SIZE))) {
       return false;
     }
   }
+#endif
 
   if (payload_size == 0) {
     ESP_LOGVV(TAG, "BTHome payload empty after header");

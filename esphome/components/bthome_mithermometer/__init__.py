@@ -61,4 +61,5 @@ async def setup_bthome_mithermometer(var: MockObj, config: ConfigType) -> None:
         ]
         cg.add(var.set_bindkey(cg.ArrayInitializer(*bindkey_bytes)))
     if config[CONF_REPLAY_PROTECTION]:
+        cg.add_define("USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION")
         cg.add(var.set_replay_protection(True))
