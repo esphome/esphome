@@ -61,7 +61,7 @@ def test_web_server_ota_idf_multipart(generate_main: Callable[[str], str]) -> No
 
 
 def test_web_server_ota_without_web_server_fails() -> None:
-    """Web server OTA refuses a configuration without the HTTP server."""
+    """Web server OTA refuses a configuration without an HTTP server."""
     ota_config = {
         CONF_PLATFORM: CONF_WEB_SERVER,
         CONF_ID: ID("ota_web", is_manual=False),
@@ -70,9 +70,22 @@ def test_web_server_ota_without_web_server_fails() -> None:
     try:
         with pytest.raises(
             cv.Invalid,
-            match="web_server OTA platform requires the 'web_server:' component",
+            match="web_server OTA platform requires the 'web_server:' or 'captive_portal:' component",
         ):
             _web_server_ota_final_validate(ota_config)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_web_server_ota_with_captive_portal_passes() -> None:
+    """Captive portal provides the HTTP server needed by web server OTA."""
+    ota_config = {
+        CONF_PLATFORM: CONF_WEB_SERVER,
+        CONF_ID: ID("ota_web", is_manual=False),
+    }
+    token = fv.full_config.set({"captive_portal": {}, CONF_OTA: [ota_config]})
+    try:
+        _web_server_ota_final_validate(ota_config)
     finally:
         fv.full_config.reset(token)
 

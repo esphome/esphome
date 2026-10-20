@@ -28,15 +28,16 @@ WebServerOTAComponent = web_server_ns.class_("WebServerOTAComponent", OTACompone
 
 
 def _web_server_ota_final_validate(config: ConfigType) -> None:
-    """Require the HTTP server and merge multiple web_server OTA instances into one.
+    """Require an HTTP server and merge multiple web_server OTA instances into one.
 
     Multiple web_server OTA instances register duplicate HTTP handlers for /update,
     causing undefined behavior. Merge them into a single instance.
     """
     full_conf = fv.full_config.get()
-    if DOMAIN not in full_conf:
+    if DOMAIN not in full_conf and "captive_portal" not in full_conf:
         raise cv.Invalid(
-            "The web_server OTA platform requires the 'web_server:' component to be configured"
+            "The web_server OTA platform requires the 'web_server:' or "
+            "'captive_portal:' component to be configured"
         )
     ota_confs = full_conf.get(OTA_DOMAIN, [])
 
