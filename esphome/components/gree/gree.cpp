@@ -12,14 +12,11 @@ void GreeClimate::set_model(Model model) {
     this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
   }
   if (model == GREE_YX1FF) {
-    this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);   // YX1FF 4 speed
-    this->presets_.insert(climate::CLIMATE_PRESET_NONE);   // YX1FF sleep mode
-    this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);  // YX1FF sleep mode
+    this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);  // YX1FF 4 speed
   }
-
-  if (model == GREE_YAC1FB9) {
-    this->presets_.insert(climate::CLIMATE_PRESET_NONE);   // YAC1FB9 sleep mode
-    this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);  // YAC1FB9 sleep mode
+  if (model == GREE_YX1FF || model == GREE_YAC1FB9) {
+    this->presets_.insert(climate::CLIMATE_PRESET_NONE);  // sleep mode
+    this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }
 
   this->model_ = model;
@@ -89,7 +86,6 @@ void GreeClimate::transmit_state() {
 
   if (this->preset_() == GREE_PRESET_SLEEP) {
     remote_state[0] |= GREE_PRESET_SLEEP_BIT;
-    // Sleep is encoded as bit 7 of byte 0.
   }
 
   // Calculate the checksum
