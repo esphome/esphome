@@ -47,7 +47,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   /// HH:MM, or H:MM without the leading zero; 12-hour when use_ampm
   uint8_t clock_display(uint8_t pos, bool show_leading_zero, bool use_ampm, ESPTime time);
 
-  /// 0 steady, 1 at 2 Hz, 2 at 1 Hz, 3 at 0.5 Hz
+  /// 0 steady, 1 at 2 Hz, 2 at 1 Hz, 3 at 0.5 Hz; before setup only the value is kept
   void set_blink(uint8_t blink);
   void display_off(bool turn_off);
   void display_standby(bool standby);
@@ -71,7 +71,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   uint8_t length_{0};
   uint8_t intensity_{15};
   /// Display setup register: on bit and blink rate
-  uint8_t display_setup_{0};
+  uint8_t display_setup_{1};
   ht16k33_char_writer_t writer_{};
 #ifdef HT16K33_CHAR_SECONDARY_COUNT
   StaticVector<uint8_t, HT16K33_CHAR_SECONDARY_COUNT> secondary_addresses_;

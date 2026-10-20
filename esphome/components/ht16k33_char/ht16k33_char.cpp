@@ -64,7 +64,6 @@ static constexpr uint8_t FONT[] PROGMEM = {
 };
 
 void HT16K33CharDisplay::setup() {
-  this->display_setup_ = DISPLAY_ON;
   if (!this->write_all_(COMMAND_SYSTEM_SETUP | OSCILLATOR_ON) ||
       !this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_) ||
       !this->write_all_(COMMAND_DIMMING | this->intensity_)) {
@@ -217,12 +216,14 @@ void HT16K33CharDisplay::set_blink(uint8_t blink) {
   if (blink > MAX_BLINK)
     blink = 0;
   this->display_setup_ = (this->display_setup_ & ~BLINK_MASK) | (blink << 1);
-  this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_);
+  if (this->is_ready())
+    this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_);
 }
 
 void HT16K33CharDisplay::display_off(bool turn_off) {
   this->display_setup_ = (this->display_setup_ & ~DISPLAY_ON) | (turn_off ? 0 : DISPLAY_ON);
-  this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_);
+  if (this->is_ready())
+    this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_);
 }
 
 void HT16K33CharDisplay::display_standby(bool standby) {

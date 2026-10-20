@@ -10,6 +10,7 @@ AUTO_LOAD = ["unicode"]
 CONF_MAX_BUFFER_LENGTH = "max_buffer_length"
 CONF_SECONDARY_DISPLAYS = "secondary_displays"
 CONF_ADD_CHARACTERS = "add_characters"
+CONF_MESSAGE_ID = "message_id"
 
 # The only board so far
 DEVICE_ADAFRUIT_7_SEG_056IN = "ADAFRUIT_7_SEG_.56IN"
@@ -29,8 +30,9 @@ _request_secondary_slot = cg.slot_counter("HT16K33_CHAR_SECONDARY_COUNT")
 
 
 def _within_glyph_table(value: str) -> str:
-    if ord(value) > 0xFFFF:
-        raise cv.Invalid("Characters above U+FFFF are not supported")
+    # 0 ends the table and can never be printed
+    if not 0 < ord(value) <= 0xFFFF:
+        raise cv.Invalid("Only characters from U+0001 to U+FFFF are supported")
     return value
 
 
@@ -60,6 +62,7 @@ CONFIG_SCHEMA = cv.All(
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HT16K33CharDisplay),
+            cv.GenerateID(CONF_MESSAGE_ID): cv.declare_id(cg.char),
             cv.Required(CONF_DEVICE): cv.one_of(
                 DEVICE_ADAFRUIT_7_SEG_056IN, upper=True
             ),
@@ -84,7 +87,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     capacity = config[CONF_MAX_BUFFER_LENGTH]
-    message = f"ht16k33_char_message_{config[CONF_ID]}"
+    message = config[CONF_MESSAGE_ID].id
     # Terminator plus the bytes the UTF-8 decoder may read past a cut-off sequence
     cg.add_global(cg.RawStatement(f"static char {message}[{capacity + 4}];"))
     var = cg.new_Pvariable(config[CONF_ID], cg.RawExpression(message), capacity)
