@@ -4,7 +4,6 @@
 
 #include <array>
 #include "esphome/core/component.h"
-#include "esphome/components/button/button.h"
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -118,16 +117,6 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   text_sensor::TextSensor *bt_fw_version_sensor_{nullptr};
   text_sensor::TextSensor *model_name_sensor_{nullptr};
   text_sensor::TextSensor *error_code_sensor_{nullptr};
-};
-
-class DeltaWallboxStartChargingButton : public button::Button, public Parented<DeltaWallbox> {
- protected:
-  void press_action() override { this->parent_->start_charging(); }
-};
-
-class DeltaWallboxStopChargingButton : public button::Button, public Parented<DeltaWallbox> {
- protected:
-  void press_action() override { this->parent_->stop_charging(); }
 };
 }  // namespace esphome::delta_wallbox
 #endif

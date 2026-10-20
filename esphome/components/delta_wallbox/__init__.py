@@ -39,8 +39,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_user(config[CONF_USER]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
-    if (pin := config.get(CONF_PIN)) is not None:
-        cg.add(var.set_pin(pin))
+    cg.add_optional(var.set_pin, config.get(CONF_PIN))
 
     if time_id := config.get(CONF_TIME_ID):
         time_ = await cg.get_variable(time_id)

@@ -1,7 +1,20 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_MAX_CURRENT, UNIT_AMPERE
+from esphome.const import (
+    CONF_ENERGY,
+    CONF_MAX_CURRENT,
+    CONF_POWER,
+    DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_POWER,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
+    UNIT_AMPERE,
+    UNIT_KILOWATT,
+    UNIT_KILOWATT_HOURS,
+    UNIT_MINUTE,
+)
 from esphome.types import ConfigType
 
 from . import CONF_DELTA_WALLBOX_ID, DeltaWallbox
@@ -21,17 +34,33 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_AMPERE,
             accuracy_decimals=1,
         ),
+        cv.Optional(CONF_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_ENERGY): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT_HOURS,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional(CONF_CHARGING_TIME): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MINUTE,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_DURATION,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
     }
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_DELTA_WALLBOX_ID])
-
-    if charger_state_config := config.get(CONF_CHARGER_STATE):
-        sens = await sensor.new_sensor(charger_state_config)
-        cg.add(parent.set_charger_state_sensor(sens))
-
-    if max_current_config := config.get(CONF_MAX_CURRENT):
-        sens = await sensor.new_sensor(max_current_config)
-        cg.add(parent.set_max_current_sensor(sens))
+    hub = await cg.get_variable(config[CONF_DELTA_WALLBOX_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CHARGER_STATE, hub.set_charger_state_sensor)
+    await sensors(CONF_MAX_CURRENT, hub.set_max_current_sensor)
+    await sensors(CONF_POWER, hub.set_power_sensor)
+    await sensors(CONF_ENERGY, hub.set_energy_sensor)
+    await sensors(CONF_CHARGING_TIME, hub.set_charging_time_sensor)

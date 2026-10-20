@@ -25,24 +25,10 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_DELTA_WALLBOX_ID])
-
-    if serial_number_config := config.get(CONF_SERIAL_NUMBER):
-        sens = await text_sensor.new_text_sensor(serial_number_config)
-        cg.add(parent.set_serial_number_sensor(sens))
-
-    if fw_version_config := config.get(CONF_FW_VERSION):
-        sens = await text_sensor.new_text_sensor(fw_version_config)
-        cg.add(parent.set_fw_version_sensor(sens))
-
-    if bt_fw_version_config := config.get(CONF_BT_FW_VERSION):
-        sens = await text_sensor.new_text_sensor(bt_fw_version_config)
-        cg.add(parent.set_bt_fw_version_sensor(sens))
-
-    if model_name_config := config.get(CONF_MODEL_NAME):
-        sens = await text_sensor.new_text_sensor(model_name_config)
-        cg.add(parent.set_model_name_sensor(sens))
-
-    if error_code_config := config.get(CONF_ERROR_CODE):
-        sens = await text_sensor.new_text_sensor(error_code_config)
-        cg.add(parent.set_error_code_sensor(sens))
+    hub = await cg.get_variable(config[CONF_DELTA_WALLBOX_ID])
+    text_sensors = text_sensor.sub_text_sensors(config)
+    await text_sensors(CONF_SERIAL_NUMBER, hub.set_serial_number_sensor)
+    await text_sensors(CONF_FW_VERSION, hub.set_fw_version_sensor)
+    await text_sensors(CONF_BT_FW_VERSION, hub.set_bt_fw_version_sensor)
+    await text_sensors(CONF_MODEL_NAME, hub.set_model_name_sensor)
+    await text_sensors(CONF_ERROR_CODE, hub.set_error_code_sensor)
