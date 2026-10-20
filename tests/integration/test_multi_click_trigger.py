@@ -14,6 +14,7 @@ import re
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -57,26 +58,23 @@ async def test_multi_click_trigger(
         await client.execute_service(test_service, {})
 
         # Wait for all three triggers
-        try:
-            count = await asyncio.wait_for(single_click_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for SINGLE_CLICK - on_multi_click did not trigger."
-            )
+        count = await wait_or_fail(
+            single_click_future,
+            5.0,
+            "Timeout waiting for SINGLE_CLICK - on_multi_click did not trigger.",
+        )
         assert count == 1, f"Expected single click count=1, got {count}"
 
-        try:
-            count = await asyncio.wait_for(double_click_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for DOUBLE_CLICK - on_multi_click did not trigger."
-            )
+        count = await wait_or_fail(
+            double_click_future,
+            5.0,
+            "Timeout waiting for DOUBLE_CLICK - on_multi_click did not trigger.",
+        )
         assert count == 1, f"Expected double click count=1, got {count}"
 
-        try:
-            count = await asyncio.wait_for(long_press_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for LONG_PRESS - on_multi_click did not trigger."
-            )
+        count = await wait_or_fail(
+            long_press_future,
+            5.0,
+            "Timeout waiting for LONG_PRESS - on_multi_click did not trigger.",
+        )
         assert count == 1, f"Expected long press count=1, got {count}"

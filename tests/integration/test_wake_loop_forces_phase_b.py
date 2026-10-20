@@ -20,7 +20,6 @@ With the fix, delta>=1 (the wake forces Phase B within one tick of the wake).
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 import pytest
@@ -37,13 +36,6 @@ async def test_wake_loop_forces_phase_b(
     """A wake_loop_threadsafe() call from a background thread must trigger the
     component phase within the next tick, even when loop_interval_ is raised
     well above the observation window."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
     result: asyncio.Future[tuple[int, int]] = loop.create_future()
 

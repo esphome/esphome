@@ -10,6 +10,7 @@ import pytest
 
 from .log_utils import LineWaiter
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 SUBSCRIPTIONS = {
     ("select.mode", "options"),
@@ -75,10 +76,13 @@ async def test_api_homeassistant_entities(
         dump_select = next(s for s in services if s.name == "dump_select")
         client.subscribe_service_calls(calls.put_nowait)
         client.subscribe_home_assistant_states(on_state_sub)
-        try:
-            await asyncio.wait_for(all_subscribed, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"never subscribed: {SUBSCRIPTIONS - subscribed}")
+        await wait_or_fail(
+            all_subscribed,
+            5.0,
+            "never subscribed",
+            expected=SUBSCRIPTIONS,
+            subscribed=subscribed,
+        )
 
         await _check_select(client, waiter, keys, dump_select, next_call)
         await _check_text(client, waiter, keys, next_call)

@@ -362,8 +362,7 @@ async def to_code(config):
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
-    if CONF_CLIENT_ID in config:
-        cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
+    cg.add_optional(var.set_client_id, config.get(CONF_CLIENT_ID))
 
     discovery = config[CONF_DISCOVERY]
     discovery_retain = config[CONF_DISCOVERY_RETAIN]
@@ -561,12 +560,9 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
-    if CONF_QOS in config:
-        cg.add(var.set_qos(config[CONF_QOS]))
-    if CONF_RETAIN in config:
-        cg.add(var.set_retain(config[CONF_RETAIN]))
-    if CONF_SUBSCRIBE_QOS in config:
-        cg.add(var.set_subscribe_qos(config[CONF_SUBSCRIBE_QOS]))
+    cg.add_optional(var.set_qos, config.get(CONF_QOS))
+    cg.add_optional(var.set_retain, config.get(CONF_RETAIN))
+    cg.add_optional(var.set_subscribe_qos, config.get(CONF_SUBSCRIBE_QOS))
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
@@ -577,8 +573,7 @@ async def register_mqtt_component(var, config):
             config[CONF_COMMAND_TOPIC], [], cg.std_string
         )
         cg.add(var.set_custom_command_topic(command_topic))
-    if CONF_COMMAND_RETAIN in config:
-        cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
+    cg.add_optional(var.set_command_retain, config.get(CONF_COMMAND_RETAIN))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
         if not availability:
