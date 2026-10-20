@@ -16,6 +16,10 @@
 
 namespace esphome::atm90e32 {
 
+namespace testing {
+class ATM90E32ThresholdRegisters;
+}
+
 inline bool offset_register_value_matches(uint16_t actual, int16_t expected) {
   return actual == static_cast<uint16_t>(expected);
 }
@@ -50,9 +54,9 @@ inline void prepare_offset_rollback(const OffsetCalibration (&previous)[3], bool
     rollback[phase] = had_stored_values ? previous[phase] : OffsetCalibration{};
 }
 
-class ATM90E32Component : public PollingComponent,
-                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-                                                spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
+class ATM90E32Component final : public PollingComponent,
+                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                      spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
  public:
   static const uint8_t PHASEA = 0;
   static const uint8_t PHASEB = 1;
@@ -188,6 +192,8 @@ class ATM90E32Component : public PollingComponent,
   static uint16_t calculate_current_threshold_from_amps(float current_rms, uint16_t igain);
 
  protected:
+  friend class testing::ATM90E32ThresholdRegisters;
+  void setup_registers_();
 #ifdef USE_NUMBER
   number::Number *ref_voltages_[3]{nullptr, nullptr, nullptr};
   number::Number *ref_currents_[3]{nullptr, nullptr, nullptr};
@@ -322,6 +328,9 @@ class ATM90E32Component : public PollingComponent,
   bool restored_power_offset_calibration_{false};
   bool restored_gain_calibration_{false};
   bool calibration_message_printed_{false};
+#ifdef USE_TEXT_SENSOR
+  bool use_voltage_threshold_flags_{true};
+#endif
   bool offset_calibration_mismatch_[3]{false, false, false};
   bool power_offset_calibration_mismatch_[3]{false, false, false};
   bool gain_calibration_mismatch_[3]{false, false, false};

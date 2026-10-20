@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 #include <numbers>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::atm90e32 {
@@ -136,6 +137,10 @@ const char *ATM90E32Component::get_calibration_id_() { return this->instance_id_
 
 void ATM90E32Component::setup() {
   this->spi_setup();
+  this->setup_registers_();
+}
+
+void ATM90E32Component::setup_registers_() {
   const char *cs = this->get_calibration_id_();
   char legacy_cs[GPIO_SUMMARY_MAX_LEN];
   this->get_cs_summary_(legacy_cs);
@@ -917,9 +922,14 @@ void ATM90E32Component::write_thresholds_() {
     min_voltage_gain = 0;
   if (max_current_gain == 0)
     min_current_gain = 0;
-  // Shared thresholds trip conservatively if calibration gives channels different gains.
-  if (min_voltage_gain != max_voltage_gain || min_current_gain != max_current_gain) {
-    ESP_LOGW(TAG, "Phase gains differ: shared sag uses the lowest gain; peak thresholds use the highest gain");
+#ifdef USE_TEXT_SENSOR
+  this->use_voltage_threshold_flags_ = min_voltage_gain == max_voltage_gain;
+  if (!this->use_voltage_threshold_flags_) {
+    ESP_LOGW(TAG, "Phase voltage gains differ; using per-phase RMS voltage alarms");
+  }
+#endif
+  if (min_current_gain != max_current_gain && this->default_oith_ == 0) {
+    ESP_LOGW(TAG, "Phase current gains differ; shared over-current threshold uses the highest gain");
   }
 
   const uint16_t sagth = calculate_voltage_threshold_from_volts(this->threshold_voltage_sag_v_, min_voltage_gain);
@@ -1306,24 +1316,32 @@ void ATM90E32Component::check_phase_status() {
     if (sensor == nullptr)
       continue;
 
-    std::string status;
+    char status[sizeof("Over Current; Over Voltage; Voltage Sag; Phase Loss; ")];
+    size_t length = 0;
+    bool over_voltage = state0 & this->over_voltage_flags[phase];
+    bool voltage_sag = state1 & this->voltage_sag_flags[phase];
+    if (!this->use_voltage_threshold_flags_) {
+      const float voltage = this->get_phase_voltage_(phase);
+      over_voltage = voltage > this->threshold_voltage_peak_v_;
+      voltage_sag = voltage < this->threshold_voltage_sag_v_;
+    }
 
     const float current = this->has_config_current_gain_[phase] ? this->get_phase_current_(phase) : 0.0f;
     if ((this->default_oith_ == 0 && (state0 & this->over_current_flags[phase])) ||
         current > this->threshold_current_peak_a_)
-      status += "Over Current; ";
-    if (state0 & over_voltage_flags[phase])
-      status += "Over Voltage; ";
-    if (state1 & voltage_sag_flags[phase])
-      status += "Voltage Sag; ";
-    if (state1 & phase_loss_flags[phase])
-      status += "Phase Loss; ";
+      length = buf_append_str(status, sizeof(status), length, "Over Current; ");
+    if (over_voltage)
+      length = buf_append_str(status, sizeof(status), length, "Over Voltage; ");
+    if (voltage_sag)
+      length = buf_append_str(status, sizeof(status), length, "Voltage Sag; ");
+    if (state1 & this->phase_loss_flags[phase])
+      length = buf_append_str(status, sizeof(status), length, "Phase Loss; ");
 
-    if (!status.empty()) {
-      status.pop_back();  // remove space
-      status.pop_back();  // remove semicolon
-      ESP_LOGW(TAG, "%s: %s", sensor->get_name().c_str(), status.c_str());
-      sensor->publish_state(status);
+    if (length != 0) {
+      length -= 2;  // Remove the trailing separator.
+      status[length] = '\0';
+      ESP_LOGW(TAG, "%s: %s", sensor->get_name().c_str(), status);
+      sensor->publish_state(status, length);
     } else {
       sensor->publish_state("Okay");
     }

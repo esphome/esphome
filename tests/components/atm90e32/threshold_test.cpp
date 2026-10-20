@@ -1,24 +1,26 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <atomic>
+#include <type_traits>
 
 #include "esphome/components/atm90e32/atm90e32.h"
 #include "esphome/components/sensor/filter.h"
 #include "esphome/components/host/preferences.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
+#define ATM90E32_TEST_ASAN
+extern "C" int __sanitizer_install_malloc_and_free_hooks(void (*malloc_hook)(const volatile void *, size_t),
+                                                         void (*free_hook)(const volatile void *));
+#endif
+
 namespace esphome::atm90e32::testing {
 
-class ThresholdTestComponent : public ATM90E32Component {
- public:
-  void spi_setup() override {}
-  using ATM90E32Component::delegate_;
-  using ATM90E32Component::gain_calibration_pref_;
-  using ATM90E32Component::GainCalibration;
-  using ATM90E32Component::gain_phase_;
-  using ATM90E32Component::restore_gain_calibrations_;
-  using ATM90E32Component::write_gains_to_registers_;
-};
+static_assert(std::is_final_v<ATM90E32Component>);
 
 class ThresholdRegisterDelegate : public spi::SPIDelegate {
  public:
@@ -59,7 +61,13 @@ class ATM90E32ThresholdRegisters : public ::testing::Test {
 
   ThresholdRegisterDelegate delegate_;
   spi::NullPin cs_;
-  ThresholdTestComponent component_;
+  ATM90E32Component component_;
+  using GainCalibration = ATM90E32Component::GainCalibration;
+  GainCalibration (&gain_phase_)[3]{this->component_.gain_phase_};
+  ESPPreferenceObject &gain_calibration_pref_{this->component_.gain_calibration_pref_};
+  void setup_component_() { this->component_.setup_registers_(); }
+  void write_gains_() { this->component_.write_gains_to_registers_(); }
+  void restore_gains_() { this->component_.restore_gain_calibrations_(); }
 };
 
 TEST(ATM90E32Threshold, SaturatesVoltageBeforeNarrowing) {
@@ -83,7 +91,7 @@ TEST_P(ATM90E32SinglePhaseThresholds, UsesConfiguredPhaseWithoutPhaseA) {
   this->component_.set_volt_gain(phase, 7305);
   this->component_.set_ct_gain(phase, 27961);
   this->component_.set_threshold_current_peak_a(10.0f);
-  this->component_.setup();
+  this->setup_component_();
 
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 30450, 1);
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 45675, 1);
@@ -96,38 +104,71 @@ TEST_F(ATM90E32ThresholdRegisters, RefreshesThresholdsWhenCalibratedGainsAreWrit
   this->component_.set_volt_gain(1, 7305);
   this->component_.set_ct_gain(1, 27961);
   this->component_.set_threshold_current_peak_a(10.0f);
-  this->component_.setup();
-  this->component_.gain_phase_[1] = {14610, 13980};
+  this->setup_component_();
+  this->gain_phase_[1] = {14610, 13980};
 
-  this->component_.write_gains_to_registers_();
+  this->write_gains_();
 
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 15225, 1);
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 22837, 1);
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OITH], 16574, 1);
 }
 
-TEST_F(ATM90E32ThresholdRegisters, UsesConservativeSharedLimitsForDifferentCalibratedGains) {
+TEST_F(ATM90E32ThresholdRegisters, UsesNativeVoltageLimitsForDifferentCalibratedGains) {
+  text_sensor::TextSensor status_a, status_b;
+  this->component_.set_phase_status_text_sensor(0, &status_a);
+  this->component_.set_phase_status_text_sensor(1, &status_b);
   this->component_.set_volt_gain(0, 7305);
   this->component_.set_volt_gain(1, 14610);
   this->component_.set_ct_gain(0, 13980);
   this->component_.set_ct_gain(1, 27961);
   this->component_.set_threshold_current_peak_a(10.0f);
-  this->component_.setup();
+  this->setup_component_();
 
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 30450, 1);
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 22837, 1);
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_OITH], 8287, 1);
+
+  this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] =
+      ATM90E32_STATUS_S0_OVPHASEAST | ATM90E32_STATUS_S0_OVPHASEBST;
+  this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE1] =
+      ATM90E32_STATUS_S1_SAGPHASEAST | ATM90E32_STATUS_S1_SAGPHASEBST;
+  this->delegate_.registers[ATM90E32_REGISTER_URMS] = 12000;
+  this->delegate_.registers[ATM90E32_REGISTER_URMS + 1] = 12000;
+  this->component_.update();
+  EXPECT_EQ(status_a.state, "Okay");
+  EXPECT_EQ(status_b.state, "Okay");
+
+  this->delegate_.registers[ATM90E32_REGISTER_URMS] = 9500;
+  this->delegate_.registers[ATM90E32_REGISTER_URMS + 1] = 14500;
+  this->component_.update();
+  EXPECT_EQ(status_a.state, "Voltage Sag");
+  EXPECT_EQ(status_b.state, "Over Voltage");
+
+  this->delegate_.registers[ATM90E32_REGISTER_URMS] = 9600;
+  this->delegate_.registers[ATM90E32_REGISTER_URMS + 1] = 14400;
+  this->component_.update();
+  EXPECT_EQ(status_a.state, "Okay");
+  EXPECT_EQ(status_b.state, "Okay");
+
+  this->gain_phase_[0] = {7305, 13980};
+  this->gain_phase_[1] = {7305, 27961};
+  this->write_gains_();
+  this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE1] = 0;
+  this->component_.update();
+  EXPECT_EQ(status_a.state, "Over Voltage");
+  EXPECT_EQ(status_b.state, "Over Voltage");
 }
 
 TEST_F(ATM90E32ThresholdRegisters, PreservesLegacyCurrentAndReadyMadeFrequencyRegisters) {
   this->component_.set_ct_gain(1, 10000);
-  this->component_.setup();
+  this->setup_component_();
   EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_OITH], 0xC000);
   EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_FREQLOTH], 5995);
   EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_FREQHITH], 65535);
 
-  this->component_.gain_phase_[1].current_gain = 5000;
-  this->component_.write_gains_to_registers_();
+  this->gain_phase_[1].current_gain = 5000;
+  this->write_gains_();
   EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_OITH], 0xC000);
 }
 
@@ -135,10 +176,10 @@ TEST_F(ATM90E32ThresholdRegisters, ClampsWhenCalibrationExceedsTheRegisterRange)
   this->component_.set_volt_gain(1, 7305);
   this->component_.set_ct_gain(1, 27961);
   this->component_.set_threshold_current_peak_a(10.0f);
-  this->component_.setup();
-  this->component_.gain_phase_[1] = {1000, 1000};
+  this->setup_component_();
+  this->gain_phase_[1] = {1000, 1000};
 
-  this->component_.write_gains_to_registers_();
+  this->write_gains_();
 
   EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 65535);
   EXPECT_EQ(this->delegate_.registers[ATM90E32_REGISTER_OVTH], 65535);
@@ -152,13 +193,13 @@ TEST_F(ATM90E32ThresholdRegisters, RefreshesThresholdsAfterRestoringAndClearingS
   this->component_.set_volt_gain(1, 7305);
   this->component_.set_ct_gain(1, 27961);
   this->component_.set_threshold_current_peak_a(10.0f);
-  this->component_.setup();
-  auto preference = global_preferences->make_preference<ThresholdTestComponent::GainCalibration[3]>(0x15244000);
-  const ThresholdTestComponent::GainCalibration saved[3]{{0, 0}, {14610, 13980}, {0, 0}};
+  this->setup_component_();
+  auto preference = global_preferences->make_preference<GainCalibration[3]>(0x15244000);
+  const GainCalibration saved[3]{{0, 0}, {14610, 13980}, {0, 0}};
   ASSERT_TRUE(preference.save(&saved));
-  this->component_.gain_calibration_pref_ = preference;
+  this->gain_calibration_pref_ = preference;
 
-  this->component_.restore_gain_calibrations_();
+  this->restore_gains_();
 
   EXPECT_TRUE(this->component_.using_saved_calibrations_);
   EXPECT_NEAR(this->delegate_.registers[ATM90E32_REGISTER_SAGTH], 15225, 1);
@@ -185,7 +226,7 @@ TEST_F(ATM90E32ThresholdRegisters, CombinesNativeCurrentWithOtherPhaseAlarms) {
   this->component_.set_current_sensor(1, &current);
   this->component_.set_phase_status_text_sensor(1, &status);
   this->component_.set_threshold_current_peak_a(10.0f);
-  this->component_.setup();
+  this->setup_component_();
   this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] = ATM90E32_STATUS_S0_OVPHASEBST;
   this->delegate_.registers[ATM90E32_REGISTER_IRMS + 1] = 6000;
 
@@ -201,7 +242,7 @@ TEST_F(ATM90E32ThresholdRegisters, IgnoresLegacyCurrentFlagAndPreservesRmsLimit)
   text_sensor::TextSensor status;
   this->component_.set_ct_gain(1, 10000);
   this->component_.set_phase_status_text_sensor(1, &status);
-  this->component_.setup();
+  this->setup_component_();
   this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] = ATM90E32_STATUS_S0_OIPHASEBST;
   this->delegate_.registers[ATM90E32_REGISTER_IRMS + 1] = 30000;
 
@@ -223,13 +264,41 @@ TEST_F(ATM90E32ThresholdRegisters, ReportsConfiguredCurrentFlagBelowRmsLimit) {
   this->component_.set_ct_gain(1, 27961);
   this->component_.set_phase_status_text_sensor(1, &status);
   this->component_.set_threshold_current_peak_a(10.0f);
-  this->component_.setup();
+  this->setup_component_();
   this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] =
       ATM90E32_STATUS_S0_OIPHASEBST | ATM90E32_STATUS_S0_OVPHASEBST;
   this->delegate_.registers[ATM90E32_REGISTER_IRMS + 1] = 6000;
 
   this->component_.update();
   EXPECT_EQ(status.state, "Over Current; Over Voltage");
+}
+
+TEST_F(ATM90E32ThresholdRegisters, RepeatedCombinedAlarmsDoNotAllocate) {
+#ifdef ATM90E32_TEST_ASAN
+  static std::atomic<size_t> allocations{0};
+  static const int hooks_installed = __sanitizer_install_malloc_and_free_hooks(
+      [](const volatile void *, size_t) { allocations.fetch_add(1, std::memory_order_relaxed); },
+      [](const volatile void *) {});
+  ASSERT_NE(hooks_installed, 0);
+  text_sensor::TextSensor status;
+  this->component_.set_ct_gain(1, 27961);
+  this->component_.set_phase_status_text_sensor(1, &status);
+  this->component_.set_threshold_current_peak_a(10.0f);
+  this->setup_component_();
+  this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE0] =
+      ATM90E32_STATUS_S0_OIPHASEBST | ATM90E32_STATUS_S0_OVPHASEBST;
+  this->delegate_.registers[ATM90E32_REGISTER_EMMSTATE1] =
+      ATM90E32_STATUS_S1_SAGPHASEBST | ATM90E32_STATUS_S1_PHASELOSSBST;
+  this->component_.check_phase_status();
+  ASSERT_EQ(status.state, "Over Current; Over Voltage; Voltage Sag; Phase Loss");
+  const size_t before = allocations.load(std::memory_order_relaxed);
+  for (unsigned i = 0; i < 10; i++)
+    this->component_.check_phase_status();
+  const size_t after = allocations.load(std::memory_order_relaxed);
+  EXPECT_EQ(after - before, 0u);
+#else
+  GTEST_SKIP() << "Allocation counting requires AddressSanitizer";
+#endif
 }
 
 }  // namespace esphome::atm90e32::testing
