@@ -797,14 +797,13 @@ void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len,
   }
 }
 
-void AsyncEventSource::deferrable_send_state(void *source, const char *event_type,
-                                             message_generator_t *message_generator) {
+void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator) {
   // Skip if no connected clients to avoid unnecessary processing
   if (this->empty())
     return;
   for (auto *ses : this->sessions_) {
     if (ses->fd_.load() != 0) {  // Skip dead sessions
-      ses->deferrable_send_state(source, event_type, message_generator);
+      ses->deferrable_send_state(source, detail_all, message_generator);
     }
   }
 }
@@ -959,10 +958,39 @@ void AsyncEventSourceResponse::process_close_() {
   }
 }
 
+void AsyncEventSourceResponse::refresh_lru_() {
+  // httpd only advances a session's LRU counter when a request arrives, and an event stream receives one
+  // request ever, so the purge that frees a socket for a new client would evict the live streams first.
+  // The HTTPD task owns the session table, so the refresh runs there.
+  // A stalled stream is the socket the purge should take, and a zeroed fd has no session left to refresh.
+  if (this->send_failure_started_ms_ != 0 || this->fd_.load() == 0)
+    return;
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_lru_refresh_ms_ < LRU_REFRESH_INTERVAL_MS ||
+      this->lru_work_queued_.load(std::memory_order_acquire)) {
+    return;
+  }
+  this->last_lru_refresh_ms_ = now;  // a full queue also waits for the next interval
+  this->lru_work_queued_.store(true, std::memory_order_release);
+  if (httpd_queue_work(this->hd_, &AsyncEventSourceResponse::refresh_lru_work, this) != ESP_OK) {
+    this->lru_work_queued_.store(false, std::memory_order_release);
+  }
+}
+
+void AsyncEventSourceResponse::refresh_lru_work(void *arg) {
+  auto *response = static_cast<AsyncEventSourceResponse *>(arg);
+  const int fd = response->fd_.load();
+  if (response->owns_session_(fd)) {
+    httpd_sess_update_lru_counter(response->hd_, fd);
+  }
+  // Release self only after the HTTPD-task callback has finished every access.
+  response->lru_work_queued_.store(false, std::memory_order_release);
+}
+
 void AsyncEventSourceResponse::close_session_work(void *arg) {
   auto *response = static_cast<AsyncEventSourceResponse *>(arg);
   const int fd = response->fd_.load();
-  if (fd != 0 && httpd_sess_get_ctx(response->hd_, fd) == response) {
+  if (response->owns_session_(fd)) {
     // The HTTPD task remains the session owner. Shutting the socket down makes
     // its next select/recv path delete the session and invoke destroy().
     shutdown(fd, SHUT_RDWR);
@@ -976,7 +1004,7 @@ ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
   // httpd frees a session before closing its socket, so the fd may already be a new client's.
   // Treated as would-block; the stall timer ends a session that never becomes ours again.
   const int fd = this->fd_.load();
-  if (httpd_sess_get_ctx(this->hd_, fd) != this) {
+  if (!this->owns_session_(fd)) {
     return 0;
   }
   struct msghdr msg {};
@@ -1085,6 +1113,7 @@ void AsyncEventSourceResponse::loop() {
     this->process_close_();
     return;
   }
+  this->refresh_lru_();
   drain_tail_();
   process_deferred_queue_();
   if (this->close_requested_)
@@ -1238,23 +1267,12 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   return this->stash_chunk_(prefix, prefix_len, message, message_len, g.total, sent);
 }
 
-void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *event_type,
+void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_all,
                                                      message_generator_t *message_generator) {
-  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
-  // up in the web GUI and reduces event load during initial connect
-  if (!this->entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
+  // Let the detail_all listing finish before bare state events, so the web UI never shows unnamed entries and
+  // initial connect sends less
+  if (!detail_all && !this->entities_iterator_.completed())
     return;
-
-  if (source == nullptr)
-    return;
-  if (event_type == nullptr)
-    return;
-  if (message_generator == nullptr)
-    return;
-
-  if (0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
-    ESP_LOGE(TAG, "Can't defer non-state event");
-  }
 
   drain_tail_();
   process_deferred_queue_();

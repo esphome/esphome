@@ -23,11 +23,9 @@ ExponentialMovingAverageSensor = exponential_moving_average_ns.class_(
 )
 
 TimeWeighting = exponential_moving_average_ns.enum("TimeWeighting")
-TIME_WEIGHTINGS: dict[str, cg.MockObj] = {
-    "new": TimeWeighting.TIME_WEIGHTING_NEW,
-    "previous": TimeWeighting.TIME_WEIGHTING_PREVIOUS,
-    "linear": TimeWeighting.TIME_WEIGHTING_LINEAR,
-}
+TIME_WEIGHTINGS: dict[str, cg.MockObj] = TimeWeighting.options(
+    "new", "previous", "linear", prefix="TIME_WEIGHTING_"
+)
 
 CONF_TIME_WEIGHTING: str = "time_weighting"
 
@@ -85,8 +83,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (time_constant := config.get(CONF_TIME_CONSTANT)) is not None:
         cg.add(var.set_time_constant(time_constant))
-        if (weighting := config.get(CONF_TIME_WEIGHTING)) is not None:
-            cg.add(var.set_time_weighting(weighting))
+        cg.add_optional(var.set_time_weighting, config.get(CONF_TIME_WEIGHTING))
     else:
         cg.add(var.set_alpha(config.get(CONF_ALPHA, DEFAULT_ALPHA)))
     cg.add(var.set_restore(config[CONF_RESTORE]))

@@ -439,8 +439,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
     ptr = dst;
   }
   for (auto *display : this->displays_) {
-    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, display::COLOR_ORDER_RGB, LV_BITNESS,
-                            this->big_endian_);
+    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, LV_BITNESS, this->big_endian_);
   }
 }
 
@@ -1008,6 +1007,13 @@ lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos) {
   return lv_color_mix(stop2->color, stop1->color, range == 0 ? 0 : (offset * 255) / range);
 }
 #endif  // USE_LVGL_GRADIENT
+
+#ifdef USE_LVGL_MENU
+bool lv_menu_back_button_is_root_click(lv_obj_t *menu, lv_event_t *e) {
+  return lv_event_get_code(e) == LV_EVENT_CLICKED &&
+         lv_menu_back_button_is_root(menu, static_cast<lv_obj_t *>(lv_event_get_target(e)));
+}
+#endif  // USE_LVGL_MENU
 
 lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
   auto *indev = lv_indev_get_act();

@@ -285,6 +285,11 @@ class Component {
   void status_set_warning(const char *message);
   void status_set_warning(const LogString *message);
 
+  /// Clears the warning when `ok`, else sets it with `message` (default "Communication failed"); returns `ok`.
+  /// Replaces the `if (!read()) { status_set_warning(...); return; } status_clear_warning();` pattern.
+  bool status_comm_result(bool ok);
+  bool status_comm_result(bool ok, const LogString *message);
+
   void status_set_error();  // Set error flag without message
   void status_set_error(const LogString *message);
 

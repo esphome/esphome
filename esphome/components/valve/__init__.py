@@ -54,11 +54,9 @@ VALVE_STATES = {
 validate_valve_state = cv.enum(VALVE_STATES, upper=True)
 
 ValveOperation = valve_ns.enum("ValveOperation")
-VALVE_OPERATIONS = {
-    "IDLE": ValveOperation.VALVE_OPERATION_IDLE,
-    "OPENING": ValveOperation.VALVE_OPERATION_OPENING,
-    "CLOSING": ValveOperation.VALVE_OPERATION_CLOSING,
-}
+VALVE_OPERATIONS = ValveOperation.options(
+    "IDLE", "OPENING", "CLOSING", prefix="VALVE_OPERATION_"
+)
 validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 
 CONF_ON_CLOSED = "on_closed"

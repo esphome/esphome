@@ -54,7 +54,6 @@ from esphome.const import (
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
-    CONF_TRIGGER_ID,
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
@@ -127,18 +126,6 @@ MQTTMessage = mqtt_ns.struct("MQTTMessage")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
-MQTTMessageTrigger = mqtt_ns.class_(
-    "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
-)
-MQTTJsonMessageTrigger = mqtt_ns.class_(
-    "MQTTJsonMessageTrigger", automation.Trigger.template(cg.JsonObjectConst)
-)
-MQTTConnectTrigger = mqtt_ns.class_(
-    "MQTTConnectTrigger", automation.Trigger.template(cg.bool_)
-)
-MQTTDisconnectTrigger = mqtt_ns.class_(
-    "MQTTDisconnectTrigger", automation.Trigger.template(MQTTClientDisconnectReason)
-)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 
 MQTTAlarmControlPanelComponent = mqtt_ns.class_(
@@ -283,7 +270,6 @@ JSON_MESSAGE_AUTOMATION_SCHEMA = automation.validate_synchronous_automation(
     "on_json_message",
     "the parsed JSON document",
     {
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTJsonMessageTrigger),
         cv.Required(CONF_TOPIC): cv.subscribe_topic,
         cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     },
@@ -353,21 +339,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTConnectTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MQTTDisconnectTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(),
+            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(),
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTMessageTrigger),
                     cv.Required(CONF_TOPIC): cv.subscribe_topic,
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                     cv.Optional(CONF_PAYLOAD): cv.string_strict,
@@ -404,6 +379,18 @@ def exp_mqtt_message(config):
     )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CONNECT, "set_on_connect", [(cg.bool_, "session_present")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DISCONNECT,
+        "set_on_disconnect",
+        [(MQTTClientDisconnectReason, "reason")],
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -433,8 +420,7 @@ async def to_code(config):
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
-    if CONF_CLIENT_ID in config:
-        cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
+    cg.add_optional(var.set_client_id, config.get(CONF_CLIENT_ID))
 
     discovery = config[CONF_DISCOVERY]
     discovery_retain = config[CONF_DISCOVERY_RETAIN]
@@ -529,29 +515,37 @@ async def to_code(config):
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
 
+    # The client queues subscriptions until it connects, so they can be made at construction.
     for conf in config.get(CONF_ON_MESSAGE, []):
-        trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])
-        cg.add(trig.set_qos(conf[CONF_QOS]))
-        if CONF_PAYLOAD in conf:
-            cg.add(trig.set_payload(conf[CONF_PAYLOAD]))
-        await cg.register_component(trig, conf)
-        await automation.build_automation(trig, [(cg.std_string, "x")], conf)
+        callback = await automation.build_trigger_callback(
+            [(cg.std_string, "x")],
+            conf,
+            params=[(cg.std_string, "topic"), (cg.std_string, "payload")],
+            forward=["payload"],
+            # The length is compared first; the literal stays in flash on ESP8266.
+            when=automation.ApplyCall(
+                "StringRef(payload) == {}",
+                ((CONF_PAYLOAD, cg.std_string, automation.string_ref_literal),),
+            ),
+        )
+        cg.add(
+            var.subscribe(cg.progmem_string(conf[CONF_TOPIC]), callback, conf[CONF_QOS])
+        )
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
-        trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
-        await automation.build_automation(trig, [(cg.JsonObjectConst, "x")], conf)
-
-    for conf in config.get(CONF_ON_CONNECT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.bool_, "session_present")], conf
+        callback = await automation.build_trigger_callback(
+            [(cg.JsonObjectConst, "x")],
+            conf,
+            params=[(cg.std_string, "topic"), (cg.JsonObject, "root")],
+            forward=["root"],
+        )
+        cg.add(
+            var.subscribe_json(
+                cg.progmem_string(conf[CONF_TOPIC]), callback, conf[CONF_QOS]
+            )
         )
 
-    for conf in config.get(CONF_ON_DISCONNECT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(MQTTClientDisconnectReason, "reason")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_publish_nan_as_none(config[CONF_PUBLISH_NAN_AS_NONE]))
 
@@ -635,12 +629,9 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
-    if CONF_QOS in config:
-        cg.add(var.set_qos(config[CONF_QOS]))
-    if CONF_RETAIN in config:
-        cg.add(var.set_retain(config[CONF_RETAIN]))
-    if CONF_SUBSCRIBE_QOS in config:
-        cg.add(var.set_subscribe_qos(config[CONF_SUBSCRIBE_QOS]))
+    cg.add_optional(var.set_qos, config.get(CONF_QOS))
+    cg.add_optional(var.set_retain, config.get(CONF_RETAIN))
+    cg.add_optional(var.set_subscribe_qos, config.get(CONF_SUBSCRIBE_QOS))
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
@@ -651,8 +642,7 @@ async def register_mqtt_component(var, config):
             config[CONF_COMMAND_TOPIC], [], cg.std_string
         )
         cg.add(var.set_custom_command_topic(command_topic))
-    if CONF_COMMAND_RETAIN in config:
-        cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
+    cg.add_optional(var.set_command_retain, config.get(CONF_COMMAND_RETAIN))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
         if not availability:
