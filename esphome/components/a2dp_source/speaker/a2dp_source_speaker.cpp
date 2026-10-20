@@ -12,6 +12,9 @@
 #include <string>
 
 #include "esphome/components/esp32_ble/ble.h"
+#ifdef USE_ESP32_BLE_TRACKER
+#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#endif
 #include "esphome/core/log.h"
 
 #include <esp_a2dp_legacy_api.h>
@@ -319,6 +322,8 @@ bool A2DPSourceSpeaker::pair(const char *address, const char *pin, bool require_
   this->confirmation_pending_.store(false);
   this->pair_deadline_ms_ = millis() + 30000;
   this->next_connect_attempt_ms_ = 0;
+  this->scanner_wait_started_ms_ = 0;
+  this->scanner_stop_starting_requested_ = false;
   this->connect_attempts_.store(0);
   this->connection_session_active_.store(false);
   this->pairing_status_ = PairingStatus::CONNECTING;
@@ -524,6 +529,8 @@ void A2DPSourceSpeaker::reset_connection_sequence() {
   this->requested_.store(false);
   this->connect_attempts_.store(0);
   this->next_connect_attempt_ms_.store(0);
+  this->scanner_wait_started_ms_ = 0;
+  this->scanner_stop_starting_requested_ = false;
   this->connection_failed_.store(false);
   this->connection_failed_latched_.store(false);
   this->preempted_.store(false);
@@ -781,6 +788,39 @@ void A2DPSourceSpeaker::loop() {
   if (this->requested_.load() || this->pairing_) {
     if (!this->connected_.load() && !this->connect_pending_ &&
         static_cast<int32_t>(now - this->next_connect_attempt_ms_) >= 0) {
+#ifdef USE_ESP32_BLE_TRACKER
+      // stop_scan() is asynchronous. In particular, a stop requested while a
+      // scan is STARTING leaves the scanner running after its start callback.
+      // Wait for IDLE before paging a Classic receiver on the shared radio.
+      auto *tracker = esp32_ble_tracker::global_esp32_ble_tracker;
+      if (tracker != nullptr) {
+        const auto scanner_state = tracker->get_scanner_state();
+        if (scanner_state != esp32_ble_tracker::ScannerState::STARTING)
+          this->scanner_stop_starting_requested_ = false;
+        // Also disable an automatic restart when the scanner is IDLE.
+        if (scanner_state == esp32_ble_tracker::ScannerState::IDLE ||
+            scanner_state == esp32_ble_tracker::ScannerState::RUNNING ||
+            scanner_state == esp32_ble_tracker::ScannerState::FAILED) {
+          tracker->stop_scan();
+        } else if (scanner_state == esp32_ble_tracker::ScannerState::STARTING &&
+                   !this->scanner_stop_starting_requested_) {
+          tracker->stop_scan();
+          this->scanner_stop_starting_requested_ = true;
+        }
+        if (scanner_state != esp32_ble_tracker::ScannerState::IDLE) {
+          if (this->scanner_wait_started_ms_ == 0)
+            this->scanner_wait_started_ms_ = now;
+          if (static_cast<int32_t>(now - this->scanner_wait_started_ms_) >= 5000)
+            this->abort_connection_("BLE scan did not stop");
+          return;
+        }
+        if (this->scanner_wait_started_ms_ != 0) {
+          ESP_LOGI(TAG, "A2DP slot %u: BLE scan stopped after %u ms", this->slot_,
+                   static_cast<unsigned>(now - this->scanner_wait_started_ms_));
+          this->scanner_wait_started_ms_ = 0;
+        }
+      }
+#endif
       this->connect_attempts_.fetch_add(1);
       esp_err_t err = esp_a2d_source_connect(this->address_);
       this->next_connect_attempt_ms_ = now + 15000;
@@ -884,6 +924,8 @@ void A2DPSourceSpeaker::start() {
   this->avrcp_command_pending_ = false;
   this->avrcp_last_requested_ = 255;
   this->avrcp_attempts_ = 0;
+  this->scanner_wait_started_ms_ = 0;
+  this->scanner_stop_starting_requested_ = false;
   // Buffer PCM immediately, including while Classic paging is still pending.
   this->state_ = speaker::STATE_RUNNING;
   desired_speaker.store(this);
@@ -1013,8 +1055,8 @@ void A2DPSourceSpeaker::process_gap_event_(esp_bt_gap_cb_event_t event, esp_bt_g
     this->acl_connected_.store(connected);
     if (!connected && this->connect_pending_.load())
       this->connection_failed_.store(true);
-    ESP_LOGI(TAG, "Classic ACL slot %u connection %s (handle 0x%04x)", this->slot_, connected ? "open" : "failed",
-             param->acl_conn_cmpl_stat.handle);
+    ESP_LOGI(TAG, "Classic ACL slot %u connection %s (status 0x%02x, handle 0x%04x)", this->slot_,
+             connected ? "open" : "failed", param->acl_conn_cmpl_stat.stat, param->acl_conn_cmpl_stat.handle);
   } else if (event == ESP_BT_GAP_ACL_DISCONN_CMPL_STAT_EVT) {
     if (std::memcmp(param->acl_disconn_cmpl_stat.bda, this->address_, 6) != 0)
       return;
