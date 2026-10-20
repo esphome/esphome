@@ -1,6 +1,7 @@
 #include "ltr390.h"
 #include <bitset>
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ltr390 {
@@ -25,17 +26,6 @@ static const uint8_t MODEADDRESSES[2] = {0x0D, 0x10};
 static const float SENSITIVITY_MAX = 2300;
 static const float INTG_MAX = RESOLUTIONVALUE[0] * 100;
 static const int GAIN_MAX = GAINVALUES[4];
-
-uint32_t little_endian_bytes_to_int(const uint8_t *buffer, uint8_t num_bytes) {
-  uint32_t value = 0;
-
-  for (int i = 0; i < num_bytes; i++) {
-    value <<= 8;
-    value |= buffer[num_bytes - i - 1];
-  }
-
-  return value;
-}
 
 optional<uint32_t> LTR390Component::read_sensor_data_(LTR390MODE mode) {
   const uint8_t num_bytes = 3;
@@ -63,7 +53,7 @@ optional<uint32_t> LTR390Component::read_sensor_data_(LTR390MODE mode) {
     return {};
   }
 
-  return little_endian_bytes_to_int(buffer, num_bytes);
+  return encode_uint24(buffer[2], buffer[1], buffer[0]);
 }
 
 void LTR390Component::read_als_() {
