@@ -78,7 +78,7 @@ class SX126x final : public Component,
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
   void set_dio1_pin(GPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
-  void set_hw_version(const std::string &hw_version) { this->hw_version_ = hw_version; }
+  void set_sx1261(bool sx1261) { this->sx1261_ = sx1261; }
   void set_mode_rx();
   void set_mode_tx();
   void set_mode_standby(SX126xStandbyMode mode);
@@ -126,7 +126,7 @@ class SX126x final : public Component,
   GPIOPin *busy_pin_{nullptr};
   GPIOPin *dio1_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
-  std::string hw_version_;
+  bool sx1261_{false};
   char version_[16];
   SX126xBw bandwidth_{SX126X_BW_125000};
   uint32_t bitrate_{0};
