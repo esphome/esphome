@@ -422,10 +422,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
 
 void Sim800LComponent::loop() {
   // Read message
-  while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-
+  this->read_available([this](uint8_t byte) {
     ESP_LOGVV(TAG, "Buffer pos: %u %d", this->line_reader_.length(), byte);  // NOLINT
 
     if (byte >= 0x7F)
@@ -441,7 +438,7 @@ void Sim800LComponent::loop() {
     } else {
       this->line_reader_.log_if_overflowed(TAG);
     }
-  }
+  });
   if (state_ == STATE_INIT && this->registered_ &&
       (this->call_state_ != 6  // A call is in progress
        || this->send_pending_ || this->dial_pending_ || this->connect_pending_ || this->disconnect_pending_)) {

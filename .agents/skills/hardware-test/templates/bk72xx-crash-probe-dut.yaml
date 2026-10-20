@@ -1,0 +1,44 @@
+substitutions:
+  run: "1"
+
+esphome:
+  name: bk72xx-crash-probe
+  includes: [../scripts/libretiny_crash/bkprobe.hpp]
+  # step 0 waits 30 s so a capture can be opened (and a reset pulsed) after the flash; later steps 5 s
+  on_boot:
+    priority: -100
+    then:
+      - lambda: id(step) = bkprobe_boot(${run});
+      - delay: !lambda 'return id(step) == 0 ? 30000 : 5000;'
+      - lambda: bkprobe_act(${run}, id(step));
+
+bk72xx:
+  board: generic-bk7238-tuya
+
+logger:
+  hardware_uart: UART1
+  level: DEBUG
+
+preferences:
+  flash_write_interval: 1s
+
+globals:
+  - id: step
+    type: int
+    initial_value: "0"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: bkprobe_alive(id(step));
+
+# Wi-Fi matters: a crashed BK72xx with Wi-Fi up never reboots on its own without the crash handler fix
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome

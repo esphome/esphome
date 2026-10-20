@@ -123,13 +123,10 @@ void SY6970Component::update() {
   }
 
   // Read all registers in one transaction
-  if (!this->read_all_registers_()) {
+  if (!this->status_comm_result(this->read_all_registers_())) {
     ESP_LOGW(TAG, "Failed to read registers during update");
-    this->status_set_warning();
     return;
   }
-
-  this->status_clear_warning();
 
   // Notify all listeners with the new data
   for (auto *listener : this->listeners_) {

@@ -10,6 +10,7 @@ from aioesphomeapi import ButtonInfo, EntityInfo, NumberInfo, SwitchInfo
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 def find_entity_by_name(
@@ -104,10 +105,9 @@ async def test_host_preferences_save_load(
         client.button_command(save_button.key)
 
         # Wait for save to complete
-        try:
-            await asyncio.wait_for(preferences_saved, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Preferences not saved within timeout")
+        await wait_or_fail(
+            preferences_saved, 5.0, "Preferences not saved within timeout"
+        )
 
         # Verify we saved the expected values
         assert "switch" in saved_values, f"Switch preference not saved: {saved_values}"
@@ -127,10 +127,9 @@ async def test_host_preferences_save_load(
         client.button_command(load_button.key)
 
         # Wait for load to complete
-        try:
-            await asyncio.wait_for(preferences_loaded, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Preferences not loaded within timeout")
+        await wait_or_fail(
+            preferences_loaded, 5.0, "Preferences not loaded within timeout"
+        )
 
         # Verify loaded values match saved values
         assert "switch" in loaded_values, (
@@ -150,10 +149,9 @@ async def test_host_preferences_save_load(
         client.button_command(verify_button.key)
 
         # Wait for verification
-        try:
-            await asyncio.wait_for(values_match, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Preference verification failed within timeout")
+        await wait_or_fail(
+            values_match, 5.0, "Preference verification failed within timeout"
+        )
 
         # Test that non-existent preferences don't crash (tests our fix)
         # This will trigger load attempts for keys that don't exist
@@ -161,7 +159,6 @@ async def test_host_preferences_save_load(
         client.button_command(load_button.key)
 
         # Wait for the final load test to complete
-        try:
-            await asyncio.wait_for(final_load_complete, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Final load test did not complete within timeout")
+        await wait_or_fail(
+            final_load_complete, 5.0, "Final load test did not complete within timeout"
+        )
