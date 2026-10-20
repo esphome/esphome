@@ -6,8 +6,12 @@ timeout "$T" curl -sS -f -N -u "$U:$P" --anyauth "http://$H/events" > "$OUT"; rc
 python3 - "$OUT" <<'PY'
 import json, sys
 states = invalid = 0; biggest = 0; ev = None
-for line in open(sys.argv[1], "rb"):
-    line = line.rstrip(b"\r\n")
+data = open(sys.argv[1], "rb").read()
+lines = data.split(b"\n")
+if not data.endswith(b"\n"):
+    lines = lines[:-1]  # the deadline can cut the last line in half; only complete lines are checked
+for line in lines:
+    line = line.rstrip(b"\r")
     if line.startswith(b"event:"):
         ev = line[6:].strip()
     elif line.startswith(b"data:") and ev == b"state":

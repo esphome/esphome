@@ -1,8 +1,8 @@
 #!/bin/sh
 # cases.sh NAME KEY BROKER_HOST SUB_PORT CAPTURE [DEV_HOST] [restart] : subscribe to NAME/# on the broker, send a
 # switch command and an on_message topic, press the 3000 byte publish button over the API (KEY, - for plaintext),
-# optionally restart the local broker from the mosquitto-ws.conf copy in the working directory, and show the device
-# log. Outputs (sub-NAME.txt, mosquitto.out) go to the working directory, which should be the scratch directory.
+# optionally restart the local broker (its PID from mosquitto.pid in the working directory, written when it was started
+# with `mosquitto -c mosquitto-ws.conf & echo $! > mosquitto.pid`), and show the device log. Outputs (sub-NAME.txt, mosquitto.out) go to the working directory, which should be the scratch directory.
 N=$1; KEY=$2; B=$3; SP=$4; LOG=$5; DEV=${6:-$1.local}; RESTART=$7; HERE=$(cd "$(dirname "$0")" && pwd); PY=${PYTHON:-python3}; WORK=$PWD
 BTN=$HERE/../api_button.py
 [ -n "$KEY" ] && [ -r "$LOG" ] || { echo "usage: cases.sh NAME KEY BROKER_HOST SUB_PORT CAPTURE [DEV_HOST] [restart] (CAPTURE must be a readable file)"; exit 2; }
@@ -20,9 +20,11 @@ pub "$N/switch/relay/command" OFF; sleep 2
 if [ "$RESTART" = restart ]; then
   [ -f "$WORK/mosquitto-ws.conf" ] || { echo "no mosquitto-ws.conf in $WORK, cannot restart the broker"; exit 1; }
   echo "=== $N: broker restart ($(date +%T))"; n1=$(($(wc -l < "$LOG")+0))
-  pkill -f "[m]osquitto -c" || { echo "no running mosquitto matched, nothing to restart"; exit 1; }; sleep 8
-  nc -z -w 3 "$B" 1883 && { echo "the old broker still answers on 1883 after pkill"; exit 1; }
-  (timeout 10800 mosquitto -c "$WORK/mosquitto-ws.conf" > "$WORK/mosquitto.out" 2>&1 &) ; sleep 25
+  # Only this run's broker is signalled: its PID comes from mosquitto.pid, written when it was started
+  pid=$(cat "$WORK/mosquitto.pid" 2>/dev/null); [ -n "$pid" ] || { echo "no mosquitto.pid in $WORK, cannot restart the broker"; exit 1; }
+  kill "$pid" || { echo "broker PID $pid is not running, nothing to restart"; exit 1; }; sleep 8
+  nc -z -w 3 "$B" 1883 && { echo "the old broker still answers on 1883 after the kill"; exit 1; }
+  (cd "$WORK" && mosquitto -c mosquitto-ws.conf > mosquitto.out 2>&1 & echo $! > "$WORK/mosquitto.pid"); sleep 25
   for port in 1883 9001 9002; do nc -z -w 3 "$B" "$port" || { echo "broker port $port not listening after the restart"; exit 1; }; done
   tail -n +$((n1+1)) "$LOG" | grep -a -q "MQTT_EVENT_CONNECTED\|\[mqtt:[0-9]*\]: Connected" || { echo "the device did not reconnect after the broker restart"; exit 1; }
 else

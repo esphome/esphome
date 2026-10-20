@@ -18,8 +18,9 @@ local broker (mosquitto 2.x from brew has `websockets` support; `log_type all` p
 on port <listener>`, which proves which listener each client used) and `scripts/mqtt/make_test_ca.sh BROKER_IP` for
 the TLS listener's certificate, both run in the scratch directory so keys, logs and outputs stay out of the checkout. `scripts/mqtt/cases.sh NAME KEY BROKER_HOST SUB_PORT CAPTURE [DEV_HOST] [restart]` subscribes
 to `NAME/#`, sends a switch command and an `on_message` topic, presses the 3000 byte publish button over the API,
-restarts the local broker when the last argument is `restart` (from the `mosquitto-ws.conf` copy in the working
-directory, next to the certificates), checks its three ports answer again, and prints the broker's message counts with the device log. `mosquitto_sub` cannot speak
+restarts the local broker when the last argument is `restart` (the PID in `mosquitto.pid`, written when the broker
+was started with `mosquitto -c mosquitto-ws.conf & echo $! > mosquitto.pid` in the working directory next to the
+certificates), checks its three ports answer again, and prints the broker's message counts with the device log. `mosquitto_sub` cannot speak
 WebSocket, so it subscribes on the plain listener of the same broker. Cases: `tcp` on 1883, `ws` on 9001, `wss` on
 9002 with `certificate_authority` (the certificate names an address, so `skip_cert_cn_check: true`), `wss` to
 test.mosquitto.org on 8081 with no CA for the certificate bundle, and two negatives that must never connect: a

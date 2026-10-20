@@ -7,5 +7,11 @@ probes() { tail -n +$(($1+1)) "$LOG" | sed 's/\x1b\[[0-9;]*m//g' | grep -a -o "\
 step() { n0=$(wc -l < "$LOG"); echo "=== $LABEL: $1 ($(date +%T))"; shift; "$@" || { rc=$?; echo "step failed ($rc)"; exit $rc; }; echo "--- device log:"; probes "$n0"; }
 step "idle 15 s" sleep 15
 step "request mix, 20 rounds" sh "$HERE/httpmix.sh" "$H" "$U" "$P" 20
-step "2 SSE clients 40 s with the request mix alongside" sh -c "sh '$HERE/ssecurl.sh' '$H' '$U' '$P' 40 '$PWD/sse1-$LABEL.txt' & p1=\$!; sh '$HERE/ssecurl.sh' '$H' '$U' '$P' 40 '$PWD/sse2-$LABEL.txt' & p2=\$!; sh '$HERE/httpmix.sh' '$H' '$U' '$P' 12 && wait \$p1 && wait \$p2"
+# Two SSE clients next to the request mix; arguments stay quoted, nothing is reparsed as shell code
+concurrent() {
+  sh "$HERE/ssecurl.sh" "$H" "$U" "$P" 40 "$PWD/sse1-$LABEL.txt" & p1=$!
+  sh "$HERE/ssecurl.sh" "$H" "$U" "$P" 40 "$PWD/sse2-$LABEL.txt" & p2=$!
+  sh "$HERE/httpmix.sh" "$H" "$U" "$P" 12 && wait $p1 && wait $p2
+}
+step "2 SSE clients 40 s with the request mix alongside" concurrent
 step "idle 15 s after" sleep 15
