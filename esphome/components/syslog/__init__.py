@@ -17,10 +17,7 @@ syslog_ns = cg.esphome_ns.namespace("syslog")
 Syslog = syslog_ns.class_("Syslog", Component, Parented.template(udp.UDPComponent))
 SyslogFormat = syslog_ns.enum("SyslogFormat")
 
-SYSLOG_FORMATS = {
-    "RFC3164": SyslogFormat.SYSLOG_FORMAT_RFC3164,
-    "RFC5424": SyslogFormat.SYSLOG_FORMAT_RFC5424,
-}
+SYSLOG_FORMATS = SyslogFormat.options("RFC3164", "RFC5424", prefix="SYSLOG_FORMAT_")
 
 CONF_STRIP = "strip"
 CONF_FACILITY = "facility"

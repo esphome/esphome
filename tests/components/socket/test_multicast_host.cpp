@@ -1,0 +1,104 @@
+#include <gtest/gtest.h>
+
+#include <cerrno>
+
+#include "esphome/components/socket/socket.h"
+
+#ifdef USE_HOST
+
+namespace esphome::socket::testing {
+
+// =========================================================================
+// join_multicast_group — EINVAL on malformed input
+// =========================================================================
+
+TEST(JoinMulticastGroup, MalformedIPv4YieldsEINVAL) {
+  auto sock = esphome::socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_NE(sock, nullptr);
+  errno = 0;
+  EXPECT_FALSE(join_multicast_group(sock.get(), "not-an-ip"));
+  EXPECT_EQ(errno, EINVAL);
+}
+
+TEST(JoinMulticastGroup, MalformedIPv6YieldsEINVAL) {
+  // ':' present but parse fails — EINVAL regardless of USE_NETWORK_IPV6
+  auto sock = esphome::socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_NE(sock, nullptr);
+  errno = 0;
+  EXPECT_FALSE(join_multicast_group(sock.get(), "gg::not-ipv6"));
+  EXPECT_EQ(errno, EINVAL);
+}
+
+// =========================================================================
+// join_multicast_group — IPv4 IP_ADD_MEMBERSHIP
+// =========================================================================
+
+TEST(JoinMulticastGroup, IPv4JoinSetsIfIndexToZero) {
+  auto sock = esphome::socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_NE(sock, nullptr);
+  uint32_t if_index = 99;
+  // A host with no multicast route (e.g. an isolated container) cannot join
+  if (join_multicast_group(sock.get(), "239.0.60.53", &if_index)) {
+    EXPECT_EQ(if_index, 0u);
+  } else {
+    EXPECT_EQ(if_index, 99u);
+  }
+}
+
+TEST(JoinMulticastGroup, IPv4JoinNullIfIndexOut) {
+  // Whether the host accepts the join or not, a null if_index_out must give the same answer
+  auto sock_with = esphome::socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  auto sock_without = esphome::socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_NE(sock_with, nullptr);
+  ASSERT_NE(sock_without, nullptr);
+  uint32_t if_index = 0;
+  const bool with_out = join_multicast_group(sock_with.get(), "239.0.60.53", &if_index);
+  EXPECT_EQ(join_multicast_group(sock_without.get(), "239.0.60.53", nullptr), with_out);
+}
+
+// =========================================================================
+// join_multicast_group — IPv6 and set_ipv6_multicast_if
+// =========================================================================
+
+#if USE_NETWORK_IPV6
+
+TEST(JoinMulticastGroup, IPv6JoinSucceedsOrNoInterface) {
+  auto sock = esphome::socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_NE(sock, nullptr);
+  uint32_t if_index = 0;
+  errno = 0;
+  if (join_multicast_group(sock.get(), "ff12::cafe", &if_index)) {
+    EXPECT_GT(if_index, 0u);
+  } else if (errno != EADDRNOTAVAIL) {
+    // EINVAL can only come from our own parsing, since the address literal is valid
+    ASSERT_NE(errno, EINVAL);
+    GTEST_SKIP() << "Host refused the IPv6 multicast join, errno " << errno;
+  }
+}
+
+TEST(SetIPv6MulticastIf, ProbeWithZeroIndexSucceedsOrNoInterface) {
+  auto sock = esphome::socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_NE(sock, nullptr);
+  errno = 0;
+  if (!set_ipv6_multicast_if(sock.get(), 0) && errno != EADDRNOTAVAIL) {
+    GTEST_SKIP() << "Host refused IPV6_MULTICAST_IF, errno " << errno;
+  }
+}
+
+TEST(SetIPv6MulticastIf, ExplicitIndexFromJoinSucceeds) {
+  auto sock_join = esphome::socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  auto sock_send = esphome::socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+  ASSERT_NE(sock_join, nullptr);
+  ASSERT_NE(sock_send, nullptr);
+  uint32_t if_index = 0;
+  if (!join_multicast_group(sock_join.get(), "ff12::cafe", &if_index) || if_index == 0) {
+    GTEST_SKIP() << "Host has no interface that accepts an IPv6 multicast join";
+  }
+  EXPECT_TRUE(set_ipv6_multicast_if(sock_send.get(), if_index));
+}
+
+#endif  // USE_NETWORK_IPV6
+
+}  // namespace esphome::socket::testing
+
+#endif  // USE_HOST
