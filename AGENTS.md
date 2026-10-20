@@ -434,6 +434,8 @@ file does, and it is the authority when they disagree. The most useful starting 
         - **Pins and referenced components:** set them with `await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])`
           and `await cg.add_variable(var.set_bus, config[CONF_BUS_ID])`; both skip a `None` value, so pass
           `config.get(KEY)` for an optional key, and return what they created. Use `cg.register_parented` for `set_parent`.
+        - **Optional plain values:** `cg.add_optional(var.set_timeout, config.get(CONF_TIMEOUT))` in place of an
+          `if` block; it skips only `None`, so `0` and `False` are still set.
 
         - **Hub forwarding entities need no C++ class:** a button, switch, number or select that only calls its hub
           uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
