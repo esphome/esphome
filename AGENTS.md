@@ -80,13 +80,15 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```python
         # Bad - looks up CONF_BLAH twice
         if CONF_BLAH in config:
-            cg.add(var.set_blah(config[CONF_BLAH]))
+            cg.add(var.set_blah_ms(config[CONF_BLAH].total_milliseconds))
 
         # Good - single lookup, value bound inline
         if (blah := config.get(CONF_BLAH)) is not None:
-            cg.add(var.set_blah(blah))
+            cg.add(var.set_blah_ms(blah.total_milliseconds))
         ```
         The same applies to `while` loops and comprehensions where it avoids recomputing a value. Don't contort code to use it — reach for `:=` only when it genuinely cuts repetition or an extra assignment line.
+        When the setter takes the value unchanged, use `cg.add_optional(var.set_blah, config.get(CONF_BLAH))`
+        instead; it is not awaited, and it skips only `None`, so `0` and `False` are still set.
 
 *   **C++ Field Visibility:**
     *   **Prefer `protected`:** Use `protected` for most class fields to enable extensibility and testing. Fields should be `lower_snake_case_with_trailing_underscore_`.
