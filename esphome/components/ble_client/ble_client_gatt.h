@@ -51,7 +51,9 @@ class BLEClient : public Component,
   // One registration spelling shared with the esp32 engine's bridge.
   void register_gatt_node(BLEClientNode *node) { this->register_ble_node(node); }
 
-  bool connected() const { return this->state_ == State::CONNECTED; }
+  // An accepted teardown already owns the link: the pending report cannot be
+  // a connect. state_ stays put so that report still fires on_disconnect.
+  bool connected() const { return this->state_ == State::CONNECTED && !this->cancel_requested_; }
   bool idle() const { return this->state_ == State::IDLE; }
 
   /// Action-initiated connect (no sighting needed; uses the last captured

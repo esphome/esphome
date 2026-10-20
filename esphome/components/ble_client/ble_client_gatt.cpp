@@ -92,6 +92,12 @@ void BLEClient::disconnect() {
     ESP_LOGD(TAG, "[%s] Disconnect requested while idle, ignoring", this->address_str_);
     return;
   }
+  if (this->cancel_requested_) {
+    // The accepted teardown still reports; a refused second gatt_disconnect()
+    // would settle the link twice (phantom connect failure, backoff charge).
+    ESP_LOGD(TAG, "[%s] Disconnect already in flight, ignoring", this->address_str_);
+    return;
+  }
   // A deliberate teardown's failure report must not feed the backoff.
   this->cancel_requested_ = true;
   int err = this->backend_->gatt_disconnect();

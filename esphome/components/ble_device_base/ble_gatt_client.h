@@ -102,11 +102,16 @@ class GattClientListener {
 // The BLEGattConnection op surface, asserted where the alias binds
 // (bluetooth_connection_gatt_backend.h). Operations return 0 when accepted (completion arrives
 // through the listener) or a synchronous error (busy, not connected, stack
-// rejection); one operation may be outstanding at a time. An accepted
-// operation's completion is delivered from the event loop, NEVER
+// rejection); one operation may be outstanding at a time. A connection-state
+// or discovery completion always arrives from the event loop, never
 // synchronously from inside the op call - a synchronous terminal
 // on_connection_state from within gatt_disconnect() would re-enter the
-// consumer mid-teardown. Semantics beyond the signatures:
+// consumer mid-teardown. A local-only completion may instead report inline,
+// before the op returns: notify_characteristic (a subscription-list edit on
+// the rp2 backend) and a write without response whose payload the stack took
+// immediately. Consumers must therefore arm whatever state their
+// on_write_result/on_notify_state reads before issuing the op, never after
+// the call returns. Semantics beyond the signatures:
 // - connect: addr_type is a BLE_ADDR_TYPE_* constant (ble_device.h).
 //   Returning 0 means the request is accepted, not that the radio acted: the
 //   backend owns integration with its platform's scan/connect arbitration

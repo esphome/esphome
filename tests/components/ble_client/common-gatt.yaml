@@ -10,7 +10,10 @@ ble_client:
             value: [0x04, 0x05, 0x06]
     on_disconnect:
       then:
-        - ble_client.disconnect: test_blec
+        # Reconnect from the disconnect trigger: the connect action must
+        # survive the same dispatch that started it, so the log still runs.
+        - ble_client.connect: test_blec
+        - logger.log: reconnected
 
 button:
   - platform: template
@@ -22,3 +25,4 @@ button:
           service_uuid: '1802'
           characteristic_uuid: '2a06'
           value: !lambda return {0x01, 0x02};
+      - ble_client.disconnect: test_blec

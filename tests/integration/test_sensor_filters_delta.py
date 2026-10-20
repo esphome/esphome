@@ -10,6 +10,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -136,10 +137,9 @@ async def test_sensor_filters_delta(
         # Test 1: Min
         sensor_values["filter_min"].clear()
         client.button_command(buttons["filter_min"])
-        try:
-            await asyncio.wait_for(filter_min_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Test 1 timed out. Values: {sensor_values['filter_min']}")
+        await wait_or_fail(
+            filter_min_done, 2.0, "Test 1 timed out", values=sensor_values["filter_min"]
+        )
 
         expected = [1.0, 12.0, -2.0]
         assert sensor_values["filter_min"] == pytest.approx(expected), (
@@ -149,10 +149,9 @@ async def test_sensor_filters_delta(
         # Test 2: Max
         sensor_values["filter_max"].clear()
         client.button_command(buttons["filter_max"])
-        try:
-            await asyncio.wait_for(filter_max_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Test 2 timed out. Values: {sensor_values['filter_max']}")
+        await wait_or_fail(
+            filter_max_done, 2.0, "Test 2 timed out", values=sensor_values["filter_max"]
+        )
 
         expected = [1.0, 5.0, 10.0]
         assert sensor_values["filter_max"] == pytest.approx(expected), (
@@ -162,12 +161,12 @@ async def test_sensor_filters_delta(
         # Test 3: Baseline Max
         sensor_values["filter_baseline_max"].clear()
         client.button_command(buttons["filter_baseline_max"])
-        try:
-            await asyncio.wait_for(filter_baseline_max_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 3 timed out. Values: {sensor_values['filter_baseline_max']}"
-            )
+        await wait_or_fail(
+            filter_baseline_max_done,
+            2.0,
+            "Test 3 timed out",
+            values=sensor_values["filter_baseline_max"],
+        )
 
         expected = [1.0, 2.0, 3.0, 20.0]
         assert sensor_values["filter_baseline_max"] == pytest.approx(expected), (
@@ -177,12 +176,12 @@ async def test_sensor_filters_delta(
         # Test 4: Zero Delta
         sensor_values["filter_zero_delta"].clear()
         client.button_command(buttons["filter_zero_delta"])
-        try:
-            await asyncio.wait_for(filter_zero_delta_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 4 timed out. Values: {sensor_values['filter_zero_delta']}"
-            )
+        await wait_or_fail(
+            filter_zero_delta_done,
+            2.0,
+            "Test 4 timed out",
+            values=sensor_values["filter_zero_delta"],
+        )
 
         expected = [1.0, 2.0]
         assert sensor_values["filter_zero_delta"] == pytest.approx(expected), (
@@ -192,12 +191,12 @@ async def test_sensor_filters_delta(
         # Test 5: Percentage (delta: 50%)
         sensor_values["filter_percentage"].clear()
         client.button_command(buttons["filter_percentage"])
-        try:
-            await asyncio.wait_for(filter_percentage_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 5 timed out. Values: {sensor_values['filter_percentage']}"
-            )
+        await wait_or_fail(
+            filter_percentage_done,
+            2.0,
+            "Test 5 timed out",
+            values=sensor_values["filter_percentage"],
+        )
 
         expected = [100.0, 160.0, 250.0]
         assert sensor_values["filter_percentage"] == pytest.approx(expected), (
@@ -207,10 +206,9 @@ async def test_sensor_filters_delta(
         # Test 6: NaN passes through once, then is suppressed
         sensor_values["filter_nan"].clear()
         client.button_command(buttons["filter_nan"])
-        try:
-            await asyncio.wait_for(filter_nan_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Test 6 timed out. Values: {sensor_values['filter_nan']}")
+        await wait_or_fail(
+            filter_nan_done, 2.0, "Test 6 timed out", values=sensor_values["filter_nan"]
+        )
 
         values = sensor_values["filter_nan"]
         assert values[0] == pytest.approx(1.0), f"Test 6 failed: got {values}"

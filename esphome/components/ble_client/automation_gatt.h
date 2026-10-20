@@ -43,15 +43,16 @@ template<typename... Ts> class BLEClientConnectAction final : public Action<Ts..
         this->play_next_tuple_(this->var_);
     });
     // A connect attempt that dies (or a later disconnect) terminates the
-    // chain, mirroring the legacy DISCONNECT_EVT handling.
-    ble_client->add_on_connect_failed_callback([this]() {
-      if (this->num_running_ != 0)
+    // chain - unless a fresh attempt is already in flight, meaning a user
+    // trigger on this same list started this action (an on_disconnect that
+    // reconnects) and the wait belongs to that attempt. Legacy split these:
+    // it aborted on DISCONNECT_EVT, the trigger fired on the later CLOSE_EVT.
+    auto terminate = [this]() {
+      if (this->num_running_ != 0 && this->ble_client_->idle())
         this->stop_complex();
-    });
-    ble_client->add_on_disconnect_callback([this]() {
-      if (this->num_running_ != 0)
-        this->stop_complex();
-    });
+    };
+    ble_client->add_on_connect_failed_callback(terminate);
+    ble_client->add_on_disconnect_callback(terminate);
   }
 
   // not used since we override play_complex_

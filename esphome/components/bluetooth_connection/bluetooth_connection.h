@@ -4,6 +4,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #include "esphome/components/ble_device_base/ble_client_state.h"
 #include "esphome/components/ble_device_base/ble_device.h"
@@ -126,10 +127,8 @@ inline void fill_128bit_uuid_array(std::array<uint64_t, 2> &out, const ble_devic
   if (uuid.type() == ESPBTUUID::Type::UUID128) {
     const uint8_t *u = uuid.uuid128();
     // out[0] = bytes 8-15 (big-endian), out[1] = bytes 0-7 (big-endian)
-    out[0] = ((uint64_t) u[15] << 56) | ((uint64_t) u[14] << 48) | ((uint64_t) u[13] << 40) | ((uint64_t) u[12] << 32) |
-             ((uint64_t) u[11] << 24) | ((uint64_t) u[10] << 16) | ((uint64_t) u[9] << 8) | ((uint64_t) u[8]);
-    out[1] = ((uint64_t) u[7] << 56) | ((uint64_t) u[6] << 48) | ((uint64_t) u[5] << 40) | ((uint64_t) u[4] << 32) |
-             ((uint64_t) u[3] << 24) | ((uint64_t) u[2] << 16) | ((uint64_t) u[1] << 8) | ((uint64_t) u[0]);
+    out[0] = encode_value_le<uint64_t>(&u[8]);
+    out[1] = encode_value_le<uint64_t>(u);
     return;
   }
   // 16/32-bit UUID inserted into the Bluetooth base UUID:
