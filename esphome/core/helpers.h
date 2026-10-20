@@ -1069,7 +1069,7 @@ constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (va
 
 /// Set the bits of \p mask in \p value when \p on is true, clear them otherwise.
 /// Use an unsigned mask for a register wider than int; a negative int mask is sign-extended.
-template<typename T> constexpr void assign_bits(T &value, std::type_identity_t<T> mask, bool on) {
+template<typename T> ESPHOME_ALWAYS_INLINE constexpr void assign_bits(T &value, std::type_identity_t<T> mask, bool on) {
   if (on) {
     value |= mask;
   } else {
