@@ -256,5 +256,7 @@ async def to_code(config: ConfigType) -> None:
     if CONF_BUSY_PIN in config:
         reset = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
         cg.add(var.set_busy_pin(reset))
-    cg.add_optional(var.set_full_update_every, config.get(CONF_FULL_UPDATE_EVERY))
-    cg.add_optional(var.set_reset_duration, config.get(CONF_RESET_DURATION))
+    if CONF_FULL_UPDATE_EVERY in config:
+        cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
+    if CONF_RESET_DURATION in config:
+        cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
