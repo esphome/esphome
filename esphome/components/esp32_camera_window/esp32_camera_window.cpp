@@ -100,14 +100,14 @@ static bool read_ov_pair(sensor_t *sensor, int reg, SensorPair *value) {
 /// always sees the driver's full readout rather than a previously set window.
 struct OvReadout {
   SensorPair start;   // first sensor pixel that is read out
-  SensorPair offset;  // margin the driver left to its image pipeline, kept as it was
+  SensorPair offset;  // margin the driver leaves to its image pipeline on each side
   SensorPair total;   // line and frame timing the driver wrote, kept as it was
   int span_x{0};      // sensor pixels that are read out
   int span_y{0};
   int factor{1};  // sensor pixels that make up one readout pixel
 
-  int visible_x() const { return this->span_x / this->factor; }
-  int visible_y() const { return this->span_y / this->factor; }
+  int visible_x() const { return this->span_x / this->factor - 2 * this->offset.x; }
+  int visible_y() const { return this->span_y / this->factor - 2 * this->offset.y; }
 };
 
 /// Reads the readout area back from the registers the driver wrote.
@@ -177,13 +177,25 @@ static bool set_ov_window(sensor_t *sensor, const Esp32CameraWindow::Window &win
 
   const Rect crop = scale_window(frame_window, frame_width, frame_height, readout.visible_x(), readout.visible_y());
 
+  // The margin is part of the readout the sensor crops away again, so a crop of the picture
+  // includes one on each side.
+  const int crop_width = crop.width + 2 * readout.offset.x;
+  const int crop_height = crop.height + 2 * readout.offset.y;
   const int start_x = readout.start.x + readout.factor * crop.offset_x;
   const int start_y = readout.start.y + readout.factor * crop.offset_y;
-  const int end_x = start_x + readout.factor * crop.width - 1;
-  const int end_y = start_y + readout.factor * crop.height - 1;
-  // The image pipeline scales what it is given to the frame, so a window smaller than the frame
-  // fills the frame on its own.
-  const bool scale = true;
+  const int end_x = start_x + readout.factor * crop_width - 1;
+  const int end_y = start_y + readout.factor * crop_height - 1;
+
+  // The sensor scales the readout down to the frame but cannot scale it up: the OV3660 datasheet
+  // asks for an output smaller than the input, and the OV5640 application note says its ISP only
+  // scales down.
+  if (crop.width < frame_width || crop.height < frame_height) {
+    ESP_LOGE(TAG, "A %dx%d window leaves %dx%d pixels to fill the %dx%d frame; this sensor only scales down",
+             frame_window.width, frame_window.height, crop.width, crop.height, frame_width, frame_height);
+    return false;
+  }
+  // At the same size there is nothing to scale, and the driver leaves the scaler off then too.
+  const bool scale = crop.width > frame_width || crop.height > frame_height;
 
   const int ret =
       sensor->set_res_raw(sensor, start_x, start_y, end_x, end_y, readout.offset.x, readout.offset.y, readout.total.x,
@@ -488,8 +500,8 @@ bool Esp32CameraWindow::set_sensor_window_(sensor_t *sensor, const Window &windo
 }
 
 bool Esp32CameraWindow::is_window_supported(sensor_t *sensor) {
-  // The OV2640 crops inside the readout it is already doing, and the OV3660 and OV5640 accept any
-  // part of the sensor as their readout. The SC101IOT and SC030IOT take a window over their whole
+  // The OV2640 crops inside the readout it is already doing, and the OV3660 and OV5640 scale a part
+  // of the sensor down to the frame. The SC101IOT and SC030IOT take a window over their whole
   // readout, of the size of the frame. Every other sensor the driver knows is read out through a
   // different set of registers, so it cannot be asked for a window.
   switch (sensor->id.PID) {
