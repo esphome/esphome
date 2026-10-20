@@ -1521,7 +1521,7 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    * @param command The command to write, for example "vis b0,0".
    */
   bool send_command_(const std::string &command);
-  NextionQueue *add_no_result_to_queue_(const std::string &variable_name);
+  void add_no_result_to_queue_(const std::string &variable_name);
   bool add_no_result_to_queue_with_ignore_sleep_printf_(const std::string &variable_name, const char *format, ...)
       __attribute__((format(printf, 3, 4)));
   void add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command);
@@ -1539,10 +1539,8 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
    *
    * @param variable_name Name of the variable or component associated with the command
    * @param command The actual command string to be sent when spacing allows
-   * @return The queued entry, or nullptr if it was dropped
    */
-  NextionQueue *add_no_result_to_queue_with_pending_command_(const std::string &variable_name,
-                                                             const std::string &command);
+  void add_no_result_to_queue_with_pending_command_(const std::string &variable_name, const std::string &command);
 #endif  // USE_NEXTION_COMMAND_SPACING
 
   bool add_no_result_to_queue_with_printf_(const std::string &variable_name, const char *format, ...)

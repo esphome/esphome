@@ -97,7 +97,7 @@ class DeliverQueueResponse : public ::testing::Test {
     return component;
   }
 
-  /// Names of the queued entries, front first. send_command() names its entries "command".
+  /// Names of the queued entries, front first. send_command() names its entries "command", or "raw_get" for a "get".
   std::vector<std::string> queued_() {
     std::vector<std::string> names;
     for (auto *entry : queue(this->nextion_)) {
@@ -219,6 +219,7 @@ TEST_F(DeliverQueueResponse, RawGetTakesItsOwnValue) {
   this->nextion_.send_command_printf("get %s", "t0.txt");
   auto *sensor = this->add_query_("temp", NextionQueueType::SENSOR);
   auto *text = this->add_query_("status", NextionQueueType::TEXT_SENSOR);
+  EXPECT_EQ(this->queued_(), (std::vector<std::string>{"raw_get", "raw_get", "temp", "status"}));
 
   numeric_return(this->nextion_, 3);
   string_return(this->nextion_, "raw");
@@ -226,6 +227,17 @@ TEST_F(DeliverQueueResponse, RawGetTakesItsOwnValue) {
   EXPECT_FALSE(sensor->received);
   EXPECT_FALSE(text->received);
   EXPECT_EQ(this->queued_(), (std::vector<std::string>{"temp", "status"}));
+}
+
+// A raw "get" is found by its entry name; a query from a user entity with the same name is still a normal query
+TEST_F(DeliverQueueResponse, QueryNamedRawGetIsNotRawGet) {
+  auto *sensor = this->add_query_("raw_get", NextionQueueType::SENSOR);
+
+  numeric_return(this->nextion_, 8);
+
+  EXPECT_TRUE(sensor->received);
+  EXPECT_EQ(sensor->int_value, 8);
+  EXPECT_TRUE(this->queued_().empty());
 }
 
 }  // namespace esphome::nextion::testing
