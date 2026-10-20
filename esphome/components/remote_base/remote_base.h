@@ -19,12 +19,12 @@ enum ToleranceMode : uint8_t {
 
 using RawTimings = std::vector<int32_t>;
 
-/// A bit is bit_mark followed by one_space or zero_space.
 enum class BitOrder : uint8_t {
   BIT_ORDER_LSB_FIRST,
   BIT_ORDER_MSB_FIRST,
 };
 
+/// A bit is bit_mark followed by one_space or zero_space.
 struct BitTimings {
   uint32_t bit_mark;
   uint32_t one_space;
