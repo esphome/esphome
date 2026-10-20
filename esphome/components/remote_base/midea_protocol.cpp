@@ -39,14 +39,16 @@ void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->set_carrier_frequency(38000);
   dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 1);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  dst->item_bytes<BIT_TIMINGS>(src.data(), 6);
+  dst->item_bytes<BIT_TIMINGS>(src.data(), src.size());
   dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  dst->item_bytes<INVERTED_BIT_TIMINGS>(src.data(), 6);
+  dst->item_bytes<INVERTED_BIT_TIMINGS>(src.data(), src.size());
   dst->mark(FOOTER_MARK_US);
 }
 
-static bool decode_data(RemoteReceiveData &src, MideaData &dst) { return src.expect_bytes<BIT_TIMINGS>(dst.data(), 6); }
+static bool decode_data(RemoteReceiveData &src, MideaData &dst) {
+  return src.expect_bytes<BIT_TIMINGS>(dst.data(), dst.size());
+}
 
 optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
   MideaData out, inv;
