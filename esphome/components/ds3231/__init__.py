@@ -90,14 +90,14 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
     await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
-    if (frequency := config.get(CONF_SQUARE_WAVE_FREQUENCY)) is not None:
-        cg.add(var.set_square_wave_frequency(frequency))
-    if (bbsqw := config.get(CONF_BATTERY_BACKED_SQUARE_WAVE)) is not None:
-        cg.add(var.set_battery_backed_square_wave(bbsqw))
-    if (output_32khz := config.get(CONF_OUTPUT_32KHZ)) is not None:
-        cg.add(var.set_output_32khz_config(output_32khz))
-    if (aging_offset := config.get(CONF_AGING_OFFSET)) is not None:
-        cg.add(var.set_aging_offset_config(aging_offset))
+    cg.add_optional(
+        var.set_square_wave_frequency, config.get(CONF_SQUARE_WAVE_FREQUENCY)
+    )
+    cg.add_optional(
+        var.set_battery_backed_square_wave, config.get(CONF_BATTERY_BACKED_SQUARE_WAVE)
+    )
+    cg.add_optional(var.set_output_32khz_config, config.get(CONF_OUTPUT_32KHZ))
+    cg.add_optional(var.set_aging_offset_config, config.get(CONF_AGING_OFFSET))
     cg.add(var.set_auto_clear_alarms(config[CONF_AUTO_CLEAR_ALARMS]))
     cg.add(var.set_alarm_check_interval(config[CONF_ALARM_CHECK_INTERVAL]))
     # The alarm flags are only read when something uses them; the binary sensor platform
