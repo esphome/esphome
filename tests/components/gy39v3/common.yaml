@@ -1,0 +1,18 @@
+i2c:
+  - id: i2c_gy93v3
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+
+sensor:
+  - platform: gy39v3
+    illuminance:
+      name: GY39v3 Illuminance
+    temperature:
+      name: GY39v3 Temperature
+    pressure:
+      name: GY39v3 Pressure
+    humidity:
+      name: GY39v3 Humidity
+    elevation:
+      name: GY39v3 Elevation
+    update_interval: 60s

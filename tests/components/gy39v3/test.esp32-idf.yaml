@@ -1,0 +1,3 @@
+# tests/components/<your_component>/test.esp32-idf.yaml
+packages:
+  gy39v3: !include common.yaml
