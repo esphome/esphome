@@ -69,13 +69,6 @@ void I2CSSD1306::setup() {
     return;
   }
 
-#ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
-  if (this->partial_updates_enabled_ && !this->partial_updates_supported_()) {
-    ESP_LOGE(TAG, "partial_updates is supported only for SSD1306 models");
-    this->mark_failed();
-    return;
-  }
-#endif
   SSD1306::setup();
 #ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
   if (!this->partial_updates_enabled_) {
@@ -167,20 +160,6 @@ void HOT I2CSSD1306::write_display_data() {
 
 #ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
 // MODEL HELPERS
-
-bool I2CSSD1306::partial_updates_supported_() const {
-  switch (this->model_) {
-    case ssd1306_base::SSD1306_MODEL_128_32:
-    case ssd1306_base::SSD1306_MODEL_128_64:
-    case ssd1306_base::SSD1306_MODEL_96_16:
-    case ssd1306_base::SSD1306_MODEL_64_48:
-    case ssd1306_base::SSD1306_MODEL_64_32:
-    case ssd1306_base::SSD1306_MODEL_72_40:
-      return true;
-    default:
-      return false;
-  }
-}
 
 uint8_t I2CSSD1306::get_column_address_base_() const {
   switch (this->model_) {
@@ -744,19 +723,10 @@ void I2CSSD1306::update() {
     const uint32_t global_cost = this->estimate_region_wire_clocks_(global_bounds);
     use_region_plan = plan_cost < global_cost;
   }
-  bool success;
   if (use_region_plan) {
-    success = this->write_planned_regions_();
-  } else {
-    success = this->write_checked_region_(global_bounds);
-    if (success) {
-      this->commit_shadow_buffer_();
-    }
-  }
-  if (!success) {
-    // write_checked_region_() already invalidated the
-    // shadow and marked the controller untrusted.
-    return;
+    this->write_planned_regions_();
+  } else if (this->write_checked_region_(global_bounds)) {
+    this->commit_shadow_buffer_();
   }
 }
 #endif

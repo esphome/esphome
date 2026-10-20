@@ -45,7 +45,6 @@ class I2CSSD1306 final : public ssd1306_base::SSD1306, public i2c::I2CDevice {
     bool have_previous_buffer{false};
     bool controller_reinit_required{false};
   };
-  bool partial_updates_supported_() const;
   uint8_t get_column_address_base_() const;
   uint8_t get_com_pins_config_() const;
   uint8_t get_vcom_detect_() const;
