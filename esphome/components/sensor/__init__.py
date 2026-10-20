@@ -1045,10 +1045,8 @@ async def _build_sensor_automations(var, config):
 async def setup_sensor_core_(var, config):
     setup_device_class(config)
     setup_unit_of_measurement(config)
-    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
-        cg.add(var.set_state_class(state_class))
-    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
-        cg.add(var.set_accuracy_decimals(accuracy_decimals))
+    cg.add_optional(var.set_state_class, config.get(CONF_STATE_CLASS))
+    cg.add_optional(var.set_accuracy_decimals, config.get(CONF_ACCURACY_DECIMALS))
     # Only set force_update if True (default is False)
     if config[CONF_FORCE_UPDATE]:
         cg.add(var.set_force_update(True))
