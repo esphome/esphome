@@ -7,7 +7,7 @@
 
 namespace esphome::atm90e32 {
 
-static const char *const TAG = "atm90e32";
+ESPHOME_LOG_TAG(TAG, "atm90e32");
 
 static const LogString *offset_calibration_name(bool power_offsets) {
   return power_offsets ? LOG_STR("Power offset") : LOG_STR("Offset");
@@ -117,12 +117,9 @@ void ATM90E32Component::loop() {
 }
 
 void ATM90E32Component::update() {
-  if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read16_(ATM90E32_REGISTER_METEREN) == 1, nullptr))
     return;
-  }
   this->set_publish_interval_flag_(true);
-  this->status_clear_warning();
 
 #ifdef USE_TEXT_SENSOR
   this->check_phase_status();
@@ -168,7 +165,7 @@ void ATM90E32Component::setup() {
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x55AA);       // enable register config access
   if (!this->validate_spi_read_(0x55AA, "setup()")) {
     ESP_LOGW(TAG, "Could not initialize ATM90E32 IC, check SPI settings");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -411,9 +408,6 @@ void ATM90E32Component::log_calibration_status_() {
 void ATM90E32Component::dump_config() {
   ESP_LOGCONFIG("", "ATM90E32:");
   LOG_PIN("  CS Pin: ", this->cs_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Voltage A", this->phase_[PHASEA].voltage_sensor_);
   LOG_SENSOR("  ", "Current A", this->phase_[PHASEA].current_sensor_);
@@ -641,6 +635,18 @@ float ATM90E32Component::get_frequency_() {
 float ATM90E32Component::get_chip_temperature_() {
   const uint16_t ctemp = this->read16_(ATM90E32_REGISTER_TEMP);
   return (float) ctemp;
+}
+
+void ATM90E32Component::press_calibration_button(EntityBase *entity, void (ATM90E32Component::*action)(),
+                                                 const LogString *hint, const LogString *hint2) {
+  ESP_LOGI(TAG, "%s", entity->get_name().c_str());
+  if (hint != nullptr) {
+    ESP_LOGI(TAG, "%s", LOG_STR_ARG(hint));
+  }
+  if (hint2 != nullptr) {
+    ESP_LOGI(TAG, "%s", LOG_STR_ARG(hint2));
+  }
+  (this->*action)();
 }
 
 void ATM90E32Component::run_gain_calibrations() {

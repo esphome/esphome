@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 from aioesphomeapi import UserService, UserServiceArgType
@@ -19,16 +18,6 @@ async def test_api_custom_services(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test CustomAPIDevice services work correctly with custom_services: true."""
-    # Get the path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
 
     # Track log messages

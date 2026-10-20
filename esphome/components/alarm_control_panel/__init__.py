@@ -21,6 +21,7 @@ from esphome.core.entity_helpers import (
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@grahambrown11", "@hwstar"]
+DOMAIN = "alarm_control_panel"
 IS_PLATFORM_COMPONENT = True
 
 CONF_ON_TRIGGERED = "on_triggered"

@@ -3,7 +3,7 @@
 
 namespace esphome::tmp1075 {
 
-static const char *const TAG = "tmp1075";
+ESPHOME_LOG_TAG(TAG, "tmp1075");
 
 constexpr uint8_t REG_TEMP = 0x0;   // Temperature result
 constexpr uint8_t REG_CFGR = 0x1;   // Configuration
@@ -20,7 +20,7 @@ void TMP1075Sensor::setup() {
   uint8_t cfg;
   if (!this->read_byte(REG_CFGR, &cfg)) {
     ESP_LOGE(TAG, "'%s' - unable to read", this->name_.c_str());
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -29,12 +29,10 @@ void TMP1075Sensor::setup() {
 
 void TMP1075Sensor::update() {
   uint16_t regvalue;
-  if (!read_byte_16(REG_TEMP, &regvalue)) {
+  if (!this->status_comm_result(this->read_byte_16(REG_TEMP, &regvalue), LOG_STR("can't read"))) {
     ESP_LOGW(TAG, "'%s' - unable to read temperature register", this->name_.c_str());
-    this->status_set_warning(LOG_STR("can't read"));
     return;
   }
-  this->status_clear_warning();
 
   const float temp = regvalue2temp(regvalue);
   this->publish_state(temp);
@@ -42,10 +40,8 @@ void TMP1075Sensor::update() {
 
 void TMP1075Sensor::dump_config() {
   LOG_SENSOR("", "TMP1075 Sensor", this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
   ESP_LOGCONFIG(TAG,
                 "  limit low  : %.4f °C\n"
                 "  limit high : %.4f °C\n"

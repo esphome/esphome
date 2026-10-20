@@ -18,7 +18,7 @@ from typing import Any
 
 from esphome.const import CONF_DATA_RATE
 
-from . import EpaperModel
+from . import EpaperModel, ultrachip_resolution
 
 
 class UC8179(EpaperModel):
@@ -32,7 +32,8 @@ class UC8179(EpaperModel):
         **defaults: Any,
     ) -> None:
         defaults.setdefault(CONF_DATA_RATE, data_rate)
-        super().__init__(name, class_name, **defaults)
+        defaults.setdefault("partial_update", True)
+        super().__init__(name, class_name=class_name, **defaults)
 
     def get_init_sequence(self, config: dict) -> tuple:
         """Generate the initialization sequence for UC8179 mono displays.
@@ -50,13 +51,7 @@ class UC8179(EpaperModel):
             # PANEL SETTING (black/white mode, LUT from OTP)
             (0x00, 0x1F),
             # RESOLUTION SETTING (width x height)
-            (
-                0x61,
-                (width >> 8) & 0xFF,
-                width & 0xFF,
-                (height >> 8) & 0xFF,
-                height & 0xFF,
-            ),
+            ultrachip_resolution(width, height),
             # DUAL SPI MODE (disabled)
             (0x15, 0x00),
             # VCOM AND DATA INTERVAL SETTING

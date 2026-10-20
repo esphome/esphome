@@ -13,3 +13,4 @@ api:
   port: 6053
   reboot_timeout: 15min
   batch_delay: 100ms
+  listen_backlog: 4

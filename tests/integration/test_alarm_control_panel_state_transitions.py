@@ -17,6 +17,7 @@ import pytest
 
 from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -249,10 +250,9 @@ async def test_alarm_control_panel_state_transitions(
         await wait_for_state(AlarmControlPanelState.ARMED_AWAY, timeout=2.0)
 
         # Verify on_cleared was logged
-        try:
-            await asyncio.wait_for(cleared_future, timeout=1.0)
-        except TimeoutError:
-            pytest.fail(f"on_cleared callback not fired. Log lines: {log_lines[-20:]}")
+        await wait_or_fail(
+            cleared_future, 1.0, "on_cleared callback not fired", log_lines=log_lines
+        )
 
         # Disarm
         client.alarm_control_panel_command(
@@ -282,19 +282,17 @@ async def test_alarm_control_panel_state_transitions(
         client.switch_command(chime_switch_info.key, True)
 
         # Wait for chime callback to be logged
-        try:
-            await asyncio.wait_for(chime_future, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"on_chime callback not fired. Log lines: {log_lines[-20:]}")
+        await wait_or_fail(
+            chime_future, 2.0, "on_chime callback not fired", log_lines=log_lines
+        )
 
         # Wait for the on_ready from the chime sensor opening
-        try:
-            await asyncio.wait_for(ready_after_chime_open, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"on_ready callback not fired when chime sensor opened. "
-                f"Log lines: {log_lines[-20:]}"
-            )
+        await wait_or_fail(
+            ready_after_chime_open,
+            2.0,
+            "on_ready callback not fired when chime sensor opened",
+            log_lines=log_lines,
+        )
 
         # Now create the future for the close event and close the sensor.
         # Since we waited for the open event above, the close event's
@@ -305,13 +303,12 @@ async def test_alarm_control_panel_state_transitions(
         client.switch_command(chime_switch_info.key, False)
 
         # Wait for alarm to become ready again (chime sensor closed)
-        try:
-            await asyncio.wait_for(ready_after_chime_close, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"on_ready callback not fired when chime sensor closed. "
-                f"Log lines: {log_lines[-20:]}"
-            )
+        await wait_or_fail(
+            ready_after_chime_close,
+            2.0,
+            "on_ready callback not fired when chime sensor closed",
+            log_lines=log_lines,
+        )
 
         # ===== Test ready state changes =====
         # Now the alarm is confirmed ready. Opening/closing door sensor
@@ -326,25 +323,23 @@ async def test_alarm_control_panel_state_transitions(
         client.switch_command(door_switch_info.key, True)
 
         # Wait for first on_ready callback (not ready)
-        try:
-            await asyncio.wait_for(ready_future_1, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"on_ready callback not fired when sensor opened. "
-                f"Log lines: {log_lines[-20:]}"
-            )
+        await wait_or_fail(
+            ready_future_1,
+            2.0,
+            "on_ready callback not fired when sensor opened",
+            log_lines=log_lines,
+        )
 
         # Close door sensor (makes alarm ready again)
         client.switch_command(door_switch_info.key, False)
 
         # Wait for second on_ready callback (ready)
-        try:
-            await asyncio.wait_for(ready_future_2, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"on_ready callback not fired when sensor closed. "
-                f"Log lines: {log_lines[-20:]}"
-            )
+        await wait_or_fail(
+            ready_future_2,
+            2.0,
+            "on_ready callback not fired when sensor closed",
+            log_lines=log_lines,
+        )
 
         # Final state should still be DISARMED
         assert states_received[-1] == AlarmControlPanelState.DISARMED

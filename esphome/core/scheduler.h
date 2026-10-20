@@ -518,7 +518,8 @@ class Scheduler {
                                                                             uint32_t hash_or_id,
                                                                             SchedulerItem::Type type, bool find_first);
 
-  Mutex lock_;
+  // Empty on single-threaded platforms (ESP8266, RP2), so it takes no space there
+  [[no_unique_address]] Mutex lock_;
   std::vector<SchedulerItem *> items_;
   std::vector<SchedulerItem *> to_add_;
 

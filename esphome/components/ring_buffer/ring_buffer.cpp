@@ -7,11 +7,12 @@
 
 namespace esphome::ring_buffer {
 
-static const char *const TAG = "ring_buffer";
+ESPHOME_LOG_TAG(TAG, "ring_buffer");
 
 RingBuffer::~RingBuffer() {
-  if (this->handle_ != nullptr) {
-    vRingbufferDelete(this->handle_);
+  // create() only builds the ring buffer once storage_ is allocated
+  if (this->storage_ != nullptr) {
+    vRingbufferDelete(this->handle_());
     RAMAllocator<uint8_t> allocator;
     allocator.deallocate(this->storage_, this->size_);
   }
@@ -31,7 +32,12 @@ std::unique_ptr<RingBuffer> RingBuffer::create(size_t len, MemoryPreference pref
     return nullptr;
   }
 
-  rb->handle_ = xRingbufferCreateStatic(rb->size_, RINGBUF_TYPE_BYTEBUF, rb->storage_, &rb->structure_);
+  // handle_() assumes the returned handle is &structure_; NULL means the arguments were rejected
+  if (xRingbufferCreateStatic(rb->size_, RINGBUF_TYPE_BYTEBUF, rb->storage_, &rb->structure_) != rb->handle_()) {
+    allocator.deallocate(rb->storage_, rb->size_);
+    rb->storage_ = nullptr;
+    return nullptr;
+  }
   ESP_LOGD(TAG, "Created ring buffer with size %u", len);
 
   return rb;
@@ -39,16 +45,16 @@ std::unique_ptr<RingBuffer> RingBuffer::create(size_t len, MemoryPreference pref
 
 void *RingBuffer::receive_acquire(size_t &length, size_t max_length, TickType_t ticks_to_wait) {
   length = 0;
-  void *buffer_data = xRingbufferReceiveUpTo(this->handle_, &length, ticks_to_wait, max_length);
+  void *buffer_data = xRingbufferReceiveUpTo(this->handle_(), &length, ticks_to_wait, max_length);
   return buffer_data;
 }
 
-void RingBuffer::receive_release(void *item) { vRingbufferReturnItem(this->handle_, item); }
+void RingBuffer::receive_release(void *item) { vRingbufferReturnItem(this->handle_(), item); }
 
 size_t RingBuffer::read(void *data, size_t len, TickType_t ticks_to_wait) {
   size_t bytes_read = 0;
 
-  void *buffer_data = xRingbufferReceiveUpTo(this->handle_, &bytes_read, ticks_to_wait, len);
+  void *buffer_data = xRingbufferReceiveUpTo(this->handle_(), &bytes_read, ticks_to_wait, len);
 
   if (buffer_data == nullptr) {
     return 0;
@@ -56,14 +62,14 @@ size_t RingBuffer::read(void *data, size_t len, TickType_t ticks_to_wait) {
 
   std::memcpy(data, buffer_data, bytes_read);
 
-  vRingbufferReturnItem(this->handle_, buffer_data);
+  vRingbufferReturnItem(this->handle_(), buffer_data);
 
   if (bytes_read < len) {
     // Data may have wrapped around, so read a second time to receive the remainder
     size_t follow_up_bytes_read = 0;
     size_t bytes_remaining = len - bytes_read;
 
-    buffer_data = xRingbufferReceiveUpTo(this->handle_, &follow_up_bytes_read, 0, bytes_remaining);
+    buffer_data = xRingbufferReceiveUpTo(this->handle_(), &follow_up_bytes_read, 0, bytes_remaining);
 
     if (buffer_data == nullptr) {
       return bytes_read;
@@ -71,7 +77,7 @@ size_t RingBuffer::read(void *data, size_t len, TickType_t ticks_to_wait) {
 
     std::memcpy((void *) ((uint8_t *) (data) + bytes_read), buffer_data, follow_up_bytes_read);
 
-    vRingbufferReturnItem(this->handle_, buffer_data);
+    vRingbufferReturnItem(this->handle_(), buffer_data);
     bytes_read += follow_up_bytes_read;
   }
 
@@ -89,13 +95,13 @@ size_t RingBuffer::write(const void *data, size_t len) {
 
 size_t RingBuffer::write_without_replacement(const void *data, size_t len, TickType_t ticks_to_wait,
                                              bool write_partial) {
-  if (!xRingbufferSend(this->handle_, data, len, ticks_to_wait)) {
+  if (!xRingbufferSend(this->handle_(), data, len, ticks_to_wait)) {
     if (!write_partial) {
       return 0;  // Not enough space available and not allowed to write partial data
     }
     // Couldn't fit all the data, write what will fit
     size_t free = std::min(this->free(), len);
-    if (xRingbufferSend(this->handle_, data, free, 0)) {
+    if (xRingbufferSend(this->handle_(), data, free, 0)) {
       return free;
     }
     return 0;
@@ -105,11 +111,11 @@ size_t RingBuffer::write_without_replacement(const void *data, size_t len, TickT
 
 size_t RingBuffer::available() const {
   UBaseType_t ux_items_waiting = 0;
-  vRingbufferGetInfo(this->handle_, nullptr, nullptr, nullptr, nullptr, &ux_items_waiting);
+  vRingbufferGetInfo(this->handle_(), nullptr, nullptr, nullptr, nullptr, &ux_items_waiting);
   return ux_items_waiting;
 }
 
-size_t RingBuffer::free() const { return xRingbufferGetCurFreeSize(this->handle_); }
+size_t RingBuffer::free() const { return xRingbufferGetCurFreeSize(this->handle_()); }
 
 BaseType_t RingBuffer::reset() {
   // Discards all the available data
@@ -119,15 +125,15 @@ BaseType_t RingBuffer::reset() {
 bool RingBuffer::discard_bytes_(size_t discard_bytes) {
   size_t bytes_read = 0;
 
-  void *buffer_data = xRingbufferReceiveUpTo(this->handle_, &bytes_read, 0, discard_bytes);
+  void *buffer_data = xRingbufferReceiveUpTo(this->handle_(), &bytes_read, 0, discard_bytes);
   if (buffer_data != nullptr)
-    vRingbufferReturnItem(this->handle_, buffer_data);
+    vRingbufferReturnItem(this->handle_(), buffer_data);
 
   if (bytes_read < discard_bytes) {
     size_t wrapped_bytes_read = 0;
-    buffer_data = xRingbufferReceiveUpTo(this->handle_, &wrapped_bytes_read, 0, discard_bytes - bytes_read);
+    buffer_data = xRingbufferReceiveUpTo(this->handle_(), &wrapped_bytes_read, 0, discard_bytes - bytes_read);
     if (buffer_data != nullptr) {
-      vRingbufferReturnItem(this->handle_, buffer_data);
+      vRingbufferReturnItem(this->handle_(), buffer_data);
       bytes_read += wrapped_bytes_read;
     }
   }

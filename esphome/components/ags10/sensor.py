@@ -4,7 +4,6 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
-    CONF_ID,
     CONF_MODE,
     CONF_TVOC,
     CONF_VALUE,
@@ -58,20 +57,12 @@ FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema("ags10", max_frequency=
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
-    sens = await sensor.new_sensor(config[CONF_TVOC])
-    cg.add(var.set_tvoc(sens))
-
-    if version_config := config.get(CONF_VERSION):
-        sens = await sensor.new_sensor(version_config)
-        cg.add(var.set_version(sens))
-
-    if resistance_config := config.get(CONF_RESISTANCE):
-        sens = await sensor.new_sensor(resistance_config)
-        cg.add(var.set_resistance(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TVOC, var.set_tvoc)
+    await sensors(CONF_VERSION, var.set_version)
+    await sensors(CONF_RESISTANCE, var.set_resistance)
 
 
 AGS10_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
@@ -90,11 +81,9 @@ automation.register_apply_action(
 )
 
 AGS10SetZeroPointActionMode = ags10_ns.enum("AGS10SetZeroPointActionMode")
-AGS10_SET_ZERO_POINT_ACTION_MODE = {
-    "FACTORY_DEFAULT": AGS10SetZeroPointActionMode.FACTORY_DEFAULT,
-    "CURRENT_VALUE": AGS10SetZeroPointActionMode.CURRENT_VALUE,
-    "CUSTOM_VALUE": AGS10SetZeroPointActionMode.CUSTOM_VALUE,
-}
+AGS10_SET_ZERO_POINT_ACTION_MODE = AGS10SetZeroPointActionMode.options(
+    "FACTORY_DEFAULT", "CURRENT_VALUE", "CUSTOM_VALUE"
+)
 
 AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
     {
