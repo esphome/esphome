@@ -13,11 +13,15 @@ static const int32_t BIT_ONE_SPACE_US = 3 * TICK_US;
 static const int32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
 static const int32_t FOOTER_MARK_US = 1 * TICK_US;
 static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
-static constexpr BitTimings BIT_TIMINGS{
-    .bit_mark = BIT_MARK_US, .one_space = BIT_ONE_SPACE_US, .zero_space = BIT_ZERO_SPACE_US, .bit_order = BitOrder::BIT_ORDER_MSB_FIRST};
+static constexpr BitTimings BIT_TIMINGS{.bit_mark = BIT_MARK_US,
+                                        .one_space = BIT_ONE_SPACE_US,
+                                        .zero_space = BIT_ZERO_SPACE_US,
+                                        .bit_order = BitOrder::BIT_ORDER_MSB_FIRST};
 // The second copy of the frame is sent inverted
-static constexpr BitTimings INVERTED_BIT_TIMINGS{
-    .bit_mark = BIT_MARK_US, .one_space = BIT_ZERO_SPACE_US, .zero_space = BIT_ONE_SPACE_US, .bit_order = BitOrder::BIT_ORDER_MSB_FIRST};
+static constexpr BitTimings INVERTED_BIT_TIMINGS{.bit_mark = BIT_MARK_US,
+                                                 .one_space = BIT_ZERO_SPACE_US,
+                                                 .zero_space = BIT_ONE_SPACE_US,
+                                                 .bit_order = BitOrder::BIT_ORDER_MSB_FIRST};
 
 uint8_t MideaData::calc_cs_() const {
   uint8_t cs = 0;

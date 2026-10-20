@@ -75,8 +75,10 @@ const uint16_t YASHIMA_BIT_MARK = 667;
 const uint16_t YASHIMA_ONE_SPACE = 517;
 const uint16_t YASHIMA_ZERO_SPACE = 1543;
 const uint32_t YASHIMA_GAP = YASHIMA_HEADER_SPACE;
-static constexpr remote_base::BitTimings YASHIMA_BIT_TIMINGS{
-    .bit_mark = YASHIMA_BIT_MARK, .one_space = YASHIMA_ONE_SPACE, .zero_space = YASHIMA_ZERO_SPACE, .bit_order = remote_base::BitOrder::BIT_ORDER_MSB_FIRST};
+static constexpr remote_base::BitTimings YASHIMA_BIT_TIMINGS{.bit_mark = YASHIMA_BIT_MARK,
+                                                             .one_space = YASHIMA_ONE_SPACE,
+                                                             .zero_space = YASHIMA_ZERO_SPACE,
+                                                             .bit_order = remote_base::BitOrder::BIT_ORDER_MSB_FIRST};
 
 const uint32_t YASHIMA_CARRIER_FREQUENCY = 38000;
 
