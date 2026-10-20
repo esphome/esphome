@@ -64,7 +64,8 @@ static constexpr uint8_t FONT[] PROGMEM = {
 };
 
 void HT16K33CharDisplay::setup() {
-  if (!this->write_all_(COMMAND_SYSTEM_SETUP | OSCILLATOR_ON) ||
+  // Cleared before the display turns on, so a message from before an MCU-only reboot never shows
+  if (!this->write_all_(COMMAND_SYSTEM_SETUP | OSCILLATOR_ON) || !this->clear_all_() ||
       !this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_) ||
       !this->write_all_(COMMAND_DIMMING | this->intensity_)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
@@ -92,6 +93,16 @@ void HT16K33CharDisplay::dump_config() {
   }
 #endif
   LOG_UPDATE_INTERVAL(this);
+}
+
+bool HT16K33CharDisplay::clear_all_() {
+  const uint8_t frame[FRAME_SIZE] = {COMMAND_DISPLAY_DATA};
+  bool ok = true;
+  this->for_each_chip_([&](uint8_t address) {
+    if (this->bus_->write(address, frame, FRAME_SIZE) != i2c::ERROR_OK)
+      ok = false;
+  });
+  return ok;
 }
 
 bool HT16K33CharDisplay::write_all_(uint8_t command) {
@@ -209,7 +220,7 @@ uint8_t HT16K33CharDisplay::clock_display(uint8_t pos, bool show_leading_zero, b
 void HT16K33CharDisplay::set_intensity(uint8_t intensity) {
   this->intensity_ = std::min(intensity, MAX_INTENSITY);
   if (this->is_ready())
-    this->write_all_(COMMAND_DIMMING | this->intensity_);
+    this->status_comm_result(this->write_all_(COMMAND_DIMMING | this->intensity_));
 }
 
 void HT16K33CharDisplay::set_blink(uint8_t blink) {
@@ -217,22 +228,19 @@ void HT16K33CharDisplay::set_blink(uint8_t blink) {
     blink = 0;
   this->display_setup_ = (this->display_setup_ & ~BLINK_MASK) | (blink << 1);
   if (this->is_ready())
-    this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_);
+    this->status_comm_result(this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_));
 }
 
 void HT16K33CharDisplay::display_off(bool turn_off) {
   this->display_setup_ = (this->display_setup_ & ~DISPLAY_ON) | (turn_off ? 0 : DISPLAY_ON);
   if (this->is_ready())
-    this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_);
+    this->status_comm_result(this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_));
 }
 
 void HT16K33CharDisplay::display_standby(bool standby) {
-  this->write_all_(COMMAND_SYSTEM_SETUP | (standby ? 0 : OSCILLATOR_ON));
+  this->status_comm_result(this->write_all_(COMMAND_SYSTEM_SETUP | (standby ? 0 : OSCILLATOR_ON)));
 }
 
-void HT16K33CharDisplay::blank() {
-  const uint8_t frame[FRAME_SIZE] = {COMMAND_DISPLAY_DATA};
-  this->for_each_chip_([&](uint8_t address) { this->bus_->write(address, frame, FRAME_SIZE); });
-}
+void HT16K33CharDisplay::blank() { this->status_comm_result(this->clear_all_()); }
 
 }  // namespace esphome::ht16k33_char

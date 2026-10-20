@@ -63,6 +63,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
 #endif
   }
   bool write_all_(uint8_t command);
+  bool clear_all_();
   uint8_t find_segments_(uint32_t codepoint) const;
   void draw_();
 

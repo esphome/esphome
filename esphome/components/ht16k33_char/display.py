@@ -55,6 +55,10 @@ def _validate(config: ConfigType) -> ConfigType:
     ]
     if len(set(addresses)) != len(addresses):
         raise cv.Invalid("Every display needs its own address")
+    if {".", ":"} & set(config.get(CONF_ADD_CHARACTERS, {})):
+        raise cv.Invalid(
+            "'.' and ':' light the decimal point and colon and cannot be redefined"
+        )
     return config
 
 
