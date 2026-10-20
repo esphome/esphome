@@ -173,6 +173,15 @@ def test_convert_emits_key_constraints() -> None:
     ]
 
 
+def test_merge_keeps_base_and_local_constraints() -> None:
+    base = {"schema": {"constraints": [{"type": "key_requires", "keys": ["a"]}]}}
+    local = {"schema": {"constraints": [{"type": "only_when", "keys": ["b"]}]}}
+    assert _bls.merge(base, local)["schema"]["constraints"] == [
+        {"type": "key_requires", "keys": ["a"]},
+        {"type": "only_when", "keys": ["b"]},
+    ]
+
+
 def test_convert_emits_variant_enum() -> None:
     """A per-variant enum is dumped with each value tagged by its variants."""
     from esphome.components.esp32 import (

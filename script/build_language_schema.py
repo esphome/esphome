@@ -575,6 +575,8 @@ def merge(source, destination):
             # get node or create one
             node = destination.setdefault(key, {})
             merge(value, node)
+        elif key == "constraints":
+            destination[key] = value + destination.get(key, [])
         else:
             destination[key] = value
 
