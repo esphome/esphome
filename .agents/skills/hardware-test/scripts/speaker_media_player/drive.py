@@ -7,7 +7,7 @@ ops: play:URL | ann:URL | stop | press:BUTTON | wait:S
 import asyncio
 import sys
 
-from aioesphomeapi import APIClient, ButtonInfo, MediaPlayerInfo
+from aioesphomeapi import APIClient, ButtonInfo, MediaPlayerCommand, MediaPlayerInfo
 
 HOST, KEY, OPS = sys.argv[1], sys.argv[2], sys.argv[3:]
 
@@ -35,8 +35,6 @@ async def run_ops(c: APIClient) -> None:
         elif kind == "ann":
             c.media_player_command(player.key, media_url=rest, announcement=True)
         elif kind == "stop":
-            from aioesphomeapi import MediaPlayerCommand
-
             c.media_player_command(player.key, command=MediaPlayerCommand.STOP)
         elif kind == "press":
             if rest not in buttons:

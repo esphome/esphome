@@ -141,16 +141,22 @@ for c in clients:
     c.join()
 stall_closed = None
 if stall_sock is not None:
-    # Drain what the small buffer holds: a close shows as b"" or a reset after it, an open session keeps feeding data
+    # Drain what the small buffer holds: a close shows as b"" or a reset after it. A session the device left
+    # open keeps feeding events, so the drain has its own deadline and data past it means "still open".
     stall_sock.settimeout(2.0)
+    drain_deadline = time.monotonic() + 5.0
     try:
         while stall_sock.recv(65536):
-            pass
-        stall_closed = True
+            if time.monotonic() > drain_deadline:
+                break
+        else:
+            stall_closed = True
     except TimeoutError:
-        stall_closed = False
+        pass
     except OSError:
         stall_closed = True
+    if stall_closed is None:
+        stall_closed = False
     print(
         "stalled client: closed by device"
         if stall_closed

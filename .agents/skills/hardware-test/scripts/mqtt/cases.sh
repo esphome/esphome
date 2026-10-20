@@ -19,9 +19,12 @@ $PY "$BTN" "$DEV" "$KEY" press "Publish big" || { echo "button press failed"; ex
 pub "$N/switch/relay/command" OFF; sleep 2
 if [ "$RESTART" = restart ]; then
   [ -f "$WORK/mosquitto-ws.conf" ] || { echo "no mosquitto-ws.conf in $WORK, cannot restart the broker"; exit 1; }
-  echo "=== $N: broker restart ($(date +%T))"; pkill -f "[m]osquitto -c"; sleep 8
+  echo "=== $N: broker restart ($(date +%T))"; n1=$(($(wc -l < "$LOG")+0))
+  pkill -f "[m]osquitto -c" || { echo "no running mosquitto matched, nothing to restart"; exit 1; }; sleep 8
+  nc -z -w 3 "$B" 1883 && { echo "the old broker still answers on 1883 after pkill"; exit 1; }
   (timeout 10800 mosquitto -c "$WORK/mosquitto-ws.conf" > "$WORK/mosquitto.out" 2>&1 &) ; sleep 25
   for port in 1883 9001 9002; do nc -z -w 3 "$B" "$port" || { echo "broker port $port not listening after the restart"; exit 1; }; done
+  tail -n +$((n1+1)) "$LOG" | grep -a -q "MQTT_EVENT_CONNECTED\|\[mqtt:[0-9]*\]: Connected" || { echo "the device did not reconnect after the broker restart"; exit 1; }
 else
   echo "=== $N: no broker restart (pass 'restart' as the 7th argument for a local broker)"
 fi
