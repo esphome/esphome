@@ -15,6 +15,9 @@ static constexpr uint8_t DAY = 0x14;
 static constexpr uint8_t MONTH = 0x15;
 static constexpr uint8_t FLAG = 0x1E;
 static constexpr uint8_t CONTROL = 0x1F;
+static constexpr uint8_t EXTENSION = 0x1D;
+static constexpr uint8_t SEC_ALARM = 0x2C;
+static constexpr uint8_t MIN_ALARM = 0x17;
 
 class RegisterBus final : public i2c::I2CBus {
  public:
@@ -155,6 +158,152 @@ TEST_F(RX8111Test, I2CFailuresDoNotSyncOrLeaveTheCounterStopped) {
   this->rtc_.write_time();
   EXPECT_EQ(this->bus_.regs[FLAG], 0x83);
   EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
+}
+
+TEST_F(RX8111Test, AlarmProgramsMaskedFieldsAndPreservesOtherControls) {
+  this->bus_.regs[CONTROL] = 0x54;
+  this->bus_.regs[EXTENSION] = 0xC8;
+  this->rtc_.set_alarm_enabled(true);
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 30, 7, 2, 0xFF));
+  EXPECT_EQ(this->bus_.regs[SEC_ALARM], 0x00);
+  EXPECT_EQ(this->bus_.regs[MIN_ALARM], 0x30);
+  EXPECT_EQ(this->bus_.regs[MIN_ALARM + 1], 0x07);
+  EXPECT_EQ(this->bus_.regs[MIN_ALARM + 2], 0x02);
+  EXPECT_EQ(this->bus_.regs[EXTENSION], 0xC0);
+  EXPECT_EQ(this->bus_.regs[CONTROL], 0x5C);
+  ASSERT_TRUE(this->rtc_.set_alarm(0xFF, 5, 0xFF, 0xFF, 31));
+  EXPECT_EQ(this->bus_.regs[SEC_ALARM], 0x80);
+  EXPECT_EQ(this->bus_.regs[MIN_ALARM + 2], 0x31);
+  EXPECT_EQ(this->bus_.regs[EXTENSION], 0xC8);
+  EXPECT_EQ(this->bus_.regs[FLAG], 0);
+  EXPECT_FALSE(this->rtc_.set_alarm(60, 0, 0, 0xFF, 0xFF));
+  EXPECT_FALSE(this->rtc_.set_alarm(0, 0, 0, 1, 1));
+  EXPECT_EQ(this->bus_.regs[SEC_ALARM], 0x80);
+}
+
+TEST_F(RX8111Test, FlagIsLatchedUntilExplicitClearAndOnlyEdgesTrigger) {
+  unsigned alarms = 0;
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.add_on_alarm_callback([&alarms]() { alarms++; });
+  this->bus_.regs[FLAG] = 0x08;  // Event already latched before alarm configuration.
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  this->rtc_.update();  // A preexisting battery-backed event is not a new edge.
+  EXPECT_EQ(alarms, 0);
+  this->rtc_.update();
+  EXPECT_EQ(alarms, 0);
+  this->bus_.regs[FLAG] = 0x3C;
+  this->bus_.latch_event_before_flag_write = true;
+  ASSERT_TRUE(this->rtc_.clear_alarm_flag());
+  EXPECT_EQ(this->bus_.regs[FLAG], 0x34);
+  EXPECT_EQ(this->bus_.writes.back(), FLAG);
+  this->bus_.regs[FLAG] |= 0x08;
+  this->rtc_.update();
+  EXPECT_EQ(alarms, 1);
+  this->rtc_.update();
+  EXPECT_EQ(alarms, 1);
+  ASSERT_TRUE(this->rtc_.unset_alarm());
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0);
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x08, 0x08);
+  EXPECT_EQ(this->bus_.regs[SEC_ALARM], 0x80);
+}
+
+TEST_F(RX8111Test, AlarmI2CFailureLeavesInterruptDisabled) {
+  this->rtc_.set_alarm_enabled(true);
+  this->bus_.regs[CONTROL] = 0x08;
+  this->bus_.fail_write = SEC_ALARM;
+  EXPECT_FALSE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, ClearFromAlarmAutomationAllowsNextEvent) {
+  this->rtc_.set_alarm_enabled(true);
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([this, &calls]() {
+    calls++;
+    EXPECT_TRUE(this->rtc_.clear_alarm_flag());
+  });
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  this->rtc_.update();  // Initialize the edge detector with AF low.
+  this->bus_.regs[FLAG] = 0x08;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x08, 0);
+  this->bus_.regs[FLAG] = 0x08;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 2);
+}
+
+TEST_F(RX8111Test, RelativeAlarmUsesUTCAndRejectsInvalidDurations) {
+  EXPECT_FALSE(this->rtc_.schedule_alarm_in(1));  // Opt-in required.
+  this->rtc_.set_alarm_enabled(true);
+  EXPECT_FALSE(this->rtc_.schedule_alarm_in(0));
+  EXPECT_FALSE(this->rtc_.schedule_alarm_in(28U * 86400U));
+  const auto before = ESPTime::from_epoch_utc(::time(nullptr) + 60);
+  ASSERT_TRUE(this->rtc_.schedule_alarm_in(60));
+  const auto after = ESPTime::from_epoch_utc(::time(nullptr) + 60);
+  const auto matches = [this](const ESPTime &time) {
+    const auto bcd = [](int value) { return (value / 10) * 16 + value % 10; };
+    return this->bus_.regs[SEC_ALARM] == bcd(time.second) && this->bus_.regs[MIN_ALARM] == bcd(time.minute) &&
+           this->bus_.regs[MIN_ALARM + 1] == bcd(time.hour) && this->bus_.regs[MIN_ALARM + 2] == bcd(time.day_of_month);
+  };
+  EXPECT_TRUE(matches(before) || matches(after));
+}
+
+TEST_F(RX8111Test, TimerPrograms24BitCountAndPreservesAlarmAndOtherExtensionBits) {
+  this->bus_.regs[EXTENSION] = 0xC8;
+  this->bus_.regs[CONTROL] = 0x09;
+  this->bus_.regs[FLAG] = 0x1C;
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_count(0x123456);
+  this->rtc_.set_timer_clock(1);
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[0x1A], 0x56);
+  EXPECT_EQ(this->bus_.regs[0x1B], 0x34);
+  EXPECT_EQ(this->bus_.regs[0x1C], 0x12);
+  EXPECT_EQ(this->bus_.regs[EXTENSION], 0xD9);
+  EXPECT_EQ(this->bus_.regs[CONTROL], 0x19);
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x1C, 0x1C);
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&calls]() { calls++; });
+  this->rtc_.update();  // Retained TF is not a new event.
+  EXPECT_EQ(calls, 0);
+  ASSERT_TRUE(this->rtc_.clear_timer_flag());
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x1C, 0x0C);
+  this->bus_.regs[FLAG] |= 0x10;
+  this->rtc_.update();
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+  EXPECT_TRUE(this->rtc_.clear_timer_flag());
+  this->bus_.regs[FLAG] |= 0x10;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 2);
+}
+
+TEST_F(RX8111Test, TimerCallbackCanClearTFAndFailedProgrammingDoesNotStartTimer) {
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_count(1);
+  this->bus_.fail_write = 0x1A;
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x10, 0);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+
+  this->bus_.fail_write = -1;
+  this->bus_.regs[FLAG] = 0;
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([this, &calls]() {
+    calls++;
+    EXPECT_TRUE(this->rtc_.clear_timer_flag());
+  });
+  this->rtc_.update();
+  this->bus_.regs[FLAG] = 0x10;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+  EXPECT_EQ(this->bus_.regs[FLAG], 0);
+  this->bus_.regs[FLAG] = 0x10;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 2);
 }
 
 }  // namespace esphome::rx8111::testing

@@ -1,0 +1,194 @@
+# Dedicated USB-powered ESP32/RX8111 fixture. Backs up timer registers in RAM.
+# Modifies timer/control/extension and clears TF; restores registers on completion.
+# Flash backup and restoration are required before/after this test.
+esphome:
+  name: rx8111timerbench
+  on_boot:
+    priority: -100
+    then:
+      - delay: 2s
+      - lambda: |-
+          auto *device = id(rtc);
+          uint8_t flags = 0;
+          if (!device->read_byte(0x1D, &id(saved_ext)) || !device->read_byte(0x1F, &id(saved_ctrl)) ||
+              !device->read_byte(0x1E, &flags) || !device->read_bytes(0x1A, id(saved_count), 3)) {
+            ESP_LOGE("rtc_timer", "FAIL: preflight I2C read");
+            id(phase) = -1;
+            return;
+          }
+          ESP_LOGI("rtc_timer", "Preflight: EXT=%02X CTRL=%02X FLAG=%02X", id(saved_ext), id(saved_ctrl), flags);
+          // Mask other interrupts only during the bench. Preserve the alarm configuration.
+          if (!device->write_byte(0x1F, id(saved_ctrl) & ~0x3C) ||
+              !device->write_byte(0x1D, id(saved_ext) & ~0x10) ||
+              !device->clear_timer_flag() ||
+              !device->write_byte(0x1F, (id(saved_ctrl) & ~0x3C) | 0x10) ||
+              !device->write_byte(0x1D, id(saved_ext) | 0x10)) {
+            ESP_LOGE("rtc_timer", "FAIL: isolate timer");
+            id(phase) = -1;
+            return;
+          }
+          id(source_index) = 0;
+          id(phase) = 1;
+          id(deadline) = millis() + 3000;
+          ESP_LOGI("rtc_timer", "Starting timer source tests (including 1/60 Hz)");
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+  hardware_uart: UART0
+
+i2c:
+  sda: GPIO23
+  scl: GPIO22
+  scan: true
+
+time:
+  - platform: rx8111
+    id: rtc
+    update_interval: never
+    timer_enabled: true
+    timer_count: 2
+    timer_clock: 1hz
+    on_timer:
+      - lambda: id(callbacks)++;
+
+binary_sensor:
+  - platform: gpio
+    id: rtc_int
+    internal: true
+    pin:
+      number: GPIO4
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+
+globals:
+  - id: phase
+    type: int
+    initial_value: '0'
+  - id: source_index
+    type: int
+    initial_value: '0'
+  - id: callbacks
+    type: int
+    initial_value: '0'
+  - id: baseline
+    type: int
+    initial_value: '0'
+  - id: deadline
+    type: uint32_t
+    initial_value: '0'
+  - id: started
+    type: uint32_t
+    initial_value: '0'
+  - id: saved_ext
+    type: uint8_t
+    initial_value: '0'
+  - id: saved_ctrl
+    type: uint8_t
+    initial_value: '0'
+  - id: saved_count
+    type: uint8_t[3]
+    initial_value: '{0, 0, 0}'
+
+interval:
+  - interval: 100ms
+    then:
+      - lambda: |-
+          if (id(phase) <= 0 || id(phase) == 5) return;
+          auto *device = id(rtc);
+          const uint32_t now = millis();
+          uint8_t flags = 0, ext = 0, ctrl = 0;
+          if (!device->read_byte(0x1E, &flags) || !device->read_byte(0x1D, &ext) ||
+              !device->read_byte(0x1F, &ctrl) ||
+              (id(phase) != 3 && static_cast<int32_t>(now - id(deadline)) > 0)) {
+            ESP_LOGE("rtc_timer", "FAIL: I2C or timeout phase=%d source=%d callbacks=%d flags=%02X",
+                     id(phase), id(source_index), id(callbacks), flags);
+            id(phase) = -1;
+          }
+          if (id(phase) == 1) {
+            // Source 0 uses the component's static YAML setup (2 ticks at 1 Hz).
+            if ((ext & 0x13) != 0x12 || !(ctrl & 0x10)) {
+              ESP_LOGE("rtc_timer", "FAIL: static timer setup EXT=%02X CTRL=%02X", ext, ctrl);
+              id(phase) = -1;
+            } else {
+              id(baseline) = id(callbacks);
+              id(started) = now;
+              id(deadline) = now + 4000;
+              id(phase) = 2;
+            }
+          }
+          if (id(phase) == 2) {
+            device->update();
+            if (flags & 0x10) {
+              if (id(callbacks) != id(baseline) + 1) {
+                ESP_LOGE("rtc_timer", "FAIL: TF did not produce exactly one callback");
+                id(phase) = -1;
+              } else {
+                ESP_LOGI("rtc_timer", "PASS: source %d TF callback in %lu ms", id(source_index),
+                         static_cast<unsigned long>(now - id(started)));
+                id(deadline) = now + 700;
+                id(phase) = 3;
+              }
+            }
+          } else if (id(phase) == 3) {
+            device->update();
+            if (id(callbacks) != id(baseline) + 1) {
+              ESP_LOGE("rtc_timer", "FAIL: duplicate callback with TF latched");
+              id(phase) = -1;
+            } else if (static_cast<int32_t>(now - id(deadline)) >= 0) {
+              ESP_LOGI("rtc_timer", "PASS: TF latched and callback deduplicated");
+              if (!device->clear_timer_flag()) {
+                id(phase) = -1;
+              } else {
+                id(baseline) = id(callbacks);
+                id(deadline) = now + (id(source_index) == 3 ? 65000 : 4000);
+                id(phase) = 4;
+              }
+            }
+          } else if (id(phase) == 4) {
+            device->update();
+            if ((flags & 0x10) && id(callbacks) == id(baseline) + 1) {
+              ESP_LOGI("rtc_timer", "PASS: source %d TF clear and periodic callback rearm", id(source_index));
+              if (!device->write_byte(0x1D, ext & ~0x10) || !device->write_byte(0x1F, ctrl & ~0x10) ||
+                  !device->clear_timer_flag()) {
+                id(phase) = -1;
+              } else if (++id(source_index) < 4) {
+                // 64 Hz / 4096 Hz / 1 per minute: all have a 2s or 60s period.
+                const uint32_t count = id(source_index) == 1 ? 128 : id(source_index) == 2 ? 8192 : 1;
+                const uint8_t bytes[] = {static_cast<uint8_t>(count), static_cast<uint8_t>(count >> 8),
+                                         static_cast<uint8_t>(count >> 16)};
+                const uint8_t clock = id(source_index) == 2 ? 0 : id(source_index) == 3 ? 3 : 1;
+                if (!device->write_bytes(0x1A, bytes, 3) ||
+                    !device->write_byte(0x1D, (ext & ~0x13) | clock) ||
+                    !device->write_byte(0x1F, (ctrl & ~0x3C) | 0x10) ||
+                    !device->write_byte(0x1D, (ext & ~0x13) | clock | 0x10)) {
+                  id(phase) = -1;
+                } else {
+                  id(baseline) = id(callbacks);
+                  id(started) = now;
+                  id(deadline) = now + (id(source_index) == 3 ? 65000 : 4000);
+                  id(phase) = 2;
+                }
+              } else {
+                const bool restored = device->write_bytes(0x1A, id(saved_count), 3) &&
+                    device->write_byte(0x1D, id(saved_ext)) && device->write_byte(0x1F, id(saved_ctrl));
+                id(phase) = restored ? 5 : -1;
+                ESP_LOGI("rtc_timer", "RESULT %s: four sources, TF latch/clear/rearm; RTC time untouched",
+                         restored ? "PASS" : "FAIL");
+              }
+            }
+          }
+          if (id(phase) == -1) {
+            device->write_byte(0x1D, id(saved_ext) & ~0x10);
+            device->write_bytes(0x1A, id(saved_count), 3);
+            device->write_byte(0x1D, id(saved_ext));
+            device->write_byte(0x1F, id(saved_ctrl));
+            ESP_LOGE("rtc_timer", "RESULT FAIL: restored saved RTC control/timer registers");
+            id(phase) = -2;
+          }
