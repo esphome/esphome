@@ -144,8 +144,10 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t remote_state[TCL112_STATE_LENGTH];
-  if (!data.expect_bytes<TCL112_BIT_TIMINGS>(remote_state, TCL112_STATE_LENGTH))
+  if (!data.expect_bytes<TCL112_BIT_TIMINGS>(remote_state, TCL112_STATE_LENGTH)) {
+    ESP_LOGVV(TAG, "Data fail");
     return false;
+  }
   // Validate footer
   if (!data.expect_mark(TCL112_BIT_MARK)) {
     ESP_LOGVV(TAG, "Footer fail");

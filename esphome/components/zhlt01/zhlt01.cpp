@@ -137,8 +137,10 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
 
   // Decode IR message
   uint8_t ir_message[ZHLT01_MESSAGE_LENGTH];
-  if (!data.expect_bytes<AC1_BIT_TIMINGS>(ir_message, sizeof(ir_message)))
+  if (!data.expect_bytes<AC1_BIT_TIMINGS>(ir_message, sizeof(ir_message))) {
+    ESP_LOGV(TAG, "Data fail");
     return false;
+  }
 
   // Validate footer
   if (!data.expect_mark(AC1_BIT_MARK)) {
