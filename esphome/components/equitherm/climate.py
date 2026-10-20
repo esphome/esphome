@@ -1,20 +1,32 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, number, output, sensor
+from esphome.components.pid.climate import (
+    CONF_CONTROL_PARAMETERS,
+    CONF_DEADBAND_PARAMETERS,
+    CONF_DEFAULT_TARGET_TEMPERATURE,
+    CONF_DERIVATIVE_AVERAGING_SAMPLES,
+    CONF_HEAT_OUTPUT,
+    CONF_KD,
+    CONF_KD_MULTIPLIER,
+    CONF_KI,
+    CONF_KI_MULTIPLIER,
+    CONF_KP,
+    CONF_KP_MULTIPLIER,
+    CONF_MAX_INTEGRAL,
+    CONF_MIN_INTEGRAL,
+    CONF_THRESHOLD_HIGH,
+    CONF_THRESHOLD_LOW,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
-CODEOWNERS = ["@P4uLT"]
-
-CONF_DEFAULT_TARGET_TEMPERATURE = "default_target_temperature"
 CONF_OUTDOOR_SENSOR = "outdoor_sensor"
 CONF_INDOOR_SENSOR = "indoor_sensor"
 CONF_FLOW_SETPOINT = "flow_setpoint"
 CONF_MANUAL_FLOW_TEMP = "manual_flow_temp"
-CONF_HEAT_OUTPUT = "heat_output"
-CONF_CONTROL_PARAMETERS = "control_parameters"
 CONF_OUTPUT_PARAMETERS = "output_parameters"
-CONF_DEADBAND_PARAMETERS = "deadband_parameters"
 
 # Heating curve parameters
 CONF_HEAT_CURVE_COEFFICIENT = "heat_curve_coefficient"
@@ -26,21 +38,6 @@ CONF_MAX_FLOW_TEMP = "max_flow_temp"
 
 # Output behavior parameters
 CONF_WRITE_DEADBAND = "write_deadband"
-
-# PID parameters
-CONF_KP = "kp"
-CONF_KI = "ki"
-CONF_KD = "kd"
-CONF_MIN_INTEGRAL = "min_integral"
-CONF_MAX_INTEGRAL = "max_integral"
-CONF_DERIVATIVE_AVERAGING_SAMPLES = "derivative_averaging_samples"
-
-# Deadband parameters
-CONF_THRESHOLD_HIGH = "threshold_high"
-CONF_THRESHOLD_LOW = "threshold_low"
-CONF_KP_MULTIPLIER = "kp_multiplier"
-CONF_KI_MULTIPLIER = "ki_multiplier"
-CONF_KD_MULTIPLIER = "kd_multiplier"
 
 # Action configuration
 CONF_UPDATE_PID = "update_pid"
@@ -73,7 +70,7 @@ CONTROL_PARAMETERS_SCHEMA = cv.Schema(
 )
 
 
-def _validate_output_parameters(config):
+def _validate_output_parameters(config: ConfigType) -> ConfigType:
     """Validate output_parameters."""
     # Validate min/max flow temp
     if config[CONF_MIN_FLOW_TEMP] >= config[CONF_MAX_FLOW_TEMP]:
@@ -97,7 +94,7 @@ OUTPUT_PARAMETERS_SCHEMA = cv.All(
 )
 
 
-def _validate_deadband_thresholds(config):
+def _validate_deadband_thresholds(config: ConfigType) -> ConfigType:
     """Validate that threshold_high > threshold_low for a valid deadband range."""
     threshold_low = config[CONF_THRESHOLD_LOW]
     threshold_high = config[CONF_THRESHOLD_HIGH]
@@ -144,71 +141,56 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
-    var = await climate.new_climate(config)
+async def to_code(config: ConfigType) -> None:
+    outdoor = await cg.get_variable(config[CONF_OUTDOOR_SENSOR])
+    indoor = await cg.get_variable(config[CONF_INDOOR_SENSOR])
+    var = await climate.new_climate(config, outdoor, indoor)
     await cg.register_component(var, config)
 
-    # Sensors
-    outdoor = await cg.get_variable(config[CONF_OUTDOOR_SENSOR])
-    cg.add(var.set_outdoor_sensor(outdoor))
-
-    indoor = await cg.get_variable(config[CONF_INDOOR_SENSOR])
-    cg.add(var.set_indoor_sensor(indoor))
-
-    # Output (mutually exclusive)
-    if CONF_FLOW_SETPOINT in config:
-        flow_setpoint = await cg.get_variable(config[CONF_FLOW_SETPOINT])
-        cg.add(var.set_flow_setpoint_output(flow_setpoint))
-    if CONF_HEAT_OUTPUT in config:
-        heat_output = await cg.get_variable(config[CONF_HEAT_OUTPUT])
-        cg.add(var.set_heat_output(heat_output))
+    await cg.add_variable(var.set_flow_setpoint_output, config.get(CONF_FLOW_SETPOINT))
+    if await cg.add_variable(var.set_heat_output, config.get(CONF_HEAT_OUTPUT)):
         cg.add_define("USE_EQUITHERM_HEAT_OUTPUT")
-
-    # Manual flow temperature number entity (for CLIMATE_PRESET_MANUAL)
-    if CONF_MANUAL_FLOW_TEMP in config:
-        manual_flow_temp = await cg.get_variable(config[CONF_MANUAL_FLOW_TEMP])
-        cg.add(var.set_manual_flow_temp(manual_flow_temp))
-
-    # Climate defaults
+    await cg.add_variable(var.set_manual_flow_temp, config.get(CONF_MANUAL_FLOW_TEMP))
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
-    # Control parameters (heating curve + PID)
     params = config[CONF_CONTROL_PARAMETERS]
-    cg.add(var.set_heat_curve_coefficient(params[CONF_HEAT_CURVE_COEFFICIENT]))
-    cg.add(var.set_heat_curve_exponent(params[CONF_HEAT_CURVE_EXPONENT]))
-    cg.add(var.set_heat_curve_shift(params[CONF_HEAT_CURVE_SHIFT]))
-    # PID parameters
-    cg.add(var.set_kp(params[CONF_KP]))
-    cg.add(var.set_ki(params[CONF_KI]))
-    cg.add(var.set_kd(params[CONF_KD]))
-    cg.add(var.set_min_integral(params[CONF_MIN_INTEGRAL]))
-    cg.add(var.set_max_integral(params[CONF_MAX_INTEGRAL]))
-    cg.add(var.set_derivative_samples(params[CONF_DERIVATIVE_AVERAGING_SAMPLES]))
+    for key, setter in (
+        (CONF_HEAT_CURVE_COEFFICIENT, var.set_heat_curve_coefficient),
+        (CONF_HEAT_CURVE_EXPONENT, var.set_heat_curve_exponent),
+        (CONF_HEAT_CURVE_SHIFT, var.set_heat_curve_shift),
+        (CONF_KP, var.set_kp),
+        (CONF_KI, var.set_ki),
+        (CONF_KD, var.set_kd),
+        (CONF_MIN_INTEGRAL, var.set_min_integral),
+        (CONF_MAX_INTEGRAL, var.set_max_integral),
+        (CONF_DERIVATIVE_AVERAGING_SAMPLES, var.set_derivative_samples),
+    ):
+        cg.add(setter(params[key]))
 
-    # Output parameters
     params = config[CONF_OUTPUT_PARAMETERS]
-    cg.add(var.set_min_flow_temp(params[CONF_MIN_FLOW_TEMP]))
-    cg.add(var.set_max_flow_temp(params[CONF_MAX_FLOW_TEMP]))
-    cg.add(var.set_write_deadband(params[CONF_WRITE_DEADBAND]))
+    for key, setter in (
+        (CONF_MIN_FLOW_TEMP, var.set_min_flow_temp),
+        (CONF_MAX_FLOW_TEMP, var.set_max_flow_temp),
+        (CONF_WRITE_DEADBAND, var.set_write_deadband),
+    ):
+        cg.add(setter(params[key]))
 
-    # Deadband parameters - optional
-    if CONF_DEADBAND_PARAMETERS in config:
-        params = config[CONF_DEADBAND_PARAMETERS]
-        cg.add(var.set_threshold_high(params[CONF_THRESHOLD_HIGH]))
-        cg.add(var.set_threshold_low(params[CONF_THRESHOLD_LOW]))
-        cg.add(var.set_kp_multiplier(params[CONF_KP_MULTIPLIER]))
-        cg.add(var.set_ki_multiplier(params[CONF_KI_MULTIPLIER]))
-        cg.add(var.set_kd_multiplier(params[CONF_KD_MULTIPLIER]))
+    if (params := config.get(CONF_DEADBAND_PARAMETERS)) is not None:
+        for key, setter in (
+            (CONF_THRESHOLD_HIGH, var.set_threshold_high),
+            (CONF_THRESHOLD_LOW, var.set_threshold_low),
+            (CONF_KP_MULTIPLIER, var.set_kp_multiplier),
+            (CONF_KI_MULTIPLIER, var.set_ki_multiplier),
+            (CONF_KD_MULTIPLIER, var.set_kd_multiplier),
+        ):
+            cg.add(setter(params[key]))
 
-    # Automation triggers (callback-based, supports multiple entries)
-    for conf in config.get(CONF_ON_HEATING_START, []):
-        await automation.build_callback_automation(
-            var, "add_on_heating_start_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_HEATING_STOP, []):
-        await automation.build_callback_automation(
-            var, "add_on_heating_stop_callback", [], conf
-        )
+    for conf_key, method in (
+        (CONF_ON_HEATING_START, "add_on_heating_start_callback"),
+        (CONF_ON_HEATING_STOP, "add_on_heating_stop_callback"),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(var, method, [], conf)
 
 
 # Action: equitherm.force_recalculate
