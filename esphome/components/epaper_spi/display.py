@@ -252,8 +252,7 @@ async def to_code(config):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
-    if CONF_RESET_DURATION in config:
-        cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
+    cg.add_optional(var.set_reset_duration, config.get(CONF_RESET_DURATION))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:
