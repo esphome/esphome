@@ -48,14 +48,14 @@ void DaikinBrcClimate::transmit_state() {
 
   data->mark(DAIKIN_BRC_HEADER_MARK);
   data->space(DAIKIN_BRC_HEADER_SPACE);
-  data->item_bytes_lsb<DAIKIN_BRC_BIT_TIMINGS>(remote_state, DAIKIN_BRC_PREAMBLE_SIZE);
+  data->item_bytes<DAIKIN_BRC_BIT_TIMINGS>(remote_state, DAIKIN_BRC_PREAMBLE_SIZE);
   data->mark(DAIKIN_BRC_BIT_MARK);
   data->space(DAIKIN_BRC_MESSAGE_SPACE);
   data->mark(DAIKIN_BRC_HEADER_MARK);
   data->space(DAIKIN_BRC_HEADER_SPACE);
 
-  data->item_bytes_lsb<DAIKIN_BRC_BIT_TIMINGS>(remote_state + DAIKIN_BRC_PREAMBLE_SIZE,
-                                               DAIKIN_BRC_TRANSMIT_FRAME_SIZE - DAIKIN_BRC_PREAMBLE_SIZE);
+  data->item_bytes<DAIKIN_BRC_BIT_TIMINGS>(remote_state + DAIKIN_BRC_PREAMBLE_SIZE,
+                                           DAIKIN_BRC_TRANSMIT_FRAME_SIZE - DAIKIN_BRC_PREAMBLE_SIZE);
 
   data->mark(DAIKIN_BRC_BIT_MARK);
   data->space(0);
@@ -231,7 +231,7 @@ bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!data.expect_item(DAIKIN_BRC_HEADER_MARK, DAIKIN_BRC_HEADER_SPACE)) {
     return false;
   }
-  if (!data.expect_bytes_lsb<DAIKIN_BRC_BIT_TIMINGS>(state_frame, DAIKIN_BRC_STATE_FRAME_SIZE)) {
+  if (!data.expect_bytes<DAIKIN_BRC_BIT_TIMINGS>(state_frame, DAIKIN_BRC_STATE_FRAME_SIZE)) {
     return false;
   }
   // Frame header, with this unit's address in the low 3 bits of byte 3, then the frame type

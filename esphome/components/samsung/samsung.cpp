@@ -162,7 +162,7 @@ void SamsungClimate::send_sections_(const uint8_t *const *sections, uint8_t coun
     uint8_t section[SAMSUNG_AC_SECTION_LENGTH];
     memcpy(section, sections[s], SAMSUNG_AC_SECTION_LENGTH);
     store_checksum(section);
-    data->item_bytes_lsb<BIT_TIMINGS>(section, SAMSUNG_AC_SECTION_LENGTH);
+    data->item_bytes<BIT_TIMINGS>(section, SAMSUNG_AC_SECTION_LENGTH);
   }
 
   data->mark(BIT_MARK_US);
@@ -191,7 +191,7 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
       }
     }
-    if (!data.expect_bytes_lsb<BIT_TIMINGS>(frame + i, SAMSUNG_AC_SECTION_LENGTH)) {
+    if (!data.expect_bytes<BIT_TIMINGS>(frame + i, SAMSUNG_AC_SECTION_LENGTH)) {
       ESP_LOGW(TAG, "Bad bit in section %u", i / SAMSUNG_AC_SECTION_LENGTH);
       return false;
     }

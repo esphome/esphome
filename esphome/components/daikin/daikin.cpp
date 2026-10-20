@@ -14,8 +14,7 @@ static constexpr uint8_t DAIKIN_HEADER_BYTE1 = 0xDA;
 static constexpr uint8_t DAIKIN_HEADER_BYTE2 = 0x27;
 static constexpr uint8_t DAIKIN_HEADER_BYTE3 = 0x00;
 static constexpr uint8_t DAIKIN_FRAME_TYPE_INDEX = 4;
-static constexpr uint8_t DAIKIN_FRAME_HEADER_SIZE = 5;
-static constexpr uint8_t DAIKIN_SECOND_FRAME_OFFSET = DAIKIN_COMFORT_FRAME_SIZE;
+static constexpr uint8_t DAIKIN_FRAME_HEADER_SIZE = DAIKIN_FRAME_TYPE_INDEX + 1;
 static constexpr uint8_t DAIKIN_STATE_FRAME_OFFSET = 2 * DAIKIN_COMFORT_FRAME_SIZE;
 
 void DaikinClimate::setup() {
@@ -51,19 +50,19 @@ void DaikinClimate::transmit_state() {
 
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
-  data->item_bytes_lsb<DAIKIN_BIT_TIMINGS>(remote_state, DAIKIN_COMFORT_FRAME_SIZE);
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_state, DAIKIN_COMFORT_FRAME_SIZE);
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  data->item_bytes_lsb<DAIKIN_BIT_TIMINGS>(remote_state + DAIKIN_SECOND_FRAME_OFFSET, DAIKIN_COMFORT_FRAME_SIZE);
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_state + DAIKIN_COMFORT_FRAME_SIZE, DAIKIN_COMFORT_FRAME_SIZE);
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  data->item_bytes_lsb<DAIKIN_BIT_TIMINGS>(remote_state + DAIKIN_STATE_FRAME_OFFSET, DAIKIN_STATE_FRAME_SIZE);
+  data->item_bytes<DAIKIN_BIT_TIMINGS>(remote_state + DAIKIN_STATE_FRAME_OFFSET, DAIKIN_STATE_FRAME_SIZE);
   data->mark(DAIKIN_BIT_MARK);
   data->space(0);
 
@@ -281,7 +280,7 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Frame header, then the frame type that sets the frame size
-  if (!data.expect_bytes_lsb<DAIKIN_BIT_TIMINGS>(frame, DAIKIN_FRAME_HEADER_SIZE) || frame[0] != DAIKIN_HEADER_BYTE0 ||
+  if (!data.expect_bytes<DAIKIN_BIT_TIMINGS>(frame, DAIKIN_FRAME_HEADER_SIZE) || frame[0] != DAIKIN_HEADER_BYTE0 ||
       frame[1] != DAIKIN_HEADER_BYTE1 || frame[2] != DAIKIN_HEADER_BYTE2 || frame[3] != DAIKIN_HEADER_BYTE3) {
     return false;
   }
@@ -291,8 +290,7 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
   } else if (frame[DAIKIN_FRAME_TYPE_INDEX] != DAIKIN_FRAME_TYPE_STATE) {
     return false;
   }
-  if (!data.expect_bytes_lsb<DAIKIN_BIT_TIMINGS>(frame + DAIKIN_FRAME_HEADER_SIZE,
-                                                 frame_size - DAIKIN_FRAME_HEADER_SIZE)) {
+  if (!data.expect_bytes<DAIKIN_BIT_TIMINGS>(frame + DAIKIN_FRAME_HEADER_SIZE, frame_size - DAIKIN_FRAME_HEADER_SIZE)) {
     return false;
   }
   if (frame[frame_size - 1] != sum_bytes(frame, frame_size - 1)) {
