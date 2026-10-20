@@ -55,7 +55,7 @@ file does, and it is the authority when they disagree. The most useful starting 
 *   https://developers.esphome.io/contributing/code/ - contribution rules, public API and breaking changes.
 
 *   **Formatting:**
-    *   **Python:** Uses `ruff` and `flake8` for linting and formatting. Configuration is in `pyproject.toml`.
+    *   **Python:** Uses `ruff` for linting and formatting. Configuration is in `pyproject.toml`.
     *   **C++:** Uses `clang-format` for formatting. Configuration is in `.clang-format`.
 
 *   **Naming Conventions:**
