@@ -164,7 +164,7 @@ void WhirlpoolClimate::transmit_state() {
       data->mark(WHIRLPOOL_BIT_MARK);
       data->space(WHIRLPOOL_GAP);
     }
-    data->item_bytes_lsb(remote_state + i, 1, WHIRLPOOL_BIT_TIMINGS);
+    data->item_bytes_lsb<WHIRLPOOL_BIT_TIMINGS>(remote_state + i, 1);
   }
   // Footer
   data->mark(WHIRLPOOL_BIT_MARK);
@@ -242,7 +242,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
       skip_footer = true;
       break;
     }
-    if (!data.expect_bytes_lsb(remote_state + i, 1, WHIRLPOOL_BIT_TIMINGS))
+    if (!data.expect_bytes_lsb<WHIRLPOOL_BIT_TIMINGS>(remote_state + i, 1))
       return false;
   }
   // Validate footer
