@@ -153,10 +153,9 @@ bool HitachiClimate::get_mildew_proof() const {
 }
 
 void HitachiClimate::set_mildew_proof(bool on) {
-  if (on == this->get_mildew_proof())
-    return;
+  // No early return on an unchanged bit: a repeated write is how the user retries a frame the unit missed.
   set_bit(&this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], HITACHI_AC344_MILDEWPROOF_OFFSET, on);
-  this->transmit_state();
+  this->transmit_state_(HITACHI_AC344_BUTTON_MILDEWPROOF);
   this->publish_mildew_proof_();
 }
 
@@ -172,7 +171,9 @@ void HitachiClimate::setup() {
   this->publish_mildew_proof_();
 }
 
-void HitachiClimate::transmit_state() {
+void HitachiClimate::transmit_state() { this->transmit_state_(HITACHI_AC344_BUTTON_POWER); }
+
+void HitachiClimate::transmit_state_(uint8_t button) {
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       set_mode_(HITACHI_AC344_MODE_COOL);
@@ -234,7 +235,7 @@ void HitachiClimate::transmit_state() {
   }
 
   // TODO: find change value to set button, now always set to power button
-  set_button_(HITACHI_AC344_BUTTON_POWER);
+  set_button_(button);
 
   // The physical remote sends this byte when powering off with mildew proof enabled.
   if (this->mode == climate::CLIMATE_MODE_OFF && this->get_mildew_proof())

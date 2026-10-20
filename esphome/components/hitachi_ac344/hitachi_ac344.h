@@ -104,6 +104,8 @@ class HitachiClimate final : public climate_ir::ClimateIR {
   void setup() override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  // The same frame with the button byte the physical remote sends for this change.
+  void transmit_state_(uint8_t button);
   void publish_mildew_proof_();
   bool get_power_();
   void set_power_(bool on);
