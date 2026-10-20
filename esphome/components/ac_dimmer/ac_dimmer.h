@@ -9,8 +9,6 @@ namespace esphome::ac_dimmer {
 enum DimMethod : uint8_t { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING };
 
 struct AcDimmerDataStore {
-  /// Zero-cross pin
-  ISRInternalGPIOPin zero_cross_pin;
   /// Output pin to write to
   ISRInternalGPIOPin gate_pin;
   /// Time between the last two ZC pulses
@@ -50,7 +48,7 @@ class AcDimmer final : public output::FloatOutput, public Component {
   void set_zero_cross_pin(InternalGPIOPin *zero_cross_pin) { zero_cross_pin_ = zero_cross_pin; }
   void set_zero_cross_interrupt_type(gpio::InterruptType type) { zero_cross_interrupt_type_ = type; }
   void set_init_with_half_cycle(bool init_with_half_cycle) { init_with_half_cycle_ = init_with_half_cycle; }
-  void set_method(DimMethod method) { method_ = method; }
+  void set_method(DimMethod method) { this->store_.method = method; }
 
  protected:
   void write_state(float state) override;
@@ -60,7 +58,6 @@ class AcDimmer final : public output::FloatOutput, public Component {
   AcDimmerDataStore store_;
   gpio::InterruptType zero_cross_interrupt_type_;
   bool init_with_half_cycle_;
-  DimMethod method_;
 };
 
 }  // namespace esphome::ac_dimmer
