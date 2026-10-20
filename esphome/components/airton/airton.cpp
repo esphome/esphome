@@ -283,8 +283,10 @@ bool AirtonClimate::on_receive(remote_base::RemoteReceiveData data) {
     ESP_LOGV(TAG, "Wrong header encoding detected!");
     return false;
   }
-  if (!data.expect_bytes<AIRTON_BIT_TIMINGS>(remote_state, AIRTON_STATE_FRAME_SIZE))
+  if (!data.expect_bytes<AIRTON_BIT_TIMINGS>(remote_state, AIRTON_STATE_FRAME_SIZE)) {
+    ESP_LOGV(TAG, "Wrong modulation encoding");
     return false;
+  }
 
   if (remote_state[0] != AIRTON_HEADER_BYTE0 || remote_state[1] != AIRTON_HEADER_BYTE1) {
     ESP_LOGV(TAG, "Wrong header contents: %02X %02X", remote_state[1], remote_state[0]);
