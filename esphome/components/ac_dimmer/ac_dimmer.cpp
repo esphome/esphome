@@ -225,19 +225,18 @@ void AcDimmer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "AcDimmer:\n"
                 "  Min Power: %.1f%%\n"
-                "  Init with half cycle: %s",
-                this->store_.min_power / 10.0f, YESNO(this->init_with_half_cycle_));
-  LOG_PIN("  Output Pin: ", this->gate_pin_);
-  LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
-  ESP_LOGCONFIG(TAG,
+                "  Init with half cycle: %s\n"
                 "  Interrupt Type: %s\n"
                 "  Method: %s",
+                this->store_.min_power / 10.0f, YESNO(this->init_with_half_cycle_),
                 this->zero_cross_interrupt_type_ == gpio::INTERRUPT_RISING_EDGE    ? LOG_STR_LITERAL("rising")
                 : this->zero_cross_interrupt_type_ == gpio::INTERRUPT_FALLING_EDGE ? LOG_STR_LITERAL("falling")
                                                                                    : LOG_STR_LITERAL("any"),
                 this->store_.method == DIM_METHOD_LEADING_PULSE ? LOG_STR_LITERAL("leading pulse")
                 : this->store_.method == DIM_METHOD_LEADING     ? LOG_STR_LITERAL("leading")
                                                                 : LOG_STR_LITERAL("trailing"));
+  LOG_PIN("  Output Pin: ", this->gate_pin_);
+  LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
   LOG_FLOAT_OUTPUT(this);
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }
