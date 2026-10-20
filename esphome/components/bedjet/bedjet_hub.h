@@ -145,7 +145,7 @@ class BedJetHub final : public esphome::ble_client::BLEClientNode, public Pollin
   uint8_t set_notify_(bool enable);
   /** Send the `BedjetPacket` to the device. */
   uint8_t write_bedjet_packet_(BedjetPacket *pkt);
-  // Same size as the std::string it replaced; longer names are truncated (only used in log lines)
+  // Only used in log lines; longer names are truncated
   char name_[24]{};
 
   uint32_t last_notify_ = 0;
