@@ -13,7 +13,7 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
 
-// Keep a busy UART from monopolizing the component loop.
+// Bound per-loop work; sustained 9600-baud traffic needs a loop at least every 66 ms.
 static constexpr size_t VBUS_MAX_BYTES_PER_LOOP = 64;
 
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
