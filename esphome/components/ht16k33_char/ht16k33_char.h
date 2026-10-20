@@ -29,7 +29,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   void set_writer(ht16k33_char_writer_t &&writer) { this->writer_ = std::move(writer); }
-  /// Intensity from 0 (dimmest) to 15; written to the chips at once when they are already set up.
+  /// Intensity from 0 (dimmest) to 15, higher values clamp; written to the chips at once when they are set up.
   void set_intensity(uint8_t intensity);
 #ifdef HT16K33_CHAR_SECONDARY_COUNT
   void add_secondary_display(uint8_t address) { this->secondary_addresses_.push_back(address); }
@@ -43,8 +43,9 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
 
   /// Empty the message. The lambda starts from an empty message anyway; this is for printing from automations.
   void clear() { this->length_ = 0; }
-  /// Write str into the message at pos, over whatever was there. Returns the number of bytes written, which is
-  /// fewer than strlen(str) when the message is full.
+  /// Write str into the message at byte offset pos, over whatever was there. A `.`, a `:` and every byte of a
+  /// multi-byte character count as one position. Returns the number of bytes written, which is fewer than
+  /// strlen(str) when the message is full.
   uint8_t print(uint8_t pos, const char *str);
   uint8_t print(const char *str) { return this->print(0, str); }
   uint8_t printf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
@@ -77,6 +78,8 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   const uint8_t capacity_;
   uint8_t length_{0};
   uint8_t intensity_{15};
+  /// The display setup register: the on bit and the blink rate, kept so each setter changes only its own bits.
+  uint8_t display_setup_{0};
 #ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
   uint8_t glyph_override_count_{0};
 #endif

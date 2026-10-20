@@ -16,10 +16,12 @@ ESPHOME_LOG_TAG(TAG, "display.ht16k33_char");
 static constexpr uint8_t COMMAND_DISPLAY_DATA = 0x00;
 static constexpr uint8_t COMMAND_SYSTEM_SETUP = 0x20;   // bit 0 runs the oscillator
 static constexpr uint8_t COMMAND_DISPLAY_SETUP = 0x80;  // bit 0 turns the display on, bits 1 and 2 pick the blink rate
-static constexpr uint8_t COMMAND_DIMMING = 0xE0;        // bits 0 to 3 are the duty cycle, 1/16 to 16/16
+static constexpr uint8_t BLINK_MASK = 0x06;
+static constexpr uint8_t COMMAND_DIMMING = 0xE0;  // bits 0 to 3 are the duty cycle, 1/16 to 16/16
 static constexpr uint8_t OSCILLATOR_ON = 0x01;
 static constexpr uint8_t DISPLAY_ON = 0x01;
 static constexpr uint8_t MAX_BLINK = 3;
+static constexpr uint8_t MAX_INTENSITY = 15;
 
 // A message of MAX_BUFFER_LENGTH from display.py plus the terminator; printf and strftime format into this.
 static constexpr size_t FORMAT_BUFFER_SIZE = 64 + 1;
@@ -62,8 +64,10 @@ static constexpr uint8_t FONT[] PROGMEM = {
 };
 
 void HT16K33CharDisplay::setup() {
+  this->display_setup_ = DISPLAY_ON;
   if (!this->write_all_(COMMAND_SYSTEM_SETUP | OSCILLATOR_ON) ||
-      !this->write_all_(COMMAND_DISPLAY_SETUP | DISPLAY_ON) || !this->write_all_(COMMAND_DIMMING | this->intensity_)) {
+      !this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_) ||
+      !this->write_all_(COMMAND_DIMMING | this->intensity_)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
@@ -88,9 +92,6 @@ void HT16K33CharDisplay::dump_config() {
     ESP_LOGCONFIG(TAG, "  Secondary address: 0x%02X", address);
   }
 #endif
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -202,26 +203,29 @@ uint8_t HT16K33CharDisplay::strftime(const char *format, ESPTime time) { return 
 
 uint8_t HT16K33CharDisplay::clock_display(uint8_t pos, bool show_leading_zero, bool use_ampm, ESPTime time) {
   char buffer[6];
-  time.strftime(buffer, sizeof(buffer), use_ampm ? "%I:%M" : "%H:%M");
+  if (time.strftime(buffer, sizeof(buffer), use_ampm ? "%I:%M" : "%H:%M") == 0)
+    return 0;
   if (!show_leading_zero && buffer[0] == '0')
     buffer[0] = ' ';
   return this->print(pos, buffer);
 }
 
 void HT16K33CharDisplay::set_intensity(uint8_t intensity) {
-  this->intensity_ = intensity;
+  this->intensity_ = std::min(intensity, MAX_INTENSITY);
   if (this->is_ready())
-    this->write_all_(COMMAND_DIMMING | intensity);
+    this->write_all_(COMMAND_DIMMING | this->intensity_);
 }
 
 void HT16K33CharDisplay::set_blink(uint8_t blink) {
   if (blink > MAX_BLINK)
     blink = 0;
-  this->write_all_(COMMAND_DISPLAY_SETUP | DISPLAY_ON | (blink << 1));
+  this->display_setup_ = (this->display_setup_ & ~BLINK_MASK) | (blink << 1);
+  this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_);
 }
 
 void HT16K33CharDisplay::display_off(bool turn_off) {
-  this->write_all_(COMMAND_DISPLAY_SETUP | (turn_off ? 0 : DISPLAY_ON));
+  this->display_setup_ = (this->display_setup_ & ~DISPLAY_ON) | (turn_off ? 0 : DISPLAY_ON);
+  this->write_all_(COMMAND_DISPLAY_SETUP | this->display_setup_);
 }
 
 void HT16K33CharDisplay::display_standby(bool standby) {
