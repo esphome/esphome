@@ -175,6 +175,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_mixer_mode(config[CONF_MIXER_MODE]))
     cg.add(var.set_volume_min_db(config[CONF_VOLUME_MIN_DB]))
     cg.add(var.set_volume_max_db(config[CONF_VOLUME_MAX_DB]))
-    if enable_pin_config := config.get(CONF_ENABLE_PIN):
-        enable_pin = await cg.gpio_pin_expression(enable_pin_config)
-        cg.add(var.set_enable_pin(enable_pin))
+    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))

@@ -190,6 +190,12 @@ class EntityBase {
     return this->make_entity_preference_(sizeof(T), version);
   }
 
+  /// As make_entity_preference(), stored in flash or RTC memory where the backend supports the choice.
+  template<typename T> ESPPreferenceObject make_entity_preference(uint32_t version, bool in_flash) {
+    static_assert(std::is_trivially_copyable<T>::value, "T must be trivially copyable");
+    return this->make_entity_preference_(sizeof(T), version, in_flash);
+  }
+
  protected:
   friend void ::setup();
   friend void ::original_setup();
@@ -206,9 +212,11 @@ class EntityBase {
   void set_device_(Device *device) { this->device_ = device; }
 #endif
 
-  /// Non-template helper for make_entity_preference() to avoid code bloat.
-  /// When the preference hash algorithm changes, migration logic goes here.
+  /// Non-template helpers for make_entity_preference() to avoid code bloat.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
+  ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version, bool in_flash);
+  /// Key for both helpers; preference hash migration goes here.
+  uint32_t entity_preference_key_(uint32_t version);
 
   void calc_object_id_();
 

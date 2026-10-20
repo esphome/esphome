@@ -19,6 +19,19 @@ enum ToleranceMode : uint8_t {
 
 using RawTimings = std::vector<int32_t>;
 
+enum class BitOrder : uint8_t {
+  BIT_ORDER_LSB_FIRST,
+  BIT_ORDER_MSB_FIRST,
+};
+
+/// A bit is bit_mark followed by one_space or zero_space.
+struct BitTimings {
+  uint32_t bit_mark;
+  uint32_t one_space;
+  uint32_t zero_space;
+  BitOrder bit_order{BitOrder::BIT_ORDER_LSB_FIRST};
+};
+
 class RemoteTransmitData {
  public:
   void mark(uint32_t length) { this->data_.push_back(length); }
@@ -28,6 +41,15 @@ class RemoteTransmitData {
     this->space(space);
   }
   void reserve(uint32_t len) { this->data_.reserve(len); }
+  /// One item per bit of each byte.
+  template<BitTimings T> void item_bytes(const uint8_t *bytes, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        this->item(T.bit_mark, (bytes[i] & mask) ? T.one_space : T.zero_space);
+      }
+    }
+  }
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
   const RawTimings &get_data() const { return this->data_; }
@@ -77,6 +99,22 @@ class RemoteReceiveData {
   bool expect_space(uint32_t length);
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
+  /// False at the first item matching neither space, leaving it unread.
+  template<BitTimings T> bool expect_bytes(uint8_t *out, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+      uint8_t byte = 0;
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        if (this->expect_item(T.bit_mark, T.one_space)) {
+          byte |= mask;
+        } else if (!this->expect_item(T.bit_mark, T.zero_space)) {
+          return false;
+        }
+      }
+      out[i] = byte;
+    }
+    return true;
+  }
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
 

@@ -314,9 +314,9 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   };
   float scale = ACCEL_SCALE[this->accel_range_];
 
-  data.acceleration[motion::X_AXIS] = (int16_t) ((raw_data[1] << 8) | raw_data[0]) * scale;
-  data.acceleration[motion::Y_AXIS] = (int16_t) ((raw_data[3] << 8) | raw_data[2]) * scale;
-  data.acceleration[motion::Z_AXIS] = (int16_t) ((raw_data[5] << 8) | raw_data[4]) * scale;
+  data.acceleration[motion::X_AXIS] = encode_value_le<int16_t>(raw_data) * scale;
+  data.acceleration[motion::Y_AXIS] = encode_value_le<int16_t>(&raw_data[2]) * scale;
+  data.acceleration[motion::Z_AXIS] = encode_value_le<int16_t>(&raw_data[4]) * scale;
 
   // Gyroscope: registers 0x12–0x17 (6 bytes)
   // Scale: full-scale range / 2^15
@@ -326,15 +326,15 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   static constexpr uint8_t GYR_OFFS = BMI270_REG_DATA_14 - BMI270_REG_DATA_8;
   scale = GYRO_SCALE[this->gyro_range_];
 
-  data.angular_rate[motion::X_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 1] << 8) | raw_data[GYR_OFFS + 0]) * scale;
-  data.angular_rate[motion::Y_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 3] << 8) | raw_data[GYR_OFFS + 2]) * scale;
-  data.angular_rate[motion::Z_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 5] << 8) | raw_data[GYR_OFFS + 4]) * scale;
+  data.angular_rate[motion::X_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS]) * scale;
+  data.angular_rate[motion::Y_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 2]) * scale;
+  data.angular_rate[motion::Z_AXIS] = encode_value_le<int16_t>(&raw_data[GYR_OFFS + 4]) * scale;
 
   if (!this->temperature_callback_.empty()) {
     //  Temperature: registers 0x22–0x23
     // Formula from datasheet: T[°C] = raw / 512 + 23
     static constexpr uint8_t TEMP_OFFS = BMI270_REG_TEMP_0 - BMI270_REG_DATA_8;
-    int16_t raw_t = (int16_t) ((raw_data[TEMP_OFFS + 1] << 8) | raw_data[TEMP_OFFS + 0]);
+    int16_t raw_t = encode_value_le<int16_t>(&raw_data[TEMP_OFFS]);
     float temperature = (raw_t / 512.0f) + 23.0f;
     this->temperature_callback_.call(temperature);
   }
