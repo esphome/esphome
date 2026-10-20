@@ -21,8 +21,8 @@ static constexpr uint8_t OSCILLATOR_ON = 0x01;
 static constexpr uint8_t DISPLAY_ON = 0x01;
 static constexpr uint8_t MAX_BLINK = 3;
 
-// printf and strftime format into a buffer this large; MAX_BUFFER_LENGTH in display.py caps the message to match.
-static constexpr size_t FORMAT_BUFFER_SIZE = 64;
+// A message of MAX_BUFFER_LENGTH from display.py plus the terminator; printf and strftime format into this.
+static constexpr size_t FORMAT_BUFFER_SIZE = 64 + 1;
 
 // A chip has 16 bytes of display memory; a frame is the data address followed by all of it.
 static constexpr uint8_t DISPLAY_RAM_SIZE = 16;
@@ -62,12 +62,10 @@ static constexpr uint8_t FONT[] PROGMEM = {
 };
 
 void HT16K33CharDisplay::setup() {
-  if (!this->write_all_(COMMAND_SYSTEM_SETUP | OSCILLATOR_ON)) {
-    this->mark_failed();
-    return;
+  if (!this->write_all_(COMMAND_SYSTEM_SETUP | OSCILLATOR_ON) ||
+      !this->write_all_(COMMAND_DISPLAY_SETUP | DISPLAY_ON) || !this->write_all_(COMMAND_DIMMING | this->intensity_)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
-  this->write_all_(COMMAND_DISPLAY_SETUP | DISPLAY_ON);
-  this->write_all_(COMMAND_DIMMING | this->intensity_);
 }
 
 void HT16K33CharDisplay::update() {
@@ -124,6 +122,7 @@ uint8_t HT16K33CharDisplay::find_segments_(uint32_t codepoint) const {
 /// message does not reach is cleared.
 void HT16K33CharDisplay::draw_() {
   uint8_t pos = 0;
+  bool ok = true;
   this->for_each_chip_([&](uint8_t address) {
     uint8_t frame[FRAME_SIZE] = {COMMAND_DISPLAY_DATA};
     uint8_t *ram = frame + 1;
@@ -149,8 +148,10 @@ void HT16K33CharDisplay::draw_() {
       }
       pos += consumed;
     }
-    this->bus_->write(address, frame, FRAME_SIZE);
+    if (this->bus_->write(address, frame, FRAME_SIZE) != i2c::ERROR_OK)
+      ok = false;
   });
+  this->status_comm_result(ok);
 }
 
 uint8_t HT16K33CharDisplay::print(uint8_t pos, const char *str) {
@@ -158,7 +159,10 @@ uint8_t HT16K33CharDisplay::print(uint8_t pos, const char *str) {
     return 0;
   if (pos > this->length_)
     memset(this->message_ + this->length_, ' ', pos - this->length_);
-  const uint8_t len = std::min<size_t>(strlen(str), this->capacity_ - pos);
+  uint8_t len = std::min<size_t>(strlen(str), this->capacity_ - pos);
+  // Do not cut a multi-byte character in half; the continuation bytes are 10xxxxxx.
+  while (len > 0 && (str[len] & 0xC0) == 0x80)
+    len--;
   memcpy(this->message_ + pos, str, len);
   this->length_ = std::max<uint8_t>(this->length_, pos + len);
   this->message_[this->length_] = '\0';

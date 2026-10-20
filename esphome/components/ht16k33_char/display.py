@@ -17,8 +17,10 @@ DEVICE_ADAFRUIT_7_SEG_056IN = "ADAFRUIT_7_SEG_.56IN"
 
 # The chip answers on 0x70 to 0x77, so one bus carries the primary and up to seven more.
 MAX_SECONDARY_DISPLAYS = 7
-# Must match FORMAT_BUFFER_SIZE in ht16k33_char.cpp, the stack buffer printf and strftime format into.
+# printf and strftime format into a stack buffer one byte larger, FORMAT_BUFFER_SIZE in ht16k33_char.cpp.
 MAX_BUFFER_LENGTH = 64
+# The glyph table is indexed with a byte.
+MAX_GLYPH_OVERRIDES = 255
 
 ht16k33_char_ns = cg.esphome_ns.namespace("ht16k33_char")
 HT16K33CharDisplay = ht16k33_char_ns.class_(
@@ -43,7 +45,24 @@ single_character = cv.All(
 
 SECONDARY_DISPLAY_SCHEMA = cv.Schema({cv.Required(CONF_ADDRESS): cv.i2c_address})
 
-CONFIG_SCHEMA = (
+
+def _validate(config: ConfigType) -> ConfigType:
+    addresses = [config[CONF_ADDRESS]] + [
+        conf[CONF_ADDRESS] for conf in config.get(CONF_SECONDARY_DISPLAYS, [])
+    ]
+    if len(set(addresses)) != len(addresses):
+        raise cv.Invalid("Every display needs its own address")
+    glyphs = set(config.get(CONF_ADD_CHARACTERS, {})) | set(
+        config.get(CONF_REMOVE_CHARACTERS, [])
+    )
+    if len(glyphs) > MAX_GLYPH_OVERRIDES:
+        raise cv.Invalid(
+            f"At most {MAX_GLYPH_OVERRIDES} characters can be added or removed"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HT16K33CharDisplay),
@@ -65,15 +84,16 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("10s"))
-    .extend(i2c.i2c_device_schema(0x70))
+    .extend(i2c.i2c_device_schema(0x70)),
+    _validate,
 )
 
 
 async def to_code(config: ConfigType) -> None:
     capacity = config[CONF_MAX_BUFFER_LENGTH]
-    message = f"{config[CONF_ID]}_message"
-    # One byte more than the message, for the terminator the UTF-8 decoder stops at.
-    cg.add_global(cg.RawStatement(f"static char {message}[{capacity + 1}];"))
+    message = f"ht16k33_char_message_{config[CONF_ID]}"
+    # Room after the message for the terminator and the bytes the UTF-8 decoder reads past a cut-off sequence.
+    cg.add_global(cg.RawStatement(f"static char {message}[{capacity + 4}];"))
     var = cg.new_Pvariable(config[CONF_ID], cg.RawExpression(message), capacity)
     await display.register_display(var, config)
     await i2c.register_i2c_device(var, config)
