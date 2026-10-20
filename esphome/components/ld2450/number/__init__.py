@@ -11,7 +11,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_LD2450_ID, LD2450Component, ld2450_ns as ld2450_ns
+from .. import CONF_LD2450_ID, LD2450Component
 
 CONF_PRESENCE_TIMEOUT = "presence_timeout"
 CONF_X1 = "x1"
