@@ -7,6 +7,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/util.h"
 
@@ -28,7 +29,7 @@ static bool is_raw_get_command(const NextionComponentBase *component) {
 }
 
 static const char *raw_command_name(const char *command, const char *name) {
-  return strncmp(command, "get ", 4) == 0 ? RAW_GET_NAME : name;
+  return ESPHOME_strncmp_P(command, ESPHOME_PSTR("get "), 4) == 0 ? RAW_GET_NAME : name;
 }
 
 // Nextion command terminator: three consecutive 0xFF bytes (per Nextion Instruction Set v1.1).
