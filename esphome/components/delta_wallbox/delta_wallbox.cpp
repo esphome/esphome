@@ -563,10 +563,9 @@ void DeltaWallbox::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       this->tx_char_handle_ = tx_char->handle;
       this->rx_char_handle_ = rx_char->handle;
 
-      auto status = esp_ble_gattc_register_for_notify(this->parent_->get_gattc_if(), this->parent_->get_remote_bda(),
-                                                      this->rx_char_handle_);
-      if (status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
+      esp_err_t err = this->parent_->register_for_notify(this->rx_char_handle_);
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "register_for_notify failed, status=%d", err);
       }
       break;
     }
