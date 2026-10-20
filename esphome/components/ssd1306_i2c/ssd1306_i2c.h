@@ -4,10 +4,12 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #endif
 
 #include "esphome/core/component.h"
+#ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
+#include "esphome/core/helpers.h"
+#endif
 #include "esphome/components/ssd1306_base/ssd1306_base.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -39,7 +41,7 @@ class I2CSSD1306 final : public ssd1306_base::SSD1306, public i2c::I2CDevice {
   // At most 64 alternating changed runs in 128 columns.
   static constexpr size_t MAX_RAW_RUNS_PER_PAGE = 64;
   struct PartialUpdateState {
-    std::unique_ptr<uint8_t[]> previous_buffer;
+    RAMUniquePtr<uint8_t[]> previous_buffer;
     std::array<Region, MAX_PLANNED_REGIONS> regions{};
     size_t region_count{0};
     bool have_previous_buffer{false};
@@ -62,9 +64,8 @@ class I2CSSD1306 final : public ssd1306_base::SSD1306, public i2c::I2CDevice {
   uint32_t estimate_region_wire_clocks_(const Region &region) const;
   uint32_t get_region_plan_wire_clocks_() const;
   bool partial_updates_enabled_{false};
-  std::unique_ptr<PartialUpdateState> partial_update_state_;
+  RAMUniquePtr<PartialUpdateState> partial_update_state_;
 #endif
-  enum ErrorCode { NONE = 0, COMMUNICATION_FAILED } error_code_{NONE};
 };
 
 }  // namespace esphome::ssd1306_i2c

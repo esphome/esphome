@@ -69,17 +69,24 @@ void I2CSSD1306::setup() {
     return;
   }
 
-  SSD1306::setup();
 #ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
-  if (!this->partial_updates_enabled_) {
-    return;
+  if (this->partial_updates_enabled_) {
+    this->partial_update_state_ =
+        RAMAllocator<PartialUpdateState>(RAMAllocator<PartialUpdateState>::PREFER_INTERNAL).make_unique();
+    if (this->partial_update_state_ != nullptr) {
+      this->partial_update_state_->previous_buffer = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL)
+                                                         .make_unique_array_for_overwrite(this->get_buffer_length_());
+    }
+    if (this->partial_update_state_ == nullptr || this->partial_update_state_->previous_buffer == nullptr) {
+      ESP_LOGW(TAG, "Failed to allocate partial-update state; falling back to full-frame updates");
+      this->partial_update_state_.reset();
+      this->partial_updates_enabled_ = false;
+    } else {
+      std::memset(this->partial_update_state_->previous_buffer.get(), 0, this->get_buffer_length_());
+    }
   }
-  this->partial_update_state_ = std::make_unique<PartialUpdateState>();
-  this->partial_update_state_->previous_buffer = std::make_unique<uint8_t[]>(this->get_buffer_length_());
-  std::memset(this->partial_update_state_->previous_buffer.get(), 0, this->get_buffer_length_());
-  this->partial_update_state_->have_previous_buffer = false;
-  this->partial_update_state_->controller_reinit_required = false;
 #endif
+  SSD1306::setup();
 }
 
 // CONFIG DUMP
@@ -193,6 +200,7 @@ uint8_t I2CSSD1306::get_vcom_detect_() const {
 // SHADOW / FAILURE STATE
 
 void I2CSSD1306::mark_partial_transport_failure_() {
+  this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   if (this->partial_update_state_ == nullptr) {
     return;
   }
@@ -690,6 +698,7 @@ void I2CSSD1306::update() {
         }
       }
       state.controller_reinit_required = false;
+      this->status_clear_warning();
       ESP_LOGI(TAG, "SSD1306 controller reinitialized and "
                     "framebuffer resynchronized");
     }
