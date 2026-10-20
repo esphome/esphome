@@ -117,13 +117,7 @@ void ZHLT01Climate::transmit_state() {
   data->space(AC1_HDR_SPACE);
 
   // Data
-  for (uint8_t i : ir_message) {
-    for (uint8_t j = 0; j < 8; j++) {
-      data->mark(AC1_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? AC1_ONE_SPACE : AC1_ZERO_SPACE);
-    }
-  }
+  data->item_bytes_lsb(ir_message, sizeof(ir_message), AC1_BIT_MARK, AC1_ONE_SPACE, AC1_ZERO_SPACE);
 
   // Footer
   data->mark(AC1_BIT_MARK);
@@ -140,20 +134,9 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Decode IR message
-  uint8_t ir_message[12] = {0};
-  // Read all bytes
-  for (int i = 0; i < 12; i++) {
-    // Read bit
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(AC1_BIT_MARK, AC1_ONE_SPACE)) {
-        ir_message[i] |= 1 << j;
-      } else if (!data.expect_item(AC1_BIT_MARK, AC1_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", i, j);
-        return false;
-      }
-    }
-    ESP_LOGVV(TAG, "Byte %d %02X", i, ir_message[i]);
-  }
+  uint8_t ir_message[12];
+  if (!data.expect_bytes_lsb(ir_message, sizeof(ir_message), AC1_BIT_MARK, AC1_ONE_SPACE, AC1_ZERO_SPACE))
+    return false;
 
   // Validate footer
   if (!data.expect_mark(AC1_BIT_MARK)) {

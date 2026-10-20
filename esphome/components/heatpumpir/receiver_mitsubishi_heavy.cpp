@@ -20,19 +20,8 @@ static bool read_raw_bytes(remote_base::RemoteReceiveData &data, uint8_t frame[M
   if (!data.expect_item(MITSUBISHI_HEAVY_HDR_MARK, MITSUBISHI_HEAVY_HDR_SPACE))
     return false;
 
-  for (uint8_t i = 0; i < MITSUBISHI_HEAVY_FRAME_LENGTH; i++) {
-    uint8_t byte = 0;
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ZERO_SPACE)) {
-        return false;
-      }
-    }
-    frame[i] = byte;
-  }
-
-  return true;
+  return data.expect_bytes_lsb(frame, MITSUBISHI_HEAVY_FRAME_LENGTH, MITSUBISHI_HEAVY_BIT_MARK,
+                               MITSUBISHI_HEAVY_ONE_SPACE, MITSUBISHI_HEAVY_ZERO_SPACE);
 }
 
 static bool validate_prefix(const uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH]) {

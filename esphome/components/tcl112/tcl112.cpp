@@ -128,13 +128,7 @@ void Tcl112Climate::transmit_state() {
   data->mark(TCL112_HEADER_MARK);
   data->space(TCL112_HEADER_SPACE);
   // Data
-  for (uint8_t i : remote_state) {
-    for (uint8_t j = 0; j < 8; j++) {
-      data->mark(TCL112_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? TCL112_ONE_SPACE : TCL112_ZERO_SPACE);
-    }
-  }
+  data->item_bytes_lsb(remote_state, TCL112_STATE_LENGTH, TCL112_BIT_MARK, TCL112_ONE_SPACE, TCL112_ZERO_SPACE);
   // Footer
   data->mark(TCL112_BIT_MARK);
   data->space(TCL112_GAP);
@@ -149,19 +143,9 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t remote_state[TCL112_STATE_LENGTH] = {0};
-  // Read all bytes.
-  for (int i = 0; i < TCL112_STATE_LENGTH; i++) {
-    // Read bit
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(TCL112_BIT_MARK, TCL112_ONE_SPACE)) {
-        remote_state[i] |= 1 << j;
-      } else if (!data.expect_item(TCL112_BIT_MARK, TCL112_ZERO_SPACE)) {
-        ESP_LOGVV(TAG, "Byte %d bit %d fail", i, j);
-        return false;
-      }
-    }
-  }
+  uint8_t remote_state[TCL112_STATE_LENGTH];
+  if (!data.expect_bytes_lsb(remote_state, TCL112_STATE_LENGTH, TCL112_BIT_MARK, TCL112_ONE_SPACE, TCL112_ZERO_SPACE))
+    return false;
   // Validate footer
   if (!data.expect_mark(TCL112_BIT_MARK)) {
     ESP_LOGVV(TAG, "Footer fail");
