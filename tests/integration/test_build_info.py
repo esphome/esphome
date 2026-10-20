@@ -11,6 +11,7 @@ from aioesphomeapi import EntityState, TextSensorState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -70,12 +71,9 @@ async def test_build_info(
 
         client.subscribe_states(on_state)
 
-        try:
-            await asyncio.wait_for(all_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for text sensor states. Got: {list(states.keys())}"
-            )
+        await wait_or_fail(
+            all_received, 5.0, "Timeout waiting for text sensor states", states=states
+        )
 
         config_hash_state = states[config_hash_entity.key]
         build_time_state = states[build_time_entity.key]
