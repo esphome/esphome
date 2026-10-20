@@ -764,3 +764,46 @@ def test_inkplate13spectra_dimensions_fixed(
     else:
         with pytest.raises(cv.Invalid, match="fixed 1200x1600 panel"):
             run_schema_validation(config)
+
+
+@pytest.mark.parametrize(
+    ("model", "accepted"),
+    [
+        ("inkplate13spectra", True),
+        ("t133a01", False),
+    ],
+)
+def test_full_update_every_needs_partial_update_support(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    model: str,
+    accepted: bool,
+) -> None:
+    """Of the dual chip select panels, only the Inkplate 13 Spectra enables partial update."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 38, "mosi_pin": 40})
+
+    config: dict[str, Any] = {
+        "id": "test_display",
+        "model": model,
+        "dimensions": {"width": 1200, "height": 1600},
+        "full_update_every": 2,
+    }
+    if model == "t133a01":
+        config.update(
+            {
+                "dc_pin": 14,
+                "cs_pin": 42,
+                "cs1_pin": 39,
+                "busy_pin": 7,
+                "reset_pin": 4,
+            }
+        )
+    if accepted:
+        run_schema_validation(config)
+    else:
+        with pytest.raises(cv.Invalid, match="does not support partial update"):
+            run_schema_validation(config)

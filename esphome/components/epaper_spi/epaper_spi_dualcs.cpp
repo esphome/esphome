@@ -25,34 +25,6 @@ void EPaperDualCS::dump_config() {
   LOG_PIN("  CS1 Pin: ", this->cs1_pin_);
 }
 
-// A normal update() always does a full refresh; only start_partial_update_() does a
-// sub-rectangle. transfer_sub_ decides which path transfer_data() takes, so it has to be
-// reset here, before the state machine starts. Only reset it when a new cycle can actually
-// start: EPaperBase::update() ignores calls while the display is busy, and switching an
-// in-flight partial transfer to the full-frame path would corrupt it.
-void EPaperDualCS::update() {
-  if (this->state_ == EPaperState::IDLE)
-    this->transfer_sub_ = TRF_FULL;
-  EPaperBase::update();
-}
-
-void EPaperDualCS::start_partial_update_(int x, int y, int w, int h) {
-  if (this->state_ != EPaperState::IDLE) {
-    ESP_LOGW(TAG, "start_partial_update_(): skipped, display busy (state %s)", this->epaper_state_to_string_());
-    return;
-  }
-  if (!this->compute_ptlw_params_(x, y, w, h)) {
-    ESP_LOGV(TAG, "start_partial_update_(): rectangle is empty or off screen, nothing to refresh");
-    return;
-  }
-  this->transfer_sub_ = TRF_PARTIAL_SETUP_M;
-  this->enable_loop();
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-  this->update_start_time_ = millis();
-#endif
-  this->set_state_(EPaperState::RESET);
-}
-
 void EPaperDualCS::write_command_to_chip_(uint8_t cmd, const uint8_t *data, size_t len, uint8_t chip) {
   ESP_LOGV(TAG, "write_command_to_chip_: cmd=0x%02X len=%u chip=%u", cmd, (unsigned) len, (unsigned) chip);
   if (chip & CHIP_PRIMARY)
@@ -77,69 +49,24 @@ void EPaperDualCS::write_command_to_chip_(uint8_t cmd, const uint8_t *data, size
     this->cs1_pin_->digital_write(true);
 }
 
-// Maps the requested logical (rotated) rectangle to physical panel columns/rows, then
-// splits that physical window across the two chips (primary: left half, secondary: right
-// half). HRST/HRED are in half-column units, VRST/VRED in half-row units -- that's the
-// panel's own addressing granularity, not something this code chose.
-bool EPaperDualCS::compute_ptlw_params_(int x, int y, int w, int h) {
+// Splits the dirty box (physical panel coordinates, already clipped and transformed by
+// rotate_coordinates_(), x_high_/y_high_ exclusive) across the two chips (primary: left half,
+// secondary: right half). HRST/HRED are in half-column units, VRST/VRED in half-row units --
+// that's the panel's own addressing granularity, not something this code chose.
+bool EPaperDualCS::compute_ptlw_params_() {
   this->ptlw_primary_.needed = false;
   this->ptlw_secondary_.needed = false;
 
-  // Clip the requested region to the logical (rotation-aware) canvas.
-  if (x < 0) {
-    w += x;
-    x = 0;
-  }
-  if (y < 0) {
-    h += y;
-    y = 0;
-  }
-  if (x + w > this->get_width())
-    w = this->get_width() - x;
-  if (y + h > this->get_height())
-    h = this->get_height() - y;
-  if (w <= 0 || h <= 0)
+  if (this->x_high_ <= this->x_low_ || this->y_high_ <= this->y_low_)
     return false;
 
-  const int16_t panel_w = (int16_t) this->width_;   // physical panel width
-  const int16_t panel_h = (int16_t) this->height_;  // physical panel height
-
-  // Map logical coords to physical col/row by running both rectangle corners through the
-  // same effective_transform_ (rotation + mirror_x/mirror_y) that draw_pixel_at() uses via
-  // rotate_coordinates_(). This has to be the same transform as draw_pixel_at, or the window
-  // pushed to the panel and the pixels actually drawn land in different places -- rotation_
-  // alone isn't enough on boards that also need a static mirror.
-  int x0 = x, y0 = y, x1 = x + w - 1, y1 = y + h - 1;
-  if (this->effective_transform_ & SWAP_XY) {
-    std::swap(x0, y0);
-    std::swap(x1, y1);
-  }
-  if (this->effective_transform_ & MIRROR_X) {
-    x0 = this->width_ - x0 - 1;
-    x1 = this->width_ - x1 - 1;
-  }
-  if (this->effective_transform_ & MIRROR_Y) {
-    y0 = this->height_ - y0 - 1;
-    y1 = this->height_ - y1 - 1;
-  }
-  int16_t col_start = (int16_t) std::min(x0, x1);
-  int16_t col_end = (int16_t) std::max(x0, x1);
-  int16_t row_start = (int16_t) std::min(y0, y1);
-  int16_t row_end = (int16_t) std::max(y0, y1);
+  const int16_t panel_w = (int16_t) this->width_;  // physical panel width
 
   // Align to hardware constraints: columns start/end on multiples of 4, rows in pairs.
-  col_start = (col_start / 4) * 4;
-  col_end = (((col_end + 4) / 4) * 4) - 1;
-  if (col_end >= panel_w)
-    col_end = panel_w - 1;
-  if (row_start % 2)
-    row_start--;
-  if (row_start < 0)
-    row_start = 0;
-  if ((row_end + 1) % 2)
-    row_end++;
-  if (row_end >= panel_h)
-    row_end = panel_h - 1;
+  int16_t col_start = this->x_low_ & ~3;
+  int16_t col_end = (this->x_high_ - 1) | 3;
+  int16_t row_start = this->y_low_ & ~1;
+  int16_t row_end = (this->y_high_ - 1) | 1;
 
   const int16_t half_w = panel_w / 2;     // physical cols per chip
   const int16_t half_bytes = half_w / 2;  // bytes per row per chip
@@ -193,7 +120,7 @@ bool EPaperDualCS::compute_ptlw_params_(int x, int y, int w, int h) {
     p.row_end = row_end;
     p.needed = true;
   }
-  return this->ptlw_primary_.needed || this->ptlw_secondary_.needed;
+  return true;
 }
 
 // T133A01's original full-refresh algorithm, now shared. CS is held LOW for the ENTIRE DTM
@@ -290,21 +217,26 @@ bool HOT EPaperDualCS::transfer_full_() {
   return true;
 }
 
-// buffer_ is a SplitBuffer (not guaranteed contiguous), so each row is staged through a
-// small stack buffer before write_array(). (Partial-update path only -- transfer_full_()
-// stages through its own buffer.)
+// Full refresh unless the update is a partial one (partial_) with a non-empty dirty box. The
+// path is chosen on entry, while transfer_sub_ is TRF_START, and the state returns to TRF_START
+// once the transfer completes so the next update chooses again.
+// buffer_ is a SplitBuffer (not guaranteed contiguous), so each partial row is staged through a
+// small stack buffer before write_array() (transfer_full_() stages through its own buffer).
 bool EPaperDualCS::transfer_data() {
-  if (this->transfer_sub_ == TRF_FULL) {
-    return this->transfer_full_();
-  }
-
   const size_t bytes_per_row = (size_t) this->width_ / 2;
   const size_t half = bytes_per_row / 2;  // bytes per row per chip
   uint8_t row_buf[512];
 
   switch (this->transfer_sub_) {
+    case TRF_START:
+      this->transfer_sub_ = this->partial_ && this->compute_ptlw_params_() ? TRF_PARTIAL_SETUP_M : TRF_FULL;
+      return this->transfer_data();
+
     case TRF_FULL:
-      return true;  // unreachable, handled above
+      if (!this->transfer_full_())
+        return false;
+      this->transfer_sub_ = TRF_START;
+      return true;
 
     // Null PTLW: 4-col x 4-row window at the physical origin of this chip, sent to a chip
     // the requested rectangle doesn't touch so it still completes CMD66->PTLW->DTM.
@@ -415,10 +347,7 @@ bool EPaperDualCS::transfer_data() {
         this->wait_for_idle_(true);
         return false;
       }
-      this->transfer_sub_ = TRF_DONE;
-      return true;
-
-    case TRF_DONE:
+      this->transfer_sub_ = TRF_START;
       return true;
   }
   return false;
@@ -430,11 +359,13 @@ void EPaperDualCS::abort_transfer() {
   bool stream_open = this->transfer_sub_ == TRF_FULL
                          ? this->current_data_index_ != 0
                          : (this->transfer_sub_ == TRF_PARTIAL_DATA_M || this->transfer_sub_ == TRF_PARTIAL_DATA_S);
-  if (!stream_open)
-    return;
-  this->disable();
-  this->cs_pin_->digital_write(true);
-  this->cs1_pin_->digital_write(true);
+  if (stream_open) {
+    this->disable();
+    this->cs_pin_->digital_write(true);
+    this->cs1_pin_->digital_write(true);
+  }
+  // The next transfer chooses its path again
+  this->transfer_sub_ = TRF_START;
 }
 
 }  // namespace esphome::epaper_spi

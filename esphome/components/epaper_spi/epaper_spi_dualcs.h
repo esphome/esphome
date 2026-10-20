@@ -20,10 +20,9 @@ namespace esphome::epaper_spi {
  * bring-up and register tables differ enough to keep these separate), and
  * power_on()/power_off()/refresh_screen()/deep_sleep().
  *
- * Partial update (start_partial_update_()) is protected: it's only been verified working on
- * the Inkplate 13 Spectra so far. A subclass exposes it publicly only once verified on its
- * own hardware -- see EPaperInkplate13Spectra::display_partial(); EPaperT133A01 does not
- * expose it, though nothing stops it from working there once tested.
+ * Partial update uses EPaperBase's dirty box and is used when the model enables
+ * partial_update and full_update_every is above 1. The Inkplate 13 Spectra enables it; the
+ * T133A01 does not, because it is only verified on Inkplate 13 Spectra hardware.
  *
  * Not a generic dual-CS base -- it bakes in this controller family's specifics:
  *   - 4bpp only (via EPaper4bpp)
@@ -48,7 +47,6 @@ class EPaperDualCS : public EPaper4bpp {
 
   void setup() override;
   void dump_config() override;
-  void update() override;
 
  protected:
   // Rows sent per transfer_data() tick -- keeps each SPI burst short enough that the main
@@ -72,13 +70,14 @@ class EPaperDualCS : public EPaper4bpp {
   // touch, so both chips still complete a full CMD66->PTLW->DTM cycle.
   static constexpr uint8_t NULL_PTLW[9] = {0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x01, 0x01};
 
+  // TRF_START: the path is not chosen yet; transfer_data() picks one, and returns here when done.
   // Full path: driven entirely by current_data_index_ inside transfer_full_(), no sub-states
   // needed.
   // Partial path: TRF_PARTIAL_SETUP_M -> TRF_PARTIAL_DATA_M -> TRF_PARTIAL_WAIT_M
-  //               -> TRF_PARTIAL_SETUP_S -> TRF_PARTIAL_DATA_S -> TRF_PARTIAL_WAIT_S -> TRF_DONE
+  //               -> TRF_PARTIAL_SETUP_S -> TRF_PARTIAL_DATA_S -> TRF_PARTIAL_WAIT_S -> TRF_START
   enum TransferSub {
+    TRF_START,
     TRF_FULL,
-    TRF_DONE,
     TRF_PARTIAL_SETUP_M,
     TRF_PARTIAL_DATA_M,
     TRF_PARTIAL_WAIT_M,
@@ -87,7 +86,7 @@ class EPaperDualCS : public EPaper4bpp {
     TRF_PARTIAL_WAIT_S,
   };
 
-  // Per-chip PTLW parameters, computed once per partial cycle in compute_ptlw_params_() so
+  // Per-chip PTLW parameters, computed once per partial update in compute_ptlw_params_() so
   // transfer_data() can stream data without recomputing anything mid-transfer.
   struct PartialChipParams {
     bool needed{false};  // false -> chip is outside the update region, send a null PTLW
@@ -112,13 +111,8 @@ class EPaperDualCS : public EPaper4bpp {
   }
   void write_command_to_chip_(uint8_t cmd, uint8_t chip) { this->write_command_to_chip_(cmd, nullptr, 0, chip); }
 
-  /// Trigger a partial (subregion) update. x/y/w/h are in logical (rotated) coords. Protected
-  /// -- see class comment. The buffer must already contain the updated pixels.
-  void start_partial_update_(int x, int y, int w, int h);
-
-  /// Fills ptlw_primary_/ptlw_secondary_ for the given logical rectangle. Returns false if
-  /// nothing of it is left after clipping to the screen.
-  bool compute_ptlw_params_(int x, int y, int w, int h);
+  /// Fills ptlw_primary_/ptlw_secondary_ from the dirty box. Returns false if the box is empty.
+  bool compute_ptlw_params_();
 
   GPIOPin *cs_pin_{nullptr};
   GPIOPin *cs1_pin_{nullptr};
@@ -127,7 +121,7 @@ class EPaperDualCS : public EPaper4bpp {
   // semantics) or leaves it alone (3-wire SPI, where cmd/data is inferred by byte position).
   bool toggle_dc_;
 
-  TransferSub transfer_sub_{TRF_FULL};
+  TransferSub transfer_sub_{TRF_START};
   size_t transfer_row_{0};  // used only by the partial path -- the full path uses current_data_index_
 
   PartialChipParams ptlw_primary_;

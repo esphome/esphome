@@ -93,6 +93,8 @@ class TestableT133A01 : public EPaperT133A01 {
   void start_transfer() { this->set_state_(EPaperState::TRANSFER_DATA); }
   EPaperState state() const { return this->state_; }
 
+  using EPaperT133A01::draw_pixel_at;
+  using EPaperT133A01::partial_;
   using EPaperT133A01::transfer_sub_;
   using EPaperT133A01::TRF_PARTIAL_WAIT_M;
   using EPaperT133A01::waiting_for_idle_;
@@ -130,11 +132,16 @@ TEST(EPaperBusyTimeout, StuckBusyPinDuringPartialUpdateAbandonsIt) {
   TimedSPIDelegate delegate(0);
   display.install(&delegate);
 
-  // The first half of a partial update has been sent and the transfer is waiting for the panel. The wait on
-  // entering TRANSFER_DATA is long over, so the stuck pin is first seen by the partial path's own wait.
+  // Draw something and run a partial transfer up to the wait after the first half. The wait on entering
+  // TRANSFER_DATA is long over, so the stuck pin is first seen by the partial path's own wait.
+  display.draw_pixel_at(0, 0, Color(0, 0, 0));
+  display.partial_ = true;
   display.start_transfer();
   display.waiting_for_idle_ = false;
-  display.transfer_sub_ = TestableT133A01::TRF_PARTIAL_WAIT_M;
+  const uint32_t deadline = millis() + 1000;
+  while (display.transfer_sub_ != TestableT133A01::TRF_PARTIAL_WAIT_M && millis() < deadline)
+    display.loop();
+  ASSERT_EQ(display.transfer_sub_, TestableT133A01::TRF_PARTIAL_WAIT_M);
   display.busy.busy = true;
 
   loop_until_idle(display);

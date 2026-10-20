@@ -85,19 +85,6 @@ TEST(EPaperInkplate13Spectra, RefreshThatKeepsThePanelBusyIsAccepted) {
   EXPECT_TRUE(display.check_refresh_ran_());
 }
 
-/// A partial update of a rectangle that is entirely off screen has nothing to refresh, so it must not start a
-/// cycle: no panel power-up and no refresh. One that is on screen does start a cycle.
-TEST(EPaperInkplate13Spectra, OffScreenPartialUpdateDoesNothing) {
-  TestableInkplate13Spectra display;
-  display.install();
-
-  display.display_partial(-100, -100, 10, 10);
-  EXPECT_EQ(display.state_, EPaperState::IDLE) << "an off-screen partial update started a refresh cycle";
-
-  display.display_partial(0, 0, 4, 2);
-  EXPECT_EQ(display.state_, EPaperState::RESET) << "an on-screen partial update did not start a refresh cycle";
-}
-
 /// power_off() also runs when an update is abandoned before the refresh command was sent; there
 /// is nothing to check then, so no warning may be raised.
 TEST(EPaperInkplate13Spectra, NoRefreshCommandMeansNothingToCheck) {

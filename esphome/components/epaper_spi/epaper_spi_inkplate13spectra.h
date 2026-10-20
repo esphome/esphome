@@ -17,10 +17,6 @@ namespace esphome::epaper_spi {
  * -- and before power-on, BUSY reads the same level as "genuinely busy", so gating on it
  * there would hang forever. initialise() only starts once the panel is actually powered,
  * so its busy-pin checks reflect a real signal.
- *
- * display_partial() is the public entry point for EPaperDualCS's partial-update machinery
- * -- verified working on this board (see EPaperDualCS for why it's not exposed by every
- * subclass).
  */
 class EPaperInkplate13Spectra : public EPaperDualCS {
  public:
@@ -35,10 +31,6 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
 
   void setup() override;
   void dump_config() override;
-
-  // Trigger a partial (subregion) update. x/y/w/h are in logical (rotated) coords.
-  // The buffer must already contain the updated pixels before calling this.
-  void display_partial(int x, int y, int w, int h) { this->start_partial_update_(x, y, w, h); }
 
  protected:
   // GPIO power-on bring-up, run inside reset()/RESET_END (see class-level comment).

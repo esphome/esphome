@@ -96,6 +96,7 @@ inkplate13spectra = Inkplate13SpectraModel(
     mirror_x=True,
     mirror_y=True,
     data_rate="10MHz",
+    partial_update=True,
     # A full 6-color refresh on a panel this large takes tens of seconds; disallow
     # faster updates to avoid FSM update loops.
     minimum_update_interval="30s",
