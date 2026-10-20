@@ -84,10 +84,7 @@ async def test_runtime_stats(
 
         # Wait for second "Total stats" log (should happen at 2s)
         await wait_or_fail(
-            second_stats_future,
-            5.0,
-            "Second 'Total stats' log not seen",
-            stats_count=stats_count,
+            second_stats_future, 5.0, "Second 'Total stats' log not seen"
         )
 
         # Verify we got at least 2 stats logs
