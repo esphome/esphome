@@ -14,6 +14,7 @@ class NfcTagBinarySensor final : public binary_sensor::BinarySensor, public Comp
   void setup() override;
   void dump_config() override;
 
+  // Both keep the pointer; the string must outlive the sensor (codegen passes a literal)
   void set_ndef_match_string(const char *str);
   void set_tag_name(const char *str);
   void set_uid(const NfcTagUid &uid);
