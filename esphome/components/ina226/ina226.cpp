@@ -1,4 +1,5 @@
 #include "ina226.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cinttypes>
@@ -109,7 +110,7 @@ void INA226Component::update() {
       return;
     }
     // Convert for 2's compliment and signed value (though always positive)
-    float bus_voltage_v = this->twos_complement_(raw_bus_voltage, 16);
+    float bus_voltage_v = sign_extend<16>(raw_bus_voltage);
     bus_voltage_v *= 0.00125f;
     this->bus_voltage_sensor_->publish_state(bus_voltage_v);
   }
@@ -121,7 +122,7 @@ void INA226Component::update() {
       return;
     }
     // Convert for 2's compliment and signed value
-    float shunt_voltage_v = this->twos_complement_(raw_shunt_voltage, 16);
+    float shunt_voltage_v = sign_extend<16>(raw_shunt_voltage);
     shunt_voltage_v *= 0.0000025f;
     this->shunt_voltage_sensor_->publish_state(shunt_voltage_v);
   }
@@ -133,7 +134,7 @@ void INA226Component::update() {
       return;
     }
     // Convert for 2's compliment and signed value
-    float current_ma = this->twos_complement_(raw_current, 16);
+    float current_ma = sign_extend<16>(raw_current);
     current_ma *= (this->calibration_lsb_ / 1000.0f);
     this->current_sensor_->publish_state(current_ma / 1000.0f);
   }
@@ -149,13 +150,6 @@ void INA226Component::update() {
   }
 
   this->status_clear_warning();
-}
-
-int32_t INA226Component::twos_complement_(int32_t val, uint8_t bits) {
-  if (val & ((uint32_t) 1 << (bits - 1))) {
-    val -= (uint32_t) 1 << bits;
-  }
-  return val;
 }
 
 }  // namespace esphome::ina226
