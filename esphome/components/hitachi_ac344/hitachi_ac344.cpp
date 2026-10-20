@@ -155,7 +155,7 @@ bool HitachiClimate::get_mildew_proof() const {
 }
 
 void HitachiClimate::set_mildew_proof(bool on) {
-  // No early return on an unchanged bit: a repeated write is how the user retries a frame the unit missed.
+  // A repeated write resends the frame, so a missed burst can be retried
   set_bit(&this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], HITACHI_AC344_MILDEWPROOF_OFFSET, on);
   this->transmit_state_(HITACHI_AC344_BUTTON_MILDEWPROOF);
   this->publish_mildew_proof_();
@@ -239,7 +239,7 @@ void HitachiClimate::transmit_state_(uint8_t button) {
   // TODO: climate changes always send the power button; find the per-change button code.
   set_button_(button);
 
-  // The physical remote sends this byte when powering off with mildew proof enabled.
+  // The remote sends this when powering off with mildew proof on
   if (this->mode == climate::CLIMATE_MODE_OFF && this->get_mildew_proof())
     remote_state_[9] = 0xA5;
 
@@ -380,7 +380,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->parse_fan_(recv_state);
   // parse swingv
   this->parse_swing_(recv_state);
-  // Copied before publishing, so an on_state automation that transmits builds on the frame just received.
+  // Copy first so an on_state automation transmits from the received frame
   memcpy(remote_state_, recv_state, HITACHI_AC344_STATE_LENGTH);
   this->publish_state();
   this->publish_mildew_proof_();
