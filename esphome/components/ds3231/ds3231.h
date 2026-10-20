@@ -1,9 +1,9 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #include "esphome/components/i2c/i2c.h"
 
@@ -55,8 +55,10 @@ class DS3231Component final : public Component, public i2c::I2CDevice {
   void set_alarm_check_interval(uint32_t interval) { this->alarm_check_interval_ = interval; }
   void set_monitor_alarms(bool monitor) { this->monitor_alarms_ = monitor; }
 
-  Trigger<> *get_alarm_1_trigger() { return &this->alarm_1_trigger_; }
-  Trigger<> *get_alarm_2_trigger() { return &this->alarm_2_trigger_; }
+  /// Register a void(uint8_t alarm) callback that runs when an enabled alarm (1 or 2) matches.
+  template<typename F> void add_on_alarm_callback(F &&callback) {
+    this->alarm_callback_.add(std::forward<F>(callback));
+  }
 
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(alarm_1)
@@ -138,8 +140,7 @@ class DS3231Component final : public Component, public i2c::I2CDevice {
   void publish_oscillator_stopped_();
 
   InternalGPIOPin *interrupt_pin_{nullptr};
-  Trigger<> alarm_1_trigger_;
-  Trigger<> alarm_2_trigger_;
+  LazyCallbackManager<void(uint8_t)> alarm_callback_;
 
   uint32_t alarm_check_interval_{1000};
   uint8_t control_reg_{0};

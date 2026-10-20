@@ -425,7 +425,7 @@ void DS3231Component::check_alarms_() {
       ESP_LOGI(TAG, "Alarm %u triggered.", alarm);
       active = true;
       this->publish_alarm_state_(alarm, true);
-      (alarm == 1 ? this->alarm_1_trigger_ : this->alarm_2_trigger_).trigger();
+      this->alarm_callback_.call(alarm);
     }
     if (this->auto_clear_alarms_)
       to_clear |= flag;

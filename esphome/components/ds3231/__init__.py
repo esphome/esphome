@@ -107,12 +107,18 @@ async def to_code(config: ConfigType) -> None:
     ):
         cg.add(var.set_monitor_alarms(True))
 
-    for conf_key, trigger in (
-        (CONF_ON_ALARM_1, var.get_alarm_1_trigger()),
-        (CONF_ON_ALARM_2, var.get_alarm_2_trigger()),
-    ):
+    # One callback for both alarms; each automation runs only for its own alarm number.
+    for conf_key, alarm in ((CONF_ON_ALARM_1, 1), (CONF_ON_ALARM_2, 2)):
         if (conf := config.get(conf_key)) is not None:
-            await automation.build_automation(trigger, [], conf)
+            await automation.build_callback_automation(
+                var,
+                "add_on_alarm_callback",
+                [],
+                conf,
+                params=[(cg.uint8, "alarm")],
+                forward=[],
+                when=f"alarm == {alarm}",
+            )
 
 
 # ---------------------------------------------------------------------------------------------
