@@ -1,4 +1,5 @@
 #include "bmp085.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bmp085 {
@@ -93,7 +94,7 @@ void BMP085Component::read_pressure_() {
     return;
   }
 
-  uint32_t value = (uint32_t(buffer[0]) << 16) | (uint32_t(buffer[1]) << 8) | uint32_t(buffer[2]);
+  uint32_t value = encode_uint24(buffer[0], buffer[1], buffer[2]);
   if ((value >> 5) == 0) {
     ESP_LOGW(TAG, "Invalid pressure!");
     this->status_set_warning();

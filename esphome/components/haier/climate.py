@@ -373,20 +373,14 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
-    if CONF_CONTROL_METHOD in config:
-        cg.add(var.set_control_method(config[CONF_CONTROL_METHOD]))
-    if CONF_BEEPER in config:
-        cg.add(var.set_beeper_state(config[CONF_BEEPER]))
-    if CONF_DISPLAY in config:
-        cg.add(var.set_display_state(config[CONF_DISPLAY]))
-    if CONF_SUPPORTED_MODES in config:
-        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
+    cg.add_optional(var.set_control_method, config.get(CONF_CONTROL_METHOD))
+    cg.add_optional(var.set_beeper_state, config.get(CONF_BEEPER))
+    cg.add_optional(var.set_display_state, config.get(CONF_DISPLAY))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
     if CONF_SUPPORTED_SWING_MODES in config:
         cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
-    if CONF_SUPPORTED_PRESETS in config:
-        cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
-    if CONF_ANSWER_TIMEOUT in config:
-        cg.add(var.set_answer_timeout(config[CONF_ANSWER_TIMEOUT]))
+    cg.add_optional(var.set_supported_presets, config.get(CONF_SUPPORTED_PRESETS))
+    cg.add_optional(var.set_answer_timeout, config.get(CONF_ANSWER_TIMEOUT))
     if CONF_ALTERNATIVE_SWING_CONTROL in config:
         cg.add(
             var.set_alternative_swing_control(config[CONF_ALTERNATIVE_SWING_CONTROL])
