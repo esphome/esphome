@@ -262,10 +262,8 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
 }
 
 #ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
-// Some firmwares (e.g. PVVX) send new data under an unchanged counter, so only an exact repeat (same counter and
-// MIC) is dropped as a duplicate and earlier frames under the current counter can still be replayed; the
-// lower-counter rule is the replay defence. The state is RAM only, so the first frame after a reboot of the ESP is
-// always accepted.
+// PVVX sends new data under an unchanged counter, so only an exact repeat (counter and MIC) is a duplicate and
+// earlier frames under the current counter can be replayed; the lower-counter rule is the defence. RAM only.
 bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter, uint32_t mic) {
   const uint32_t now = millis();
   if (counter == this->last_counter_ && mic == this->last_mic_) {
@@ -274,7 +272,7 @@ bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter, uint32_t mic) 
   }
   if (counter < this->last_counter_) {
     if (now - this->last_accepted_ms_ < BTHOME_REPLAY_RESYNC_MS) {
-      // One warning per run of rejections; a sensor advertising every few seconds would otherwise flood the log.
+      // One warning per run of rejections
       if (this->replay_rejected_) {
         ESP_LOGVV(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32, counter,
                   this->last_counter_);
@@ -382,7 +380,7 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
   }
 
 #ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
-  // Only once the MIC has authenticated the frame and the address matched, so other devices never touch the state.
+  // After the MIC and address checks, so other devices never touch the state
   if (is_encrypted && this->replay_protection_) {
     const uint8_t *tail = data.data() + data.size() - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
     if (!this->check_replay_counter_(encode_value_le<uint32_t>(tail),
