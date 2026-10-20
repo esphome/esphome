@@ -495,8 +495,7 @@ async def to_code(config):
 
     # esp-idf only
     transport = config.get(CONF_TRANSPORT)
-    if (ca := config.get(CONF_CERTIFICATE_AUTHORITY)) is not None:
-        cg.add(var.set_ca_certificate(ca))
+    ca = cg.add_optional(var.set_ca_certificate, config.get(CONF_CERTIFICATE_AUTHORITY))
     if ca is not None or transport == MQTT_TRANSPORT_WSS:
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
         if (client_certificate := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
