@@ -8,6 +8,7 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
+DOMAIN = "speaker"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -21,9 +22,7 @@ PlayAction = speaker_ns.class_(
 
 
 async def setup_speaker_core_(var, config):
-    if audio_dac_config := config.get(CONF_AUDIO_DAC):
-        aud_dac = await cg.get_variable(audio_dac_config)
-        cg.add(var.set_audio_dac(aud_dac))
+    await cg.add_variable(var.set_audio_dac, config.get(CONF_AUDIO_DAC))
 
 
 async def register_speaker(var, config):

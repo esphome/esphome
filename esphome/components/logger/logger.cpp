@@ -8,7 +8,7 @@
 
 namespace esphome::logger {
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 // Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS,
@@ -142,9 +142,14 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 }
 #endif  // USE_ESP8266
 
+uint8_t Logger::get_log_level(const char *tag) { return this->level_for(tag); }
+
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-  auto it = this->log_levels_.find(tag);
+  // Skip the lookup when no per-tag levels are set
+  if (this->log_levels_.empty())
+    return this->current_level_;
+  auto it = this->log_levels_.find(FlashTag{tag});
   if (it != this->log_levels_.end())
     return it->second;
 #endif

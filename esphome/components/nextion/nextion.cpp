@@ -11,7 +11,7 @@
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion";
+ESPHOME_LOG_TAG(TAG, "nextion");
 
 // A user entity may be named sleep_wake too; only the internal NO_RESULT command clears the sleeping flag
 static bool is_sleep_wake_command(const NextionComponentBase *component) {
@@ -180,11 +180,7 @@ void Nextion::release_queue_entry_(NextionQueue *nb) {
 }
 
 void Nextion::reset_(bool reset_nextion) {
-  uint8_t d;
-
-  while (this->available()) {  // Clear receive buffer
-    this->read_byte(&d);
-  }
+  this->discard_available();
   for (auto *entry : this->nextion_queue_) {
     this->release_queue_entry_(entry);
   }

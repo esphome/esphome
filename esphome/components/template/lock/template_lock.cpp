@@ -5,7 +5,7 @@ namespace esphome::template_ {
 
 using namespace esphome::lock;
 
-static const char *const TAG = "template.lock";
+ESPHOME_LOG_TAG(TAG, "template.lock");
 
 TemplateLock::TemplateLock() = default;
 

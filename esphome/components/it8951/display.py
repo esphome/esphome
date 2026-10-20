@@ -37,7 +37,6 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.cpp_generator import RawExpression
-from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["split_buffer"]
@@ -145,8 +144,8 @@ IT8951Model(
     reset_pin=12,
     cs_pin=10,
     # Board power-enable rails: 1.8V logic supply (GPIO21) and the EPD supply
-    # (GPIO11). Driven high during setup so no separate power_supply is needed.
-    enable_pin=[21, 11],
+    # (GPIO11). Driven high during setup so no separate power_supply is needed, and held low during deep_sleep.
+    enable_pin=[{"number": 21, "hold_state": True}, {"number": 11, "hold_state": True}],
     vcom=1400,
     # reTerminal E1003 panel firmware only accepts the 0x0002 VCOM SET
     # selector; using the default 0x0001 leaves VCOM unchanged and breaks
@@ -348,11 +347,8 @@ def _final_validate(config: ConfigType) -> None:
         config
     )
 
-    global_config = full_config.get()
-    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
-
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
-        if LVGL_DOMAIN in global_config:
+        if display.has_external_writer(config[CONF_ID]):
             if CONF_UPDATE_INTERVAL not in config:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
@@ -370,15 +366,9 @@ async def to_code(config: ConfigType) -> None:
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=False)
 
-    if lambda_config := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
-    if busy_pin := config.get(CONF_BUSY_PIN):
-        cg.add(var.set_busy_pin(await cg.gpio_pin_expression(busy_pin)))
+    await display.add_writer(var, config)
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    await cg.add_pin(var.set_busy_pin, config.get(CONF_BUSY_PIN))
     if enable_pins := config.get(CONF_ENABLE_PIN):
         cg.add(
             var.set_enable_pins(

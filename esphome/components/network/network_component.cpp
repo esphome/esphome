@@ -23,7 +23,7 @@
 
 namespace esphome::network {
 
-static const char *const TAG = "network";
+ESPHOME_LOG_TAG(TAG, "network");
 
 void NetworkComponent::setup() {
   // Initialize ESP-IDF network interfaces and ensure the default event loop exists
@@ -78,16 +78,24 @@ void NetworkComponent::loop() {
   // USE_NETWORK_PRIMARY_INTERFACE_WIFI is emitted for a wifi-first priority list;
   // it selects the reported address in util.cpp and doubles as the route-order
   // pivot here — the two uses must stay in sync.
-  esp_netif_t *best;
+  esp_netif_t *wifi = connected_wifi_netif();
+  esp_netif_t *ethernet = connected_ethernet_netif();
 #ifdef USE_NETWORK_PRIMARY_INTERFACE_WIFI
-  best = connected_wifi_netif();
-  if (best == nullptr)
-    best = connected_ethernet_netif();
+  esp_netif_t *best = wifi != nullptr ? wifi : ethernet;
 #else
-  best = connected_ethernet_netif();
-  if (best == nullptr)
-    best = connected_wifi_netif();
+  esp_netif_t *best = ethernet != nullptr ? ethernet : wifi;
 #endif
+  NetworkInterface active = NetworkInterface::NETWORK_INTERFACE_NONE;
+  if (best != nullptr) {
+    active = best == ethernet ? NetworkInterface::NETWORK_INTERFACE_ETHERNET : NetworkInterface::NETWORK_INTERFACE_WIFI;
+  }
+  if (active != this->active_interface_) {
+    this->active_interface_ = active;
+#ifdef NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT
+    for (auto *listener : this->active_interface_listeners_)
+      listener->on_active_interface(active);
+#endif
+  }
   if (best == nullptr) {
     // Forget the last winner: stopping its netif cleared lwIP's default route and
     // IDF's manual override suppresses re-election, so reconnect must re-assert it.

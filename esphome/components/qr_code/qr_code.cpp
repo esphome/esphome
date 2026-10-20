@@ -5,7 +5,7 @@
 
 namespace esphome::qr_code {
 
-static const char *const TAG = "qr_code";
+ESPHOME_LOG_TAG(TAG, "qr_code");
 
 void QrCode::dump_config() {
   ESP_LOGCONFIG(TAG,

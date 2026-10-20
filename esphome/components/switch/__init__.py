@@ -20,16 +20,20 @@ from esphome.const import (
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_SWITCH,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    ApplyEntity,
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "switch"
 IS_PLATFORM_COMPONENT = True
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
@@ -40,6 +44,7 @@ DEVICE_CLASSES = [
 switch_ns = cg.esphome_ns.namespace("switch_")
 Switch = switch_ns.class_("Switch", cg.EntityBase)
 SwitchPtr = Switch.operator("ptr")
+ApplySwitch = switch_ns.class_("ApplySwitch", Switch)
 
 SwitchRestoreMode = switch_ns.enum("SwitchRestoreMode")
 
@@ -171,6 +176,20 @@ async def new_switch(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_switch(var, config)
     return var
+
+
+APPLY_ENTITY = ApplyEntity(
+    ApplySwitch,
+    ((SwitchPtr, "entity"), (cg.bool_, "state")),
+    "entity->publish_state(state);",
+)
+
+
+def sub_switches(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_switch; ``apply`` statements can use ``entity`` and ``state``."""
+    return SubEntities(new_switch, config, parent, APPLY_ENTITY)
 
 
 SWITCH_ACTION_SCHEMA = maybe_simple_id(

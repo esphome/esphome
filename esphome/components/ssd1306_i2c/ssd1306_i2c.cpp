@@ -9,7 +9,7 @@
 
 namespace esphome::ssd1306_i2c {
 
-static const char *const TAG = "ssd1306_i2c";
+ESPHOME_LOG_TAG(TAG, "ssd1306_i2c");
 
 #ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
 // Partial-update transport cost model
@@ -87,8 +87,7 @@ void I2CSSD1306::setup() {
 
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -132,10 +131,6 @@ void I2CSSD1306::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_UPDATE_INTERVAL(this);
-
-  if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 // NATIVE FULL-FRAME TRANSPORT

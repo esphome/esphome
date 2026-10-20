@@ -19,6 +19,7 @@ from esphome.cpp_generator import MockObj, literal
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@ssieb"]
+DOMAIN = "key_collector"
 
 MULTI_CONF = True
 
@@ -92,8 +93,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for source_conf in config.get(CONF_SOURCE_ID, ()):
-        source = await cg.get_variable(source_conf)
-        cg.add(var.add_provider(source))
+        await cg.add_variable(var.add_provider, source_conf)
     if CONF_MIN_LENGTH in config:
         cg.add(var.set_min_length(config[CONF_MIN_LENGTH]))
     if CONF_MAX_LENGTH in config:

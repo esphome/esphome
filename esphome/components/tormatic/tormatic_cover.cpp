@@ -7,7 +7,7 @@ using namespace std;
 
 namespace esphome::tormatic {
 
-static const char *const TAG = "tormatic.cover";
+ESPHOME_LOG_TAG(TAG, "tormatic.cover");
 
 // Time to poll the UART when flushing after desync. At 9600 baud, a full
 // 12-byte message takes ~12.5ms, so 15ms guarantees all bytes have arrived.

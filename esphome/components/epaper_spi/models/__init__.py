@@ -1,8 +1,15 @@
 from typing import Any, Self
 
 import esphome.config_validation as cv
-from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
+from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_OFFSET_HEIGHT, CONF_WIDTH
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+
+def ultrachip_resolution(width: int, gates: int) -> tuple:
+    """The UC81xx resolution command (0x61): source (width) and gate counts, each big-endian."""
+    return (0x61, width >> 8, width & 0xFF, gates >> 8, gates & 0xFF)
 
 
 class EpaperModel:
@@ -48,6 +55,16 @@ class EpaperModel:
         """
         return {}
 
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        """
+        Validate the configuration as a whole, once the schema has been applied.
+        The base implementation accepts it unchanged; specific models override this for
+        rules that span several options.
+        :param config: The validated configuration
+        :return: The configuration, possibly updated
+        """
+        return config
+
     async def to_code(self, var: MockObj, config: dict) -> dict:
         """
         Generate model-specific code for the options added by add_options().
@@ -74,6 +91,13 @@ class EpaperModel:
             height = self.get_default(CONF_HEIGHT)
         return width, height
 
+    def get_offset_height(self, config) -> int:
+        # The panel's first row within the controller's addressable area; from explicit dimensions or the model default
+        dimensions = config.get(CONF_DIMENSIONS, {})
+        return dimensions.get(
+            CONF_OFFSET_HEIGHT, self.get_default(CONF_OFFSET_HEIGHT, 0)
+        )
+
     def extend(self, name, **kwargs) -> "EpaperModel":
         """
         Extend the current model with additional parameters or a modified init sequence.
@@ -89,3 +113,26 @@ class EpaperModel:
         defaults = self.defaults.copy()
         defaults.update(kwargs)
         return self.__class__(name, initsequence=tuple(initsequence), **defaults)
+
+    def check_requirements(self) -> None:
+        """
+        Raise a friendly error if any component this model requires is not configured.
+
+        This runs during schema validation (before ID references are resolved) so that a
+        model whose default pins live on a pin expander reports the missing expander clearly
+        instead of a cryptic "Couldn't find ID" from the unresolved pin reference.
+        """
+        if requirements := self.get_default("requires", set()):
+            # ``raw_config`` is populated before any component schema runs during a real
+            # validation, so presence of a required component is simply a top-level key.
+            # When it is absent (e.g. a unit test that invokes the schema directly) there
+            # is no config to check against, so skip.
+            global_config = CORE.raw_config
+            if global_config is None:
+                return
+            missing = {x for x in requirements if x not in global_config}
+            if missing:
+                reqstr = ", ".join(f"'{x}'" for x in sorted(missing))
+                raise cv.Invalid(
+                    f"{self.name} requires component{'s' if len(missing) > 1 else ''} {reqstr} to be configured"
+                )

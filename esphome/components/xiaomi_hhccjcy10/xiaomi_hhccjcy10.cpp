@@ -4,7 +4,7 @@
 
 namespace esphome::xiaomi_hhccjcy10 {
 
-static const char *const TAG = "xiaomi_hhccjcy10";
+ESPHOME_LOG_TAG(TAG, "xiaomi_hhccjcy10");
 
 void XiaomiHHCCJCY10::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi HHCCJCY10");
@@ -35,7 +35,7 @@ bool XiaomiHHCCJCY10::parse_device(const ble_device_base::ESPBTDevice &device) {
     const uint8_t *data = service_data.data.data();
 
     if (this->temperature_ != nullptr) {
-      const int16_t temperature = encode_uint16(data[1], data[2]);
+      const int16_t temperature = encode_value<int16_t>(&data[1]);
       this->temperature_->publish_state((float) temperature / 10.0f);
     }
 

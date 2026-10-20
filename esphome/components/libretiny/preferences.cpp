@@ -4,29 +4,68 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
+#include <span>
 #include <vector>
 
 namespace esphome::libretiny {
 
-static const char *const TAG = "preferences";
+ESPHOME_LOG_TAG(TAG, "preferences");
 
 struct NVSData {
   uint32_t key;
   SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  bool rtc;
+  bool is_rtc() const { return this->rtc; }
+#else
+  static constexpr bool is_rtc() { return false; }
+#endif
 };
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// The FlashDB name of a key: its decimal digits, with a prefix for storage: rtc so one pass over the
+// database finds every rtc entry. Without rtc storage is_rtc() is a constant false and the branch folds away.
+static constexpr size_t KEY_NAME_SIZE = UINT32_MAX_STR_SIZE + 1;
+static constexpr char RTC_KEY_PREFIX = 'r';
+static void key_name(char (&buf)[KEY_NAME_SIZE], uint32_t key, bool rtc) {
+  char *digits = buf;
+  if (rtc)
+    *digits++ = RTC_KEY_PREFIX;
+  uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE>(digits, UINT32_MAX_STR_SIZE), key);
+}
+
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+// Whether this boot followed a reset that RTC memory survives on ESP32 and ESP8266. LibreTiny chips
+// have no such memory, so storage: rtc keeps preferences in flash and uses this to forget them.
+static bool boot_kept_rtc_preferences() {
+  switch (lt_get_reboot_reason()) {
+    case REBOOT_REASON_SOFTWARE:
+    case REBOOT_REASON_WATCHDOG:
+    case REBOOT_REASON_CRASH:
+    case REBOOT_REASON_SLEEP_GPIO:
+    case REBOOT_REASON_SLEEP_RTC:
+    case REBOOT_REASON_SLEEP_USB:
+      return true;
+    default:  // power-on, brown-out, reset pin, debugger, unknown
+      return false;
+  }
+}
+#endif  // USE_LIBRETINY_RTC_PREFERENCES
+
 bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
-  // try find in pending saves and update that
+  // try find in pending saves and update that; a flash and an rtc entry may share a key
   for (auto &obj : s_pending_save) {
-    if (obj.key == this->key) {
+    if (obj.key == this->key && obj.is_rtc() == this->is_rtc()) {
       obj.data.set(data, len);
       return true;
     }
   }
   NVSData save{};
   save.key = this->key;
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  save.rtc = this->rtc;
+#endif
   save.data.set(data, len);
   s_pending_save.push_back(std::move(save));
   ESP_LOGVV(TAG, "s_pending_save: key: %" PRIu32 ", len: %zu", this->key, len);
@@ -36,7 +75,7 @@ bool LibreTinyPreferenceBackend::save(const uint8_t *data, size_t len) {
 bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
   // try find in pending saves and load from that
   for (auto &obj : s_pending_save) {
-    if (obj.key == this->key) {
+    if (obj.key == this->key && obj.is_rtc() == this->is_rtc()) {
       if (obj.data.size() != len) {
         // size mismatch
         return false;
@@ -46,8 +85,8 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
-  char key_str[UINT32_MAX_STR_SIZE];
-  uint32_to_str(key_str, this->key);
+  char key_str[KEY_NAME_SIZE];
+  key_name(key_str, this->key, this->is_rtc());
   fdb_blob_make(this->blob, data, len);
   size_t actual_len = fdb_kv_get_blob(this->db, key_str, this->blob);
   if (actual_len != len) {
@@ -64,21 +103,57 @@ void LibreTinyPreferences::open() {
   fdb_err_t err = fdb_kvdb_init(&this->db, "esphome", "kvs", NULL, NULL);
   if (err != FDB_NO_ERR) {
     LT_E("fdb_kvdb_init(...) failed: %d", err);
-  } else {
-    LT_I("Preferences initialized");
+    return;
+  }
+  LT_I("Preferences initialized");
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  if (!boot_kept_rtc_preferences())
+    this->discard_rtc_entries_();
+#endif
+}
+
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_t type, bool in_flash) {
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  return ESPPreferenceObject(new LibreTinyPreferenceBackend(this->make_backend_(type, !in_flash)));
+}
+
+// One pass over the database deletes every rtc entry. FlashDB only marks a deleted entry's status in place
+// and its iterator steps by address, so deleting the current entry is safe. This runs before the logger
+// exists, so it logs through LibreTiny; a failed delete is a flash fault the next write will report as well.
+void LibreTinyPreferences::discard_rtc_entries_() {
+  uint16_t discarded = 0;
+  fdb_kv_iterator iterator;
+  fdb_kv_iterator_init(&iterator);
+  while (fdb_kv_iterate(&this->db, &iterator)) {
+    const char *name = iterator.curr_kv.name;
+    if (name[0] != RTC_KEY_PREFIX)
+      continue;
+    if (const fdb_err_t err = fdb_kv_del(&this->db, name); err != FDB_NO_ERR) {
+      LT_E("Failed to discard rtc preference %s: %d", name, err);
+      continue;
+    }
+    discarded++;
+  }
+  if (discarded != 0) {
+    LT_D("Discarded %u rtc preferences after a hard reset", discarded);
   }
 }
+#endif
 
 ESPPreferenceObject LibreTinyPreferences::make_preference(size_t length, uint32_t type) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   return ESPPreferenceObject(new LibreTinyPreferenceBackend(this->make_backend_(type)));
 }
 
-LibreTinyPreferenceBackend LibreTinyPreferences::make_backend_(uint32_t type) {
+LibreTinyPreferenceBackend LibreTinyPreferences::make_backend_(uint32_t type, bool rtc) {
   LibreTinyPreferenceBackend backend;
   backend.key = type;
   backend.db = &this->db;
   backend.blob = &this->blob;
+#ifdef USE_LIBRETINY_RTC_PREFERENCES
+  backend.rtc = rtc;
+#endif
   return backend;
 }
 
@@ -97,8 +172,8 @@ bool LibreTinyPreferences::sync() {
   uint32_t last_key = 0;
 
   for (const auto &save : s_pending_save) {
-    char key_str[UINT32_MAX_STR_SIZE];
-    uint32_to_str(key_str, save.key);
+    char key_str[KEY_NAME_SIZE];
+    key_name(key_str, save.key, save.is_rtc());
     ESP_LOGVV(TAG, "Checking if FDB data %s has changed", key_str);
     if (this->is_changed_(&this->db, save, key_str)) {
       ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.data.size());
