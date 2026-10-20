@@ -405,12 +405,15 @@ async with run_compiled(yaml_config, line_callback=check_output):
 **Note**: Tests that monitor log messages typically have fewer race conditions compared to state-based testing, making them more reliable. However, be aware that the host platform currently does not have a thread-safe logger, so logging from threads will not work correctly.
 
 ##### Timeout Handling
+Always use timeouts for async operations. `wait_or_fail` (`wait_utils.py`) awaits a future,
+coroutine or `asyncio.Event` and fails the test with a message on timeout. Keyword arguments
+are added to the message only on failure, so pass live collections; lists, tuples, deques and
+mappings show their last 20 items.
 ```python
-# Always use timeouts for async operations
-try:
-    result = await asyncio.wait_for(some_future, timeout=5.0)
-except asyncio.TimeoutError:
-    pytest.fail("Operation timed out - check test expectations")
+from .wait_utils import wait_or_fail
+
+result = await wait_or_fail(some_future, 5.0, "no reply to the service call")
+await wait_or_fail(done_event, 5.0, "sensor never updated", log_lines=log_lines)
 ```
 
 #### 6. Common Assertions
