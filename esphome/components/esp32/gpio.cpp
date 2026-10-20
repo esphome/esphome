@@ -60,15 +60,7 @@ struct ISRPinArg {
 #endif
 };
 
-#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
-struct ISRFuncArg {
-  gpio_num_t pin;
-  gpio_int_type_t type;
-  void (*func)(void *);
-  void *arg;
-};
-
-#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+#if defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
 static esp_sleep_ext1_wakeup_mode_t get_ext1_type(gpio_int_type_t idf_type) {
   if (idf_type == GPIO_INTR_LOW_LEVEL)
     return ESP_EXT1_WAKEUP_ANY_LOW;
@@ -76,7 +68,6 @@ static esp_sleep_ext1_wakeup_mode_t get_ext1_type(gpio_int_type_t idf_type) {
     return ESP_EXT1_WAKEUP_ANY_HIGH;
   return ESP_EXT1_WAKEUP_ANY_LOW;
 }
-#endif
 #endif
 
 #ifdef USE_GPIO_HOLD
@@ -171,7 +162,37 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
       break;
   }
 
+  if (!isr_service_installed) {
+    auto res = gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
+    if (res != ESP_OK) {
+      ESP_LOGE(TAG, "attach_interrupt(): call to gpio_install_isr_service() failed, error code: %d", res);
+      return;
+    }
+    isr_service_installed = true;
+  }
+
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
+#endif
+    if (idf_type != GPIO_INTR_LOW_LEVEL && idf_type != GPIO_INTR_HIGH_LEVEL) {
+      // edge interrupt is not supported, so we need to emulate
+      ISRFuncArg *&func_args = this->isr_func_arg_;
+      if (func_args == nullptr)
+        func_args = new ISRFuncArg();  // NOLINT(cppcoreguidelines-owning-memory)
+      func_args->pin = this->get_pin_num();
+      func_args->type = idf_type;
+      func_args->func = func;
+      func_args->arg = arg;
+      gpio_isr_handler_add(this->get_pin_num(), gpio_intr, func_args);
+    } else {
+      gpio_isr_handler_add(this->get_pin_num(), func, arg);
+    }
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  } else {
+    gpio_isr_handler_add(this->get_pin_num(), func, arg);
+  }
+#endif
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
   if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
     // use ext1 wakeup for RTC pins.
@@ -207,45 +228,12 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
       gpio_wakeup_enable(this->get_pin_num(), GPIO_INTR_HIGH_LEVEL);
     }
   }
-#endif
-#else
-  gpio_set_intr_type(this->get_pin_num(), idf_type);
-  gpio_intr_enable(this->get_pin_num());
-#endif
-
-  if (!isr_service_installed) {
-    auto res = gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
-    if (res != ESP_OK) {
-      ESP_LOGE(TAG, "attach_interrupt(): call to gpio_install_isr_service() failed, error code: %d", res);
-      return;
-    }
-    isr_service_installed = true;
-  }
-
-#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
-#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-  if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
-#endif
-    if (idf_type != GPIO_INTR_LOW_LEVEL && idf_type != GPIO_INTR_HIGH_LEVEL) {
-      // edge interrupt is not supported, so we need to emulate
-      ISRFuncArg *func_args = new ISRFuncArg();  // NOLINT(cppcoreguidelines-owning-memory)
-      func_args->pin = this->get_pin_num();
-      func_args->type = idf_type;
-      func_args->func = func;
-      func_args->arg = arg;
-      gpio_isr_handler_add(this->get_pin_num(), gpio_intr, func_args);
-    } else {
-      gpio_isr_handler_add(this->get_pin_num(), func, arg);
-    }
-#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-  } else {
-    gpio_isr_handler_add(this->get_pin_num(), func, arg);
-  }
-#else
   esp_sleep_enable_gpio_wakeup();
 #endif
 #else
   gpio_isr_handler_add(this->get_pin_num(), func, arg);
+  gpio_set_intr_type(this->get_pin_num(), idf_type);
+  gpio_intr_enable(this->get_pin_num());
 #endif
 }
 
