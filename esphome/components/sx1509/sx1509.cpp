@@ -92,12 +92,9 @@ void SX1509Component::digital_write_hw(uint8_t pin, bool bit_value) {
     // If the pin is an output, write high/low
     uint16_t temp_reg_data = 0;
     this->read_byte_16(REG_DATA_B, &temp_reg_data);
-    assign_bits(output_state_, 1 << pin, bit_value);
-    for (uint16_t b = 0x8000; b; b >>= 1) {
-      if ((~ddr_mask_) & b) {  // transfer bits of outputs, but don't mess with inputs
-        assign_bits(temp_reg_data, b, output_state_ & b);
-      }
-    }
+    assign_bits(this->output_state_, 1 << pin, bit_value);
+    // Outputs take the shadow state, inputs keep what was read
+    temp_reg_data = (temp_reg_data & this->ddr_mask_) | (this->output_state_ & ~this->ddr_mask_);
     this->write_byte_16(REG_DATA_B, temp_reg_data);
   }
 }
