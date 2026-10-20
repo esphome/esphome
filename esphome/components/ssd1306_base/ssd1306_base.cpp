@@ -89,9 +89,34 @@ static_assert(sizeof(MODEL_DIMS) / sizeof(MODEL_DIMS[0]) == SSD1306_MODEL_COUNT,
 static_assert(ModelStrings::COUNT == SSD1306_MODEL_COUNT + 1,
               "ModelStrings must have one entry per SSD1306Model plus fallback");
 
-void SSD1306::setup() {
-  this->init_internal_(this->get_buffer_length_());
+bool SSD1306::init_framebuffer_() {
+  if (this->is_failed()) {
+    return false;
+  }
+  if (this->buffer_ == nullptr) {
+    const size_t length = this->get_buffer_length_();
+    if (length != 0) {
+      this->init_internal_(length);
+    }
+    if (this->buffer_ == nullptr) {
+      this->mark_failed(LOG_STR("Failed to allocate display framebuffer"));
+      return false;
+    }
+  }
+  return true;
+}
 
+void SSD1306::setup() {
+  if (!this->init_framebuffer_()) {
+    return;
+  }
+  this->init_controller_();
+  this->fill(Color::BLACK);
+  this->display();
+  this->turn_on();
+}
+
+void SSD1306::init_controller_(bool display_off) {
   // SH1107 resources
   //
   // Datasheet v2.3:
@@ -101,8 +126,10 @@ void SSD1306::setup() {
   // Adafruit CircuitPython driver:
   // github.com/adafruit/Adafruit_CircuitPython_DisplayIO_SH1107
 
-  // Turn off display during initialization (0xAE)
-  this->command(SSD1306_COMMAND_DISPLAY_OFF);
+  // A soft recovery can restore settings without blanking an already-running panel.
+  if (display_off) {
+    this->command(SSD1306_COMMAND_DISPLAY_OFF);
+  }
 
   // If SH1107, use POR defaults (0x50) = divider 1, frequency +0%
   if (!this->is_sh1107_()) {
@@ -239,34 +266,20 @@ void SSD1306::setup() {
   set_contrast(this->contrast_);
   if (this->is_ssd1305_())
     set_brightness(this->brightness_);
-
-  this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on
-  this->display();           // ...write buffer, which actually clears the display's memory
-
-  this->turn_on();
 }
 void SSD1306::display() {
+  if (this->is_failed() || this->buffer_ == nullptr) {
+    return;
+  }
   if (this->is_sh1106_() || this->is_sh1107_()) {
     this->write_display_data();
     return;
   }
 
   this->command(SSD1306_COMMAND_COLUMN_ADDRESS);
-  switch (this->model_) {
-    case SSD1306_MODEL_64_48:
-    case SSD1306_MODEL_64_32:
-      this->command(0x20 + this->offset_x_);
-      this->command(0x20 + this->offset_x_ + this->get_width_internal() - 1);
-      break;
-    case SSD1306_MODEL_72_40:
-      this->command(0x1C + this->offset_x_);
-      this->command(0x1C + this->offset_x_ + this->get_width_internal() - 1);
-      break;
-    default:
-      this->command(0 + this->offset_x_);  // Page start address, 0
-      this->command(this->get_width_internal() + this->offset_x_ - 1);
-      break;
-  }
+  const uint8_t column_start = this->get_column_start_();
+  this->command(column_start);
+  this->command(column_start + this->get_width_internal() - 1);
 
   this->command(SSD1306_COMMAND_PAGE_ADDRESS);
   // Page start address, 0
@@ -276,6 +289,18 @@ void SSD1306::display() {
 
   this->write_display_data();
 }
+uint8_t SSD1306::get_column_start_() const {
+  switch (this->model_) {
+    case SSD1306_MODEL_64_48:
+    case SSD1306_MODEL_64_32:
+      return 0x20 + this->offset_x_;
+    case SSD1306_MODEL_72_40:
+      return 0x1C + this->offset_x_;
+    default:
+      return this->offset_x_;
+  }
+}
+
 bool SSD1306::is_sh1106_() const {
   return this->model_ == SH1106_MODEL_96_16 || this->model_ == SH1106_MODEL_128_32 ||
          this->model_ == SH1106_MODEL_128_64;
@@ -287,6 +312,9 @@ bool SSD1306::is_ssd1305_() const {
 bool SSD1306::is_ssd1306b_() const { return this->model_ == SSD1306_MODEL_72_40; }
 
 void SSD1306::update() {
+  if (this->is_failed() || this->buffer_ == nullptr) {
+    return;
+  }
   this->do_update_();
   this->display();
 }
@@ -296,7 +324,7 @@ void SSD1306::set_invert(bool invert) {
   // Inverse display mode (0xA6, 0xA7)
   this->command(SSD1306_COMMAND_NORMAL_DISPLAY | this->invert_);
 }
-float SSD1306::get_contrast() { return this->contrast_; };
+float SSD1306::get_contrast() { return this->contrast_; }
 void SSD1306::set_contrast(float contrast) {
   // validation
   this->contrast_ = clamp(contrast, 0.0F, 1.0F);
@@ -304,7 +332,7 @@ void SSD1306::set_contrast(float contrast) {
   this->command(SSD1306_COMMAND_SET_CONTRAST);
   this->command(int(SSD1306_MAX_CONTRAST * (this->contrast_)));
 }
-float SSD1306::get_brightness() { return this->brightness_; };
+float SSD1306::get_brightness() { return this->brightness_; }
 void SSD1306::set_brightness(float brightness) {
   // validation
   if (!this->is_ssd1305_())
@@ -337,6 +365,9 @@ size_t SSD1306::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
 void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (this->buffer_ == nullptr) {
+    return;
+  }
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
@@ -349,6 +380,9 @@ void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 void SSD1306::fill(Color color) {
+  if (this->buffer_ == nullptr) {
+    return;
+  }
   // If clipping is active, fall back to base implementation
   if (this->get_clipping().is_set()) {
     Display::fill(color);

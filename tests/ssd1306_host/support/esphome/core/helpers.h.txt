@@ -1,0 +1,84 @@
+#pragma once
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include <new>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+namespace esphome {
+namespace test {
+inline size_t allocation_calls = 0;
+inline size_t fail_allocation = 0;
+inline size_t memory_budget = std::numeric_limits<size_t>::max();
+inline size_t memory_used = 0;
+inline std::vector<size_t> requests;
+inline std::unordered_map<void *, size_t> allocations;
+inline void *allocate(size_t size) {
+  requests.push_back(size);
+  ++allocation_calls;
+  if (allocation_calls == fail_allocation || size > memory_budget - memory_used)
+    return nullptr;
+  void *p = std::malloc(size);
+  if (p != nullptr) {
+    std::memset(p, 0xCD, size);
+    allocations[p] = size;
+    memory_used += size;
+  }
+  return p;
+}
+inline void deallocate(void *p) {
+  if (p == nullptr)
+    return;
+  const auto it = allocations.find(p);
+  if (it == allocations.end())
+    std::abort();
+  memory_used -= it->second;
+  allocations.erase(it);
+  std::free(p);
+}
+inline void reset_memory() {
+  if (!allocations.empty())
+    std::abort();
+  allocation_calls = 0;
+  fail_allocation = 0;
+  memory_budget = std::numeric_limits<size_t>::max();
+  memory_used = 0;
+  requests.clear();
+}
+}  // namespace test
+template<typename T> struct RAMDeleter;
+template<typename T> using RAMUniquePtr = std::unique_ptr<T, RAMDeleter<T>>;
+template<class T> class RAMAllocator {
+ public:
+  enum Flags { PREFER_INTERNAL = 8 };
+  explicit RAMAllocator(uint8_t = 0) {}
+  T *allocate(size_t n) { return static_cast<T *>(test::allocate(n * sizeof(T))); }
+  void deallocate(T *p, size_t) { test::deallocate(p); }
+  template<typename... Args> RAMUniquePtr<T> make_unique(Args &&...args) {
+    T *p = this->allocate(1);
+    if (p == nullptr)
+      return {};
+    return RAMUniquePtr<T>(::new (p) T(std::forward<Args>(args)...));
+  }
+  RAMUniquePtr<T[]> make_unique_array_for_overwrite(size_t n) {
+    if (n == 0 || n > SIZE_MAX / sizeof(T))
+      return {};
+    return RAMUniquePtr<T[]>(this->allocate(n));
+  }
+};
+template<typename T> struct RAMDeleter {
+  void operator()(T *p) const {
+    p->~T();
+    RAMAllocator<T>().deallocate(p, 1);
+  }
+};
+template<typename T> struct RAMDeleter<T[]> {
+  void operator()(T *p) const { RAMAllocator<T>().deallocate(p, 1); }
+};
+template<typename T> T clamp(T value, T low, T high) { return std::clamp(value, low, high); }
+}  // namespace esphome

@@ -1,0 +1,17 @@
+#pragma once
+#include "component.h"
+namespace esphome::test {
+template<typename... Args> void log(const char *, const char *, Args...) {}
+}  // namespace esphome::test
+#define ESPHOME_LOG_TAG(var, name) static constexpr const char *var = name
+#define LOG_STR(s) s
+#define LOG_STR_ARG(s) s
+#define ESP_LOG_MSG_COMM_FAIL "Communication failed"
+#define YESNO(b) ((b) ? "YES" : "NO")
+#define ESP_LOGCONFIG(...) ::esphome::test::log(__VA_ARGS__)
+#define ESP_LOGW(...) ::esphome::test::log(__VA_ARGS__)
+#define ESP_LOGE(...) ::esphome::test::log(__VA_ARGS__)
+#define ESP_LOGI(...) ::esphome::test::log(__VA_ARGS__)
+#define LOG_DISPLAY(prefix, name, obj) (void) (obj)
+#define LOG_PIN(prefix, pin) (void) (pin)
+#define LOG_UPDATE_INTERVAL(obj) (void) (obj)

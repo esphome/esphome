@@ -20,11 +20,8 @@ display:
         lambda: |-
           ESP_LOGD("display", "1 -> 2");
 
-# Partial-update coverage
-#
-# Exercise every SSD1306 geometry supported by partial_updates.
-# These displays intentionally omit reset_pin; the existing display
-# above retains reset-pin and page/action coverage.
+  # Exercise every supported SSD1306 geometry without reset pins.
+  # The display above retains reset-pin and page/action coverage.
   - platform: ssd1306_i2c
     i2c_id: i2c_bus
     model: SSD1306_128X32

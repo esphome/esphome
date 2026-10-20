@@ -1,0 +1,9 @@
+#pragma once
+#include "hal.h"
+#define PROGMEM_STRING_TABLE(name, ...) \
+  struct name { \
+    inline static constexpr const char *VALUES[] = {__VA_ARGS__}; \
+    static constexpr size_t COUNT = sizeof(VALUES) / sizeof(VALUES[0]); \
+    static constexpr size_t LAST_INDEX = COUNT - 1; \
+    static const LogString *get_log_str(size_t i, size_t fallback) { return VALUES[i < COUNT ? i : fallback]; } \
+  }
