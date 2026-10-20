@@ -315,8 +315,10 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t recv_state[HITACHI_AC424_STATE_LENGTH];
-  if (!data.expect_bytes<HITACHI_AC424_BIT_TIMINGS>(recv_state, HITACHI_AC424_STATE_LENGTH))
+  if (!data.expect_bytes<HITACHI_AC424_BIT_TIMINGS>(recv_state, HITACHI_AC424_STATE_LENGTH)) {
+    ESP_LOGVV(TAG, "Data fail");
     return false;
+  }
 
   // Validate footer
   if (!data.expect_mark(HITACHI_AC424_BIT_MARK)) {

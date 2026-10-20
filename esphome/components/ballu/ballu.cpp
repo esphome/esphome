@@ -119,8 +119,10 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t remote_state[BALLU_STATE_LENGTH];
-  if (!data.expect_bytes<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH))
+  if (!data.expect_bytes<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH)) {
+    ESP_LOGV(TAG, "Data fail");
     return false;
+  }
   // Validate footer
   if (!data.expect_mark(BALLU_BIT_MARK)) {
     ESP_LOGV(TAG, "Footer fail");

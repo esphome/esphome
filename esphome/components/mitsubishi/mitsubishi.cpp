@@ -281,15 +281,13 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  if (!data.expect_bytes<MITSUBISHI_BIT_TIMINGS>(state_frame, sizeof(state_frame)))
-    return false;
-
   // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).
-  if (state_frame[0] != MITSUBISHI_BYTE00 || state_frame[1] != MITSUBISHI_BYTE01 ||
+  if (!data.expect_bytes<MITSUBISHI_BIT_TIMINGS>(state_frame, sizeof(state_frame)) ||
+      state_frame[0] != MITSUBISHI_BYTE00 || state_frame[1] != MITSUBISHI_BYTE01 ||
       state_frame[2] != MITSUBISHI_BYTE02 || state_frame[3] != MITSUBISHI_BYTE03 ||
       state_frame[4] != MITSUBISHI_BYTE04 || state_frame[13] != MITSUBISHI_BYTE13 ||
       (state_frame[16] & ~MITSUBISHI_VERTICAL_VANE_MASK) != 0) {
-    ESP_LOGV(TAG, "Bytes 0,1,2,3,4,13 or 16 fail - invalid value");
+    ESP_LOGV(TAG, "Bit decode or bytes 0,1,2,3,4,13 or 16 fail");
     return false;
   }
 

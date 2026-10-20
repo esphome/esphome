@@ -153,12 +153,9 @@ bool DelonghiClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!data.expect_item(DELONGHI_HEADER_MARK, DELONGHI_HEADER_SPACE)) {
     return false;
   }
-  if (!data.expect_bytes<DELONGHI_BIT_TIMINGS>(state_frame, DELONGHI_STATE_FRAME_SIZE))
+  if (!data.expect_bytes<DELONGHI_BIT_TIMINGS>(state_frame, DELONGHI_STATE_FRAME_SIZE) ||
+      state_frame[0] != DELONGHI_ADDRESS)
     return false;
-  // frame header
-  if (state_frame[0] != DELONGHI_ADDRESS) {
-    return false;
-  }
   return this->parse_state_frame_(state_frame);
 }
 
