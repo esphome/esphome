@@ -2709,10 +2709,8 @@ def abbwelcome_binary_sensor(var, config):
     cg.add(var.set_retransmission(config[CONF_RETRANSMISSION]))
     cg.add(var.set_message_type(config[CONF_MESSAGE_TYPE]))
     cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
-    if CONF_MESSAGE_ID in config:
-        cg.add(var.set_message_id(config[CONF_MESSAGE_ID]))
-    if CONF_DATA in config:
-        cg.add(var.set_data(config[CONF_DATA]))
+    cg.add_optional(var.set_message_id, config.get(CONF_MESSAGE_ID))
+    cg.add_optional(var.set_data, config.get(CONF_DATA))
     cg.add(var.finalize())
 
 

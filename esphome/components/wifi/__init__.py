@@ -751,19 +751,15 @@ def manual_ip(config):
 
 
 def wifi_network(config, ap, static_ip):
-    if CONF_SSID in config:
-        cg.add(ap.set_ssid(config[CONF_SSID]))
-    if CONF_PASSWORD in config:
-        cg.add(ap.set_password(config[CONF_PASSWORD]))
+    cg.add_optional(ap.set_ssid, config.get(CONF_SSID))
+    cg.add_optional(ap.set_password, config.get(CONF_PASSWORD))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
     if CONF_BSSID in config:
         cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
-    if CONF_HIDDEN in config:
-        cg.add(ap.set_hidden(config[CONF_HIDDEN]))
-    if CONF_CHANNEL in config:
-        cg.add(ap.set_channel(config[CONF_CHANNEL]))
+    cg.add_optional(ap.set_hidden, config.get(CONF_HIDDEN))
+    cg.add_optional(ap.set_channel, config.get(CONF_CHANNEL))
     if static_ip is not None:
         cg.add(ap.set_manual_ip(manual_ip(static_ip)))
     # priority_ is 0 in C++; skip the setter when the config matches it.
@@ -952,8 +948,7 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
-        if CONF_BAND_MODE in config:
-            cg.add(var.set_band_mode(config[CONF_BAND_MODE]))
+        cg.add_optional(var.set_band_mode, config.get(CONF_BAND_MODE))
 
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)

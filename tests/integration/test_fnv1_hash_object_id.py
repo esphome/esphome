@@ -16,6 +16,7 @@ import re
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -62,10 +63,9 @@ async def test_fnv1_hash_object_id(
         assert device_info.name == "fnv1-hash-object-id-test"
 
         # Wait for all tests to complete or timeout
-        try:
-            await asyncio.wait_for(all_tests_complete.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Tests timed out. Got results for: {set(test_results.keys())}")
+        await wait_or_fail(
+            all_tests_complete, 2.0, "Tests timed out", test_results=test_results
+        )
 
         # Verify all tests passed
         for test_name in expected_tests:
