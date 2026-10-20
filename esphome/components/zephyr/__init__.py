@@ -939,7 +939,8 @@ async def zephyr_add_usb_baud_rate(config: ConfigType) -> MockObj:
     zephyr_claim_cdc_acm(0, "usb_baud_rate", write_only=True, allow_write_only=True)
     # Needed to read the rate the host set.
     zephyr_add_prj_conf("UART_LINE_CTRL", True)
-    var = cg.new_Pvariable(config[CONF_USB_BAUD_RATE])
+    port = MockObj(f"DEVICE_DT_GET(DT_NODELABEL({zephyr_cdc_acm_label(0)}))")
+    var = cg.new_Pvariable(config[CONF_USB_BAUD_RATE], port)
     await cg.register_component(var, {})
     return var
 

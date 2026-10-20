@@ -306,6 +306,10 @@ async def test_zephyr_add_usb_baud_rate_creates_the_declared_component() -> None
     with (
         patch("esphome.components.zephyr.zephyr_claim_cdc_acm") as mock_claim,
         patch("esphome.components.zephyr.zephyr_add_prj_conf") as mock_conf,
+        patch(
+            "esphome.components.zephyr.zephyr_cdc_acm_label",
+            return_value="board_cdc_acm_uart",
+        ),
         patch("esphome.codegen.add_define") as mock_define,
         patch("esphome.codegen.new_Pvariable", return_value="var") as mock_new,
         patch("esphome.codegen.register_component", new=AsyncMock()) as mock_register,
@@ -316,7 +320,11 @@ async def test_zephyr_add_usb_baud_rate_creates_the_declared_component() -> None
         0, "usb_baud_rate", write_only=True, allow_write_only=True
     )
     mock_conf.assert_called_once_with("UART_LINE_CTRL", True)
-    mock_new.assert_called_once_with("declared_id")
+    mock_new.assert_called_once()
+    declared_id, port = mock_new.call_args.args
+    assert declared_id == "declared_id"
+    # Only port 0 (the logger's) may reboot the board on a 1200 baud touch
+    assert str(port) == "DEVICE_DT_GET(DT_NODELABEL(board_cdc_acm_uart))"
     mock_register.assert_awaited_once()
 
 
