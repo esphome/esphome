@@ -75,6 +75,8 @@ TEST(BcdCalendar, DsLayoutTwelveHourMode) {
 TEST(BcdCalendar, DsLayoutCenturyBit) {
   const ESPTime time = decode_bcd_calendar<DS_BCD_CALENDAR>(patched(DS_RAW, 5, 0x84).data());
   EXPECT_EQ(time.year, 2126);
+  // 2100 is not a leap year, so the timestamp is one day earlier than a plain every-four-years count gives.
+  EXPECT_EQ(time.timestamp, 4932057598);
   uint8_t out[7];
   encode_bcd_calendar<DS_BCD_CALENDAR>(time, out);
   EXPECT_EQ(out[5], 0x84);
