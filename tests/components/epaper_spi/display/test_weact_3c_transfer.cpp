@@ -22,9 +22,12 @@ template<typename Driver> class Testable : public Driver {
 
   void draw(int x, int y, Color color) { this->draw_pixel_at(x, y, color); }
 
-  void run_push() {
-    while (!this->transfer_data()) {
-    }
+  /// Both planes of one push; returns how many calls it took.
+  int run_push() {
+    int calls = 1;
+    while (!this->transfer_data())
+      calls++;
+    return calls;
   }
 
   RecordingPin dc;
@@ -103,6 +106,59 @@ TEST(EPaperWeAct3CTransfer, WaveshareBInvertsOnlyTheRedPlane) {
   display.run_push();
   EXPECT_EQ(bus.data[0x24], (Bytes{0x00, 0x00}));
   EXPECT_EQ(bus.data[0x26], (Bytes{0x00, 0x00}));
+}
+
+/// A push that yields to the main loop part way through each plane, and resumes over several calls, sends the same
+/// commands and bytes as a push that runs to completion in one call.
+template<typename Driver> void expect_resumed_push_matches() {
+  // 128x20 pixels is 320 bytes per plane, so each plane takes three chunks of up to MAX_TRANSFER_SIZE.
+  constexpr int width = 128;
+  constexpr int height = 20;
+  const Color colors[] = {Color::WHITE, Color::BLACK, RED};
+
+  Testable<Driver> reference(width, height);
+  RecordingDelegate reference_bus(&reference.dc);
+  reference.install(&reference_bus);
+  Testable<Driver> display(width, height);
+  // Every data write takes longer than MAX_TRANSFER_TIME, so the push yields after each chunk.
+  RecordingDelegate bus(&display.dc, MAX_TRANSFER_TIME + 1);
+  display.install(&bus);
+  for (int y = 0; y != height; y++) {
+    for (int x = 0; x != width; x++) {
+      reference.draw(x, y, colors[(x * 7 + y * 3) % 3]);
+      display.draw(x, y, colors[(x * 7 + y * 3) % 3]);
+    }
+  }
+
+  EXPECT_EQ(reference.run_push(), 1);
+  EXPECT_GT(display.run_push(), 2);
+
+  expect_red_plane_first(bus);
+  EXPECT_EQ(bus.commands, reference_bus.commands);
+  EXPECT_EQ(bus.data[0x26].size(), 320u);
+  EXPECT_EQ(bus.data[0x24], reference_bus.data[0x24]);
+  EXPECT_EQ(bus.data[0x26], reference_bus.data[0x26]);
+}
+
+TEST(EPaperWeAct3CTransfer, WeActResumedPush) { expect_resumed_push_matches<EPaperWeAct3C>(); }
+
+TEST(EPaperWeAct3CTransfer, WaveshareBResumedPush) { expect_resumed_push_matches<EpaperWaveshareB>(); }
+
+/// A second push starts again from the window setup and the red plane.
+TEST(EPaperWeAct3CTransfer, SecondPushStartsAgain) {
+  Testable<EPaperWeAct3C> display(16, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+  display.fill(RED);
+
+  display.run_push();
+  const Bytes first_commands = bus.commands;
+  bus.clear();
+  display.run_push();
+
+  EXPECT_EQ(bus.commands, first_commands);
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x00, 0x00}));
+  EXPECT_EQ(bus.data[0x26], (Bytes{0xFF, 0xFF}));
 }
 
 }  // namespace

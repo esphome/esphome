@@ -30,6 +30,8 @@ class EPaperBWR : public EPaperBase {
   // Streams buffer_[current_data_index_ .. end) XORed with invert_mask in chunks; returns false if it yields on
   // MAX_TRANSFER_TIME. Chip select is held for the whole range and released only on yield or completion.
   bool send_buffer_range_(size_t end, uint8_t invert_mask, uint32_t start_time);
+  // Sets buffer_[index .. end) to value, one contiguous span at a time.
+  void fill_range_(size_t index, size_t end, uint8_t value);
 
   // Send the red plane as 0=red, 1=no red
   bool invert_red_;

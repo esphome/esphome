@@ -20,6 +20,14 @@ class TestableBWR : public EPaperBWR {
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
   }
 
+  /// Like install(), but with the buffer split into parts of at most part_size bytes.
+  void install_split(spi::SPIDelegate *delegate, size_t part_size) {
+    this->delegate_ = delegate;
+    this->set_dc_pin(&this->dc);
+    ASSERT_TRUE(this->buffer_.init(this->buffer_length_, part_size));
+    ASSERT_GT(this->buffer_.get_buffer_count(), 1u);
+  }
+
   void draw(int x, int y, Color color) { this->draw_pixel_at(x, y, color); }
   uint8_t byte_at(size_t index) { return this->buffer_[index]; }
   void set_byte(size_t index, uint8_t value) { this->buffer_[index] = value; }
@@ -201,6 +209,20 @@ TEST(EPaperBWR, FillWithClippingOnlyFillsTheClippedArea) {
   EXPECT_EQ(display.byte_at(1), 0x00);
 }
 
+/// fill() sets each plane correctly when the parts of a split buffer do not line up with the planes.
+TEST(EPaperBWR, FillAcrossSplitBufferParts) {
+  TestableBWR display(128, 20, false);  // 320 bytes per plane, in parts of 50 bytes
+  RecordingDelegate bus(&display.dc);
+  display.install_split(&bus, 50);
+
+  display.fill(RED);
+
+  for (size_t i = 0; i != display.half_buffer(); i++) {
+    EXPECT_EQ(display.byte_at(i), 0x00) << "black/white byte " << i;
+    EXPECT_EQ(display.byte_at(display.half_buffer() + i), 0xFF) << "red byte " << i;
+  }
+}
+
 // send_buffer_range_()
 
 /// Bytes are XORed with the mask and sent in chunks of up to MAX_TRANSFER_SIZE, with chip select held for the
@@ -250,6 +272,23 @@ TEST(EPaperBWR, SendBufferRangeYieldsAndResumes) {
   ASSERT_EQ(sent.size(), display.half_buffer());
   for (size_t i = 0; i != sent.size(); i++)
     EXPECT_EQ(sent[i], (uint8_t) i) << "byte " << i;
+}
+
+/// Chunks that cross from one part of a split buffer to the next are sent whole and in order.
+TEST(EPaperBWR, SendBufferRangeAcrossSplitBufferParts) {
+  TestableBWR display(128, 20, false);
+  CountingDelegate bus(&display.dc);
+  display.install_split(&bus, 50);
+  for (size_t i = 0; i != display.half_buffer(); i++)
+    display.set_byte(i, (uint8_t) (i * 7));
+
+  EXPECT_TRUE(display.send_range(display.half_buffer(), 0xFF));
+
+  EXPECT_EQ(bus.data_writes, (std::vector<size_t>{MAX_TRANSFER_SIZE, MAX_TRANSFER_SIZE, 64}));
+  const Bytes &sent = bus.data[0];
+  ASSERT_EQ(sent.size(), display.half_buffer());
+  for (size_t i = 0; i != sent.size(); i++)
+    EXPECT_EQ(sent[i], (uint8_t) ~(i * 7)) << "byte " << i;
 }
 
 // transfer_data()
@@ -302,6 +341,28 @@ TEST(EPaperBWR, TransferDataResumesWithoutRepeatingCommands) {
   EXPECT_EQ(bus.commands, (Bytes{0x10, 0x13}));
   EXPECT_EQ(bus.data[0x10], Bytes(320, 0xFF));
   EXPECT_EQ(bus.data[0x13], Bytes(320, 0xFF));
+}
+
+/// A push from a split buffer sends the same bytes as from a buffer in one part.
+TEST(EPaperBWR, TransferDataFromSplitBuffer) {
+  TestableBWR whole(128, 20, true);
+  RecordingDelegate whole_bus(&whole.dc);
+  whole.install(&whole_bus);
+  TestableBWR split(128, 20, true);
+  RecordingDelegate split_bus(&split.dc);
+  split.install_split(&split_bus, 50);
+  for (size_t i = 0; i != 2 * whole.half_buffer(); i++) {
+    whole.set_byte(i, (uint8_t) (i * 13));
+    split.set_byte(i, (uint8_t) (i * 13));
+  }
+
+  whole.run_push();
+  split.run_push();
+
+  EXPECT_EQ(split_bus.commands, (Bytes{0x10, 0x13}));
+  EXPECT_EQ(split_bus.data[0x10], whole_bus.data[0x10]);
+  EXPECT_EQ(split_bus.data[0x13], whole_bus.data[0x13]);
+  EXPECT_EQ(split_bus.data[0x13].size(), 320u);
 }
 
 }  // namespace

@@ -9,7 +9,8 @@ namespace esphome::epaper_spi {
  * Supports multiple sizes: 2.9" (128x296), 4.2" (400x300), etc.
  *
  * Buffer layout: see EPaperBWR, with red_sets_black set so red pixels are sent as 0 in the black/white plane.
- * The planes are sent in the opposite order: red with 0x26, then black/white with 0x24.
+ * The planes are sent in the opposite order: red with 0x26, then black/white with 0x24, each with
+ * send_buffer_range_().
  */
 class EPaperWeAct3C : public EPaperBWR {
  public:

@@ -1,7 +1,5 @@
 #include "epaper_weact_3c.h"
 
-#include <algorithm>
-
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
@@ -34,84 +32,27 @@ void EPaperWeAct3C::set_window_() {
 
 bool HOT EPaperWeAct3C::transfer_data() {
   const uint32_t start_time = millis();
-  const size_t buffer_length = this->buffer_length_;
-  const size_t half_buffer = buffer_length / 2u;
+  const size_t half_buffer = this->buffer_length_ / 2u;
 
-  ESP_LOGV(TAG, "transfer_data: buffer_length=%u, half_buffer=%u", buffer_length, half_buffer);
-
-  // Use a local buffer for SPI transfers
-  uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
-
-  // First, send the RED buffer (0x26 = WRITE_COLOR)
-  // The red plane is in the second half of our buffer
-  // NOTE: Must set RAM window first to reset address counters!
-  if (this->current_data_index_ < half_buffer) {
-    if (this->current_data_index_ == 0) {
-      ESP_LOGV(TAG, "transfer_data: sending RED buffer (0x26)");
-      this->set_window_();  // Reset RAM X/Y counters to start position
-      this->command(0x26);
-    }
-
-    this->start_data_();
-    const size_t red_offset = half_buffer;
-    const uint8_t red_mask = this->invert_red_ ? 0xFF : 0x00;
-    while (this->current_data_index_ < half_buffer) {
-      size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, half_buffer - this->current_data_index_);
-
-      for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = this->buffer_[red_offset + this->current_data_index_ + i] ^ red_mask;
-      }
-
-      this->write_array(bytes_to_send, bytes_to_copy);
-
-      this->current_data_index_ += bytes_to_copy;
-
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
-        // Let the main loop run and come back next loop
-        this->disable();
-        return false;
-      }
-    }
-    this->disable();
+  // current_data_index_ is the position in buffer_: 0 before the push starts, then the red plane
+  // [half_buffer, buffer_length_), sent first, then the black/white plane (0, half_buffer).
+  // A push only yields after sending some data, so it never stops at exactly 0 or half_buffer.
+  if (this->current_data_index_ == 0) {
+    ESP_LOGV(TAG, "transfer_data: sending RED buffer (0x26)");
+    this->set_window_();  // Reset RAM X/Y counters to start position
+    this->command(0x26);
+    this->current_data_index_ = half_buffer;
   }
-
-  // Finished the red buffer, now send the BLACK buffer (0x24 = WRITE_BLACK)
-  // The black plane is in the first half of our buffer
-  if (this->current_data_index_ < buffer_length) {
-    if (this->current_data_index_ == half_buffer) {
-      ESP_LOGV(TAG, "transfer_data: finished red buffer, sending BLACK buffer (0x24)");
-
-      // Do NOT reset RAM counters here for WeAct displays (Reference implementation behavior)
-      // this->set_window();
-      this->command(0x24);
-      // Continue using current_data_index_, but we need to map it to the start of the buffer
-    }
-
-    this->start_data_();
-    while (this->current_data_index_ < buffer_length) {
-      size_t remaining = buffer_length - this->current_data_index_;
-      size_t bytes_to_copy = std::min(MAX_TRANSFER_SIZE, remaining);
-
-      // Calculate offset into the BLACK buffer (which is at the start of this->buffer_)
-      // current_data_index_ goes from half_buffer to buffer_length
-      size_t buffer_offset = this->current_data_index_ - half_buffer;
-
-      for (size_t i = 0; i < bytes_to_copy; i++) {
-        bytes_to_send[i] = ~this->buffer_[buffer_offset + i];  // the panel wants 1=white
-      }
-
-      this->write_array(bytes_to_send, bytes_to_copy);
-
-      this->current_data_index_ += bytes_to_copy;
-
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
-        // Let the main loop run and come back next loop
-        this->disable();
-        return false;
-      }
-    }
-    this->disable();
+  if (this->current_data_index_ >= half_buffer) {
+    if (!this->send_buffer_range_(this->buffer_length_, this->invert_red_ ? 0xFF : 0x00, start_time))
+      return false;
+    ESP_LOGV(TAG, "transfer_data: finished red buffer, sending BLACK buffer (0x24)");
+    // Do NOT reset RAM counters here for WeAct displays (Reference implementation behavior)
+    this->command(0x24);
+    this->current_data_index_ = 0;
   }
+  if (!this->send_buffer_range_(half_buffer, 0xFF, start_time))  // the panel wants 1=white
+    return false;
 
   this->current_data_index_ = 0;
   ESP_LOGV(TAG, "transfer_data: completed (red=%u, black=%u bytes)", half_buffer, half_buffer);

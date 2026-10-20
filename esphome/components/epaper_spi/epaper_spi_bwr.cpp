@@ -1,5 +1,8 @@
 #include "epaper_spi_bwr.h"
 
+#include <algorithm>
+#include <cstring>
+
 #include "colorconv.h"
 
 namespace esphome::epaper_spi {
@@ -39,16 +42,8 @@ void EPaperBWR::fill(Color color) {
       color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
   const bool red = bwr == BwrColor::BWR_COLOR_RED;
-  const uint8_t bw_byte = (bwr == BwrColor::BWR_COLOR_BLACK || (red && this->red_sets_black_)) ? 0xFF : 0x00;
-  const uint8_t red_byte = red ? 0xFF : 0x00;
-  if (bw_byte == red_byte) {
-    this->buffer_.fill(bw_byte);  // white, or red when red_sets_black_ is set
-  } else {
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[i] = bw_byte;
-    for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = red_byte;
-  }
+  this->fill_range_(0, half_buffer, (bwr == BwrColor::BWR_COLOR_BLACK || (red && this->red_sets_black_)) ? 0xFF : 0x00);
+  this->fill_range_(half_buffer, this->buffer_length_, red ? 0xFF : 0x00);
 
   this->x_high_ = this->width_;
   this->y_high_ = this->height_;
@@ -56,23 +51,37 @@ void EPaperBWR::fill(Color color) {
   this->y_low_ = 0;
 }
 
+void EPaperBWR::fill_range_(size_t index, size_t end, uint8_t value) {
+  while (index != end) {
+    size_t length;
+    uint8_t *data = this->buffer_.get_span(index, length);
+    length = std::min(length, end - index);
+    memset(data, value, length);
+    index += length;
+  }
+}
+
 bool HOT EPaperBWR::send_buffer_range_(size_t end, uint8_t invert_mask, uint32_t start_time) {
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
-  size_t buf_idx = 0;
   this->start_data_();
-  while (this->current_data_index_ < end) {
-    bytes_to_send[buf_idx++] = this->buffer_[this->current_data_index_++] ^ invert_mask;
-    if (buf_idx == sizeof bytes_to_send) {
-      this->write_array(bytes_to_send, buf_idx);
-      buf_idx = 0;
-      if (millis() - start_time > MAX_TRANSFER_TIME) {
-        this->disable();
-        return false;  // yield; resume next loop
-      }
+  while (this->current_data_index_ != end) {
+    const size_t chunk = std::min(MAX_TRANSFER_SIZE, end - this->current_data_index_);
+    // The chunk may cross from one SplitBuffer part to the next, so copy it a span at a time
+    for (size_t filled = 0; filled != chunk;) {
+      size_t length;
+      const uint8_t *data = this->buffer_.get_span(this->current_data_index_ + filled, length);
+      length = std::min(length, chunk - filled);
+      for (size_t i = 0; i != length; i++)
+        bytes_to_send[filled + i] = data[i] ^ invert_mask;
+      filled += length;
+    }
+    this->write_array(bytes_to_send, chunk);
+    this->current_data_index_ += chunk;
+    if (this->current_data_index_ != end && millis() - start_time > MAX_TRANSFER_TIME) {
+      this->disable();
+      return false;  // yield; resume next loop
     }
   }
-  if (buf_idx != 0)
-    this->write_array(bytes_to_send, buf_idx);
   this->disable();
   return true;
 }
