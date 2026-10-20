@@ -15,6 +15,7 @@ import re
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -154,10 +155,9 @@ async def test_text_sensor_raw_state(
         # get_raw_state() should return the same as state
         client.button_command(no_filter_button.key)
 
-        try:
-            state, raw_state = await asyncio.wait_for(no_filter_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for NO_FILTER log message")
+        state, raw_state = await wait_or_fail(
+            no_filter_future, 5.0, "Timeout waiting for NO_FILTER log message"
+        )
 
         assert state == "hello world", f"Expected state='hello world', got '{state}'"
         assert raw_state == "hello world", (
@@ -172,10 +172,9 @@ async def test_text_sensor_raw_state(
         # state should be filtered (uppercase), raw_state should be original
         client.button_command(with_filter_button.key)
 
-        try:
-            state, raw_state = await asyncio.wait_for(with_filter_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for WITH_FILTER log message")
+        state, raw_state = await wait_or_fail(
+            with_filter_future, 5.0, "Timeout waiting for WITH_FILTER log message"
+        )
 
         assert state == "HELLO WORLD", f"Expected state='HELLO WORLD', got '{state}'"
         assert raw_state == "hello world", (
@@ -195,10 +194,9 @@ async def test_text_sensor_raw_state(
         assert append_button is not None, "Test Append Button not found"
         client.button_command(append_button.key)
 
-        try:
-            state = await asyncio.wait_for(append_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for APPEND log message")
+        state = await wait_or_fail(
+            append_future, 5.0, "Timeout waiting for APPEND log message"
+        )
 
         assert state == "test suffix", (
             f"Append failed: expected 'test suffix', got '{state}'"
@@ -213,10 +211,9 @@ async def test_text_sensor_raw_state(
         assert prepend_button is not None, "Test Prepend Button not found"
         client.button_command(prepend_button.key)
 
-        try:
-            state = await asyncio.wait_for(prepend_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for PREPEND log message")
+        state = await wait_or_fail(
+            prepend_future, 5.0, "Timeout waiting for PREPEND log message"
+        )
 
         assert state == "prefix test", (
             f"Prepend failed: expected 'prefix test', got '{state}'"
@@ -231,10 +228,9 @@ async def test_text_sensor_raw_state(
         assert substitute_button is not None, "Test Substitute Button not found"
         client.button_command(substitute_button.key)
 
-        try:
-            state = await asyncio.wait_for(substitute_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for SUBSTITUTE log message")
+        state = await wait_or_fail(
+            substitute_future, 5.0, "Timeout waiting for SUBSTITUTE log message"
+        )
 
         assert state == "bar says world", (
             f"Substitute failed: expected 'bar says world', got '{state}'"
@@ -248,10 +244,9 @@ async def test_text_sensor_raw_state(
         assert map_on_button is not None, "Test Map ON Button not found"
         client.button_command(map_on_button.key)
 
-        try:
-            state = await asyncio.wait_for(map_on_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for MAP_ON log message")
+        state = await wait_or_fail(
+            map_on_future, 5.0, "Timeout waiting for MAP_ON log message"
+        )
 
         assert state == "Active", f"Map ON failed: expected 'Active', got '{state}'"
 
@@ -263,10 +258,9 @@ async def test_text_sensor_raw_state(
         assert map_off_button is not None, "Test Map OFF Button not found"
         client.button_command(map_off_button.key)
 
-        try:
-            state = await asyncio.wait_for(map_off_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for MAP_OFF log message")
+        state = await wait_or_fail(
+            map_off_future, 5.0, "Timeout waiting for MAP_OFF log message"
+        )
 
         assert state == "Inactive", (
             f"Map OFF failed: expected 'Inactive', got '{state}'"
@@ -281,10 +275,9 @@ async def test_text_sensor_raw_state(
         assert map_unknown_button is not None, "Test Map Unknown Button not found"
         client.button_command(map_unknown_button.key)
 
-        try:
-            state = await asyncio.wait_for(map_unknown_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for MAP_UNKNOWN log message")
+        state = await wait_or_fail(
+            map_unknown_future, 5.0, "Timeout waiting for MAP_UNKNOWN log message"
+        )
 
         assert state == "UNKNOWN", (
             f"Map passthrough failed: expected 'UNKNOWN', got '{state}'"
@@ -299,10 +292,9 @@ async def test_text_sensor_raw_state(
         assert chained_button is not None, "Test Chained Button not found"
         client.button_command(chained_button.key)
 
-        try:
-            state = await asyncio.wait_for(chained_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for CHAINED log message")
+        state = await wait_or_fail(
+            chained_future, 5.0, "Timeout waiting for CHAINED log message"
+        )
 
         assert state == "[value]", f"Chained failed: expected '[value]', got '{state}'"
 
@@ -315,10 +307,9 @@ async def test_text_sensor_raw_state(
         assert to_lower_button is not None, "Test To Lower Button not found"
         client.button_command(to_lower_button.key)
 
-        try:
-            state = await asyncio.wait_for(to_lower_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for TO_LOWER log message")
+        state = await wait_or_fail(
+            to_lower_future, 5.0, "Timeout waiting for TO_LOWER log message"
+        )
 
         assert state == "hello world", (
             f"to_lower failed: expected 'hello world', got '{state}'"
@@ -333,10 +324,9 @@ async def test_text_sensor_raw_state(
         assert lambda_button is not None, "Test Lambda Button not found"
         client.button_command(lambda_button.key)
 
-        try:
-            state = await asyncio.wait_for(lambda_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for LAMBDA log message")
+        state = await wait_or_fail(
+            lambda_future, 5.0, "Timeout waiting for LAMBDA log message"
+        )
 
         assert state == "[test]", f"Lambda failed: expected '[test]', got '{state}'"
 
@@ -349,10 +339,9 @@ async def test_text_sensor_raw_state(
         assert lambda_pass_button is not None, "Test Lambda Pass Button not found"
         client.button_command(lambda_pass_button.key)
 
-        try:
-            state = await asyncio.wait_for(lambda_pass_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for LAMBDA_PASS log message")
+        state = await wait_or_fail(
+            lambda_pass_future, 5.0, "Timeout waiting for LAMBDA_PASS log message"
+        )
 
         assert state == "value passed", (
             f"Lambda pass failed: expected 'value passed', got '{state}'"
@@ -367,10 +356,9 @@ async def test_text_sensor_raw_state(
         assert lambda_skip_button is not None, "Test Lambda Skip Button not found"
         client.button_command(lambda_skip_button.key)
 
-        try:
-            state = await asyncio.wait_for(lambda_skip_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for LAMBDA_SKIP log message")
+        state = await wait_or_fail(
+            lambda_skip_future, 5.0, "Timeout waiting for LAMBDA_SKIP log message"
+        )
 
         # When lambda returns {}, value should NOT be published
         # State remains from previous successful publish ("value passed")
@@ -394,12 +382,11 @@ async def test_text_sensor_raw_state(
         )
         client.button_command(lambda_raw_state_button.key)
 
-        try:
-            state, raw_state = await asyncio.wait_for(
-                lambda_raw_state_future, timeout=5.0
-            )
-        except TimeoutError:
-            pytest.fail("Timeout waiting for LAMBDA_RAW_STATE log message")
+        state, raw_state = await wait_or_fail(
+            lambda_raw_state_future,
+            5.0,
+            "Timeout waiting for LAMBDA_RAW_STATE log message",
+        )
 
         assert state == "original MODIFIED", (
             f"Lambda raw_state test failed: expected state='original MODIFIED', "

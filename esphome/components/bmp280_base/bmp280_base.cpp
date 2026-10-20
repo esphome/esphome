@@ -1,12 +1,13 @@
 #include "bmp280_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
 namespace esphome::bmp280_base {
 
-static const char *const TAG = "bmp280.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp280.sensor");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 static const uint8_t BMP280_REGISTER_STATUS = 0xF3;
 static const uint8_t BMP280_REGISTER_CONTROL = 0xF4;
@@ -63,18 +64,15 @@ void BMP280Component::setup() {
   // Read the chip id twice, to work around a bug where the first read is 0.
   // https://community.st.com/t5/stm32-mcus-products/issue-with-reading-bmp280-chip-id-using-spi/td-p/691855
   if (!this->bmp_read_byte(0xD0, &chip_id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->bmp_read_byte(0xD0, &chip_id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != 0x58) {
-    this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed(LOG_STR(BMP280_ERROR_WRONG_CHIP_ID));
+    this->mark_failed(LOG_STR("Wrong chip ID or no response"));
     return;
   }
 
@@ -128,17 +126,6 @@ void BMP280Component::setup() {
 }
 void BMP280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP280:");
-  switch (this->error_code_) {
-    case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      break;
-    case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, BMP280_ERROR_WRONG_CHIP_ID);
-      break;
-    case NONE:
-    default:
-      break;
-  }
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
   LOG_UPDATE_INTERVAL(this);
 
@@ -166,7 +153,7 @@ void BMP280Component::update() {
   meas_time += 2.3f * oversampling_to_time(this->temperature_oversampling_);
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
 
-  this->set_timeout("data", uint32_t(ceilf(meas_time)), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ceilf(meas_time)), [this]() {
     int32_t t_fine = 0;
     float temperature = this->read_temperature_(&t_fine);
     if (std::isnan(temperature)) {
@@ -190,7 +177,7 @@ float BMP280Component::read_temperature_(int32_t *t_fine) {
   if (!this->bmp_read_bytes(BMP280_REGISTER_TEMPDATA, data, 3))
     return NAN;
   ESP_LOGV(TAG, "Read temperature data, raw: %02X %02X %02X", data[0], data[1], data[2]);
-  int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
+  int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
   if (adc == 0x80000) {
     // temperature was disabled
@@ -213,7 +200,7 @@ float BMP280Component::read_pressure_(int32_t t_fine) {
   uint8_t data[3];
   if (!this->bmp_read_bytes(BMP280_REGISTER_PRESSUREDATA, data, 3))
     return NAN;
-  int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
+  int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
   if (adc == 0x80000) {
     // pressure was disabled
@@ -261,8 +248,8 @@ uint8_t BMP280Component::read_u8_(uint8_t a_register) {
 }
 uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
-  this->bmp_read_byte_16(a_register, &data);
-  return (data >> 8) | (data << 8);
+  this->bmp_read_byte_16_le(a_register, &data);
+  return data;
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 

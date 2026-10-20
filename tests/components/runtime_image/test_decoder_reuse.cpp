@@ -101,6 +101,9 @@ class TestableRuntimeImage : public RuntimeImage {
   explicit TestableRuntimeImage(ImageFormat format, image::Transparency transparency = image::TRANSPARENCY_OPAQUE)
       : RuntimeImage(format, image::IMAGE_TYPE_RGB, transparency, nullptr, false, 0, 0) {}
 
+  TestableRuntimeImage(ImageFormat format, image::ImageType type, bool is_big_endian, int fixed_width, int fixed_height)
+      : RuntimeImage(format, type, image::TRANSPARENCY_OPAQUE, nullptr, is_big_endian, fixed_width, fixed_height) {}
+
   ImageDecoder *decoder() { return this->decoder_.get(); }
 };
 
@@ -372,6 +375,87 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
   EXPECT_EQ(img.decoder(), first);
   EXPECT_EQ(pixel_bytes(img), first_pixels) << "reused decoder must reproduce identical pixels";
+}
+
+// JPEGDEC's colour conversion differs by one step between its SIMD and scalar builds, so each
+// channel is checked within one step; the byte order is still exact
+static void expect_rgb565_near(uint16_t actual, uint16_t expected, const char *order, size_t pixel) {
+  EXPECT_NEAR(actual >> 11, expected >> 11, 1) << order << " pixel " << pixel << " red";
+  EXPECT_NEAR((actual >> 5) & 0x3F, (expected >> 5) & 0x3F, 1) << order << " pixel " << pixel << " green";
+  EXPECT_NEAR(actual & 0x1F, expected & 0x1F, 1) << order << " pixel " << pixel << " blue";
+}
+
+TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
+  // Halving the 8x8 gradient keeps its even rows and columns. The words are JPEGDEC's output for those
+  // pixels, red in the top five bits: a decode of the fixture with PIL gives (51, 7, 30) for source
+  // pixel (2, 0), which is word 0x3803 here.
+  static const uint16_t EXPECTED[4 * 4] = {
+      0x0000, 0x3803, 0x8008, 0xB80B, 0x0203, 0x3A07, 0x81EC, 0xBA0F,
+      0x03E7, 0x3C0B, 0x83F0, 0xBC13, 0x05EC, 0x3E0F, 0x85F4, 0xBE17,
+  };
+  TestableRuntimeImage rgb565_little_endian(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
+  TestableRuntimeImage rgb565_big_endian(JPEG, image::IMAGE_TYPE_RGB565, true, 4, 4);
+
+  ASSERT_TRUE(decode_all(rgb565_little_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_TRUE(decode_all(rgb565_big_endian, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_EQ(rgb565_little_endian.get_width(), 4);
+  ASSERT_EQ(rgb565_little_endian.get_height(), 4);
+  ASSERT_EQ(rgb565_big_endian.get_width(), 4);
+  ASSERT_EQ(rgb565_big_endian.get_height(), 4);
+
+  const uint8_t *little = rgb565_little_endian.get_data_start();
+  const uint8_t *big = rgb565_big_endian.get_data_start();
+  for (size_t i = 0; i < 4 * 4; i++) {
+    expect_rgb565_near(little[i * 2] | (little[i * 2 + 1] << 8), EXPECTED[i], "little-endian", i);
+    expect_rgb565_near((big[i * 2] << 8) | big[i * 2 + 1], EXPECTED[i], "big-endian", i);
+  }
+}
+
+// Target pixel index each source pixel paints when `source` pixels map onto `target`, the way
+// prepare_rgb565_scaling_ rounds: source n covers targets ceil(n * target / source) up to the next start
+static uint16_t scaled_boundary(int n, int source, int target) { return (n * target + source - 1) / source; }
+
+// The RGB565 word at (x, y) of a decoded image, in its own byte order
+static uint16_t rgb565_word(const TestableRuntimeImage &img, int x, int y) {
+  const uint8_t *p = img.get_data_start() + (y * img.get_width() + x) * 2;
+  return p[0] | (p[1] << 8);
+}
+
+// Every scaled direct decode must equal the unscaled one sampled through the boundary table,
+// for shrinking, growing and a ratio that is not a whole number
+TEST(RuntimeImageDecoder, JpegDirectRgb565ScalesBySourcePixelSpans) {
+  TestableRuntimeImage full(JPEG, image::IMAGE_TYPE_RGB565, false, 8, 8);
+  ASSERT_TRUE(decode_all(full, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+
+  for (int size : {4, 6, 16}) {
+    TestableRuntimeImage scaled(JPEG, image::IMAGE_TYPE_RGB565, false, size, size);
+    ASSERT_TRUE(decode_all(scaled, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+    ASSERT_EQ(scaled.get_width(), size);
+    ASSERT_EQ(scaled.get_height(), size);
+    for (int n = 0; n < 8; n++) {
+      for (int m = 0; m < 8; m++) {
+        for (int y = scaled_boundary(m, 8, size); y < scaled_boundary(m + 1, 8, size); y++) {
+          for (int x = scaled_boundary(n, 8, size); x < scaled_boundary(n + 1, 8, size); x++) {
+            EXPECT_EQ(rgb565_word(scaled, x, y), rgb565_word(full, n, m))
+                << size << "x" << size << " pixel " << x << "," << y;
+          }
+        }
+      }
+    }
+  }
+}
+
+// A second decode into the same image reuses the boundary tables and gives the same pixels
+TEST(RuntimeImageDecoder, JpegDirectRgb565RepeatsWithReusedTables) {
+  TestableRuntimeImage img(JPEG, image::IMAGE_TYPE_RGB565, false, 6, 6);
+  ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  std::vector<uint8_t> first_pixels = pixel_bytes(img);
+  ImageDecoder *first = img.decoder();
+  ASSERT_NE(first, nullptr);
+
+  ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  EXPECT_EQ(img.decoder(), first);
+  EXPECT_EQ(pixel_bytes(img), first_pixels);
 }
 #endif  // USE_RUNTIME_IMAGE_JPEG
 

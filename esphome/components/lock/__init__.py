@@ -22,6 +22,7 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "lock"
 IS_PLATFORM_COMPONENT = True
 
 lock_ns = cg.esphome_ns.namespace("lock")
@@ -31,19 +32,18 @@ LockCall = lock_ns.class_("LockCall")
 
 LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
 
-LockStateForwarder = lock_ns.class_("LockStateForwarder")
-
 LockState = lock_ns.enum("LockState")
 
-LOCK_STATES = {
-    "OPEN": LockState.LOCK_STATE_OPEN,
-    "LOCKED": LockState.LOCK_STATE_LOCKED,
-    "UNLOCKED": LockState.LOCK_STATE_UNLOCKED,
-    "JAMMED": LockState.LOCK_STATE_JAMMED,
-    "OPENING": LockState.LOCK_STATE_OPENING,
-    "LOCKING": LockState.LOCK_STATE_LOCKING,
-    "UNLOCKING": LockState.LOCK_STATE_UNLOCKING,
-}
+LOCK_STATES = LockState.options(
+    "OPEN",
+    "LOCKED",
+    "UNLOCKED",
+    "JAMMED",
+    "OPENING",
+    "LOCKING",
+    "UNLOCKING",
+    prefix="LOCK_STATE_",
+)
 
 validate_lock_state = cv.enum(LOCK_STATES, upper=True)
 
@@ -88,12 +88,16 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_LOCK,
         "add_on_state_callback",
-        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_LOCKED),
+        params=[(LockState, "state")],
+        forward=[],
+        when="state == lock::LOCK_STATE_LOCKED",
     ),
     automation.CallbackAutomation(
         CONF_ON_UNLOCK,
         "add_on_state_callback",
-        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_UNLOCKED),
+        params=[(LockState, "state")],
+        forward=[],
+        when="state == lock::LOCK_STATE_UNLOCKED",
     ),
 )
 

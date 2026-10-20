@@ -1,11 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import spi
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["sensor"]
+DOMAIN = "mcp3008"
 MULTI_CONF = True
 
 CONF_MCP3008 = "mcp3008"
@@ -21,6 +21,4 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.new_spi_component(config)

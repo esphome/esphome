@@ -24,13 +24,9 @@ DEPENDENCIES = ["spi"]
 
 cs5460a_ns = cg.esphome_ns.namespace("cs5460a")
 CS5460APGAGain = cs5460a_ns.enum("CS5460APGAGain")
-PGA_GAIN_OPTIONS = {
-    "10X": CS5460APGAGain.CS5460A_PGA_GAIN_10X,
-    "50X": CS5460APGAGain.CS5460A_PGA_GAIN_50X,
-}
+PGA_GAIN_OPTIONS = CS5460APGAGain.options("10X", "50X", prefix="CS5460A_PGA_GAIN_")
 
 CS5460AComponent = cs5460a_ns.class_("CS5460AComponent", spi.SPIDevice, cg.Component)
-CS5460ARestartAction = cs5460a_ns.class_("CS5460ARestartAction", automation.Action)
 
 CONF_SAMPLES = "samples"
 CONF_PHASE_OFFSET = "phase_offset"
@@ -107,9 +103,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
 
     cg.add(var.set_samples(config[CONF_SAMPLES]))
     cg.add(var.set_phase_offset(config[CONF_PHASE_OFFSET]))
@@ -118,24 +112,18 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_hpf_enable(config[CONF_CURRENT_HPF], config[CONF_VOLTAGE_HPF]))
     cg.add(var.set_pulse_energy_wh(config[CONF_PULSE_ENERGY]))
 
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-    if current_config := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(current_config)
-        cg.add(var.set_current_sensor(sens))
-    if power_config := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(power_config)
-        cg.add(var.set_power_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
 
 
-automation.register_simple_action(
+automation.register_apply_action(
     "cs5460a.restart",
-    CS5460ARestartAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(CS5460AComponent),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("restart()"),
 )

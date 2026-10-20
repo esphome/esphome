@@ -1,0 +1,29 @@
+esphome:
+  name: test
+  on_boot:
+    then:
+      - homeassistant.action:
+          action: notify.notify
+          data:
+            message: Booted
+      - homeassistant.action:
+          action: notify.notify
+          data:
+            message: Booted
+      - homeassistant.event:
+          event: esphome.booted
+          data:
+            message: !lambda 'static int n = 0; return ++n;'
+      - homeassistant.event:
+          event: esphome.booted
+          data:
+            message: !lambda 'static int n = 0; return ++n;'
+
+esp8266:
+  board: esp01_1m
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+api:

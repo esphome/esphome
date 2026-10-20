@@ -55,10 +55,9 @@ TemplateClimate = template_ns.class_("TemplateClimate", climate.Climate, cg.Comp
 TemplateClimateRestoreMode = template_ns.enum(
     "TemplateClimateRestoreMode", is_class=True
 )
-CLIMATE_RESTORE_MODES = {
-    "NO_RESTORE": TemplateClimateRestoreMode.TEMPLATE_CLIMATE_RESTORE_MODE_NO_RESTORE,
-    "RESTORE": TemplateClimateRestoreMode.TEMPLATE_CLIMATE_RESTORE_MODE_RESTORE,
-}
+CLIMATE_RESTORE_MODES = TemplateClimateRestoreMode.options(
+    "NO_RESTORE", "RESTORE", prefix="TEMPLATE_CLIMATE_RESTORE_MODE_"
+)
 
 # Per-field actions that forward a requested value on. The third item is the type of `x`.
 SET_ACTIONS = (
@@ -296,11 +295,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
 
-    if (sens := config.get(CONF_SENSOR)) is not None:
-        cg.add(var.set_sensor(await cg.get_variable(sens)))
-
-    if (sens := config.get(CONF_HUMIDITY_SENSOR)) is not None:
-        cg.add(var.set_humidity_sensor(await cg.get_variable(sens)))
+    await cg.add_variable(var.set_sensor, config.get(CONF_SENSOR))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     for key, flag in (
         (CONF_SUPPORTS_ACTION, climate_ns.CLIMATE_SUPPORTS_ACTION),
@@ -374,6 +370,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_preset(v))
         if (v := initial_state.get(CONF_CUSTOM_PRESET)) is not None:
             cg.add(var.set_custom_preset(v))
+        cg.add(var.set_has_state(True))
 
 
 CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(

@@ -28,7 +28,7 @@ namespace esphome::deep_sleep {
 // - Touch: Touch pad wakeup (esp_sleep_enable_touchpad_wakeup)
 // - GPIO wakeup: GPIO wakeup for RTC pins
 
-static const char *const TAG = "deep_sleep";
+ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
 #ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {
@@ -111,7 +111,17 @@ void DeepSleepComponent::deep_sleep_() {
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
 
-    // Single pin wakeup (ext0) - ESP32, S2, S3 only
+#ifndef SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+#ifdef USE_GPIO_HOLD
+  // Variants without per-pin deep sleep hold need the global enable
+  gpio_deep_sleep_hold_en();
+#else
+  if (this->wakeup_pin_ != nullptr)
+    gpio_deep_sleep_hold_en();
+#endif
+#endif
+
+  // Single pin wakeup (ext0) - ESP32, S2, S3 only
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
     !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
     !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
@@ -124,11 +134,6 @@ void DeepSleepComponent::deep_sleep_() {
     }
     gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
     gpio_hold_en(gpio_pin);
-#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
-    // Some ESP32 variants support holding a single GPIO during deep sleep without this function
-    // For those variants, gpio_hold_en() is sufficient to hold the pin state during deep sleep
-    gpio_deep_sleep_hold_en();
-#endif
     bool level = !this->wakeup_pin_->is_inverted();
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;

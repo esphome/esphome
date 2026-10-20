@@ -33,6 +33,7 @@ CONF_WIREGUARD_ID = "wireguard_id"
 
 DEPENDENCIES = ["time"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
+DOMAIN = "wireguard"
 
 # The key validation regex has been described by Jason Donenfeld himself
 # url: https://lists.zx2c4.com/pipermail/wireguard/2020-December/006222.html
@@ -108,8 +109,7 @@ async def to_code(config):
     cg.add(var.set_keepalive(config[CONF_PEER_PERSISTENT_KEEPALIVE]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
-    if CONF_PEER_PRESHARED_KEY in config:
-        cg.add(var.set_preshared_key(config[CONF_PEER_PRESHARED_KEY]))
+    cg.add_optional(var.set_preshared_key, config.get(CONF_PEER_PRESHARED_KEY))
 
     allowed_ips = list(
         ipaddress.collapse_addresses(
@@ -120,20 +120,23 @@ async def to_code(config):
         )
     )
 
+    # Shared flash table ended by an empty entry, so the component stores only a pointer.
+    entries = [
+        cg.StructInitializer(
+            AllowedIP,
+            ("ip", str(ip.network_address)),
+            ("netmask", str(ip.netmask)),
+        )
+        for ip in allowed_ips
+    ]
+    end = cg.StructInitializer(AllowedIP, ("ip", cg.nullptr), ("netmask", cg.nullptr))
     cg.add(
         var.set_allowed_ips(
-            [
-                cg.StructInitializer(
-                    AllowedIP,
-                    ("ip", str(ip.network_address)),
-                    ("netmask", str(ip.netmask)),
-                )
-                for ip in allowed_ips
-            ]
+            cg.shared_progmem_array("wireguard_allowed_ips", AllowedIP, [*entries, end])
         )
     )
 
-    cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
+    await cg.add_variable(var.set_srctime, config[CONF_TIME_ID])
 
     if config[CONF_REQUIRE_CONNECTION_TO_PROCEED]:
         cg.add(var.disable_auto_proceed())
@@ -143,12 +146,12 @@ async def to_code(config):
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
 
-    # This flag is added here because the esp_wireguard library statically
+    # This flag is added here because the wireguard library statically
     # set the size of its allowed_ips list at compile time using this value;
     # the '+1' modifier is relative to the device's own address that will
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
-    cg.add_library("droscy/esp_wireguard", "0.4.5")
+    cg.add_library("esphome/wireguard", "0.4.8")
 
     await cg.register_component(var, config)
 

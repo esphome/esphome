@@ -3,7 +3,9 @@
 
 namespace esphome::pid {
 
-static const char *const TAG = "pid.climate";
+ESPHOME_LOG_TAG(TAG, "pid.climate");
+
+static constexpr uint32_t AUTOTUNE_PROGRESS_INTERVAL_ID = 0;
 
 bool PIDClimate::set_deadband_thresholds(float threshold_low, float threshold_high) {
   if (threshold_low > threshold_high) {
@@ -169,6 +171,14 @@ void PIDClimate::update_pid_() {
   if (this->do_publish_)
     this->publish_state();
 }
+void PIDClimate::start_autotune(float noiseband, float positive_output, float negative_output) {
+  auto tuner = make_unique<PIDAutotuner>();
+  tuner->set_noiseband(noiseband);
+  tuner->set_output_positive(positive_output);
+  tuner->set_output_negative(negative_output);
+  this->start_autotune(std::move(tuner));
+}
+
 void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   this->autotuner_ = std::move(autotune);
   float min_value = this->supports_cool_() ? -1.0f : 0.0f;
@@ -183,7 +193,7 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
            "Until your sensor provides a reading, the autotuner may display \'nan\'",
            this->get_name().c_str());
 
-  this->set_interval("autotune-progress", 10000, [this]() {
+  this->set_interval(AUTOTUNE_PROGRESS_INTERVAL_ID, 10000, [this]() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished())
       this->autotuner_->dump_config();
   });
