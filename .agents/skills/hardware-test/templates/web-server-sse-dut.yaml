@@ -34,9 +34,13 @@ interval:
     then:
       - lambda: |-
           TaskHandle_t httpd = xTaskGetHandle("httpd");
+          if (httpd == nullptr) {
+            ESP_LOGW("probe", "httpd task not found, loopTask min free stack %u",
+                     (unsigned) uxTaskGetStackHighWaterMark(nullptr));
+            return;
+          }
           ESP_LOGI("probe", "loopTask min free stack %u, httpd min free stack %u, internal free %u, largest block %u",
-                   (unsigned) uxTaskGetStackHighWaterMark(nullptr),
-                   httpd ? (unsigned) uxTaskGetStackHighWaterMark(httpd) : 0,
+                   (unsigned) uxTaskGetStackHighWaterMark(nullptr), (unsigned) uxTaskGetStackHighWaterMark(httpd),
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                    (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
 

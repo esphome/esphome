@@ -10,6 +10,7 @@ from collections import Counter
 import contextlib
 import json
 import socket
+import sys
 import threading
 import time
 
@@ -93,10 +94,13 @@ class Client(threading.Thread):
             self.cur_event = None
 
     def run(self):
-        s = socket.create_connection((args.host, 80), timeout=5)
-        s.sendall(REQ % args.host.encode())
-        self.end = read_chunked(s, time.monotonic() + self.seconds, self.on_line)
-        s.close()
+        try:
+            s = socket.create_connection((args.host, 80), timeout=5)
+            s.sendall(REQ % args.host.encode())
+            self.end = read_chunked(s, time.monotonic() + self.seconds, self.on_line)
+            s.close()
+        except (OSError, ValueError) as e:
+            self.end = f"error: {e}"
 
 
 clients = [Client(i, args.seconds) for i in range(args.clients)]
@@ -106,9 +110,12 @@ for c in clients:
 
 stall_sock = None
 if args.stall:
-    stall_sock = socket.create_connection((args.host, 80), timeout=5)
-    stall_sock.sendall(REQ % args.host.encode())
+    # The window scale is negotiated in the SYN, so the small buffer must be set before connect()
+    stall_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     stall_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
+    stall_sock.settimeout(5)
+    stall_sock.connect((args.host, 80))
+    stall_sock.sendall(REQ % args.host.encode())
     print("stalled client opened (never reads)", flush=True)
 
 churn_done = 0
@@ -156,3 +163,11 @@ for c in clients:
         flush=True,
     )
     print("  per id:", dict(sorted(c.ids.items())), flush=True)
+
+failed = [
+    c for c in clients if c.end != "deadline" or c.invalid or not c.events["state"]
+]
+if failed:
+    sys.exit(
+        f"{len(failed)} client(s) did not run clean to the deadline with valid state events"
+    )

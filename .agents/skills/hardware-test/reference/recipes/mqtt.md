@@ -16,9 +16,10 @@ paho script publishes and polls the serial capture file.
 One build per transport from `templates/mqtt-transport-dut.yaml`, with `scripts/mqtt/mosquitto-ws.conf` as the
 local broker (mosquitto 2.x from brew has `websockets` support; `log_type all` prints `New connection from <ip>:<port>
 on port <listener>`, which proves which listener each client used) and `scripts/mqtt/make_test_ca.sh BROKER_IP` for
-the TLS listener's certificate. `scripts/mqtt/cases.sh NAME BROKER_HOST SUB_PORT CAPTURE [DEV_HOST]` subscribes to
-`NAME/#`, sends a switch command and an `on_message` topic, presses the 3000 byte publish button over the API,
-restarts the local broker, and prints the broker's message counts with the device log. `mosquitto_sub` cannot speak
+the TLS listener's certificate. `scripts/mqtt/cases.sh NAME KEY BROKER_HOST SUB_PORT CAPTURE [DEV_HOST] [restart]` subscribes
+to `NAME/#`, sends a switch command and an `on_message` topic, presses the 3000 byte publish button over the API,
+restarts the local broker when the last argument is `restart` (started from the scripts directory, where the
+certificate paths resolve), checks its three ports answer again, and prints the broker's message counts with the device log. `mosquitto_sub` cannot speak
 WebSocket, so it subscribes on the plain listener of the same broker. Cases: `tcp` on 1883, `ws` on 9001, `wss` on
 9002 with `certificate_authority` (the certificate names an address, so `skip_cert_cn_check: true`), `wss` to
 test.mosquitto.org on 8081 with no CA for the certificate bundle, and two negatives that must never connect: a
