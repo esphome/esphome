@@ -7,7 +7,7 @@
 
 namespace esphome::ltr390 {
 
-enum LTR390CTRL {
+enum LTR390CTRL : uint8_t {
   LTR390_CTRL_EN = 1,
   LTR390_CTRL_MODE = 3,
   LTR390_CTRL_RST = 4,
@@ -15,13 +15,13 @@ enum LTR390CTRL {
 
 // enums from https://github.com/adafruit/Adafruit_LTR390/
 // Sensing modes
-enum LTR390MODE {
+enum LTR390MODE : uint8_t {
   LTR390_MODE_ALS,
   LTR390_MODE_UVS,
 };
 
 // Sensor gain levels
-enum LTR390GAIN {
+enum LTR390GAIN : uint8_t {
   LTR390_GAIN_1 = 0,
   LTR390_GAIN_3,  // Default
   LTR390_GAIN_6,
@@ -30,7 +30,7 @@ enum LTR390GAIN {
 };
 
 // Sensor resolution
-enum LTR390RESOLUTION {
+enum LTR390RESOLUTION : uint8_t {
   LTR390_RESOLUTION_20BIT,
   LTR390_RESOLUTION_19BIT,
   LTR390_RESOLUTION_18BIT,  // Default
@@ -68,20 +68,21 @@ class LTR390Component final : public PollingComponent, public i2c::I2CDevice {
   void read_mode_(LTR390MODE mode);
   void standby_();
 
-  bool reading_{false};
-  uint8_t enabled_modes_{0};
-
-  LTR390GAIN gain_als_;
-  LTR390GAIN gain_uv_;
-  LTR390RESOLUTION res_als_;
-  LTR390RESOLUTION res_uv_;
-  float wfac_;
-
   sensor::Sensor *light_sensor_{nullptr};
   sensor::Sensor *als_sensor_{nullptr};
 
   sensor::Sensor *uvi_sensor_{nullptr};
   sensor::Sensor *uv_sensor_{nullptr};
+
+  float wfac_;
+
+  LTR390GAIN gain_als_;
+  LTR390GAIN gain_uv_;
+  LTR390RESOLUTION res_als_;
+  LTR390RESOLUTION res_uv_;
+
+  bool reading_{false};
+  uint8_t enabled_modes_{0};
 };
 
 }  // namespace esphome::ltr390

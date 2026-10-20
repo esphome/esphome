@@ -20,9 +20,7 @@ static const float GAINVALUES[5] = {1.0, 3.0, 6.0, 9.0, 18.0};
 static const float RESOLUTIONVALUE[6] = {4.0, 2.0, 1.0, 0.5, 0.25, 0.125};
 static const uint8_t RESOLUTION_BITS[6] = {20, 19, 18, 17, 16, 13};
 
-// Request fastest measurement rate - will be slowed by device if conversion rate is slower.
-static const float RESOLUTION_SETTING[6] = {0x00, 0x10, 0x20, 0x30, 0x40, 0x50};
-static const uint32_t MODEADDRESSES[2] = {0x0D, 0x10};
+static const uint8_t MODEADDRESSES[2] = {0x0D, 0x10};
 
 static const float SENSITIVITY_MAX = 2300;
 static const float INTG_MAX = RESOLUTIONVALUE[0] * 100;
@@ -123,12 +121,13 @@ void LTR390Component::read_mode_(LTR390MODE mode) {
   switch (mode) {
     case LTR390_MODE_ALS:
       this->reg(LTR390_GAIN) = this->gain_als_;
-      this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_als_];
+      // Resolution in bits 6:4, rate 0 (fastest); the device slows it to the conversion time
+      this->reg(LTR390_MEAS_RATE) = this->res_als_ << 4;
       int_time = ((uint32_t) RESOLUTIONVALUE[this->res_als_]) * 100;
       break;
     case LTR390_MODE_UVS:
       this->reg(LTR390_GAIN) = this->gain_uv_;
-      this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_uv_];
+      this->reg(LTR390_MEAS_RATE) = this->res_uv_ << 4;
       int_time = ((uint32_t) RESOLUTIONVALUE[this->res_uv_]) * 100;
       break;
   }
