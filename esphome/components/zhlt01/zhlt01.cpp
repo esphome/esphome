@@ -117,7 +117,7 @@ void ZHLT01Climate::transmit_state() {
   data->space(AC1_HDR_SPACE);
 
   // Data
-  data->item_bytes_lsb(ir_message, sizeof(ir_message), AC1_BIT_MARK, AC1_ONE_SPACE, AC1_ZERO_SPACE);
+  data->item_bytes_lsb(ir_message, sizeof(ir_message), AC1_BIT_TIMINGS);
 
   // Footer
   data->mark(AC1_BIT_MARK);
@@ -135,7 +135,7 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
 
   // Decode IR message
   uint8_t ir_message[12];
-  if (!data.expect_bytes_lsb(ir_message, sizeof(ir_message), AC1_BIT_MARK, AC1_ONE_SPACE, AC1_ZERO_SPACE))
+  if (!data.expect_bytes_lsb(ir_message, sizeof(ir_message), AC1_BIT_TIMINGS))
     return false;
 
   // Validate footer

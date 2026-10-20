@@ -27,8 +27,8 @@ const uint8_t TCL112_HALF_DEGREE = 0b00100000;
 const uint16_t TCL112_HEADER_MARK = 3100;
 const uint16_t TCL112_HEADER_SPACE = 1650;
 const uint16_t TCL112_BIT_MARK = 500;
-const uint16_t TCL112_ONE_SPACE = 1100;
-const uint16_t TCL112_ZERO_SPACE = 350;
+static constexpr remote_base::BitTimings TCL112_BIT_TIMINGS{
+    .bit_mark = TCL112_BIT_MARK, .one_space = 1100, .zero_space = 350};
 const uint32_t TCL112_GAP = TCL112_HEADER_SPACE;
 
 void Tcl112Climate::transmit_state() {
@@ -128,7 +128,7 @@ void Tcl112Climate::transmit_state() {
   data->mark(TCL112_HEADER_MARK);
   data->space(TCL112_HEADER_SPACE);
   // Data
-  data->item_bytes_lsb(remote_state, TCL112_STATE_LENGTH, TCL112_BIT_MARK, TCL112_ONE_SPACE, TCL112_ZERO_SPACE);
+  data->item_bytes_lsb(remote_state, TCL112_STATE_LENGTH, TCL112_BIT_TIMINGS);
   // Footer
   data->mark(TCL112_BIT_MARK);
   data->space(TCL112_GAP);
@@ -144,7 +144,7 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t remote_state[TCL112_STATE_LENGTH];
-  if (!data.expect_bytes_lsb(remote_state, TCL112_STATE_LENGTH, TCL112_BIT_MARK, TCL112_ONE_SPACE, TCL112_ZERO_SPACE))
+  if (!data.expect_bytes_lsb(remote_state, TCL112_STATE_LENGTH, TCL112_BIT_TIMINGS))
     return false;
   // Validate footer
   if (!data.expect_mark(TCL112_BIT_MARK)) {
