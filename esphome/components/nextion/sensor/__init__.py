@@ -74,11 +74,9 @@ async def to_code(config):
 
     await setup_component_core_(var, config, ".val")
 
-    if CONF_PRECISION in config:
-        cg.add(var.set_precision(config[CONF_PRECISION]))
+    cg.add_optional(var.set_precision, config.get(CONF_PRECISION))
 
-    if CONF_COMPONENT_ID in config:
-        cg.add(var.set_component_id(config[CONF_COMPONENT_ID]))
+    cg.add_optional(var.set_component_id, config.get(CONF_COMPONENT_ID))
 
     if CONF_WAVE_CHANNEL_ID in config:
         cg.add_define("USE_NEXTION_WAVEFORM")
@@ -87,10 +85,8 @@ async def to_code(config):
             cg.add(
                 var.set_waveform_send_last_value(config[CONF_WAVEFORM_SEND_LAST_VALUE])
             )
-        if CONF_WAVE_MAX_VALUE in config:
-            cg.add(var.set_wave_max_value(config[CONF_WAVE_MAX_VALUE]))
-        if CONF_WAVE_MAX_LENGTH in config:
-            cg.add(var.set_wave_max_length(config[CONF_WAVE_MAX_LENGTH]))
+        cg.add_optional(var.set_wave_max_value, config.get(CONF_WAVE_MAX_VALUE))
+        cg.add_optional(var.set_wave_max_length, config.get(CONF_WAVE_MAX_LENGTH))
 
 
 automation.register_apply_action(
