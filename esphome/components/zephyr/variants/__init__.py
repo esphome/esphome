@@ -621,6 +621,7 @@ _VARIANT_MODULES = [
     "esp32_s3",
     "native_sim",
     "nrf52",
+    "nrf5340",
     "nrf54l15",
     "nrf54lm20a",
     "efr32mg24",
