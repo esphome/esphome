@@ -8,19 +8,18 @@ from ..climate import CONF_AIRTON_ID, CONF_SLEEP_MODE, AirtonClimate, airton_ns
 
 CODEOWNERS = ["@Procsiab"]
 
-AirtonSwitch = airton_ns.class_("AirtonSwitch", switch.Switch)
 AirtonSetting = airton_ns.enum("AirtonSetting", is_class=True)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_AIRTON_ID): cv.use_id(AirtonClimate),
         cv.Optional(CONF_DISPLAY): switch.switch_schema(
-            AirtonSwitch,
+            switch.ApplySwitch,
             entity_category=ENTITY_CATEGORY_CONFIG,
             default_restore_mode="DISABLED",
         ),
         cv.Optional(CONF_SLEEP_MODE): switch.switch_schema(
-            AirtonSwitch,
+            switch.ApplySwitch,
             entity_category=ENTITY_CATEGORY_CONFIG,
             default_restore_mode="DISABLED",
         ),
@@ -32,10 +31,12 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_AIRTON_ID])
     switches = switch.sub_switches(config, parent=hub)
     await switches(
-        CONF_DISPLAY, hub.set_display_switch, AirtonSetting.AIRTON_SETTING_DISPLAY
+        CONF_DISPLAY,
+        hub.set_display_switch,
+        apply=f"set_setting({AirtonSetting.AIRTON_SETTING_DISPLAY}, state)",
     )
     await switches(
         CONF_SLEEP_MODE,
         hub.set_sleep_mode_switch,
-        AirtonSetting.AIRTON_SETTING_SLEEP_MODE,
+        apply=f"set_setting({AirtonSetting.AIRTON_SETTING_SLEEP_MODE}, state)",
     )

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 import pytest
@@ -18,12 +17,6 @@ async def test_scheduler_loop_phase_timeout(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
 ) -> None:
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
     config_path = await write_yaml_config(yaml_config)
     binary_path = await compile_esphome(config_path)
 

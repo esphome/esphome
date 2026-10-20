@@ -122,6 +122,7 @@ float BL0940::calculate_energy_reference_() {
 float BL0940::calculate_calibration_value_(float state) { return (100 + state) / 100; }
 
 void BL0940::reset_calibration() {
+  ESP_LOGI(TAG, "Resetting calibration defaults...");
 #ifdef USE_NUMBER
   if (this->current_calibration_number_ != nullptr && this->current_cal_ != 1) {
     this->current_calibration_number_->make_call().set_value(0).perform();

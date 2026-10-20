@@ -8,7 +8,6 @@ Tests:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import (
     BinarySensorInfo,
@@ -38,12 +37,6 @@ async def test_uart_mock_ld2450_polygon_zone_timeout(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that polygon zone presence follows presence_timeout."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
     # The polygon and presence_timeout are saved, so a previous run would otherwise restore them
     clear_host_prefs(DEVICE_NAME)
 

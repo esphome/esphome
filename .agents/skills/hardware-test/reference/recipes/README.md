@@ -9,7 +9,7 @@ One file per component, named after it:
 - [`cse7766.md`](cse7766.md): Sonoff S31 parser check over the API
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
-- [`ld2450.md`](ld2450.md): polygon zones
+- [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback
 - [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx crash report on the next boot
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT
 - [`nrf52.md`](nrf52.md): dongle board support
@@ -25,5 +25,6 @@ One file per component, named after it:
 - [`zephyr_coredump.md`](zephyr_coredump.md): crash and decode on nRF52 boards
 - [`zwave_proxy.md`](zwave_proxy.md): frame checksums on a live proxy
 - [`globals.md`](globals.md): restoring globals with storage rtc and flash across every reset kind
-- [`homeassistant.md`](homeassistant.md): light platform mirrored from a local Home Assistant
+- [`homeassistant.md`](homeassistant.md): light platform mirrored from a local Home Assistant, held reports versus later calls
 - [`usb_audio.md`](usb_audio.md): USB audio speaker and microphone, the usb_host FIFO split, and Music Assistant playback through sendspin
+- [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply

@@ -134,8 +134,7 @@ async def setup_pn71xx(var: MockObj, config: ConfigType) -> None:
         cg.add(var.set_tag_emulation_message(emulation_message_config))
         cg.add(var.set_tag_emulation_on())
 
-    if (tag_ttl := config.get(CONF_TAG_TTL)) is not None:
-        cg.add(var.set_tag_ttl(tag_ttl))
+    cg.add_optional(var.set_tag_ttl, config.get(CONF_TAG_TTL))
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
