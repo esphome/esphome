@@ -94,7 +94,7 @@ bool HOT EPaperBWR::send_buffer_range_(size_t end, uint8_t invert_mask, uint32_t
 
 bool HOT EPaperBWR::transfer_data() {
   const uint32_t start_time = millis();
-  const size_t half_buffer = this->buffer_length_ / 2;
+  const size_t half_buffer = this->buffer_length_ / 2u;
 
   // Black/white plane (first half, always inverted) then red plane (second half, inverted if invert_red_).
   if (this->current_data_index_ == 0)
