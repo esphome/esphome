@@ -11,7 +11,6 @@ Tests:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 from aioesphomeapi import (
@@ -44,12 +43,6 @@ async def test_uart_mock_ld2450_polygon_zones(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2450 polygon zone configuration and presence detection."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
     # Polygons are saved, so a previous run would otherwise restore them
     clear_host_prefs(DEVICE_NAME)
 

@@ -12,12 +12,16 @@ from aioesphomeapi import (
     EntityState,
     HomeassistantServiceCall,
     LightColorCapability,
+    LightInfo,
     LightState,
     UserService,
 )
+from aioesphomeapi.api_pb2 import HomeAssistantStateResponse, LightCommandRequest
+from google.protobuf import message
 import pytest
 
 from .log_utils import LineWaiter
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 ENTITY = "light.kitchen"
@@ -43,6 +47,19 @@ RGB = (
 )
 
 
+def command_msg(key: int, **fields: float | bool) -> LightCommandRequest:
+    """A light command with has_<field> set for each field given."""
+    return LightCommandRequest(
+        key=key, **fields, **{f"has_{name}": True for name in fields}
+    )
+
+
+def report_msg(attribute: str, value: str) -> HomeAssistantStateResponse:
+    return HomeAssistantStateResponse(
+        entity_id=ENTITY, attribute=attribute, state=value
+    )
+
+
 @dataclass
 class FakeHomeAssistant:
     """The light entity as the device sees it over the API, and what the device sends back."""
@@ -57,6 +74,19 @@ class FakeHomeAssistant:
     async def next_call(self) -> HomeassistantServiceCall:
         return await asyncio.wait_for(self.calls.get(), timeout=5.0)
 
+    async def expect_call(
+        self, service: str = "light.turn_on", **data: str
+    ) -> HomeassistantServiceCall:
+        """The next action sent; its data is checked in full when given."""
+        call = await self.next_call()
+        assert call.service == service
+        if data:
+            assert call.data == {"entity_id": ENTITY, **data}
+        return call
+
+    def command(self, **kwargs: float | bool | tuple[float, float, float]) -> None:
+        self.client.light_command(self.key, **kwargs)
+
     async def next_state(self, matches: Callable[[LightState], bool]) -> LightState:
         async with asyncio.timeout(5.0):
             while not matches(state := await self.states.get()):
@@ -65,6 +95,14 @@ class FakeHomeAssistant:
 
     def report(self, attribute: str | None, value: str) -> None:
         self.client.send_home_assistant_state(ENTITY, attribute, value)
+
+    async def report_off(self) -> None:
+        self.report(None, "off")
+        await self.next_state(lambda s: not s.state)
+
+    def send_together(self, *messages: message.Message) -> None:
+        """One write, so the device reads all of them in one loop pass."""
+        self.client._get_connection().send_messages(messages)
 
 
 @asynccontextmanager
@@ -96,7 +134,7 @@ async def light_entity(
         api_client_connected() as client,
     ):
         entities, services = await client.list_entities_services()
-        key = next(e.key for e in entities if e.name == "HA Light")
+        key = require_entity(entities, "ha_light", LightInfo).key
         client.subscribe_service_calls(calls.put_nowait)
         client.subscribe_states(on_state)
         client.subscribe_home_assistant_states(on_state_sub)
@@ -163,15 +201,11 @@ async def test_api_homeassistant_light(
 
         # Local changes go to Home Assistant with its attribute names and scales; the color
         # temperature it reported is not repeated
-        ha.client.light_command(ha.key, brightness=0.5)
-        call = await ha.next_call()
-        assert call.service == "light.turn_on"
-        assert call.data == {"entity_id": ENTITY, "brightness": "128"}
+        ha.command(brightness=0.5)
+        call = await ha.expect_call(brightness="128")
         assert not call.data_template
-        ha.client.light_command(ha.key, rgb=(0.0, 0.0, 1.0))
-        call = await ha.next_call()
-        assert call.service == "light.turn_on"
-        assert call.data == {"entity_id": ENTITY, "brightness": "128"}
+        ha.command(rgb=(0.0, 0.0, 1.0))
+        call = await ha.expect_call(brightness="128")
         assert call.data_template == {"rgb_color": "[0,0,255]"}
 
         # Home Assistant echoes the result; that is not sent back. Returning to the state it
@@ -182,25 +216,24 @@ async def test_api_homeassistant_light(
         await ha.waiter.wait_for(
             "turned off", timeout=5.0
         )  # a reported state runs the triggers too
-        ha.client.light_command(ha.key, state=True)
-        assert (await ha.next_call()).service == "light.turn_on"
-        ha.client.light_command(ha.key, state=False)
-        assert (await ha.next_call()).service == "light.turn_off"
+        ha.command(state=True)
+        await ha.expect_call()
+        ha.command(state=False)
+        await ha.expect_call("light.turn_off")
 
         # Without a report of the change within report_timeout, the light goes back to the reported state
         ha.report(None, "on")
         await ha.next_state(lambda s: s.state)
-        ha.client.light_command(ha.key, state=False)
-        assert (await ha.next_call()).service == "light.turn_off"
+        ha.command(state=False)
+        await ha.expect_call("light.turn_off")
         await ha.next_state(lambda s: s.state)
         await ha.waiter.wait_for("did not report the change back", timeout=5.0)
-        ha.report(None, "off")
-        await ha.next_state(lambda s: not s.state)
+        await ha.report_off()
 
         # The fallback also drops the levels of the unsent change: the light keeps the brightness
         # Home Assistant reported last, which a later turn_on without a brightness would send
-        ha.client.light_command(ha.key, state=True, brightness=0.4)
-        call = await ha.next_call()
+        ha.command(state=True, brightness=0.4)
+        call = await ha.expect_call()
         assert call.data["brightness"] == "102"
         state = await ha.next_state(lambda s: not s.state)
         assert state.brightness == pytest.approx(200 / 255)
@@ -208,19 +241,18 @@ async def test_api_homeassistant_light(
         # An automation changing the light while a report is applied is a local change too
         await ha.client.execute_service(set_force_off, {"value": True})
         ha.report(None, "on")
-        assert (await ha.next_call()).service == "light.turn_off"
+        await ha.expect_call("light.turn_off")
         await ha.client.execute_service(set_force_off, {"value": False})
-        ha.report(None, "off")
-        await ha.next_state(lambda s: not s.state)
+        await ha.report_off()
 
         # A change that leaves Home Assistant as it is gets no report, so none is sent
-        ha.client.light_command(ha.key, state=False)
+        ha.command(state=False)
         await ha.waiter.wait_for("already has this state", timeout=5.0)
 
         # A trait that arrives while a change waits for its report is not that report, and does
         # not bring the old state back early either
-        ha.client.light_command(ha.key, state=True)
-        assert (await ha.next_call()).service == "light.turn_on"
+        ha.command(state=True)
+        await ha.expect_call()
         await ha.next_state(lambda s: s.state)
         ha.report("max_color_temp_kelvin", "6500")
         await ha.next_state(lambda s: not s.state)
@@ -230,7 +262,7 @@ async def test_api_homeassistant_light(
         )
 
         # A report that arrives during a flash is applied when the flash ends instead of being undone
-        ha.client.light_command(ha.key, state=True, flash_length=1.0)
+        ha.command(state=True, flash_length=1.0)
         ha.report(None, "on")
         ha.report("brightness", "77")
         state = await ha.next_state(lambda s: s.brightness == pytest.approx(77 / 255))
@@ -239,84 +271,96 @@ async def test_api_homeassistant_light(
 
         # A trait or a repeated report during a local transition is nothing new, so the change the
         # transition ends at is still sent
-        ha.client.light_command(ha.key, state=False, transition_length=1.0)
+        ha.command(state=False, transition_length=1.0)
         ha.report("max_color_temp_kelvin", "6500")
         ha.report(None, "on")
-        assert (await ha.next_call()).service == "light.turn_off"
-        ha.report(None, "off")
-        await ha.next_state(lambda s: not s.state)
+        await ha.expect_call("light.turn_off")
+        await ha.report_off()
 
         # A newer local command wins over a report held during a transition
-        ha.client.light_command(ha.key, state=True, transition_length=1.0)
+        ha.command(state=True, transition_length=1.0)
         ha.report("brightness", "50")
         await asyncio.sleep(0.1)  # held before the command arrives
-        ha.client.light_command(ha.key, state=True, brightness=1.0)
-        call = await ha.next_call()
-        assert call.service == "light.turn_on"
+        ha.command(state=True, brightness=1.0)
+        call = await ha.expect_call()
         assert call.data["brightness"] == "255"
         ha.report(None, "on")
         ha.report("brightness", "255")
         await ha.next_state(lambda s: s.state and s.brightness == 1.0)
 
         # Also when it changes only the color, at the level the transition was heading for
-        ha.client.light_command(ha.key, brightness=0.5, transition_length=1.0)
+        ha.command(brightness=0.5, transition_length=1.0)
         ha.report("brightness", "50")
         await asyncio.sleep(0.1)
-        ha.client.light_command(ha.key, color_temperature=400.0)
-        call = await ha.next_call()
-        assert call.service == "light.turn_on"
-        assert call.data == {
-            "entity_id": ENTITY,
-            "brightness": "128",
-            "color_temp_kelvin": "2500",
-        }
+        ha.command(color_temperature=400.0)
+        await ha.expect_call(brightness="128", color_temp_kelvin="2500")
         ha.report("brightness", "128")
         ha.report("color_temp_kelvin", "2500")
         await ha.next_state(lambda s: s.color_temperature == 400.0)
 
         # Or when it is a transition itself, replacing the one the report was held for
-        ha.client.light_command(ha.key, brightness=1.0, transition_length=1.0)
+        ha.command(brightness=1.0, transition_length=1.0)
         ha.report("brightness", "50")
         await asyncio.sleep(0.1)
-        ha.client.light_command(ha.key, color_temperature=250.0, transition_length=1.0)
-        call = await ha.next_call()
-        assert call.service == "light.turn_on"
-        assert call.data == {
-            "entity_id": ENTITY,
-            "brightness": "255",
-            "color_temp_kelvin": "4000",
-        }
+        ha.command(color_temperature=250.0, transition_length=1.0)
+        await ha.expect_call(brightness="255", color_temp_kelvin="4000")
         ha.report("brightness", "255")
         ha.report("color_temp_kelvin", "4000")
         await ha.next_state(lambda s: s.color_temperature == 250.0)
 
         # Or a transition back to where the one the report was held for started
-        ha.client.light_command(ha.key, brightness=0.5, transition_length=1.0)
+        ha.command(brightness=0.5, transition_length=1.0)
         ha.report("brightness", "50")
         await asyncio.sleep(0.1)
-        ha.client.light_command(ha.key, brightness=1.0, transition_length=1.0)
-        call = await ha.next_call()
-        assert call.service == "light.turn_on"
+        ha.command(brightness=1.0, transition_length=1.0)
+        call = await ha.expect_call()
         assert call.data["brightness"] == "255"
         ha.report("brightness", "255")
         await ha.next_state(lambda s: s.brightness == 1.0)
 
         # And when it goes back to the state the transition started from
-        ha.client.light_command(ha.key, state=False)
-        assert (await ha.next_call()).service == "light.turn_off"
-        ha.report(None, "off")
-        await ha.next_state(lambda s: not s.state)
-        ha.client.light_command(ha.key, state=True, transition_length=1.0)
+        ha.command(state=False)
+        await ha.expect_call("light.turn_off")
+        await ha.report_off()
+        ha.command(state=True, transition_length=1.0)
         ha.report(None, "on")
         ha.report("brightness", "60")
         await asyncio.sleep(0.1)
-        ha.client.light_command(ha.key, state=False)
-        assert (await ha.next_call()).service == "light.turn_off"
-        ha.report(None, "off")
-        await ha.next_state(lambda s: not s.state)
+        ha.command(state=False)
+        await ha.expect_call("light.turn_off")
+        await ha.report_off()
+
+        # Also when the report and the call that replaces the transition are read in the same loop
+        # pass: the report is applied after the call, but it is older
+        ha.send_together(
+            command_msg(ha.key, state=True, brightness=0.5, transition_length=1000),
+            report_msg("brightness", "50"),
+            command_msg(ha.key, brightness=1.0, transition_length=1000),
+        )
+        call = await ha.expect_call()
+        assert call.data["brightness"] == "255"
+        ha.report(None, "on")
+        ha.report("brightness", "255")
+        await ha.next_state(lambda s: s.state and s.brightness == 1.0)
+
+        # And a report read after that call in the same pass is newer than it: the hold follows the
+        # last changed report, even when a trait opened the batch, so it is applied at the end
+        ha.send_together(
+            report_msg("max_color_temp_kelvin", "6500"),
+            command_msg(ha.key, brightness=0.5, transition_length=1000),
+            report_msg("brightness", "50"),
+            command_msg(ha.key, brightness=0.8, transition_length=1000),
+            report_msg("brightness", "77"),
+        )
+        state = await ha.next_state(lambda s: s.brightness == pytest.approx(77 / 255))
+        assert state.state
+        assert ha.calls.empty()
+        ha.command(state=False)
+        await ha.expect_call("light.turn_off")
+        await ha.report_off()
 
         # A flash ends where it began, which Home Assistant has, so nothing is sent and the user is told
-        ha.client.light_command(ha.key, state=True, flash_length=0.5)
+        ha.command(state=True, flash_length=0.5)
         await ha.waiter.wait_for("nothing to send (a flash never is)", timeout=5.0)
 
         assert ha.calls.empty()
@@ -347,45 +391,35 @@ async def test_api_homeassistant_light_rgbww(
 
         # A level change sends the level alone; Home Assistant derived the color it reports from
         # the white balance and would derive a different balance from the color sent back
-        ha.client.light_command(ha.key, brightness=0.5)
-        call = await ha.next_call()
-        assert call.service == "light.turn_on"
-        assert call.data == {"entity_id": ENTITY, "brightness": "128"}
+        ha.command(brightness=0.5)
+        call = await ha.expect_call(brightness="128")
         assert not call.data_template
         ha.report("brightness", "128")
         await ha.next_state(lambda s: s.brightness == pytest.approx(128 / 255))
 
         # A new color goes along
-        ha.client.light_command(ha.key, rgb=(0.0, 1.0, 0.0))
-        call = await ha.next_call()
-        assert call.data == {"entity_id": ENTITY, "brightness": "128"}
+        ha.command(rgb=(0.0, 1.0, 0.0))
+        call = await ha.expect_call(brightness="128")
         assert call.data_template == {"rgb_color": "[0,255,0]"}
         ha.report("rgb_color", "(0, 255, 0)")
         await ha.next_state(lambda s: s.green == 1.0 and s.red == 0.0)
 
         # Switching to color temperature sends it, and the level alone once there
-        ha.client.light_command(ha.key, color_temperature=250.0)
-        call = await ha.next_call()
-        assert call.data == {
-            "entity_id": ENTITY,
-            "brightness": "128",
-            "color_temp_kelvin": "4000",
-        }
+        ha.command(color_temperature=250.0)
+        call = await ha.expect_call(brightness="128", color_temp_kelvin="4000")
         assert not call.data_template
         ha.report("color_mode", "color_temp")
         ha.report("color_temp_kelvin", "4000")
         state = await ha.next_state(lambda s: s.color_mode == COLOR_TEMPERATURE)
         assert state.color_temperature == 250.0
-        ha.client.light_command(ha.key, brightness=1.0)
-        call = await ha.next_call()
-        assert call.data == {"entity_id": ENTITY, "brightness": "255"}
+        ha.command(brightness=1.0)
+        await ha.expect_call(brightness="255")
         ha.report("brightness", "255")
         await ha.next_state(lambda s: s.brightness == 1.0)
 
         # Back to the color Home Assistant still reports: the mode changed, so the color is sent
-        ha.client.light_command(ha.key, rgb=(0.0, 1.0, 0.0))
-        call = await ha.next_call()
-        assert call.data == {"entity_id": ENTITY, "brightness": "255"}
+        ha.command(rgb=(0.0, 1.0, 0.0))
+        call = await ha.expect_call(brightness="255")
         assert call.data_template == {"rgb_color": "[0,255,0]"}
         ha.report("color_mode", "rgbww")
         await ha.next_state(lambda s: s.color_mode == RGB)

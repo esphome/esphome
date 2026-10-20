@@ -420,7 +420,7 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     """Determine if the pylint job should run based on changed files.
 
     The CI workflow skips pylint unless a Python file or a file in
-    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff, flake8 and pyupgrade run in
+    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff and pyupgrade run in
     lint-format, which this flag does not gate.
 
     Args:

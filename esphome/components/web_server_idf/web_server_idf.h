@@ -301,7 +301,10 @@ class AsyncEventSourceResponse {
  public:
   bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  // detail_all events go out while entities are still being listed; state events wait until listing is done
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   void loop();
 
  protected:
@@ -424,7 +427,9 @@ class AsyncEventSource : public AsyncWebHandler {
   void handleRequest(AsyncWebServerRequest *request) override;
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   /// Returns true if there are sessions remaining (including pending cleanup).
   bool loop();
   bool empty() { return this->count() == 0; }
