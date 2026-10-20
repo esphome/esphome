@@ -8,6 +8,7 @@
 #include "esphome/components/watchdog/watchdog.h"
 
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE

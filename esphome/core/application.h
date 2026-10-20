@@ -253,6 +253,9 @@ class Application {
   static_assert(CONFIG_ESP_TASK_WDT_TIMEOUT_S >= 5,
                 "CONFIG_ESP_TASK_WDT_TIMEOUT_S must be at least 5s for a safe WDT feed interval");
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000U) / 5U;
+#else
+  // No task watchdog to feed; the rate limit never fires.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = std::numeric_limits<uint32_t>::max();
 #endif
 #elif defined(USE_ESP8266)
   // ESP8266 needs a tighter feed cadence than the other targets: the soft WDT
@@ -290,11 +293,9 @@ class Application {
   /// WDT_FEED_INTERVAL_MS. The two rate limits are independent so raising
   /// WDT_FEED_INTERVAL_MS does not distort the LED cadence.
   void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
-#if !defined(USE_ESP32) || defined(USE_WATCHDOG)
     if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
       this->feed_wdt_slow_(time);
     }
-#endif
 #ifdef USE_STATUS_LED
     if (static_cast<uint32_t>(time - this->last_status_led_service_) > STATUS_LED_DISPATCH_INTERVAL_MS) [[unlikely]] {
       this->service_status_led_slow_(time);
@@ -473,14 +474,12 @@ class Application {
   /// Caller must ensure dump_config_at_ < components_.size().
   void __attribute__((noinline)) process_dump_config_();
 
-#if !defined(USE_ESP32) || defined(USE_WATCHDOG)
   /// Slow path for feed_wdt(): actually calls arch_feed_wdt() and updates
   /// last_wdt_feed_. Out of line so the inline wrapper stays tiny. Does NOT
   /// touch status_led — that's gated separately via service_status_led_slow_
   /// because the two rate limits have very different safe ranges (~ seconds
   /// for WDT, < 250 ms for LED blink rendering).
   void feed_wdt_slow_(uint32_t time);
-#endif
 
 #ifdef USE_STATUS_LED
   /// Slow path for the status_led dispatch rate limit. Runs the status_led
@@ -522,9 +521,7 @@ class Application {
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
-#if !defined(USE_ESP32) || defined(USE_WATCHDOG)
   uint32_t last_wdt_feed_{0};  // millis() of most recent arch_feed_wdt(); rate-limits feed_wdt() hot path
-#endif
 #ifdef USE_STATUS_LED
   // millis() of most recent status_led dispatch; rate-limits independently of last_wdt_feed_
   uint32_t last_status_led_service_{0};
