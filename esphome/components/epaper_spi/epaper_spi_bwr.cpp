@@ -7,6 +7,13 @@
 
 namespace esphome::epaper_spi {
 
+namespace {
+// Whether a pixel of this color sets its bit in the black/white plane
+bool sets_bw_bit(BwrColor bwr, bool red_sets_black) {
+  return bwr == BwrColor::BWR_COLOR_BLACK || (bwr == BwrColor::BWR_COLOR_RED && red_sets_black);
+}
+}  // namespace
+
 void HOT EPaperBWR::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
@@ -18,7 +25,7 @@ void HOT EPaperBWR::draw_pixel_at(int x, int y, Color color) {
   const auto bwr =
       color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
-  if (bwr == BwrColor::BWR_COLOR_BLACK || (bwr == BwrColor::BWR_COLOR_RED && this->red_sets_black_)) {
+  if (sets_bw_bit(bwr, this->red_sets_black_)) {
     this->buffer_[pos] |= bit;
   } else {
     this->buffer_[pos] &= ~bit;
@@ -41,9 +48,8 @@ void EPaperBWR::fill(Color color) {
   const auto bwr =
       color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
-  const bool red = bwr == BwrColor::BWR_COLOR_RED;
-  this->fill_range_(0, half_buffer, (bwr == BwrColor::BWR_COLOR_BLACK || (red && this->red_sets_black_)) ? 0xFF : 0x00);
-  this->fill_range_(half_buffer, this->buffer_length_, red ? 0xFF : 0x00);
+  this->fill_range_(0, half_buffer, sets_bw_bit(bwr, this->red_sets_black_) ? 0xFF : 0x00);
+  this->fill_range_(half_buffer, this->buffer_length_, bwr == BwrColor::BWR_COLOR_RED ? 0xFF : 0x00);
 
   this->x_high_ = this->width_;
   this->y_high_ = this->height_;
