@@ -95,8 +95,7 @@ def prepare(
             time.sleep(wait_time)
             tries += 1
 
-    # The firmware's transport applies to this client too, so logs and discovery reach a
-    # WebSocket-only broker. Imported here to keep component code off the CLI start-up path.
+    # Match the firmware's transport; imported here to keep component code off the CLI start-up path
     from esphome.components.mqtt import (
         CONF_TRANSPORT,
         CONF_WS_PATH,
@@ -123,7 +122,7 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    # TLS with the given CA, or with the system CAs over wss, as the firmware does with its bundle
+    # TLS with the CA, or the system CAs over wss
     certificate_authority = config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
     if certificate_authority or transport == MQTT_TRANSPORT_WSS:
         context = ssl.create_default_context(cadata=certificate_authority)
