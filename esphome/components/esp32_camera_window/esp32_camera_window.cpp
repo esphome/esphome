@@ -244,10 +244,11 @@ static int ov2640_mode_for(framesize_t framesize) {
   return OV2640_MODE_UXGA;
 }
 
-/// True when the sensor can output a frame whose size is not the configured frame size.
+/// True when a window may make the sensor output a frame of another size than the frame.
 ///
 /// The driver sizes its capture for the configured frame size in every pixel format but JPEG, so
-/// in the others a frame the sensor reads out at the size of a window would be captured short.
+/// in the others a frame the OV2640 reads out at the size of a window would be captured short. The
+/// SC sensors only take a window of the frame size, which set_sensor_window_() checks.
 static bool window_output_supported(sensor_t *sensor) {
   return sensor->id.PID != OV2640_PID || sensor->pixformat == PIXFORMAT_JPEG;
 }
@@ -397,7 +398,7 @@ void Esp32CameraWindow::dump_config() {
     return;
   }
   ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor_name(sensor));
-  ESP_LOGCONFIG(TAG, "  Window support: %s", YESNO(is_window_supported(sensor)));
+  ESP_LOGCONFIG(TAG, "  Window support: %s", YESNO(this->supports_window()));
   if (this->has_initial_window_) {
     ESP_LOGCONFIG(TAG, "  Window: offset %d,%d size %dx%d", this->initial_window_.offset_x,
                   this->initial_window_.offset_y, this->initial_window_.width, this->initial_window_.height);
