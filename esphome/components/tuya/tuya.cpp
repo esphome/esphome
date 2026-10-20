@@ -108,7 +108,8 @@ void Tuya::dump_config() {
   }
   LOG_PIN("  Status Pin: ", this->status_pin_);
   ESP_LOGCONFIG(TAG, "  Product: '%s'",
-                this->product_invalid_ ? R"({"p":"INVALID"})" : (this->product_ ? this->product_.get() : ""));
+                this->product_invalid_ ? LOG_STR_LITERAL(R"({"p":"INVALID"})")
+                                       : (this->product_ ? this->product_.get() : LOG_STR_LITERAL("")));
 #ifdef USE_TIME
   if (this->time_id_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Force time sync: %s", YESNO(this->force_time_sync_));
