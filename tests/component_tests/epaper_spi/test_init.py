@@ -767,6 +767,44 @@ def test_inkplate13spectra_dimensions_fixed(
 
 
 @pytest.mark.parametrize(
+    ("dimensions", "error"),
+    [
+        ({"width": 1200, "height": 1600}, None),
+        ({"width": 1600, "height": 1200}, None),
+        ({"width": 1604, "height": 1600}, "supports a width of at most 1600"),
+        ({"width": 1202, "height": 1600}, "width that is a multiple of 4"),
+        ({"width": 1200, "height": 1601}, "requires an even height"),
+    ],
+)
+def test_t133a01_dimensions_bounded(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    dimensions: dict[str, int],
+    error: str | None,
+) -> None:
+    """The T133A01 row buffer bounds the width, and its partial window needs aligned dimensions."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 38, "mosi_pin": 40})
+
+    config = {
+        "id": "test_display",
+        "model": "t133a01",
+        "dc_pin": 14,
+        "cs_pin": 42,
+        "cs1_pin": 39,
+        "dimensions": dimensions,
+    }
+    if error is None:
+        run_schema_validation(config)
+    else:
+        with pytest.raises(cv.Invalid, match=error):
+            run_schema_validation(config)
+
+
+@pytest.mark.parametrize(
     ("model", "accepted"),
     [
         ("inkplate13spectra", True),

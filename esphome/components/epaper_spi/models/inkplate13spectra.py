@@ -4,6 +4,8 @@
 # enable_pins_ mechanisms) because the power-on sequence toggles them dynamically on every
 # refresh cycle, not just once at setup.
 
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -28,10 +30,12 @@ class Inkplate13SpectraModel(EpaperModel):
     # The driver drives CS and CS1 directly for the dual-chip protocol.
     manages_cs = True
 
-    def __init__(self, name, class_name="EPaperInkplate13Spectra", **defaults):
+    def __init__(
+        self, name: str, class_name: str = "EPaperInkplate13Spectra", **defaults: Any
+    ) -> None:
         super().__init__(name, class_name, **defaults)
 
-    def get_constructor_args(self, config) -> tuple:
+    def get_constructor_args(self, config: ConfigType) -> tuple[bool]:
         # toggle_dc: this panel uses 3-wire SPI (BS0/BS1 select the mode), so
         # write_command_to_chip_() must not toggle the DC pin -- cmd/data is inferred by
         # byte position instead.
@@ -48,7 +52,7 @@ class Inkplate13SpectraModel(EpaperModel):
             )
         return config
 
-    def get_config_options(self) -> dict:
+    def get_config_options(self) -> dict[Any, Any]:
         return {
             self.option(CONF_CS1_PIN, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_BS0_PIN, fallback=None): pins.gpio_output_pin_schema,
@@ -57,17 +61,13 @@ class Inkplate13SpectraModel(EpaperModel):
             self.option(CONF_PWR_EN_PIN, fallback=None): pins.gpio_output_pin_schema,
         }
 
-    async def to_code(self, var: MockObj, config: dict) -> dict:
-        cs = await cg.gpio_pin_expression(config[CONF_CS_PIN])
-        cs1 = await cg.gpio_pin_expression(config[CONF_CS1_PIN])
-        cg.add(var.set_cs_pins(cs, cs1))
-        bs0 = await cg.gpio_pin_expression(config[CONF_BS0_PIN])
-        bs1 = await cg.gpio_pin_expression(config[CONF_BS1_PIN])
-        cg.add(var.set_bs_pins(bs0, bs1))
-        rst = await cg.gpio_pin_expression(config[RST_PIN_KEY])
-        cg.add(var.set_rst_pin(rst))
-        pwr_en = await cg.gpio_pin_expression(config[CONF_PWR_EN_PIN])
-        cg.add(var.set_pwr_en_pin(pwr_en))
+    async def to_code(self, var: MockObj, config: ConfigType) -> ConfigType:
+        await cg.add_pin(var.set_primary_cs_pin, config[CONF_CS_PIN])
+        await cg.add_pin(var.set_secondary_cs_pin, config[CONF_CS1_PIN])
+        await cg.add_pin(var.set_bs0_pin, config[CONF_BS0_PIN])
+        await cg.add_pin(var.set_bs1_pin, config[CONF_BS1_PIN])
+        await cg.add_pin(var.set_rst_pin, config[RST_PIN_KEY])
+        await cg.add_pin(var.set_pwr_en_pin, config[CONF_PWR_EN_PIN])
         # Remove these from the config so the base class doesn't try to handle them
         # (CS via the generic single-CS SPIDevice mechanism, RST via reset_pin_/reset()).
         return {

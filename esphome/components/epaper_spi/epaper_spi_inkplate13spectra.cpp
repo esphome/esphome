@@ -170,30 +170,35 @@ void EPaperInkplate13Spectra::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "refresh_screen(): sending DRF");
   this->write_command_to_chip_(REG_DRF, {0x00}, CHIP_BOTH);
   this->refresh_started_ms_ = App.get_loop_component_start_time();
-  this->refresh_pending_ = true;
+  // How long a partial refresh takes is not known, so only a full refresh is checked.
+  this->refresh_pending_ = !partial;
 }
 
-bool EPaperInkplate13Spectra::check_refresh_ran_() {
+uint32_t EPaperInkplate13Spectra::refresh_elapsed_ms_() const {
+  return App.get_loop_component_start_time() - this->refresh_started_ms_;
+}
+
+bool EPaperInkplate13Spectra::refresh_was_ignored_() const {
   // A 6-colour refresh of this panel takes about 20 s, so anything under a second means the
   // panel did not run it.
   static constexpr uint32_t MIN_REFRESH_MS = 1000;
-  if (!this->refresh_pending_)
-    return true;
+  return this->refresh_pending_ && this->refresh_elapsed_ms_() < MIN_REFRESH_MS;
+}
+
+// EPaperBase calls this once the busy pin has cleared after the refresh command.
+bool EPaperInkplate13Spectra::after_refresh() {
+  if (this->refresh_was_ignored_()) {
+    ESP_LOGW(TAG,
+             "Busy pin cleared %" PRIu32 " ms after the refresh command, but a refresh takes about 20 s. "
+             "The panel most likely ignored the command; check its power supply and reset line.",
+             this->refresh_elapsed_ms_());
+  }
   this->refresh_pending_ = false;
-  const uint32_t elapsed = App.get_loop_component_start_time() - this->refresh_started_ms_;
-  if (elapsed >= MIN_REFRESH_MS)
-    return true;
-  ESP_LOGW(TAG,
-           "Busy pin cleared %" PRIu32 " ms after the refresh command, but a refresh takes about 20 s. "
-           "The panel most likely ignored the command; check its power supply and reset line.",
-           elapsed);
-  return false;
+  return true;
 }
 
 // EPaperBase's automatic busy-wait before DEEP_SLEEP covers the wait for POF to complete.
-// It also waited for the busy pin to clear after the refresh command before calling this.
 void EPaperInkplate13Spectra::power_off() {
-  this->check_refresh_ran_();
   ESP_LOGV(TAG, "power_off(): sending POF");
   this->write_command_to_chip_(REG_POF, {0x00}, CHIP_BOTH);
 }

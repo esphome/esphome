@@ -24,10 +24,8 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
 
   void set_rst_pin(GPIOPin *p) { this->rst_pin_ = p; }
   void set_pwr_en_pin(GPIOPin *p) { this->pwr_en_pin_ = p; }
-  void set_bs_pins(GPIOPin *bs0, GPIOPin *bs1) {
-    this->bs0_pin_ = bs0;
-    this->bs1_pin_ = bs1;
-  }
+  void set_bs0_pin(GPIOPin *bs0) { this->bs0_pin_ = bs0; }
+  void set_bs1_pin(GPIOPin *bs1) { this->bs1_pin_ = bs1; }
 
   void setup() override;
   void dump_config() override;
@@ -47,6 +45,7 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
   bool initialise(bool partial) override;
   void power_on() override;
   void refresh_screen(bool partial) override;
+  bool after_refresh() override;
   void power_off() override;
   void deep_sleep() override;
 
@@ -58,11 +57,11 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
   /// Replays the panel register init table.
   void send_init_sequence_();
 
-  /// Called once the busy pin has cleared after a refresh command. A real refresh keeps the
-  /// panel busy for about 20 s; if it cleared much sooner the panel ignored the command (for
-  /// example because it never powered up), which would otherwise be reported as a normal
-  /// update. Logs a warning in that case and returns false.
-  bool check_refresh_ran_();
+  /// A real full refresh keeps the panel busy for about 20 s. True when a full refresh command
+  /// is pending and the busy pin cleared much sooner, meaning the panel ignored the command (for
+  /// example because it never powered up), which would otherwise be reported as a normal update.
+  bool refresh_was_ignored_() const;
+  uint32_t refresh_elapsed_ms_() const;
 
   GPIOPin *rst_pin_{nullptr};
   GPIOPin *pwr_en_pin_{nullptr};
@@ -71,7 +70,7 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
 
   uint32_t refresh_started_ms_{0};
   ResetSub reset_sub_{RST_PINS_LOW};
-  bool refresh_pending_{false};  // a refresh command was sent and not yet checked
+  bool refresh_pending_{false};  // a full refresh command was sent and not yet checked
 };
 
 }  // namespace esphome::epaper_spi

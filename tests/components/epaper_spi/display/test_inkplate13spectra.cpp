@@ -14,15 +14,19 @@ class TestableInkplate13Spectra : public EPaperInkplate13Spectra {
   void install(spi::SPIDelegate *delegate = nullptr) {
     this->delegate_ = delegate;
     this->set_dc_pin(&this->dc);
-    this->set_cs_pins(&this->cs, &this->cs1);
+    this->set_primary_cs_pin(&this->cs);
+    this->set_secondary_cs_pin(&this->cs1);
     this->set_busy_pin(&this->busy);
     this->set_rst_pin(&this->rst);
     this->set_pwr_en_pin(&this->pwr_en);
-    this->set_bs_pins(&this->bs0, &this->bs1);
+    this->set_bs0_pin(&this->bs0);
+    this->set_bs1_pin(&this->bs1);
   }
 
-  using EPaperInkplate13Spectra::check_refresh_ran_;
+  using EPaperInkplate13Spectra::after_refresh;
+  using EPaperInkplate13Spectra::refresh_pending_;
   using EPaperInkplate13Spectra::refresh_screen;
+  using EPaperInkplate13Spectra::refresh_was_ignored_;
   using EPaperInkplate13Spectra::refresh_started_ms_;
   using EPaperInkplate13Spectra::reset;
   using EPaperInkplate13Spectra::reset_sub_;
@@ -71,7 +75,9 @@ TEST(EPaperInkplate13Spectra, RefreshThatEndsAtOnceIsFlagged) {
   display.install(&bus);
 
   display.refresh_screen(false);  // the busy pin is released in the same loop pass
-  EXPECT_FALSE(display.check_refresh_ran_()) << "an instant refresh was accepted as real";
+  EXPECT_TRUE(display.refresh_was_ignored_()) << "an instant refresh was accepted as real";
+  EXPECT_TRUE(display.after_refresh()) << "the check must never hold up the state machine";
+  EXPECT_FALSE(display.refresh_pending_) << "the same refresh would be checked again";
 }
 
 TEST(EPaperInkplate13Spectra, RefreshThatKeepsThePanelBusyIsAccepted) {
@@ -82,16 +88,29 @@ TEST(EPaperInkplate13Spectra, RefreshThatKeepsThePanelBusyIsAccepted) {
   display.refresh_screen(false);
   // Pretend the refresh command went out 20 s ago, as long as a real refresh takes.
   display.refresh_started_ms_ = App.get_loop_component_start_time() - 20000;
-  EXPECT_TRUE(display.check_refresh_ran_());
+  EXPECT_FALSE(display.refresh_was_ignored_());
+  EXPECT_TRUE(display.after_refresh());
+  EXPECT_FALSE(display.refresh_pending_);
 }
 
-/// power_off() also runs when an update is abandoned before the refresh command was sent; there
-/// is nothing to check then, so no warning may be raised.
+/// A partial refresh may legitimately finish quickly, so it is not checked.
+TEST(EPaperInkplate13Spectra, PartialRefreshIsNotChecked) {
+  TestableInkplate13Spectra display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+
+  display.refresh_screen(true);
+  EXPECT_FALSE(display.refresh_was_ignored_()) << "a quick partial refresh was flagged";
+  EXPECT_TRUE(display.after_refresh());
+}
+
+/// Without a refresh command there is nothing to check, so no warning may be raised.
 TEST(EPaperInkplate13Spectra, NoRefreshCommandMeansNothingToCheck) {
   TestableInkplate13Spectra display;
   display.install();
 
-  EXPECT_TRUE(display.check_refresh_ran_());
+  EXPECT_FALSE(display.refresh_was_ignored_());
+  EXPECT_TRUE(display.after_refresh());
 }
 
 }  // namespace esphome::epaper_spi::testing

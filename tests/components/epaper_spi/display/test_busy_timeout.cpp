@@ -84,7 +84,8 @@ class TestableT133A01 : public EPaperT133A01 {
   void install(spi::SPIDelegate *delegate) {
     this->delegate_ = delegate;
     this->set_dc_pin(&this->dc);
-    this->set_cs_pins(&this->cs, &this->cs1);
+    this->set_primary_cs_pin(&this->cs);
+    this->set_secondary_cs_pin(&this->cs1);
     this->set_busy_pin(&this->busy);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
     this->busy_timeout_seconds_ = 0;  // abandon as soon as the stuck pin is seen, so the test does not wait

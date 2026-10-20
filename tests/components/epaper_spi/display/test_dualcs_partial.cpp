@@ -84,7 +84,8 @@ class TestableDualCS : public EPaperT133A01 {
   TestableDualCS() : EPaperT133A01("test", PANEL_W, PANEL_H, nullptr, 0, false), bus(&this->cs, &this->cs1) {
     this->delegate_ = &this->bus;
     this->set_dc_pin(&this->dc);
-    this->set_cs_pins(&this->cs, &this->cs1);
+    this->set_primary_cs_pin(&this->cs);
+    this->set_secondary_cs_pin(&this->cs1);
     this->set_busy_pin(&this->busy);
     EXPECT_TRUE(this->init_buffer_(this->buffer_length_));
     // A recognisable value in every byte, so the rows that are sent can be told apart

@@ -40,10 +40,9 @@ class EPaperDualCS : public EPaper4bpp {
                size_t init_sequence_length, bool toggle_dc)
       : EPaper4bpp(name, width, height, init_sequence, init_sequence_length), toggle_dc_(toggle_dc) {}
 
-  void set_cs_pins(GPIOPin *cs, GPIOPin *cs1) {
-    this->cs_pin_ = cs;
-    this->cs1_pin_ = cs1;
-  }
+  // Not named set_cs_pin: that would hide SPIDevice::set_cs_pin(), which this class does not use.
+  void set_primary_cs_pin(GPIOPin *cs) { this->cs_pin_ = cs; }
+  void set_secondary_cs_pin(GPIOPin *cs1) { this->cs1_pin_ = cs1; }
 
   void setup() override;
   void dump_config() override;
@@ -52,6 +51,10 @@ class EPaperDualCS : public EPaper4bpp {
   // Rows sent per transfer_data() tick -- keeps each SPI burst short enough that the main
   // loop stays responsive during a multi-second refresh.
   static constexpr size_t ROWS_PER_CHUNK = 16;
+
+  // Bytes one chip receives per row. Sizes the stack row buffers; the Python models keep the
+  // width within it.
+  static constexpr size_t MAX_HALF_ROW_BYTES = 400;
 
   static constexpr uint8_t REG_DTM = 0x10;
   static constexpr uint8_t REG_DRF = 0x12;

@@ -134,7 +134,7 @@ bool HOT EPaperDualCS::transfer_full_() {
   const uint16_t bytes_per_half_row = this->width_ / 4;
   const uint16_t total_rows = this->height_;
   const uint16_t bytes_per_row = this->width_ / 2;
-  uint8_t line_data[400] = {};
+  uint8_t line_data[MAX_HALF_ROW_BYTES] = {};
 
   size_t half = this->current_data_index_;
 
@@ -225,7 +225,7 @@ bool HOT EPaperDualCS::transfer_full_() {
 bool EPaperDualCS::transfer_data() {
   const size_t bytes_per_row = (size_t) this->width_ / 2;
   const size_t half = bytes_per_row / 2;  // bytes per row per chip
-  uint8_t row_buf[512];
+  uint8_t row_buf[MAX_HALF_ROW_BYTES];
 
   switch (this->transfer_sub_) {
     case TRF_START:
