@@ -2,7 +2,7 @@
 
 #include "esphome/core/log.h"
 #include "esphome/components/climate_ir/climate_ir.h"
-#ifdef USE_HITACHI_AC344_MILDEW_PROOF
+#ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
 
@@ -85,10 +85,11 @@ class HitachiClimate final : public climate_ir::ClimateIR {
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL}) {}
-#ifdef USE_HITACHI_AC344_MILDEW_PROOF
   bool get_mildew_proof() const;
+  /// Send the frame with the mildew proof function on or off, which keeps the fan running after power off.
   void set_mildew_proof(bool on);
-  void set_mildew_proof_switch(switch_::Switch *sw);
+#ifdef USE_SWITCH
+  void set_mildew_proof_switch(switch_::Switch *sw) { this->mildew_proof_switch_ = sw; }
 #endif
 
  protected:
@@ -97,11 +98,13 @@ class HitachiClimate final : public climate_ir::ClimateIR {
                                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
                                                     0x80, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
   uint8_t previous_temp_{27};
-#ifdef USE_HITACHI_AC344_MILDEW_PROOF
+#ifdef USE_SWITCH
   switch_::Switch *mildew_proof_switch_{nullptr};
 #endif
+  void setup() override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  void publish_mildew_proof_();
   bool get_power_();
   void set_power_(bool on);
   uint8_t get_mode_();
