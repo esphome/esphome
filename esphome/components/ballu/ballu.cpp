@@ -104,13 +104,7 @@ void BalluClimate::transmit_state() {
   data->mark(BALLU_HEADER_MARK);
   data->space(BALLU_HEADER_SPACE);
   // Data
-  for (uint8_t i : remote_state) {
-    for (uint8_t j = 0; j < 8; j++) {
-      data->mark(BALLU_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? BALLU_ONE_SPACE : BALLU_ZERO_SPACE);
-    }
-  }
+  data->item_bytes_lsb(remote_state, BALLU_STATE_LENGTH, BALLU_BIT_MARK, BALLU_ONE_SPACE, BALLU_ZERO_SPACE);
   // Footer
   data->mark(BALLU_BIT_MARK);
 
@@ -124,22 +118,9 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t remote_state[BALLU_STATE_LENGTH] = {0};
-  // Read all bytes.
-  for (int i = 0; i < BALLU_STATE_LENGTH; i++) {
-    // Read bit
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(BALLU_BIT_MARK, BALLU_ONE_SPACE)) {
-        remote_state[i] |= 1 << j;
-
-      } else if (!data.expect_item(BALLU_BIT_MARK, BALLU_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", i, j);
-        return false;
-      }
-    }
-
-    ESP_LOGVV(TAG, "Byte %d %02X", i, remote_state[i]);
-  }
+  uint8_t remote_state[BALLU_STATE_LENGTH];
+  if (!data.expect_bytes_lsb(remote_state, BALLU_STATE_LENGTH, BALLU_BIT_MARK, BALLU_ONE_SPACE, BALLU_ZERO_SPACE))
+    return false;
   // Validate footer
   if (!data.expect_mark(BALLU_BIT_MARK)) {
     ESP_LOGV(TAG, "Footer fail");

@@ -259,13 +259,8 @@ void MitsubishiClimate::transmit_state() {
     data->mark(MITSUBISHI_HEADER_MARK);
     data->space(MITSUBISHI_HEADER_SPACE);
     // Data
-    for (uint8_t i : remote_state) {
-      for (uint8_t j = 0; j < 8; j++) {
-        data->mark(MITSUBISHI_BIT_MARK);
-        bool bit = i & (1 << j);
-        data->space(bit ? MITSUBISHI_ONE_SPACE : MITSUBISHI_ZERO_SPACE);
-      }
-    }
+    data->item_bytes_lsb(remote_state, sizeof(remote_state), MITSUBISHI_BIT_MARK, MITSUBISHI_ONE_SPACE,
+                         MITSUBISHI_ZERO_SPACE);
     // Footer
     if (r == 0) {
       data->mark(MITSUBISHI_BIT_MARK);
@@ -280,33 +275,24 @@ void MitsubishiClimate::transmit_state() {
 bool MitsubishiClimate::parse_state_frame_(const uint8_t frame[]) { return false; }
 
 bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t state_frame[18] = {};
+  uint8_t state_frame[18];
 
   if (!data.expect_item(MITSUBISHI_HEADER_MARK, MITSUBISHI_HEADER_SPACE)) {
     ESP_LOGV(TAG, "Header fail");
     return false;
   }
 
-  for (uint8_t pos = 0; pos < 18; pos++) {
-    uint8_t byte = 0;
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(MITSUBISHI_BIT_MARK, MITSUBISHI_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(MITSUBISHI_BIT_MARK, MITSUBISHI_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", pos, bit);
-        return false;
-      }
-    }
-    state_frame[pos] = byte;
+  if (!data.expect_bytes_lsb(state_frame, sizeof(state_frame), MITSUBISHI_BIT_MARK, MITSUBISHI_ONE_SPACE,
+                             MITSUBISHI_ZERO_SPACE))
+    return false;
 
-    // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).
-    if ((pos == 0 && byte != MITSUBISHI_BYTE00) || (pos == 1 && byte != MITSUBISHI_BYTE01) ||
-        (pos == 2 && byte != MITSUBISHI_BYTE02) || (pos == 3 && byte != MITSUBISHI_BYTE03) ||
-        (pos == 4 && byte != MITSUBISHI_BYTE04) || (pos == 13 && byte != MITSUBISHI_BYTE13) ||
-        (pos == 16 && (byte & ~MITSUBISHI_VERTICAL_VANE_MASK) != 0)) {
-      ESP_LOGV(TAG, "Bytes 0,1,2,3,4,13 or 16 fail - invalid value");
-      return false;
-    }
+  // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).
+  if (state_frame[0] != MITSUBISHI_BYTE00 || state_frame[1] != MITSUBISHI_BYTE01 ||
+      state_frame[2] != MITSUBISHI_BYTE02 || state_frame[3] != MITSUBISHI_BYTE03 ||
+      state_frame[4] != MITSUBISHI_BYTE04 || state_frame[13] != MITSUBISHI_BYTE13 ||
+      (state_frame[16] & ~MITSUBISHI_VERTICAL_VANE_MASK) != 0) {
+    ESP_LOGV(TAG, "Bytes 0,1,2,3,4,13 or 16 fail - invalid value");
+    return false;
   }
 
   // On/Off and Mode
