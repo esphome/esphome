@@ -95,10 +95,26 @@ def prepare(
             time.sleep(wait_time)
             tries += 1
 
-    client = mqtt.Client(client_id or "")
+    # The firmware's transport applies to this client too, so logs and discovery reach a
+    # WebSocket-only broker. Imported here to keep component code off the CLI start-up path.
+    from esphome.components.mqtt import (
+        CONF_TRANSPORT,
+        CONF_WS_PATH,
+        DEFAULT_WS_PATH,
+        MQTT_TRANSPORT_TCP,
+        MQTT_TRANSPORT_WSS,
+    )
+
+    transport = config[CONF_MQTT].get(CONF_TRANSPORT, MQTT_TRANSPORT_TCP)
+    websocket = transport != MQTT_TRANSPORT_TCP
+    client = mqtt.Client(
+        client_id or "", transport="websockets" if websocket else "tcp"
+    )
     client.on_connect = on_connect_
     client.on_message = on_message
     client.on_disconnect = on_disconnect
+    if websocket:
+        client.ws_set_options(path=config[CONF_MQTT].get(CONF_WS_PATH, DEFAULT_WS_PATH))
     if username is None:
         if config[CONF_MQTT].get(CONF_USERNAME):
             client.username_pw_set(
@@ -107,10 +123,10 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    if config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY):
-        context = ssl.create_default_context(
-            cadata=config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
-        )
+    # TLS with the given CA, or with the system CAs over wss, as the firmware does with its bundle
+    certificate_authority = config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
+    if certificate_authority or transport == MQTT_TRANSPORT_WSS:
+        context = ssl.create_default_context(cadata=certificate_authority)
         if config[CONF_MQTT].get(CONF_SKIP_CERT_CN_CHECK):
             context.check_hostname = False
         if config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE) and config[CONF_MQTT].get(

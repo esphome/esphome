@@ -86,6 +86,7 @@ CONF_WS_PATH = "ws_path"
 MQTT_TRANSPORT_TCP = "tcp"
 MQTT_TRANSPORT_WS = "ws"
 MQTT_TRANSPORT_WSS = "wss"
+DEFAULT_WS_PATH = "/mqtt"
 
 # Max lengths for stack-based topic building.
 # These values are used in cv.Length() validators below to ensure the C++ code
@@ -506,7 +507,7 @@ async def to_code(config):
         if transport != MQTT_TRANSPORT_TCP:
             cg.add(var.set_transport(transport))
         if transport in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
-            cg.add(var.set_ws_path(config.get(CONF_WS_PATH, "/mqtt")))
+            cg.add(var.set_ws_path(config.get(CONF_WS_PATH, DEFAULT_WS_PATH)))
         # wss without an explicit CA verifies the broker against the bundled roots
         if transport == MQTT_TRANSPORT_WSS and ca is None:
             require_certificate_bundle()
