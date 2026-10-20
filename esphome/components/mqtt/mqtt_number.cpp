@@ -32,9 +32,7 @@ void MQTTNumberComponent::setup() {
   this->number_->add_on_state_callback([this](float state) { this->publish_state(state); });
 }
 
-void MQTTNumberComponent::dump_config() {
-  LOG_MQTT_COMPONENT(true, false);
-}
+void MQTTNumberComponent::dump_config() { LOG_MQTT_COMPONENT(true, false); }
 
 MQTT_COMPONENT_TYPE(MQTTNumberComponent, "number")
 const EntityBase *MQTTNumberComponent::get_entity() const { return this->number_; }

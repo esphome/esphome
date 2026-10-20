@@ -24,9 +24,7 @@ void MQTTButtonComponent::setup() {
     }
   });
 }
-void MQTTButtonComponent::dump_config() {
-  LOG_MQTT_COMPONENT(false, true);
-}
+void MQTTButtonComponent::dump_config() { LOG_MQTT_COMPONENT(false, true); }
 
 void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   config.state_topic = false;

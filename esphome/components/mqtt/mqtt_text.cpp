@@ -28,9 +28,7 @@ void MQTTTextComponent::setup() {
   this->text_->add_on_state_callback([this](const std::string &state) { this->publish_state(state); });
 }
 
-void MQTTTextComponent::dump_config() {
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTTextComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTTextComponent, "text")
 const EntityBase *MQTTTextComponent::get_entity() const { return this->text_; }

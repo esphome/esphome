@@ -36,9 +36,7 @@ void MQTTSwitchComponent::setup() {
   this->switch_->add_on_state_callback(
       [this](bool enabled) { this->defer(SEND_DEFER_ID, [this, enabled]() { this->publish_state(enabled); }); });
 }
-void MQTTSwitchComponent::dump_config() {
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTSwitchComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTSwitchComponent, "switch")
 const EntityBase *MQTTSwitchComponent::get_entity() const { return this->switch_; }

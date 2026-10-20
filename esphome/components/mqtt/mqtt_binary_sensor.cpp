@@ -17,9 +17,7 @@ void MQTTBinarySensorComponent::setup() {
   this->binary_sensor_->add_on_state_callback([this](bool state) { this->publish_state(state); });
 }
 
-void MQTTBinarySensorComponent::dump_config() {
-  LOG_MQTT_COMPONENT(true, false);
-}
+void MQTTBinarySensorComponent::dump_config() { LOG_MQTT_COMPONENT(true, false); }
 MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor *binary_sensor)
     : binary_sensor_(binary_sensor) {
   if (this->binary_sensor_->is_status_binary_sensor()) {

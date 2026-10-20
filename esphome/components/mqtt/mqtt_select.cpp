@@ -23,9 +23,7 @@ void MQTTSelectComponent::setup() {
   this->select_->add_on_state_callback([this](size_t index) { this->publish_state(this->select_->option_at(index)); });
 }
 
-void MQTTSelectComponent::dump_config() {
-  LOG_MQTT_COMPONENT(true, false);
-}
+void MQTTSelectComponent::dump_config() { LOG_MQTT_COMPONENT(true, false); }
 
 MQTT_COMPONENT_TYPE(MQTTSelectComponent, "select")
 const EntityBase *MQTTSelectComponent::get_entity() const { return this->select_; }
