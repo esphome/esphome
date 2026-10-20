@@ -20,11 +20,16 @@ enum ToleranceMode : uint8_t {
 using RawTimings = std::vector<int32_t>;
 
 /// A bit is bit_mark followed by one_space or zero_space.
+enum class BitOrder : uint8_t {
+  BIT_ORDER_LSB_FIRST,
+  BIT_ORDER_MSB_FIRST,
+};
+
 struct BitTimings {
   uint32_t bit_mark;
   uint32_t one_space;
   uint32_t zero_space;
-  bool msb_first{false};
+  BitOrder bit_order{BitOrder::BIT_ORDER_LSB_FIRST};
 };
 
 class RemoteTransmitData {
@@ -40,7 +45,7 @@ class RemoteTransmitData {
   template<BitTimings T> void item_bytes(const uint8_t *bytes, size_t len) {
     for (size_t i = 0; i < len; i++) {
       for (uint8_t bit = 0; bit < 8; bit++) {
-        const uint8_t mask = T.msb_first ? (0x80 >> bit) : (1 << bit);
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
         this->item(T.bit_mark, (bytes[i] & mask) ? T.one_space : T.zero_space);
       }
     }
@@ -99,7 +104,7 @@ class RemoteReceiveData {
     for (size_t i = 0; i < len; i++) {
       uint8_t byte = 0;
       for (uint8_t bit = 0; bit < 8; bit++) {
-        const uint8_t mask = T.msb_first ? (0x80 >> bit) : (1 << bit);
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
         if (this->expect_item(T.bit_mark, T.one_space)) {
           byte |= mask;
         } else if (!this->expect_item(T.bit_mark, T.zero_space)) {
