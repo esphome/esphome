@@ -41,9 +41,6 @@ static constexpr uint8_t LOGIN_ACCEPTED = 0x01;
 static constexpr uint8_t CHARGING_STATE_ACTIVE = 0x03;
 
 // Clock used until the time source reports a valid time
-static constexpr int DEFAULT_TIME_YEAR = 2026;
-static constexpr int DEFAULT_TIME_MONTH = 1;
-static constexpr int DEFAULT_TIME_DAY = 1;
 
 static constexpr uint8_t CMD_POLL_CHARGING[] = {0x01, 0x03, 0x01, 0x1B, 0x00, 0x09};
 static constexpr uint8_t CMD_GET_MODEL[] = {0x01, 0x03, 0x01, 0x85, 0x00, 0x0E};
@@ -268,24 +265,21 @@ void DeltaWallbox::send_next_state_command_() {
       this->send_frame_(CMD_GET_LOGIN_ROLE, sizeof(CMD_GET_LOGIN_ROLE));
       break;
     case DeltaState::DELTA_STATE_TIME_SYNC: {
-      ESP_LOGI(TAG, "Synchronizing wallbox clock...");
-      int year = DEFAULT_TIME_YEAR, month = DEFAULT_TIME_MONTH, day = DEFAULT_TIME_DAY;
-      int hour = 0, minute = 0, second = 0, weekday = 0;
 #ifdef USE_TIME
-      if (this->time_id_ != nullptr && this->time_id_->now().is_valid()) {
+      // Only a valid time is written; the charger keeps its own clock otherwise
+      if (this->time_id_ != nullptr) {
         auto tm = this->time_id_->now();
-        year = tm.year;
-        month = tm.month;
-        day = tm.day_of_month;
-        hour = tm.hour;
-        minute = tm.minute;
-        second = tm.second;
-        // ESPTime day_of_week is 1 (Sunday) to 7 (Saturday) -> map to 0 (Sunday) to 6 (Saturday)
-        weekday = tm.day_of_week - 1;
+        if (tm.is_valid()) {
+          ESP_LOGI(TAG, "Synchronizing wallbox clock...");
+          // ESPTime day_of_week is 1 (Sunday) to 7 (Saturday); the charger counts from 0
+          const auto body = build_time_sync_body(tm.year, tm.month, tm.day_of_month, tm.hour, tm.minute, tm.second,
+                                                 tm.day_of_week - 1);
+          this->send_frame_(body.data(), body.size());
+          break;
+        }
       }
 #endif
-      const auto body = build_time_sync_body(year, month, day, hour, minute, second, weekday);
-      this->send_frame_(body.data(), body.size());
+      this->advance_to_(DeltaState::DELTA_STATE_GET_CHARGER_FW_VERSION);
       break;
     }
     case DeltaState::DELTA_STATE_GET_CHARGER_FW_VERSION:

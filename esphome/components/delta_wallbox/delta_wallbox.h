@@ -17,7 +17,7 @@
 namespace esphome::delta_wallbox {
 // Largest FC03 response: unit, function, byte count, 255 data bytes, CRC.
 static constexpr size_t MAX_FRAME_LEN = 260;
-enum class DeltaState {
+enum class DeltaState : uint8_t {
   DELTA_STATE_IDLE,
   DELTA_STATE_GET_MODEL,
   DELTA_STATE_GET_BT_FW_VERSION,
