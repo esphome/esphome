@@ -39,7 +39,7 @@ void DaikinArcClimate::transmit_query_() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  data->item_bytes_lsb(remote_header, sizeof(remote_header), DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE, DAIKIN_ZERO_SPACE);
+  data->item_bytes_lsb<DAIKIN_BIT_TIMINGS>(remote_header, sizeof(remote_header));
   data->mark(DAIKIN_BIT_MARK);
   data->space(0);
 
@@ -113,14 +113,14 @@ void DaikinArcClimate::transmit_state() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  data->item_bytes_lsb(remote_header, sizeof(remote_header), DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE, DAIKIN_ZERO_SPACE);
+  data->item_bytes_lsb<DAIKIN_BIT_TIMINGS>(remote_header, sizeof(remote_header));
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
 
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  data->item_bytes_lsb(remote_state, sizeof(remote_state), DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE, DAIKIN_ZERO_SPACE);
+  data->item_bytes_lsb<DAIKIN_BIT_TIMINGS>(remote_state, sizeof(remote_state));
   data->mark(DAIKIN_BIT_MARK);
   data->space(0);
 
@@ -400,7 +400,7 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   for (uint8_t pos = 0; pos < DAIKIN_STATE_FRAME_SIZE; pos++) {
-    if (!data.expect_bytes_lsb(&state_frame[pos], 1, DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE, DAIKIN_ZERO_SPACE)) {
+    if (!data.expect_bytes_lsb<DAIKIN_BIT_TIMINGS>(&state_frame[pos], 1)) {
       ESP_LOGI(TAG, "non daikin_arc expect item pos: %d", pos);
       return false;
     }

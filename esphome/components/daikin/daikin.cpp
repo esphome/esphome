@@ -42,19 +42,19 @@ void DaikinClimate::transmit_state() {
 
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
-  data->item_bytes_lsb(remote_state, 8, DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE, DAIKIN_ZERO_SPACE);
+  data->item_bytes_lsb<DAIKIN_BIT_TIMINGS>(remote_state, 8);
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  data->item_bytes_lsb(remote_state + 8, 8, DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE, DAIKIN_ZERO_SPACE);
+  data->item_bytes_lsb<DAIKIN_BIT_TIMINGS>(remote_state + 8, 8);
   data->mark(DAIKIN_BIT_MARK);
   data->space(DAIKIN_MESSAGE_SPACE);
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  data->item_bytes_lsb(remote_state + 16, 19, DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE, DAIKIN_ZERO_SPACE);
+  data->item_bytes_lsb<DAIKIN_BIT_TIMINGS>(remote_state + 16, 19);
   data->mark(DAIKIN_BIT_MARK);
   data->space(0);
 
@@ -272,8 +272,8 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Frame header, then the frame type that sets the frame size
-  if (!data.expect_bytes_lsb(frame, 5, DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE, DAIKIN_ZERO_SPACE) || frame[0] != 0x11 ||
-      frame[1] != 0xDA || frame[2] != 0x27 || frame[3] != 0x00) {
+  if (!data.expect_bytes_lsb<DAIKIN_BIT_TIMINGS>(frame, 5) || frame[0] != 0x11 || frame[1] != 0xDA ||
+      frame[2] != 0x27 || frame[3] != 0x00) {
     return false;
   }
   uint8_t frame_size = DAIKIN_STATE_FRAME_SIZE;
@@ -282,7 +282,7 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
   } else if (frame[4] != DAIKIN_FRAME_TYPE_STATE) {
     return false;
   }
-  if (!data.expect_bytes_lsb(frame + 5, frame_size - 5, DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE, DAIKIN_ZERO_SPACE)) {
+  if (!data.expect_bytes_lsb<DAIKIN_BIT_TIMINGS>(frame + 5, frame_size - 5)) {
     return false;
   }
   if (frame[frame_size - 1] != sum_bytes(frame, frame_size - 1)) {
