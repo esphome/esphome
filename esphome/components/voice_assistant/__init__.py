@@ -213,8 +213,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_use_wake_word(config[CONF_USE_WAKE_WORD]))
 
-    if (vad_threshold := config.get(CONF_VAD_THRESHOLD)) is not None:
-        cg.add(var.set_vad_threshold(vad_threshold))
+    cg.add_optional(var.set_vad_threshold, config.get(CONF_VAD_THRESHOLD))
 
     cg.add(var.set_noise_suppression_level(config[CONF_NOISE_SUPPRESSION_LEVEL]))
     cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))

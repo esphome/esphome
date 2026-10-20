@@ -151,21 +151,14 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     # Graph options
-    if CONF_X_GRID in config:
-        cg.add(var.set_grid_x(config[CONF_X_GRID]))
-    if CONF_Y_GRID in config:
-        cg.add(var.set_grid_y(config[CONF_Y_GRID]))
-    if CONF_BORDER in config:
-        cg.add(var.set_border(config[CONF_BORDER]))
+    cg.add_optional(var.set_grid_x, config.get(CONF_X_GRID))
+    cg.add_optional(var.set_grid_y, config.get(CONF_Y_GRID))
+    cg.add_optional(var.set_border, config.get(CONF_BORDER))
     # Axis related options
-    if CONF_MIN_VALUE in config:
-        cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
-    if CONF_MAX_VALUE in config:
-        cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
-    if CONF_MIN_RANGE in config:
-        cg.add(var.set_min_range(config[CONF_MIN_RANGE]))
-    if CONF_MAX_RANGE in config:
-        cg.add(var.set_max_range(config[CONF_MAX_RANGE]))
+    cg.add_optional(var.set_min_value, config.get(CONF_MIN_VALUE))
+    cg.add_optional(var.set_max_value, config.get(CONF_MAX_VALUE))
+    cg.add_optional(var.set_min_range, config.get(CONF_MIN_RANGE))
+    cg.add_optional(var.set_max_range, config.get(CONF_MAX_RANGE))
     # Trace options
     for trace in config[CONF_TRACES]:
         tr = cg.new_Pvariable(trace[CONF_ID], GraphTrace())

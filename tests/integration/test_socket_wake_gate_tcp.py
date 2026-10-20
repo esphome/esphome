@@ -18,6 +18,7 @@ import time
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -46,10 +47,9 @@ async def test_socket_wake_gate_tcp(
         assert device_info is not None
         assert device_info.name == "socket-wake-gate-tcp"
 
-        try:
-            await asyncio.wait_for(boot_done, timeout=15.0)
-        except TimeoutError:
-            pytest.fail("BOOT_DONE never appeared — device did not complete boot")
+        await wait_or_fail(
+            boot_done, 15.0, "BOOT_DONE never appeared — device did not complete boot"
+        )
 
         _, services = await client.list_entities_services()
         ping_service = next((s for s in services if s.name == "ping"), None)
@@ -61,10 +61,7 @@ async def test_socket_wake_gate_tcp(
         t_send = time.monotonic()
         await client.execute_service(ping_service, {})
 
-        try:
-            await asyncio.wait_for(pong, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("PONG never appeared — service did not execute")
+        await wait_or_fail(pong, 5.0, "PONG never appeared — service did not execute")
 
         elapsed_ms = (time.monotonic() - t_send) * 1000
         # Without the fix the gate stays closed for up to loop_interval_=2000ms.
