@@ -185,7 +185,11 @@ uint64_t IRAM_ATTR DS2484OneWireBus::search_int() {
 
     ESP_LOGVV(TAG, "%d %d branch: %d %d", id_bit, cmp_id_bit, branch_before, branch);
 
-    assign_bits(address, bit_mask, branch);
+    if (branch) {
+      address |= bit_mask;
+    } else {
+      address &= ~bit_mask;
+    }
   }
   ESP_LOGVV(TAG, "last_discepancy: %d", last_zero);
   ESP_LOGVV(TAG, "address: %llx", address);
