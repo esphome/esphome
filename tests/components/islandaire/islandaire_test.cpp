@@ -61,8 +61,9 @@ Frame bytes_of(const remote_base::RawTimings &timings) {
 }
 
 // A frame as the layout in islandaire.cpp describes it, with its checksum
-Frame state_frame(bool on, uint8_t mode, uint8_t temp_f, uint8_t fan) {
-  Frame f{0x22, 0x22, 0x22, 0x22, 0x22, static_cast<uint8_t>(on ? 0x24 : 0x20), mode, temp_f, fan, 0, 0, 0, 0, 0};
+Frame state_frame(bool on, uint8_t mode_code, uint8_t temp_f, uint8_t fan_code) {
+  Frame f{0x22, 0x22, 0x22, 0x22, 0x22, static_cast<uint8_t>(on ? 0x24 : 0x20), mode_code, temp_f, fan_code,
+          0,    0,    0,    0,    0};
   uint8_t sum = 0;
   for (size_t i = 0; i < STATE_LENGTH - 1; i++)
     sum += f[i];
@@ -72,7 +73,7 @@ Frame state_frame(bool on, uint8_t mode, uint8_t temp_f, uint8_t fan) {
 
 constexpr uint8_t MODE_HEAT = 0x01;
 constexpr uint8_t MODE_COOL = 0x03;
-constexpr uint8_t MODE_FAN = 0x04;
+constexpr uint8_t MODE_FAN_ONLY = 0x04;
 constexpr uint8_t FAN_AUTO = 0x00;
 constexpr uint8_t FAN_LOW = 0x02;
 constexpr uint8_t FAN_HIGH = 0x04;
@@ -114,7 +115,7 @@ TEST(IslandaireTests, StateFrameEncodesModeTemperatureAndFan) {
       {"cool auto", climate::CLIMATE_MODE_COOL, climate::CLIMATE_FAN_AUTO, state_frame(true, MODE_COOL, 72, FAN_AUTO)},
       {"heat low", climate::CLIMATE_MODE_HEAT, climate::CLIMATE_FAN_LOW, state_frame(true, MODE_HEAT, 72, FAN_LOW)},
       {"fan high", climate::CLIMATE_MODE_FAN_ONLY, climate::CLIMATE_FAN_HIGH,
-       state_frame(true, MODE_FAN, 72, FAN_HIGH)},
+       state_frame(true, MODE_FAN_ONLY, 72, FAN_HIGH)},
       {"off", climate::CLIMATE_MODE_OFF, climate::CLIMATE_FAN_AUTO, state_frame(false, MODE_COOL, 72, FAN_AUTO)},
   };
   for (const auto &c : cases) {
@@ -151,7 +152,7 @@ TEST(IslandaireTests, ReceivesStateFrames) {
   EXPECT_EQ(f.sut.fan_mode, climate::CLIMATE_FAN_LOW);
 
   // The timer flag in the fan byte and the alternate low code are both read as low
-  EXPECT_TRUE(f.receive(encode(state_frame(true, MODE_FAN, 80, 0x01 | 0x40))));
+  EXPECT_TRUE(f.receive(encode(state_frame(true, MODE_FAN_ONLY, 80, 0x01 | 0x40))));
   EXPECT_EQ(f.sut.mode, climate::CLIMATE_MODE_FAN_ONLY);
   EXPECT_FLOAT_EQ(f.sut.target_temperature, 80.0f);
   EXPECT_EQ(f.sut.fan_mode, climate::CLIMATE_FAN_LOW);
