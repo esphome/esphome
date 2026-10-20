@@ -16,7 +16,7 @@ import aioesphomeapi
 from aioesphomeapi import ClimateInfo
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -33,12 +33,7 @@ async def test_legacy_climate_compat(
         entities, _ = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
 
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) == 1, (
-            f"Expected 1 climate entity, got {len(climate_infos)}"
-        )
-
-        test_climate = climate_infos[0]
+        test_climate = require_only_entity(entities, ClimateInfo)
 
         # Verify custom fan modes set via deprecated ClimateTraits setter are exposed
         assert set(test_climate.supported_custom_fan_modes) == {
