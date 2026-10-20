@@ -13,6 +13,7 @@ import contextlib
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 PAYLOAD = b"hello link"
 SECOND_PAYLOAD = b"second session"
@@ -81,16 +82,10 @@ async def test_socket_tcp_client_link(
             assert device_info is not None
             assert device_info.name == "socket-tcp-client-link-test"
 
-            try:
-                await asyncio.wait_for(echo_done.wait(), timeout=15.0)
-            except TimeoutError:
-                pytest.fail("Link never connected or echoed")
+            await wait_or_fail(echo_done, 15.0, "Link never connected or echoed")
             assert echoed and echoed[0] == PAYLOAD, "Echo payload mismatch"
 
-            try:
-                await asyncio.wait_for(link_down.wait(), timeout=15.0)
-            except TimeoutError:
-                pytest.fail("Link never reported the drop")
+            await wait_or_fail(link_down, 15.0, "Link never reported the drop")
             try:
                 await asyncio.wait_for(reconnected.wait(), timeout=15.0)
                 await asyncio.wait_for(second_link_up.wait(), timeout=15.0)

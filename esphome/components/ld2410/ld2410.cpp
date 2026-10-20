@@ -549,6 +549,10 @@ bool LD2410Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY: {  // Query parameters response
+      // Config values can contain the footer bytes, so wait for the whole 38 byte frame
+      if (this->buffer_pos_ < 38) {
+        return false;
+      }
       if (this->buffer_data_[10] != HEADER)
         return true;  // value head=0xAA
 #ifdef USE_NUMBER

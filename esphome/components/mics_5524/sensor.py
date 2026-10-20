@@ -427,8 +427,7 @@ async def to_code(config: ConfigType) -> None:
         # Only a build with a datasheet model links the power law and its libm
         cg.add_define("USE_MICS_5524_DATASHEET")
     cg.add(var.set_vcc(config[CONF_VCC]))
-    if (rl := config.get(CONF_RL)) is not None:
-        cg.add(var.set_rl(rl))
+    cg.add_optional(var.set_rl, config.get(CONF_RL))
     cg.add(var.set_voltage_multiplier(_voltage_multiplier(config)))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
     cg.add(var.set_warmup_time(config[CONF_WARMUP_TIME]))
