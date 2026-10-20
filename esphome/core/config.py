@@ -69,6 +69,7 @@ from esphome.helpers import (
 from esphome.types import ConfigType
 
 CONF_LOOP_INTERVAL = "loop_interval"
+CONF_RELATION = "relation"
 CONF_SUSPEND_LOOP = "suspend_loop"
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,6 +119,10 @@ ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
 Device = cg.esphome_ns.class_("Device")
+DeviceRelation = cg.esphome_ns.enum("DeviceRelation", is_class=True)
+DEVICE_RELATIONS: dict[str, cg.MockObj] = DeviceRelation.options(
+    "via", "child", prefix="DEVICE_RELATION_"
+)
 Area = cg.esphome_ns.class_("Area")
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
@@ -295,6 +300,9 @@ DEVICE_SCHEMA = cv.Schema(
             cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
+        cv.Optional(CONF_RELATION, default="via"): cv.enum(
+            DEVICE_RELATIONS, lower=True
+        ),
     }
 )
 
@@ -943,6 +951,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_DEVICES")
     cg.add_define("ESPHOME_DEVICE_COUNT", len(devices))
 
+    # When every device shares one relation the getter returns it as a constant,
+    # so only a mix of relations needs a per-device field
+    relations: set[str] = {dev_conf[CONF_RELATION] for dev_conf in devices}
+    mixed_relations: bool = len(relations) > 1
+    if mixed_relations:
+        cg.add_define("USE_DEVICE_RELATION")
+    elif relations == {"child"}:
+        cg.add_define("USE_DEVICE_RELATION_ALL_CHILD")
+
     # Process each device
     for dev_conf in devices:
         device_id: core.ID = dev_conf[CONF_ID]
@@ -958,6 +975,10 @@ async def to_code(config: ConfigType) -> None:
             area_id: core.ID = dev_conf[CONF_AREA_ID]
             area_id_hash = fnv1a_32bit_hash(area_id.id)
             cg.add(dev.set_area_id(area_id_hash))
+
+        # The field only exists for a mix of relations, and starts as VIA
+        if mixed_relations and (relation := dev_conf[CONF_RELATION]) != "via":
+            cg.add(dev.set_relation(relation))
 
         cg.add(cg.App.register_device(dev))
 

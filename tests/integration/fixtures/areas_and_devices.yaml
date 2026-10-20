@@ -15,15 +15,19 @@ esphome:
     - id: light_controller_device
       name: Light Controller
       area_id: living_room_area  # Uses top-level area
+      relation: child
     - id: temp_sensor_device
       name: Temperature Sensor
       area_id: bedroom_area
+      relation: child
     - id: motion_detector_device
       name: Motion Detector
       area_id: living_room_area  # Reuses top-level area
+      relation: child
     - id: smart_switch_device
       name: Smart Switch
       area_id: kitchen_area
+      relation: child
 
 host:
 api:

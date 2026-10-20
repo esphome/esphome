@@ -19,6 +19,10 @@ enum DisconnectReason : uint32_t {
   DISCONNECT_REASON_UNSPECIFIED = 0,
   DISCONNECT_REASON_PROVISIONING_CLOSED = 1,
 };
+enum DeviceRelation : uint32_t {
+  DEVICE_RELATION_VIA = 0,
+  DEVICE_RELATION_CHILD = 1,
+};
 enum SerialProxyPortType : uint32_t {
   SERIAL_PROXY_PORT_TYPE_TTL = 0,
   SERIAL_PROXY_PORT_TYPE_RS232 = 1,
@@ -567,6 +571,7 @@ class DeviceInfo final : public ProtoMessage {
   uint32_t device_id{0};
   StringRef name{};
   uint32_t area_id{0};
+  enums::DeviceRelation relation{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);

@@ -1,0 +1,13 @@
+esphome:
+  name: test-device-relation
+  devices:
+    - id: default_device
+      name: Default Device
+    - id: rf_sensor_device
+      name: RF Sensor
+      relation: via
+    - id: zone_device
+      name: Zone 1
+      relation: CHILD
+
+host:
