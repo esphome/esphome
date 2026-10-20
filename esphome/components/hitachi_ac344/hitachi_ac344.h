@@ -104,7 +104,6 @@ class HitachiClimate final : public climate_ir::ClimateIR {
   bool get_swing_v_();
   void set_swing_h_(uint8_t position);
   uint8_t get_swing_h_();
-  uint8_t get_button_();
   void set_button_(uint8_t button);
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
