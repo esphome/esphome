@@ -83,8 +83,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (time_constant := config.get(CONF_TIME_CONSTANT)) is not None:
         cg.add(var.set_time_constant(time_constant))
-        if (weighting := config.get(CONF_TIME_WEIGHTING)) is not None:
-            cg.add(var.set_time_weighting(weighting))
+        cg.add_optional(var.set_time_weighting, config.get(CONF_TIME_WEIGHTING))
     else:
         cg.add(var.set_alpha(config.get(CONF_ALPHA, DEFAULT_ALPHA)))
     cg.add(var.set_restore(config[CONF_RESTORE]))
