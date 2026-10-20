@@ -14,8 +14,9 @@ void GreeClimate::set_model(Model model) {
   if (model == GREE_YX1FF) {
     this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);  // YX1FF 4 speed
   }
+  // Models with a sleep preset
   if (model == GREE_YX1FF || model == GREE_YAC1FB9) {
-    this->presets_.insert(climate::CLIMATE_PRESET_NONE);  // sleep mode
+    this->presets_.insert(climate::CLIMATE_PRESET_NONE);
     this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }
 
