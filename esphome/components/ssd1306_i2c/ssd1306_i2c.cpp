@@ -12,23 +12,16 @@ namespace esphome::ssd1306_i2c {
 ESPHOME_LOG_TAG(TAG, "ssd1306_i2c");
 
 #ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
-// Partial-update transport cost model
+// Partial-update transport cost model.
 //
 // write_register():
-//
 //   I2C address + ACK        9 clocks
 //   control/register + ACK   9 clocks
 //
-// Fixed transaction cost:
-//
-//   18 clocks
-//
-// Each payload byte:
-//
-//   9 clocks
+// Fixed transaction cost: 18 clocks.
+// Each payload byte: 9 clocks.
 //
 // SSD1306 address window:
-//
 //   0x21
 //   start column
 //   end column
@@ -37,10 +30,7 @@ ESPHOME_LOG_TAG(TAG, "ssd1306_i2c");
 //   end page
 //
 // = 6 payload bytes
-//
-// Window transaction:
-//
-//   18 + 6 * 9 = 72 clocks
+// Window transaction: 18 + 6 * 9 = 72 clocks
 
 static constexpr uint32_t I2C_TRANSACTION_FIXED_CLOCKS = 18;
 
@@ -50,32 +40,20 @@ static constexpr uint32_t SSD1306_WINDOW_COMMAND_CLOCKS = I2C_TRANSACTION_FIXED_
 
 static constexpr uint32_t PARTIAL_DATA_CHUNK_SIZE = 16;
 
-// Splitting across a horizontal unchanged gap adds
-// another 72-clock address-window transaction.
-//
-// For a gap shorter than one 16-byte data chunk,
-// splitting can save at most one 18-clock data
-// transaction.
+// Splitting across a horizontal unchanged gap adds another 72-clock address-window transaction.
+// For a gap shorter than one 16-byte data chunk, splitting can save at most one 18-clock data transaction.
 //
 // Therefore:
-//
 //   gap * 9 + 18 <= 72
 //
-// is never cheaper than retaining one region.
-//
-// gap <= 6 bytes.
-//
-// A six-byte gap can at best tie, so one region is
-// preferred because it requires less driver work.
+// is never cheaper than retaining one region. A six-byte gap can at best tie, so one region is preferred
+// because it requires less driver work.
 
 static constexpr uint32_t MAX_ALWAYS_MERGE_GAP =
     (SSD1306_WINDOW_COMMAND_CLOCKS - I2C_TRANSACTION_FIXED_CLOCKS) / I2C_PAYLOAD_BYTE_CLOCKS;
 
-// Arbitrary two-dimensional all-pairs merging is
-// deliberately bounded.
-//
-// Large repeated patterns are first compacted using
-// the inexpensive identical-X-span vertical pass.
+// Arbitrary two-dimensional all-pairs merging is deliberately bounded.
+// Large repeated patterns are first compacted using the inexpensive identical-X-span vertical pass.
 
 static constexpr size_t MAX_GENERAL_MERGE_REGIONS = 32;
 #endif
@@ -135,11 +113,7 @@ void I2CSSD1306::dump_config() {
 
 // NATIVE FULL-FRAME TRANSPORT
 //
-// This remains the ordinary ESPHome transport.
-//
-// It is intentionally used unchanged whenever
-// partial_updates is disabled.
-//
+// This remains the ordinary ESPHome transport. It is intentionally used unchanged whenever partial_updates is disabled.
 // It also remains the setup-time write path.
 
 void I2CSSD1306::command(uint8_t value) {
@@ -258,12 +232,8 @@ void I2CSSD1306::commit_shadow_buffer_() {
 
 // CHECKED CONTROLLER REINITIALIZATION
 //
-// This mirrors the SSD1306-specific portion of
-// SSD1306::setup().
-//
-// It deliberately excludes SH1106, SH1107 and
-// SSD1305 because partial updates cannot be enabled
-// for those models.
+// This mirrors the SSD1306-specific portion of SSD1306::setup().
+// It deliberately excludes SH1106, SH1107 and SSD1305 because partial updates cannot be enabled for those models.
 
 bool I2CSSD1306::reinitialize_controller_() {
   this->init_reset_();
