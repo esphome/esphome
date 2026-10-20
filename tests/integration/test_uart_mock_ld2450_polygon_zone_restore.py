@@ -8,7 +8,6 @@ Tests:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import socket
 import struct
 
@@ -37,12 +36,6 @@ async def test_uart_mock_ld2450_polygon_zone_restore(
 ) -> None:
     """Test that polygon zones are restored after a restart, and invalid saved polygons are rejected."""
     port, port_socket = reserved_tcp_port
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
     clear_host_prefs(DEVICE_NAME)
 
     binary_path = await compile_esphome(await write_yaml_config(yaml_config))
