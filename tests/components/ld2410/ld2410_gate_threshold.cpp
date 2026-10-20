@@ -24,7 +24,7 @@ class CapturingUARTComponent : public uart::UARTComponent {
   std::vector<uint8_t> written;
 };
 
-LD2410Component *hub = nullptr;
+LD2410Component *hub = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Same body codegen emits for publish="before": publish the new value, then hand the number to the hub.
 void apply_threshold(number::Number *entity, float value) {
