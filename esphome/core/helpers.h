@@ -1068,8 +1068,12 @@ constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x
 constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
 
 /// Set the bits of \p mask in \p value when \p on is true, clear them otherwise.
-template<typename T, typename M> constexpr void assign_bits(T &value, M mask, bool on) {
-  value = on ? static_cast<T>(value | mask) : static_cast<T>(value & ~mask);
+template<typename T> constexpr void assign_bits(T &value, std::type_identity_t<T> mask, bool on) {
+  if (on) {
+    value |= mask;
+  } else {
+    value &= ~mask;
+  }
 }
 
 /// Reverse the order of 8 bits.
