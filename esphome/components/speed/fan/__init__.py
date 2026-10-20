@@ -42,5 +42,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_variable(var.set_oscillating, config.get(CONF_OSCILLATION_OUTPUT))
     await cg.add_variable(var.set_direction, config.get(CONF_DIRECTION_OUTPUT))
 
-    if CONF_PRESET_MODES in config:
-        cg.add(var.set_preset_modes(config[CONF_PRESET_MODES]))
+    cg.add_optional(var.set_preset_modes, config.get(CONF_PRESET_MODES))
