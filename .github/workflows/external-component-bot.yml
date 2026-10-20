@@ -3,8 +3,10 @@ name: Add External Component Comment
 on:
   pull_request_target:
     types: [opened, synchronize]
+    # PRs against the release branches are not meant to be used as external components
+    branches-ignore: [beta, release]
 
-# All API calls (pulls.listFiles + issues.{list,create,update}Comment) are performed with
+# All API calls (pulls.{list,listFiles}, repos.compareCommits + issues.{list,create,update}Comment) are performed with
 # the App token minted below, so the workflow's GITHUB_TOKEN does not need any scopes.
 permissions: {}
 
@@ -124,16 +126,56 @@ jobs:
                 }
             }
 
-            async function getEsphomeAndComponentChanges(github, owner, repo, prNumber) {
-                const changedFiles = await github.paginate(
-                    github.rest.pulls.listFiles,
-                    {
-                        owner: owner,
-                        repo: repo,
-                        pull_number: prNumber,
-                        per_page: 100,
-                    }
-                );
+            // Find the open PR whose head branch is the given branch of this repo, if there is one
+            async function findPullRequestForBranch(github, owner, repo, branch) {
+                const {data} = await github.rest.pulls.list({
+                    owner: owner,
+                    repo: repo,
+                    state: 'open',
+                    head: `${owner}:${branch}`,
+                    per_page: 1,
+                });
+                return data.length !== 0 ? data[0] : null;
+            }
+
+            // List the files the PR changes. A stacked PR, whose base is the head branch of another open PR,
+            // is compared with the base of the bottom PR in the stack rather than its direct base, so the
+            // changes from the PRs below it, which the external component source also fetches, are included.
+            async function listChangedFiles(github, owner, repo, pullRequest) {
+                // Walk down the stack; the depth limit guards against a cycle of PRs based on each other
+                let base = pullRequest.base.ref;
+                let stacked = false;
+                for (let depth = 0; depth !== 20; depth++) {
+                    const parent = await findPullRequestForBranch(github, owner, repo, base);
+                    if (parent === null)
+                        break;
+                    base = parent.base.ref;
+                    stacked = true;
+                }
+                if (!stacked) {
+                    return await github.paginate(
+                        github.rest.pulls.listFiles,
+                        {
+                            owner: owner,
+                            repo: repo,
+                            pull_number: pullRequest.number,
+                            per_page: 100,
+                        }
+                    );
+                }
+                // The compare API returns all changed files (up to 300) on the first page; per_page only
+                // limits the commit list, which is not needed here.
+                const {data} = await github.rest.repos.compareCommitsWithBasehead({
+                    owner: owner,
+                    repo: repo,
+                    basehead: `${base}...${pullRequest.head.sha}`,
+                    per_page: 1,
+                });
+                return data.files ?? [];
+            }
+
+            async function getEsphomeAndComponentChanges(github, owner, repo, pullRequest) {
+                const changedFiles = await listChangedFiles(github, owner, repo, pullRequest);
 
                 // Files used only for development and CI, which do not affect use as an external component
                 const ignoredFiles = ["esphome/core/defines.h", "esphome/idf_component.yml"];
@@ -163,10 +205,11 @@ jobs:
 
             // Start of main code.
 
-            const prNumber = context.payload.pull_request.number;
+            const pullRequest = context.payload.pull_request;
+            const prNumber = pullRequest.number;
             const {owner, repo} = context.repo;
 
-            const {esphomeChanges, componentChanges} = await getEsphomeAndComponentChanges(github, owner, repo, prNumber);
+            const {esphomeChanges, componentChanges} = await getEsphomeAndComponentChanges(github, owner, repo, pullRequest);
             if (componentChanges.length !== 0) {
                 await createComment(github, owner, repo, prNumber, esphomeChanges, componentChanges);
             }
