@@ -77,12 +77,19 @@ const char *media_player_command_to_string(MediaPlayerCommand command) {
 }
 
 void MediaPlayerTraits::set_supports_pause(bool supports_pause) {
-  assign_bits(this->feature_flags_, MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY, supports_pause);
+  if (supports_pause) {
+    this->feature_flags_ |= MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY;
+  } else {
+    this->feature_flags_ &= ~(MediaPlayerEntityFeature::PAUSE | MediaPlayerEntityFeature::PLAY);
+  }
 }
 
 void MediaPlayerTraits::set_supports_turn_off_on(bool supports_turn_off_on) {
-  assign_bits(this->feature_flags_, MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON,
-              supports_turn_off_on);
+  if (supports_turn_off_on) {
+    this->feature_flags_ |= MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON;
+  } else {
+    this->feature_flags_ &= ~(MediaPlayerEntityFeature::TURN_OFF | MediaPlayerEntityFeature::TURN_ON);
+  }
 }
 
 void MediaPlayerCall::validate_() {

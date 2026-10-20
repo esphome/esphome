@@ -162,7 +162,11 @@ void HostUartComponent::setup() {
       break;
   };
   // Set stop bits
-  assign_bits(options.c_cflag, CSTOPB, this->stop_bits_ == 2);
+  if (this->stop_bits_ == 2) {
+    options.c_cflag |= CSTOPB;
+  } else {
+    options.c_cflag &= ~CSTOPB;
+  }
   cfsetispeed(&options, baud);
   cfsetospeed(&options, baud);
   tcsetattr(this->file_descriptor_, TCSANOW, &options);

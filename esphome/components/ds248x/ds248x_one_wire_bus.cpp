@@ -151,7 +151,11 @@ uint64_t DS248xOneWireBus::search_int() {
     }
 
     // Update address based on direction taken
-    assign_bits(address, bit_mask, dir_taken);
+    if (dir_taken) {
+      address |= bit_mask;
+    } else {
+      address &= ~bit_mask;
+    }
   }
 
   // Search successful

@@ -84,7 +84,11 @@ bool MPR121Component::digital_read(uint8_t pin) { return (this->gpio_input_ & (1
 
 void MPR121Component::digital_write(uint8_t pin, bool value) {
   const uint8_t ionum = pin - 4;
-  assign_bits(this->gpio_output_, 1 << ionum, value);
+  if (value) {
+    this->gpio_output_ |= (1 << ionum);
+  } else {
+    this->gpio_output_ &= ~(1 << ionum);
+  }
   this->flush_gpio_();
 }
 

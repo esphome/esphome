@@ -20,8 +20,11 @@ void UFireISEComponent::setup() {
   // Write option for temperature adjustments
   uint8_t config;
   this->read_byte(REGISTER_CONFIG, &config);
-  assign_bits(config, CONFIG_TEMP_COMPENSATION,
-              !(this->temperature_sensor_ == nullptr && this->temperature_sensor_external_ == nullptr));
+  if (this->temperature_sensor_ == nullptr && this->temperature_sensor_external_ == nullptr) {
+    config &= ~CONFIG_TEMP_COMPENSATION;
+  } else {
+    config |= CONFIG_TEMP_COMPENSATION;
+  }
   this->write_byte(REGISTER_CONFIG, config);
 }
 

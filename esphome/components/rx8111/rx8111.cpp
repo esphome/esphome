@@ -106,7 +106,11 @@ bool RX8111Component::set_stop_bit_(bool stop) {
   uint8_t control;
   if (!this->read_byte(RX8111_REG_CONTROL, &control))
     return false;
-  assign_bits(control, RX8111_CTRL_STOP, stop);
+  if (stop) {
+    control |= RX8111_CTRL_STOP;
+  } else {
+    control &= ~RX8111_CTRL_STOP;
+  }
   return this->write_byte(RX8111_REG_CONTROL, control);
 }
 

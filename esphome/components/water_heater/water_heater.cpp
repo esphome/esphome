@@ -65,13 +65,21 @@ WaterHeaterCall &WaterHeaterCall::set_target_temperature_high(float temperature)
 }
 
 WaterHeaterCall &WaterHeaterCall::set_away(bool away) {
-  assign_bits(this->state_, WATER_HEATER_STATE_AWAY, away);
+  if (away) {
+    this->state_ |= WATER_HEATER_STATE_AWAY;
+  } else {
+    this->state_ &= ~WATER_HEATER_STATE_AWAY;
+  }
   this->state_mask_ |= WATER_HEATER_STATE_AWAY;
   return *this;
 }
 
 WaterHeaterCall &WaterHeaterCall::set_on(bool on) {
-  assign_bits(this->state_, WATER_HEATER_STATE_ON, on);
+  if (on) {
+    this->state_ |= WATER_HEATER_STATE_ON;
+  } else {
+    this->state_ &= ~WATER_HEATER_STATE_ON;
+  }
   this->state_mask_ |= WATER_HEATER_STATE_ON;
   return *this;
 }

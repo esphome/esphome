@@ -46,7 +46,11 @@ class ProvisioningManager : public Component {
   void set_source_provisioned(uint8_t source, bool provisioned) {
     if (source >= MAX_SOURCES)
       return;
-    assign_bits(this->provisioned_mask_, 1UL << source, provisioned);
+    if (provisioned) {
+      this->provisioned_mask_ |= (1UL << source);
+    } else {
+      this->provisioned_mask_ &= ~(1UL << source);
+    }
   }
 
   // True once every registered source is provisioned. Config validation guarantees
