@@ -19,6 +19,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -71,12 +72,12 @@ async def test_binary_sensor_autorepeat_filter(
 
         # Wait for at least 5 transitions to verify the oscillation pattern.
         oscillation_seen = collector.add_waiter(lambda: len(autorepeat_states) >= 5)
-        try:
-            await asyncio.wait_for(oscillation_seen, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Expected at least 5 autorepeat transitions, got {autorepeat_states}"
-            )
+        await wait_or_fail(
+            oscillation_seen,
+            2.0,
+            "Expected at least 5 autorepeat transitions",
+            autorepeat_states=autorepeat_states,
+        )
 
         assert autorepeat_states[0] is True, (
             f"First transition should be the pass-through true, got {autorepeat_states}"
@@ -104,10 +105,9 @@ async def test_binary_sensor_autorepeat_filter(
             settle_seen = collector.add_waiter(
                 lambda: len(autorepeat_states) > before_count
             )
-            try:
-                await asyncio.wait_for(settle_seen, timeout=2.0)
-            except TimeoutError:
-                pytest.fail("Timeout waiting for autorepeat to settle to false")
+            await wait_or_fail(
+                settle_seen, 2.0, "Timeout waiting for autorepeat to settle to false"
+            )
             assert autorepeat_states[-1] is False, (
                 f"After release, final state should be False, got {autorepeat_states}"
             )
