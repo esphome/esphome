@@ -9,7 +9,6 @@ The ACKs are synthetic, built from the layout the component parses, not device c
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import (
     ButtonInfo,
@@ -54,13 +53,6 @@ async def test_uart_mock_ld2410_query_ack(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test a data frame, then a query ACK with the footer bytes in its values."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
     ack_errors: list[str] = []
     waited_for_frame_end = loop.create_future()
