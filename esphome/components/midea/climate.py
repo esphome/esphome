@@ -41,6 +41,7 @@ AUTO_LOAD = ["sensor"]
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
 CONF_DISPLAY_CONTROL = "display_control"
+CONF_POWER_ANALYSIS_METHOD = "power_analysis_method"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
 Capabilities = midea_ac_ns.namespace("Constants")
@@ -90,12 +91,18 @@ DISPLAY_CONTROLS = DisplayControl.options(
     "UART", "AUTO", "IR", prefix="DISPLAY_CONTROL_"
 )
 
+POWER_ANALYSIS_METHODS = {
+    "BCD": 0,
+    "BINARY": 1,
+}
+
 validate_modes = cv.enum(ALLOWED_CLIMATE_MODES, upper=True)
 validate_presets = cv.enum(ALLOWED_CLIMATE_PRESETS, upper=True)
 validate_swing_modes = cv.enum(ALLOWED_CLIMATE_SWING_MODES, upper=True)
 validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
 validate_custom_presets = cv.enum(CUSTOM_PRESETS, upper=True)
 validate_display_control = cv.enum(DISPLAY_CONTROLS, upper=True)
+validate_power_analysis_method = cv.enum(POWER_ANALYSIS_METHODS, upper=True)
 
 
 def validate_display_control_with_transmitter(config: ConfigType) -> ConfigType:
@@ -142,6 +149,12 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Optional(
+                        CONF_POWER_ANALYSIS_METHOD
+                    ): validate_power_analysis_method,
+                }
             ),
             cv.Optional(CONF_HUMIDITY_SETPOINT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
@@ -211,7 +224,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -225,6 +238,9 @@ async def to_code(config):
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
     cg.add(var.set_display_control(config[CONF_DISPLAY_CONTROL]))
+    if (power_cfg := config.get(CONF_POWER_USAGE)) is not None:
+        if (power_method := power_cfg.get(CONF_POWER_ANALYSIS_METHOD)) is not None:
+            cg.add(var.set_power_analysis_method(power_method))
     cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
     if CONF_SUPPORTED_SWING_MODES in config:
         cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
@@ -244,5 +260,5 @@ async def to_code(config):
     cg.add_library(
         name="MideaUART",
         version=None,
-        repository="https://github.com/dudanov/MideaUART.git#eeea6c3e9b4474f067054592b435be1c4e466815",
+        repository="https://github.com/dudanov/MideaUART.git#47853e898abd9e473bff36e7710684d1a7e6d0bf",
     )

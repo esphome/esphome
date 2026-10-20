@@ -61,5 +61,6 @@ climate:
       name: Temp
     power_usage:
       name: Power
+      power_analysis_method: BINARY
     humidity_setpoint:
       name: Humidity

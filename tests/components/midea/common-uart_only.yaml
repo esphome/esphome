@@ -4,3 +4,6 @@ climate:
     name: Midea Climate UART Only
     autoconf: true
     display_control: UART
+    power_usage:
+      name: Midea Power
+      power_analysis_method: BCD

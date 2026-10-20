@@ -95,6 +95,7 @@ template<typename T> class ApplianceBase : public Component {
 
   void set_beeper_feedback(bool state) { this->base_.setBeeper(state); }
   void set_autoconf(bool value) { this->base_.setAutoconf(value); }
+  void set_power_analysis_method(uint8_t method) { this->base_.setPowerAnalysisMethod(method); }
   virtual void on_status_change() = 0;
 
  protected:

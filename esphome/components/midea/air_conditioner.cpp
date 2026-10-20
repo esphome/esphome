@@ -145,8 +145,10 @@ void AirConditioner::dump_config() {
                 "MideaDongle:\n"
                 "  [x] Period: %" PRIu32 "ms\n"
                 "  [x] Response timeout: %" PRIu32 "ms\n"
-                "  [x] Request attempts: %d",
-                this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
+                "  [x] Request attempts: %d\n"
+                "  [x] Power analysis method: %s",
+                this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts(),
+                this->power_analysis_method_ == 1 ? LOG_STR_LITERAL("BINARY") : LOG_STR_LITERAL("BCD"));
 #ifdef USE_REMOTE_TRANSMITTER
   ESP_LOGCONFIG(Constants::TAG,
                 "  [x] Using RemoteTransmitter\n"

@@ -35,6 +35,10 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = sensor; }
   void set_power_sensor(Sensor *sensor) { this->power_sensor_ = sensor; }
   void set_display_control(DisplayControl control) { this->display_control_ = control; }
+  void set_power_analysis_method(uint8_t method) {
+    this->ApplianceBase::set_power_analysis_method(method);
+    this->power_analysis_method_ = method;
+  }
   void on_status_change() override;
 
   /* ############### */
@@ -63,6 +67,7 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   ClimatePresetMask supported_presets_{};
   bool frost_protection_set_{false};
   DisplayControl display_control_{DisplayControl::DISPLAY_CONTROL_AUTO};
+  uint8_t power_analysis_method_{0};
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
