@@ -11,7 +11,7 @@ constexpr uint32_t ONE_SPACE = 1500;
 constexpr uint32_t ZERO_SPACE = 400;
 constexpr BitTimings TIMINGS{.bit_mark = BIT_MARK, .one_space = ONE_SPACE, .zero_space = ZERO_SPACE};
 constexpr BitTimings MSB_TIMINGS{
-    .bit_mark = BIT_MARK, .one_space = ONE_SPACE, .zero_space = ZERO_SPACE, .msb_first = true};
+    .bit_mark = BIT_MARK, .one_space = ONE_SPACE, .zero_space = ZERO_SPACE, .bit_order = BitOrder::BIT_ORDER_MSB_FIRST};
 constexpr std::array<uint8_t, 4> FRAME = {0xA5, 0x01, 0x80, 0xFF};
 
 RemoteReceiveData receive(const RawTimings &timings) {
