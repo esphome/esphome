@@ -111,10 +111,10 @@ void LD2460Component::handle_periodic_data_() {
     if (i >= num_targets) {
       t.last_x = INT16_MIN;
       t.last_y = INT16_MIN;
-      SAFE_PUBLISH_SENSOR_UNKNOWN(t.x);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(t.y);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(t.distance);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(t.angle);
+      t.x.publish_state_unknown();
+      t.y.publish_state_unknown();
+      t.distance.publish_state_unknown();
+      t.angle.publish_state_unknown();
       continue;
     }
     const uint8_t *p = &data[7 + i * 4];
@@ -129,10 +129,10 @@ void LD2460Component::handle_periodic_data_() {
     // Coordinates are reported in 0.1 m steps
     float x = raw_x * 0.1f;
     float y = raw_y * 0.1f;
-    SAFE_PUBLISH_SENSOR(t.x, x);
-    SAFE_PUBLISH_SENSOR(t.y, y);
+    t.x.publish_state_if_not_dup(x);
+    t.y.publish_state_if_not_dup(y);
     if (t.distance.has_sensor()) {
-      SAFE_PUBLISH_SENSOR(t.distance, std::sqrt(x * x + y * y));
+      t.distance.publish_state_if_not_dup(std::sqrt(x * x + y * y));
     }
     if (t.angle.has_sensor()) {
       float angle;
@@ -144,10 +144,10 @@ void LD2460Component::handle_periodic_data_() {
       } else {
         angle = std::atan2(x, y) * RADIANS_TO_DEGREES;
       }
-      SAFE_PUBLISH_SENSOR(t.angle, angle);
+      t.angle.publish_state_if_not_dup(angle);
     }
   }
-  SAFE_PUBLISH_SENSOR(this->target_count_sensor_, num_targets);
+  this->target_count_sensor_.publish_state_if_not_dup(num_targets);
 #endif
 
   this->data_callback_.call();

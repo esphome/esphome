@@ -515,21 +515,21 @@ void LD2450Component::handle_periodic_data_() {
     }
 #ifdef USE_SENSOR
     if (td == 0) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_x_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_y_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_resolution_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_speed_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_distance_sensors_[index]);
-      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_angle_sensors_[index]);
+      this->move_x_sensors_[index].publish_state_unknown();
+      this->move_y_sensors_[index].publish_state_unknown();
+      this->move_resolution_sensors_[index].publish_state_unknown();
+      this->move_speed_sensors_[index].publish_state_unknown();
+      this->move_distance_sensors_[index].publish_state_unknown();
+      this->move_angle_sensors_[index].publish_state_unknown();
     } else {
-      SAFE_PUBLISH_SENSOR(this->move_x_sensors_[index], tx);
-      SAFE_PUBLISH_SENSOR(this->move_y_sensors_[index], ty);
-      SAFE_PUBLISH_SENSOR(this->move_resolution_sensors_[index], res);
-      SAFE_PUBLISH_SENSOR(this->move_speed_sensors_[index], ts);
-      SAFE_PUBLISH_SENSOR(this->move_distance_sensors_[index], td);
+      this->move_x_sensors_[index].publish_state_if_not_dup(tx);
+      this->move_y_sensors_[index].publish_state_if_not_dup(ty);
+      this->move_resolution_sensors_[index].publish_state_if_not_dup(res);
+      this->move_speed_sensors_[index].publish_state_if_not_dup(ts);
+      this->move_distance_sensors_[index].publish_state_if_not_dup(td);
       // ANGLE - atan2f computes angle from Y axis directly, no sqrt/division needed
       angle = atan2f(static_cast<float>(-tx), static_cast<float>(ty)) * (180.0f / std::numbers::pi_v<float>);
-      SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
+      this->move_angle_sensors_[index].publish_state_if_not_dup(angle);
     }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -589,19 +589,19 @@ void LD2450Component::handle_periodic_data_() {
     zone_all_targets = zone_still_targets + zone_moving_targets;
 
     // Publish Still Target Count in Zones
-    SAFE_PUBLISH_SENSOR(this->zone_still_target_count_sensors_[index], zone_still_targets);
+    this->zone_still_target_count_sensors_[index].publish_state_if_not_dup(zone_still_targets);
     // Publish Moving Target Count in Zones
-    SAFE_PUBLISH_SENSOR(this->zone_moving_target_count_sensors_[index], zone_moving_targets);
+    this->zone_moving_target_count_sensors_[index].publish_state_if_not_dup(zone_moving_targets);
     // Publish All Target Count in Zones
-    SAFE_PUBLISH_SENSOR(this->zone_target_count_sensors_[index], zone_all_targets);
+    this->zone_target_count_sensors_[index].publish_state_if_not_dup(zone_all_targets);
   }  // End loop thru zones
 
   // Target Count
-  SAFE_PUBLISH_SENSOR(this->target_count_sensor_, target_count);
+  this->target_count_sensor_.publish_state_if_not_dup(target_count);
   // Still Target Count
-  SAFE_PUBLISH_SENSOR(this->still_target_count_sensor_, still_target_count);
+  this->still_target_count_sensor_.publish_state_if_not_dup(still_target_count);
   // Moving Target Count
-  SAFE_PUBLISH_SENSOR(this->moving_target_count_sensor_, moving_target_count);
+  this->moving_target_count_sensor_.publish_state_if_not_dup(moving_target_count);
 
 #endif
 

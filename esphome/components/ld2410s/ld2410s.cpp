@@ -502,7 +502,7 @@ void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 #endif
 #ifdef USE_SENSOR
   // The module keeps reporting the last distance after the target left
-  SAFE_PUBLISH_SENSOR(this->distance_sensor_, target ? distance : 0);
+  this->distance_sensor_.publish_state_if_not_dup(target ? distance : 0);
 #endif
 }
 
