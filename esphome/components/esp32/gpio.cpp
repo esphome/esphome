@@ -328,7 +328,9 @@ void ESP32InternalGPIOPin::detach_interrupt() const {
   gpio_intr_disable(this->get_pin_num());
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-  esp_sleep_disable_ext1_wakeup_io(1 << this->get_pin_num());
+  if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
+    esp_sleep_disable_ext1_wakeup_io(1ULL << this->get_pin_num());
+  }
 #else
   gpio_wakeup_disable(this->get_pin_num());
 #endif
