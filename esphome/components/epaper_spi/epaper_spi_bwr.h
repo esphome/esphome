@@ -27,8 +27,8 @@ class EPaperBWR : public EPaperBase {
   void draw_pixel_at(int x, int y, Color color) override;
   bool transfer_data() override;
 
-  // Streams buffer_[current_data_index_ .. end) XORed with invert_mask in chunks, with chip select toggled per
-  // chunk; returns false if it yields on MAX_TRANSFER_TIME.
+  // Streams buffer_[current_data_index_ .. end) XORed with invert_mask in chunks; returns false if it yields on
+  // MAX_TRANSFER_TIME. Chip select is held for the whole range and released only on yield or completion.
   bool send_buffer_range_(size_t end, uint8_t invert_mask, uint32_t start_time);
 
   // Send the red plane as 0=red, 1=no red

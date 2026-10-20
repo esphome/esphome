@@ -203,8 +203,9 @@ TEST(EPaperBWR, FillWithClippingOnlyFillsTheClippedArea) {
 
 // send_buffer_range_()
 
-/// Bytes are XORed with the mask, sent in chunks of up to MAX_TRANSFER_SIZE, with chip select around each chunk.
-TEST(EPaperBWR, SendBufferRangeSendsChunksWithChipSelectAroundEach) {
+/// Bytes are XORed with the mask and sent in chunks of up to MAX_TRANSFER_SIZE, with chip select held for the
+/// whole range.
+TEST(EPaperBWR, SendBufferRangeHoldsChipSelectForTheRange) {
   TestableBWR display(128, 20, false);  // 320 bytes per plane
   CountingDelegate bus(&display.dc);
   display.install(&bus);
@@ -215,8 +216,8 @@ TEST(EPaperBWR, SendBufferRangeSendsChunksWithChipSelectAroundEach) {
 
   EXPECT_EQ(display.data_index(), display.half_buffer());
   EXPECT_EQ(bus.data_writes, (std::vector<size_t>{MAX_TRANSFER_SIZE, MAX_TRANSFER_SIZE, 64}));
-  EXPECT_EQ(bus.begin_count, 3);
-  EXPECT_EQ(bus.end_count, 3);
+  EXPECT_EQ(bus.begin_count, 1);
+  EXPECT_EQ(bus.end_count, 1);
   const Bytes &sent = bus.data[0];
   ASSERT_EQ(sent.size(), display.half_buffer());
   for (size_t i = 0; i != sent.size(); i++)
@@ -234,7 +235,8 @@ TEST(EPaperBWR, SendBufferRangeYieldsAndResumes) {
 
   EXPECT_FALSE(display.send_range(display.half_buffer(), 0x00));
   EXPECT_EQ(display.data_index(), MAX_TRANSFER_SIZE);
-  EXPECT_EQ(bus.begin_count, bus.end_count);
+  EXPECT_EQ(bus.begin_count, 1);
+  EXPECT_EQ(bus.end_count, 1);
 
   int calls = 1;
   while (!display.send_range(display.half_buffer(), 0x00))
@@ -242,7 +244,8 @@ TEST(EPaperBWR, SendBufferRangeYieldsAndResumes) {
 
   EXPECT_EQ(calls, 2);  // the second full chunk yields; the short last chunk does not check the time
   EXPECT_EQ(display.data_index(), display.half_buffer());
-  EXPECT_EQ(bus.begin_count, bus.end_count);
+  EXPECT_EQ(bus.begin_count, 3);  // one per call
+  EXPECT_EQ(bus.end_count, 3);
   const Bytes &sent = bus.data[0];
   ASSERT_EQ(sent.size(), display.half_buffer());
   for (size_t i = 0; i != sent.size(); i++)

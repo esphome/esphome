@@ -59,22 +59,21 @@ void EPaperBWR::fill(Color color) {
 bool HOT EPaperBWR::send_buffer_range_(size_t end, uint8_t invert_mask, uint32_t start_time) {
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
   size_t buf_idx = 0;
+  this->start_data_();
   while (this->current_data_index_ < end) {
     bytes_to_send[buf_idx++] = this->buffer_[this->current_data_index_++] ^ invert_mask;
     if (buf_idx == sizeof bytes_to_send) {
-      this->start_data_();
       this->write_array(bytes_to_send, buf_idx);
-      this->disable();
       buf_idx = 0;
-      if (millis() - start_time > MAX_TRANSFER_TIME)
+      if (millis() - start_time > MAX_TRANSFER_TIME) {
+        this->disable();
         return false;  // yield; resume next loop
+      }
     }
   }
-  if (buf_idx != 0) {
-    this->start_data_();
+  if (buf_idx != 0)
     this->write_array(bytes_to_send, buf_idx);
-    this->disable();
-  }
+  this->disable();
   return true;
 }
 
