@@ -19,6 +19,13 @@ enum ToleranceMode : uint8_t {
 
 using RawTimings = std::vector<int32_t>;
 
+/// A bit is bit_mark followed by one_space or zero_space.
+struct BitTimings {
+  uint32_t bit_mark;
+  uint32_t one_space;
+  uint32_t zero_space;
+};
+
 class RemoteTransmitData {
  public:
   void mark(uint32_t length) { this->data_.push_back(length); }
@@ -28,18 +35,18 @@ class RemoteTransmitData {
     this->space(space);
   }
   void reserve(uint32_t len) { this->data_.reserve(len); }
-  /// One (bit_mark, one_space or zero_space) item per bit, least significant bit first.
-  void item_bytes_lsb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
+  /// One item per bit, least significant bit first.
+  void item_bytes_lsb(const uint8_t *bytes, size_t len, const BitTimings &timings) {
     for (size_t i = 0; i < len; i++) {
       for (uint8_t mask = 1; mask != 0; mask <<= 1)
-        this->item(bit_mark, (bytes[i] & mask) ? one_space : zero_space);
+        this->item(timings.bit_mark, (bytes[i] & mask) ? timings.one_space : timings.zero_space);
     }
   }
   /// Most significant bit first.
-  void item_bytes_msb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
+  void item_bytes_msb(const uint8_t *bytes, size_t len, const BitTimings &timings) {
     for (size_t i = 0; i < len; i++) {
       for (uint8_t mask = 0x80; mask != 0; mask >>= 1)
-        this->item(bit_mark, (bytes[i] & mask) ? one_space : zero_space);
+        this->item(timings.bit_mark, (bytes[i] & mask) ? timings.one_space : timings.zero_space);
     }
   }
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
@@ -92,12 +99,12 @@ class RemoteReceiveData {
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
   /// Least significant bit first; false at the first item matching neither space, leaving it unread.
-  bool expect_bytes_lsb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
-    return this->expect_bytes_<false>(out, len, bit_mark, one_space, zero_space);
+  bool expect_bytes_lsb(uint8_t *out, size_t len, const BitTimings &timings) {
+    return this->expect_bytes_<false>(out, len, timings);
   }
   /// Most significant bit first.
-  bool expect_bytes_msb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
-    return this->expect_bytes_<true>(out, len, bit_mark, one_space, zero_space);
+  bool expect_bytes_msb(uint8_t *out, size_t len, const BitTimings &timings) {
+    return this->expect_bytes_<true>(out, len, timings);
   }
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
@@ -110,15 +117,14 @@ class RemoteReceiveData {
   ToleranceMode get_tolerance_mode() { return this->tolerance_mode_; }
 
  protected:
-  template<bool MSB_FIRST>
-  bool expect_bytes_(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
+  template<bool MSB_FIRST> bool expect_bytes_(uint8_t *out, size_t len, const BitTimings &timings) {
     for (size_t i = 0; i < len; i++) {
       uint8_t byte = 0;
       for (uint8_t bit = 0; bit < 8; bit++) {
         const uint8_t mask = MSB_FIRST ? (0x80 >> bit) : (1 << bit);
-        if (this->expect_item(bit_mark, one_space)) {
+        if (this->expect_item(timings.bit_mark, timings.one_space)) {
           byte |= mask;
-        } else if (!this->expect_item(bit_mark, zero_space)) {
+        } else if (!this->expect_item(timings.bit_mark, timings.zero_space)) {
           return false;
         }
       }
