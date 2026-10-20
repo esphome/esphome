@@ -263,8 +263,9 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
 
 #ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
 // Some firmwares (e.g. PVVX) send new data under an unchanged counter, so only an exact repeat (same counter and
-// MIC) is dropped as a duplicate; the lower-counter rule is the replay defence. The state is RAM only, so the first
-// frame after a reboot of the ESP is always accepted.
+// MIC) is dropped as a duplicate and earlier frames under the current counter can still be replayed; the
+// lower-counter rule is the replay defence. The state is RAM only, so the first frame after a reboot of the ESP is
+// always accepted.
 bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter, uint32_t mic) {
   const uint32_t now = millis();
   if (counter == this->last_counter_ && mic == this->last_mic_) {
@@ -273,8 +274,15 @@ bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter, uint32_t mic) 
   }
   if (counter < this->last_counter_) {
     if (now - this->last_accepted_ms_ < BTHOME_REPLAY_RESYNC_MS) {
-      ESP_LOGW(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32 " (replay?)", counter,
-               this->last_counter_);
+      // One warning per run of rejections; a sensor advertising every few seconds would otherwise flood the log.
+      if (this->replay_rejected_) {
+        ESP_LOGVV(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32, counter,
+                  this->last_counter_);
+      } else {
+        ESP_LOGW(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32 " (replay?)", counter,
+                 this->last_counter_);
+        this->replay_rejected_ = true;
+      }
       return false;
     }
     ESP_LOGW(TAG, "BTHome counter restarted (%" PRIu32 " -> %" PRIu32 "), resync", this->last_counter_, counter);
@@ -282,6 +290,7 @@ bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter, uint32_t mic) 
   this->last_counter_ = counter;
   this->last_mic_ = mic;
   this->last_accepted_ms_ = now;
+  this->replay_rejected_ = false;
   return true;
 }
 #endif

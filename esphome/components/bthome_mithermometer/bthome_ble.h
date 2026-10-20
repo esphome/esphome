@@ -48,6 +48,7 @@ class BTHomeMiThermometer final : public ble_device_base::ESPBTDeviceListener, p
   optional<uint8_t> last_packet_id_{};
 #ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
   bool replay_protection_{false};
+  bool replay_rejected_{false};
 #endif
   bool has_bindkey_{false};
   uint8_t bindkey_[16];
