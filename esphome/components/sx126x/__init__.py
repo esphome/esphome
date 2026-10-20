@@ -253,7 +253,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_busy_pin, config[CONF_BUSY_PIN])
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
-    cg.add(var.set_hw_version(config[CONF_HW_VERSION]))
+    if config[CONF_HW_VERSION] == "sx1261":
+        cg.add(var.set_sx1261(True))
     cg.add(var.set_deviation(config[CONF_DEVIATION]))
     cg.add(var.set_modulation(config[CONF_MODULATION]))
     cg.add(var.set_pa_ramp(config[CONF_PA_RAMP]))
