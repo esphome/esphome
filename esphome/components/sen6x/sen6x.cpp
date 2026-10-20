@@ -149,7 +149,8 @@ void SEN6XComponent::setup() {
 
       // Step 2: Read product name in next loop iteration
       this->set_timeout(0, [this]() {
-        uint16_t raw_product_name[16];
+        // One spare zero word so a full 32-byte name is still terminated
+        uint16_t raw_product_name[17]{};
         if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
