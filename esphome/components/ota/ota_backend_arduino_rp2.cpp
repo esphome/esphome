@@ -11,9 +11,9 @@
 
 // LittleFS region bounds, provided by the arduino-pico linker script.
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-extern uint8_t _FS_start;
+extern "C" uint8_t _FS_start;
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
-extern uint8_t _FS_end;
+extern "C" uint8_t _FS_end;
 
 namespace esphome::ota {
 
@@ -30,7 +30,7 @@ OTAResponseTypes ArduinoRP2OTABackend::begin(size_t image_size, OTAType ota_type
   // 0 means the size is unknown (web_server upload). The updater only checks the size
   // against the LittleFS region it stages the image in, so ask for all of it.
   if (image_size == 0) {
-    image_size = &_FS_end - &_FS_start;
+    image_size = reinterpret_cast<uintptr_t>(&_FS_end) - reinterpret_cast<uintptr_t>(&_FS_start);
   }
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {
