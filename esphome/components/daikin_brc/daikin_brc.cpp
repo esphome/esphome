@@ -6,6 +6,12 @@ namespace esphome::daikin_brc {
 
 ESPHOME_LOG_TAG(TAG, "daikin_brc.climate");
 
+static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE0 = 0x11;
+static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE1 = 0xDA;
+static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE2 = 0x17;
+static constexpr uint8_t DAIKIN_BRC_HEADER_BYTE3 = 0x18;
+static constexpr uint8_t DAIKIN_BRC_FRAME_TYPE_STATE = 0x00;
+
 void DaikinBrcClimate::control(const climate::ClimateCall &call) {
   this->mode_button_ = 0x00;
   if (call.get_mode().has_value()) {
@@ -229,8 +235,9 @@ bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
   // Frame header, with this unit's address in the low 3 bits of byte 3, then the frame type
-  if (state_frame[0] != 0x11 || state_frame[1] != 0xDA || state_frame[2] != 0x17 ||
-      state_frame[3] != (0x18 | this->sub_unit_) || state_frame[4] != 0x00) {
+  if (state_frame[0] != DAIKIN_BRC_HEADER_BYTE0 || state_frame[1] != DAIKIN_BRC_HEADER_BYTE1 ||
+      state_frame[2] != DAIKIN_BRC_HEADER_BYTE2 || state_frame[3] != (DAIKIN_BRC_HEADER_BYTE3 | this->sub_unit_) ||
+      state_frame[4] != DAIKIN_BRC_FRAME_TYPE_STATE) {
     return false;
   }
   return this->parse_state_frame_(state_frame);
