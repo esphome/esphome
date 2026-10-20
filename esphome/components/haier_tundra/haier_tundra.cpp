@@ -28,7 +28,7 @@ void HaierTundra::transmit_(uint8_t button) {
     this->turbo_mode_ = false;
   }
 
-  remote_base::HaierData remote_state{{
+  const uint8_t frame[HAIER_TUNDRA_FRAME_SIZE] = {
       this->unit_,
       static_cast<uint8_t>(this->temperature_() << 4 | this->vertical_swing_()),
       static_cast<uint8_t>(this->horizontal_swing_() << 5),
@@ -42,10 +42,10 @@ void HaierTundra::transmit_(uint8_t button) {
       static_cast<uint8_t>((button == HAIER_BUTTON_SELF_CLEAN ? 1 : 0) << 4),
       0x00,
       button,
-  }};
+  };
 
   auto transmit = this->transmitter_->transmit();
-  remote_base::HaierProtocol().encode(transmit.get_data(), remote_state);
+  remote_base::HaierProtocol().encode(transmit.get_data(), frame, sizeof(frame));
   transmit.perform();
 }
 

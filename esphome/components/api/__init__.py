@@ -4,7 +4,6 @@ import re
 from typing import Any
 
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
@@ -99,7 +98,6 @@ ActionResponse = api_ns.class_("ActionResponse")
 HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
-APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
 APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
 APIUnregisterServiceCallAction = api_ns.class_(
     "APIUnregisterServiceCallAction", automation.Action
@@ -250,9 +248,6 @@ def _validate_supports_response(value: Any) -> str:
     """Validate supports_response after auto-detection has set the value."""
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
-
-# ESP8266 copies every string of an action into a stack buffer sized by codegen; keep it small
-ESP8266_ACTION_STRINGS_MAX_TOTAL = 384
 
 VARIABLE_SCHEMA = cv.Schema(
     {
@@ -484,29 +479,6 @@ def _action_strings(conf: ConfigType, has_metadata: bool) -> list[str | None]:
     return strings
 
 
-def _action_strings_size(strings: list[str | None]) -> int:
-    """Bytes needed to copy every string out of flash, each with its terminator."""
-    return sum(
-        len(string.encode("utf-8")) + 1 for string in strings if string is not None
-    )
-
-
-def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
-    if not CORE.is_esp8266:
-        return config
-    actions = config.get(CONF_ACTIONS, [])
-    has_metadata = _has_action_metadata(actions)
-    for conf in actions:
-        size = _action_strings_size(_action_strings(conf, has_metadata))
-        if size > ESP8266_ACTION_STRINGS_MAX_TOTAL:
-            raise cv.Invalid(
-                f"Action '{conf[CONF_ACTION]}' has {size} bytes of name, variable name, "
-                f"description and example text; ESP8266 allows at most "
-                f"{ESP8266_ACTION_STRINGS_MAX_TOTAL} bytes per action"
-            )
-    return config
-
-
 def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
     """An IPv6 host can never be parsed, so never dialed, without IPv6."""
     if (
@@ -531,7 +503,6 @@ def _validate_wizard(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
-    _validate_esp8266_action_strings,
     _validate_outgoing_host_ipv6,
     _validate_wizard,
 )
@@ -587,7 +558,6 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
-    scratch_size = 0
     if actions:
         # Metadata is compiled in for every action once any action declares it, because the
         # string table layout is fixed by the define rather than per action
@@ -639,8 +609,6 @@ async def to_code(config: ConfigType) -> None:
                 func_args.append((native, name))
             strings = _action_strings(conf, has_metadata)
             table = _add_action_strings(index, strings)
-            if CORE.is_esp8266:
-                scratch_size = max(scratch_size, _action_strings_size(strings))
             # Template args: supports_response mode, then user service arg types
             templ = cg.TemplateArguments(supports_response, *service_template_args)
             # Key is hashed here because the name is not readable at runtime on ESP8266
@@ -667,9 +635,6 @@ async def to_code(config: ConfigType) -> None:
                 cg.add(auto.add_action(unregister_action))
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(triggers))
-    if CORE.is_esp8266 and has_user_actions:
-        # Stack buffer that list-entities copies PROGMEM strings into, sized for the largest action
-        cg.add_define("API_USER_ACTION_STRINGS_SCRATCH_SIZE", max(scratch_size, 1))
 
     if (wizard_config := config.get(wizard.CONF_WIZARD)) is not None:
         await wizard.to_code(wizard_config)
@@ -1090,19 +1055,13 @@ API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_condition(
-    "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "api.connected",
+    API_CONNECTED_CONDITION_SCHEMA,
+    automation.ApplyCall(
+        "is_connected({})", ((CONF_STATE_SUBSCRIPTION_ONLY, cg.bool_),)
+    ),
 )
-async def api_connected_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
-    cg.add(var.set_state_subscription_only(templ))
-    return var
 
 
 # user_services.cpp is only needed when user defined actions exist; the

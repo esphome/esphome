@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_AUTOMATIC_SELF_CALIBRATION,
     CONF_CO2,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_OFFSET,
     CONF_UPDATE_INTERVAL,
@@ -79,9 +78,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_automatic_self_calibration(config[CONF_AUTOMATIC_SELF_CALIBRATION]))
     if CONF_ALTITUDE_COMPENSATION in config:

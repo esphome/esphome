@@ -129,6 +129,9 @@ class ATM90E32Component : public PollingComponent,
   int16_t calibrate_offset(uint8_t phase, bool voltage);
   int16_t calibrate_power_offset(uint8_t phase, bool reactive);
   void run_gain_calibrations();
+  // Body of the calibration buttons: logs the button name and the hint lines, then runs action.
+  void press_calibration_button(EntityBase *entity, void (ATM90E32Component::*action)(),
+                                const LogString *hint = nullptr, const LogString *hint2 = nullptr);
 #ifdef USE_NUMBER
   void set_reference_voltage(uint8_t phase, number::Number *ref_voltage) { ref_voltages_[phase] = ref_voltage; }
   void set_reference_current(uint8_t phase, number::Number *ref_current) { ref_currents_[phase] = ref_current; }

@@ -96,22 +96,20 @@ ThermostatClimateTargetTempConfig = thermostat_ns.struct(
 ThermostatPresetEntry = thermostat_ns.struct("ThermostatPresetEntry")
 ThermostatCustomPresetEntry = thermostat_ns.struct("ThermostatCustomPresetEntry")
 OnBootRestoreFrom = thermostat_ns.enum("OnBootRestoreFrom")
-ON_BOOT_RESTORE_FROM = {
-    "MEMORY": OnBootRestoreFrom.MEMORY,
-    "DEFAULT_PRESET": OnBootRestoreFrom.DEFAULT_PRESET,
-}
+ON_BOOT_RESTORE_FROM = OnBootRestoreFrom.options("MEMORY", "DEFAULT_PRESET")
 validate_on_boot_restore_from = cv.enum(ON_BOOT_RESTORE_FROM, upper=True)
 
 ClimateMode = climate_ns.enum("ClimateMode")
-CLIMATE_MODES = {
-    "OFF": ClimateMode.CLIMATE_MODE_OFF,
-    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,
-    "COOL": ClimateMode.CLIMATE_MODE_COOL,
-    "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
-    "DRY": ClimateMode.CLIMATE_MODE_DRY,
-    "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
-}
+CLIMATE_MODES = ClimateMode.options(
+    "OFF",
+    "HEAT_COOL",
+    "COOL",
+    "HEAT",
+    "DRY",
+    "FAN_ONLY",
+    "AUTO",
+    prefix="CLIMATE_MODE_",
+)
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 ClimatePreset = climate_ns.enum("ClimatePreset")
@@ -240,12 +238,6 @@ def validate_thermostat(config: ConfigType) -> ConfigType:
             CONF_SUPPLEMENTAL_HEATING_ACTION,
             CONF_SUPPLEMENTAL_HEATING_DELTA,
         ],
-        CONF_MIN_COOLING_OFF_TIME: [
-            CONF_COOL_ACTION,
-        ],
-        CONF_MIN_COOLING_RUN_TIME: [
-            CONF_COOL_ACTION,
-        ],
         CONF_MIN_FANNING_OFF_TIME: [
             CONF_FAN_ONLY_ACTION,
         ],
@@ -283,6 +275,17 @@ def validate_thermostat(config: ConfigType) -> ConfigType:
                 raise cv.Invalid(
                     f"{req_trigger} must be defined to use {config_trigger}"
                 )
+
+    # Dry mode runs on the cooling timers, so a dehumidifier needs no cool_action.
+    for timer in (CONF_MIN_COOLING_OFF_TIME, CONF_MIN_COOLING_RUN_TIME):
+        if (
+            timer in config
+            and CONF_COOL_ACTION not in config
+            and CONF_DRY_ACTION not in config
+        ):
+            raise cv.Invalid(
+                f"{CONF_COOL_ACTION} or {CONF_DRY_ACTION} must be defined to use {timer}"
+            )
 
     if CONF_FAN_ONLY_ACTION in config:
         # determine validation requirements based on fan_only_action_uses_fan_mode_timer setting
@@ -713,9 +716,7 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_sensor(sens))
 
-    if CONF_HUMIDITY_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
-        cg.add(var.set_humidity_sensor(sens))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
     cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
