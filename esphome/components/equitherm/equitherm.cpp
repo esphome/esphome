@@ -30,9 +30,8 @@ void EquithermClimate::control(const climate::ClimateCall &call) {
   if (auto target = call.get_target_temperature(); target.has_value()) {
     // The accumulated error belongs to the old target
     if (*target != this->target_temperature) {
-      ESP_LOGD(TAG, "Target temperature %.1f°C → %.1f°C, resetting the PID integral", this->target_temperature,
-               *target);
-      this->pid_controller_.reset_accumulated_integral();
+      ESP_LOGD(TAG, "Target temperature %.1f°C → %.1f°C, resetting the PID", this->target_temperature, *target);
+      this->pid_controller_.reset();
       this->pid_correction_ = 0.0f;
     }
     this->target_temperature = *target;
@@ -86,6 +85,9 @@ void EquithermClimate::set_action_(climate::ClimateAction action) {
       this->on_heating_stop_callback_.call();
     this->write_setpoint_off_();
     this->active_setpoint_ = NAN;
+    // The PID is not stepped while heating is off, so its history must not carry over
+    this->pid_controller_.reset();
+    this->pid_correction_ = 0.0f;
   }
   this->action = action;
 }
@@ -121,10 +123,6 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
     this->current_temperature = this->indoor_sensor_->state;
 
   if (this->mode == climate::CLIMATE_MODE_OFF) {
-    if (this->action != climate::CLIMATE_ACTION_OFF) {
-      this->pid_controller_.reset_accumulated_integral();
-      this->pid_correction_ = 0.0f;
-    }
     this->set_action_(climate::CLIMATE_ACTION_OFF);
     this->publish_state();
     return;
@@ -140,6 +138,7 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
   if (manual_active) {
 #ifdef USE_NUMBER
     t_flow = this->manual_flow_temp_->state;
+    this->pid_controller_.reset();
     this->pid_correction_ = 0.0f;
 #endif
   } else {
@@ -160,6 +159,7 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
       return;
     }
     if (!indoor_valid) {
+      this->pid_controller_.reset();
       this->pid_correction_ = 0.0f;
     } else if (update_pid) {
       this->pid_correction_ = this->pid_controller_.update(this->target_temperature, this->current_temperature);
