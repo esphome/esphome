@@ -5,6 +5,7 @@ from collections.abc import Callable
 import logging
 from pathlib import Path
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -250,8 +251,13 @@ def touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
         candidates = [p for p in ports if (p.vid, p.pid) == (target.vid, target.pid)]
     else:
         candidates = ports
-    same_kind = {os.path.realpath(p.device) for p in candidates}
-    same_kind.add(os.path.realpath(port))
+
+    # Count boards, not ports: a board with several CDC ACM ports lists each with one serial number
+    def board_key(p: Any) -> str:
+        return p.serial_number or os.path.realpath(p.device)
+
+    same_kind = {board_key(p) for p in candidates}
+    same_kind.add(board_key(target) if target is not None else os.path.realpath(port))
     if len(same_kind) > 1:
         _LOGGER.error(
             "More than one RP2040/RP2350-capable device is connected. Disconnect all "
