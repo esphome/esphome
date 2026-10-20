@@ -1,4 +1,5 @@
 #include "pi4ioe5v6408.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pi4ioe5v6408 {

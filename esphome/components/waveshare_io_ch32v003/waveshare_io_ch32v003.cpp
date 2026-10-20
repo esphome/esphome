@@ -1,4 +1,5 @@
 #include "waveshare_io_ch32v003.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::waveshare_io_ch32v003 {

@@ -1,4 +1,5 @@
 #include "ch422g.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ch422g {

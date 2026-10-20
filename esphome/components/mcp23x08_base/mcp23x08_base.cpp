@@ -1,4 +1,5 @@
 #include "mcp23x08_base.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mcp23x08_base {

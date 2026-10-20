@@ -1,4 +1,5 @@
 #include "mcp23016.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstdio>
 

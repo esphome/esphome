@@ -1,4 +1,5 @@
 #include "tca9555.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 static const uint8_t TCA9555_INPUT_PORT_REGISTER_0 = 0x00;

@@ -1,4 +1,5 @@
 #include "pca6416a.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pca6416a {

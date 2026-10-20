@@ -1,4 +1,5 @@
 #include "ch423.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
