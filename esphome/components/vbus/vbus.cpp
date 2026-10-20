@@ -13,7 +13,7 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
 
-// Keep a busy UART from monopolizing the component loop.
+// Bound per-loop work; sustained 9600-baud traffic needs a loop at least every 66 ms.
 static constexpr size_t VBUS_MAX_BYTES_PER_LOOP = 64;
 
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
@@ -33,12 +33,13 @@ static bool checksum(const uint8_t *data, int start, int count) {
 }
 
 void VBus::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
+  const size_t available = this->available();
 #ifdef USE_VBUS_TX
   if (this->transmitter_ != nullptr)
-    this->transmitter_->observe_rx(this->available());
+    this->transmitter_->observe_rx(available);
 #endif
-  const uint32_t now = App.get_loop_component_start_time();
-  if (!available()) {
+  if (available == 0) {
     // Preserve queued bytes even if a delayed loop would otherwise exceed the timeout.
     if (this->state_ != 0 && now - this->last_rx_ms_ >= VBUS_RX_IDLE_TIMEOUT_MS) {
       this->state_ = 0;
@@ -47,8 +48,8 @@ void VBus::loop() {
     return;
   }
 
-  auto on_byte = [this](uint8_t c) {
-    this->last_rx_ms_ = App.get_loop_component_start_time();
+  auto on_byte = [this, now](uint8_t c) {
+    this->last_rx_ms_ = now;
 #ifdef USE_VBUS_TX
     if (this->transmitter_ != nullptr)
       this->transmitter_->observe_byte(c);
@@ -153,9 +154,9 @@ void VBus::loop() {
   };
 #ifdef USE_VBUS_TX
   // Keep queued bytes visible to bus-grant and collision checks.
-  this->read_available<1>(on_byte, std::min(this->available(), VBUS_MAX_BYTES_PER_LOOP));
+  this->read_available<1>(on_byte, std::min(available, VBUS_MAX_BYTES_PER_LOOP));
 #else
-  this->read_available(on_byte, std::min(this->available(), VBUS_MAX_BYTES_PER_LOOP));
+  this->read_available(on_byte, std::min(available, VBUS_MAX_BYTES_PER_LOOP));
 #endif
 }
 
