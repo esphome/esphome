@@ -35,7 +35,6 @@ void MQTTTimeComponent::setup() {
 }
 
 void MQTTTimeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Time '%s':", this->time_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true);
 }
 

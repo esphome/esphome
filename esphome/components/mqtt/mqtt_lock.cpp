@@ -32,7 +32,6 @@ void MQTTLockComponent::setup() {
       [this](LockState /*state*/) { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
 void MQTTLockComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Lock '%s': ", this->lock_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true);
 }
 
