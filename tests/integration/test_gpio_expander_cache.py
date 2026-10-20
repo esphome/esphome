@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 import pytest
@@ -18,16 +17,6 @@ async def test_gpio_expander_cache(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test gpio_expander::CachedGpioExpander correctly calls hardware functions."""
-    # Get the path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     logs_done = asyncio.Event()
 
     # Patterns to match in logs - match any variation of digital_read

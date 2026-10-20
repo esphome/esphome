@@ -1,0 +1,186 @@
+# DFRobot SEN0395 on an ESP32 DevKit V1: V to VIN (5 V), G to GND, sensor TX to GPIO16 (RX2), sensor RX to GPIO17 (TX2),
+# IO2 to GPIO18, I1 unconnected. Settings buttons, the four switches and junk-line buttons whose echo and
+# "is not recognized" reply come back as lines of known length (220 and 240 bytes give replies over 252 chars).
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERBOSE
+  logs:
+    api: DEBUG
+    api.connection: DEBUG
+    api.service: DEBUG
+    wifi: DEBUG
+    mdns: DEBUG
+    scheduler: DEBUG
+    component: DEBUG
+    esp32: DEBUG
+    uart: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+uart:
+  id: mmwave_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 115200
+
+dfrobot_sen0395:
+  id: mmwave
+  uart_id: mmwave_uart
+
+binary_sensor:
+  - platform: dfrobot_sen0395
+    dfrobot_sen0395_id: mmwave
+    name: Detected via UART
+    id: uart_detected
+  - platform: gpio
+    name: Detected via GPIO
+    device_class: motion
+    pin:
+      number: GPIO18
+      mode: INPUT_PULLDOWN
+
+switch:
+  - platform: dfrobot_sen0395
+    dfrobot_sen0395_id: mmwave
+    type: sensor_active
+    name: Sensor active
+  - platform: dfrobot_sen0395
+    dfrobot_sen0395_id: mmwave
+    type: presence_via_uart
+    name: Presence via UART
+  - platform: dfrobot_sen0395
+    dfrobot_sen0395_id: mmwave
+    type: turn_on_led
+    name: LED
+  - platform: dfrobot_sen0395
+    dfrobot_sen0395_id: mmwave
+    type: start_after_boot
+    name: Start after boot
+
+button:
+  - platform: template
+    name: Range 0 to 3m
+    on_press:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          detection_segments:
+            - [0cm, 3m]
+  - platform: template
+    name: Range 0 to 9m
+    on_press:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          detection_segments:
+            - [0cm, 9m]
+  - platform: template
+    name: Latency 1s 2s
+    on_press:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          output_latency:
+            delay_after_detect: 1s
+            delay_after_disappear: 2s
+  - platform: template
+    name: Latency 0 0
+    on_press:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          output_latency:
+            delay_after_detect: 0s
+            delay_after_disappear: 0s
+  - platform: template
+    name: Sensitivity 7
+    on_press:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          sensitivity: 7
+  - platform: template
+    name: Factory reset
+    on_press:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          factory_reset: true
+  - platform: template
+    name: Reset
+    on_press:
+      - dfrobot_sen0395.reset:
+          id: mmwave
+  - platform: template
+    name: Junk 100
+    on_press:
+      - uart.write:
+          id: mmwave_uart
+          data: !lambda |-
+            std::vector<uint8_t> v(100, 'x');
+            v.push_back('\r');
+            v.push_back('\n');
+            return v;
+  - platform: template
+    name: Junk 160
+    on_press:
+      - uart.write:
+          id: mmwave_uart
+          data: !lambda |-
+            std::vector<uint8_t> v(160, 'x');
+            v.push_back('\r');
+            v.push_back('\n');
+            return v;
+  - platform: template
+    name: Junk 200
+    on_press:
+      - uart.write:
+          id: mmwave_uart
+          data: !lambda |-
+            std::vector<uint8_t> v(200, 'x');
+            v.push_back('\r');
+            v.push_back('\n');
+            return v;
+  - platform: template
+    name: Junk 220
+    on_press:
+      - uart.write:
+          id: mmwave_uart
+          data: !lambda |-
+            std::vector<uint8_t> v(220, 'x');
+            v.push_back('\r');
+            v.push_back('\n');
+            return v;
+  - platform: template
+    name: Junk 240
+    on_press:
+      - uart.write:
+          id: mmwave_uart
+          data: !lambda |-
+            std::vector<uint8_t> v(240, 'x');
+            v.push_back('\r');
+            v.push_back('\n');
+            return v;
+  - platform: template
+    name: Junk 256
+    on_press:
+      - uart.write:
+          id: mmwave_uart
+          data: !lambda |-
+            std::vector<uint8_t> v(256, 'x');
+            v.push_back('\r');
+            v.push_back('\n');
+            return v;
+
+interval:
+  - interval: 30s
+    then:
+      - lambda: 'ESP_LOGI("sen", "alive uart_detected=%d heap=%u", id(uart_detected).state, (unsigned) esp_get_free_heap_size());'

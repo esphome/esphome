@@ -204,10 +204,7 @@ void PortaSplitClimate::send_frame_(uint8_t proto, uint8_t type, const uint8_t *
   f[10 + len] = crc8(&f[10], (uint8_t) len);
   f[11 + len] = checksum(f, 11 + len);
   this->write_array(f, total);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(sizeof(f))];
-  ESP_LOGV(TAG, "TX: %s", format_hex_pretty_to(hex_buf, f, total));
-#endif
+  ESP_LOGV_HEX(TAG, f, total, sizeof(f), "TX: %s");
 }
 
 void PortaSplitClimate::send_set_command_() {
@@ -278,10 +275,7 @@ void PortaSplitClimate::rx_feed_(uint8_t b) {
     ESP_LOGW(TAG, "RX checksum mismatch, dropping frame");
     return;
   }
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MAX_FRAME)];
-  ESP_LOGV(TAG, "RX: %s", format_hex_pretty_to(hex_buf, this->rx_.data(), total));
-#endif
+  ESP_LOGV_HEX(TAG, this->rx_.data(), total, MAX_FRAME, "RX: %s");
   this->handle_frame_(this->rx_.data(), total);
 }
 

@@ -160,6 +160,38 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define ESP_LOGV(tag, ...) esph_log_v(tag, __VA_ARGS__)
 #define ESP_LOGVV(tag, ...) esph_log_vv(tag, __VA_ARGS__)
 
+// Log \p format with up to \p max_bytes of \p data as colon separated hex appended as its last %s argument.
+// The stack buffer exists only when the level is compiled in. Needs esphome/core/helpers.h.
+#define ESPHOME_LOG_HEX_(log_macro, tag, data, len, max_bytes, format, ...) \
+  do { \
+    char esph_log_hex_buf_[::esphome::format_hex_pretty_size(max_bytes)]; \
+    log_macro(tag, format, __VA_ARGS__ __VA_OPT__(, )::esphome::format_hex_pretty_to(esph_log_hex_buf_, data, len)); \
+  } while (0)
+#ifdef ESPHOME_LOG_HAS_DEBUG
+#define ESP_LOGD_HEX(tag, data, len, max_bytes, format, ...) \
+  ESPHOME_LOG_HEX_(ESP_LOGD, tag, data, len, max_bytes, format, __VA_ARGS__)
+#else
+#define ESP_LOGD_HEX(tag, data, len, max_bytes, format, ...) \
+  do { \
+  } while (0)
+#endif
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+#define ESP_LOGV_HEX(tag, data, len, max_bytes, format, ...) \
+  ESPHOME_LOG_HEX_(ESP_LOGV, tag, data, len, max_bytes, format, __VA_ARGS__)
+#else
+#define ESP_LOGV_HEX(tag, data, len, max_bytes, format, ...) \
+  do { \
+  } while (0)
+#endif
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+#define ESP_LOGVV_HEX(tag, data, len, max_bytes, format, ...) \
+  ESPHOME_LOG_HEX_(ESP_LOGVV, tag, data, len, max_bytes, format, __VA_ARGS__)
+#else
+#define ESP_LOGVV_HEX(tag, data, len, max_bytes, format, ...) \
+  do { \
+  } while (0)
+#endif
+
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte) \
   ((byte) & 0x80 ? '1' : '0'), ((byte) & 0x40 ? '1' : '0'), ((byte) & 0x20 ? '1' : '0'), ((byte) & 0x10 ? '1' : '0'), \

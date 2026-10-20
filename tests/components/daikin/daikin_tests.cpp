@@ -2,7 +2,6 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
-#include <new>
 #include <string>
 #include <vector>
 
@@ -146,9 +145,6 @@ struct Fixture {
     // A second fixture in the same test would otherwise restore what the first saved
     if (!keep_preferences && global_preferences != nullptr)
       global_preferences->reset();
-    // The test main does not construct App as generated code does; the boost timer needs its scheduler
-    static const bool APP_CONSTRUCTED = (new (&App) Application(), true);
-    (void) APP_CONSTRUCTED;
     static char name[] = "test_daikin";
     static char friendly_name[] = "";
     App.pre_setup(name, sizeof(name) - 1, friendly_name, 0);

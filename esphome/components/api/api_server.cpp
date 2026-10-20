@@ -65,6 +65,9 @@ void APIServer::socket_failed_(const LogString *msg) {
 }
 
 void APIServer::setup() {
+#if defined(USE_API_HOMEASSISTANT_STATES) && defined(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT)
+  this->state_subs_.reserve(HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT);
+#endif
 #ifdef USE_API_NOISE
   // Always reserve the slot: flash preferences are positional on esp8266, so
   // a yaml key build must keep the layout of a runtime key build
