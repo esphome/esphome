@@ -158,16 +158,14 @@ void WhirlpoolClimate::transmit_state() {
   data->mark(WHIRLPOOL_HEADER_MARK);
   data->space(WHIRLPOOL_HEADER_SPACE);
   // Data
-  data->item_bytes_lsb(remote_state, 6, WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE, WHIRLPOOL_ZERO_SPACE);
-  // Divider
-  data->mark(WHIRLPOOL_BIT_MARK);
-  data->space(WHIRLPOOL_GAP);
-  data->item_bytes_lsb(remote_state + 6, 8, WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE, WHIRLPOOL_ZERO_SPACE);
-  // Divider
-  data->mark(WHIRLPOOL_BIT_MARK);
-  data->space(WHIRLPOOL_GAP);
-  data->item_bytes_lsb(remote_state + 14, WHIRLPOOL_STATE_LENGTH - 14, WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE,
-                       WHIRLPOOL_ZERO_SPACE);
+  for (uint8_t i = 0; i < WHIRLPOOL_STATE_LENGTH; i++) {
+    if (i == 6 || i == 14) {
+      // Divider
+      data->mark(WHIRLPOOL_BIT_MARK);
+      data->space(WHIRLPOOL_GAP);
+    }
+    data->item_bytes_lsb(remote_state + i, 1, WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE, WHIRLPOOL_ZERO_SPACE);
+  }
   // Footer
   data->mark(WHIRLPOOL_BIT_MARK);
 
@@ -232,20 +230,20 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   uint8_t remote_state[WHIRLPOOL_STATE_LENGTH] = {0};
   bool skip_footer = false;
-  // Read all bytes, with a divider before bytes 6 and 14
-  if (!data.expect_bytes_lsb(remote_state, 6, WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE, WHIRLPOOL_ZERO_SPACE) ||
-      !data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_GAP) ||
-      !data.expect_bytes_lsb(remote_state + 6, 8, WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE, WHIRLPOOL_ZERO_SPACE) ||
-      !data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_GAP)) {
-    return false;
-  }
-  if (!data.is_valid()) {
-    // Remote control only sent 14 bytes, nothing more to read, not even the footer
-    ESP_LOGV(TAG, "Remote control only sent 14 bytes");
-    skip_footer = true;
-  } else if (!data.expect_bytes_lsb(remote_state + 14, WHIRLPOOL_STATE_LENGTH - 14, WHIRLPOOL_BIT_MARK,
-                                    WHIRLPOOL_ONE_SPACE, WHIRLPOOL_ZERO_SPACE)) {
-    return false;
+  // Read all bytes.
+  for (int i = 0; i < WHIRLPOOL_STATE_LENGTH; i++) {
+    if (i == 6 || i == 14) {
+      if (!data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_GAP))
+        return false;
+    }
+    if (i == 14 && !data.is_valid()) {
+      // Remote control only sent 14 bytes, nothing more to read, not even the footer
+      ESP_LOGV(TAG, "Remote control only sent %d bytes", i);
+      skip_footer = true;
+      break;
+    }
+    if (!data.expect_bytes_lsb(remote_state + i, 1, WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE, WHIRLPOOL_ZERO_SPACE))
+      return false;
   }
   // Validate footer
   if (!data.expect_mark(WHIRLPOOL_BIT_MARK) && !skip_footer) {
