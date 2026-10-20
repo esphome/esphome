@@ -131,5 +131,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     if (timeout := config[CONF_TIMEOUT]).total_milliseconds > 0:
         cg.add(var.set_timeout(timeout))
-    if (host := config.get(CONF_HOST)) is not None:
-        cg.add(var.set_host(host))
+    cg.add_optional(var.set_host, config.get(CONF_HOST))

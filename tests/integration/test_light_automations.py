@@ -9,6 +9,7 @@ import asyncio
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -68,32 +69,24 @@ async def test_light_automations(
         client.light_command(key=light.key, state=True)
 
         # Wait for on_turn_on trigger
-        try:
-            await asyncio.wait_for(on_turn_on_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("on_turn_on trigger did not fire")
+        await wait_or_fail(on_turn_on_future, 5.0, "on_turn_on trigger did not fire")
 
         # Wait for on_state trigger
-        try:
-            await asyncio.wait_for(on_state_future_1, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("on_state trigger did not fire after turn on")
+        await wait_or_fail(
+            on_state_future_1, 5.0, "on_state trigger did not fire after turn on"
+        )
 
         # Test 2: Turn light off - should trigger on_turn_off and on_state
         on_state_future_2 = create_on_state_future()
         client.light_command(key=light.key, state=False)
 
         # Wait for on_turn_off trigger
-        try:
-            await asyncio.wait_for(on_turn_off_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("on_turn_off trigger did not fire")
+        await wait_or_fail(on_turn_off_future, 5.0, "on_turn_off trigger did not fire")
 
         # Wait for on_state trigger
-        try:
-            await asyncio.wait_for(on_state_future_2, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("on_state trigger did not fire after turn off")
+        await wait_or_fail(
+            on_state_future_2, 5.0, "on_state trigger did not fire after turn off"
+        )
 
         # Verify on_state fired exactly twice (once for on, once for off)
         assert on_state_count == 2, (

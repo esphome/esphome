@@ -1,7 +1,6 @@
 """Rapid cancellation test - schedule and immediately cancel timeouts with string names."""
 
 import asyncio
-from pathlib import Path
 import re
 
 from aioesphomeapi import UserService
@@ -17,16 +16,6 @@ async def test_scheduler_rapid_cancellation(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test rapid schedule/cancel cycles that might expose race conditions."""
-
-    # Get the absolute path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
     # Create a future to signal test completion
     loop = asyncio.get_running_loop()

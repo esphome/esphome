@@ -19,7 +19,6 @@ test_uart_mock_ld2410_engineering (engineering mode):
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import ButtonInfo
 import pytest
@@ -35,14 +34,6 @@ async def test_uart_mock_ld2410(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2410 data parsing with happy path, garbage, overflow, and recovery."""
-    # Replace external component path placeholder
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
 
     # Track overflow warning in logs
@@ -184,13 +175,6 @@ async def test_uart_mock_ld2410_engineering(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2410 engineering mode with per-gate energy, light, and multi-byte distance."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     collector = SensorStateCollector(
         sensor_names=[
             "moving_distance",

@@ -149,7 +149,7 @@ i2c::ErrorCode XDB401Component::read_temperature_(float &temperature) {
   ESP_LOGV(TAG, "Got temperature data: %s", temperature_buf);
 
   // Temperature is a signed 16-bit big-endian value in 1/256 °C (Q8.8 fixed point).
-  int16_t raw_temperature = static_cast<int16_t>(encode_uint16(t_data[0], t_data[1]));
+  int16_t raw_temperature = encode_value<int16_t>(t_data);
   ESP_LOGD(TAG, "Temperature data raw %i", raw_temperature);
 
   temperature = static_cast<float>(raw_temperature) / 256.0f;
