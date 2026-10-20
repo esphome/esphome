@@ -152,6 +152,8 @@ class A2DPSourceSpeaker final : public Component, public speaker::Speaker {
   uint32_t avrcp_connect_deadline_ms_{0};
   std::atomic<int64_t> previous_callback_us_{0};
   std::atomic<uint32_t> next_connect_attempt_ms_{0};
+  uint32_t scanner_wait_started_ms_{0};
+  bool scanner_stop_starting_requested_{false};
   uint32_t next_media_check_ms_{0};
 };
 
