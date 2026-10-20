@@ -81,8 +81,7 @@ void SoundLevelComponent::loop() {
   }
 
   // Expose a chunk of the ring buffer's internal storage - don't block to avoid slowing the main loop.
-  // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
-  this->audio_source_->fill(0, false);
+  this->audio_source_->fill(0);
 
   if (this->audio_source_->available() == 0) {
     // No new audio available for processing

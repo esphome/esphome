@@ -18,7 +18,6 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
-from esphome.cpp_helpers import gpio_pin_expression
 from esphome.types import ConfigType
 
 zyaura_ns = cg.esphome_ns.namespace("zyaura")
@@ -56,10 +55,8 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    pin_clock = await gpio_pin_expression(config[CONF_CLOCK_PIN])
-    cg.add(var.set_pin_clock(pin_clock))
-    pin_data = await gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_pin_data(pin_data))
+    await cg.add_pin(var.set_pin_clock, config[CONF_CLOCK_PIN])
+    await cg.add_pin(var.set_pin_data, config[CONF_DATA_PIN])
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_CO2, var.set_co2_sensor)

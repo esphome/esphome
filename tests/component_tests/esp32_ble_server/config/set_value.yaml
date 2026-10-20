@@ -1,0 +1,37 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+
+esp32_ble_server:
+  id: ble_server
+  services:
+    - uuid: 2a24b789-7aab-4535-af3e-ee76a35cc12d
+      characteristics:
+        - id: test_characteristic
+          uuid: cad48e28-7fbe-41cf-bae9-d77a6c233423
+          read: true
+          value: [1, 2, 3, 4]
+          descriptors:
+            - id: test_descriptor
+              uuid: 0x4414
+              value: "Initial"
+        - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc99a
+          write: true
+          on_write:
+            - ble_server.characteristic.set_value:
+                id: test_characteristic
+                value:
+                  data: 4660
+                  type: uint16_t
+                  endianness: BIG
+            - ble_server.descriptor.set_value:
+                id: test_descriptor
+                value:
+                  data: 4660
+                  type: uint16_t
+                  endianness: BIG
+            - ble_server.characteristic.set_value:
+                id: test_characteristic
+                value: !lambda return x;

@@ -30,20 +30,24 @@ class HUB75Display final : public display::Display {
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
   // Brightness control (runtime mutable)
   void set_brightness(uint8_t brightness);
 
+  void set_rotation(display::DisplayRotation rotation) override;
+  display::DisplayRotation get_rotation() const override;
+
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
   // Display internal methods
   int get_width_internal() override { return this->driver_ != nullptr ? this->driver_->get_width() : 0; }
   int get_height_internal() override { return this->driver_ != nullptr ? this->driver_->get_height() : 0; }
 
   // Member variables
   Hub75Driver *driver_{nullptr};
-  Hub75Config config_;  // Immutable configuration
+  Hub75Config config_;  // Fixed after setup(); only the rotation can change before the driver exists
 
   // Runtime state (mutable)
   uint8_t brightness_{128};

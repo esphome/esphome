@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_SOURCES
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
@@ -16,7 +17,7 @@ from esphome.const import (
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@Cat-Ion", "@kahrendt"]
+CODEOWNERS = ["@kahrendt"]
 
 combination_ns = cg.esphome_ns.namespace("combination")
 
@@ -59,7 +60,6 @@ CONF_MEDIAN = "median"
 CONF_MIN = "min"
 CONF_MOST_RECENTLY_UPDATED = "most_recently_updated"
 CONF_PROCESS_STD_DEV = "process_std_dev"
-CONF_SOURCES = "sources"
 CONF_STD_DEV = "std_dev"
 
 
