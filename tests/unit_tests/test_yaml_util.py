@@ -431,12 +431,32 @@ def test_track_yaml_loads_empty_outside_context(tmp_path: Path) -> None:
 
 def test_track_yaml_loads_cleanup_on_exception(tmp_path: Path) -> None:
     """Listener is removed even if the body raises."""
-    before = len(yaml_util._load_listeners)
+    before = len(yaml_util.load_listeners)
 
     with pytest.raises(RuntimeError), yaml_util.track_yaml_loads():
         raise RuntimeError("boom")
 
-    assert len(yaml_util._load_listeners) == before
+    assert len(yaml_util.load_listeners) == before
+
+
+def test_load_listener_removing_itself_does_not_skip_the_next(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A listener that removes itself while notified does not skip the one after it."""
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text("key: value\n")
+    listeners: list[Callable[[Path], None]] = []
+    monkeypatch.setattr(yaml_util, "load_listeners", listeners)
+    seen: list[Path] = []
+
+    def first(fname: Path) -> None:
+        listeners.remove(first)
+
+    listeners.extend((first, seen.append))
+    yaml_util.load_yaml(yaml_file)
+
+    assert seen == [yaml_file.resolve()]
+    assert listeners == [seen.append]
 
 
 def test_track_yaml_loads_no_duplicate_load_on_top_level_include_failure(

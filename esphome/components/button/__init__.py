@@ -15,9 +15,15 @@ from esphome.const import (
     DEVICE_CLASS_IDENTIFY,
     DEVICE_CLASS_RESTART,
     DEVICE_CLASS_UPDATE,
+    ENTITY_CATEGORY_CONFIG,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_DATABASE,
+    ICON_RESTART,
+    ICON_RESTART_ALERT,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
@@ -41,6 +47,7 @@ DEVICE_CLASSES = [
 button_ns = cg.esphome_ns.namespace("button")
 Button = button_ns.class_("Button", cg.EntityBase)
 ButtonPtr = Button.operator("ptr")
+ApplyButton = button_ns.class_("ApplyButton", Button)
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
@@ -83,6 +90,40 @@ def button_schema(
     return _BUTTON_SCHEMA.extend(schema)
 
 
+def factory_reset_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that resets the connected module to factory settings.
+
+    For a sensor or radio module's own reset, not the ESPHome node.
+    """
+    return button_schema(
+        class_,
+        device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon=ICON_RESTART_ALERT,
+    )
+
+
+def restart_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that restarts the connected module.
+
+    For a sensor or radio module's own restart, not the ESPHome node; the core
+    restart button uses the config category instead of diagnostic.
+    """
+    return button_schema(
+        class_,
+        device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        icon=ICON_RESTART,
+    )
+
+
+def query_button_schema(class_: MockObjClass) -> cv.Schema:
+    """Schema for a button that reads the settings back from the connected module."""
+    return button_schema(
+        class_, entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_DATABASE
+    )
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_PRESS, "add_on_press_callback"),
 )
@@ -116,11 +157,14 @@ async def new_button(config: ConfigType, *args: SafeExpType) -> MockObj:
     return var
 
 
+APPLY_ENTITY = ApplyEntity(ApplyButton, ((ButtonPtr, "entity"),))
+
+
 def sub_buttons(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_button."""
-    return SubEntities(new_button, config, parent)
+    """Return a SubEntities bound to new_button; ``apply`` statements can use ``entity``."""
+    return SubEntities(new_button, config, parent, APPLY_ENTITY)
 
 
 BUTTON_PRESS_SCHEMA = maybe_simple_id(

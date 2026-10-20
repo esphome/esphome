@@ -13,6 +13,7 @@ from esphome.components.wifi import (
     CONF_AP_MODE,
     CONF_AP_TIMEOUT,
     CONF_DNS_SERVERS,
+    _validate_dpp_device_info,
     check_placeholder_credentials,
     final_validate as wifi_final_validate,
     has_native_wifi,
@@ -217,6 +218,14 @@ def test_check_placeholder_credentials_skips_template_ssid() -> None:
     """A templated (Lambda) SSID is not a string and is skipped."""
     config = _wifi_config(networks=[{CONF_SSID: Lambda('return "x";')}])
     assert check_placeholder_credentials(config) is None
+
+
+@pytest.mark.parametrize("info", ["ESPHome bench", "a\tb", " x"])
+def test_dpp_device_info_rejects_whitespace(info: str) -> None:
+    """The supplicant reads the text up to the first space."""
+    with pytest.raises(cv.Invalid, match="whitespace"):
+        _validate_dpp_device_info(info)
+    assert _validate_dpp_device_info("bench-01") == "bench-01"
 
 
 @pytest.fixture
