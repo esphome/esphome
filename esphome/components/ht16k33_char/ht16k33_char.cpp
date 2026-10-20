@@ -106,9 +106,11 @@ bool HT16K33CharDisplay::write_all_(uint8_t command) {
 
 uint8_t HT16K33CharDisplay::find_segments_(uint32_t codepoint) const {
 #ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
-  for (uint8_t i = 0; i < this->glyph_override_count_; i++) {
+  for (const Glyph *entry = this->glyph_overrides_;; entry++) {
     Glyph glyph;
-    progmem_memcpy(&glyph, &this->glyph_overrides_[i], sizeof(glyph));
+    progmem_memcpy(&glyph, entry, sizeof(glyph));
+    if (glyph.codepoint == 0)
+      break;
     if (glyph.codepoint == codepoint)
       return glyph.segments;
   }

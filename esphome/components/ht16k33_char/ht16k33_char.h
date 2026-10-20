@@ -12,7 +12,7 @@ namespace esphome::ht16k33_char {
 class HT16K33CharDisplay;
 using ht16k33_char_writer_t = display::DisplayWriter<HT16K33CharDisplay>;
 
-/// One add_characters entry
+/// One add_characters entry; a code point of 0 ends the table
 struct Glyph {
   uint16_t codepoint;
   uint8_t segments;
@@ -35,10 +35,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   void add_secondary_display(uint8_t address) { this->secondary_addresses_.push_back(address); }
 #endif
 #ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
-  void set_glyph_overrides(const Glyph *glyphs, uint8_t count) {
-    this->glyph_overrides_ = glyphs;
-    this->glyph_override_count_ = count;
-  }
+  void set_glyph_overrides(const Glyph *glyphs) { this->glyph_overrides_ = glyphs; }
 #endif
 
   /// For printing from automations; the lambda starts from an empty message
@@ -79,9 +76,6 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   uint8_t intensity_{15};
   /// Display setup register: on bit and blink rate
   uint8_t display_setup_{0};
-#ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
-  uint8_t glyph_override_count_{0};
-#endif
   ht16k33_char_writer_t writer_{};
 #ifdef HT16K33_CHAR_SECONDARY_COUNT
   StaticVector<uint8_t, HT16K33_CHAR_SECONDARY_COUNT> secondary_addresses_;

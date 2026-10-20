@@ -18,8 +18,6 @@ DEVICE_ADAFRUIT_7_SEG_056IN = "ADAFRUIT_7_SEG_.56IN"
 MAX_SECONDARY_DISPLAYS = 7
 # FORMAT_BUFFER_SIZE in ht16k33_char.cpp is one more
 MAX_BUFFER_LENGTH = 64
-# The glyph table index is a byte
-MAX_GLYPH_OVERRIDES = 255
 
 ht16k33_char_ns = cg.esphome_ns.namespace("ht16k33_char")
 HT16K33CharDisplay = ht16k33_char_ns.class_(
@@ -56,8 +54,6 @@ def _validate(config: ConfigType) -> ConfigType:
     ]
     if len(set(addresses)) != len(addresses):
         raise cv.Invalid("Every display needs its own address")
-    if len(config.get(CONF_ADD_CHARACTERS, {})) > MAX_GLYPH_OVERRIDES:
-        raise cv.Invalid(f"At most {MAX_GLYPH_OVERRIDES} characters can be added")
     return config
 
 
@@ -106,15 +102,17 @@ async def to_code(config: ConfigType) -> None:
         for char, segments in config.get(CONF_ADD_CHARACTERS, {}).items()
     }
     if glyphs:
+        # A code point of 0 ends the table
         table = cg.shared_progmem_array(
             "ht16k33_char_glyphs",
             Glyph,
             [
                 cg.RawExpression(f"{{{codepoint}, {segments}}}")
                 for codepoint, segments in glyphs.items()
-            ],
+            ]
+            + [cg.RawExpression("{0, 0}")],
         )
         cg.add_define("USE_HT16K33_CHAR_GLYPH_OVERRIDES")
-        cg.add(var.set_glyph_overrides(table, len(glyphs)))
+        cg.add(var.set_glyph_overrides(table))
 
     await display.add_writer(var, config, HT16K33CharDisplayRef)
