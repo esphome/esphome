@@ -54,6 +54,7 @@ void IslandaireClimate::setup() {
   // The base class default assumes Celsius
   if (std::isnan(this->target_temperature) || this->target_temperature < TEMP_MIN)
     this->target_temperature = TEMP_DEFAULT;
+  this->target_temperature = std::min<float>(this->target_temperature, TEMP_MAX);
 }
 
 void IslandaireClimate::dump_config() {
@@ -88,7 +89,11 @@ void IslandaireClimate::transmit_state() {
       break;
   }
 
-  remote_state[7] = static_cast<uint8_t>(std::clamp<float>(std::round(this->target_temperature), TEMP_MIN, TEMP_MAX));
+  // Whole degrees within the unit's range, stored as well so the published state matches what was sent
+  const auto temperature =
+      static_cast<uint8_t>(std::clamp<float>(std::round(this->target_temperature), TEMP_MIN, TEMP_MAX));
+  this->target_temperature = temperature;
+  remote_state[7] = temperature;
 
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:

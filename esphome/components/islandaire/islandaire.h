@@ -4,7 +4,7 @@
 
 namespace esphome::islandaire {
 
-class IslandaireClimate final : public climate_ir::ClimateIR {
+class IslandaireClimate : public climate_ir::ClimateIR {
  public:
   // The unit works in whole degrees Fahrenheit (see traits())
   static constexpr uint8_t TEMP_MIN = 61;
