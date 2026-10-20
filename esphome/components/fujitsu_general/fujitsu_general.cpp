@@ -66,9 +66,8 @@ constexpr uint8_t FUJITSU_GENERAL_FAN_SILENT = 0x04;
 constexpr uint16_t FUJITSU_GENERAL_HEADER_MARK = 3300;
 constexpr uint16_t FUJITSU_GENERAL_HEADER_SPACE = 1600;
 
-constexpr uint16_t FUJITSU_GENERAL_BIT_MARK = 420;
-constexpr uint16_t FUJITSU_GENERAL_ONE_SPACE = 1200;
-constexpr uint16_t FUJITSU_GENERAL_ZERO_SPACE = 420;
+static constexpr remote_base::BitTimings FUJITSU_GENERAL_BIT_TIMINGS{
+    .bit_mark = 420, .one_space = 1200, .zero_space = 420};
 
 constexpr uint16_t FUJITSU_GENERAL_TRL_MARK = 420;
 constexpr uint16_t FUJITSU_GENERAL_TRL_SPACE = 8000;
@@ -207,14 +206,7 @@ void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
   data->space(FUJITSU_GENERAL_HEADER_SPACE);
 
   // Data
-  for (uint8_t i = 0; i < length; ++i) {
-    const uint8_t byte = message[i];
-    for (uint8_t mask = 0b00000001; mask > 0; mask <<= 1) {  // write from right to left
-      data->mark(FUJITSU_GENERAL_BIT_MARK);
-      bool bit = byte & mask;
-      data->space(bit ? FUJITSU_GENERAL_ONE_SPACE : FUJITSU_GENERAL_ZERO_SPACE);
-    }
-  }
+  data->item_bytes_lsb<FUJITSU_GENERAL_BIT_TIMINGS>(message, length);
 
   // Footer
   data->mark(FUJITSU_GENERAL_TRL_MARK);
@@ -287,16 +279,9 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t recv_message[FUJITSU_GENERAL_STATE_MESSAGE_LENGTH] = {0};
 
   // Read header
-  for (uint8_t byte = 0; byte < FUJITSU_GENERAL_COMMON_LENGTH; ++byte) {
-    // Read bit
-    for (uint8_t bit = 0; bit < 8; ++bit) {
-      if (data.expect_item(FUJITSU_GENERAL_BIT_MARK, FUJITSU_GENERAL_ONE_SPACE)) {
-        recv_message[byte] |= 1 << bit;  // read from right to left
-      } else if (!data.expect_item(FUJITSU_GENERAL_BIT_MARK, FUJITSU_GENERAL_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", byte, bit);
-        return false;
-      }
-    }
+  if (!data.expect_bytes_lsb<FUJITSU_GENERAL_BIT_TIMINGS>(recv_message, FUJITSU_GENERAL_COMMON_LENGTH)) {
+    ESP_LOGV(TAG, "Header bytes fail");
+    return false;
   }
 
   const uint8_t recv_message_type = recv_message[FUJITSU_GENERAL_MESSAGE_TYPE_BYTE];
@@ -319,15 +304,10 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Read message body
-  for (uint8_t byte = FUJITSU_GENERAL_COMMON_LENGTH; byte < recv_message_length; ++byte) {
-    for (uint8_t bit = 0; bit < 8; ++bit) {
-      if (data.expect_item(FUJITSU_GENERAL_BIT_MARK, FUJITSU_GENERAL_ONE_SPACE)) {
-        recv_message[byte] |= 1 << bit;  // read from right to left
-      } else if (!data.expect_item(FUJITSU_GENERAL_BIT_MARK, FUJITSU_GENERAL_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", byte, bit);
-        return false;
-      }
-    }
+  if (!data.expect_bytes_lsb<FUJITSU_GENERAL_BIT_TIMINGS>(recv_message + FUJITSU_GENERAL_COMMON_LENGTH,
+                                                          recv_message_length - FUJITSU_GENERAL_COMMON_LENGTH)) {
+    ESP_LOGV(TAG, "Body bytes fail");
+    return false;
   }
 
   for (uint8_t byte = 0; byte < recv_message_length; ++byte) {
