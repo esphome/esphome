@@ -14,8 +14,7 @@ static constexpr uint32_t CARRIER_FREQUENCY_HZ = 38000;
 static constexpr uint32_t HEADER_MARK_US = 3000;
 static constexpr uint32_t HEADER_SPACE_US = 9000;
 static constexpr uint32_t BIT_MARK_US = 500;
-static constexpr uint32_t ONE_SPACE_US = 1500;
-static constexpr uint32_t ZERO_SPACE_US = 500;
+static constexpr remote_base::BitTimings BIT_TIMINGS{.bit_mark = BIT_MARK_US, .one_space = 1500, .zero_space = 500};
 static constexpr uint32_t SECTION_SPACE_US = 2000;
 
 static constexpr uint8_t EXTENDED_LENGTH = 3 * SAMSUNG_AC_SECTION_LENGTH;
@@ -163,7 +162,7 @@ void SamsungClimate::send_sections_(const uint8_t *const *sections, uint8_t coun
     uint8_t section[SAMSUNG_AC_SECTION_LENGTH];
     memcpy(section, sections[s], SAMSUNG_AC_SECTION_LENGTH);
     store_checksum(section);
-    data->item_bytes_lsb(section, SAMSUNG_AC_SECTION_LENGTH, BIT_MARK_US, ONE_SPACE_US, ZERO_SPACE_US);
+    data->item_bytes_lsb(section, SAMSUNG_AC_SECTION_LENGTH, BIT_TIMINGS);
   }
 
   data->mark(BIT_MARK_US);
@@ -192,7 +191,7 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
       }
     }
-    if (!data.expect_bytes_lsb(frame + i, SAMSUNG_AC_SECTION_LENGTH, BIT_MARK_US, ONE_SPACE_US, ZERO_SPACE_US)) {
+    if (!data.expect_bytes_lsb(frame + i, SAMSUNG_AC_SECTION_LENGTH, BIT_TIMINGS)) {
       ESP_LOGW(TAG, "Bad bit in section %u", i / SAMSUNG_AC_SECTION_LENGTH);
       return false;
     }

@@ -9,8 +9,8 @@ ESPHOME_LOG_TAG(TAG, "whirlpool.climate");
 const uint16_t WHIRLPOOL_HEADER_MARK = 9000;
 const uint16_t WHIRLPOOL_HEADER_SPACE = 4494;
 const uint16_t WHIRLPOOL_BIT_MARK = 572;
-const uint16_t WHIRLPOOL_ONE_SPACE = 1659;
-const uint16_t WHIRLPOOL_ZERO_SPACE = 553;
+static constexpr remote_base::BitTimings WHIRLPOOL_BIT_TIMINGS{
+    .bit_mark = WHIRLPOOL_BIT_MARK, .one_space = 1659, .zero_space = 553};
 const uint32_t WHIRLPOOL_GAP = 7960;
 
 const uint32_t WHIRLPOOL_CARRIER_FREQUENCY = 38000;
@@ -164,7 +164,7 @@ void WhirlpoolClimate::transmit_state() {
       data->mark(WHIRLPOOL_BIT_MARK);
       data->space(WHIRLPOOL_GAP);
     }
-    data->item_bytes_lsb(remote_state + i, 1, WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE, WHIRLPOOL_ZERO_SPACE);
+    data->item_bytes_lsb(remote_state + i, 1, WHIRLPOOL_BIT_TIMINGS);
   }
   // Footer
   data->mark(WHIRLPOOL_BIT_MARK);
@@ -242,7 +242,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
       skip_footer = true;
       break;
     }
-    if (!data.expect_bytes_lsb(remote_state + i, 1, WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE, WHIRLPOOL_ZERO_SPACE))
+    if (!data.expect_bytes_lsb(remote_state + i, 1, WHIRLPOOL_BIT_TIMINGS))
       return false;
   }
   // Validate footer
