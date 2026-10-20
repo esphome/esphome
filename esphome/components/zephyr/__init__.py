@@ -905,7 +905,11 @@ def _zephyr_cdc_acm_add_ports() -> None:
     if not users:
         return
     zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", True)
-    zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", True)
+    # Zephyr's boot-time setup registers only port 0; usb_device.cpp registers every port
+    multi_port = max(users) > 0
+    zephyr_add_prj_conf("CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT", not multi_port)
+    if multi_port:
+        cg.add_define("USE_ZEPHYR_USB_DEVICE")
     zephyr_add_prj_conf("SERIAL", True)
     nodes = "".join(
         f"""
