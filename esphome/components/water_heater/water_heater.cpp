@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/progmem.h"
+#include "esphome/core/helpers.h"
 
 #include <cmath>
 #include <cstring>

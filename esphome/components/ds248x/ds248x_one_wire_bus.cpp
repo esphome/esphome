@@ -1,5 +1,6 @@
 #include "ds248x_one_wire_bus.h"
 #include "ds248x.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ds248x {

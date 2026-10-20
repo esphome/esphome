@@ -1,6 +1,7 @@
 #include "htu21d.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome::htu21d {
 

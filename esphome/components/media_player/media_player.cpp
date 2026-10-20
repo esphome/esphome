@@ -1,6 +1,7 @@
 #include "media_player.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 

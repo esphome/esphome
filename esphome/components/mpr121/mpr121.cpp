@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mpr121 {
