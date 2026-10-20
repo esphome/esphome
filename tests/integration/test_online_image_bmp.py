@@ -5,7 +5,6 @@ import asyncio
 import pytest
 
 from .online_image_utils import LEN_BMP_IMAGE, handle_http, make_download_watcher
-from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -42,7 +41,9 @@ async def test_online_image_bmp(
     ):
         # Verify device info
 
-        await assert_device_name(client, "online-image-bmp")
+        device_info = await client.device_info()
+        assert device_info is not None
+        assert device_info.name == "online-image-bmp"
 
         # List services to find our test service
         _, services = await client.list_entities_services()
