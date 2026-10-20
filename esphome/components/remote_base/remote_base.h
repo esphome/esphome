@@ -28,15 +28,14 @@ class RemoteTransmitData {
     this->space(space);
   }
   void reserve(uint32_t len) { this->data_.reserve(len); }
-  /// Append one (bit_mark, one_space or zero_space) item per bit of each byte, least significant bit first.
-  /// Inline: one driver's loop is smaller than a shared out-of-line copy.
+  /// One (bit_mark, one_space or zero_space) item per bit, least significant bit first.
   void item_bytes_lsb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
     for (size_t i = 0; i < len; i++) {
       for (uint8_t mask = 1; mask != 0; mask <<= 1)
         this->item(bit_mark, (bytes[i] & mask) ? one_space : zero_space);
     }
   }
-  /// Same as item_bytes_lsb() with the most significant bit of each byte first.
+  /// Most significant bit first.
   void item_bytes_msb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
     for (size_t i = 0; i < len; i++) {
       for (uint8_t mask = 0x80; mask != 0; mask >>= 1)
@@ -92,13 +91,11 @@ class RemoteReceiveData {
   bool expect_space(uint32_t length);
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
-  /// Read len bytes, least significant bit first, one (bit_mark, one_space or zero_space) item per bit.
-  /// Returns false at the first item matching neither, with the read position left on that item.
-  /// Only the bytes read in full are written to out.
+  /// Least significant bit first; false at the first item matching neither space, leaving it unread.
   bool expect_bytes_lsb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
     return this->expect_bytes_<false>(out, len, bit_mark, one_space, zero_space);
   }
-  /// Same as expect_bytes_lsb() with the most significant bit of each byte first.
+  /// Most significant bit first.
   bool expect_bytes_msb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space) {
     return this->expect_bytes_<true>(out, len, bit_mark, one_space, zero_space);
   }
