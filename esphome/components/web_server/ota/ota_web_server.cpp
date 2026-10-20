@@ -9,12 +9,6 @@
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
-#ifdef USE_ARDUINO
-#if defined(USE_LIBRETINY)
-#include <Update.h>
-#endif
-#endif  // USE_ARDUINO
-
 #if USE_ESP32
 using PlatformString = std::string;
 #elif USE_ARDUINO
@@ -23,7 +17,7 @@ using PlatformString = String;
 
 namespace esphome::web_server {
 
-static const char *const TAG = "web_server.ota";
+ESPHOME_LOG_TAG(TAG, "web_server.ota");
 
 class OTARequestHandler : public AsyncWebHandler {
  public:
@@ -64,6 +58,10 @@ class OTARequestHandler : public AsyncWebHandler {
   void report_ota_progress_(AsyncWebServerRequest *request);
   void schedule_ota_reboot_();
   void ota_init_(const char *filename);
+  /// Abort and drop the backend, releasing the lock.
+  void abort_session_();
+  /// Reply "busy" without touching the running upload.
+  void refuse_(AsyncWebServerRequest *request);
 
   uint32_t last_ota_progress_{0};
   uint32_t ota_read_length_{0};
@@ -72,6 +70,9 @@ class OTARequestHandler : public AsyncWebHandler {
 
  private:
   ota::OTABackendPtr ota_backend_{nullptr};
+  /// Request that owns ota_backend_.
+  const AsyncWebServerRequest *ota_request_{nullptr};
+  const AsyncWebServerRequest *refused_request_{nullptr};
 };
 
 void OTARequestHandler::report_ota_progress_(AsyncWebServerRequest *request) {
@@ -118,37 +119,12 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
   // fires a separate start-marker call with data==nullptr/len==0 before the
   // first real chunk; gate on len>0 so we only trigger once per upload.)
   if (index == 0 && len > 0) {
-    // If a previous upload was interrupted (e.g. client closed the tab, TCP
-    // reset) the backend from that session may still be open. Tear it down
-    // so flash state doesn't get concatenated with the new image (which can
-    // produce a technically-valid-sized but corrupted firmware that bricks
-    // the device once it reboots).
+    // A stalled upload times out and onDisconnect() frees it, so refusing can't block for long.
     if (this->ota_backend_) {
-      ESP_LOGW(TAG, "New OTA upload received while previous session was still open; aborting previous session");
-      this->ota_backend_->abort();
-#ifdef USE_OTA_STATE_LISTENER
-      // Notify listeners that the previous session was aborted before the new one starts.
-      this->parent_->notify_state_deferred_(ota::OTA_ABORT, 0.0f, 0);
-#endif
-      this->ota_backend_.reset();
+      ESP_LOGW(TAG, "OTA upload refused: another upload is in progress");
+      this->refuse_(request);
+      return;
     }
-
-    // Initialize OTA on first call
-    this->ota_init_(filename.c_str());
-
-#ifdef USE_OTA_STATE_LISTENER
-    // Notify OTA started - use notify_state_deferred_ since we're in web server task
-    this->parent_->notify_state_deferred_(ota::OTA_STARTED, 0.0f, 0);
-#endif
-
-    // Platform-specific pre-initialization
-#ifdef USE_ARDUINO
-#if defined(USE_LIBRETINY)
-    if (Update.isRunning()) {
-      Update.abort();
-    }
-#endif
-#endif  // USE_ARDUINO
 
     this->ota_backend_ = ota::make_ota_backend();
     if (!this->ota_backend_) {
@@ -164,6 +140,22 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     // is unknown (contentLength includes multipart overhead)
     // Pass 0 to indicate unknown size
     error_code = this->ota_backend_->begin(0);
+    if (error_code == ota::OTA_RESPONSE_ERROR_UPDATE_BUSY) {
+      // Nothing started: no state notifications.
+      ESP_LOGW(TAG, "OTA upload refused: another update is in progress");
+      this->ota_backend_.reset();
+      this->refuse_(request);
+      return;
+    }
+
+    // Initialize OTA on first call
+    this->ota_init_(filename.c_str());
+
+#ifdef USE_OTA_STATE_LISTENER
+    // Notify OTA started - use notify_state_deferred_ since we're in web server task
+    this->parent_->notify_state_deferred_(ota::OTA_STARTED, 0.0f, 0);
+#endif
+
     if (error_code != ota::OTA_RESPONSE_OK) {
       ESP_LOGE(TAG, "OTA begin failed: %d", error_code);
       this->ota_backend_.reset();
@@ -172,9 +164,18 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
 #endif
       return;
     }
+
+    // An interrupted upload gets no final chunk.
+    this->ota_request_ = request;
+    request->onDisconnect([this, request]() {
+      if (this->ota_request_ == request && this->ota_backend_) {
+        ESP_LOGW(TAG, "OTA upload interrupted; aborting");
+        this->abort_session_();
+      }
+    });
   }
 
-  if (!this->ota_backend_) {
+  if (!this->ota_backend_ || request != this->ota_request_) {
     return;
   }
 
@@ -185,6 +186,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       ESP_LOGE(TAG, "OTA write failed: %d", error_code);
       this->ota_backend_->abort();
       this->ota_backend_.reset();
+      this->ota_request_ = nullptr;
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
@@ -212,28 +214,54 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       this->schedule_ota_reboot_();
     } else {
       ESP_LOGE(TAG, "OTA end failed: %d", error_code);
+      // Reset the platform updater before the lock is released.
+      this->ota_backend_->abort();
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
     }
     this->ota_backend_.reset();
+    this->ota_request_ = nullptr;
   }
+}
+
+void OTARequestHandler::abort_session_() {
+  this->ota_backend_->abort();
+#ifdef USE_OTA_STATE_LISTENER
+  this->parent_->notify_state_deferred_(ota::OTA_ABORT, 0.0f, 0);
+#endif
+  this->ota_backend_.reset();
+  this->ota_request_ = nullptr;
+}
+
+void OTARequestHandler::refuse_(AsyncWebServerRequest *request) {
+  this->refused_request_ = request;
+  request->onDisconnect([this, request]() {
+    if (this->refused_request_ == request)
+      this->refused_request_ = nullptr;
+  });
 }
 
 void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response;
   // Use the ota_success_ flag to determine the actual result
+  const bool refused = request == this->refused_request_;
+  if (refused)
+    this->refused_request_ = nullptr;
 #ifdef USE_ESP8266
   static const char UPDATE_SUCCESS[] PROGMEM = "Update Successful!";
   static const char UPDATE_FAILED[] PROGMEM = "Update Failed!";
+  static const char UPDATE_BUSY[] PROGMEM = "Update Failed! Another update is in progress, retry later.";
   static const char TEXT_PLAIN[] PROGMEM = "text/plain";
   static const char CONNECTION_STR[] PROGMEM = "Connection";
   static const char CLOSE_STR[] PROGMEM = "close";
-  const char *msg = this->ota_success_ ? UPDATE_SUCCESS : UPDATE_FAILED;
+  const char *msg = refused ? UPDATE_BUSY : (this->ota_success_ ? UPDATE_SUCCESS : UPDATE_FAILED);
   response = request->beginResponse_P(200, TEXT_PLAIN, msg);
   response->addHeader(CONNECTION_STR, CLOSE_STR);
 #else
-  const char *msg = this->ota_success_ ? "Update Successful!" : "Update Failed!";
+  const char *msg = refused              ? "Update Failed! Another update is in progress, retry later."
+                    : this->ota_success_ ? "Update Successful!"
+                                         : "Update Failed!";
   response = request->beginResponse(200, "text/plain", msg);
   response->addHeader("Connection", "close");
 #endif

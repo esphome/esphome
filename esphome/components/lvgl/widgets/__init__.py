@@ -1,10 +1,11 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import ExitStack
 import sys
 from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
-from esphome.config_validation import Invalid, Schema
+from esphome.config_validation import Schema
 from esphome.const import (
     CONF_DEFAULT,
     CONF_GROUP,
@@ -21,6 +22,7 @@ from esphome.schema_extractors import EnableSchemaExtraction
 from esphome.types import Expression
 
 from ..defines import (
+    CONF_DEBUG_OUTLINE,
     CONF_FLEX_ALIGN_CROSS,
     CONF_FLEX_ALIGN_MAIN,
     CONF_FLEX_ALIGN_TRACK,
@@ -36,22 +38,25 @@ from ..defines import (
     CONF_SCALE,
     CONF_STYLES,
     CONF_WIDGETS,
+    CUSTOM_FLAGS,
+    FLAG_SETTER_ALIASES,
     LOGGER,
     OBJ_FLAGS,
     PARTS,
     STATES,
     LValidator,
     add_lv_use,
+    add_warning,
+    get_options,
+    get_part_state_selector,
     get_styles_used,
-    get_theme_widget_map,
     get_widget_map,
-    get_widgets_completed,
-    join_enums,
     literal,
+    next_debug_outline_color,
 )
 from ..lv_validation import lv_int
 from ..lvcode import (
-    LvConditional,
+    LocalVariable,
     add_line_marks,
     lv,
     lv_add,
@@ -180,7 +185,7 @@ class WidgetType:
         wid = config[CONF_ID]
         add_line_marks(wid)
         if self.is_compound():
-            var = cg.new_Pvariable(wid)
+            var = cg.new_Pvariable(wid, *await self.get_ctor_args(config))
             lv_add(var.set_obj(creator))
             await self.on_create(var.obj, config)
         else:
@@ -191,16 +196,25 @@ class WidgetType:
         w = Widget.create(wid, var, self, config)
         apply_theme_styles(w)
         await set_obj_properties(w, config)
+        apply_debug_outline(w)
         await add_widgets(w, config)
         await self.to_code(w, config)
         return w
 
-    async def to_code(self, w: "Widget", config: dict):
+    async def to_code(self, w: "Widget", config: dict) -> None:
         """
-        Update a widget, also called when creating
+        Generate code for widget properties and actions.
         :param config:
         :return:
         """
+
+    async def update_to_code(self, w: "Widget", config: dict) -> None:
+        """
+        Update a widget. Defaults to calling to_code, but can be overridden
+        :param w: The widget to update
+        :param config: The configuration for the update
+        """
+        await self.to_code(w, config)
 
     async def obj_creator(self, parent: MockObj, config: dict):
         """
@@ -217,6 +231,37 @@ class WidgetType:
         :param var: The variable representing the widget
         :param config: Its configuration
         """
+
+    async def get_ctor_args(self, config: dict) -> list:
+        """
+        Get extra arguments for a compound widget's constructor. Anything the widget needs
+        before it builds its parts belongs here, since a setter would be called too late.
+        :param config: Its configuration
+        :return:
+        """
+        return []
+
+    def obj_targets(self, w: "Widget", prop: str) -> list["Widget"]:
+        """
+        Get the widgets one object property, as opposed to a style, applies to. A widget
+        built out of other widgets can point a property at the ones it really concerns, such
+        as sending a touch margin to the parts that are actually pressed.
+        :param w: The widget being configured
+        :param prop: The property name, one of OBJ_PROPERTIES
+        :return:
+        """
+        return [w]
+
+    def part_targets(self, w: "Widget", part: str) -> list[tuple["Widget", str]]:
+        """
+        Get the widgets a part's styles should be applied to, each paired with the part to
+        use on it. A widget built out of other widgets can point a part at those, so that
+        styling it works the same as it does for a plain widget.
+        :param w: The widget being styled
+        :param part: The configured part name
+        :return:
+        """
+        return [(w, part)]
 
     def get_uses(self) -> tuple:
         """
@@ -257,17 +302,26 @@ class WidgetType:
 
 def apply_theme_styles(w: "Widget") -> None:
     """Apply the current theme's styles for this widget's type"""
-    for part, states in get_theme_widget_map().get(w.type.name, {}).items():
-        part = "LV_PART_" + part.upper()
-        for state, style in states.items():
-            state = "LV_STATE_" + state.upper()
-            if state == "LV_STATE_DEFAULT":
-                lv_state = literal(part)
-            elif part == "LV_PART_MAIN":
-                lv_state = literal(state)
-            else:
-                lv_state = join_enums((state, part))
-            w.add_style(style, lv_state)
+    from ..styles import get_widget_theme_styles
+
+    for style, part, state in get_widget_theme_styles(w.type.name):
+        for target, target_part in w.type.part_targets(w, part):
+            target.add_style(style, get_part_state_selector(target_part, state))
+
+
+def apply_debug_outline(w: "Widget") -> None:
+    """
+    When `debug_outline` is set, outline this widget in the next palette colour.
+    An outline is drawn outside the widget's own box, so it doesn't take up layout
+    space and doesn't touch the widget's own `border_*` style, unlike a border.
+    """
+    if not get_options().get(CONF_DEBUG_OUTLINE):
+        return
+    r, g, b = next_debug_outline_color()
+    w.set_style("outline_width", 1)
+    w.set_style("outline_pad", 0)
+    w.set_style("outline_color", f"lv_color_make({r}, {g}, {b})")
+    w.set_style("outline_opa", "LV_OPA_COVER")
 
 
 class Widget:
@@ -276,7 +330,9 @@ class Widget:
     This class has a lot of methods. Adding any more runs foul of lint checks ("too many public methods").
     """
 
-    def __init__(self, var, wtype: WidgetType, config: dict = None):
+    def __init__(
+        self, var: MockObj | ID, wtype: WidgetType, config: dict | None = None
+    ) -> None:
         self.var = var
         self.type = wtype
         self.config = config
@@ -295,41 +351,50 @@ class Widget:
         self.parent = None
 
     @staticmethod
-    def create(name, var, wtype: WidgetType, config: dict = None):
+    def create(
+        name: ID | str, var: MockObj, wtype: WidgetType, config: dict | None = None
+    ) -> "Widget":
         w = Widget(var, wtype, config)
         get_widget_map()[name] = w
         return w
 
-    def set_state(self, state: MockObj, value: bool | Expression):
+    def set_state(self, state: MockObj, value: bool | Expression) -> None:
         lv_add(lvgl_static.lv_obj_set_state_value(self.obj, state, value))
 
-    def has_state(self, state: MockObj):
+    def has_state(self, state: MockObj) -> MockObj:
         return lv_expr.obj_has_state(self.obj, state)
 
-    def is_pressed(self):
+    def is_pressed(self) -> MockObj:
         return self.has_state(LV_STATE.PRESSED)
 
-    def is_checked(self):
+    def is_checked(self) -> MockObj:
         return self.has_state(LV_STATE.CHECKED)
 
-    def add_flag(self, flag):
-        if "|" in flag:
-            flag = f"(lv_obj_flag_t)({flag})"
-        return lv_obj.add_flag(self.obj, literal(flag))
+    def set_flag(self, flag: str, value: bool | Expression) -> None:
+        """
+        Set or clear an object flag, given as the lower case name without the LV_OBJ_FLAG_ prefix
+        """
+        flag = FLAG_SETTER_ALIASES.get(flag, flag)
+        if flag in CUSTOM_FLAGS:
+            lv_add(
+                lvgl_static.lv_obj_set_custom_flag(
+                    self.obj, literal(f"LV_OBJ_FLAG_{flag.upper()}"), value
+                )
+            )
+        else:
+            lv_obj.call(f"set_{flag}", self.obj, value)
 
-    def clear_flag(self, flag):
-        if "|" in flag:
-            flag = f"(lv_obj_flag_t)({flag})"
-        return lv_obj.remove_flag(self.obj, literal(flag))
-
-    def add_style(self, style_id, state=LV_STATE.DEFAULT):
-        if "|" in state:
-            state = f"(lv_state_t)({state})"
+    def add_style(self, style_id: ID, state: MockObj | str = LV_STATE.DEFAULT) -> None:
         lv_obj.add_style(self.obj, MockObj(style_id), literal(state))
 
     async def set_property(
-        self, prop, value, animated: bool = None, lv_name=None, processor=None
-    ):
+        self,
+        prop: str,
+        value: Any,
+        animated: bool | None = None,
+        lv_name: str | None = None,
+        processor: LValidator | Callable[[Any], Awaitable[Any]] | None = None,
+    ) -> None:
         """
         Set a property of the widget.
         :param prop:  The property name
@@ -370,11 +435,13 @@ class Widget:
                 literal("LV_ANIM_ON" if animated else "LV_ANIM_OFF"),
             )
 
-    def get_property(self, prop, ltype=None):
+    def get_property(self, prop: str, ltype: str | None = None) -> cg.RawExpression:
         ltype = ltype or self.__type_base()
         return cg.RawExpression(f"lv_{ltype}_get_{prop}({self.obj})")
 
-    def set_style(self, prop: str, value, state=LV_STATE.DEFAULT):
+    def set_style(
+        self, prop: str, value: Any, state: MockObj | str = LV_STATE.DEFAULT
+    ) -> None:
         if value is None:
             return
         get_styles_used().add(prop)
@@ -382,22 +449,22 @@ class Widget:
             value = literal(value)
         lv.call(f"obj_set_style_{prop}", self.obj, value, state)
 
-    def __type_base(self):
+    def __type_base(self) -> str:
         wtype = self.type.w_type
         base = str(wtype)
         if base.startswith("Lv"):
             return f"{wtype}".removeprefix("Lv").removesuffix("Type").lower()
         return f"{wtype}".removeprefix("lv_").removesuffix("_t")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.var}, {self.type})"
 
-    def get_args(self):
+    def get_args(self) -> list[tuple[MockObj, str]]:
         if isinstance(self.type.w_type, LvType):
             return self.type.w_type.args.copy()
         return [(lv_obj_t_ptr, "obj")]
 
-    def get_value(self):
+    def get_value(self) -> Expression:
         if isinstance(self.type.w_type, LvType):
             result = self.type.w_type.value(self)
             if isinstance(result, list):
@@ -405,7 +472,7 @@ class Widget:
             return result
         return self.obj
 
-    def get_values(self):
+    def get_values(self) -> list[Expression]:
         if isinstance(self.type.w_type, LvType):
             result = self.type.w_type.value(self)
             if isinstance(result, list):
@@ -413,13 +480,13 @@ class Widget:
             return [result]
         return [self.obj]
 
-    def get_number_value(self):
+    def get_number_value(self) -> Expression:
         value = self.type.mock_obj.get_value(self.obj)
         if self.scale == 1.0:
             return value
         return value / float(self.scale)
 
-    def is_selected(self):
+    def is_selected(self) -> MockObj | None:
         """
         Overridable property to determine if the widget is selected. Will be None except
         for matrix buttons
@@ -427,7 +494,7 @@ class Widget:
         """
         return
 
-    def get_scale(self):
+    def get_scale(self) -> float:
         return self.type.get_scale(self.config)
 
 
@@ -457,10 +524,6 @@ def get_widget_generator(wid):
     while True:
         if obj := widget_map.get(wid):
             return obj
-        if get_widgets_completed():
-            raise Invalid(
-                f"Widget {wid} not found, yet all widgets should be defined by now"
-            )
         yield
 
 
@@ -468,19 +531,6 @@ async def get_widget_(wid):
     if obj := get_widget_map().get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
-
-
-def widgets_wait_generator():
-    while True:
-        if get_widgets_completed():
-            return
-        yield
-
-
-async def wait_for_widgets():
-    if get_widgets_completed():
-        return
-    await FakeAwaitable(widgets_wait_generator())
 
 
 async def get_widgets(config: dict | list, id: str = CONF_ID) -> list[Widget]:
@@ -522,6 +572,38 @@ def collect_states(config):
         if state in config:
             states[state] = collect_props(config[state])
     return states
+
+
+def misplaced_obj_properties(
+    config: dict, include_top: bool = False
+) -> Iterator[tuple[str, str]]:
+    """
+    Find object properties set where LVGL has no way to apply them. They belong to a widget
+    as a whole, taking neither a part nor a state, so anywhere else they are quietly dropped.
+    :param config: A widget, style or theme configuration
+    :param include_top: Also report the top level, as for a style, which never holds them
+    :return: Each place one was found, as a part/state path ("" for the top level), paired
+        with the property name
+    """
+    from ..schemas import OBJ_PROPERTIES
+
+    def scan(sub: Any, where: str) -> Iterator[tuple[str, str]]:
+        if isinstance(sub, dict):
+            for prop in sorted(OBJ_PROPERTIES.intersection(sub)):
+                yield where, prop
+
+    if include_top:
+        yield from scan(config, "")
+    for state in STATES:
+        if state in config:
+            yield from scan(config[state], state)
+    for part in PARTS:
+        if part not in config:
+            continue
+        yield from scan(config[part], part)
+        for state in STATES:
+            if state in config[part]:
+                yield from scan(config[part][state], f"{part}/{state}")
 
 
 def collect_parts(config):
@@ -595,6 +677,13 @@ def _set_layout_options(w: Widget, layout: dict, base_name: str | None) -> None:
         w.set_style("flex_track_place", literal(track))
 
 
+def _widget_name(w: Widget) -> str:
+    """The id a widget was given, for naming it in a warning."""
+    if isinstance(w.config, dict) and (wid := w.config.get(CONF_ID)) is not None:
+        return str(wid)
+    return str(w.var)
+
+
 async def set_obj_properties(w: Widget, config):
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
 
@@ -613,53 +702,54 @@ async def set_obj_properties(w: Widget, config):
         else:
             base_name = None
         _set_layout_options(w, layout, base_name)
+    for where, prop in misplaced_obj_properties(config):
+        add_warning(
+            f"'{prop}' applies to a widget as a whole, not to one part or state of it, so "
+            f"setting it under '{where}' of widget '{_widget_name(w)}' has no effect. Set it "
+            f"on the widget itself instead."
+        )
     parts = collect_parts(config)
     for part, states in parts.items():
-        part = "LV_PART_" + part.upper()
+        targets = w.type.part_targets(w, part)
         for state, props in states.items():
-            state = "LV_STATE_" + state.upper()
-            if state == "LV_STATE_DEFAULT":
-                lv_state = literal(part)
-            elif part == "LV_PART_MAIN":
-                lv_state = literal(state)
-            else:
-                lv_state = join_enums((state, part))
-            for style_id in props.get(CONF_STYLES, ()):
-                w.add_style(style_id, lv_state)
-            for prop, value in {
-                k: v for k, v in props.items() if k in ALL_STYLES
-            }.items():
-                if isinstance(ALL_STYLES[prop], LValidator):
-                    value = await ALL_STYLES[prop].process(value)
-                prop_r = remap_property(prop)
-                w.set_style(prop_r, value, lv_state)
+            style_ids = props.get(CONF_STYLES, ())
+            # Each value is worked out once and then given to every target. A widget built
+            # out of others has one target per part, and a lambda is written out in full
+            # wherever it appears, so with more than one target it goes into a variable
+            # rather than being repeated. The blocks holding those variables stay open
+            # until every target has been dealt with.
+            with ExitStack() as stack:
+                values = []
+                for prop, value in {
+                    k: v for k, v in props.items() if k in ALL_STYLES
+                }.items():
+                    validator = ALL_STYLES[prop]
+                    if isinstance(validator, LValidator):
+                        is_lambda = isinstance(value, cv.Lambda)
+                        value = await validator.process(value)
+                        if is_lambda and len(targets) > 1:
+                            value = stack.enter_context(
+                                LocalVariable(prop, validator.rtype, value, modifier="")
+                            )
+                    values.append((remap_property(prop), value))
+                for target, target_part in targets:
+                    lv_state = get_part_state_selector(target_part, state)
+                    for style_id in style_ids:
+                        target.add_style(style_id, lv_state)
+                    for prop_r, value in values:
+                        target.set_style(prop_r, value, lv_state)
     if group := config.get(CONF_GROUP):
         group = await cg.get_variable(group)
         lv.group_add_obj(group, w.obj)
     props = parts[CONF_MAIN][CONF_DEFAULT]
-    lambs = {}
-    flag_set = set()
-    flag_clr = set()
-    for prop, value in {k: v for k, v in props.items() if k in OBJ_FLAGS}.items():
+    for flag, value in props.items():
+        if flag not in OBJ_FLAGS:
+            continue
         if isinstance(value, cv.Lambda):
-            lambs[prop] = value
-        elif value:
-            flag_set.add(prop)
-        else:
-            flag_clr.add(prop)
-    if flag_set:
-        adds = join_enums(flag_set, "LV_OBJ_FLAG_")
-        w.add_flag(adds)
-    if flag_clr:
-        clrs = join_enums(flag_clr, "LV_OBJ_FLAG_")
-        w.clear_flag(clrs)
-    for key, value in lambs.items():
-        lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
-        flag = f"LV_OBJ_FLAG_{key.upper()}"
-        with LvConditional(call_lambda(lamb)) as cond:
-            w.add_flag(flag)
-            cond.else_()
-            w.clear_flag(flag)
+            value = call_lambda(
+                await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
+            )
+        w.set_flag(flag, value)
 
     for key, value in config.get(CONF_STATE, {}).items():
         if isinstance(value, cv.Lambda):
@@ -670,7 +760,8 @@ async def set_obj_properties(w: Widget, config):
         w.set_state(state, value)
 
     for property in OBJ_PROPERTIES:
-        await w.set_property(property, config, lv_name="obj")
+        for target in w.type.obj_targets(w, property):
+            await target.set_property(property, config, lv_name="obj")
 
 
 async def add_widgets(parent: Widget, config: dict):

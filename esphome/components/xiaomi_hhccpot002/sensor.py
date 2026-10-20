@@ -3,7 +3,6 @@ from esphome.components import ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CONDUCTIVITY,
-    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_MOISTURE,
     ICON_FLOWER,
@@ -47,15 +46,10 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
-    if CONF_MOISTURE in config:
-        sens = await sensor.new_sensor(config[CONF_MOISTURE])
-        cg.add(var.set_moisture(sens))
-    if CONF_CONDUCTIVITY in config:
-        sens = await sensor.new_sensor(config[CONF_CONDUCTIVITY])
-        cg.add(var.set_conductivity(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_MOISTURE, var.set_moisture)
+    await sensors(CONF_CONDUCTIVITY, var.set_conductivity)

@@ -89,6 +89,8 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void publish_gate_still_threshold(uint8_t gate) {
     this->gate_still_threshold_numbers_[0]->publish_state(this->new_config.still_thresh[gate]);
   };
+  // Stores a threshold number's value for its gate, or for the selected gate with gate_select
+  void set_gate_threshold_value(number::Number *n, float value);
   void init_gate_config_numbers();
   void refresh_gate_config_numbers();
 #endif

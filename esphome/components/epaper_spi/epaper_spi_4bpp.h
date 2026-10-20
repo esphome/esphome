@@ -15,9 +15,7 @@ class EPaper4bpp : public EPaperBase {
  public:
   EPaper4bpp(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
              size_t init_sequence_length)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR) {
-    this->buffer_length_ = width * height / 2;  // 2 pixels per byte
-  }
+      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR, 4) {}
 
   void fill(Color color) override;
   void clear() override;

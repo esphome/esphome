@@ -4,6 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::pca9554 {
 
@@ -52,27 +53,8 @@ class PCA9554Component final : public Component,
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-/// Helper class to expose a PCA9554 pin as an internal input GPIO pin.
-class PCA9554GPIOPin final : public GPIOPin {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_parent(PCA9554Component *parent) { parent_ = parent; }
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  PCA9554Component *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
+using PCA9554GPIOPin = gpio_expander::ExpanderGPIOPin<PCA9554Component>;
 
 }  // namespace esphome::pca9554
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::pca9554::PCA9554Component);

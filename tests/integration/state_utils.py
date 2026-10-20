@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 import logging
 from typing import TypeVar
 
@@ -11,10 +11,12 @@ from aioesphomeapi import (
     APIClient,
     BinarySensorState,
     ButtonInfo,
+    DeviceInfo,
     EntityInfo,
     EntityState,
     SensorState,
     TextSensorState,
+    UserService,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,10 +59,64 @@ async def wait_for_state(
     return await asyncio.wait_for(future, timeout=timeout)
 
 
+class StateWaiter:
+    """Route one state subscription to any number of predicate waits."""
+
+    def __init__(self) -> None:
+        self._waiters: list[
+            tuple[Callable[[EntityState], bool], asyncio.Future[EntityState]]
+        ] = []
+
+    def on_state(self, state: EntityState) -> None:
+        for predicate, future in self._waiters:
+            if future.done():
+                continue
+            try:
+                matched = predicate(state)
+            except Exception as exc:  # noqa: BLE001  the wait re-raises it, the callback must not die
+                future.set_exception(exc)
+                continue
+            if matched:
+                future.set_result(state)
+
+    def expect(
+        self,
+        predicate: Callable[[EntityState], bool],
+        timeout: float = 5.0,
+        label: str | None = None,
+    ) -> Awaitable[EntityState]:
+        """Arm a wait for the next state matching ``predicate`` and return the awaitable for it.
+
+        The wait is armed here, at call time, so it can be created before the action that produces
+        the state and awaited afterwards; states seen before this call never match.
+        """
+        entry = (predicate, asyncio.get_running_loop().create_future())
+        self._waiters.append(entry)
+        return self._wait(entry, timeout, label)
+
+    async def _wait(
+        self,
+        entry: tuple[Callable[[EntityState], bool], asyncio.Future[EntityState]],
+        timeout: float,
+        label: str | None,
+    ) -> EntityState:
+        try:
+            async with asyncio.timeout(timeout):
+                return await entry[1]
+        except TimeoutError:
+            raise TimeoutError(
+                f"no state matched {label or entry[0]} within {timeout}s"
+            ) from None
+        finally:
+            self._waiters.remove(entry)
+
+
 def find_entity[T: EntityInfo](
     entities: list[EntityInfo],
     object_id_substring: str,
     entity_type: type[T] | None = None,
+    *,
+    exact: bool = False,
 ) -> T | EntityInfo | None:
     """Find an entity by object_id substring and optionally by type.
 
@@ -68,6 +124,7 @@ def find_entity[T: EntityInfo](
         entities: List of entity info objects from the API
         object_id_substring: Substring to search for in object_id (case-insensitive)
         entity_type: Optional entity type to filter by (e.g., BinarySensorInfo)
+        exact: Match the whole object_id exactly (case-sensitive) instead
 
     Returns:
         The first matching entity, or None if not found
@@ -78,8 +135,12 @@ def find_entity[T: EntityInfo](
     """
     substring_lower = object_id_substring.lower()
     for entity in entities:
-        if substring_lower in entity.object_id.lower() and (
-            entity_type is None or isinstance(entity, entity_type)
+        if entity_type is not None and not isinstance(entity, entity_type):
+            continue
+        if (
+            entity.object_id == object_id_substring
+            if exact
+            else substring_lower in entity.object_id.lower()
         ):
             return entity
     return None
@@ -90,6 +151,8 @@ def require_entity[T: EntityInfo](
     object_id_substring: str,
     entity_type: type[T] | None = None,
     description: str | None = None,
+    *,
+    exact: bool = False,
 ) -> T | EntityInfo:
     """Find an entity or raise AssertionError if not found.
 
@@ -98,6 +161,7 @@ def require_entity[T: EntityInfo](
         object_id_substring: Substring to search for in object_id (case-insensitive)
         entity_type: Optional entity type to filter by (e.g., BinarySensorInfo)
         description: Human-readable description for error message
+        exact: Match the whole object_id exactly (case-sensitive) instead
 
     Returns:
         The first matching entity
@@ -109,12 +173,54 @@ def require_entity[T: EntityInfo](
         binary_sensor = require_entity(entities, "test_sensor", BinarySensorInfo)
         button = require_entity(entities, "set_true", description="Set True button")
     """
-    entity = find_entity(entities, object_id_substring, entity_type)
+    entity = find_entity(entities, object_id_substring, entity_type, exact=exact)
     if entity is None:
-        desc = description or f"entity with '{object_id_substring}' in object_id"
+        desc = description or (
+            f"entity with object_id '{object_id_substring}'"
+            if exact
+            else f"entity with '{object_id_substring}' in object_id"
+        )
         type_info = f" of type {entity_type.__name__}" if entity_type else ""
         raise AssertionError(f"{desc}{type_info} not found in entities")
     return entity
+
+
+def require_only_entity[T: EntityInfo](
+    entities: list[EntityInfo], entity_type: type[T]
+) -> T:
+    """Return the single entity of ``entity_type``.
+
+    Raises AssertionError when there is none or more than one.
+    """
+    matches = [entity for entity in entities if isinstance(entity, entity_type)]
+    assert len(matches) == 1, (
+        f"expected exactly one {entity_type.__name__}, found "
+        f"{[entity.object_id for entity in matches]}"
+    )
+    return matches[0]
+
+
+def require_service(services: list[UserService], name: str) -> UserService:
+    """Return the user service named exactly ``name``.
+
+    Raises AssertionError with the available service names when it is missing.
+    """
+    service = next((s for s in services if s.name == name), None)
+    if service is None:
+        raise AssertionError(
+            f"service '{name}' not found; available: {[s.name for s in services]}"
+        )
+    return service
+
+
+async def assert_device_name(client: APIClient, name: str) -> DeviceInfo:
+    """Fetch device info, assert the device is called ``name`` and return the info."""
+    device_info = await client.device_info()
+    assert device_info is not None, "device_info() returned None"
+    assert device_info.name == name, (
+        f"expected device name '{name}', got '{device_info.name}'"
+    )
+    return device_info
 
 
 def build_key_to_entity_mapping(

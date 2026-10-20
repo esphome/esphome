@@ -6,7 +6,7 @@
 
 namespace esphome::tcs34725 {
 
-static const char *const TAG = "tcs34725";
+ESPHOME_LOG_TAG(TAG, "tcs34725");
 
 static const uint8_t TCS34725_ADDRESS = 0x29;
 static const uint8_t TCS34725_COMMAND_BIT = 0x80;
@@ -19,23 +19,23 @@ static const uint8_t TCS34725_REGISTER_CRGBDATAL = TCS34725_COMMAND_BIT | 0x14;
 void TCS34725Component::setup() {
   uint8_t id;
   if (this->read_register(TCS34725_REGISTER_ID, &id, 1) != i2c::ERROR_OK) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (this->write_config_register_(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
       this->write_config_register_(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x01) !=
       i2c::ERROR_OK) {  // Power on (internal oscillator on)
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(3);
   if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x03) !=
       i2c::ERROR_OK) {  // Power on (internal oscillator on) + RGBC ADC Enable
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -43,9 +43,6 @@ void TCS34725Component::setup() {
 void TCS34725Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TCS34725:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Clear Channel", this->clear_sensor_);
@@ -180,20 +177,20 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
 }
 
 void TCS34725Component::update() {
-  uint8_t data[8];  // Buffer to hold the 8 bytes (2 bytes for each of the 4 channels)
+  uint16_t data[4];  // Clear, red, green and blue channels
 
   // Perform burst
-  if (this->read_register(TCS34725_REGISTER_CRGBDATAL, data, 8) != i2c::ERROR_OK) {
+  if (!this->read_bytes_16_le(TCS34725_REGISTER_CRGBDATAL, data, 4)) {
     this->status_set_warning();
     ESP_LOGW(TAG, "Error reading TCS34725 sensor data");
     return;
   }
 
   // Extract the data
-  uint16_t raw_c = encode_uint16(data[1], data[0]);  // Clear channel
-  uint16_t raw_r = encode_uint16(data[3], data[2]);  // Red channel
-  uint16_t raw_g = encode_uint16(data[5], data[4]);  // Green channel
-  uint16_t raw_b = encode_uint16(data[7], data[6]);  // Blue channel
+  uint16_t raw_c = data[0];  // Clear channel
+  uint16_t raw_r = data[1];  // Red channel
+  uint16_t raw_g = data[2];  // Green channel
+  uint16_t raw_b = data[3];  // Blue channel
 
   ESP_LOGV(TAG, "Raw values clear=%d red=%d green=%d blue=%d", raw_c, raw_r, raw_g, raw_b);
 
@@ -292,7 +289,7 @@ void TCS34725Component::update() {
       set_gain((TCS34725Gain) gain_reg_val_new);
       if (this->write_config_register_(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
           this->write_config_register_(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
-        this->mark_failed();
+        this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         ESP_LOGW(TAG, "TCS34725I update timing failed!");
       } else {
         this->integration_time_ = integration_time_next;
