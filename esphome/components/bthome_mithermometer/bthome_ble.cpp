@@ -457,7 +457,7 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
       }
       case 0x02: {  // temperature
         if (this->temperature_ != nullptr) {
-          const int16_t raw = encode_uint16(value[1], value[0]);
+          const int16_t raw = encode_value_le<int16_t>(value);
           this->temperature_->publish_state(raw * 0.01f);
           reported = true;
         }
@@ -473,7 +473,7 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
       }
       case 0x45: {  // temperature (0.1C), e.g. Shelly BLU H&T
         if (this->temperature_ != nullptr) {
-          const int16_t raw = encode_uint16(value[1], value[0]);
+          const int16_t raw = encode_value_le<int16_t>(value);
           this->temperature_->publish_state(raw * 0.1f);
           reported = true;
         }

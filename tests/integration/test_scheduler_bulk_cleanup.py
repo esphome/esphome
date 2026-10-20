@@ -1,7 +1,6 @@
 """Test that triggers the bulk cleanup path when to_remove_ > MAX_LOGICALLY_DELETED_ITEMS."""
 
 import asyncio
-from pathlib import Path
 import re
 
 from aioesphomeapi import UserService
@@ -17,16 +16,6 @@ async def test_scheduler_bulk_cleanup(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that bulk cleanup path is triggered when many items are cancelled."""
-
-    # Get the absolute path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
     # Create a future to signal test completion
     loop = asyncio.get_event_loop()

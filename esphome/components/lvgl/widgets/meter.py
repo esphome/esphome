@@ -38,7 +38,6 @@ from ..defines import (
     CONF_SRC,
     CONF_START_VALUE,
     CONF_TICKS,
-    LV_OBJ_FLAG,
     LV_PART,
     LV_SCALE_MODE,
     add_lv_use,
@@ -457,7 +456,7 @@ class MeterType(WidgetType):
                             LV_EVENT.DRAW_TASK_ADDED,
                             nullptr,
                         )
-                        lv.obj_add_flag(scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS)
+                        lv_obj.set_send_draw_task_events(scale_var, True)
 
                 if t == CONF_LINE:
                     # Needle represented by a line

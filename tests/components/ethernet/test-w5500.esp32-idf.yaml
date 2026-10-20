@@ -38,6 +38,11 @@ button:
   - platform: template
     name: "Disable Ethernet"
     on_press:
+      - if:
+          condition:
+            ethernet.connected:
+          then:
+            - logger.log: "Disabling connected Ethernet"
       - ethernet.disable:
 
 binary_sensor:

@@ -24,6 +24,7 @@ CONF_HAS_BUILT_IN_ENDSTOP = "has_built_in_endstop"
 CONF_INFER_ENDSTOP_FROM_MOVEMENT = "infer_endstop_from_movement"
 CONF_DIRECTION_CHANGE_WAIT_TIME = "direction_change_wait_time"
 CONF_ACCELERATION_WAIT_TIME = "acceleration_wait_time"
+CONF_OVERSHOOT_DURATION = "overshoot_duration"
 CONF_OBSTACLE_ROLLBACK = "obstacle_rollback"
 
 endstop_ns = cg.esphome_ns.namespace("feedback")
@@ -82,6 +83,9 @@ CONFIG_FEEDBACK_COVER_BASE_SCHEMA = (
             cv.Optional(
                 CONF_ACCELERATION_WAIT_TIME, "0s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_OVERSHOOT_DURATION, "0s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OBSTACLE_ROLLBACK, default="10%"): cv.percentage,
         },
     )
@@ -89,10 +93,25 @@ CONFIG_FEEDBACK_COVER_BASE_SCHEMA = (
 )
 
 
+def validate_overshoot(config: ConfigType) -> ConfigType:
+    if not config[CONF_OVERSHOOT_DURATION].total_milliseconds:
+        return config
+    if config[CONF_HAS_BUILT_IN_ENDSTOP]:
+        raise cv.Invalid(
+            f"{CONF_OVERSHOOT_DURATION} has no effect with {CONF_HAS_BUILT_IN_ENDSTOP}"
+        )
+    if CONF_OPEN_ENDSTOP in config and CONF_CLOSE_ENDSTOP in config:
+        raise cv.Invalid(
+            f"{CONF_OVERSHOOT_DURATION} has no effect when both endstop sensors are supplied"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     CONFIG_FEEDBACK_COVER_BASE_SCHEMA,
     cv.has_none_or_all_keys(CONF_OPEN_SENSOR, CONF_CLOSE_SENSOR),
     validate_infer_endstop,
+    validate_overshoot,
 )
 
 
@@ -110,34 +129,25 @@ async def to_code(config: ConfigType) -> None:
         var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
     )
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
-    if CONF_OPEN_ENDSTOP in config:
-        bin = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
-        cg.add(var.set_open_endstop(bin))
-    if CONF_OPEN_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_OPEN_SENSOR])
-        cg.add(var.set_open_sensor(bin))
-    if CONF_OPEN_OBSTACLE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_OPEN_OBSTACLE_SENSOR])
-        cg.add(var.set_open_obstacle_sensor(bin))
+    await cg.add_variable(var.set_open_endstop, config.get(CONF_OPEN_ENDSTOP))
+    await cg.add_variable(var.set_open_sensor, config.get(CONF_OPEN_SENSOR))
+    await cg.add_variable(
+        var.set_open_obstacle_sensor, config.get(CONF_OPEN_OBSTACLE_SENSOR)
+    )
 
     # CLOSE
     await automation.build_automation(
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
     )
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
-    if CONF_CLOSE_ENDSTOP in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
-        cg.add(var.set_close_endstop(bin))
-    if CONF_CLOSE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_SENSOR])
-        cg.add(var.set_close_sensor(bin))
-    if CONF_CLOSE_OBSTACLE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_OBSTACLE_SENSOR])
-        cg.add(var.set_close_obstacle_sensor(bin))
+    await cg.add_variable(var.set_close_endstop, config.get(CONF_CLOSE_ENDSTOP))
+    await cg.add_variable(var.set_close_sensor, config.get(CONF_CLOSE_SENSOR))
+    await cg.add_variable(
+        var.set_close_obstacle_sensor, config.get(CONF_CLOSE_OBSTACLE_SENSOR)
+    )
 
     # OTHER
-    if CONF_MAX_DURATION in config:
-        cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
+    cg.add_optional(var.set_max_duration, config.get(CONF_MAX_DURATION))
 
     cg.add(var.set_has_built_in_endstop(config[CONF_HAS_BUILT_IN_ENDSTOP]))
 
@@ -160,4 +170,7 @@ async def to_code(config: ConfigType) -> None:
             var.set_direction_change_waittime(config[CONF_DIRECTION_CHANGE_WAIT_TIME])
         )
     cg.add(var.set_acceleration_wait_time(config[CONF_ACCELERATION_WAIT_TIME]))
+    if (overshoot := config[CONF_OVERSHOOT_DURATION]).total_milliseconds:
+        cg.add_define("USE_FEEDBACK_COVER_OVERSHOOT")
+        cg.add(var.set_overshoot_duration(overshoot))
     cg.add(var.set_obstacle_rollback(config[CONF_OBSTACLE_ROLLBACK]))

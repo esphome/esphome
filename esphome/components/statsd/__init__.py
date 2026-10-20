@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import binary_sensor, sensor
+from esphome.components import binary_sensor, sensor, socket
 from esphome.components.const import CONF_HOST
 import esphome.config_validation as cv
 from esphome.const import (
@@ -35,16 +35,21 @@ CONFIG_BINARY_SENSORS_SCHEMA = cv.Schema(
     }
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(StatsdComponent),
-        cv.Required(CONF_HOST): cv.string_strict,
-        cv.Optional(CONF_PORT, default=8125): cv.port,
-        cv.Optional(CONF_PREFIX, default=""): cv.string_strict,
-        cv.Optional(CONF_SENSORS): cv.ensure_list(CONFIG_SENSORS_SCHEMA),
-        cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(CONFIG_BINARY_SENSORS_SCHEMA),
-    }
-).extend(cv.polling_component_schema("10s"))
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(StatsdComponent),
+            cv.Required(CONF_HOST): cv.string_strict,
+            cv.Optional(CONF_PORT, default=8125): cv.port,
+            cv.Optional(CONF_PREFIX, default=""): cv.string_strict,
+            cv.Optional(CONF_SENSORS): cv.ensure_list(CONFIG_SENSORS_SCHEMA),
+            cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
+                CONFIG_BINARY_SENSORS_SCHEMA
+            ),
+        }
+    ).extend(cv.polling_component_schema("10s")),
+    socket.consume_sockets(1, "statsd", socket.SocketType.UDP),
+)
 
 
 async def to_code(config: ConfigType) -> None:

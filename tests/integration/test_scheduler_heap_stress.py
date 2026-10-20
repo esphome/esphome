@@ -1,7 +1,6 @@
 """Stress test for heap scheduler thread safety with multiple threads."""
 
 import asyncio
-from pathlib import Path
 import re
 
 from aioesphomeapi import UserService
@@ -17,16 +16,6 @@ async def test_scheduler_heap_stress(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that set_timeout/set_interval doesn't crash when called rapidly from multiple threads."""
-
-    # Get the absolute path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
     # Create a future to signal test completion
     loop = asyncio.get_running_loop()
