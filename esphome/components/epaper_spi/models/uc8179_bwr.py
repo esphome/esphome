@@ -9,9 +9,15 @@ init sequence and red data always sent inverted.
 
 from typing import Any
 
+import esphome.config_validation as cv
+from esphome.const import CONF_DIMENSIONS
 from esphome.types import ConfigType
 
 from . import EpaperModel
+
+# Resolution setting (0x61) limits: sources are set in steps of 8
+MAX_SOURCES = 800
+MAX_GATES = 600
 
 
 class UC8179BWR(EpaperModel):
@@ -19,6 +25,15 @@ class UC8179BWR(EpaperModel):
 
     def __init__(self, name: str, **defaults: Any) -> None:
         super().__init__(name, "EPaperWaveshareBWR", **defaults)
+
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        width, height = self.get_dimensions(config)
+        if width > MAX_SOURCES or height > MAX_GATES:
+            raise cv.Invalid(
+                f"{self.name} supports at most {MAX_SOURCES}x{MAX_GATES} pixels (width x height)",
+                path=[CONF_DIMENSIONS],
+            )
+        return config
 
     def get_init_sequence(self, config: ConfigType) -> tuple:
         """Generate initialization sequence for UC8179 BWR displays."""
@@ -36,7 +51,11 @@ class UC8179BWR(EpaperModel):
         return (True,)  # invert_red, required by DDX=11 above
 
 
-uc8179bwr = UC8179BWR("uc8179bwr", minimum_update_interval="30s")
+uc8179bwr = UC8179BWR(
+    "uc8179bwr",
+    minimum_update_interval="30s",
+    width_multiple=8,
+)
 
 # Model: 7.5" V3 BWR XSRUPB 2025 - 800x480 pixels, UC8179 controller
 uc8179bwr.extend(

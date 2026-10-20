@@ -544,6 +544,60 @@ def test_uc8279_width_must_be_a_multiple_of_8(
         )
 
 
+@pytest.mark.parametrize(
+    ("dimensions", "match"),
+    [
+        ({"width": 794, "height": 480}, "multiple of 8"),
+        ({"width": 808, "height": 480}, "at most 800x600"),
+        ({"width": 800, "height": 601}, "at most 800x600"),
+    ],
+)
+def test_uc8179bwr_rejects_unsupported_dimensions(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    dimensions: dict[str, int],
+    match: str,
+) -> None:
+    """The UC8179 sets sources in steps of 8, up to 800 sources and 600 gates."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    with pytest.raises(cv.Invalid, match=match):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "uc8179bwr",
+                "dc_pin": 21,
+                "dimensions": dimensions,
+            }
+        )
+
+
+def test_uc8179bwr_accepts_largest_size(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "uc8179bwr",
+            "dc_pin": 21,
+            "dimensions": {"width": 800, "height": 600},
+        }
+    )
+
+
 def test_uc8279_x4pro_code_generation(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
