@@ -5,8 +5,10 @@ namespace esphome::zhlt01 {
 
 ESPHOME_LOG_TAG(TAG, "zhlt01.climate");
 
+static constexpr uint8_t ZHLT01_MESSAGE_LENGTH = 12;
+
 void ZHLT01Climate::transmit_state() {
-  uint8_t ir_message[12] = {0};
+  uint8_t ir_message[ZHLT01_MESSAGE_LENGTH] = {0};
 
   // Byte 1 : Timer
   ir_message[1] = 0x00;  // Timer off
@@ -134,7 +136,7 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Decode IR message
-  uint8_t ir_message[12];
+  uint8_t ir_message[ZHLT01_MESSAGE_LENGTH];
   if (!data.expect_bytes_lsb<AC1_BIT_TIMINGS>(ir_message, sizeof(ir_message)))
     return false;
 
