@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include <utility>
 #include <vector>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/color.h"
@@ -108,7 +107,7 @@ class HistoryData {
 class GraphTrace final {
  public:
   void init(Graph *g);
-  void set_name(std::string name) { name_ = std::move(name); }
+  void set_name(const char *name) { this->name_ = name; }
   void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; }
   uint8_t get_line_thickness() { return this->line_thickness_; }
   void set_line_thickness(uint8_t val) { this->line_thickness_ = val; }
@@ -118,12 +117,12 @@ class GraphTrace final {
   void set_line_color(Color val) { this->line_color_ = val; }
   bool get_continuous() { return this->continuous_; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
-  std::string get_name() { return name_; }
+  const char *get_name() const { return this->name_; }
   const HistoryData *get_tracedata() { return &data_; }
 
  protected:
   sensor::Sensor *sensor_{nullptr};
-  std::string name_;
+  const char *name_{""};
   uint8_t line_thickness_{3};
   enum LineType line_type_ { LINE_TYPE_SOLID };
   Color line_color_{COLOR_ON};
