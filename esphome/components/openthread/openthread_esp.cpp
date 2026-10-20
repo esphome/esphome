@@ -22,7 +22,6 @@
 #include "esp_openthread.h"
 #include "esp_openthread_lock.h"
 #include "esp_openthread_types.h"
-#include "esp_task_wdt.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -466,15 +465,11 @@ InstanceLock InstanceLock::acquire() {
       abort();
     }
     delay(10);
-#ifdef USE_WATCHDOG
-    esp_task_wdt_reset();
-#endif
+    arch_feed_wdt();
   }
   while (!esp_openthread_lock_acquire(100)) {
     abort_if_task_exited();
-#ifdef USE_WATCHDOG
-    esp_task_wdt_reset();
-#endif
+    arch_feed_wdt();
   }
   // The clean-up may have released the lock to this waiter just before deinit destroys it
   if (global_openthread_component->is_task_exited()) {

@@ -48,3 +48,12 @@ def test_other_platforms_leave_watchdog_unset(
     CORE.config_path = component_config_path(yaml_file)
     config = read_config({})
     assert CONF_WATCHDOG_TIMEOUT not in config["http_request"]
+
+
+def test_explicit_watchdog_rejected_when_platform_disabled(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    CORE.config_path = component_config_path(
+        "test_esp32_platform_disabled_explicit.yaml"
+    )
+    assert read_config({}) is None

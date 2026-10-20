@@ -8,10 +8,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP_IDF
-#include "esp_task_wdt.h"
-#endif
-
 ESPHOME_LOG_TAG(TAG, "image_decoder.jpeg");
 
 namespace esphome::runtime_image {
@@ -93,11 +89,11 @@ static int draw_callback(JPEGDRAW *jpeg) {
 
   // Some very big images take too long to decode, so feed the watchdog on each callback
   // to avoid crashing if the executing task has a watchdog enabled.
-#if defined(USE_ESP_IDF) && defined(USE_WATCHDOG)
-  if (esp_task_wdt_status(nullptr) == ESP_OK) {
+#ifdef USE_ESP_IDF
+  if (task_wdt_watches_current_task()) {
 #endif
     App.feed_wdt();
-#if defined(USE_ESP_IDF) && defined(USE_WATCHDOG)
+#ifdef USE_ESP_IDF
   }
 #endif
   if (decoder->uses_direct_rgb565()) {

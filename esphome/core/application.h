@@ -208,8 +208,8 @@ class Application {
    * Each component can request a high frequency loop execution by using the HighFrequencyLoopRequester
    * helper in helpers.h
    *
-   * Sleep per wake is capped at 2 * WDT_FEED_INTERVAL_MS (except host and ESP8266);
-   * raise the platform watchdog timeout to sleep longer.
+   * Sleep per wake is capped at 2 * WDT_FEED_INTERVAL_MS (except host, ESP8266, and ESP32
+   * with watchdog_timeout: 0s); raise the platform watchdog timeout to sleep longer.
    *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
