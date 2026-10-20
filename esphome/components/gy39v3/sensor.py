@@ -3,7 +3,6 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_ILLUMINANCE,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
@@ -28,18 +27,16 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 gy39v3_ns = cg.esphome_ns.namespace("gy39v3")
-GY39v3Component = gy39v3_ns.class_(
-    "GY39v3Component", cg.PollingComponent, i2c.I2CDevice
-)
+GY39v3 = gy39v3_ns.class_("GY39v3", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor)
 
 CONF_ELEVATION = "elevation"
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(GY39v3Component),
+            cv.GenerateID(): cv.declare_id(GY39v3),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                GY39v3Component,
+                GY39v3,
                 unit_of_measurement=UNIT_LUX,
                 icon=ICON_LIGHTBULB,
                 accuracy_decimals=2,
@@ -47,7 +44,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                GY39v3Component,
+                GY39v3,
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_THERMOMETER,
                 accuracy_decimals=1,
@@ -55,7 +52,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                GY39v3Component,
+                GY39v3,
                 unit_of_measurement=UNIT_PASCAL,
                 icon=ICON_GAUGE,
                 accuracy_decimals=0,
@@ -63,7 +60,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                GY39v3Component,
+                GY39v3,
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
                 accuracy_decimals=1,
@@ -71,7 +68,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(),
             cv.Optional(CONF_ELEVATION): sensor.sensor_schema(
-                GY39v3Component,
+                GY39v3,
                 unit_of_measurement=UNIT_METER,
                 icon=ICON_ACCELERATION_Y,
                 accuracy_decimals=0,
@@ -86,7 +83,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = await i2c.new_i2c_component(config[CONF_ID])
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)

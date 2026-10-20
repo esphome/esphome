@@ -7,13 +7,13 @@ const char GY39v3::TAG[] PROGMEM = "gy39v3.sensor";
 
 void GY39v3::setup() {
   uint8_t initialize;  // simply try to read elevation-low
-  if (this->read_register(&initialize, 13, 1) != i2c::ERROR_OK) {
+  if (this->read_register(13, &initialize, 1) != i2c::ERROR_OK) {
     this->mark_failed();  // Mark the component as failed if communication fails
     return;
   }
 }
 
-void GY39v3::loop() {}
+// void GY39v3::loop() {}
 
 void GY39v3::update() {
   uint8_t data[14];

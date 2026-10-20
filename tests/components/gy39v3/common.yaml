@@ -1,10 +1,7 @@
-i2c:
-  - id: i2c_gy93v3
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: gy39v3
+    i2c_id: i2c_bus
+    address: 0x5b
     illuminance:
       name: GY39v3 Illuminance
     temperature:

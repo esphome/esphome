@@ -2,10 +2,11 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
 
 namespace esphome::gy39v3 {
 
-class GY39v3 : public i2c::I2CDevice, public PollingComponent {
+class GY39v3 : public i2c::I2CDevice, public sensor::Sensor, public PollingComponent {
  public:
   static const char TAG[];
   SUB_SENSOR(illuminance)
