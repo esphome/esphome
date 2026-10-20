@@ -184,7 +184,11 @@ uint64_t IRAM_ATTR GPIOOneWireBus::search_int() {
       }
     }
 
-    assign_bits(address, bit_mask, branch);
+    if (branch) {
+      address |= bit_mask;
+    } else {
+      address &= ~bit_mask;
+    }
 
     // choose/announce branch
     this->write_bit_(branch);
