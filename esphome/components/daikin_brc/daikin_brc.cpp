@@ -231,11 +231,9 @@ bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!data.expect_item(DAIKIN_BRC_HEADER_MARK, DAIKIN_BRC_HEADER_SPACE)) {
     return false;
   }
-  if (!data.expect_bytes<DAIKIN_BRC_BIT_TIMINGS>(state_frame, DAIKIN_BRC_STATE_FRAME_SIZE)) {
-    return false;
-  }
   // Frame header, with this unit's address in the low 3 bits of byte 3, then the frame type
-  if (state_frame[0] != DAIKIN_BRC_HEADER_BYTE0 || state_frame[1] != DAIKIN_BRC_HEADER_BYTE1 ||
+  if (!data.expect_bytes<DAIKIN_BRC_BIT_TIMINGS>(state_frame, DAIKIN_BRC_STATE_FRAME_SIZE) ||
+      state_frame[0] != DAIKIN_BRC_HEADER_BYTE0 || state_frame[1] != DAIKIN_BRC_HEADER_BYTE1 ||
       state_frame[2] != DAIKIN_BRC_HEADER_BYTE2 || state_frame[3] != (DAIKIN_BRC_HEADER_BYTE3 | this->sub_unit_) ||
       state_frame[4] != DAIKIN_BRC_FRAME_TYPE_STATE) {
     return false;
