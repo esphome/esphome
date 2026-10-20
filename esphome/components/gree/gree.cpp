@@ -1,6 +1,8 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
 
+#include <algorithm>
+
 namespace esphome::gree {
 
 ESPHOME_LOG_TAG(TAG, "gree.climate");
@@ -141,10 +143,12 @@ void GreeClimate::transmit_state() {
 
   encode(remote_state);
   if (model == GREE_YAW1F) {
-    // The YAW1F remote follows every command with a second message, 00 00 00 A0 | 00 00 00 A0
-    static constexpr uint8_t FOLLOWUP[8] = {0x00, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0xA0};
+    // The YAW1F remote follows every command with a second message, 00 00 00 A0 | 00 00 00 A0.
+    // The command buffer is reused so the payload takes no RAM on ESP8266.
+    std::fill_n(remote_state, sizeof(remote_state), 0);
+    remote_state[3] = remote_state[7] = 0xA0;
     data->space(GREE_YAW1F_FOLLOWUP_SPACE);
-    encode(FOLLOWUP);
+    encode(remote_state);
   }
   data->space(0);
 
