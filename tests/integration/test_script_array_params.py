@@ -14,6 +14,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -50,8 +51,7 @@ async def test_script_array_params(
         api_client_connected() as client,
     ):
         _, services = await client.list_entities_services()
-        service = next((s for s in services if s.name == "run_array_script"), None)
-        assert service is not None, "run_array_script service not found"
+        service = require_service(services, "run_array_script")
         await client.execute_service(service, {})
 
         await wait_or_fail(

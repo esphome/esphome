@@ -14,6 +14,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -66,10 +67,7 @@ async def test_wait_until_fifo_ordering(
 
         # Get services
         _, services = await client.list_entities_services()
-        test_service = next(
-            (s for s in services if s.name == "test_wait_until_fifo"), None
-        )
-        assert test_service is not None, "test_wait_until_fifo service not found"
+        test_service = require_service(services, "test_wait_until_fifo")
 
         # Execute the test
         await client.execute_service(test_service, {})

@@ -9,9 +9,10 @@ import asyncio
 import json
 import re
 
-from aioesphomeapi import SupportsResponseType, UserService, UserServiceArgType
+from aioesphomeapi import SupportsResponseType, UserServiceArgType
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -80,31 +81,11 @@ async def test_api_action_responses(
         assert len(services) == 5, f"Expected 5 services, found {len(services)}"
 
         # Find our services
-        action_no_response: UserService | None = None
-        action_status_response: UserService | None = None
-        action_optional_response: UserService | None = None
-        action_only_response: UserService | None = None
-        action_nested_json: UserService | None = None
-
-        for service in services:
-            if service.name == "action_no_response":
-                action_no_response = service
-            elif service.name == "action_status_response":
-                action_status_response = service
-            elif service.name == "action_optional_response":
-                action_optional_response = service
-            elif service.name == "action_only_response":
-                action_only_response = service
-            elif service.name == "action_nested_json":
-                action_nested_json = service
-
-        assert action_no_response is not None, "action_no_response not found"
-        assert action_status_response is not None, "action_status_response not found"
-        assert action_optional_response is not None, (
-            "action_optional_response not found"
-        )
-        assert action_only_response is not None, "action_only_response not found"
-        assert action_nested_json is not None, "action_nested_json not found"
+        action_no_response = require_service(services, "action_no_response")
+        action_status_response = require_service(services, "action_status_response")
+        action_optional_response = require_service(services, "action_optional_response")
+        action_only_response = require_service(services, "action_only_response")
+        action_nested_json = require_service(services, "action_nested_json")
 
         # Verify supports_response modes
         assert action_no_response.supports_response is None or (

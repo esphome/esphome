@@ -2,9 +2,10 @@
 
 import asyncio
 
-from aioesphomeapi import EntityState, Event, EventInfo, UserService
+from aioesphomeapi import EntityState, Event, EventInfo
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -42,18 +43,8 @@ async def test_scheduler_defer_fifo_simple(
         assert test_result_entity is not None, "test_result event not found"
 
         # Find our test services
-        test_set_timeout_service: UserService | None = None
-        test_defer_service: UserService | None = None
-        for service in services:
-            if service.name == "test_set_timeout":
-                test_set_timeout_service = service
-            elif service.name == "test_defer":
-                test_defer_service = service
-
-        assert test_set_timeout_service is not None, (
-            "test_set_timeout service not found"
-        )
-        assert test_defer_service is not None, "test_defer service not found"
+        test_set_timeout_service = require_service(services, "test_set_timeout")
+        test_defer_service = require_service(services, "test_defer")
 
         # Get the event loop
         loop = asyncio.get_running_loop()

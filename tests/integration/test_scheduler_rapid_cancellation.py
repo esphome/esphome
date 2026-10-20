@@ -3,9 +3,9 @@
 import asyncio
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -86,15 +86,7 @@ async def test_scheduler_rapid_cancellation(
         )
 
         # Find our test service
-        run_test_service: UserService | None = None
-        for service in services:
-            if service.name == "run_rapid_cancellation_test":
-                run_test_service = service
-                break
-
-        assert run_test_service is not None, (
-            "run_rapid_cancellation_test service not found"
-        )
+        run_test_service = require_service(services, "run_rapid_cancellation_test")
 
         # Call the service to start the test
         await client.execute_service(run_test_service, {})

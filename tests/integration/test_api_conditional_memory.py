@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import re
 
-from aioesphomeapi import UserService, UserServiceArgType
+from aioesphomeapi import UserServiceArgType
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -67,17 +68,8 @@ async def test_api_conditional_memory(
             assert len(services) == 2, f"Expected 2 services, found {len(services)}"
 
             # Find our services
-            simple_service: UserService | None = None
-            service_with_args: UserService | None = None
-
-            for service in services:
-                if service.name == "test_simple_service":
-                    simple_service = service
-                elif service.name == "test_service_with_args":
-                    service_with_args = service
-
-            assert simple_service is not None, "test_simple_service not found"
-            assert service_with_args is not None, "test_service_with_args not found"
+            simple_service = require_service(services, "test_simple_service")
+            service_with_args = require_service(services, "test_service_with_args")
 
             # Verify service arguments
             assert len(service_with_args.args) == 4, (

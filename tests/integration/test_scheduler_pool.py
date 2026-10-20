@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -113,10 +114,9 @@ async def test_scheduler_pool(
 
         # Get service objects
         phase_services = {
-            num: next(s for s in services if s.name == f"run_phase_{num}")
-            for num in range(1, 8)
+            num: require_service(services, f"run_phase_{num}") for num in range(1, 8)
         }
-        complete_service = next(s for s in services if s.name == "run_complete")
+        complete_service = require_service(services, "run_complete")
 
         try:
             # Phase 1: Component lifecycle

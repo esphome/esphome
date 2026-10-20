@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -57,23 +58,13 @@ async def test_api_string_lambda(
         _, services = await client.list_entities_services()
 
         # Find all test services
-        string_service = next(
-            (s for s in services if s.name == "test_string_lambda"), None
-        )
-        assert string_service is not None, "test_string_lambda service not found"
+        string_service = require_service(services, "test_string_lambda")
 
-        int_service = next((s for s in services if s.name == "test_int_lambda"), None)
-        assert int_service is not None, "test_int_lambda service not found"
+        int_service = require_service(services, "test_int_lambda")
 
-        float_service = next(
-            (s for s in services if s.name == "test_float_lambda"), None
-        )
-        assert float_service is not None, "test_float_lambda service not found"
+        float_service = require_service(services, "test_float_lambda")
 
-        char_ptr_service = next(
-            (s for s in services if s.name == "test_char_ptr_lambda"), None
-        )
-        assert char_ptr_service is not None, "test_char_ptr_lambda service not found"
+        char_ptr_service = require_service(services, "test_char_ptr_lambda")
 
         # Execute all four services to test different lambda return types
         await client.execute_service(
