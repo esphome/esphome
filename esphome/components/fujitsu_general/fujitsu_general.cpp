@@ -206,7 +206,7 @@ void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
   data->space(FUJITSU_GENERAL_HEADER_SPACE);
 
   // Data
-  data->item_bytes_lsb<FUJITSU_GENERAL_BIT_TIMINGS>(message, length);
+  data->item_bytes<FUJITSU_GENERAL_BIT_TIMINGS>(message, length);
 
   // Footer
   data->mark(FUJITSU_GENERAL_TRL_MARK);
@@ -276,10 +276,10 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t recv_message[FUJITSU_GENERAL_STATE_MESSAGE_LENGTH] = {0};
+  uint8_t recv_message[FUJITSU_GENERAL_STATE_MESSAGE_LENGTH];
 
   // Read header
-  if (!data.expect_bytes_lsb<FUJITSU_GENERAL_BIT_TIMINGS>(recv_message, FUJITSU_GENERAL_COMMON_LENGTH)) {
+  if (!data.expect_bytes<FUJITSU_GENERAL_BIT_TIMINGS>(recv_message, FUJITSU_GENERAL_COMMON_LENGTH)) {
     ESP_LOGV(TAG, "Header bytes fail");
     return false;
   }
@@ -304,8 +304,8 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Read message body
-  if (!data.expect_bytes_lsb<FUJITSU_GENERAL_BIT_TIMINGS>(recv_message + FUJITSU_GENERAL_COMMON_LENGTH,
-                                                          recv_message_length - FUJITSU_GENERAL_COMMON_LENGTH)) {
+  if (!data.expect_bytes<FUJITSU_GENERAL_BIT_TIMINGS>(recv_message + FUJITSU_GENERAL_COMMON_LENGTH,
+                                                      recv_message_length - FUJITSU_GENERAL_COMMON_LENGTH)) {
     ESP_LOGV(TAG, "Body bytes fail");
     return false;
   }

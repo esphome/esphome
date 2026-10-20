@@ -128,7 +128,7 @@ void Tcl112Climate::transmit_state() {
   data->mark(TCL112_HEADER_MARK);
   data->space(TCL112_HEADER_SPACE);
   // Data
-  data->item_bytes_lsb<TCL112_BIT_TIMINGS>(remote_state, TCL112_STATE_LENGTH);
+  data->item_bytes<TCL112_BIT_TIMINGS>(remote_state, TCL112_STATE_LENGTH);
   // Footer
   data->mark(TCL112_BIT_MARK);
   data->space(TCL112_GAP);
@@ -144,7 +144,7 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t remote_state[TCL112_STATE_LENGTH];
-  if (!data.expect_bytes_lsb<TCL112_BIT_TIMINGS>(remote_state, TCL112_STATE_LENGTH))
+  if (!data.expect_bytes<TCL112_BIT_TIMINGS>(remote_state, TCL112_STATE_LENGTH))
     return false;
   // Validate footer
   if (!data.expect_mark(TCL112_BIT_MARK)) {

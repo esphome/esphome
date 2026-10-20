@@ -23,7 +23,7 @@ static bool read_raw_bytes(remote_base::RemoteReceiveData &data, uint8_t frame[M
   if (!data.expect_item(MITSUBISHI_HEAVY_HDR_MARK, MITSUBISHI_HEAVY_HDR_SPACE))
     return false;
 
-  return data.expect_bytes_lsb<MITSUBISHI_HEAVY_BIT_TIMINGS>(frame, MITSUBISHI_HEAVY_FRAME_LENGTH);
+  return data.expect_bytes<MITSUBISHI_HEAVY_BIT_TIMINGS>(frame, MITSUBISHI_HEAVY_FRAME_LENGTH);
 }
 
 static bool validate_prefix(const uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH]) {
