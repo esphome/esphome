@@ -23,6 +23,7 @@ static constexpr uint16_t REG_CON = 0x000;
 static constexpr uint16_t REG_NBTCFG = 0x004;
 static constexpr uint16_t REG_DBTCFG = 0x008;
 static constexpr uint16_t REG_TDC = 0x00C;
+static constexpr uint16_t REG_INT = 0x01C;
 static constexpr uint16_t REG_TREC = 0x034;
 // FIFO 1 transmits. FIFO 2 receives. TXQ and TEF are disabled.
 static constexpr uint16_t REG_TX_FIFO_CON = 0x05C;
@@ -47,6 +48,7 @@ static_assert((TX_FIFO_DEPTH + RX_FIFO_DEPTH) * MESSAGE_SIZE <= RAM_SIZE);
 static constexpr uint32_t CON_ISO_CRC_ENABLE = 1UL << 5;
 static constexpr uint8_t CON_MODE_MASK = 0x07;
 static constexpr uint8_t CON_MODE_SHIFT = 5;
+static constexpr uint8_t INT_SYSTEM_ERROR = 1U << 4;  // SERRIF in byte 1 of INT.
 static constexpr uint32_t FIFO_PAYLOAD_64 = 7UL << 29;
 static constexpr uint32_t FIFO_TX_ENABLE = 1UL << 7;
 static constexpr uint8_t FIFO_NOT_FULL_NOT_EMPTY = 1U << 0;

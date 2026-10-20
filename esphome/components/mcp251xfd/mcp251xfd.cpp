@@ -120,7 +120,9 @@ bool MCP251XFD::read_registers_(uint16_t address, uint8_t *data, size_t length) 
       static_cast<uint8_t>(address >= RAM_START && address < RAM_START + RAM_SIZE ? length / 4 : length)};
   // MCP2517FD errata DS80000792, section 1: RAM reads can block CAN RAM access during SPI pauses.
   // Byte gaps and the last-byte-to-CS-high delay must stay below the phase-dependent TSPIMAXDLY.
-  // Separate SPI calls and task preemption can exceed this limit, causing TX underflow or RX overflow.
+  // Separate SPI calls and preemption can exceed it. RX MAB overflow discards the frame and sets SERRIF.
+  // TX MAB underflow sets SERRIF/MODIF and enters Restricted Operation or Listen Only (CiCON.SERR2LOM).
+  // Software must request Normal mode to resume TX. FIFO space and SPI CRC retries do not prevent this.
   // MCP251XFD errata: ordinary READ can silently return corrupt data. Retry READ_CRC on a mismatch.
   for (uint8_t attempt = 0; attempt < 3; attempt++) {
     this->enable();
@@ -294,6 +296,12 @@ canbus::CanEventFlags MCP251XFD::get_events() {
   if (this->read_registers_(REG_RX_FIFO_STA, &fifo_status, 1) && (fifo_status & FIFO_RX_OVERFLOW)) {
     events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
     this->write_byte_(REG_RX_FIFO_STA, static_cast<uint8_t>(~FIFO_RX_OVERFLOW));
+  }
+  uint8_t interrupt_flags;
+  if (this->read_registers_(REG_INT + 1, &interrupt_flags, 1) && (interrupt_flags & INT_SYSTEM_ERROR)) {
+    ESP_LOGW(TAG, "CAN system error (SERRIF): RX frame loss or TX halted. Check SPI RAM read timing");
+    // SERRIF is latched, not a frame-loss counter. Clear only this flag using write-zero-to-clear.
+    this->write_byte_(REG_INT + 1, static_cast<uint8_t>(~INT_SYSTEM_ERROR));
   }
   return static_cast<canbus::CanEventFlags>(events);
 }
