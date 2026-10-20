@@ -12,7 +12,7 @@ namespace esphome::ht16k33_char {
 class HT16K33CharDisplay;
 using ht16k33_char_writer_t = display::DisplayWriter<HT16K33CharDisplay>;
 
-/// A character and the segments that draw it; add_characters and remove_characters compile to a table of these.
+/// A character and the segments that draw it; add_characters compiles to a table of these.
 struct Glyph {
   uint16_t codepoint;
   uint8_t segments;

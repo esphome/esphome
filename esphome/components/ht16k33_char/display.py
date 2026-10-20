@@ -10,7 +10,6 @@ AUTO_LOAD = ["unicode"]
 CONF_MAX_BUFFER_LENGTH = "max_buffer_length"
 CONF_SECONDARY_DISPLAYS = "secondary_displays"
 CONF_ADD_CHARACTERS = "add_characters"
-CONF_REMOVE_CHARACTERS = "remove_characters"
 
 # The only backpack wired up so far; other HT16K33 boards will join this list.
 DEVICE_ADAFRUIT_7_SEG_056IN = "ADAFRUIT_7_SEG_.56IN"
@@ -57,13 +56,8 @@ def _validate(config: ConfigType) -> ConfigType:
     ]
     if len(set(addresses)) != len(addresses):
         raise cv.Invalid("Every display needs its own address")
-    glyphs = set(config.get(CONF_ADD_CHARACTERS, {})) | set(
-        config.get(CONF_REMOVE_CHARACTERS, [])
-    )
-    if len(glyphs) > MAX_GLYPH_OVERRIDES:
-        raise cv.Invalid(
-            f"At most {MAX_GLYPH_OVERRIDES} characters can be added or removed"
-        )
+    if len(config.get(CONF_ADD_CHARACTERS, {})) > MAX_GLYPH_OVERRIDES:
+        raise cv.Invalid(f"At most {MAX_GLYPH_OVERRIDES} characters can be added")
     return config
 
 
@@ -85,7 +79,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ADD_CHARACTERS): cv.Schema(
                 {single_character: cv.hex_uint8_t}
             ),
-            cv.Optional(CONF_REMOVE_CHARACTERS): cv.ensure_list(single_character),
         }
     )
     .extend(cv.polling_component_schema("10s"))
@@ -108,12 +101,10 @@ async def to_code(config: ConfigType) -> None:
         _request_secondary_slot(str(var))
         cg.add(var.add_secondary_display(conf[CONF_ADDRESS]))
 
-    # A removed character draws as a blank digit, which is what segments 0 means.
     glyphs = {
         ord(char): segments
         for char, segments in config.get(CONF_ADD_CHARACTERS, {}).items()
     }
-    glyphs.update({ord(char): 0 for char in config.get(CONF_REMOVE_CHARACTERS, [])})
     if glyphs:
         table = cg.shared_progmem_array(
             "ht16k33_char_glyphs",

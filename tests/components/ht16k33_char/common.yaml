@@ -9,7 +9,7 @@ display:
     add_characters:
       "°": 0x63
       "r": 0x50
-    remove_characters: ["Y", "u"]
+      "Y": 0
     lambda: |-
       it.print("12:34");
       it.printf(5, "%d°", 21);
