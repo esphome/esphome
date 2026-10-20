@@ -12,6 +12,7 @@ from .online_image_utils import (
     make_download_watcher,
     wait_for_download,
 )
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -50,9 +51,7 @@ async def test_online_image_auto_detects_redirected_image_bmp_mime(
         run_compiled(config, line_callback=check_output),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "online-image-bmp"
+        await assert_device_name(client, "online-image-bmp")
 
         _, services = await client.list_entities_services()
         request_service = next((s for s in services if s.name == "fetch_image"), None)

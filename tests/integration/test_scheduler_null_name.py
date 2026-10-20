@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -32,9 +33,7 @@ async def test_scheduler_null_name(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-null-name"
+        await assert_device_name(client, "scheduler-null-name")
 
         # List services
         _, services = await asyncio.wait_for(
