@@ -8,6 +8,7 @@ from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_RST_PIN
 import esphome.config_validation as cv
 from esphome.const import CONF_CS_PIN, CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
 from esphome.cpp_generator import MockObj
@@ -19,11 +20,6 @@ CONF_CS1_PIN = "cs1_pin"
 CONF_BS0_PIN = "bs0_pin"
 CONF_BS1_PIN = "bs1_pin"
 CONF_PWR_EN_PIN = "pwr_en_pin"
-# Not a CONF_RST_PIN constant: that name is already independently defined in 3+ other
-# components, and ci-custom's duplicate-constant lint requires new definitions of an
-# already-3x-duplicated constant to move into esphome/const.py in a separate PR. Using
-# the literal string sidesteps that without renaming the actual "rst_pin" config key.
-RST_PIN_KEY = "rst_pin"
 
 
 class Inkplate13SpectraModel(EpaperModel):
@@ -57,7 +53,7 @@ class Inkplate13SpectraModel(EpaperModel):
             self.option(CONF_CS1_PIN, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_BS0_PIN, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_BS1_PIN, fallback=None): pins.gpio_output_pin_schema,
-            self.option(RST_PIN_KEY, fallback=None): pins.gpio_output_pin_schema,
+            self.option(CONF_RST_PIN, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_PWR_EN_PIN, fallback=None): pins.gpio_output_pin_schema,
         }
 
@@ -66,7 +62,7 @@ class Inkplate13SpectraModel(EpaperModel):
         await cg.add_pin(var.set_secondary_cs_pin, config[CONF_CS1_PIN])
         await cg.add_pin(var.set_bs0_pin, config[CONF_BS0_PIN])
         await cg.add_pin(var.set_bs1_pin, config[CONF_BS1_PIN])
-        await cg.add_pin(var.set_rst_pin, config[RST_PIN_KEY])
+        await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
         await cg.add_pin(var.set_pwr_en_pin, config[CONF_PWR_EN_PIN])
         # Remove these from the config so the base class doesn't try to handle them
         # (CS via the generic single-CS SPIDevice mechanism, RST via reset_pin_/reset()).
@@ -79,7 +75,7 @@ class Inkplate13SpectraModel(EpaperModel):
                 CONF_CS1_PIN,
                 CONF_BS0_PIN,
                 CONF_BS1_PIN,
-                RST_PIN_KEY,
+                CONF_RST_PIN,
                 CONF_PWR_EN_PIN,
             )
         }
