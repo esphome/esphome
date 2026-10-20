@@ -162,6 +162,8 @@ async def to_code(config: ConfigType) -> None:
             await debug_to_code(debug, interface)
     if CORE.using_zephyr:
         zephyr_add_prj_conf("UART_LINE_CTRL", True)
+        # Zephyr 4.5 keeps the ring_buf claim/finish API only with this option
+        zephyr_add_prj_conf("RING_BUFFER", True)
         if CORE.is_nrf52:
             zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
             # Every CDC ACM instance (the logger's and any the board tree adds) holds a transfer

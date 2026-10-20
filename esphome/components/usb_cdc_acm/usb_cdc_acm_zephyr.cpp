@@ -70,7 +70,12 @@ void USBCDCACMInstance::uart_rx_process_() {
 
 void USBCDCACMInstance::uart_irq_handler(const device *dev, void *instance) {
   USBCDCACMInstance *thiz = static_cast<USBCDCACMInstance *>(instance);
-  while (uart_irq_update(dev) && uart_irq_is_pending(dev)) {
+  while (true) {
+    // Returns void since Zephyr 4.5 (it always returned 1 for cdc_acm before)
+    uart_irq_update(dev);
+    if (!uart_irq_is_pending(dev)) {
+      break;
+    }
     if (uart_irq_rx_ready(dev)) {
       thiz->uart_rx_process_();
     }
