@@ -84,5 +84,4 @@ async def to_code(config: dict[str, Any]) -> None:
         await remote_base.attach_receiver(var, config, CONF_REMOTE_RECEIVER_ID)
 
     # Set receiver demodulation frequency if specified (metadata only, no hardware effect)
-    if CONF_RECEIVER_FREQUENCY in config:
-        cg.add(var.set_receiver_frequency(config[CONF_RECEIVER_FREQUENCY]))
+    cg.add_optional(var.set_receiver_frequency, config.get(CONF_RECEIVER_FREQUENCY))

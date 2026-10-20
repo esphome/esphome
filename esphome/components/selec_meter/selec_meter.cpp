@@ -133,11 +133,7 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
 #else
       bool ok = this->decode_em2m_(registers);
 #endif
-      if (ok) {
-        this->status_clear_warning();
-      } else {
-        this->status_set_warning();
-      }
+      this->status_comm_result(ok);
       break;
     }
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_TEXT_SENSOR)

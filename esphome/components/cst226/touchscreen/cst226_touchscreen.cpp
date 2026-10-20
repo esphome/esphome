@@ -20,12 +20,10 @@ void CST226Touchscreen::setup() {
 
 void CST226Touchscreen::update_touches() {
   uint8_t data[28];
-  if (!this->read_bytes(CST226_REG_STATUS, data, sizeof data)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_bytes(CST226_REG_STATUS, data, sizeof data))) {
     this->skip_update_ = true;
     return;
   }
-  this->status_clear_warning();
   if (data[0] == 0x83 && data[1] == 0x17 && data[5] == 0x80) {
     this->update_button_state_(true);
     return;
