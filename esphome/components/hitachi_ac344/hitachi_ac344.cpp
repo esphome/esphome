@@ -138,9 +138,8 @@ static bool swing_vertical(climate::ClimateSwingMode mode) {
 }
 
 void HitachiClimate::setup() {
-  // The restored swing mode is the best guess of where the unit's vertical swing is, so the first command after a
-  // reboot does not toggle it the wrong way. Seeded before the base publishes the restored state, since an on_state
-  // automation may transmit from that callback.
+  // Seed the tracked vertical swing before the base publishes the restored state; an on_state automation may
+  // transmit from that callback
   if (auto restore = this->restore_state_()) {
     set_swing_v_(swing_vertical(restore->swing_mode));
   }
@@ -196,8 +195,8 @@ void HitachiClimate::transmit_state() {
   const bool swing_h =
       this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL || this->swing_mode == climate::CLIMATE_SWING_BOTH;
   set_swing_h_(swing_h ? HITACHI_AC344_SWINGH_AUTO : HITACHI_AC344_SWINGH_MIDDLE);
-  // Every change goes out as a power press, as the physical remote does, except vertical swing: the unit ignores
-  // the swing bit and toggles on the swing button, so the bit only records the last state sent or received.
+  // The unit ignores the swing bit and toggles on the swing button, so only a vertical swing change presses it;
+  // everything else is a power press, as the remote does
   set_button_(swing_v != get_swing_v_() ? HITACHI_AC344_BUTTON_SWINGV : HITACHI_AC344_BUTTON_POWER);
   set_swing_v_(swing_v);
 
@@ -342,7 +341,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->parse_fan_(recv_state);
   // parse swingv
   this->parse_swing_(recv_state);
-  // Copied before publishing, so an on_state automation that transmits builds on the frame just received.
+  // Copy first so an on_state automation transmits from the received frame
   memcpy(remote_state_, recv_state, HITACHI_AC344_STATE_LENGTH);
   this->publish_state();
 
