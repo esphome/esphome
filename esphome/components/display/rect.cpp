@@ -4,7 +4,7 @@
 
 namespace esphome::display {
 
-static const char *const TAG = "display";
+ESPHOME_LOG_TAG(TAG, "display");
 
 void Rect::expand(int16_t horizontal, int16_t vertical) {
   if (this->is_set() && (this->w >= (-2 * horizontal)) && (this->h >= (-2 * vertical))) {

@@ -2,13 +2,14 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import spi, weikai
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_MODE, CONF_NUMBER
+from esphome.const import CONF_ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["weikai", "weikai_spi"]
+DOMAIN = "wk2212_spi"
 MULTI_CONF = True
 CONF_WK2212_SPI = "wk2212_spi"
 
@@ -49,11 +50,4 @@ WK2212_PIN_SCHEMA = cv.All(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_WK2212_SPI, WK2212_PIN_SCHEMA)
 async def sc16is75x_pin_to_code(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_WK2212_SPI])
-    cg.add(var.set_parent(parent))
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+    return await pins.new_parented_pin(config, CONF_WK2212_SPI)

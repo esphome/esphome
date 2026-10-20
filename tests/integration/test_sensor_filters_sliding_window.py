@@ -9,6 +9,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -131,27 +132,18 @@ async def test_sensor_filters_sliding_window(
         client.button_command(publish_button.key)
 
         # Wait for all sensors to receive their final values
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(
-                    min_received,
-                    max_received,
-                    median_received,
-                    quantile_received,
-                    moving_avg_received,
-                ),
-                timeout=10.0,
-            )
-        except TimeoutError:
-            # Provide detailed failure info
-            pytest.fail(
-                f"Timeout waiting for expected values. Received states:\n"
-                f"  min: {sensor_states['min_sensor']}\n"
-                f"  max: {sensor_states['max_sensor']}\n"
-                f"  median: {sensor_states['median_sensor']}\n"
-                f"  quantile: {sensor_states['quantile_sensor']}\n"
-                f"  moving_avg: {sensor_states['moving_avg_sensor']}"
-            )
+        await wait_or_fail(
+            asyncio.gather(
+                min_received,
+                max_received,
+                median_received,
+                quantile_received,
+                moving_avg_received,
+            ),
+            10.0,
+            "Timeout waiting for expected values",
+            sensor_states=sensor_states,
+        )
 
         # Verify we got the expected values
         # With batch_delay: 0ms, we should receive all outputs
@@ -269,14 +261,13 @@ async def test_sensor_filters_nan_handling(
         client.button_command(publish_button.key)
 
         # Wait for filters to process
-        try:
-            await asyncio.wait_for(filters_completed, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for NaN handling. Received:\n"
-                f"  min_states: {min_states}\n"
-                f"  max_states: {max_states}"
-            )
+        await wait_or_fail(
+            filters_completed,
+            10.0,
+            "Timeout waiting for NaN handling",
+            min_states=min_states,
+            max_states=max_states,
+        )
 
         # Verify NaN values were ignored
         # With batch_delay: 0ms, we should receive both outputs (at positions 1 and 6)
@@ -370,10 +361,12 @@ async def test_sensor_filters_ring_buffer_wraparound(
         client.button_command(publish_button.key)
 
         # Wait for completion
-        try:
-            await asyncio.wait_for(test_completed, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(f"Timeout waiting for wraparound test. Received: {min_states}")
+        await wait_or_fail(
+            test_completed,
+            10.0,
+            "Timeout waiting for wraparound test",
+            min_states=min_states,
+        )
 
         # Verify outputs
         # With window_size=3, send_every=3, we get outputs at positions 1, 4, 7

@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_FILES,
     CONF_FORMAT,
-    CONF_ID,
     CONF_NUM_CHANNELS,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
@@ -58,16 +57,8 @@ SpeakerMediaPlayer = speaker_ns.class_(
 
 AudioPipeline = speaker_ns.class_("AudioPipeline")
 AudioPipelineType = speaker_ns.enum("AudioPipelineType", is_class=True)
-AUDIO_PIPELINE_TYPE_ENUM = {
-    "MEDIA": AudioPipelineType.MEDIA,
-    "ANNOUNCEMENT": AudioPipelineType.ANNOUNCEMENT,
-}
+AUDIO_PIPELINE_TYPE_ENUM = AudioPipelineType.options("MEDIA", "ANNOUNCEMENT")
 
-PlayOnDeviceMediaAction = speaker_ns.class_(
-    "PlayOnDeviceMediaAction",
-    automation.Action,
-    cg.Parented.template(SpeakerMediaPlayer),
-)
 StopStreamAction = speaker_ns.class_(
     "StopStreamAction", automation.Action, cg.Parented.template(SpeakerMediaPlayer)
 )
@@ -193,8 +184,9 @@ async def to_code(config):
     cg.add(var.set_volume_min(config[CONF_VOLUME_MIN]))
 
     announcement_pipeline_config = config[CONF_ANNOUNCEMENT_PIPELINE]
-    spkr = await cg.get_variable(announcement_pipeline_config[CONF_SPEAKER])
-    cg.add(var.set_announcement_speaker(spkr))
+    await cg.add_variable(
+        var.set_announcement_speaker, announcement_pipeline_config[CONF_SPEAKER]
+    )
     if announcement_pipeline_config[CONF_FORMAT] != "NONE":
         cg.add(
             var.set_announcement_format(
@@ -205,8 +197,9 @@ async def to_code(config):
         )
 
     if media_pipeline_config := config.get(CONF_MEDIA_PIPELINE):
-        spkr = await cg.get_variable(media_pipeline_config[CONF_SPEAKER])
-        cg.add(var.set_media_speaker(spkr))
+        await cg.add_variable(
+            var.set_media_speaker, media_pipeline_config[CONF_SPEAKER]
+        )
         if media_pipeline_config[CONF_FORMAT] != "NONE":
             cg.add(
                 var.set_media_format(
@@ -239,9 +232,8 @@ async def to_code(config):
         audio_file.generate_audio_file_code(file_config)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "media_player.speaker.play_on_device_media_file",
-    PlayOnDeviceMediaAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(SpeakerMediaPlayer),
@@ -251,17 +243,18 @@ async def to_code(config):
         },
         key=CONF_MEDIA_FILE,
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "play_file({}, {}, {})",
+        (
+            # The file is a use_id of a global AudioFile pointer; global-scope qualified
+            # so a trigger arg with the same name cannot shadow it.
+            (
+                CONF_MEDIA_FILE,
+                audio.AudioFile.operator("const").operator("ptr"),
+                lambda _, value: f"::{value}",
+            ),
+            (CONF_ANNOUNCEMENT, cg.bool_),
+            (CONF_ENQUEUE, cg.bool_),
+        ),
+    ),
 )
-async def play_on_device_media_media_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    media_file = await cg.get_variable(config[CONF_MEDIA_FILE])
-    announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
-    enqueue = await cg.templatable(config[CONF_ENQUEUE], args, cg.bool_)
-
-    template_ = await cg.templatable(media_file, args, audio.AudioFile.operator("ptr"))
-    cg.add(var.set_audio_file(template_))
-    cg.add(var.set_announcement(announcement))
-    cg.add(var.set_enqueue(enqueue))
-    return var

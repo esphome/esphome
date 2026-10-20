@@ -6,7 +6,7 @@
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee.attribute";
+ESPHOME_LOG_TAG(TAG, "zigbee.attribute");
 
 void ZigbeeAttribute::set_attr_() {
   if (!this->zb_->is_started()) {
@@ -23,7 +23,8 @@ void ZigbeeAttribute::set_attr_() {
     }
     // Check for error
     if (state != EZB_ZCL_STATUS_SUCCESS) {
-      ESP_LOGE(TAG, "Setting attribute failed, ZCL status: %u", static_cast<unsigned>(state));
+      ESP_LOGE(TAG, "Setting attribute 0x%04X on cluster 0x%04X failed, ZCL status: %u", this->attr_id_,
+               this->cluster_id_, static_cast<unsigned>(state));
     }
     esp_zigbee_lock_release();
   }
@@ -61,6 +62,9 @@ void ZigbeeAttribute::report_(bool has_lock) {
 }
 
 void ZigbeeAttribute::set_report(ZigbeeReportT report) {
+  if (report == ZigbeeReportT::ZIGBEE_REPORT_DEFAULT || report == ZigbeeReportT::ZIGBEE_REPORT_COORDINATOR) {
+    return;
+  }
   this->report_enabled = true;
   if (report == ZigbeeReportT::ZIGBEE_REPORT_FORCE) {
     this->force_report_ = true;
@@ -70,6 +74,14 @@ void ZigbeeAttribute::set_report(ZigbeeReportT report) {
       this->enable_loop();
     }
   });
+}
+
+void ZigbeeAttribute::report() {
+  if (!this->report_enabled) {
+    return;
+  }
+  this->report_requested_ = true;
+  this->enable_loop();
 }
 
 void ZigbeeAttribute::loop() {

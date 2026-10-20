@@ -3,7 +3,7 @@
 
 namespace esphome::honeywellabp {
 
-static const char *const TAG = "honeywellabp";
+ESPHOME_LOG_TAG(TAG, "honeywellabp");
 
 const float MIN_COUNT = 1638.4;   // 1638 counts (10% of 2^14 counts or 0x0666)
 const float MAX_COUNT = 14745.6;  // 14745 counts (90% of 2^14 counts or 0x3999)
