@@ -92,6 +92,8 @@ class HitachiClimate final : public climate_ir::ClimateIR {
   void set_mildew_proof_switch(switch_::Switch *sw) { this->mildew_proof_switch_ = sw; }
 #endif
 
+  void setup() override;
+
  protected:
   uint8_t remote_state_[HITACHI_AC344_STATE_LENGTH]{0x01, 0x10, 0x00, 0x40, 0x00, 0xFF, 0x00, 0xCC, 0x00, 0x00, 0x00,
                                                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -101,7 +103,6 @@ class HitachiClimate final : public climate_ir::ClimateIR {
 #ifdef USE_SWITCH
   switch_::Switch *mildew_proof_switch_{nullptr};
 #endif
-  void setup() override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
   // The same frame with the button byte the physical remote sends for this change.

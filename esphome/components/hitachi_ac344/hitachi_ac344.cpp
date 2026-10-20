@@ -234,7 +234,7 @@ void HitachiClimate::transmit_state_(uint8_t button) {
       break;
   }
 
-  // TODO: find change value to set button, now always set to power button
+  // TODO: climate changes always send the power button; find the per-change button code.
   set_button_(button);
 
   // The physical remote sends this byte when powering off with mildew proof enabled.
