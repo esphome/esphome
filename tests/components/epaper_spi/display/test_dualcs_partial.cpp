@@ -106,6 +106,12 @@ class TestableDualCS : public EPaperT133A01 {
   /// Runs one partial transfer to completion. The busy pin is idle throughout.
   void run_partial() {
     this->partial_ = true;
+    this->run_to_completion();
+  }
+
+  /// Runs one transfer with partial_ as set to completion. A full transfer may yield on its time limit, so it can take
+  /// more than one call.
+  void run_to_completion() {
     int calls = 0;
     while (!this->transfer_data())
       ASSERT_LT(++calls, 50) << "transfer never completed";
@@ -252,7 +258,7 @@ TEST(EPaperDualCSPartial, FullUpdateUsesTheFullPath) {
   d.draw({{5, 3}});
   d.partial_ = false;
 
-  ASSERT_TRUE(d.transfer_data());
+  d.run_to_completion();
   EXPECT_TRUE(d.bus.saw_command(REG_CCSET));
   EXPECT_FALSE(d.bus.saw_command(REG_PTLW));
   EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_START) << "a finished transfer must let the next one choose again";
@@ -263,7 +269,7 @@ TEST(EPaperDualCSPartial, EmptyDirtyBoxUsesTheFullPath) {
   TestableDualCS d;
   d.partial_ = true;
 
-  ASSERT_TRUE(d.transfer_data());
+  d.run_to_completion();
   EXPECT_TRUE(d.bus.saw_command(REG_CCSET));
   EXPECT_FALSE(d.bus.saw_command(REG_PTLW));
 }
@@ -272,7 +278,7 @@ TEST(EPaperDualCSPartial, EmptyDirtyBoxUsesTheFullPath) {
 TEST(EPaperDualCSPartial, NextTransferChoosesItsPathAgain) {
   TestableDualCS d;
   d.partial_ = false;
-  ASSERT_TRUE(d.transfer_data());
+  d.run_to_completion();
 
   d.bus.writes.clear();
   d.draw({{5, 3}});
@@ -300,7 +306,7 @@ TEST(EPaperDualCSPartial, AbortMidPartialResetsThePath) {
 
   d.partial_ = false;
   d.bus.writes.clear();
-  ASSERT_TRUE(d.transfer_data());
+  d.run_to_completion();
   EXPECT_TRUE(d.bus.saw_command(REG_CCSET));
   EXPECT_FALSE(d.bus.saw_command(REG_PTLW));
 }
