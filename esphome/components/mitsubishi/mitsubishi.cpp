@@ -274,7 +274,7 @@ void MitsubishiClimate::transmit_state() {
 bool MitsubishiClimate::parse_state_frame_(const uint8_t frame[]) { return false; }
 
 bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t state_frame[18];
+  uint8_t state_frame[MITSUBISHI_FRAME_SIZE];
 
   if (!data.expect_item(MITSUBISHI_HEADER_MARK, MITSUBISHI_HEADER_SPACE)) {
     ESP_LOGV(TAG, "Header fail");
