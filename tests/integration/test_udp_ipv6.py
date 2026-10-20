@@ -8,6 +8,7 @@ import socket
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 def _free_port(family: socket.AddressFamily, host: str) -> int:
@@ -52,12 +53,11 @@ async def test_udp_ipv6_unicast(
             ):
                 with socket.socket(family, socket.SOCK_DGRAM) as send_sock:
                     send_sock.sendto(b"PING", (host, listen_port))
-                try:
-                    data = await asyncio.wait_for(
-                        loop.sock_recv(reply_sock, 64), timeout=5.0
-                    )
-                except TimeoutError:
-                    pytest.fail(f"No reply over IPv6 to a PING sent to {host}")
+                data = await wait_or_fail(
+                    loop.sock_recv(reply_sock, 64),
+                    5.0,
+                    f"No reply over IPv6 to a PING sent to {host}",
+                )
                 assert data == b"PONG"
     finally:
         reply_sock.close()

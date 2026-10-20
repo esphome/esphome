@@ -1,7 +1,6 @@
 """Test for recursive timeout scheduling - scheduling timeouts from within timeout callbacks."""
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import UserService
 import pytest
@@ -16,16 +15,6 @@ async def test_scheduler_recursive_timeout(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that scheduling timeouts from within timeout callbacks works correctly."""
-
-    # Get the absolute path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
     # Create a future to signal test completion
     loop = asyncio.get_running_loop()

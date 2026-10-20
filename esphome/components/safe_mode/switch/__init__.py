@@ -26,5 +26,4 @@ async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
 
-    safe_mode_component = await cg.get_variable(config[CONF_SAFE_MODE])
-    cg.add(var.set_safe_mode(safe_mode_component))
+    await cg.add_variable(var.set_safe_mode, config[CONF_SAFE_MODE])
