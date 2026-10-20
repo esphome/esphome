@@ -23,8 +23,7 @@ void DelonghiClimate::transmit_state() {
 
   data->mark(DELONGHI_HEADER_MARK);
   data->space(DELONGHI_HEADER_SPACE);
-  data->item_bytes_lsb(remote_state, DELONGHI_STATE_FRAME_SIZE, DELONGHI_BIT_MARK, DELONGHI_ONE_SPACE,
-                       DELONGHI_ZERO_SPACE);
+  data->item_bytes_lsb(remote_state, DELONGHI_STATE_FRAME_SIZE, DELONGHI_BIT_TIMINGS);
   data->mark(DELONGHI_BIT_MARK);
   data->space(0);
 
@@ -154,8 +153,7 @@ bool DelonghiClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!data.expect_item(DELONGHI_HEADER_MARK, DELONGHI_HEADER_SPACE)) {
     return false;
   }
-  if (!data.expect_bytes_lsb(state_frame, DELONGHI_STATE_FRAME_SIZE, DELONGHI_BIT_MARK, DELONGHI_ONE_SPACE,
-                             DELONGHI_ZERO_SPACE))
+  if (!data.expect_bytes_lsb(state_frame, DELONGHI_STATE_FRAME_SIZE, DELONGHI_BIT_TIMINGS))
     return false;
   // frame header
   if (state_frame[0] != DELONGHI_ADDRESS) {

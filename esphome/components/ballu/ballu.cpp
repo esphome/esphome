@@ -8,8 +8,8 @@ ESPHOME_LOG_TAG(TAG, "ballu.climate");
 const uint16_t BALLU_HEADER_MARK = 9000;
 const uint16_t BALLU_HEADER_SPACE = 4500;
 const uint16_t BALLU_BIT_MARK = 575;
-const uint16_t BALLU_ONE_SPACE = 1675;
-const uint16_t BALLU_ZERO_SPACE = 550;
+static constexpr remote_base::BitTimings BALLU_BIT_TIMINGS{
+    .bit_mark = BALLU_BIT_MARK, .one_space = 1675, .zero_space = 550};
 
 const uint32_t BALLU_CARRIER_FREQUENCY = 38000;
 
@@ -104,7 +104,7 @@ void BalluClimate::transmit_state() {
   data->mark(BALLU_HEADER_MARK);
   data->space(BALLU_HEADER_SPACE);
   // Data
-  data->item_bytes_lsb(remote_state, BALLU_STATE_LENGTH, BALLU_BIT_MARK, BALLU_ONE_SPACE, BALLU_ZERO_SPACE);
+  data->item_bytes_lsb(remote_state, BALLU_STATE_LENGTH, BALLU_BIT_TIMINGS);
   // Footer
   data->mark(BALLU_BIT_MARK);
 
@@ -119,7 +119,7 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t remote_state[BALLU_STATE_LENGTH];
-  if (!data.expect_bytes_lsb(remote_state, BALLU_STATE_LENGTH, BALLU_BIT_MARK, BALLU_ONE_SPACE, BALLU_ZERO_SPACE))
+  if (!data.expect_bytes_lsb(remote_state, BALLU_STATE_LENGTH, BALLU_BIT_TIMINGS))
     return false;
   // Validate footer
   if (!data.expect_mark(BALLU_BIT_MARK)) {

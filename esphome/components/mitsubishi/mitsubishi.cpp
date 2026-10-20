@@ -40,8 +40,8 @@ const uint8_t MITSUBISHI_NIGHTMODE = 0xC1;
 
 // Pulse parameters in usec
 const uint16_t MITSUBISHI_BIT_MARK = 430;
-const uint16_t MITSUBISHI_ONE_SPACE = 1250;
-const uint16_t MITSUBISHI_ZERO_SPACE = 390;
+static constexpr remote_base::BitTimings MITSUBISHI_BIT_TIMINGS{
+    .bit_mark = MITSUBISHI_BIT_MARK, .one_space = 1250, .zero_space = 390};
 const uint16_t MITSUBISHI_HEADER_MARK = 3500;
 const uint16_t MITSUBISHI_HEADER_SPACE = 1700;
 const uint16_t MITSUBISHI_MIN_GAP = 17500;
@@ -259,8 +259,7 @@ void MitsubishiClimate::transmit_state() {
     data->mark(MITSUBISHI_HEADER_MARK);
     data->space(MITSUBISHI_HEADER_SPACE);
     // Data
-    data->item_bytes_lsb(remote_state, sizeof(remote_state), MITSUBISHI_BIT_MARK, MITSUBISHI_ONE_SPACE,
-                         MITSUBISHI_ZERO_SPACE);
+    data->item_bytes_lsb(remote_state, sizeof(remote_state), MITSUBISHI_BIT_TIMINGS);
     // Footer
     if (r == 0) {
       data->mark(MITSUBISHI_BIT_MARK);
@@ -282,8 +281,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  if (!data.expect_bytes_lsb(state_frame, sizeof(state_frame), MITSUBISHI_BIT_MARK, MITSUBISHI_ONE_SPACE,
-                             MITSUBISHI_ZERO_SPACE))
+  if (!data.expect_bytes_lsb(state_frame, sizeof(state_frame), MITSUBISHI_BIT_TIMINGS))
     return false;
 
   // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).
