@@ -4,7 +4,7 @@
 
 namespace esphome::sx126x {
 
-static const char *const TAG = "sx126x_transport";
+ESPHOME_LOG_TAG(TAG, "sx126x_transport");
 
 void SX126xTransport::setup() {
   PacketTransport::setup();

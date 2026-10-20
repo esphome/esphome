@@ -33,6 +33,7 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["rp2"]
 AUTO_LOAD = ["ble_device_base", "rp2040_ble"]
 CODEOWNERS = ["@bdraco"]
+DOMAIN = "rp2_ble_tracker"
 
 ble_device_base.register_hub_provider("rp2_ble_tracker")
 
@@ -94,8 +95,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    parent = await cg.get_variable(config[CONF_RP2040_BLE_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_RP2040_BLE_ID])
     # The tracker registers itself as a controller scan listener in setup();
     # request the codegen-sized StaticVector slot for it.
     rp2040_ble.request_scan_listener_slot()

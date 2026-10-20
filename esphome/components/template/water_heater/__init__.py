@@ -32,11 +32,9 @@ TemplateWaterHeaterPublishAction = template_ns.class_(
 )
 
 TemplateWaterHeaterRestoreMode = template_ns.enum("TemplateWaterHeaterRestoreMode")
-RESTORE_MODES = {
-    "NO_RESTORE": TemplateWaterHeaterRestoreMode.WATER_HEATER_NO_RESTORE,
-    "RESTORE": TemplateWaterHeaterRestoreMode.WATER_HEATER_RESTORE,
-    "RESTORE_AND_CALL": TemplateWaterHeaterRestoreMode.WATER_HEATER_RESTORE_AND_CALL,
-}
+RESTORE_MODES = TemplateWaterHeaterRestoreMode.options(
+    "NO_RESTORE", "RESTORE", "RESTORE_AND_CALL", prefix="WATER_HEATER_"
+)
 
 CONFIG_SCHEMA = (
     water_heater.water_heater_schema(TemplateWaterHeater)
@@ -99,8 +97,7 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_mode_lambda(template_))
 
-    if CONF_SUPPORTED_MODES in config:
-        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
 
     if CONF_AWAY in config:
         template_ = await cg.process_lambda(

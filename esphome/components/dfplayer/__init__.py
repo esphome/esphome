@@ -5,16 +5,14 @@ import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_LOOP
 import esphome.config_validation as cv
-from esphome.const import CONF_DEVICE, CONF_FILE, CONF_ID, CONF_VOLUME
+from esphome.const import CONF_DEVICE, CONF_FILE, CONF_VOLUME
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
+DOMAIN = "dfplayer"
 
 dfplayer_ns = cg.esphome_ns.namespace("dfplayer")
 DFPlayer = dfplayer_ns.class_("DFPlayer", cg.Component)
-DFPlayerIsPlayingCondition = dfplayer_ns.class_(
-    "DFPlayerIsPlayingCondition", automation.Condition
-)
 
 MULTI_CONF = True
 CONF_FOLDER = "folder"
@@ -23,19 +21,9 @@ CONF_EQ_PRESET = "eq_preset"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 
 EqPreset = dfplayer_ns.enum("EqPreset")
-EQ_PRESET = {
-    "NORMAL": EqPreset.NORMAL,
-    "POP": EqPreset.POP,
-    "ROCK": EqPreset.ROCK,
-    "JAZZ": EqPreset.JAZZ,
-    "CLASSIC": EqPreset.CLASSIC,
-    "BASS": EqPreset.BASS,
-}
+EQ_PRESET = EqPreset.options("NORMAL", "POP", "ROCK", "JAZZ", "CLASSIC", "BASS")
 Device = dfplayer_ns.enum("Device")
-DEVICE = {
-    "USB": Device.USB,
-    "TF_CARD": Device.TF_CARD,
-}
+DEVICE = Device.options("USB", "TF_CARD")
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -63,9 +51,7 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
@@ -199,12 +185,12 @@ automation.register_apply_action(
 )
 
 
-automation.register_parented_condition(
+automation.register_apply_condition(
     "dfplayer.is_playing",
-    DFPlayerIsPlayingCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(DFPlayer),
         }
     ),
+    "is_playing()",
 )

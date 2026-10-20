@@ -3,7 +3,7 @@
 
 namespace esphome::icnt86 {
 
-static const char *const TAG = "icnt86";
+ESPHOME_LOG_TAG(TAG, "icnt86");
 static constexpr uint16_t REG_TOUCH_NUM = 0x1001;
 static constexpr uint16_t REG_POINT1 = 0x1002;
 static constexpr uint8_t MAX_TOUCHES = 5;

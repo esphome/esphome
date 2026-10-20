@@ -4,7 +4,9 @@
 
 namespace esphome::tsl2591 {
 
-static const char *const TAG = "tsl2591.sensor";
+ESPHOME_LOG_TAG(TAG, "tsl2591.sensor");
+
+static constexpr uint32_t ADC_WAIT_INTERVAL_ID = 0;
 
 // Various constants used in TSL2591 register manipulation
 #define TSL2591_COMMAND_BIT (0xA0)      // 1010 0000: bits 7 and 5 for 'command, normal'
@@ -60,18 +62,8 @@ void TSL2591Component::setup() {
       break;
   }
 
-  uint8_t id;
-  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, &id)) {
-    ESP_LOGE(TAG, "I2C read failed");
-    this->mark_failed();
+  if (!this->check_chip_id(this, TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, 0x50))
     return;
-  }
-
-  if (id != 0x50) {
-    ESP_LOGE(TAG, "Unknown chip ID");
-    this->mark_failed();
-    return;
-  }
 
   this->set_integration_time_and_gain(this->integration_time_, this->gain_);
   this->disable_if_power_saving_();
@@ -81,10 +73,8 @@ void TSL2591Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TSL2591:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "  Name: %s", this->name_);
   TSL2591ComponentGain raw_gain = this->component_gain_;
@@ -163,19 +153,17 @@ void TSL2591Component::process_update_() {
   this->status_clear_warning();
 }
 
-#define interval_name "tsl2591_interval_for_update"
-
 void TSL2591Component::interval_function_for_update_() {
   if (!this->is_adc_valid()) {
     uint64_t now = millis();
     ESP_LOGD(TAG, "Elapsed %3llu ms; still waiting for valid ADC", (now - this->interval_start_));
     if (now > this->interval_timeout_) {
       ESP_LOGW(TAG, "Interval timeout for '%s' expired before ADCs became valid", this->name_);
-      this->cancel_interval(interval_name);
+      this->cancel_interval(ADC_WAIT_INTERVAL_ID);
     }
     return;
   }
-  this->cancel_interval(interval_name);
+  this->cancel_interval(ADC_WAIT_INTERVAL_ID);
   this->process_update_();
 }
 
@@ -191,7 +179,7 @@ void TSL2591Component::update() {
     } else {
       this->interval_start_ = millis();
       this->interval_timeout_ = this->interval_start_ + 620;
-      this->set_interval(interval_name, 100, [this] { this->interval_function_for_update_(); });
+      this->set_interval(ADC_WAIT_INTERVAL_ID, 100, [this] { this->interval_function_for_update_(); });
     }
   }
 }

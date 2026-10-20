@@ -57,15 +57,12 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     cg.add(var.set_restore(config[CONF_RESTORE]))
-    if CONF_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_SENSOR])
-        cg.add(var.set_sensor(sens))
+    await cg.add_variable(var.set_sensor, config.get(CONF_SENSOR))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(config[CONF_LAMBDA], [], return_type=cg.bool_)
         cg.add(var.set_lambda(lambda_))
-    if CONF_LAST_TIME in config:
-        sens = await sensor.new_sensor(config[CONF_LAST_TIME])
-        cg.add(var.set_last_duty_time_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_LAST_TIME, var.set_last_duty_time_sensor)
 
 
 # AUTOMATIONS
