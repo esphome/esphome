@@ -12,7 +12,7 @@ namespace esphome::ht16k33_char {
 
 ESPHOME_LOG_TAG(TAG, "display.ht16k33_char");
 
-// Command bytes; the low bits carry the argument.
+// Commands; the low bits carry the argument
 static constexpr uint8_t COMMAND_DISPLAY_DATA = 0x00;
 static constexpr uint8_t COMMAND_SYSTEM_SETUP = 0x20;   // bit 0 runs the oscillator
 static constexpr uint8_t COMMAND_DISPLAY_SETUP = 0x80;  // bit 0 turns the display on, bits 1 and 2 pick the blink rate
@@ -23,14 +23,14 @@ static constexpr uint8_t DISPLAY_ON = 0x01;
 static constexpr uint8_t MAX_BLINK = 3;
 static constexpr uint8_t MAX_INTENSITY = 15;
 
-// A message of MAX_BUFFER_LENGTH from display.py plus the terminator; printf and strftime format into this.
+// MAX_BUFFER_LENGTH in display.py plus the terminator
 static constexpr size_t FORMAT_BUFFER_SIZE = 64 + 1;
 
-// A chip has 16 bytes of display memory; a frame is the data address followed by all of it.
+// A frame is the data address followed by the 16 bytes of display memory
 static constexpr uint8_t DISPLAY_RAM_SIZE = 16;
 static constexpr uint8_t FRAME_SIZE = DISPLAY_RAM_SIZE + 1;
 
-// Adafruit 0.56" 4-digit 7-segment backpack: the digits sit in memory bytes 0, 2, 6 and 8, the colon in byte 4.
+// Adafruit 0.56" backpack: digits in bytes 0, 2, 6 and 8, colon in byte 4
 static constexpr uint8_t DIGITS_PER_CHIP = 4;
 static constexpr uint8_t DIGIT_RAM_OFFSET[DIGITS_PER_CHIP] PROGMEM = {0, 2, 6, 8};
 static constexpr uint8_t COLON_RAM_OFFSET = 4;
@@ -38,7 +38,7 @@ static constexpr uint8_t COLON_BIT = 0x02;
 static constexpr uint8_t COLON_DIGIT = 2;  // the colon sits between the second and third digit
 static constexpr uint8_t DECIMAL_POINT_BIT = 0x80;
 
-// Space, punctuation and both letter cases of ASCII; 0 leaves the digit dark.
+// ASCII 0x20 to 0x7E; 0 is a dark digit
 //
 //      A
 //     ---
@@ -118,9 +118,8 @@ uint8_t HT16K33CharDisplay::find_segments_(uint32_t codepoint) const {
   return progmem_read_byte(&FONT[codepoint - ' ']);
 }
 
-/// Fill each chip in turn from one cursor over the message. A decimal point lights on the digit before it and a
-/// colon only in its one place, so neither takes a digit; where they cannot light they are skipped. A chip the
-/// message does not reach is cleared.
+// A decimal point lights on the digit before it and a colon only in its place; neither takes a digit. Chips the
+// message does not reach are cleared.
 void HT16K33CharDisplay::draw_() {
   uint8_t pos = 0;
   bool ok = true;
@@ -132,7 +131,7 @@ void HT16K33CharDisplay::draw_() {
       size_t consumed;
       uint32_t codepoint = unicode::extract_unicode_codepoint(this->message_ + pos, &consumed);
       if (consumed == 0) {
-        // A malformed byte: skip it and draw a blank digit.
+        // Malformed byte: blank digit
         consumed = 1;
         codepoint = 0xFFFF;
       }
@@ -161,7 +160,7 @@ uint8_t HT16K33CharDisplay::print(uint8_t pos, const char *str) {
   if (pos > this->length_)
     memset(this->message_ + this->length_, ' ', pos - this->length_);
   uint8_t len = std::min<size_t>(strlen(str), this->capacity_ - pos);
-  // Do not cut a multi-byte character in half; the continuation bytes are 10xxxxxx.
+  // Do not cut a multi-byte character; continuation bytes are 10xxxxxx
   while (len > 0 && (str[len] & 0xC0) == 0x80)
     len--;
   memcpy(this->message_ + pos, str, len);

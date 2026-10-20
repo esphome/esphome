@@ -11,14 +11,14 @@ CONF_MAX_BUFFER_LENGTH = "max_buffer_length"
 CONF_SECONDARY_DISPLAYS = "secondary_displays"
 CONF_ADD_CHARACTERS = "add_characters"
 
-# The only backpack wired up so far; other HT16K33 boards will join this list.
+# The only board so far
 DEVICE_ADAFRUIT_7_SEG_056IN = "ADAFRUIT_7_SEG_.56IN"
 
-# The chip answers on 0x70 to 0x77, so one bus carries the primary and up to seven more.
+# Addresses 0x70 to 0x77: the primary plus seven
 MAX_SECONDARY_DISPLAYS = 7
-# printf and strftime format into a stack buffer one byte larger, FORMAT_BUFFER_SIZE in ht16k33_char.cpp.
+# FORMAT_BUFFER_SIZE in ht16k33_char.cpp is one more
 MAX_BUFFER_LENGTH = 64
-# The glyph table is indexed with a byte.
+# The glyph table index is a byte
 MAX_GLYPH_OVERRIDES = 255
 
 ht16k33_char_ns = cg.esphome_ns.namespace("ht16k33_char")
@@ -43,7 +43,7 @@ _SINGLE_CHARACTER = cv.All(
 
 
 def single_character(value: object) -> str:
-    """A plain function, which the language schema builder expects as a mapping key."""
+    """The schema builder needs a plain function as a mapping key."""
     return _SINGLE_CHARACTER(value)
 
 
@@ -90,7 +90,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     capacity = config[CONF_MAX_BUFFER_LENGTH]
     message = f"ht16k33_char_message_{config[CONF_ID]}"
-    # Room after the message for the terminator and the bytes the UTF-8 decoder reads past a cut-off sequence.
+    # Terminator plus the bytes the UTF-8 decoder may read past a cut-off sequence
     cg.add_global(cg.RawStatement(f"static char {message}[{capacity + 4}];"))
     var = cg.new_Pvariable(config[CONF_ID], cg.RawExpression(message), capacity)
     await display.register_display(var, config)

@@ -12,7 +12,7 @@ namespace esphome::ht16k33_char {
 class HT16K33CharDisplay;
 using ht16k33_char_writer_t = display::DisplayWriter<HT16K33CharDisplay>;
 
-/// A character and the segments that draw it; add_characters compiles to a table of these.
+/// One add_characters entry
 struct Glyph {
   uint16_t codepoint;
   uint8_t segments;
@@ -20,7 +20,7 @@ struct Glyph {
 
 class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice {
  public:
-  /// message holds up to capacity bytes of UTF-8 text; the lambda prints into it and every update draws it.
+  /// message holds capacity bytes of UTF-8 text
   HT16K33CharDisplay(char *message, uint8_t capacity) : message_(message), capacity_(capacity) {}
 
   void setup() override;
@@ -29,7 +29,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   void set_writer(ht16k33_char_writer_t &&writer) { this->writer_ = std::move(writer); }
-  /// Intensity from 0 (dimmest) to 15, higher values clamp; written to the chips at once when they are set up.
+  /// 0 (dimmest) to 15, clamped; written at once after setup
   void set_intensity(uint8_t intensity);
 #ifdef HT16K33_CHAR_SECONDARY_COUNT
   void add_secondary_display(uint8_t address) { this->secondary_addresses_.push_back(address); }
@@ -41,25 +41,24 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   }
 #endif
 
-  /// Empty the message. The lambda starts from an empty message anyway; this is for printing from automations.
+  /// For printing from automations; the lambda starts from an empty message
   void clear() { this->length_ = 0; }
-  /// Write str into the message at byte offset pos, over whatever was there. A `.`, a `:` and every byte of a
-  /// multi-byte character count as one position. Returns the number of bytes written, which is fewer than
-  /// strlen(str) when the message is full.
+  /// Write str at byte offset pos, where a `.`, a `:` and each byte of a multi-byte character count as one.
+  /// Returns the bytes written.
   uint8_t print(uint8_t pos, const char *str);
   uint8_t print(const char *str) { return this->print(0, str); }
   uint8_t printf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
   uint8_t printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
   uint8_t strftime(uint8_t pos, const char *format, ESPTime time) __attribute__((format(strftime, 3, 0)));
   uint8_t strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
-  /// Print the time as HH:MM, with a blank instead of a leading zero on request, in 12-hour form when use_ampm.
+  /// HH:MM, or H:MM without the leading zero; 12-hour when use_ampm
   uint8_t clock_display(uint8_t pos, bool show_leading_zero, bool use_ampm, ESPTime time);
 
-  /// 0 shows steadily; 1 blinks at 2 Hz, 2 at 1 Hz and 3 at 0.5 Hz.
+  /// 0 steady, 1 at 2 Hz, 2 at 1 Hz, 3 at 0.5 Hz
   void set_blink(uint8_t blink);
   void display_off(bool turn_off);
   void display_standby(bool standby);
-  /// Clear the display memory of every chip; the message stays and the next update redraws it.
+  /// Clear the display memory; the next update redraws the message
   void blank();
 
  protected:
@@ -78,7 +77,7 @@ class HT16K33CharDisplay final : public PollingComponent, public i2c::I2CDevice 
   const uint8_t capacity_;
   uint8_t length_{0};
   uint8_t intensity_{15};
-  /// The display setup register: the on bit and the blink rate, kept so each setter changes only its own bits.
+  /// Display setup register: on bit and blink rate
   uint8_t display_setup_{0};
 #ifdef USE_HT16K33_CHAR_GLYPH_OVERRIDES
   uint8_t glyph_override_count_{0};
