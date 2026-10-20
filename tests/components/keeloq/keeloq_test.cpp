@@ -490,7 +490,7 @@ TEST(KeeloqCommandTest, ReplayProtectionSurvivesARestart) {
 
 TEST(KeeloqCommandTest, FiltersByChannelAndCommand) {
   // Up for channels 1 and 3 (channels 0x0005).
-  KeeloqFrame up{.serial = SERIAL, .counter = 100, .channels = 0x0005, .command = 0x8, .type = KEELOQ_TYPE_JAROLIFT};
+  KeeloqFrame up{.serial = SERIAL, .counter = 100, .channels = 0x0005, .command = 0x8};
   EXPECT_TRUE(command_matches(up, ANY_CHANNEL, ANY_COMMAND));
   EXPECT_TRUE(command_matches(up, 3, ANY_COMMAND));
   EXPECT_FALSE(command_matches(up, 2, ANY_COMMAND));

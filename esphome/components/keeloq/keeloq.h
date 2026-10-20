@@ -23,7 +23,6 @@ struct KeeloqFrame {
   uint16_t counter;
   uint16_t channels;
   uint8_t command;
-  KeeloqType type;
 };
 
 class KeeloqRemote : public Component, public remote_base::RemoteReceiverListener {
@@ -66,7 +65,6 @@ class KeeloqRemote : public Component, public remote_base::RemoteReceiverListene
   // False, with a warning, while a remote without serial has not taken one over.
   bool ready_to_send() const;
   uint32_t get_serial() const { return this->serial_; }
-  KeeloqType get_type() const { return this->type_; }
   // Channels for frames whose action names none; a taken-over remote's own channels unless configured.
   void set_channels(uint16_t channels) {
     this->channels_ = channels;
@@ -79,7 +77,6 @@ class KeeloqRemote : public Component, public remote_base::RemoteReceiverListene
 
  protected:
   bool decrypt_frame_(const remote_base::KeeloqData &data, KeeloqFrame &frame) const;
-  bool decrypt_frame_as_(KeeloqType type, const remote_base::KeeloqData &data, KeeloqFrame &frame) const;
   // Applies the receiver's counter window; true for a frame that counts as a new press.
   bool accept_(uint16_t counter);
   void store_accepted_(bool sync);
