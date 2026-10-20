@@ -7,6 +7,7 @@ import asyncio
 import pytest
 
 from .types import APIClientConnectedWithDisconnectFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -55,12 +56,11 @@ async def test_oversized_payload_plaintext(
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
         # Wait for the expected log message (may arrive after disconnect event)
-        try:
-            await asyncio.wait_for(helper_log_event.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                "Expected to see HELPER_LOG about message size exceeding maximum"
-            )
+        await wait_or_fail(
+            helper_log_event,
+            2.0,
+            "Expected to see HELPER_LOG about message size exceeding maximum",
+        )
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect() as (client2, _):
@@ -118,12 +118,11 @@ async def test_oversized_protobuf_message_id_plaintext(
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
         # Wait for the expected log message (may arrive after disconnect event)
-        try:
-            await asyncio.wait_for(helper_log_event.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                "Expected to see HELPER_LOG about message type exceeding maximum"
-            )
+        await wait_or_fail(
+            helper_log_event,
+            2.0,
+            "Expected to see HELPER_LOG about message type exceeding maximum",
+        )
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect() as (client2, _):
@@ -184,12 +183,11 @@ async def test_oversized_payload_noise(
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
         # Wait for the expected log message (may arrive after disconnect event)
-        try:
-            await asyncio.wait_for(helper_log_event.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                "Expected to see HELPER_LOG about message size exceeding maximum"
-            )
+        await wait_or_fail(
+            helper_log_event,
+            2.0,
+            "Expected to see HELPER_LOG about message size exceeding maximum",
+        )
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
@@ -336,13 +334,12 @@ async def test_noise_corrupt_encrypted_frame(
             "ESPHome process should not crash on corrupt encrypted frames"
         )
         # Wait for the expected log message (may arrive after disconnect event)
-        try:
-            await asyncio.wait_for(cipherstate_event.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                "Expected to see log about noise_cipherstate_decrypt failure"
-                " or CIPHERSTATE_DECRYPT_FAILED"
-            )
+        await wait_or_fail(
+            cipherstate_event,
+            2.0,
+            "Expected to see log about noise_cipherstate_decrypt failure"
+            " or CIPHERSTATE_DECRYPT_FAILED",
+        )
 
         # Verify we can still reconnect after handling the corrupt frame
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (

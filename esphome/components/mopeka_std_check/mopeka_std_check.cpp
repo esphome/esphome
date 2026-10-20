@@ -5,7 +5,7 @@
 
 namespace esphome::mopeka_std_check {
 
-static const char *const TAG = "mopeka_std_check";
+ESPHOME_LOG_TAG(TAG, "mopeka_std_check");
 static const uint16_t SERVICE_UUID = 0xADA0;
 static const uint8_t MANUFACTURER_DATA_LENGTH = 23;
 static const uint16_t MANUFACTURER_ID = 0x000D;
@@ -64,11 +64,8 @@ bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
 
   const auto &manu_data = manu_datas[0];
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char hex_buf[format_hex_pretty_size(MOPEKA_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGVV(TAG, "[%s] Manufacturer data: %s", addr_str,
-            format_hex_pretty_to(hex_buf, manu_data.data.data(), manu_data.data.size()));
+  ESP_LOGVV_HEX(TAG, manu_data.data.data(), manu_data.data.size(), MOPEKA_MAX_LOG_BYTES, "[%s] Manufacturer data: %s",
+                addr_str);
 
   if (manu_data.data.size() != MANUFACTURER_DATA_LENGTH) {
     ESP_LOGE(TAG, "[%s] Unexpected manu_data size (%d)", addr_str, manu_data.data.size());

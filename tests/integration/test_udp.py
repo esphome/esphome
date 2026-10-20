@@ -12,6 +12,7 @@ import socket
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @dataclass
@@ -189,10 +190,9 @@ async def test_udp_send_receive(
             finally:
                 send_sock.close()
 
-            try:
-                await asyncio.wait_for(receive_event.wait(), timeout=5.0)
-            except TimeoutError:
-                pytest.fail(
-                    f"on_receive did not fire. Expected 'Received UDP:' in logs. "
-                    f"Last log lines: {log_lines[-20:]}"
-                )
+            await wait_or_fail(
+                receive_event,
+                5.0,
+                "on_receive did not fire. Expected 'Received UDP:' in logs",
+                log_lines=log_lines,
+            )

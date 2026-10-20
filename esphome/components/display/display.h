@@ -7,6 +7,8 @@
 
 #include "esphome/core/color.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #include "esphome/core/log.h"
 #include "display_color_utils.h"
@@ -137,6 +139,11 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
+/// Whether a rotation swaps the x and y axes.
+constexpr bool rotation_swaps_axes(DisplayRotation rotation) {
+  return rotation == DISPLAY_ROTATION_90_DEGREES || rotation == DISPLAY_ROTATION_270_DEGREES;
+}
+
 const int EDGES_TRIGON = 3;
 const int EDGES_TRIANGLE = 3;
 const int EDGES_TETRAGON = 4;
@@ -173,7 +180,6 @@ enum RegularPolygonDrawing {
 
 class Display;
 class DisplayPage;
-class DisplayOnPageChangeTrigger;
 
 /** Optimized display writer that uses function pointers for stateless lambdas.
  *
@@ -287,13 +293,15 @@ template<typename T> class DisplayWriter {
 // Type alias for Display writer - uses optimized DisplayWriter instead of std::function
 using display_writer_t = DisplayWriter<Display>;
 
+// Callers usually pass `this`; checking a copy keeps GCC's -Wnonnull-compare quiet.
 #define LOG_DISPLAY(prefix, type, obj) \
-  if ((obj) != nullptr) { \
+  if (auto *log_display_obj = (obj); log_display_obj != nullptr) { \
     ESP_LOGCONFIG(TAG, \
                   prefix type "\n" \
                               "%s  Rotations: %d °\n" \
                               "%s  Dimensions: %dpx x %dpx", \
-                  prefix, (obj)->rotation_, prefix, (obj)->get_width(), (obj)->get_height()); \
+                  prefix, log_display_obj->get_rotation(), prefix, log_display_obj->get_width(), \
+                  log_display_obj->get_height()); \
   }
 
 /// Turn the pixel OFF.
@@ -338,8 +346,6 @@ class Display : public PollingComponent {
   virtual void draw_pixel_at(int x, int y, Color color) = 0;
 
   /** Given an array of pixels encoded in the nominated format, draw these into the display's buffer.
-   * The naive implementation here will work in all cases, but can be overridden by sub-classes
-   * in order to optimise the procedure.
    * The parameters describe a rectangular block of pixels, potentially within a larger buffer.
    *
    * \param x_start The starting destination x position
@@ -347,22 +353,49 @@ class Display : public PollingComponent {
    * \param w the width of the pixel block
    * \param h the height of the pixel block
    * \param ptr A pointer to the start of the data to be copied
-   * \param order The ordering of the colors
-   * \param bitness Defines the number of bits and their format for each pixel
-   * \param big_endian True if 16 bit values are stored big-endian
+   * \param bitness Defines the number of bits and their format for each pixel. Red is always in the
+   *                most significant bits.
+   * \param big_endian True if 16 bit values are stored big-endian. Ignored for 888, which is always b,g,r
+   *                   in memory, as LVGL and ESPHome images store it.
    * \param x_offset The initial x-offset into the source buffer.
    * \param y_offset The initial y-offset into the source buffer.
    * \param x_pad How many pixels are in each line after the end of the pixels to be copied.
    *
    * The length of each source buffer line (stride) will be x_offset + w + x_pad.
+   * The block must lie on the screen. A driver that can copy blocks itself overrides draw_pixels_internal().
    */
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness, bool big_endian,
+                      int x_offset, int y_offset, int x_pad) {
+    this->draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
+  }
+
+  /// Convenience overload for base case where the pixels are packed into the buffer with no gaps (e.g. suits LVGL.)
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                      bool big_endian) {
+    this->draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, 0, 0, 0);
+  }
+
+  // Remove before 2027.5.0
+  /// The block form above with a color order. The base version draws per pixel and honors the order;
+  /// a driver that still overrides this one keeps receiving every block, since draw_pixels_internal() calls it.
+  /// Such a driver needs `using display::Display::draw_pixels_at;` so the forms above stay visible through it,
+  /// and its fallback must call Display::draw_pixels_at() with the order: Display::draw_pixels_internal() would
+  /// call the override again.
+  ESPDEPRECATED(
+      "Pixels are always RGB: call draw_pixels_at() without the ColorOrder, and override draw_pixels_internal() "
+      "to copy blocks. Removed in 2027.5.0",
+      "2026.11.0")
   virtual void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                               ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad);
 
-  /// Convenience overload for base case where the pixels are packed into the buffer with no gaps (e.g. suits LVGL.)
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Pixels are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                       ColorBitness bitness, bool big_endian) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     this->draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, 0, 0, 0);
+#pragma GCC diagnostic pop
   }
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
@@ -700,7 +733,11 @@ class Display : public PollingComponent {
 
   const DisplayPage *get_active_page() const { return this->page_; }
 
-  void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
+#ifdef DISPLAY_PAGE_CHANGE_CALLBACK_COUNT
+  template<typename F> void add_on_page_change_callback(F &&callback) {
+    this->page_change_callback_.add(std::forward<F>(callback));
+  }
+#endif
 
   /// Internal method to set the display rotation with.
   virtual void set_rotation(DisplayRotation rotation);
@@ -708,7 +745,13 @@ class Display : public PollingComponent {
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
-  DisplayRotation get_rotation() const { return this->rotation_; }
+  virtual DisplayRotation get_rotation() const { return this->rotation_; }
+
+  /// True when draw_pixel_at() swaps x and y before writing, so pixels that are
+  /// neighbours along x land a row apart in the frame buffer. Not the same as
+  /// get_width()/get_height() swapping: a display that rotates in hardware
+  /// reports swapped dimensions but writes unswapped pixels.
+  virtual bool pixel_axes_swapped() const { return rotation_swaps_axes(this->rotation_); }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
@@ -773,6 +816,16 @@ class Display : public PollingComponent {
   void show_test_card() { this->show_test_card_ = true; }
 
  protected:
+  /** Draws a block for draw_pixels_at(); the parameters are the same. The base version draws it per pixel
+   * through draw_pixel_at(), so it works on any display.
+   *
+   * A driver can override it to copy blocks that are already laid out the way its own draw_pixel_at()
+   * writes, and must send any other format, byte order, a software rotation or an active clipping
+   * rectangle through Display::draw_pixels_internal(), which draws per pixel. Do not also override the
+   * deprecated draw_pixels_at() with a color order: Display::draw_pixels_internal() calls it.
+   */
+  virtual void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                                    bool big_endian, int x_offset, int y_offset, int x_pad);
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
   void vprintf_(int x, int y, BaseFont *font, Color color, Color background, TextAlign align, const char *format,
@@ -807,8 +860,9 @@ class Display : public PollingComponent {
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   display_writer_t writer_{};
   DisplayPage *page_{nullptr};
-  DisplayPage *previous_page_{nullptr};
-  std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
+#ifdef DISPLAY_PAGE_CHANGE_CALLBACK_COUNT
+  StaticCallbackManager<DISPLAY_PAGE_CHANGE_CALLBACK_COUNT, void(DisplayPage *, DisplayPage *)> page_change_callback_;
+#endif
   bool auto_clear_enabled_{true};
   std::vector<Rect> clipping_rectangle_;
   uint8_t wdt_pixel_counter_{0};
@@ -846,18 +900,6 @@ template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...
       page->show();
     }
   }
-};
-
-class DisplayOnPageChangeTrigger final : public Trigger<DisplayPage *, DisplayPage *> {
- public:
-  explicit DisplayOnPageChangeTrigger(Display *parent) { parent->add_on_page_change_trigger(this); }
-  void process(DisplayPage *from, DisplayPage *to);
-  void set_from(DisplayPage *p) { this->from_ = p; }
-  void set_to(DisplayPage *p) { this->to_ = p; }
-
- protected:
-  DisplayPage *from_{nullptr};
-  DisplayPage *to_{nullptr};
 };
 
 const LogString *text_align_to_string(TextAlign textalign);

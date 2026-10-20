@@ -5,7 +5,7 @@ namespace esphome::growatt_solar {
 
 namespace helpers = modbus::helpers;
 
-static const char *const TAG = "growatt_solar";
+ESPHOME_LOG_TAG(TAG, "growatt_solar");
 
 static const uint8_t MODBUS_REGISTER_COUNT[] = {33, 95};  // indexed with enum GrowattProtocolVersion
 
