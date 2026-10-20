@@ -263,7 +263,9 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
 
 #ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
 // PVVX sends new data under an unchanged counter, so only an exact repeat (counter and MIC) is a duplicate and
-// earlier frames under the current counter can be replayed; the lower-counter rule is the defence. RAM only.
+// earlier frames under the current counter can be replayed; the lower-counter rule is the defence. It holds only
+// while the sensor keeps being heard: after the resync window one old frame becomes the baseline and recorded
+// frames above it can follow in order, the price of recovering from a counter restart. RAM only.
 bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter, uint32_t mic) {
   const uint32_t now = App.get_loop_component_start_time();
   if (counter == this->last_counter_ && mic == this->last_mic_) {
