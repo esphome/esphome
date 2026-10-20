@@ -145,7 +145,7 @@ void I2CSSD1306::dump_config() {
 void I2CSSD1306::command(uint8_t value) {
 #ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
   if (this->partial_updates_enabled_) {
-    if (this->write_byte(0x00, value) != i2c::ERROR_OK) {
+    if (!this->write_byte(0x00, value)) {
       this->mark_partial_transport_failure_();
     }
     return;
@@ -333,7 +333,10 @@ bool I2CSSD1306::reinitialize_controller_() {
   // Contrast
   push(0x81);
   push(static_cast<uint8_t>(255.0f * this->contrast_));
-  const auto result = this->write_register(0x00, commands, command_count);
+  uint8_t transaction[sizeof(commands) + 1];
+  transaction[0] = 0x00;
+  std::memcpy(transaction + 1, commands, command_count);
+  const auto result = this->write(transaction, command_count + 1);
   return result == i2c::ERROR_OK;
 }
 
