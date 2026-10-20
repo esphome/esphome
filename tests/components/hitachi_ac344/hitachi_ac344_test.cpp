@@ -84,14 +84,23 @@ TEST_F(HitachiSwingTest, ReceivedFrameResyncsTheVerticalSwingState) {
   frame[HITACHI_AC344_TEMP_BYTE] = 24 << HITACHI_AC344_TEMP_OFFSET;
   frame[HITACHI_AC344_SWINGH_BYTE] = HITACHI_AC344_SWINGH_MIDDLE;
   frame[HITACHI_AC344_SWINGV_BYTE] = 1 << HITACHI_AC344_SWINGV_OFFSET;
+  // An on_state automation that transmits from the publish inside on_receive must already see the received frame,
+  // so its temperature change goes out as a power press and not another swing press.
+  bool transmitted = false;
+  uint8_t button_from_callback = 0;
+  this->climate_.add_on_state_callback([&](climate::Climate &) {
+    if (transmitted)
+      return;
+    transmitted = true;
+    auto call = this->climate_.make_call();
+    call.set_target_temperature(22);
+    call.perform();
+    button_from_callback = this->frame_byte_(HITACHI_AC344_BUTTON_BYTE);
+  });
   this->receive_(frame);
   EXPECT_EQ(this->climate_.swing_mode, climate::CLIMATE_SWING_VERTICAL);
-
-  // The tracked state now says the vanes swing, so a temperature change must not press the swing button again.
-  auto call = this->climate_.make_call();
-  call.set_target_temperature(22);
-  call.perform();
-  EXPECT_EQ(this->frame_byte_(HITACHI_AC344_BUTTON_BYTE), HITACHI_AC344_BUTTON_POWER);
+  EXPECT_TRUE(transmitted);
+  EXPECT_EQ(button_from_callback, HITACHI_AC344_BUTTON_POWER);
   EXPECT_EQ(this->button_after_swing_(climate::CLIMATE_SWING_OFF), HITACHI_AC344_BUTTON_SWINGV);
 }
 
