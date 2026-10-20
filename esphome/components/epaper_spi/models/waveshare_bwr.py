@@ -79,9 +79,11 @@ class XsrupbBWR(WaveshareBWR):
         return (
             # Panel setting: BWR, LUT from OTP
             (0x00, 0x0F),
-            # VCOM and data interval setting: DDX=11, which needs the red data inverted
-            (0x50, 0x77),
+            # VCOM and data interval setting: BDV=11 (border uses LUTBD), DDX=11, which needs the red data inverted
+            (0x50, 0x33),
             ultrachip_resolution(width, height),
+            # Power setting, as for waveshare-7.5in-bv2-bwr: internal power, VGH/VGL=±20V, VDH/VDL=±15V
+            (0x01, 0x07, 0x17, 0x3F, 0x3F),
         )
 
     def get_constructor_args(self, config: ConfigType) -> tuple:
@@ -93,5 +95,4 @@ XsrupbBWR(
     "XSRUPB-7.5in-bwr",
     width=800,
     height=480,
-    reset_duration="200ms",
 )
