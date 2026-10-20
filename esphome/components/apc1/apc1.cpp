@@ -104,16 +104,14 @@ void APC1Component::loop() {
     this->rx_index_ = 0;
   }
 
-  while (this->available()) {
+  this->read_available([this, now](uint8_t byte) {
     this->last_transmission_ = now;
-    uint8_t byte;
-    this->read_byte(&byte);
 
     if (this->rx_index_ == 0) {
       if (byte == APC1_HEADER_1) {
         this->rx_buffer_[this->rx_index_++] = byte;
       }
-      continue;
+      return;
     }
 
     if (this->rx_index_ == 1) {
@@ -122,12 +120,12 @@ void APC1Component::loop() {
       } else if (byte != APC1_HEADER_1) {
         this->rx_index_ = 0;
       }
-      continue;
+      return;
     }
 
     this->rx_buffer_[this->rx_index_++] = byte;
     if (this->rx_index_ < APC1_FRAME_HEADER_SIZE) {
-      continue;
+      return;
     }
 
     // The payload carries at least the checksum and must fit the buffer; checking it before the sum keeps a
@@ -136,14 +134,14 @@ void APC1Component::loop() {
     if (payload_len < 2 || payload_len > this->rx_buffer_.size() - APC1_FRAME_HEADER_SIZE) {
       ESP_LOGW(TAG, "Invalid frame length: %u", payload_len);
       this->rx_index_ = 0;
-      continue;
+      return;
     }
     const uint8_t total_len = payload_len + APC1_FRAME_HEADER_SIZE;
     if (this->rx_index_ == total_len) {
       this->parse_frame_(total_len);
       this->rx_index_ = 0;
     }
-  }
+  });
 }
 
 void APC1Component::parse_frame_(uint16_t total_len) {

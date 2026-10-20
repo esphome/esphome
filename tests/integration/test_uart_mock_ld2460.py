@@ -15,7 +15,6 @@ test_uart_mock_ld2460:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import ButtonInfo
 import pytest
@@ -31,13 +30,6 @@ async def test_uart_mock_ld2460(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2460 frame parsing with the datasheet frames, garbage and overflow."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
     overflow_seen = loop.create_future()
     tx_log_lines: list[str] = []

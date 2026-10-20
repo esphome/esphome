@@ -716,9 +716,7 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_sensor(sens))
 
-    if CONF_HUMIDITY_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
-        cg.add(var.set_humidity_sensor(sens))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
     cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
@@ -1028,8 +1026,7 @@ async def to_code(config: ConfigType) -> None:
         else:
             cg.add(var.set_default_preset(default_preset_name))
 
-    if CONF_ON_BOOT_RESTORE_FROM in config:
-        cg.add(var.set_on_boot_restore_from(config[CONF_ON_BOOT_RESTORE_FROM]))
+    cg.add_optional(var.set_on_boot_restore_from, config.get(CONF_ON_BOOT_RESTORE_FROM))
 
     if CONF_PRESET_CHANGE in config:
         await automation.build_automation(

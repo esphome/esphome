@@ -57,10 +57,8 @@ async def to_code(config):
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
 
-    if CONF_CONTROL_DATAPOINT in config:
-        cg.add(var.set_control_id(config[CONF_CONTROL_DATAPOINT]))
-    if CONF_DIRECTION_DATAPOINT in config:
-        cg.add(var.set_direction_id(config[CONF_DIRECTION_DATAPOINT]))
+    cg.add_optional(var.set_control_id, config.get(CONF_CONTROL_DATAPOINT))
+    cg.add_optional(var.set_direction_id, config.get(CONF_DIRECTION_DATAPOINT))
     cg.add(var.set_position_id(config[CONF_POSITION_DATAPOINT]))
     if CONF_POSITION_REPORT_DATAPOINT in config:
         cg.add(var.set_position_report_id(config[CONF_POSITION_REPORT_DATAPOINT]))
@@ -69,5 +67,4 @@ async def to_code(config):
     cg.add(var.set_invert_position(config[CONF_INVERT_POSITION]))
     cg.add(var.set_invert_position_report(config[CONF_INVERT_POSITION_REPORT]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
