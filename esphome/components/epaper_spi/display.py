@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_MODEL,
+    CONF_OFFSET_HEIGHT,
     CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
@@ -40,7 +41,6 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.cpp_generator import RawExpression
-from esphome.final_validate import full_config
 
 from . import models
 
@@ -74,12 +74,17 @@ for module_info in pkgutil.iter_modules(models.__path__):
 
 MODELS = models.EpaperModel.models
 
-DIMENSION_SCHEMA = cv.Schema(
-    {
+
+def dimension_schema(model: models.EpaperModel) -> cv.Schema:
+    schema = {
         cv.Required(CONF_WIDTH): cv.int_,
         cv.Required(CONF_HEIGHT): cv.int_,
     }
-)
+    # Only models with an offset_height default use it, and the default must survive explicit dimensions
+    if (offset_height := model.get_default(CONF_OFFSET_HEIGHT, None)) is not None:
+        schema[cv.Optional(CONF_OFFSET_HEIGHT, default=offset_height)] = cv.positive_int
+    return cv.Schema(schema)
+
 
 TRANSFORM_OPTIONS = {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
 
@@ -136,7 +141,7 @@ def model_schema(config):
             model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(class_name),
             cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
-            cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
+            cv_dimensions(CONF_DIMENSIONS): dimension_schema(model),
             model.option(CONF_ENABLE_PIN): cv.ensure_list(pins.gpio_output_pin_schema),
             model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
                 map_sequence
@@ -198,16 +203,13 @@ def _final_validate(config) -> None:
         "epaper_spi", require_miso=False, require_mosi=True
     )(config)
 
-    global_config = full_config.get()
-    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
-
     if CONF_LAMBDA not in config and CONF_PAGES not in config:
-        if LVGL_DOMAIN in global_config:
+        if display.has_external_writer(config[CONF_ID]):
             if CONF_UPDATE_INTERVAL not in config:
                 config[CONF_UPDATE_INTERVAL] = update_interval("never")
         else:
-            # If no drawing methods are configured, and LVGL is not enabled, show a test card
             config[CONF_SHOW_TEST_CARD] = True
+            config[CONF_UPDATE_INTERVAL] = update_interval("1min")
     elif CONF_UPDATE_INTERVAL not in config:
         config[CONF_UPDATE_INTERVAL] = update_interval("1min")
 
@@ -241,26 +243,16 @@ async def to_code(config):
     config = await model.to_code(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
+    await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
-    if busy_pin := config.get(CONF_BUSY_PIN):
-        busy = await cg.gpio_pin_expression(busy_pin)
-        cg.add(var.set_busy_pin(busy))
+    await display.add_writer(var, config)
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    await cg.add_pin(var.set_busy_pin, config.get(CONF_BUSY_PIN))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
-    if CONF_RESET_DURATION in config:
-        cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
+    cg.add_optional(var.set_reset_duration, config.get(CONF_RESET_DURATION))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:

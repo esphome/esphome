@@ -19,6 +19,19 @@ enum ToleranceMode : uint8_t {
 
 using RawTimings = std::vector<int32_t>;
 
+enum class BitOrder : uint8_t {
+  BIT_ORDER_LSB_FIRST,
+  BIT_ORDER_MSB_FIRST,
+};
+
+/// A bit is bit_mark followed by one_space or zero_space.
+struct BitTimings {
+  uint32_t bit_mark;
+  uint32_t one_space;
+  uint32_t zero_space;
+  BitOrder bit_order{BitOrder::BIT_ORDER_LSB_FIRST};
+};
+
 class RemoteTransmitData {
  public:
   void mark(uint32_t length) { this->data_.push_back(length); }
@@ -28,6 +41,15 @@ class RemoteTransmitData {
     this->space(space);
   }
   void reserve(uint32_t len) { this->data_.reserve(len); }
+  /// One item per bit of each byte.
+  template<BitTimings T> void item_bytes(const uint8_t *bytes, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        this->item(T.bit_mark, (bytes[i] & mask) ? T.one_space : T.zero_space);
+      }
+    }
+  }
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
   const RawTimings &get_data() const { return this->data_; }
@@ -77,6 +99,22 @@ class RemoteReceiveData {
   bool expect_space(uint32_t length);
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
+  /// False at the first item matching neither space, leaving it unread.
+  template<BitTimings T> bool expect_bytes(uint8_t *out, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+      uint8_t byte = 0;
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        if (this->expect_item(T.bit_mark, T.one_space)) {
+          byte |= mask;
+        } else if (!this->expect_item(T.bit_mark, T.zero_space)) {
+          return false;
+        }
+      }
+      out[i] = byte;
+    }
+    return true;
+  }
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
 
@@ -187,20 +225,47 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     uint16_t seq_;
   };
 
-  TransmitCall transmit() {
-    this->temp_.reset();
-    return TransmitCall(this, this->take_seq_());
-  }
+  TransmitCall transmit();
   template<RemoteProtocolEncoder Protocol>
   void transmit(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
-    auto call = this->transmit();
-    Protocol().encode(call.get_data(), data);
-    call.set_send_times(send_times);
-    call.set_send_wait(send_wait);
-    call.perform();
+    this->transmit_encoded_(&encode_thunk<Protocol>, &data, send_times, send_wait);
+  }
+  /// Protocol data filled field by field, then sent by perform(); the call a generated transmit action builds.
+  template<RemoteProtocolEncoder Protocol> class ProtocolCall {
+   public:
+    explicit ProtocolCall(RemoteTransmitterBase *parent) : parent_(parent) {}
+    void set_send_times(uint32_t send_times) { this->send_times_ = send_times; }
+    void set_send_wait(uint32_t send_wait) { this->send_wait_ = send_wait; }
+    void perform() { this->parent_->template transmit<Protocol>(this->data, this->send_times_, this->send_wait_); }
+
+    typename Protocol::ProtocolData data{};
+
+   protected:
+    RemoteTransmitterBase *parent_;
+    uint32_t send_times_{1};
+    uint32_t send_wait_{0};
+  };
+  template<RemoteProtocolEncoder Protocol> ProtocolCall<Protocol> protocol_call() {
+    return ProtocolCall<Protocol>(this);
+  }
+  /// A transmit call whose encode() runs one of Protocol's encoders on its data, for a payload
+  /// the protocol encodes straight from a pointer and length; the call a generated action builds.
+  template<RemoteProtocolEncoder Protocol> class EncodeCall : public TransmitCall {
+   public:
+    explicit EncodeCall(TransmitCall call) : TransmitCall(call) {}
+    template<typename... Args> void encode(const Args &...args) { Protocol().encode(this->get_data(), args...); }
+  };
+  template<RemoteProtocolEncoder Protocol> EncodeCall<Protocol> encode_call() {
+    return EncodeCall<Protocol>(this->transmit());
   }
 
  protected:
+  using EncodeFn = void (*)(RemoteTransmitData *dst, const void *data);
+  // One out-of-line send path, so each transmit<P>() call site only fills its data.
+  void transmit_encoded_(EncodeFn encode, const void *data, uint32_t send_times, uint32_t send_wait);
+  template<RemoteProtocolEncoder Protocol> static void encode_thunk(RemoteTransmitData *dst, const void *data) {
+    Protocol().encode(dst, *static_cast<const typename Protocol::ProtocolData *>(data));
+  }
   void send_(uint32_t send_times, uint32_t send_wait, uint16_t seq);
   virtual void send_internal(uint32_t send_times, uint32_t send_wait) = 0;
   /// Platforms that report completion later wait out the previous frame here, before send_()

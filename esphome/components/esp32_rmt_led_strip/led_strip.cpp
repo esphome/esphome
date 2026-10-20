@@ -212,12 +212,9 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
 #else
   error = rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, len * sizeof(rmt_symbol_word_t), &config);
 #endif
-  if (error != ESP_OK) {
+  if (!this->status_comm_result(error == ESP_OK, nullptr)) {
     ESP_LOGE(TAG, "RMT TX error");
-    this->status_set_warning();
-    return;
   }
-  this->status_clear_warning();
 }
 
 light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {

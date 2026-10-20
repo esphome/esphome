@@ -49,7 +49,7 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -81,8 +81,8 @@ jobs:
       - name: Install apt packages (cached)
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
 
   determine-jobs:
     name: Determine which jobs to run
@@ -313,6 +313,7 @@ jobs:
           - "3.12"
           - "3.13"
           - "3.14"
+          - "3.15"
         os:
           - ubuntu-latest
           - macOS-latest
@@ -395,6 +396,8 @@ jobs:
       - common
       - determine-jobs
     if: needs.determine-jobs.outputs.integration-tests == 'true'
+    # A hung test is failed by pytest's --timeout below; this bounds the rest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -415,8 +418,8 @@ jobs:
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
       - name: Set up Python 3.13
         id: python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -438,7 +441,7 @@ jobs:
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -471,13 +474,14 @@ jobs:
             exit 1
           fi
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
-          pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
+          # A hung test fails after 30 min: the 15 min shared build lock wait plus a cold compile
+          pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal --timeout=1800 \
             --junitxml=junit-integration.xml "${test_files[@]}"
       - name: Upload test artifacts
         # Tests that compare rendered output write the image they actually got here, so a
         # failure can be looked at without reproducing the whole build locally.
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integration-test-artifacts-${{ matrix.bucket.name }}
           path: test_artifacts/
@@ -488,7 +492,7 @@ jobs:
         # script/update_integration_test_durations.py; only full matrix dev
         # runs produce usable data.
         if: github.ref == 'refs/heads/dev' && needs.determine-jobs.outputs.integration-run-all == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: junit-integration-${{ strategy.job-index }}
           path: junit-integration.xml
@@ -528,7 +532,7 @@ jobs:
           script/check_import_time.py --check --har importtime.har
       - name: Upload waterfall HAR
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: import-time-waterfall
           path: importtime.har
@@ -626,7 +630,7 @@ jobs:
             apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@c4fd08a3a159bd0cc208da1e0edf32b8c47d75e5 # v5.4.0
+        uses: CodSpeedHQ/action@821a40cd6c80e3cfe387caf55668287addd808da # v5.5.0
         with:
           run: |
             . venv/bin/activate
@@ -680,7 +684,7 @@ jobs:
         include:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP8266
-            options: --environment esp8266-arduino-tidy --grep USE_ESP8266
+            options: --environment esp8266-arduino-tidy --grep USE_ESP8266 --grep USE_SOCKET_IMPL_LWIP_TCP --grep USE_SHD_FIRMWARE_DATA
             pio_cache_key: tidyesp8266
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 Arduino
@@ -693,12 +697,16 @@ jobs:
             ignore_errors: false
           - id: clang-tidy
             name: Run script/clang-tidy for RP2
-            options: --environment rp2-tidy --grep USE_RP2
+            options: --environment rp2-tidy --grep USE_RP2 --grep USE_BLE_SCAN_RESPONSE_MERGER
             pio_cache_key: tidyrp2
+          - id: clang-tidy
+            name: Run script/clang-tidy for host
+            options: --environment host-tidy --grep USE_HOST
+            pio_cache_key: tidyhost
           - id: clang-tidy
             name: Run script/clang-tidy for LibreTiny
             environments: bk72xx-tidy ln882h-tidy rtl87xxb-tidy rtl87xxc-tidy
-            options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
+            options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X --grep USE_LN882H_BLE --grep USE_SOCKET_IMPL_LWIP_SOCKETS
             pio_cache_key: tidylibretiny
 
     steps:
@@ -707,6 +715,16 @@ jobs:
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
+      - name: Install apt packages (cached)
+        if: matrix.pio_cache_key == 'tidyhost'
+        # libsdl2-dev is needed by the sdl component on the host, libmbedtls-dev
+        # by dsmr and dlms_meter. Packages and version must match seed-apt-cache
+        # exactly.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
 
       - name: Restore Python
         id: restore-python
@@ -989,14 +1007,14 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 S3
             # yamllint disable-line rule:line-length
-            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC
+            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC --grep SOC_I2S_SUPPORTS_TDM --grep USE_OPENTHREAD
             tidy_environment: esp32s3-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
             # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
             # so their code paths differ -- lint them under the P4 build too.
             # yamllint disable-line rule:line-length
-            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
+            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep CONFIG_IDF_TARGET_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
             tidy_environment: esp32p4-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
@@ -1102,8 +1120,8 @@ jobs:
         timeout-minutes: 10
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev ccache
-          version: 1.1
+          packages: libsdl2-dev libmbedtls-dev ccache
+          version: 1.2
 
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1448,7 +1466,7 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           # Pull request saves land in per-PR scopes nothing else can
@@ -1647,7 +1665,7 @@ jobs:
           fi
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: memory-analysis-target
           path: memory-analysis-target.json
@@ -1710,7 +1728,7 @@ jobs:
             --platform "$platform"
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: memory-analysis-pr
           path: memory-analysis-pr.json
@@ -1740,13 +1758,13 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Download target analysis JSON
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: memory-analysis-target
           path: ./memory-analysis
         continue-on-error: true
       - name: Download PR analysis JSON
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: memory-analysis-pr
           path: ./memory-analysis
