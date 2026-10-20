@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/components/switch/switch.h"
-#include "esphome/core/component.h"
 #include "../hitachi_ac344.h"
 
 namespace esphome::hitachi_ac344 {
