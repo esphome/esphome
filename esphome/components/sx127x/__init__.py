@@ -3,7 +3,7 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
-from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
+from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET, CONF_RST_PIN
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_ID
 from esphome.core import ID
@@ -34,7 +34,6 @@ CONF_PREAMBLE_DETECT = "preamble_detect"
 CONF_PREAMBLE_ERRORS = "preamble_errors"
 CONF_PREAMBLE_POLARITY = "preamble_polarity"
 CONF_PREAMBLE_SIZE = "preamble_size"
-CONF_RST_PIN = "rst_pin"
 CONF_RX_FLOOR = "rx_floor"
 CONF_RX_START = "rx_start"
 CONF_SHAPING = "shaping"
