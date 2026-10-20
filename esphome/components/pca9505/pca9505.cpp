@@ -74,11 +74,7 @@ bool PCA9505Component::digital_read_cache(uint8_t pin) { return this->input_[pin
 void PCA9505Component::digital_write_hw(uint8_t pin, bool value) {
   const uint8_t bank = pin / 8;
   const uint8_t mask = 1 << (pin % 8);
-  if (value) {
-    this->output_[bank] |= mask;
-  } else {
-    this->output_[bank] &= ~mask;
-  }
+  assign_bits(this->output_[bank], mask, value);
   this->write_bank_(OUTPUT_REG, bank, this->output_[bank]);
 }
 

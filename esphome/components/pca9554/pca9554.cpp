@@ -77,11 +77,7 @@ bool PCA9554Component::digital_read_cache(uint8_t pin) {
 }
 
 void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_mask_, 1 << pin, value);
   this->write_register_(OUTPUT_REG, this->output_mask_);
 }
 

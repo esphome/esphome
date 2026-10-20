@@ -62,11 +62,7 @@ bool CH423Component::digital_read(uint8_t pin) {
 }
 
 void CH423Component::digital_write(uint8_t pin, bool value) {
-  if (value) {
-    this->output_bits_ |= (1 << pin);
-  } else {
-    this->output_bits_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_bits_, 1 << pin, value);
   this->write_outputs_();
 }
 

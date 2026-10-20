@@ -210,11 +210,7 @@ bool WeikaiComponent::read_pin_val_(uint8_t pin) {
 }
 
 void WeikaiComponent::write_pin_val_(uint8_t pin, bool value) {
-  if (value) {
-    this->output_state_ |= (1 << pin);
-  } else {
-    this->output_state_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_state_, 1 << pin, value);
   char bin_buf[9];
   ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, uint8_t(value),
             format_bin_to(bin_buf, this->output_state_));
