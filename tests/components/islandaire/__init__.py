@@ -2,8 +2,7 @@ from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    # This component's AUTO_LOAD = ["climate_ir"] sits on the climate platform manifest, while its
-    # own __init__.py is empty. The unit test build resolves the bare `fujitsu_general` domain, so
-    # it never sees that manifest. And climate_ir itself doesn't declare `climate` even though
-    # ClimateIR derives from climate::Climate. Pull both in so the test can include the header.
+    # AUTO_LOAD = ["climate_ir"] lives on the climate platform (climate.py), and climate_ir itself does
+    # not declare climate even though ClimateIR derives from climate::Climate. The unit test build
+    # resolves the bare component, so pull both in for the header to compile.
     manifest.dependencies = manifest.dependencies + ["climate_ir", "climate"]
