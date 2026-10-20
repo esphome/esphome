@@ -1,4 +1,4 @@
-"""Drive the speaker_source media player over one API connection.
+"""Drive the speaker platform media player (the first media player found) over one API connection.
 
 usage: drive.py HOST KEY op [op ...]
 ops: play:URL | ann:URL | stop | press:BUTTON | wait:S

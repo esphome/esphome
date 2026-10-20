@@ -2,6 +2,7 @@
 # sse_cases.sh HOST KEY LABEL CAPTURE : the SSE cases against templates/web-server-sse-dut.yaml with a console capture
 # running into CAPTURE; KEY is the API key (- for plaintext). The burst client output goes to the working directory.
 H=$1; K=$2; LABEL=$3; LOG=$4; PY=${PYTHON:-python3}; HERE=$(dirname "$0"); BTN=$HERE/../api_button.py
+[ -r "$LOG" ] || { echo "usage: sse_cases.sh HOST KEY LABEL CAPTURE (CAPTURE must be a readable file)"; exit 2; }
 show() { tail -n +$(($1+1)) "$LOG" | sed 's/\x1b\[[0-9;]*m//g' | grep -a '\[probe:\|\[W\]\|\[E\]\|web_server\|Guru\|abort\|Backtrace\|ESPHome version' | grep -a -v 'took a long time' | cut -c1-200; }
 step() { n0=$(wc -l < "$LOG"); echo "=== $LABEL: $1 ($(date +%T))"; shift; "$@" || { rc=$?; echo "client failed ($rc), aborting"; exit $rc; }; echo "--- device log:"; show "$n0"; }
 step "idle 15 s, no client" sleep 15

@@ -5,7 +5,7 @@
 # log. Outputs (sub-NAME.txt, mosquitto.out) go to the working directory, which should be the scratch directory.
 N=$1; KEY=$2; B=$3; SP=$4; LOG=$5; DEV=${6:-$1.local}; RESTART=$7; HERE=$(cd "$(dirname "$0")" && pwd); PY=${PYTHON:-python3}; WORK=$PWD
 BTN=$HERE/../api_button.py
-[ -n "$KEY" ] && [ -n "$LOG" ] || { echo "usage: cases.sh NAME KEY BROKER_HOST SUB_PORT CAPTURE [DEV_HOST] [restart]"; exit 2; }
+[ -n "$KEY" ] && [ -r "$LOG" ] || { echo "usage: cases.sh NAME KEY BROKER_HOST SUB_PORT CAPTURE [DEV_HOST] [restart] (CAPTURE must be a readable file)"; exit 2; }
 show() { tail -n +$(($1+1)) "$LOG" | sed 's/\x1b\[[0-9;]*m//g' | grep -a 'mqtt\|\[probe:\|cmd payload\|Relay\|\[W\]\|\[E\]\|Guru\|abort\|Backtrace\|ESPHome version' | grep -a -v 'took a long time\|Publish.*Counter\|sensor/counter' | cut -c1-170; }
 pub() { mosquitto_pub -h "$B" -p "$SP" -t "$1" -m "$2" || { echo "mosquitto_pub to $1 failed"; exit 1; }; }
 n0=$(($(wc -l < "$LOG")+0))
@@ -35,3 +35,6 @@ big=$(grep "^$N/big " "$WORK/sub-$N.txt" | awk '{print length($2)}' | tr '\n' ' 
 echo "--- big payload bytes seen: $big"
 echo "--- device log:"; show "$n0"
 case " $big " in *" 3000 "*) ;; *) echo "the 3000 byte payload did not reach the broker"; exit 1;; esac
+for want in "Relay ON" "cmd payload: hello-over-$N" "Relay OFF"; do
+  tail -n +$((n0+1)) "$LOG" | grep -a -q "$want" || { echo "the device never logged '$want': the broker to device path failed"; exit 1; }
+done
