@@ -1366,7 +1366,16 @@ void ToshibaClimate::encode_(remote_base::RemoteTransmitData *data, const uint8_
   for (uint8_t copy = 0; copy <= repeat; copy++) {
     data->item(timings.header_mark, timings.header_space);
 
-    data->item_bytes_msb(message, nbytes, timings.bit_mark, timings.one_space, timings.zero_space);
+    for (uint8_t byte = 0; byte < nbytes; byte++) {
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        data->mark(timings.bit_mark);
+        if (message[byte] & (1 << (7 - bit))) {
+          data->space(timings.one_space);
+        } else {
+          data->space(timings.zero_space);
+        }
+      }
+    }
     data->mark(timings.bit_mark);
     if (copy < repeat || timings.gap_after_last) {
       data->space(timings.gap_space);
