@@ -28,6 +28,11 @@ class RemoteTransmitData {
     this->space(space);
   }
   void reserve(uint32_t len) { this->data_.reserve(len); }
+  /// Append one (bit_mark, one_space or zero_space) item per bit of each byte, least significant bit first.
+  /// Reserves room for the 16 * len timings it adds.
+  void item_bytes_lsb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space);
+  /// Same as item_bytes_lsb() with the most significant bit of each byte first.
+  void item_bytes_msb(const uint8_t *bytes, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space);
   void set_carrier_frequency(uint32_t carrier_frequency) { this->carrier_frequency_ = carrier_frequency; }
   uint32_t get_carrier_frequency() const { return this->carrier_frequency_; }
   const RawTimings &get_data() const { return this->data_; }
@@ -77,6 +82,12 @@ class RemoteReceiveData {
   bool expect_space(uint32_t length);
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
+  /// Read len bytes, least significant bit first, one (bit_mark, one_space or zero_space) item per bit.
+  /// Returns false at the first item matching neither, with the read position left on that item.
+  /// Only the bytes read in full are written to out.
+  bool expect_bytes_lsb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space);
+  /// Same as expect_bytes_lsb() with the most significant bit of each byte first.
+  bool expect_bytes_msb(uint8_t *out, size_t len, uint32_t bit_mark, uint32_t one_space, uint32_t zero_space);
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
 
