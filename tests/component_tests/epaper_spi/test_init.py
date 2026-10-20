@@ -552,9 +552,11 @@ def test_uc8279_width_must_be_a_multiple_of_8(
         ({"width": 800, "height": 601}, "at most 800x600"),
     ],
 )
-def test_uc8179bwr_rejects_unsupported_dimensions(
+@pytest.mark.parametrize("model", ["XSRUPB-7.5in-bwr", "waveshare-7.5in-bv2-bwr"])
+def test_uc8179_bwr_rejects_unsupported_dimensions(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
+    model: str,
     dimensions: dict[str, int],
     match: str,
 ) -> None:
@@ -570,16 +572,18 @@ def test_uc8179bwr_rejects_unsupported_dimensions(
         run_schema_validation(
             {
                 "id": "test_display",
-                "model": "uc8179bwr",
+                "model": model,
                 "dc_pin": 21,
                 "dimensions": dimensions,
             }
         )
 
 
-def test_uc8179bwr_accepts_largest_size(
+@pytest.mark.parametrize("model", ["XSRUPB-7.5in-bwr", "waveshare-7.5in-bv2-bwr"])
+def test_uc8179_bwr_accepts_largest_size(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
+    model: str,
 ) -> None:
     set_core_config(
         PlatformFramework.ESP32_IDF,
@@ -591,7 +595,7 @@ def test_uc8179bwr_accepts_largest_size(
     run_schema_validation(
         {
             "id": "test_display",
-            "model": "uc8179bwr",
+            "model": model,
             "dc_pin": 21,
             "dimensions": {"width": 800, "height": 600},
         }
