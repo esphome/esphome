@@ -29,21 +29,17 @@ HT16K33CharDisplayRef = HT16K33CharDisplay.operator("ref")
 _request_secondary_slot = cg.slot_counter("HT16K33_CHAR_SECONDARY_COUNT")
 
 
-def _within_glyph_table(value: str) -> str:
+def glyph_character(value: object) -> str:
+    """One character the glyph table can hold; a plain function, as the schema builder needs for a key."""
+    value = cv.string_strict(value)
     # 0 ends the table and can never be printed
-    if not 0 < ord(value) <= 0xFFFF:
-        raise cv.Invalid("Only characters from U+0001 to U+FFFF are supported")
+    if len(value) != 1 or not 0 < ord(value) <= 0xFFFF:
+        raise cv.Invalid("Expected one character from U+0001 to U+FFFF")
+    if value in ".:":
+        raise cv.Invalid(
+            "'.' and ':' light the decimal point and colon and cannot be redefined"
+        )
     return value
-
-
-_SINGLE_CHARACTER = cv.All(
-    cv.string_strict, cv.Length(min=1, max=1), _within_glyph_table
-)
-
-
-def single_character(value: object) -> str:
-    """The schema builder needs a plain function as a mapping key."""
-    return _SINGLE_CHARACTER(value)
 
 
 SECONDARY_DISPLAY_SCHEMA = cv.Schema({cv.Required(CONF_ADDRESS): cv.i2c_address})
@@ -55,10 +51,6 @@ def _validate(config: ConfigType) -> ConfigType:
     ]
     if len(set(addresses)) != len(addresses):
         raise cv.Invalid("Every display needs its own address")
-    if {".", ":"} & set(config.get(CONF_ADD_CHARACTERS, {})):
-        raise cv.Invalid(
-            "'.' and ':' light the decimal point and colon and cannot be redefined"
-        )
     return config
 
 
@@ -79,7 +71,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Length(max=MAX_SECONDARY_DISPLAYS),
             ),
             cv.Optional(CONF_ADD_CHARACTERS): cv.Schema(
-                {single_character: cv.hex_uint8_t}
+                {glyph_character: cv.hex_uint8_t}
             ),
         }
     )
@@ -94,10 +86,11 @@ async def to_code(config: ConfigType) -> None:
     message = config[CONF_MESSAGE_ID].id
     # Terminator plus the bytes the UTF-8 decoder may read past a cut-off sequence
     cg.add_global(cg.RawStatement(f"static char {message}[{capacity + 4}];"))
-    var = cg.new_Pvariable(config[CONF_ID], cg.RawExpression(message), capacity)
+    var = cg.new_Pvariable(
+        config[CONF_ID], cg.RawExpression(message), capacity, config[CONF_INTENSITY]
+    )
     await display.register_display(var, config)
     await i2c.register_i2c_device(var, config)
-    cg.add(var.set_intensity(config[CONF_INTENSITY]))
 
     for conf in config.get(CONF_SECONDARY_DISPLAYS, []):
         _request_secondary_slot(str(var))

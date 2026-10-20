@@ -67,9 +67,8 @@ static constexpr uint8_t FONT[] PROGMEM = {
 
 void HT16K33CharDisplay::setup() {
   // Cleared before the display turns on, so a message from before an MCU-only reboot never shows
-  if (!this->write_all_(this->system_setup_()) || !this->clear_all_() ||
-      !this->write_all_(COMMAND_DISPLAY_SETUP | (this->display_setup_ & DISPLAY_SETUP_MASK)) ||
-      !this->write_all_(COMMAND_DIMMING | this->intensity_)) {
+  if (!this->write_all_(this->system_setup_()) || !this->write_frames_(0) ||
+      !this->write_all_(this->display_setup_command_()) || !this->write_all_(COMMAND_DIMMING | this->intensity_)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
@@ -79,7 +78,7 @@ void HT16K33CharDisplay::update() {
     this->clear();
     (*this->writer_)(*this);
   }
-  this->draw_();
+  this->status_comm_result(this->write_frames_(this->length_));
 }
 
 void HT16K33CharDisplay::dump_config() {
@@ -101,14 +100,8 @@ uint8_t HT16K33CharDisplay::system_setup_() const {
   return COMMAND_SYSTEM_SETUP | ((this->display_setup_ & STANDBY_FLAG) ? 0 : OSCILLATOR_ON);
 }
 
-bool HT16K33CharDisplay::clear_all_() {
-  const uint8_t frame[FRAME_SIZE] = {COMMAND_DISPLAY_DATA};
-  bool ok = true;
-  this->for_each_chip_([&](uint8_t address) {
-    if (this->bus_->write(address, frame, FRAME_SIZE) != i2c::ERROR_OK)
-      ok = false;
-  });
-  return ok;
+uint8_t HT16K33CharDisplay::display_setup_command_() const {
+  return COMMAND_DISPLAY_SETUP | (this->display_setup_ & DISPLAY_SETUP_MASK);
 }
 
 bool HT16K33CharDisplay::write_all_(uint8_t command) {
@@ -118,6 +111,11 @@ bool HT16K33CharDisplay::write_all_(uint8_t command) {
       ok = false;
   });
   return ok;
+}
+
+void HT16K33CharDisplay::send_(uint8_t command) {
+  if (this->is_ready())
+    this->status_comm_result(this->write_all_(command));
 }
 
 uint8_t HT16K33CharDisplay::find_segments_(uint32_t codepoint) const {
@@ -132,22 +130,20 @@ uint8_t HT16K33CharDisplay::find_segments_(uint32_t codepoint) const {
   return progmem_read_byte(&FONT[codepoint - ' ']);
 }
 
-// A decimal point lights on the digit before it and a colon only in its place; neither takes a digit. Chips the
-// message does not reach are cleared.
-void HT16K33CharDisplay::draw_() {
+// A decimal point lights on the digit before it and a colon only in its place; neither takes a digit
+bool HT16K33CharDisplay::write_frames_(uint8_t length) {
   uint8_t pos = 0;
   bool ok = true;
   this->for_each_chip_([&](uint8_t address) {
     uint8_t frame[FRAME_SIZE] = {COMMAND_DISPLAY_DATA};
     uint8_t *ram = frame + 1;
     uint8_t digit = 0;
-    while (pos < this->length_) {
+    while (pos < length) {
       size_t consumed;
       uint32_t codepoint = unicode::extract_unicode_codepoint(this->message_ + pos, &consumed);
       if (consumed == 0) {
-        // Malformed byte: blank digit
         consumed = 1;
-        codepoint = 0xFFFF;
+        codepoint = 0;
       }
       if (codepoint == '.') {
         if (digit > 0)
@@ -165,7 +161,7 @@ void HT16K33CharDisplay::draw_() {
     if (this->bus_->write(address, frame, FRAME_SIZE) != i2c::ERROR_OK)
       ok = false;
   });
-  this->status_comm_result(ok);
+  return ok;
 }
 
 uint8_t HT16K33CharDisplay::print(uint8_t pos, const char *str) {
@@ -183,26 +179,27 @@ uint8_t HT16K33CharDisplay::print(uint8_t pos, const char *str) {
   return len;
 }
 
+uint8_t HT16K33CharDisplay::vprintf_(uint8_t pos, const char *format, va_list arg) {
+  char buffer[FORMAT_BUFFER_SIZE];
+  if (vsnprintf(buffer, sizeof(buffer), format, arg) <= 0)
+    return 0;
+  return this->print(pos, buffer);
+}
+
 uint8_t HT16K33CharDisplay::printf(uint8_t pos, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  char buffer[FORMAT_BUFFER_SIZE];
-  const int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  const uint8_t written = this->vprintf_(pos, format, arg);
   va_end(arg);
-  if (ret <= 0)
-    return 0;
-  return this->print(pos, buffer);
+  return written;
 }
 
 uint8_t HT16K33CharDisplay::printf(const char *format, ...) {
   va_list arg;
   va_start(arg, format);
-  char buffer[FORMAT_BUFFER_SIZE];
-  const int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  const uint8_t written = this->vprintf_(0, format, arg);
   va_end(arg);
-  if (ret <= 0)
-    return 0;
-  return this->print(0, buffer);
+  return written;
 }
 
 uint8_t HT16K33CharDisplay::strftime(uint8_t pos, const char *format, ESPTime time) {
@@ -211,8 +208,6 @@ uint8_t HT16K33CharDisplay::strftime(uint8_t pos, const char *format, ESPTime ti
     return 0;
   return this->print(pos, buffer);
 }
-
-uint8_t HT16K33CharDisplay::strftime(const char *format, ESPTime time) { return this->strftime(0, format, time); }
 
 uint8_t HT16K33CharDisplay::clock_display(uint8_t pos, bool show_leading_zero, bool use_ampm, ESPTime time) {
   char buffer[6];
@@ -225,33 +220,29 @@ uint8_t HT16K33CharDisplay::clock_display(uint8_t pos, bool show_leading_zero, b
 
 void HT16K33CharDisplay::set_intensity(uint8_t intensity) {
   this->intensity_ = std::min(intensity, MAX_INTENSITY);
-  if (this->is_ready())
-    this->status_comm_result(this->write_all_(COMMAND_DIMMING | this->intensity_));
+  this->send_(COMMAND_DIMMING | this->intensity_);
 }
 
 void HT16K33CharDisplay::set_blink(uint8_t blink) {
   if (blink > MAX_BLINK)
     blink = 0;
   this->display_setup_ = (this->display_setup_ & ~BLINK_MASK) | (blink << 1);
-  if (this->is_ready())
-    this->status_comm_result(this->write_all_(COMMAND_DISPLAY_SETUP | (this->display_setup_ & DISPLAY_SETUP_MASK)));
+  this->send_(this->display_setup_command_());
 }
 
 void HT16K33CharDisplay::display_off(bool turn_off) {
   this->display_setup_ = (this->display_setup_ & ~DISPLAY_ON) | (turn_off ? 0 : DISPLAY_ON);
-  if (this->is_ready())
-    this->status_comm_result(this->write_all_(COMMAND_DISPLAY_SETUP | (this->display_setup_ & DISPLAY_SETUP_MASK)));
+  this->send_(this->display_setup_command_());
 }
 
 void HT16K33CharDisplay::display_standby(bool standby) {
   this->display_setup_ = (this->display_setup_ & ~STANDBY_FLAG) | (standby ? STANDBY_FLAG : 0);
-  if (this->is_ready())
-    this->status_comm_result(this->write_all_(this->system_setup_()));
+  this->send_(this->system_setup_());
 }
 
 void HT16K33CharDisplay::blank() {
   if (this->is_ready())
-    this->status_comm_result(this->clear_all_());
+    this->status_comm_result(this->write_frames_(0));
 }
 
 }  // namespace esphome::ht16k33_char
