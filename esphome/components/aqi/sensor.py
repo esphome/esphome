@@ -17,16 +17,6 @@ DEPENDENCIES = ["sensor"]
 AQISensor = aqi_ns.class_("AQISensor", sensor.Sensor, cg.Component)
 
 
-def _validate_extended_range(config: ConfigType) -> ConfigType:
-    if CONF_EXTENDED_RANGE in config and config[CONF_CALCULATION_TYPE] == "CAQI":
-        raise cv.Invalid(
-            f"'{CONF_EXTENDED_RANGE}' is not supported with 'calculation_type: CAQI'. "
-            "CAQI has no maximum value by specification, so it is always reported unbounded.",
-            [CONF_EXTENDED_RANGE],
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         AQISensor,
@@ -45,7 +35,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    _validate_extended_range,
+    cv.only_when(CONF_EXTENDED_RANGE, CONF_CALCULATION_TYPE, "CAQI", negate=True),
 )
 
 

@@ -455,7 +455,7 @@ def test_adc_limits_without_a_divider_are_rejected(key: str) -> None:
     """The limits only check a divider, so without one they would be silently ignored."""
     with pytest.raises(
         cv.Invalid,
-        match=f"'{key}:' only checks a 'pin:' source or a 'voltage_divider:'",
+        match=f"'{key}' requires 'voltage_divider' or 'pin'",
     ):
         CONFIG_SCHEMA(_hub(**{key: 3.34}))
 

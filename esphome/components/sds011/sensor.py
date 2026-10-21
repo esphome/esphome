@@ -21,17 +21,10 @@ SDS011Component = sds011_ns.class_("SDS011Component", uart.UARTDevice, cg.Compon
 
 
 def validate_sds011_rx_mode(value: ConfigType) -> ConfigType:
-    if CONF_UPDATE_INTERVAL in value and not value.get(CONF_RX_ONLY):
-        update_interval = value[CONF_UPDATE_INTERVAL]
-        if update_interval.total_minutes > 30:
-            raise cv.Invalid("Maximum update interval is 30min")
-    elif value.get(CONF_RX_ONLY) and CONF_UPDATE_INTERVAL in value:
-        # update_interval does not affect anything in rx-only mode, let's warn user about
-        # that
-        raise cv.Invalid(
-            "update_interval has no effect in rx_only mode. Please remove it.",
-            path=["update_interval"],
-        )
+    if (
+        update_interval := value.get(CONF_UPDATE_INTERVAL)
+    ) is not None and update_interval.total_minutes > 30:
+        raise cv.Invalid("Maximum update interval is 30min")
     return value
 
 
@@ -59,6 +52,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA),
+    cv.only_when(CONF_UPDATE_INTERVAL, CONF_RX_ONLY, False),
     validate_sds011_rx_mode,
 )
 

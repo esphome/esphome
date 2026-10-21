@@ -77,10 +77,6 @@ def _validate_position(config: dict) -> dict:
 def _validate_headless(config: ConfigType) -> ConfigType:
     if not config[CONF_HEADLESS]:
         return config
-    if CONF_WINDOW_OPTIONS in config:
-        raise cv.Invalid(
-            f"'{CONF_WINDOW_OPTIONS}' has no effect when '{CONF_HEADLESS}' is set - there is no window"
-        )
     if CONF_SNAPSHOT_KEY in config:
         raise cv.Invalid(
             f"'{CONF_SNAPSHOT_KEY}' cannot be used when '{CONF_HEADLESS}' is set - "
@@ -123,6 +119,7 @@ CONFIG_SCHEMA = cv.All(
             }
         )
     ),
+    cv.only_when(CONF_WINDOW_OPTIONS, CONF_HEADLESS, False),
     _validate_headless,
     cv.only_on(PLATFORM_HOST),
 )

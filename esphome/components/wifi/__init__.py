@@ -443,8 +443,6 @@ def final_validate(config):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create, or configure DPP (Easy Connect)."
         )
-    if CONF_ON_DPP_URI in config and not has_dpp:
-        raise cv.Invalid(f"'{CONF_ON_DPP_URI}' requires '{CONF_DPP}'")
 
     ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
     if ap_is_wisp:
@@ -703,6 +701,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,

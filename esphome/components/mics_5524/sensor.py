@@ -147,14 +147,6 @@ def _preference_key(config: ConfigType) -> int:
 
 def _validate_adc_keys(config: ConfigType) -> ConfigType:
     """Reject the ADC keys where they would be accepted and ignored."""
-    if CONF_VOLTAGE_DIVIDER not in config and CONF_PIN not in config:
-        for key in (CONF_ADC_INPUT_MAX, CONF_ADC_PIN_MAX):
-            if key in config:
-                raise cv.Invalid(
-                    f"'{key}:' only checks a 'pin:' source or a 'voltage_divider:', "
-                    "so it has no effect here",
-                    path=[key],
-                )
     if CONF_ADC_ATTENUATION in config and CONF_PIN not in config:
         raise cv.Invalid(
             "'adc_attenuation:' only applies to the ADC of a 'pin:' source - set "
@@ -405,6 +397,12 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_most_one_key(CONF_VOLTAGE_DIVIDER, CONF_VOLTAGE_MULTIPLIER),
     cv.has_at_least_one_key(*GASES),
     cv.has_at_most_one_key(CONF_AIR_REFERENCE, CONF_R0, CONF_CALIBRATION),
+    cv.key_requires(
+        (CONF_ADC_INPUT_MAX, CONF_ADC_PIN_MAX),
+        CONF_VOLTAGE_DIVIDER,
+        CONF_PIN,
+        any_of=True,
+    ),
     _validate_adc_keys,
     _validate_adc_range,
     _validate_config,
