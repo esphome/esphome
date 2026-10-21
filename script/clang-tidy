@@ -523,7 +523,7 @@ def main():
     failed_files = []
     timings = []
     try:
-        executable = get_binary("clang-tidy", 22)
+        executable = get_binary("clang-tidy", 23)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
@@ -571,13 +571,13 @@ def main():
         try:
             try:
                 subprocess.call(
-                    ["clang-apply-replacements-22", tmpdir], close_fds=False
+                    ["clang-apply-replacements-23", tmpdir], close_fds=False
                 )
             except FileNotFoundError:
                 subprocess.call(["clang-apply-replacements", tmpdir], close_fds=False)
         except FileNotFoundError:
             print(
-                "Error please install clang-apply-replacements-22 or clang-apply-replacements.\n",
+                "Error please install clang-apply-replacements-23 or clang-apply-replacements.\n",
                 file=sys.stderr,
             )
         except:
