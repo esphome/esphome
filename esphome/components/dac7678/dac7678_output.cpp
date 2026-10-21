@@ -48,15 +48,15 @@ void DAC7678Output::dump_config() {
   }
 }
 
-void DAC7678Output::register_channel(DAC7678Channel *channel) {
-  auto c = channel->channel_;
-  this->min_channel_ = std::min(this->min_channel_, c);
-  this->max_channel_ = std::max(this->max_channel_, c);
-  channel->set_parent(this);
-  ESP_LOGV(TAG, "Registered channel: %01u", channel->channel_);
+void DAC7678Output::register_channel(uint8_t channel) {
+  this->min_channel_ = std::min(this->min_channel_, channel);
+  this->max_channel_ = std::max(this->max_channel_, channel);
+  ESP_LOGV(TAG, "Registered channel: %01u", channel);
 }
 
-void DAC7678Output::set_channel_value_(uint8_t channel, uint16_t value) {
+void DAC7678Output::write_channel(uint8_t channel, float state) {
+  const uint16_t full_scale = 0xFFF;
+  auto value = static_cast<uint16_t>(roundf(state * full_scale));
   if (channel >= std::size(this->dac_input_reg_))
     return;
   if (this->dac_input_reg_[channel] != value) {
@@ -69,12 +69,6 @@ void DAC7678Output::set_channel_value_(uint8_t channel, uint16_t value) {
   }
   this->dac_input_reg_[channel] = value;
   this->status_clear_warning();
-}
-
-void DAC7678Channel::write_state(float state) {
-  const float input_rounded = roundf(state * this->full_scale_);
-  auto input = static_cast<uint16_t>(input_rounded);
-  this->parent_->set_channel_value_(this->channel_, input);
 }
 
 }  // namespace esphome::dac7678

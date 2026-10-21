@@ -119,18 +119,17 @@ void TLC59208FOutput::loop() {
   this->update_ = false;
 }
 
-void TLC59208FOutput::register_channel(TLC59208FChannel *channel) {
-  auto c = channel->channel_;
-  this->min_channel_ = std::min(this->min_channel_, c);
-  this->max_channel_ = std::max(this->max_channel_, c);
-  channel->set_parent(this);
+void TLC59208FOutput::register_channel(uint8_t channel) {
+  this->min_channel_ = std::min(this->min_channel_, channel);
+  this->max_channel_ = std::max(this->max_channel_, channel);
 }
 
-void TLC59208FChannel::write_state(float state) {
+void TLC59208FOutput::write_channel(uint8_t channel, float state) {
   const uint8_t max_duty = 255;
-  const float duty_rounded = roundf(state * max_duty);
-  auto duty = static_cast<uint8_t>(duty_rounded);
-  this->parent_->set_channel_value_(this->channel_, duty);
+  auto duty = static_cast<uint8_t>(roundf(state * max_duty));
+  if (this->pwm_amounts_[channel] != duty)
+    this->update_ = true;
+  this->pwm_amounts_[channel] = duty;
 }
 
 }  // namespace esphome::tlc59208f

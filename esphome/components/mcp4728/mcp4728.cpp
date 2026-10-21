@@ -39,7 +39,9 @@ void MCP4728Component::loop() {
   }
 }
 
-void MCP4728Component::set_channel_value_(MCP4728ChannelIdx channel, uint16_t value) {
+void MCP4728Component::write_channel(MCP4728ChannelIdx channel, float state) {
+  const uint16_t max_duty = 4095;
+  auto value = static_cast<uint16_t>(roundf(state * max_duty));
   uint8_t cn = 0;
   if (channel == MCP4728_CHANNEL_A) {
     cn = 'A';
@@ -87,21 +89,11 @@ bool MCP4728Component::seq_write_() {
   return err == i2c::ERROR_OK;
 }
 
-void MCP4728Component::select_vref_(MCP4728ChannelIdx channel, MCP4728Vref vref) {
-  reg_[channel].vref = vref;
-
-  this->update_ = true;
-}
-
-void MCP4728Component::select_power_down_(MCP4728ChannelIdx channel, MCP4728PwrDown pd) {
-  reg_[channel].pd = pd;
-
-  this->update_ = true;
-}
-
-void MCP4728Component::select_gain_(MCP4728ChannelIdx channel, MCP4728Gain gain) {
-  reg_[channel].gain = gain;
-
+void MCP4728Component::configure_channel(MCP4728ChannelIdx channel, MCP4728Vref vref, MCP4728Gain gain,
+                                         MCP4728PwrDown pd) {
+  this->reg_[channel].vref = vref;
+  this->reg_[channel].pd = pd;
+  this->reg_[channel].gain = gain;
   this->update_ = true;
 }
 

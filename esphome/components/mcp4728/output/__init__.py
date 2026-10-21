@@ -8,7 +8,6 @@ from .. import CONF_MCP4728_ID, MCP4728Component, mcp4728_ns
 
 DEPENDENCIES = ["mcp4728"]
 
-MCP4728Channel = mcp4728_ns.class_("MCP4728Channel", output.FloatOutput)
 CONF_VREF = "vref"
 CONF_POWER_DOWN = "power_down"
 
@@ -36,7 +35,7 @@ CHANNEL_OPTIONS = MCP4728ChannelIdx.options(
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
-        cv.Required(CONF_ID): cv.declare_id(MCP4728Channel),
+        cv.Required(CONF_ID): cv.declare_id(output.ApplyFloatOutput),
         cv.GenerateID(CONF_MCP4728_ID): cv.use_id(MCP4728Component),
         cv.Required(CONF_CHANNEL): cv.enum(CHANNEL_OPTIONS, upper=True),
         cv.Optional(CONF_VREF, default="vdd"): cv.enum(VREF_OPTIONS, upper=False),
@@ -49,13 +48,16 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    paren = await cg.get_variable(config[CONF_MCP4728_ID])
-    var = cg.new_Pvariable(
-        config[CONF_ID],
-        paren,
-        config[CONF_CHANNEL],
-        config[CONF_VREF],
-        config[CONF_GAIN],
-        config[CONF_POWER_DOWN],
+    channel = cg.safe_exp(config[CONF_CHANNEL])
+    await output.sub_float_outputs(config, parent=config[CONF_MCP4728_ID]).create(
+        config, None, apply=f"write_channel({channel}, state)"
     )
-    await output.register_output(var, config)
+    hub = await cg.get_variable(config[CONF_MCP4728_ID])
+    cg.add(
+        hub.configure_channel(
+            channel,
+            config[CONF_VREF],
+            config[CONF_GAIN],
+            config[CONF_POWER_DOWN],
+        )
+    )

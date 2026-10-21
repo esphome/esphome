@@ -35,8 +35,6 @@ struct DACInputData {
   uint16_t data;
 };
 
-class MCP4728Channel;
-
 /// MCP4728 float output component.
 class MCP4728Component final : public Component, public i2c::I2CDevice {
  public:
@@ -47,14 +45,12 @@ class MCP4728Component final : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
+  void configure_channel(MCP4728ChannelIdx channel, MCP4728Vref vref, MCP4728Gain gain, MCP4728PwrDown pd);
+  void write_channel(MCP4728ChannelIdx channel, float state);
+
  protected:
-  friend MCP4728Channel;
-  void set_channel_value_(MCP4728ChannelIdx channel, uint16_t value);
   bool multi_write_();
   bool seq_write_();
-  void select_vref_(MCP4728ChannelIdx channel, MCP4728Vref vref);
-  void select_power_down_(MCP4728ChannelIdx channel, MCP4728PwrDown pd);
-  void select_gain_(MCP4728ChannelIdx channel, MCP4728Gain gain);
 
  private:
   DACInputData reg_[4]{};
