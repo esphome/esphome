@@ -128,25 +128,40 @@ def _frames_need_a_receiver(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _frames_need_a_receiver)
 
 
-def _sending_actions(node: object, path: list) -> list[tuple[list, ConfigType]]:
-    """Every keeloq.transmit and keeloq.learn action in the configuration, with its path."""
+def _find_actions(
+    node: object, path: list, keys: tuple[str, ...]
+) -> list[tuple[list, ConfigType]]:
+    """Every action named in keys in the configuration, with its path."""
     found = []
     if isinstance(node, dict):
         for key, value in node.items():
-            if key in ("keeloq.send", "keeloq.learn") and isinstance(value, dict):
+            if key in keys and isinstance(value, dict):
                 found.append((path + [key], value))
-            found += _sending_actions(value, path + [key])
+            found += _find_actions(value, path + [key], keys)
     elif isinstance(node, list):
         for index, value in enumerate(node):
-            found += _sending_actions(value, path + [index])
+            found += _find_actions(value, path + [index], keys)
     return found
+
+
+def _take_over_has_a_receiver(config: ConfigType) -> ConfigType:
+    # keeloq.take_over waits for a frame of the hand remote.
+    if CONF_RECEIVER_ID in config:
+        return config
+    for path, action in _find_actions(fv.full_config.get(), [], ("keeloq.take_over",)):
+        if str(action[CONF_ID]) != str(config[CONF_ID]):
+            continue
+        with cv.prepend_path([cv.ROOT_CONFIG_PATH] + path):
+            raise cv.Invalid(f"keeloq.take_over needs receiver_id on {config[CONF_ID]}")
+    return config
 
 
 def _actions_have_channels(config: ConfigType) -> ConfigType:
     # A remote with serial has no hand remote to take channels from.
     if CONF_CHANNELS in config or CONF_SERIAL not in config:
         return config
-    for path, action in _sending_actions(fv.full_config.get(), []):
+    sending = ("keeloq.send", "keeloq.learn")
+    for path, action in _find_actions(fv.full_config.get(), [], sending):
         if str(action[CONF_ID]) != str(config[CONF_ID]) or CONF_CHANNELS in action:
             continue
         with cv.prepend_path([cv.ROOT_CONFIG_PATH] + path):
@@ -157,7 +172,7 @@ def _actions_have_channels(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _actions_have_channels
+FINAL_VALIDATE_SCHEMA = cv.All(_take_over_has_a_receiver, _actions_have_channels)
 
 
 async def to_code(config: ConfigType) -> None:

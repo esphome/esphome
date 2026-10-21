@@ -149,8 +149,8 @@ bool KeeloqRemote::on_receive(remote_base::RemoteReceiveData src) {
     this->waiting_ = false;
     this->cancel_timeout(TAKE_OVER_TIMEOUT_ID);
     this->use_serial_(frame.serial);
-    // A channels from the configuration stays; otherwise the hand remote's channels become the default.
-    if (!this->channels_configured_) {
+    // Without serial the hand remote's channels become the default unless configured; with serial only the counter.
+    if (this->take_over_ && !this->channels_configured_) {
       this->channels_ = frame.channels;
       this->channels_known_ = true;
     }
@@ -283,6 +283,9 @@ void KeeloqRemote::dump_config() {
 }
 
 void KeeloqRemote::store_reserved_() {
+  if (this->take_over_ && !this->known_) {
+    return;  // nothing taken over yet
+  }
   if (this->take_over_) {
     TakenOver stored{this->serial_, this->reserved_, this->channels_};
     this->pref_.save(&stored);

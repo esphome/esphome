@@ -10,6 +10,7 @@ from esphome.components.keeloq import (
     _actions_have_channels,
     _channels,
     _command,
+    _take_over_has_a_receiver,
 )
 import esphome.config_validation as cv
 
@@ -92,6 +93,28 @@ def test_a_frame_needs_channels_from_the_action_or_the_remote() -> None:
     _check_groups({"id": "clone"}, {"id": "clone"})
     with pytest.raises(cv.Invalid, match="own has no channels"):
         _check_groups(with_serial, {"id": "own"})
+
+
+def _check_take_over(remote: dict) -> None:
+    import esphome.final_validate as fv
+
+    full = {
+        "keeloq": [remote],
+        "button": [{"on_press": [{"keeloq.take_over": {"id": "own"}}]}],
+    }
+    token = fv.full_config.set(full)
+    try:
+        _take_over_has_a_receiver(remote)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_take_over_needs_a_receiver() -> None:
+    """keeloq.take_over listens for the hand remote, so its remote needs receiver_id."""
+    _check_take_over({"id": "own", "serial": 0x1234500, "receiver_id": "rx"})
+    # Also with channels on the remote, which skips the channels check.
+    with pytest.raises(cv.Invalid, match="keeloq.take_over needs receiver_id on own"):
+        _check_take_over({"id": "own", "serial": 0x1234500, "channels": 0x0001})
 
 
 def test_channels_as_list_or_mask() -> None:

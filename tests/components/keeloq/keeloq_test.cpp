@@ -353,6 +353,21 @@ TEST(KeeloqReceiveTest, DoesNotTakeOverWithoutBeingAsked) {
   EXPECT_FALSE(clone.ready_to_send());
 }
 
+TEST(KeeloqReceiveTest, SetCounterBeforeATakeOverStoresNoSerial) {
+  // Nothing taken over yet, so set_counter stores nothing: after a restart the remote still waits for a take-over
+  // instead of sending with serial 0.
+  forget_stored_counters();
+  KeeloqRemote clone{KEELOQ_TYPE_JAROLIFT, MANUFACTURER_KEY, 0};
+  clone.set_take_over_key(TAKE_OVER_KEY);
+  static_cast<Component &>(clone).setup();
+  clone.set_counter(5);
+
+  KeeloqRemote restarted{KEELOQ_TYPE_JAROLIFT, MANUFACTURER_KEY, 0};
+  restarted.set_take_over_key(TAKE_OVER_KEY);
+  static_cast<Component &>(restarted).setup();
+  EXPECT_FALSE(restarted.ready_to_send());
+}
+
 TEST(KeeloqReceiveTest, WithASerialTakeOverTakesOnlyTheCounterOfThatSerial) {
   // ESPHome was set to 5000 by mistake. A neighbour's remote is ignored, then the own hand remote at 0x2048 counts.
   construct_app();
@@ -369,6 +384,7 @@ TEST(KeeloqReceiveTest, WithASerialTakeOverTakesOnlyTheCounterOfThatSerial) {
   receive(r.remote, on_air(hand.remote.next_frame(0x8, 0x0001)));
   EXPECT_EQ(r.remote.get_serial(), SERIAL);
   EXPECT_EQ(r.remote.get_counter(), 0x2049);
+  EXPECT_EQ(r.remote.get_channels(), 0);  // only the counter, no channels
   // Stored at once: a restart continues ahead of the hand remote's 0x2048, inside the 16-code window.
   Remote restarted;
   uint16_t ahead = restarted.remote.get_counter() - 0x2048;
