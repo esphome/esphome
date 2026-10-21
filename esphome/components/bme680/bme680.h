@@ -74,7 +74,7 @@ class BME680Component final : public PollingComponent, public i2c::I2CDevice {
   /// Set the humidity oversampling value. Defaults to 16X.
   void set_humidity_oversampling(BME680Oversampling humidity_oversampling);
   /// Set the IIR Filter value. Defaults to no IIR Filter.
-  void set_iir_filter(BME680IIRFilter iir_filter);
+  void set_iir_filter(BME680IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
@@ -101,6 +101,8 @@ class BME680Component final : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
+  /// Configure the sensor registers; false on an I2C failure.
+  bool setup_registers_();
   /// Calculate the heater resistance value to send to the BME680 register.
   uint8_t calc_heater_resistance_(uint16_t temperature);
   /// Calculate the heater duration value to send to the BME680 register.

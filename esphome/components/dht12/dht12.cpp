@@ -7,7 +7,7 @@
 
 namespace esphome::dht12 {
 
-static const char *const TAG = "dht12";
+ESPHOME_LOG_TAG(TAG, "dht12");
 
 void DHT12Component::update() {
   uint8_t data[5];
@@ -35,16 +35,13 @@ void DHT12Component::update() {
 void DHT12Component::setup() {
   uint8_t data[5];
   if (!this->read_data_(data)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
 void DHT12Component::dump_config() {
   ESP_LOGD(TAG, "DHT12:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }

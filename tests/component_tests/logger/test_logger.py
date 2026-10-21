@@ -1,6 +1,16 @@
 """Tests for the logger component."""
 
+from collections.abc import Callable
+from pathlib import Path
 import re
+
+import pytest
+
+from esphome.components.logger import validate_task_log_buffer_alignment
+from esphome.config_validation import Invalid
+from esphome.const import PlatformFramework
+from esphome.core import CORE
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 def test_logger_pre_setup_before_other_components(generate_main):
@@ -52,3 +62,79 @@ def test_logger_pre_setup_before_other_components(generate_main):
             f"Component allocation '{alloc.group()}' at position {alloc.start()} "
             f"appears before logger pre_setup() at position {logger_pre_setup.start()}"
         )
+
+
+def test_default_uart_selection_is_not_emitted(generate_main):
+    """UART0 is the C++ initializer on ESP8266, so the setter is skipped."""
+    main_cpp = generate_main("tests/component_tests/logger/test_logger.yaml")
+
+    assert "set_uart_selection(" not in main_cpp
+
+
+def test_custom_uart_selection_is_emitted(generate_main):
+    """A non default UART still reaches the setter before pre_setup()."""
+    main_cpp = generate_main("tests/component_tests/logger/test_logger_uart1.yaml")
+
+    assert "set_uart_selection(logger::UART_SELECTION_UART1);" in main_cpp
+
+
+def test_libretiny_default_uart_selection_is_not_emitted(generate_main):
+    """DEFAULT is the C++ initializer on LibreTiny, so the setter is skipped."""
+    main_cpp = generate_main(
+        "tests/component_tests/logger/test_logger_libretiny_default.yaml"
+    )
+
+    assert "set_uart_selection(" not in main_cpp
+
+
+def test_libretiny_uart0_is_emitted(generate_main):
+    """UART0 is not the LibreTiny initializer, so it must still be set."""
+    main_cpp = generate_main(
+        "tests/component_tests/logger/test_logger_libretiny_uart0.yaml"
+    )
+
+    assert "set_uart_selection(logger::UART_SELECTION_UART0);" in main_cpp
+
+
+def test_ram_log_strings_is_deprecated(
+    generate_main: Callable[[str | Path], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`false` is accepted but ignored: no RAM build flag, and a warning with the removal version."""
+    generate_main("tests/component_tests/logger/test_logger_ram_log_strings.yaml")
+
+    assert not any("STORE_LOG_STR" in flag for flag in CORE.build_flags)
+    assert "esp8266_store_log_strings_in_flash: false' is ignored" in caplog.text
+    assert "2027.4.0" in caplog.text
+
+
+def test_flash_log_strings_default_does_not_warn(
+    generate_main: Callable[[str | Path], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generate_main("tests/component_tests/logger/test_logger.yaml")
+
+    assert "esp8266_store_log_strings_in_flash" not in caplog.text
+
+
+@pytest.mark.parametrize("value", [0, 640, 768, 32768])
+def test_task_log_buffer_size_aligned_on_esp32(
+    set_core_config: SetCoreConfigCallable, value: int
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    assert validate_task_log_buffer_alignment(value) == value
+
+
+def test_task_log_buffer_size_unaligned_rejected_on_esp32(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    with pytest.raises(Invalid, match="multiple of 4"):
+        validate_task_log_buffer_alignment(641)
+
+
+def test_task_log_buffer_size_unaligned_allowed_on_libretiny(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.BK72XX_ARDUINO)
+    assert validate_task_log_buffer_alignment(641) == 641
