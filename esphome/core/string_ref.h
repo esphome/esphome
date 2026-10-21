@@ -226,7 +226,7 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
 }
 
 /// A string that may live in flash (on ESP8266): pointer and length, with no byte-reading operations.
-/// progmem_ptr() is safe as a "%s" log argument; compare the contents with equals().
+/// progmem_ptr() is safe as a "%s" log argument; read the contents with write_to() or equals().
 class ProgmemStringRef {
  public:
   constexpr ProgmemStringRef() = default;
@@ -239,6 +239,20 @@ class ProgmemStringRef {
   constexpr size_t size() const { return this->ref_.size(); }
   constexpr bool empty() const { return this->ref_.empty(); }
 
+  /// Copy into buf (null terminated, truncated to fit), returns the length copied.
+  size_t write_to(char *buf, size_t buf_size) const {
+    if (buf_size == 0)
+      return 0;
+    size_t len = std::min(this->ref_.size(), buf_size - 1);
+#ifdef USE_ESP8266
+    memcpy_P(buf, this->ref_.c_str(), len);
+#else
+    std::memcpy(buf, this->ref_.c_str(), len);
+#endif
+    buf[len] = '\0';
+    return len;
+  }
+
   bool equals(const StringRef &other) const {
 #ifdef USE_ESP8266
     // A StringRef may be {nullptr, 0}, and memcmp_P with a null pointer is undefined even for 0 bytes
@@ -248,6 +262,11 @@ class ProgmemStringRef {
     return other == this->ref_;
 #endif
   }
+
+#ifndef USE_ESP8266
+  /// The string is in RAM here, so it can be viewed directly.
+  constexpr const StringRef &ram_ref() const { return this->ref_; }
+#endif
 
   // Remove before 2027.5.0
   [[deprecated(
