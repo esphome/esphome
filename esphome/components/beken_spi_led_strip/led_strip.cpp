@@ -30,17 +30,15 @@ static const uint32_t SPI_PERI_CLK_DCO = 120000000;
 
 // The beken378 SDK has two SPI register layouts:
 //   N-like (BK7231N, BK7238, BK7252N): CTRL +0x00, CONFIG +0x04, STAT +0x08, DAT +0x0C
-//   T-like (BK7231T, BK7251):          CTRL +0x00, STAT +0x04, DAT +0x08, SLAVE_CTRL +0x0C
+//   T-like (BK7231T, BK7251):          CTRL +0x00, STAT +0x04, DAT +0x08
 // The N-like variants also have TX enable / transfer length / TX finish bits in CONFIG.
 // The T-like variants have no CONFIG address.
 #if defined(USE_LIBRETINY_VARIANT_BK7231N) || defined(USE_LIBRETINY_VARIANT_BK7238)
-#define BEKEN_SPI_IS_N_LIKE 1
-#else
-#define BEKEN_SPI_IS_N_LIKE 0
+#define BEKEN_SPI_IS_N_LIKE
 #endif
 
 static const uint32_t SPI_BASE = 0x00802700;
-#if BEKEN_SPI_IS_N_LIKE
+#ifdef BEKEN_SPI_IS_N_LIKE
 static const uint32_t SPI_DAT = SPI_BASE + 3 * 4;
 static const uint32_t SPI_CONFIG = SPI_BASE + 1 * 4;
 static const uint32_t SPI_TX_EN = 1 << 0;
@@ -74,7 +72,7 @@ static void set_spi_ctrl_register(uint32_t bit, bool val) {
   REG_WRITE(SPI_CTRL, value);
 }
 
-#if BEKEN_SPI_IS_N_LIKE
+#ifdef BEKEN_SPI_IS_N_LIKE
 static void set_spi_config_register(uint32_t bit, bool val) {
   uint32_t value = REG_READ(SPI_CONFIG);
   if (val == 0) {
@@ -88,7 +86,7 @@ static void set_spi_config_register(uint32_t bit, bool val) {
 
 void spi_dma_tx_enable(bool enable) {
   GDMA_CFG_ST en_cfg;
-#if BEKEN_SPI_IS_N_LIKE
+#ifdef BEKEN_SPI_IS_N_LIKE
   set_spi_config_register(SPI_TX_EN, enable);
 #endif
   en_cfg.channel = SPI_TX_DMA_CHANNEL;
@@ -123,7 +121,7 @@ static void spi_set_clock(uint32_t max_hz) {
     param = PCLK_POSI_SPI;
     sddev_control(ICU_DEV_NAME, CMD_CONF_PCLK_26M, &param);
   }
-#if BEKEN_SPI_IS_N_LIKE
+#ifdef BEKEN_SPI_IS_N_LIKE
   // N-like variants: spi_clk = source_clk / (2 * div)
   div = ((source_clk >> 1) / spi_clk);
 #else
@@ -139,7 +137,11 @@ static void spi_set_clock(uint32_t max_hz) {
   param &= ~(SPI_CKR_MASK << SPI_CKR_POSI);
   param |= (div << SPI_CKR_POSI);
   REG_WRITE(SPI_CTRL, param);
-  const int divisor = BEKEN_SPI_IS_N_LIKE ? div : div + 1;
+#ifdef BEKEN_SPI_IS_N_LIKE
+  const int divisor = div;
+#else
+  const int divisor = div + 1;
+#endif
   ESP_LOGD(TAG, "target frequency: %" PRIu32 ", actual frequency: %d", max_hz, source_clk / 2 / divisor);
 }
 
@@ -217,7 +219,7 @@ void BekenSPILEDStripLightOutput::setup() {
 
   set_spi_ctrl_register(TXINT_EN, false);
   set_spi_ctrl_register(RXINT_EN, false);
-#if BEKEN_SPI_IS_N_LIKE
+#ifdef BEKEN_SPI_IS_N_LIKE
   set_spi_config_register(SPI_TX_FINISH_EN, true);
   set_spi_config_register(SPI_RX_FINISH_EN, true);
 #endif
@@ -229,7 +231,7 @@ void BekenSPILEDStripLightOutput::setup() {
   value |= (1 << 17);
   REG_WRITE(SPI_CTRL, value);
 
-#if BEKEN_SPI_IS_N_LIKE
+#ifdef BEKEN_SPI_IS_N_LIKE
   value = GFUNC_MODE_SPI_DMA;
 #else
   // For T-like variants, GFUNC_MODE_SPI_DMA identifies an SPI-DMA peripheral
@@ -237,7 +239,7 @@ void BekenSPILEDStripLightOutput::setup() {
   value = GFUNC_MODE_SPI;
 #endif
   sddev_control(GPIO_DEV_NAME, CMD_GPIO_ENABLE_SECOND, &value);
-#if BEKEN_SPI_IS_N_LIKE
+#ifdef BEKEN_SPI_IS_N_LIKE
   set_spi_ctrl_register(SPI_S_CS_UP_INT_EN, false);
 #endif
 
@@ -272,7 +274,7 @@ void BekenSPILEDStripLightOutput::setup() {
 
   spi_dma_tx_enable(false);
 
-#if BEKEN_SPI_IS_N_LIKE
+#ifdef BEKEN_SPI_IS_N_LIKE
   // N-like variants: The SPI controller must be told how many bytes to clock out.
   value = REG_READ(SPI_CONFIG);
   value &= ~(0xFFF << 8);
@@ -320,7 +322,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
     return;
   }
 
-#if !BEKEN_SPI_IS_N_LIKE
+#ifndef BEKEN_SPI_IS_N_LIKE
   if (!spi_data->first_run) {
     // For T-like variants, the GDMA finish interrupt only means that all bytes were written into
     // the SPI TX FIFO. We must still wait for it to drain before refilling it.
