@@ -80,17 +80,25 @@ def _make_modbus_line_callback() -> tuple[Callable[[str], None], list[str], list
     return line_callback, error_log_lines, warning_log_lines
 
 
+async def _wait_until(
+    tracker: SensorTracker,
+    names: list[str],
+    predicate: Callable[[dict[str, list[float]]], bool],
+) -> None:
+    """Return once *predicate* holds, re-checking whenever one of *names* gets a state."""
+    while not predicate(tracker.sensor_states):
+        futures = [tracker.expect_any(name) for name in names]
+        await asyncio.wait(futures, return_when=asyncio.FIRST_COMPLETED)
+        for future in futures:
+            future.cancel()
+
+
 async def _wait_for_reads(
     tracker: SensorTracker, name: str, count: int, timeout: float = 5.0
 ) -> None:
     """Wait until *name* has received at least *count* states in total."""
-
-    async def reached() -> None:
-        while len(tracker.sensor_states[name]) < count:
-            await tracker.expect_any(name)
-
     await wait_or_fail(
-        reached(),
+        _wait_until(tracker, [name], lambda states: len(states[name]) >= count),
         timeout,
         f"{name} did not reach {count} states",
         states=tracker.sensor_states[name],
@@ -970,20 +978,19 @@ async def test_uart_mock_modbus_fairness(
         entities = await tracker.setup_and_start_scenario(client)
 
         # Let both controllers hammer the bus until each has issued a fair sample of requests.
-        async def both_polled() -> None:
-            states = tracker.sensor_states
-            while not (
-                states["requests_1"]
-                and states["requests_2"]
-                and min(states["requests_1"][-1], states["requests_2"][-1]) >= 10
-            ):
-                futures = [tracker.expect_any(name) for name in states]
-                await asyncio.wait(futures, return_when=asyncio.FIRST_COMPLETED)
-                for future in futures:
-                    future.cancel()
-
+        counters = ["requests_1", "requests_2"]
         await wait_or_fail(
-            both_polled(), 5.0, "controllers did not poll", states=tracker.sensor_states
+            _wait_until(
+                tracker,
+                counters,
+                lambda states: (
+                    all(states[name] for name in counters)
+                    and min(states[name][-1] for name in counters) >= 10
+                ),
+            ),
+            5.0,
+            "controllers did not poll",
+            states=tracker.sensor_states,
         )
 
         # Stop polling so the counters settle to a final, stable value (state
@@ -994,7 +1001,7 @@ async def test_uart_mock_modbus_fairness(
         client.button_command(stop_btn.key)
         # Quiet window longer than the API batch delay (100ms)
         await wait_or_fail(
-            _wait_until_quiet(tracker, ["requests_1", "requests_2"], 0.3),
+            _wait_until_quiet(tracker, counters, 0.3),
             3.0,
             "counters did not settle after stop",
             states=tracker.sensor_states,
