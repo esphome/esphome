@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <chrono>
 #include <ctime>
+#include <thread>
 #include <vector>
 
 #include "esphome/components/rx8111/rx8111.h"
@@ -77,7 +79,7 @@ class RX8111Test : public ::testing::Test {
   }
 
   void advance_retry() {
-    delay(1020);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1020));
     App.scheduler.call(millis());
   }
 
