@@ -10,12 +10,11 @@ ESPHOME_LOG_TAG(TAG, "epaper_spi.uc8179");
 
 bool EPaperUC8179::initialise(bool partial) {
   EPaperBase::initialise(partial);  // send the model init sequence
-  this->partial_ = partial;
   ESP_LOGV(TAG, "Power on");
   // POWER ON must precede the waveform/mode registers and the data transfer
   // (the original driver powers on and busy-waits before writing them).
   // The state machine busy-waits before entering TRANSFER_DATA.
-  this->command(0x04);
+  this->command(CMD_POWER_ON);
   // Give the busy line time to assert before the state machine polls it
   this->next_delay_ = 100;
   return true;
@@ -27,21 +26,17 @@ void EPaperUC8179::set_refresh_mode_() {
     return;  // plain full refresh uses the mode set by the init sequence
   }
   // Fast and partial refresh use flipped data polarity and a floating border
-  this->cmd_data(0x50, {0xA9, 0x07});
+  this->cmd_data(CMD_CDI, {0xA9, 0x07});
   // Force the waveform via the temperature registers: 0x5A selects the fast
   // full-refresh waveform, 0x6E the partial-refresh waveform
-  this->cmd_data(0xE0, {0x02});
+  this->cmd_data(CMD_CCSET, {0x02});
   if (this->partial_) {
-    this->cmd_data(0xE5, {0x6E});
-    this->command(0x91);  // enter partial mode
-    // Set the partial window to the full screen
-    const uint16_t x_end = this->width_ - 1;
-    const uint16_t y_end = this->height_ - 1;
-    this->cmd_data(0x90, {0x00, 0x00, static_cast<uint8_t>(x_end >> 8), static_cast<uint8_t>(x_end & 0xFF), 0x00, 0x00,
-                          static_cast<uint8_t>(y_end >> 8), static_cast<uint8_t>(y_end & 0xFF), 0x01});
+    this->cmd_data(CMD_TSSET, {0x6E});
+    // Partial mode, with the window set to the full screen
+    this->set_partial_window_(0, this->width_ - 1, 0, this->height_ - 1);
   } else {
-    this->cmd_data(0xE5, {0x5A});
-    this->command(0x92);  // exit partial mode
+    this->cmd_data(CMD_TSSET, {0x5A});
+    this->command(CMD_PARTIAL_OUT);  // exit partial mode
   }
 }
 
@@ -69,7 +64,7 @@ bool HOT EPaperUC8179::transfer_data() {
   // Phase 1 (fast full refresh only): previous image via 0x10 (DTM1), inverse of the new image
   if (two_pass && this->current_data_index_ < buffer_length) {
     if (this->current_data_index_ == 0) {
-      this->command(0x10);  // DATA START TRANSMISSION 1 (previous image)
+      this->command(CMD_DTM1);  // DATA START TRANSMISSION 1 (previous image)
     }
     this->start_data_();
     while (this->current_data_index_ < buffer_length) {
@@ -92,7 +87,7 @@ bool HOT EPaperUC8179::transfer_data() {
   const size_t total = offset + buffer_length;
   if (this->current_data_index_ < total) {
     if (this->current_data_index_ == offset) {
-      this->command(0x13);  // DATA START TRANSMISSION 2 (new image)
+      this->command(CMD_DTM2);  // DATA START TRANSMISSION 2 (new image)
     }
     this->start_data_();
     while (this->current_data_index_ < total) {
@@ -125,7 +120,7 @@ void EPaperUC8179::power_on() {
 
 void EPaperUC8179::refresh_screen(bool /*partial*/) {
   ESP_LOGV(TAG, "Refresh");
-  this->command(0x12);  // DISPLAY REFRESH
+  this->command(CMD_REFRESH);  // DISPLAY REFRESH
   // Delay the next busy poll: the busy line takes a short time to assert after
   // the refresh command, and polling too early would read it as already idle
   this->next_delay_ = 100;
@@ -133,15 +128,7 @@ void EPaperUC8179::refresh_screen(bool /*partial*/) {
 
 void EPaperUC8179::power_off() {
   ESP_LOGV(TAG, "Power off");
-  this->command(0x02);  // POWER OFF
-}
-
-void EPaperUC8179::deep_sleep() {
-  // Deep sleep loses the previous-image RAM that partial refresh compares against
-  if (!this->is_using_partial_update_()) {
-    ESP_LOGV(TAG, "Deep sleep");
-    this->cmd_data(0x07, {0xA5});  // DEEP SLEEP with check code
-  }
+  this->command(CMD_POWER_OFF);  // POWER OFF
 }
 
 }  // namespace esphome::epaper_spi

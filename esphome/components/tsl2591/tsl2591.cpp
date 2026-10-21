@@ -62,18 +62,8 @@ void TSL2591Component::setup() {
       break;
   }
 
-  uint8_t id;
-  if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, &id)) {
-    ESP_LOGE(TAG, "I2C read failed");
-    this->mark_failed();
+  if (!this->check_chip_id(this, TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, 0x50))
     return;
-  }
-
-  if (id != 0x50) {
-    ESP_LOGE(TAG, "Unknown chip ID");
-    this->mark_failed();
-    return;
-  }
 
   this->set_integration_time_and_gain(this->integration_time_, this->gain_);
   this->disable_if_power_saving_();
@@ -83,10 +73,8 @@ void TSL2591Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TSL2591:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "  Name: %s", this->name_);
   TSL2591ComponentGain raw_gain = this->component_gain_;

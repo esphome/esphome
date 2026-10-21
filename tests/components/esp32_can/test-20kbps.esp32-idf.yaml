@@ -1,0 +1,11 @@
+esp32:
+  framework:
+    advanced:
+      minimum_chip_revision: "2.0"
+
+canbus:
+  - platform: esp32_can
+    rx_pin: GPIO14
+    tx_pin: GPIO12
+    can_id: 4
+    bit_rate: 20kbps

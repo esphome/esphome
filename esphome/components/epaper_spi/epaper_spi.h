@@ -5,6 +5,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::epaper_spi {
 using namespace display;
@@ -31,6 +32,8 @@ static constexpr uint8_t SWAP_XY = 4;
 
 static constexpr uint32_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to allow the loop to run
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
+// Longer busy waits are the waveform or a stuck pin, and are polled at the normal loop pace
+static constexpr uint32_t FAST_BUSY_POLL_MS = 50;
 static constexpr uint8_t DELAY_FLAG = 0xFF;
 
 class EPaperBase : public Display,
@@ -38,15 +41,18 @@ class EPaperBase : public Display,
                                          spi::DATA_RATE_2MHZ> {
  public:
   EPaperBase(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence = nullptr,
-             size_t init_sequence_length = 0, DisplayType display_type = DISPLAY_TYPE_BINARY)
+             size_t init_sequence_length = 0, DisplayType display_type = DISPLAY_TYPE_BINARY,
+             uint8_t bits_per_pixel = 1, uint8_t planes = 1)
       : name_(name),
         width_(width),
+        row_width_((width * bits_per_pixel + 7) / 8),
         height_(height),
+        bits_per_pixel_(bits_per_pixel),
+        planes_(planes),
         init_sequence_(init_sequence),
         init_sequence_length_(init_sequence_length),
-        display_type_(display_type) {
-    this->row_width_ = (this->width_ + 7) / 8;  // width of a row in bytes
-  }
+        display_type_(display_type),
+        buffer_length_((size_t) this->row_width_ * height * planes) {}
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
@@ -106,6 +112,7 @@ class EPaperBase : public Display,
 
   int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
+  bool pixel_axes_swapped() const override { return this->effective_transform_ & SWAP_XY; }
   void draw_pixel_at(int x, int y, Color color) override;
   // Make the next update a full one. Applied when that update starts, so one in progress is not affected.
   void request_full_update() { this->full_update_requested_ = true; }
@@ -113,6 +120,9 @@ class EPaperBase : public Display,
   bool is_updating() const { return this->state_ != EPaperState::IDLE; }
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
+
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
   bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
@@ -122,9 +132,12 @@ class EPaperBase : public Display,
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
+  /// The reset pin part of reset(), for a driver that must skip what its parent adds to it
+  bool hardware_reset_();
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
+  void abandon_update_();
   bool init_buffer_(size_t buffer_length);
   // Allocates the copy of the frame last sent; drivers that record what they send call this from setup()
   bool init_sent_frame_(size_t length);
@@ -138,6 +151,10 @@ class EPaperBase : public Display,
   void reset_bounds_();
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
+  void draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr, bool big_endian,
+                          int x_offset, int y_offset, int x_pad);
+  // Whether the buffer is a single plane of 1 bit per pixel, as draw_pixel_at() writes it
+  bool buffer_is_mono_() const { return this->bits_per_pixel_ == 1 && this->planes_ == 1; }
 
   /**
    * Methods that must be implemented by concrete classes to control the display
@@ -147,6 +164,8 @@ class EPaperBase : public Display,
    * @return true if done, false if it should be called next loop
    */
   virtual bool transfer_data() = 0;
+  // Called when an update is abandoned in the middle of transfer_data(), to release anything it left open
+  virtual void abort_transfer() {}
   /**
    * Refresh the screen after data transfer
    */
@@ -162,6 +181,13 @@ class EPaperBase : public Display,
   virtual void power_off() = 0;
 
   /**
+   * Called after the refresh, before power off, repeatedly until it returns true.
+   * Lets a driver do extra work spread over several loops, such as rewriting the previous image.
+   * @return true when done, false to be called again next loop
+   */
+  virtual bool after_refresh() { return true; }
+
+  /**
    * Place the display into deep sleep
    */
   virtual void deep_sleep() = 0;
@@ -173,13 +199,15 @@ class EPaperBase : public Display,
   // properties initialised in the constructor
   const char *name_;
   uint16_t width_;
-  uint16_t row_width_;  // width of a row in bytes
+  uint16_t row_width_;  // width of a row of one plane in bytes
   uint16_t height_;
+  uint8_t bits_per_pixel_;
+  uint8_t planes_;  // the buffer holds this many planes of row_width_ * height_ bytes, one after another
   const uint8_t *init_sequence_;
   size_t init_sequence_length_;
   DisplayType display_type_;
 
-  size_t buffer_length_{};
+  size_t buffer_length_;
   size_t current_data_index_{};  // used by data transfer to track progress
   split_buffer::SplitBuffer buffer_{};
   split_buffer::SplitBuffer sent_{};  // the frame last sent to the panel's new-image RAM
@@ -190,28 +218,32 @@ class EPaperBase : public Display,
   GPIOPin *reset_pin_{};
   std::vector<GPIOPin *> enable_pins_{};
   bool waiting_for_idle_{};
+  HighFrequencyLoopRequester high_frequency_loop_;
   uint32_t delay_until_{};  // timestamp until which to delay processing
   uint16_t next_delay_{};   // milliseconds to delay before next state
   uint8_t transform_{};
   uint8_t effective_transform_{};
   uint8_t update_count_{};
   bool full_update_requested_{};
+  bool partial_{};  // the update in progress is a partial one; set when UPDATE moves to RESET
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
   // point to the pixel past the last one updated, i.e. may range up to width/height.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};
 
+  uint32_t waiting_for_idle_start_{};
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   uint32_t waiting_for_idle_last_print_{};
-  uint32_t waiting_for_idle_start_{};
 #endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   uint32_t update_start_time_{};
 #endif
 
   // properties with specific initialisers go last
-  EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
+  // Longer than any panel takes to refresh; past it the busy pin is assumed stuck
+  uint16_t busy_timeout_seconds_{120};
   uint8_t full_update_every_{1};
+  EPaperState state_{EPaperState::IDLE};
 };
 
 }  // namespace esphome::epaper_spi

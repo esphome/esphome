@@ -11,6 +11,12 @@ MAX_HEIGHT = 200
 
 
 class SSD1681(SSD1683):
+    source_files = (
+        "epaper_spi_mono.cpp",
+        "epaper_spi_ssd1681.cpp",
+        "epaper_spi_ssd1683.cpp",
+    )
+
     def __init__(
         self, name: str, class_name: str = "EPaperSSD1681", **defaults: Any
     ) -> None:

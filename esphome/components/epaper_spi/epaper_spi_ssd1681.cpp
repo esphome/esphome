@@ -7,7 +7,7 @@ ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1681");
 
 bool HOT EPaperSSD1681::transfer_data() {
   if (this->current_data_index_ == 0 && this->send_red_) {
-    if (this->update_count_ == 0) {
+    if (!this->partial_) {
       // A refresh drives the whole panel from RAM, so a full one makes both RAM banks whole again
       this->x_low_ = 0;
       this->x_high_ = this->width_;
