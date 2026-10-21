@@ -59,10 +59,15 @@ async def templatable_bytes(
     if cg.is_template(value):
         fn = await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
         cg.add(set_template(fn))
-    elif len(value) > 0xFFFF:
-        raise EsphomeError(f"Byte payload is {len(value)} bytes; the maximum is 65535")
     else:
-        cg.add(set_static(progmem_bytes(table_name, value), len(value)))
+        cg.add(set_static(*_static_bytes(table_name, value)))
+
+
+def _static_bytes(table_name: str, value: bytes | list[int]) -> tuple[MockObj, int]:
+    """The shared PROGMEM table for a constant payload and its length."""
+    if (size := len(value)) > 0xFFFF:
+        raise EsphomeError(f"Byte payload is {size} bytes; the maximum is 65535")
+    return progmem_bytes(table_name, value), size
 
 
 def maybe_simple_id(*validators):
@@ -361,9 +366,10 @@ class ApplyBytes:
     """A byte payload key forwarded as ``target``, whose ``{}`` stands for ``data, len``.
 
     A constant payload is a shared PROGMEM table passed as is; on ESP8266 it is first copied
-    to the stack (``stack`` bytes, heap beyond that) unless ``progmem_target`` names a call
-    that reads flash itself. A lambda's ``std::vector<uint8_t>`` is passed as its data and
-    size. The template may name the parent as ``{parent}``. An absent key emits nothing.
+    out, to the stack up to ``stack`` bytes and to the heap beyond, unless ``progmem_target``
+    names a call that reads flash itself. A lambda's ``std::vector<uint8_t>`` is passed as
+    its data and size. The template may name the parent as ``{parent}``. An absent key
+    emits nothing.
     """
 
     conf_key: str | tuple[str, ...]
@@ -538,22 +544,20 @@ def apply_action_builder(
     and ``apply_call.perform()`` is appended.
     """
     # An action stores the value, so a std::string constant stays in flash on ESP8266.
+    _check_key_in_schema(name, schema, id_key)
     statements_spec: list[ApplyBytes | tuple[str, list[tuple[Any, Any, Any]]]] = []
     for f in fields:
         if isinstance(f, ApplyBytes):
+            _check_key_in_schema(name, schema, f.conf_key)
             statements_spec.append(f)
             continue
         c = f if isinstance(f, ApplyCall) else f.call()
-        statements_spec.append((c.target, _default_std_string(c.members, flash_string)))
+        members = _default_std_string(c.members, flash_string)
+        for conf_key, _, _ in members:
+            _check_key_in_schema(name, schema, conf_key)
+        statements_spec.append((c.target, members))
     # Named like the generated function, so it cannot clash with an SDK symbol
     table_name = f"esphome__{name.replace('.', '_')}__bytes"
-    _check_key_in_schema(name, schema, id_key)
-    for spec in statements_spec:
-        if isinstance(spec, ApplyBytes):
-            _check_key_in_schema(name, schema, spec.conf_key)
-            continue
-        for conf_key, _, _ in spec[1]:
-            _check_key_in_schema(name, schema, conf_key)
 
     async def builder(
         config: ConfigType,
@@ -620,19 +624,26 @@ async def _render_bytes(
             f"  {send(spec.target, 'apply_bytes.data(), apply_bytes.size()')}",
             "}",
         ]
-    if (size := len(value)) > 0xFFFF:
-        raise EsphomeError(f"Byte payload is {size} bytes; the maximum is 65535")
-    table = f"{progmem_bytes(table_name, value)}, {size}"
+    table, size = _static_bytes(table_name, value)
+    args = f"{table}, {size}"
+    if CORE.is_esp8266 and spec.progmem_target is not None:
+        return [send(spec.progmem_target, args)]
     if not CORE.is_esp8266 or size == 0:
-        return [send(spec.target, table)]
-    if spec.progmem_target is not None:
-        return [send(spec.progmem_target, table)]
-    # A PROGMEM table must be read with aligned loads on ESP8266, so copy it out first
+        return [send(spec.target, args)]
+    # A PROGMEM table must be read with aligned loads on ESP8266, so copy it out first;
+    # the length is known here, so the copy is an exact array, on the heap past ``stack``
+    if size <= spec.stack:
+        buffer, data = f"uint8_t apply_bytes[{size}];", "apply_bytes"
+    else:
+        buffer, data = (
+            f"auto apply_bytes = std::make_unique<uint8_t[]>({size});",
+            "apply_bytes.get()",
+        )
     return [
         "{",
-        f"  SmallBufferWithHeapFallback<{spec.stack}> apply_bytes({size});",
-        f"  progmem_memcpy(apply_bytes.get(), {table});",
-        f"  {send(spec.target, f'apply_bytes.get(), {size}')}",
+        f"  {buffer}",
+        f"  progmem_memcpy({data}, {args});",
+        f"  {send(spec.target, f'{data}, {size}')}",
         "}",
     ]
 

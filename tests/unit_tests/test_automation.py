@@ -1336,12 +1336,23 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
     )
     text = _apply_definition(mock_cg)
     lines = [
-        "SmallBufferWithHeapFallback<128> apply_bytes(2);",
-        "progmem_memcpy(apply_bytes.get(), esphome__my_apply__bytes, 2);",
-        f"::{PARENT_OBJ}->send(apply_bytes.get(), 2);",
+        "uint8_t apply_bytes[2];",
+        "progmem_memcpy(apply_bytes, esphome__my_apply__bytes, 2);",
+        f"::{PARENT_OBJ}->send(apply_bytes, 2);",
     ]
     positions = [text.index(line) for line in lines]
     assert positions == sorted(positions)
+
+    # Past the stack budget the copy goes to the heap
+    mock_cg.new_pvariable.reset_mock()
+    fields = (ApplyBytes("data", "send({})", stack=1),)
+    await _run_apply_action(
+        registries, fields, {"data": [0xA1, 0x02]}, platform="esp8266"
+    )
+    text = _apply_definition(mock_cg)
+    assert "auto apply_bytes = std::make_unique<uint8_t[]>(2);" in text
+    assert "progmem_memcpy(apply_bytes.get(), esphome__my_apply__bytes, 2);" in text
+    assert f"::{PARENT_OBJ}->send(apply_bytes.get(), 2);" in text
 
     mock_cg.new_pvariable.reset_mock()
     fields = (ApplyBytes("data", "send({})", progmem_target="send_progmem({})"),)
@@ -1354,6 +1365,7 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
 
     # An empty payload never touches flash
     mock_cg.new_pvariable.reset_mock()
+    fields = (ApplyBytes("data", "send({})"),)
     await _run_apply_action(registries, fields, {"data": []}, platform="esp8266")
     assert f"::{PARENT_OBJ}->send(nullptr, 0);" in _apply_definition(mock_cg)
 
