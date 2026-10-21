@@ -6,6 +6,7 @@
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/media_player/media_player.h"
+#include "esphome/components/speaker/announcement_volume.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/automation.h"
@@ -27,6 +28,8 @@ struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
   optional<float> volume;
   optional<bool> announce;
+  // The caller asked for an announcement; `announce` is also forced on in single-pipeline mode
+  bool is_announcement{false};
   optional<std::string *> url;  // Must be manually deleted after receiving this struct from a queue
   optional<const audio::AudioFile *> file;
   optional<bool> enqueue;
@@ -35,6 +38,7 @@ struct MediaCallCommand {
 struct PlaylistItem {
   optional<std::string> url;
   optional<const audio::AudioFile *> file;
+  bool is_announcement{false};
 };
 
 struct VolumeRestoreState {
@@ -75,6 +79,9 @@ class SpeakerMediaPlayer final : public Component,
   void set_volume_max(float volume_max) { this->volume_max_ = volume_max; }
   void set_volume_min(float volume_min) { this->volume_min_ = volume_min; }
 
+  /// @brief Sets the volume for announcements that start while nothing else is playing.
+  void set_announcement_volume(float announcement_volume);
+
   void set_announcement_speaker(Speaker *announcement_speaker) { this->announcement_speaker_ = announcement_speaker; }
   void set_announcement_format(const media_player::MediaPlayerSupportedFormat &announcement_format) {
     this->announcement_format_ = announcement_format;
@@ -99,6 +106,14 @@ class SpeakerMediaPlayer final : public Component,
 
   /// @brief Updates this->volume and saves volume/mute state to flash for restortation if publish is true.
   void set_volume_(float volume, bool publish = true);
+
+  /// @brief Remaps a volume to the configured limits and sends it to the speakers.
+  void apply_speaker_volume_(float volume);
+
+  /// @brief Returns a callable that sends a volume to the speakers, for announcement_volume_ to apply its changes.
+  auto speaker_volume_applier_() {
+    return [this](float volume) { this->apply_speaker_volume_(volume); };
+  }
 
   /// @brief Sets the mute state. Restores previous volume if unmuting. Always saves volume/mute state to flash for
   /// restoration.
@@ -163,6 +178,8 @@ class SpeakerMediaPlayer final : public Component,
 
   float volume_max_;
   float volume_min_;
+
+  AnnouncementVolume announcement_volume_;
 
   // Used to save volume/mute state for restoration on reboot
   ESPPreferenceObject pref_;

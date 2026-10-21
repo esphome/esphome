@@ -678,8 +678,7 @@ void SEN6XComponent::parse_and_publish_number_concentration_() {
                                this->pmc_4_0_sensor_, this->pmc_10_0_sensor_};
   uint16_t measurements[std::size(sensors)];
 
-  if (!this->read_data(measurements, std::size(measurements))) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_data(measurements, std::size(measurements)))) {
     ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
     return;
   }
@@ -688,7 +687,6 @@ void SEN6XComponent::parse_and_publish_number_concentration_() {
     if (sensors[i] != nullptr)
       sensors[i]->publish_state(measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
   }
-  this->status_clear_warning();
 }
 #endif
 

@@ -255,11 +255,7 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
 
   if (this->concentration_sensor_ != nullptr)
     this->concentration_sensor_->publish_state(concentration);
-  if (std::isnan(concentration) || std::isnan(temperature) || this->setup_incomplete_) {
-    this->status_set_warning();
-  } else {
-    this->status_clear_warning();
-  }
+  this->status_comm_result(!std::isnan(concentration) && !std::isnan(temperature) && !this->setup_incomplete_, nullptr);
 }
 
 #ifdef USE_DFROBOT_SEN0465_TEMPERATURE_COMPENSATION
