@@ -84,7 +84,10 @@ class Seesaw : public i2c::I2CDevice, public Component {
   uint32_t options_{0};
   // Last GPIO levels read, returned when a read fails
   uint32_t gpio_levels_{0};
+  // Loop pass of the last GPIO read; every pin read in the same pass shares it
+  uint32_t gpio_read_time_{0};
   uint8_t cpuid_{0};
+  bool gpio_read_valid_{false};
 };
 
 class SeesawGPIOPin : public GPIOPin, public Parented<Seesaw> {
@@ -95,15 +98,15 @@ class SeesawGPIOPin : public GPIOPin, public Parented<Seesaw> {
   void digital_write(bool value) override;
   size_t dump_summary(char *buffer, size_t len) const override;
 
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { flags_ = flags; }
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
   gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
+  uint8_t pin_{0};
+  bool inverted_{false};
+  gpio::Flags flags_{gpio::FLAG_NONE};
 };
 
 }  // namespace esphome::seesaw

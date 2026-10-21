@@ -36,6 +36,8 @@ light::LightTraits SeesawNeopixel::get_traits() {
 }
 
 void SeesawNeopixel::write_state(light::LightState *state) {
+  if (this->is_failed())
+    return;
   this->mark_shown_();
   for (int32_t i = 0; i < this->size(); i++) {
     auto view = this->get_view_internal(i);

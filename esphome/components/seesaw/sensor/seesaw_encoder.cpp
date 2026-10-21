@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <cinttypes>
 
 namespace esphome::seesaw {
 
@@ -45,6 +46,12 @@ void SeesawEncoder::loop() {
 void SeesawEncoder::dump_config() {
   LOG_SENSOR("", "Seesaw Encoder", this);
   ESP_LOGCONFIG(TAG, "  Number: %u", this->number_);
+  if (this->min_value_ != INT32_MIN) {
+    ESP_LOGCONFIG(TAG, "  Min value: %" PRId32, this->min_value_);
+  }
+  if (this->max_value_ != INT32_MAX) {
+    ESP_LOGCONFIG(TAG, "  Max value: %" PRId32, this->max_value_);
+  }
 }
 
 }  // namespace esphome::seesaw

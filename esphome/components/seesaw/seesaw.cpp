@@ -1,6 +1,7 @@
 #include "seesaw.h"
 
 #include <cinttypes>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -41,7 +42,6 @@ static const LogString *cpuid_to_string(uint8_t id) {
 }
 
 void Seesaw::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Seesaw...");
   uint8_t c = 0;
   i2c::ErrorCode err = this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_HW_ID, &c, 1);
   if (err != i2c::ERROR_OK) {
@@ -139,9 +139,16 @@ uint16_t Seesaw::analog_read(uint8_t pin) {
 bool Seesaw::digital_read(uint8_t pin) {
   uint32_t pins = 1 << pin;
   uint8_t buf[4];
-  // A failed read keeps the last levels, so an inverted input does not read as active on a bus error
-  if (this->status_comm_result(this->readbuf_(SEESAW_GPIO, SEESAW_GPIO_BULK, buf, 4) == i2c::ERROR_OK))
-    this->gpio_levels_ = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
+  // One bulk read covers every pin, so pins read in the same loop pass share it. A failed read keeps the last
+  // levels, so an inverted input does not read as active on a bus error.
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!this->gpio_read_valid_ || now != this->gpio_read_time_) {
+    if (this->status_comm_result(this->readbuf_(SEESAW_GPIO, SEESAW_GPIO_BULK, buf, 4) == i2c::ERROR_OK)) {
+      this->gpio_levels_ = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
+      this->gpio_read_time_ = now;
+      this->gpio_read_valid_ = true;
+    }
+  }
   return this->gpio_levels_ & pins;
 }
 
@@ -197,7 +204,7 @@ i2c::ErrorCode Seesaw::readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uin
   return this->read(buf, len);
 }
 
-void SeesawGPIOPin::setup() { this->pin_mode(flags_); }
+void SeesawGPIOPin::setup() { this->pin_mode(this->flags_); }
 
 void SeesawGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->set_pinmode(this->pin_, flags); }
 
