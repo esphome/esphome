@@ -16,6 +16,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -80,10 +81,7 @@ async def test_wait_until_mid_loop_timing(
     ):
         # Get the test service
         _, services = await client.list_entities_services()
-        test_service = next(
-            (s for s in services if s.name == "test_mid_loop_timeout"), None
-        )
-        assert test_service is not None, "test_mid_loop_timeout service not found"
+        test_service = require_service(services, "test_mid_loop_timeout")
 
         # Execute the test
         await client.execute_service(test_service, {})
