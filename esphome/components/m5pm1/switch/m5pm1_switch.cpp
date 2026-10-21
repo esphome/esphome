@@ -78,7 +78,7 @@ void M5PM1PowerSwitch::write_state(bool state) {
     success = this->parent_->set_power_config(this->get_mask_(), state);
   }
   if (!success) {
-    ESP_LOGE(TAG, "Failed to set power switch '%s' to %s", this->get_name().c_str(), ONOFF(state));
+    ESP_LOGE(TAG, "Failed to set power switch '%s' to %s", LOG_STR_ARG(this->get_log_name()), ONOFF(state));
     return;
   }
   this->publish_state(state);
