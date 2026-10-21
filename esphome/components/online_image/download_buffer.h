@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/components/runtime_image/image_decoder.h"
 #include "esphome/core/helpers.h"
 #include <cstddef>
 #include <cstdint>
@@ -41,6 +42,37 @@ class DownloadBuffer {
   size_t size_;
   /** Total number of downloaded bytes not yet read. */
   size_t unread_;
+};
+
+/**
+ * @brief Lets a decoder read a download as it arrives, from the download buffer.
+ *
+ * The decoder reads at its own position in the buffer. Bytes it has read stay there until compact() drops
+ * them, and compact() keeps everything while set_keep_read(true) is in effect, so the decoder can seek back
+ * while it reads the headers.
+ */
+class DownloadSource : public runtime_image::DecodeSource {
+ public:
+  explicit DownloadSource(DownloadBuffer &buffer) : buffer_(buffer) {}
+
+  /// Start again at the beginning of a new download, keeping what is read
+  void reset() {
+    this->start_ = 0;
+    this->pos_ = 0;
+    this->keep_read_ = true;
+  }
+  void set_keep_read(bool keep) { this->keep_read_ = keep; }
+  /// Drop the bytes the decoder has read, to make room for more of the download
+  void compact();
+
+  int32_t read(uint8_t *buf, uint32_t len) override;
+  bool seek(uint32_t position) override;
+
+ protected:
+  DownloadBuffer &buffer_;
+  size_t start_{0};  // Position in the download of the first byte in the buffer
+  size_t pos_{0};    // Position in the download the decoder reads next
+  bool keep_read_{true};
 };
 
 }  // namespace esphome::online_image

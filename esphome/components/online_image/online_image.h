@@ -81,12 +81,16 @@ class OnlineImage final : public PollingComponent,
   bool validate_url_(const std::string &url);
   void end_connection_();
   void finish_download_();
+  /// loop() for a JPEG that is decoded as it downloads
+  void loop_stream_();
+  void fail_download_();
 
   CallbackManager<void(bool)> download_finished_callback_{};
   CallbackManager<void()> download_error_callback_{};
 
   std::shared_ptr<http_request::HttpContainer> downloader_{nullptr};
   DownloadBuffer download_buffer_;
+  DownloadSource source_{download_buffer_};
   /**
    * This is the *initial* size of the download buffer, not the current size.
    * The download buffer can be resized at runtime; the download_buffer_initial_size_
@@ -109,6 +113,8 @@ class OnlineImage final : public PollingComponent,
 
   uint32_t start_time_{0};
   uint32_t last_data_time_{0};
+  bool streaming_{false};       // The decoder reads the download itself, as it arrives
+  bool stream_started_{false};  // The decoder has read the headers
 };
 
 }  // namespace esphome::online_image
