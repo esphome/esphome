@@ -177,11 +177,11 @@ void MitsubishiCN105Climate::apply_values_() {
           break;
         case MitsubishiCN105::Mode::AUTO:
           // Auto: infer direction from room vs. target temperature (requires telemetry).
-            if (status.auto_direction.has_value()) {
-              action = *status.auto_direction == MitsubishiCN105::AutoDirection::COOL ? climate::CLIMATE_ACTION_COOLING
-                                                                                       : climate::CLIMATE_ACTION_HEATING;
-            }
-            break;
+          if (status.auto_direction.has_value()) {
+            action = *status.auto_direction == MitsubishiCN105::AutoDirection::COOL ? climate::CLIMATE_ACTION_COOLING
+                                                                                    : climate::CLIMATE_ACTION_HEATING;
+          }
+          break;
         default:
           break;
       }
