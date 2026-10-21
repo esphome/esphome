@@ -1,6 +1,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_ESP32
 #include "ecocomfort2_hub.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cmath>
@@ -371,9 +372,15 @@ static constexpr uint8_t KEEP_FREE_COOLING = 0x0F;
 // The thresholds the humidity and VOC advanced flags belong to
 static constexpr uint8_t ADVANCED_THRESHOLD[] = {0, 2};
 
+// The unit answers within a few seconds; after this long an answer was lost (the BLE event pool was full) and
+// the reads start over, which can at worst accept one late answer as current until the next poll
+static constexpr uint32_t SETTINGS_READ_STALL_MS = 30000;
+
 bool Ecocomfort2Hub::request_read_(uint16_t handle, SettingsReads &reads) {
   if (!this->read_char_(handle))
     return false;
+  if (reads.pending == 0)
+    reads.sent_ms = App.get_loop_component_start_time();
   if (reads.owed) {
     reads.owed = false;
   } else {
@@ -384,6 +391,13 @@ bool Ecocomfort2Hub::request_read_(uint16_t handle, SettingsReads &reads) {
 
 // A poll waits for the answers still pending, so a short update interval cannot keep the count above zero
 void Ecocomfort2Hub::read_settings_() {
+  const uint32_t now = App.get_loop_component_start_time();
+  for (auto *reads : {&this->config_reads_, &this->advanced_reads_}) {
+    if (reads->pending != 0 && now - reads->sent_ms > SETTINGS_READ_STALL_MS) {
+      ESP_LOGW(TAG, "[%s] Settings read not answered, retrying", this->parent_->address_str());
+      *reads = {};
+    }
+  }
   if (this->needs_config_ && this->char_handle_config_ != 0 &&
       (this->config_reads_.pending == 0 || this->config_reads_.owed))
     this->request_read_(this->char_handle_config_, this->config_reads_);

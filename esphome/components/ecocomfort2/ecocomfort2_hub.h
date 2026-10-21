@@ -66,6 +66,8 @@ enum class SelectSetting : uint8_t { SEASON, FREE_COOLING, COUNT };
 
 /// Reads of one settings characteristic. The unit answers in order, so only the last pending answer is current.
 struct SettingsReads {
+  // When the oldest pending read was sent; a read with no answer by then is given up (the event was dropped)
+  uint32_t sent_ms{0};
   uint8_t pending{0};
   // One pending slot has no request yet: a write could not queue its readback, so the answers sent before it are
   // dropped until the next read fills the slot
