@@ -197,16 +197,6 @@ def test_inline_schema_keeps_base_and_local_constraints() -> None:
     }
 
 
-def test_pop_schema_keeps_constraints() -> None:
-    node = {"type": "typed", "schema": {"extends": ["x"], "constraints": [{"a": 1}]}}
-    _bls.pop_schema_keep_constraints(node)
-    assert node == {"type": "typed", "schema": {"constraints": [{"a": 1}]}}
-
-    node = {"type": "enum", "schema": {"extends": ["x"]}}
-    _bls.pop_schema_keep_constraints(node)
-    assert node == {"type": "enum"}
-
-
 def test_convert_emits_variant_enum() -> None:
     """A per-variant enum is dumped with each value tagged by its variants."""
     from esphome.components.esp32 import (

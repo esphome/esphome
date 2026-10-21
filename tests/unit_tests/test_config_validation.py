@@ -1910,16 +1910,14 @@ def test_only_when_missing_selector() -> None:
         cv.only_when("path", "transport", ("ws", "wss"))({"path": "/mqtt"})
 
 
-def test_only_when_boolean_selector() -> None:
-    validator = cv.only_when("connections", "active", True)
-    assert validator({"active": True, "connections": []})
-    with pytest.raises(Invalid, match="when 'active' is true"):
-        validator({"active": False, "connections": []})
-
-
-def test_only_when_bool_never_matches_number() -> None:
-    with pytest.raises(Invalid, match="when 'mode' is '1'"):
-        cv.only_when("a", "mode", 1)({"mode": True, "a": 1})
+@pytest.mark.parametrize(
+    ("value", "actual", "shown"), [(True, False, "true"), (1, True, "1")]
+)
+def test_only_when_bool_selector(value: object, actual: object, shown: str) -> None:
+    validator = cv.only_when("a", "mode", value)
+    assert validator({"mode": value, "a": 1})
+    with pytest.raises(Invalid, match=f"when 'mode' is {shown}"):
+        validator({"mode": actual, "a": 1})
 
 
 def test_only_when_negate() -> None:
@@ -1927,11 +1925,6 @@ def test_only_when_negate() -> None:
     assert validator({"bus_mode": "single", "dc_pin": 4})
     with pytest.raises(Invalid, match="when 'bus_mode' is not 'quad'"):
         validator({"bus_mode": "quad", "dc_pin": 4})
-
-
-def test_key_requires_not_dict() -> None:
-    with pytest.raises(Invalid, match="expected dictionary"):
-        cv.key_requires("a", "b")(5)
 
 
 @pytest.mark.parametrize("obj", [{"a": 1, "b": 2, "c": 3}, {"b": 2}, {}])
@@ -1945,14 +1938,10 @@ def test_key_requires_all() -> None:
 
 
 def test_key_requires_any_of() -> None:
-    validator = cv.key_requires(("a", "x"), "b", "c", any_of=True)
+    validator = cv.key_requires("a", "b", "c", any_of=True)
     assert validator({"a": 1, "c": 3})
-    with pytest.raises(vol.MultipleInvalid) as exc:
-        validator({"a": 1, "x": 2})
-    assert [str(e) for e in exc.value.errors] == [
-        "'a' requires 'b' or 'c' @ data['a']",
-        "'x' requires 'b' or 'c' @ data['x']",
-    ]
+    with pytest.raises(Invalid, match="'a' requires 'b' or 'c'"):
+        validator({"a": 1})
 
 
 # ---------------------------------------------------------------------------

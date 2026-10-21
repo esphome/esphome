@@ -576,17 +576,11 @@ def merge(source, destination):
             node = destination.setdefault(key, {})
             merge(value, node)
         elif key == "constraints" and isinstance(value, list):
-            destination[key] = value + (destination.get(key) or [])
+            destination[key] = value + destination.get(key, [])
         else:
             destination[key] = value
 
     return destination
-
-
-def pop_schema_keep_constraints(node):
-    """Drop *node*'s schema but keep its key constraints."""
-    if constraints := node.pop(S_SCHEMA).get("constraints"):
-        node[S_SCHEMA] = {"constraints": constraints}
 
 
 def inline_schema(node, base):
@@ -642,8 +636,9 @@ def shrink():
                     else:
                         print("expected extends here!" + x)
                     arr_s = merge(key_s, arr_s)
-                    if arr_s[S_TYPE] in ["enum", "typed"]:
-                        pop_schema_keep_constraints(arr_s)
+                    # Keep a schema that still holds key constraints
+                    if arr_s[S_TYPE] in ["enum", "typed"] and not arr_s[S_SCHEMA]:
+                        arr_s.pop(S_SCHEMA)
                 else:
                     arr_s.pop(S_EXTENDS)
                     inline_schema(arr_s, key_s[S_SCHEMA])
@@ -663,7 +658,7 @@ def shrink():
                     print("skipping simple spread for " + ".".join(target))
                     continue
                 assert target_s[S_SCHEMA][S_EXTENDS] == [x]
-                pop_schema_keep_constraints(target_s)
+                target_s.pop(S_SCHEMA)
                 target_s |= key_s
                 if key_s[S_TYPE] in ["integer", "string"]:
                     target_s["data_type"] = x.split(".")[1]
@@ -677,7 +672,7 @@ def shrink():
                     target_s[S_EXTENDS].remove(x)
                     continue
                 assert x in target_s[S_SCHEMA][S_EXTENDS]
-                pop_schema_keep_constraints(target_s)
+                target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined
                 target_s["data_type"] = x.split(".")[1]
             # remove this dangling again
