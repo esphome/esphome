@@ -14,7 +14,7 @@ def test_write_payloads_share_a_progmem_table(
 
     table = "esphome__udp_write__bytes"
     assert main_cpp.count(f"{table}[] PROGMEM = {{0xAA, 0x55, 0x01, 0x02}};") == 1
-    assert main_cpp.count(f"progmem_memcpy(esphome__bytes, {table}, 4);") == 2
+    assert main_cpp.count(f"progmem_memcpy(esphome__bytes, ::{table}, 4);") == 2
     assert main_cpp.count("->send_packet(esphome__bytes, 4);") == 2
     assert "->send_packet(nullptr, 0);" in main_cpp
     assert "->send_packet(esphome__bytes.data(), esphome__bytes.size());" in main_cpp

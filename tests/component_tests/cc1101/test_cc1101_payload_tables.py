@@ -23,7 +23,7 @@ def test_constant_payloads_share_progmem_tables(
     assert [v for _, v in tables] == [
         "{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}"
     ]
-    assert main_cpp.count(f"->transmit_packet({tables[0][0]}, 8);") == 2
+    assert main_cpp.count(f"->transmit_packet(::{tables[0][0]}, 8);") == 2
     assert (
         "->transmit_packet(esphome__bytes.data(), esphome__bytes.size());" in main_cpp
     )

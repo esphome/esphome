@@ -26,7 +26,7 @@ def test_constant_packets_share_progmem_tables(
         ["{0xC5, 0x51, 0x78, 0x82}", "{0x68, 0x69}"]
     )
     shared = next(k for k, v in tables.items() if v == "{0xC5, 0x51, 0x78, 0x82}")
-    assert main_cpp.count(f"->transmit_packet({shared}, 4);") == 2
+    assert main_cpp.count(f"->transmit_packet(::{shared}, 4);") == 2
     assert (
         "->transmit_packet(esphome__bytes.data(), esphome__bytes.size());" in main_cpp
     )
