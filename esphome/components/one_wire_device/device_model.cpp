@@ -177,7 +177,9 @@ void IRAM_ATTR DeviceModel::command_(uint8_t command, [[maybe_unused]] int16_t t
   if (!this->is_thermometer())
     return;
   if (command == 0xbe) {
-    { this->phase_ = Phase::READ_PAD; }
+    {
+      this->phase_ = Phase::READ_PAD;
+    }
   } else if (command == 0x44) {
     int16_t raw = temperature;
     if (this->is_ds18s20_()) {
@@ -194,7 +196,9 @@ void IRAM_ATTR DeviceModel::command_(uint8_t command, [[maybe_unused]] int16_t t
     this->update_crc_();
     this->phase_ = Phase::READY;
   } else if (command == 0x4e) {
-    { this->phase_ = Phase::WRITE_PAD; }
+    {
+      this->phase_ = Phase::WRITE_PAD;
+    }
   } else if (command == 0x48 || command == 0xb8) {
     for (uint8_t i = 0; i < 3; i++) {
       if (command == 0x48) {
@@ -206,7 +210,9 @@ void IRAM_ATTR DeviceModel::command_(uint8_t command, [[maybe_unused]] int16_t t
     this->update_crc_();
     this->phase_ = Phase::READY;
   } else if (command == 0xb4) {
-    { this->phase_ = Phase::READY; }
+    {
+      this->phase_ = Phase::READY;
+    }
   }
 #endif
 }
