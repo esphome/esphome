@@ -3,7 +3,7 @@ ble_client:
     mac_address: 01:02:03:04:05:06
 
 time:
-  - platform: homeassistant
+  - platform: sntp
     id: delta_wallbox_time
 
 delta_wallbox:
