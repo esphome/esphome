@@ -12,6 +12,8 @@ namespace esphome::mcp251xfd {
 
 ESPHOME_LOG_TAG(TAG, "mcp251xfd");
 
+void IRAM_ATTR MCP251XFD::gpio_intr(MCP251XFD *arg) { arg->enable_loop_soon_any_context(); }
+
 bool MCP251XFD::setup_internal() {
   // A 4 MHz oscillator starts without the PLL. Keep SPI below 0.85 * SYSCLK / 2 until it locks.
   const uint32_t operating_data_rate = this->data_rate_;
@@ -43,8 +45,9 @@ bool MCP251XFD::setup_internal() {
   for (uint16_t address = RAM_START; address < RAM_START + RAM_SIZE; address += sizeof(zeros))
     this->write_registers_(address, zeros, sizeof(zeros));
 
+  uint32_t rx_interrupt_flag = (this->interrupt_pin_ != nullptr ? FIFO_RX_NOT_EMPTY_ENABLE : 0);
   this->write_register_(REG_TX_FIFO_CON, FIFO_PAYLOAD_64 | ((TX_FIFO_DEPTH - 1) << 24) | FIFO_TX_ENABLE);
-  this->write_register_(REG_RX_FIFO_CON, FIFO_PAYLOAD_64 | ((RX_FIFO_DEPTH - 1) << 24));
+  this->write_register_(REG_RX_FIFO_CON, FIFO_PAYLOAD_64 | ((RX_FIFO_DEPTH - 1) << 24) | rx_interrupt_flag);
 
   // Filter 0 accepts both standard and extended IDs and routes them to FIFO 2.
   this->write_registers_(REG_FLTCON, zeros, sizeof(zeros));
@@ -56,6 +59,15 @@ bool MCP251XFD::setup_internal() {
       !this->wait_for_register_(REG_RX_FIFO_CON + 1, FIFO_RESET, 0))
     return false;
 
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&MCP251XFD::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    // Only RX-not-empty drives INT. Keep latched error diagnostics on the existing periodic poll.
+    this->write_byte_(REG_INT + 2, INT_RX_ENABLE);
+    if (!this->interrupt_pin_->digital_read())
+      this->enable_loop_soon_any_context();
+  }
+
   ESP_LOGD(TAG, "Setup complete");
   return true;
 }
@@ -64,6 +76,8 @@ void MCP251XFD::dump_config() {
   canbus::Canbus::dump_config();
   ESP_LOGCONFIG(TAG, "MCP251XFD (CAN FD):");
   LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
+
   [[maybe_unused]] const uint8_t clock_mhz = this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ    ? 4
                                              : this->mcp_clock_ == CanClock::CAN_CLOCK_20MHZ ? 20
                                                                                              : 40;
@@ -226,6 +240,9 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
 canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
   if (this->is_failed())
     return canbus::ERROR_FAIL;
+  // INT stays low until the FIFO is empty. Keep the loop enabled for frame budgets and SPI retries.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read())
+    return canbus::ERROR_NOMSG;
   uint8_t status;
   if (!this->read_registers_(REG_RX_FIFO_STA, &status, 1))
     return canbus::ERROR_FAIL;

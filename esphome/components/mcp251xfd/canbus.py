@@ -1,8 +1,8 @@
 import esphome.codegen as cg
-from esphome.components import canbus, spi
+from esphome.components import canbus, gpio_expander, spi
 from esphome.components.canbus import CONF_BIT_RATE, CanbusComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA_RATE, CONF_ID, CONF_MODE
+from esphome.const import CONF_DATA_RATE, CONF_ID, CONF_INTERRUPT_PIN, CONF_MODE
 from esphome.core import HexInt
 from esphome.types import ConfigType
 
@@ -158,6 +158,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MODE, default="NORMAL"): cv.enum(MCP_MODE, upper=True),
             cv.Optional(canbus.CONF_DEFAULT_FD, default=False): cv.boolean,
             cv.Optional(canbus.CONF_DEFAULT_BIT_RATE_SWITCH, default=False): cv.boolean,
+            cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
     )
     .extend(spi.spi_device_schema(True, "8MHz", "MODE0"))
@@ -196,3 +197,6 @@ async def to_code(config: ConfigType) -> None:
     )
     await canbus.register_canbus(var, config, reports_status=True)
     await spi.register_spi_device(var, config)
+    if (interrupt_pin := config.get(CONF_INTERRUPT_PIN)) is not None:
+        pin = await cg.gpio_pin_expression(interrupt_pin)
+        cg.add(var.set_interrupt_pin(pin))

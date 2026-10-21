@@ -2,6 +2,7 @@
 
 #include "esphome/components/canbus/canbus.h"
 #include "esphome/components/spi/spi.h"
+#include "esphome/core/gpio.h"
 #include "mcp251xfd_defs.h"
 
 namespace esphome::mcp251xfd {
@@ -19,6 +20,7 @@ class MCP251XFD : public canbus::Canbus,
         transmitter_delay_compensation_(transmitter_delay_compensation) {}
 
   void dump_config() override;
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   canbus::CanStatus get_status() override;
   bool supports_fd() const override { return this->mcp_mode_ != CanMode::CAN_MODE_CLASSIC; }
 
@@ -31,6 +33,9 @@ class MCP251XFD : public canbus::Canbus,
   uint32_t last_trec_{0};
   uint8_t last_error_flags_{0};
   bool spi_error_{false};
+  InternalGPIOPin *interrupt_pin_{nullptr};
+
+  static void gpio_intr(MCP251XFD *arg);
 
   bool setup_internal() override;
   canbus::CanEventFlags get_events() override;
