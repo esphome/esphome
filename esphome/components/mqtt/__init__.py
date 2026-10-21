@@ -66,6 +66,8 @@ from esphome.const import (
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
     CONF_TARGET_TEMPERATURE_COMMAND_TOPIC,
+    CONF_TARGET_TEMPERATURE_HIGH_COMMAND_TOPIC,
+    CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_USE_ABBREVIATIONS,
@@ -80,9 +82,9 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import get_base_entity_object_id
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
+from esphome.helpers import sanitize, snake_case
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
@@ -146,21 +148,31 @@ MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 
-# The topics each entity MQTT class always subscribes to, keyed by class:
-# component type, then (topic suffix, config key that replaces the whole topic) pairs
-_COMMAND_TOPICS: dict[str, tuple[str, tuple[tuple[str, str], ...]]] = {}
-_COMMAND = (("command", CONF_COMMAND_TOPIC),)
+# A topic the firmware builds from a suffix, unless the config key replaces the whole topic
+_Topic = tuple[str, str]
+# The firmware subscribes to exactly one of these alternatives, chosen by entity traits
+_Subscription = tuple[tuple[_Topic, ...], ...]
+# The subscriptions each entity MQTT class always makes, keyed by class: component type,
+# then the subscriptions
+_COMMAND_TOPICS: dict[str, tuple[str, tuple[_Subscription, ...]]] = {}
+
+
+def _single_topic(suffix: str, custom_key: str) -> _Subscription:
+    return (((suffix, custom_key),),)
+
+
+_COMMAND = _single_topic("command", CONF_COMMAND_TOPIC)
 
 
 def _entity_class(
     name: str,
     component_type: str | None = None,
-    topics: tuple[tuple[str, str], ...] = _COMMAND,
+    subscriptions: tuple[_Subscription, ...] = (_COMMAND,),
 ) -> MockObjClass:
     """Declare an entity MQTT class; a component_type means it subscribes to command topics."""
     cls = mqtt_ns.class_(name, MQTTComponent)
     if component_type is not None:
-        _COMMAND_TOPICS[str(cls)] = (component_type, topics)
+        _COMMAND_TOPICS[str(cls)] = (component_type, subscriptions)
     return cls
 
 
@@ -168,14 +180,25 @@ MQTTAlarmControlPanelComponent = _entity_class(
     "MQTTAlarmControlPanelComponent", "alarm_control_panel"
 )
 MQTTBinarySensorComponent = _entity_class("MQTTBinarySensorComponent")
-# Climate also always subscribes to a target temperature topic: target_temperature, or the
-# longer _low and _high pair on two-point devices, so the shorter one is a safe bound
 MQTTClimateComponent = _entity_class(
     "MQTTClimateComponent",
     "climate",
     (
-        ("mode/command", CONF_MODE_COMMAND_TOPIC),
-        ("target_temperature/command", CONF_TARGET_TEMPERATURE_COMMAND_TOPIC),
+        _single_topic("mode/command", CONF_MODE_COMMAND_TOPIC),
+        # One target temperature topic, or the _low and _high pair on two-point devices
+        (
+            (("target_temperature/command", CONF_TARGET_TEMPERATURE_COMMAND_TOPIC),),
+            (
+                (
+                    "target_temperature_low/command",
+                    CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC,
+                ),
+                (
+                    "target_temperature_high/command",
+                    CONF_TARGET_TEMPERATURE_HIGH_COMMAND_TOPIC,
+                ),
+            ),
+        ),
     ),
 )
 MQTTCoverComponent = _entity_class("MQTTCoverComponent", "cover")
@@ -413,17 +436,53 @@ CONFIG_SCHEMA = cv.All(
 )
 
 # AsyncMqttClient, the ESP8266 and LibreTiny backend, drops any inbound message whose
-# topic is longer than this (its default maxTopicLength)
+# topic is longer than this many bytes (its default maxTopicLength)
 ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN = 128
+# Keep in sync with OBJECT_ID_MAX_LEN in esphome/core/entity_base.h
+OBJECT_ID_MAX_LEN = 128
 # name_add_mac_suffix appends "-" plus 6 hex digits to the name at runtime
 MAC_SUFFIX = "-xxxxxx"
 
 
-def _entity_command_topics(
+def _entity_object_id(
+    config: ConfigType, mac_suffix: bool, devices: dict[str, str]
+) -> str:
+    """Build the object id the way EntityBase::write_object_id_to() does."""
+    # The name falls back the way EntityBase::configure_entity_() does
+    name = config.get(CONF_NAME) or ""
+    if not name:
+        if (device := config.get(CONF_DEVICE_ID)) is not None:
+            name = devices[device.id]
+        elif mac_suffix:
+            # Only the friendly name gains the MAC suffix, and an empty one stays empty
+            name = f"{CORE.friendly_name}{MAC_SUFFIX}" if CORE.friendly_name else ""
+        else:
+            name = CORE.friendly_name or CORE.name
+    # The firmware sanitizes each UTF-8 byte to one character and caps the result
+    raw = name.encode()[: OBJECT_ID_MAX_LEN - 1]
+    return sanitize(snake_case(raw.decode("ascii", "replace")))
+
+
+def _entity_topic(
+    config: ConfigType, default_topic: str, suffix: str, custom_key: str
+) -> str | None:
+    """Return the topic an entity subscribes to, or None when only known at runtime."""
+    custom = config.get(custom_key)
+    # An empty specialized topic falls back to the default (MQTT_COMPONENT_CUSTOM_TOPIC_)
+    # while an empty command_topic stays empty
+    if custom == "" and custom_key != CONF_COMMAND_TOPIC:
+        custom = None
+    if custom is not None:
+        # A lambda topic is only known at runtime
+        return custom if isinstance(custom, str) else None
+    return f"{default_topic}/{suffix}" if default_topic else None
+
+
+def _entity_subscriptions(
     config: ConfigType, topic_prefix: str, mac_suffix: bool, devices: dict[str, str]
-) -> Iterator[str]:
-    """Yield the topics an entity's MQTT component always subscribes to, where known."""
-    component_type, topics = _COMMAND_TOPICS[str(config[CONF_MQTT_ID].type)]
+) -> Iterator[tuple[tuple[str, ...], ...]]:
+    """Yield the subscriptions an entity's MQTT component always makes, as known topics."""
+    component_type, subscriptions = _COMMAND_TOPICS[str(config[CONF_MQTT_ID].type)]
     # Mirrors MQTTComponent::compute_is_internal_(): internal components never subscribe
     if CONF_STATE_TOPIC in config:
         internal = config[CONF_STATE_TOPIC] == ""
@@ -433,26 +492,24 @@ def _entity_command_topics(
         internal = not topic_prefix or config.get(CONF_INTERNAL, False)
     if internal:
         return
-    device = config.get(CONF_DEVICE_ID)
-    object_id = get_base_entity_object_id(
-        config.get(CONF_NAME) or "",
-        CORE.friendly_name,
-        devices.get(device.id) if device else None,
-    )
-    # Only an unnamed entity on the main device takes the friendly name, which gains the MAC
-    if mac_suffix and not config.get(CONF_NAME) and device is None:
-        object_id += MAC_SUFFIX
-    for suffix, custom_key in topics:
-        if (custom := config.get(custom_key)) is not None:
-            # A lambda topic is only known at runtime
-            if isinstance(custom, str):
-                yield custom
-        elif topic_prefix:
-            yield f"{topic_prefix}/{component_type}/{object_id}/{suffix}"
+    default_topic = ""
+    if topic_prefix:
+        object_id = _entity_object_id(config, mac_suffix, devices)
+        default_topic = f"{topic_prefix}/{component_type}/{object_id}"
+    for subscription in subscriptions:
+        yield tuple(
+            tuple(
+                topic
+                for suffix, custom_key in alternative
+                if (topic := _entity_topic(config, default_topic, suffix, custom_key))
+                is not None
+            )
+            for alternative in subscription
+        )
 
 
-def _subscribed_topics(config: ConfigType) -> Iterator[str]:
-    """Yield every subscribed topic that is known at build time."""
+def _subscriptions(config: ConfigType) -> Iterator[tuple[tuple[str, ...], ...]]:
+    """Yield every subscription known at build time, as alternatives of topics."""
     full_config = fv.full_config.get()
     esphome_config = full_config[CONF_ESPHOME]
     mac_suffix = esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
@@ -470,28 +527,39 @@ def _subscribed_topics(config: ConfigType) -> Iterator[str]:
         entity = full_config
         for key in path[:-1]:
             entity = entity[key]
-        yield from _entity_command_topics(entity, topic_prefix, mac_suffix, devices)
+        yield from _entity_subscriptions(entity, topic_prefix, mac_suffix, devices)
     for key in (CONF_ON_MESSAGE, CONF_ON_JSON_MESSAGE):
         for trigger in config.get(key, []):
-            yield trigger[CONF_TOPIC]
+            yield ((trigger[CONF_TOPIC],),)
     for domain in ("sensor", "text_sensor"):
         for entity in full_config.get(domain) or []:
             if entity[CONF_PLATFORM] == "mqtt_subscribe":
-                yield entity[CONF_TOPIC]
+                yield ((entity[CONF_TOPIC],),)
+
+
+def _too_long(topic: str) -> bool:
+    # A wildcard filter matches topics of any length, so only literals are checked
+    if "+" in topic or "#" in topic:
+        return False
+    return len(topic.encode()) > ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN
 
 
 def _validate_topic_lengths(config: ConfigType) -> ConfigType:
     """Reject topics that the ESP8266 and LibreTiny MQTT client would silently drop."""
     if not (CORE.is_esp8266 or CORE.is_libretiny):
         return config
-    for topic in _subscribed_topics(config):
-        # A wildcard filter matches topics of any length, so only literals are checked
-        if "+" in topic or "#" in topic:
-            continue
-        if len(topic) > ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN:
+    for subscription in _subscriptions(config):
+        # The config cannot tell which alternative the firmware picks, so only a
+        # subscription that is too long whichever way is rejected
+        too_long = [
+            next((topic for topic in alternative if _too_long(topic)), None)
+            for alternative in subscription
+        ]
+        if all(too_long):
+            topic = too_long[0]
             raise cv.Invalid(
-                f"MQTT topic '{topic}' is {len(topic)} characters; the MQTT client on "
-                f"this platform drops topics longer than {ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN}"
+                f"MQTT topic '{topic}' is {len(topic.encode())} bytes; the MQTT client "
+                f"on this platform drops topics longer than {ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN}"
             )
     return config
 
