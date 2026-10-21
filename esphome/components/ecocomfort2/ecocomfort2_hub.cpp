@@ -87,19 +87,24 @@ void Ecocomfort2Hub::dump_config() {
   LOG_TEXT_SENSOR("  ", "Firmware", this->firmware_text_sensor_);
 #endif
 #ifdef USE_NUMBER
-  LOG_NUMBER("  ", "Humidity threshold", this->numbers_[static_cast<uint8_t>(NumberSetting::HUMIDITY_THRESHOLD)]);
-  LOG_NUMBER("  ", "Luminosity threshold", this->numbers_[static_cast<uint8_t>(NumberSetting::LUMINOSITY_THRESHOLD)]);
-  LOG_NUMBER("  ", "VOC threshold", this->numbers_[static_cast<uint8_t>(NumberSetting::VOC_THRESHOLD)]);
-  LOG_NUMBER("  ", "Temperature offset", this->numbers_[static_cast<uint8_t>(NumberSetting::TEMPERATURE_OFFSET)]);
-  LOG_NUMBER("  ", "Humidity offset", this->numbers_[static_cast<uint8_t>(NumberSetting::HUMIDITY_OFFSET)]);
+  LOG_NUMBER("  ", "Humidity threshold",
+             this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_HUMIDITY_THRESHOLD)]);
+  LOG_NUMBER("  ", "Luminosity threshold",
+             this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_LUMINOSITY_THRESHOLD)]);
+  LOG_NUMBER("  ", "VOC threshold", this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_VOC_THRESHOLD)]);
+  LOG_NUMBER("  ", "Temperature offset",
+             this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_TEMPERATURE_OFFSET)]);
+  LOG_NUMBER("  ", "Humidity offset",
+             this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_HUMIDITY_OFFSET)]);
 #endif
 #ifdef USE_SWITCH
-  LOG_SWITCH("  ", "Humidity advanced", this->switches_[static_cast<uint8_t>(SwitchSetting::HUMIDITY_ADVANCED)]);
-  LOG_SWITCH("  ", "VOC advanced", this->switches_[static_cast<uint8_t>(SwitchSetting::VOC_ADVANCED)]);
+  LOG_SWITCH("  ", "Humidity advanced",
+             this->switches_[static_cast<uint8_t>(SwitchSetting::SWITCH_SETTING_HUMIDITY_ADVANCED)]);
+  LOG_SWITCH("  ", "VOC advanced", this->switches_[static_cast<uint8_t>(SwitchSetting::SWITCH_SETTING_VOC_ADVANCED)]);
 #endif
 #ifdef USE_SELECT
-  LOG_SELECT("  ", "Season", this->selects_[static_cast<uint8_t>(SelectSetting::SEASON)]);
-  LOG_SELECT("  ", "Free cooling", this->selects_[static_cast<uint8_t>(SelectSetting::FREE_COOLING)]);
+  LOG_SELECT("  ", "Season", this->selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_SEASON)]);
+  LOG_SELECT("  ", "Free cooling", this->selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_FREE_COOLING)]);
 #endif
 }
 
@@ -466,7 +471,7 @@ void Ecocomfort2Hub::publish_config_() {
     publish_if_changed(this->numbers_[i], this->thresholds_[i] & THRESHOLD_LEVEL_MASK);
 #endif
 #ifdef USE_SWITCH
-  for (uint8_t i = 0; i < static_cast<uint8_t>(SwitchSetting::COUNT); i++) {
+  for (uint8_t i = 0; i < static_cast<uint8_t>(SwitchSetting::SWITCH_SETTING_COUNT); i++) {
     const uint8_t threshold = this->thresholds_[ADVANCED_THRESHOLD[i]];
     // The flag only counts while the threshold is set
     if (this->switches_[i] != nullptr)
@@ -475,11 +480,11 @@ void Ecocomfort2Hub::publish_config_() {
 #endif
 #ifdef USE_SELECT
   const bool summer = (this->season_byte_ & SEASON_SUMMER) != 0;
-  auto *season = this->selects_[static_cast<uint8_t>(SelectSetting::SEASON)];
+  auto *season = this->selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_SEASON)];
   publish_if_changed(season, static_cast<size_t>(summer));
   // The unit keeps the free cooling level through winter but only runs it in summer. The season's on_value
   // automations may have changed the season, so it is read again.
-  auto *free_cooling = this->selects_[static_cast<uint8_t>(SelectSetting::FREE_COOLING)];
+  auto *free_cooling = this->selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_FREE_COOLING)];
   const uint8_t level = (this->season_byte_ & SEASON_SUMMER) != 0 ? this->season_byte_ & KEEP_FREE_COOLING : 0;
   if (free_cooling != nullptr && free_cooling->has_index(level))
     publish_if_changed(free_cooling, static_cast<size_t>(level));
@@ -489,7 +494,7 @@ void Ecocomfort2Hub::publish_config_() {
 void Ecocomfort2Hub::publish_offsets_() {
 #ifdef USE_NUMBER
   for (uint8_t i = 0; i < 2; i++) {
-    publish_if_changed(this->numbers_[static_cast<uint8_t>(NumberSetting::TEMPERATURE_OFFSET) + i],
+    publish_if_changed(this->numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_TEMPERATURE_OFFSET) + i],
                        this->offsets_[i] / 100.0f);
   }
 #endif
@@ -544,14 +549,15 @@ void Ecocomfort2Hub::write_offsets_(int16_t temperature, int16_t humidity) {
 
 #ifdef USE_NUMBER
 void Ecocomfort2Hub::write_number(NumberSetting setting, float value) {
-  if (setting == NumberSetting::TEMPERATURE_OFFSET || setting == NumberSetting::HUMIDITY_OFFSET) {
+  if (setting == NumberSetting::NUMBER_SETTING_TEMPERATURE_OFFSET ||
+      setting == NumberSetting::NUMBER_SETTING_HUMIDITY_OFFSET) {
     // Both offsets go in one write, so the other one must be known
     if (!this->offsets_read_) {
       ESP_LOGW(TAG, "[%s] Offsets not read yet", this->parent_->address_str());
       return;
     }
     int16_t offsets[2]{this->offsets_[0], this->offsets_[1]};
-    offsets[setting == NumberSetting::HUMIDITY_OFFSET] = static_cast<int16_t>(lroundf(value * 100.0f));
+    offsets[setting == NumberSetting::NUMBER_SETTING_HUMIDITY_OFFSET] = static_cast<int16_t>(lroundf(value * 100.0f));
     this->write_offsets_(offsets[0], offsets[1]);
     return;
   }
@@ -589,7 +595,7 @@ void Ecocomfort2Hub::write_select(SelectSetting setting, size_t index) {
     ESP_LOGW(TAG, "[%s] Configuration not read yet", this->parent_->address_str());
     return;
   }
-  if (setting == SelectSetting::SEASON) {
+  if (setting == SelectSetting::SELECT_SETTING_SEASON) {
     this->write_config_(4, (index == 1 ? SEASON_SUMMER : 0) | KEEP_FREE_COOLING);
     return;
   }

@@ -54,15 +54,19 @@ static constexpr uint8_t FLAG_BOOST = 0x40;
 
 // The thresholds come first, in the order of their C_CONFIGURATION bytes
 enum class NumberSetting : uint8_t {
-  HUMIDITY_THRESHOLD,
-  LUMINOSITY_THRESHOLD,
-  VOC_THRESHOLD,
-  TEMPERATURE_OFFSET,
-  HUMIDITY_OFFSET,
-  COUNT,
+  NUMBER_SETTING_HUMIDITY_THRESHOLD,
+  NUMBER_SETTING_LUMINOSITY_THRESHOLD,
+  NUMBER_SETTING_VOC_THRESHOLD,
+  NUMBER_SETTING_TEMPERATURE_OFFSET,
+  NUMBER_SETTING_HUMIDITY_OFFSET,
+  NUMBER_SETTING_COUNT,
 };
-enum class SwitchSetting : uint8_t { HUMIDITY_ADVANCED, VOC_ADVANCED, COUNT };
-enum class SelectSetting : uint8_t { SEASON, FREE_COOLING, COUNT };
+enum class SwitchSetting : uint8_t {
+  SWITCH_SETTING_HUMIDITY_ADVANCED,
+  SWITCH_SETTING_VOC_ADVANCED,
+  SWITCH_SETTING_COUNT
+};
+enum class SelectSetting : uint8_t { SELECT_SETTING_SEASON, SELECT_SETTING_FREE_COOLING, SELECT_SETTING_COUNT };
 
 /// Reads of one settings characteristic. The unit answers in order, so only the last pending answer is current.
 struct SettingsReads {
@@ -110,7 +114,7 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 #ifdef USE_NUMBER
   void set_number(NumberSetting setting, number::Number *number) {
     this->numbers_[static_cast<uint8_t>(setting)] = number;
-    if (setting < NumberSetting::TEMPERATURE_OFFSET) {
+    if (setting < NumberSetting::NUMBER_SETTING_TEMPERATURE_OFFSET) {
       this->needs_config_ = true;
     } else {
       this->needs_offsets_ = true;
@@ -198,13 +202,13 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   uint8_t mode_{OPER_OFF};
   uint8_t speed_{SPEED_OFF};
 #ifdef USE_NUMBER
-  number::Number *numbers_[static_cast<uint8_t>(NumberSetting::COUNT)]{};
+  number::Number *numbers_[static_cast<uint8_t>(NumberSetting::NUMBER_SETTING_COUNT)]{};
 #endif
 #ifdef USE_SWITCH
-  switch_::Switch *switches_[static_cast<uint8_t>(SwitchSetting::COUNT)]{};
+  switch_::Switch *switches_[static_cast<uint8_t>(SwitchSetting::SWITCH_SETTING_COUNT)]{};
 #endif
 #ifdef USE_SELECT
-  select::Select *selects_[static_cast<uint8_t>(SelectSetting::COUNT)]{};
+  select::Select *selects_[static_cast<uint8_t>(SelectSetting::SELECT_SETTING_COUNT)]{};
 #endif
   uint16_t char_handle_config_{0};
   uint16_t char_handle_advanced_{0};

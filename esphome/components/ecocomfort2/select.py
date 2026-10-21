@@ -41,13 +41,13 @@ async def to_code(config: ConfigType) -> None:
     # Option order follows the values the unit stores; the hub publishes what the unit confirms
     await selects(
         CONF_SEASON,
-        partial(hub.set_select, SelectSetting.SEASON),
-        apply=f"write_select({SelectSetting.SEASON}, index)",
+        partial(hub.set_select, SelectSetting.SELECT_SETTING_SEASON),
+        apply=f"write_select({SelectSetting.SELECT_SETTING_SEASON}, index)",
         options=["Winter", "Summer"],
     )
     await selects(
         CONF_FREE_COOLING,
-        partial(hub.set_select, SelectSetting.FREE_COOLING),
-        apply=f"write_select({SelectSetting.FREE_COOLING}, index)",
+        partial(hub.set_select, SelectSetting.SELECT_SETTING_FREE_COOLING),
+        apply=f"write_select({SelectSetting.SELECT_SETTING_FREE_COOLING}, index)",
         options=["Off", "Low", "Medium", "High"],
     )

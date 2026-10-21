@@ -17,8 +17,8 @@ CONF_VOC_ADVANCED = "voc_advanced"
 SwitchSetting = ecocomfort2_ns.enum("SwitchSetting", is_class=True)
 
 _SWITCHES = {
-    CONF_HUMIDITY_ADVANCED: SwitchSetting.HUMIDITY_ADVANCED,
-    CONF_VOC_ADVANCED: SwitchSetting.VOC_ADVANCED,
+    CONF_HUMIDITY_ADVANCED: SwitchSetting.SWITCH_SETTING_HUMIDITY_ADVANCED,
+    CONF_VOC_ADVANCED: SwitchSetting.SWITCH_SETTING_VOC_ADVANCED,
 }
 
 # The unit holds the setting, so there is nothing to restore

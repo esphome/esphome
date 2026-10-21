@@ -30,7 +30,7 @@ NumberSetting = ecocomfort2_ns.enum("NumberSetting", is_class=True)
 # key: (setting, icon, unit, min, max, step)
 _NUMBERS = {
     CONF_HUMIDITY_THRESHOLD: (
-        NumberSetting.HUMIDITY_THRESHOLD,
+        NumberSetting.NUMBER_SETTING_HUMIDITY_THRESHOLD,
         ICON_WATER_PERCENT,
         cv.UNDEFINED,
         0,
@@ -38,7 +38,7 @@ _NUMBERS = {
         1,
     ),
     CONF_LUMINOSITY_THRESHOLD: (
-        NumberSetting.LUMINOSITY_THRESHOLD,
+        NumberSetting.NUMBER_SETTING_LUMINOSITY_THRESHOLD,
         "mdi:brightness-5",
         cv.UNDEFINED,
         0,
@@ -46,7 +46,7 @@ _NUMBERS = {
         1,
     ),
     CONF_VOC_THRESHOLD: (
-        NumberSetting.VOC_THRESHOLD,
+        NumberSetting.NUMBER_SETTING_VOC_THRESHOLD,
         "mdi:air-filter",
         cv.UNDEFINED,
         0,
@@ -54,7 +54,7 @@ _NUMBERS = {
         1,
     ),
     CONF_TEMPERATURE_OFFSET: (
-        NumberSetting.TEMPERATURE_OFFSET,
+        NumberSetting.NUMBER_SETTING_TEMPERATURE_OFFSET,
         ICON_THERMOMETER,
         UNIT_CELSIUS,
         -5,
@@ -62,7 +62,7 @@ _NUMBERS = {
         0.1,
     ),
     CONF_HUMIDITY_OFFSET: (
-        NumberSetting.HUMIDITY_OFFSET,
+        NumberSetting.NUMBER_SETTING_HUMIDITY_OFFSET,
         ICON_WATER_PERCENT,
         UNIT_PERCENT,
         -5,
