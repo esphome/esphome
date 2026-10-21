@@ -157,7 +157,7 @@ void HX711Sensor::loop() {
   }
   if (target == nullptr)
     return;
-  ESP_LOGD(TAG, "'%s': Got value %" PRId32 " (gain x%u)", target->get_name().c_str(), value,
+  ESP_LOGD(TAG, "'%s': Got value %" PRId32 " (gain x%u)", LOG_STR_ARG(target->get_log_name()), value,
            gain_value(conversion_gain));
   target->publish_state(value);
 #ifdef USE_HX711_CHANNEL_B_SENSOR

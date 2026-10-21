@@ -26,7 +26,7 @@ class ESP32Can final : public canbus::Canbus {
     this->tx_enqueue_timeout_ticks_ = pdMS_TO_TICKS(tx_enqueue_timeout_ms);
   }
   canbus::CanStatus get_status() override;
-  ESP32Can(){};
+  ESP32Can() {};
 
  protected:
   bool setup_internal() override;

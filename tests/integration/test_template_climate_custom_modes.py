@@ -13,7 +13,12 @@ from aioesphomeapi import ButtonInfo, ClimateInfo
 import pytest
 
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, require_entity, wait_for_state
+from .state_utils import (
+    InitialStateHelper,
+    require_entity,
+    require_only_entity,
+    wait_for_state,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "tmpl-clim-custom"
@@ -48,9 +53,7 @@ async def test_template_climate_custom_modes(
 
         entities, _ = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
-        test_climate = climate_infos[0]
+        test_climate = require_only_entity(entities, ClimateInfo)
 
         assert set(test_climate.supported_custom_fan_modes) == {
             "turbo",
@@ -68,10 +71,7 @@ async def test_template_climate_custom_modes(
         client.subscribe_states(
             initial_state_helper.on_state_wrapper(lambda state: None)
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         initial = initial_state_helper.initial_states.get(test_climate.key)
         assert initial is not None, "No initial climate state received"
