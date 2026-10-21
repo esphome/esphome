@@ -91,8 +91,8 @@ CompactString &CompactString::operator=(const CompactString &other) {
 }
 
 CompactString::CompactString(CompactString &&other) noexcept : length_(other.length_), is_heap_(other.is_heap_) {
-  // Copy full storage (includes null terminator for inline, or pointer for heap)
-  std::memcpy(this->storage_, other.storage_, INLINE_CAPACITY + 1);
+  // Heap: the pointer; inline: the characters and their terminator. The rest of the storage is never written.
+  std::memcpy(this->storage_, other.storage_, other.is_heap_ ? sizeof(char *) : other.length_ + 1);
   other.length_ = 0;
   other.is_heap_ = 0;
   other.storage_[0] = '\0';
