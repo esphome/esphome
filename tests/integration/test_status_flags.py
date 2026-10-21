@@ -71,10 +71,7 @@ async def test_status_flags(
         # state changes triggered by our service calls.
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(tracker.on_state))
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         async def call(name: str) -> None:
             await client.execute_service(svc[name], {})

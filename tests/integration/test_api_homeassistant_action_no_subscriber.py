@@ -13,7 +13,7 @@ import asyncio
 from aioesphomeapi import ButtonInfo, HomeassistantServiceCall
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -71,7 +71,7 @@ async def test_api_homeassistant_action_no_subscriber(
             client.subscribe_service_calls(on_service_call)
 
             entities, _ = await client.list_entities_services()
-            button = next(e for e in entities if isinstance(e, ButtonInfo))
+            button = require_only_entity(entities, ButtonInfo)
             client.button_command(button.key)
 
             button_call = await asyncio.wait_for(button_action_future, timeout=5.0)

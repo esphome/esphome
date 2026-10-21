@@ -147,11 +147,13 @@ class MQTTClientComponent final : public Component {
   bool is_discovery_enabled() const;
   bool is_discovery_ip_enabled() const;
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_MQTT_TLS)
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+#endif
+#ifdef USE_ESP32
   void set_transport(MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }
   void set_ws_path(const char *path) { this->mqtt_backend_.set_ws_path(path); }
 #endif
