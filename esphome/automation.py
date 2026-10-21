@@ -644,7 +644,7 @@ async def _render_bytes(
     return [
         "{",
         f"  {buffer}",
-        f"  progmem_memcpy({data}, {args});",
+        f"  esphome::progmem_memcpy({data}, {args});",
         f"  {send(spec.target, f'{data}, {size}')}",
         "}",
     ]

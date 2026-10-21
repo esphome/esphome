@@ -1340,7 +1340,7 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
     text = _apply_definition(mock_cg)
     lines = [
         "uint8_t esphome__bytes[2];",
-        "progmem_memcpy(esphome__bytes, ::esphome__my_apply__bytes, 2);",
+        "esphome::progmem_memcpy(esphome__bytes, ::esphome__my_apply__bytes, 2);",
         f"::{PARENT_OBJ}->send(esphome__bytes, 2);",
     ]
     positions = [text.index(line) for line in lines]
@@ -1355,7 +1355,8 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
     text = _apply_definition(mock_cg)
     assert "auto esphome__bytes = std::make_unique<uint8_t[]>(2);" in text
     assert (
-        "progmem_memcpy(esphome__bytes.get(), ::esphome__my_apply__bytes, 2);" in text
+        "esphome::progmem_memcpy(esphome__bytes.get(), ::esphome__my_apply__bytes, 2);"
+        in text
     )
     assert f"::{PARENT_OBJ}->send(esphome__bytes.get(), 2);" in text
 
