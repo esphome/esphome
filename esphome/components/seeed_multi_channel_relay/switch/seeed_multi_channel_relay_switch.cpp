@@ -10,7 +10,7 @@ static constexpr uint32_t INTERLOCK_TIMEOUT_ID = 0;
 #endif
 
 void SeeedMultiChannelRelaySwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up seeed_multi_channel_relay Switch '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up seeed_multi_channel_relay Switch '%s'...", LOG_STR_ARG(this->get_log_name()));
 
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
@@ -31,7 +31,7 @@ void SeeedMultiChannelRelaySwitch::dump_config() {
     for (auto *lock : this->interlock_) {
       if (lock == this)
         continue;
-      ESP_LOGCONFIG(TAG, "    %s", lock->get_name().c_str());
+      ESP_LOGCONFIG(TAG, "    %s", LOG_STR_ARG(lock->get_log_name()));
     }
   }
 #endif
