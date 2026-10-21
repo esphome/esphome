@@ -2,12 +2,13 @@ from collections.abc import Iterator
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import logger, socket
+from esphome.components import logger, network, socket
 from esphome.components.esp32 import (
     add_idf_component,
     idf_version,
     include_builtin_idf_component,
     request_tls,
+    require_certificate_bundle,
 )
 from esphome.config import iter_ids
 from esphome.config_helpers import (
@@ -42,6 +43,7 @@ from esphome.const import (
     CONF_LEVEL,
     CONF_LOG_TOPIC,
     CONF_MODE_COMMAND_TOPIC,
+    CONF_MQTT,
     CONF_MQTT_ID,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
@@ -74,6 +76,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
+    Framework,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -94,6 +97,13 @@ def AUTO_LOAD():
 
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_TRANSPORT = "transport"
+CONF_WS_PATH = "ws_path"
+
+MQTT_TRANSPORT_TCP = "tcp"
+MQTT_TRANSPORT_WS = "ws"
+MQTT_TRANSPORT_WSS = "wss"
+DEFAULT_WS_PATH = "/mqtt"
 
 # Max lengths for stack-based topic building.
 # These values are used in cv.Length() validators below to ensure the C++ code
@@ -198,8 +208,54 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
     "device_name": MQTTDiscoveryObjectIdGenerator.MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 }
 
+# Only ESP-IDF's esp-mqtt implements MQTT over WebSocket
+MQTTTransport = mqtt_ns.enum("MQTTTransport", is_class=True)
+MQTT_TRANSPORT_OPTIONS = {
+    MQTT_TRANSPORT_TCP: MQTTTransport.MQTT_TRANSPORT_TCP,
+    MQTT_TRANSPORT_WS: MQTTTransport.MQTT_TRANSPORT_WS,
+    MQTT_TRANSPORT_WSS: MQTTTransport.MQTT_TRANSPORT_WSS,
+}
+
+
+def _validate_transport(value: str) -> str:
+    value = cv.enum(MQTT_TRANSPORT_OPTIONS, lower=True)(value)
+    if value in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
+        if not CORE.is_esp32:
+            raise cv.Invalid(
+                f"transport '{value}' is currently only supported on ESP32"
+            )
+        if CORE.target_framework != Framework.ESP_IDF:
+            raise cv.Invalid(f"transport '{value}' requires the esp-idf framework")
+    return value
+
 
 def validate_config(value):
+    transport = value.get(CONF_TRANSPORT)
+    # A certificate with plain ws is almost certainly a typo for wss
+    if transport == MQTT_TRANSPORT_WS and (
+        CONF_CERTIFICATE_AUTHORITY in value or CONF_CLIENT_CERTIFICATE in value
+    ):
+        raise cv.Invalid(
+            "transport 'ws' is unencrypted; remove the certificate options "
+            "or switch to transport 'wss'"
+        )
+    # TLS runs only with a CA or over wss, so a client certificate needs one of them
+    if (
+        CONF_CLIENT_CERTIFICATE in value
+        and CONF_CERTIFICATE_AUTHORITY not in value
+        and transport != MQTT_TRANSPORT_WSS
+    ):
+        raise cv.Invalid(
+            "'client_certificate' requires 'certificate_authority' or transport 'wss'"
+        )
+    if (
+        transport not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
+        and CONF_WS_PATH in value
+    ):
+        raise cv.Invalid(
+            f"'{CONF_WS_PATH}' is only valid when 'transport' is 'ws' or 'wss'"
+        )
+
     # Populate default fields
     out = value.copy()
     topic_prefix = value[CONF_TOPIC_PREFIX]
@@ -275,6 +331,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
+            cv.Optional(
+                CONF_TRANSPORT, default=MQTT_TRANSPORT_TCP
+            ): _validate_transport,
+            cv.Optional(CONF_WS_PATH): cv.string,
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
@@ -349,6 +409,7 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
     _consume_mqtt_sockets,
+    network.require_ipv4(CONF_MQTT),
 )
 
 # AsyncMqttClient, the ESP8266 and LibreTiny backend, drops any inbound message whose
@@ -491,8 +552,7 @@ async def to_code(config):
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
-    if CONF_CLIENT_ID in config:
-        cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
+    cg.add_optional(var.set_client_id, config.get(CONF_CLIENT_ID))
 
     discovery = config[CONF_DISCOVERY]
     discovery_retain = config[CONF_DISCOVERY_RETAIN]
@@ -565,12 +625,22 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     # esp-idf only
-    if CONF_CERTIFICATE_AUTHORITY in config:
-        cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
+    transport = config.get(CONF_TRANSPORT)
+    ca = cg.add_optional(var.set_ca_certificate, config.get(CONF_CERTIFICATE_AUTHORITY))
+    if ca is not None or transport == MQTT_TRANSPORT_WSS:
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
-        if CONF_CLIENT_CERTIFICATE in config:
-            cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
+        if (client_certificate := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
+            cg.add(var.set_cl_certificate(client_certificate))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
+
+    if CORE.is_esp32:
+        if transport != MQTT_TRANSPORT_TCP:
+            cg.add(var.set_transport(transport))
+        if transport in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
+            cg.add(var.set_ws_path(config.get(CONF_WS_PATH, DEFAULT_WS_PATH)))
+        # wss without an explicit CA verifies the broker against the bundled roots
+        if transport == MQTT_TRANSPORT_WSS and ca is None:
+            require_certificate_bundle()
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
@@ -690,12 +760,9 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
-    if CONF_QOS in config:
-        cg.add(var.set_qos(config[CONF_QOS]))
-    if CONF_RETAIN in config:
-        cg.add(var.set_retain(config[CONF_RETAIN]))
-    if CONF_SUBSCRIBE_QOS in config:
-        cg.add(var.set_subscribe_qos(config[CONF_SUBSCRIBE_QOS]))
+    cg.add_optional(var.set_qos, config.get(CONF_QOS))
+    cg.add_optional(var.set_retain, config.get(CONF_RETAIN))
+    cg.add_optional(var.set_subscribe_qos, config.get(CONF_SUBSCRIBE_QOS))
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
@@ -706,8 +773,7 @@ async def register_mqtt_component(var, config):
             config[CONF_COMMAND_TOPIC], [], cg.std_string
         )
         cg.add(var.set_custom_command_topic(command_topic))
-    if CONF_COMMAND_RETAIN in config:
-        cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
+    cg.add_optional(var.set_command_retain, config.get(CONF_COMMAND_RETAIN))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
         if not availability:

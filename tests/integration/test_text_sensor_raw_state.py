@@ -14,7 +14,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -130,34 +132,23 @@ async def test_text_sensor_raw_state(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-text-sensor-raw-state"
+        await assert_device_name(client, "test-text-sensor-raw-state")
 
         # Get entities to find our buttons
         entities, _ = await client.list_entities_services()
 
         # Find the test buttons
-        no_filter_button = next(
-            (e for e in entities if "test_no_filter_button" in e.object_id.lower()),
-            None,
-        )
-        assert no_filter_button is not None, "Test No Filter Button not found"
+        no_filter_button = require_entity(entities, "test_no_filter_button")
 
-        with_filter_button = next(
-            (e for e in entities if "test_with_filter_button" in e.object_id.lower()),
-            None,
-        )
-        assert with_filter_button is not None, "Test With Filter Button not found"
+        with_filter_button = require_entity(entities, "test_with_filter_button")
 
         # Test 1: Text sensor without filters
         # get_raw_state() should return the same as state
         client.button_command(no_filter_button.key)
 
-        try:
-            state, raw_state = await asyncio.wait_for(no_filter_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for NO_FILTER log message")
+        state, raw_state = await wait_or_fail(
+            no_filter_future, 5.0, "Timeout waiting for NO_FILTER log message"
+        )
 
         assert state == "hello world", f"Expected state='hello world', got '{state}'"
         assert raw_state == "hello world", (
@@ -172,10 +163,9 @@ async def test_text_sensor_raw_state(
         # state should be filtered (uppercase), raw_state should be original
         client.button_command(with_filter_button.key)
 
-        try:
-            state, raw_state = await asyncio.wait_for(with_filter_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for WITH_FILTER log message")
+        state, raw_state = await wait_or_fail(
+            with_filter_future, 5.0, "Timeout waiting for WITH_FILTER log message"
+        )
 
         assert state == "HELLO WORLD", f"Expected state='HELLO WORLD', got '{state}'"
         assert raw_state == "hello world", (
@@ -188,17 +178,12 @@ async def test_text_sensor_raw_state(
 
         # Test 3: Append filter (StringRef-based)
         # "test" + " suffix" = "test suffix"
-        append_button = next(
-            (e for e in entities if "test_append_button" in e.object_id.lower()),
-            None,
-        )
-        assert append_button is not None, "Test Append Button not found"
+        append_button = require_entity(entities, "test_append_button")
         client.button_command(append_button.key)
 
-        try:
-            state = await asyncio.wait_for(append_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for APPEND log message")
+        state = await wait_or_fail(
+            append_future, 5.0, "Timeout waiting for APPEND log message"
+        )
 
         assert state == "test suffix", (
             f"Append failed: expected 'test suffix', got '{state}'"
@@ -206,17 +191,12 @@ async def test_text_sensor_raw_state(
 
         # Test 4: Prepend filter (StringRef-based)
         # "prefix " + "test" = "prefix test"
-        prepend_button = next(
-            (e for e in entities if "test_prepend_button" in e.object_id.lower()),
-            None,
-        )
-        assert prepend_button is not None, "Test Prepend Button not found"
+        prepend_button = require_entity(entities, "test_prepend_button")
         client.button_command(prepend_button.key)
 
-        try:
-            state = await asyncio.wait_for(prepend_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for PREPEND log message")
+        state = await wait_or_fail(
+            prepend_future, 5.0, "Timeout waiting for PREPEND log message"
+        )
 
         assert state == "prefix test", (
             f"Prepend failed: expected 'prefix test', got '{state}'"
@@ -224,49 +204,34 @@ async def test_text_sensor_raw_state(
 
         # Test 5: Substitute filter (StringRef-based)
         # "foo says hello" with foo->bar, hello->world = "bar says world"
-        substitute_button = next(
-            (e for e in entities if "test_substitute_button" in e.object_id.lower()),
-            None,
-        )
-        assert substitute_button is not None, "Test Substitute Button not found"
+        substitute_button = require_entity(entities, "test_substitute_button")
         client.button_command(substitute_button.key)
 
-        try:
-            state = await asyncio.wait_for(substitute_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for SUBSTITUTE log message")
+        state = await wait_or_fail(
+            substitute_future, 5.0, "Timeout waiting for SUBSTITUTE log message"
+        )
 
         assert state == "bar says world", (
             f"Substitute failed: expected 'bar says world', got '{state}'"
         )
 
         # Test 6: Map filter - "ON" -> "Active"
-        map_on_button = next(
-            (e for e in entities if "test_map_on_button" in e.object_id.lower()),
-            None,
-        )
-        assert map_on_button is not None, "Test Map ON Button not found"
+        map_on_button = require_entity(entities, "test_map_on_button")
         client.button_command(map_on_button.key)
 
-        try:
-            state = await asyncio.wait_for(map_on_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for MAP_ON log message")
+        state = await wait_or_fail(
+            map_on_future, 5.0, "Timeout waiting for MAP_ON log message"
+        )
 
         assert state == "Active", f"Map ON failed: expected 'Active', got '{state}'"
 
         # Test 7: Map filter - "OFF" -> "Inactive"
-        map_off_button = next(
-            (e for e in entities if "test_map_off_button" in e.object_id.lower()),
-            None,
-        )
-        assert map_off_button is not None, "Test Map OFF Button not found"
+        map_off_button = require_entity(entities, "test_map_off_button")
         client.button_command(map_off_button.key)
 
-        try:
-            state = await asyncio.wait_for(map_off_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for MAP_OFF log message")
+        state = await wait_or_fail(
+            map_off_future, 5.0, "Timeout waiting for MAP_OFF log message"
+        )
 
         assert state == "Inactive", (
             f"Map OFF failed: expected 'Inactive', got '{state}'"
@@ -274,17 +239,12 @@ async def test_text_sensor_raw_state(
 
         # Test 8: Map filter - passthrough for unknown values
         # "UNKNOWN" -> "UNKNOWN" (no match, passes through unchanged)
-        map_unknown_button = next(
-            (e for e in entities if "test_map_unknown_button" in e.object_id.lower()),
-            None,
-        )
-        assert map_unknown_button is not None, "Test Map Unknown Button not found"
+        map_unknown_button = require_entity(entities, "test_map_unknown_button")
         client.button_command(map_unknown_button.key)
 
-        try:
-            state = await asyncio.wait_for(map_unknown_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for MAP_UNKNOWN log message")
+        state = await wait_or_fail(
+            map_unknown_future, 5.0, "Timeout waiting for MAP_UNKNOWN log message"
+        )
 
         assert state == "UNKNOWN", (
             f"Map passthrough failed: expected 'UNKNOWN', got '{state}'"
@@ -292,33 +252,23 @@ async def test_text_sensor_raw_state(
 
         # Test 9: Chained filters (prepend "[" + append "]")
         # "[" + "value" + "]" = "[value]"
-        chained_button = next(
-            (e for e in entities if "test_chained_button" in e.object_id.lower()),
-            None,
-        )
-        assert chained_button is not None, "Test Chained Button not found"
+        chained_button = require_entity(entities, "test_chained_button")
         client.button_command(chained_button.key)
 
-        try:
-            state = await asyncio.wait_for(chained_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for CHAINED log message")
+        state = await wait_or_fail(
+            chained_future, 5.0, "Timeout waiting for CHAINED log message"
+        )
 
         assert state == "[value]", f"Chained failed: expected '[value]', got '{state}'"
 
         # Test 10: to_lower filter
         # "HELLO WORLD" -> "hello world"
-        to_lower_button = next(
-            (e for e in entities if "test_to_lower_button" in e.object_id.lower()),
-            None,
-        )
-        assert to_lower_button is not None, "Test To Lower Button not found"
+        to_lower_button = require_entity(entities, "test_to_lower_button")
         client.button_command(to_lower_button.key)
 
-        try:
-            state = await asyncio.wait_for(to_lower_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for TO_LOWER log message")
+        state = await wait_or_fail(
+            to_lower_future, 5.0, "Timeout waiting for TO_LOWER log message"
+        )
 
         assert state == "hello world", (
             f"to_lower failed: expected 'hello world', got '{state}'"
@@ -326,33 +276,23 @@ async def test_text_sensor_raw_state(
 
         # Test 11: Lambda filter
         # "test" -> "[test]"
-        lambda_button = next(
-            (e for e in entities if "test_lambda_button" in e.object_id.lower()),
-            None,
-        )
-        assert lambda_button is not None, "Test Lambda Button not found"
+        lambda_button = require_entity(entities, "test_lambda_button")
         client.button_command(lambda_button.key)
 
-        try:
-            state = await asyncio.wait_for(lambda_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for LAMBDA log message")
+        state = await wait_or_fail(
+            lambda_future, 5.0, "Timeout waiting for LAMBDA log message"
+        )
 
         assert state == "[test]", f"Lambda failed: expected '[test]', got '{state}'"
 
         # Test 12: Lambda filter - value passes through
         # "value" -> "value passed"
-        lambda_pass_button = next(
-            (e for e in entities if "test_lambda_pass_button" in e.object_id.lower()),
-            None,
-        )
-        assert lambda_pass_button is not None, "Test Lambda Pass Button not found"
+        lambda_pass_button = require_entity(entities, "test_lambda_pass_button")
         client.button_command(lambda_pass_button.key)
 
-        try:
-            state = await asyncio.wait_for(lambda_pass_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for LAMBDA_PASS log message")
+        state = await wait_or_fail(
+            lambda_pass_future, 5.0, "Timeout waiting for LAMBDA_PASS log message"
+        )
 
         assert state == "value passed", (
             f"Lambda pass failed: expected 'value passed', got '{state}'"
@@ -360,17 +300,12 @@ async def test_text_sensor_raw_state(
 
         # Test 13: Lambda filter - skip publishing (return {})
         # "skip" -> no publish, state remains "value passed" from previous test
-        lambda_skip_button = next(
-            (e for e in entities if "test_lambda_skip_button" in e.object_id.lower()),
-            None,
-        )
-        assert lambda_skip_button is not None, "Test Lambda Skip Button not found"
+        lambda_skip_button = require_entity(entities, "test_lambda_skip_button")
         client.button_command(lambda_skip_button.key)
 
-        try:
-            state = await asyncio.wait_for(lambda_skip_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for LAMBDA_SKIP log message")
+        state = await wait_or_fail(
+            lambda_skip_future, 5.0, "Timeout waiting for LAMBDA_SKIP log message"
+        )
 
         # When lambda returns {}, value should NOT be published
         # State remains from previous successful publish ("value passed")
@@ -381,25 +316,16 @@ async def test_text_sensor_raw_state(
         # Test 14: Lambda filter - verify raw_state is preserved (not mutated)
         # This is critical to verify the in-place mutation optimization is safe
         # "original" -> state="original MODIFIED", raw_state="original"
-        lambda_raw_state_button = next(
-            (
-                e
-                for e in entities
-                if "test_lambda_raw_state_button" in e.object_id.lower()
-            ),
-            None,
-        )
-        assert lambda_raw_state_button is not None, (
-            "Test Lambda Raw State Button not found"
+        lambda_raw_state_button = require_entity(
+            entities, "test_lambda_raw_state_button"
         )
         client.button_command(lambda_raw_state_button.key)
 
-        try:
-            state, raw_state = await asyncio.wait_for(
-                lambda_raw_state_future, timeout=5.0
-            )
-        except TimeoutError:
-            pytest.fail("Timeout waiting for LAMBDA_RAW_STATE log message")
+        state, raw_state = await wait_or_fail(
+            lambda_raw_state_future,
+            5.0,
+            "Timeout waiting for LAMBDA_RAW_STATE log message",
+        )
 
         assert state == "original MODIFIED", (
             f"Lambda raw_state test failed: expected state='original MODIFIED', "

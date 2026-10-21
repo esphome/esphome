@@ -48,6 +48,7 @@ def reset_core():
     """Reset CORE after each test."""
     yield
     CORE.reset()
+    CORE.testing_mode = False  # reset() leaves it, so a test enabling it would leak
 
 
 @pytest.fixture(autouse=True)

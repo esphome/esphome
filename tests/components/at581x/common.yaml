@@ -17,6 +17,10 @@ esphome:
           frequency: !lambda "return 5800;"
           poweron_selfcheck_time: !lambda "return 2000;"
           power_consumption: !lambda "return 70;"
+      - at581x.settings:
+          id: waveradar
+          frequency: 5800MHz
+          power_consumption: 91uA
       - at581x.reset:
           id: waveradar
 

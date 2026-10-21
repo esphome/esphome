@@ -198,6 +198,12 @@ class SendspinHub final : public Component,
   /// started once; it stays available after the client stops. Main loop only.
   std::optional<std::string> get_pairing_token() const;
 
+  /// @brief Returns the Sendspin client_id: base64url of the client's static public key.
+  ///
+  /// Empty until the client has started once; it stays set after the client stops. The returned StringRef points into
+  /// the client's string, which start() may rewrite, so do not keep it past the current call. Main loop only.
+  StringRef get_client_id() const;
+
   /// @brief Sets the device information reported to the server in the `client/hello` message.
   ///
   /// Each takes a pointer to a string literal emitted by codegen, so it must stay valid for the

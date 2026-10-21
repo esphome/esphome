@@ -11,7 +11,7 @@ ESPHOME_LOG_TAG(TAG, "es8388");
 // Mark the component as failed; use only in setup
 #define ES8388_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 
@@ -154,11 +154,6 @@ void ES8388::dump_config() {
   LOG_SELECT("  ", "DacOutputSelect", this->dac_output_select_);
   LOG_SELECT("  ", "ADCInputMicSelect", this->adc_input_mic_select_);
 #endif
-
-  if (this->is_failed()) {
-    ESP_LOGCONFIG(TAG, "  Failed to initialize");
-    return;
-  }
 }
 
 bool ES8388::set_volume(float volume) {

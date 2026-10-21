@@ -4,21 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import Any
 
-from aioesphomeapi import ButtonInfo, EntityInfo, NumberInfo, SwitchInfo
+from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
-
-
-def find_entity_by_name(
-    entities: list[EntityInfo], entity_type: type, name: str
-) -> Any:
-    """Helper to find an entity by type and name."""
-    return next(
-        (e for e in entities if isinstance(e, entity_type) and e.name == name), None
-    )
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -83,18 +75,17 @@ async def test_host_preferences_save_load(
         # Get entity list
         entities, _ = await client.list_entities_services()
 
-        # Find our test entities using helper
-        test_switch = find_entity_by_name(entities, SwitchInfo, "Test Switch")
-        test_number = find_entity_by_name(entities, NumberInfo, "Test Number")
-        save_button = find_entity_by_name(entities, ButtonInfo, "Save Preferences")
-        load_button = find_entity_by_name(entities, ButtonInfo, "Load Preferences")
-        verify_button = find_entity_by_name(entities, ButtonInfo, "Verify Preferences")
-
-        assert test_switch is not None, "Test Switch not found"
-        assert test_number is not None, "Test Number not found"
-        assert save_button is not None, "Save Preferences button not found"
-        assert load_button is not None, "Load Preferences button not found"
-        assert verify_button is not None, "Verify Preferences button not found"
+        test_switch = require_entity(entities, "test_switch", SwitchInfo, exact=True)
+        test_number = require_entity(entities, "test_number", NumberInfo, exact=True)
+        save_button = require_entity(
+            entities, "save_preferences", ButtonInfo, exact=True
+        )
+        load_button = require_entity(
+            entities, "load_preferences", ButtonInfo, exact=True
+        )
+        verify_button = require_entity(
+            entities, "verify_preferences", ButtonInfo, exact=True
+        )
 
         # Set initial values
         client.switch_command(test_switch.key, True)
@@ -104,10 +95,9 @@ async def test_host_preferences_save_load(
         client.button_command(save_button.key)
 
         # Wait for save to complete
-        try:
-            await asyncio.wait_for(preferences_saved, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Preferences not saved within timeout")
+        await wait_or_fail(
+            preferences_saved, 5.0, "Preferences not saved within timeout"
+        )
 
         # Verify we saved the expected values
         assert "switch" in saved_values, f"Switch preference not saved: {saved_values}"
@@ -127,10 +117,9 @@ async def test_host_preferences_save_load(
         client.button_command(load_button.key)
 
         # Wait for load to complete
-        try:
-            await asyncio.wait_for(preferences_loaded, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Preferences not loaded within timeout")
+        await wait_or_fail(
+            preferences_loaded, 5.0, "Preferences not loaded within timeout"
+        )
 
         # Verify loaded values match saved values
         assert "switch" in loaded_values, (
@@ -150,10 +139,9 @@ async def test_host_preferences_save_load(
         client.button_command(verify_button.key)
 
         # Wait for verification
-        try:
-            await asyncio.wait_for(values_match, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Preference verification failed within timeout")
+        await wait_or_fail(
+            values_match, 5.0, "Preference verification failed within timeout"
+        )
 
         # Test that non-existent preferences don't crash (tests our fix)
         # This will trigger load attempts for keys that don't exist
@@ -161,7 +149,6 @@ async def test_host_preferences_save_load(
         client.button_command(load_button.key)
 
         # Wait for the final load test to complete
-        try:
-            await asyncio.wait_for(final_load_complete, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Final load test did not complete within timeout")
+        await wait_or_fail(
+            final_load_complete, 5.0, "Final load test did not complete within timeout"
+        )

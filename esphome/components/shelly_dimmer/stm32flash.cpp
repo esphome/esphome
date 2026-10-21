@@ -27,6 +27,7 @@
 #include "debug.h"
 
 #include "dev_table.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -339,8 +340,9 @@ stm32_err_t stm32_mass_erase(const stm32_unique_ptr &stm) {
   /* extended erase */
   static constexpr auto BUFFER_SIZE = 3;
   const uint8_t buf[] = {
-      0xFF,       /* 0xFFFF the magic number for mass erase */
-      0xFF, 0x00, /* checksum */
+      0xFF, /* 0xFFFF the magic number for mass erase */
+      0xFF,
+      0x00, /* checksum */
   };
   static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 3 bytes");
   stream->write_array(buf, 3);
@@ -725,20 +727,13 @@ stm32_err_t stm32_write_memory(const stm32_unique_ptr &stm, uint32_t address, co
     return STM32_ERR_UNKNOWN;
 
   const unsigned int aligned_len = (len + 3) & ~3;
-  uint8_t cs = aligned_len - 1;
   uint8_t buf[256 + 2];
 
   buf[0] = aligned_len - 1;
-  for (unsigned int i = 0; i < len; i++) {
-    cs ^= data[i];
-    buf[i + 1] = data[i];
-  }
+  memcpy(&buf[1], data, len);
   /* padding data */
-  for (auto i = len; i < aligned_len; i++) {
-    cs ^= 0xFF;
-    buf[i + 1] = 0xFF;
-  }
-  buf[aligned_len + 1] = cs;
+  memset(&buf[1 + len], 0xFF, aligned_len - len);
+  buf[aligned_len + 1] = xor_bytes(buf, aligned_len + 1);
   stream->write_array(buf, aligned_len + 2);
   stream->flush();
 
