@@ -46,8 +46,15 @@ void M5UnitBldc::setup() {
     return;
   }
   this->last_command_ = command;
-  if (command != 0 ? !this->write_direction_raw_(this->initial_direction_)
-                   : !this->write_byte(REG_DIRECTION, static_cast<uint8_t>(this->initial_direction_))) {
+  // REG_DIRECTION is readable (datasheet register 0x60, W/R), so a boot that already matches the configured
+  // direction skips the stop-and-restore cycle entirely instead of spinning the motor down for no reason. A
+  // failed read is treated the same as a mismatch, falling back to the unconditional write below.
+  uint8_t current_direction;
+  bool direction_matches = this->read_byte(REG_DIRECTION, &current_direction) &&
+                           current_direction == static_cast<uint8_t>(this->initial_direction_);
+  if (!direction_matches &&
+      (command != 0 ? !this->write_direction_raw_(this->initial_direction_)
+                    : !this->write_byte(REG_DIRECTION, static_cast<uint8_t>(this->initial_direction_)))) {
     this->mark_failed(LOG_STR("Failed to write initial direction"));
     return;
   }
