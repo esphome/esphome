@@ -15,6 +15,9 @@ static const char *const IF_MODIFIED_SINCE_HEADER_NAME = "if-modified-since";
 
 namespace esphome::online_image {
 
+// Time one loop pass may spend decoding a JPEG as it downloads
+static constexpr uint32_t STREAM_PASS_BUDGET_MS = 20;
+
 OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
                          uint32_t buffer_size, bool is_big_endian)
@@ -140,8 +143,12 @@ void OnlineImage::update() {
     return;
   }
 
-  // JPEG requires the complete image in the download buffer before decoding
-  if (format == runtime_image::JPEG && total_size > this->download_buffer_.size() &&
+  // A JPEG of known size is decoded as it arrives, so the download buffer only has to hold its headers.
+  // Otherwise the decoder needs the complete image in the buffer.
+  this->streaming_ = total_size > 0 && total_size <= INT32_MAX && this->decoder_supports_source();
+  this->stream_started_ = false;
+  this->source_.reset();
+  if (!this->streaming_ && format == runtime_image::JPEG && total_size > this->download_buffer_.size() &&
       this->download_buffer_.resize(total_size) == 0) {
     // resize() logged the failed allocation; the next update() allocates the configured buffer again
     this->end_connection_();
@@ -166,6 +173,11 @@ void OnlineImage::loop() {
     ESP_LOGE(TAG, "Downloader not instantiated; cannot download");
     this->end_connection_();
     this->download_error_callback_.call();
+    return;
+  }
+
+  if (this->streaming_) {
+    this->loop_stream_();
     return;
   }
 
@@ -255,6 +267,77 @@ void OnlineImage::loop() {
   }
 }
 
+void OnlineImage::loop_stream_() {
+  const uint32_t now = App.get_loop_component_start_time();
+  const size_t total = this->downloader_->content_length;
+  if (this->stream_started_)
+    this->source_.compact();
+
+  if (this->downloader_->get_bytes_read() < total) {
+    const size_t available = std::min(this->download_buffer_.free_capacity(), this->download_buffer_initial_size_);
+    if (available == 0) {
+      // Waiting for the decoder, not the network
+      this->last_data_time_ = now;
+    } else {
+      const int len = this->downloader_->read(this->download_buffer_.append(), available);
+      if (len > 0) {
+        this->last_data_time_ = now;
+        this->download_buffer_.write(len);
+      } else if (len < 0) {
+        ESP_LOGE(TAG, "Error downloading image: %d", len);
+        this->fail_download_();
+        return;
+      } else if (now - this->last_data_time_ >= this->parent_->get_timeout()) {
+        ESP_LOGE(TAG, "No data received for %" PRIu32 " ms", this->parent_->get_timeout());
+        this->fail_download_();
+        return;
+      }
+    }
+  }
+  const bool arrived = this->downloader_->get_bytes_read() >= total;
+
+  if (!this->stream_started_) {
+    // The decoder reads the headers when it opens the image, so wait until they are in the buffer
+    if (!arrived && this->download_buffer_.free_capacity() != 0)
+      return;
+    const int err = this->begin_source(&this->source_);
+    if (err != 0) {
+      ESP_LOGE(TAG, "Error decoding image: %s", runtime_image::decode_error_to_string(err));
+      if (!arrived) {
+        ESP_LOGE(TAG, "The image headers may not fit the %zu byte download buffer; increase buffer_size",
+                 this->download_buffer_.size());
+      }
+      this->fail_download_();
+      return;
+    }
+    this->source_.set_keep_read(false);
+    this->stream_started_ = true;
+  }
+
+  do {
+    const int result = this->decode_step();
+    if (result == runtime_image::DECODE_STEP_MORE)
+      continue;
+    if (result == runtime_image::DECODE_STEP_DONE) {
+      this->finish_download_();
+    } else if (result == runtime_image::DECODE_STEP_NEED_DATA) {
+      if (!arrived)
+        return;
+      ESP_LOGE(TAG, "Download ended before the image was complete");
+      this->fail_download_();
+    } else {
+      ESP_LOGE(TAG, "Error decoding image: %s", runtime_image::decode_error_to_string(result));
+      this->fail_download_();
+    }
+    return;
+  } while (millis() - now < STREAM_PASS_BUDGET_MS);
+}
+
+void OnlineImage::fail_download_() {
+  this->end_connection_();
+  this->download_error_callback_.call();
+}
+
 void OnlineImage::finish_download_() {
   // Must be read before end_decode() ends the decoding session
   bool decoder_finished = this->is_decode_finished();
@@ -288,6 +371,8 @@ void OnlineImage::end_connection_() {
     this->downloader_ = nullptr;
   }
   this->download_buffer_.reset();
+  this->streaming_ = false;
+  this->stream_started_ = false;
   this->disable_loop();
 }
 
