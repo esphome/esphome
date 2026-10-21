@@ -35,13 +35,6 @@ SWITCH_CONFIGS = (
     ),
 )
 
-SUPPORTED_MODELS = {
-    "yan",
-    "yaa",
-    "yac",
-    "yac1fb9",
-}
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_GREE_ID): cv.use_id(GreeClimate),
@@ -66,11 +59,9 @@ def _validate_model(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     climate_path = full_config.get_path_for_id(config[CONF_GREE_ID])[:-1]
     climate_conf = full_config.get_config_for_path(climate_path)
-    if climate_conf[CONF_MODEL] not in SUPPORTED_MODELS:
+    if climate_conf[CONF_MODEL] == "yx1ff" and CONF_TURBO in config:
         raise cv.Invalid(
-            "Gree switches are only supported for the "
-            + ", ".join(SUPPORTED_MODELS)
-            + " models"
+            "Gree YX1FF uses fan high for turbo and does not support a turbo switch"
         )
 
 

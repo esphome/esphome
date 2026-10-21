@@ -1,0 +1,19 @@
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
+
+climate:
+  - platform: gree
+    name: GREE
+    id: my_gree_ac
+    transmitter_id: xmitr
+    model: GENERIC
+
+switch:
+  - platform: gree
+    gree_id: my_gree_ac
+    light:
+      name: "AC Lights"
+    health:
+      name: "AC Health"
+    xfan:
+      name: "AC X-Fan"
