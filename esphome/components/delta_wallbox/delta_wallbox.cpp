@@ -307,7 +307,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
            (unsigned int) len);
   if (frame[1] & FC_EXCEPTION_FLAG) {
     ESP_LOGE(TAG, "Modbus exception received in state %s! Error code: 0x%02X", delta_state_to_string(this->state_),
-           frame[2]);
+             frame[2]);
     return;
   }
 
@@ -433,7 +433,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           if (frame[3 + i] != '\0')
             serial[serial_len++] = static_cast<char>(frame[3 + i]);
         }
-       serial[serial_len] = '\0';
+        serial[serial_len] = '\0';
         ESP_LOGI(TAG, "Wallbox serial text: %s", serial);
         if (this->serial_number_sensor_ != nullptr)
           this->serial_number_sensor_->publish_state(serial);
