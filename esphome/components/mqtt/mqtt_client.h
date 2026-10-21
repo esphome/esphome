@@ -24,6 +24,11 @@
 
 #include <vector>
 
+// The crash log replay needs the logger, which mqtt does not depend on
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+#define USE_MQTT_CRASH_LOG
+#endif
+
 namespace esphome::mqtt {
 
 /** Callback for MQTT events.
@@ -31,19 +36,24 @@ namespace esphome::mqtt {
 using mqtt_on_connect_callback_t = std::function<MQTTBackend::on_connect_callback_t>;
 using mqtt_on_disconnect_callback_t = std::function<MQTTBackend::on_disconnect_callback_t>;
 
-/** Callback for MQTT subscriptions.
- *
- * First parameter is the topic, the second one is the payload.
- */
-using mqtt_callback_t = std::function<void(const std::string &, const std::string &)>;
-using mqtt_json_callback_t = std::function<void(const std::string &, JsonObject)>;
+/// Stored callback of an MQTT subscription: the topic, then the payload.
+using mqtt_subscription_callback_t = Callback<void(const std::string &, const std::string &)>;
+
+// Remove before 2027.5.0
+using mqtt_callback_t ESPDEPRECATED("subscribe() takes any callable; pass the lambda directly. Removed in 2027.5.0",
+                                    "2026.11.0") = std::function<void(const std::string &, const std::string &)>;
+using mqtt_json_callback_t ESPDEPRECATED(
+    "subscribe_json() takes any callable; pass the lambda directly. Removed in 2027.5.0",
+    "2026.11.0") = std::function<void(const std::string &, JsonObject)>;
 
 /// internal struct for MQTT subscriptions.
 struct MQTTSubscription {
   std::string topic;
   uint8_t qos;
-  mqtt_callback_t callback;
   bool subscribed;
+  bool boxed;    // made by create_boxed(), freed on unsubscribe
+  bool removed;  // unsubscribed while a callback ran, erased once dispatch returns
+  mqtt_subscription_callback_t callback;
   uint32_t resubscribe_timeout;
 };
 
@@ -142,6 +152,8 @@ class MQTTClientComponent final : public Component {
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+  void set_transport(MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }
+  void set_ws_path(const char *path) { this->mqtt_backend_.set_ws_path(path); }
 #endif
   const Availability &get_availability();
 
@@ -166,11 +178,20 @@ class MQTTClientComponent final : public Component {
 
   /** Subscribe to an MQTT topic and call callback when a message is received.
    *
+   * A callback that fits in a pointer (capture at most `this`) is stored inline; a larger one is
+   * boxed on the heap and freed by unsubscribe().
+   *
    * @param topic The topic. Wildcards are currently not supported.
    * @param callback The callback function.
    * @param qos The QoS of this subscription.
    */
-  void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos = 0);
+  template<typename F> void subscribe(std::string topic, F &&callback, uint8_t qos = 0) {
+    constexpr bool boxed = !mqtt_subscription_callback_t::fits_inline<F>();
+    this->add_subscription_(std::move(topic),
+                            boxed ? mqtt_subscription_callback_t::create_boxed(std::forward<F>(callback))
+                                  : mqtt_subscription_callback_t::create(std::forward<F>(callback)),
+                            boxed, qos);
+  }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
@@ -181,11 +202,21 @@ class MQTTClientComponent final : public Component {
    * received.
    * @param qos The QoS of this subscription.
    */
-  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+  template<typename F> void subscribe_json(std::string topic, F &&callback, uint8_t qos = 0) {
+    static_assert(std::is_invocable_v<const std::decay_t<F> &, const std::string &, JsonObject>,
+                  "subscribe_json() needs a callback that does not mutate its captures");
+    this->subscribe(
+        std::move(topic),
+        [cb = std::forward<F>(callback)](const std::string &topic, const std::string &payload) {
+          call_json(cb, topic, payload);
+        },
+        qos);
+  }
 
   /** Unsubscribe from an MQTT topic.
    *
    * If multiple existing subscriptions to the same topic exist, all of them will be removed.
+   * From inside a subscription callback they stop receiving messages at once and are erased once it returns.
    *
    * @param topic The topic to unsubscribe from.
    * Must match the topic in the original subscribe or subscribe_json call exactly.
@@ -285,6 +316,17 @@ class MQTTClientComponent final : public Component {
 
   bool subscribe_(const char *topic, uint8_t qos);
   void resubscribe_subscription_(MQTTSubscription *sub);
+  template<typename F> static void call_json(const F &callback, const std::string &topic, const std::string &payload) {
+    JsonDocument doc = json::parse_json(payload);
+    if (doc.overflowed() || doc.isNull())
+      return;
+    callback(topic, doc.as<JsonObject>());
+  }
+  void erase_removed_subscriptions_();
+#ifdef USE_MQTT_CRASH_LOG
+  void handle_crash_log_request_(const std::string &topic, const std::string &payload);
+#endif
+  void add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
   void resubscribe_subscriptions_();
 
   MQTTCredentials credentials_;
@@ -327,6 +369,9 @@ class MQTTClientComponent final : public Component {
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
   bool enable_on_boot_{true};
+#ifdef USE_MQTT_CRASH_LOG
+  bool crash_log_offered_{false};
+#endif
   std::vector<MQTTComponent *> children_;
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
@@ -336,47 +381,11 @@ class MQTTClientComponent final : public Component {
 
   bool publish_nan_as_none_{false};
   bool wait_for_connection_{false};
+  bool dispatching_{false};
+  bool removed_while_dispatching_{false};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-class MQTTMessageTrigger final : public Trigger<std::string>, public Component {
- public:
-  explicit MQTTMessageTrigger(std::string topic);
-
-  void set_qos(uint8_t qos) { this->qos_ = qos; }
-  void set_payload(const std::string &payload) { this->payload_ = payload; }
-  void setup() override;
-  void dump_config() override;
-  float get_setup_priority() const override;
-
- protected:
-  std::string topic_;
-  uint8_t qos_{0};
-  optional<std::string> payload_;
-};
-
-class MQTTJsonMessageTrigger final : public Trigger<JsonObjectConst> {
- public:
-  explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
-    global_mqtt_client->subscribe_json(
-        topic, [this](const std::string &topic, JsonObject root) { this->trigger(root); }, qos);
-  }
-};
-
-class MQTTConnectTrigger final : public Trigger<bool> {
- public:
-  explicit MQTTConnectTrigger(MQTTClientComponent *client) {
-    client->set_on_connect([this](bool session_present) { this->trigger(session_present); });
-  }
-};
-
-class MQTTDisconnectTrigger final : public Trigger<MQTTClientDisconnectReason> {
- public:
-  explicit MQTTDisconnectTrigger(MQTTClientComponent *client) {
-    client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(reason); });
-  }
-};
 
 template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...> {
  public:
@@ -391,8 +400,7 @@ template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(
-        topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
+    this->parent_->publish_json(topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
   }
 
  protected:

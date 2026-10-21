@@ -117,18 +117,21 @@ const uint8_t BMI160_REGISTER_DATA_TEMP_MSB = 0x21;
 const float GRAVITY_EARTH = 9.80665f;
 
 void BMI160Component::internal_setup_(int stage) {
+  if (!this->setup_stage_(stage))
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+}
+
+bool BMI160Component::setup_stage_(int stage) {
   switch (stage) {
     case 0:
       uint8_t chipid;
       if (!this->read_byte(BMI160_REGISTER_CHIPID, &chipid) || (chipid != 0b11010001)) {
-        this->mark_failed();
-        return;
+        return false;
       }
 
       ESP_LOGV(TAG, "  Bringing accelerometer out of sleep");
       if (!this->write_byte(BMI160_REGISTER_CMD, (uint8_t) Cmd::ACCL_SET_PMU_MODE | (uint8_t) AcclPmuMode::NORMAL)) {
-        this->mark_failed();
-        return;
+        return false;
       }
       ESP_LOGV(TAG, "  Waiting for accelerometer to wake up");
       // need to wait (max delay in datasheet) because we can't send commands while another is in progress
@@ -139,8 +142,7 @@ void BMI160Component::internal_setup_(int stage) {
     case 1:
       ESP_LOGV(TAG, "  Bringing gyroscope out of sleep");
       if (!this->write_byte(BMI160_REGISTER_CMD, (uint8_t) Cmd::GYRO_SET_PMU_MODE | (uint8_t) GyroPmuMode::NORMAL)) {
-        this->mark_failed();
-        return;
+        return false;
       }
       ESP_LOGV(TAG, "  Waiting for gyroscope to wake up");
       // wait between 51 & 81ms, doing 100 to be safe
@@ -152,15 +154,13 @@ void BMI160Component::internal_setup_(int stage) {
       uint8_t gyro_config = (uint8_t) GyroBandwidth::OSR4 | (uint8_t) GyroOuputDataRate::HZ_25;
       ESP_LOGV(TAG, "  Output gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
       if (!this->write_byte(BMI160_REGISTER_GYRO_CONFIG, gyro_config)) {
-        this->mark_failed();
-        return;
+        return false;
       }
       ESP_LOGV(TAG, "  Setting up Gyro Range");
       uint8_t gyro_range = (uint8_t) GyroRange::RANGE_2000_DPS;
       ESP_LOGV(TAG, "  Output gyro_range: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_range));
       if (!this->write_byte(BMI160_REGISTER_GYRO_RANGE, gyro_range)) {
-        this->mark_failed();
-        return;
+        return false;
       }
 
       ESP_LOGV(TAG, "  Setting up Accel Config");
@@ -168,28 +168,24 @@ void BMI160Component::internal_setup_(int stage) {
           (uint8_t) AcclFilterMode::PERF | (uint8_t) AcclBandwidth::RES_AVG16 | (uint8_t) AccelOutputDataRate::HZ_25;
       ESP_LOGV(TAG, "  Output accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
       if (!this->write_byte(BMI160_REGISTER_ACCEL_CONFIG, accel_config)) {
-        this->mark_failed();
-        return;
+        return false;
       }
       ESP_LOGV(TAG, "  Setting up Accel Range");
       uint8_t accel_range = (uint8_t) AccelRange::RANGE_16G;
       ESP_LOGV(TAG, "  Output accel_range: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_range));
       if (!this->write_byte(BMI160_REGISTER_ACCEL_RANGE, accel_range)) {
-        this->mark_failed();
-        return;
+        return false;
       }
 
       this->setup_complete_ = true;
   }
+  return true;
 }
 
 void BMI160Component::setup() { this->internal_setup_(0); }
 void BMI160Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMI160:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Acceleration X", this->accel_x_sensor_);
   LOG_SENSOR("  ", "Acceleration Y", this->accel_y_sensor_);
@@ -200,19 +196,6 @@ void BMI160Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-i2c::ErrorCode BMI160Component::read_le_int16_(uint8_t reg, int16_t *value, uint8_t len) {
-  uint8_t raw_data[len * 2];
-  // read using read_register because we have little-endian data, and read_bytes_16 will swap it
-  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2);
-  if (err != i2c::ERROR_OK) {
-    return err;
-  }
-  for (int i = 0; i < len; i++) {
-    value[i] = (int16_t) ((uint16_t) raw_data[i * 2] | ((uint16_t) raw_data[i * 2 + 1] << 8));
-  }
-  return err;
-}
-
 void BMI160Component::update() {
   if (!this->setup_complete_) {
     return;
@@ -220,7 +203,7 @@ void BMI160Component::update() {
 
   ESP_LOGV(TAG, "    Updating BMI160");
   int16_t data[6];
-  if (this->read_le_int16_(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6) != i2c::ERROR_OK) {
+  if (!this->read_bytes_16_le(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6)) {
     this->status_set_warning();
     return;
   }
@@ -233,7 +216,7 @@ void BMI160Component::update() {
   float accel_z = (float) data[5] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
 
   int16_t raw_temperature;
-  if (this->read_le_int16_(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1) != i2c::ERROR_OK) {
+  if (!this->read_bytes_16_le(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1)) {
     this->status_set_warning();
     return;
   }

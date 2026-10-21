@@ -12,7 +12,7 @@ namespace esphome::mdns {
 
 ESPHOME_LOG_TAG(TAG, "mdns");
 
-#ifndef USE_OPENTHREAD
+#ifndef USE_OPENTHREAD_SRP
 static esp_err_t add_service(const MDNSService &service) {
   // Stack buffer for up to 16 txt records, heap fallback for more
   SmallBufferWithHeapFallback<16, mdns_txt_item_t> txt_records(service.txt_records.size());
@@ -30,7 +30,7 @@ static esp_err_t add_service(const MDNSService &service) {
 #endif
 
 static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
-#ifdef USE_OPENTHREAD
+#ifdef USE_OPENTHREAD_SRP
   // OpenThread handles service registration via SRP client
   // Services are compiled by MDNSComponent::compile_records_() and consumed by OpenThreadSrpComponent
 #else
@@ -62,7 +62,7 @@ static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_S
 #endif
 }
 
-#if defined(USE_MDNS_SUPPORTS_ENABLE_DISABLE) && !defined(USE_OPENTHREAD)
+#if defined(USE_MDNS_SUPPORTS_ENABLE_DISABLE) && !defined(USE_OPENTHREAD_SRP)
 bool MDNSComponent::set_service_enabled(const char *service_type, const char *proto, bool enabled) {
   // services_ is compiled in setup()
   if (!this->is_ready()) {
@@ -87,7 +87,7 @@ bool MDNSComponent::set_service_enabled(const char *service_type, const char *pr
   ESP_LOGW(TAG, "Service %s not found", service_type);
   return false;
 }
-#endif  // USE_MDNS_SUPPORTS_ENABLE_DISABLE && !USE_OPENTHREAD
+#endif  // USE_MDNS_SUPPORTS_ENABLE_DISABLE && !USE_OPENTHREAD_SRP
 
 #ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
 bool MDNSComponent::publish_network_txt_(const char *network) {
@@ -103,13 +103,14 @@ bool MDNSComponent::publish_network_txt_(const char *network) {
 
 void MDNSComponent::setup() {
   this->setup_buffers_and_register_(register_esp32);
-#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
-  this->set_interval(NETWORK_TXT_CHECK_INTERVAL_MS, [this]() { this->update_network_txt_(); });
+#if defined(USE_MDNS_DYNAMIC_NETWORK_TXT) && !defined(USE_MDNS_ACTIVE_INTERFACE_LISTENER)
+  this->set_interval(NETWORK_TXT_CHECK_INTERVAL_MS,
+                     [this]() { this->update_network_txt_(this->connected_network_()); });
 #endif
 }
 
 void MDNSComponent::on_shutdown() {
-#ifndef USE_OPENTHREAD
+#ifndef USE_OPENTHREAD_SRP
   mdns_free();
   delay(40);  // Allow the mdns packets announcing service removal to be sent
 #endif
