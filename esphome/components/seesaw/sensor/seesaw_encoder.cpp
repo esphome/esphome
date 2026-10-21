@@ -11,6 +11,10 @@ ESPHOME_LOG_TAG(TAG, "seesaw.encoder");
 static constexpr uint32_t POLL_INTERVAL_MS = 50;
 
 void SeesawEncoder::setup() {
+  if (this->parent_->is_failed()) {
+    this->mark_failed(LOG_STR("Seesaw hub failed"));
+    return;
+  }
   this->parent_->enable_encoder(this->number_);
   int32_t position = 0;
   this->parent_->get_encoder_position(this->number_, &position);

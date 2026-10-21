@@ -9,32 +9,32 @@ namespace esphome::seesaw {
 
 ESPHOME_LOG_TAG(TAG, "seesaw");
 
-const uint8_t SEESAW_HW_ID_SAMD09 = 0x55;
-const uint8_t SEESAW_HW_ID_TINY806 = 0x84;
-const uint8_t SEESAW_HW_ID_TINY807 = 0x85;
-const uint8_t SEESAW_HW_ID_TINY816 = 0x86;
-const uint8_t SEESAW_HW_ID_TINY817 = 0x87;
-const uint8_t SEESAW_HW_ID_TINY1616 = 0x88;
-const uint8_t SEESAW_HW_ID_TINY1617 = 0x89;
+static constexpr uint8_t SEESAW_HW_ID_SAMD09 = 0x55;
+static constexpr uint8_t SEESAW_HW_ID_TINY806 = 0x84;
+static constexpr uint8_t SEESAW_HW_ID_TINY807 = 0x85;
+static constexpr uint8_t SEESAW_HW_ID_TINY816 = 0x86;
+static constexpr uint8_t SEESAW_HW_ID_TINY817 = 0x87;
+static constexpr uint8_t SEESAW_HW_ID_TINY1616 = 0x88;
+static constexpr uint8_t SEESAW_HW_ID_TINY1617 = 0x89;
 
 float Seesaw::get_setup_priority() const { return setup_priority::IO; }
 
-static const char *cpuid_to_string(uint8_t id) {
+static const LogString *cpuid_to_string(uint8_t id) {
   switch (id) {
     case SEESAW_HW_ID_SAMD09:
-      return "SAMD09";
+      return LOG_STR("SAMD09");
     case SEESAW_HW_ID_TINY806:
-      return "ATtiny806";
+      return LOG_STR("ATtiny806");
     case SEESAW_HW_ID_TINY807:
-      return "ATtiny807";
+      return LOG_STR("ATtiny807");
     case SEESAW_HW_ID_TINY816:
-      return "ATtiny816";
+      return LOG_STR("ATtiny816");
     case SEESAW_HW_ID_TINY817:
-      return "ATtiny817";
+      return LOG_STR("ATtiny817");
     case SEESAW_HW_ID_TINY1616:
-      return "ATtiny1616";
+      return LOG_STR("ATtiny1616");
     case SEESAW_HW_ID_TINY1617:
-      return "ATtiny1617";
+      return LOG_STR("ATtiny1617");
     default:
       return nullptr;
   }
@@ -45,29 +45,25 @@ void Seesaw::setup() {
   uint8_t c = 0;
   i2c::ErrorCode err = this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_HW_ID, &c, 1);
   if (err != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("unable to communicate"));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->cpuid_ = c;
   uint8_t buf[4];
   if (this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_VERSION, buf, 4) == i2c::ERROR_OK) {
-    this->version_ = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
-  } else {
-    this->version_ = 0;
+    this->version_ = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
   }
   if (this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_OPTIONS, buf, 4) == i2c::ERROR_OK) {
-    this->options_ = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
-  } else {
-    this->options_ = 0;
+    this->options_ = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
   }
 }
 
 void Seesaw::dump_config() {
   ESP_LOGCONFIG(TAG, "Seesaw module:");
   LOG_I2C_DEVICE(this);
-  const char *cpu = cpuid_to_string(this->cpuid_);
+  const LogString *cpu = cpuid_to_string(this->cpuid_);
   if (cpu != nullptr) {
-    ESP_LOGCONFIG(TAG, "  CPU: %s", cpu);
+    ESP_LOGCONFIG(TAG, "  CPU: %s", LOG_STR_ARG(cpu));
   } else {
     ESP_LOGCONFIG(TAG, "  CPU: unknown (%02x)", this->cpuid_);
   }
@@ -86,8 +82,7 @@ bool Seesaw::get_encoder_position(uint8_t number, int32_t *position) {
   uint8_t buf[4];
   if (this->readbuf_(SEESAW_ENCODER, SEESAW_ENCODER_POSITION + number, buf, 4, 1000) != i2c::ERROR_OK)
     return false;
-  int32_t value = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
-  *position = -value;  // make clockwise positive
+  *position = -encode_value<int32_t>(buf);  // make clockwise positive
   return true;
 }
 
@@ -100,14 +95,14 @@ int16_t Seesaw::get_touch_value(uint8_t channel) {
   uint8_t buf[2];
   if (this->readbuf_(SEESAW_TOUCH, SEESAW_TOUCH_CHANNEL_OFFSET + channel, buf, 2, 3000) != i2c::ERROR_OK)
     return -1;
-  return ((uint16_t) buf[0] << 8) | buf[1];
+  return encode_uint16(buf[0], buf[1]);
 }
 
 float Seesaw::get_temperature() {
   uint8_t buf[4];
   if (this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_TEMP, buf, 4, 1000) != i2c::ERROR_OK)
     return NAN;
-  uint32_t value = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
+  const uint32_t value = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
   if (value == 0xffffffff) {
     ESP_LOGW(TAG, "no temperature sensor");
     return NAN;
@@ -137,7 +132,7 @@ uint16_t Seesaw::analog_read(uint8_t pin) {
   uint8_t buf[2];
   i2c::ErrorCode err = this->readbuf_(SEESAW_ADC, SEESAW_ADC_CHANNEL_OFFSET + pin, buf, 2, 1000);
   if (err == i2c::ERROR_OK)
-    return (buf[0] << 8) + buf[1];
+    return encode_uint16(buf[0], buf[1]);
   return 0xffff;
 }
 

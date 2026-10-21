@@ -11,6 +11,13 @@ void SeesawADC::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+void SeesawADC::setup() {
+  if (this->parent_->is_failed()) {
+    this->mark_failed(LOG_STR("Seesaw hub failed"));
+    return;
+  }
+}
+
 void SeesawADC::update() {
   uint16_t value = this->parent_->analog_read(this->pin_);
   if (value == 0xffff) {

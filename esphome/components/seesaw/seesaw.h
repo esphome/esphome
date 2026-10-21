@@ -10,13 +10,7 @@ namespace esphome::seesaw {
 enum SeesawModule : uint8_t {
   SEESAW_STATUS = 0x00,
   SEESAW_GPIO = 0x01,
-  SEESAW_SERCOM0 = 0x02,
-  SEESAW_TIMER = 0x08,
   SEESAW_ADC = 0x09,
-  SEESAW_DAC = 0x0A,
-  SEESAW_INTERRUPT = 0x0B,
-  SEESAW_DAP = 0x0C,
-  SEESAW_EEPROM = 0x0D,
   SEESAW_NEOPIXEL = 0x0E,
   SEESAW_TOUCH = 0x0F,
   SEESAW_ENCODER = 0x11,
@@ -27,11 +21,9 @@ enum : uint8_t {
   SEESAW_STATUS_VERSION = 0x02,
   SEESAW_STATUS_OPTIONS = 0x03,
   SEESAW_STATUS_TEMP = 0x04,
-  SEESAW_STATUS_SWRST = 0x7F,
 };
 
 enum : uint8_t {
-  SEESAW_ENCODER_STATUS = 0x00,
   SEESAW_ENCODER_INTENSET = 0x10,
   SEESAW_ENCODER_POSITION = 0x30,
 };
@@ -42,14 +34,11 @@ enum : uint8_t {
   SEESAW_GPIO_BULK = 0x04,
   SEESAW_GPIO_BULK_SET = 0x05,
   SEESAW_GPIO_BULK_CLR = 0x06,
-  SEESAW_GPIO_BULK_TOGGLE = 0x07,
-  SEESAW_GPIO_INTFLAG = 0x0A,
   SEESAW_GPIO_PULLENSET = 0x0B,
   SEESAW_GPIO_PULLENCLR = 0x0C,
 };
 
 enum : uint8_t {
-  SEESAW_NEOPIXEL_STATUS = 0x00,
   SEESAW_NEOPIXEL_PIN = 0x01,
   SEESAW_NEOPIXEL_SPEED = 0x02,
   SEESAW_NEOPIXEL_BUF_LENGTH = 0x03,
@@ -62,9 +51,6 @@ enum : uint8_t {
 };
 
 enum : uint8_t {
-  SEESAW_ADC_STATUS = 0x00,
-  SEESAW_ADC_INTEN = 0x02,
-  SEESAW_ADC_INTENCLR = 0x03,
   SEESAW_ADC_CHANNEL_OFFSET = 0x07,
 };
 
@@ -94,11 +80,11 @@ class Seesaw : public i2c::I2CDevice, public Component {
   i2c::ErrorCode write32_(SeesawModule mod, uint8_t reg, uint32_t value);
   i2c::ErrorCode readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, int wait_us = 250);
 
-  uint8_t cpuid_;
-  uint32_t version_;
-  uint32_t options_;
+  uint32_t version_{0};
+  uint32_t options_{0};
   // Last GPIO levels read, returned when a read fails
   uint32_t gpio_levels_{0};
+  uint8_t cpuid_{0};
 };
 
 class SeesawGPIOPin : public GPIOPin, public Parented<Seesaw> {

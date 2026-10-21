@@ -5,7 +5,13 @@ namespace esphome::seesaw {
 
 ESPHOME_LOG_TAG(TAG, "seesaw.neopixel");
 
-void SeesawNeopixel::setup() { this->parent_->setup_neopixel(this->pin_, this->num_leds_); }
+void SeesawNeopixel::setup() {
+  if (this->parent_->is_failed()) {
+    this->mark_failed(LOG_STR("Seesaw hub failed"));
+    return;
+  }
+  this->parent_->setup_neopixel(this->pin_, this->num_leds_);
+}
 
 void SeesawNeopixel::set_num_leds(uint16_t num_leds) {
   if (this->num_leds_)

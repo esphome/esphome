@@ -10,6 +10,7 @@ class SeesawTouch : public sensor::Sensor, public PollingComponent, public Paren
  public:
   explicit SeesawTouch(uint8_t channel) : channel_(channel) {}
 
+  void setup() override;
   void update() override;
   void dump_config() override;
 

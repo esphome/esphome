@@ -11,6 +11,13 @@ void SeesawTouch::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+void SeesawTouch::setup() {
+  if (this->parent_->is_failed()) {
+    this->mark_failed(LOG_STR("Seesaw hub failed"));
+    return;
+  }
+}
+
 void SeesawTouch::update() {
   int16_t value = this->parent_->get_touch_value(this->channel_);
   if (value == -1) {
