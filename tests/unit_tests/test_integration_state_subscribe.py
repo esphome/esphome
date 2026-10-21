@@ -71,7 +71,7 @@ async def test_subscribe_timeout_lists_missing_entities() -> None:
     )
     await asyncio.sleep(0)
     client.callback(SensorState(key=1, state=1.0))
-    with pytest.raises(pytest.fail.Exception, match=r"missing: \['humidity'\]"):
+    with pytest.raises(pytest.fail.Exception, match=r"still_waiting[\s\S]*humidity"):
         await task
 
 

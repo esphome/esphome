@@ -454,14 +454,7 @@ async def subscribe_after_initial_states(
             on_state(state)
 
     client.subscribe_states(helper.on_state_wrapper(forward))
-    try:
-        await helper.wait_for_initial_states(timeout)
-    except TimeoutError:
-        import pytest
-
-        pytest.fail(
-            f"Timeout waiting for initial states, missing: {helper.pending_object_ids}"
-        )
+    await helper.wait_for_initial_states(timeout)
     return StateSubscription(helper.initial_states, waiter)
 
 
