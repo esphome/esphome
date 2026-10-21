@@ -18,7 +18,7 @@ One file per component, named after it:
 - [`ota.md`](ota.md): overlap and lock, timeouts, deflate
 - [`rtsp_server.md`](rtsp_server.md): camera streaming on the Waveshare ESP32-S3-ETH
 - [`scheduler.md`](scheduler.md): loop wake A/B
-- [`udp.md`](udp.md): datagrams, multicast, sockets
+- [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes
 - [`usb_cdc_acm.md`](usb_cdc_acm.md): nRF52840 dongle host driver
 - [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP)
 - [`zephyr.md`](zephyr.md): preferences on the nRF52840 dongle
