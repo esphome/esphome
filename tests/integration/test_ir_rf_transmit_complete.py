@@ -15,7 +15,7 @@ from aioesphomeapi import InfraredInfo, RadioFrequencyInfo
 from aioesphomeapi.api_pb2 import InfraredRFTransmitCompleteResponse
 import pytest
 
-from .state_utils import find_entity
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 FRAME_COUNT = 5
@@ -37,9 +37,9 @@ async def test_ir_rf_transmit_complete_boot(
     """The host build with the mock transmitters boots and lists all entities on any client."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, _ = await client.list_entities_services()
-    assert find_entity(entities, "rf_transmitter_a", RadioFrequencyInfo) is not None
-    assert find_entity(entities, "rf_transmitter_b", RadioFrequencyInfo) is not None
-    assert find_entity(entities, "ir_transmitter", InfraredInfo) is not None
+    require_entity(entities, "rf_transmitter_a", RadioFrequencyInfo)
+    require_entity(entities, "rf_transmitter_b", RadioFrequencyInfo)
+    require_entity(entities, "ir_transmitter", InfraredInfo)
 
 
 @pytest.mark.shared_yaml("ir_rf_transmit_complete")
@@ -92,11 +92,9 @@ async def test_ir_rf_transmit_complete(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        rf = find_entity(entities, "rf_transmitter_a", RadioFrequencyInfo)
-        rf_b = find_entity(entities, "rf_transmitter_b", RadioFrequencyInfo)
-        ir = find_entity(entities, "ir_transmitter", InfraredInfo)
-        assert rf is not None and rf_b is not None, "RF transmitter entities not found"
-        assert ir is not None, "IR transmitter entity not found"
+        rf = require_entity(entities, "rf_transmitter_a", RadioFrequencyInfo)
+        rf_b = require_entity(entities, "rf_transmitter_b", RadioFrequencyInfo)
+        ir = require_entity(entities, "ir_transmitter", InfraredInfo)
 
         client._connection.add_message_callback(
             on_complete, (InfraredRFTransmitCompleteResponse,)

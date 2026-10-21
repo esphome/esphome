@@ -32,19 +32,12 @@ class LEDStripTimings:
     spi_frequency: int
 
 
+# The SPI clock divider depends on the chip family and is calculated in led_strip.cpp.
 CHIPSETS = {
-    "WS2812": LEDStripTimings(
-        0b11100000, 0b11111100, 6666666
-    ),  # Clock divider: 9, Bit time: 1350ns
-    "SK6812": LEDStripTimings(
-        0b11000000, 0b11111000, 7500000
-    ),  # Clock divider: 8, Bit time: 1200ns
-    "APA106": LEDStripTimings(
-        0b11000000, 0b11111110, 5454545
-    ),  # Clock divider: 11, Bit time: 1650ns
-    "SM16703": LEDStripTimings(
-        0b11000000, 0b11111110, 7500000
-    ),  # Clock divider: 8, Bit time: 1200ns
+    "WS2812": LEDStripTimings(0b11100000, 0b11111100, 6666666),
+    "SK6812": LEDStripTimings(0b11000000, 0b11111000, 7500000),
+    "APA106": LEDStripTimings(0b11000000, 0b11111110, 5454545),
+    "SM16703": LEDStripTimings(0b11000000, 0b11111110, 7500000),
 }
 
 
