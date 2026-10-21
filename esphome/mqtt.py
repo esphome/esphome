@@ -361,7 +361,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
             time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
             safe_print(time_ + payload)
 
-    def on_connect(client, userdata, flags, return_code):
+    def on_connect(client, userdata, flags, reason_code, properties):
         if ask_on_connect:
             request_crash_log(client)
 

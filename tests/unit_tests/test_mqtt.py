@@ -7,6 +7,7 @@ import threading
 import time
 from unittest.mock import MagicMock, patch
 
+import paho.mqtt.client as mqtt
 import pytest
 
 from esphome.const import (
@@ -46,7 +47,7 @@ def test_show_logs_asks_on_connect(
 
     on_connect = mock_initialize.call_args.args[3]
     client = MagicMock()
-    on_connect(client, None, None, 0)
+    on_connect(client, None, None, 0, None)
     client.publish.assert_called_once_with(
         "esphome/logs/test-device", None, retain=False
     )
@@ -76,7 +77,7 @@ def test_show_logs_requests_crash_log_when_device_reports_online(
     on_message = mock_initialize.call_args.args[2]
     on_connect = mock_initialize.call_args.args[3]
     client = MagicMock()
-    on_connect(client, None, None, 0)
+    on_connect(client, None, None, 0, None)
     client.publish.assert_not_called()
 
     on_message(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
@@ -488,7 +489,9 @@ def test_prepare_follows_the_firmware_transport(
     assert prepare(config, [], None, None, None, None, None) is client
 
     mock_client_class.assert_called_once_with(
-        "", transport="websockets" if expect_path else "tcp"
+        mqtt.CallbackAPIVersion.VERSION2,
+        "",
+        transport="websockets" if expect_path else "tcp",
     )
     if expect_path is None:
         client.ws_set_options.assert_not_called()
