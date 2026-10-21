@@ -31,10 +31,8 @@ async def new_openthermnumber(config: dict[str, Any]) -> cg.Pvariable:
     await cg.register_component(var, config)
     input.generate_setters(var, config)
 
-    if (initial_value := config.get(CONF_INITIAL_VALUE)) is not None:
-        cg.add(var.set_initial_value(initial_value))
-    if (restore_value := config.get(CONF_RESTORE_VALUE)) is not None:
-        cg.add(var.set_restore_value(restore_value))
+    cg.add_optional(var.set_initial_value, config.get(CONF_INITIAL_VALUE))
+    cg.add_optional(var.set_restore_value, config.get(CONF_RESTORE_VALUE))
 
     return var
 

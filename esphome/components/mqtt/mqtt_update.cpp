@@ -48,10 +48,7 @@ void MQTTUpdateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
 
 bool MQTTUpdateComponent::send_initial_state() { return this->publish_state(); }
 
-void MQTTUpdateComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Update '%s': ", this->update_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTUpdateComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTUpdateComponent, "update")
 const EntityBase *MQTTUpdateComponent::get_entity() const { return this->update_; }

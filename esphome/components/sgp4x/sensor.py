@@ -103,10 +103,12 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]
-        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
-        cg.add(var.set_humidity_sensor(sens))
-        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
-        cg.add(var.set_temperature_sensor(sens))
+        await cg.add_variable(
+            var.set_humidity_sensor, compensation_config[CONF_HUMIDITY_SOURCE]
+        )
+        await cg.add_variable(
+            var.set_temperature_sensor, compensation_config[CONF_TEMPERATURE_SOURCE]
+        )
 
     cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
 
