@@ -68,4 +68,14 @@ class BinaryOutput {
 #endif
 };
 
+/// Calls the codegen-generated Fn(this, state) on a state write; the hub is baked into Fn.
+template<auto Fn> class ApplyBinaryOutput final : public BinaryOutput {
+ public:
+  // Not "= default": placement new would zero-fill .bss that is already zero.
+  ApplyBinaryOutput() {}
+
+ protected:
+  void write_state(bool state) override { Fn(this, state); }
+};
+
 }  // namespace esphome::output

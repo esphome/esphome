@@ -13,7 +13,9 @@ from esphome.const import (
     CONF_MIN_POWER,
     CONF_POWER_SUPPLY,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.core.entity_helpers import ApplyEntity, SubEntities
+from esphome.cpp_generator import MockObj, SafeExpType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -54,6 +56,8 @@ BinaryOutput = output_ns.class_("BinaryOutput")
 BinaryOutputPtr = BinaryOutput.operator("ptr")
 FloatOutput = output_ns.class_("FloatOutput", BinaryOutput)
 FloatOutputPtr = FloatOutput.operator("ptr")
+ApplyBinaryOutput = output_ns.class_("ApplyBinaryOutput", BinaryOutput)
+ApplyFloatOutput = output_ns.class_("ApplyFloatOutput", FloatOutput)
 
 
 async def setup_output_platform_(obj, config):
@@ -82,6 +86,34 @@ async def register_output(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     await setup_output_platform_(var, config)
+
+
+async def new_output(config: ConfigType, *args: SafeExpType) -> MockObj:
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_output(var, config)
+    return var
+
+
+BINARY_APPLY_ENTITY = ApplyEntity(
+    ApplyBinaryOutput, ((BinaryOutputPtr, "entity"), (cg.bool_, "state"))
+)
+FLOAT_APPLY_ENTITY = ApplyEntity(
+    ApplyFloatOutput, ((FloatOutputPtr, "entity"), (cg.float_, "state"))
+)
+
+
+def sub_binary_outputs(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_output; ``apply`` statements can use ``entity`` and ``state``."""
+    return SubEntities(new_output, config, parent, BINARY_APPLY_ENTITY)
+
+
+def sub_float_outputs(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_output; ``apply`` gets the scaled level as ``state``."""
+    return SubEntities(new_output, config, parent, FLOAT_APPLY_ENTITY)
 
 
 BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(

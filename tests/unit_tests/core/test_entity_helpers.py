@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 import esphome.codegen as cg
-from esphome.components import button, number, select, switch
+from esphome.components import button, number, output, select, switch
 from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -1564,6 +1564,18 @@ async def test_sub_entities_apply_needs_parent(
             select.ApplySelect,
             "select::Select * entity, size_t index",
             "entity->publish_state(index);",
+        ),
+        (
+            output.sub_binary_outputs,
+            output.ApplyBinaryOutput,
+            "output::BinaryOutput * entity, bool state",
+            None,
+        ),
+        (
+            output.sub_float_outputs,
+            output.ApplyFloatOutput,
+            "output::FloatOutput * entity, float state",
+            None,
         ),
     ],
 )

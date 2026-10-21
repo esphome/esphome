@@ -130,4 +130,14 @@ class FloatOutput : public BinaryOutput {
 #endif
 };
 
+/// Calls the codegen-generated Fn(this, state) with the scaled, inverted level; the hub is baked into Fn.
+template<auto Fn> class ApplyFloatOutput final : public FloatOutput {
+ public:
+  // Not "= default": placement new would zero-fill .bss that is already zero.
+  ApplyFloatOutput() {}
+
+ protected:
+  void write_state(float state) override { Fn(this, state); }
+};
+
 }  // namespace esphome::output
