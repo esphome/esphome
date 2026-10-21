@@ -250,7 +250,7 @@ TLS_IMPLYING_KEYS = frozenset(
 )
 
 
-def _validate_tls(config: ConfigType) -> ConfigType:
+def _derive_tls(config: ConfigType) -> ConfigType:
     """Derive ``tls`` from the certificate options and the transport, reject contradictions, pick the port."""
     # skip_cert_cn_check has a default on ESP32, so its value decides, not its presence
     if config.get(CONF_VERIFY_SSL) is False and config.get(CONF_SKIP_CERT_CN_CHECK):
@@ -277,6 +277,12 @@ def _validate_tls(config: ConfigType) -> ConfigType:
         )
     config.setdefault(CONF_PORT, 8883 if config.get(CONF_TLS) else 1883)
     return config
+
+
+_validate_tls = cv.All(
+    cv.only_when(CONF_CERTIFICATE_AUTHORITY, CONF_VERIFY_SSL, False, negate=True),
+    _derive_tls,
+)
 
 
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
@@ -377,7 +383,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_when(CONF_CERTIFICATE_AUTHORITY, CONF_VERIFY_SSL, False, negate=True),
     _validate_tls,
     cv.only_on(
         [
