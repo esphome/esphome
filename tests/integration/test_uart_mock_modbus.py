@@ -878,12 +878,21 @@ async def test_uart_mock_modbus_continuous(
 
         client.switch_command(silence.key, True)
         await waiter.wait_for("Modbus device=1 set offline", timeout=5.0)
-        # Let states published before the trip clear the API batch, then check none follow.
+        # The silenced server answers nothing, so count request timeouts, not states: once offline the
+        # continuous poll must stop sending. Each request it still sent would time out within 100ms.
         await asyncio.sleep(0.3)
         plateau = len(tracker.sensor_states["continuous_reg"])
+
+        def timeouts() -> int:
+            return sum(
+                "Stop waiting for response from 1 " in line for line in waiter.lines
+            )
+
+        sent = timeouts()
+        assert sent, "no request timed out before the device went offline"
         await asyncio.sleep(0.5)
-        assert len(tracker.sensor_states["continuous_reg"]) == plateau, (
-            "reads kept arriving after the server was silenced - the failed continuous poll did not stop"
+        assert timeouts() == sent, (
+            "the failed continuous poll kept sending requests after the device went offline"
         )
 
         # Answer again and trigger update(): the offline probe recovers the device and the continuous
@@ -984,7 +993,12 @@ async def test_uart_mock_modbus_fairness(
         assert stop_btn is not None, "Stop Scenario button not found"
         client.button_command(stop_btn.key)
         # Quiet window longer than the API batch delay (100ms)
-        await _wait_until_quiet(tracker, ["requests_1", "requests_2"], 0.3)
+        await wait_or_fail(
+            _wait_until_quiet(tracker, ["requests_1", "requests_2"], 0.3),
+            3.0,
+            "counters did not settle after stop",
+            states=tracker.sensor_states,
+        )
 
         assert tracker.sensor_states["requests_1"], "controller 1 issued no requests"
         assert tracker.sensor_states["requests_2"], "controller 2 issued no requests"
