@@ -31,20 +31,9 @@ template<typename Driver> class TestableDriver : public Driver {
     this->y_high_ = this->height_;
   }
 
-  /// A whole update with the frame already drawn; false if it was skipped.
-  bool run_update() {
-    this->set_auto_clear(false);
-    this->state_ = EPaperState::UPDATE;
-    this->process_state_();
-    const bool pushed = this->state_ == EPaperState::RESET;
-    while (this->state_ != EPaperState::IDLE)
-      this->process_state_();
-    return pushed;
-  }
-
-  /// A whole update with auto clear and the writer, as the YAML lambda path runs; false if skipped.
-  bool run_update_through_writer() {
-    this->set_auto_clear(true);
+  /// A whole update, with auto clear and the writer as a YAML lambda runs if asked; false if skipped.
+  bool run_update(bool auto_clear = false) {
+    this->set_auto_clear(auto_clear);
     this->state_ = EPaperState::UPDATE;
     this->process_state_();
     const bool pushed = this->state_ == EPaperState::RESET;
@@ -91,10 +80,6 @@ TEST(EPaperSkipUnchanged, NothingSkippedWithoutPartialUpdates) {
   EXPECT_TRUE(display.run_update());
 }
 
-}  // namespace esphome::epaper_spi::testing
-
-namespace esphome::epaper_spi::testing {
-
 /// The real update path: auto clear then a writer lambda, as a YAML lambda runs. The clear makes
 /// the drawn area the whole panel every time, so only the frame contents can tell updates apart.
 TEST(EPaperSkipUnchanged, UpdatesThroughTheWriterAreSkippedWhenTheyDrawTheSameFrame) {
@@ -104,11 +89,11 @@ TEST(EPaperSkipUnchanged, UpdatesThroughTheWriterAreSkippedWhenTheyDrawTheSameFr
   int value = 1;
   display.set_writer([&](Display &it) { it.draw_pixel_at(value, 0, Color::BLACK); });
 
-  EXPECT_TRUE(display.run_update_through_writer());
-  EXPECT_FALSE(display.run_update_through_writer()) << "same frame was pushed";
+  EXPECT_TRUE(display.run_update(true));
+  EXPECT_FALSE(display.run_update(true)) << "same frame was pushed";
   value = 2;
-  EXPECT_TRUE(display.run_update_through_writer()) << "changed frame was skipped";
-  EXPECT_FALSE(display.run_update_through_writer());
+  EXPECT_TRUE(display.run_update(true)) << "changed frame was skipped";
+  EXPECT_FALSE(display.run_update(true));
 }
 
 }  // namespace esphome::epaper_spi::testing
