@@ -2,12 +2,17 @@ ble_client:
   - id: delta_ble_client
     mac_address: 01:02:03:04:05:06
 
+time:
+  - platform: homeassistant
+    id: delta_wallbox_time
+
 delta_wallbox:
   id: my_charger
   ble_client_id: delta_ble_client
   password: secret
   pin: 123456
   update_interval: 15s
+  time_id: delta_wallbox_time
 
 sensor:
   - platform: delta_wallbox
