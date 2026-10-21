@@ -3,7 +3,13 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
-from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
+from esphome.components.const import (
+    CONF_BITRATE,
+    CONF_CRC_ENABLE,
+    CONF_MODULATION,
+    CONF_ON_PACKET,
+    CONF_RST_PIN,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY, CONF_ID
 from esphome.core import ID, TimePeriod
@@ -18,7 +24,6 @@ DEPENDENCIES = ["spi"]
 CONF_SX126X_ID = "sx126x_id"
 
 CONF_BANDWIDTH = "bandwidth"
-CONF_BITRATE = "bitrate"
 CONF_CODING_RATE = "coding_rate"
 CONF_COLD = "cold"
 CONF_CRC_INVERTED = "crc_inverted"
@@ -28,13 +33,11 @@ CONF_CRC_INITIAL = "crc_initial"
 CONF_DEVIATION = "deviation"
 CONF_DIO1_PIN = "dio1_pin"
 CONF_HW_VERSION = "hw_version"
-CONF_MODULATION = "modulation"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
 CONF_PAYLOAD_LENGTH = "payload_length"
 CONF_PREAMBLE_DETECT = "preamble_detect"
 CONF_PREAMBLE_SIZE = "preamble_size"
-CONF_RST_PIN = "rst_pin"
 CONF_RX_START = "rx_start"
 CONF_RF_SWITCH = "rf_switch"
 CONF_SHAPING = "shaping"
@@ -249,16 +252,13 @@ async def to_code(config: ConfigType) -> None:
             ],
             config[CONF_ON_PACKET],
         )
-    if CONF_DIO1_PIN in config:
-        dio1_pin = await cg.gpio_pin_expression(config[CONF_DIO1_PIN])
-        cg.add(var.set_dio1_pin(dio1_pin))
-    rst_pin = await cg.gpio_pin_expression(config[CONF_RST_PIN])
-    cg.add(var.set_rst_pin(rst_pin))
-    busy_pin = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
-    cg.add(var.set_busy_pin(busy_pin))
+    await cg.add_pin(var.set_dio1_pin, config.get(CONF_DIO1_PIN))
+    await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
+    await cg.add_pin(var.set_busy_pin, config[CONF_BUSY_PIN])
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
-    cg.add(var.set_hw_version(config[CONF_HW_VERSION]))
+    if config[CONF_HW_VERSION] == "sx1261":
+        cg.add(var.set_sx1261(True))
     cg.add(var.set_deviation(config[CONF_DEVIATION]))
     cg.add(var.set_modulation(config[CONF_MODULATION]))
     cg.add(var.set_pa_ramp(config[CONF_PA_RAMP]))

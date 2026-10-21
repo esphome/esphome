@@ -3,7 +3,13 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
-from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
+from esphome.components.const import (
+    CONF_BITRATE,
+    CONF_CRC_ENABLE,
+    CONF_MODULATION,
+    CONF_ON_PACKET,
+    CONF_RST_PIN,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_ID
 from esphome.core import ID
@@ -19,12 +25,10 @@ CONF_SX127X_ID = "sx127x_id"
 
 CONF_AUTO_CAL = "auto_cal"
 CONF_BANDWIDTH = "bandwidth"
-CONF_BITRATE = "bitrate"
 CONF_BITSYNC = "bitsync"
 CONF_CODING_RATE = "coding_rate"
 CONF_DEVIATION = "deviation"
 CONF_DIO0_PIN = "dio0_pin"
-CONF_MODULATION = "modulation"
 CONF_PA_PIN = "pa_pin"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
@@ -34,7 +38,6 @@ CONF_PREAMBLE_DETECT = "preamble_detect"
 CONF_PREAMBLE_ERRORS = "preamble_errors"
 CONF_PREAMBLE_POLARITY = "preamble_polarity"
 CONF_PREAMBLE_SIZE = "preamble_size"
-CONF_RST_PIN = "rst_pin"
 CONF_RX_FLOOR = "rx_floor"
 CONF_RX_START = "rx_start"
 CONF_SHAPING = "shaping"
@@ -205,7 +208,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PREAMBLE_POLARITY, default=0xAA): cv.All(
                 cv.hex_int, cv.one_of(0xAA, 0x55)
             ),
-            cv.Optional(CONF_PREAMBLE_SIZE, default=0): cv.int_range(min=0, max=65535),
+            cv.Optional(CONF_PREAMBLE_SIZE, default=0): cv.uint16_t,
             cv.Required(CONF_RST_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_FLOOR, default=-94): cv.float_range(min=-128, max=-1),
             cv.Optional(CONF_RX_START, default=True): cv.boolean,
@@ -232,11 +235,8 @@ async def to_code(config: ConfigType) -> None:
             ],
             config[CONF_ON_PACKET],
         )
-    if CONF_DIO0_PIN in config:
-        dio0_pin = await cg.gpio_pin_expression(config[CONF_DIO0_PIN])
-        cg.add(var.set_dio0_pin(dio0_pin))
-    rst_pin = await cg.gpio_pin_expression(config[CONF_RST_PIN])
-    cg.add(var.set_rst_pin(rst_pin))
+    await cg.add_pin(var.set_dio0_pin, config.get(CONF_DIO0_PIN))
+    await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
     cg.add(var.set_auto_cal(config[CONF_AUTO_CAL]))
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))

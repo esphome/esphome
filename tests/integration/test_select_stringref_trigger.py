@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -89,9 +90,7 @@ async def test_select_stringref_trigger(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "select-stringref-test"
+        await assert_device_name(client, "select-stringref-test")
 
         # List entities to find our select
         entities, _ = await client.list_entities_services()

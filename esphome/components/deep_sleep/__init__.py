@@ -164,10 +164,6 @@ _WAKEUP_PIN_MODE_BOTH_LEVELS = (
 def validate_config(config: ConfigType) -> ConfigType:
     wakeup_pins = config.get(CONF_WAKEUP_PIN)
     has_pin_mode = CONF_WAKEUP_PIN_MODE in config
-    if has_pin_mode and wakeup_pins is None:
-        raise cv.Invalid(
-            "'wakeup_pin_mode' requires 'wakeup_pin'", path=[CONF_WAKEUP_PIN_MODE]
-        )
     multiple_pins = wakeup_pins is not None and len(wakeup_pins) > 1
     # wakeup_pin is limited to ESP32 and BK72XX, and only BK72XX accepts a list
     if not CORE.is_bk72xx:
@@ -356,6 +352,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_NRF52]),
+    cv.key_requires(CONF_WAKEUP_PIN_MODE, CONF_WAKEUP_PIN),
     validate_config,
 )
 
@@ -364,8 +361,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CONF_SLEEP_DURATION in config:
-        cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
+    cg.add_optional(var.set_sleep_duration, config.get(CONF_SLEEP_DURATION))
     if (wakeup_pins := config.get(CONF_WAKEUP_PIN)) is not None:
         if CORE.is_bk72xx:
             cg.add(var.init_wakeup_pins(len(wakeup_pins)))
@@ -379,10 +375,8 @@ async def to_code(config: ConfigType) -> None:
                     )
                 )
         else:
-            pin = await cg.gpio_pin_expression(wakeup_pins[0][CONF_PIN])
-            cg.add(var.set_wakeup_pin(pin))
-    if CONF_WAKEUP_PIN_MODE in config:
-        cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
+            await cg.add_pin(var.set_wakeup_pin, wakeup_pins[0][CONF_PIN])
+    cg.add_optional(var.set_wakeup_pin_mode, config.get(CONF_WAKEUP_PIN_MODE))
     if CONF_RUN_DURATION in config:
         run_duration_config = config[CONF_RUN_DURATION]
         if not isinstance(run_duration_config, dict):
@@ -428,8 +422,7 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_automation(trigger, [(WakeupCause, "cause")], wake_conf)
         cg.add_define("USE_DEEP_SLEEP_ON_WAKE")
 
-    if CONF_TOUCH_WAKEUP in config:
-        cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
+    cg.add_optional(var.set_touch_wakeup, config.get(CONF_TOUCH_WAKEUP))
     if CORE.using_zephyr:
         # Devices are suspended when CPU is entering a low power state
         # https://github.com/nrfconnect/sdk-zephyr/blob/v3.7.99-ncs2-2/doc/services/pm/device.rst#system-managed-device-power-management
@@ -492,8 +485,7 @@ async def deep_sleep_enter_to_code(
         until = config[CONF_UNTIL]
         cg.add(var.set_until(until[CONF_HOUR], until[CONF_MINUTE], until[CONF_SECOND]))
 
-        time_ = await cg.get_variable(config[CONF_TIME_ID])
-        cg.add(var.set_time(time_))
+        await cg.add_variable(var.set_time, config[CONF_TIME_ID])
 
     return var
 

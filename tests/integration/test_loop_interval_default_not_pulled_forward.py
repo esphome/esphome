@@ -21,7 +21,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -43,14 +45,11 @@ async def test_loop_interval_default_not_pulled_forward(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "loop-default-not-pulled"
+        await assert_device_name(client, "loop-default-not-pulled")
 
-        try:
-            loop_delta = await asyncio.wait_for(measurement_done, timeout=10.0)
-        except TimeoutError:
-            pytest.fail("MEASUREMENT_DONE marker never appeared")
+        loop_delta = await wait_or_fail(
+            measurement_done, 10.0, "MEASUREMENT_DONE marker never appeared"
+        )
 
         # Observation window = 2s, loop_interval_ default = 16ms → ~62 Hz →
         # ~125 component-phase iterations expected.

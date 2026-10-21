@@ -162,13 +162,13 @@ void APDS9960::read_color_data_(uint8_t status) {
     return;
   }
 
-  uint8_t raw[8];
-  APDS9960_WARNING_CHECK(this->read_bytes(0x94, raw, 8), "Reading color values failed.");
+  uint16_t raw[4];
+  APDS9960_WARNING_CHECK(this->read_bytes_16_le(0x94, raw, 4), "Reading color values failed.");
 
-  uint16_t uint_clear = (uint16_t(raw[1]) << 8) | raw[0];
-  uint16_t uint_red = (uint16_t(raw[3]) << 8) | raw[2];
-  uint16_t uint_green = (uint16_t(raw[5]) << 8) | raw[4];
-  uint16_t uint_blue = (uint16_t(raw[7]) << 8) | raw[6];
+  uint16_t uint_clear = raw[0];
+  uint16_t uint_red = raw[1];
+  uint16_t uint_green = raw[2];
+  uint16_t uint_blue = raw[3];
 
   float clear_perc = (uint_clear / float(UINT16_MAX)) * 100.0f;
   float red_perc = (uint_red / float(UINT16_MAX)) * 100.0f;
