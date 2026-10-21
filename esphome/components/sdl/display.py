@@ -157,8 +157,7 @@ async def to_code(config: ConfigType) -> None:
     await display.register_display(var, config)
     await register_snapshot(var, config)
     cg.add(var.set_headless(config[CONF_HEADLESS]))
-    if (key := config.get(CONF_SNAPSHOT_KEY)) is not None:
-        cg.add(var.set_snapshot_key(key))
+    cg.add_optional(var.set_snapshot_key, config.get(CONF_SNAPSHOT_KEY))
 
     dimensions = config[CONF_DIMENSIONS]
     if isinstance(dimensions, dict):

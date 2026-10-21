@@ -1026,8 +1026,7 @@ async def to_code(config: ConfigType) -> None:
         else:
             cg.add(var.set_default_preset(default_preset_name))
 
-    if CONF_ON_BOOT_RESTORE_FROM in config:
-        cg.add(var.set_on_boot_restore_from(config[CONF_ON_BOOT_RESTORE_FROM]))
+    cg.add_optional(var.set_on_boot_restore_from, config.get(CONF_ON_BOOT_RESTORE_FROM))
 
     if CONF_PRESET_CHANGE in config:
         await automation.build_automation(
