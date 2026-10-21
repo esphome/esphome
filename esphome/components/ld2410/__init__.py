@@ -72,9 +72,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    await uart.new_uart_component(config)
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(

@@ -73,10 +73,8 @@ void TSL2591Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TSL2591:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "  Name: %s", this->name_);
   TSL2591ComponentGain raw_gain = this->component_gain_;
