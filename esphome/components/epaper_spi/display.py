@@ -42,7 +42,11 @@ from esphome.const import (
 )
 from esphome.cpp_generator import RawExpression
 
-from . import models
+from . import (  # pylint: disable=unused-import
+    FILTER_SOURCE_FILES,  # noqa: F401
+    models,
+    register_sources,
+)
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
@@ -219,6 +223,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     model = MODELS[config[CONF_MODEL]]
+    register_sources(model.source_files)
 
     init_sequence = config.get(CONF_INIT_SEQUENCE)
     if init_sequence is None:
