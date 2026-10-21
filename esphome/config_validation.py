@@ -1033,10 +1033,10 @@ def _quote_value(value: typing.Any) -> str:
 
 def _key_constraint(
     record: dict[str, typing.Any],
-    passes: typing.Callable[[dict], bool],
-    message: typing.Callable[[dict], str],
+    passes: Callable[[dict], bool],
+    message: Callable[[dict], str],
     hint: str | None,
-):
+) -> Callable[[typing.Any], typing.Any]:
     """Reject each of ``record["keys"]`` that is set when *passes* fails.
 
     The schema dump appends *record* to the schema's ``constraints`` list.
@@ -1044,7 +1044,7 @@ def _key_constraint(
     suffix = f". {hint}" if hint else ""
 
     @schema_extractor("key_constraint")
-    def validate(obj):
+    def validate(obj: typing.Any) -> typing.Any:
         if obj is SCHEMA_EXTRACT:
             return copy.deepcopy(record)
         if not isinstance(obj, dict):
@@ -1069,7 +1069,7 @@ def only_when(
     *,
     negate: bool = False,
     hint: str | None = None,
-):
+) -> Callable[[typing.Any], typing.Any]:
     """Allow *keys* only when *selector* is one of *values* (none of them with *negate*).
 
     Place it after the schema in ``cv.All`` so the selector's default counts. *hint* is
@@ -1108,7 +1108,7 @@ def key_requires(
     *required: str,
     any_of: bool = False,
     hint: str | None = None,
-):
+) -> Callable[[typing.Any], typing.Any]:
     """Allow *keys* only when all of *required* are set (any one of them with *any_of*).
 
     Place it after the schema in ``cv.All``. *hint* is added to the error.
