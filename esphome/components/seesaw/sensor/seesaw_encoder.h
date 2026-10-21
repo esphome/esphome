@@ -6,19 +6,17 @@
 
 namespace esphome::seesaw {
 
-class SeesawEncoder : public sensor::Sensor, public Component {
+class SeesawEncoder : public sensor::Sensor, public Component, public Parented<Seesaw> {
  public:
   explicit SeesawEncoder(uint8_t number) : number_(number) {}
 
   void setup() override;
   void loop() override;
 
-  void set_parent(Seesaw *parent) { parent_ = parent; }
   void set_min_value(int32_t min_value) { this->min_value_ = min_value; }
   void set_max_value(int32_t max_value) { this->max_value_ = max_value; }
 
  protected:
-  Seesaw *parent_;
   const uint8_t number_;
   int32_t value_{0};
   int32_t min_value_{INT32_MIN};

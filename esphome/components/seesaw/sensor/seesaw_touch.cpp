@@ -3,7 +3,7 @@
 
 namespace esphome::seesaw {
 
-static const char *const TAG = "seesaw.touch";
+ESPHOME_LOG_TAG(TAG, "seesaw.touch");
 
 void SeesawTouch::setup() { ESP_LOGCONFIG(TAG, "Setting up Seesaw touch sensor..."); }
 

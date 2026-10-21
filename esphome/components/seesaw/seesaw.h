@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome::seesaw {
@@ -116,7 +117,7 @@ class Seesaw : public i2c::I2CDevice, public Component {
   uint32_t options_;
 };
 
-class SeesawGPIOPin : public GPIOPin {
+class SeesawGPIOPin : public GPIOPin, public Parented<Seesaw> {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
@@ -124,14 +125,12 @@ class SeesawGPIOPin : public GPIOPin {
   void digital_write(bool value) override;
   size_t dump_summary(char *buffer, size_t len) const override;
 
-  void set_parent(Seesaw *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
   gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
-  Seesaw *parent_;
   uint8_t pin_;
   bool inverted_;
   gpio::Flags flags_;

@@ -3,7 +3,7 @@
 
 namespace esphome::seesaw {
 
-static const char *const TAG = "seesaw.encoder";
+ESPHOME_LOG_TAG(TAG, "seesaw.encoder");
 
 void SeesawEncoder::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Seesaw rotary encoder...");

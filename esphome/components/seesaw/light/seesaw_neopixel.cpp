@@ -3,7 +3,7 @@
 
 namespace esphome::seesaw {
 
-static const char *const TAG = "seesaw.neopixel";
+ESPHOME_LOG_TAG(TAG, "seesaw.neopixel");
 
 void SeesawNeopixel::setup() { this->parent_->setup_neopixel(this->pin_, this->num_leds_); }
 
@@ -30,8 +30,9 @@ light::LightTraits SeesawNeopixel::get_traits() {
 }
 
 void SeesawNeopixel::write_state(light::LightState *state) {
+  this->mark_shown_();
   for (int32_t i = 0; i < this->size(); i++) {
-    auto view = get_view_internal(i);
+    auto view = this->get_view_internal(i);
     this->parent_->color_neopixel(i, view.get_red(), view.get_green(), view.get_blue());
   }
   this->parent_->update_neopixel();

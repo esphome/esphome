@@ -49,7 +49,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         .extend(
             {
                 cv.GenerateID(CONF_SEESAW_ID): cv.use_id(Seesaw),
-                cv.Required(CONF_PIN): cv.int_,
+                cv.Required(CONF_PIN): cv.int_range(min=0, max=31),
             }
         )
         .extend(cv.polling_component_schema("60s")),
@@ -63,7 +63,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         .extend(
             {
                 cv.GenerateID(CONF_SEESAW_ID): cv.use_id(Seesaw),
-                cv.Optional(CONF_NUMBER, default=0): cv.int_,
+                cv.Optional(CONF_NUMBER, default=0): cv.int_range(min=0, max=255),
                 cv.Optional(CONF_MIN_VALUE): cv.int_,
                 cv.Optional(CONF_MAX_VALUE): cv.int_,
             }
@@ -91,7 +91,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         .extend(
             {
                 cv.GenerateID(CONF_SEESAW_ID): cv.use_id(Seesaw),
-                cv.Required(CONF_CHANNEL): cv.int_,
+                cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=255),
             }
         )
         .extend(cv.polling_component_schema("60s")),

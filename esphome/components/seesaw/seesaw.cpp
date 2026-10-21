@@ -1,11 +1,13 @@
 #include "seesaw.h"
+
+#include <cinttypes>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::seesaw {
 
-static const char *const TAG = "seesaw";
+ESPHOME_LOG_TAG(TAG, "seesaw");
 
 const uint8_t SEESAW_HW_ID_SAMD09 = 0x55;
 const uint8_t SEESAW_HW_ID_TINY806 = 0x84;
@@ -72,7 +74,7 @@ void Seesaw::dump_config() {
   uint32_t v = this->version_;
   ESP_LOGCONFIG(TAG, "  Version: 20%02d-%02d-%02d %u", (uint8_t) (v & 0x3f), (uint8_t) ((v >> 7) & 0xf),
                 (uint8_t) ((v >> 11) & 0x1f), (uint16_t) (v >> 16));
-  ESP_LOGCONFIG(TAG, "  Options: %08lx", this->options_);
+  ESP_LOGCONFIG(TAG, "  Options: %08" PRIx32, this->options_);
 }
 
 void Seesaw::enable_encoder(uint8_t number) { this->write8_(SEESAW_ENCODER, SEESAW_ENCODER_INTENSET + number, 0x01); }
