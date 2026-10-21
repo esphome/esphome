@@ -5,13 +5,17 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_OUTPUT, CONF_PULLDOWN, CONF_PULLUP
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@ssieb"]
+DEPENDENCIES = ["i2c"]
 DOMAIN = "seesaw"
 MULTI_CONF = True
 
 seesaw_ns = cg.esphome_ns.namespace("seesaw")
 Seesaw = seesaw_ns.class_("Seesaw", i2c.I2CDevice, cg.Component)
-SeesawGPIOPin = seesaw_ns.class_("SeesawGPIOPin", cg.GPIOPin)
+SeesawGPIOPin = seesaw_ns.class_(
+    "SeesawGPIOPin", cg.GPIOPin, cg.Parented.template(Seesaw)
+)
 
 CONF_SEESAW = "seesaw"
 CONF_SEESAW_ID = "seesaw_id"

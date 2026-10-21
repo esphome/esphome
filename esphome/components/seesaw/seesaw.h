@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome::seesaw {
@@ -26,6 +27,7 @@ enum : uint8_t {
 enum : uint8_t {
   SEESAW_ENCODER_INTENSET = 0x10,
   SEESAW_ENCODER_POSITION = 0x30,
+  SEESAW_ENCODER_DELTA = 0x40,
 };
 
 enum : uint8_t {
@@ -62,23 +64,29 @@ class Seesaw : public i2c::I2CDevice, public Component {
   float get_setup_priority() const override;
 
   void enable_encoder(uint8_t number);
-  bool get_encoder_position(uint8_t number, int32_t *position);
-  void set_encoder_position(uint8_t number, int32_t position);
-  int16_t get_touch_value(uint8_t channel);
-  float get_temperature();
-  void set_pinmode(uint8_t pin, gpio::Flags mode);
-  uint16_t analog_read(uint8_t pin);
+  bool get_encoder_position(uint8_t number, int32_t &position);
+  bool get_encoder_delta(uint8_t number, int32_t &delta);
+  bool get_touch_value(uint8_t channel, uint16_t &value);
+  bool get_temperature(float &value);
+  bool analog_read(uint8_t pin, uint16_t &value);
+  // GPIO expander interface, used by SeesawGPIOPin
+  void pin_mode(uint8_t pin, gpio::Flags flags);
   bool digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool state);
-  void setup_neopixel(int pin, uint16_t num_leds);
-  void color_neopixel(uint16_t n, uint8_t r, uint8_t g, uint8_t b);
-  void update_neopixel();
+  void setup_neopixel(uint8_t pin, uint16_t num_leds);
+  /// Send the pixel bytes, already in the strip's GRB order, and show them.
+  void show_neopixel(const uint8_t *data, uint16_t len);
 
  protected:
-  i2c::ErrorCode write8_(SeesawModule mod, uint8_t reg, uint8_t value);
-  i2c::ErrorCode write16_(SeesawModule mod, uint8_t reg, uint16_t value);
-  i2c::ErrorCode write32_(SeesawModule mod, uint8_t reg, uint32_t value);
-  i2c::ErrorCode readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, int wait_us = 250);
+  i2c::ErrorCode write_(SeesawModule mod, uint8_t reg, const uint8_t *data = nullptr, size_t len = 0) {
+    return this->write_register16(encode_uint16(mod, reg), data, len);
+  }
+  template<typename T> i2c::ErrorCode write_value_(SeesawModule mod, uint8_t reg, T value) {
+    const auto bytes = decode_value(value);
+    return this->write_(mod, reg, bytes.data(), bytes.size());
+  }
+  // The chip needs time between the register write and the read
+  bool readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, uint32_t wait_us = 250);
 
   uint32_t version_{0};
   uint32_t options_{0};
@@ -90,23 +98,16 @@ class Seesaw : public i2c::I2CDevice, public Component {
   bool gpio_read_valid_{false};
 };
 
-class SeesawGPIOPin : public GPIOPin, public Parented<Seesaw> {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
+using SeesawGPIOPin = gpio_expander::ExpanderGPIOPin<Seesaw>;
 
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  uint8_t pin_{0};
-  bool inverted_{false};
-  gpio::Flags flags_{gpio::FLAG_NONE};
-};
+/// For a child's setup(): marks the child failed when the hub failed, so it stops using the bus.
+inline bool seesaw_hub_failed(Component *child, const Seesaw *hub) {
+  if (!hub->is_failed())
+    return false;
+  child->mark_failed(LOG_STR("Seesaw hub failed"));
+  return true;
+}
 
 }  // namespace esphome::seesaw
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::seesaw::Seesaw);

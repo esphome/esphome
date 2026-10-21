@@ -12,16 +12,15 @@ ESPHOME_LOG_TAG(TAG, "seesaw.encoder");
 static constexpr uint32_t POLL_INTERVAL_MS = 50;
 
 void SeesawEncoder::setup() {
-  if (this->parent_->is_failed()) {
-    this->mark_failed(LOG_STR("Seesaw hub failed"));
+  if (seesaw_hub_failed(this, this->parent_))
     return;
-  }
   this->parent_->enable_encoder(this->number_);
+  // Clear the delta first, so the position read after it is the base for every later delta
+  int32_t delta;
+  this->parent_->get_encoder_delta(this->number_, delta);
   int32_t position = 0;
-  this->parent_->get_encoder_position(this->number_, &position);
+  this->parent_->get_encoder_position(this->number_, position);
   this->value_ = std::clamp(position, this->min_value_, this->max_value_);
-  if (this->value_ != position)
-    this->parent_->set_encoder_position(this->number_, this->value_);
   this->publish_state(this->value_);
 }
 
@@ -30,13 +29,12 @@ void SeesawEncoder::loop() {
   if (now - this->last_poll_ < POLL_INTERVAL_MS)
     return;
   this->last_poll_ = now;
-  int32_t position;
-  if (!this->parent_->get_encoder_position(this->number_, &position))
+  int32_t delta;
+  if (!this->parent_->get_encoder_delta(this->number_, delta) || delta == 0)
     return;
-  const int32_t value = std::clamp(position, this->min_value_, this->max_value_);
-  // The device keeps counting past a limit; moving it back avoids a dead zone when turning back
-  if (value != position)
-    this->parent_->set_encoder_position(this->number_, value);
+  // Clamping the running value, not the chip's position, means turning back from a limit moves at once
+  const int32_t value =
+      static_cast<int32_t>(std::clamp<int64_t>(int64_t(this->value_) + delta, this->min_value_, this->max_value_));
   if (value == this->value_)
     return;
   this->value_ = value;
