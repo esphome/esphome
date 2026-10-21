@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
+import ssl
 import threading
 import time
 from unittest.mock import MagicMock, call, patch
@@ -13,15 +15,21 @@ from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.reasoncodes import ReasonCode
 import pytest
 
+from esphome.components.const import CONF_VERIFY_SSL
+from esphome.components.mqtt import CONF_TLS
 from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
+    CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_ESPHOME,
     CONF_MQTT,
     CONF_NAME,
     CONF_PAYLOAD,
     CONF_PORT,
     CONF_RETAIN,
+    CONF_SKIP_CERT_CN_CHECK,
     CONF_TOPIC,
 )
 from esphome.core import EsphomeError
@@ -499,6 +507,9 @@ def test_prepare_follows_the_firmware_transport(
         config[CONF_MQTT]["transport"] = transport
     if ws_path is not None:
         config[CONF_MQTT]["ws_path"] = ws_path
+    if expect_tls:
+        # Validation switches tls on for wss
+        config[CONF_MQTT][CONF_TLS] = True
     client = mock_client_class.return_value
 
     assert prepare(config, [], None, None, None, None, None) is client
@@ -592,3 +603,85 @@ def test_show_discover_broadcasts_on_connect_and_prints_answers(
     mock_print.assert_not_called()
     on_message(client, None, MagicMock(payload=b"test-device 10.0.0.5"))
     assert mock_print.call_args.args[0].endswith(" test-device 10.0.0.5")
+
+
+def _mqtt_config(options: dict | None = None) -> dict:
+    return {
+        CONF_MQTT: {CONF_BROKER: "broker.local", CONF_PORT: 8883, **(options or {})}
+    }
+
+
+def _prepare_with_mocks(config: dict) -> tuple[MagicMock, MagicMock, MagicMock]:
+    """Runs prepare() against a mocked paho client and SSL context factory."""
+    with (
+        patch("esphome.mqtt.mqtt.Client") as client_cls,
+        patch("esphome.mqtt.ssl.create_default_context") as create_context,
+    ):
+        client = client_cls.return_value
+        context = create_context.return_value
+        # A real context verifies hostnames unless prepare() turns that off
+        context.check_hostname = True
+        prepare(config, [], None, None, None, None, None)
+    return client, create_context, context
+
+
+def test_prepare_without_tls_connects_in_plaintext() -> None:
+    client, create_context, _ = _prepare_with_mocks(_mqtt_config({CONF_PORT: 1883}))
+
+    create_context.assert_not_called()
+    client.tls_set_context.assert_not_called()
+    client.connect.assert_called_once_with("broker.local", 1883)
+
+
+def test_prepare_tls_without_ca_uses_system_trust_store() -> None:
+    client, create_context, context = _prepare_with_mocks(
+        _mqtt_config({CONF_TLS: True})
+    )
+
+    create_context.assert_called_once_with(cadata=None)
+    assert context.check_hostname is True
+    client.tls_set_context.assert_called_once_with(context)
+
+
+def test_prepare_tls_with_ca_and_skip_cn_check() -> None:
+    client, create_context, context = _prepare_with_mocks(
+        _mqtt_config(
+            {
+                CONF_TLS: True,
+                CONF_CERTIFICATE_AUTHORITY: "---cert---",
+                CONF_SKIP_CERT_CN_CHECK: True,
+            }
+        )
+    )
+
+    create_context.assert_called_once_with(cadata="---cert---")
+    assert context.check_hostname is False
+    client.tls_set_context.assert_called_once_with(context)
+
+
+def test_prepare_verify_ssl_false_disables_verification() -> None:
+    client, create_context, context = _prepare_with_mocks(
+        _mqtt_config({CONF_TLS: True, CONF_VERIFY_SSL: False})
+    )
+
+    create_context.assert_called_once_with()
+    assert context.check_hostname is False
+    assert context.verify_mode == ssl.CERT_NONE
+    client.tls_set_context.assert_called_once_with(context)
+
+
+def test_prepare_loads_client_certificate() -> None:
+    _, _, context = _prepare_with_mocks(
+        _mqtt_config(
+            {
+                CONF_TLS: True,
+                CONF_CLIENT_CERTIFICATE: "---client cert---",
+                CONF_CLIENT_CERTIFICATE_KEY: "---client key---",
+            }
+        )
+    )
+
+    context.load_cert_chain.assert_called_once()
+    cert_file, key_file = context.load_cert_chain.call_args.args
+    assert not Path(cert_file).exists()
+    assert not Path(key_file).exists()
