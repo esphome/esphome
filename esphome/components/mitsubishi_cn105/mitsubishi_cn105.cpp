@@ -30,6 +30,11 @@ static constexpr uint8_t STATUS_MSG_HEATPUMP = 0x06;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_REQUEST = 0x41;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_RESPONSE = 0x61;
 
+// Max time to distrust a "running" 0x06 report after a mode/power change.
+static constexpr uint32_t OPERATING_SETTLE_MS = 90000;
+// Faster 0x06 polling while settling, so the real state is picked up promptly.
+static constexpr uint32_t OPERATING_SETTLE_POLL_MS = 10000;
+
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - sum_bytes(bytes, length));
 }
@@ -219,12 +224,13 @@ bool MitsubishiCN105::should_request_heatpump_() const {
   if (!this->is_heatpump_polling_enabled()) {
     return false;
   }
-
   if (!this->last_heatpump_request_ms_.has_value()) {
     return true;
   }
-
-  return (get_loop_time_ms() - *this->last_heatpump_request_ms_) >= this->heatpump_request_min_interval_ms_;
+  const uint32_t interval = this->operating_settle_start_ms_.has_value()
+                                ? std::min(OPERATING_SETTLE_POLL_MS, this->heatpump_request_min_interval_ms_)
+                                : this->heatpump_request_min_interval_ms_;
+  return (get_loop_time_ms() - *this->last_heatpump_request_ms_) >= interval;
 }
 
 void MitsubishiCN105::send_packet_(std::span<const uint8_t> packet) {
@@ -271,9 +277,10 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 
   // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
   // Catches mode/power changes made outside ESPHome (IR remote, Mitsubishi app); setters handle local changes.
-  if (previous.mode != this->status_.mode || previous.power_on != this->status_.power_on ||
-      previous.target_temperature != this->status_.target_temperature) {
+  if (previous.mode != this->status_.mode || previous.power_on != this->status_.power_on) {
     this->invalidate_operating_();
+  } else if (previous.target_temperature != this->status_.target_temperature) {
+    this->refresh_operating_();
   }
 
   if (msg_type == this->current_status_msg_type_) {
@@ -311,13 +318,25 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
       this->last_telemetry_update_ms_ = get_loop_time_ms();
       return true;
 
-    case STATUS_MSG_HEATPUMP:
+    case STATUS_MSG_HEATPUMP: {
       if (len <= 3) {
         ESP_LOGVV(TAG, "RX 0x06 payload too short");
         return false;
       }
-      this->status_.operating = payload[3] != 0;
-      if (!*this->status_.operating || this->status_.mode != Mode::AUTO) {
+      const uint32_t now = get_loop_time_ms();
+      bool running = payload[3] != 0;
+      if (this->operating_settle_start_ms_.has_value()) {
+        if (!running || (now - *this->operating_settle_start_ms_) >= OPERATING_SETTLE_MS) {
+          // Compressor observed stopped (previous run is over) or settle window expired: trust reports again.
+          this->operating_settle_start_ms_.reset();
+        } else {
+          // Likely still spinning down from the previous mode; don't attribute it to the new one.
+          ESP_LOGV(TAG, "Ignoring 'running' 0x06 report while settling after mode/power change");
+          running = false;
+        }
+      }
+      this->status_.operating = running;
+      if (!running || this->status_.mode != Mode::AUTO) {
         this->status_.auto_direction.reset();
       } else if (!this->status_.auto_direction.has_value() && !std::isnan(this->status_.room_temperature) &&
                  !std::isnan(this->status_.target_temperature)) {
@@ -325,8 +344,9 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
                                            ? AutoDirection::COOL
                                            : AutoDirection::HEAT;
       }
-      this->last_heatpump_request_ms_ = get_loop_time_ms();
+      this->last_heatpump_request_ms_ = now;
       return true;
+    }
 
     default:
       ESP_LOGVV(TAG, "RX unsupported status msg type 0x%02X", msg_type);
@@ -372,7 +392,7 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
   this->status_.target_temperature = target_temperature;
   this->pending_updates_.set(Property::Temperature::Target::ID);
   if (old_target != this->status_.target_temperature) {
-    this->invalidate_operating_();
+    this->refresh_operating_();
   }
 }
 
@@ -520,10 +540,18 @@ void MitsubishiCN105::FrameParser::dump_buffer_vv(const char *prefix, const uint
 }
 
 // Compressor state reported under the previous mode/power is meaningless for the new one.
-// Clear it and the poll timestamp so a fresh 0x06 is requested on the next status cycle.
+// Clear it, start the settle latch, and clear the poll timestamp so a fresh 0x06 is requested.
 void MitsubishiCN105::invalidate_operating_() {
   this->status_.operating.reset();
   this->status_.auto_direction.reset();
+  this->operating_settle_start_ms_ = get_loop_time_ms();
+  this->last_heatpump_request_ms_.reset();
+}
+
+// Setpoint change: the current mode's compressor state is still valid, so keep showing it and keep
+// auto_direction (the direction of an in-progress AUTO run doesn't flip mid-run). Just request a fresh
+// 0x06 so the action catches up quickly. An in-progress settle window is left untouched.
+void MitsubishiCN105::refresh_operating_() {
   this->last_heatpump_request_ms_.reset();
 }
 
