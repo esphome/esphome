@@ -8,7 +8,6 @@ Tests:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import BinarySensorInfo, BinarySensorState, ButtonInfo, EntityState
 import pytest
@@ -27,13 +26,6 @@ async def test_uart_mock_ld2450_has_target_only(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test has_target with no sensor platform and no presence_timeout number."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     async with (
         run_compiled(yaml_config),
         api_client_connected() as client,

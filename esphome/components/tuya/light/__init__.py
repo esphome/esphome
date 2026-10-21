@@ -30,11 +30,7 @@ CONF_COLOR_TYPE_LOWERCASE = "color_type_lowercase"
 
 TuyaColorType = tuya_ns.enum("TuyaColorType")
 
-COLOR_TYPES = {
-    "RGB": TuyaColorType.RGB,
-    "HSV": TuyaColorType.HSV,
-    "RGBHSV": TuyaColorType.RGBHSV,
-}
+COLOR_TYPES = TuyaColorType.options("RGB", "HSV", "RGBHSV")
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)
 
@@ -84,12 +80,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     await light.register_light(var, config)
 
-    if CONF_DIMMER_DATAPOINT in config:
-        cg.add(var.set_dimmer_id(config[CONF_DIMMER_DATAPOINT]))
+    cg.add_optional(var.set_dimmer_id, config.get(CONF_DIMMER_DATAPOINT))
     if CONF_MIN_VALUE_DATAPOINT in config:
         cg.add(var.set_min_value_datapoint_id(config[CONF_MIN_VALUE_DATAPOINT]))
-    if CONF_SWITCH_DATAPOINT in config:
-        cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
+    cg.add_optional(var.set_switch_id, config.get(CONF_SWITCH_DATAPOINT))
     if CONF_COLOR_DATAPOINT in config:
         cg.add(var.set_color_id(config[CONF_COLOR_DATAPOINT]))
         cg.add(var.set_color_type(config[CONF_COLOR_TYPE]))
@@ -104,10 +98,8 @@ async def to_code(config):
         cg.add(
             var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE])
         )
-    if CONF_MIN_VALUE in config:
-        cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
-    if CONF_MAX_VALUE in config:
-        cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
+    cg.add_optional(var.set_min_value, config.get(CONF_MIN_VALUE))
+    cg.add_optional(var.set_max_value, config.get(CONF_MAX_VALUE))
     if CONF_COLOR_TEMPERATURE_MAX_VALUE in config:
         cg.add(
             var.set_color_temperature_max_value(
@@ -116,5 +108,4 @@ async def to_code(config):
         )
 
     cg.add(var.set_color_interlock(config[CONF_COLOR_INTERLOCK]))
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])

@@ -3,7 +3,6 @@ import math
 from typing import Any
 
 from esphome import automation, preferences
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLED, CONF_USE_PSRAM
 from esphome.components.esp32 import (
@@ -194,11 +193,9 @@ WiFiComponent = wifi_ns.class_("WiFiComponent", cg.Component)
 WiFiAP = wifi_ns.struct("WiFiAP")
 
 WiFiPowerSaveMode = wifi_ns.enum("WiFiPowerSaveMode")
-WIFI_POWER_SAVE_MODES = {
-    "NONE": WiFiPowerSaveMode.WIFI_POWER_SAVE_NONE,
-    "LIGHT": WiFiPowerSaveMode.WIFI_POWER_SAVE_LIGHT,
-    "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
-}
+WIFI_POWER_SAVE_MODES = WiFiPowerSaveMode.options(
+    "NONE", "LIGHT", "HIGH", prefix="WIFI_POWER_SAVE_"
+)
 
 WiFiBandMode = cg.global_ns.enum("wifi_band_mode_t")
 WIFI_BAND_MODES = {
@@ -208,20 +205,15 @@ WIFI_BAND_MODES = {
 }
 
 WifiMinAuthMode = wifi_ns.enum("WifiMinAuthMode")
-WIFI_MIN_AUTH_MODES = {
-    "WPA": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA,
-    "WPA2": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA2,
-    "WPA3": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA3,
-}
+WIFI_MIN_AUTH_MODES = WifiMinAuthMode.options(
+    "WPA", "WPA2", "WPA3", prefix="WIFI_MIN_AUTH_MODE_"
+)
 VALIDATE_WIFI_MIN_AUTH_MODE = cv.enum(WIFI_MIN_AUTH_MODES, upper=True)
 
 WiFi8266PhyMode = wifi_ns.enum("WiFi8266PhyMode")
-WIFI_8266_PHY_MODES = {
-    "AUTO": WiFi8266PhyMode.WIFI_8266_PHY_MODE_AUTO,
-    "11B": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11B,
-    "11G": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11G,
-    "11N": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11N,
-}
+WIFI_8266_PHY_MODES = WiFi8266PhyMode.options(
+    "AUTO", "11B", "11G", "11N", prefix="WIFI_8266_PHY_MODE_"
+)
 
 WIFI_AP_MODE_FALLBACK = "FALLBACK"
 WIFI_AP_MODE_WISP = "WISP"
@@ -248,12 +240,6 @@ def _validate_dns_servers(value: list) -> list:
     return value
 
 
-WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
-WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
-WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
-WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
-WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
-WiFiRoamAction = wifi_ns.class_("WiFiRoamAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
     "WiFiConfigureAction", automation.Action, cg.Component
 )
@@ -457,8 +443,6 @@ def final_validate(config):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create, or configure DPP (Easy Connect)."
         )
-    if CONF_ON_DPP_URI in config and not has_dpp:
-        raise cv.Invalid(f"'{CONF_ON_DPP_URI}' requires '{CONF_DPP}'")
 
     ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
     if ap_is_wisp:
@@ -522,10 +506,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-def _validate(config):
-    if CONF_PASSWORD in config and CONF_SSID not in config:
-        raise cv.Invalid("Cannot have WiFi password without SSID!")
-
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_SSID in config:
         # Automatically move single network to 'networks' section
         config = config.copy()
@@ -534,6 +515,8 @@ def _validate(config):
             network[CONF_PASSWORD] = config.pop(CONF_PASSWORD)
         if CONF_EAP in config:
             network[CONF_EAP] = config.pop(CONF_EAP)
+        if CONF_HIDDEN in config:
+            network[CONF_HIDDEN] = config.pop(CONF_HIDDEN)
         if CONF_NETWORKS in config:
             # In testing mode, merged component tests may have both ssid and networks
             # Just use the networks list and ignore the single ssid
@@ -650,6 +633,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
             cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
+            cv.Optional(CONF_HIDDEN): cv.boolean,
             cv.Optional(
                 CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
             ): STA_MANUAL_IP_SCHEMA,
@@ -708,6 +692,13 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
+    cv.key_requires(CONF_PASSWORD, CONF_SSID),
+    cv.key_requires(
+        CONF_HIDDEN,
+        CONF_SSID,
+        hint="With 'networks', put 'hidden' inside the network entry",
+    ),
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
@@ -756,19 +747,15 @@ def manual_ip(config):
 
 
 def wifi_network(config, ap, static_ip):
-    if CONF_SSID in config:
-        cg.add(ap.set_ssid(config[CONF_SSID]))
-    if CONF_PASSWORD in config:
-        cg.add(ap.set_password(config[CONF_PASSWORD]))
+    cg.add_optional(ap.set_ssid, config.get(CONF_SSID))
+    cg.add_optional(ap.set_password, config.get(CONF_PASSWORD))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
     if CONF_BSSID in config:
         cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
-    if CONF_HIDDEN in config:
-        cg.add(ap.set_hidden(config[CONF_HIDDEN]))
-    if CONF_CHANNEL in config:
-        cg.add(ap.set_channel(config[CONF_CHANNEL]))
+    cg.add_optional(ap.set_hidden, config.get(CONF_HIDDEN))
+    cg.add_optional(ap.set_channel, config.get(CONF_CHANNEL))
     if static_ip is not None:
         cg.add(ap.set_manual_ip(manual_ip(static_ip)))
     # priority_ is 0 in C++; skip the setter when the config matches it.
@@ -957,8 +944,7 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
-        if CONF_BAND_MODE in config:
-            cg.add(var.set_band_mode(config[CONF_BAND_MODE]))
+        cg.add_optional(var.set_band_mode, config.get(CONF_BAND_MODE))
 
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
@@ -1040,49 +1026,27 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
-automation.register_bare_condition(
-    "wifi.connected",
-    WiFiConnectedCondition,
-    cv.Schema({}),
+WIFI_AUTOMATION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(WiFiComponent),
+    }
 )
 
+for _name, _check in (
+    ("wifi.connected", "is_connected()"),
+    ("wifi.enabled", "is_disabled() == false"),
+    ("wifi.ap_active", "is_ap_active()"),
+):
+    automation.register_apply_condition(_name, WIFI_AUTOMATION_SCHEMA, _check)
 
-automation.register_bare_condition(
-    "wifi.enabled",
-    WiFiEnabledCondition,
-    cv.Schema({}),
-)
-
-
-automation.register_bare_condition(
-    "wifi.ap_active",
-    WiFiAPActiveCondition,
-    cv.Schema({}),
-)
-
-
-automation.register_bare_action(
-    "wifi.enable",
-    WiFiEnableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
-
-
-automation.register_bare_action(
-    "wifi.disable",
-    WiFiDisableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
-
-
-automation.register_bare_action(
-    "wifi.roam",
-    WiFiRoamAction,
-    cv.Schema({}),
-    synchronous=True,
-)
+for _name, _call in (
+    ("wifi.enable", "enable()"),
+    ("wifi.disable", "disable()"),
+    ("wifi.roam", "force_roam_check()"),
+):
+    automation.register_apply_action(
+        _name, WIFI_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"

@@ -16,6 +16,7 @@ from ipaddress import (
     ip_network,
 )
 import logging
+import math
 import os
 from pathlib import Path
 import re
@@ -1018,6 +1019,123 @@ def has_none_or_all_keys(*keys):
     return validate
 
 
+def _as_tuple(value: typing.Any) -> tuple:
+    return tuple(value) if isinstance(value, (list, tuple)) else (value,)
+
+
+def _quote_value(value: typing.Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return f"'{value}'"
+
+
+def _key_constraint(
+    record: dict[str, typing.Any],
+    passes: Callable[[dict], bool],
+    message: Callable[[dict], str],
+    hint: str | None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Reject each of ``record["keys"]`` that is set when *passes* fails.
+
+    The schema dump appends *record* to the schema's ``constraints`` list.
+    """
+    suffix = f". {hint}" if hint else ""
+
+    @schema_extractor("key_constraint")
+    def validate(obj: typing.Any) -> typing.Any:
+        if obj is SCHEMA_EXTRACT:
+            return copy.deepcopy(record)
+        if not isinstance(obj, dict):
+            raise Invalid("expected dictionary")
+        if passes(obj):
+            return obj
+        if errors := [
+            Invalid(f"'{key}' {message(obj)}{suffix}", path=[key])
+            for key in record["keys"]
+            if key in obj
+        ]:
+            raise MultipleInvalid(errors)
+        return obj
+
+    return validate
+
+
+def only_when(
+    keys: str | list[str] | tuple[str, ...],
+    selector: str,
+    values: typing.Any,
+    *,
+    negate: bool = False,
+    hint: str | None = None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Allow *keys* only when *selector* is one of *values* (none of them with *negate*).
+
+    Place it after the schema in ``cv.All`` so the selector's default counts. *hint* is
+    added to the error. Prefer ``cv.typed_schema`` when most of the schema depends on
+    the selector.
+    """
+    keys = _as_tuple(keys)
+    values = _as_tuple(values)
+    assert all(isinstance(v, (str, int, float, bool)) for v in values)
+    shown = " or ".join(_quote_value(v) for v in values)
+    message = f"is only valid when '{selector}' is {'not ' if negate else ''}{shown}"
+
+    # The bool tag keeps True from matching 1
+    wanted = [(isinstance(v, bool), v) for v in values]
+
+    def passes(obj: dict) -> bool:
+        actual = obj.get(selector)
+        return ((isinstance(actual, bool), actual) in wanted) != negate
+
+    return _key_constraint(
+        {
+            "type": "only_when",
+            "keys": list(keys),
+            "selector": selector,
+            "values": list(values),
+            "negate": negate,
+        },
+        passes,
+        lambda obj: message,
+        hint,
+    )
+
+
+def key_requires(
+    keys: str | list[str] | tuple[str, ...],
+    *required: str,
+    any_of: bool = False,
+    hint: str | None = None,
+) -> Callable[[typing.Any], typing.Any]:
+    """Allow *keys* only when all of *required* are set (any one of them with *any_of*).
+
+    Place it after the schema in ``cv.All``. *hint* is added to the error.
+    """
+    assert required
+    check = any if any_of else all
+
+    def message(obj: dict) -> str:
+        # Name only the missing keys when all are required
+        if any_of:
+            return f"requires {' or '.join(_quote_value(key) for key in required)}"
+        missing = (_quote_value(key) for key in required if key not in obj)
+        return f"requires {' and '.join(missing)}"
+
+    return _key_constraint(
+        {
+            "type": "key_requires",
+            "keys": list(_as_tuple(keys)),
+            "required": list(required),
+            "any_of": any_of,
+        },
+        lambda obj: check(key in obj for key in required),
+        message,
+        hint,
+    )
+
+
 TIME_PERIOD_ERROR = (
     "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 )
@@ -1416,12 +1534,16 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
         if match is None:
             raise Invalid(f"Expected {quantity} with unit, got {value}")
 
-        mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
             raise Invalid(f"Invalid {quantity} suffix {match.group(2)}")
 
-        multiplier = METRIC_SUFFIXES[match.group(2)]
-        return mantissa * multiplier
+        # Parse the scaled decimal in one go: "91uA" is then the same float as the
+        # literal 91e-6, which a product of two floats is not always.
+        exponent = round(math.log10(METRIC_SUFFIXES[match.group(2)]))
+        try:
+            return float(f"{match.group(1)}e{exponent}")
+        except ValueError as err:
+            raise Invalid(f"Expected {quantity} with unit, got {value}") from err
 
     return validator
 

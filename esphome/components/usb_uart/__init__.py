@@ -54,11 +54,9 @@ UART_PARITY_OPTIONS = {
 }
 
 UARTStopBitsOptions = usb_uart_ns.enum("UARTStopBitsOptions")
-UART_STOP_BITS_OPTIONS = {
-    "1": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_1,
-    "1.5": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_1_5,
-    "2": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_2,
-}
+UART_STOP_BITS_OPTIONS = UARTStopBitsOptions.options(
+    "1", "1.5", "2", prefix="UART_CONFIG_STOP_BITS_"
+)
 
 DEFAULT_BAUD_RATE = 9600
 CONF_CLAIM_COMM_INTERFACE = "claim_comm_interface"

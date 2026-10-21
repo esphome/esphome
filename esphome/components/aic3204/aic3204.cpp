@@ -10,8 +10,7 @@ ESPHOME_LOG_TAG(TAG, "aic3204");
 
 #define ERROR_CHECK(err, msg) \
   if (!(err)) { \
-    ESP_LOGE(TAG, msg); \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR(msg)); \
     return; \
   }
 
@@ -108,10 +107,6 @@ void AIC3204::setup() {
 void AIC3204::dump_config() {
   ESP_LOGCONFIG(TAG, "AIC3204:");
   LOG_I2C_DEVICE(this);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 bool AIC3204::set_mute_off() {

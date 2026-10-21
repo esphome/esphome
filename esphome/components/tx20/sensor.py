@@ -48,5 +48,4 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_WIND_SPEED, var.set_wind_speed_sensor)
     await sensors(CONF_WIND_DIRECTION_DEGREES, var.set_wind_direction_degrees_sensor)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])

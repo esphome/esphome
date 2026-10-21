@@ -16,6 +16,7 @@ import re
 from aioesphomeapi import HomeassistantServiceCall
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -184,9 +185,7 @@ async def test_api_homeassistant(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-ha-api"
+        await assert_device_name(client, "test-ha-api")
 
         # Store client reference for use in service call callback
         client_ref.append(client)
@@ -228,10 +227,7 @@ async def test_api_homeassistant(
         _, services = await client.list_entities_services()
 
         # Find the trigger service
-        trigger_service = next(
-            (s for s in services if s.name == "trigger_all_tests"), None
-        )
-        assert trigger_service is not None, "trigger_all_tests service not found"
+        trigger_service = require_service(services, "trigger_all_tests")
 
         # Execute all tests
         await client.execute_service(trigger_service, {})

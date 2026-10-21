@@ -822,8 +822,6 @@ class WiFiComponent final : public Component {
     return true;
   }
 
-  void connect_soon_();
-
   bool wifi_loop_();
 #ifdef USE_ESP8266
   void process_pending_callbacks_();
