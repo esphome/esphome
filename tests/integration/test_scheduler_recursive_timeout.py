@@ -6,6 +6,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -61,12 +62,12 @@ async def test_scheduler_recursive_timeout(
         await client.execute_service(run_test_service, {})
 
         # Wait for test to complete
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Recursive timeout test timed out. Got sequence: {execution_sequence}"
-            )
+        await wait_or_fail(
+            test_complete_future,
+            10.0,
+            "Recursive timeout test timed out",
+            execution_sequence=execution_sequence,
+        )
 
         # Verify execution sequence
         assert execution_sequence == expected_sequence, (

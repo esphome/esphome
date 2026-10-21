@@ -6,7 +6,7 @@ import aioesphomeapi
 from aioesphomeapi.model import APIIntEnum
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -32,17 +32,12 @@ async def test_template_alarm_control_panel_many_sensors(
         # Get entity info first
         entities, _ = await client.list_entities_services()
 
-        # Find the alarm control panel and binary sensors
-        alarm_info: aioesphomeapi.AlarmControlPanelInfo | None = None
-        binary_sensors: list[aioesphomeapi.BinarySensorInfo] = []
-
-        for entity in entities:
-            if isinstance(entity, aioesphomeapi.AlarmControlPanelInfo):
-                alarm_info = entity
-            elif isinstance(entity, aioesphomeapi.BinarySensorInfo):
-                binary_sensors.append(entity)
-
-        assert alarm_info is not None, "Alarm control panel entity info not found"
+        alarm_info = require_only_entity(entities, aioesphomeapi.AlarmControlPanelInfo)
+        binary_sensors = [
+            entity
+            for entity in entities
+            if isinstance(entity, aioesphomeapi.BinarySensorInfo)
+        ]
         assert alarm_info.name == "Test Alarm"
         assert alarm_info.requires_code is True
         assert alarm_info.requires_code_to_arm is True

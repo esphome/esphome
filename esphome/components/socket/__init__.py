@@ -216,9 +216,13 @@ def consume_role_sockets(
     """Socket accounting for a role keyed client or server schema.
 
     A server holds as many connections as its connections_key says, default 1.
+    Also requires IPv4, since the TCP link and listener helpers are IPv4 only.
     """
 
     def validator(config: ConfigType) -> ConfigType:
+        from esphome.components import network
+
+        network.require_ipv4(component)(config)
         count = 1
         if config[CONF_ROLE] == "server":
             consume_sockets(1, component, SocketType.TCP_LISTEN)(config)

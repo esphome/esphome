@@ -57,10 +57,7 @@ async def test_template_climate_sensor_push(
         publish_humidity = require_entity(entities, "publish_humidity", ButtonInfo)
 
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         initial = initial_state_helper.initial_states.get(test_climate.key)
         assert initial is not None, "No initial climate state received"
