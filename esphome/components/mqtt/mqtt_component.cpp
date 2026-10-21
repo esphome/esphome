@@ -38,6 +38,7 @@ inline char *append_char(char *p, char c) {
 
 // Function implementation of LOG_MQTT_COMPONENT macro to reduce code size
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic) {
+  ESP_LOGCONFIG(tag, "MQTT %s '%s':", obj->component_type(), LOG_STR_ARG(obj->get_entity()->get_log_name()));
   char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   if (state_topic) {
     ESP_LOGCONFIG(tag, "  State Topic: '%s'", obj->get_state_topic_to_(buf).c_str());
@@ -216,11 +217,11 @@ bool MQTTComponent::send_discovery_() {
   StringRef discovery_topic = this->get_discovery_topic_to_(discovery_topic_buf, discovery_info);
 
   if (discovery_info.clean) {
-    ESP_LOGV(TAG, "'%s': Cleaning discovery", this->friendly_name_().c_str());
+    ESP_LOGV(TAG, "'%s': Cleaning discovery", LOG_STR_ARG(this->log_name_()));
     return global_mqtt_client->publish(discovery_topic.c_str(), "", 0, this->qos_, true);
   }
 
-  ESP_LOGV(TAG, "'%s': Sending discovery", this->friendly_name_().c_str());
+  ESP_LOGV(TAG, "'%s': Sending discovery", LOG_STR_ARG(this->log_name_()));
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return global_mqtt_client->publish_json(
@@ -237,7 +238,12 @@ bool MQTTComponent::send_discovery_() {
         }
 
         // Fields from EntityBase
-        root[MQTT_NAME] = this->get_entity()->has_own_name() ? this->friendly_name_() : StringRef();
+        if (this->get_entity()->has_own_name()) {
+          // ArduinoJson copies flash strings into the document itself
+          root[MQTT_NAME] = reinterpret_cast<ProgmemStr>(this->get_entity()->get_name_progmem().progmem_ptr());
+        } else {
+          root[MQTT_NAME] = StringRef();
+        }
 
         if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
@@ -288,8 +294,9 @@ bool MQTTComponent::send_discovery_() {
         size_t sub_device_len = this->write_sub_device_segment_to_(sub_device);
         sub_device[sub_device_len] = '\0';
         if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
+          char name_buf[ENTITY_NAME_BUF_SIZE];
           char friendly_name_hash[9];
-          uint32_t name_hash = fnv1_hash(this->friendly_name_().c_str());
+          uint32_t name_hash = fnv1_hash(this->get_entity()->get_name_to(name_buf).c_str());
           if (sub_device_len > 0) {
             // A NUL between the two, so "power" on "battery" and "powerbattery" on the node hash apart.
             name_hash = fnv1_hash_extend(fnv1_hash_extend(name_hash, uint8_t{0}), sub_device);
@@ -475,7 +482,11 @@ void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
 // Pull these properties from EntityBase if not overridden
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 const StringRef &MQTTComponent::friendly_name_() const { return this->get_entity()->get_name(); }
+#pragma GCC diagnostic pop
+const LogString *MQTTComponent::log_name_() const { return this->get_entity()->get_log_name(); }
 StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
   return this->get_entity()->get_object_id_to(buf);
 }

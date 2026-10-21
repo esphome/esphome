@@ -117,8 +117,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     cg.add(var.set_obstacle_rollback(config[CONF_OBSTACLE_ROLLBACK]))
-    if (max_duration := config.get(CONF_MAX_DURATION)) is not None:
-        cg.add(var.set_max_duration(max_duration))
+    cg.add_optional(var.set_max_duration, config.get(CONF_MAX_DURATION))
     cg.add(var.set_malfunction_detection(config[CONF_MALFUNCTION_DETECTION]))
     if malfunction_action := config.get(CONF_MALFUNCTION_ACTION):
         await automation.build_automation(
