@@ -8,6 +8,7 @@ from aioesphomeapi import EntityState, SwitchInfo, SwitchState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -118,13 +119,12 @@ async def test_areas_and_devices(
         client.subscribe_states(on_state)
 
         # Wait for sensor states
-        try:
-            await asyncio.wait_for(initial_states_future, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Did not receive all states within 10 seconds. "
-                f"Received {len(states)} states"
-            )
+        await wait_or_fail(
+            initial_states_future,
+            10.0,
+            "Did not receive all states within 10 seconds",
+            states=states,
+        )
 
         # Verify we have sensor entities with proper device_id assignments
         device_id_mapping = {

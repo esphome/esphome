@@ -277,8 +277,7 @@ async def menu_item_to_code(menu, config, parent):
     if CONF_ITEMS in config:
         for c in config[CONF_ITEMS]:
             await menu_item_to_code(menu, c, item)
-    if CONF_IMMEDIATE_EDIT in config:
-        cg.add(item.set_immediate_edit(config[CONF_IMMEDIATE_EDIT]))
+    cg.add_optional(item.set_immediate_edit, config.get(CONF_IMMEDIATE_EDIT))
     if config[CONF_TYPE] == CONF_SELECT:
         await cg.add_variable(item.set_select_variable, config[CONF_SELECT])
     if config[CONF_TYPE] == CONF_NUMBER:

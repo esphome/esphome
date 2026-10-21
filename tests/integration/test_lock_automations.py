@@ -7,7 +7,9 @@ import asyncio
 
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -39,20 +41,14 @@ async def test_lock_automations(
 
         # Get entities
         entities = await client.list_entities_services()
-        lock = next(e for e in entities[0] if e.object_id == "test_lock")
+        lock = require_entity(entities[0], "test_lock", exact=True)
 
         # Test 1: Lock - should trigger on_lock
         client.lock_command(key=lock.key, command=LockCommand.LOCK)
 
-        try:
-            await asyncio.wait_for(on_lock_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("on_lock trigger did not fire")
+        await wait_or_fail(on_lock_future, 5.0, "on_lock trigger did not fire")
 
         # Test 2: Unlock - should trigger on_unlock
         client.lock_command(key=lock.key, command=LockCommand.UNLOCK)
 
-        try:
-            await asyncio.wait_for(on_unlock_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("on_unlock trigger did not fire")
+        await wait_or_fail(on_unlock_future, 5.0, "on_unlock trigger did not fire")
