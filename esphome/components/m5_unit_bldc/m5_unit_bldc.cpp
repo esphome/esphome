@@ -158,21 +158,21 @@ void M5UnitBldc::update() {
 }
 
 void M5UnitBldc::dump_config() {
-  ESP_LOGCONFIG(TAG, "M5Unit-BLDC:");
-  LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Control mode: %s",
+  ESP_LOGCONFIG(TAG,
+                "M5Unit-BLDC:\n"
+                "  Control mode: %s\n"
+                "  Direction: %s\n"
+                "  Motor model: %s\n"
+                "  Pole pairs: %u",
                 this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP ? LOG_STR_LITERAL("closed loop")
-                                                                             : LOG_STR_LITERAL("open loop"));
-  ESP_LOGCONFIG(TAG, "  Direction: %s",
+                                                                             : LOG_STR_LITERAL("open loop"),
                 this->initial_direction_ == Direction::DIRECTION_BACKWARD ? LOG_STR_LITERAL("backward")
-                                                                          : LOG_STR_LITERAL("forward"));
-  ESP_LOGCONFIG(TAG, "  Motor model: %s",
+                                                                          : LOG_STR_LITERAL("forward"),
                 this->motor_model_ == MotorModel::MOTOR_MODEL_HIGH_SPEED ? LOG_STR_LITERAL("high speed")
-                                                                         : LOG_STR_LITERAL("low speed"));
-  ESP_LOGCONFIG(TAG, "  Pole pairs: %u", this->pole_pairs_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with M5Unit-BLDC failed");
-  }
+                                                                         : LOG_STR_LITERAL("low speed"),
+                this->pole_pairs_);
+  LOG_I2C_DEVICE(this);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 bool M5UnitBldc::write_pwm_raw_(uint16_t duty) {
@@ -189,21 +189,29 @@ bool M5UnitBldc::read_pwm_raw_(uint16_t *duty) {
   return true;
 }
 
+// Outside a reversal the cache only follows a write the device accepted, so a refused command is not
+// applied later by a direction change
 bool M5UnitBldc::write_pwm(uint16_t duty) {
+  if (this->is_failed())
+    return false;
+  if (!this->direction_change_pending_ && !this->write_pwm_raw_(duty))
+    return false;
   this->last_pwm_ = duty;
-  if (this->direction_change_pending_)
-    return true;
-  return this->write_pwm_raw_(duty);
+  return true;
 }
 
 bool M5UnitBldc::write_target_rpm(float rpm) {
+  if (this->is_failed())
+    return false;
+  if (!this->direction_change_pending_ && !this->write_float_(REG_SET_RPM, rpm))
+    return false;
   this->last_target_rpm_ = rpm;
-  if (this->direction_change_pending_)
-    return true;
-  return this->write_float_(REG_SET_RPM, rpm);
+  return true;
 }
 
 bool M5UnitBldc::write_direction(Direction direction) {
+  if (this->is_failed())
+    return false;
   uint8_t value = static_cast<uint8_t>(direction);
   if (this->write_register(REG_DIRECTION, &value, 1) != i2c::ERROR_OK)
     return false;
@@ -216,25 +224,28 @@ bool M5UnitBldc::write_direction(Direction direction) {
   // still-pending restore instead of stacking. While a reversal is pending, `write_pwm()` and
   // `write_target_rpm()` only cache the latest request instead of writing it, so a command
   // arriving mid-cycle cannot make the motor resume before the stop interval ends.
-  this->direction_change_pending_ = true;
   bool zeroed = this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP ? this->write_float_(REG_SET_RPM, 0.0f)
                                                                              : this->write_pwm_raw_(0);
   if (!zeroed) {
-    // The motor was never actually told to stop, so the 800ms spin-down assumption below does not
-    // hold; abandon the reversal instead of restoring a command to a motor that may still be
-    // running at the old direction.
-    this->direction_change_pending_ = false;
+    // The motor was never told to stop, so the 800ms spin-down below does not apply; a reversal that
+    // was already pending keeps its state and timer.
     return false;
   }
 
+  this->direction_change_pending_ = true;
   this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, 800, [this]() {
     this->direction_change_pending_ = false;
+    bool restored = true;
     if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP) {
       if (this->last_target_rpm_ != 0.0f)
-        this->write_float_(REG_SET_RPM, this->last_target_rpm_);
+        restored = this->write_float_(REG_SET_RPM, this->last_target_rpm_);
     } else {
       if (this->last_pwm_ != 0)
-        this->write_pwm_raw_(this->last_pwm_);
+        restored = this->write_pwm_raw_(this->last_pwm_);
+    }
+    if (!restored) {
+      ESP_LOGW(TAG, "Failed to restore the motor command after a direction change");
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     }
   });
   return true;

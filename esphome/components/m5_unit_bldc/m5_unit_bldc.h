@@ -68,7 +68,8 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool write_target_rpm(float rpm);
   bool write_direction(Direction direction);
 
-  // Entity controls: the state is published only when the device accepted the write
+  // Entity controls: the state is published only when the device accepted the write; commands are refused once
+  // setup failed, since the motor configuration may be incomplete
   void control_pwm(float value) {
     if (this->write_pwm(static_cast<uint16_t>(value)) && this->pwm_number_ != nullptr)
       this->pwm_number_->publish_state(value);
@@ -92,32 +93,32 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool write_pwm_raw_(uint16_t duty);
   bool read_pwm_raw_(uint16_t *duty);
 
-  const ControlMode control_mode_;
-  const Direction initial_direction_;
-  const MotorModel motor_model_;
-  const uint8_t pole_pairs_;
-  bool has_pid_{false};
-  float p_{0}, i_{0}, d_{0};
-  const bool save_to_flash_;
-
-  // Last commanded PWM/target RPM, so `write_direction()` can restore them after the
-  // zero-then-nonzero cycle the device needs to actually latch a new direction (see datasheet
-  // note "[1] Change direction").
-  uint16_t last_pwm_{0};
-  float last_target_rpm_{0};
-
-  // Set for the duration of the zero-then-restore cycle in `write_direction()`. While set, new
-  // PWM/RPM commands only update `last_pwm_`/`last_target_rpm_`; they are not written to the
-  // device until the pending restore fires, so a command arriving mid-cycle cannot make the motor
-  // resume before it has actually stopped and the new direction has latched.
-  bool direction_change_pending_{false};
-
   sensor::Sensor *rpm_sensor_{nullptr};
   sensor::Sensor *frequency_sensor_{nullptr};
   text_sensor::TextSensor *status_text_sensor_{nullptr};
   select::Select *direction_select_{nullptr};
   number::Number *pwm_number_{nullptr};
   number::Number *target_rpm_number_{nullptr};
+  float p_{0}, i_{0}, d_{0};
+
+  // Last commanded PWM/target RPM, so `write_direction()` can restore them after the
+  // zero-then-nonzero cycle the device needs to actually latch a new direction (see datasheet
+  // note "[1] Change direction").
+  float last_target_rpm_{0};
+  uint16_t last_pwm_{0};
+
+  const ControlMode control_mode_;
+  const Direction initial_direction_;
+  const MotorModel motor_model_;
+  const uint8_t pole_pairs_;
+  const bool save_to_flash_;
+  bool has_pid_{false};
+
+  // Set for the duration of the zero-then-restore cycle in `write_direction()`. While set, new
+  // PWM/RPM commands only update `last_pwm_`/`last_target_rpm_`; they are not written to the
+  // device until the pending restore fires, so a command arriving mid-cycle cannot make the motor
+  // resume before it has actually stopped and the new direction has latched.
+  bool direction_change_pending_{false};
 };
 
 }  // namespace esphome::m5_unit_bldc
