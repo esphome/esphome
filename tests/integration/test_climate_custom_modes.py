@@ -8,8 +8,9 @@ import aioesphomeapi
 from aioesphomeapi import ClimateInfo, ClimatePreset, EntityState
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -48,10 +49,7 @@ async def test_climate_custom_fan_modes_and_presets(
         # Get entities and set up state synchronization
         entities, services = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
-
-        test_climate = climate_infos[0]
+        test_climate = require_only_entity(entities, ClimateInfo)
 
         # Subscribe with the wrapper that filters initial states
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
@@ -97,10 +95,11 @@ async def test_climate_custom_fan_modes_and_presets(
         # Test changing to "Super Saver" custom preset
         client.climate_command(test_climate.key, custom_preset="Super Saver")
 
-        try:
-            super_saver_state = await asyncio.wait_for(super_saver_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Super Saver preset change not received within 5 seconds")
+        super_saver_state = await wait_or_fail(
+            super_saver_future,
+            5.0,
+            "Super Saver preset change not received within 5 seconds",
+        )
 
         assert isinstance(super_saver_state, aioesphomeapi.ClimateState)
         assert super_saver_state.custom_preset == "Super Saver"
@@ -110,10 +109,11 @@ async def test_climate_custom_fan_modes_and_presets(
         # Test changing to "Vacation Mode" custom preset
         client.climate_command(test_climate.key, custom_preset="Vacation Mode")
 
-        try:
-            vacation_state = await asyncio.wait_for(vacation_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Vacation Mode preset change not received within 5 seconds")
+        vacation_state = await wait_or_fail(
+            vacation_future,
+            5.0,
+            "Vacation Mode preset change not received within 5 seconds",
+        )
 
         assert isinstance(vacation_state, aioesphomeapi.ClimateState)
         assert vacation_state.custom_preset == "Vacation Mode"

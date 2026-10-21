@@ -163,6 +163,7 @@
 #define USE_MAX17048
 #define USE_MDNS
 #define USE_MDNS_STORE_SERVICES
+#define GPS_LISTENER_COUNT 1
 #define HDMI_CEC_MESSAGE_CALLBACK_COUNT 2
 #define I2C_PORT_FREQUENCY_COUNT 1
 #define MDNS_SERVICE_COUNT 3
@@ -258,6 +259,7 @@
 #define USE_OTA_STATE_LISTENER
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
+#define USE_PCA9554_PCAL
 #define USE_POWER_SUPPLY
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
@@ -433,10 +435,7 @@
 #define USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
 // Stub values for tooling; a real build's codegen emits these from verification_keys.
 #define OTA_TRUSTED_KEY_COUNT 1
-#define OTA_TRUSTED_KEY_DIGESTS \
-  { \
-    { 0 } \
-  }
+#define OTA_TRUSTED_KEY_DIGESTS {{0}}
 #define USE_OTA_DOWNGRADE_PROTECTION
 #define USE_ESP32_MIN_CHIP_REVISION_SET
 #define USE_ESP32_RTC_PREFERENCES
@@ -746,8 +745,7 @@
 #endif
 
 #ifdef USE_HOST
-#define USE_ESPHOME_HOST_MAC_ADDRESS \
-  { 0x98, 0x35, 0x69, 0xab, 0xf6, 0x79 }
+#define USE_ESPHOME_HOST_MAC_ADDRESS {0x98, 0x35, 0x69, 0xab, 0xf6, 0x79}
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_SERIAL_PROXY_HOST_UART
 // Host only: the uart arm would shadow the native logger UART arms in other envs
