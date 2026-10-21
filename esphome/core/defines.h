@@ -257,6 +257,7 @@
 #define USE_OTA_STATE_LISTENER
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
+#define USE_PCA9554_PCAL
 #define USE_POWER_SUPPLY
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
