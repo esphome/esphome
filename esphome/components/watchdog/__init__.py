@@ -1,1 +1,2 @@
 CODEOWNERS = ["@oarcher"]
+DOMAIN = "watchdog"

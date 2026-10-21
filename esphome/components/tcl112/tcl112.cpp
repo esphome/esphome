@@ -3,7 +3,7 @@
 
 namespace esphome::tcl112 {
 
-static const char *const TAG = "tcl112.climate";
+ESPHOME_LOG_TAG(TAG, "tcl112.climate");
 
 const uint16_t TCL112_STATE_LENGTH = 14;
 const uint16_t TCL112_BITS = TCL112_STATE_LENGTH * 8;
@@ -27,8 +27,8 @@ const uint8_t TCL112_HALF_DEGREE = 0b00100000;
 const uint16_t TCL112_HEADER_MARK = 3100;
 const uint16_t TCL112_HEADER_SPACE = 1650;
 const uint16_t TCL112_BIT_MARK = 500;
-const uint16_t TCL112_ONE_SPACE = 1100;
-const uint16_t TCL112_ZERO_SPACE = 350;
+static constexpr remote_base::BitTimings TCL112_BIT_TIMINGS{
+    .bit_mark = TCL112_BIT_MARK, .one_space = 1100, .zero_space = 350};
 const uint32_t TCL112_GAP = TCL112_HEADER_SPACE;
 
 void Tcl112Climate::transmit_state() {
@@ -128,13 +128,7 @@ void Tcl112Climate::transmit_state() {
   data->mark(TCL112_HEADER_MARK);
   data->space(TCL112_HEADER_SPACE);
   // Data
-  for (uint8_t i : remote_state) {
-    for (uint8_t j = 0; j < 8; j++) {
-      data->mark(TCL112_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? TCL112_ONE_SPACE : TCL112_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<TCL112_BIT_TIMINGS>(remote_state, TCL112_STATE_LENGTH);
   // Footer
   data->mark(TCL112_BIT_MARK);
   data->space(TCL112_GAP);
@@ -149,18 +143,10 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t remote_state[TCL112_STATE_LENGTH] = {0};
-  // Read all bytes.
-  for (int i = 0; i < TCL112_STATE_LENGTH; i++) {
-    // Read bit
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(TCL112_BIT_MARK, TCL112_ONE_SPACE)) {
-        remote_state[i] |= 1 << j;
-      } else if (!data.expect_item(TCL112_BIT_MARK, TCL112_ZERO_SPACE)) {
-        ESP_LOGVV(TAG, "Byte %d bit %d fail", i, j);
-        return false;
-      }
-    }
+  uint8_t remote_state[TCL112_STATE_LENGTH];
+  if (!data.expect_bytes<TCL112_BIT_TIMINGS>(remote_state, TCL112_STATE_LENGTH)) {
+    ESP_LOGVV(TAG, "Data fail");
+    return false;
   }
   // Validate footer
   if (!data.expect_mark(TCL112_BIT_MARK)) {
@@ -168,11 +154,9 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t checksum = 0;
   // Calculate & set the checksum for the current internal state of the remote.
   // Stored the checksum value in the last byte.
-  for (uint8_t checksum_byte = 0; checksum_byte < TCL112_STATE_LENGTH - 1; checksum_byte++)
-    checksum += remote_state[checksum_byte];
+  const uint8_t checksum = sum_bytes(remote_state, TCL112_STATE_LENGTH - 1);
   if (checksum != remote_state[TCL112_STATE_LENGTH - 1]) {
     ESP_LOGVV(TAG, "Checksum fail");
     return false;

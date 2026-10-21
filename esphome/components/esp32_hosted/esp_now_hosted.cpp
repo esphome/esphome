@@ -42,16 +42,19 @@ extern "C" {
 }
 
 #include "esp_now_hosted_rpc.h"
+#include "esphome/core/log.h"
 
 namespace {
 
-const char *const TAG = "esp_now_hosted";
+ESPHOME_LOG_TAG(TAG, "esp_now_hosted");
 
 // One outstanding request at a time. ESPHome drives esp_now_* from the main
 // loop; the matching response and the async RECV/SEND events all arrive on the
 // single esp-hosted RPC RX thread. Serializing requests keeps the shared
 // response slot race-free; a sequence number stops a late/stale response from
 // being mistaken for ours.
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables): the shim is
+// C-ABI state shared between the main loop and the esp-hosted RX thread.
 SemaphoreHandle_t g_req_mutex = nullptr;
 SemaphoreHandle_t g_resp_sem = nullptr;  // given when the matching RESP lands
 bool g_setup_done = false;               // set only after setup fully succeeds
@@ -85,6 +88,7 @@ constexpr size_t ESP_NOW_HOSTED_MAX_PEERS = 20;
 uint8_t g_peer_cache[ESP_NOW_HOSTED_MAX_PEERS][6];
 size_t g_peer_count = 0;
 portMUX_TYPE g_peer_lock = portMUX_INITIALIZER_UNLOCKED;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Caller must hold g_peer_lock.
 int peer_cache_find_locked(const uint8_t *mac) {
@@ -231,12 +235,14 @@ esp_err_t ensure_setup() {
     g_resp_sem = xSemaphoreCreateBinary();
   if (g_req_mutex == nullptr || g_resp_sem == nullptr)
     return ESP_ERR_NO_MEM;
-  esp_err_t err;
-  if ((err = esp_hosted_register_custom_callback(ESP_NOW_HOSTED_MSG_RESP, on_resp, nullptr)) != ESP_OK)
+  esp_err_t err = esp_hosted_register_custom_callback(ESP_NOW_HOSTED_MSG_RESP, on_resp, nullptr);
+  if (err != ESP_OK)
     return err;
-  if ((err = esp_hosted_register_custom_callback(ESP_NOW_HOSTED_MSG_RECV, on_recv, nullptr)) != ESP_OK)
+  err = esp_hosted_register_custom_callback(ESP_NOW_HOSTED_MSG_RECV, on_recv, nullptr);
+  if (err != ESP_OK)
     return err;
-  if ((err = esp_hosted_register_custom_callback(ESP_NOW_HOSTED_MSG_SEND, on_send, nullptr)) != ESP_OK)
+  err = esp_hosted_register_custom_callback(ESP_NOW_HOSTED_MSG_SEND, on_send, nullptr);
+  if (err != ESP_OK)
     return err;
   g_setup_done = true;
   return ESP_OK;
@@ -422,10 +428,11 @@ esp_err_t esp_now_send(const uint8_t *peer_addr, const uint8_t *data, size_t len
   uint8_t hdr[sizeof(esp_now_hosted_send_req_t)];
   auto *s = reinterpret_cast<esp_now_hosted_send_req_t *>(hdr);
   s->has_addr = peer_addr != nullptr ? 1 : 0;
-  if (peer_addr != nullptr)
+  if (peer_addr != nullptr) {
     memcpy(s->peer_addr, peer_addr, 6);
-  else
+  } else {
     memset(s->peer_addr, 0, 6);
+  }
   s->data_len = static_cast<uint16_t>(len);
   // Fire-and-forget (wait=false): native esp_now_send returns once the frame is
   // queued, with the real TX result delivered later through the send callback.

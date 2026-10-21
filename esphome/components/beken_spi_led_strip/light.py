@@ -111,8 +111,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
     cg.add(var.set_pin(config[CONF_PIN]))
 
-    if CONF_MAX_REFRESH_RATE in config:
-        cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
+    cg.add_optional(var.set_max_refresh_rate, config.get(CONF_MAX_REFRESH_RATE))
 
     chipset = CHIPSETS[config[CONF_CHIPSET]]
     cg.add(

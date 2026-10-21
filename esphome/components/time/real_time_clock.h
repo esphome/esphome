@@ -29,7 +29,7 @@ class RealTimeClock : public PollingComponent {
   ESPTime utcnow() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
 
   /// Get the current time as the UTC epoch since January 1st 1970.
-  time_t timestamp_now() { return ::time(nullptr); }
+  virtual time_t timestamp_now() { return ::time(nullptr); }
 
   template<typename F> void add_on_time_sync_callback(F &&callback) {
     this->time_sync_callback_.add(std::forward<F>(callback));
@@ -44,13 +44,10 @@ class RealTimeClock : public PollingComponent {
   LazyCallbackManager<void()> time_sync_callback_;
 };
 
-template<typename... Ts> class TimeHasTimeCondition final : public Condition<Ts...> {
- public:
-  TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
-  bool check(const Ts &...x) override { return this->parent_->now().is_valid(); }
-
- protected:
-  RealTimeClock *parent_;
-};
+/// Decode the 7-byte BCD calendar (second, minute, hour, one-hot weekday, day, month, year since 2000)
+/// shared by Epson RTCs such as the RX8025T, RX8111 and RX8130, and fill in the UTC timestamp.
+ESPTime decode_bcd_calendar(const uint8_t *raw);
+/// Encode @p time into that 7-byte layout; @p time must be valid (is_valid()), with the year 2000 to 2099.
+void encode_bcd_calendar(const ESPTime &time, uint8_t *raw);
 
 }  // namespace esphome::time

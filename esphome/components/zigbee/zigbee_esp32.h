@@ -12,18 +12,17 @@
 #include "ezbee/zha.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/lock_free_queue.h"
+#include "esphome/core/event_pool.h"
 #include "zigbee_helpers_esp32.h"
-
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
+#include "zigbee_event_esp32.h"
 
 namespace esphome::zigbee {
 
 /* Zigbee configuration */
-static const uint16_t ED_KEEP_ALIVE = 3000; /* 3000 millisecond */
 static const uint8_t MAX_CHILDREN = 10;
 static const uint32_t EZB_PRIMARY_CHANNEL_MASK = 0x07FFF800U; /* channels 11-26 */
+static constexpr uint8_t MAX_ZB_QUEUE_SIZE = 32;
 
 #define EZB_DEFAULT_RADIO_CONFIG() \
   { .radio_mode = ESP_ZIGBEE_RADIO_MODE_NATIVE, }
@@ -34,12 +33,14 @@ class ZigbeeAttribute;
 
 class ZigbeeComponent final : public Component {
  public:
-  ZigbeeComponent();
   void setup() override;
   void loop() override;
   void dump_config() override;
 
-  void set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source);
+  void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
+  void set_keep_alive(uint32_t keep_alive) { this->keep_alive_ = keep_alive; }
+  void set_basic_cluster(const char *model, const char *manufacturer, const char *location, const char *sw_build_id,
+                         uint8_t power_source, uint8_t app_version);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, uint16_t device_id);
   bool register_device();
@@ -55,6 +56,7 @@ class ZigbeeComponent final : public Component {
   static void esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_t mode);
 
   void factory_reset();
+  void report();
 
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
@@ -69,11 +71,16 @@ class ZigbeeComponent final : public Component {
   bool is_joined() { return this->joined_; }
 
  protected:
+  bool sleepy_{false};
+  uint32_t keep_alive_{3000};
   struct {
     uint8_t *model;
     uint8_t *manufacturer;
     uint8_t *date;
+    uint8_t *location;
+    uint8_t *sw_build_id;
     uint8_t power_source;
+    uint8_t app_version;
   } basic_cluster_data_;
 #ifdef CONFIG_ZB_ZED
   ezb_nwk_device_type_t device_role_ = EZB_NWK_DEVICE_TYPE_END_DEVICE;
@@ -84,12 +91,22 @@ class ZigbeeComponent final : public Component {
   template<typename T>
   void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                  T *value_p);
+  void handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
   // attributes_ will be used during operation in zigbee callbacks to update the attribute values and trigger
   // automations
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
-  ezb_af_device_desc_t dev_desc_;
+  ezb_af_device_desc_t dev_desc_ = ezb_af_create_device_desc();
   CallbackManager<void(bool)> join_cb_{};
+  template<typename... Args> friend void enqueue_zb_event(Args... args);
+  esphome::LockFreeQueue<ZBEvent, MAX_ZB_QUEUE_SIZE> zb_events_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements (one slot distinguishes full from empty).
+  // This guarantees allocate() returns nullptr before push() can fail, which:
+  //  1. Prevents leaking a pool slot (the Nth allocate succeeds but push fails)
+  //  2. Avoids needing release() on the producer path after a failed push(),
+  //     preserving the SPSC contract on the pool's internal free list
+  esphome::EventPool<ZBEvent, MAX_ZB_QUEUE_SIZE - 1> zb_event_pool_;
   LazyCallbackManager<void()> start_cb_{};
   bool start_reported_{false};
   std::atomic<bool> started_ = false;
