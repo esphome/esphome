@@ -402,8 +402,7 @@ template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(
-        topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
+    this->parent_->publish_json(topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
   }
 
  protected:

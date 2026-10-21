@@ -58,10 +58,7 @@ async def test_binary_sensor_autorepeat_filter(
             initial_state_helper.on_state_wrapper(collector.on_state)
         )
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         autorepeat_states = collector.binary_states["autorepeat_sensor"]
 
