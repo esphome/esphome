@@ -31,6 +31,7 @@ from .const import (
     ZERO_PSK,
 )
 from .host_prefs import force_safe_mode
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, CompileFunction, ConfigWriter
 
 DEVICE_NAME = "host-ota-test"
@@ -284,15 +285,13 @@ async def test_host_ota_self_update(
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info_before = await client.device_info()
-            assert info_before.name == DEVICE_NAME
+            info_before = await assert_device_name(client, DEVICE_NAME)
 
         await dev.ota(None, None, "espota2 reported failure")
         assert staged.is_set()
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info_after = await client.device_info()
-            assert info_after.name == info_before.name
+            await assert_device_name(client, info_before.name)
 
         # Second OTA: catches FD_CLOEXEC regressions (EADDRINUSE on rebind).
         await dev.ota(None, None, "second OTA failed -- listener leaked across execv")
@@ -603,5 +602,4 @@ async def test_host_ota_rejects_garbage(
         assert proc.pid == pid_before
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info = await client.device_info()
-            assert info.name == DEVICE_NAME
+            await assert_device_name(client, DEVICE_NAME)

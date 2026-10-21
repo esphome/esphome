@@ -1,9 +1,11 @@
+from collections.abc import Awaitable, Callable
 import importlib.util
 import logging
 from pathlib import Path
 import sys
 from types import ModuleType
-from unittest.mock import Mock
+from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -301,3 +303,62 @@ async def test_new_bus_component_source_is_the_caller(
     result = await dev.to_code(bus.new_component, {const.CONF_ID: "foo.bar"})
     assert result is var
     source.assert_called_once_with(expected)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("helper", [ch.add_pin, ch.add_variable])
+async def test_add_helpers_skip_none(
+    monkeypatch: pytest.MonkeyPatch, helper: Callable[..., Awaitable[Any]]
+) -> None:
+    add_mock = Mock()
+    monkeypatch.setattr(ch, "add", add_mock)
+    setter = Mock()
+
+    assert await helper(setter, None) is None
+    setter.assert_not_called()
+    add_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("helper", "lookup"),
+    [("add_pin", "gpio_pin_expression"), ("add_variable", "get_variable")],
+)
+async def test_add_helpers_pass_value_to_setter(
+    monkeypatch: pytest.MonkeyPatch, helper: str, lookup: str
+) -> None:
+    value = Mock()
+    lookup_mock = AsyncMock(return_value=value)
+    monkeypatch.setattr(ch, lookup, lookup_mock)
+    add_mock = Mock()
+    monkeypatch.setattr(ch, "add", add_mock)
+    setter = Mock()
+    arg = Mock()
+
+    assert await getattr(ch, helper)(setter, arg) is value
+    lookup_mock.assert_awaited_once_with(arg)
+    setter.assert_called_once_with(value)
+    add_mock.assert_called_once_with(setter.return_value)
+
+
+@pytest.mark.parametrize("value", [0, False, "", 5])
+def test_add_optional_passes_value_to_setter(
+    monkeypatch: pytest.MonkeyPatch, value: Any
+) -> None:
+    add_mock = Mock()
+    monkeypatch.setattr(ch, "add", add_mock)
+    setter = Mock()
+
+    assert ch.add_optional(setter, value) is value
+    setter.assert_called_once_with(value)
+    add_mock.assert_called_once_with(setter.return_value)
+
+
+def test_add_optional_skips_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    add_mock = Mock()
+    monkeypatch.setattr(ch, "add", add_mock)
+    setter = Mock()
+
+    assert ch.add_optional(setter, None) is None
+    setter.assert_not_called()
+    add_mock.assert_not_called()

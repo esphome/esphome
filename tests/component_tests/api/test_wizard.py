@@ -303,6 +303,16 @@ def test_entity_id_is_optional_only_for_wizard_inputs(
         ), errors
 
 
+def test_light_is_a_wizard_input(tmp_path: Path) -> None:
+    entities = "light:\n  - platform: homeassistant\n    id: ha_light\n"
+    errors = config_errors(
+        write_config(
+            tmp_path, ESP32_HEADER, wizard_inputs("- entity: ha_light"), entities
+        )
+    )
+    assert errors == []
+
+
 def test_entity_id_is_optional_for_an_input_and_its_domain_is_checked(
     tmp_path: Path,
 ) -> None:
@@ -972,12 +982,12 @@ def test_multiple_input_is_valid(tmp_path: Path, input_conf: str) -> None:
         ),
         pytest.param(
             "- {id: cals, max_length: 1023}",
-            "max_length only applies to an input with multiple: true",
+            "'max_length' is only valid when 'multiple' is true",
             id="max-length-without-multiple",
         ),
         pytest.param(
             "- {id: cals, multiple: false, max_length: 1023}",
-            "max_length only applies to an input with multiple: true",
+            "'max_length' is only valid when 'multiple' is true",
             id="max-length-multiple-false",
         ),
         pytest.param(
