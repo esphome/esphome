@@ -22,8 +22,8 @@ DEPENDENCIES = ["i2c"]
 rx8111_ns = cg.esphome_ns.namespace("rx8111")
 RX8111Component = rx8111_ns.class_("RX8111Component", time.RealTimeClock, i2c.I2CDevice)
 TIMER_CLOCKS = {"4096hz": 0, "64hz": 1, "1hz": 2, "1_60hz": 3}
-SetAlarmAction = rx8111_ns.class_("SetAlarmAction", automation.Action)
-ScheduleAlarmInAction = rx8111_ns.class_("ScheduleAlarmInAction", automation.Action)
+# set_alarm() ignores a field set to this value
+ALARM_FIELD_UNSET = 0xFF
 
 CONF_ALARM_SECOND = "alarm_second"
 CONF_ALARM_MINUTE = "alarm_minute"
@@ -38,6 +38,18 @@ CONF_TIMER_ENABLED = "timer_enabled"
 CONF_ON_TIMER = "on_timer"
 CONF_WEEKDAY = "weekday"
 CONF_DAYS = "days"
+
+_ALARM_FIELDS = (
+    CONF_ALARM_SECOND,
+    CONF_ALARM_MINUTE,
+    CONF_ALARM_HOUR,
+    CONF_ALARM_WEEKDAY,
+    CONF_ALARM_DAY,
+)
+_CALLBACK_AUTOMATIONS = (
+    (CONF_ON_ALARM, "add_on_alarm_callback"),
+    (CONF_ON_TIMER, "add_on_timer_callback"),
+)
 
 
 def _validate_alarm_config(config: ConfigType) -> ConfigType:
@@ -101,17 +113,19 @@ automation.register_apply_action(
 
 
 def _validate_set_alarm(config: ConfigType) -> ConfigType:
+    """Checks the fields given and marks the rest unset, so set_alarm() always gets all five."""
     fields = (CONF_SECOND, CONF_MINUTE, CONF_HOUR, CONF_WEEKDAY, CONF_DAY)
     if not any(field in config for field in fields):
         raise cv.Invalid("set_alarm requires at least one matching field")
     if CONF_WEEKDAY in config and CONF_DAY in config:
         raise cv.Invalid("set_alarm cannot match both weekday and day")
+    for field in fields:
+        config.setdefault(field, ALARM_FIELD_UNSET)
     return config
 
 
-@automation.register_action(
+automation.register_apply_action(
     "rx8111.set_alarm",
-    SetAlarmAction,
     cv.All(
         cv.Schema(
             {
@@ -125,19 +139,17 @@ def _validate_set_alarm(config: ConfigType) -> ConfigType:
         ),
         _validate_set_alarm,
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "set_alarm({}, {}, {}, {}, {})",
+        (
+            (CONF_SECOND, cg.uint16),
+            (CONF_MINUTE, cg.uint16),
+            (CONF_HOUR, cg.uint16),
+            (CONF_WEEKDAY, cg.uint16),
+            (CONF_DAY, cg.uint16),
+        ),
+    ),
 )
-async def set_alarm_to_code(config: ConfigType, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    for field in (CONF_SECOND, CONF_MINUTE, CONF_HOUR, CONF_WEEKDAY, CONF_DAY):
-        if field in config:
-            cg.add(
-                getattr(var, f"set_{field}")(
-                    await cg.templatable(config[field], args, cg.uint16)
-                )
-            )
-    return var
 
 
 def _validate_alarm_duration(config: ConfigType) -> ConfigType:
@@ -153,9 +165,8 @@ def _validate_alarm_duration(config: ConfigType) -> ConfigType:
     return config
 
 
-@automation.register_action(
+automation.register_apply_action(
     "rx8111.schedule_alarm_in",
-    ScheduleAlarmInAction,
     cv.All(
         cv.Schema(
             {
@@ -168,57 +179,31 @@ def _validate_alarm_duration(config: ConfigType) -> ConfigType:
         ),
         _validate_alarm_duration,
     ),
-    synchronous=True,
+    automation.ApplyCall("schedule_alarm_in({})", ((CONF_SECONDS, cg.uint32),)),
 )
-async def schedule_alarm_in_to_code(config: ConfigType, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    cg.add(var.set_seconds(config[CONF_SECONDS]))
-    return var
 
 
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
     await time.register_time(var, config)
-    for field in (
-        CONF_ALARM_SECOND,
-        CONF_ALARM_MINUTE,
-        CONF_ALARM_HOUR,
-        CONF_ALARM_WEEKDAY,
-        CONF_ALARM_DAY,
-    ):
-        if (value := config.get(field)) is not None:
-            cg.add(getattr(var, f"set_{field}")(value))
-    alarm_fields = (
-        CONF_ALARM_SECOND,
-        CONF_ALARM_MINUTE,
-        CONF_ALARM_HOUR,
-        CONF_ALARM_WEEKDAY,
-        CONF_ALARM_DAY,
-    )
+    cg.add_optional(var.set_alarm_second, config.get(CONF_ALARM_SECOND))
+    cg.add_optional(var.set_alarm_minute, config.get(CONF_ALARM_MINUTE))
+    cg.add_optional(var.set_alarm_hour, config.get(CONF_ALARM_HOUR))
+    cg.add_optional(var.set_alarm_weekday, config.get(CONF_ALARM_WEEKDAY))
+    cg.add_optional(var.set_alarm_day, config.get(CONF_ALARM_DAY))
     cg.add(
         var.set_alarm_enabled(
-            config.get(
-                CONF_ALARM_ENABLED, any(field in config for field in alarm_fields)
-            )
+            config.get(CONF_ALARM_ENABLED, any(f in config for f in _ALARM_FIELDS))
         )
     )
-    for conf in config.get(CONF_ON_ALARM, []):
-        await automation.build_callback_automation(
-            var, "add_on_alarm_callback", [], conf
-        )
-    if CONF_TIMER_COUNT in config:
-        cg.add(var.set_timer_count(config[CONF_TIMER_COUNT]))
+    if (count := config.get(CONF_TIMER_COUNT)) is not None:
+        cg.add(var.set_timer_count(count))
         cg.add(var.set_timer_clock(config[CONF_TIMER_CLOCK]))
     cg.add(
         var.set_timer_enabled(
-            config.get(
-                CONF_TIMER_ENABLED,
-                CONF_TIMER_COUNT in config or CONF_ON_TIMER in config,
-            )
+            config.get(CONF_TIMER_ENABLED, count is not None or CONF_ON_TIMER in config)
         )
     )
-    for conf in config.get(CONF_ON_TIMER, []):
-        await automation.build_callback_automation(
-            var, "add_on_timer_callback", [], conf
-        )
+    for key, method in _CALLBACK_AUTOMATIONS:
+        for conf in config.get(key, []):
+            await automation.build_callback_automation(var, method, [], conf)

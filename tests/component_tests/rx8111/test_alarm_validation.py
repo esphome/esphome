@@ -3,6 +3,7 @@
 import pytest
 
 from esphome.components.rx8111.time import (
+    ALARM_FIELD_UNSET,
     CONF_ALARM_DAY,
     CONF_ALARM_WEEKDAY,
     CONF_DAY,
@@ -27,6 +28,12 @@ import esphome.config_validation as cv
 def test_set_alarm_rejects_empty_or_conflicting_fields(config: dict) -> None:
     with pytest.raises(cv.Invalid):
         _validate_set_alarm(config)
+
+
+def test_set_alarm_marks_missing_fields_unset() -> None:
+    config = _validate_set_alarm({CONF_SECOND: 5})
+    assert config[CONF_SECOND] == 5
+    assert config[CONF_DAY] == ALARM_FIELD_UNSET
 
 
 def test_fixed_alarm_rejects_day_and_weekday() -> None:
