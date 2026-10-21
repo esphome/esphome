@@ -28,7 +28,7 @@ struct PulseCounterStorageBase {
   virtual bool pulse_counter_setup(InternalGPIOPin *pin) = 0;
   virtual pulse_counter_t read_raw_value() = 0;
 
-  InternalGPIOPin *pin;
+  InternalGPIOPin *pin{nullptr};
   PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
   PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
   uint32_t filter_us{0};
@@ -45,7 +45,7 @@ struct BasicPulseCounterStorage : public PulseCounterStorageBase {
   volatile uint32_t last_pulse{0};
 
   ISRInternalGPIOPin isr_pin;
-  bool read_level{false};
+  PulseCounterCountMode fixed_mode{PULSE_COUNTER_DISABLE};
 };
 
 #ifdef HAS_PCNT
@@ -65,8 +65,8 @@ class PulseCounterSensor final : public sensor::Sensor, public PollingComponent 
   explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*get_storage(hw_pcnt)) {}
 
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
-  void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
-  void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
+  void set_rising_edge_mode(PulseCounterCountMode mode);
+  void set_falling_edge_mode(PulseCounterCountMode mode);
   void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
 
