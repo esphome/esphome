@@ -100,21 +100,25 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
 #ifdef USE_NUMBER
   void set_number(NumberSetting setting, number::Number *number) {
     this->numbers_[static_cast<uint8_t>(setting)] = number;
-    this->has_settings_ = true;
+    if (setting < NumberSetting::TEMPERATURE_OFFSET) {
+      this->needs_config_ = true;
+    } else {
+      this->needs_offsets_ = true;
+    }
   }
   void write_number(NumberSetting setting, float value);
 #endif
 #ifdef USE_SWITCH
   void set_switch(SwitchSetting setting, switch_::Switch *sw) {
     this->switches_[static_cast<uint8_t>(setting)] = sw;
-    this->has_settings_ = true;
+    this->needs_config_ = true;
   }
   void write_switch(SwitchSetting setting, bool state);
 #endif
 #ifdef USE_SELECT
   void set_select(SelectSetting setting, select::Select *select) {
     this->selects_[static_cast<uint8_t>(setting)] = select;
-    this->has_settings_ = true;
+    this->needs_config_ = true;
   }
   void write_select(SelectSetting setting, size_t index);
 #endif
@@ -139,6 +143,7 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   void set_connected_(bool connected);
   void publish_unknown_();
   bool read_char_(uint16_t handle);
+  bool write_char_(uint16_t handle, uint8_t *data, uint16_t len);
   bool read_ok_(const esp_ble_gattc_cb_param_t *param);
   void on_oper_(const uint8_t *data, uint16_t len);
   void on_state_(const uint8_t *data, uint16_t len);
@@ -152,7 +157,7 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   /// Change one C_CONFIGURATION byte and leave the others as they are.
   void write_config_(uint8_t index, uint8_t value);
   void write_offsets_(int16_t temperature, int16_t humidity);
-  bool write_settings_(uint16_t handle, uint8_t *data, uint16_t len);
+  bool write_settings_(uint16_t handle, uint8_t *data, uint16_t len, uint8_t &reads_pending);
   void publish_config_();
   void publish_offsets_();
 
@@ -202,8 +207,9 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   // Settings reads sent but not answered yet; the unit answers them in order
   uint8_t config_reads_pending_{0};
   uint8_t advanced_reads_pending_{0};
-  // Without a setting entity the settings are never read
-  bool has_settings_{false};
+  // Each settings characteristic is only read when an entity uses it
+  bool needs_config_{false};
+  bool needs_offsets_{false};
 };
 
 }  // namespace esphome::ecocomfort2

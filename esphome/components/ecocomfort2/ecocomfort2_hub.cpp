@@ -35,6 +35,23 @@ void Ecocomfort2Hub::update() {
   this->read_settings_();
 }
 
+// The unit answers reads in order, so only the last pending answer shows the current value
+static bool last_pending_read(uint8_t &reads_pending) {
+  if (reads_pending > 0)
+    reads_pending--;
+  return reads_pending == 0;
+}
+
+bool Ecocomfort2Hub::write_char_(uint16_t handle, uint8_t *data, uint16_t len) {
+  auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), handle, len, data,
+                                         ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (status != ESP_GATT_OK) {
+    ESP_LOGW(TAG, "[%s] Write to handle 0x%x failed, status=%d", this->parent_->address_str(), handle, status);
+    return false;
+  }
+  return true;
+}
+
 bool Ecocomfort2Hub::read_char_(uint16_t handle) {
   auto status = esp_ble_gattc_read_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), handle,
                                         ESP_GATT_AUTH_REQ_NONE);
@@ -168,15 +185,10 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
         if (this->read_ok_(param))
           this->on_info_(param->read.value, param->read.value_len);
       } else if (handle == this->char_handle_config_) {
-        // The unit answers in order, so only the last read still pending shows the current settings
-        if (this->config_reads_pending_ > 0)
-          this->config_reads_pending_--;
-        if (this->config_reads_pending_ == 0 && this->read_ok_(param))
+        if (last_pending_read(this->config_reads_pending_) && this->read_ok_(param))
           this->on_config_(param->read.value, param->read.value_len);
       } else if (handle == this->char_handle_advanced_) {
-        if (this->advanced_reads_pending_ > 0)
-          this->advanced_reads_pending_--;
-        if (this->advanced_reads_pending_ == 0 && this->read_ok_(param))
+        if (last_pending_read(this->advanced_reads_pending_) && this->read_ok_(param))
           this->on_advanced_(param->read.value, param->read.value_len);
       } else {
         break;
@@ -331,12 +343,7 @@ void Ecocomfort2Hub::sync_clock_() {
       static_cast<uint8_t>(now.year % 100), now.month, now.day_of_month, weekday, now.hour, now.minute, now.second, 0};
   ESP_LOGD(TAG, "[%s] Syncing clock to %04u-%02u-%02u %02u:%02u:%02u", this->parent_->address_str(), now.year,
            now.month, now.day_of_month, now.hour, now.minute, now.second);
-  auto status =
-      esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_clock_,
-                               sizeof(data), data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-  if (status != ESP_GATT_OK) {
-    ESP_LOGW(TAG, "[%s] C_CLOCK write failed, status=%d", this->parent_->address_str(), status);
-  }
+  this->write_char_(this->char_handle_clock_, data, sizeof(data));
 }
 #endif
 
@@ -347,13 +354,8 @@ void Ecocomfort2Hub::write_oper(uint8_t mode, uint8_t speed) {
   }
   uint8_t data[2]{mode, speed};
   ESP_LOGD(TAG, "[%s] Writing C_OPER: mode=0x%02x, speed=0x%02x", this->parent_->address_str(), mode, speed);
-  auto status =
-      esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_oper_,
-                               sizeof(data), data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-  if (status != ESP_GATT_OK) {
-    ESP_LOGW(TAG, "[%s] C_OPER write failed, status=%d", this->parent_->address_str(), status);
+  if (!this->write_char_(this->char_handle_oper_, data, sizeof(data)))
     return;
-  }
   this->set_timeout(READBACK_TIMEOUT_ID, READBACK_DELAY_MS, [this]() { this->read_char_(this->char_handle_oper_); });
 }
 
@@ -370,11 +372,9 @@ static constexpr uint8_t KEEP_FREE_COOLING = 0x0F;
 static constexpr uint8_t ADVANCED_THRESHOLD[] = {0, 2};
 
 void Ecocomfort2Hub::read_settings_() {
-  if (!this->has_settings_)
-    return;
-  if (this->char_handle_config_ != 0 && this->read_char_(this->char_handle_config_))
+  if (this->needs_config_ && this->char_handle_config_ != 0 && this->read_char_(this->char_handle_config_))
     this->config_reads_pending_++;
-  if (this->char_handle_advanced_ != 0 && this->read_char_(this->char_handle_advanced_))
+  if (this->needs_offsets_ && this->char_handle_advanced_ != 0 && this->read_char_(this->char_handle_advanced_))
     this->advanced_reads_pending_++;
 }
 
@@ -403,8 +403,8 @@ void Ecocomfort2Hub::on_advanced_(const uint8_t *data, uint16_t len) {
     ESP_LOGW(TAG, "[%s] C_ADVANCED_SETTINGS too short: %u bytes", this->parent_->address_str(), len);
     return;
   }
-  const int16_t temperature = static_cast<int16_t>(encode_uint16(data[0], data[1]));
-  const int16_t humidity = static_cast<int16_t>(encode_uint16(data[2], data[3]));
+  const int16_t temperature = encode_value<int16_t>(data);
+  const int16_t humidity = encode_value<int16_t>(data + 2);
   if (this->offsets_read_ && this->offsets_[0] == temperature && this->offsets_[1] == humidity)
     return;
   this->offsets_[0] = temperature;
@@ -444,45 +444,33 @@ void Ecocomfort2Hub::publish_config_() {
 
 void Ecocomfort2Hub::publish_offsets_() {
 #ifdef USE_NUMBER
-  auto *temperature = this->numbers_[static_cast<uint8_t>(NumberSetting::TEMPERATURE_OFFSET)];
-  if (temperature != nullptr)
-    temperature->publish_state(this->offsets_[0] / 100.0f);
-  auto *humidity = this->numbers_[static_cast<uint8_t>(NumberSetting::HUMIDITY_OFFSET)];
-  if (humidity != nullptr)
-    humidity->publish_state(this->offsets_[1] / 100.0f);
+  for (uint8_t i = 0; i < 2; i++) {
+    auto *offset = this->numbers_[static_cast<uint8_t>(NumberSetting::TEMPERATURE_OFFSET) + i];
+    if (offset != nullptr)
+      offset->publish_state(this->offsets_[i] / 100.0f);
+  }
 #endif
 }
 
-bool Ecocomfort2Hub::write_settings_(uint16_t handle, uint8_t *data, uint16_t len) {
+bool Ecocomfort2Hub::write_settings_(uint16_t handle, uint8_t *data, uint16_t len, uint8_t &reads_pending) {
   if (!this->is_ready() || handle == 0) {
     ESP_LOGW(TAG, "[%s] Not ready, cannot change the setting", this->parent_->address_str());
     return false;
   }
-  auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), handle, len, data,
-                                         ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-  if (status != ESP_GATT_OK) {
-    ESP_LOGW(TAG, "[%s] Write to handle 0x%x failed, status=%d", this->parent_->address_str(), handle, status);
+  if (!this->write_char_(handle, data, len))
     return false;
-  }
-  // The unit handles requests in order, so a read sent now returns what this write stored
-  if (this->read_char_(handle)) {
-    if (handle == this->char_handle_config_) {
-      this->config_reads_pending_++;
-    } else {
-      this->advanced_reads_pending_++;
-    }
-  }
+  // A read sent now returns what this write stored
+  if (this->read_char_(handle))
+    reads_pending++;
   return true;
 }
 
-// The readback takes a few seconds, so the copy and the entities follow the write at once: a follow-up change
-// builds on it, and entities that depend on the changed byte show its effect. The readback corrects them if the
-// unit did not store it.
+// The readback takes seconds, so the copy and entities follow the write now; it corrects a refused write
 void Ecocomfort2Hub::write_config_(uint8_t index, uint8_t value) {
   uint8_t data[12]{CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP};
   data[index] = value;
   ESP_LOGD(TAG, "[%s] Writing C_CONFIGURATION byte %u: 0x%02x", this->parent_->address_str(), index, value);
-  if (!this->write_settings_(this->char_handle_config_, data, sizeof(data)))
+  if (!this->write_settings_(this->char_handle_config_, data, sizeof(data), this->config_reads_pending_))
     return;
   if (index == 4) {
     if ((value & 0xF0) != KEEP_SEASON)
@@ -499,7 +487,7 @@ void Ecocomfort2Hub::write_offsets_(int16_t temperature, int16_t humidity) {
   uint8_t data[4]{static_cast<uint8_t>(temperature >> 8), static_cast<uint8_t>(temperature),
                   static_cast<uint8_t>(humidity >> 8), static_cast<uint8_t>(humidity)};
   ESP_LOGD(TAG, "[%s] Writing C_ADVANCED_SETTINGS: offsets %d %d", this->parent_->address_str(), temperature, humidity);
-  if (!this->write_settings_(this->char_handle_advanced_, data, sizeof(data)))
+  if (!this->write_settings_(this->char_handle_advanced_, data, sizeof(data), this->advanced_reads_pending_))
     return;
   this->offsets_[0] = temperature;
   this->offsets_[1] = humidity;

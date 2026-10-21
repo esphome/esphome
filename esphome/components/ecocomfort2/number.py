@@ -25,43 +25,65 @@ CONF_VOC_THRESHOLD = "voc_threshold"
 
 NumberSetting = ecocomfort2_ns.enum("NumberSetting", is_class=True)
 
-# The vendor app offers four threshold levels, 0 turning the sensor off, and offsets of up to 5 either way
-_THRESHOLD_RANGE = {"min_value": 0, "max_value": 3, "step": 1}
-_THRESHOLDS = {
-    CONF_HUMIDITY_THRESHOLD: (NumberSetting.HUMIDITY_THRESHOLD, ICON_WATER_PERCENT),
-    CONF_LUMINOSITY_THRESHOLD: (NumberSetting.LUMINOSITY_THRESHOLD, "mdi:brightness-5"),
-    CONF_VOC_THRESHOLD: (NumberSetting.VOC_THRESHOLD, "mdi:air-filter"),
+# The vendor app offers four threshold levels, 0 turning the sensor off, and offsets of up to 5 either way.
+# The offsets have no device class: an offset is a difference, which Home Assistant must not convert like a reading.
+# key: (setting, icon, unit, min, max, step)
+_NUMBERS = {
+    CONF_HUMIDITY_THRESHOLD: (
+        NumberSetting.HUMIDITY_THRESHOLD,
+        ICON_WATER_PERCENT,
+        cv.UNDEFINED,
+        0,
+        3,
+        1,
+    ),
+    CONF_LUMINOSITY_THRESHOLD: (
+        NumberSetting.LUMINOSITY_THRESHOLD,
+        "mdi:brightness-5",
+        cv.UNDEFINED,
+        0,
+        3,
+        1,
+    ),
+    CONF_VOC_THRESHOLD: (
+        NumberSetting.VOC_THRESHOLD,
+        "mdi:air-filter",
+        cv.UNDEFINED,
+        0,
+        3,
+        1,
+    ),
+    CONF_TEMPERATURE_OFFSET: (
+        NumberSetting.TEMPERATURE_OFFSET,
+        ICON_THERMOMETER,
+        UNIT_CELSIUS,
+        -5,
+        5,
+        0.1,
+    ),
+    CONF_HUMIDITY_OFFSET: (
+        NumberSetting.HUMIDITY_OFFSET,
+        ICON_WATER_PERCENT,
+        UNIT_PERCENT,
+        -5,
+        5,
+        1,
+    ),
 }
 
 CONFIG_SCHEMA = cv.All(
     ECOCOMFORT2_CLIENT_SCHEMA.extend(
         {
-            **{
-                cv.Optional(key): number.number_schema(
-                    number.ApplyNumber,
-                    entity_category=ENTITY_CATEGORY_CONFIG,
-                    icon=icon,
-                )
-                for key, (_, icon) in _THRESHOLDS.items()
-            },
-            # No device class: an offset is a difference, which Home Assistant must not convert like a reading
-            cv.Optional(CONF_TEMPERATURE_OFFSET): number.number_schema(
+            cv.Optional(key): number.number_schema(
                 number.ApplyNumber,
                 entity_category=ENTITY_CATEGORY_CONFIG,
-                icon=ICON_THERMOMETER,
-                unit_of_measurement=UNIT_CELSIUS,
-            ),
-            cv.Optional(CONF_HUMIDITY_OFFSET): number.number_schema(
-                number.ApplyNumber,
-                entity_category=ENTITY_CATEGORY_CONFIG,
-                icon=ICON_WATER_PERCENT,
-                unit_of_measurement=UNIT_PERCENT,
-            ),
+                icon=icon,
+                unit_of_measurement=unit,
+            )
+            for key, (_, icon, unit, *_) in _NUMBERS.items()
         }
     ),
-    cv.has_at_least_one_key(
-        *_THRESHOLDS, CONF_TEMPERATURE_OFFSET, CONF_HUMIDITY_OFFSET
-    ),
+    cv.has_at_least_one_key(*_NUMBERS),
 )
 
 
@@ -69,26 +91,12 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ECOCOMFORT2_ID])
     numbers = number.sub_numbers(config, parent=hub)
     # The hub publishes the value the unit confirms, so the entities publish nothing themselves
-    for key, (setting, _) in _THRESHOLDS.items():
+    for key, (setting, _, _, min_value, max_value, step) in _NUMBERS.items():
         await numbers(
             key,
             partial(hub.set_number, setting),
             apply=f"write_number({setting}, value)",
-            **_THRESHOLD_RANGE,
+            min_value=min_value,
+            max_value=max_value,
+            step=step,
         )
-    await numbers(
-        CONF_TEMPERATURE_OFFSET,
-        partial(hub.set_number, NumberSetting.TEMPERATURE_OFFSET),
-        apply=f"write_number({NumberSetting.TEMPERATURE_OFFSET}, value)",
-        min_value=-5,
-        max_value=5,
-        step=0.1,
-    )
-    await numbers(
-        CONF_HUMIDITY_OFFSET,
-        partial(hub.set_number, NumberSetting.HUMIDITY_OFFSET),
-        apply=f"write_number({NumberSetting.HUMIDITY_OFFSET}, value)",
-        min_value=-5,
-        max_value=5,
-        step=1,
-    )
