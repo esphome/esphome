@@ -61,6 +61,9 @@ class MitsubishiCN105 {
     // nullopt = unknown: never received yet, or invalidated because mode/power changed
     // since the last 0x06 report (a stale value would describe the previous mode).
     std::optional<bool> operating{};
+    // Direction chosen when the compressor started in AUTO. Held for the whole run and
+    // cleared by invalidate_operating_() (mode/power/setpoint change) or when the compressor stops.
+    std::optional<AutoDirection> auto_direction{};
     bool power_on{false};
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
