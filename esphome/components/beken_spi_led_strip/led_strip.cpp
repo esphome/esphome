@@ -319,6 +319,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
     spi_data->tx_in_progress = false;
     xSemaphoreGive(spi_data->dma_tx_semaphore);
     this->status_set_warning();
+    this->schedule_show();
     return;
   }
 
@@ -340,6 +341,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
     ESP_LOGE(TAG, "tx_in_progress is set");
     xSemaphoreGive(spi_data->dma_tx_semaphore);
     this->status_set_warning();
+    this->schedule_show();
     return;
   }
 
