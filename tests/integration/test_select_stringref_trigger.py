@@ -9,6 +9,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -109,27 +110,25 @@ async def test_select_stringref_trigger(
         client.select_command(action_entity.key, "Action B")
 
         # Wait for all log messages confirming StringRef operations work
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(
-                    value_logged_future,
-                    concatenated_future,
-                    comparison_future,
-                    index_logged_future,
-                    length_future,
-                    find_substr_future,
-                    find_char_future,
-                    substr_future,
-                    set_action_future,
-                    stoi_future,
-                    stol_future,
-                    stof_future,
-                    stod_future,
-                ),
-                timeout=5.0,
-            )
-        except TimeoutError:
-            results = {
+        await wait_or_fail(
+            asyncio.gather(
+                value_logged_future,
+                concatenated_future,
+                comparison_future,
+                index_logged_future,
+                length_future,
+                find_substr_future,
+                find_char_future,
+                substr_future,
+                set_action_future,
+                stoi_future,
+                stol_future,
+                stof_future,
+                stod_future,
+            ),
+            5.0,
+            "StringRef operations failed",
+            received=lambda: {
                 "value_logged": value_logged_future.done(),
                 "concatenated": concatenated_future.done(),
                 "comparison": comparison_future.done(),
@@ -143,5 +142,5 @@ async def test_select_stringref_trigger(
                 "stol": stol_future.done(),
                 "stof": stof_future.done(),
                 "stod": stod_future.done(),
-            }
-            pytest.fail(f"StringRef operations failed - received: {results}")
+            },
+        )
