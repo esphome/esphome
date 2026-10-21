@@ -145,7 +145,10 @@ async def test_uart_mock_ld2410_query_ack(
         # Each number is published once per ACK: the seed value, then the value under test
         for name, (seed, value) in EXPECTED.items():
             assert number_states[name] == pytest.approx([seed, value]), name
-        assert waited_for_frame_end.done(), (
-            "Expected the parser to wait past the footer bytes in the values"
+        # The log line comes over stdout, which can trail the API states
+        await wait_or_fail(
+            waited_for_frame_end,
+            2.0,
+            "Expected the parser to wait past the footer bytes in the values",
         )
         assert not ack_errors, f"Unexpected ACK errors: {ack_errors}"
