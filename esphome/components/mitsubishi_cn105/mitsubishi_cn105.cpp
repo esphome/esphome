@@ -275,7 +275,7 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     return false;
   }
 
-    // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
+  // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
   // Catches mode/power changes made outside ESPHome (IR remote, Mitsubishi app); setters handle local changes.
   // On the initial sync after boot/reconnect (previous.mode == UNKNOWN) nothing actually changed on the unit, so
   // there's no spin-down to latch; just request a fresh 0x06.
