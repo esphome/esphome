@@ -47,7 +47,8 @@ async def test_host_mode_climate_basic_state(
                 and state.target_humidity == 20.0
             )
 
-        try:
-            await wait_for_state(client, is_default_state)
-        except TimeoutError:
-            pytest.fail("Climate did not converge to expected default state")
+        await wait_for_state(
+            client,
+            is_default_state,
+            msg="Climate did not converge to expected default state",
+        )

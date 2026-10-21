@@ -79,10 +79,7 @@ async def test_light_constant_brightness(
 
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         async def send_and_wait(
             light_key: int, timeout: float = 5.0, **kwargs: Any

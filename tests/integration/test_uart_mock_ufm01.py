@@ -167,10 +167,7 @@ async def _connect(client: APIClient) -> _Meter:
     entities, services = await client.list_entities_services()
     meter = _Meter(client, entities, services)
     client.subscribe_states(meter.helper.on_state_wrapper(meter.on_state))
-    try:
-        await meter.helper.wait_for_initial_states()
-    except TimeoutError:
-        pytest.fail("Timeout waiting for initial states")
+    await meter.helper.wait_for_initial_states()
     return meter
 
 

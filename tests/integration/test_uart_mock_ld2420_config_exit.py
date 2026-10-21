@@ -51,10 +51,7 @@ async def test_uart_mock_ld2420_config_exit(
         client.subscribe_states(
             initial_state_helper.on_state_wrapper(collector.on_state)
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)

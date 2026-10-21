@@ -84,10 +84,7 @@ async def test_uart_mock_ld2460(
         client.subscribe_states(
             initial_state_helper.on_state_wrapper(collector.on_state)
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         start_btn = find_entity(entities, "start_scenario", ButtonInfo)
         assert start_btn is not None, "Start Scenario button not found"

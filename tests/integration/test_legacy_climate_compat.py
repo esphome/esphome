@@ -67,10 +67,7 @@ async def test_legacy_climate_compat(
 
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Verify we can set a custom fan mode via API (tests find_custom_fan_mode_ compat path)
         client.climate_command(test_climate.key, custom_fan_mode="Turbo")
