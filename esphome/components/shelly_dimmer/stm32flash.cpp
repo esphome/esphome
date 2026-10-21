@@ -340,8 +340,9 @@ stm32_err_t stm32_mass_erase(const stm32_unique_ptr &stm) {
   /* extended erase */
   static constexpr auto BUFFER_SIZE = 3;
   const uint8_t buf[] = {
-      0xFF,       /* 0xFFFF the magic number for mass erase */
-      0xFF, 0x00, /* checksum */
+      0xFF, /* 0xFFFF the magic number for mass erase */
+      0xFF,
+      0x00, /* checksum */
   };
   static_assert(sizeof(buf) == BUFFER_SIZE, "Expected the buffer to be 3 bytes");
   stream->write_array(buf, 3);
