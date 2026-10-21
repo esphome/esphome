@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 from .. import CONF_M5_UNIT_BLDC_ID, M5UnitBldc
 
+# The order matches the Direction enum
 DIRECTION_OPTIONS = ["Forward", "Backward"]
 
 CONFIG_SCHEMA = {
@@ -19,7 +20,6 @@ CONFIG_SCHEMA = {
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_M5_UNIT_BLDC_ID])
-    # The hub publishes the option once the device has accepted it
     selects = select.sub_selects(config, parent=hub)
     await selects(
         CONF_DIRECTION,

@@ -1,10 +1,9 @@
 m5_unit_bldc:
   i2c_id: i2c_bus
   id: bldc_hub
-  address: 0x65
   mode: closed_loop
-  direction: forward
-  model: low_speed
+  direction: backward
+  model: high_speed
   pole_pairs: 7
 
 number:

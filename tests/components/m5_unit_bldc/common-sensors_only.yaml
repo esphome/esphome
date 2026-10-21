@@ -1,0 +1,10 @@
+m5_unit_bldc:
+  i2c_id: i2c_bus
+  id: bldc_hub
+  pole_pairs: 7
+
+sensor:
+  - platform: m5_unit_bldc
+    m5_unit_bldc_id: bldc_hub
+    rpm:
+      name: Motor RPM
