@@ -11,7 +11,7 @@ One file per component, named after it:
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
 - [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback
 - [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx crash report on the next boot
-- [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker
+- [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check
 - [`nrf52.md`](nrf52.md): dongle board support
 - [`online_image.md`](online_image.md): stalled and malformed downloads
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP

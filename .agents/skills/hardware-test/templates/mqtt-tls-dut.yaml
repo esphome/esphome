@@ -1,0 +1,93 @@
+# MQTT TLS trust-source test (#14318, needs that PR's tree for tls and verify_ssl): one build per trust source, with
+# the name and the mqtt block edited per file (see reference/recipes/mqtt.md). Secrets: broker_ip (the local broker
+# from make_test_ca.sh), mqtt_ca, mqtt_client_cert and mqtt_client_key as block scalars from the same run.
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: VERBOSE
+  logs:
+    wifi: DEBUG
+    api: DEBUG
+    api.connection: DEBUG
+    scheduler: DEBUG
+    component: DEBUG
+    sensor: DEBUG
+    esp32: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("probe", "mqtt connected %d, internal free %u, largest block %u", id(mq).is_connected(),
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+
+sensor:
+  - platform: template
+    name: Counter
+    update_interval: 2s
+    accuracy_decimals: 0
+    lambda: |-
+      static uint32_t n = 0;
+      return n++;
+
+switch:
+  - platform: template
+    name: Relay
+    id: relay
+    optimistic: true
+    on_turn_on:
+      - logger.log: "Relay ON"
+    on_turn_off:
+      - logger.log: "Relay OFF"
+
+button:
+  - platform: template
+    name: Publish big
+    on_press:
+      - mqtt.publish:
+          topic: ${name}/big
+          payload: !lambda |-
+            return std::string(3000, 'q');
+
+substitutions:
+  name: mqtt-dut
+
+esphome:
+  name: ${name}
+
+mqtt:
+  id: mq
+  broker: !secret broker_ip        # test.mosquitto.org for the bundle run
+  # No port: it must resolve to 1883 without TLS options and to 8883 with them. Spell it out only for the
+  # client-certificate listener (8884), wss (9002) and the public bundle broker (8886).
+  skip_cert_cn_check: true         # with the local CA: the certificate names an address
+  certificate_authority: !secret mqtt_ca   # own CA; drop it and set verify_ssl: false for the unverified build,
+                                           # or tls: true for the bundle builds (public broker, and the local one as the negative)
+  # client_certificate: !secret mqtt_client_cert       # with the CA, port 8884
+  # client_certificate_key: !secret mqtt_client_key
+  # transport: wss                                     # with the CA, port 9002
+  reboot_timeout: 0s
+  discovery: false
+  on_message:
+    - topic: ${name}/cmd
+      then:
+        - logger.log:
+            format: "cmd payload: %s"
+            args: ["x.c_str()"]
