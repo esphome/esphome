@@ -583,7 +583,7 @@ def merge(source, destination):
     return destination
 
 
-def inline_schema(node, base):
+def inline_schema(node: dict, base: dict) -> None:
     """Copy *base* into *node*, keeping the key constraints of both."""
     local = node.get("constraints", [])
     node |= base
