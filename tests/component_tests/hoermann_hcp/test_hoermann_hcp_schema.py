@@ -53,8 +53,7 @@ def test_accepts_deprecated_0x02_with_warning(
 def test_explicit_valid_address_emits_no_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A user who pins a non-deprecated address gets neither warning."""
+    """A user who pins a non-deprecated address gets no warning."""
     config = hoermann_hcp.CONFIG_SCHEMA({"address": 0x2A})
     assert config["address"] == 0x2A
-    assert "run a bus scan now to future-proof your setup" not in caplog.text
-    assert "explicitly to silence this warning" not in caplog.text
+    assert not caplog.records
