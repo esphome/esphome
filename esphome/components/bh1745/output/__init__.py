@@ -17,8 +17,8 @@ CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    await output.sub_binary_outputs(config, parent=config[CONF_BH1745_ID]).create(
+    hub = await cg.get_variable(config[CONF_BH1745_ID])
+    await output.sub_binary_outputs(config, parent=hub).create(
         config, None, apply="set_interrupt_state(state)"
     )
-    hub = await cg.get_variable(config[CONF_BH1745_ID])
     cg.add(hub.enable_interrupt_output())
