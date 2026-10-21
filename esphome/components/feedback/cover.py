@@ -147,8 +147,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     # OTHER
-    if CONF_MAX_DURATION in config:
-        cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
+    cg.add_optional(var.set_max_duration, config.get(CONF_MAX_DURATION))
 
     cg.add(var.set_has_built_in_endstop(config[CONF_HAS_BUILT_IN_ENDSTOP]))
 
