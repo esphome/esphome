@@ -34,10 +34,7 @@ void MQTTDateComponent::setup() {
       [this]() { this->publish_state(this->date_->year, this->date_->month, this->date_->day); });
 }
 
-void MQTTDateComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Date '%s':", LOG_STR_ARG(this->date_->get_log_name()));
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTDateComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTDateComponent, "date")
 const EntityBase *MQTTDateComponent::get_entity() const { return this->date_; }

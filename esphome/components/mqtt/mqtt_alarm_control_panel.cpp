@@ -77,7 +77,6 @@ void MQTTAlarmControlPanelComponent::setup() {
 }
 
 void MQTTAlarmControlPanelComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT alarm_control_panel '%s':", LOG_STR_ARG(this->alarm_control_panel_->get_log_name()));
   LOG_MQTT_COMPONENT(true, true);
   ESP_LOGCONFIG(TAG,
                 "  Supported Features: %" PRIu32 "\n"

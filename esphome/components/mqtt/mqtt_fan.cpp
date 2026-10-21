@@ -125,7 +125,6 @@ void MQTTFanComponent::setup() {
 }
 
 void MQTTFanComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Fan '%s': ", LOG_STR_ARG(this->state_->get_log_name()));
   LOG_MQTT_COMPONENT(true, true);
   if (this->state_->get_traits().supports_direction()) {
     ESP_LOGCONFIG(TAG,

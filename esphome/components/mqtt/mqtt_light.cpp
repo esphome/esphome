@@ -87,10 +87,7 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   }
 }
 bool MQTTJSONLightComponent::send_initial_state() { return this->publish_state_(); }
-void MQTTJSONLightComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Light '%s':", LOG_STR_ARG(this->state_->get_log_name()));
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTJSONLightComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 }  // namespace esphome::mqtt
 
