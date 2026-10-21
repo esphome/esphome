@@ -95,29 +95,23 @@ def _esp32_config_schema() -> cv.All:
 
     def validate_connections(config: ConfigType) -> ConfigType:
         if CONF_CONNECTIONS in config:
-            if not config[CONF_ACTIVE]:
-                raise cv.Invalid(
-                    "Connections can only be used if the proxy is set to active"
-                )
             # Explicit entries claim slots like the generated ones; dev
             # historically skipped this, letting an explicit-connections
             # config evade the controller budget.
             bluetooth_connection.consume_gatt_slot(
                 "bluetooth_proxy", len(config[CONF_CONNECTIONS])
             )(config)
-        elif config[CONF_ACTIVE]:
-            connection_slots: int = config[CONF_CONNECTION_SLOTS]
-            bluetooth_connection.consume_gatt_slot("bluetooth_proxy", connection_slots)(
-                config
-            )
-
-            return {
-                **config,
-                CONF_CONNECTIONS: [
-                    CONNECTION_SCHEMA({}) for _ in range(connection_slots)
-                ],
-            }
-        return config
+            return config
+        if not config[CONF_ACTIVE]:
+            return config
+        connection_slots: int = config[CONF_CONNECTION_SLOTS]
+        bluetooth_connection.consume_gatt_slot("bluetooth_proxy", connection_slots)(
+            config
+        )
+        return {
+            **config,
+            CONF_CONNECTIONS: [CONNECTION_SCHEMA({}) for _ in range(connection_slots)],
+        }
 
     return cv.All(
         (
@@ -142,6 +136,7 @@ def _esp32_config_schema() -> cv.All:
             .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
             .extend(cv.COMPONENT_SCHEMA)
         ),
+        cv.only_when(CONF_CONNECTIONS, CONF_ACTIVE, True),
         validate_connections,
     )
 
