@@ -1,4 +1,4 @@
-"""Shared model for 4bpp panels split across two chip selects (EPaperDualCS)."""
+"""Shared model for boards using the E Ink EL133UF1 panel (EPaperEL133UF1)."""
 
 from typing import Any
 
@@ -12,25 +12,25 @@ from esphome.types import ConfigType
 from . import EpaperModel, ultrachip_resolution
 
 CONF_CS1_PIN = "cs1_pin"
-# Widest row the driver can stage: 4 * EPaperDualCS::MAX_HALF_ROW_BYTES (epaper_spi_dualcs.h),
+# Widest row the driver can stage: 4 * EPaperEL133UF1::MAX_HALF_ROW_BYTES (epaper_spi_el133uf1.h),
 # since each chip receives a quarter of the width in bytes per row.
 MAX_WIDTH = 1600
 
-# Chip masks for init sequence entries, the same values as CHIP_* in epaper_spi_dualcs.h
+# Chip masks for init sequence entries, the same values as CHIP_* in epaper_spi_el133uf1.h
 PRIMARY = 1
 BOTH = 3
 
-# Data of the CMD66 (0xF0) command, the same as EPaperDualCS::CMD66_V
+# Data of the CMD66 (0xF0) command, the same as EPaperEL133UF1::CMD66_V
 CMD66_DATA = (0x49, 0x55, 0x13, 0x5D, 0x05, 0x10)
 
 
-class DualCSModel(EpaperModel):
+class EL133UF1Model(EpaperModel):
     """A panel whose two controller chips each drive half of every row, one chip select each.
 
     Init sequence entries are (command, chip mask, *data), or delay(ms) from esphome.components.mipi.
     """
 
-    source_files = ("epaper_spi_4bpp.cpp", "epaper_spi_dualcs.cpp")
+    source_files = ("epaper_spi_4bpp.cpp", "epaper_spi_el133uf1.cpp")
 
     # The driver drives CS and CS1 directly for the dual-CS protocol.
     manages_cs = True

@@ -14,13 +14,13 @@ from typing import Any
 from esphome.components.mipi import delay
 from esphome.types import ConfigType
 
-from .dualcs import BOTH, CMD66_DATA, PRIMARY, DualCSModel
+from .el133uf1 import BOTH, CMD66_DATA, PRIMARY, EL133UF1Model
 
 
-class T133A01Model(DualCSModel):
-    """DualCSModel subclass for T133A01-based 6-color e-paper displays."""
+class T133A01Model(EL133UF1Model):
+    """EL133UF1Model subclass for T133A01-based 6-color e-paper displays."""
 
-    source_files = DualCSModel.source_files + ("epaper_spi_t133a01.cpp",)
+    source_files = EL133UF1Model.source_files + ("epaper_spi_t133a01.cpp",)
 
     def __init__(
         self, name: str, class_name: str = "EPaperT133A01", **defaults: Any

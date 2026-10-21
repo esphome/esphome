@@ -20,7 +20,7 @@ from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from .dualcs import BOTH, CMD66_DATA, CONF_CS1_PIN, PRIMARY, DualCSModel
+from .el133uf1 import BOTH, CMD66_DATA, CONF_CS1_PIN, PRIMARY, EL133UF1Model
 
 CONF_BS0_PIN = "bs0_pin"
 CONF_BS1_PIN = "bs1_pin"
@@ -36,8 +36,8 @@ def _check_inverted_pin_is_internal(pin: ConfigType, path: list[Hashable]) -> No
         )
 
 
-class Inkplate13SpectraModel(DualCSModel):
-    source_files = DualCSModel.source_files + ("epaper_spi_inkplate13spectra.cpp",)
+class Inkplate13SpectraModel(EL133UF1Model):
+    source_files = EL133UF1Model.source_files + ("epaper_spi_inkplate13spectra.cpp",)
 
     def __init__(
         self, name: str, class_name: str = "EPaperInkplate13Spectra", **defaults: Any

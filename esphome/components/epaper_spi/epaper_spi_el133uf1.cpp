@@ -1,4 +1,4 @@
-#include "epaper_spi_dualcs.h"
+#include "epaper_spi_el133uf1.h"
 #include "colorconv.h"
 
 #include <algorithm>
@@ -7,27 +7,27 @@
 
 namespace esphome::epaper_spi {
 
-ESPHOME_LOG_TAG(TAG, "epaper_spi.dualcs");
+ESPHOME_LOG_TAG(TAG, "epaper_spi.el133uf1");
 
-uint8_t EPaperDualCS::color_to_native(Color color) { return color_to_spectra6(color); }
+uint8_t EPaperEL133UF1::color_to_native(Color color) { return color_to_spectra6(color); }
 
-void EPaperDualCS::power_on() {
+void EPaperEL133UF1::power_on() {
   ESP_LOGV(TAG, "Power on");
   this->write_command_to_chip_(REG_PON, CHIP_BOTH);
 }
 
 // EPaperBase's automatic busy-wait before DEEP_SLEEP covers the wait for POF to complete.
-void EPaperDualCS::power_off() {
+void EPaperEL133UF1::power_off() {
   ESP_LOGV(TAG, "Power off");
   this->write_command_to_chip_(REG_POF, {0x00}, CHIP_BOTH);
 }
 
-void EPaperDualCS::refresh_screen(bool partial) {
+void EPaperEL133UF1::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen");
   this->write_command_to_chip_(REG_DRF, {0x01}, CHIP_BOTH);
 }
 
-void EPaperDualCS::deep_sleep() {
+void EPaperEL133UF1::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
   this->write_command_to_chip_(REG_DSLP, {0xA5}, CHIP_BOTH);
 }
@@ -35,7 +35,7 @@ void EPaperDualCS::deep_sleep() {
 // Each entry is the command, a count byte, the chip mask and the data (the count covers the mask
 // and the data); a delay of N ms is N then DELAY_FLAG. The Python model builds this layout with the
 // standard flatten_sequence(), the chip mask riding as the first data byte.
-bool EPaperDualCS::initialise(bool partial) {
+bool EPaperEL133UF1::initialise(bool partial) {
   const uint8_t *sequence = this->init_sequence_;
   const size_t length = this->init_sequence_length_;
   while (this->init_index_ != length) {
@@ -65,7 +65,7 @@ bool EPaperDualCS::initialise(bool partial) {
   return true;
 }
 
-void EPaperDualCS::setup() {
+void EPaperEL133UF1::setup() {
   EPaperBase::setup();
   // The driver drives both chip selects itself: one must stay high while the other receives data.
   for (auto *cs : this->cs_pins_) {
@@ -74,13 +74,13 @@ void EPaperDualCS::setup() {
   }
 }
 
-void EPaperDualCS::dump_config() {
+void EPaperEL133UF1::dump_config() {
   EPaperBase::dump_config();
   LOG_PIN("  CS Pin: ", this->cs_pins_[0]);
   LOG_PIN("  CS1 Pin: ", this->cs_pins_[1]);
 }
 
-void EPaperDualCS::write_command_to_chip_(uint8_t cmd, const uint8_t *data, size_t len, uint8_t chip) {
+void EPaperEL133UF1::write_command_to_chip_(uint8_t cmd, const uint8_t *data, size_t len, uint8_t chip) {
   ESP_LOGV(TAG, "write_command_to_chip_: cmd=0x%02X len=%u chip=%u", cmd, (unsigned) len, (unsigned) chip);
   for (uint8_t i = 0; i != CHIP_COUNT; i++) {
     if (chip & (1 << i))
@@ -102,7 +102,7 @@ void EPaperDualCS::write_command_to_chip_(uint8_t cmd, const uint8_t *data, size
   }
 }
 
-void EPaperDualCS::start_data_(uint8_t chip) {
+void EPaperEL133UF1::start_data_(uint8_t chip) {
   this->cs_pins_[chip]->digital_write(false);
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -110,14 +110,14 @@ void EPaperDualCS::start_data_(uint8_t chip) {
   this->dc_pin_->digital_write(true);
 }
 
-void EPaperDualCS::end_data_(uint8_t chip) {
+void EPaperEL133UF1::end_data_(uint8_t chip) {
   this->disable();
   this->cs_pins_[chip]->digital_write(true);
 }
 
 // Splits the dirty box (panel coordinates, x_high_/y_high_ exclusive) between the two chips.
 // HRST/HRED count half columns and VRST/VRED half rows, as the panel addresses them.
-bool EPaperDualCS::compute_ptlw_params_() {
+bool EPaperEL133UF1::compute_ptlw_params_() {
   for (auto &p : this->ptlw_)
     p.needed = false;
 
@@ -162,7 +162,7 @@ bool EPaperDualCS::compute_ptlw_params_() {
 
 // Each chip in turn receives its half of every row. Its CS stays low for the whole stream, even
 // between calls: raising CS restarts the data pointer, so only the last chunk would be kept.
-bool HOT EPaperDualCS::transfer_full_() {
+bool HOT EPaperEL133UF1::transfer_full_() {
   const uint32_t start_time = millis();
   const uint16_t half_row_bytes = this->width_ / 4;
   const size_t rows = this->height_;
@@ -206,7 +206,7 @@ bool HOT EPaperDualCS::transfer_full_() {
 
 // Full transfer unless the update is a partial one with a non-empty dirty box. buffer_ is a
 // SplitBuffer and may not be contiguous, so rows are copied to a stack buffer before sending.
-bool EPaperDualCS::transfer_data() {
+bool EPaperEL133UF1::transfer_data() {
   const size_t bytes_per_row = (size_t) this->width_ / 2;
   const uint8_t chip = this->transfer_chip_;
   const auto &params = this->ptlw_[chip];
@@ -283,7 +283,7 @@ bool EPaperDualCS::transfer_data() {
   return false;
 }
 
-void EPaperDualCS::abort_transfer() {
+void EPaperEL133UF1::abort_transfer() {
   // A DTM data stream is open, with one of the chip selects held low, while the full path has
   // sent rows (current_data_index_ != 0) or the partial path is in its DATA state.
   bool stream_open =

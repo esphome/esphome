@@ -1,6 +1,6 @@
 #pragma once
 
-#include "epaper_spi_dualcs.h"
+#include "epaper_spi_el133uf1.h"
 
 namespace esphome::epaper_spi {
 
@@ -11,9 +11,9 @@ namespace esphome::epaper_spi {
  * reset() powers the panel on step by step. It runs in the RESET_END state, which EPaperBase
  * does not gate on the busy pin: the busy pin of an unpowered panel reads as busy.
  */
-class EPaperInkplate13Spectra : public EPaperDualCS {
+class EPaperInkplate13Spectra : public EPaperEL133UF1 {
  public:
-  using EPaperDualCS::EPaperDualCS;
+  using EPaperEL133UF1::EPaperEL133UF1;
 
   void set_bs0_pin(GPIOPin *bs0) { this->bs0_pin_ = bs0; }
   void set_bs1_pin(GPIOPin *bs1) { this->bs1_pin_ = bs1; }

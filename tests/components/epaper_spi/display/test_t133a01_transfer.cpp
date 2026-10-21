@@ -29,7 +29,7 @@ class TestableT133A01 : public EPaperT133A01 {
   RecordingPin dc, cs, cs1;
 };
 
-/// The power, refresh and sleep commands come from EPaperDualCS and go to both chips.
+/// The power, refresh and sleep commands come from EPaperEL133UF1 and go to both chips.
 TEST(EPaperT133A01, PowerRefreshAndSleepCommands) {
   TestableT133A01 display(8, 2);
   RecordingDelegate bus(&display.dc);

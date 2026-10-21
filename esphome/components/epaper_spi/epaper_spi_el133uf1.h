@@ -5,8 +5,9 @@
 namespace esphome::epaper_spi {
 
 /**
- * 4bpp panels driven by two controller chips, one chip select each: CS drives the left half of
- * every row and CS1 the right half (T133A01, Inkplate 13 Spectra).
+ * E Ink EL133UF1: 13.3" Spectra 6 panel (1200x1600, 4bpp) with two controller chips, one chip
+ * select each: CS drives the left half of every row and CS1 the right half. Used by the T133A01
+ * (Seeed reTerminal E1004) and the Inkplate 13 Spectra; Good Display sells it as GDEP133C02.
  *
  * Provides chip select routing, the init sequence replay (the table comes from the Python model,
  * with a chip mask on every command), the power, refresh and sleep commands, and transfer_data()
@@ -18,7 +19,7 @@ namespace esphome::epaper_spi {
  * DC is driven low for every command byte and high for its data. The T133A01 needs that;
  * the Inkplate 13 Spectra ignores DC and takes the first byte after CS as the command.
  */
-class EPaperDualCS : public EPaper4bpp {
+class EPaperEL133UF1 : public EPaper4bpp {
  public:
   using EPaper4bpp::EPaper4bpp;
 

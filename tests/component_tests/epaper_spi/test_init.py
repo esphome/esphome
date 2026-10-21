@@ -740,7 +740,7 @@ def test_test_card_overrides_update_interval(
         ("t133a01", (0x61, 3, 0x00, 0xC8, 0x00, 0x64)),
     ],
 )
-def test_dualcs_resolution_follows_dimensions(
+def test_el133uf1_resolution_follows_dimensions(
     model: str, tres: tuple[int, ...]
 ) -> None:
     """Each chip gets the full width and half the height; 1200x1600 is Soldered's 1200x800."""
@@ -752,7 +752,7 @@ def test_dualcs_resolution_follows_dimensions(
 
 
 @pytest.mark.parametrize("model", ["inkplate13spectra", "t133a01"])
-def test_dualcs_rejects_custom_init_sequence(
+def test_el133uf1_rejects_custom_init_sequence(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
     model: str,

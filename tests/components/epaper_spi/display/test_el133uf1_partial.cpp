@@ -97,9 +97,9 @@ class ChipLogDelegate : public spi::SPIDelegate {
 };
 
 /// A dual chip select panel small enough to check every byte that reaches each chip.
-class TestableDualCS : public EPaperT133A01 {
+class TestableEL133UF1 : public EPaperT133A01 {
  public:
-  explicit TestableDualCS(const uint8_t *init_sequence = nullptr, size_t init_sequence_length = 0)
+  explicit TestableEL133UF1(const uint8_t *init_sequence = nullptr, size_t init_sequence_length = 0)
       : EPaperT133A01("test", PANEL_W, PANEL_H, init_sequence, init_sequence_length),
         bus(&this->cs, &this->cs1, &this->dc) {
     this->delegate_ = &this->bus;
@@ -179,30 +179,30 @@ class TestableDualCS : public EPaperT133A01 {
 const std::vector<uint8_t> NULL_WINDOW = {0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x01, 0x01};
 
 /// What each chip must have received for a window: the PTLW payload and the rows
-void expect_chip(const TestableDualCS &d, bool primary, const std::vector<uint8_t> &ptlw,
+void expect_chip(const TestableEL133UF1 &d, bool primary, const std::vector<uint8_t> &ptlw,
                  const std::vector<uint8_t> &data) {
   EXPECT_EQ(d.bus.payload_after(REG_PTLW, primary), ptlw) << (primary ? "primary" : "secondary") << " PTLW";
   EXPECT_EQ(d.bus.payload_after(REG_DTM, primary), data) << (primary ? "primary" : "secondary") << " data";
 }
 
 /// A chip the window does not touch gets four rows of its first two bytes
-std::vector<uint8_t> null_window_data(const TestableDualCS &d, size_t first_byte) {
+std::vector<uint8_t> null_window_data(const TestableEL133UF1 &d, size_t first_byte) {
   return d.rows(0, 3, first_byte, 2);
 }
 
-TEST(EPaperDualCSPartial, RegionOnlyOnPrimaryHalf) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, RegionOnlyOnPrimaryHalf) {
+  TestableEL133UF1 d;
   d.draw({{5, 3}});
   d.run_partial();
-  ASSERT_EQ(d.transfer_sub_, TestableDualCS::TRF_START);
+  ASSERT_EQ(d.transfer_sub_, TestableEL133UF1::TRF_START);
 
   // Columns 4..7 and rows 2..3 -> half-columns 8..15, half-row 1
   expect_chip(d, true, {0x00, 0x08, 0x00, 0x0F, 0x00, 0x01, 0x00, 0x01, 0x01}, d.rows(2, 3, 2, 2));
   expect_chip(d, false, NULL_WINDOW, null_window_data(d, HALF_BYTES));
 }
 
-TEST(EPaperDualCSPartial, RegionOnlyOnSecondaryHalf) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, RegionOnlyOnSecondaryHalf) {
+  TestableEL133UF1 d;
   d.draw({{20, 10}});
   d.run_partial();
 
@@ -211,8 +211,8 @@ TEST(EPaperDualCSPartial, RegionOnlyOnSecondaryHalf) {
   expect_chip(d, false, {0x00, 0x08, 0x00, 0x0F, 0x00, 0x05, 0x00, 0x05, 0x01}, d.rows(10, 11, HALF_BYTES + 2, 2));
 }
 
-TEST(EPaperDualCSPartial, RegionSpanningTheMiddle) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, RegionSpanningTheMiddle) {
+  TestableEL133UF1 d;
   d.draw({{13, 4}, {18, 7}});
   d.run_partial();
 
@@ -222,8 +222,8 @@ TEST(EPaperDualCSPartial, RegionSpanningTheMiddle) {
 }
 
 /// Rows start on an even row and end on an odd one, columns start on a multiple of 4 and end one short of the next.
-TEST(EPaperDualCSPartial, WindowIsAlignedToTheControllerGranularity) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, WindowIsAlignedToTheControllerGranularity) {
+  TestableEL133UF1 d;
   // Rows 5..6 start on an odd row and end on an even one; column 1 is not on a multiple of 4
   d.draw({{1, 5}, {2, 6}});
   d.run_partial();
@@ -233,8 +233,8 @@ TEST(EPaperDualCSPartial, WindowIsAlignedToTheControllerGranularity) {
   expect_chip(d, false, NULL_WINDOW, null_window_data(d, HALF_BYTES));
 }
 
-TEST(EPaperDualCSPartial, ColumnEndRoundsUpToTheNextGroupOfFour) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, ColumnEndRoundsUpToTheNextGroupOfFour) {
+  TestableEL133UF1 d;
   d.draw({{8, 0}});  // a single column that is the first of its group
   d.run_partial();
 
@@ -243,8 +243,8 @@ TEST(EPaperDualCSPartial, ColumnEndRoundsUpToTheNextGroupOfFour) {
 }
 
 /// Rotation moves the window with the pixels: logical (2, 20) at 90 degrees is physical (11, 2).
-TEST(EPaperDualCSPartial, WindowFollowsRotation) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, WindowFollowsRotation) {
+  TestableEL133UF1 d;
   d.set_rotation(display::DISPLAY_ROTATION_90_DEGREES);
   d.draw({{2, 20}});
   d.run_partial();
@@ -255,8 +255,8 @@ TEST(EPaperDualCSPartial, WindowFollowsRotation) {
 }
 
 /// A static mirror moves the window too: logical (1, 1) with both mirrors is physical (30, 14).
-TEST(EPaperDualCSPartial, WindowFollowsMirroring) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, WindowFollowsMirroring) {
+  TestableEL133UF1 d;
   d.set_transform(MIRROR_X | MIRROR_Y);
   d.draw({{1, 1}});
   d.run_partial();
@@ -267,8 +267,8 @@ TEST(EPaperDualCSPartial, WindowFollowsMirroring) {
 }
 
 /// More rows than one chunk, so the data step runs over several calls.
-TEST(EPaperDualCSPartial, TallRegionIsSentInChunks) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, TallRegionIsSentInChunks) {
+  TestableEL133UF1 d;
   d.draw({{5, 0}, {5, 15}});
   d.run_partial();
 
@@ -277,9 +277,9 @@ TEST(EPaperDualCSPartial, TallRegionIsSentInChunks) {
 
 /// Every data stream starts with DTM sent as a command (D/C low), on both paths and for both chips. The partial
 /// path used to leave D/C high from the PTLW payload, so a panel that reads D/C took DTM for data.
-TEST(EPaperDualCSPartial, DataStreamCommandIsSentWithDcLow) {
+TEST(EPaperEL133UF1Partial, DataStreamCommandIsSentWithDcLow) {
   for (bool partial : {true, false}) {
-    TestableDualCS d;
+    TestableEL133UF1 d;
     d.draw({{5, 3}});  // primary only, so the secondary gets the null window
     d.partial_ = partial;
     d.run_to_completion();
@@ -294,10 +294,10 @@ TEST(EPaperDualCSPartial, DataStreamCommandIsSentWithDcLow) {
 }
 
 /// Each init command goes to the chips its mask names, and a delay ends the call instead of blocking the main loop.
-TEST(EPaperDualCSInit, SequenceGoesToTheNamedChipsAndYieldsOnDelays) {
+TEST(EPaperEL133UF1Init, SequenceGoesToTheNamedChipsAndYieldsOnDelays) {
   // 0x74 with data 0xAA to the primary chip, a 20 ms delay, then 0x04 with no data to both chips
   static constexpr uint8_t SEQUENCE[] = {0x74, 0x02, 0x01, 0xAA, 20, 0xFF, 0x04, 0x01, 0x03};
-  TestableDualCS d(SEQUENCE, sizeof(SEQUENCE));
+  TestableEL133UF1 d(SEQUENCE, sizeof(SEQUENCE));
 
   const uint32_t before = millis();
   EXPECT_FALSE(d.initialise(false)) << "the delay should end the call";
@@ -316,20 +316,20 @@ TEST(EPaperDualCSInit, SequenceGoesToTheNamedChipsAndYieldsOnDelays) {
 }
 
 /// A full update (partial_ is false) takes the full path even when something was drawn.
-TEST(EPaperDualCSPartial, FullUpdateUsesTheFullPath) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, FullUpdateUsesTheFullPath) {
+  TestableEL133UF1 d;
   d.draw({{5, 3}});
   d.partial_ = false;
 
   d.run_to_completion();
   EXPECT_TRUE(d.bus.saw_command(REG_CCSET));
   EXPECT_FALSE(d.bus.saw_command(REG_PTLW));
-  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_START) << "a finished transfer must let the next one choose again";
+  EXPECT_EQ(d.transfer_sub_, TestableEL133UF1::TRF_START) << "a finished transfer must let the next one choose again";
 }
 
 /// A partial update with nothing drawn has no window to send, so it falls back to the full path.
-TEST(EPaperDualCSPartial, EmptyDirtyBoxUsesTheFullPath) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, EmptyDirtyBoxUsesTheFullPath) {
+  TestableEL133UF1 d;
   d.partial_ = true;
 
   d.run_to_completion();
@@ -338,8 +338,8 @@ TEST(EPaperDualCSPartial, EmptyDirtyBoxUsesTheFullPath) {
 }
 
 /// The path is chosen again for every transfer.
-TEST(EPaperDualCSPartial, NextTransferChoosesItsPathAgain) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, NextTransferChoosesItsPathAgain) {
+  TestableEL133UF1 d;
   d.partial_ = false;
   d.run_to_completion();
 
@@ -352,19 +352,19 @@ TEST(EPaperDualCSPartial, NextTransferChoosesItsPathAgain) {
 
 /// Abandoning a partial update with its data stream open closes the stream, and the next transfer picks its path
 /// afresh: here a full one.
-TEST(EPaperDualCSPartial, AbortMidPartialResetsThePath) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, AbortMidPartialResetsThePath) {
+  TestableEL133UF1 d;
   d.draw({{5, 3}});
   d.partial_ = true;
 
   ASSERT_FALSE(d.transfer_data());  // PTLW sent, data stream open
-  ASSERT_EQ(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_DATA);
+  ASSERT_EQ(d.transfer_sub_, TestableEL133UF1::TRF_PARTIAL_DATA);
   ASSERT_EQ(d.transfer_chip_, 0);
   ASSERT_FALSE(d.cs.level);
 
   d.abort_transfer();
 
-  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_START);
+  EXPECT_EQ(d.transfer_sub_, TestableEL133UF1::TRF_START);
   EXPECT_TRUE(d.cs.level);
   EXPECT_TRUE(d.cs1.level);
 
@@ -376,39 +376,39 @@ TEST(EPaperDualCSPartial, AbortMidPartialResetsThePath) {
 }
 
 /// Abandoning an update that has no stream open leaves the chip selects alone but still resets the path.
-TEST(EPaperDualCSPartial, AbortWithNoStreamOpenResetsThePath) {
-  TestableDualCS d;
-  d.transfer_sub_ = TestableDualCS::TRF_PARTIAL_WAIT;
+TEST(EPaperEL133UF1Partial, AbortWithNoStreamOpenResetsThePath) {
+  TestableEL133UF1 d;
+  d.transfer_sub_ = TestableEL133UF1::TRF_PARTIAL_WAIT;
 
   d.abort_transfer();
 
-  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_START);
+  EXPECT_EQ(d.transfer_sub_, TestableEL133UF1::TRF_START);
   EXPECT_EQ(d.bus.begin_count, 0);
 }
 
 /// Each half waits for the busy pin after its data; the transfer does not go on until the panel is ready.
-TEST(EPaperDualCSPartial, WaitsForTheBusyPinBetweenHalves) {
-  TestableDualCS d;
+TEST(EPaperEL133UF1Partial, WaitsForTheBusyPinBetweenHalves) {
+  TestableEL133UF1 d;
   d.draw({{5, 3}});
   d.partial_ = true;
 
-  d.run_until(TestableDualCS::TRF_PARTIAL_WAIT, 0);
+  d.run_until(TestableEL133UF1::TRF_PARTIAL_WAIT, 0);
   d.busy.busy = true;
   EXPECT_FALSE(d.transfer_data());
-  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_WAIT) << "moved on while the panel was busy";
+  EXPECT_EQ(d.transfer_sub_, TestableEL133UF1::TRF_PARTIAL_WAIT) << "moved on while the panel was busy";
   EXPECT_EQ(d.transfer_chip_, 0) << "moved on while the panel was busy";
   EXPECT_TRUE(d.waiting_for_idle_);
   d.busy.busy = false;
   EXPECT_FALSE(d.transfer_data());
   EXPECT_EQ(d.transfer_chip_, 1);
 
-  d.run_until(TestableDualCS::TRF_PARTIAL_WAIT, 1);
+  d.run_until(TestableEL133UF1::TRF_PARTIAL_WAIT, 1);
   d.busy.busy = true;
   EXPECT_FALSE(d.transfer_data());
-  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_WAIT) << "finished while the panel was busy";
+  EXPECT_EQ(d.transfer_sub_, TestableEL133UF1::TRF_PARTIAL_WAIT) << "finished while the panel was busy";
   d.busy.busy = false;
   EXPECT_TRUE(d.transfer_data());
-  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_START);
+  EXPECT_EQ(d.transfer_sub_, TestableEL133UF1::TRF_START);
 }
 
 }  // namespace

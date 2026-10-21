@@ -8,10 +8,10 @@ namespace esphome::epaper_spi {
 ESPHOME_LOG_TAG(TAG, "epaper_spi.inkplate13spectra");
 
 void EPaperInkplate13Spectra::setup() {
-  EPaperDualCS::setup();
+  EPaperEL133UF1::setup();
   this->bs0_pin_->setup();
   this->bs1_pin_->setup();
-  // EPaperDualCS::setup() leaves CS and CS1 high, and their pull-ups go to the panel supply, so
+  // EPaperEL133UF1::setup() leaves CS and CS1 high, and their pull-ups go to the panel supply, so
   // until the first update the unpowered panel would be fed through them. Hold every pin low
   // instead; on some boards that half-powered state stopped the panel from responding.
   this->set_all_pins_low_();
@@ -26,7 +26,7 @@ void EPaperInkplate13Spectra::setup_pins() const {
 }
 
 void EPaperInkplate13Spectra::dump_config() {
-  EPaperDualCS::dump_config();
+  EPaperEL133UF1::dump_config();
   for (auto *pin : this->enable_pins_)
     LOG_PIN("  Enable Pin: ", pin);
   LOG_PIN("  BS0 Pin: ", this->bs0_pin_);
