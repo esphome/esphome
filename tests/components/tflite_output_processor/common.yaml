@@ -1,0 +1,11 @@
+tflite_output_processor:
+
+esphome:
+  on_boot:
+    - lambda: |-
+        // argmax post-processing of a 3-class raw float output.
+        using esphome::tflite_output_processor::process_output;
+        const float raw_output[3] = {0.1f, 2.5f, -0.4f};
+        const auto result = process_output(raw_output, 3, "argmax", 1.0f, true);
+        ESP_LOGI("tflite_output_processor", "argmax = %d, confidence = %.3f", static_cast<int>(result.value),
+                 result.confidence);
