@@ -1400,6 +1400,10 @@ async def test_apply_bytes_beside_other_fields_and_call_object(
 
 
 def test_apply_bytes_checks_its_shape(registries: tuple[Registry, Registry]) -> None:
+    # Escaped braces are not placeholders
+    assert ApplyBytes("data", "send({{}}, {})").target == "send({{}}, {})"
+    with pytest.raises(ValueError, match="needs one {}"):
+        ApplyBytes("data", "send({{}})")
     with pytest.raises(ValueError, match="needs one {}"):
         ApplyBytes("data", "send()")
     with pytest.raises(ValueError, match="needs one {}"):

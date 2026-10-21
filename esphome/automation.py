@@ -379,7 +379,12 @@ class ApplyBytes:
 
     def __post_init__(self) -> None:
         for target in (self.target, self.progmem_target):
-            if target is not None and target.count("{}") != 1:
+            if target is None:
+                continue
+            fields = [
+                f for _, f, _, _ in string.Formatter().parse(target) if f is not None
+            ]
+            if fields.count("") != 1 or any(f not in ("", "parent") for f in fields):
                 raise ValueError(f"apply bytes target {target!r} needs one {{}}")
 
 
