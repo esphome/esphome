@@ -639,11 +639,27 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
     return inherit_property
 
 
+# Platforms whose entities report in one unit only, set by their traits, keyed by the C++ class name
+_FIXED_TEMPERATURE_UNITS: dict[str, str] = {}
+
+
+def declare_fixed_temperature_unit(class_: MockObjClass, unit: str) -> None:
+    """Record that every entity of ``class_`` reports in ``unit``; nothing is stored in the config, so
+    the unit never appears in a config dump."""
+    _FIXED_TEMPERATURE_UNITS[str(class_)] = unit
+
+
 def entity_temperature_unit(config: ConfigType) -> str:
     """The unit a climate or water heater reports in: ``unit_of_measurement`` when the platform took
-    the option through its schema factory, else Celsius (anova's option of that name is unrelated)."""
+    the option through its schema factory, the platform's fixed unit when it declared one, else
+    Celsius (anova's option of that name is unrelated)."""
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
-    return unit if isinstance(unit, cv.TemperatureUnitValue) else UNIT_CELSIUS
+    if isinstance(unit, cv.TemperatureUnitValue):
+        return unit
+    entity_id = config.get(CONF_ID)
+    return _FIXED_TEMPERATURE_UNITS.get(
+        str(entity_id.type) if entity_id is not None else "", UNIT_CELSIUS
+    )
 
 
 def entity_temperature_unit_of_id(entity_id: ID) -> str:
@@ -687,9 +703,7 @@ def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
     """Pass the unit an entity reports in to its platform, which took the option; a platform with a
     fixed unit sets it in its own traits."""
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
-    if isinstance(unit, cv.TemperatureUnitValue) and not isinstance(
-        unit, cv.FixedTemperatureUnitValue
-    ):
+    if isinstance(unit, cv.TemperatureUnitValue):
         add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
 

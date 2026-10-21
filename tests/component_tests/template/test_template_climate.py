@@ -14,11 +14,14 @@ from esphome.components.template.climate import (
     CONF_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE,
     CONF_TARGET_HUMIDITY,
     _resolve_supports,
+    _sensor_reports_in_the_entity_unit,
     _validate_initial_state,
     _validate_set_actions,
 )
+from esphome.config import Config
 from esphome.const import (
     CONF_HUMIDITY_SENSOR,
+    CONF_ID,
     CONF_INITIAL_STATE,
     CONF_SENSOR,
     CONF_TARGET_TEMPERATURE,
@@ -27,6 +30,8 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     UNIT_FAHRENHEIT,
 )
+from esphome.core import ID
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 
@@ -156,3 +161,53 @@ def test_initial_state_temperature_follows_unit_of_measurement() -> None:
     }
     _validate_initial_state(config)
     assert config[CONF_INITIAL_STATE][CONF_TARGET_TEMPERATURE] == pytest.approx(69.8)
+
+
+def _config_with_sensor(unit: str | None) -> Config:
+    temp = ID("temp", is_declaration=True, type="sensor::Sensor")
+    full = Config()
+    full["sensor"] = [
+        {CONF_ID: temp}
+        if unit is None
+        else {CONF_ID: temp, CONF_UNIT_OF_MEASUREMENT: unit}
+    ]
+    full.declare_ids.append((temp, ["sensor", 0, CONF_ID]))
+    return full
+
+
+@pytest.mark.parametrize(
+    ("sensor_unit", "accepted"),
+    [
+        ("°C", False),
+        ("°F", True),
+        ("%", True),
+        (None, True),
+    ],
+    ids=["celsius", "fahrenheit", "not a temperature", "no unit"],
+)
+def test_a_temperature_sensor_must_report_in_the_climate_unit(
+    sensor_unit: str | None, accepted: bool
+) -> None:
+    """The sensor state is copied as is, so a temperature sensor in another unit is rejected."""
+    config: ConfigType = {
+        CONF_SENSOR: ID("temp", is_declaration=False),
+        CONF_UNIT_OF_MEASUREMENT: cv.temperature_unit(UNIT_FAHRENHEIT),
+    }
+    token = fv.full_config.set(_config_with_sensor(sensor_unit))
+    try:
+        if accepted:
+            assert _sensor_reports_in_the_entity_unit(config) is config
+        else:
+            with pytest.raises(
+                cv.Invalid, match="reports in °C but the climate reports in °F"
+            ):
+                _sensor_reports_in_the_entity_unit(config)
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_a_climate_without_a_sensor_has_no_unit_to_check() -> None:
+    config: ConfigType = {
+        CONF_UNIT_OF_MEASUREMENT: cv.temperature_unit(UNIT_FAHRENHEIT)
+    }
+    assert _sensor_reports_in_the_entity_unit(config) is config

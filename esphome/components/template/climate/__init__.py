@@ -27,12 +27,15 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE,
     CONF_TARGET_TEMPERATURE_HIGH,
     CONF_TARGET_TEMPERATURE_LOW,
+    CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core.entity_helpers import (
     convert_temperature_keys,
     entity_temperature_unit,
     temperature_in_entity_unit,
 )
+from esphome.cpp_types import TEMPERATURE_UNITS
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import template_ns
@@ -296,6 +299,23 @@ CONFIG_SCHEMA = cv.All(
     _resolve_supports,
     _validate_initial_state,
 )
+
+
+def _sensor_reports_in_the_entity_unit(config: ConfigType) -> ConfigType:
+    """A sensor's state is copied as is, so a temperature sensor must report in the climate's unit."""
+    if (sensor_id := config.get(CONF_SENSOR)) is None:
+        return config
+    unit = entity_temperature_unit(config)
+    sensor_unit = fv.get_declaring_config(sensor_id).get(CONF_UNIT_OF_MEASUREMENT)
+    if sensor_unit in TEMPERATURE_UNITS and sensor_unit != unit:
+        raise cv.Invalid(
+            f"'{CONF_SENSOR}' reports in {sensor_unit} but the climate reports in {unit}",
+            path=[CONF_SENSOR],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _sensor_reports_in_the_entity_unit
 
 
 async def to_code(config: ConfigType) -> None:

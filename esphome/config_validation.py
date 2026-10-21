@@ -1575,12 +1575,6 @@ class TemperatureUnitValue(str):
     __slots__ = ()
 
 
-class FixedTemperatureUnitValue(TemperatureUnitValue):
-    """The platform's own unit, which its C++ traits already set; stamped by the schema factory."""
-
-    __slots__ = ()
-
-
 def temperature_unit(value: Any) -> TemperatureUnitValue:
     """Validate the unit an entity reports its temperatures in."""
     return TemperatureUnitValue(one_of(*TEMPERATURE_UNITS)(value))

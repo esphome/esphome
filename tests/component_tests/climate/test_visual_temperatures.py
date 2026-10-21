@@ -5,6 +5,7 @@ import pytest
 from esphome.components.climate import (
     Climate,
     _visual_temperatures_in_entity_unit,
+    climate_ns,
     climate_schema,
     visual_temperature_step,
 )
@@ -102,15 +103,28 @@ def test_visual_temperatures_converted_once() -> None:
 
 
 def test_a_fixed_unit_keeps_visual_temperatures_in_it() -> None:
-    # friedrich reports in °F through its traits; the unit is stamped, not a user option
-    schema = climate_schema(Climate, fixed_temperature_unit=UNIT_FAHRENHEIT)
+    # friedrich reports in °F through its traits; the unit is declared, not a user option
+    fixed = climate_ns.class_("FixedUnitClimate", Climate)
+    schema = climate_schema(fixed, fixed_temperature_unit=UNIT_FAHRENHEIT)
     config = schema({CONF_NAME: "AC", CONF_VISUAL: {CONF_TEMPERATURE_STEP: "1°F"}})
-    unit = config[CONF_UNIT_OF_MEASUREMENT]
-    assert unit == UNIT_FAHRENHEIT
-    assert isinstance(unit, cv.FixedTemperatureUnitValue)
+    assert entity_temperature_unit(config) == UNIT_FAHRENHEIT
     assert config[CONF_VISUAL][CONF_TEMPERATURE_STEP][CONF_TARGET_TEMPERATURE] == 1.0
+    # Nothing is stored in the config, so a dumped config (without its generated id) validates again
+    assert CONF_UNIT_OF_MEASUREMENT not in config
+    again = schema(
+        {key: value for key, value in config.items() if key != CONF_ID}
+        | {CONF_NAME: "AC again"}
+    )
+    assert again[CONF_VISUAL] == config[CONF_VISUAL]
     with pytest.raises(cv.Invalid, match="unit_of_measurement"):
         schema({CONF_NAME: "AC", CONF_UNIT_OF_MEASUREMENT: UNIT_FAHRENHEIT})
+
+
+def test_a_platform_cannot_take_the_option_and_fix_the_unit() -> None:
+    with pytest.raises(ValueError, match="not both"):
+        climate_schema(
+            Climate, temperature_unit=True, fixed_temperature_unit=UNIT_FAHRENHEIT
+        )
 
 
 def test_a_fixed_unit_is_not_passed_to_the_platform() -> None:
@@ -119,8 +133,10 @@ def test_a_fixed_unit_is_not_passed_to_the_platform() -> None:
     entity_helpers.add = lambda expression: calls.append(str(expression))
     try:
         var = MockObj("ac")
+        fixed = climate_ns.class_("FixedUnitClimate", Climate)
+        climate_schema(fixed, fixed_temperature_unit=UNIT_FAHRENHEIT)
         setup_entity_temperature_unit(
-            var, {CONF_UNIT_OF_MEASUREMENT: cv.FixedTemperatureUnitValue("°F")}
+            var, {CONF_ID: ID("ac", is_declaration=True, type=fixed)}
         )
         assert calls == []
         setup_entity_temperature_unit(

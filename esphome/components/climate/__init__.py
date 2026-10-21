@@ -55,6 +55,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     convert_visual_temperatures,
+    declare_fixed_temperature_unit,
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
@@ -280,6 +281,12 @@ def climate_schema(
     """``temperature_unit`` adds ``unit_of_measurement`` for a platform whose temperatures are all
     in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``.
     ``fixed_temperature_unit`` is for a device that reports in that unit only, set by its traits."""
+    if temperature_unit and fixed_temperature_unit is not None:
+        raise ValueError(
+            "a platform takes unit_of_measurement or has a fixed unit, not both"
+        )
+    if fixed_temperature_unit is not None:
+        declare_fixed_temperature_unit(class_, fixed_temperature_unit)
     schema = {
         cv.GenerateID(): cv.declare_id(class_),
     }
@@ -295,17 +302,7 @@ def climate_schema(
         if default is not cv.UNDEFINED:
             schema[cv.Optional(key, default=default)] = validator
 
-    extended = _CLIMATE_SCHEMA.extend(schema)
-    if fixed_temperature_unit is not None:
-
-        def stamp(config: ConfigType) -> ConfigType:
-            config[CONF_UNIT_OF_MEASUREMENT] = cv.FixedTemperatureUnitValue(
-                fixed_temperature_unit
-            )
-            return config
-
-        extended.prepend_extra(stamp)
-    return extended
+    return _CLIMATE_SCHEMA.extend(schema)
 
 
 _CALLBACK_AUTOMATIONS = (
