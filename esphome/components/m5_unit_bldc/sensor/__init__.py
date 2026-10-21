@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_HERTZ,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_M5_UNIT_BLDC_ID, UNIT_RPM, M5UnitBldc
 
@@ -30,13 +31,8 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_M5_UNIT_BLDC_ID])
-
-    if rpm_config := config.get(CONF_RPM):
-        sens = await sensor.new_sensor(rpm_config)
-        cg.add(parent.set_rpm_sensor(sens))
-
-    if frequency_config := config.get(CONF_FREQUENCY):
-        sens = await sensor.new_sensor(frequency_config)
-        cg.add(parent.set_frequency_sensor(sens))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_M5_UNIT_BLDC_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RPM, hub.set_rpm_sensor)
+    await sensors(CONF_FREQUENCY, hub.set_frequency_sensor)

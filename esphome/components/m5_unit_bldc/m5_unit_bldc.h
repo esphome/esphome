@@ -34,21 +34,23 @@ enum class MotorModel : uint8_t { MOTOR_MODEL_LOW_SPEED = 0, MOTOR_MODEL_HIGH_SP
 /// sub-platforms to drive it, and `sensor`/`text_sensor` sub-platforms to read it back.
 class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
  public:
+  M5UnitBldc(ControlMode mode, Direction initial_direction, MotorModel model, uint8_t pole_pairs, bool save_to_flash)
+      : control_mode_(mode),
+        initial_direction_(initial_direction),
+        motor_model_(model),
+        pole_pairs_(pole_pairs),
+        save_to_flash_(save_to_flash) {}
+
   void setup() override;
   void update() override;
   void dump_config() override;
 
-  void set_control_mode(ControlMode mode) { this->control_mode_ = mode; }
-  void set_initial_direction(Direction direction) { this->initial_direction_ = direction; }
-  void set_motor_model(MotorModel model) { this->motor_model_ = model; }
-  void set_pole_pairs(uint8_t pole_pairs) { this->pole_pairs_ = pole_pairs; }
   void set_pid(float p, float i, float d) {
     this->has_pid_ = true;
     this->p_ = p;
     this->i_ = i;
     this->d_ = d;
   }
-  void set_save_to_flash(bool save_to_flash) { this->save_to_flash_ = save_to_flash; }
 
   void set_rpm_sensor(sensor::Sensor *rpm_sensor) { this->rpm_sensor_ = rpm_sensor; }
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { this->frequency_sensor_ = frequency_sensor; }
@@ -66,6 +68,22 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool write_target_rpm(float rpm);
   bool write_direction(Direction direction);
 
+  // Entity controls: the state is published only when the device accepted the write
+  void control_pwm(float value) {
+    if (this->write_pwm(static_cast<uint16_t>(value)) && this->pwm_number_ != nullptr)
+      this->pwm_number_->publish_state(value);
+  }
+  void control_target_rpm(float value) {
+    if (this->write_target_rpm(value) && this->target_rpm_number_ != nullptr)
+      this->target_rpm_number_->publish_state(value);
+  }
+  // Select options are "Forward", "Backward"
+  void control_direction(size_t index) {
+    if (this->write_direction(index == 1 ? Direction::DIRECTION_BACKWARD : Direction::DIRECTION_FORWARD) &&
+        this->direction_select_ != nullptr)
+      this->direction_select_->publish_state(index);
+  }
+
  protected:
   static constexpr uint32_t DIRECTION_CHANGE_TIMEOUT_ID = 0;
 
@@ -74,13 +92,13 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool write_pwm_raw_(uint16_t duty);
   bool read_pwm_raw_(uint16_t *duty);
 
-  ControlMode control_mode_{ControlMode::CONTROL_MODE_OPEN_LOOP};
-  Direction initial_direction_{Direction::DIRECTION_FORWARD};
-  MotorModel motor_model_{MotorModel::MOTOR_MODEL_LOW_SPEED};
-  uint8_t pole_pairs_{1};
+  const ControlMode control_mode_;
+  const Direction initial_direction_;
+  const MotorModel motor_model_;
+  const uint8_t pole_pairs_;
   bool has_pid_{false};
   float p_{0}, i_{0}, d_{0};
-  bool save_to_flash_{false};
+  const bool save_to_flash_;
 
   // Last commanded PWM/target RPM, so `write_direction()` can restore them after the
   // zero-then-nonzero cycle the device needs to actually latch a new direction (see datasheet

@@ -5,26 +5,21 @@ from esphome.const import CONF_ID, CONF_MODE, ICON_ROTATE_RIGHT
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_M5_UNIT_BLDC_ID, DOMAIN, UNIT_RPM, M5UnitBldc, m5_unit_bldc_ns
+from .. import CONF_M5_UNIT_BLDC_ID, DOMAIN, UNIT_RPM, M5UnitBldc
 
 CONF_PWM = "pwm"
 CONF_TARGET_RPM = "target_rpm"
-
-M5UnitBldcNumber = m5_unit_bldc_ns.class_(
-    "M5UnitBldcNumber", number.Number, cg.Parented.template(M5UnitBldc)
-)
-NumberType = m5_unit_bldc_ns.enum("NumberType", is_class=True)
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_M5_UNIT_BLDC_ID): cv.use_id(M5UnitBldc),
     # Open-loop control -- raw PWM duty cycle. Only takes effect while the hub's `mode` is `open_loop`.
     cv.Optional(CONF_PWM): number.number_schema(
-        M5UnitBldcNumber,
+        number.ApplyNumber,
         icon=ICON_ROTATE_RIGHT,
     ),
     # Closed-loop control -- target RPM. Only takes effect while the hub's `mode` is `closed_loop`.
     cv.Optional(CONF_TARGET_RPM): number.number_schema(
-        M5UnitBldcNumber,
+        number.ApplyNumber,
         icon=ICON_ROTATE_RIGHT,
         unit_of_measurement=UNIT_RPM,
     ),
@@ -62,23 +57,23 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_M5_UNIT_BLDC_ID])
-
-    if pwm_config := config.get(CONF_PWM):
-        num = await number.new_number(
-            pwm_config, NumberType.NUMBER_TYPE_PWM, min_value=0, max_value=2047, step=1
-        )
-        await cg.register_parented(num, parent)
-        cg.add(parent.set_pwm_number(num))
-
-    if target_rpm_config := config.get(CONF_TARGET_RPM):
-        num = await number.new_number(
-            target_rpm_config,
-            NumberType.NUMBER_TYPE_TARGET_RPM,
-            min_value=0,
-            max_value=20000,
-            step=1,
-        )
-        await cg.register_parented(num, parent)
-        cg.add(parent.set_target_rpm_number(num))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_M5_UNIT_BLDC_ID])
+    # The hub publishes the value once the device has accepted it
+    numbers = number.sub_numbers(config, parent=hub)
+    await numbers(
+        CONF_PWM,
+        hub.set_pwm_number,
+        apply="control_pwm(value)",
+        min_value=0,
+        max_value=2047,
+        step=1,
+    )
+    await numbers(
+        CONF_TARGET_RPM,
+        hub.set_target_rpm_number,
+        apply="control_target_rpm(value)",
+        min_value=0,
+        max_value=20000,
+        step=1,
+    )
