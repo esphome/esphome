@@ -24,6 +24,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -158,13 +159,12 @@ async def test_uart_mock_ld2450(
 
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
-        try:
-            await asyncio.wait_for(recovery_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for recovery frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            5.0,
+            "Timeout waiting for recovery frame",
+            sensor_states=collector.sensor_states,
+        )
 
         # Verify overflow warning was logged
         assert overflow_seen.done(), (
