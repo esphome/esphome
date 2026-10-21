@@ -170,8 +170,8 @@ _COMMON_SCHEMA = cv.Schema(
 
 # Both engines register these on the client; the Bluedroid-security triggers below stay trigger classes
 _CALLBACK_AUTOMATIONS = (
-    (CONF_ON_CONNECT, "add_on_connect_callback"),
-    (CONF_ON_DISCONNECT, "add_on_disconnect_callback"),
+    automation.CallbackAutomation(CONF_ON_CONNECT, "add_on_connect_callback"),
+    automation.CallbackAutomation(CONF_ON_DISCONNECT, "add_on_disconnect_callback"),
 )
 
 
@@ -556,9 +556,7 @@ async def to_code(config: ConfigType) -> None:
         var = await _to_code_gatt(config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_auto_connect(config[CONF_AUTO_CONNECT]))
-    for key, method in _CALLBACK_AUTOMATIONS:
-        for conf in config.get(key, []):
-            await automation.build_callback_automation(var, method, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_PASSKEY_REQUEST, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
