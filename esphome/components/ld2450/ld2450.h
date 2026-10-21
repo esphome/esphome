@@ -128,7 +128,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s);
 #endif
 #ifdef USE_NUMBER
-  void set_zone_coordinate(uint8_t zone);
+  void set_zone_coordinate(number::Number *n);
   void set_zone_numbers(uint8_t zone, number::Number *x1, number::Number *y1, number::Number *x2, number::Number *y2);
 #endif
 #ifdef USE_SENSOR

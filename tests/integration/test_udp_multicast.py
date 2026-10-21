@@ -7,7 +7,9 @@ import socket
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 MULTICAST_GROUP = "239.1.2.3"
 
@@ -46,14 +48,11 @@ async def test_udp_multicast_join(
         run_compiled(config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "udp-multicast-test"
+        await assert_device_name(client, "udp-multicast-test")
 
-        try:
-            await asyncio.wait_for(joined_event.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Multicast group was not joined. Log: {log_lines[-20:]}")
+        await wait_or_fail(
+            joined_event, 5.0, "Multicast group was not joined", log_lines=log_lines
+        )
 
         # The poll cancels itself after the join, so a second poll period must not join again
         await asyncio.sleep(2.5)
@@ -69,7 +68,9 @@ async def test_udp_multicast_join(
         finally:
             send_sock.close()
 
-        try:
-            await asyncio.wait_for(receive_event.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Multicast datagram was not received. Log: {log_lines[-20:]}")
+        await wait_or_fail(
+            receive_event,
+            5.0,
+            "Multicast datagram was not received",
+            log_lines=log_lines,
+        )

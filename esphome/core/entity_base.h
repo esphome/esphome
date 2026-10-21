@@ -74,12 +74,16 @@ class EntityBase {
  public:
 #ifdef USE_ESP8266
   /// The name is in flash here; the first call makes a RAM copy that is kept for the life of the device.
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
   const StringRef &get_name() const;
   /// Get the name of this Entity, copied out of flash into buffer.
   StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const {
     return StringRef(buffer.data(), this->write_name_to(buffer.data(), buffer.size()));
   }
 #else
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
   const StringRef &get_name() const { return this->name_.ram_ref(); }
   const StringRef &get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_.ram_ref(); }
 #endif
@@ -269,6 +273,9 @@ class EntityBase {
   uint8_t icon_idx_{};
 #endif
 };
+
+/// Log "<prefix><type> '<name>'" for a dump_config header; returns false when obj is null.
+bool log_entity_header(const char *tag, const char *prefix, const char *type, const EntityBase *obj);
 
 /// Log entity icon if set (for use in dump_config)
 #ifdef USE_ENTITY_ICON

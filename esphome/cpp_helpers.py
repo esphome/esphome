@@ -251,6 +251,13 @@ async def add_variable(
     return var
 
 
+def add_optional[T](setter: Callable[[T], Expression], value: T | None) -> T | None:
+    """Pass ``value`` to ``setter`` and return it; skip None."""
+    if value is not None:
+        add(setter(value))
+    return value
+
+
 def set_setup_priority(var, priority: float) -> None:
     """Emit a setup-priority override for the given component.
 
