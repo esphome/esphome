@@ -14,7 +14,7 @@ def test_constant_payloads_share_progmem_tables(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Equal send_packet payloads share one table; lambdas stay templates."""
+    """Equal send_packet payloads share one table; a lambda is sent from its vector."""
     main_cpp = generate_main(component_config_path("payload_tables.yaml"))
 
     tables = re.findall(
@@ -23,8 +23,10 @@ def test_constant_payloads_share_progmem_tables(
     assert [v for _, v in tables] == [
         "{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}"
     ]
-    assert main_cpp.count(f"set_data_static({tables[0][0]}, 8);") == 2
-    assert "set_data_template(" in main_cpp
+    assert main_cpp.count(f"->transmit_packet({tables[0][0]}, 8);") == 2
+    assert (
+        "->transmit_packet(esphome__bytes.data(), esphome__bytes.size());" in main_cpp
+    )
 
 
 @pytest.mark.parametrize("size", [64, 65])

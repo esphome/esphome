@@ -23,6 +23,6 @@ def test_constant_payloads_share_progmem_tables(
     )
     assert f"shared_switch->set_data_on({shared}, 3);" in main_cpp
     assert f"shared_button->set_data({shared}, 3);" in main_cpp
-    assert f"set_data_static({shared}, 3);" in main_cpp
-    assert "set_data_static(nullptr, 0);" in main_cpp
-    assert "set_data_template(" in main_cpp
+    assert f"->write_array({shared}, 3);" in main_cpp
+    assert "->write_array(nullptr, 0);" in main_cpp
+    assert "->write_array(esphome__bytes.data(), esphome__bytes.size());" in main_cpp
