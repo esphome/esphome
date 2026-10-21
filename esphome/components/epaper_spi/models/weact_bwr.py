@@ -15,6 +15,8 @@ from . import EpaperModel
 class WeActBWR(EpaperModel):
     """Base EpaperModel class for WeAct Black/White/Red displays using SSD1683 controller."""
 
+    source_files = ("epaper_weact_3c.cpp",)
+
     def __init__(self, name, **defaults):
         super().__init__(name, "EPaperWeAct3C", **defaults)
 

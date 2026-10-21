@@ -20,9 +20,7 @@ void UARTEvent::add_event_matcher(const char *event_name, const uint8_t *match_d
 }
 
 void UARTEvent::read_data_() {
-  while (this->available()) {
-    uint8_t data;
-    this->read_byte(&data);
+  this->read_available([this](uint8_t data) {
     this->buffer_.push_back(data);
 
     bool match_found = false;
@@ -42,7 +40,7 @@ void UARTEvent::read_data_() {
     if (!match_found && this->max_matcher_len_ > 0 && this->buffer_.size() > this->max_matcher_len_) {
       this->buffer_.erase(this->buffer_.begin());
     }
-  }
+  });
 }
 
 }  // namespace esphome::uart

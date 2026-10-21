@@ -87,9 +87,6 @@ void OPT3001Sensor::read_lx_(const std::function<void(float)> &f) {
 void OPT3001Sensor::dump_config() {
   LOG_SENSOR("", "OPT3001", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -107,13 +104,11 @@ void OPT3001Sensor::update() {
   this->read_lx_([this](float val) {
     this->updating_ = false;
 
-    if (std::isnan(val)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(!std::isnan(val))) {
       this->publish_state(NAN);
       return;
     }
     ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), val);
-    this->status_clear_warning();
     this->publish_state(val);
   });
 }

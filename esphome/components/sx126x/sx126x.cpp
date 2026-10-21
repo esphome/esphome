@@ -164,7 +164,7 @@ void SX126x::configure() {
   this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, sizeof(this->version_));
   this->version_[sizeof(this->version_) - 1] = '\0';
   if (strncmp(this->version_, "SX126", 5) != 0 && strncmp(this->version_, "LLCC68", 6) != 0) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unsupported chip version"));
     return;
   }
 
@@ -185,7 +185,7 @@ void SX126x::configure() {
 
   // configure pa
   int8_t pa_power = this->pa_power_;
-  if (this->hw_version_ == "sx1261") {
+  if (this->sx1261_) {
     // the following values were taken from section 13.1.14.1 table 13-21
     // in rev 2.1 of the datasheet
     if (pa_power == 15) {
@@ -494,8 +494,7 @@ void SX126x::wait_busy_() {
   uint32_t start = millis();
   while (this->busy_pin_->digital_read()) {
     if (millis() - start > BUSY_TIMEOUT_MS) {
-      ESP_LOGE(TAG, "Wait busy timeout");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Wait busy timeout"));
       break;
     }
   }
@@ -561,9 +560,6 @@ void SX126x::dump_config() {
   ESP_LOGCONFIG(TAG, "  Whitening Enable: %s", TRUEFALSE(this->whitening_enable_));
   if (this->whitening_enable_) {
     ESP_LOGCONFIG(TAG, "  Whitening Initial: 0x%03x", this->whitening_initial_);
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Configuring SX126x failed");
   }
 }
 
