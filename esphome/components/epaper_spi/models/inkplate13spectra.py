@@ -1,16 +1,27 @@
 # The panel is split into two halves, each with its own chip-select: CS (primary, left half
 # of every row) and CS1 (secondary, right half). BS0/BS1 select the controllers' interface mode.
-# RST and PWR_EN are driven directly by this driver (not through the generic reset_pin_ /
-# enable_pins_ mechanisms) because the power-on sequence toggles them dynamically on every
-# refresh cycle, not just once at setup.
+# The driver's reset() switches the reset and enable pins itself on every refresh cycle, so the
+# reset timing comes from the driver and reset_duration is rejected.
 
+from collections.abc import Hashable
 from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.const import CONF_RST_PIN
 import esphome.config_validation as cv
-from esphome.const import CONF_CS_PIN, CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
+from esphome.const import (
+    CONF_BUSY_PIN,
+    CONF_CS_PIN,
+    CONF_DC_PIN,
+    CONF_DIMENSIONS,
+    CONF_ENABLE_PIN,
+    CONF_HEIGHT,
+    CONF_INVERTED,
+    CONF_RESET_DURATION,
+    CONF_RESET_PIN,
+    CONF_WIDTH,
+)
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -19,7 +30,16 @@ from . import EpaperModel
 CONF_CS1_PIN = "cs1_pin"
 CONF_BS0_PIN = "bs0_pin"
 CONF_BS1_PIN = "bs1_pin"
-CONF_PWR_EN_PIN = "pwr_en_pin"
+
+
+def _check_inverted_pin_is_internal(pin: ConfigType, path: list[Hashable]) -> None:
+    if (
+        pin.get(CONF_INVERTED)
+        and pins.PIN_SCHEMA_REGISTRY.get_key(pin) != CORE.target_platform
+    ):
+        raise cv.Invalid(
+            "Only a pin on the chip itself can be inverted for this model", path=path
+        )
 
 
 class Inkplate13SpectraModel(EpaperModel):
@@ -52,6 +72,25 @@ class Inkplate13SpectraModel(EpaperModel):
                 f"{self.name} has a fixed {width}x{height} panel; remove 'dimensions'",
                 path=[CONF_DIMENSIONS],
             )
+        if CONF_RESET_DURATION in config:
+            raise cv.Invalid(
+                f"{self.name} sets its own reset timing; remove '{CONF_RESET_DURATION}'",
+                path=[CONF_RESET_DURATION],
+            )
+        # The driver drives every panel pin physically low to drain the panel. It can only
+        # undo the inversion of a pin on the chip itself, not on an I/O expander.
+        for key in (
+            CONF_BUSY_PIN,
+            CONF_CS_PIN,
+            CONF_CS1_PIN,
+            CONF_DC_PIN,
+            CONF_RESET_PIN,
+            CONF_BS0_PIN,
+            CONF_BS1_PIN,
+        ):
+            _check_inverted_pin_is_internal(config[key], [key])
+        for index, pin in enumerate(config[CONF_ENABLE_PIN]):
+            _check_inverted_pin_is_internal(pin, [CONF_ENABLE_PIN, index])
         return config
 
     def get_config_options(self) -> dict[Any, Any]:
@@ -59,8 +98,6 @@ class Inkplate13SpectraModel(EpaperModel):
             self.option(CONF_CS1_PIN, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_BS0_PIN, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_BS1_PIN, fallback=None): pins.gpio_output_pin_schema,
-            self.option(CONF_RST_PIN, fallback=None): pins.gpio_output_pin_schema,
-            self.option(CONF_PWR_EN_PIN, fallback=None): pins.gpio_output_pin_schema,
         }
 
     async def to_code(self, var: MockObj, config: ConfigType) -> ConfigType:
@@ -68,22 +105,12 @@ class Inkplate13SpectraModel(EpaperModel):
         await cg.add_pin(var.set_secondary_cs_pin, config[CONF_CS1_PIN])
         await cg.add_pin(var.set_bs0_pin, config[CONF_BS0_PIN])
         await cg.add_pin(var.set_bs1_pin, config[CONF_BS1_PIN])
-        await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
-        await cg.add_pin(var.set_pwr_en_pin, config[CONF_PWR_EN_PIN])
         # Remove these from the config so the base class doesn't try to handle them
-        # (CS via the generic single-CS SPIDevice mechanism, RST via reset_pin_/reset()).
+        # (CS via the generic single-CS SPIDevice mechanism).
         return {
             k: v
             for k, v in config.items()
-            if k
-            not in (
-                CONF_CS_PIN,
-                CONF_CS1_PIN,
-                CONF_BS0_PIN,
-                CONF_BS1_PIN,
-                CONF_RST_PIN,
-                CONF_PWR_EN_PIN,
-            )
+            if k not in (CONF_CS_PIN, CONF_CS1_PIN, CONF_BS0_PIN, CONF_BS1_PIN)
         }
 
 
@@ -108,8 +135,8 @@ inkplate13spectra = Inkplate13SpectraModel(
     cs1_pin=39,
     bs0_pin=6,
     bs1_pin=5,
-    rst_pin=4,
-    pwr_en_pin=21,
+    reset_pin=4,
+    enable_pin=21,
     busy_pin={
         "number": 7,
         "inverted": True,  # hardware: LOW=busy, HIGH=idle

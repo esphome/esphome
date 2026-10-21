@@ -766,6 +766,65 @@ def test_inkplate13spectra_dimensions_fixed(
             run_schema_validation(config)
 
 
+def _inkplate13spectra_core(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 38, "mosi_pin": 40})
+
+
+def test_inkplate13spectra_uses_standard_reset_and_enable_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The board's RST and PWR_EN lines are the standard reset_pin and enable_pin options."""
+    _inkplate13spectra_core(set_core_config, set_component_config)
+
+    result = run_schema_validation({"id": "test_display", "model": "inkplate13spectra"})
+    assert result["reset_pin"]["number"] == 4
+    assert [pin["number"] for pin in result["enable_pin"]] == [21]
+
+
+def test_inkplate13spectra_rejects_reset_duration(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The driver sets its own reset timing, so a configured reset_duration would be ignored."""
+    _inkplate13spectra_core(set_core_config, set_component_config)
+
+    with pytest.raises(cv.Invalid, match="sets its own reset timing"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "inkplate13spectra",
+                "reset_duration": "50ms",
+            }
+        )
+
+
+def test_inkplate13spectra_rejects_inverted_expander_pin(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The driver can only drive an inverted pin physically low when it is on the chip itself."""
+    import esphome.components.pcf8574  # noqa: F401  # registers the pcf8574 pin schema
+
+    _inkplate13spectra_core(set_core_config, set_component_config)
+
+    with pytest.raises(cv.Invalid, match="Only a pin on the chip itself"):
+        run_schema_validation(
+            {
+                "id": "test_display",
+                "model": "inkplate13spectra",
+                "enable_pin": {"pcf8574": "expander", "number": 0, "inverted": True},
+            }
+        )
+
+
 @pytest.mark.parametrize(
     ("dimensions", "error"),
     [

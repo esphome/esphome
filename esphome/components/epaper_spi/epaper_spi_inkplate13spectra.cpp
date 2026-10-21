@@ -24,8 +24,6 @@ uint8_t EPaperInkplate13Spectra::color_to_native(Color color) {
 
 void EPaperInkplate13Spectra::setup() {
   EPaperDualCS::setup();
-  this->rst_pin_->setup();
-  this->pwr_en_pin_->setup();
   this->bs0_pin_->setup();
   this->bs1_pin_->setup();
   // EPaperDualCS::setup() leaves CS and CS1 high, and their pull-ups go to the panel supply, so
@@ -34,10 +32,18 @@ void EPaperInkplate13Spectra::setup() {
   this->set_all_pins_low_();
 }
 
+void EPaperInkplate13Spectra::setup_pins_() const {
+  for (auto *pin : this->enable_pins_)
+    pin->setup();
+  this->reset_pin_->setup();
+  this->dc_pin_->setup();
+  this->busy_pin_->setup();
+}
+
 void EPaperInkplate13Spectra::dump_config() {
   EPaperDualCS::dump_config();
-  LOG_PIN("  RST Pin: ", this->rst_pin_);
-  LOG_PIN("  PWR_EN Pin: ", this->pwr_en_pin_);
+  for (auto *pin : this->enable_pins_)
+    LOG_PIN("  Enable Pin: ", pin);
   LOG_PIN("  BS0 Pin: ", this->bs0_pin_);
   LOG_PIN("  BS1 Pin: ", this->bs1_pin_);
 }
@@ -62,46 +68,51 @@ void EPaperInkplate13Spectra::send_init_sequence_() {
   this->write_command_to_chip_(0xB1, {0x02}, CHIP_PRIMARY);                                // TFT_VCOM_POWER
 }
 
-void EPaperInkplate13Spectra::set_all_pins_low_() {
+void EPaperInkplate13Spectra::set_all_pins_low_() const {
   ESP_LOGV(TAG, "set_all_pins_low_()");
-  GPIOPin *pins[] = {
-      this->rst_pin_,  this->dc_pin_,     this->cs_pin_,  this->cs1_pin_,
-      this->busy_pin_, this->pwr_en_pin_, this->bs0_pin_, this->bs1_pin_,
-  };
-  for (auto *p : pins) {
+  // The busy pin is driven too, as Soldered's own driver does, so it cannot hold charge either.
+  // Panel power goes off first, so the busy output never drives against a powered panel.
+  auto drive_low = [](GPIOPin *p) {
     p->pin_mode(gpio::FLAG_OUTPUT);
-    // busy_pin_ is configured inverted (active-low semantics), so a plain digital_write(false)
-    // would drive it physically HIGH here. is_inverted() as the write value always lands on
-    // physical LOW regardless of the pin's inversion. Only internal pins expose is_inverted(),
-    // so any other pin (e.g. on an I/O expander) gets a plain logical LOW.
+    // The busy pin is inverted (active low), so a plain digital_write(false) would drive it
+    // physically HIGH. is_inverted() as the write value lands on physical LOW either way. Only
+    // internal pins expose is_inverted(); the model rejects inverted pins of any other kind.
     bool inverted = p->is_internal() && static_cast<InternalGPIOPin *>(p)->is_inverted();
     p->digital_write(inverted);
-  }
+  };
+  for (auto *pin : this->enable_pins_)
+    drive_low(pin);
+  for (auto *pin : {this->reset_pin_, this->dc_pin_, this->cs_pin_, this->cs1_pin_, this->busy_pin_, this->bs0_pin_,
+                    this->bs1_pin_})
+    drive_low(pin);
 }
 
 void EPaperInkplate13Spectra::set_io_pins_() {
   ESP_LOGV(TAG, "set_io_pins_()");
-  this->rst_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->reset_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->dc_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->cs_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->cs1_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->busy_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  this->pwr_en_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  for (auto *pin : this->enable_pins_)
+    pin->pin_mode(gpio::FLAG_OUTPUT);
   this->bs0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->bs1_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
   this->dc_pin_->digital_write(true);
   this->cs_pin_->digital_write(true);
   this->cs1_pin_->digital_write(true);
-  this->rst_pin_->digital_write(false);
-  this->pwr_en_pin_->digital_write(false);
+  this->reset_pin_->digital_write(false);
+  for (auto *pin : this->enable_pins_)
+    pin->digital_write(false);
   this->bs0_pin_->digital_write(false);
   this->bs1_pin_->digital_write(true);
 }
 
 // Runs entirely inside RESET_END, which EPaperBase never busy-gates (see header), so the
 // panel is fully powered before any busy-pin read happens. Each step sets reset_duration_
-// to the delay this stage needs; the framework re-enters RESET_END after that many ms.
+// to the delay this stage needs; the framework re-enters RESET_END after that many ms. The
+// model rejects a configured reset_duration, since it would be overwritten here.
 bool EPaperInkplate13Spectra::reset() {
   // EPaperBase calls reset() in RESET exactly once at the start of every cycle, so restart the
   // bring-up there. Doing it here rather than in deep_sleep() also covers a cycle that ended
@@ -119,21 +130,22 @@ bool EPaperInkplate13Spectra::reset() {
     case RST_PINS_LOW_WAIT:
       ESP_LOGV(TAG, "reset(): RST_PINS_LOW_WAIT done -> set_io_pins_() + PWR_EN high");
       this->set_io_pins_();
-      this->pwr_en_pin_->digital_write(true);
+      for (auto *pin : this->enable_pins_)
+        pin->digital_write(true);
       this->reset_duration_ = 100;
       this->reset_sub_ = RST_IO_WAIT;
       return false;
 
     case RST_IO_WAIT:
       ESP_LOGV(TAG, "reset(): RST_IO_WAIT done -> RST low");
-      this->rst_pin_->digital_write(false);
+      this->reset_pin_->digital_write(false);
       this->reset_duration_ = 100;
       this->reset_sub_ = RST_LOW_WAIT;
       return false;
 
     case RST_LOW_WAIT:
       ESP_LOGV(TAG, "reset(): RST_LOW_WAIT done -> RST high");
-      this->rst_pin_->digital_write(true);
+      this->reset_pin_->digital_write(true);
       this->reset_duration_ = 100;
       this->reset_sub_ = RST_HIGH_WAIT;
       return false;
@@ -210,12 +222,14 @@ void EPaperInkplate13Spectra::deep_sleep() {
   // Keep the pullup so this pin reads a defined "idle" level at rest, since reset()
   // relies on that before it powers the panel back on next cycle.
   this->busy_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  this->pwr_en_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->pwr_en_pin_->digital_write(false);
+  for (auto *pin : this->enable_pins_) {
+    pin->digital_write(false);
+    pin->pin_mode(gpio::FLAG_INPUT);
+  }
 
   // RST intentionally NOT released to input -- held low for hardware deep sleep (~uA draw).
-  this->rst_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  this->rst_pin_->digital_write(false);
+  this->reset_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->reset_pin_->digital_write(false);
   ESP_LOGV(TAG, "panel deep sleep");
 }
 

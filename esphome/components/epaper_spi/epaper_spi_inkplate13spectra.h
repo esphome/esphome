@@ -22,8 +22,6 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
  public:
   using EPaperDualCS::EPaperDualCS;
 
-  void set_rst_pin(GPIOPin *p) { this->rst_pin_ = p; }
-  void set_pwr_en_pin(GPIOPin *p) { this->pwr_en_pin_ = p; }
   void set_bs0_pin(GPIOPin *bs0) { this->bs0_pin_ = bs0; }
   void set_bs1_pin(GPIOPin *bs1) { this->bs1_pin_ = bs1; }
 
@@ -51,8 +49,10 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
 
   uint8_t color_to_native(Color color) override;
 
+  /// Leaves the panel unpowered: unlike the base, nothing is driven high.
+  void setup_pins_() const override;
   void set_io_pins_();
-  void set_all_pins_low_();
+  void set_all_pins_low_() const;
 
   /// Replays the panel register init table.
   void send_init_sequence_();
@@ -63,8 +63,6 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
   bool refresh_was_ignored_() const;
   uint32_t refresh_elapsed_ms_() const;
 
-  GPIOPin *rst_pin_{nullptr};
-  GPIOPin *pwr_en_pin_{nullptr};
   GPIOPin *bs0_pin_{nullptr};
   GPIOPin *bs1_pin_{nullptr};
 

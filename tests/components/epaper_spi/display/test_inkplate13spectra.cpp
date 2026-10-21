@@ -6,6 +6,17 @@
 
 namespace esphome::epaper_spi::testing {
 
+/// Remembers whether the pin was ever driven high.
+class HighWatchPin : public RecordingPin {
+ public:
+  void digital_write(bool value) override {
+    this->driven_high = this->driven_high || value;
+    RecordingPin::digital_write(value);
+  }
+
+  bool driven_high{false};
+};
+
 /// Exposes the power-up state machine in reset() so it can be driven directly.
 class TestableInkplate13Spectra : public EPaperInkplate13Spectra {
  public:
@@ -17,25 +28,28 @@ class TestableInkplate13Spectra : public EPaperInkplate13Spectra {
     this->set_primary_cs_pin(&this->cs);
     this->set_secondary_cs_pin(&this->cs1);
     this->set_busy_pin(&this->busy);
-    this->set_rst_pin(&this->rst);
-    this->set_pwr_en_pin(&this->pwr_en);
+    this->set_reset_pin(&this->rst);
+    this->set_enable_pins({&this->pwr_en});
     this->set_bs0_pin(&this->bs0);
     this->set_bs1_pin(&this->bs1);
   }
 
   using EPaperInkplate13Spectra::after_refresh;
+  using EPaperInkplate13Spectra::deep_sleep;
   using EPaperInkplate13Spectra::refresh_pending_;
   using EPaperInkplate13Spectra::refresh_screen;
   using EPaperInkplate13Spectra::refresh_was_ignored_;
   using EPaperInkplate13Spectra::refresh_started_ms_;
   using EPaperInkplate13Spectra::reset;
   using EPaperInkplate13Spectra::reset_sub_;
+  using EPaperInkplate13Spectra::setup_pins_;
   using EPaperInkplate13Spectra::state_;
   using EPaperInkplate13Spectra::RST_DONE;
   using EPaperInkplate13Spectra::RST_IO_WAIT;
   using EPaperInkplate13Spectra::RST_PINS_LOW_WAIT;
 
-  RecordingPin dc, cs, cs1, busy, rst, pwr_en, bs0, bs1;
+  RecordingPin dc, cs, cs1, busy, bs0, bs1;
+  HighWatchPin rst, pwr_en;
 };
 
 /// A cycle that ends without reaching deep_sleep() (for example one abandoned after a busy-pin
@@ -63,6 +77,29 @@ TEST(EPaperInkplate13Spectra, NewCycleRunsFullPowerUpAfterAnUnfinishedOne) {
   EXPECT_FALSE(display.reset());
   EXPECT_EQ(display.reset_sub_, TestableInkplate13Spectra::RST_IO_WAIT);
   EXPECT_TRUE(display.pwr_en.level) << "panel power was not switched on";
+}
+
+/// The base class drives the enable and reset pins high when it sets them up. Here that would
+/// power the panel at boot, before setup() holds every pin low, which is the half-powered state
+/// that stopped some panels from responding.
+TEST(EPaperInkplate13Spectra, PinSetupLeavesThePanelUnpowered) {
+  TestableInkplate13Spectra display;
+  display.install();
+
+  display.setup_pins_();
+  EXPECT_FALSE(display.pwr_en.driven_high) << "panel power was switched on at boot";
+  EXPECT_FALSE(display.rst.driven_high) << "reset was released at boot";
+}
+
+TEST(EPaperInkplate13Spectra, DeepSleepSwitchesThePanelOff) {
+  TestableInkplate13Spectra display;
+  display.install();
+  display.pwr_en.level = true;
+  display.rst.level = true;
+
+  display.deep_sleep();
+  EXPECT_FALSE(display.pwr_en.level) << "panel power was left on";
+  EXPECT_FALSE(display.rst.level) << "reset must be held low while the panel sleeps";
 }
 
 /// When the panel ignores the refresh command (for example because it never powered up), the
