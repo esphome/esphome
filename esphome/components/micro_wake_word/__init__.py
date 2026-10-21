@@ -13,6 +13,7 @@ from esphome.components.http_request import validate_url
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
+    CONF_FRAMEWORK,
     CONF_ID,
     CONF_INTERNAL,
     CONF_MICROPHONE,
@@ -26,10 +27,12 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
     CONF_USERNAME,
+    PLATFORM_ESP32,
     TYPE_GIT,
     TYPE_LOCAL,
 )
 from esphome.core import CORE, HexInt
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,8 +44,11 @@ DEPENDENCIES = ["microphone"]
 DOMAIN = "micro_wake_word"
 
 
+CONF_TASK_CORE = "task_core"
+
 CONF_FEATURE_STEP_SIZE = "feature_step_size"
 CONF_MODELS = "models"
+CONF_RING_BUFFER_DURATION = "ring_buffer_duration"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
 CONF_PREFER_INTERNAL_RAM = "prefer_internal_ram"
 CONF_PROBABILITY_CUTOFF = "probability_cutoff"
@@ -407,6 +413,32 @@ def _download_http_models(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_task_core(config: ConfigType) -> ConfigType:
+    if config[CONF_TASK_CORE] != 1:
+        return config
+    esp32.only_on_variant(
+        supported=[
+            esp32.VARIANT_ESP32,
+            esp32.VARIANT_ESP32S3,
+            esp32.VARIANT_ESP32P4,
+            esp32.VARIANT_ESP32H4,
+            esp32.VARIANT_ESP32S31,
+        ],
+        msg_prefix="micro_wake_word task_core: 1",
+    )(config)
+    sdkconfig = fv.full_config.get()[PLATFORM_ESP32][CONF_FRAMEWORK][
+        esp32.CONF_SDKCONFIG_OPTIONS
+    ]
+    if sdkconfig.get("CONFIG_FREERTOS_UNICORE") == "y":
+        raise cv.Invalid("task_core: 1 requires FreeRTOS dual-core mode")
+    return config
+
+
+# The capture buffer holds at least one feature window and at most a second of audio
+MIN_RING_BUFFER_DURATION = cv.TimePeriod(milliseconds=120)
+MAX_RING_BUFFER_DURATION = cv.TimePeriod(seconds=1)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -427,7 +459,12 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VAD): _maybe_empty_vad_schema,
             cv.Optional(CONF_STOP_AFTER_DETECTION, default=True): cv.boolean,
+            cv.Optional(CONF_TASK_CORE, default=-1): cv.int_range(min=-1, max=1),
             cv.Optional(CONF_PREFER_INTERNAL_RAM, default=False): cv.boolean,
+            cv.Optional(CONF_RING_BUFFER_DURATION): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=MIN_RING_BUFFER_DURATION, max=MAX_RING_BUFFER_DURATION),
+            ),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_MODEL): cv.invalid(
                 f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
@@ -509,6 +546,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         },
         extra=cv.ALLOW_EXTRA,
     ),
+    _validate_task_core,
     _feature_step_size_validate,
 )
 
@@ -521,6 +559,12 @@ async def to_code(config):
     cg.add(var.set_microphone_source(mic_source))
 
     cg.add_define("USE_MICRO_WAKE_WORD")
+    cg.add_define(
+        "MICRO_WAKE_WORD_TASK_CORE",
+        cg.RawExpression("tskNO_AFFINITY")
+        if config[CONF_TASK_CORE] == -1
+        else config[CONF_TASK_CORE],
+    )
     if config[CONF_PREFER_INTERNAL_RAM]:
         cg.add_define("USE_MICRO_WAKE_WORD_INTERNAL_RAM")
     ota.request_ota_state_listeners()
@@ -601,6 +645,8 @@ async def to_code(config):
             cg.add(var.add_wake_word_model(wake_word_model))
 
     cg.add(var.set_features_step_size(feature_step_size))
+    if (ring_buffer_duration := config.get(CONF_RING_BUFFER_DURATION)) is not None:
+        cg.add(var.set_ring_buffer_duration_ms(ring_buffer_duration.total_milliseconds))
     cg.add(var.set_stop_after_detection(config[CONF_STOP_AFTER_DETECTION]))
 
     if on_wake_word_detection_config := config.get(CONF_ON_WAKE_WORD_DETECTED):

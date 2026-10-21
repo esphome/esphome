@@ -115,7 +115,7 @@ bool VL53L0XSensor::init_sensor_(uint8_t final_address, bool recovery) {
   uint32_t spad_wait_timeout_us = this->timeout_us_ > 0 ? std::min(this->timeout_us_, (uint32_t) 1000000) : 1000000;
   while (reg(0x83).get() == 0x00) {
     if (micros() - timeout_start_us > spad_wait_timeout_us) {
-      ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
+      ESP_LOGE(TAG, "'%s' - setup timeout", LOG_STR_ARG(this->get_log_name()));
       return false;
     }
     yield();
@@ -304,7 +304,7 @@ void VL53L0XSensor::update() {
     this->publish_state(NAN);
     this->status_momentary_warning(5000);
     ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
-             this->name_.c_str(), this->initiated_read_, this->waiting_for_interrupt_);
+             LOG_STR_ARG(this->get_log_name()), this->initiated_read_, this->waiting_for_interrupt_);
     return;
   }
 
@@ -350,7 +350,7 @@ void VL53L0XSensor::loop() {
     if (reg(0x13).get() & 0x07) {
       uint8_t result[12]{};
       if (!this->read_bytes(0x14, result, 12)) {
-        ESP_LOGW(TAG, "'%s' - result read failed", this->name_.c_str());
+        ESP_LOGW(TAG, "'%s' - result read failed", LOG_STR_ARG(this->get_log_name()));
         this->waiting_for_interrupt_ = false;
         this->publish_state(NAN);
         return;
@@ -371,20 +371,22 @@ void VL53L0XSensor::loop() {
       // Per the ST API the raw DeviceRangeStatus is 11 for good ranging
       // (0 means "no update"); every other code is an error condition.
       if (range_status != 11) {
-        ESP_LOGD(TAG, "'%s' - invalid reading (range status %u, signal %.2f MCPS), rejecting", this->name_.c_str(),
-                 range_status, signal_rate_mcps);
+        ESP_LOGD(TAG, "'%s' - invalid reading (range status %u, signal %.2f MCPS), rejecting",
+                 LOG_STR_ARG(this->get_log_name()), range_status, signal_rate_mcps);
         this->publish_state(NAN);
         return;
       }
 
       if (range_mm >= 8190) {
-        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
+        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer",
+                 LOG_STR_ARG(this->get_log_name()));
         this->publish_state(NAN);
         return;
       }
 
       float range_m = range_mm / 1e3f;
-      ESP_LOGD(TAG, "'%s' - Got distance %.3f m (signal %.2f MCPS)", this->name_.c_str(), range_m, signal_rate_mcps);
+      ESP_LOGD(TAG, "'%s' - Got distance %.3f m (signal %.2f MCPS)", LOG_STR_ARG(this->get_log_name()), range_m,
+               signal_rate_mcps);
       this->publish_state(range_m);
       // A valid reading proves the sensor is healthy again.
       this->recovery_attempts_ = 0;
@@ -399,7 +401,7 @@ void VL53L0XSensor::loop() {
       millis() - this->measurement_start_ms_ > this->stall_timeout_ms_) {
     ESP_LOGW(TAG,
              "'%s' - measurement did not complete within %" PRIu32 "ms, resetting read state (possible I2C glitch)",
-             this->name_.c_str(), this->stall_timeout_ms_);
+             LOG_STR_ARG(this->get_log_name()), this->stall_timeout_ms_);
     this->consecutive_stalls_++;
 
     // Escalating backoff: stay off the bus, then retry. Every transaction
@@ -435,20 +437,20 @@ void VL53L0XSensor::loop() {
     // same address and corrupt the healthy sensor. Wait for the I2C-level
     // recovery instead of attempting a destructive soft reset.
     if (this->configured_address_ != DEFAULT_I2C_ADDRESS && this->has_default_address_conflict_()) {
-      ESP_LOGE(TAG, "'%s' - skipping soft reset: another VL53L0X uses default I2C address 0x%02X", this->name_.c_str(),
-               DEFAULT_I2C_ADDRESS);
+      ESP_LOGE(TAG, "'%s' - skipping soft reset: another VL53L0X uses default I2C address 0x%02X",
+               LOG_STR_ARG(this->get_log_name()), DEFAULT_I2C_ADDRESS);
       this->set_timeout("vl53_backoff_retry", backoff_ms, [this]() { this->update(); });
       return;
     }
     if (this->recovery_attempts_ >= MAX_RECOVERY_ATTEMPTS) {
-      ESP_LOGE(TAG, "'%s' - sensor did not recover after %d soft resets, marking as failed", this->name_.c_str(),
-               this->recovery_attempts_);
+      ESP_LOGE(TAG, "'%s' - sensor did not recover after %d soft resets, marking as failed",
+               LOG_STR_ARG(this->get_log_name()), this->recovery_attempts_);
       this->mark_failed();
       return;
     }
     this->recovery_attempts_++;
-    ESP_LOGW(TAG, "'%s' - sensor still stuck, performing soft reset and re-init (attempt %d/%d)", this->name_.c_str(),
-             this->recovery_attempts_, MAX_RECOVERY_ATTEMPTS);
+    ESP_LOGW(TAG, "'%s' - sensor still stuck, performing soft reset and re-init (attempt %d/%d)",
+             LOG_STR_ARG(this->get_log_name()), this->recovery_attempts_, MAX_RECOVERY_ATTEMPTS);
     reg(0xBF) = 0x00;  // SOFT_RESET_GO2_SOFT_RESET_N: hold the sensor MCU in reset
     delay(1);
     reg(0xBF) = 0x01;  // release - the sensor MCU reboots, registers revert to defaults
@@ -457,7 +459,8 @@ void VL53L0XSensor::loop() {
     // that one and re-apply the configured address - save it before switching.
     this->set_i2c_address(DEFAULT_I2C_ADDRESS);
     if (this->init_sensor_(this->configured_address_, true)) {
-      ESP_LOGI(TAG, "'%s' - sensor re-initialized successfully, restarting measurement", this->name_.c_str());
+      ESP_LOGI(TAG, "'%s' - sensor re-initialized successfully, restarting measurement",
+               LOG_STR_ARG(this->get_log_name()));
       this->consecutive_stalls_ = 0;
       this->backoff_duration_ms_ = 0;
       // recovery_attempts_ is only cleared once a VALID reading arrives.
@@ -468,7 +471,7 @@ void VL53L0XSensor::loop() {
       // The sensor is in an unknown state after a failed re-init; the only
       // thing guaranteed by the soft reset is the default I2C address.
       this->set_i2c_address(DEFAULT_I2C_ADDRESS);
-      ESP_LOGE(TAG, "'%s' - re-init failed, backing off and retrying", this->name_.c_str());
+      ESP_LOGE(TAG, "'%s' - re-init failed, backing off and retrying", LOG_STR_ARG(this->get_log_name()));
       this->set_timeout("vl53_backoff_retry", backoff_ms, [this]() { this->update(); });
     }
   }
