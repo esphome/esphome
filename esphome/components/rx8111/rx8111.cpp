@@ -29,6 +29,7 @@ static constexpr uint8_t RX8111_FLAG_XST = 0x01;
 static constexpr uint8_t RX8111_CTRL_STOP = 0x01;
 // FLAG bits are write-zero-to-clear; keep UF/TF/AF/EVF even if they latch during the write.
 static constexpr uint8_t RX8111_KEEP_EVENT_FLAGS = 0x3C;
+static constexpr uint32_t RX8111_EVENT_INTERVAL_ID = 0;
 
 void RX8111Component::setup() {
   this->read_time();
@@ -59,10 +60,12 @@ void RX8111Component::setup() {
       this->timer_flag_seen_ = false;  // Report a wake-up even when reprogramming the timer.
     }
   }
-  this->set_interval("event_flags", this->event_poll_interval_, [this]() {
-    if ((this->alarm_configured_ || this->timer_enabled_) && !this->poll_event_flags_())
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  });
+  if (this->alarm_enabled_ || this->timer_enabled_) {
+    this->set_interval(RX8111_EVENT_INTERVAL_ID, this->event_poll_interval_, [this]() {
+      if ((this->alarm_configured_ || this->timer_enabled_) && !this->poll_event_flags_())
+        this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    });
+  }
 }
 
 void RX8111Component::update() {
@@ -333,6 +336,7 @@ bool RX8111Component::poll_event_flags_() {
   this->timer_flag_seen_ = timer_active;
   if (alarm_rising)
     this->alarm_callbacks_.call();
+  // An alarm callback may stop the timer before its callback is delivered.
   if (timer_rising && this->timer_enabled_)
     this->timer_callbacks_.call();
   return true;

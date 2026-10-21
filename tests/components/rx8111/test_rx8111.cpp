@@ -352,6 +352,23 @@ TEST_F(RX8111Test, AlarmAndTimerFlagsAreReadTogetherAndCallbacksCanClearBoth) {
   EXPECT_EQ(timers, 2);
 }
 
+TEST_F(RX8111Test, AlarmCallbackCanStopTimerBeforeTimerCallback) {
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_count(2);
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  this->rtc_.setup();
+  unsigned timers = 0;
+  this->rtc_.add_on_alarm_callback([this]() { EXPECT_TRUE(this->rtc_.stop_timer()); });
+  this->rtc_.add_on_timer_callback([&timers]() { timers++; });
+  this->bus_.regs[FLAG] = 0x18;
+  this->rtc_.update();
+  EXPECT_EQ(timers, 0);
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x10, 0);
+}
+
 TEST_F(RX8111Test, TimerCallbackCanClearTFAndFailedProgrammingDoesNotStartTimer) {
   this->rtc_.set_timer_enabled(true);
   this->rtc_.set_timer_configured(true);
