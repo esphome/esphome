@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_SOURCE,
-    KEY_FRAMEWORK_VERSION,
     ThreadModel,
     Toolchain,
 )
@@ -113,7 +112,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
-    version_str, framework_ver, sdk_name, _ = resolve_framework_version(
+    _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "efr32bg27", config, "EFR32BG27 support"
     )
     if CONF_COMMANDER_VERSION in config[CONF_ADVANCED] and sdk_name != "silabs":
@@ -132,7 +131,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
         runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
-    config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 
 
@@ -142,10 +140,8 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf,
         zephyr_add_sysbuild_conf,
         zephyr_setup_preferences,
-        zephyr_to_code,
     )
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_EFR32BG27")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "EFR32BG27")

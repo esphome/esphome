@@ -1,3 +1,4 @@
+import re
 from typing import Final
 
 import esphome.codegen as cg
@@ -33,9 +34,14 @@ KEY_EXTRA_BUILD_FILES: Final = "extra_build_files"
 KEY_OVERLAY: Final = "overlay"
 KEY_OVERLAY_BUILDER: Final = "overlay_builder"
 KEY_PM_STATIC: Final = "pm_static"
+KEY_PARTITION_REQUIREMENTS: Final = "partition_requirements"
+KEY_BOOT_LAYOUT: Final = "boot_layout"
 KEY_KCONFIG: Final = "kconfig"
 KEY_PRJ_CONF: Final = "prj_conf"
 KEY_SYSBUILD_CONF: Final = "sysbuild_conf"
+# Whether sysbuild is active for this build -- consulted by nrf52/framework.py's
+# west-project-filter narrow clone to decide whether to fetch the "mcuboot" project.
+KEY_SYSBUILD: Final = "sysbuild"
 KEY_ZEPHYR = "zephyr"
 KEY_BOARD: Final = "board"
 KEY_BOARD_ROOT: Final = "board_root"
@@ -50,6 +56,10 @@ KEY_MODULE_OVERRIDES: Final = "module_overrides"
 # install) read this instead of independently re-resolving the moving ref against
 # their own timer, so a single build can't silently mix commits across the three.
 KEY_SDK_SOURCE_RESOLVED_REF: Final = "resolved_ref"
+
+# A raw commit SHA (e.g. a fork-pinned boards revision, or a resolved sdk_source: ref)
+# can't be passed to `git clone --branch` or `west init --mr`.
+COMMIT_SHA_RE: Final = re.compile(r"^[0-9a-f]{40}$")
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
 CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
@@ -80,6 +90,7 @@ ZEPHYR_VARIANT_ESP32_H2 = "ESP32H2"
 ZEPHYR_VARIANT_ESP32_C6 = "ESP32C6"
 ZEPHYR_VARIANT_ESP32_C5 = "ESP32C5"
 ZEPHYR_VARIANT_ESP32_C3 = "ESP32C3"
+ZEPHYR_VARIANT_ESP32_S3 = "ESP32S3"
 ZEPHYR_VARIANT_NATIVE_SIM = "NATIVESIM"
 ZEPHYR_VARIANT_NRF52 = "NRF52"
 ZEPHYR_VARIANT_NRF54L15 = "NRF54L15"
@@ -94,14 +105,18 @@ ZEPHYR_VARIANT_STM32U5 = "STM32U5"
 ZEPHYR_VARIANT_RP2040 = "RP2040"
 ZEPHYR_VARIANT_RP2350 = "RP2350"
 ZEPHYR_VARIANT_RA4M1 = "RA4M1"
+ZEPHYR_VARIANT_SIWX917 = "SIWX917"
 
 ZephyrI2CEmulator = zephyr_ns.class_("ZephyrI2CEmulator", cg.Component)
 
 # Python-only marker interface (no C++ side, see MockObjClass.class_/inherits_from) shared by
-# UARTComponent and ZephyrUartEmulator so `uart.write`'s `id:` can validate against either --
+# ZephyrUartComponent and ZephyrUartEmulator so `uart.write`'s `id:` can validate against either --
 # defined here rather than in uart/const.py to avoid a zephyr <-> uart import cycle, since
 # uart's __init__.py already imports this module.
 ZephyrUartWriteTarget = zephyr_ns.class_("ZephyrUartWriteTarget")
 ZephyrUartEmulator = zephyr_ns.class_(
     "ZephyrUartEmulator", cg.Component, ZephyrUartWriteTarget
 )
+
+# Devicetree compatible of Zephyr's SEGGER RTT UART driver
+SEGGER_RTT_UART = "segger,rtt-uart"

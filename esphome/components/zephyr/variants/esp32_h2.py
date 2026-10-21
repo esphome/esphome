@@ -15,6 +15,7 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_ESP32_H2,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -38,6 +39,8 @@ _GPIO_MATRIX_PINS = frozenset(
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32_H2
 VARIANT = ZephyrVariant(
+    # ROM loads the first image at 0x0 (espressif/partitions_0x0_*.dtsi).
+    boot=BootLayout(0x0),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="esp32",
@@ -49,8 +52,7 @@ VARIANT = ZephyrVariant(
     blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
     transports=frozenset({"ble", "openthread"}),
     soc="esp32h2",
-    # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
-    swap_methods=frozenset({"scratch", "move", "direct"}),
+    swap_methods=frozenset({"scratch", "move", "offset"}),
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32h2/include/soc/adc_channel.h
     adc1_channel_map={1: 0, 2: 1, 3: 2, 4: 3, 5: 4},
     uart_node_labels={},
@@ -86,9 +88,12 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+    from .. import (
+        zephyr_add_prj_conf,
+        zephyr_add_sysbuild_conf,
+        zephyr_setup_preferences,
+    )
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_ESP32_H2")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP32H2")
@@ -97,3 +102,5 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     # get_mac_address_raw() (zephyr/core.cpp) reads the efuse MAC via hwinfo_get_device_id().
     zephyr_add_prj_conf("HWINFO", True)
+    # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+    zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)

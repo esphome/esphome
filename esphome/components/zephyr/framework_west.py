@@ -1,9 +1,14 @@
+from collections.abc import Iterator
+import configparser
+from contextlib import contextmanager
 import hashlib
 import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
+import tempfile
 
 import yaml
 
@@ -18,7 +23,7 @@ from esphome.framework_helpers import (
 )
 from esphome.types import ConfigType
 
-from .const import KEY_SDK_SOURCE_RESOLVED_REF
+from .const import COMMIT_SHA_RE, KEY_SDK_SOURCE_RESOLVED_REF
 from .variants import ZephyrModule, ZephyrSDK
 
 _LOGGER = logging.getLogger(__name__)
@@ -94,6 +99,39 @@ def _effective_requirements(overrides: dict[str, str | None]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _is_commit_sha(rev: str | None) -> bool:
+    return rev is not None and COMMIT_SHA_RE.fullmatch(rev) is not None
+
+
+def _manifest_repo_dir(framework: Path) -> Path:
+    """The manifest repository's directory, as recorded by `west init` in .west/config.
+
+    It is the manifest's own `self: path:` (Zephyr: "zephyr", NCS: "nrf"), else the URL's
+    basename -- not always framework/zephyr.
+    """
+    config = configparser.ConfigParser()
+    config.read(framework / ".west" / "config")
+    return framework / config.get("manifest", "path")
+
+
+def _pin_manifest_repo(manifest_dir: Path, sha: str, label: str) -> None:
+    """Point the manifest repository at `sha`.
+
+    `west init --mr` can't take a commit SHA (it uses `git clone --branch`), and `west
+    update` never alters the manifest repository, so this is done with git before
+    `west update` reads the manifest from it.
+    """
+    _LOGGER.info("Pinning Zephyr manifest repository to %s ...", label)
+    if not run_command_ok(
+        ["git", "fetch", "--depth=1", "--", "origin", sha], cwd=str(manifest_dir)
+    ):
+        raise EsphomeError(f"Can't fetch Zephyr manifest repository ({label})")
+    if not run_command_ok(
+        ["git", "reset", "--hard", "FETCH_HEAD"], cwd=str(manifest_dir)
+    ):
+        raise EsphomeError(f"Can't update Zephyr manifest repository ({label})")
+
+
 def _generate_synthetic_manifest(
     framework: Path,
     manifest_url: str,
@@ -116,20 +154,22 @@ def _generate_synthetic_manifest(
     """
     manifest_dir = framework / "esphome-manifest"
     root_name = west_project_name or manifest_url.rstrip("/").rsplit("/", 1)[-1]
-    root_project = {"name": root_name, "url": manifest_url, "import": True}
+    # str(): values straight from the YAML config are str subclasses carrying their
+    # source position, which yaml.safe_dump refuses to represent.
+    root_project = {"name": str(root_name), "url": str(manifest_url), "import": True}
     # A ref-less `sdk_source: {type: git}` means "track the source's default branch"
     # -- omitting revision: here matches that, same as the plain `west init -m`
     # path's `if manifest_rev: cmd += ["--mr", manifest_rev]`. Writing `revision:
     # null` instead would hand west an explicit null the manifest schema doesn't
     # expect.
     if manifest_rev:
-        root_project["revision"] = manifest_rev
+        root_project["revision"] = str(manifest_rev)
     projects = [root_project]
     projects.extend(
         {
-            "name": module.name,
-            "url": module.manifest_url,
-            "revision": module.revision,
+            "name": str(module.name),
+            "url": str(module.manifest_url),
+            "revision": str(module.revision),
             "import": True,
         }
         for module in git_modules
@@ -171,7 +211,57 @@ def _generate_synthetic_manifest(
     return manifest_dir
 
 
+# Lock wait slices, so Ctrl-C stays responsive
+_INSTALL_LOCK_POLL = 1
+
+
+@contextmanager
+def _install_lock(name: str) -> Iterator[None]:
+    """Serialize a shared install step across builds running at once."""
+    from filelock import FileLock, Timeout
+
+    lock_path = _tools_path() / f"{name}.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    # No soft lock: its marker outlives a killed build and hangs every later one
+    lock = FileLock(str(lock_path), fallback_to_soft=False)
+    waiting = False
+    while True:
+        try:
+            lock.acquire(timeout=_INSTALL_LOCK_POLL)
+            break
+        except Timeout:  # before OSError, which it subclasses
+            if not waiting:
+                waiting = True
+                _LOGGER.info("Waiting for another build installing %s ...", name)
+        except OSError as err:
+            _LOGGER.warning(
+                "Can't lock %s (%s), continuing without a lock", lock_path, err
+            )
+            break
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 def check_and_install(
+    sdk: ZephyrSDK,
+    version: str,
+    west_version: str | None = None,
+    ninja_version: str | None = None,
+    source: ConfigType | None = None,
+    modules: list[ZephyrModule] | None = None,
+) -> tuple[Path, Path, dict[str, str]]:
+    """Install west and Zephyr SDK, serialized against other builds installing
+    the same version at once (see _install_lock)."""
+    ver_tag = f"v{version}" if not version.startswith("v") else version
+    with _install_lock(f"sdk-{ver_tag}"):
+        return _check_and_install(
+            sdk, version, west_version, ninja_version, source, modules
+        )
+
+
+def _check_and_install(
     sdk: ZephyrSDK,
     version: str,
     west_version: str | None = None,
@@ -202,12 +292,14 @@ def check_and_install(
     for the write-up this needs once real docs exist (recommend a dedicated directory per
     checkout, not reusing an existing unrelated working tree).
 
-    A git source is pinned to one resolved commit SHA before this function ever runs (see
+    A git source is pinned to one resolved commit SHA before this function runs (see
     dts_fetch.resolve_sdk_source_version(), which stashes it onto source under
-    KEY_SDK_SOURCE_RESOLVED_REF) -- like the official source, pinned to an immutable tag,
-    it never needs an independent re-check here. `local:` is the one case that always
-    re-runs `west update` (cheap/no-op if nothing changed, since the user's checkout can
-    move between builds).
+    KEY_SDK_SOURCE_RESOLVED_REF). The workspace is keyed by ref name, so when a moved ref
+    resolves to a new SHA the manifest repository (or, with modules, the generated
+    manifest) is re-pointed and `west update` re-run in place. `local:` always re-runs
+    `west update` (cheap/no-op if nothing changed, since the user's checkout can move
+    between builds); the official source is pinned to an immutable tag and never
+    refreshes.
 
     Returns (python_bin, framework_path, west_env) where:
       - python_bin      — Python executable inside the managed venv
@@ -295,12 +387,29 @@ def check_and_install(
     label = str(source[CONF_PATH]) if is_local else (manifest_rev or "default branch")
 
     sentinel = framework / ".ready"
-    needs_init = install_venv or not (framework / ".west").is_dir()
+    needs_init = not (framework / ".west").is_dir()
+    # .ready is only written after a complete `west update`; without it a previous
+    # update was interrupted and the workspace may be half-fetched.
+    incomplete = not needs_init and not sentinel.exists()
     # local: (a user-edited checkout) can change between builds, so always re-run
-    # `west update` -- cheap/no-op if unchanged. A git source: is pinned to an exact
-    # resolved commit before this function runs (dts_fetch.resolve_sdk_source_version()),
-    # so -- like the official source, pinned to an immutable tag -- it never needs this.
-    needs_refresh = is_local
+    # `west update` -- cheap/no-op if unchanged. The official source is pinned to an
+    # immutable tag and never needs this.
+    # A rebuilt venv only needs an update, not a fresh clone of the workspace.
+    needs_refresh = is_local or incomplete or install_venv
+
+    # A git source: is pinned to one commit per run (dts_fetch.resolve_sdk_source_version()),
+    # but the workspace directory is keyed by ref name, so a moved branch must be
+    # re-pointed in place. The commit last fetched is recorded in a marker file.
+    pinned = source is not None and not is_local and _is_commit_sha(manifest_rev)
+    resolved_marker = framework / ".resolved_ref"
+    if (
+        pinned
+        and not needs_init
+        and (
+            not resolved_marker.is_file() or resolved_marker.read_text() != manifest_rev
+        )
+    ):
+        needs_refresh = True
 
     if needs_init:
         if is_local:
@@ -339,16 +448,38 @@ def check_and_install(
             _LOGGER.info("Initializing Zephyr SDK %s (%s) ...", ver_tag, label)
             rmdir(framework, msg=f"Clean up {ver_tag} framework")
             cmd = [str(python_bin), "-m", "west", "init", "-m", manifest_url]
-            if manifest_rev:
-                cmd += ["--mr", manifest_rev]
+            # A pinned SHA can't be a --mr value; init at the source's ref, then pin.
+            init_rev = source.get(CONF_REF) if pinned else manifest_rev
+            if init_rev:
+                cmd += ["--mr", init_rev]
             cmd.append(str(framework))
             if not run_command_ok(cmd):
                 raise EsphomeError(f"Can't initialize Zephyr SDK {ver_tag} ({label})")
 
+    if pinned and (needs_init or needs_refresh):
+        if git_modules:
+            if needs_refresh:  # a fresh init already wrote the manifest with the SHA
+                _generate_synthetic_manifest(
+                    framework,
+                    manifest_url,
+                    manifest_rev,
+                    git_modules,
+                    west_project_name=sdk.west_project_name,
+                )
+        else:
+            _pin_manifest_repo(_manifest_repo_dir(framework), manifest_rev, label)
+
     if needs_init or needs_refresh:
+        if incomplete:
+            _LOGGER.info("Previous Zephyr SDK update did not finish; retrying")
         _LOGGER.info(
             "Updating Zephyr SDK %s (%s) (this may take a while) ...", ver_tag, label
         )
+        # Cleared first so an interrupted update is retried on the next build.
+        sentinel.unlink(missing_ok=True)
+        if not is_local:
+            # A patched tracked file can block west update's checkout.
+            _restore_gen_defines(zephyr_dir)
         cmd = [
             str(python_bin),
             "-m",
@@ -360,10 +491,24 @@ def check_and_install(
         env = os.environ.copy()
         env.update(west_env)
         result = subprocess.run(cmd, env=env, cwd=str(framework), check=False)
+        update_failed = framework / ".update_failed"
         if result.returncode != 0:
-            raise EsphomeError(f"Can't update Zephyr SDK {ver_tag} ({label})")
+            # As nrf52: one failure is likely a flaky network and resumes;
+            # a second in a row means a broken workspace, so start over.
+            if is_local or not update_failed.exists():
+                if not is_local:
+                    update_failed.touch()
+                raise EsphomeError(
+                    f"Can't update Zephyr SDK {ver_tag} ({label}); the next build retries it"
+                )
+            rmdir(framework, msg=f"Clean up {ver_tag} framework")
+            raise EsphomeError(
+                f"Can't update Zephyr SDK {ver_tag} ({label}) twice in a row; "
+                "the workspace was removed and the next build downloads it anew"
+            )
+        update_failed.unlink(missing_ok=True)
 
-        if needs_init:
+        if needs_init or pinned or incomplete or install_venv:
             zephyr_reqs = zephyr_dir / "scripts" / "requirements.txt"
             if zephyr_reqs.exists():
                 _LOGGER.info("Installing Zephyr Python requirements ...")
@@ -378,6 +523,53 @@ def check_and_install(
                 if not run_command_ok(req_cmd):
                     raise EsphomeError("Can't install Zephyr Python requirements")
 
+        if pinned:
+            resolved_marker.write_text(manifest_rev)
         sentinel.touch()
 
+    if not is_local:
+        # Never edit a sdk_source: local checkout; it is the user's own tree.
+        _patch_gen_defines_dts_path(zephyr_dir)
     return python_bin, framework, west_env
+
+
+_GEN_DEFINES = Path("scripts") / "dts" / "gen_defines.py"
+
+
+def _restore_gen_defines(zephyr_dir: Path) -> None:
+    if (zephyr_dir / _GEN_DEFINES).is_file():
+        subprocess.run(
+            ["git", "-C", str(zephyr_dir), "checkout", "--", _GEN_DEFINES.as_posix()],
+            check=False,
+            capture_output=True,
+        )
+
+
+def _patch_gen_defines_dts_path(zephyr_dir: Path) -> None:
+    """As nrf52's patch: the absolute zephyr.dts.pre path in the devicetree
+    header comment is its only per-device byte and blocks ccache sharing."""
+    gen_defines = zephyr_dir / _GEN_DEFINES
+    if not gen_defines.is_file():
+        return
+    content = gen_defines.read_text(encoding="utf-8")
+    new = "  {os.path.basename(edt.dts_path)}"
+    if new in content:
+        return
+    patched = content.replace("  {edt.dts_path}", new)
+    if patched == content:
+        _LOGGER.warning(
+            "gen_defines.py no longer matches; the devicetree header "
+            "stays per device and ccache sharing between devices degrades"
+        )
+        return
+    # Unique sibling tmp: two builds may patch at once.
+    fd, tmp_name = tempfile.mkstemp(dir=gen_defines.parent, suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(patched)
+        shutil.copymode(gen_defines, tmp)
+        tmp.replace(gen_defines)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise

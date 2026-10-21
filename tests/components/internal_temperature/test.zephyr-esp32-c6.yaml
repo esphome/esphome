@@ -1,1 +1,2 @@
-<<: !include common.yaml
+packages:
+  internal_temperature: !include common.yaml

@@ -1,0 +1,29 @@
+packages:
+  zephyr_coredump: !include common.yaml
+
+zephyr:
+  overlays:
+    app: |
+      /delete-node/ &slot0_partition;
+      /delete-node/ &slot1_partition;
+      /delete-node/ &storage_partition;
+
+      &flash0 {
+        partitions {
+          slot0_partition: partition@0 {
+            compatible = "zephyr,mapped-partition";
+            label = "image-0";
+            reg = <0x0 DT_SIZE_K(960)>;
+          };
+          storage_partition: partition@f0000 {
+            compatible = "zephyr,mapped-partition";
+            label = "storage";
+            reg = <0xf0000 DT_SIZE_K(8)>;
+          };
+          coredump_partition: partition@f2000 {
+            compatible = "zephyr,mapped-partition";
+            label = "coredump-partition";
+            reg = <0xf2000 DT_SIZE_K(32)>;
+          };
+        };
+      };

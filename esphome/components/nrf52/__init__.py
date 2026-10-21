@@ -8,8 +8,12 @@ import shutil
 import subprocess
 
 from esphome import pins
+from esphome.build_helpers import pch
+from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.zephyr import (
+    Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
@@ -25,6 +29,7 @@ from esphome.components.zephyr.const import (
     CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
+    KEY_SYSBUILD,
     KEY_ZEPHYR,
     CdcAcm,
 )
@@ -36,6 +41,8 @@ from esphome.const import (
     CONF_ENABLE_OTA_ROLLBACK,
     CONF_FRAMEWORK,
     CONF_ID,
+    CONF_INVERTED,
+    CONF_NUMBER,
     CONF_OTA,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
@@ -62,18 +69,22 @@ from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
+from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG, SELF_RESET_PINS
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+    BOOTLOADER_NRF,
 )
 from .framework import (
     check_and_install,
+    ensure_nordic_nrfutil,
     get_build_env,
     get_build_paths,
     setup_platformio_python_env,
+    toolchain_tool,
+    wanted_west_projects,
 )
 
 # force import gpio to register pin schema
@@ -81,6 +92,7 @@ from .gpio import nrf52_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
+DOMAIN = "nrf52"
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,9 +132,35 @@ def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
+        sections = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+        if CORE.testing_mode:
+            sections = _testing_mode_sections(sections)
+        zephyr_add_pm_static(sections)
 
     return config
+
+
+# In testing mode, fake a larger flash to allow linking grouped component
+# tests. The nRF52840 has 1 MB and a mcumgr OTA config halves the app slot,
+# which an openthread config alone fills; CI images are never flashed.
+NRF52840_FLASH_SIZE = 0x100000
+TESTING_FLASH_SIZE = 0x400000
+
+
+def _testing_mode_sections(sections: list[Section]) -> list[Section]:
+    """Move a bootloader pinned to the end of the real flash to the end of the
+    faked one, so the partition manager still sees a single gap for the app."""
+    return [
+        Section(
+            section.name,
+            section.address + TESTING_FLASH_SIZE - NRF52840_FLASH_SIZE,
+            section.size,
+            section.region,
+        )
+        if section.end_address == NRF52840_FLASH_SIZE
+        else section
+        for section in sections
+    ]
 
 
 _TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.SDK_NRF)
@@ -159,13 +197,16 @@ def set_framework(config: ConfigType) -> ConfigType:
     )(config)
 
 
-BOOTLOADERS = [
+# Bootloaders flashed over USB serial DFU: the Adafruit ones with adafruit-nrfutil, the factory Open
+# DFU bootloader with Nordic's nrfutil; mcuboot uses mcumgr instead
+SERIAL_DFU_BOOTLOADERS = (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    BOOTLOADER_MCUBOOT,
-]
+    BOOTLOADER_NRF,
+)
+BOOTLOADERS = [*SERIAL_DFU_BOOTLOADERS, BOOTLOADER_MCUBOOT]
 
 
 _validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
@@ -175,6 +216,8 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     """Detect the bootloader for the given board."""
     config = config.copy()
     bootloaders: list[str] = []
+    if CONF_BOARD not in config:
+        raise cv.Invalid("'board' is a required option for [nrf52].")
     board = config[CONF_BOARD]
 
     if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
@@ -215,6 +258,18 @@ _DFU_SCHEMA = cv.Schema(
 )
 
 
+def _default_self_reset_pin(config: ConfigType) -> ConfigType:
+    # The factory bootloader ignores the retained register the touch sets, so a board with a GPIO
+    # wired to RESET resets itself through that pin
+    dfu = config.get(CONF_DFU)
+    number = SELF_RESET_PINS.get(config[CONF_BOARD])
+    if dfu is not None and number and CONF_RESET_PIN not in dfu:
+        dfu[CONF_RESET_PIN] = pins.gpio_output_pin_schema(
+            {CONF_NUMBER: number, CONF_INVERTED: True}
+        )
+    return config
+
+
 def _dfu_schema(value: bool | ConfigType) -> ConfigType:
     if isinstance(value, bool):
         if not value:
@@ -249,7 +304,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.Schema(
                 {
                     cv.Optional(CONF_VERSION): cv.string_strict,
-                    cv.Optional(CONF_LIBC_NANO, default=True): cv.boolean,
+                    cv.Optional(CONF_LIBC_NANO): cv.boolean,
                     cv.Optional(
                         CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
                     ): cv.Schema(
@@ -265,8 +320,11 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
+    _default_self_reset_pin,
     _resolve_toolchain,
     set_framework,
+    network.require_ipv6(PLATFORM_NRF52),
+    network.request_ipv4_off(PLATFORM_NRF52),
 )
 
 
@@ -274,6 +332,15 @@ def _validate_mcumgr(config):
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
         raise cv.Invalid(f"'{bootloader}' bootloader does not support DFU")
+
+
+def _validate_open_dfu_toolchain(config: ConfigType) -> None:
+    # The deprecated PlatformIO toolchain configures every non-mcuboot upload for a touch-reset
+    # bootloader, which the factory Open DFU bootloader is not
+    if config[KEY_BOOTLOADER] == BOOTLOADER_NRF and CORE.using_toolchain_platformio:
+        raise cv.Invalid(
+            f"'{BOOTLOADER_NRF}' bootloader requires 'toolchain: {Toolchain.SDK_NRF}'"
+        )
 
 
 def _final_validate(config):
@@ -284,6 +351,7 @@ def _final_validate(config):
             "The 'platformio' toolchain for nRF52 is deprecated and will be removed in ESPHome 2027.2.0. "
             "Please use 'toolchain: sdk-nrf' instead."
         )
+    _validate_open_dfu_toolchain(config)
 
     if CONF_DFU in config:
         _validate_mcumgr(config)
@@ -295,7 +363,7 @@ def _final_validate(config):
     conf = config[CONF_FRAMEWORK]
     advanced = conf[CONF_ADVANCED]
 
-    if conf[CONF_LIBC_NANO] and "logger" in CORE.loaded_integrations:
+    if conf.get(CONF_LIBC_NANO, False) and "logger" in CORE.loaded_integrations:
         _LOGGER.warning(
             "Logger is enabled with newlib-nano (libc_nano: true). Some format specifiers "
             "such as %%zu are not supported and will print incorrectly. "
@@ -373,6 +441,15 @@ async def to_code(config: ConfigType) -> None:
     zephyr_setup_preferences()
     zephyr_to_code(config)
 
+    if CORE.testing_mode:
+        zephyr_add_overlay(
+            f"""
+                &flash0 {{
+                    reg = <0x0 {TESTING_FLASH_SIZE:#x}>;
+                }};
+            """
+        )
+
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -401,7 +478,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OTA_ROLLBACK")
     zephyr_add_prj_conf("NEWLIB_LIBC", True)
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
-    zephyr_add_prj_conf("NEWLIB_LIBC_NANO", conf[CONF_LIBC_NANO])
+    zephyr_add_prj_conf(
+        "NEWLIB_LIBC_NANO",
+        conf.get(CONF_LIBC_NANO, "logger" not in CORE.loaded_integrations),
+    )
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("CPLUSPLUS", True)
@@ -412,9 +492,6 @@ async def to_code(config: ConfigType) -> None:
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-    # disable console
-    zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False, False)
     # use NFC pins as GPIO
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
@@ -426,17 +503,42 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
+    if config[CONF_BOARD] == "nrf52840dongle":
+        # The board DTS enables uart0 on edge GPIOs (P0.17, P0.22, P0.24) although nothing is wired to it
+        zephyr_add_overlay(
+            """
+                &uart0 {
+                    status = "disabled";
+                };
+            """
+        )
     zephyr_add_prj_conf("REBOOT", True)
+
+    # some boards enable USB and UART by default.
+    # disable it to prevent extra current consumption.
+    zephyr_add_prj_conf("USB_DEVICE_STACK", False, False)
+    zephyr_add_prj_conf("SERIAL", False, False)
+
+    # disable stuff to make image smaller by default
+    if framework_ver >= cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("NCS_BOOT_BANNER", False, False)
+    zephyr_add_prj_conf("BOOT_BANNER", False, False)
+    zephyr_add_prj_conf("PRINTK", False, False)
+    zephyr_add_prj_conf("CONSOLE", False, False)
+    zephyr_add_prj_conf("UART_CONSOLE", False)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
 async def _dfu_to_code(dfu_config):
     cg.add_define("USE_NRF52_DFU")
     var = cg.new_Pvariable(dfu_config[CONF_ID])
-    if CONF_RESET_PIN in dfu_config:
-        pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(pin))
+    await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
+
+    # DFU uses cdc rate callback to enter bootloader which was disabled explicitly to save power.
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
+    zephyr_add_prj_conf("SERIAL", True)
     await cg.register_component(var, dfu_config)
 
 
@@ -473,24 +575,18 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
         return []
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
-    DFU_PATH = "firmware.zip"
-    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1, only generated when OTA is disabled
-    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2, always generated
+    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1 without OTA, SDK 3.4.0+
+    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2 to 3.3.x, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
-    if (build_dir / UF2_PATH).is_file():
+    has_uf2 = (build_dir / UF2_PATH).is_file()
+    if has_uf2:
         types = [
             {
                 "title": "UF2 package (recommended)",
                 "description": "For flashing via Adafruit nRF52 Bootloader as a flash drive.",
                 "file": UF2_PATH,
                 "download": f"{storage_json.name}.uf2",
-            },
-            {
-                "title": "DFU package",
-                "description": "For flashing via adafruit-nrfutil using USB CDC.",
-                "file": DFU_PATH,
-                "download": f"dfu-{storage_json.name}.zip",
             },
         ]
     else:
@@ -506,15 +602,25 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
                 "download": f"{storage_json.name}.hex",
             },
         ]
-        if (build_dir / APP_IMAGE_PATH).is_file():
-            types += [
-                {
-                    "title": "App update package",
-                    "description": "For flashing via mcumgr-web using BLE or smpclient using USB CDC.",
-                    "file": APP_IMAGE_PATH,
-                    "download": f"app-{storage_json.name}.img",
-                },
-            ]
+    # Bootloaders without a UF2 family (the dongle's Open DFU bootloader) still get a DFU package
+    if (build_dir / DFU_PACKAGE).is_file():
+        types += [
+            {
+                "title": "DFU package",
+                "description": "For flashing via nrfutil using USB CDC.",
+                "file": DFU_PACKAGE,
+                "download": f"dfu-{storage_json.name}.zip",
+            },
+        ]
+    if (build_dir / APP_IMAGE_PATH).is_file():
+        types += [
+            {
+                "title": "App update package",
+                "description": "For flashing via mcumgr-web using BLE or smpclient using USB CDC.",
+                "file": APP_IMAGE_PATH,
+                "download": f"app-{storage_json.name}.img",
+            },
+        ]
 
     return types
 
@@ -528,6 +634,105 @@ def _upload_using_platformio(
     if port is not None:
         upload_args += ["--upload-port", port]
     return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
+
+# USB vendor and product id the nRF52840 Dongle enumerates with while its Open DFU bootloader runs
+OPEN_DFU_USB_ID = (0x1915, 0x521F)
+DFU_PACKAGE = "firmware.zip"  # the serial DFU package, next to the firmware in the build directory
+
+
+def _reset_into_bootloader(host: str) -> None:
+    """Send the 1200 bps touch that resets an Adafruit bootloader into DFU mode."""
+    import time as _time
+
+    import serial as _serial
+    import serial.tools.list_ports as _list_ports
+
+    try:
+        ser = _serial.Serial(host, baudrate=1200, timeout=1)
+        ser.close()
+    except _serial.SerialException as err:
+        raise EsphomeError(f"Failed to open {host}: {err}") from err
+
+    # Wait for device to reset (port disappears)
+    deadline = _time.monotonic() + 5
+    while _time.monotonic() < deadline:
+        _time.sleep(0.1)
+        if host not in {p.device for p in _list_ports.comports()}:
+            break
+    else:
+        _LOGGER.warning(
+            "Device did not leave %s within 5 s; it may not have entered bootloader mode",
+            host,
+        )
+
+    # Wait for DFU port to reappear
+    deadline = _time.monotonic() + 10
+    while _time.monotonic() < deadline:
+        _time.sleep(0.1)
+        if host in {p.device for p in _list_ports.comports()}:
+            break
+    else:
+        raise EsphomeError(
+            f"DFU port {host!r} did not reappear within 10 s. "
+            "Check that the device entered DFU mode."
+        )
+
+
+def _wait_for_port_permissions(host: str) -> None:
+    """Give udev a moment to set up the re-enumerated port before using it."""
+    import time as _time
+
+    from esphome.__main__ import check_permissions
+
+    deadline = _time.monotonic() + 5
+    while _time.monotonic() < deadline:
+        try:
+            check_permissions(host)
+            return
+        except EsphomeError:
+            _time.sleep(0.05)
+    check_permissions(host)  # raises with helpful message
+
+
+def _open_dfu_ports() -> set[str]:
+    import serial.tools.list_ports as _list_ports
+
+    return {
+        port.device
+        for port in _list_ports.comports(include_links=True)
+        if (port.vid, port.pid) == OPEN_DFU_USB_ID
+    }
+
+
+def _enter_open_dfu(host: str) -> str:
+    """The port of the Open DFU bootloader: ``host`` when it is one already, otherwise the one that
+    appears after the 1200 bps touch reboots an application built with ``dfu:`` into it. The
+    bootloader is its own USB device, so it never comes back under the application's path, and
+    only a port that was not there before the touch counts, not another dongle's bootloader."""
+    import time as _time
+
+    import serial as _serial
+
+    before = _open_dfu_ports()
+    if host in before:
+        return host
+    try:
+        _serial.Serial(host, baudrate=1200, timeout=1).close()
+    except _serial.SerialException as err:
+        raise EsphomeError(f"Failed to open {host}: {err}") from err
+    deadline = _time.monotonic() + 10
+    while _time.monotonic() < deadline:
+        _time.sleep(0.1)
+        if appeared := _open_dfu_ports() - before:
+            port = min(appeared)
+            _wait_for_port_permissions(port)
+            return port
+    raise EsphomeError(
+        f"{host} did not enter the Open DFU bootloader. An application built with 'dfu:' enters it "
+        "on upload; otherwise press the RESET button on the side of the dongle (the red LED pulses "
+        "while the bootloader runs) and upload again."
+    )
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:
@@ -548,103 +753,63 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
     if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
-        if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        bootloader = zephyr_data()[KEY_BOOTLOADER]
+        if bootloader == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
+        elif CORE.using_toolchain_platformio:
+            result = _upload_using_platformio(config, host, ["-t", "upload"])
+            if result != 0:
+                raise EsphomeError(f"Upload failed with result: {result}")
+            return True
+        elif bootloader not in SERIAL_DFU_BOOTLOADERS:
+            raise EsphomeError(
+                f"Serial upload is not implemented for the {bootloader} bootloader"
+            )
         else:
-            if not CORE.using_toolchain_platformio:
-                bootloader = zephyr_data()[KEY_BOOTLOADER]
-                if bootloader not in (
-                    BOOTLOADER_ADAFRUIT,
-                    BOOTLOADER_ADAFRUIT_NRF52_SD132,
-                    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-                    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-                ):
-                    raise EsphomeError("Not implemented yet")
+            env = get_build_env(None)  # no compile, just the DFU tool
+            dfu_package = CORE.relative_pioenvs_path(CORE.name) / DFU_PACKAGE
+            if not dfu_package.is_file():
+                raise EsphomeError("Firmware not found. Please compile first.")
+            if bootloader == BOOTLOADER_NRF:
+                # The factory Open DFU bootloader speaks Nordic's Secure DFU protocol
+                dfu_cmd = [
+                    ensure_nordic_nrfutil(env),
+                    "nrf5sdk-tools",
+                    "dfu",
+                    "usb-serial",
+                    "-pkg",
+                    str(dfu_package),
+                    "-p",
+                    _enter_open_dfu(host),
+                ]
+            else:
                 check_and_install()
                 paths = get_build_paths()
-                env = get_build_env()
-                build_dir = CORE.relative_pioenvs_path(CORE.name)
-                dfu_package = build_dir / "firmware.zip"
-                if not dfu_package.is_file():
-                    raise EsphomeError("Firmware not found. Please compile first.")
-                import time as _time
-
-                import serial as _serial
-                import serial.tools.list_ports as _list_ports
-
-                try:
-                    ser = _serial.Serial(host, baudrate=1200, timeout=1)
-                    ser.close()
-                except _serial.SerialException as err:
-                    raise EsphomeError(f"Failed to open {host}: {err}") from err
-
-                # Wait for device to reset (port disappears)
-                deadline = _time.monotonic() + 5
-                while _time.monotonic() < deadline:
-                    _time.sleep(0.1)
-                    if host not in {p.device for p in _list_ports.comports()}:
-                        break
-                else:
-                    _LOGGER.warning(
-                        "Device did not leave %s within 5 s; "
-                        "it may not have entered bootloader mode",
-                        host,
-                    )
-
-                # Wait for DFU port to reappear
-                deadline = _time.monotonic() + 10
-                while _time.monotonic() < deadline:
-                    _time.sleep(0.1)
-                    if host in {p.device for p in _list_ports.comports()}:
-                        break
-                else:
-                    raise EsphomeError(
-                        f"DFU port {host!r} did not reappear within 10 s. "
-                        "Check that the device entered DFU mode."
-                    )
-
-                # Wait for udev to finish setting up device permissions
-                deadline = _time.monotonic() + 5
-                while _time.monotonic() < deadline:
-                    try:
-                        check_permissions(host)
-                        break
-                    except EsphomeError:
-                        _time.sleep(0.05)
-                else:
-                    check_permissions(host)  # raises with helpful message
-
-                python = str(paths["python_executable"])
-                if not run_command_ok(
-                    [
-                        python,
-                        "-m",
-                        "nordicsemi.__main__",
-                        "dfu",
-                        "serial",
-                        "-pkg",
-                        str(dfu_package),
-                        "-p",
-                        host,
-                        "-b",
-                        "115200",
-                        "--singlebank",
-                    ],
-                    env=env,
-                    stream_output=True,
-                ):
-                    raise EsphomeError("nRF52 serial DFU upload failed")
-            else:
-                result = _upload_using_platformio(config, host, ["-t", "upload"])
-                if result != 0:
-                    raise EsphomeError(f"Upload failed with result: {result}")
-            return True  # Handled: serial upload
+                _reset_into_bootloader(host)
+                _wait_for_port_permissions(host)
+                dfu_cmd = [
+                    str(paths["python_executable"]),
+                    "-m",
+                    "nordicsemi.__main__",
+                    "dfu",
+                    "serial",
+                    "-pkg",
+                    str(dfu_package),
+                    "-p",
+                    host,
+                    "-b",
+                    "115200",
+                    "--singlebank",
+                ]
+            if not run_command_ok(dfu_cmd, env=env, stream_output=True):
+                raise EsphomeError("nRF52 serial DFU upload failed")
+            return True
 
     if host == "PYOCD":
         if not CORE.using_toolchain_platformio:
             check_and_install()
             paths = get_build_paths()
-            env = get_build_env()
+            env = get_build_env(resolve_ccache_path())  # west flash may rebuild
             build_dir = CORE.relative_pioenvs_path(CORE.name)
             west_cmd = [
                 str(paths["python_executable"]),
@@ -670,13 +835,13 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         return True  # Handled: PYOCD upload
 
     # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
-    from .ble_logger import is_mac_address
+    from .ble_logger import is_ble_address
     from .ota import smpmgr_scan, smpmgr_upload
 
     if host == "BLE":
         mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
 
-    if is_mac_address(host):
+    if is_ble_address(host):
         mcumgr_device = host
 
     if mcumgr_device:
@@ -691,7 +856,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     address = devices[0]
-    from .ble_logger import is_mac_address, logger_connect, logger_scan
+    from .ble_logger import is_ble_address, logger_connect, logger_scan
 
     if devices[0] == "BLE":
         ble_device = asyncio.run(logger_scan(CORE.name))
@@ -700,7 +865,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
         else:
             return True
 
-    if is_mac_address(address):
+    if is_ble_address(address):
         asyncio.run(logger_connect(address))
         return True
     return False
@@ -762,7 +927,75 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-def _generate_cmake_lists() -> bool:
+# GCC only loads a precompiled header ahead of every other forced header, and
+# Zephyr forces two with -imacros. They hold macros only, so the C++ sources
+# of the app get them through the precompiled header.
+_PCH_CMAKE_LINES = [
+    "",
+    "# ESPHome precompiled header",
+    "get_property(esphome_options TARGET zephyr_interface",
+    "    PROPERTY INTERFACE_COMPILE_OPTIONS)",
+    "set(esphome_kept_options)",
+    "set(esphome_pch_headers)",
+    "foreach(option IN LISTS esphome_options)",
+    '  if(option MATCHES "imacros> ([^>]+)")',
+    '    list(APPEND esphome_pch_headers "${CMAKE_MATCH_1}")',
+    "    list(APPEND esphome_kept_options",
+    '        "$<$<NOT:$<AND:$<COMPILE_LANGUAGE:CXX>,$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>")',
+    "  else()",
+    '    list(APPEND esphome_kept_options "${option}")',
+    "  endif()",
+    "endforeach()",
+    "if(NOT esphome_pch_headers)",
+    '  message(FATAL_ERROR "ESPHome: the headers Zephyr forces were not found, so "',
+    '      "the precompiled header would not load (set ESPHOME_PCH_ENABLE=0)")',
+    "endif()",
+    "set_property(TARGET zephyr_interface",
+    '    PROPERTY INTERFACE_COMPILE_OPTIONS "${esphome_kept_options}")',
+    *(
+        f'list(APPEND esphome_pch_headers "${{CMAKE_CURRENT_LIST_DIR}}/../src/{header}")'
+        for header in pch.PCH_DEFAULT_HEADERS
+    ),
+    'list(TRANSFORM esphome_pch_headers REPLACE "(.+)" "$<$<COMPILE_LANGUAGE:CXX>:\\\\1>")',
+    "target_precompile_headers(app PRIVATE ${esphome_pch_headers})",
+]
+# Where CMake puts the .gch of the app, below its binary dir
+_PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
+
+
+def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
+    """Write the checksum ccache reads in place of the .gch; before the
+    first build too, or its compiles hash the path laden .gch instead.
+    The app image dir follows the SDK version, like get_elf_path;
+    2.9.2+ always wraps the build in sysbuild."""
+    app_dir = build_dir
+    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 9, 2):
+        app_dir = build_dir / "zephyr"
+    checksum = pch.pch_checksum(
+        CORE.relative_src_path(),
+        pch.PCH_DEFAULT_HEADERS,
+        (
+            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            zephyr_data()[KEY_BOARD],
+            # Kconfig inputs that reach autoconf.h without a .conf line
+            ",".join(sorted(wanted_west_projects())),
+            str(zephyr_data().get(KEY_SYSBUILD)),
+            # What the Zephyr configuration is generated from
+            *(
+                path.read_text(encoding="utf-8")
+                for path in sorted(source_dir.iterdir())
+                if path.suffix in (".conf", ".overlay")
+            ),
+        ),
+    )
+    write_file_if_changed(app_dir / _PCH_SUM_PATH, checksum + "\n")
+
+
+def _pch_usable() -> bool:
+    return pch.pch_usable((toolchain_tool("g++"),))
+
+
+def _generate_cmake_lists(pch_on: bool) -> bool:
     """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
@@ -771,7 +1004,10 @@ def _generate_cmake_lists() -> bool:
     # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
     # before find_package(Zephyr) so the modules are picked up). Only
     # framework-agnostic libraries actually compile under Zephyr.
-    from esphome.components.zephyr.library import generate_zephyr_modules
+    from esphome.components.zephyr.library import (
+        generate_zephyr_modules,
+        library_compile_options_cmake,
+    )
 
     module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
 
@@ -786,6 +1022,7 @@ def _generate_cmake_lists() -> bool:
         modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
         lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
 
+    lines += library_compile_options_cmake(compile_flags)
     lines += [
         "find_package(Zephyr REQUIRED)",
         "",
@@ -804,6 +1041,9 @@ def _generate_cmake_lists() -> bool:
             *[f'  "{flag}"' for flag in compile_flags],
             ")",
         ]
+
+    if pch_on:
+        lines += _PCH_CMAKE_LINES
 
     if link_flags:
         lines += [
@@ -824,6 +1064,26 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+def _west_build_command(
+    python_executable: Path, board: str, build_dir: Path, source_dir: Path
+) -> list[str]:
+    return [
+        str(python_executable),
+        "-m",
+        "west",
+        "build",
+        "--pristine=auto",
+        "-b",
+        board,
+        "-d",
+        str(build_dir),
+        str(source_dir),
+        "--",
+        # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to force it
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
+    ]
+
+
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         # The actual build is done by PlatformIO (the caller falls through to
@@ -839,9 +1099,13 @@ def run_compile(args, config: ConfigType) -> bool:
     check_and_install()
 
     paths = get_build_paths()
-    env = get_build_env()
+    # Depend mode in the shared ccache settings keeps the .gch sound
+    # across Kconfig flips.
+    ccache = resolve_ccache_path()
+    env = get_build_env(ccache)
 
-    cmake_lists_changed = _generate_cmake_lists()
+    pch_on = _pch_usable()
+    cmake_lists_changed = _generate_cmake_lists(pch_on)
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
@@ -858,18 +1122,18 @@ def run_compile(args, config: ConfigType) -> bool:
         _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
         rmtree(build_dir)
 
-    west_cmd = [
-        str(paths["python_executable"]),
-        "-m",
-        "west",
-        "build",
-        "--pristine=auto",
-        "-b",
-        board,
-        "-d",
-        str(build_dir),
-        str(source_dir),
-    ]
+    # SDK 3.4.0+ no longer generates merged.hex; drop one left by an older SDK
+    # build so it is never packaged or offered for download.
+    for stale_hex in (build_dir / "merged.hex", build_dir / "zephyr" / "merged.hex"):
+        stale_hex.unlink(missing_ok=True)
+
+    if pch_on:
+        pch.log_pch_in_use()
+        _write_pch_checksum(build_dir, source_dir)
+
+    west_cmd = _west_build_command(
+        paths["python_executable"], board, build_dir, source_dir
+    )
 
     if not run_command_ok(
         west_cmd,
@@ -883,11 +1147,13 @@ def run_compile(args, config: ConfigType) -> bool:
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     bootloader = zephyr_data()[KEY_BOOTLOADER]
 
-    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
+    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes.
+    # The bootloader resets on a package whose sd_req does not list its SoftDevice,
+    # so v7 accepts S140 7.0.1, 7.2.0 and 7.3.0 (e.g. Seeed XIAO nRF52840).
     _GENPKG_PARAMS = {
         BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA"),
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA,0x0100,0x0123"),
     }
     # UF2 family IDs — nRF52832 vs nRF52840 per SoftDevice variant
     _UF2_FAMILY_IDS = {
@@ -905,13 +1171,18 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir / "zephyr"
         _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+        _copy_if_exists(west_out / "zephyr.hex", zephyr_dir / "zephyr.hex")
         _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
-    # For Adafruit bootloader builds, regenerate the UF2 from merged.hex,
-    # whose records carry the correct flash addresses. The build's own
-    # zephyr.uf2 uses the board's default offset, which is wrong in some cases.
-    merged_hex = zephyr_dir / "merged.hex"
-    if bootloader in _UF2_FAMILY_IDS and merged_hex.is_file():
+    # For Adafruit bootloader builds, regenerate the UF2 from a hex file.
+    # merged.hex carries the correct flash addresses; SDK 3.4.0+ no longer
+    # generates it, so use zephyr.hex there. Chosen by version so a merged.hex
+    # left by an older SDK build is never picked.
+    if framework_ver >= cv.Version(3, 4, 0):
+        hex_file = zephyr_dir / "zephyr.hex"
+    else:
+        hex_file = zephyr_dir / "merged.hex"
+    if bootloader in _UF2_FAMILY_IDS and hex_file.is_file():
         # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
         app_uf2 = west_out / "zephyr.uf2"
         if app_uf2.is_file():
@@ -928,23 +1199,42 @@ def run_compile(args, config: ConfigType) -> bool:
                 "-c",
                 "-o",
                 str(zephyr_dir / "zephyr.uf2"),
-                str(merged_hex),
+                str(hex_file),
             ],
             env=env,
             stream_output=True,
         ):
-            raise EsphomeError("Failed to generate UF2 from merged hex")
+            raise EsphomeError(f"Failed to generate UF2 from {hex_file.name}")
 
-    if bootloader in (
-        BOOTLOADER_ADAFRUIT,
-        BOOTLOADER_ADAFRUIT_NRF52_SD132,
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    ):
-        # no fallback is needed for adafruit case. merged merged.hex is always generated.
-        # get_download_types needs fallback for mcuboot (non adafruit)
-        hex_file = zephyr_dir / "merged.hex"
-        dfu_package = build_dir / "firmware.zip"
+    # The serial DFU package follows the hex it is made from; a package from another bootloader's
+    # build would otherwise be offered for download with this one
+    dfu_package = build_dir / DFU_PACKAGE
+    if bootloader not in SERIAL_DFU_BOOTLOADERS:
+        dfu_package.unlink(missing_ok=True)
+    elif bootloader == BOOTLOADER_NRF:
+        # The factory Open DFU bootloader speaks Nordic's Secure DFU protocol, which only Nordic's own
+        # tool packages
+        if not run_command_ok(
+            [
+                ensure_nordic_nrfutil(env),
+                "nrf5sdk-tools",
+                "pkg",
+                "generate",
+                "--hw-version",
+                "52",
+                "--sd-req",
+                "0x00",
+                "--application-version",
+                "1",
+                "--application",
+                str(zephyr_dir / "zephyr.hex"),
+                str(dfu_package),
+            ],
+            env=env,
+            stream_output=True,
+        ):
+            raise EsphomeError("Failed to create the DFU package")
+    else:
         genpkg_cmd = [
             str(paths["python_executable"]),
             "-m",
@@ -957,6 +1247,6 @@ def run_compile(args, config: ConfigType) -> bool:
             genpkg_cmd += ["--dev-type", dev_type, "--sd-req", sd_req]
         genpkg_cmd += ["--application", str(hex_file), str(dfu_package)]
         if not run_command_ok(genpkg_cmd, env=env, stream_output=True):
-            raise EsphomeError("Failed to create adafruit DFU package")
+            raise EsphomeError("Failed to create the DFU package")
 
     return True

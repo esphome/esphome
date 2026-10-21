@@ -4,6 +4,16 @@ substitutions:
   mosi_pin: "5"
   miso_pin: "6"
 
+# xg24_ek2703a never uses eusart0 for SPI, and silabs' spi-controller.yaml requires
+# these cell counts, which boards that do use a bus for SPI set in their own DTS.
+zephyr:
+  overlays:
+    app: |
+      &eusart0 {
+        #address-cells = <1>;
+        #size-cells = <0>;
+      };
+
 spi:
   - id: spi_bus
     clk_pin: ${clk_pin}

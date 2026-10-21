@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import importlib
 import logging
 from pathlib import Path
+from types import ModuleType
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -22,7 +23,10 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from esphome.types import ConfigType
 
+from ..board_revision import parse_board_string
 from ..const import (
+    BOOTLOADER_MCUBOOT,
+    CONF_BOOTLOADER,
     CONF_NINJA_VERSION,
     CONF_SINGLE_SLOT,
     CONF_SNIPPETS,
@@ -30,6 +34,7 @@ from ..const import (
     KEY_ZEPHYR,
     VERSION_RECOMMENDED,
 )
+from ..partitions import BootLayout
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +55,7 @@ class ZephyrSDK:
     # Default/minimum supported Zephyr version; a variant overrides these via its own
     # *_version_override fields. 4.4.1: fixes a C++ compile error in ethernet.h that any
     # wifi_mgmt.h consumer hits.
-    default_version: str = "4.4.1"
+    default_version: str = "4.4.2"
     min_version: cv.Version = cv.Version(4, 4, 1)
     # False: boards_repo_url is checked out directly at tag f"v{version}" (mainline's own
     # tag scheme). True: boards_repo_url's *checkout ref* isn't derivable from version at
@@ -202,11 +207,10 @@ class ZephyrVariant:
     # DO NOT assume "gpio" is safe for a new variant just because it's the default here
     # and every existing variant uses it. Before adding a new ZephyrVariant, grep that
     # SoC's actual .dtsi under the Zephyr SDK for "gpio-controller;" and read the node
-    # label a few lines above it -- then set this field to match. Getting it wrong is
-    # silent at compile time: DEVICE_DT_GET_OR_NULL() on a nonexistent node just resolves
-    # to nullptr, so every GPIO pin on the new variant fails at runtime with
-    # "gpio %u is not ready." instead of a build error (see the RA4M1 bug this comment
-    # is here because of).
+    # label a few lines above it -- then set this field to match. Getting it wrong fails
+    # every pin: at codegen when the board's devicetree is readable (gpio.py checks the
+    # node exists), otherwise at runtime with "gpio %u is not ready." (the RA4M1 bug
+    # this comment is here because of).
     gpio_node_prefix: str = "gpio"
     # ESPHome components this variant can actually support. Named after the
     # component/protocol, not the raw radio -- e.g. `openthread` and `zigbee` both need
@@ -267,6 +271,21 @@ class ZephyrVariant:
     # Like uart_valid_pins, but for SPI's clk/mosi/miso. Empty = not wired up
     # (left to zephyr_setup_spi_pinctrl() at codegen time instead).
     spi_valid_pins: dict[str, frozenset[int]] = field(default_factory=dict)
+    # signal ("clk"/"mosi"/"miso") -> {pin: pinmux macro name}, for a family whose
+    # valid SPI pins don't follow a per-pin formula (unlike EFR32/Nordic/ESP32,
+    # which derive the macro from the raw pin number) -- e.g. SiWx91x, where only
+    # a handful of enumerated pins have a macro at all and each one is a distinct
+    # #define, not a formula. Consulted by zephyr_setup_spi_pinctrl()'s
+    # family-specific branch instead of building the macro name programmatically.
+    # Empty for every family that does use a formula.
+    spi_pin_macros: dict[str, dict[int, str]] = field(default_factory=dict)
+    # Devicetree node label of this variant's pinctrl controller. Every family
+    # wired up so far names it "pinctrl" (a shared convention across EFR32/
+    # Nordic/ESP32/RP2040), which the SPI/UART/I2C pinctrl-overlay builders in
+    # zephyr/__init__.py hardcode -- SiWx91x is the first exception, whose SoC
+    # dtsi names it "pinctrl0" instead. Threaded through the SPI, UART and I2C
+    # pinctrl-overlay builders.
+    pinctrl_node_label: str = "pinctrl"
     # Devicetree node labels backing the `logger: hardware_uart: UART0`/`UART1` symbolic
     # selections. ESP32-family and nRF52 boards both label their two console-capable UARTs
     # uart0/uart1, so that's the default; nRF54 series numbers peripheral instances instead
@@ -305,6 +324,13 @@ class ZephyrVariant:
     # hardware. Value should leave headroom below the real computed ceiling for
     # rounding-table granularity, not sit exactly on it.
     watchdog_max_timeout_ms: int | None = None
+    # Where this chip starts the first image (MCUboot when built, else the app) and the
+    # flash it keeps for itself; checked against the merged devicetree at build time
+    # (see partitions.py). None = not checked.
+    boot: BootLayout | None = None
+    # Boards whose resident vendor bootloader moves `boot`, keyed by board name without
+    # revision or qualifiers.
+    board_boot: dict[str, BootLayout] = field(default_factory=dict)
 
 
 def resolve_sdk(
@@ -337,6 +363,21 @@ def _sdk_min_version(
     if sdk_name == variant.sdk_name:
         return variant.min_version_override or sdk.min_version
     return sdk.min_version
+
+
+def mcuboot_or_none(advanced: dict) -> str:
+    """Return MCUboot if advanced: bootloader: selects it, else "" -- the value
+    variants with an opt-in bootloader pass to set_core_data()."""
+    return (
+        BOOTLOADER_MCUBOOT
+        if advanced.get(CONF_BOOTLOADER) == BOOTLOADER_MCUBOOT
+        else ""
+    )
+
+
+def board_boot_layout(variant: ZephyrVariant, board: str) -> BootLayout | None:
+    """Return the boot layout for `board`: its own override, else the variant's."""
+    return variant.board_boot.get(parse_board_string(board).name, variant.boot)
 
 
 def qualify_board(
@@ -488,8 +529,11 @@ def set_core_data(
         sysbuild_conf=sysbuild_conf if sysbuild_conf is not None else {},
         overlay=overlay if overlay is not None else {"": ""},
         overlay_builder=overlay_builder if overlay_builder is not None else [],
+        cdc_acm_users={},
         extra_build_files=extra_build_files if extra_build_files is not None else {},
         pm_static=pm_static if pm_static is not None else [],
+        partition_requirements=[],
+        boot_layout=board_boot_layout(VARIANTS[variant_name], board),
         user=user if user is not None else {},
         kconfig=kconfig,
         fake_board_manifest=fake_board_manifest,
@@ -502,7 +546,6 @@ def set_core_data(
         west_version=config.get(CONF_WEST_VERSION),
         ninja_version=config.get(CONF_NINJA_VERSION),
         snippets=config.get(CONF_SNIPPETS, []),
-        swap_method=None,
         single_slot=config.get(CONF_SINGLE_SLOT, False),
         shields=shields if shields is not None else [],
         shield_root=shield_root,
@@ -511,6 +554,8 @@ def set_core_data(
         module_overrides={},
         blobs=[],
         runner=runner,
+        sysbuild=False,
+        rtt_channels={},
     )
 
 
@@ -544,7 +589,7 @@ NCS: ZephyrSDK = ZephyrSDK(
     manifest_url="https://github.com/nrfconnect/sdk-nrf",
     boards_repo_url="https://github.com/nrfconnect/sdk-zephyr",
     tools_subdir="sdk-nrf",
-    default_version="3.4.0",
+    default_version="3.4.1",
     min_version=cv.Version(3, 4, 0),
     resolve_boards_ref_via_manifest=True,
     modules={"zigbee": NCS_ZIGBEE_TEMPLATE},
@@ -574,6 +619,7 @@ _VARIANT_MODULES = [
     "esp32_c6",
     "esp32_c5",
     "esp32_c3",
+    "esp32_s3",
     "native_sim",
     "nrf52",
     "nrf54l15",
@@ -588,6 +634,7 @@ _VARIANT_MODULES = [
     "rp2040",
     "rp2350",
     "ra4m1",
+    "siwx917",
 ]
 
 
@@ -595,6 +642,11 @@ class _LazyVariants(dict):
     """Defers variant module loading until first access to avoid circular imports."""
 
     _built: bool = False
+    _modules: dict[str, ModuleType]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._modules = {}
 
     def _ensure(self) -> None:
         if self._built:
@@ -603,6 +655,12 @@ class _LazyVariants(dict):
         for mod_name in _VARIANT_MODULES:
             mod = importlib.import_module(f".{mod_name}", package=__name__)
             self[mod.VARIANT_NAME] = mod.VARIANT
+            self._modules[mod.VARIANT_NAME] = mod
+
+    def module(self, key: str) -> ModuleType:
+        """Look up the variant's own module -- config_schema/to_code live there."""
+        self._ensure()
+        return self._modules[key]
 
     def __getitem__(self, key):
         self._ensure()
@@ -629,4 +687,11 @@ class _LazyVariants(dict):
         return super().get(key, default)
 
 
-VARIANTS: dict[str, ZephyrVariant] = _LazyVariants()
+_variants_instance = _LazyVariants()
+VARIANTS: dict[str, ZephyrVariant] = _variants_instance
+
+
+def get_variant_module(variant: str) -> ModuleType:
+    """The variant's own module (its config_schema/to_code live there) -- the
+    generic dispatch target so callers don't need a hardcoded per-variant chain."""
+    return _variants_instance.module(variant)

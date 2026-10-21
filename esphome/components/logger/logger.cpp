@@ -8,7 +8,7 @@
 
 namespace esphome::logger {
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 // Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS,
@@ -127,9 +127,8 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
 }
 #endif  // USE_ESP32 || USE_HOST || USE_LIBRETINY || USE_ZEPHYR
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-// Implementation for ESP8266 with flash string support.
-// Note: USE_STORE_LOG_STR_IN_FLASH is only defined for ESP8266.
+#ifdef USE_ESP8266
+// ESP8266 keeps log format strings in flash.
 //
 // This function handles format strings stored in flash memory (PROGMEM) to save RAM.
 // Uses vsnprintf_P to read the format string directly from flash without copying to RAM.
@@ -141,11 +140,16 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 
   this->log_message_to_buffer_and_send_(global_recursion_guard_, level, tag, line, format, args, nullptr);
 }
-#endif  // USE_STORE_LOG_STR_IN_FLASH
+#endif  // USE_ESP8266
+
+uint8_t Logger::get_log_level(const char *tag) { return this->level_for(tag); }
 
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
-  auto it = this->log_levels_.find(tag);
+  // Skip the lookup when no per-tag levels are set
+  if (this->log_levels_.empty())
+    return this->current_level_;
+  auto it = this->log_levels_.find(FlashTag{tag});
   if (it != this->log_levels_.end())
     return it->second;
 #endif
@@ -240,9 +244,11 @@ void Logger::dump_config() {
 #endif
 #ifdef USE_ZEPHYR
   dump_crash_();
+#ifndef USE_LOGGER_CONSOLE  // a console backend has no UART device
   if (!device_is_ready(this->uart_dev_)) {
     ESP_LOGE(TAG, "  %s is not ready.", LOG_STR_ARG(get_uart_selection_()));
   }
+#endif
 #endif
   // Warn users that VERBOSE/VERY_VERBOSE logging impacts performance.
   // Only the compiled log level matters — all log calls up to this level

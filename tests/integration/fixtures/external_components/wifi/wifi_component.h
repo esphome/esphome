@@ -13,10 +13,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
 
+#include <cstdio>
+#include <span>
 #include <string>
 #include <vector>
 
 namespace esphome::wifi {
+
+static constexpr size_t SSID_BUFFER_SIZE = 33;
 
 class WiFiAP {
  public:
@@ -58,6 +62,12 @@ class WiFiComponent : public Component {
   bool is_disabled() const { return false; }
   // Always connected so network::is_connected() keeps the API server accepting clients
   bool is_connected() const { return true; }
+  // Reports the network start_connecting() was last asked for, so a consumer checking that it
+  // joined the network it requested (rather than an earlier one) sees the connect succeed
+  const char *wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
+    snprintf(buffer.data(), buffer.size(), "%s", this->connected_ssid_.c_str());
+    return buffer.data();
+  }
   void start_scanning();
   const std::vector<WiFiScanResult> &get_scan_result() const { return this->scan_result_; }
   void set_sta(const WiFiAP &ap);
@@ -70,6 +80,7 @@ class WiFiComponent : public Component {
 
  protected:
   std::vector<WiFiScanResult> scan_result_;
+  std::string connected_ssid_;
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -38,37 +38,18 @@ void MD5Digest::add(const uint8_t *data, size_t len) { br_md5_update(&this->ctx_
 void MD5Digest::calculate() { br_md5_out(&this->ctx_, this->digest_); }
 #endif  // USE_RP2
 
-#if defined(USE_ZEPHYR) && !defined(USE_NRF52)
-#if MBEDTLS_VERSION_MAJOR >= 4
-MD5Digest::~MD5Digest() { psa_hash_abort(&this->ctx_); }
-
+#ifdef USE_ZEPHYR
 void MD5Digest::init() {
   memset(this->digest_, 0, 16);
-  psa_crypto_init();
-  this->ctx_ = PSA_HASH_OPERATION_INIT;
-  psa_hash_setup(&this->ctx_, PSA_ALG_MD5);
+  md5_openwall_init(&this->ctx_);
 }
 
-void MD5Digest::add(const uint8_t *data, size_t len) { psa_hash_update(&this->ctx_, data, len); }
+void MD5Digest::add(const uint8_t *data, size_t len) { md5_openwall_update(&this->ctx_, data, len); }
 
-void MD5Digest::calculate() {
-  size_t out_len;
-  psa_hash_finish(&this->ctx_, this->digest_, 16, &out_len);
-}
-#else
-MD5Digest::~MD5Digest() { mbedtls_md5_free(&this->ctx_); }
+void MD5Digest::calculate() { md5_openwall_final(this->digest_, &this->ctx_); }
+#endif  // USE_ZEPHYR
 
-void MD5Digest::init() {
-  memset(this->digest_, 0, 16);
-  mbedtls_md5_init(&this->ctx_);
-  mbedtls_md5_starts(&this->ctx_);
-}
-
-void MD5Digest::add(const uint8_t *data, size_t len) { mbedtls_md5_update(&this->ctx_, data, len); }
-
-void MD5Digest::calculate() { mbedtls_md5_finish(&this->ctx_, this->digest_); }
-#endif
-#elif defined(USE_HOST)
+#ifdef USE_HOST
 MD5Digest::~MD5Digest() {
   if (this->ctx_) {
     EVP_MD_CTX_free(this->ctx_);
@@ -104,7 +85,7 @@ void MD5Digest::calculate() {
 }
 #else
 MD5Digest::~MD5Digest() = default;
-#endif
+#endif  // USE_HOST
 
 }  // namespace esphome::md5
 

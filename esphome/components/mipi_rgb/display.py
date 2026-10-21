@@ -12,7 +12,12 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S3, only_on_variant
+from esphome.components.esp32 import (
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    only_on_variant,
+)
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_DE_PIN,
@@ -60,7 +65,6 @@ from esphome.const import (
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_NUMBER,
     CONF_RED,
@@ -226,7 +230,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
     config = cv.All(
         schema,
         cv.only_on_esp32,
-        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4]),
+        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4, VARIANT_ESP32S31]),
     )(config)
     model = MODELS[config[CONF_MODEL].upper()]
     model.check_requirements()
@@ -237,7 +241,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
         config[CONF_ID],
         width,
         height,
-        model.rotation_as_transform(config),
+        has_hardware_rotation=True,
         byte_order=config[CONF_BYTE_ORDER],
         has_writer=requires_buffer(config)
         or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
@@ -280,10 +284,12 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_SPI_ID in config:
         await spi.register_spi_device(var, config, write_only=True)
-        sequence = model.get_sequence(config)
-        cg.add(var.set_init_sequence(sequence))
+        sequence = model.get_sequence(config, add_reset=True)
+        table = cg.shared_progmem_array("mipi_rgb_init_sequence", cg.uint8, sequence)
+        cg.add(var.set_init_sequence(table, len(sequence)))
 
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
+    cg.add(var.set_big_endian(config[CONF_BYTE_ORDER] == BYTE_ORDER_BIG))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
     cg.add(var.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))
@@ -309,32 +315,16 @@ async def to_code(config: ConfigType) -> None:
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
 
-    if dc_pin := config.get(CONF_DC_PIN):
-        dc = await cg.gpio_pin_expression(dc_pin)
-        cg.add(var.set_dc_pin(dc))
-
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_dc_pin, config.get(CONF_DC_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     if model.rotation_as_transform(config):
         config[CONF_ROTATION] = 0
 
-    if de_pin := config.get(CONF_DE_PIN):
-        pin = await cg.gpio_pin_expression(de_pin)
-        cg.add(var.set_de_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
-    cg.add(var.set_pclk_pin(pin))
-    if hsync_pin := config.get(CONF_HSYNC_PIN):
-        pin = await cg.gpio_pin_expression(hsync_pin)
-        cg.add(var.set_hsync_pin(pin))
-    if vsync_pin := config.get(CONF_VSYNC_PIN):
-        pin = await cg.gpio_pin_expression(vsync_pin)
-        cg.add(var.set_vsync_pin(pin))
+    await cg.add_pin(var.set_de_pin, config.get(CONF_DE_PIN))
+    await cg.add_pin(var.set_pclk_pin, config[CONF_PCLK_PIN])
+    await cg.add_pin(var.set_hsync_pin, config.get(CONF_HSYNC_PIN))
+    await cg.add_pin(var.set_vsync_pin, config.get(CONF_VSYNC_PIN))
 
     await display.register_display(var, config)
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

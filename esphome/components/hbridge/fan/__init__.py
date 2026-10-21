@@ -7,14 +7,11 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DECAY_MODE,
     CONF_ENABLE_PIN,
-    CONF_ID,
     CONF_PIN_A,
     CONF_PIN_B,
     CONF_PRESET_MODES,
     CONF_SPEED_COUNT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .. import hbridge_ns
@@ -25,13 +22,7 @@ CODEOWNERS = ["@WeekendWarrior"]
 HBridgeFan = hbridge_ns.class_("HBridgeFan", cg.Component, fan.Fan)
 
 DecayMode = hbridge_ns.enum("DecayMode")
-DECAY_MODE_OPTIONS = {
-    "SLOW": DecayMode.DECAY_MODE_SLOW,
-    "FAST": DecayMode.DECAY_MODE_FAST,
-}
-
-# Actions
-BrakeAction = hbridge_ns.class_("BrakeAction", automation.Action)
+DECAY_MODE_OPTIONS = DecayMode.options("SLOW", "FAST", prefix="DECAY_MODE_")
 
 CONFIG_SCHEMA = (
     fan.fan_schema(HBridgeFan)
@@ -51,20 +42,11 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "fan.hbridge.brake",
-    BrakeAction,
     maybe_simple_id({cv.GenerateID(): cv.use_id(HBridgeFan)}),
-    synchronous=True,
+    automation.ApplyCall("brake()"),
 )
-async def fan_hbridge_brake_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -74,14 +56,9 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_DECAY_MODE],
     )
     await cg.register_component(var, config)
-    pin_a_ = await cg.get_variable(config[CONF_PIN_A])
-    cg.add(var.set_pin_a(pin_a_))
-    pin_b_ = await cg.get_variable(config[CONF_PIN_B])
-    cg.add(var.set_pin_b(pin_b_))
-
-    if CONF_ENABLE_PIN in config:
-        enable_pin = await cg.get_variable(config[CONF_ENABLE_PIN])
-        cg.add(var.set_enable_pin(enable_pin))
+    await cg.add_variable(var.set_pin_a, config[CONF_PIN_A])
+    await cg.add_variable(var.set_pin_b, config[CONF_PIN_B])
+    await cg.add_variable(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
 
     if CONF_PRESET_MODES in config:
         cg.add(var.set_preset_modes(config[CONF_PRESET_MODES]))

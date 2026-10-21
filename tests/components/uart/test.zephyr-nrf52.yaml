@@ -23,3 +23,7 @@ uart:
     tx_pin: 22
     rx_pin: 23
     baud_rate: 9600
+  # SEGGER RTT channel 1, read through the debug probe; no pins
+  - id: uart_id_rtt
+    port: RTT1
+    baud_rate: 115200

@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.esp32 import get_esp32_variant, include_builtin_idf_component
+from esphome.components.esp32.const import VARIANT_ESP32
 from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
@@ -55,6 +57,10 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
+
+    if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32:
+        # temprature_sens_read() lives in the esp_phy blob, which is excluded by default
+        include_builtin_idf_component("esp_phy")
 
     if CORE.is_nrf52 or (CORE.using_zephyr and zephyr_variant_family() == "nordic"):
         # Same physical TEMP peripheral (nrf52840.dtsi's `temp` node is status = "okay"

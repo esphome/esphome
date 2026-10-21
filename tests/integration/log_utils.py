@@ -28,6 +28,11 @@ class LineWaiter:
             self._future.set_result(line)
             self._future = None
 
+    async def wait_for_each(self, *texts: str, timeout: float = 10.0) -> None:
+        """Await each text in turn; a text may match a line already received."""
+        for text in texts:
+            await self.wait_for(text, timeout=timeout)
+
     async def wait_for(self, *needles: str, timeout: float = 10.0) -> str:
         """Return the first line, past or future, containing every needle."""
         for line in self.lines:

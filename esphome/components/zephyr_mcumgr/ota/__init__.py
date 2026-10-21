@@ -1,5 +1,9 @@
+import logging
+
+from esphome import pins
 import esphome.codegen as cg
-from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
+from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, MCUMGR_OTA_BOOTLOADERS
+from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import (
     BASE_OTA_SCHEMA,
     SWAP_METHOD_SCHEMA,
@@ -11,10 +15,11 @@ from esphome.components.zephyr import (
     VARIANTS,
     HexValue,
     mcuboot,
-    zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_add_sysbuild_conf,
+    zephyr_cdc_acm_label,
+    zephyr_claim_cdc_acm,
     zephyr_data,
     zephyr_variant,
     zephyr_variant_family,
@@ -23,6 +28,8 @@ from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     KEY_BOOTLOADER,
     KEY_FRAMEWORK_TYPE,
+    KEY_PM_STATIC,
+    KEY_SYSBUILD,
     ZEPHYR_VARIANT_EFR32BG27,
     ZEPHYR_VARIANT_EFR32MG24,
     ZEPHYR_VARIANT_NRF52,
@@ -31,11 +38,24 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
 )
+from esphome.components.zephyr_ble_server import request_ble_l2cap_mtu
 import esphome.config_validation as cv
-from esphome.const import CONF_HARDWARE_UART, CONF_ID, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import (
+    CONF_HARDWARE_UART,
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_NUMBER,
+    CONF_PIN,
+    CONF_STATUS,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+)
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@tomaszduda23"]
 DEPENDENCIES = ["zephyr"]
@@ -89,8 +109,13 @@ ZEPHYR_VARIANTS = (
 # family list that includes USB_CDC).
 _CDC_CAPABLE_FAMILIES = {"nordic", "rpi_pico"}
 
+UARTS = {
+    "CDC": ("cdc_acm_uart0", 0),
+    "CDC1": ("cdc_acm_uart1", 1),
+    "UART0": ("uart0", -1),
+    "UART1": ("uart1", -1),
+}
 CDC_IDS = {"CDC": 0, "CDC1": 1}
-UARTS = ("CDC", "CDC1", "UART0", "UART1")
 
 
 def _validate_platform(conf: ConfigType) -> ConfigType:
@@ -112,6 +137,12 @@ def _validate_platform(conf: ConfigType) -> ConfigType:
             f"peripheral. Use 'UART0'/'UART1', or 'ble: true', instead.",
             [CONF_TRANSPORT, CONF_HARDWARE_UART],
         )
+    if CONF_STATUS in conf and not CORE.is_nrf52:
+        # The overlay this generates assumes Nordic's 32-pins-per-port &gpio{N}
+        # devicetree numbering -- not valid on EFR32MG24/RP2040/RP2350/nRF54 yet.
+        raise cv.Invalid(
+            f"'{CONF_STATUS}' is only available on platform: nrf52.", [CONF_STATUS]
+        )
     return conf
 
 
@@ -128,6 +159,11 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             **SWAP_METHOD_SCHEMA,
+            cv.Optional(CONF_STATUS): cv.Schema(
+                {
+                    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+                }
+            ),
         }
     )
     .extend(BASE_OTA_SCHEMA)
@@ -153,7 +189,7 @@ def _validate_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
         return
-    if bootloader not in BOOTLOADER_CONFIG:
+    if bootloader not in MCUMGR_OTA_BOOTLOADERS:
         raise cv.Invalid(f"{bootloader} does not support OTA")
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver < cv.Version(2, 9, 2):
@@ -165,6 +201,17 @@ def _validate_bootloader(config: ConfigType) -> None:
 def _final_validate(config: ConfigType) -> None:
     _validate_ble_server(config)
     _validate_bootloader(config)
+    if "zephyr_coredump" in fv.full_config.get():
+        _LOGGER.warning(
+            "zephyr_coredump moves the OTA image slots. A device that already runs mcumgr OTA "
+            "needs one flash over USB after enabling or disabling it; an OTA update alone leaves "
+            "the installed MCUboot with the old slot layout"
+        )
+    if (uart := config[CONF_TRANSPORT].get(CONF_HARDWARE_UART)) is not None:
+        cdc_id = UARTS[uart][1]
+        if cdc_id >= 0:
+            # SMP frames are marked, so log text from the logger on the same port is skipped
+            zephyr_claim_cdc_acm(cdc_id, "zephyr_mcumgr", allow_write_only=True)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -181,6 +228,10 @@ async def to_code(config: ConfigType) -> None:
 
     zephyr_add_prj_conf("NET_BUF", True)
     zephyr_add_prj_conf("ZCBOR", True)
+    if CORE.is_nrf52:
+        include_west_project("zcbor")
+        # The image manager includes MCUboot headers with any bootloader
+        include_west_project("mcuboot")
     zephyr_add_prj_conf("MCUMGR", True)
 
     zephyr_add_prj_conf("MCUMGR_GRP_IMG", True)
@@ -198,31 +249,32 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("MCUMGR_MGMT_NOTIFICATION_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_STATUS_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK", True)
+    # OS management group (reset, MCUMGR_PARAMETERS query, etc.) isn't transport-specific --
+    # every mcumgr transport needs it, not just BLE.
+    zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
+    zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
     transport = config[CONF_TRANSPORT]
     if transport[CONF_BLE]:
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT", True)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT_REASSEMBLY", True)
-
-        zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
-        zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         # NCS-only sample Kconfig (undefined in mainline Zephyr -- EFR32MG24 is the
         # first supported variant that isn't NCS-based, and mainline treats an
         # undefined-symbol assignment as a fatal Kconfig warning).
         if zephyr_data().get(KEY_FRAMEWORK_TYPE) == "ncs":
             zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
+            request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
     if CONF_HARDWARE_UART in transport:
+        zephyr_add_prj_conf("SERIAL", True)
         hw_uart = transport[CONF_HARDWARE_UART]
-        if hw_uart in CDC_IDS:
-            # zephyr_add_cdc_acm() reuses a board-provided cdc-acm-uart node (e.g.
-            # Nordic's common cdc_acm_serial.dtsi, which several boards -- including
-            # xiao_ble -- already include) instead of declaring a new cdc_acm_uart{id}
-            # node, whenever one is already present. Its return value is the label
-            # that actually ended up in the devicetree; a hardcoded cdc_acm_uart{id}
-            # name may not have been declared at all when that happens, so it can't
-            # be used directly below or the devicetree reference is left dangling.
-            uart_name = zephyr_add_cdc_acm(config, CDC_IDS[hw_uart])
-        elif CORE.is_zephyr:
+        if CORE.is_nrf52:
+            uart_name = UARTS[transport[CONF_HARDWARE_UART]][0]
+        elif hw_uart in CDC_IDS:
+            # Port 0 may be a board-provided cdc-acm-uart node (e.g. Nordic's common
+            # cdc_acm_serial.dtsi, which xiao_ble includes), so a hardcoded
+            # cdc_acm_uart{id} name could leave the devicetree reference dangling.
+            uart_name = zephyr_cdc_acm_label(CDC_IDS[hw_uart])
+        else:
             # Physical UART peripherals are numbered/named differently per variant
             # (e.g. nRF54 uses uart20/uart30, EFR32MG24 has only usart0), and some
             # variants declare no portable mapping at all (resolved per board from
@@ -234,9 +286,6 @@ async def to_code(config: ConfigType) -> None:
                 hw_uart,
                 VARIANTS[zephyr_variant()].uart_node_labels,
             )
-        else:
-            # Legacy platform: nrf52 always uses uart0/uart1.
-            uart_name = hw_uart.lower()
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)
@@ -249,19 +298,51 @@ async def to_code(config: ConfigType) -> None:
                 }};
                 """
         )
+    if CONF_STATUS in config:
+        pin_conf = config[CONF_STATUS][CONF_PIN]
+        pin_num = pin_conf[CONF_NUMBER]
+        port = pin_num // 32
+        pin_in_port = pin_num % 32
+        active_flag = (
+            "GPIO_ACTIVE_LOW" if pin_conf[CONF_INVERTED] else "GPIO_ACTIVE_HIGH"
+        )
+        zephyr_add_prj_conf("MCUBOOT_INDICATION_LED", True, image="mcuboot")
+        zephyr_add_overlay(
+            f"""
+                #include <dt-bindings/gpio/gpio.h>
+                / {{
+                    mcuboot_leds {{
+                        compatible = "gpio-leds";
+                        mcuboot_led0: mcuboot_led0 {{
+                            gpios = <&gpio{port} {pin_in_port} {active_flag}>;
+                        }};
+                    }};
+                    aliases {{
+                        mcuboot-led0 = &mcuboot_led0;
+                    }};
+                }};
+                """,
+            image="mcuboot",
+        )
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if framework_ver >= cv.Version(2, 9, 2):
+        zephyr_data()[KEY_SYSBUILD] = True
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:
-        sections = BOOTLOADER_CONFIG[bootloader]
-        # Derive partition addresses from the SoftDevice and bootloader sections so
-        # that the DTS flash map matches what the Partition Manager produces:
-        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
+        # Derive partition addresses from the sections registered with the
+        # Partition Manager (moved in testing mode) so that the DTS flash map
+        # matches what it produces:
+        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1,
+        #   which ends at the lowest section reserved above (bootloader, coredump).
+        # platform: zephyr's nrf52 variant never registers PM static sections
+        sections = zephyr_data()[KEY_PM_STATIC] or BOOTLOADER_CONFIG[bootloader]
         mcuboot_size = 0x9000
-        sd_end = next(s.address + s.size for s in sections if "SoftDevice" in s.name)
-        bl_start = next(s.address for s in sections if "Adafruit" in s.name)
+        sd_end = next(s.end_address for s in sections if "SoftDevice" in s.name)
+        top = min(s.address for s in sections if s.address >= sd_end)
         slot0_start = sd_end + mcuboot_size
         # Align slot size down to a 4 KB sector boundary
-        slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
+        slot_size = ((top - slot0_start) // 2 // 0x1000) * 0x1000
         slot1_start = slot0_start + slot_size
 
         def _mcuboot_partition_overlay() -> str:

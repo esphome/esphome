@@ -2,7 +2,7 @@
 
 #include "zephyr_can.h"
 
-#include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -11,7 +11,7 @@
 
 namespace esphome::zephyr_can {
 
-static const char *const TAG = "zephyr_can";
+ESPHOME_LOG_TAG(TAG, "zephyr_can");
 
 // Controller state and error counters are only read this often -- they are polled from
 // loop(), which runs far more frequently than a bus error can meaningfully change.
@@ -125,7 +125,7 @@ void ZephyrCan::loop() {
 }
 
 void ZephyrCan::log_bus_state_() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_state_check_ < STATE_POLL_INTERVAL_MS) {
     return;
   }

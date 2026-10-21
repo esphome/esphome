@@ -7,19 +7,13 @@
 #include "esphome/core/defines.h"
 
 #if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO)
+    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || defined(USE_ZEPHYR_VARIANT_FAMILY_STM32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
 #include <zephyr/drivers/hwinfo.h>
 #endif
 
-#ifdef USE_ZEPHYR_MCUBOOT_SINGLE_SLOT
-#include <zephyr/storage/flash_map.h>
-#if PARTITION_EXISTS(slot1_partition)
-#error \
-    "single_slot: true requires a single-slot flash layout, but this build still defines slot1_partition (from the board default, overlays:, or to_code()). Remove the second slot, or set single_slot: false."
-#endif
-#endif
-
-// Probe rather than require: this header only exists once another component (sha256, md5,
+// Probe rather than require: this header only exists once another component (sha256,
 // api encryption) has turned on the MBEDTLS Kconfig.
 #if __has_include(<mbedtls/build_info.h>)
 #include <mbedtls/build_info.h>
@@ -68,10 +62,12 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   memcpy(mac, addr, sizeof(addr));
 }
 #elif defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
-    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO)
+    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || defined(USE_ZEPHYR_VARIANT_FAMILY_STM32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  // hwinfo_get_device_id() is a generic Zephyr API; covers every esp32-family, nRF5x,
-  // and Silicon Labs chip.
+  // SiWx91x has no hwinfo backend yet: the weak default returns -ENOSYS, giving an
+  // all-zero MAC instead of a link failure.
   if (hwinfo_get_device_id(mac, 6) != 6) {
     memset(mac, 0, 6);
   }

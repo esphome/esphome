@@ -1,1 +1,2 @@
-<<: !include common-uart0_no_logging.yaml
+packages:
+  logger: !include common-uart0_no_logging.yaml

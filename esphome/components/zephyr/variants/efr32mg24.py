@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_SOURCE,
-    KEY_FRAMEWORK_VERSION,
     ThreadModel,
     Toolchain,
 )
@@ -17,6 +16,7 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_EFR32MG24,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     SILABS,
@@ -49,13 +49,17 @@ _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
 _ADC_AIN_MAP = {p: f"IADC_INPUT_P{chr(ord('A') + p // 16)}{p % 16}" for p in range(64)}
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/silabs/xg24-pinctrl.h
-# Full crossbar -- every PA0..PD15 pin has a macro for every signal, no exclusions
-# (unlike esp32). Shared by every free-mux GPIO signal (UART, SPI).
-_GPIO_MATRIX_PINS = frozenset(range(64))
+# Macros exist only for the pins xG24 has: PA0-9, PB0-5, PC0-9, PD0-5. Shared by every
+# free-mux GPIO signal (UART, SPI).
+_GPIO_MATRIX_PINS = frozenset(
+    [*range(10), *range(16, 22), *range(32, 42), *range(48, 54)]
+)
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_EFR32MG24
 VARIANT = ZephyrVariant(
+    # Resets from the start of flash (xg24_ek2703a.dts boot_partition@0).
+    boot=BootLayout(0x0),
     # Mainline stays default; Silicon Labs' vendor SDK (SILABS) is available as an alt
     # (framework: type: silabs) pending real hardware testing.
     sdk=MAINLINE,
@@ -100,7 +104,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
-    version_str, framework_ver, sdk_name, _ = resolve_framework_version(
+    _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "efr32mg24", config, "EFR32MG24 support"
     )
     if CONF_COMMANDER_VERSION in config[CONF_ADVANCED] and sdk_name != "silabs":
@@ -119,7 +123,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
         runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
-    config[KEY_FRAMEWORK_VERSION] = version_str
     return config
 
 
@@ -128,10 +131,8 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf,
         zephyr_add_sysbuild_conf,
         zephyr_setup_preferences,
-        zephyr_to_code,
     )
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_EFR32MG24")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "EFR32MG24")

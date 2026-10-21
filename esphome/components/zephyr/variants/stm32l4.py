@@ -18,6 +18,7 @@ from ..const import (
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_STM32L4,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -39,6 +40,8 @@ _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_STM32L4
 VARIANT = ZephyrVariant(
+    # Resets from the start of flash (nucleo_l476rg.dts has no code partition).
+    boot=BootLayout(0x0),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="stm32",
@@ -95,17 +98,15 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_sysbuild_conf,
         zephyr_data,
         zephyr_setup_preferences,
-        zephyr_to_code,
     )
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_STM32L4")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "STM32L4")
     cg.add_define(ThreadModel.SINGLE)
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
-    # get_mac_address_raw() (zephyr/core.cpp) reads the efuse MAC via hwinfo_get_device_id().
+    # get_mac_address_raw() (zephyr/core.cpp) derives the MAC from the unique ID via hwinfo.
     zephyr_add_prj_conf("HWINFO", True)
 
     if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:

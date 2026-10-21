@@ -1,17 +1,27 @@
 import logging
+from pathlib import Path
+import subprocess
 
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
     CONF_FRAMEWORK,
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_NUMBER,
     CONF_OTA,
+    CONF_RESET_PIN,
     CONF_SOURCE,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     ThreadModel,
     Toolchain,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.framework_helpers import run_command_ok
 from esphome.types import ConfigType
 
 from ..const import (
@@ -22,7 +32,10 @@ from ..const import (
     KEY_BOOTLOADER,
     KEY_MODULE_REQUESTS,
     ZEPHYR_VARIANT_NRF52,
+    zephyr_ns,
 )
+from ..partitions import BootLayout
+from ..usb_baud_rate import CONF_USB_BAUD_RATE, UsbBaudRate, declare_component_id
 from . import (
     MAINLINE,
     NCS,
@@ -49,23 +62,53 @@ _DEFAULT_BOARD = "adafruit_feather_nrf52840"
 # https://learn.adafruit.com/introducing-the-adafruit-nrf52840-feather/hathach-memory-map
 BOOTLOADER_ADAFRUIT_NRF52_SD140_V6 = "adafruit_nrf52_sd140_v6"
 BOOTLOADER_ADAFRUIT_NRF52_SD140_V7 = "adafruit_nrf52_sd140_v7"
+# Nordic's factory Open DFU bootloader (nRF52840 Dongle): the board's default devicetree
+# (BOARD_HAS_NRF5_BOOTLOADER) links the app at 0x1000, behind the MBR, and below the
+# bootloader at 0xE0000. It speaks Nordic's Secure DFU, packaged by Nordic's nrfutil.
+BOOTLOADER_NRF = "nrf"
+_OPEN_DFU_LAYOUT = BootLayout(0x1000, ((0x0, 0x1000), (0xE0000, 0x100000)))
+_DONGLE_BOARD = "nrf52840dongle"
+# The dongle's GPIO wired to RESET: a pin reset is the Open DFU bootloader's cue to stay in
+# DFU mode, as it ignores the retained register the Adafruit bootloaders read
+_DONGLE_RESET_PIN = "P0.19"
 
-# Expected "SoftDevice" partition size for each choice above, cross-checked against
-# upstream's own dtsi (nordic/nrf52840_partition_uf2_sdv{6,7}.dtsi): v6 reserves
-# 0x26000 (152K), v7 reserves 0x27000 (156K) -- a board whose stock DTS has a
-# "SoftDevice" partition of the wrong size for the selected version means the app
-# would still be linked against the wrong gap, same footgun as a missing partition.
-_SOFTDEVICE_PARTITION_SIZE = {
+# Where each SoftDevice ends (upstream nordic/nrf52840_partition_uf2_sdv{6,7}.dtsi) and
+# where the Adafruit UF2 bootloader starts; the app must fit between them.
+_SOFTDEVICE_END = {
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: 0x26000,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: 0x27000,
 }
+_ADAFRUIT_BOOTLOADER_START = 0xF4000
+_FLASH_SIZE = 0x100000  # nRF52840
+
+CONF_DFU = "dfu"
+DeviceFirmwareUpdate = zephyr_ns.class_("DeviceFirmwareUpdate", cg.Component)
+
+_DFU_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): declare_component_id(DeviceFirmwareUpdate),
+        cv.GenerateID(CONF_USB_BAUD_RATE): declare_component_id(UsbBaudRate),
+        cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+    }
+)
+
+
+def _dfu_schema(value: bool | ConfigType) -> ConfigType | None:
+    if isinstance(value, bool):
+        return _DFU_SCHEMA({}) if value else None
+    return _DFU_SCHEMA(value)
+
 
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
     {
+        # 1200 baud touch -> Adafruit UF2 bootloader, 2001 baud -> plain reboot.
+        # Validated in config_schema() once the target platform is known (pin lookup).
+        cv.Optional(CONF_DFU): cv.Any(cv.boolean, dict),
         cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_MCUBOOT): cv.one_of(
             BOOTLOADER_MCUBOOT,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+            BOOTLOADER_NRF,
             lower=True,
         ),
     }
@@ -99,6 +142,9 @@ _GPIO_MATRIX_PINS = frozenset(range(48))
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NRF52
 VARIANT = ZephyrVariant(
+    # Resets from the start of flash (nordic/nrf52840_partition.dtsi). An Adafruit
+    # bootloader moves this; see to_code().
+    boot=BootLayout(0x0),
     # NCS (nRF Connect SDK) is the default -- Nordic's own vendor SDK, which is where
     # real hardware support/testing effort for this chip is expected to concentrate.
     # Mainline Zephyr stays available as an alternate (framework: type: zephyr) for
@@ -135,6 +181,10 @@ VARIANT = ZephyrVariant(
 )
 
 
+def _board_name(board: str) -> str:
+    return board.split("/", 1)[0]
+
+
 def config_schema(config: ConfigType) -> ConfigType:
     config = dict(config)
     if CONF_BOARD not in config:
@@ -154,13 +204,29 @@ def config_schema(config: ConfigType) -> ConfigType:
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
         runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
+    # On by default with a serial DFU bootloader; `dfu: false` turns it off.
+    dfu = config[CONF_ADVANCED].get(CONF_DFU)
+    if dfu is None and config[CONF_ADVANCED][CONF_BOOTLOADER] != BOOTLOADER_MCUBOOT:
+        dfu = True
+    if dfu is not None:
+        with cv.prepend_path([CONF_ADVANCED, CONF_DFU]):
+            if config[CONF_ADVANCED][CONF_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+                raise cv.Invalid(
+                    f"'{CONF_DFU}' needs a serial DFU bootloader, not '{BOOTLOADER_MCUBOOT}'"
+                )
+            if dfu is not False and _board_name(config[CONF_BOARD]) == _DONGLE_BOARD:
+                dfu = {} if dfu is True else dict(dfu)
+                dfu.setdefault(
+                    CONF_RESET_PIN,
+                    {CONF_NUMBER: _DONGLE_RESET_PIN, CONF_INVERTED: True},
+                )
+            config[CONF_ADVANCED][CONF_DFU] = _dfu_schema(dfu)
     return config
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+    from .. import zephyr_add_prj_conf, zephyr_set_boot_layout, zephyr_setup_preferences
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
@@ -169,51 +235,38 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_prj_conf("HWINFO", True)
 
-    bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
-    if bootloader in (
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
-    ):
-        from ..dts_lookup import get_board_partitions
+    if (
+        sd_end := _SOFTDEVICE_END.get(config[CONF_ADVANCED][CONF_BOOTLOADER])
+    ) is not None:
+        # The SoftDevice starts the app right after itself; writing over it or the
+        # bootloader bricks the board.
+        zephyr_set_boot_layout(
+            BootLayout(
+                sd_end, ((0x0, sd_end), (_ADAFRUIT_BOOTLOADER_START, _FLASH_SIZE))
+            )
+        )
+    elif config[CONF_ADVANCED][CONF_BOOTLOADER] == BOOTLOADER_NRF:
+        zephyr_set_boot_layout(_OPEN_DFU_LAYOUT)
+    if _board_name(config[CONF_BOARD]) == _DONGLE_BOARD:
+        from .. import zephyr_add_overlay
 
-        # zephyr_to_code() above already fetched this board's DTS (fetch_board_dts) and
-        # validated it exists, so this reflects the real board -- not a guess. Only the
-        # itsybitsy's stock DTS (nrf52840_partition_uf2_sdv6.dtsi) ships a "SoftDevice"
-        # partition; picking this bootloader on a board without one (e.g. the default
-        # adafruit_feather_nrf52840, whose nrf52840_partition.dtsi has no such
-        # reservation) silently links the app at flash address 0x0 instead of into a
-        # real gap, which would overwrite whatever's actually on that board's flash.
-        # Warning, not an error: this only sees the board's stock DTS -- a user who
-        # added the missing/mismatched partition themselves via `zephyr: overlays:`
-        # would be correct and this check can't see that fix.
-        partitions = get_board_partitions(config[CONF_BOARD])
-        if partitions is not None:
-            softdevice = next((p for p in partitions if p[0] == "SoftDevice"), None)
-            expected_size = _SOFTDEVICE_PARTITION_SIZE[bootloader]
-            if softdevice is None:
-                _LOGGER.warning(
-                    "Board '%s' has no 'SoftDevice' partition in its stock "
-                    "devicetree, so '%s' would not actually protect an existing "
-                    "bootloader on this board unless one was added via 'overlays:'. "
-                    "Use a board whose stock devicetree ships that partition (e.g. "
-                    "adafruit_itsybitsy), or set 'advanced: bootloader: %s' instead.",
-                    config[CONF_BOARD],
-                    bootloader,
-                    BOOTLOADER_MCUBOOT,
-                )
-            elif softdevice[2] != expected_size:
-                _LOGGER.warning(
-                    "Board '%s' has a 'SoftDevice' partition of 0x%x bytes, but "
-                    "'%s' expects 0x%x bytes -- the app would still be linked "
-                    "against the wrong gap unless this was intentionally overridden "
-                    "via 'overlays:'.",
-                    config[CONF_BOARD],
-                    softdevice[2],
-                    bootloader,
-                    expected_size,
-                )
+        # The board DTS enables uart0 on edge GPIOs (P0.17, P0.22, P0.24) although nothing is wired to it
+        zephyr_add_overlay('&uart0 { status = "disabled"; };')
 
     CORE.add_job(_bootloader_to_code, config)
+    if dfu_config := config[CONF_ADVANCED].get(CONF_DFU):
+        CORE.add_job(_dfu_to_code, dfu_config)
+
+
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
+async def _dfu_to_code(dfu_config: ConfigType) -> None:
+    from .. import zephyr_add_usb_baud_rate
+
+    cg.add_define("USE_ZEPHYR_NRF52_DFU")
+    usb_baud_rate = await zephyr_add_usb_baud_rate(dfu_config)
+    var = cg.new_Pvariable(dfu_config[CONF_ID], usb_baud_rate)
+    await cg.add_pin(var.set_reset_pin, dfu_config.get(CONF_RESET_PIN))
+    await cg.register_component(var, dfu_config)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -237,3 +290,222 @@ async def _bootloader_to_code(config: ConfigType) -> None:
         zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
         # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
         zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)
+
+
+# Host side of `advanced: dfu:`: Adafruit bootloaders take a DFU package over USB serial,
+# so no drive has to be mounted. Installed on first use, only for this variant.
+_NRFUTIL_REQUIREMENT = (
+    "adafruit-nrfutil @ git+https://github.com/adafruit/Adafruit_nRF52_nrfutil.git"
+    "@7fdfe15feee5f304fb7d9b031721dcefa1f72b58"
+)
+# (dev-type, sd-req) per bootloader, from Nordic SoftDevice release notes.
+# The bootloader resets on a package whose sd_req does not list its SoftDevice,
+# so v7 accepts S140 7.0.1, 7.2.0 and 7.3.0 (e.g. Seeed XIAO nRF52840).
+_GENPKG_PARAMS = {
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA,0x0100,0x0123"),
+}
+_DFU_PACKAGE = "firmware.zip"
+
+
+def uses_serial_dfu() -> bool:
+    from .. import zephyr_data
+
+    bootloader = zephyr_data()[KEY_BOOTLOADER]
+    return bootloader in _GENPKG_PARAMS or bootloader == BOOTLOADER_NRF
+
+
+def _nordic_nrfutil(env: dict) -> tuple[str, dict]:
+    """Nordic's nrfutil, shared with platform: nrf52, and an env with its NRFUTIL_HOME."""
+    from esphome.components.nrf52.framework import ensure_nordic_nrfutil
+
+    env = dict(env)
+    return ensure_nordic_nrfutil(env), env
+
+
+def _ensure_nrfutil(python_bin: Path, env: dict) -> None:
+    probe = subprocess.run(
+        [str(python_bin), "-c", "import nordicsemi"], capture_output=True, check=False
+    )
+    if probe.returncode == 0:
+        return
+    _LOGGER.info("Installing adafruit-nrfutil")
+    if not run_command_ok(
+        [str(python_bin), "-m", "pip", "install", _NRFUTIL_REQUIREMENT], env=env
+    ):
+        raise EsphomeError("Can't install adafruit-nrfutil")
+
+
+def build_dfu_package(python_bin: Path, env: dict) -> None:
+    """Make firmware.zip from the application hex, for the Adafruit serial bootloader."""
+    from .. import zephyr_data
+
+    build_dir = CORE.relative_build_path(".west_build")
+    hex_file = build_dir / "zephyr" / "zephyr" / "zephyr.hex"
+    if not hex_file.is_file():
+        raise EsphomeError(
+            f"{hex_file} not found; cannot build the DFU package for this framework"
+        )
+    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_NRF:
+        nrfutil, nrfutil_env = _nordic_nrfutil(env)
+        if not run_command_ok(
+            [
+                nrfutil,
+                "nrf5sdk-tools",
+                "pkg",
+                "generate",
+                "--hw-version",
+                "52",
+                "--sd-req",
+                "0x00",
+                "--application-version",
+                "1",
+                "--application",
+                str(hex_file),
+                str(CORE.relative_build_path(_DFU_PACKAGE)),
+            ],
+            env=nrfutil_env,
+            stream_output=True,
+        ):
+            raise EsphomeError("Failed to create the Open DFU package")
+        return
+    _ensure_nrfutil(python_bin, env)
+    dev_type, sd_req = _GENPKG_PARAMS[zephyr_data()[KEY_BOOTLOADER]]
+    if not run_command_ok(
+        [
+            str(python_bin),
+            "-m",
+            "nordicsemi.__main__",
+            "dfu",
+            "genpkg",
+            "--dev-type",
+            dev_type,
+            "--sd-req",
+            sd_req,
+            "--application",
+            str(hex_file),
+            str(CORE.relative_build_path(_DFU_PACKAGE)),
+        ],
+        env=env,
+        stream_output=True,
+    ):
+        raise EsphomeError("Failed to create the Adafruit DFU package")
+
+
+def _wait_for_port(host: str, present: bool, timeout: float) -> bool:
+    import time  # noqa: PLC0415
+
+    from serial.tools.list_ports import comports  # noqa: PLC0415
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        time.sleep(0.1)
+        if (host in {p.device for p in comports()}) == present:
+            return True
+    return False
+
+
+def upload_serial_dfu(host: str) -> bool:
+    """Touch the port at 1200 baud so the firmware reboots into the bootloader, then send
+    firmware.zip over the bootloader's serial port."""
+    import time  # noqa: PLC0415
+
+    import serial  # noqa: PLC0415
+
+    from esphome.__main__ import check_permissions  # noqa: PLC0415
+
+    from .. import resolve_zephyr_modules, zephyr_data, zephyr_variant  # noqa: PLC0415
+    from ..const import KEY_FRAMEWORK_TYPE  # noqa: PLC0415
+    from ..framework_west import check_and_install as west_install  # noqa: PLC0415
+    from . import VARIANTS, resolve_sdk  # noqa: PLC0415
+
+    package = CORE.relative_build_path(_DFU_PACKAGE)
+    if not package.is_file():
+        raise EsphomeError("Firmware not found. Please compile first.")
+    _, sdk = resolve_sdk(
+        VARIANTS[zephyr_variant()], zephyr_data().get(KEY_FRAMEWORK_TYPE)
+    )
+    python_bin, _, env = west_install(
+        sdk,
+        str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+        zephyr_data()["west_version"],
+        zephyr_data()["ninja_version"],
+        zephyr_data()["sdk_source"],
+        modules=resolve_zephyr_modules(),
+    )
+    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_NRF:
+        return _upload_open_dfu(host, package, env)
+    _ensure_nrfutil(python_bin, env)
+
+    check_permissions(host)
+    try:
+        serial.Serial(host, baudrate=1200, timeout=1).close()
+    except serial.SerialException as err:
+        raise EsphomeError(f"Failed to open {host}: {err}") from err
+    if not _wait_for_port(host, present=False, timeout=5):
+        _LOGGER.warning(
+            "Device did not leave %s within 5 s; it may not have entered bootloader mode",
+            host,
+        )
+    if not _wait_for_port(host, present=True, timeout=10):
+        raise EsphomeError(
+            f"DFU port {host!r} did not reappear within 10 s. "
+            "Check that the device entered DFU mode."
+        )
+    # Wait for udev to finish setting permissions on the new port.
+    for _ in range(100):
+        try:
+            check_permissions(host)
+            break
+        except EsphomeError:
+            time.sleep(0.05)
+    else:
+        check_permissions(host)
+    # Let the bootloader finish starting up before sending the first packet.
+    time.sleep(2)
+    if not run_command_ok(
+        [
+            str(python_bin),
+            "-m",
+            "nordicsemi.__main__",
+            "dfu",
+            "serial",
+            "-pkg",
+            str(package),
+            "-p",
+            host,
+            "-b",
+            "115200",
+            "--singlebank",
+        ],
+        env=env,
+        stream_output=True,
+    ):
+        raise EsphomeError("nRF52 serial DFU upload failed")
+    return True
+
+
+def _upload_open_dfu(host: str, package: Path, env: dict) -> bool:
+    """Send firmware.zip to the factory Open DFU bootloader, which comes up as its own USB
+    device; upstream's helper reboots an app built with dfu: into it and finds its port."""
+    from esphome.__main__ import check_permissions  # noqa: PLC0415
+    from esphome.components.nrf52 import _enter_open_dfu  # noqa: PLC0415
+
+    check_permissions(host)
+    nrfutil, nrfutil_env = _nordic_nrfutil(env)
+    if not run_command_ok(
+        [
+            nrfutil,
+            "nrf5sdk-tools",
+            "dfu",
+            "usb-serial",
+            "-pkg",
+            str(package),
+            "-p",
+            _enter_open_dfu(host),
+        ],
+        env=nrfutil_env,
+        stream_output=True,
+    ):
+        raise EsphomeError("nRF52 Open DFU upload failed")
+    return True

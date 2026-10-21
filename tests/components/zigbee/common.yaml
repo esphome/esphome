@@ -1,3 +1,11 @@
+esphome:
+  area:
+    id: testing_area
+    name: Testing Area
+  project:
+    name: esphome.test
+    version: "1.1"
+
 binary_sensor:
   - platform: template
     name: "Garage Door Open 1"
@@ -14,9 +22,12 @@ sensor:
     name: "Analog 1"
     lambda: return 10.0;
     accuracy_decimals: 0
+    device_class: temperature
+    unit_of_measurement: "°C"
   - platform: template
     name: "Analog 2"
     lambda: return 11.0;
+    unit_of_measurement: "°C"
   - platform: template
     name: "Analog 3"
     lambda: return 12.0;
@@ -28,6 +39,11 @@ output:
     type: binary
     write_action:
       - zigbee.factory_reset
+  - platform: template
+    id: output_report
+    type: binary
+    write_action:
+      - zigbee.report
 
 switch:
   - platform: template
@@ -41,6 +57,8 @@ number:
     min_value: 2
     max_value: 100
     step: 1
+    unit_of_measurement: "°C"
+    device_class: temperature
 
 time:
   - platform: zigbee

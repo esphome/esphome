@@ -6,6 +6,12 @@
 
 #include <zephyr/kernel.h>
 
+// With 802.15.4 (OpenThread) enabled on nRF, kernel.h pulls in hal_nordic's
+// nrf_802154_const.h through nrfx_reserved_resources.h, and its generic
+// MAX_PACKET_SIZE macro breaks every component constant of that name
+// (uart/udp packet_transport, bluetooth_connection).
+#undef MAX_PACKET_SIZE
+
 #define IRAM_ATTR
 #define PROGMEM
 
@@ -16,6 +22,14 @@ namespace esphome {
 /// Returns true when executing inside an interrupt handler.
 /// Zephyr/nRF52: not currently consulted — wake path is platform-specific.
 __attribute__((always_inline)) inline bool in_isr_context() { return false; }
+
+inline k_tid_t &main_loop_thread() {
+  static k_tid_t thread = nullptr;
+  return thread;
+}
+
+/// arch_init() stores the thread before any component runs, so no unset case exists.
+__attribute__((always_inline)) inline bool is_main_loop_thread() { return k_current_get() == main_loop_thread(); }
 
 __attribute__((always_inline)) inline void yield() { ::k_yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::k_msleep(ms); }

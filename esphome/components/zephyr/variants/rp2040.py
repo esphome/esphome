@@ -20,6 +20,7 @@ from ..const import (
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_RP2040,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -27,6 +28,7 @@ from . import (
     resolve_framework_version,
     set_core_data,
 )
+from .rpi_pico_family import BOOTSEL_TOUCH_SCHEMA, declare_bootsel_touch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +47,9 @@ _DEFAULT_BOARD = "rpi_pico"
 # fully qualified board themselves, e.g. board: rpi_pico/rp2040/mcuboot, same as they'd
 # supply their own MCUboot-shaped partitions via overlays: for a board without one.
 
-_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA).extend(
+    BOOTSEL_TOUCH_SCHEMA
+)
 
 # GPIO -> RP2040 ADC channel index. Fixed-function silicon: only GPIO26-29 route to
 # the ADC, channel = pin - 26 (Espressif-shaped: the devicetree channel@N address IS
@@ -55,6 +59,9 @@ _ADC_CHANNEL_MAP = {26: 0, 27: 1, 28: 2, 29: 3}
 
 VARIANT_NAME = ZEPHYR_VARIANT_RP2040
 VARIANT = ZephyrVariant(
+    # The first 256 bytes hold boot2, built into the first image; that image starts
+    # after it (rpi_pico-common.dtsi second_stage_bootloader@0, code_partition@100).
+    boot=BootLayout(0x100),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="rpi_pico",
@@ -118,6 +125,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
+    declare_bootsel_touch(config[CONF_ADVANCED])
     bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
     config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
     _, framework_ver, sdk_name, _ = resolve_framework_version(
@@ -142,10 +150,8 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_sysbuild_conf,
         zephyr_data,
         zephyr_setup_preferences,
-        zephyr_to_code,
     )
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_RP2040")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "RP2040")

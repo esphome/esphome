@@ -4,7 +4,7 @@
 
 namespace esphome::deep_sleep {
 
-static const char *const TAG = "deep_sleep";
+ESPHOME_LOG_TAG(TAG, "deep_sleep");
 // 5 seconds for deep sleep to ensure clean disconnect from Home Assistant
 static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
 
@@ -12,11 +12,16 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+  // An input before it is read for wakeup_pin_mode or armed for System OFF
+  this->wakeup_pin_->setup();
+#endif
   this->schedule_sleep_();
 }
 
 void DeepSleepComponent::schedule_sleep_() {
   this->next_enter_deep_sleep_ = false;
+  this->disable_loop();
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
     ESP_LOGI(TAG, "Scheduling in %" PRIu32 " ms", *run_duration);
@@ -45,7 +50,7 @@ void DeepSleepComponent::loop() {
 
 void DeepSleepComponent::begin_sleep(bool manual) {
   if (this->prevent_ && !manual) {
-    this->next_enter_deep_sleep_ = true;
+    this->defer_sleep_();
     return;
   }
 

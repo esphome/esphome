@@ -18,6 +18,7 @@ from ..const import (
     CONF_RUNNER,
     ZEPHYR_VARIANT_ESP32,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -34,9 +35,7 @@ _DEFAULT_BOARD = "esp32_devkitc"
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32-pinctrl.h
-# No GPIO 24, 28-31 (SPI flash pins). Shared by UART tx/rx and SPI clk/mosi/miso --
-# same free-mux GPIO matrix regardless of peripheral. Output-capable excludes
-# GPIO34-39: input-only on original ESP32, no output driver.
+# No GPIO 6-11 (SPI flash) or 24/28-31 (don't exist). GPIO34-39 are input-only.
 _OUTPUT_CAPABLE_PINS = frozenset(
     {
         0,
@@ -45,12 +44,6 @@ _OUTPUT_CAPABLE_PINS = frozenset(
         3,
         4,
         5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
         12,
         13,
         14,
@@ -75,6 +68,8 @@ _INPUT_CAPABLE_PINS = _OUTPUT_CAPABLE_PINS | frozenset({34, 35, 36, 37, 38, 39})
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_ESP32
 VARIANT = ZephyrVariant(
+    # ROM loads the first image at 0x1000 (espressif/partitions_0x1000_*.dtsi).
+    boot=BootLayout(0x1000),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="esp32",
@@ -91,8 +86,7 @@ VARIANT = ZephyrVariant(
     # like esp32_c6 -- Zephyr's WIFI_ESP32 driver requires `!SMP` (single scheduled core),
     # so only the procpu image is built, mirroring esp32_c6's hpcore-only build.
     qualifier="procpu",
-    # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
-    swap_methods=frozenset({"scratch", "move", "direct"}),
+    swap_methods=frozenset({"scratch", "move", "offset"}),
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32/include/soc/adc_channel.h
     adc1_channel_map={36: 0, 37: 1, 38: 2, 39: 3, 32: 4, 33: 5, 34: 6, 35: 7},
     uart_node_labels={},
@@ -108,12 +102,10 @@ VARIANT = ZephyrVariant(
 
 
 def config_schema(config: ConfigType) -> ConfigType:
-    # Zephyr's SMP support for Xtensa ESP32 is opt-in via kconfig_options: CONFIG_SMP, and
-    # WIFI_ESP32 requires SMP off regardless -- only warn when APP_CPU is really unused.
     if not config.get(CONF_KCONFIG_OPTIONS, {}).get("CONFIG_SMP"):
         _LOGGER.warning(
-            "Original ESP32 is dual-core, but only one core (PRO_CPU) is used under Zephyr by "
-            "default -- set kconfig_options: CONFIG_SMP: true to enable the second core (APP_CPU)."
+            "Original ESP32 is dual-core, but under Zephyr only one core (PRO_CPU) is "
+            "used, unlike ESP-IDF builds."
         )
     config = dict(config)
     if CONF_BOARD not in config:
@@ -137,9 +129,12 @@ def config_schema(config: ConfigType) -> ConfigType:
 
 
 async def to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+    from .. import (
+        zephyr_add_prj_conf,
+        zephyr_add_sysbuild_conf,
+        zephyr_setup_preferences,
+    )
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_ESP32")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP32")
@@ -148,3 +143,5 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     # get_mac_address_raw() (zephyr/core.cpp) reads the efuse MAC via hwinfo_get_device_id().
     zephyr_add_prj_conf("HWINFO", True)
+    # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+    zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)

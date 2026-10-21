@@ -1,6 +1,7 @@
+packages:
+  wifi: !include common.yaml
+
 wifi:
-  ssid: MySSID
-  password: password1
   min_rssi: -40
   manual_ip:
     static_ip: 192.168.1.100
@@ -13,7 +14,3 @@ wifi:
       static_ip: 192.168.4.1
       gateway: 192.168.4.1
       subnet: 255.255.255.0
-  on_connect:
-    - logger.log: "WiFi connected!"
-  on_disconnect:
-    - logger.log: "WiFi disconnected!"

@@ -1,0 +1,12 @@
+packages:
+  zephyr: !include common.yaml
+
+zephyr:
+  variant: NRF52
+  framework:
+    type: zephyr
+  board: adafruit_itsybitsy
+  advanced:
+    bootloader: adafruit_nrf52_sd140_v6
+    dfu:
+      reset_pin: GPIO13

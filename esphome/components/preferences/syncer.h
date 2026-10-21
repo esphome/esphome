@@ -9,6 +9,9 @@ namespace esphome::preferences {
 
 class IntervalSyncer final : public PollingComponent {
  public:
+  // User provided, not "= default": `new(p) IntervalSyncer()` would zero-fill .bss that is already zero.
+  IntervalSyncer() {}
+
   // Remove before 2027.3.0
   ESPDEPRECATED("Use set_update_interval() instead. Removed in 2027.3.0", "2026.9.0")
   void set_write_interval(uint32_t write_interval) { this->set_update_interval(write_interval); }

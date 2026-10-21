@@ -4,6 +4,8 @@ import subprocess
 
 import yaml
 
+from esphome.build_helpers import pch
+from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
     get_project_compile_flags,
@@ -16,6 +18,78 @@ from esphome.util import get_serial_number
 from .const import ZEPHYR_VARIANT_NATIVE_SIM
 
 _LOGGER = logging.getLogger(__name__)
+
+# GCC loads a precompiled header only ahead of every other forced header, so
+# Zephyr's -imacros headers move into it. Zephyr 4.x wraps each -imacros in a
+# generator expression, so the path ends at the first '>'.
+_PCH_CMAKE_LINES = [
+    "",
+    "# ESPHome precompiled header",
+    "get_property(esphome_options TARGET zephyr_interface",
+    "    PROPERTY INTERFACE_COMPILE_OPTIONS)",
+    "set(esphome_kept_options)",
+    "set(esphome_pch_headers)",
+    "foreach(option IN LISTS esphome_options)",
+    '  if(option MATCHES "imacros> ([^>]+)")',
+    '    list(APPEND esphome_pch_headers "${CMAKE_MATCH_1}")',
+    "    list(APPEND esphome_kept_options",
+    '        "$<$<NOT:$<AND:$<COMPILE_LANGUAGE:CXX>,$<STREQUAL:$<TARGET_PROPERTY:NAME>,app>>>:${option}>")',
+    "  else()",
+    '    list(APPEND esphome_kept_options "${option}")',
+    "  endif()",
+    "endforeach()",
+    "if(NOT esphome_pch_headers)",
+    '  message(FATAL_ERROR "ESPHome: the headers Zephyr forces were not found, so "',
+    '      "the precompiled header would not load (set ESPHOME_PCH_ENABLE=0)")',
+    "endif()",
+    "set_property(TARGET zephyr_interface",
+    '    PROPERTY INTERFACE_COMPILE_OPTIONS "${esphome_kept_options}")',
+    *(
+        f'list(APPEND esphome_pch_headers "${{CMAKE_CURRENT_LIST_DIR}}/../src/{header}")'
+        for header in pch.PCH_DEFAULT_HEADERS
+    ),
+    'list(TRANSFORM esphome_pch_headers REPLACE "(.+)" "$<$<COMPILE_LANGUAGE:CXX>:\\\\1>")',
+    "target_precompile_headers(app PRIVATE ${esphome_pch_headers})",
+]
+_PCH_SUM_PATH = "CMakeFiles/app.dir/cmake_pch.hxx.gch.sum"
+
+
+def _sdk_revision(framework_path: Path) -> str:
+    """The checked-out Zephyr commit; a moving ref keeps its version string."""
+    result = subprocess.run(
+        ["git", "-C", str(framework_path / "zephyr"), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _write_pch_checksum(
+    build_dir: Path, source_dir: Path, board: str, framework_path: Path
+) -> None:
+    """Stand in for the path-laden .gch in ccache's hash; the app dir exists
+    only after the first configure, nested by sysbuild."""
+    app_dir = build_dir / "zephyr"
+    if not (app_dir / "CMakeCache.txt").is_file():
+        app_dir = build_dir
+    if not (app_dir / "CMakeCache.txt").is_file():
+        return
+    checksum = pch.pch_checksum(
+        CORE.relative_src_path(),
+        pch.PCH_DEFAULT_HEADERS,
+        (
+            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            _sdk_revision(framework_path),
+            board,
+            *(
+                path.read_text(encoding="utf-8")
+                for path in sorted(source_dir.iterdir())
+                if path.suffix in (".conf", ".overlay")
+            ),
+        ),
+    )
+    write_file_if_changed(app_dir / _PCH_SUM_PATH, checksum + "\n")
 
 
 def _find_runners_yaml(build_dir: Path) -> Path:
@@ -172,6 +246,8 @@ def generate_cmake_lists(mode: str) -> bool:
 
     Returns True if the file changed.
     """
+    from .library import library_compile_options_cmake
+
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
 
@@ -180,6 +256,7 @@ def generate_cmake_lists(mode: str) -> bool:
         "",
         'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
         "",
+        *library_compile_options_cmake(compile_flags),
         "find_package(Zephyr REQUIRED)",
         "",
         f"project({CORE.name})",
@@ -198,6 +275,9 @@ def generate_cmake_lists(mode: str) -> bool:
             ")",
         ]
 
+    if pch.pch_enabled():
+        lines += _PCH_CMAKE_LINES
+
     if link_flags:
         lines += [
             "",
@@ -209,19 +289,27 @@ def generate_cmake_lists(mode: str) -> bool:
     content = "\n".join(lines) + "\n"
     if mode == ZEPHYR_VARIANT_NATIVE_SIM:
         content += _NATIVE_SIM_LIBSTDCXX_WORKAROUND
-    else:
-        from .mcuboot import zephyr_swap_method  # noqa: PLC0415
-
-        if zephyr_swap_method() == "direct":
-            # MCUBOOT_BOOTUTIL only propagates its include dir to whatever explicitly
-            # links it -- subsys/dfu/boot already linking it doesn't make it transitive
-            # to the app. Needed for bootutil_public.h's boot_set_next().
-            content += "\ntarget_link_libraries(app PRIVATE MCUBOOT_BOOTUTIL)\n"
 
     return write_file_if_changed(
         CORE.relative_build_path("zephyr", "CMakeLists.txt"),
         content,
     )
+
+
+def _module_revision(
+    python_executable: Path, framework_path: Path, env: dict, module: str
+) -> str | None:
+    """The commit `module` is pinned to in this workspace, or None if west can't say."""
+    result = subprocess.run(
+        [str(python_executable), "-m", "west", "list", module, "-f", "{sha}"],
+        env=env,
+        cwd=str(framework_path),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    revision = result.stdout.strip()
+    return revision if result.returncode == 0 and revision else None
 
 
 def run_west_blobs_fetch(
@@ -232,15 +320,20 @@ def run_west_blobs_fetch(
     allow_regex: str,
     sentinel_name: str,
 ) -> None:
-    """Fetch west blobs for a HAL module, gated on a per-SDK sentinel file.
+    """Fetch west blobs for a HAL module once per module revision.
 
-    Uses --allow-regex to limit the download to the relevant chip's blobs
+    The sentinel records the module revision the blobs were fetched for, so a
+    `west update` that moves the module (e.g. a moving framework: source:) fetches
+    again. Uses --allow-regex to limit the download to the relevant chip's blobs
     and --auto-accept to skip interactive license prompts.
-    The sentinel lives next to the framework's .ready file so the fetch
-    only runs once per SDK install, not on every compile.
     """
     sentinel = framework_path / sentinel_name
-    if sentinel.exists():
+    revision = _module_revision(python_executable, framework_path, env, module)
+    if (
+        revision is not None
+        and sentinel.is_file()
+        and sentinel.read_text().strip() == revision
+    ):
         return
     _LOGGER.info("Fetching %s binary blobs matching '%s' ...", module, allow_regex)
     cmd = [
@@ -256,7 +349,47 @@ def run_west_blobs_fetch(
     ]
     if not run_command_ok(cmd, env=env, cwd=str(framework_path)):
         raise EsphomeError(f"Failed to fetch {module} binary blobs")
-    sentinel.touch()
+    sentinel.write_text(revision or "")
+
+
+def _ccache_env(env: dict, source_dir: Path) -> dict[str, str]:
+    """Managed ccache settings for `west build`, as nrf52's get_build_env().
+
+    Zephyr wraps compiles with any ccache it finds, and sysbuild images never
+    see USE_CCACHE=0, so a disabled ccache must be turned off explicitly.
+    """
+    from esphome.build_helpers.ccache import ccache_env, resolve_ccache_path
+    from esphome.build_helpers.tools_cache import SDK_ZEPHYR_TOOLS_CACHE
+
+    ccache = resolve_ccache_path()
+    if ccache is None:
+        return {} if "CCACHE_DISABLE" in env else {"CCACHE_DISABLE": "1"}
+    settings = ccache_env(ccache, SDK_ZEPHYR_TOOLS_CACHE)
+    # The per-device source map is the only per-device flag; a spaced path
+    # cannot survive ccache's space-split list, so it stays hashed.
+    source = source_dir.as_posix()
+    if not any(ch.isspace() for ch in source):
+        device_map = f"-fmacro-prefix-map={source}=CMAKE_SOURCE_DIR"
+        settings["CCACHE_IGNOREOPTIONS"] = (
+            f"{env.get('CCACHE_IGNOREOPTIONS', '')} {device_map}".strip()
+        )
+    return settings
+
+
+def check_bootloader_built(build_dir: Path) -> None:
+    """Refuse a serial flash of a --skip-bootloader build: west flash writes
+    every sysbuild image, and the MCUboot one was never compiled."""
+    domains = build_dir / "domains.yaml"
+    if not domains.is_file():
+        return
+    names = {d.get("name") for d in yaml.safe_load(domains.read_text())["domains"]}
+    if (
+        "mcuboot" in names
+        and not (build_dir / "mcuboot" / "zephyr" / "zephyr.elf").is_file()
+    ):
+        raise EsphomeError(
+            "This build was compiled with --skip-bootloader; recompile without it"
+        )
 
 
 def run_west_build(
@@ -276,20 +409,18 @@ def run_west_build(
 ) -> None:
     """Run west build for a Zephyr native build.
 
-    When sdk_install_dir is provided, sets ZEPHYR_SDK_INSTALL_DIR and
-    ZEPHYR_TOOLCHAIN_VARIANT and outputs to .west_build/.
+    ZEPHYR_TOOLCHAIN_VARIANT is always set -- CMake auto-locates an SDK when it's
+    undefined, which fails for native_sim (no SDK installed).
     """
-    if sdk_install_dir is not None:
-        build_dir = CORE.relative_build_path(".west_build")
-        run_env = {
-            **env,
-            "ZEPHYR_SDK_INSTALL_DIR": str(sdk_install_dir),
-            "ZEPHYR_TOOLCHAIN_VARIANT": zephyr_toolchain_variant,
-        }
-    else:
-        build_dir = CORE.relative_pioenvs_path(CORE.name)
-        run_env = env
+    build_dir = CORE.relative_build_path(".west_build")
     source_dir = CORE.relative_build_path("zephyr")
+    run_env = {
+        **env,
+        "ZEPHYR_TOOLCHAIN_VARIANT": zephyr_toolchain_variant,
+        **_ccache_env(env, source_dir),
+    }
+    if sdk_install_dir is not None:
+        run_env["ZEPHYR_SDK_INSTALL_DIR"] = str(sdk_install_dir)
 
     west_cmd = [
         str(python_executable),
@@ -305,6 +436,9 @@ def run_west_build(
         "-d",
         str(build_dir),
         str(source_dir),
+        # Only adds -DNDEBUG (Kconfig sets the optimization level); picolibc used to
+        # force it, mainline Zephyr's own CMakeLists.txt no longer does.
+        "--cmake-opt=-DCMAKE_BUILD_TYPE=MinSizeRel",
     ]
     if extra_modules:
         # Matches nrf52's own _generate_cmake_lists() variable name; Zephyr's
@@ -321,6 +455,14 @@ def run_west_build(
         west_cmd.append(f"--cmake-opt=-DSNIPPET_ROOT={snippet_root}")
     for snippet in snippets or []:
         west_cmd += ["-S", snippet]
+    if CORE.skip_bootloader:
+        # Sysbuild still configures MCUboot, which the app's signing needs;
+        # only its compile is skipped.
+        west_cmd += ["--domain", "zephyr"]
+
+    if pch.pch_enabled():
+        pch.log_pch_in_use()
+        _write_pch_checksum(build_dir, source_dir, board, framework_path)
 
     if not run_command_ok(
         west_cmd,

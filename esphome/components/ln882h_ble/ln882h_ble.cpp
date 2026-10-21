@@ -178,7 +178,7 @@ __sprintf(  // NOLINT(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,r
 
 namespace esphome::ln882h_ble {
 
-static const char *const TAG = "ln882h_ble";
+ESPHOME_LOG_TAG(TAG, "ln882h_ble");
 
 // The SDK event callback is a plain C function pointer with no user argument,
 // so it reaches the (single) component instance through a file-static pointer.
@@ -246,7 +246,7 @@ static void ble_scan_callback(void *param) {
   memcpy(slot->data, info->data, slot->data_len);
 
   s_ble->push_scan_report(slot);
-}
+}  // NOLINT(clang-analyzer-unix.Malloc) the slot is a pool entry handed to push_scan_report(), not a leak
 
 BLEScanReport *LN882HBLE::allocate_scan_report() {
   BLEScanReport *slot = this->report_pool_.allocate();
@@ -287,6 +287,7 @@ void LN882HBLE::enable() {
     return;
   this->state_ = BLEComponentState::ENABLING;
 
+  // NOLINTNEXTLINE(performance-no-int-to-ptr) - MMIO register at a fixed address
   *reinterpret_cast<volatile uint32_t *>(BLE_COEX_PTI_REG_ADDR) = BLE_COEX_PTI_ENABLE_ALL;
   soc_module_clk_gate_enable(CLK_G_BLE);
 
@@ -333,8 +334,9 @@ void LN882HBLE::loop() {
   // the queue empty — from the very first report on. Checking here keeps that
   // failure visible instead of producing a scanner that is silently dead.
   uint16_t dropped = this->report_queue_.get_and_reset_dropped_count();
-  if (dropped > 0)
+  if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u scan reports (queue full or out of memory for a report slot)", dropped);
+  }
   // Drain the lock-free ring filled by the rw task; all per-report work runs
   // here on the main task, then the report returns to the pool.
   BLEScanReport *report = this->report_queue_.pop();

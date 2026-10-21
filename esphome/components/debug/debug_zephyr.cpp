@@ -1,6 +1,8 @@
 #include "debug_component.h"
 #ifdef USE_ZEPHYR
+#include <cinttypes>
 #include <climits>
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <esphome/components/zephyr/reset_reason.h>
@@ -14,6 +16,13 @@
 #ifdef CONFIG_FLASH_MAP
 #include <zephyr/storage/flash_map.h>
 #endif
+#ifdef CONFIG_STATS
+#include <cstring>
+#include <zephyr/stats/stats.h>
+#endif
+#ifdef CONFIG_PM_STATS
+#include <zephyr/pm/state.h>
+#endif
 #ifdef USE_NRF52
 #include <hal/nrf_power.h>
 
@@ -22,7 +31,7 @@
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 #ifdef USE_NRF52
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
@@ -63,7 +72,7 @@ static inline uint32_t sd_version_get() {
 #endif  // USE_NRF52
 
 #ifdef CONFIG_THREAD_MONITOR
-static void log_thread_cb_(const struct k_thread *thread, void *) {
+static void log_thread_cb(const struct k_thread *thread, void *) {
   const char *name = k_thread_name_get(const_cast<struct k_thread *>(thread));
   if (name == nullptr || name[0] == '\0') {
     name = "<unnamed>";
@@ -77,6 +86,69 @@ static void log_thread_cb_(const struct k_thread *thread, void *) {
 #endif
 }
 #endif  // CONFIG_THREAD_MONITOR
+
+#ifdef CONFIG_STATS
+#ifdef CONFIG_PM_STATS
+static const LogString *pm_state_name(int state) {
+  switch (static_cast<enum pm_state>(state)) {
+    case PM_STATE_ACTIVE:
+      return LOG_STR("Active");
+    case PM_STATE_RUNTIME_IDLE:
+      return LOG_STR("Runtime Idle");
+    case PM_STATE_SUSPEND_TO_IDLE:
+      return LOG_STR("Suspend to Idle");
+    case PM_STATE_STANDBY:
+      return LOG_STR("Standby");
+    case PM_STATE_SUSPEND_TO_RAM:
+      return LOG_STR("Suspend to Ram");
+    case PM_STATE_SUSPEND_TO_DISK:
+      return LOG_STR("Suspend to Disk");
+    case PM_STATE_SOFT_OFF:
+      return LOG_STR("Soft Off");
+    default:
+      return LOG_STR("Unknown");
+  }
+}
+#endif  // CONFIG_PM_STATS
+static int log_stats_entry_cb(struct stats_hdr *hdr, void *arg, const char *name, uint16_t off) {
+  const auto *addr = reinterpret_cast<const uint8_t *>(hdr) + off;
+  uint64_t val = 0;
+  switch (hdr->s_size) {
+    case sizeof(uint16_t):
+      val = *reinterpret_cast<const uint16_t *>(addr);
+      break;
+    case sizeof(uint32_t):
+      val = *reinterpret_cast<const uint32_t *>(addr);
+      break;
+    case sizeof(uint64_t):
+      val = *reinterpret_cast<const uint64_t *>(addr);
+      break;
+  }
+  ESP_LOGD(TAG, "    %s: %" PRIu64, name, val);
+  return 0;
+}
+
+static int log_stats_group_cb(struct stats_hdr *hdr, void *arg) {
+  bool hdr_logged = false;
+#ifdef CONFIG_PM_STATS
+  // Fixed offsets -- pm_stats.c's group name format is fixed-width.
+  if (strncmp(hdr->s_name, "pm_cpu_", 7) == 0 && strncmp(hdr->s_name + 10, "_state_", 7) == 0) {
+    char cpu_buf[4] = {hdr->s_name[7], hdr->s_name[8], hdr->s_name[9], '\0'};
+    char state_buf[2] = {hdr->s_name[17], '\0'};
+    auto cpu = parse_number<uint8_t>(cpu_buf);
+    auto state = parse_number<uint8_t>(state_buf);
+    if (cpu.has_value() && state.has_value()) {
+      ESP_LOGD(TAG, "  CPU %u %s:", *cpu, LOG_STR_ARG(pm_state_name(*state)));
+      hdr_logged = true;
+    }
+  }
+#endif  // CONFIG_PM_STATS
+  if (!hdr_logged) {
+    ESP_LOGD(TAG, "  %s:", hdr->s_name);
+  }
+  return stats_walk(hdr, log_stats_entry_cb, arg);
+}
+#endif  // CONFIG_STATS
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   const char *buf = zephyr::get_reset_reason(buffer);
@@ -447,18 +519,17 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   }
 #endif
-  auto uicr = [](volatile uint32_t *data, uint8_t sz) {
-    std::string res;
-    for (size_t i = 0; i < sz; i++) {
-      if (i > 0) {
-        res += ' ';
-      }
-      res += format_hex_pretty<uint32_t>(data[i], '\0', false);
+  // 13 words of 8 hex digits, separated by spaces
+  char uicr_buf[13 * 9];
+  auto uicr = [&uicr_buf](volatile uint32_t *data, uint8_t size) {
+    size_t len = 0;
+    for (size_t i = 0; i < size; i++) {
+      len = buf_append_printf(uicr_buf, sizeof(uicr_buf), len, i > 0 ? " %08" PRIX32 : "%08" PRIX32, data[i]);
     }
-    return res;
+    return uicr_buf;
   };
-  ESP_LOGD(TAG, "  NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
-  ESP_LOGD(TAG, "  NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
+  ESP_LOGD(TAG, "  NRFFW %s", uicr(NRF_UICR->NRFFW, 13));
+  ESP_LOGD(TAG, "  NRFHW %s", uicr(NRF_UICR->NRFHW, 12));
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   log_peripherals_info();
 #endif
@@ -469,7 +540,11 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 void DebugComponent::update_platform_() {
 #ifdef CONFIG_THREAD_MONITOR
   ESP_LOGD(TAG, "Threads:");
-  k_thread_foreach(log_thread_cb_, nullptr);
+  k_thread_foreach(log_thread_cb, nullptr);
+#endif
+#ifdef CONFIG_STATS
+  ESP_LOGD(TAG, "Stats:");
+  stats_group_walk(log_stats_group_cb, nullptr);
 #endif
 }
 

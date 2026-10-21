@@ -6,7 +6,7 @@
 
 namespace esphome::fan {
 
-static const char *const TAG = "fan";
+ESPHOME_LOG_TAG(TAG, "fan");
 
 // Compat: shared empty vector for getter when no preset modes are set.
 // Remove in 2026.11.0 when deprecated FanTraits setters are removed
@@ -334,8 +334,9 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   }
   if (traits.supports_preset_modes()) {
     ESP_LOGCONFIG(tag, "%s  Supported presets:", prefix);
-    for (const char *s : traits.supported_preset_modes())
+    for (const char *s : traits.supported_preset_modes()) {
       ESP_LOGCONFIG(tag, "%s    - %s", prefix, s);
+    }
   }
 }
 

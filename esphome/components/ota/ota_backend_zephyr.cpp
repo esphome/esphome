@@ -27,20 +27,13 @@ void arm_reexec(const std::string &path);
 }  // namespace esphome::zephyr
 #else
 #include <zephyr/dfu/mcuboot.h>
-#include <zephyr/storage/flash_map.h>
-#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
-// Statically linked utility lib (modules/mcuboot/libmcuboot_util.a), distinct from the
-// bootloader image itself -- gives the app boot_set_next() with an explicit flash_area,
-// where Zephyr's own boot_request_upgrade() wrapper hardcodes the secondary slot.
-#include <bootutil/bootutil_public.h>
-#endif
 #endif
 
 namespace esphome::ota {
 
 namespace {
 
-const char *const TAG = "ota.zephyr";
+ESPHOME_LOG_TAG(TAG, "ota.zephyr");
 
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
 constexpr size_t MAX_OTA_SIZE = 256u * 1024u * 1024u;  // 256 MiB
@@ -144,14 +137,16 @@ bool validate_executable_(const char *staging_path, const std::string &exe_path)
 
 std::unique_ptr<ZephyrOTABackend> make_ota_backend() { return make_unique<ZephyrOTABackend>(); }
 
-void ZephyrOTABackend::set_update_sha256(const char *sha256) {
-  if (parse_hex(sha256, this->expected_sha256_, 32))
-    this->sha256_set_ = true;
+void ZephyrOTABackend::set_update_md5(const char *md5) {
+  if (parse_hex(md5, this->expected_md5_, 16))
+    this->md5_set_ = true;
 }
 
 #ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
 
 OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
   if (ota_type != OTA_TYPE_UPDATE_APP)
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   if (image_size > MAX_OTA_SIZE) {
@@ -177,8 +172,8 @@ OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
 
   this->expected_size_ = image_size;
   this->bytes_written_ = 0;
-  this->sha256_set_ = false;
-  this->sha256_.init();
+  this->md5_set_ = false;
+  this->md5_.init();
 
   ESP_LOGD(TAG, "OTA begin: staging=%s, size=%zu", this->staging_path_.c_str(), image_size);
   return OTA_RESPONSE_OK;
@@ -206,7 +201,7 @@ OTAResponseTypes ZephyrOTABackend::write(const uint8_t *data, size_t len) {
     p += n;
     remaining -= n;
   }
-  this->sha256_.add(data, len);
+  this->md5_.add(data, len);
   this->bytes_written_ += len;
   return OTA_RESPONSE_OK;
 }
@@ -226,13 +221,17 @@ OTAResponseTypes ZephyrOTABackend::end() {
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  if (this->sha256_set_) {
-    this->sha256_.calculate();
-    if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
-      ESP_LOGE(TAG, "SHA256 mismatch");
-      this->abort();
-      return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
-    }
+  // A hash that failed to parse must fail the update, not skip the check.
+  if (!this->md5_set_) {
+    ESP_LOGE(TAG, "No valid MD5 received");
+    this->abort();
+    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
+  }
+  this->md5_.calculate();
+  if (!this->md5_.equals_bytes(this->expected_md5_)) {
+    ESP_LOGE(TAG, "MD5 mismatch");
+    this->abort();
+    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
   }
 
   if (::fsync(this->fd_) != 0) {
@@ -262,10 +261,13 @@ OTAResponseTypes ZephyrOTABackend::end() {
   zephyr::arm_reexec(this->final_path_);
   this->staging_path_.clear();
   ESP_LOGI(TAG, "OTA staged at %s; will re-exec on reboot", this->final_path_.c_str());
+  this->lock_.hold_until_reboot();
   return OTA_RESPONSE_OK;
 }
 
 void ZephyrOTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin()
+    return;
   if (this->fd_ >= 0) {
     ::close(this->fd_);
     this->fd_ = -1;
@@ -276,35 +278,21 @@ void ZephyrOTABackend::abort() {
   }
   this->expected_size_ = 0;
   this->bytes_written_ = 0;
-  this->sha256_set_ = false;
+  this->md5_set_ = false;
 }
 
 #else  // real Zephyr hardware under MCUboot
 
-#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
-bool ZephyrOTABackend::active_slot_is_secondary() const {
-  return boot_fetch_active_slot() == FIXED_PARTITION_ID(slot1_partition);
-}
-#endif
-
 // flash_img_init() targets the secondary (slot1) partition, which is the
 // standard MCUboot upload target on every dual-slot Zephyr board -- no
 // per-chip area id needed here, same as esp_idf's esp_ota_get_next_update_partition().
-// Direct-xip is the exception: there's no fixed "update slot" since MCUboot boots
-// whichever slot has the higher version in place, so the target must be whichever
-// slot ISN'T currently executing (see active_slot_is_secondary()).
 OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
   if (ota_type != OTA_TYPE_UPDATE_APP)
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
 
-  int err;
-#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
-  this->target_area_id_ =
-      this->active_slot_is_secondary() ? FIXED_PARTITION_ID(slot0_partition) : FIXED_PARTITION_ID(slot1_partition);
-  err = flash_img_init_id(&this->img_ctx_, this->target_area_id_);
-#else
-  err = flash_img_init(&this->img_ctx_);
-#endif
+  int err = flash_img_init(&this->img_ctx_);
   if (err != 0) {
     ESP_LOGE(TAG, "flash_img_init failed: %d", err);
     return OTA_RESPONSE_ERROR_UPDATE_PREPARE;
@@ -312,9 +300,9 @@ OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
 
   this->expected_size_ = image_size;
   this->bytes_written_ = 0;
-  this->sha256_set_ = false;
+  this->md5_set_ = false;
   this->active_ = true;
-  this->sha256_.init();
+  this->md5_.init();
 
   ESP_LOGD(TAG, "OTA begin: size=%zu", image_size);
   return OTA_RESPONSE_OK;
@@ -329,7 +317,7 @@ OTAResponseTypes ZephyrOTABackend::write(const uint8_t *data, size_t len) {
     ESP_LOGE(TAG, "flash_img_buffered_write failed: %d", err);
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
   }
-  this->sha256_.add(data, len);
+  this->md5_.add(data, len);
   this->bytes_written_ += len;
   return OTA_RESPONSE_OK;
 }
@@ -350,51 +338,41 @@ OTAResponseTypes ZephyrOTABackend::end() {
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  if (this->sha256_set_) {
-    this->sha256_.calculate();
-    if (!this->sha256_.equals_bytes(this->expected_sha256_)) {
-      ESP_LOGE(TAG, "SHA256 mismatch");
-      return OTA_RESPONSE_ERROR_SHA256_MISMATCH;
-    }
+  // A hash that failed to parse must fail the update, not skip the check.
+  if (!this->md5_set_) {
+    ESP_LOGE(TAG, "No valid MD5 received");
+    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
+  }
+  this->md5_.calculate();
+  if (!this->md5_.equals_bytes(this->expected_md5_)) {
+    ESP_LOGE(TAG, "MD5 mismatch");
+    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
   }
 
-#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
-  // confirm=false marks this a one-time test boot, same as BOOT_UPGRADE_TEST below --
-  // MCUboot's direct-xip-with-revert erases it on the next boot if never confirmed
-  // (safe_mode's boot_write_img_confirmed()). boot_request_upgrade() always targets the
-  // hardcoded secondary slot, wrong once the device is running from it, so this writes
-  // the trailer via the same target_area_id_ chosen in begin() instead.
-  const struct flash_area *fa;
-  err = flash_area_open(this->target_area_id_, &fa);
-  if (err != 0) {
-    ESP_LOGE(TAG, "flash_area_open failed: %d", err);
-    return OTA_RESPONSE_ERROR_UPDATE_END;
-  }
-  err = boot_set_next(fa, false, false);
-  flash_area_close(fa);
-#else
   // Mark the secondary slot pending as a test boot: MCUboot will swap it in
   // on the next reset, and it must be explicitly confirmed after a verified-good
   // boot (safe_mode does this under USE_OTA_ROLLBACK) or it reverts automatically.
   err = boot_request_upgrade(BOOT_UPGRADE_TEST);
-#endif
   if (err != 0) {
     ESP_LOGE(TAG, "boot_request_upgrade failed: %d", err);
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
   ESP_LOGI(TAG, "OTA staged; will boot new image on reboot");
+  this->lock_.hold_until_reboot();
   return OTA_RESPONSE_OK;
 }
 
 void ZephyrOTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin()
+    return;
   // No explicit cancel API: as long as boot_request_upgrade() was never reached, MCUboot
   // never sees a pending-swap trailer, so a partially-written image is just ignored on
   // next boot -- same trust model as esp_idf's esp_ota_abort().
   this->active_ = false;
   this->expected_size_ = 0;
   this->bytes_written_ = 0;
-  this->sha256_set_ = false;
+  this->md5_set_ = false;
 }
 
 #endif  // USE_ZEPHYR_VARIANT_NATIVE_SIM

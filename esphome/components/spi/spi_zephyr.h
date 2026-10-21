@@ -48,7 +48,11 @@ class ZephyrSPIDelegate : public SPIDelegate {
                                              const uint8_t *data, size_t length, uint8_t bus_width);
 
   const device *dev_;
+  // Drivers skip reconfiguration when the config pointer matches the last call, so
+  // each line mode needs its own long-lived config (no stack copies).
   spi_config cfg_{};
+  spi_config quad_cfg_{};
+  spi_config octal_cfg_{};
 };
 
 }  // namespace esphome::spi

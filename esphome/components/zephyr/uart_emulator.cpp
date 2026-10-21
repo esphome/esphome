@@ -8,7 +8,7 @@
 
 namespace esphome::zephyr {
 
-static const char *const TAG = "zephyr.uart_emulator";
+ESPHOME_LOG_TAG(TAG, "zephyr.uart_emulator");
 
 void ZephyrUartEmulator::add_trigger(const uint8_t *pattern, uint8_t pattern_len, size_t response_count) {
   if (this->triggers_.size() >= this->triggers_.capacity()) {

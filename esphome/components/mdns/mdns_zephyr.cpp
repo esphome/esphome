@@ -14,7 +14,7 @@
 
 namespace esphome::mdns {
 
-static const char *const TAG = "mdns";
+ESPHOME_LOG_TAG(TAG, "mdns");
 
 constexpr size_t TXT_BUFFER_SIZE = 256;
 

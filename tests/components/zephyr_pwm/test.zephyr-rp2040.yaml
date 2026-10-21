@@ -1,1 +1,2 @@
-<<: !include common-rpi_pico.yaml
+packages:
+  zephyr_pwm: !include common-rpi_pico.yaml

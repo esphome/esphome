@@ -3,6 +3,7 @@ display:
     model: WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C
 lvgl:
   byte_order: little_endian
+  check_args: true
   rotation: 90
 
 psram:

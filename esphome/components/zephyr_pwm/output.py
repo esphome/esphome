@@ -5,6 +5,7 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import output
+from esphome.components.output import DOMAIN as OUTPUT_DOMAIN
 from esphome.components.zephyr import (
     zephyr_add_overlay_builder,
     zephyr_add_prj_conf,
@@ -19,7 +20,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_NUMBER,
-    CONF_OUTPUT,
     CONF_PIN,
     CONF_PLATFORM,
 )
@@ -196,7 +196,7 @@ def _allocate_blocks() -> None:
     full_config = fv.full_config.get()
     zephyr_pwm_conf = [
         cfg
-        for cfg in full_config.get(CONF_OUTPUT, [])
+        for cfg in full_config.get(OUTPUT_DOMAIN, [])
         if cfg.get(CONF_PLATFORM) == DOMAIN
     ]
 
@@ -272,9 +272,9 @@ def _overlay_pwm_renesas(pwm_blocks: list[PWMBlock], labels: list[str]) -> str:
     pinctls = []
     for block in pwm_blocks:
         label = labels[block.id]
-        gpt_num = label.removeprefix("pwm")
+        # RA_PSEL_GPT1 is the GTIOCnA/B pin function for every GPT channel, not channel 1.
         psels = ", ".join(
-            f"<RA_PSEL(RA_PSEL_GPT{gpt_num}, {pin // 16}, {pin % 16})>"
+            f"<RA_PSEL(RA_PSEL_GPT1, {pin // 16}, {pin % 16})>"
             for pin in sorted(block.pins, key=lambda pin: pin_map[pin][1])
         )
         pinctls.append(f"""

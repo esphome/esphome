@@ -1,1 +1,2 @@
-<<: !include common-ra4m1.yaml
+packages:
+  zephyr_pwm: !include common-ra4m1.yaml

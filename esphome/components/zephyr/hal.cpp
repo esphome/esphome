@@ -23,15 +23,22 @@ namespace esphome::zephyr {}  // namespace esphome::zephyr
 
 namespace esphome {
 
-#ifdef CONFIG_WATCHDOG
+// Armed only when ESPHome configured it: platform: nrf52 always, platform: zephyr unless
+// watchdog_timeout: 0. A user-enabled CONFIG_WATCHDOG alone must not arm a fallback timeout.
+#if defined(CONFIG_WATCHDOG) && (defined(USE_WATCHDOG) || defined(USE_NRF52))
+#define ESPHOME_ZEPHYR_ARM_WATCHDOG
+#endif
+
+#ifdef ESPHOME_ZEPHYR_ARM_WATCHDOG
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
-// Renesas RA and Silicon Labs EFR32 (wdt_gecko.c) reject callback + WDT_FLAG_RESET_SOC
-// together (-ENOTSUP), leaving the watchdog unarmed -- their single-channel watchdogs
-// only support callback or hardware reset, not both.
+// Renesas RA, Silicon Labs EFR32 (wdt_gecko.c), and Silicon Labs SiWx91x
+// (wdt_silabs_siwx91x.c) reject callback + WDT_FLAG_RESET_SOC together (-ENOTSUP),
+// leaving the watchdog unarmed -- their single-channel watchdogs only support
+// callback or hardware reset, not both.
 #if defined(USE_ZEPHYR_WATCHDOG_TIMEOUT_MS) && defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && \
-    !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
+    !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X)
 #ifdef USE_ZEPHYR_ARCH_STACKWALK
 static bool wdt_log_stack_frame(void *cookie, unsigned long addr) {
   char msg[48];
@@ -67,7 +74,8 @@ static void wdt_warning_cb(const device *dev, int channel_id) {
 // components/zephyr/hal.h.
 
 void arch_init() {
-#ifdef CONFIG_WATCHDOG
+  main_loop_thread() = k_current_get();
+#ifdef ESPHOME_ZEPHYR_ARM_WATCHDOG
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
@@ -77,11 +85,16 @@ void arch_init() {
     wdt_config.window.max = USE_ZEPHYR_WATCHDOG_TIMEOUT_MS;
     // some families can't handle the callback, review periodically for correctness
     // since this is behavior is driven by zephyr
-#if defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
+#if defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && \
+    !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS_SIWX91X)
     wdt_config.callback = wdt_warning_cb;
 #endif
+#elif !defined(USE_BOOTLOADER_MCUBOOT)
+    // Adafruit bootloader doesn't feed the WDT while
+    // erasing flash during a firmware update, so a shorter timeout can break the update.
+    wdt_config.window.max = 30000;
 #elif defined(USE_ZIGBEE)
-    // zboss (zigbee) drives default
+    // zboss thread uses a lot of CPU cycles during startup
     wdt_config.window.max = 10000;
 #else
     wdt_config.window.max = 2000;
@@ -104,7 +117,7 @@ void arch_init() {
 }
 
 void arch_feed_wdt() {
-#ifdef CONFIG_WATCHDOG
+#ifdef ESPHOME_ZEPHYR_ARM_WATCHDOG
   if (wdt_channel_id >= 0) {
     wdt_feed(WDT, wdt_channel_id);
   }

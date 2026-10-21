@@ -7,7 +7,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.zephyr";
+ESPHOME_LOG_TAG(TAG, "uart");
 
 void ZephyrUartComponent::uart_irq_handler_s(const struct device *dev, void *user_data) {
   static_cast<ZephyrUartComponent *>(user_data)->uart_irq_handler_();
@@ -62,8 +62,8 @@ void ZephyrUartComponent::setup() {
 
   int ret = uart_configure(dev, &cfg);
   if (ret == -ENOSYS) {
-    // native_sim PTY driver does not support uart_configure — use driver defaults
-    ESP_LOGD(TAG, "uart_configure not supported by driver (e.g. native_sim PTY) — using driver defaults");
+    // native_sim PTY and SEGGER RTT drivers do not support uart_configure
+    ESP_LOGD(TAG, "uart_configure not supported by driver, using driver defaults");
   } else if (ret != 0) {
     ESP_LOGW(TAG, "uart_configure failed: %d", ret);
   }
@@ -72,13 +72,39 @@ void ZephyrUartComponent::setup() {
   ring_buf_init(&this->rx_rb_, static_cast<uint32_t>(this->rx_buffer_size_), this->rx_buf_mem_.get());
   this->uart_dev_ = dev;
   compiler_barrier();  // ensure uart_dev_ write is visible before IRQ is armed
-  uart_irq_callback_user_data_set(dev, uart_irq_handler_s, this);
-  uart_irq_rx_enable(dev);
+
+  this->polled_rx_ = uart_irq_rx_ready(dev) == -ENOSYS;
+  if (this->polled_rx_) {
+    ESP_LOGD(TAG, "UART device '%s' has no interrupt-driven RX -- polling instead", this->port_label_);
+  } else {
+    uart_irq_callback_user_data_set(dev, uart_irq_handler_s, this);
+    uart_irq_rx_enable(dev);
+    this->disable_loop();
+  }
+}
+
+void ZephyrUartComponent::loop() { this->drain_polled_rx_(); }
+
+void ZephyrUartComponent::drain_polled_rx_() {
+  // Bounded so a source that produces faster than we drain can't monopolize loop().
+  uint8_t c;
+  for (size_t i = 0; i < this->rx_buffer_size_ && uart_poll_in(this->uart_dev_, &c) == 0; i++) {
+    unsigned int key = irq_lock();
+    uint32_t written = ring_buf_put(&this->rx_rb_, &c, 1);
+    irq_unlock(key);
+    if (written == 0) {
+      this->rx_overflow_count_++;
+    }
+  }
 }
 
 void ZephyrUartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART (Zephyr):");
   ESP_LOGCONFIG(TAG, "  Port: %s", this->port_label_);
+  if (this->tx_pin_name_[0] != '\0') {
+    ESP_LOGCONFIG(TAG, "  TX Pin: %s", this->tx_pin_name_);
+    ESP_LOGCONFIG(TAG, "  RX Pin: %s", this->rx_pin_name_);
+  }
   if (this->uart_dev_ == nullptr) {
     ESP_LOGCONFIG(TAG, "  Status: NOT READY");
     return;
@@ -108,6 +134,9 @@ void ZephyrUartComponent::write_array(const uint8_t *data, size_t len) {
 bool ZephyrUartComponent::peek_byte(uint8_t *data) {
   if (this->uart_dev_ == nullptr) {
     return false;
+  }
+  if (this->polled_rx_) {
+    this->drain_polled_rx_();
   }
   unsigned int key = irq_lock();
   bool result = !ring_buf_is_empty(&this->rx_rb_) && ring_buf_peek(&this->rx_rb_, data, 1) == 1;
@@ -144,6 +173,9 @@ bool ZephyrUartComponent::read_array(uint8_t *data, size_t len) {
 size_t ZephyrUartComponent::available() {
   if (this->uart_dev_ == nullptr) {
     return 0;
+  }
+  if (this->polled_rx_) {
+    this->drain_polled_rx_();
   }
   unsigned int key = irq_lock();
   uint32_t count = ring_buf_size_get(&this->rx_rb_);

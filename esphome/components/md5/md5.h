@@ -5,18 +5,14 @@
 
 #include "esphome/core/hash_base.h"
 
-// nrf52 has no MD5_CTX_TYPE here; not needed today, not implemented.
-#if defined(USE_ZEPHYR) && !defined(USE_NRF52)
-#include "mbedtls/build_info.h"
-#if MBEDTLS_VERSION_MAJOR >= 4
-#include <psa/crypto.h>
-#define MD5_CTX_TYPE psa_hash_operation_t
-#else
-#include "mbedtls/md5.h"
-#define MD5_CTX_TYPE mbedtls_md5_context
-#endif
-#elif defined(USE_HOST)
+#ifdef USE_HOST
 #include <openssl/evp.h>
+#endif
+
+#ifdef USE_ZEPHYR
+// NCS's PSA drivers have no MD5; a vendored one also avoids crypto Kconfig on every Zephyr build
+#include "md5_openwall.h"
+#define MD5_CTX_TYPE Md5OpenwallContext
 #endif
 
 #ifdef USE_ESP32

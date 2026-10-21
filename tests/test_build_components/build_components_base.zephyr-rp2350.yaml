@@ -10,7 +10,6 @@ zephyr:
 
 logger:
   level: VERY_VERBOSE
-  baud_rate: 0
 
 packages:
   component_under_test: !include

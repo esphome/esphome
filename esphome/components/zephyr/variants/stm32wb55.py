@@ -19,6 +19,7 @@ from ..const import (
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_STM32WB55,
 )
+from ..partitions import BootLayout
 from . import (
     MAINLINE,
     ZephyrVariant,
@@ -50,6 +51,8 @@ _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_STM32WB55
 VARIANT = ZephyrVariant(
+    # Resets from the start of flash (nucleo_wb55rg.dts boot_partition@0).
+    boot=BootLayout(0x0),
     sdk=MAINLINE,
     sdk_name="zephyr",
     family="stm32",
@@ -110,18 +113,16 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_sysbuild_conf,
         zephyr_data,
         zephyr_setup_preferences,
-        zephyr_to_code,
     )
     from ..dts_lookup import get_rng_node_label
 
-    zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_STM32WB55")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "STM32WB55")
     cg.add_define(ThreadModel.SINGLE)
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
-    # get_mac_address_raw() (zephyr/core.cpp) reads the efuse MAC via hwinfo_get_device_id().
+    # get_mac_address_raw() (zephyr/core.cpp) derives the MAC from the unique ID via hwinfo.
     zephyr_add_prj_conf("HWINFO", True)
 
     # STM32WB55 has a true RNG (dts/arm/st/wb/stm32wb.dtsi's rng@58001000) needed for its

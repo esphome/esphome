@@ -14,7 +14,6 @@ from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_data,
-    zephyr_dts_board_id,
     zephyr_variant,
     zephyr_variant_family,
 )
@@ -112,7 +111,7 @@ def _resolve_instance(board: str) -> str:
             )
         return labels[0]
     if labels is None:
-        detail = "Install gcc/cpp (C preprocessor) for automatic devicetree detection."
+        detail = "Couldn't read the board's devicetree (see the warning above)."
     else:
         detail = f"Board '{board}' declares no CAN controller in its devicetree."
     raise cv.Invalid(
@@ -145,7 +144,7 @@ async def to_code(config: ConfigType) -> None:
     # they would never reach an on_frame trigger.
     zephyr_add_prj_conf("CAN_ACCEPT_RTR", True)
 
-    board = zephyr_dts_board_id(zephyr_data()[KEY_BOARD])
+    board = zephyr_data()[KEY_BOARD]
     if explicit_instance := config.get(CONF_INSTANCE):
         validate_dts_label_exists("can", board, explicit_instance)
         instance = explicit_instance

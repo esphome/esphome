@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_STATE_CHANGE
 from esphome.config_helpers import (
     filter_source_files_from_defines,
     filter_source_files_from_platform,
@@ -21,19 +22,14 @@ from esphome.types import ConfigType
 OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "ota"
 
 
 def AUTO_LOAD() -> list[str]:
-    # Every backend computes an MD5 over the transferred image, except: nrf52 (its
-    # zephyr_mcumgr OTA path doesn't use this component's backend at all) and zephyr
-    # (ota_backend_zephyr.cpp uses SHA256 instead -- NCS's PSA crypto drivers can't do MD5).
-    # The hash component is loaded here rather than by each ota platform: the backend
-    # header lands in every platform's build through ota_backend_factory.h, so a platform
-    # that doesn't happen to request sha256 itself would otherwise fail to compile.
+    # Every backend computes an MD5 over the transferred image, except nrf52, whose
+    # zephyr_mcumgr OTA path doesn't use this component's backend at all.
     components = ["safe_mode"]
-    if CORE.is_zephyr:
-        components.append("sha256")
-    elif not CORE.is_nrf52:
+    if not CORE.is_nrf52:
         components.append("md5")
     if CORE.is_esp32:
         components.extend(["watchdog"])
@@ -46,7 +42,6 @@ CONF_ON_ABORT = "on_abort"
 CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
-CONF_ON_STATE_CHANGE = "on_state_change"
 CONF_SWAP_METHOD = "swap_method"
 
 # Shared by every ota: platform that can run on Zephyr (platform: esphome and
@@ -67,11 +62,22 @@ SWAP_METHOD_SCHEMA = {
         zephyr_esp32c6="scratch",
         zephyr_esp32c5="scratch",
         zephyr_esp32c3="scratch",
+        zephyr_esp32s3="scratch",
         zephyr_nrf52="move",
         zephyr_nrf54l15="move",
         zephyr_nrf54lm20a="move",
-    ): cv.one_of("scratch", "move", "offset", "direct", lower=True),
+    ): cv.one_of("scratch", "move", "offset", lower=True),
 }
+
+
+def reject_swap_method_off_zephyr(config: ConfigType) -> ConfigType:
+    """swap_method: is only applied on platform: zephyr; reject it elsewhere."""
+    if not CORE.is_zephyr and CONF_SWAP_METHOD in config:
+        raise cv.Invalid(
+            f"'{CONF_SWAP_METHOD}' is only supported on platform: zephyr",
+            path=[CONF_SWAP_METHOD],
+        )
+    return config
 
 
 ota_ns = cg.esphome_ns.namespace("ota")
@@ -109,7 +115,10 @@ def _ota_final_validate(config: ConfigType) -> None:
         if zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
             bootloader = zephyr_data()[KEY_BOOTLOADER]
             if bootloader != BOOTLOADER_MCUBOOT:
-                raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
+                raise cv.Invalid(
+                    f"OTA requires the MCUboot bootloader (current: {bootloader or 'none'}); "
+                    f"set 'advanced: bootloader: {BOOTLOADER_MCUBOOT}'"
+                )
 
         if zephyr_data()[KEY_SINGLE_SLOT]:
             # No secondary slot to write into instead of the one currently executing --

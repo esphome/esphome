@@ -1,11 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_TIME_ID
+from esphome.const import CONF_ADDRESS, CONF_TIME_ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kroimon"]
+DOMAIN = "uponor_smatrix"
 
 DEPENDENCIES = ["uart"]
 
@@ -50,7 +51,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     require_tx=True,
     require_rx=True,
     data_bits=8,
-    parity=None,
+    parity="NONE",
     stop_bits=1,
 )
 
@@ -65,13 +66,10 @@ UPONOR_SMATRIX_DEVICE_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     cg.add_global(uponor_smatrix_ns.using)
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     if time_id := config.get(CONF_TIME_ID):
-        time_ = await cg.get_variable(time_id)
-        cg.add(var.set_time_id(time_))
+        await cg.add_variable(var.set_time_id, time_id)
         if time_device_address := config.get(CONF_TIME_DEVICE_ADDRESS):
             cg.add(var.set_time_device_address(time_device_address))
 
