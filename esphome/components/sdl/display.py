@@ -73,10 +73,6 @@ def _validate_position(config: dict) -> dict:
         raise cv.Invalid(f"Must specify both '{CONF_X}' and '{CONF_Y}' options")
     raise cv.Invalid("Must specify either 'x' and 'y' or 'centered_on_display'")
 
-
-def _validate_headless(config: ConfigType) -> ConfigType:
-    if not config[CONF_HEADLESS]:
-        return config
     if CONF_SNAPSHOT_KEY in config:
         raise cv.Invalid(
             f"'{CONF_SNAPSHOT_KEY}' cannot be used when '{CONF_HEADLESS}' is set - "
@@ -120,7 +116,12 @@ CONFIG_SCHEMA = cv.All(
         )
     ),
     cv.only_when(CONF_WINDOW_OPTIONS, CONF_HEADLESS, False),
-    _validate_headless,
+    cv.only_when(
+        CONF_SNAPSHOT_KEY,
+        CONF_HEADLESS,
+        False,
+        hint="There is no keyboard; use the 'snapshot.take' action instead",
+    ),
     cv.only_on(PLATFORM_HOST),
 )
 

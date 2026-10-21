@@ -17,7 +17,9 @@ CONFIG_SCHEMA = cv.All(
         max_address=3,
         extra={cv.Optional(CONF_ON_STALL): automation.validate_automation({})},
     ),
-    cv.key_requires(CONF_ON_STALL, tmc22xx.CONF_DIAG_PIN),
+    cv.key_requires(
+        CONF_ON_STALL, tmc22xx.CONF_DIAG_PIN, hint="Stalls are only reported on DIAG"
+    ),
 )
 FINAL_VALIDATE_SCHEMA = tmc22xx.final_validate
 

@@ -35,7 +35,13 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    cv.only_when(CONF_EXTENDED_RANGE, CONF_CALCULATION_TYPE, "CAQI", negate=True),
+    cv.only_when(
+        CONF_EXTENDED_RANGE,
+        CONF_CALCULATION_TYPE,
+        "CAQI",
+        negate=True,
+        hint="CAQI has no maximum by specification, so it is always reported unbounded",
+    ),
 )
 
 

@@ -507,15 +507,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 def _validate(config: ConfigType) -> ConfigType:
-    if CONF_PASSWORD in config and CONF_SSID not in config:
-        raise cv.Invalid("Cannot have WiFi password without SSID!")
-
-    if CONF_HIDDEN in config and CONF_SSID not in config:
-        raise cv.Invalid(
-            "Cannot have 'hidden' without 'ssid'. If you are using the 'networks' "
-            "list, put 'hidden' inside the network entry instead."
-        )
-
     if CONF_SSID in config:
         # Automatically move single network to 'networks' section
         config = config.copy()
@@ -702,6 +693,12 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
+    cv.key_requires(CONF_PASSWORD, CONF_SSID),
+    cv.key_requires(
+        CONF_HIDDEN,
+        CONF_SSID,
+        hint="With 'networks', put 'hidden' inside the network entry",
+    ),
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,

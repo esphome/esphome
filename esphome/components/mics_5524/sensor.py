@@ -145,17 +145,6 @@ def _preference_key(config: ConfigType) -> int:
     return fnv1_hash(":".join(parts))
 
 
-def _validate_adc_keys(config: ConfigType) -> ConfigType:
-    """Reject the ADC keys where they would be accepted and ignored."""
-    if CONF_ADC_ATTENUATION in config and CONF_PIN not in config:
-        raise cv.Invalid(
-            "'adc_attenuation:' only applies to the ADC of a 'pin:' source - set "
-            "'attenuation:' on the adc sensor behind 'voltage:' instead",
-            path=[CONF_ADC_ATTENUATION],
-        )
-    return config
-
-
 def _validate_adc_range(config: ConfigType) -> ConfigType:
     """Reject wiring that puts the supply, the largest possible reading, past the sampler limits.
 
@@ -403,7 +392,11 @@ CONFIG_SCHEMA = cv.All(
         CONF_PIN,
         any_of=True,
     ),
-    _validate_adc_keys,
+    cv.key_requires(
+        CONF_ADC_ATTENUATION,
+        CONF_PIN,
+        hint="Set 'attenuation:' on the adc sensor behind 'voltage:' instead",
+    ),
     _validate_adc_range,
     _validate_config,
     _validate_enable_pin,

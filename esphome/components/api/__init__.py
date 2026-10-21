@@ -440,7 +440,11 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
-    cv.key_requires(CONF_OUTGOING_CONNECTION, CONF_ENCRYPTION),
+    cv.key_requires(
+        CONF_OUTGOING_CONNECTION,
+        CONF_ENCRYPTION,
+        hint="The peer is verified by its key",
+    ),
     _validate_outgoing_connection,
     _consume_api_sockets,
     _register_provisioning_source,

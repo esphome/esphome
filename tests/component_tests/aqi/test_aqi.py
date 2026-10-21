@@ -3,11 +3,12 @@
 import pytest
 from voluptuous import Invalid
 
+from esphome import config_validation as cv
 from esphome.components.aqi import CONF_CALCULATION_TYPE, CONF_EXTENDED_RANGE
-from esphome.components.aqi.sensor import CONFIG_SCHEMA
 
-# The extended_range constraint runs after the schema
-_validate_extended_range = CONFIG_SCHEMA.validators[-1]
+_validate_extended_range = cv.only_when(
+    CONF_EXTENDED_RANGE, CONF_CALCULATION_TYPE, "CAQI", negate=True
+)
 
 
 def test_extended_range_rejected_with_caqi():
