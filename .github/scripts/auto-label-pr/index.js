@@ -186,8 +186,7 @@ module.exports = async ({ github, context }) => {
   const originalLabelCount = finalLabels.length;
 
   if (tooManyLabels && !isMegaPR && !finalLabels.includes('too-big')) {
-    // The sync-queue label survives: the PR still needs its aioesphomeapi twin
-    finalLabels = ['too-big', ...finalLabels.filter(label => label === 'api.proto')];
+    finalLabels = ['too-big'];
   }
 
   console.log('Computed labels:', finalLabels.join(', '));
