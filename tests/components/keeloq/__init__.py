@@ -9,5 +9,3 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         request_protocol("keeloq")
 
     manifest.to_code = to_code_testing
-    # remote_transmitter needs a pin; the tests only use the remote_base encoder.
-    manifest.dependencies = ["remote_base", "binary_sensor"]

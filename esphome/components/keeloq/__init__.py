@@ -20,7 +20,7 @@ from esphome.helpers import fnv1a_32bit_hash
 from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@Bascht74"]
-DEPENDENCIES = ["remote_transmitter"]
+AUTO_LOAD = ["remote_base"]
 DOMAIN = "keeloq"
 MULTI_CONF = True
 

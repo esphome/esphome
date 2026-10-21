@@ -1,0 +1,12 @@
+# Only a receiver, no remote_transmitter: react to the presses of a hand remote.
+keeloq:
+  - id: hand_remote
+    type: jarolift
+    # Made-up key for the tests, not a real manufacturer key
+    manufacturer_key: "0x1A2B3C4D5E6F7081"
+    serial: 0x7654300
+    receiver_id: rcvr
+    on_command:
+      - command: up
+        then:
+          - logger.log: "Hand remote up"
