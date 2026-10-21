@@ -93,7 +93,7 @@ class MidiParser final {
     handler(ctx, MidiMessage{data, length, type});
   }
   void emit_current_(MidiMessageHandler handler, void *ctx);
-  bool take_data_(const uint8_t *byte, MidiMessageHandler handler, void *ctx);
+  void take_data_(const uint8_t *byte, MidiMessageHandler handler, void *ctx);
   void end_sysex_(bool complete, MidiMessageHandler handler, void *ctx);
   void sysex_push_(uint8_t byte);
 

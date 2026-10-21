@@ -103,7 +103,7 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
       char hex[format_hex_size(LOG_MAX_BYTES)];
       ESP_LOGV(TAG, "Received %u bytes: %s", param->notify.value_len,
                format_hex_to(hex, param->notify.value, param->notify.value_len));
-      this->parser_.feed(param->notify.value, param->notify.value_len, BLEMidi::on_message_, this);
+      this->parser_.feed(param->notify.value, param->notify.value_len, BLEMidi::dispatch_message, this);
       break;
     }
     default:
@@ -115,9 +115,14 @@ void BLEMidi::handle_message_(const MidiMessage &message) {
   ESP_LOGV(
       TAG, "Decoded %s",
       LOG_STR_ARG(MessageTypeNames::get_log_str(static_cast<uint8_t>(message.type), MessageTypeNames::LAST_INDEX)));
+  // Only decoded messages reach on_message
   if (message.type == MessageType::SYSEX_INCOMPLETE) {
     ESP_LOGW(TAG, "SysEx of %u bytes dropped: cut short, or longer than max_sysex_size (%u)", message.length,
              this->parser_.sysex_capacity());
+    return;
+  }
+  if (message.type == MessageType::UNKNOWN) {
+    ESP_LOGW(TAG, "Undecodable MIDI byte 0x%02X", message.status());
     return;
   }
   this->message_callback_.call(ByteSpan(message.data, message.length));
@@ -141,9 +146,6 @@ void BLEMidi::handle_message_(const MidiMessage &message) {
     case MessageType::SYSEX:
       // The payload without the 0xF0/0xF7 wrappers; a complete SysEx always has both
       this->sysex_callback_.call(ByteSpan(message.data + 1, message.length - 2));
-      break;
-    case MessageType::UNKNOWN:
-      ESP_LOGW(TAG, "Undecodable MIDI byte 0x%02X", message.status());
       break;
     default:
       // Polyphonic and channel aftertouch, system common and real-time messages

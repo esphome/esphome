@@ -87,24 +87,21 @@ void MidiParser::emit_current_(MidiMessageHandler handler, void *ctx) {
   this->emit_(type, this->current_message_, length, handler, ctx);
 }
 
-// Takes a data byte for the message being assembled, or starts one from the running status; true once a message
-// is complete, so the next byte with bit 7 set is a timestamp
-bool MidiParser::take_data_(const uint8_t *byte, MidiMessageHandler handler, void *ctx) {
+// Takes a data byte for the message being assembled, or starts one from the running status
+void MidiParser::take_data_(const uint8_t *byte, MidiMessageHandler handler, void *ctx) {
   if (this->current_length_ == 0) {
     if (this->running_status_ == 0) {
       // Data byte without any status context.
       this->emit_(MessageType::UNKNOWN, byte, 1, handler, ctx);
-      return true;
+      return;
     }
     this->current_message_[0] = this->running_status_;
     this->current_length_ = 1;
     this->current_expected_ = expected_data_bytes(this->running_status_);
   }
   this->current_message_[this->current_length_++] = *byte;
-  if (this->current_length_ <= this->current_expected_)
-    return false;
-  this->emit_current_(handler, ctx);
-  return true;
+  if (this->current_length_ > this->current_expected_)
+    this->emit_current_(handler, ctx);
 }
 
 void MidiParser::feed(const uint8_t *data, size_t length, MidiMessageHandler handler, void *ctx) {
@@ -117,8 +114,8 @@ void MidiParser::feed(const uint8_t *data, size_t length, MidiMessageHandler han
     return;
   }
 
-  // A timestamp byte precedes every status byte, so after a complete message or a SysEx data byte the next byte
-  // with bit 7 set is a timestamp, and the one after it is a status byte
+  // A timestamp byte precedes every status byte, even a real-time byte inside another message, so a byte with
+  // bit 7 set is a status byte only right after a timestamp and a timestamp everywhere else
   bool expect_timestamp = true;
   for (size_t i = 1; i < length; i++) {
     const uint8_t byte = data[i];
@@ -126,10 +123,10 @@ void MidiParser::feed(const uint8_t *data, size_t length, MidiMessageHandler han
       // A data byte continues the SysEx, the message being assembled, or the running status
       if (this->sysex_active_) {
         this->sysex_push_(byte);
-        expect_timestamp = true;
       } else {
-        expect_timestamp = this->take_data_(data + i, handler, ctx);
+        this->take_data_(data + i, handler, ctx);
       }
+      expect_timestamp = true;
       continue;
     }
     if (expect_timestamp) {
@@ -165,11 +162,8 @@ void MidiParser::feed(const uint8_t *data, size_t length, MidiMessageHandler han
     this->current_length_ = 1;
     this->current_expected_ = expected_data_bytes(byte);
     // A status byte without data bytes, e.g. Tune Request, is a message on its own
-    if (this->current_expected_ == 0) {
+    if (this->current_expected_ == 0)
       this->emit_current_(handler, ctx);
-    } else {
-      expect_timestamp = false;
-    }
   }
 }
 

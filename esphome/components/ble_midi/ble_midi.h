@@ -98,7 +98,7 @@ class BLEMidi final : public Component, public ble_client::BLEClientNode {
   }
 
  protected:
-  static void on_message_(void *ctx, const MidiMessage &message) {
+  static void dispatch_message(void *ctx, const MidiMessage &message) {
     static_cast<BLEMidi *>(ctx)->handle_message_(message);
   }
   void handle_message_(const MidiMessage &message);

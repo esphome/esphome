@@ -116,6 +116,14 @@ TEST_F(MidiParserTest, RealTimeMessageIsASingleByte) {
   EXPECT_EQ(this->messages_[0].bytes, std::vector<uint8_t>({0xF8}));
 }
 
+TEST_F(MidiParserTest, RealTimeMessageInsideAChannelMessageLeavesItIntact) {
+  this->feed_({HDR, TS, 0x90, 0x3C, TS, 0xF8, 0x40});
+  ASSERT_EQ(this->messages_.size(), 2u);
+  EXPECT_EQ(this->messages_[0].type, MessageType::SYSTEM_REAL_TIME);
+  EXPECT_EQ(this->messages_[1].type, MessageType::NOTE_ON);
+  EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0x90, 0x3C, 0x40}));
+}
+
 TEST_F(MidiParserTest, SystemCommonMessageWithTwoDataBytes) {
   this->feed_({HDR, TS, 0xF2, 0x01, 0x02});
   ASSERT_EQ(this->messages_.size(), 1u);
