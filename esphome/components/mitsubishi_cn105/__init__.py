@@ -66,7 +66,9 @@ def _validate_heatpump_interval(config: ConfigType) -> ConfigType:
             if telemetry_disabled
             else DEFAULT_HEATPUMP_REQUEST_MIN_INTERVAL
         )
-    elif telemetry_disabled and not _is_never(config[CONF_HEATPUMP_REQUEST_MIN_INTERVAL]):
+    elif telemetry_disabled and not _is_never(
+        config[CONF_HEATPUMP_REQUEST_MIN_INTERVAL]
+    ):
         raise cv.Invalid(
             f"'{CONF_HEATPUMP_REQUEST_MIN_INTERVAL}' requires room temperature polling to determine "
             f"heating vs. cooling in AUTO mode. Enable '{CONF_TELEMETRY_REQUEST_MIN_INTERVAL}' or set "
