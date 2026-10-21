@@ -545,7 +545,8 @@ def apply_action_builder(
             continue
         c = f if isinstance(f, ApplyCall) else f.call()
         statements_spec.append((c.target, _default_std_string(c.members, flash_string)))
-    table_name = name.replace(".", "_")
+    # Named like the generated function, so it cannot clash with an SDK symbol
+    table_name = f"esphome__{name.replace('.', '_')}__bytes"
     _check_key_in_schema(name, schema, id_key)
     for spec in statements_spec:
         if isinstance(spec, ApplyBytes):
