@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from esphome.config_validation import Invalid
 from esphome.const import PlatformFramework
 from esphome.core import EsphomeError
 from tests.component_tests.types import SetCoreConfigCallable
@@ -36,9 +37,32 @@ def test_debug_enables_rtt_console(generate_main: Callable[[str | Path], str]) -
     assert zephyr_data()["rtt_channels"] == {0: "debug"}
 
 
+def test_debug_rtt_console_off_by_default(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
+
+    generate_main(CONFIG_DIR / "debug_rtt_off.yaml")
+    assert "CONFIG_RTT_CONSOLE" not in _prj_conf()
+    assert zephyr_data()["rtt_channels"] == {}
+
+
 def test_debug_without_rtt_family(generate_main: Callable[[str | Path], str]) -> None:
     generate_main(CONFIG_DIR / "debug_esp32.yaml")
     assert "CONFIG_RTT_CONSOLE" not in _prj_conf()
+
+
+def test_rtt_console_rejected_without_rtt_family(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    from esphome.components.debug import CONF_ENABLE_RTT_CONSOLE, _validate_rtt_console  # noqa: PLC0415
+
+    set_core_config(
+        PlatformFramework.ZEPHYR_ZEPHYR,
+        platform_data={"variant": "ESP32", "family": "esp32"},
+    )
+    with pytest.raises(Invalid, match="needs SEGGER RTT"):
+        _validate_rtt_console({CONF_ENABLE_RTT_CONSOLE: True})
 
 
 @pytest.mark.parametrize(

@@ -6,6 +6,7 @@ zephyr:
   board: adafruit_feather_nrf52840
 
 debug:
+  enable_rtt_console: true
 
 logger:
   hardware_uart: RTT0
