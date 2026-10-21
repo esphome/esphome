@@ -30,7 +30,7 @@ class TopTronicBase : public PollingComponent {
   void update() override;
   void add_on_update_callback(std::function<void()> &&callback);
   void add_on_set_callback(std::function<void(const std::vector<uint8_t> &)> &&callback);
-  virtual const StringRef &get_name() const = 0;
+  virtual const LogString *get_log_name() const = 0;
 
  protected:
   uint8_t function_group_;
@@ -47,7 +47,7 @@ class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
   float parse_value(const uint8_t *data, size_t len);
   size_t value_width() const;
   SensorType type() override { return SENSOR; }
-  const StringRef &get_name() const override { return this->sensor::Sensor::get_name(); }
+  const LogString *get_log_name() const override { return this->sensor::Sensor::get_log_name(); }
 
  protected:
   TypeName type_;
