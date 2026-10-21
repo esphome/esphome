@@ -679,7 +679,8 @@ void DeltaWallbox::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_c
                  "BLE pairing completed successfully. auth_mode=%d addr_type=%d. Re-checking wallbox pairing status.",
                  param->ble_security.auth_cmpl.auth_mode, param->ble_security.auth_cmpl.addr_type);
         this->pairing_attempts_ = 0;
-        if (this->node_state == esp32_ble_tracker::ClientState::ESTABLISHED) {
+        if (this->node_state == esp32_ble_tracker::ClientState::ESTABLISHED &&
+            this->state_ == DeltaState::DELTA_STATE_CHECK_PAIRING) {
           this->advance_to_(DeltaState::DELTA_STATE_CHECK_PAIRING);
         }
       } else {
