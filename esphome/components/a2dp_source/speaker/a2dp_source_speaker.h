@@ -51,6 +51,7 @@ class A2DPSourceSpeaker final : public Component, public speaker::Speaker {
   size_t play(const uint8_t *data, size_t length) override { return this->play(data, length, 0); }
   size_t play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) override;
   void start() override;
+  void prepare_for_media() override;
   void stop() override;
   void finish() override;
   bool has_buffered_data() const override;
@@ -62,6 +63,7 @@ class A2DPSourceSpeaker final : public Component, public speaker::Speaker {
   uint32_t underrun_events() const { return this->underrun_events_.load(); }
   uint32_t max_callback_gap_us() const { return this->max_callback_gap_us_.load(); }
   bool connected() const { return this->connected_.load(); }
+  bool is_ready_for_media() const override { return this->connected_.load() && this->avrcp_ready_.load(); }
   bool streaming() const { return this->streaming_.load(); }
   bool requested() const { return this->requested_.load(); }
   bool pairing_in_progress() const { return this->pairing_.load(); }
@@ -69,6 +71,9 @@ class A2DPSourceSpeaker final : public Component, public speaker::Speaker {
   bool connection_failed_latched() const { return this->connection_failed_latched_.load(); }
   void acknowledge_connection_failure() { this->connection_failed_latched_.store(false); }
   uint32_t connection_failures() const { return this->connection_failure_count_.load(); }
+  uint32_t connection_attempts_total() const { return this->connection_attempt_count_.load(); }
+  std::string connection_trace() const;
+  void clear_connection_trace();
   bool waiting_for_retry() const;
   void reset_connection_sequence();
   bool avrcp_ready() const { return this->avrcp_ready_.load(); }
@@ -89,6 +94,19 @@ class A2DPSourceSpeaker final : public Component, public speaker::Speaker {
   void reset_connection_state_();
   void abort_connection_(const char *reason);
   void retry_or_abort_connection_(const char *reason);
+  void trace_event_(uint8_t code, uint16_t detail = 0);
+
+  struct ConnectionTraceEvent {
+    uint32_t ms;
+    uint32_t attempt;
+    uint16_t detail;
+    uint8_t code;
+  };
+  static constexpr size_t CONNECTION_TRACE_SIZE = 48;
+  mutable portMUX_TYPE trace_mux_ = portMUX_INITIALIZER_UNLOCKED;
+  ConnectionTraceEvent connection_trace_[CONNECTION_TRACE_SIZE]{};
+  size_t connection_trace_next_{0};
+  size_t connection_trace_count_{0};
 
   uint8_t address_[6]{};
   uint8_t previous_address_[6]{};
@@ -121,6 +139,8 @@ class A2DPSourceSpeaker final : public Component, public speaker::Speaker {
   std::atomic<bool> connection_failed_{false};
   std::atomic<bool> connection_failed_latched_{false};
   std::atomic<uint32_t> connection_failure_count_{0};
+  std::atomic<uint32_t> connection_attempt_count_{0};
+  std::atomic<bool> failure_reported_for_attempt_{false};
   std::atomic<uint8_t> connect_attempts_{0};
   std::atomic<bool> connection_session_active_{false};
   std::atomic<bool> disconnect_pending_{false};
@@ -138,6 +158,7 @@ class A2DPSourceSpeaker final : public Component, public speaker::Speaker {
   std::atomic<uint32_t> max_callback_gap_us_{0};
   std::atomic<bool> muted_{false};
   std::atomic<bool> received_first_data_{false};
+  std::atomic<bool> prepared_start_{false};
   std::atomic<bool> avrcp_connected_{false};
   std::atomic<bool> avrcp_ready_{false};
   std::atomic<bool> avrcp_failed_{false};

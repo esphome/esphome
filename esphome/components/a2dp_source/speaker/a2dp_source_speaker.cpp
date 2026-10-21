@@ -19,6 +19,7 @@
 
 #include <esp_a2dp_legacy_api.h>
 #include <esp_bt_main.h>
+#include <esp_random.h>
 #include <esp_timer.h>
 
 namespace esphome::a2dp_source {
@@ -45,6 +46,43 @@ static DiscoveredDevice discovered[MAX_DISCOVERED]{};
 static size_t discovered_count = 0;
 static std::atomic<bool> classic_discovery_running{false};
 static portMUX_TYPE discovery_mux = portMUX_INITIALIZER_UNLOCKED;
+
+void A2DPSourceSpeaker::trace_event_(uint8_t code, uint16_t detail) {
+  const ConnectionTraceEvent event{millis(), this->connection_attempt_count_.load(), detail, code};
+  portENTER_CRITICAL(&this->trace_mux_);
+  this->connection_trace_[this->connection_trace_next_] = event;
+  this->connection_trace_next_ = (this->connection_trace_next_ + 1) % CONNECTION_TRACE_SIZE;
+  if (this->connection_trace_count_ < CONNECTION_TRACE_SIZE)
+    this->connection_trace_count_++;
+  portEXIT_CRITICAL(&this->trace_mux_);
+}
+
+std::string A2DPSourceSpeaker::connection_trace() const {
+  ConnectionTraceEvent events[CONNECTION_TRACE_SIZE];
+  size_t count;
+  portENTER_CRITICAL(&this->trace_mux_);
+  count = this->connection_trace_count_;
+  const size_t first = (this->connection_trace_next_ + CONNECTION_TRACE_SIZE - count) % CONNECTION_TRACE_SIZE;
+  for (size_t i = 0; i < count; i++)
+    events[i] = this->connection_trace_[(first + i) % CONNECTION_TRACE_SIZE];
+  portEXIT_CRITICAL(&this->trace_mux_);
+  std::string result;
+  result.reserve(count * 28);
+  for (size_t i = 0; i < count; i++) {
+    char line[48];
+    std::snprintf(line, sizeof(line), "%" PRIu32 ",%" PRIu32 ",%u,%u;", events[i].ms, events[i].attempt,
+                  events[i].code, events[i].detail);
+    result += line;
+  }
+  return result;
+}
+
+void A2DPSourceSpeaker::clear_connection_trace() {
+  portENTER_CRITICAL(&this->trace_mux_);
+  this->connection_trace_next_ = 0;
+  this->connection_trace_count_ = 0;
+  portEXIT_CRITICAL(&this->trace_mux_);
+}
 
 static std::string format_address(const uint8_t *address) {
   char result[18];
@@ -481,6 +519,7 @@ void A2DPSourceSpeaker::reset_connection_state_() {
 }
 
 void A2DPSourceSpeaker::abort_connection_(const char *reason) {
+  this->trace_event_(5);
   ESP_LOGW(TAG, "A2DP slot %u: %s; stopping this playback attempt", this->slot_, reason);
   this->connection_failed_latched_.store(true);
   this->requested_.store(false);
@@ -496,6 +535,10 @@ void A2DPSourceSpeaker::abort_connection_(const char *reason) {
 }
 
 void A2DPSourceSpeaker::retry_or_abort_connection_(const char *reason) {
+  if (this->connected_.load()) {
+    this->connect_pending_.store(false);
+    return;
+  }
   if (this->connection_failed_latched_.load()) {
     this->connect_pending_.store(false);
     return;
@@ -505,21 +548,23 @@ void A2DPSourceSpeaker::retry_or_abort_connection_(const char *reason) {
     return;
   }
   this->connection_failure_count_.fetch_add(1);
+  this->trace_event_(4);
   if ((this->pairing_.load() && !this->connection_session_active_.load()) || this->connect_attempts_.load() >= 4) {
     this->abort_connection_(reason);
     return;
   }
-  ESP_LOGW(TAG, "A2DP slot %u: %s; retry %u/4 after 12 s", this->slot_, reason,
-           static_cast<unsigned>(this->connect_attempts_.load() + 1));
+  const uint32_t retry_delay_ms = 3000 + esp_random() % 2001;
+  ESP_LOGW(TAG, "A2DP slot %u: %s; retry %u/4 after %" PRIu32 " ms", this->slot_, reason,
+           static_cast<unsigned>(this->connect_attempts_.load() + 1), retry_delay_ms);
   this->connect_pending_.store(false);
-  this->next_connect_attempt_ms_ = millis() + 12000;
+  this->next_connect_attempt_ms_ = millis() + retry_delay_ms;
   esp_a2d_source_disconnect(this->address_);
 }
 
 bool A2DPSourceSpeaker::waiting_for_retry() const {
   const int32_t remaining = static_cast<int32_t>(this->next_connect_attempt_ms_.load() - millis());
   return (this->connection_session_active_.load() || this->pairing_.load()) && !this->connected_.load() &&
-         !this->connect_pending_.load() && remaining > 2000 && remaining <= 12000;
+         !this->connect_pending_.load() && remaining > 0 && remaining <= 5000;
 }
 
 void A2DPSourceSpeaker::reset_connection_sequence() {
@@ -582,7 +627,7 @@ void A2DPSourceSpeaker::loop() {
       err = esp_bt_gap_set_pin(ESP_BT_PIN_TYPE_VARIABLE, 0, pin_code);
     }
     if (err == ESP_OK) {
-      const esp_err_t page_err = esp_bt_gap_set_page_timeout(0x1000);  // 2.56 s per attempt.
+      const esp_err_t page_err = esp_bt_gap_set_page_timeout(0x2000);  // 5.12 s per attempt.
       if (page_err != ESP_OK)
         ESP_LOGW(TAG, "Could not shorten Classic page timeout: %s", esp_err_to_name(page_err));
     }
@@ -723,6 +768,7 @@ void A2DPSourceSpeaker::loop() {
       if (response >= 0 && this->avrcp_command_pending_) {
         this->avrcp_actual_volume_.store(response);
         this->avrcp_ready_.store(true);
+        this->trace_event_(10, response);
         this->avrcp_command_pending_ = false;
         this->avrcp_attempts_ = 0;
         ESP_LOGI(TAG, "AVRCP slot %u accepted receiver volume %d/127", this->slot_, response);
@@ -739,6 +785,7 @@ void A2DPSourceSpeaker::loop() {
           this->avrcp_attempts_ = 0;
         esp_err_t err = esp_avrc_ct_send_set_absolute_volume_cmd(this->avrcp_transaction_++ & 0x0F, target);
         if (err == ESP_OK) {
+          this->trace_event_(16, target);
           this->avrcp_last_requested_ = target;
           this->avrcp_command_pending_ = true;
           this->avrcp_command_deadline_ms_ = now + 1500;
@@ -822,15 +869,20 @@ void A2DPSourceSpeaker::loop() {
       }
 #endif
       this->connect_attempts_.fetch_add(1);
-      esp_err_t err = esp_a2d_source_connect(this->address_);
+      this->connection_attempt_count_.fetch_add(1);
+      this->failure_reported_for_attempt_.store(false);
+      this->trace_event_(1);
+      this->connect_pending_.store(true);
       this->next_connect_attempt_ms_ = now + 15000;
-      if (err == ESP_OK)
-        this->connect_pending_ = true;
-      else {
+      esp_err_t err = esp_a2d_source_connect(this->address_);
+      if (err != ESP_OK) {
+        this->connect_pending_.store(false);
+        this->failure_reported_for_attempt_.store(true);
         ESP_LOGW(TAG, "A2DP connect failed: %s", esp_err_to_name(err));
         this->retry_or_abort_connection_("A2DP connect call failed");
       }
     } else if (this->requested_.load() && this->connected_.load() && this->avrcp_ready_.load() &&
+               this->received_first_data_.load() &&
                !this->streaming_.load() && !this->media_check_pending_ && !this->media_start_pending_ &&
                static_cast<int32_t>(now - this->next_media_check_ms_) >= 0) {
       if (esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY) == ESP_OK)
@@ -883,7 +935,20 @@ const char *A2DPSourceSpeaker::avrcp_status() const {
   return "disconnected";
 }
 
+void A2DPSourceSpeaker::prepare_for_media() {
+  if (this->requested_.load())
+    return;
+  this->prepared_start_.store(true);
+  this->start();
+}
+
 void A2DPSourceSpeaker::start() {
+  if (this->prepared_start_.load() && this->requested_.load()) {
+    this->prepared_start_.store(false);
+    this->state_ = speaker::STATE_RUNNING;
+    return;
+  }
+  this->trace_event_(7);
   if (this->preempted_.load() || this->connection_failed_latched_.load()) {
     this->state_ = speaker::STATE_STOPPED;
     return;
@@ -932,6 +997,8 @@ void A2DPSourceSpeaker::start() {
 }
 
 void A2DPSourceSpeaker::stop() {
+  this->trace_event_(15);
+  this->prepared_start_.store(false);
   ESP_LOGD(TAG, "A2DP slot %u stop requested after %" PRIu32 " PCM bytes", this->slot_, this->pcm_bytes_.load());
   this->requested_.store(false);
   this->finish_pending_ = false;
@@ -952,8 +1019,8 @@ size_t A2DPSourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ti
   if (!this->requested_.load() || !this->pcm_buffer_)
     return 0;
   size_t written = this->pcm_buffer_->write_without_replacement(data, length, ticks_to_wait);
-  if (written)
-    this->received_first_data_.store(true);
+  if (written && !this->received_first_data_.exchange(true))
+    this->trace_event_(14);
   return written;
 }
 
@@ -972,6 +1039,7 @@ void A2DPSourceSpeaker::process_avrcp_event_(esp_avrc_ct_cb_event_t event, esp_a
     if (std::memcmp(param->conn_stat.remote_bda, this->address_, 6) != 0)
       return;
     bool connected = param->conn_stat.connected;
+    this->trace_event_(8, connected);
     this->avrcp_connected_.store(connected);
     this->avrcp_ready_.store(false);
     this->avrcp_response_volume_.store(-1);
@@ -983,6 +1051,7 @@ void A2DPSourceSpeaker::process_avrcp_event_(esp_avrc_ct_cb_event_t event, esp_a
     if (std::memcmp(param->rmt_feats.remote_bda, this->address_, 6) == 0)
       ESP_LOGI(TAG, "AVRCP slot %u remote features 0x%" PRIx32, this->slot_, param->rmt_feats.feat_mask);
   } else if (event == ESP_AVRC_CT_SET_ABSOLUTE_VOLUME_RSP_EVT && this->avrcp_connected_.load()) {
+    this->trace_event_(9, param->set_volume_rsp.volume);
     this->avrcp_response_volume_.store(param->set_volume_rsp.volume);
   }
 }
@@ -1053,7 +1122,8 @@ void A2DPSourceSpeaker::process_gap_event_(esp_bt_gap_cb_event_t event, esp_bt_g
       return;
     const bool connected = param->acl_conn_cmpl_stat.stat == ESP_BT_STATUS_SUCCESS;
     this->acl_connected_.store(connected);
-    if (!connected && this->connect_pending_.load())
+    this->trace_event_(2, param->acl_conn_cmpl_stat.stat);
+    if (!connected && this->connect_pending_.exchange(false) && !this->failure_reported_for_attempt_.exchange(true))
       this->connection_failed_.store(true);
     ESP_LOGI(TAG, "Classic ACL slot %u connection %s (status 0x%02x, handle 0x%04x)", this->slot_,
              connected ? "open" : "failed", param->acl_conn_cmpl_stat.stat, param->acl_conn_cmpl_stat.handle);
@@ -1061,6 +1131,7 @@ void A2DPSourceSpeaker::process_gap_event_(esp_bt_gap_cb_event_t event, esp_bt_g
     if (std::memcmp(param->acl_disconn_cmpl_stat.bda, this->address_, 6) != 0)
       return;
     this->acl_connected_.store(false);
+    this->trace_event_(6, param->acl_disconn_cmpl_stat.reason);
     ESP_LOGI(TAG, "Classic ACL slot %u closed (handle 0x%04x, reason 0x%02x)", this->slot_,
              param->acl_disconn_cmpl_stat.handle, param->acl_disconn_cmpl_stat.reason);
   } else if (event == ESP_BT_GAP_AUTH_CMPL_EVT) {
@@ -1113,14 +1184,18 @@ void A2DPSourceSpeaker::process_event_(esp_a2d_cb_event_t event, esp_a2d_cb_para
     if (std::memcmp(param->conn_stat.remote_bda, this->address_, 6) != 0)
       return;
     const auto state = param->conn_stat.state;
+    this->trace_event_(3, state);
     if (state == ESP_A2D_CONNECTION_STATE_CONNECTING) {
-      this->connect_pending_ = true;
+      if (!this->failure_reported_for_attempt_.load())
+        this->connect_pending_ = true;
     } else if (state == ESP_A2D_CONNECTION_STATE_CONNECTED) {
       this->connected_ = true;
       this->connect_pending_ = false;
+      this->connection_failed_.store(false);
       this->disconnect_pending_ = false;
       this->next_connect_attempt_ms_ = 0;
       this->connect_attempts_.store(0);
+      this->failure_reported_for_attempt_.store(false);
     } else if (state == ESP_A2D_CONNECTION_STATE_DISCONNECTING) {
       // Keep the old sink active until A2DP, AVRCP, and Classic ACL close.
       this->disconnect_pending_ = true;
@@ -1128,7 +1203,7 @@ void A2DPSourceSpeaker::process_event_(esp_a2d_cb_event_t event, esp_a2d_cb_para
       const bool failed_connect = this->connect_pending_.exchange(false);
       const bool dropped_while_requested = this->connected_.exchange(false) && this->requested_.load();
       this->disconnect_pending_ = false;
-      if (failed_connect || dropped_while_requested) {
+      if ((failed_connect || dropped_while_requested) && !this->failure_reported_for_attempt_.exchange(true)) {
         this->connection_failed_.store(true);
       }
     }
@@ -1140,8 +1215,10 @@ void A2DPSourceSpeaker::process_event_(esp_a2d_cb_event_t event, esp_a2d_cb_para
     }
   } else if (event == ESP_A2D_AUDIO_STATE_EVT) {
     bool streaming = param->audio_stat.state == ESP_A2D_AUDIO_STATE_STARTED;
+    this->trace_event_(12, param->audio_stat.state);
     this->streaming_.store(streaming);
   } else if (event == ESP_A2D_MEDIA_CTRL_ACK_EVT) {
+    this->trace_event_(13, static_cast<uint16_t>(param->media_ctrl_stat.cmd) * 16 + param->media_ctrl_stat.status);
     if (param->media_ctrl_stat.cmd == ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY) {
       this->media_check_pending_ = false;
       if (param->media_ctrl_stat.status == ESP_A2D_MEDIA_CTRL_ACK_SUCCESS && this->requested_.load()) {
