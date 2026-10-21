@@ -15,6 +15,7 @@ from esphome.const import (
     Platform,
 )
 from esphome.core import CORE, Library
+import esphome.espidf.component as espidf_component
 from esphome.espidf.component import (
     _emit_idf_component,
     generate_cmakelists_txt,
@@ -414,6 +415,24 @@ def test_generate_idf_component_yml_missing_path_raises(tmp_component):
 
     with pytest.raises(RuntimeError):
         generate_idf_component_yml(tmp_component)
+
+
+def test_generate_idf_components_passes_provides_to_the_backend(
+    esp32_idf_core, monkeypatch
+) -> None:
+    """The bundled-name predicate reaches the walk, so such names are never fetched."""
+    backends = []
+    monkeypatch.setattr(
+        espidf_component,
+        "convert_libraries",
+        lambda libraries, backend, provided=None: backends.append(backend) or [],
+    )
+
+    def provides(name: str) -> bool:
+        return name == "Wire"
+
+    assert generate_idf_components([], provides=provides) == []
+    assert backends[0].provides is provides
 
 
 def test_parse_library_json(tmp_path):

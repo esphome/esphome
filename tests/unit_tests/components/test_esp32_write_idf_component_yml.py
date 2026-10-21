@@ -62,8 +62,9 @@ def test_write_idf_component_yml_passes_managed_components(
     converted.get_sanitized_name.return_value = "esphome/other-lib"
     converted.path = tmp_path / "pio_components" / "other-lib"
 
-    def fake_generate_idf_components(libraries, managed=None):
+    def fake_generate_idf_components(libraries, managed=None, provides=None):
         captured["managed"] = managed
+        captured["provides"] = provides
         return [converted]
 
     monkeypatch.setattr(esp32, "generate_idf_components", fake_generate_idf_components)
@@ -71,6 +72,8 @@ def test_write_idf_component_yml_passes_managed_components(
     esp32._write_idf_component_yml()
 
     assert captured["managed"] == {"esphome/noise-c"}
+    # ESP-IDF bundles no Arduino libraries, so every name may be fetched
+    assert captured["provides"] is None
     # The managed component itself is still written into the manifest deps
     # directly (from KEY_COMPONENTS), just not converted a second time.
     yml_path = tmp_path / "src" / "idf_component.yml"
@@ -93,7 +96,7 @@ def test_write_idf_component_yml_empty_managed_when_no_components(
 
     captured: dict[str, set[str] | None] = {}
 
-    def fake_generate_idf_components(libraries, managed=None):
+    def fake_generate_idf_components(libraries, managed=None, provides=None):
         captured["managed"] = managed
         return []
 
@@ -102,6 +105,35 @@ def test_write_idf_component_yml_empty_managed_when_no_components(
     esp32._write_idf_component_yml()
 
     assert captured["managed"] == set()
+
+
+def test_write_idf_component_yml_marks_arduino_bundled_libraries_provided(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Under Arduino the converter is told which names the core bundles, so a
+    manifest dependency on Wire or SPI is never fetched from the registry."""
+    _setup_core(tmp_path)
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ARDUINO)
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version(3, 3, 12)
+    CORE.data[esp32.KEY_ESP32] = {
+        esp32.KEY_COMPONENTS: {},
+        esp32.KEY_IDF_VERSION: cv.Version(5, 5, 4),
+    }
+
+    captured: dict[str, object] = {}
+
+    def fake_generate_idf_components(libraries, managed=None, provides=None):
+        captured["provides"] = provides
+        return []
+
+    monkeypatch.setattr(esp32, "generate_idf_components", fake_generate_idf_components)
+
+    esp32._write_idf_component_yml()
+
+    provides = captured["provides"]
+    assert provides("Wire") and provides("SPI")
+    assert not provides("Adafruit BusIO")
 
 
 @pytest.mark.parametrize(
@@ -200,7 +232,9 @@ def test_write_idf_component_yml_stub_yields_to_converted_library_of_same_name(
     converted.get_sanitized_name.return_value = "esphome/libsodium"
     converted.path = tmp_path / "pio_components" / "esphome" / "libsodium"
     monkeypatch.setattr(
-        esp32, "generate_idf_components", lambda libraries, managed=None: [converted]
+        esp32,
+        "generate_idf_components",
+        lambda libraries, managed=None, provides=None: [converted],
     )
 
     esp32._write_idf_component_yml()

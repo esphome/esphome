@@ -609,7 +609,23 @@ def parse_library_properties(library_properties_path: PathType):
             if not value.strip():
                 continue
             data[key.strip()] = value.strip()
+        if depends := data.pop("depends", None):
+            data["dependencies"] = parse_properties_depends(depends)
         return data
+
+
+def parse_properties_depends(depends: str) -> list[dict[str, str]]:
+    """``depends=Name, Other (>=1.0)`` as dependency entries, as PlatformIO reads it."""
+    entries: list[dict[str, str]] = []
+    for item in depends.split(","):
+        name, _, version = item.strip().partition("(")
+        if not (name := name.strip()):
+            continue
+        entry = {"name": name}
+        if version.endswith(")"):
+            entry["version"] = version[:-1].strip()
+        entries.append(entry)
+    return entries
 
 
 def _make_registry_client() -> Any:
@@ -730,20 +746,6 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     return out
 
 
-def warn_properties_depends(name: str, data: object) -> None:
-    """Warn for ``depends=``-only manifests; the walk reads only the JSON
-    ``dependencies`` key, so they would otherwise drop silently."""
-    if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
-        # INFO: common and unactionable for transitive libraries; a WARNING
-        # on every build would train users to ignore the stream
-        _LOGGER.info(
-            "Library %s declares dependencies via library.properties "
-            "depends=, which are not resolved automatically; add them with "
-            "add_library() if needed",
-            name,
-        )
-
-
 def dependency_is_usable(
     dep: dict, platform: str | None, framework: str, requester: str
 ) -> bool:
@@ -854,6 +856,8 @@ class _LibNode:
     ref: str | None = None
     local_path: str | None = None
     edges: set[str] = field(default_factory=set)
+    # Requested by name alone from a manifest; a registry miss skips it, not the build
+    optional: bool = False
 
 
 def _url_or_none(value: Any) -> str | None:
@@ -971,54 +975,29 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
     )
 
 
-def _reconcile_versionless_skips(
-    skipped_versionless: list[tuple[Any, Any, str]],
+def _satisfying_key(
+    name: str,
+    owner: str | None,
+    nodes: dict[str, _LibNode],
     components: dict[str, ConvertedLibrary],
-    backend: LibraryBackend,
-) -> None:
-    """Warn for version-less deps nothing satisfied, and record the
-    backend-provided ones in ``backend.provided_requests`` for its
-    post-emit reconciliation; a silent drop surfaces as link errors far
-    from the cause."""
-    resolved_manifest_names = {c.data.get("name") for c in components.values()}
-    # A treeless backend can never supply a bundled name; noise for it
-    log = _LOGGER.warning if backend.provides is not None else _LOGGER.debug
-    warned: set[str] = set()
-    for dep_name, dep_owner, requester in skipped_versionless:
-        if not isinstance(dep_name, str) or not dep_name or dep_name in warned:
+) -> str | None:
+    """The key of a resolved library a version-less dependency names: the registry
+    package name (with the owner, when the dependency gives one) or the manifest name."""
+    wanted = name.lower()
+    for key, component in components.items():
+        node = nodes[key]
+        if owner and (node.owner or "").lower() != owner.lower():
             continue
-        if dep_name in components:
-            # A version-less dep's request key is the name itself
-            continue
+        if (node.pkgname or key).lower() == wanted:
+            return key
+        manifest_name = component.data.get("name")
         if (
-            not dep_owner
-            and backend.provides is not None
-            and backend.provides(dep_name)
+            not owner
+            and isinstance(manifest_name, str)
+            and manifest_name.lower() == wanted
         ):
-            # provides() only satisfies owner-less names (same guard as
-            # the walk's skip); record for the post-emit reconciliation.
-            # Checked before the manifest-name evidence so the overlap
-            # case warns once, in the backend's own suppression loop
-            backend.provided_requests.add(dep_name)
-            continue
-        if dep_name in resolved_manifest_names:
-            # Name-only evidence: a coincidental collision must stay
-            # visible where the user could pin it
-            warned.add(dep_name)
-            log(
-                "Version-less dependency %s of %s assumed satisfied by a "
-                "resolved library's manifest name only",
-                dep_name,
-                requester,
-            )
-            continue
-        warned.add(dep_name)
-        log(
-            "Dependency %s of %s has no version to resolve and nothing "
-            "provides it; skipping",
-            dep_name,
-            requester,
-        )
+            return key
+    return None
 
 
 def _fetch_source(
@@ -1148,6 +1127,8 @@ def convert_libraries(
     carry an owner. They are excluded like ``lib_ignore`` so nothing is both
     converted and managed, which ESP-IDF refuses to build.
     """
+    from platformio.package.exception import UnknownPackageError
+
     nodes: dict[str, _LibNode] = {}
 
     # Folded into one set so every is_lib_ignored() call site honors both.
@@ -1222,8 +1203,40 @@ def convert_libraries(
     components: dict[str, ConvertedLibrary] = {}
     resolved_requirements: dict[str, frozenset[str]] = {}
     top_level_keys = set(top_level)
-    # (name, owner, requester) reconciled against the final resolution set
-    skipped_versionless: list[tuple[Any, Any, str]] = []
+    # (requester key, dependency) settled once the graph is known, so a library
+    # already in it satisfies the name before the registry is asked
+    pending_versionless: list[tuple[str, dict]] = []
+
+    def settle_versionless() -> list[str]:
+        """Wire each deferred dependency to the library that satisfies it, or
+        fetch it by name; return the new keys to walk."""
+        new_keys: list[str] = []
+        for requester, dependency in pending_versionless:
+            name, owner = dependency["name"], dependency.get("owner")
+            if not owner and backend.provides is not None and backend.provides(name):
+                _LOGGER.debug(
+                    "Skip backend-provided dependency %s of %s", name, requester
+                )
+                backend.provided_requests.add(name)
+                continue
+            if (match := _satisfying_key(name, owner, nodes, components)) is not None:
+                _LOGGER.debug(
+                    "Dependency %s of %s satisfied by %s", name, requester, match
+                )
+                nodes[requester].edges.add(match)
+                continue
+            try:
+                dep_key = add_spec(_owner_pkgname_to_name(owner, name), None, None)
+            except RuntimeError as e:
+                _LOGGER.warning("Skipping dependency %s of %s: %s", name, requester, e)
+                continue
+            if dep_key not in resolved_requirements:
+                nodes[dep_key].optional = True
+            nodes[requester].edges.add(dep_key)
+            new_keys.append(dep_key)
+        pending_versionless.clear()
+        return new_keys
+
     worklist = deque(dict.fromkeys(top_level))
     while worklist:
         # Drain the frontier sequentially (spec resolution mutates shared
@@ -1245,9 +1258,21 @@ def convert_libraries(
             elif node.is_local:
                 component = ConvertedLibrary(key, "*", LocalSource(node.local_path))
             else:
-                owner, name, version, url, size = _resolve_registry_version(
-                    node.owner, node.pkgname, node.requirements
-                )
+                try:
+                    owner, name, version, url, size = _resolve_registry_version(
+                        node.owner, node.pkgname, node.requirements
+                    )
+                except (UnknownPackageError, RuntimeError) as e:
+                    if not node.optional:
+                        raise
+                    requesters = sorted(k for k, n in nodes.items() if key in n.edges)
+                    _LOGGER.warning(
+                        "Dependency %s of %s is not in the registry; skipping: %s",
+                        key,
+                        ", ".join(requesters),
+                        e,
+                    )
+                    continue
                 component = ConvertedLibrary(
                     _owner_pkgname_to_name(owner, name), version, URLSource(url, size)
                 )
@@ -1313,8 +1338,6 @@ def convert_libraries(
                     raise EsphomeError(f"Library {key} has a malformed manifest")
                 _LOGGER.warning("Skipping dependency %s: malformed manifest", key)
                 continue
-            warn_properties_depends(component.name, component.data)
-
             try:
                 check_library_data(component.data, backend.platform, backend.framework)
             except InvalidLibrary as e:
@@ -1341,23 +1364,13 @@ def convert_libraries(
                 component.data.get("dependencies"), component.name
             ):
                 if "version" not in dependency:
-                    # Cannot resolve from the registry; the post-emit
-                    # reconciliation owns the drop warning
-                    dep_name = dependency.get("name")
-                    _LOGGER.debug(
-                        "Skip version-less dependency %r of %s",
-                        dep_name,
-                        component.name,
-                    )
                     if not is_lib_ignored(
-                        dep_name, lib_ignore
+                        dependency.get("name"), lib_ignore
                     ) and dependency_is_usable(
                         dependency, backend.platform, backend.framework, component.name
                     ):
                         # Filtered or ignored deps are deliberately absent
-                        skipped_versionless.append(
-                            (dep_name, dependency.get("owner"), component.name)
-                        )
+                        pending_versionless.append((key, dependency))
                     continue
                 if not dependency_is_usable(
                     dependency, backend.platform, backend.framework, component.name
@@ -1397,6 +1410,8 @@ def convert_libraries(
                 dep_key = add_spec(dep_name, dep_version, dep_url)
                 node.edges.add(dep_key)
                 worklist.append(dep_key)
+        if not worklist:
+            worklist.extend(settle_versionless())
 
     # A git or local source wins over the same component requested from the
     # registry. That's intentional, but warn so the dropped registry spec isn't
@@ -1446,7 +1461,5 @@ def convert_libraries(
         ]
     for component in components.values():
         backend.emit(component)
-
-    _reconcile_versionless_skips(skipped_versionless, components, backend)
 
     return [components[key] for key in top_level if key in components]

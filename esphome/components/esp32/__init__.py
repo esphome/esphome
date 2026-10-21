@@ -3834,7 +3834,14 @@ def _write_idf_component_yml():
         # IDF sees the same requirement twice; converted components reach it through
         # ${ESPHOME_PROJECT_MANAGED_COMPONENTS}.
         managed = set(CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {}))
-        converted = generate_idf_components(libraries, managed=managed)
+        converted = generate_idf_components(
+            libraries,
+            managed=managed,
+            # The arduino-esp32 component bundles these; never fetch them by name
+            provides=ARDUINO_DISABLED_LIBRARIES.__contains__
+            if CORE.using_arduino
+            else None,
+        )
     # IDF names a component after its directory and a later registration of the
     # same name replaces the earlier one, so a stub beside a converted library of
     # the same name (espressif/libsodium vs esphome/libsodium) would win or lose

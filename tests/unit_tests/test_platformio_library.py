@@ -276,6 +276,18 @@ def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+def _record_registry(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str | None, str]]:
+    """Stub the registry like _patch_registry_resolve, recording each lookup."""
+    asked: list[tuple[str | None, str]] = []
+
+    def resolve(owner, pkgname, requirements):
+        asked.append((owner, pkgname))
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
+    return asked
+
+
 def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properties=()):
     """Fake ConvertedLibrary.download to materialize canned manifests on disk."""
 
@@ -343,18 +355,23 @@ def test_convert_libraries_parses_library_properties(tmp_path, monkeypatch):
     assert emitted[0].data["version"] == "1.0"
 
 
-def test_convert_libraries_skips_dependency_without_version(tmp_path, monkeypatch):
-    # A dependency entry lacking a version is malformed and silently skipped.
+def test_convert_libraries_fetches_dependency_without_version(tmp_path, monkeypatch):
+    # A dependency entry lacking a version resolves by name alone, as PlatformIO did.
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
-        {"esphome/A": {"name": "A", "dependencies": [{"name": "C"}]}},
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "C"}]},
+            "C": {"name": "C"},
+        },
     )
+    asked = _record_registry(monkeypatch)
 
     # No version on the top-level spec exercises the "no requirement" path too.
     top = convert_libraries([Library("esphome/A", None, None)], _backend())
 
-    assert top[0].dependencies == []
+    assert [d.name for d in top[0].dependencies] == ["C"]
+    assert asked == [("esphome", "A"), (None, "C")]
 
 
 def test_convert_libraries_handles_unparsable_dependency_version(tmp_path, monkeypatch):
@@ -1013,20 +1030,24 @@ def test_convert_libraries_malformed_transitive_dep_skips(
     assert "Skipping dependency esphome/B: malformed manifest" in caplog.text
 
 
-def test_walk_warns_for_properties_only_depends(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A manifest declaring dependencies only as library.properties depends=
-    warns in the shared walk, so every backend reports the drop."""
+def test_walk_resolves_properties_only_depends(tmp_path, monkeypatch) -> None:
+    """A library.properties depends= line is a dependency list: a bundled name
+    goes to the backend, the rest resolve by name."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
-        {"esphome/A": "name=A\nversion=1.0\ndepends=Wire, SPI\n"},
+        {
+            "esphome/A": "name=A\nversion=1.0\ndepends=Wire, SPI\n",
+            "SPI": {"name": "SPI"},
+        },
         properties=("esphome/A",),
     )
-    caplog.set_level("INFO")
-    convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
-    assert "declares dependencies via library.properties" in caplog.text
+    asked = _record_registry(monkeypatch)
+    backend = _backend(provides=lambda name: name == "Wire")
+    top = convert_libraries([Library("esphome/A", "1.0.0", None)], backend)
+    assert [d.name for d in top[0].dependencies] == ["SPI"]
+    assert backend.provided_requests == {"Wire"}
+    assert (None, "SPI") in asked
 
 
 def test_walk_warns_for_nonplatform_invalid_library(
@@ -1093,11 +1114,11 @@ def test_source_kind_map_shape() -> None:
     assert SOURCE_KIND_FOR_SUFFIX[".C++"] == "cxx"
 
 
-def test_versionless_platform_filtered_dependency_stays_quiet(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+def test_versionless_platform_filtered_dependency_is_not_fetched(
+    tmp_path, monkeypatch
 ) -> None:
-    """A version-less dependency the platform filter excludes is
-    deliberately absent, not a drop to warn about."""
+    """A version-less dependency the platform filter excludes is deliberately
+    absent, not fetched by name."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
@@ -1108,59 +1129,58 @@ def test_versionless_platform_filtered_dependency_stays_quiet(
             }
         },
     )
-    convert_libraries([Library("esphome/A", None, None)], _backend())
-    assert "has no version to resolve" not in caplog.text
+    asked = _record_registry(monkeypatch)
+    top = convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert top[0].dependencies == []
+    assert (None, "Hash") not in asked
 
 
-def test_versionless_ignored_dependency_stays_quiet(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_versionless_ignored_dependency_is_not_fetched(tmp_path, monkeypatch) -> None:
     """A lib_ignore'd version-less dependency is deliberately excluded, not
-    a drop; no reconciliation warning."""
+    fetched by name."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
         {"esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]}},
     )
+    asked = _record_registry(monkeypatch)
     CORE.platformio_options = {"lib_ignore": ["Hash"]}
-    convert_libraries([Library("esphome/A", None, None)], _backend())
-    assert "has no version to resolve" not in caplog.text
+    top = convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert top[0].dependencies == []
+    assert (None, "Hash") not in asked
 
 
-def test_versionless_dependency_without_provider_warns(
+def test_versionless_dependency_registry_miss_is_skipped(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A backend whose tree could supply the name warns on the drop; one
-    without provides() can never act on it, so it stays at debug."""
+    """A name-only dependency the registry does not know is skipped with one
+    warning naming the requester, and the requester still converts; a listed
+    library the registry does not know still fails the build."""
+    from platformio.package.exception import UnknownPackageError
+
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
         {
             "esphome/A": {
                 "name": "A",
-                # The duplicate entry warns once (reconciliation dedup)
+                # The duplicate entry is one node, so it warns once
                 "dependencies": [{"name": "Hash"}, {"name": "Hash"}],
             }
         },
     )
-    convert_libraries(
-        [Library("esphome/A", None, None)], _backend(provides=lambda name: False)
-    )
-    assert (
-        caplog.text.count(
-            "Hash of esphome/A has no version to resolve and nothing provides it"
-        )
-        == 1
-    )
-    caplog.clear()
-    with caplog.at_level(logging.DEBUG):
-        convert_libraries([Library("esphome/A", None, None)], _backend())
-    records = [
-        r
-        for r in caplog.records
-        if "has no version to resolve and nothing provides it" in r.message
-    ]
-    assert records and all(r.levelno == logging.DEBUG for r in records)
+
+    def resolve(owner, pkgname, requirements):
+        if pkgname == "Hash":
+            raise UnknownPackageError("Hash")
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
+    top = convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert top[0].dependencies == []
+    assert caplog.text.count("Dependency Hash of esphome/A is not in the registry") == 1
+    with pytest.raises(UnknownPackageError):
+        convert_libraries([Library("Hash", None, None)], _backend())
 
 
 def test_url_version_dependency_is_not_substituted_by_provides(
@@ -1191,11 +1211,11 @@ def test_url_version_dependency_is_not_substituted_by_provides(
     assert any("o/hash" in n.lower() for n in emitted)
 
 
-def test_versionless_owner_qualified_dependency_warns_despite_provides(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+def test_versionless_owner_qualified_dependency_is_fetched_despite_provides(
+    tmp_path, monkeypatch
 ) -> None:
-    """An owner-qualified version-less dependency is not satisfied by
-    provides(); it must still warn."""
+    """An owner-qualified version-less dependency names a registry package,
+    so provides() does not stand in for it."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
@@ -1203,38 +1223,41 @@ def test_versionless_owner_qualified_dependency_warns_despite_provides(
             "esphome/A": {
                 "name": "A",
                 "dependencies": [{"name": "Wire", "owner": "Foo"}],
-            }
+            },
+            "Foo/Wire": {"name": "Wire"},
         },
     )
-    convert_libraries(
-        [Library("esphome/A", None, None)],
-        _backend(provides=lambda name: name == "Wire"),
-    )
-    assert "Wire of esphome/A has no version to resolve" in caplog.text
+    asked = _record_registry(monkeypatch)
+    backend = _backend(provides=lambda name: name == "Wire")
+    top = convert_libraries([Library("esphome/A", None, None)], backend)
+    assert [d.name for d in top[0].dependencies] == ["Foo/Wire"]
+    assert ("Foo", "Wire") in asked
+    assert not backend.provided_requests
 
 
-def test_versionless_provided_dependency_stays_quiet(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+def test_versionless_provided_dependency_is_left_to_the_backend(
+    tmp_path, monkeypatch
 ) -> None:
-    """An owner-less version-less dependency the backend provides is added
-    by the backend after emit; no reconciliation warning."""
+    """An owner-less version-less dependency the backend provides is recorded
+    for it and never fetched."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
         {"esphome/A": {"name": "A", "dependencies": [{"name": "Wire"}]}},
     )
-    convert_libraries(
-        [Library("esphome/A", None, None)],
-        _backend(provides=lambda name: name == "Wire"),
-    )
-    assert "has no version to resolve" not in caplog.text
+    asked = _record_registry(monkeypatch)
+    backend = _backend(provides=lambda name: name == "Wire")
+    top = convert_libraries([Library("esphome/A", None, None)], backend)
+    assert top[0].dependencies == []
+    assert backend.provided_requests == {"Wire"}
+    assert (None, "Wire") not in asked
 
 
-def test_versionless_dependency_requested_top_level_stays_quiet(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+def test_versionless_dependency_requested_top_level_is_wired(
+    tmp_path, monkeypatch
 ) -> None:
-    """A version-less dependency the config also requests top-level is in
-    the build; no drop warning even without a provides backend."""
+    """A version-less dependency the config also requests top-level is wired
+    to that library, not fetched a second time."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
@@ -1243,37 +1266,35 @@ def test_versionless_dependency_requested_top_level_stays_quiet(
             "Hash": {"name": "Hash"},
         },
     )
-    convert_libraries(
+    asked = _record_registry(monkeypatch)
+    top = convert_libraries(
         [Library("esphome/A", None, None), Library("Hash", None, None)],
         _backend(),
     )
-    assert "has no version to resolve" not in caplog.text
+    assert [d.name for d in top[0].dependencies] == ["Hash"]
+    assert asked == [("esphome", "A"), (None, "Hash")]
 
 
 def test_versionless_url_ish_dependency_name_warns_cleanly(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A malformed URL-ish dependency name falls to the drop warning, never
+    """A malformed URL-ish dependency name is skipped with a warning, never
     a RuntimeError out of the key parser."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
         {"esphome/A": {"name": "A", "dependencies": [{"name": "file://"}]}},
     )
-    convert_libraries(
-        [Library("esphome/A", None, None)], _backend(provides=lambda name: False)
-    )
-    assert (
-        "file:// of esphome/A has no version to resolve and nothing provides it"
-        in caplog.text
-    )
+    top = convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert top[0].dependencies == []
+    assert "Skipping dependency file:// of esphome/A" in caplog.text
 
 
-def test_versionless_dependency_matching_resolved_manifest_name_stays_quiet(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+def test_versionless_dependency_matching_resolved_manifest_name_is_wired(
+    tmp_path, monkeypatch
 ) -> None:
-    """A bare name satisfied by an owner-qualified component's manifest
-    name is not a drop."""
+    """A bare name satisfied by an owner-qualified component's manifest name
+    is wired to it."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
@@ -1282,11 +1303,63 @@ def test_versionless_dependency_matching_resolved_manifest_name_stays_quiet(
             "esphome/B": {"name": "B"},
         },
     )
-    convert_libraries(
+    asked = _record_registry(monkeypatch)
+    top = convert_libraries(
         [Library("esphome/A", None, None), Library("esphome/B", None, None)],
         _backend(),
     )
-    assert "has no version to resolve" not in caplog.text
+    assert [d.name for d in top[0].dependencies] == ["esphome/B"]
+    assert asked == [("esphome", "A"), ("esphome", "B")]
+
+
+def test_versionless_dependency_settles_after_the_graph(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The issue 21308 shape: a library.properties depends= naming a library the
+    config lists owner-qualified is wired to that one package, case-insensitively,
+    without a second node for the bare name."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "adafruit/Adafruit GFX Library": (
+                "name=Adafruit GFX Library\ndepends=adafruit busio\n"
+            ),
+            "adafruit/Adafruit BusIO": {"name": "Adafruit BusIO"},
+        },
+        properties=("adafruit/Adafruit GFX Library",),
+    )
+    asked = _record_registry(monkeypatch)
+    top = convert_libraries(
+        [
+            Library("adafruit/Adafruit GFX Library", "^1.13.0", None),
+            Library("adafruit/Adafruit BusIO", "^1.17.4", None),
+        ],
+        _backend(),
+    )
+    assert [d.name for d in top[0].dependencies] == ["adafruit/Adafruit BusIO"]
+    assert len(asked) == 2
+    assert "multiple names" not in caplog.text
+
+
+def test_parse_properties_depends_reads_names_and_constraints() -> None:
+    assert lib.parse_properties_depends("Adafruit BusIO, Foo (>=1.2), ,Bar( <2 )") == [
+        {"name": "Adafruit BusIO"},
+        {"name": "Foo", "version": ">=1.2"},
+        {"name": "Bar", "version": "<2"},
+    ]
+
+
+def test_parse_library_properties_turns_depends_into_dependencies(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "library.properties"
+    manifest.write_text("name=A\ndepends=Wire\n")
+    data = lib.parse_library_properties(manifest)
+    assert data["dependencies"] == [{"name": "Wire"}]
+    assert "depends" not in data
+    manifest.write_text("name=A\ndepends=\n")
+    assert "dependencies" not in lib.parse_library_properties(manifest)
 
 
 def test_convert_libraries_symlink_url_resolves_as_local(setup_core: Path) -> None:
