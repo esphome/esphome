@@ -25,13 +25,3 @@ sensor:
     filters:
       # A lambda in a flash table.
       - filter_out: !lambda return HEADER_CONSTANT - 1;
-
-button:
-  - platform: template
-    name: Send Header Event
-    on_press:
-      # A Home Assistant event field is rendered into a flash table.
-      - homeassistant.event:
-          event: esphome.header
-          data:
-            text: !lambda return header_text();

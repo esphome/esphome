@@ -866,10 +866,8 @@ class TestSharedProgmemArray:
         c = cg.shared_progmem_array("table", ct.uint8, [4])
         assert a is b
         assert str(a) != str(c)
-        assert (
-            sum("PROGMEM" in str(st) for st in CORE.global_statements_after_includes)
-            == 2
-        )
+        late = CORE.global_statements_after_includes
+        assert sum("PROGMEM" in str(st) for st in late) == 2
         assert not any("PROGMEM" in str(st) for st in CORE.main_statements)
 
     def test_share_false_always_emits_a_new_array(self) -> None:
@@ -877,10 +875,8 @@ class TestSharedProgmemArray:
         a = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
         b = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
         assert str(a) != str(b)
-        assert (
-            sum("PROGMEM" in str(st) for st in CORE.global_statements_after_includes)
-            == 2
-        )
+        late = CORE.global_statements_after_includes
+        assert sum("PROGMEM" in str(st) for st in late) == 2
 
     def test_is_static_pointer_only_for_placement_new(self) -> None:
         CORE.config = {}
@@ -942,17 +938,6 @@ class TestSharedProgmemArray:
         assert str(array) == "table_2"
 
 
-def test_static_function_declares_early_and_defines_after_includes() -> None:
-    fn = cg.static_function("esphome__act__fn", ct.void, [(ct.int32, "x")], ["return;"])
-    assert str(fn) == "esphome__act__fn"
-    assert [str(st) for st in CORE.global_statements] == [
-        "static void esphome__act__fn(int32_t x);"
-    ]
-    assert [str(st) for st in CORE.global_statements_after_includes] == [
-        "static void esphome__act__fn(int32_t x) {\n  return;\n}"
-    ]
-
-
 class TestProgmemString:
     @staticmethod
     def _set_platform(platform: str) -> None:
@@ -977,6 +962,22 @@ class TestProgmemString:
         assert str(cg.shared_progmem_string('say "hi"')) == '"say \\042hi\\042"'
         assert not CORE.global_statements
         assert not CORE.global_statements_after_includes
+
+
+def test_static_function_declares_early_and_defines_after_includes() -> None:
+    fn = cg.static_function("esphome__act__fn", ct.void, [(ct.int32, "x")], ["return;"])
+    assert str(fn) == "esphome__act__fn"
+    assert [str(st) for st in CORE.global_statements] == [
+        "static void esphome__act__fn(int32_t x);"
+    ]
+    assert [str(st) for st in CORE.global_statements_after_includes] == [
+        "static void esphome__act__fn(int32_t x) {\n  return;\n}"
+    ]
+
+
+def test_add_global_after_includes_rejects_non_statements() -> None:
+    with pytest.raises(ValueError, match="must be expression or statement"):
+        CORE.add_global_after_includes("not a statement")
 
 
 def test_extern_progmem_array_is_an_externally_linked_global() -> None:

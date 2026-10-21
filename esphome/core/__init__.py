@@ -1048,8 +1048,8 @@ class EsphomeCore:
         except RuntimeError as e:
             raise EsphomeError(str(e)) from e
 
-    def add(self, expression, prepend=False) -> "Statement":
-        """Add an expression or statement to the main setup() block."""
+    @staticmethod
+    def _as_statement(expression) -> "Statement":
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -1058,7 +1058,11 @@ class EsphomeCore:
             raise ValueError(
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
+        return expression
 
+    def add(self, expression, prepend=False) -> "Statement":
+        """Add an expression or statement to the main setup() block."""
+        expression = self._as_statement(expression)
         if prepend:
             self.main_statements.insert(0, expression)
         else:
@@ -1066,24 +1070,20 @@ class EsphomeCore:
         _LOGGER.debug("Adding: %s", expression)
         return expression
 
-    def add_global(
-        self, expression, prepend=False, after_includes=False
-    ) -> "Statement":
-        from esphome.cpp_generator import Expression, Statement, statement
-
-        if isinstance(expression, Expression):
-            expression = statement(expression)
-        if not isinstance(expression, Statement):
-            raise ValueError(
-                f"Add '{expression}' must be expression or statement, not {type(expression)}"
-            )
-        if after_includes:
-            self.global_statements_after_includes.append(expression)
-        elif prepend:
+    def add_global(self, expression, prepend=False) -> "Statement":
+        expression = self._as_statement(expression)
+        if prepend:
             self.global_statements.insert(0, expression)
         else:
             self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
+        return expression
+
+    def add_global_after_includes(self, expression) -> "Statement":
+        """Add a global after the user includes, for generated code that may use them."""
+        expression = self._as_statement(expression)
+        self.global_statements_after_includes.append(expression)
+        _LOGGER.debug("Adding global after includes: %s", expression)
         return expression
 
     def add_library(self, library: Library):

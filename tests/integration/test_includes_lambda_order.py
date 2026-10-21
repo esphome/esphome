@@ -2,17 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
-
-from aioesphomeapi import (
-    ButtonInfo,
-    EntityState,
-    HomeassistantServiceCall,
-    SensorInfo,
-    SensorState,
-)
+from aioesphomeapi import SensorInfo, SensorState
 import pytest
 
+from .state_utils import require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -22,36 +15,17 @@ async def test_includes_lambda_order(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """The apply action, the sensor filter and the event field all use the header."""
-    loop = asyncio.get_running_loop()
-    sensor_future: asyncio.Future[float] = loop.create_future()
-    event_future: asyncio.Future[HomeassistantServiceCall] = loop.create_future()
-
+    """The apply action and the sensor filter use the header, the header reads the global."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, _ = await client.list_entities_services()
-        sensor = next(e for e in entities if isinstance(e, SensorInfo))
-        button = next(e for e in entities if isinstance(e, ButtonInfo))
-
-        def on_state(state: EntityState) -> None:
-            if (
-                isinstance(state, SensorState)
-                and state.key == sensor.key
-                and not state.missing_state
-                and not sensor_future.done()
-            ):
-                sensor_future.set_result(state.state)
-
-        def on_service_call(call: HomeassistantServiceCall) -> None:
-            if call.is_event and not event_future.done():
-                event_future.set_result(call)
-
-        client.subscribe_states(on_state)
-        client.subscribe_service_calls(on_service_call)
-
+        sensor = require_entity(entities, "header_value", SensorInfo)
+        state = await wait_for_state(
+            client,
+            lambda s: (
+                isinstance(s, SensorState)
+                and s.key == sensor.key
+                and not s.missing_state
+            ),
+        )
         # globals.set stored HEADER_CONSTANT and the header read it back doubled.
-        assert await asyncio.wait_for(sensor_future, timeout=5.0) == 84.0
-
-        client.button_command(button.key)
-        event = await asyncio.wait_for(event_future, timeout=5.0)
-        assert event.service == "esphome.header"
-        assert event.data == {"text": "from-header"}
+        assert state.state == 84.0

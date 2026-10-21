@@ -537,8 +537,8 @@ def shared_progmem_array(
     used |= set(RESERVED_IDS) | CORE.loaded_integrations
     id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
     # After the user includes, so a lambda in the table can use what their headers declare.
-    CORE.add_global(
-        ProgmemAssignmentExpression(type_, id_, rhs, constexpr), after_includes=True
+    CORE.add_global_after_includes(
+        ProgmemAssignmentExpression(type_, id_, rhs, constexpr)
     )
     array = MockObj(id_, ".")
     CORE.register_variable(id_, array)
@@ -799,9 +799,8 @@ def static_function(
         f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
     )
     add_global(RawStatement(f"{signature};"))
-    add_global(
-        RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}"),
-        after_includes=True,
+    add_global_after_includes(
+        RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
     )
     return RawExpression(name)
 
@@ -815,17 +814,16 @@ def add(expression: Expression | Statement, prepend: bool = False):
     CORE.add(expression, prepend)
 
 
-def add_global(
-    expression: SafeExpType | Statement,
-    prepend: bool = False,
-    after_includes: bool = False,
-):
-    """Add an expression to the codegen global storage (above setup()).
+def add_global(expression: SafeExpType | Statement, prepend: bool = False):
+    """Add an expression to the codegen global storage (above setup())."""
+    CORE.add_global(expression, prepend)
 
-    ``after_includes`` places it after the user's ``includes:`` headers, for generated code
-    whose lambdas may use what those headers declare.
+
+def add_global_after_includes(expression: SafeExpType | Statement):
+    """Add a global after the user's ``includes:`` headers, for generated code whose
+    lambdas may use what those headers declare.
     """
-    CORE.add_global(expression, prepend, after_includes)
+    CORE.add_global_after_includes(expression)
 
 
 def add_library(name: str, version: str | None, repository: str | None = None):
