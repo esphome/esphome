@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -132,9 +133,7 @@ async def test_loop_disable_enable(
         api_client_connected() as client,
     ):
         # Verify we can connect and get device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "loop-test"
+        await assert_device_name(client, "loop-test")
 
         # Wait for self_disable_10 to disable itself
         try:

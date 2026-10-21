@@ -18,17 +18,24 @@ class EpaperModel:
     # Whether the driver manages chip-select itself instead of via the SPI bus.
     manages_cs: bool = False
 
+    # The .cpp files this model's driver class needs: its own and those of every parent class
+    # except epaper_spi.cpp, which is always built. Subclasses override this next to their class_name.
+    source_files: tuple[str, ...] = ()
+
     def __init__(
         self,
         name: str,
         class_name: str,
         initsequence=(),
+        source_files: tuple[str, ...] | None = None,
         **defaults,
     ):
         name = name.upper()
         self.name = name
         self.class_name = class_name
         self.initsequence = initsequence
+        if source_files is not None:
+            self.source_files = source_files
         self.defaults = defaults
         EpaperModel.models[name] = self
 
@@ -112,7 +119,13 @@ class EpaperModel:
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
         defaults.update(kwargs)
-        return self.__class__(name, initsequence=tuple(initsequence), **defaults)
+        model = self.__class__(name, initsequence=tuple(initsequence), **defaults)
+        # Subclass constructors do not all take these, so carry them over unless overridden
+        if "class_name" not in kwargs:
+            model.class_name = self.class_name
+        if "source_files" not in kwargs:
+            model.source_files = self.source_files
+        return model
 
     def check_requirements(self) -> None:
         """

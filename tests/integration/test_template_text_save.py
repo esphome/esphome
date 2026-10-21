@@ -17,7 +17,7 @@ import pytest
 
 from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import InitialStateHelper, assert_device_name, require_entity
 from .types import CompileFunction, ConfigWriter
 
 DEVICE_NAME = "host-template-text-save-test"
@@ -56,8 +56,7 @@ async def test_template_text_save(
         ),
         wait_and_connect_api_client(port=port) as client,
     ):
-        device_info = await client.device_info()
-        assert device_info.name == DEVICE_NAME
+        await assert_device_name(client, DEVICE_NAME)
 
         entities, _ = await client.list_entities_services()
         text_entity = require_entity(

@@ -443,8 +443,6 @@ def final_validate(config):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create, or configure DPP (Easy Connect)."
         )
-    if CONF_ON_DPP_URI in config and not has_dpp:
-        raise cv.Invalid(f"'{CONF_ON_DPP_URI}' requires '{CONF_DPP}'")
 
     ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
     if ap_is_wisp:
@@ -509,15 +507,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 def _validate(config: ConfigType) -> ConfigType:
-    if CONF_PASSWORD in config and CONF_SSID not in config:
-        raise cv.Invalid("Cannot have WiFi password without SSID!")
-
-    if CONF_HIDDEN in config and CONF_SSID not in config:
-        raise cv.Invalid(
-            "Cannot have 'hidden' without 'ssid'. If you are using the 'networks' "
-            "list, put 'hidden' inside the network entry instead."
-        )
-
     if CONF_SSID in config:
         # Automatically move single network to 'networks' section
         config = config.copy()
@@ -702,6 +691,13 @@ CONFIG_SCHEMA = cv.All(
                 cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
             ),
         }
+    ),
+    cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
+    cv.key_requires(CONF_PASSWORD, CONF_SSID),
+    cv.key_requires(
+        CONF_HIDDEN,
+        CONF_SSID,
+        hint="With 'networks', put 'hidden' inside the network entry",
     ),
     _apply_min_auth_mode_default,
     _validate,
