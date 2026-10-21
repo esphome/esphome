@@ -19,8 +19,11 @@ enum VEML6040IntegrationTime : uint8_t {
 
 class VEML6040Component final : public PollingComponent, public i2c::I2CDevice {
  public:
-  VEML6040Component(VEML6040IntegrationTime integration_time, float glass_attenuation_factor)
-      : glass_attenuation_factor_(glass_attenuation_factor), integration_time_(integration_time) {}
+  VEML6040Component(VEML6040IntegrationTime integration_time, float glass_attenuation_factor,
+                    float color_temperature_offset)
+      : glass_attenuation_factor_(glass_attenuation_factor),
+        color_temperature_offset_(color_temperature_offset),
+        integration_time_(integration_time) {}
 
   void setup() override;
   void dump_config() override;
@@ -44,6 +47,7 @@ class VEML6040Component final : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *illuminance_sensor_{nullptr};
   sensor::Sensor *color_temperature_sensor_{nullptr};
   const float glass_attenuation_factor_;
+  const float color_temperature_offset_;
   const VEML6040IntegrationTime integration_time_;
   bool data_ready_{false};
 };

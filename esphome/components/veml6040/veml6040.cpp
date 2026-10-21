@@ -23,9 +23,9 @@ static constexpr uint16_t MAX_COUNTS = 0xFFFF;
 static constexpr float LUX_PER_COUNT_40MS = 0.25168f;
 
 // Correlated colour temperature fit from the Vishay application note "Designing the VEML6040 into an
-// Application": CCT = A * ((R - B) / G + OFFSET) ^ EXPONENT
+// Application": CCT = A * ((R - B) / G + offset) ^ EXPONENT. The note gives offset = 0.5 in open air and says it
+// changes behind cover glass, so it is configurable.
 static constexpr float CCT_A = 4278.6f;
-static constexpr float CCT_OFFSET = 0.5f;
 static constexpr float CCT_EXPONENT = -1.2455f;
 
 void VEML6040Component::setup() {
@@ -47,8 +47,9 @@ void VEML6040Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "VEML6040:\n"
                 "  Integration time: %" PRIu32 " ms\n"
-                "  Glass attenuation factor: %.2f",
-                this->integration_time_ms_(), this->glass_attenuation_factor_);
+                "  Glass attenuation factor: %.2f\n"
+                "  Color temperature offset: %.3f",
+                this->integration_time_ms_(), this->glass_attenuation_factor_, this->color_temperature_offset_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Red channel", this->red_sensor_);
@@ -107,7 +108,8 @@ void VEML6040Component::update() {
   if (this->color_temperature_sensor_ != nullptr) {
     float cct = NAN;
     if (!saturated && green != 0) {
-      const float index = (static_cast<float>(red) - static_cast<float>(blue)) / green + CCT_OFFSET;
+      const float index =
+          (static_cast<float>(red) - static_cast<float>(blue)) / green + this->color_temperature_offset_;
       if (index > 0.0f)
         cct = CCT_A * powf(index, CCT_EXPONENT);
     }

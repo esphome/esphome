@@ -3,6 +3,7 @@ sensor:
     i2c_id: i2c_bus
     integration_time: 160ms
     glass_attenuation_factor: 1.2
+    color_temperature_offset: 0.42
     red_channel:
       name: VEML6040 Red
     green_channel:

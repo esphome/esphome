@@ -23,6 +23,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@aalaei"]
 DEPENDENCIES = ["i2c"]
 
+CONF_COLOR_TEMPERATURE_OFFSET = "color_temperature_offset"
 CONF_WHITE_CHANNEL = "white_channel"
 
 veml6040_ns = cg.esphome_ns.namespace("veml6040")
@@ -73,6 +74,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
+            cv.Optional(CONF_COLOR_TEMPERATURE_OFFSET, default=0.5): cv.float_,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -82,7 +84,10 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(
-        config, config[CONF_INTEGRATION_TIME], config[CONF_GLASS_ATTENUATION_FACTOR]
+        config,
+        config[CONF_INTEGRATION_TIME],
+        config[CONF_GLASS_ATTENUATION_FACTOR],
+        config[CONF_COLOR_TEMPERATURE_OFFSET],
     )
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_RED_CHANNEL, var.set_red_sensor)
