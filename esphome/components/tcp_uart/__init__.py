@@ -94,8 +94,7 @@ async def to_code(config: ConfigType) -> None:
         if (connections := config[CONF_MAX_CONNECTIONS]) > 1:
             cg.add_define("USE_TCP_UART_MAX_CONNECTIONS")
             cg.add(var.set_max_connections(connections))
-            if (turn_timeout := config.get(CONF_TURN_TIMEOUT)) is not None:
-                cg.add(var.set_turn_timeout(turn_timeout))
+            cg.add_optional(var.set_turn_timeout, config.get(CONF_TURN_TIMEOUT))
     else:
         socket.require_tcp_client_link()
     cg.add(var.set_port(config[CONF_PORT]))
