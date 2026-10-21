@@ -1697,7 +1697,7 @@ void WiFiComponent::apply_ap_dns_() {
   }
   if (!changed)
     return;
-    // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
+  // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
 #ifdef USE_WIFI_MANUAL_IP
   const bool ok = this->wifi_ap_ip_config_(this->ap_.get_manual_ip());
 #else
