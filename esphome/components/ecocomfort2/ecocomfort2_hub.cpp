@@ -279,7 +279,7 @@ void Ecocomfort2Hub::on_state_(const uint8_t *data, uint16_t len) {
     ESP_LOGW(TAG, "[%s] C_STATE too short: %u bytes", this->parent_->address_str(), len);
     return;
   }
-  const float temperature = static_cast<int16_t>(encode_uint16(data[3], data[4])) / 100.0f;
+  const float temperature = encode_value<int16_t>(&data[3]) / 100.0f;
   const float humidity = encode_uint16(data[5], data[6]) / 100.0f;
   const uint16_t voc = encode_uint16(data[7], data[8]);
   ESP_LOGD(TAG, "[%s] C_STATE: mode=0x%02x, speed=0x%02x, %.2f °C, %.2f %%, %u ppb, direction=%u",

@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cmath>
 #include <numbers>
@@ -131,6 +132,9 @@ static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x0
 // Data Header & Footer
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xAA, 0xFF, 0x03, 0x00};
 static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
+// Successful zone query ACK: header (4) + length (2) + command/status (2) + result (2) + zone type (2) +
+// 3 zones * 8 + footer (4). Zone coordinates may contain the command footer bytes.
+static constexpr uint8_t ZONE_ACK_FRAME_SIZE = 40;
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
@@ -160,17 +164,22 @@ static inline int16_t decode_speed(uint8_t low_byte, uint8_t high_byte) {
   return speed * 10;  // mm/s
 }
 
-static inline int16_t hex_to_signed_int(const uint8_t *buffer, uint8_t offset) {
-  uint16_t hex_val = (buffer[offset + 1] << 8) | buffer[offset];
-  int16_t dec_val = static_cast<int16_t>(hex_val);
-  if (dec_val & 0x8000) {
-    dec_val -= 65536;
-  }
-  return dec_val;
-}
-
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
+}
+
+// Drop the frame at the start of the buffer, keeping bytes from the next frame header (or a partial
+// header at the end). Returns the new buffer length.
+static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
+  for (uint8_t start = 1; start < len; start++) {
+    const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, len - start);
+    if (std::memcmp(&buffer[start], CMD_FRAME_HEADER, n) == 0 ||
+        std::memcmp(&buffer[start], DATA_FRAME_HEADER, n) == 0) {
+      std::memmove(buffer, &buffer[start], len - start);
+      return len - start;
+    }
+  }
+  return 0;
 }
 
 void LD2450Component::setup() {
@@ -371,10 +380,10 @@ void LD2450Component::process_zone_() {
   uint8_t index, start;
   for (index = 0; index < MAX_ZONES; index++) {
     start = 12 + index * 8;
-    this->zone_config_[index].x1 = ld2450::hex_to_signed_int(this->buffer_data_, start);
-    this->zone_config_[index].y1 = ld2450::hex_to_signed_int(this->buffer_data_, start + 2);
-    this->zone_config_[index].x2 = ld2450::hex_to_signed_int(this->buffer_data_, start + 4);
-    this->zone_config_[index].y2 = ld2450::hex_to_signed_int(this->buffer_data_, start + 6);
+    this->zone_config_[index].x1 = encode_value_le<int16_t>(&this->buffer_data_[start]);
+    this->zone_config_[index].y1 = encode_value_le<int16_t>(&this->buffer_data_[start + 2]);
+    this->zone_config_[index].x2 = encode_value_le<int16_t>(&this->buffer_data_[start + 4]);
+    this->zone_config_[index].y2 = encode_value_le<int16_t>(&this->buffer_data_[start + 6]);
 #ifdef USE_NUMBER
     // only one null check as all coordinates are required for a single zone
     if (this->zone_numbers_[index].x1 != nullptr) {
@@ -487,7 +496,7 @@ void LD2450Component::handle_periodic_data_() {
 #ifdef USE_SENSOR
     // RESOLUTION
     start = TARGET_RESOLUTION + index * 8;
-    res = (this->buffer_data_[start + 1] << 8) | this->buffer_data_[start];
+    res = encode_value_le<uint16_t>(&this->buffer_data_[start]);
 #endif
     // SPEED
     start = TARGET_SPEED + index * 8;
@@ -756,6 +765,9 @@ bool LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_ZONE:
+      if (this->buffer_pos_ < ZONE_ACK_FRAME_SIZE) {
+        return false;  // command footer bytes inside the coordinates; keep reading
+      }
       ESP_LOGV(TAG, "Query zone conf");
       this->zone_type_ = this->buffer_data_[10];
       this->publish_zone_type();
@@ -808,21 +820,29 @@ void LD2450Component::readline_(int readch) {
   }
   if (this->buffer_data_[this->buffer_pos_ - 2] == DATA_FRAME_FOOTER[0] &&
       this->buffer_data_[this->buffer_pos_ - 1] == DATA_FRAME_FOOTER[1]) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
     this->handle_periodic_data_();
     this->buffer_pos_ = 0;  // Reset position index for next frame
   } else if (ld2450::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
     if (this->handle_ack_data_()) {
       this->buffer_pos_ = 0;  // Reset position index for next message
     } else {
       ESP_LOGV(TAG, "Ack Data incomplete");
+    }
+  } else if (this->buffer_pos_ == ZONE_ACK_FRAME_SIZE && this->buffer_data_[COMMAND] == CMD_QUERY_ZONE &&
+             ld2450::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
+    ESP_LOGW(TAG, "Truncated zone ACK");
+    // Replay the retained bytes so frames already complete inside them are dispatched.
+    // At most ZONE_ACK_FRAME_SIZE - 1 bytes are replayed from position 0, so neither this
+    // branch nor the overflow path can be re-entered during the replay.
+    uint8_t pending[ZONE_ACK_FRAME_SIZE];
+    const uint8_t pending_len = ld2450::drop_to_next_header(this->buffer_data_, this->buffer_pos_);
+    std::memcpy(pending, this->buffer_data_, pending_len);
+    this->buffer_pos_ = 0;
+    this->buffer_data_[0] = 0;
+    for (uint8_t i = 0; i < pending_len; i++) {
+      this->readline_(pending[i]);  // NOLINT(misc-no-recursion)
     }
   }
 }
@@ -937,7 +957,13 @@ void LD2450Component::set_direction_text_sensor(uint8_t target, text_sensor::Tex
 
 // Send Zone coordinates data to LD2450
 #ifdef USE_NUMBER
-void LD2450Component::set_zone_coordinate(uint8_t zone) {
+void LD2450Component::set_zone_coordinate(number::Number *n) {
+  uint8_t zone = 0;
+  while (zone < MAX_ZONES && this->zone_numbers_[zone].x1 != n && this->zone_numbers_[zone].y1 != n &&
+         this->zone_numbers_[zone].x2 != n && this->zone_numbers_[zone].y2 != n)
+    zone++;
+  if (zone == MAX_ZONES)
+    return;
   number::Number *x1sens = this->zone_numbers_[zone].x1;
   number::Number *y1sens = this->zone_numbers_[zone].y1;
   number::Number *x2sens = this->zone_numbers_[zone].x2;

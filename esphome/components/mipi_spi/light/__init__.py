@@ -32,8 +32,8 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(MipiSpiLight),
             cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(MipiSpi),
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
-            cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.int_range(0, 255),
-            cv.Optional(CONF_MAX_BRIGHTNESS, default=255): cv.int_range(0, 255),
+            cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint8_t,
+            cv.Optional(CONF_MAX_BRIGHTNESS, default=255): cv.uint8_t,
         }
     ),
     _validate_brightness_range,

@@ -12,6 +12,7 @@ import contextlib
 import pytest
 
 from .log_utils import LineWaiter
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 PAYLOAD = b"ping!"
@@ -34,9 +35,7 @@ async def test_tcp_uart_server(
         run_compiled(yaml_config, line_callback=lines.callback),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "tcp-uart-server-test"
+        await assert_device_name(client, "tcp-uart-server-test")
         await lines.wait_for(f"Listening on {allowed_port}")
         await lines.wait_for(f"Listening on {denied_port}")
 

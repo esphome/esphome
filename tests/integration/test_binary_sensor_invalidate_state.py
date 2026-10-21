@@ -14,8 +14,9 @@ import asyncio
 from aioesphomeapi import BinarySensorInfo, BinarySensorState, EntityState
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import InitialStateHelper, assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -50,9 +51,7 @@ async def test_binary_sensor_invalidate_state(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-binary-sensor-invalidate"
+        await assert_device_name(client, "test-binary-sensor-invalidate")
 
         # Get entities
         entities, _ = await client.list_entities_services()
@@ -92,10 +91,7 @@ async def test_binary_sensor_invalidate_state(
         state_future = loop.create_future()
         client.button_command(set_true_button.key)
 
-        try:
-            state = await asyncio.wait_for(state_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for state=true")
+        state = await wait_or_fail(state_future, 5.0, "Timeout waiting for state=true")
 
         assert state.missing_state is False, (
             f"After setting true, missing_state should be False, got {state}"
@@ -107,10 +103,7 @@ async def test_binary_sensor_invalidate_state(
         state_future = loop.create_future()
         client.button_command(set_false_button.key)
 
-        try:
-            state = await asyncio.wait_for(state_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for state=false")
+        state = await wait_or_fail(state_future, 5.0, "Timeout waiting for state=false")
 
         assert state.missing_state is False, (
             f"After setting false, missing_state should be False, got {state}"
@@ -123,14 +116,13 @@ async def test_binary_sensor_invalidate_state(
         state_future = loop.create_future()
         client.button_command(invalidate_button.key)
 
-        try:
-            state = await asyncio.wait_for(state_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for invalidated state - "
-                "binary_sensor.invalidate_state() may not be reporting to the API. "
-                "See issue #12252."
-            )
+        state = await wait_or_fail(
+            state_future,
+            5.0,
+            "Timeout waiting for invalidated state - "
+            "binary_sensor.invalidate_state() may not be reporting to the API. "
+            "See issue #12252.",
+        )
 
         assert state.missing_state is True, (
             f"After invalidate_state(), missing_state should be True (unknown), "

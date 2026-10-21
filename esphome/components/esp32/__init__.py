@@ -243,7 +243,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_coex",  # WiFi/BT coexistence - re-included by esp32_ble_tracker, zigbee; esp_wifi/bt pull it back
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
-    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
+    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, hdmi_cec, opentherm, Arduino BLE libs
     "esp_driver_i2c",  # I2C driver - re-included by i2c; esp32-camera pulls it back itself
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
     "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
@@ -1183,7 +1183,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
     cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
-    cv.Version(3, 3, 12): cv.Version(5, 5, 5),
+    cv.Version(3, 3, 12): cv.Version(5, 5, 6),
     cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
     cv.Version(3, 3, 9): cv.Version(5, 5, 4),
@@ -1207,9 +1207,9 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 5),
-    "latest": cv.Version(5, 5, 5),
-    "dev": cv.Version(5, 5, 5),
+    "recommended": cv.Version(5, 5, 6),
+    "latest": cv.Version(5, 5, 6),
+    "dev": cv.Version(5, 5, 6),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
@@ -1219,6 +1219,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(5, 5, 6): cv.Version(55, 3, 312),
     cv.Version(5, 5, 5): cv.Version(55, 3, 312),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),

@@ -12,10 +12,7 @@ HaierTundra = haier_tundra_ns.class_("HaierTundra", climate_ir.ClimateIR)
 
 CONF_UNIT = "unit"
 Unit = haier_tundra_ns.enum("Unit")
-UNITS = {
-    "a": Unit.HAIER_HEADER_UNIT_A,
-    "b": Unit.HAIER_HEADER_UNIT_B,
-}
+UNITS = Unit.options("a", "b", prefix="HAIER_HEADER_UNIT_")
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(HaierTundra).extend(
     {
