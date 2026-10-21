@@ -286,6 +286,10 @@ void DeltaWallbox::send_next_state_command_() {
       ESP_LOGI(TAG, "Requesting charger main firmware version...");
       this->send_frame_(CMD_GET_CHARGER_FW_VERSION, sizeof(CMD_GET_CHARGER_FW_VERSION));
       break;
+    case DeltaState::DELTA_STATE_GET_SERIAL_NUMBER:
+      ESP_LOGI(TAG, "Requesting wallbox serial number...");
+      this->send_frame_(CMD_GET_SERIAL_NUMBER, sizeof(CMD_GET_SERIAL_NUMBER));
+      break;
     default:
       return;
   }
@@ -417,6 +421,23 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->fw_version_sensor_->publish_state(ver);
         }
       }
+      this->advance_to_(DeltaState::DELTA_STATE_GET_SERIAL_NUMBER);
+      break;
+    }
+    case DeltaState::DELTA_STATE_GET_SERIAL_NUMBER: {
+      // Serial read (0x0109) returns 14 ASCII bytes instead of one register
+      if (frame[2] >= SERIAL_TEXT_BYTE_COUNT) {
+        char serial[SERIAL_TEXT_BYTE_COUNT + 1];
+        size_t serial_len = 0;
+        for (size_t i = 0; i < SERIAL_TEXT_BYTE_COUNT; i++) {
+          if (frame[3 + i] != '\0')
+            serial[serial_len++] = static_cast<char>(frame[3 + i]);
+        }
+       serial[serial_len] = '\0';
+        ESP_LOGI(TAG, "Wallbox serial text: %s", serial);
+        if (this->serial_number_sensor_ != nullptr)
+          this->serial_number_sensor_->publish_state(serial);
+      }
       this->advance_to_(DeltaState::DELTA_STATE_CONNECTED);
       ESP_LOGI(TAG, "Authentication complete. Core parameters loaded.");
       this->status_clear_warning();
@@ -460,25 +481,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
             this->max_current_sensor_->publish_state(amps);
           }
 
-          // Query system serial number next
-          this->send_frame_(CMD_GET_SERIAL_NUMBER, sizeof(CMD_GET_SERIAL_NUMBER));
-        } else if (byte_count == SERIAL_TEXT_BYTE_COUNT) {
-          // Serial read (0x0109) returns 14 ASCII bytes instead of one register
-          char serial[SERIAL_TEXT_BYTE_COUNT + 1];
-          size_t serial_len = 0;
-          for (size_t i = 0; i < SERIAL_TEXT_BYTE_COUNT; i++) {
-            if (frame[3 + i] != '\0')
-              serial[serial_len++] = static_cast<char>(frame[3 + i]);
-          }
-          serial[serial_len] = '\0';
-          ESP_LOGI(TAG, "Wallbox serial text: %s", serial);
-          if (this->serial_number_sensor_ != nullptr)
-            this->serial_number_sensor_->publish_state(serial);
-
-          // Poll the error code register once, after the serial reply
-          if (this->error_code_sensor_ != nullptr && !this->error_code_sensor_->has_state()) {
-            this->send_frame_(CMD_GET_ERROR_CODE, sizeof(CMD_GET_ERROR_CODE));
-          }
+          // Poll the error code register every cycle
+          this->send_frame_(CMD_GET_ERROR_CODE, sizeof(CMD_GET_ERROR_CODE));
         } else if (byte_count == REGISTER_BYTE_COUNT) {
           // Error status register (0x01B5)
           uint16_t reg_val = (frame[3] << 8) | frame[4];
