@@ -44,7 +44,6 @@ bool MQTTBackendESP32::initialize_() {
     mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
   }
 #ifdef USE_MQTT_TLS
-  mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
   mqtt_cfg_.broker.verification.skip_cert_common_name_check = this->skip_cert_cn_check_;
   mqtt_cfg_.broker.verification.certificate = this->ca_certificate_;
 #ifdef USE_MQTT_CERT_BUNDLE
@@ -53,9 +52,26 @@ bool MQTTBackendESP32::initialize_() {
   // Validation only accepts the client certificate together with its key
   mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_;
   mqtt_cfg_.credentials.authentication.key = this->cl_key_;
-#else
-  mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
 #endif
+  // Validation keeps TLS off plain ws, so only the TCP transport has two forms
+  switch (this->transport_) {
+    case MQTTTransport::MQTT_TRANSPORT_WS:
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
+      break;
+    case MQTTTransport::MQTT_TRANSPORT_WSS:
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
+      break;
+    case MQTTTransport::MQTT_TRANSPORT_TCP:
+    default:
+#ifdef USE_MQTT_TLS
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+#else
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+#endif
+      break;
+  }
+  // Only set for the WebSocket transports
+  mqtt_cfg_.broker.address.path = this->ws_path_;
 
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {

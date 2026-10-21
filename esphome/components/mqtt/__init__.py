@@ -64,6 +64,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
+    Framework,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -82,6 +83,13 @@ def AUTO_LOAD():
 CONF_TLS = "tls"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_TRANSPORT = "transport"
+CONF_WS_PATH = "ws_path"
+
+MQTT_TRANSPORT_TCP = "tcp"
+MQTT_TRANSPORT_WS = "ws"
+MQTT_TRANSPORT_WSS = "wss"
+DEFAULT_WS_PATH = "/mqtt"
 
 # Max lengths for stack-based topic building.
 # These values are used in cv.Length() validators below to ensure the C++ code
@@ -159,8 +167,36 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
     "device_name": MQTTDiscoveryObjectIdGenerator.MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 }
 
+# Only ESP-IDF's esp-mqtt implements MQTT over WebSocket
+MQTTTransport = mqtt_ns.enum("MQTTTransport", is_class=True)
+MQTT_TRANSPORT_OPTIONS = {
+    MQTT_TRANSPORT_TCP: MQTTTransport.MQTT_TRANSPORT_TCP,
+    MQTT_TRANSPORT_WS: MQTTTransport.MQTT_TRANSPORT_WS,
+    MQTT_TRANSPORT_WSS: MQTTTransport.MQTT_TRANSPORT_WSS,
+}
+
+
+def _validate_transport(value: str) -> str:
+    value = cv.enum(MQTT_TRANSPORT_OPTIONS, lower=True)(value)
+    if value in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
+        if not CORE.is_esp32:
+            raise cv.Invalid(
+                f"transport '{value}' is currently only supported on ESP32"
+            )
+        if CORE.target_framework != Framework.ESP_IDF:
+            raise cv.Invalid(f"transport '{value}' requires the esp-idf framework")
+    return value
+
 
 def validate_config(value):
+    if (
+        value.get(CONF_TRANSPORT) not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
+        and CONF_WS_PATH in value
+    ):
+        raise cv.Invalid(
+            f"'{CONF_WS_PATH}' is only valid when 'transport' is 'ws' or 'wss'"
+        )
+
     # Populate default fields
     out = value.copy()
     topic_prefix = value[CONF_TOPIC_PREFIX]
@@ -215,7 +251,7 @@ TLS_IMPLYING_KEYS = frozenset(
 
 
 def _validate_tls(config: ConfigType) -> ConfigType:
-    """Derive ``tls`` from the certificate options, reject contradictions, pick the port."""
+    """Derive ``tls`` from the certificate options and the transport, reject contradictions, pick the port."""
     if config.get(CONF_VERIFY_SSL) is False:
         if CONF_CERTIFICATE_AUTHORITY in config:
             raise cv.Invalid(
@@ -226,13 +262,24 @@ def _validate_tls(config: ConfigType) -> ConfigType:
                 "'skip_cert_cn_check' has no effect when 'verify_ssl' is false."
             )
     # skip_cert_cn_check always has a default on ESP32, so test its value, not its presence
-    if config.keys() & TLS_IMPLYING_KEYS or config.get(CONF_SKIP_CERT_CN_CHECK):
+    transport = config.get(CONF_TRANSPORT)
+    if (
+        config.keys() & TLS_IMPLYING_KEYS
+        or config.get(CONF_SKIP_CERT_CN_CHECK)
+        or transport == MQTT_TRANSPORT_WSS
+    ):
         if config.get(CONF_TLS) is False:
             raise cv.Invalid(
-                "'tls' cannot be false when a certificate, 'verify_ssl' or "
-                "'skip_cert_cn_check' is set."
+                "'tls' cannot be false when a certificate, 'verify_ssl', "
+                "'skip_cert_cn_check' or transport 'wss' is set."
             )
         config[CONF_TLS] = True
+    # TLS with plain ws is almost certainly a typo for wss
+    if transport == MQTT_TRANSPORT_WS and config.get(CONF_TLS):
+        raise cv.Invalid(
+            "transport 'ws' is unencrypted; remove the TLS options "
+            "or switch to transport 'wss'"
+        )
     config.setdefault(CONF_PORT, 8883 if config.get(CONF_TLS) else 1883)
     return config
 
@@ -265,6 +312,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
+            cv.Optional(
+                CONF_TRANSPORT, default=MQTT_TRANSPORT_TCP
+            ): _validate_transport,
+            cv.Optional(CONF_WS_PATH): cv.string,
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
@@ -398,8 +449,7 @@ async def to_code(config):
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
-    if CONF_CLIENT_ID in config:
-        cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
+    cg.add_optional(var.set_client_id, config.get(CONF_CLIENT_ID))
 
     discovery = config[CONF_DISCOVERY]
     discovery_retain = config[CONF_DISCOVERY_RETAIN]
@@ -472,6 +522,7 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     # esp-idf only
+    transport = config.get(CONF_TRANSPORT)
     if config.get(CONF_TLS):
         cg.add_define("USE_MQTT_TLS")
         if (client_certificate := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
@@ -488,6 +539,12 @@ async def to_code(config):
         else:
             cg.add_define("USE_MQTT_CERT_BUNDLE")
             require_certificate_bundle()
+
+    if CORE.is_esp32:
+        if transport != MQTT_TRANSPORT_TCP:
+            cg.add(var.set_transport(transport))
+        if transport in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
+            cg.add(var.set_ws_path(config.get(CONF_WS_PATH, DEFAULT_WS_PATH)))
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
@@ -607,12 +664,9 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
-    if CONF_QOS in config:
-        cg.add(var.set_qos(config[CONF_QOS]))
-    if CONF_RETAIN in config:
-        cg.add(var.set_retain(config[CONF_RETAIN]))
-    if CONF_SUBSCRIBE_QOS in config:
-        cg.add(var.set_subscribe_qos(config[CONF_SUBSCRIBE_QOS]))
+    cg.add_optional(var.set_qos, config.get(CONF_QOS))
+    cg.add_optional(var.set_retain, config.get(CONF_RETAIN))
+    cg.add_optional(var.set_subscribe_qos, config.get(CONF_SUBSCRIBE_QOS))
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
@@ -623,8 +677,7 @@ async def register_mqtt_component(var, config):
             config[CONF_COMMAND_TOPIC], [], cg.std_string
         )
         cg.add(var.set_custom_command_topic(command_topic))
-    if CONF_COMMAND_RETAIN in config:
-        cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
+    cg.add_optional(var.set_command_retain, config.get(CONF_COMMAND_RETAIN))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
         if not availability:

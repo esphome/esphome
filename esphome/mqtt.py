@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 import paho.mqtt.client as mqtt
 
-from esphome.components.mqtt import CONF_TLS, CONF_VERIFY_SSL
 from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
@@ -96,10 +95,26 @@ def prepare(
             time.sleep(wait_time)
             tries += 1
 
-    client = mqtt.Client(client_id or "")
+    # Match the firmware's transport; imported here to keep component code off the CLI start-up path
+    from esphome.components.mqtt import (
+        CONF_TLS,
+        CONF_TRANSPORT,
+        CONF_VERIFY_SSL,
+        CONF_WS_PATH,
+        DEFAULT_WS_PATH,
+        MQTT_TRANSPORT_TCP,
+    )
+
+    transport = config[CONF_MQTT].get(CONF_TRANSPORT, MQTT_TRANSPORT_TCP)
+    websocket = transport != MQTT_TRANSPORT_TCP
+    client = mqtt.Client(
+        client_id or "", transport="websockets" if websocket else "tcp"
+    )
     client.on_connect = on_connect_
     client.on_message = on_message
     client.on_disconnect = on_disconnect
+    if websocket:
+        client.ws_set_options(path=config[CONF_MQTT].get(CONF_WS_PATH, DEFAULT_WS_PATH))
     if username is None:
         if config[CONF_MQTT].get(CONF_USERNAME):
             client.username_pw_set(
@@ -109,7 +124,7 @@ def prepare(
         client.username_pw_set(username, password)
 
     mqtt_conf = config[CONF_MQTT]
-    # Validation sets tls whenever a certificate option implies it
+    # Validation sets tls whenever a certificate option or the wss transport implies it
     if mqtt_conf.get(CONF_TLS):
         if mqtt_conf.get(CONF_VERIFY_SSL) is False:
             context = ssl.create_default_context()

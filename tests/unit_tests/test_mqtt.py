@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome import mqtt as mqtt_module
 from esphome.components.const import CONF_VERIFY_SSL
 from esphome.components.mqtt import CONF_TLS
 from esphome.const import (
@@ -30,7 +29,7 @@ from esphome.const import (
     CONF_TOPIC,
 )
 from esphome.core import EsphomeError
-from esphome.mqtt import get_esphome_device_ip, show_logs
+from esphome.mqtt import get_esphome_device_ip, prepare, show_logs
 
 
 @pytest.mark.parametrize(
@@ -466,6 +465,54 @@ def test_get_esphome_device_ip_invalid_address_values_skipped(
     )
 
 
+@pytest.mark.parametrize(
+    ("transport", "ws_path", "expect_tls", "expect_path"),
+    [
+        (None, None, False, None),
+        ("ws", None, False, "/mqtt"),
+        ("wss", "/ws", True, "/ws"),
+    ],
+    ids=["tcp", "ws with the default path", "wss with a path"],
+)
+@patch("esphome.mqtt.ssl.create_default_context")
+@patch("esphome.mqtt.mqtt.Client")
+def test_prepare_follows_the_firmware_transport(
+    mock_client_class: MagicMock,
+    mock_context: MagicMock,
+    transport: str | None,
+    ws_path: str | None,
+    expect_tls: bool,
+    expect_path: str | None,
+) -> None:
+    """The CLI client speaks WebSocket, and TLS over wss, when the firmware is configured to."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_PORT] = 1883
+    if transport is not None:
+        config[CONF_MQTT]["transport"] = transport
+    if ws_path is not None:
+        config[CONF_MQTT]["ws_path"] = ws_path
+    if expect_tls:
+        # Validation switches tls on for wss
+        config[CONF_MQTT][CONF_TLS] = True
+    client = mock_client_class.return_value
+
+    assert prepare(config, [], None, None, None, None, None) is client
+
+    mock_client_class.assert_called_once_with(
+        "", transport="websockets" if expect_path else "tcp"
+    )
+    if expect_path is None:
+        client.ws_set_options.assert_not_called()
+    else:
+        client.ws_set_options.assert_called_once_with(path=expect_path)
+    if expect_tls:
+        mock_context.assert_called_once_with(cadata=None)
+        client.tls_set_context.assert_called_once_with(mock_context.return_value)
+    else:
+        client.tls_set_context.assert_not_called()
+    client.connect.assert_called_once_with("mqtt.local", 1883)
+
+
 def _mqtt_config(options: dict | None = None) -> dict:
     return {
         CONF_MQTT: {CONF_BROKER: "broker.local", CONF_PORT: 8883, **(options or {})}
@@ -482,7 +529,7 @@ def _prepare_with_mocks(config: dict) -> tuple[MagicMock, MagicMock, MagicMock]:
         context = create_context.return_value
         # A real context verifies hostnames unless prepare() turns that off
         context.check_hostname = True
-        mqtt_module.prepare(config, [], None, None, None, None, None)
+        prepare(config, [], None, None, None, None, None)
     return client, create_context, context
 
 

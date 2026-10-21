@@ -4,6 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::pcf8574 {
 
@@ -56,31 +57,8 @@ class PCF8574Component final : public Component,
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-/// Helper class to expose a PCF8574 pin as an internal input GPIO pin.
-class PCF8574GPIOPin final : public GPIOPin {
- public:
-  // User provided, not "= default": `new(p) PCF8574GPIOPin()` would zero-fill .bss that is already zero.
-  PCF8574GPIOPin() {}
-
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_parent(PCF8574Component *parent) { parent_ = parent; }
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  // Call after set_parent() and set_pin(): input flags register the pin with the parent.
-  void set_flags(gpio::Flags flags);
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  PCF8574Component *parent_{nullptr};
-  uint8_t pin_{0};
-  bool inverted_{false};
-  gpio::Flags flags_{};
-};
+using PCF8574GPIOPin = gpio_expander::ExpanderGPIOPin<PCF8574Component>;
 
 }  // namespace esphome::pcf8574
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::pcf8574::PCF8574Component);
