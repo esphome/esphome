@@ -54,6 +54,12 @@ class MitsubishiCN105 {
     UNKNOWN,
   };
 
+  // Direction the unit is driving the room toward while running in AUTO mode.
+  enum class AutoDirection : uint8_t {
+    HEAT,
+    COOL,
+  };
+
   struct Status {
     float target_temperature{NAN};
     float room_temperature{NAN};
