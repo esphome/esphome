@@ -89,14 +89,11 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def register_mitsubishi_cn105_device(var: MockObj, config: ConfigType) -> None:
-    parent = await cg.get_variable(config[CONF_MITSUBISHI_CN105_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_MITSUBISHI_CN105_ID])
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     cg.add(
         var.set_heatpump_request_min_interval(
             config[CONF_HEATPUMP_REQUEST_MIN_INTERVAL]

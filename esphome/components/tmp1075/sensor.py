@@ -74,8 +74,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_CONVERSION_RATE in config:
-        cg.add(var.set_conversion_rate(config[CONF_CONVERSION_RATE]))
+    cg.add_optional(var.set_conversion_rate, config.get(CONF_CONVERSION_RATE))
 
     alert = config[CONF_ALERT]
     if CONF_LIMIT_LOW in alert:
