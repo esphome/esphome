@@ -73,13 +73,6 @@ def _validate_position(config: dict) -> dict:
         raise cv.Invalid(f"Must specify both '{CONF_X}' and '{CONF_Y}' options")
     raise cv.Invalid("Must specify either 'x' and 'y' or 'centered_on_display'")
 
-    if CONF_SNAPSHOT_KEY in config:
-        raise cv.Invalid(
-            f"'{CONF_SNAPSHOT_KEY}' cannot be used when '{CONF_HEADLESS}' is set - "
-            f"there is no keyboard. Use the 'snapshot.take' action instead"
-        )
-    return config
-
 
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
