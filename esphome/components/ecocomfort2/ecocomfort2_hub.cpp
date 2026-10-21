@@ -414,12 +414,28 @@ void Ecocomfort2Hub::on_advanced_(const uint8_t *data, uint16_t len) {
   this->publish_offsets_();
 }
 
+// Numbers and selects run their callbacks on every publish, so an unchanged value is skipped: an on_value
+// automation that writes another setting must not trigger itself again
+#ifdef USE_NUMBER
+static void publish_if_changed(number::Number *number, float value) {
+  if (number != nullptr && (!number->has_state() || number->state != value))
+    number->publish_state(value);
+}
+#endif
+#ifdef USE_SELECT
+static void publish_if_changed(select::Select *select, size_t index) {
+  if (select == nullptr)
+    return;
+  const auto current = select->active_index();
+  if (!current.has_value() || *current != index)
+    select->publish_state(index);
+}
+#endif
+
 void Ecocomfort2Hub::publish_config_() {
 #ifdef USE_NUMBER
-  for (size_t i = 0; i < sizeof(this->thresholds_); i++) {
-    if (this->numbers_[i] != nullptr)
-      this->numbers_[i]->publish_state(this->thresholds_[i] & THRESHOLD_LEVEL_MASK);
-  }
+  for (size_t i = 0; i < sizeof(this->thresholds_); i++)
+    publish_if_changed(this->numbers_[i], this->thresholds_[i] & THRESHOLD_LEVEL_MASK);
 #endif
 #ifdef USE_SWITCH
   for (uint8_t i = 0; i < static_cast<uint8_t>(SwitchSetting::COUNT); i++) {
@@ -432,23 +448,20 @@ void Ecocomfort2Hub::publish_config_() {
 #ifdef USE_SELECT
   const bool summer = (this->season_byte_ & SEASON_SUMMER) != 0;
   auto *season = this->selects_[static_cast<uint8_t>(SelectSetting::SEASON)];
-  if (season != nullptr)
-    season->publish_state(static_cast<size_t>(summer));
+  publish_if_changed(season, static_cast<size_t>(summer));
   // The unit keeps the free cooling level through winter but only runs it in summer
   auto *free_cooling = this->selects_[static_cast<uint8_t>(SelectSetting::FREE_COOLING)];
   const uint8_t level = summer ? this->season_byte_ & KEEP_FREE_COOLING : 0;
   if (free_cooling != nullptr && free_cooling->has_index(level))
-    free_cooling->publish_state(static_cast<size_t>(level));
+    publish_if_changed(free_cooling, static_cast<size_t>(level));
 #endif
 }
 
 void Ecocomfort2Hub::publish_offsets_() {
 #ifdef USE_NUMBER
-  for (uint8_t i = 0; i < 2; i++) {
-    auto *offset = this->numbers_[static_cast<uint8_t>(NumberSetting::TEMPERATURE_OFFSET) + i];
-    if (offset != nullptr)
-      offset->publish_state(this->offsets_[i] / 100.0f);
-  }
+  for (uint8_t i = 0; i < 2; i++)
+    publish_if_changed(this->numbers_[static_cast<uint8_t>(NumberSetting::TEMPERATURE_OFFSET) + i],
+                       this->offsets_[i] / 100.0f);
 #endif
 }
 
