@@ -275,21 +275,19 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     return false;
   }
 
-  // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
+    // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
   // Catches mode/power changes made outside ESPHome (IR remote, Mitsubishi app); setters handle local changes.
-  if (previous.mode == Mode::UNKNOWN) {
-    // Initial sync after boot/reconnect: nothing changed on the unit, so there's no spin-down to latch.
-    // Just make sure a 0x06 is requested promptly.
-    this->refresh_operating_();
-  } else if (previous.power_on != this->status_.power_on) {
+  // On the initial sync after boot/reconnect (previous.mode == UNKNOWN) nothing actually changed on the unit, so
+  // there's no spin-down to latch; just request a fresh 0x06.
+  const bool initial_sync = previous.mode == Mode::UNKNOWN;
+  if (!initial_sync && previous.power_on != this->status_.power_on) {
     // A unit that was off has no residual run; only latch when turning off.
     this->invalidate_operating_(/*arm_settle=*/previous.power_on);
-  } else if (previous.mode != this->status_.mode) {
+  } else if (!initial_sync && previous.mode != this->status_.mode) {
     this->handle_mode_change_(previous.mode);
-  } else if (previous.target_temperature != this->status_.target_temperature) {
+  } else if (initial_sync || previous.target_temperature != this->status_.target_temperature) {
     this->refresh_operating_();
   }
-
   if (msg_type == this->current_status_msg_type_) {
     this->set_state_(State::STATUS_UPDATED);
   }
