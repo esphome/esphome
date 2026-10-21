@@ -226,7 +226,10 @@ void KeeloqRemote::store_accepted_(bool sync) {
 void KeeloqRemote::take_over_next_frame() {
   ESP_LOGI(TAG, "Press the hand remote now");
   this->waiting_ = true;
-  this->set_timeout(TAKE_OVER_TIMEOUT_ID, TAKE_OVER_TIMEOUT_MS, [this]() { this->waiting_ = false; });
+  this->set_timeout(TAKE_OVER_TIMEOUT_ID, TAKE_OVER_TIMEOUT_MS, [this]() {
+    this->waiting_ = false;
+    ESP_LOGW(TAG, "Take-over timed out without a press of the hand remote");
+  });
 }
 
 uint32_t KeeloqRemote::preference_key(KeeloqType type, uint32_t serial) {

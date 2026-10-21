@@ -25,6 +25,8 @@ keeloq:
     manufacturer_key: "0x1A2B3C4D5E6F7081"
     receiver_id: rcvr
     channels: [1, 2]
+    on_command:
+      - logger.log: "Hand remote pressed"
 
 button:
   - platform: template

@@ -208,7 +208,6 @@ async def to_code(config: ConfigType) -> None:
             "add_on_command_callback",
             _FRAME_ARGS,
             conf,
-            params=_FRAME_ARGS,
             when=when,
         )
 
