@@ -815,8 +815,7 @@ ZIGBEE_MAX_EP_NUMBER = 239
 
 _zigbee_ns = cg.esphome_ns.namespace("zigbee")
 _ZigbeeComponent = _zigbee_ns.class_("ZigbeeComponent", cg.Component)
-_zigbee_report = _zigbee_ns.enum("ZigbeeReportT")
-ZIGBEE_REPORT = _zigbee_report.options(
+ZIGBEE_REPORT = _zigbee_ns.enum("ZigbeeReportT").options(
     "coordinator", "enable", "force", "default", prefix="ZIGBEE_REPORT_"
 )
 
