@@ -33,11 +33,14 @@ void VEML6040Component::setup() {
   // The high byte of the configuration register is reserved and must be written as zero.
   const uint8_t config[] = {static_cast<uint8_t>(this->integration_time_ << CONFIG_REG_IT_BIT), 0x00};
   if (this->write_register(CONFIG_REG, config, sizeof config) != i2c::ERROR_OK) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  // The data registers hold zeros until the first integration period has finished
-  this->set_timeout(this->integration_time_ms_(), [this]() { this->data_ready_ = true; });
+  // The data registers hold zeros until the first integration period has finished; publish as soon as it has
+  this->set_timeout(this->integration_time_ms_(), [this]() {
+    this->data_ready_ = true;
+    this->update();
+  });
 }
 
 void VEML6040Component::dump_config() {
@@ -47,9 +50,6 @@ void VEML6040Component::dump_config() {
                 "  Glass attenuation factor: %.2f",
                 this->integration_time_ms_(), this->glass_attenuation_factor_);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Red channel", this->red_sensor_);
   LOG_SENSOR("  ", "Green channel", this->green_sensor_);
@@ -74,7 +74,7 @@ void VEML6040Component::update() {
   uint16_t red, green, blue, white;
   if (!this->read_channel_(R_DATA_REG, red) || !this->read_channel_(G_DATA_REG, green) ||
       !this->read_channel_(B_DATA_REG, blue) || !this->read_channel_(W_DATA_REG, white)) {
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->status_clear_warning();
