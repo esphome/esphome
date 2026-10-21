@@ -13,6 +13,7 @@ import contextlib
 import pytest
 
 from .log_utils import LineWaiter
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -71,9 +72,7 @@ async def test_tcp_uart_bridge(
             run_compiled(yaml_config, line_callback=lines.callback),
             api_client_connected() as client,
         ):
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "tcp-uart-bridge-test"
+            await assert_device_name(client, "tcp-uart-bridge-test")
             _, services = await client.list_entities_services()
             send_byte = next(s for s in services if s.name == "send_byte")
 

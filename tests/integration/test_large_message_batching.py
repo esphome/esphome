@@ -5,7 +5,7 @@ from __future__ import annotations
 from aioesphomeapi import SelectInfo
 import pytest
 
-from .state_utils import require_entity
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -19,9 +19,7 @@ async def test_large_message_batching(
     # Write, compile and run the ESPHome device, then connect to API
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Verify we can get device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "large-message-test"
+        await assert_device_name(client, "large-message-test")
 
         # List entities - this will include our select with many options
         entity_info, services = await client.list_entities_services()

@@ -11,6 +11,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -59,9 +60,7 @@ async def test_host_logger_thread_safety(
         api_client_connected() as client,
     ):
         # Verify connection works
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "host-logger-thread-test"
+        await assert_device_name(client, "host-logger-thread-test")
 
         # Get the button entity - find by name
         entities, _ = await client.list_entities_services()

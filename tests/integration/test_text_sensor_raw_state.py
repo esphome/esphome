@@ -14,7 +14,7 @@ import re
 
 import pytest
 
-from .state_utils import require_entity
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -132,9 +132,7 @@ async def test_text_sensor_raw_state(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-text-sensor-raw-state"
+        await assert_device_name(client, "test-text-sensor-raw-state")
 
         # Get entities to find our buttons
         entities, _ = await client.list_entities_services()

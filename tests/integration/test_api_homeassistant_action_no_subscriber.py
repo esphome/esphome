@@ -13,6 +13,7 @@ import asyncio
 from aioesphomeapi import ButtonInfo, HomeassistantServiceCall
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -59,8 +60,7 @@ async def test_api_homeassistant_action_no_subscriber(
         await asyncio.wait_for(boot_warning_future, timeout=10.0)
 
         async with api_client_connected() as client:
-            device_info = await client.device_info()
-            assert device_info.name == "test-ha-action-no-subscriber"
+            await assert_device_name(client, "test-ha-action-no-subscriber")
 
             # on_client_connected fired at authentication, before this client
             # subscribed to Home Assistant actions.

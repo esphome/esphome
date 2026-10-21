@@ -15,6 +15,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -50,9 +51,7 @@ async def test_wait_until_reentrant_restart(
         run_compiled(yaml_config, line_callback=check_output),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "wait-until-reentrant-restart"
+        await assert_device_name(client, "wait-until-reentrant-restart")
 
         _, services = await client.list_entities_services()
         self_restart_service = next(

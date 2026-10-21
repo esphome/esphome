@@ -21,6 +21,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -44,9 +45,7 @@ async def test_loop_interval_decoupling(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "loop-interval-decouple"
+        await assert_device_name(client, "loop-interval-decouple")
 
         loop_delta, sched_delta = await wait_or_fail(
             measurement_done, 10.0, "MEASUREMENT_DONE marker never appeared"
