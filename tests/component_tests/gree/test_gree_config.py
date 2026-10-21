@@ -48,14 +48,6 @@ def test_schema_accepts_all_builtin_models(
     assert "receiver_id" in validated
 
 
-def test_switch_supported_models_match_builtin_gree_models() -> None:
-    """Switch light/turbo/health/xfan support keeps parity with built-in models."""
-    from esphome.components.gree.climate import MODELS
-    from esphome.components.gree.switch import SUPPORTED_MODELS
-
-    assert set(MODELS) == set(SUPPORTED_MODELS)
-
-
 def test_yap1f_schema_rejects_invalid_direction_values(
     set_core_config: SetCoreConfigCallable,
 ) -> None:

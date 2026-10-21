@@ -179,24 +179,6 @@ void GreeClimate::set_model(Model model) {
     this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }
 
-  switch (model) {
-    case GREE_YAN:
-    case GREE_YAA:
-    case GREE_YAC:
-    case GREE_YAC1FB9:
-    case GREE_YAP1F:
-      this->mode_bits_ = GREE_MODE_BIT_LIGHT;
-      break;
-    case GREE_YX1FF:
-    case GREE_YAG:
-      this->mode_bits_ = GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_HEALTH;
-      break;
-    case GREE_GENERIC:
-    default:
-      this->mode_bits_ = 0;
-      break;
-  }
-
   if (model == GREE_YAP1F) {
     this->swing_modes_ = {climate::CLIMATE_SWING_OFF};
   } else {
@@ -372,7 +354,7 @@ void GreeClimate::transmit_state() {
     }
   }
 
-  if (gree_has_mode_bits(model)) {
+  if (model == GREE_YAN || model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
     // Merge the mode bits into remote_state[2]
     // Clear the mode bits (bits 4-7) and OR in the current mode_bits_
     remote_state[2] = (remote_state[2] & 0x0F) | this->mode_bits_;

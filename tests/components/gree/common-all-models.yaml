@@ -58,10 +58,6 @@ climate:
 
 switch:
   - platform: gree
-    gree_id: my_gree_generic
-    light:
-      name: "Generic Light"
-  - platform: gree
     gree_id: my_gree_ac
     light:
       name: "AC Lights"
@@ -83,15 +79,3 @@ switch:
     gree_id: my_gree_yac1fb9
     light:
       name: "YAC1FB9 Lights"
-  - platform: gree
-    gree_id: my_gree_yx1ff
-    light:
-      name: "YX1FF Lights"
-  - platform: gree
-    gree_id: my_gree_yag
-    light:
-      name: "YAG Lights"
-  - platform: gree
-    gree_id: my_gree_yap
-    light:
-      name: "YAP Lights"
