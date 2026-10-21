@@ -21,33 +21,31 @@ static const uint8_t MAX_ADJUSTMENTS_PER_UPDATE = 2;
 void VEML3235Sensor::setup() {
   uint8_t device_id[] = {0, 0};
   if (!this->refresh_config_reg()) {
-    ESP_LOGE(TAG, "Unable to write configuration");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unable to write configuration"));
     return;
   }
   if ((this->read_register(ID_REG, device_id, sizeof device_id) != i2c::ERROR_OK)) {
-    ESP_LOGE(TAG, "Unable to read ID");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unable to read ID"));
   } else if (device_id[0] != DEVICE_ID) {
     ESP_LOGE(TAG, "Incorrect device ID - expected 0x%.2x, read 0x%.2x", DEVICE_ID, device_id[0]);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Incorrect device ID"));
   }
 }
 
 bool VEML3235Sensor::refresh_config_reg() {
-  uint16_t data = 0x1;  // mandatory 1 per RM; shutdown bits cleared (device powered on)
+  uint16_t data = 0x100;  // mandatory 1 per RM; shutdown bits cleared (device powered on)
 
   data |= (uint16_t(this->integration_time_) << CONFIG_REG_IT_BIT);
   data |= (uint16_t(this->digital_gain_) << CONFIG_REG_DG_BIT);
   data |= (uint16_t(this->gain_) << CONFIG_REG_G_BIT);
 
   ESP_LOGVV(TAG, "Writing 0x%.4x to register 0x%.2x", data, CONFIG_REG);
-  return this->write_byte_16(CONFIG_REG, data);
+  return this->write_byte_16_le(CONFIG_REG, data);
 }
 
 void VEML3235Sensor::update() {
   if (this->measurement_in_progress_) {
-    ESP_LOGV(TAG, "'%s': Previous measurement still in progress; skipping update", this->get_name().c_str());
+    ESP_LOGV(TAG, "'%s': Previous measurement still in progress; skipping update", LOG_STR_ARG(this->get_log_name()));
     return;
   }
   this->measurement_in_progress_ = true;
@@ -56,16 +54,13 @@ void VEML3235Sensor::update() {
 
 void VEML3235Sensor::read_and_publish_(uint8_t adjustments_left) {
   uint8_t als_regs[] = {0, 0};
-  if ((this->read_register(ALS_REG, als_regs, sizeof als_regs) != i2c::ERROR_OK)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_register(ALS_REG, als_regs, sizeof als_regs) == i2c::ERROR_OK)) {
     this->publish_state(NAN);
     this->measurement_in_progress_ = false;
     return;
   }
 
-  this->status_clear_warning();
-
-  uint16_t als_counts = encode_uint16(als_regs[1], als_regs[0]);
+  uint16_t als_counts = encode_value_le<uint16_t>(als_regs);
 
   if (this->auto_gain_ && adjustments_left > 0) {
     // A sample integrated with the previous settings may still be in the data register after the
@@ -80,9 +75,9 @@ void VEML3235Sensor::read_and_publish_(uint8_t adjustments_left) {
   }
 
   float lux = this->counts_to_lux_(als_counts);
-  ESP_LOGVV(TAG, "'%s': ALS counts = %u, sensitivity = %ux", this->get_name().c_str(), als_counts,
+  ESP_LOGVV(TAG, "'%s': ALS counts = %u, sensitivity = %ux", LOG_STR_ARG(this->get_log_name()), als_counts,
             this->sensitivity_factor_());
-  ESP_LOGV(TAG, "'%s': Illuminance = %.4flx", this->get_name().c_str(), lux);
+  ESP_LOGV(TAG, "'%s': Illuminance = %.4flx", LOG_STR_ARG(this->get_log_name()), lux);
   this->publish_state(lux);
   this->measurement_in_progress_ = false;
 }
@@ -177,7 +172,7 @@ bool VEML3235Sensor::adjust_sensitivity_(uint16_t counts) {
     return false;
   }
 
-  ESP_LOGV(TAG, "'%s': Sensitivity adjusted from %ux to %ux (ALS counts = %u)", this->get_name().c_str(),
+  ESP_LOGV(TAG, "'%s': Sensitivity adjusted from %ux to %ux (ALS counts = %u)", LOG_STR_ARG(this->get_log_name()),
            current_factor, new_factor, counts);
   return true;
 }
@@ -187,9 +182,6 @@ void VEML3235Sensor::dump_config() {
 
   LOG_SENSOR("", "VEML3235", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Auto-gain enabled: %s", YESNO(this->auto_gain_));
   if (this->auto_gain_) {

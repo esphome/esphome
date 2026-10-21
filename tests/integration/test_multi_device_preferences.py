@@ -8,7 +8,9 @@ import re
 from aioesphomeapi import ButtonInfo, NumberInfo, SelectInfo, SwitchInfo
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -96,18 +98,17 @@ async def test_multi_device_preferences(
         assert len(selects) == 3, f"Expected 3 'Mode' selects, got {len(selects)}"
 
         # Find the test button entity to trigger preference logging
-        buttons = [e for e in entities if isinstance(e, ButtonInfo)]
-        test_button = next((b for b in buttons if b.name == "Test Preferences"), None)
-        assert test_button is not None, "Test Preferences button not found"
+        test_button = require_entity(
+            entities, "test_preferences", ButtonInfo, exact=True
+        )
 
         # Press the button to trigger logging
         client.button_command(test_button.key)
 
         # Wait for preference hashes to be logged
-        try:
-            await asyncio.wait_for(preferences_logged, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Preference hashes not logged within timeout")
+        await wait_or_fail(
+            preferences_logged, 5.0, "Preference hashes not logged within timeout"
+        )
 
         # Verify all switch preference hashes are unique
         assert len(switch_hashes) == 3, (

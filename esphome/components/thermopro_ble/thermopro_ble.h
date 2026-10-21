@@ -31,15 +31,11 @@ class ThermoProBLE final : public Component, public ble_device_base::ESPBTDevice
 
  protected:
   uint64_t address_;
-  std::string device_name_;
-  DeviceParser device_parser_{nullptr};
   sensor::Sensor *signal_strength_{nullptr};
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *external_temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
-
-  void update_device_type_(StringRef device_name);
 };
 
 }  // namespace esphome::thermopro_ble
