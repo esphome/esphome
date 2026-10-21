@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import importlib
 import importlib.abc
 import importlib.resources
@@ -40,7 +40,28 @@ class FileResource:
         )
 
 
-class ComponentManifest:
+@dataclass
+class _ExternalDocURLs:
+    urls: dict[str, str] = field(default_factory=dict)
+
+
+_EXTERNAL_DOC_URLS_KEY = "loader_external_doc_urls"
+
+
+def register_external_component_doc_url(component_name: str, doc_url: str) -> None:
+    """Record the documentation URL for a component loaded from an
+    `external_components:` source. Called by
+    `external_components._process_single_config` once per resolved component
+    name. Read later via `ComponentManifest.doc_url`.
+    """
+    # Local import: loader.py avoids eager esphome.core imports (see module docstring above).
+    from esphome.core import CORE
+
+    data = CORE.data.setdefault(_EXTERNAL_DOC_URLS_KEY, _ExternalDocURLs())
+    data.urls[component_name] = doc_url
+
+
+class ComponentManifest:  # pylint: disable=too-many-public-methods
     def __init__(self, module: ModuleType, recursive_sources: bool = False):
         self.module = module
         self.recursive_sources = recursive_sources
@@ -101,6 +122,26 @@ class ComponentManifest:
     @property
     def codeowners(self) -> list[str]:
         return getattr(self.module, "CODEOWNERS", [])
+
+    @property
+    def doc_url(self) -> str | None:
+        """Documentation URL for this component, if known.
+
+        A component can set `DOC_URL` to point at its own documentation page.
+        Otherwise, this returns the URL registered by the
+        `external_components:` source that provided it, if any.
+        """
+        if override := getattr(self.module, "DOC_URL", None):
+            return override
+        from esphome.core import CORE
+
+        data: _ExternalDocURLs | None = CORE.data.get(_EXTERNAL_DOC_URLS_KEY)
+        if data is None:
+            return None
+        parts = self.module.__name__.split(".")
+        if len(parts) < 3:
+            return None
+        return data.urls.get(parts[2])
 
     @property
     def aliases(self) -> list[str]:
