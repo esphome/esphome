@@ -273,6 +273,14 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     this->set_state_(State::STATUS_UPDATED);
   }
 
+  // A compressor state reported under the previous mode/power state is meaningless for the new one
+  // (e.g. "operating" while cooling must not be shown as "heating" after switching to HEAT).
+  // Invalidate it and clear the poll timestamp so should_request_heatpump_() fires on the next cycle.
+  if (previous.mode != this->status_.mode || previous.power_on != this->status_.power_on) {
+    this->status_.operating.reset();
+    this->last_heatpump_request_ms_.reset();
+  }
+
   bool changed =
       previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
       previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
