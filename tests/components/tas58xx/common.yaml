@@ -7,7 +7,9 @@ audio_dac:
     enable_pin: GPIO12
     analog_gain: -15.5dB
     dac_mode: btl
+    fault_output: adr
     mixer_mode: stereo
+    modulation: bd_mode
     volume_min_db: -60dB
     volume_max_db: 0dB
     update_interval: 1s
@@ -16,6 +18,8 @@ audio_dac:
     id: tas58xx_amp_2
     i2c_id: i2c_bus
     ignore_enable_pin_warning: true
+    fault_output: GPIO2
+    modulation: 1SPW_MODE
 
 esphome:
   on_boot:

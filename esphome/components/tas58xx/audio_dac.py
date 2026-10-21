@@ -19,8 +19,10 @@ DEPENDENCIES = ["i2c"]
 
 CONF_ANALOG_GAIN = "analog_gain"
 CONF_DAC_MODE = "dac_mode"
+CONF_FAULT_OUTPUT = "fault_output"
 CONF_IGNORE_ENABLE_PIN_WARNING = "ignore_enable_pin_warning"
 CONF_MIXER_MODE = "mixer_mode"
+CONF_MODULATION = "modulation"
 CONF_VOLUME_MIN_DB = "volume_min_db"
 CONF_VOLUME_MAX_DB = "volume_max_db"
 CONF_TAS58XX_ID = "tas58xx_id"
@@ -39,6 +41,11 @@ MIXER_MODES = MixerMode.options(
     "stereo", "stereo_inverse", "mono", "left", "right", prefix="MIXER_MODE_"
 )
 
+Modulation = tas58xx_ns.enum("Modulation")
+MODULATIONS = Modulation.options("bd_mode", "1spw_mode", prefix="MODULATION_")
+
+FAULT_OUTPUT_NONE = "none"
+
 
 @dataclass(frozen=True)
 class Model:
@@ -49,6 +56,9 @@ class Model:
     volume_min_db: float
     volume_max_db: float
     default_address: int
+    # Pins that can report FAULTZ: name -> pin number n, selected at 0x61 + n (ModelInfo::fault_output_pins)
+    fault_outputs: dict[str, int]
+    default_fault_output: str
 
 
 MODELS: dict[str, Model] = {
@@ -58,6 +68,8 @@ MODELS: dict[str, Model] = {
         volume_min_db=-103.0,
         volume_max_db=24.0,
         default_address=0x2D,
+        fault_outputs={"adr": 0},
+        default_fault_output="adr",
     ),
     DAC_TAS5825M: Model(
         model_info=tas58xx_ns.TAS5825M_MODEL,
@@ -65,6 +77,8 @@ MODELS: dict[str, Model] = {
         volume_min_db=-103.0,
         volume_max_db=24.0,
         default_address=0x4C,
+        fault_outputs={"gpio0": 0, "gpio1": 1, "gpio2": 2},
+        default_fault_output="gpio1",
     ),
 }
 
@@ -100,8 +114,14 @@ def _model_schema(model: Model) -> cv.Schema:
                 cv.Optional(CONF_DAC_MODE, default="btl"): cv.enum(
                     DAC_MODES, lower=True
                 ),
+                cv.Optional(
+                    CONF_FAULT_OUTPUT, default=model.default_fault_output
+                ): cv.one_of(FAULT_OUTPUT_NONE, *model.fault_outputs, lower=True),
                 cv.Optional(CONF_MIXER_MODE, default="stereo"): cv.enum(
                     MIXER_MODES, lower=True
+                ),
+                cv.Optional(CONF_MODULATION, default="bd_mode"): cv.enum(
+                    MODULATIONS, lower=True
                 ),
                 cv.Optional(
                     CONF_VOLUME_MIN_DB, default=model.volume_min_db
@@ -172,7 +192,15 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_analog_gain(config[CONF_ANALOG_GAIN]))
     cg.add(var.set_dac_mode(config[CONF_DAC_MODE]))
+    if (fault_output := config[CONF_FAULT_OUTPUT]) != FAULT_OUTPUT_NONE:
+        cg.add(
+            var.set_fault_output(
+                model.fault_outputs[fault_output],
+                cg.shared_progmem_string(fault_output.upper()),
+            )
+        )
     cg.add(var.set_mixer_mode(config[CONF_MIXER_MODE]))
+    cg.add(var.set_modulation(config[CONF_MODULATION]))
     cg.add(var.set_volume_min_db(config[CONF_VOLUME_MIN_DB]))
     cg.add(var.set_volume_max_db(config[CONF_VOLUME_MAX_DB]))
     await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))

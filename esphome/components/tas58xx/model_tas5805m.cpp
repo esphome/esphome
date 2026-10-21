@@ -8,11 +8,8 @@ namespace esphome::tas58xx {
 // Registers 0x46, 0x7D, 0x7E and page 1 register 0x51 are not documented in the datasheet.
 static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
     {0x03, 0x00},  // DEVICE_CTRL_2: deep sleep
-    {0x46, 0x01},
+    {0x46, 0x01},  // PPC 96 kHz process flow value (its 48 kHz FIR flows write 0x11)
     {0x03, 0x02},  // DEVICE_CTRL_2: Hi-Z
-    // The I2C address is latched at power up, after which the ADR pin can report faults
-    {0x61, 0x0B},  // ADR_PIN_CONFIG: FAULTZ
-    {0x60, 0x01},  // ADR_PIN_CTRL: output
     {0x7D, 0x11},
     {0x7E, 0xFF},
     {0x00, 0x01},  // Page 1
@@ -88,6 +85,7 @@ const ModelInfo TAS5805M_MODEL = {
             NO_BIT,  // FAULT_SENSOR_RIGHT_CHANNEL_CBC_OVER_CURRENT_WARNING
             NO_BIT,  // FAULT_SENSOR_OVER_TEMP_146C_WARNING
         },
+    .fault_output_pins = 1,  // ADR
 };
 
 }  // namespace esphome::tas58xx
