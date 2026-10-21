@@ -4,7 +4,6 @@ import re
 from typing import Any
 
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
@@ -97,7 +96,6 @@ ActionResponse = api_ns.class_("ActionResponse")
 HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
-APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
 APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
 APIUnregisterServiceCallAction = api_ns.class_(
     "APIUnregisterServiceCallAction", automation.Action
@@ -306,11 +304,6 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
 def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
     if (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None:
         return config
-    if CONF_ENCRYPTION not in config:
-        raise cv.Invalid(
-            "outgoing_connection requires 'encryption' so the peer is verified by key",
-            path=[CONF_OUTGOING_CONNECTION],
-        )
     # A device with no client reboots once reboot_timeout passes, so a delay that
     # reaches it would reboot the device before it ever dials
     reboot_timeout = config[CONF_REBOOT_TIMEOUT]
@@ -448,6 +441,11 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    cv.key_requires(
+        CONF_OUTGOING_CONNECTION,
+        CONF_ENCRYPTION,
+        hint="The peer is verified by its key",
+    ),
     _validate_outgoing_connection,
     _consume_api_sockets,
     _register_provisioning_source,
@@ -712,15 +710,6 @@ VARIABLES_FIELDS_SCHEMA = cv.All(VARIABLES_SCHEMA, cv.Length(max=_FIELD_MAP_MAX)
 
 
 def _validate_response_config(config: ConfigType) -> ConfigType:
-    # Validate dependencies:
-    # - response_template requires capture_response: true
-    # - capture_response: true requires on_success
-    if CONF_RESPONSE_TEMPLATE in config and not config[CONF_CAPTURE_RESPONSE]:
-        raise cv.Invalid(
-            f"`{CONF_RESPONSE_TEMPLATE}` requires `{CONF_CAPTURE_RESPONSE}: true` to be set.",
-            path=[CONF_RESPONSE_TEMPLATE],
-        )
-
     if config[CONF_CAPTURE_RESPONSE] and CONF_ON_SUCCESS not in config:
         raise cv.Invalid(
             f"`{CONF_CAPTURE_RESPONSE}: true` requires `{CONF_ON_SUCCESS}` to be set.",
@@ -755,6 +744,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     ),
     cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
     cv.rename_key(CONF_SERVICE, CONF_ACTION),
+    cv.only_when(CONF_RESPONSE_TEMPLATE, CONF_CAPTURE_RESPONSE, True),
     _validate_response_config,
 )
 
@@ -1039,19 +1029,13 @@ API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_condition(
-    "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "api.connected",
+    API_CONNECTED_CONDITION_SCHEMA,
+    automation.ApplyCall(
+        "is_connected({})", ((CONF_STATE_SUBSCRIPTION_ONLY, cg.bool_),)
+    ),
 )
-async def api_connected_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
-    cg.add(var.set_state_subscription_only(templ))
-    return var
 
 
 # user_services.cpp is only needed when user defined actions exist; the

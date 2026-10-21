@@ -110,8 +110,7 @@ async def to_code(config):
     cg.add(var.set_keepalive(config[CONF_PEER_PERSISTENT_KEEPALIVE]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
-    if CONF_PEER_PRESHARED_KEY in config:
-        cg.add(var.set_preshared_key(config[CONF_PEER_PRESHARED_KEY]))
+    cg.add_optional(var.set_preshared_key, config.get(CONF_PEER_PRESHARED_KEY))
 
     allowed_ips = list(
         ipaddress.collapse_addresses(
@@ -138,7 +137,7 @@ async def to_code(config):
         )
     )
 
-    cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
+    await cg.add_variable(var.set_srctime, config[CONF_TIME_ID])
 
     if config[CONF_REQUIRE_CONNECTION_TO_PROCEED]:
         cg.add(var.disable_auto_proceed())

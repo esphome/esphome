@@ -5,7 +5,7 @@ from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.const import CONF_HOLD_STATE
+from esphome.components.const import CONF_DRIVE_STRENGTH, CONF_HOLD_STATE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -238,7 +238,6 @@ DRIVE_STRENGTHS = {
 }
 gpio_num_t = cg.global_ns.enum("gpio_num_t")
 
-CONF_DRIVE_STRENGTH = "drive_strength"
 
 ESP32_PIN_SCHEMA = cv.All(
     pins.gpio_base_schema(ESP32InternalGPIOPin, gpio_pin_number_validator).extend(
@@ -266,8 +265,7 @@ async def esp32_pin_to_code(config):
     # (inverted bit in pin_flags_ bitfield is zero-initialized to false)
     if config[CONF_INVERTED]:
         cg.add(var.set_inverted(True))
-    if CONF_DRIVE_STRENGTH in config:
-        cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
+    cg.add_optional(var.set_drive_strength, config.get(CONF_DRIVE_STRENGTH))
     flags = pins.gpio_flags_expr(config[CONF_MODE])
     if config[CONF_HOLD_STATE]:
         flags = flags | cg.gpio_Flags.FLAG_HOLD

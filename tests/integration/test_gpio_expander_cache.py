@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -18,16 +18,6 @@ async def test_gpio_expander_cache(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test gpio_expander::CachedGpioExpander correctly calls hardware functions."""
-    # Get the path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     logs_done = asyncio.Event()
 
     # Patterns to match in logs - match any variation of digital_read
@@ -132,9 +122,7 @@ async def test_gpio_expander_cache(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "gpio-expander-cache"
+        await assert_device_name(client, "gpio-expander-cache")
 
         try:
             await asyncio.wait_for(logs_done.wait(), timeout=5.0)

@@ -20,7 +20,6 @@ test_uart_mock_ld2420_simple (simple mode):
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import ButtonInfo
 import pytest
@@ -36,14 +35,6 @@ async def test_uart_mock_ld2420(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2420 energy mode: happy path, truncated frame, overflow, and recovery."""
-    # Replace external component path placeholder
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
 
     # Track overflow warning in logs
@@ -167,13 +158,6 @@ async def test_uart_mock_ld2420_simple(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2420 simple mode: happy path, overflow, and 16-digit bug trigger."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
 
     # Track overflow warning in logs

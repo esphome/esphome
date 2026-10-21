@@ -162,10 +162,7 @@ void OutgoingConnectionManager::loop(APIServer *server) {
 
 void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   if (!network::is_connected()) {
-    // Flips within seconds of boot; recheck fast so a deep sleep wake
-    // window is not spent waiting
-    this->schedule_wait_(now, NETWORK_RETRY_MS);
-    return;
+    return;  // still WAITING with the wait elapsed, so the next loop rechecks
   }
   struct sockaddr_storage addr;
   socklen_t addr_len = this->target_sockaddr_(&addr);
@@ -207,7 +204,6 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   }
   this->state_ = DialState::DIAL_STATE_CONNECTING;
   this->state_ts_ = now;
-  this->last_poll_ = now;
 }
 
 void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
@@ -216,10 +212,6 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
     this->schedule_retry_(now);
     return;
   }
-  if (now - this->last_poll_ < CONNECT_POLL_INTERVAL_MS) {
-    return;
-  }
-  this->last_poll_ = now;
   int err = 0;
   switch (socket::poll_connect(*this->dial_socket_, err)) {
     case socket::ConnectPollResult::CONNECT_POLL_RESULT_PENDING:

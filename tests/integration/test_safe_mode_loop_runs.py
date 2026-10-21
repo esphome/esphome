@@ -31,6 +31,7 @@ import pytest
 from .conftest import run_binary
 from .host_prefs import clear_host_prefs, force_safe_mode
 from .types import CompileFunction, ConfigWriter
+from .wait_utils import wait_or_fail
 
 DEVICE_NAME = "safe-mode-loop-runs"
 THREAD_LOG_MARKER = "looping component ran in safe mode"
@@ -66,21 +67,19 @@ async def test_safe_mode_loop_runs(
                 thread_log_seen.set_result(True)
 
         async with run_binary(binary_path, line_callback=on_log):
-            try:
-                await asyncio.wait_for(safe_mode_active, timeout=15.0)
-            except TimeoutError:
-                pytest.fail(
-                    "Did not observe 'SAFE MODE IS ACTIVE' -- safe mode "
-                    "didn't trigger, so this test isn't exercising the bug."
-                )
-            try:
-                await asyncio.wait_for(thread_log_seen, timeout=10.0)
-            except TimeoutError:
-                pytest.fail(
-                    f"Did not observe thread-logged marker {THREAD_LOG_MARKER!r} "
-                    "within timeout. Logger::loop() never drained the task "
-                    "log buffer, meaning App.looping_components_ was never "
-                    "sized -- this is the regression #16269 fixed."
-                )
+            await wait_or_fail(
+                safe_mode_active,
+                15.0,
+                "Did not observe 'SAFE MODE IS ACTIVE' -- safe mode "
+                "didn't trigger, so this test isn't exercising the bug.",
+            )
+            await wait_or_fail(
+                thread_log_seen,
+                10.0,
+                f"Did not observe thread-logged marker {THREAD_LOG_MARKER!r} "
+                "within timeout. Logger::loop() never drained the task "
+                "log buffer, meaning App.looping_components_ was never "
+                "sized -- this is the regression #16269 fixed.",
+            )
     finally:
         clear_host_prefs(DEVICE_NAME)
