@@ -1,12 +1,11 @@
 """Stress test for defer() thread safety with multiple threads."""
 
 import asyncio
-from pathlib import Path
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -17,16 +16,6 @@ async def test_scheduler_defer_stress(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that defer() doesn't crash when called rapidly from multiple threads."""
-
-    # Get the absolute path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
     # Create a future to signal test completion
     loop = asyncio.get_event_loop()
@@ -73,9 +62,7 @@ async def test_scheduler_defer_stress(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-defer-stress-test"
+        await assert_device_name(client, "scheduler-defer-stress-test")
 
         # List entities and services
         entity_info, services = await asyncio.wait_for(
@@ -83,13 +70,7 @@ async def test_scheduler_defer_stress(
         )
 
         # Find our test service
-        run_stress_test_service: UserService | None = None
-        for service in services:
-            if service.name == "run_stress_test":
-                run_stress_test_service = service
-                break
-
-        assert run_stress_test_service is not None, "run_stress_test service not found"
+        run_stress_test_service = require_service(services, "run_stress_test")
 
         # Call the run_stress_test service to start the test
         await client.execute_service(run_stress_test_service, {})

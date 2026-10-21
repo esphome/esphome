@@ -32,10 +32,8 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     var = await update.new_update(config)
-    ota_parent = await cg.get_variable(config[CONF_OTA_ID])
-    cg.add(var.set_ota_parent(ota_parent))
-    request_parent = await cg.get_variable(config[CONF_HTTP_REQUEST_ID])
-    cg.add(var.set_request_parent(request_parent))
+    await cg.add_variable(var.set_ota_parent, config[CONF_OTA_ID])
+    await cg.add_variable(var.set_request_parent, config[CONF_HTTP_REQUEST_ID])
 
     cg.add(var.set_source_url(config[CONF_SOURCE]))
 

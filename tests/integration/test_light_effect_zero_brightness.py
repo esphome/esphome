@@ -20,7 +20,7 @@ from typing import Any
 from aioesphomeapi import EntityState, LightState
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -44,7 +44,7 @@ async def test_light_effect_zero_brightness(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        light = next(e for e in entities if e.object_id == "test_pulse_light")
+        light = require_entity(entities, "test_pulse_light", exact=True)
 
         state_futures: dict[int, asyncio.Future[LightState]] = {}
 

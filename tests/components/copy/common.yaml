@@ -24,3 +24,11 @@ select:
   - platform: copy
     source_id: test_select
     name: Test Select Copy
+
+button:
+  - platform: template
+    id: copy_source_button
+    name: Source Button
+  - platform: copy
+    source_id: copy_source_button
+    name: Button Copy

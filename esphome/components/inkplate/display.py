@@ -69,12 +69,6 @@ MODELS = InkplateModel.options(
 CONF_CUSTOM_WAVEFORM = "custom_waveform"
 
 
-def _validate_custom_waveform(config: ConfigType) -> ConfigType:
-    if CONF_CUSTOM_WAVEFORM in config and config[CONF_MODEL] != "inkplate_10":
-        raise cv.Invalid("Custom waveforms are only supported on the Inkplate 10")
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
@@ -143,7 +137,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("5s"))
     .extend(i2c.i2c_device_schema(0x48)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
-    _validate_custom_waveform,
+    cv.only_when(CONF_CUSTOM_WAVEFORM, CONF_MODEL, "inkplate_10"),
 )
 
 
@@ -184,59 +178,22 @@ async def to_code(config: ConfigType) -> None:
         waveform = [element for tupl in waveform for element in tupl]
         cg.add(var.set_waveform(waveform, False))
 
-    ckv = await cg.gpio_pin_expression(config[CONF_CKV_PIN])
-    cg.add(var.set_ckv_pin(ckv))
-
-    gmod = await cg.gpio_pin_expression(config[CONF_GMOD_PIN])
-    cg.add(var.set_gmod_pin(gmod))
-
-    gpio0_enable = await cg.gpio_pin_expression(config[CONF_GPIO0_ENABLE_PIN])
-    cg.add(var.set_gpio0_enable_pin(gpio0_enable))
-
-    oe = await cg.gpio_pin_expression(config[CONF_OE_PIN])
-    cg.add(var.set_oe_pin(oe))
-
-    powerup = await cg.gpio_pin_expression(config[CONF_POWERUP_PIN])
-    cg.add(var.set_powerup_pin(powerup))
-
-    sph = await cg.gpio_pin_expression(config[CONF_SPH_PIN])
-    cg.add(var.set_sph_pin(sph))
-
-    spv = await cg.gpio_pin_expression(config[CONF_SPV_PIN])
-    cg.add(var.set_spv_pin(spv))
-
-    vcom = await cg.gpio_pin_expression(config[CONF_VCOM_PIN])
-    cg.add(var.set_vcom_pin(vcom))
-
-    wakeup = await cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
-    cg.add(var.set_wakeup_pin(wakeup))
-
-    cl = await cg.gpio_pin_expression(config[CONF_CL_PIN])
-    cg.add(var.set_cl_pin(cl))
-
-    le = await cg.gpio_pin_expression(config[CONF_LE_PIN])
-    cg.add(var.set_le_pin(le))
-
-    display_data_0 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_0_PIN])
-    cg.add(var.set_display_data_0_pin(display_data_0))
-
-    display_data_1 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_1_PIN])
-    cg.add(var.set_display_data_1_pin(display_data_1))
-
-    display_data_2 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_2_PIN])
-    cg.add(var.set_display_data_2_pin(display_data_2))
-
-    display_data_3 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_3_PIN])
-    cg.add(var.set_display_data_3_pin(display_data_3))
-
-    display_data_4 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_4_PIN])
-    cg.add(var.set_display_data_4_pin(display_data_4))
-
-    display_data_5 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_5_PIN])
-    cg.add(var.set_display_data_5_pin(display_data_5))
-
-    display_data_6 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_6_PIN])
-    cg.add(var.set_display_data_6_pin(display_data_6))
-
-    display_data_7 = await cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_7_PIN])
-    cg.add(var.set_display_data_7_pin(display_data_7))
+    await cg.add_pin(var.set_ckv_pin, config[CONF_CKV_PIN])
+    await cg.add_pin(var.set_gmod_pin, config[CONF_GMOD_PIN])
+    await cg.add_pin(var.set_gpio0_enable_pin, config[CONF_GPIO0_ENABLE_PIN])
+    await cg.add_pin(var.set_oe_pin, config[CONF_OE_PIN])
+    await cg.add_pin(var.set_powerup_pin, config[CONF_POWERUP_PIN])
+    await cg.add_pin(var.set_sph_pin, config[CONF_SPH_PIN])
+    await cg.add_pin(var.set_spv_pin, config[CONF_SPV_PIN])
+    await cg.add_pin(var.set_vcom_pin, config[CONF_VCOM_PIN])
+    await cg.add_pin(var.set_wakeup_pin, config[CONF_WAKEUP_PIN])
+    await cg.add_pin(var.set_cl_pin, config[CONF_CL_PIN])
+    await cg.add_pin(var.set_le_pin, config[CONF_LE_PIN])
+    await cg.add_pin(var.set_display_data_0_pin, config[CONF_DISPLAY_DATA_0_PIN])
+    await cg.add_pin(var.set_display_data_1_pin, config[CONF_DISPLAY_DATA_1_PIN])
+    await cg.add_pin(var.set_display_data_2_pin, config[CONF_DISPLAY_DATA_2_PIN])
+    await cg.add_pin(var.set_display_data_3_pin, config[CONF_DISPLAY_DATA_3_PIN])
+    await cg.add_pin(var.set_display_data_4_pin, config[CONF_DISPLAY_DATA_4_PIN])
+    await cg.add_pin(var.set_display_data_5_pin, config[CONF_DISPLAY_DATA_5_PIN])
+    await cg.add_pin(var.set_display_data_6_pin, config[CONF_DISPLAY_DATA_6_PIN])
+    await cg.add_pin(var.set_display_data_7_pin, config[CONF_DISPLAY_DATA_7_PIN])

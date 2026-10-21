@@ -19,6 +19,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -81,9 +82,7 @@ async def test_scheduler_interval_reschedule(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "sched-interval-resched"
+        await assert_device_name(client, "sched-interval-resched")
 
         # 1. Fast interval (50ms) should reach 10 fires within ~600ms
         try:
