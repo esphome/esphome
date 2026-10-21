@@ -157,7 +157,7 @@ struct CanStatus {
 
 class Canbus : public Component {
  public:
-  Canbus(){};
+  Canbus() {};
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -286,7 +286,7 @@ class CanbusTrigger final : public Trigger<std::vector<uint8_t>, uint32_t, bool>
  public:
   explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const std::uint32_t can_id_mask,
                          const bool use_extended_id)
-      : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id){};
+      : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id) {};
 
   void set_remote_transmission_request(bool remote_transmission_request) {
     this->remote_transmission_request_ = remote_transmission_request;

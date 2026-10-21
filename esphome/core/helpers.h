@@ -576,6 +576,14 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   ConstIterator begin() const { return ConstIterator(this, 0); }
   ConstIterator end() const { return ConstIterator(this, this->count_); }
 
+  /// The element `pos` places after the oldest one; the sum is widened so a small index type cannot truncate it
+  const T &operator[](index_type pos) const {
+    size_t index = static_cast<size_t>(this->head_) + pos;
+    if (index >= this->capacity_)
+      index -= this->capacity_;
+    return this->data_[index];
+  }
+
  protected:
   T *data_{nullptr};
   index_type head_{0};
@@ -887,6 +895,16 @@ constexpr uint8_t sum_bytes(const uint8_t *data, size_t len, uint8_t sum = 0) {
   return std::accumulate(data, data + len, sum);
 }
 
+/// Add up the bytes of \p data with size \p len, truncated to 16 bits.
+constexpr uint16_t sum16_bytes(const uint8_t *data, size_t len, uint16_t sum = 0) {
+  return std::accumulate(data, data + len, sum);
+}
+
+/// XOR the bytes of \p data with size \p len, starting from \p init.
+constexpr uint8_t xor_bytes(const uint8_t *data, size_t len, uint8_t init = 0) {
+  return std::accumulate(data, data + len, init, std::bit_xor<>());
+}
+
 /// Calculate a CRC-8 checksum of \p data with size \p len.
 uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc = 0x00, uint8_t poly = 0x8C, bool msb_first = false);
 
@@ -990,19 +1008,48 @@ constexpr uint32_t encode_uint32(uint8_t byte1, uint8_t byte2, uint8_t byte3, ui
          (static_cast<uint32_t>(byte3) << 8) | (static_cast<uint32_t>(byte4));
 }
 
+/// Sign-extend the low \p BITS bits of \p value, e.g. sign_extend<24>(0xFFFFFE) == -2. Higher bits are ignored.
+template<unsigned BITS> constexpr int32_t sign_extend(uint32_t value) {
+  static_assert(BITS > 0 && BITS <= 32, "BITS must be 1 to 32");
+  return static_cast<int32_t>(value << (32 - BITS)) >> (32 - BITS);
+}
+
 /// Encode a value from its constituent bytes (from most to least significant) in an array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
-  T val = 0;
-  for (size_t i = 0; i < sizeof(T); i++) {
-    val <<= 8;
-    val |= bytes[i];
+/// A signed T takes the two's complement of the assembled bits.
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0> constexpr T encode_value(const uint8_t *bytes) {
+  if constexpr (sizeof(T) == 1) {
+    return static_cast<T>(bytes[0]);
+  } else {
+    std::make_unsigned_t<T> val = 0;
+    for (size_t i = 0; i < sizeof(T); i++) {
+      val <<= 8;
+      val |= bytes[i];
+    }
+    return static_cast<T>(val);
   }
-  return val;
 }
 /// Encode a value from its constituent bytes (from most to least significant) in an std::array with length sizeof(T).
-template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0>
 constexpr T encode_value(const std::array<uint8_t, sizeof(T)> bytes) {
   return encode_value<T>(bytes.data());
+}
+/// Encode a value from its constituent bytes (from least to most significant) in an array with length sizeof(T).
+/// A signed T takes the two's complement of the assembled bits.
+template<typename T, enable_if_t<std::is_integral<T>::value, int> = 0>
+constexpr T encode_value_le(const uint8_t *bytes) {
+  // Loops here grow 16-bit callers by up to 48 bytes on ESP8266 through different inlining
+  if constexpr (sizeof(T) == 1) {
+    return static_cast<T>(bytes[0]);
+  } else if constexpr (sizeof(T) == 2) {
+    return static_cast<T>(encode_uint16(bytes[1], bytes[0]));
+  } else {
+    std::make_unsigned_t<T> val = 0;
+    for (size_t i = sizeof(T); i > 0; i--) {
+      val <<= 8;
+      val |= bytes[i - 1];
+    }
+    return static_cast<T>(val);
+  }
 }
 /// Decode a value into its constituent bytes (from most to least significant).
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
@@ -1014,6 +1061,11 @@ constexpr std::array<uint8_t, sizeof(T)> decode_value(T val) {
   }
   return ret;
 }
+
+/// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
+constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
+/// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
+constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
 
 /// Reverse the order of 8 bits.
 inline uint8_t reverse_bits(uint8_t x) {
@@ -1133,16 +1185,20 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
 /// This computes object_id hashes directly from names without creating an intermediate buffer.
+/// read_byte(i) returns character i, so a name in flash can be hashed through progmem_read_byte().
 /// IMPORTANT: Must match Python fnv1_hash_object_id() in esphome/helpers.py.
 /// If you modify this function, update the Python version and tests in both places.
-inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+template<typename ReadByte> inline uint32_t fnv1_hash_object_id(size_t len, ReadByte read_byte) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < len; i++) {
     hash *= FNV1_PRIME;
     // Apply snake_case (space->underscore, uppercase->lowercase) then sanitize
-    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(str[i])));
+    hash ^= static_cast<uint8_t>(to_sanitized_char(to_snake_case_char(read_byte(i))));
   }
   return hash;
+}
+inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
+  return fnv1_hash_object_id(len, [str](size_t i) { return str[i]; });
 }
 
 #ifdef USE_ESP8266

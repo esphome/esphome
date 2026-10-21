@@ -2,10 +2,11 @@
 
 import asyncio
 
-from aioesphomeapi import UserService
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -40,9 +41,7 @@ async def test_scheduler_defer_cancels_regular(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-defer-cancel-regular"
+        await assert_device_name(client, "scheduler-defer-cancel-regular")
 
         # List services
         _, services = await asyncio.wait_for(
@@ -50,22 +49,15 @@ async def test_scheduler_defer_cancels_regular(
         )
 
         # Find our test service
-        test_service: UserService | None = None
-        for service in services:
-            if service.name == "test_defer_cancels_regular":
-                test_service = service
-                break
-
-        assert test_service is not None, "test_defer_cancels_regular service not found"
+        test_service = require_service(services, "test_defer_cancels_regular")
 
         # Execute the test
         await client.execute_service(test_service, {})
 
         # Wait for test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Test timed out. Log messages: {log_messages}")
+        await wait_or_fail(
+            test_complete_future, 5.0, "Test timed out", log_messages=log_messages
+        )
 
         # Verify results
         assert not error_detected, (
