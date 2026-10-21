@@ -73,8 +73,7 @@ void LP5562Output::dump_config() {
 void LP5562Output::write_channel(uint8_t channel, float state) {
   if (this->is_failed())
     return;
-  const uint8_t max_duty = 255;
-  const auto duty = static_cast<uint8_t>(roundf(state * max_duty));
+  const auto duty = static_cast<uint8_t>(roundf(state * 255));
   this->status_comm_result(this->write_byte(progmem_read_byte(&LP5562_REG_PWM[channel]), duty));
 }
 

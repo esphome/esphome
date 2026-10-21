@@ -125,8 +125,7 @@ void TLC59208FOutput::register_channel(uint8_t channel) {
 }
 
 void TLC59208FOutput::write_channel(uint8_t channel, float state) {
-  const uint8_t max_duty = 255;
-  auto duty = static_cast<uint8_t>(roundf(state * max_duty));
+  auto duty = static_cast<uint8_t>(roundf(state * 255));
   if (this->pwm_amounts_[channel] != duty)
     this->update_ = true;
   this->pwm_amounts_[channel] = duty;

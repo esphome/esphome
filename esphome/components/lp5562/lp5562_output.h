@@ -3,9 +3,7 @@
 #include <array>
 
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/output/float_output.h"
 
 namespace esphome::lp5562 {
 

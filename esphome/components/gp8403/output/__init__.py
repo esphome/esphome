@@ -19,5 +19,5 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 async def to_code(config: ConfigType) -> None:
     await output.sub_float_outputs(config, parent=config[CONF_GP8403_ID]).create(
-        config, None, apply=f"write_state(state, {config[CONF_CHANNEL]})"
+        config, None, config[CONF_CHANNEL], apply="write_state(state, index)"
     )

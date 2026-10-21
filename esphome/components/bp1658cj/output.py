@@ -20,5 +20,5 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 async def to_code(config: ConfigType) -> None:
     await output.sub_float_outputs(config, parent=config[CONF_BP1658CJ_ID]).create(
-        config, None, apply=f"write_channel({config[CONF_CHANNEL]}, state)"
+        config, None, config[CONF_CHANNEL], apply="write_channel(index, state)"
     )

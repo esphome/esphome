@@ -48,11 +48,11 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    channel = cg.safe_exp(config[CONF_CHANNEL])
-    await output.sub_float_outputs(config, parent=config[CONF_MCP4728_ID]).create(
-        config, None, apply=f"write_channel({channel}, state)"
-    )
+    channel = config[CONF_CHANNEL]
     hub = await cg.get_variable(config[CONF_MCP4728_ID])
+    await output.sub_float_outputs(config, parent=hub).create(
+        config, None, channel, apply="write_channel(index, state)"
+    )
     cg.add(
         hub.configure_channel(
             channel,

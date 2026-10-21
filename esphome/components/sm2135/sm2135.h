@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 

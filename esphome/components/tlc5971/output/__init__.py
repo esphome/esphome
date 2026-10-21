@@ -20,7 +20,5 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 async def to_code(config: ConfigType) -> None:
     await output.sub_float_outputs(config, parent=config[CONF_TLC5971_ID]).create(
-        config,
-        None,
-        apply=f"set_channel_value({config[CONF_CHANNEL]}, static_cast<uint16_t>(state * 0xffff))",
+        config, None, config[CONF_CHANNEL], apply="write_channel(index, state)"
     )

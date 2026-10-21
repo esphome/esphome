@@ -64,11 +64,11 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    channel = cg.safe_exp(config[CONF_CHANNEL])
-    await output.sub_float_outputs(config, parent=config[CONF_LP5562_ID]).create(
-        config, None, apply=f"write_channel({channel}, state)"
+    channel = config[CONF_CHANNEL]
+    hub = await cg.get_variable(config[CONF_LP5562_ID])
+    await output.sub_float_outputs(config, parent=hub).create(
+        config, None, channel, apply="write_channel(index, state)"
     )
     # The hub already holds the chip's reset value, 17.5 mA
     if (current := _tenths(config[CONF_CURRENT])) != CURRENT_RESET_TENTHS:
-        parent = await cg.get_variable(config[CONF_LP5562_ID])
-        cg.add(parent.set_channel_current(channel, current))
+        cg.add(hub.set_channel_current(channel, current))

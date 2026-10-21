@@ -16,5 +16,5 @@ CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
 
 async def to_code(config: ConfigType) -> None:
     await output.sub_binary_outputs(config, parent=config[CONF_TM1638_ID]).create(
-        config, None, apply=f"set_led({config[CONF_LED]}, state)"
+        config, None, config[CONF_LED], apply="set_led(index, state)"
     )

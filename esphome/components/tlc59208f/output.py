@@ -20,8 +20,8 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    await output.sub_float_outputs(config, parent=config[CONF_TLC59208F_ID]).create(
-        config, None, apply=f"write_channel({config[CONF_CHANNEL]}, state)"
-    )
     hub = await cg.get_variable(config[CONF_TLC59208F_ID])
+    await output.sub_float_outputs(config, parent=hub).create(
+        config, None, config[CONF_CHANNEL], apply="write_channel(index, state)"
+    )
     cg.add(hub.register_channel(config[CONF_CHANNEL]))

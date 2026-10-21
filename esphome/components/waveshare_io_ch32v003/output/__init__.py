@@ -56,5 +56,5 @@ async def to_code(config: ConfigType) -> None:
     ).create(
         config,
         None,
-        apply=f"set_pwm_value(std::clamp<uint8_t>(static_cast<uint8_t>(state * 255.0f), {min_val}, {max_val}))",
+        apply=f"write_pwm_level(state, {min_val}, {max_val})",
     )

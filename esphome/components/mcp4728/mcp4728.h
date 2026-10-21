@@ -46,7 +46,7 @@ class MCP4728Component final : public Component, public i2c::I2CDevice {
   void loop() override;
 
   void configure_channel(MCP4728ChannelIdx channel, MCP4728Vref vref, MCP4728Gain gain, MCP4728PwrDown pd);
-  void write_channel(MCP4728ChannelIdx channel, float state);
+  void write_channel(uint8_t channel, float state);
 
  protected:
   bool multi_write_();

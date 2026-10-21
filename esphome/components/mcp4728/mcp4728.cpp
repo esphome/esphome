@@ -39,21 +39,10 @@ void MCP4728Component::loop() {
   }
 }
 
-void MCP4728Component::write_channel(MCP4728ChannelIdx channel, float state) {
-  const uint16_t max_duty = 4095;
-  auto value = static_cast<uint16_t>(roundf(state * max_duty));
-  uint8_t cn = 0;
-  if (channel == MCP4728_CHANNEL_A) {
-    cn = 'A';
-  } else if (channel == MCP4728_CHANNEL_B) {
-    cn = 'B';
-  } else if (channel == MCP4728_CHANNEL_C) {
-    cn = 'C';
-  } else {
-    cn = 'D';
-  }
-  ESP_LOGV(TAG, "Setting MCP4728 channel %c to %d!", cn, value);
-  reg_[channel].data = value;
+void MCP4728Component::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint16_t>(roundf(state * 4095));
+  ESP_LOGV(TAG, "Setting MCP4728 channel %c to %d!", 'A' + channel, value);
+  this->reg_[channel].data = value;
   this->update_ = true;
 }
 

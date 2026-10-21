@@ -55,8 +55,7 @@ void DAC7678Output::register_channel(uint8_t channel) {
 }
 
 void DAC7678Output::write_channel(uint8_t channel, float state) {
-  const uint16_t full_scale = 0xFFF;
-  auto value = static_cast<uint16_t>(roundf(state * full_scale));
+  auto value = static_cast<uint16_t>(roundf(state * 0xFFF));
   if (channel >= std::size(this->dac_input_reg_))
     return;
   if (this->dac_input_reg_[channel] != value) {
