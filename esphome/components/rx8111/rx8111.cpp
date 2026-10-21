@@ -109,19 +109,21 @@ void RX8111Component::boot_config_result_(bool alarm, bool success) {
     return;
   this->set_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID, RX8111_BOOT_RETRY_DELAY_MS,
                     [this, alarm]() {
-                      if (alarm)
+                      if (alarm) {
                         this->configure_boot_alarm_();
-                      else
+                      } else {
                         this->configure_boot_timer_();
+                      }
                     });
 }
 
 void RX8111Component::cancel_boot_retry_(bool alarm, bool success) {
   this->cancel_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID);
-  if (alarm)
+  if (alarm) {
     this->boot_alarm_attempts_ = RX8111_BOOT_MAX_ATTEMPTS;
-  else
+  } else {
     this->boot_timer_attempts_ = RX8111_BOOT_MAX_ATTEMPTS;
+  }
   if (success) {
     auto &warning = alarm ? this->boot_alarm_warning_ : this->boot_timer_warning_;
     const bool had_warning = warning;
