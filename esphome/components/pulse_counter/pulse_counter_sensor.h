@@ -45,7 +45,8 @@ struct BasicPulseCounterStorage : public PulseCounterStorageBase {
   volatile uint32_t last_pulse{0};
 
   ISRInternalGPIOPin isr_pin;
-  PulseCounterCountMode fixed_mode{PULSE_COUNTER_DISABLE};
+  PulseCounterCountMode fixed_mode{PULSE_COUNTER_INCREMENT};
+  bool read_level{false};
 };
 
 #ifdef HAS_PCNT
