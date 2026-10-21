@@ -181,20 +181,30 @@ pulse_counter_t HwPulseCounterStorage::read_raw_value() {
 }
 #endif  // HAS_PCNT
 
-void PulseCounterSensor::set_rising_edge_mode(PulseCounterCountMode mode) {
-  if (this->storage_.pin != nullptr) {
-    ESP_LOGE(TAG, "Edge mode cannot change after setup");
-    return;
+bool PulseCounterSensor::before_setup_() {
+  if (this->storage_.pin == nullptr) {
+    return true;
   }
-  this->storage_.rising_edge_mode = mode;
+  ESP_LOGE(TAG, "Edge modes and filter cannot change after setup");
+  return false;
+}
+
+void PulseCounterSensor::set_rising_edge_mode(PulseCounterCountMode mode) {
+  if (this->before_setup_()) {
+    this->storage_.rising_edge_mode = mode;
+  }
 }
 
 void PulseCounterSensor::set_falling_edge_mode(PulseCounterCountMode mode) {
-  if (this->storage_.pin != nullptr) {
-    ESP_LOGE(TAG, "Edge mode cannot change after setup");
-    return;
+  if (this->before_setup_()) {
+    this->storage_.falling_edge_mode = mode;
   }
-  this->storage_.falling_edge_mode = mode;
+}
+
+void PulseCounterSensor::set_filter_us(uint32_t filter) {
+  if (this->before_setup_()) {
+    this->storage_.filter_us = filter;
+  }
 }
 
 void PulseCounterSensor::setup() {
