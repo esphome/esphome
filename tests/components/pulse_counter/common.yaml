@@ -15,3 +15,7 @@ sensor:
       - pulse_counter.set_total_pulses:
           id: pulse_counter_sensor
           value: !lambda return (uint32_t) x;
+  - platform: pulse_counter
+    name: Pulse Counter Rising
+    pin: 5
+    update_interval: 15s
