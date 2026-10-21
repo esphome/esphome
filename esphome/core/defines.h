@@ -258,6 +258,7 @@
 #define USE_OTA_STATE_LISTENER
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
+#define USE_PCA9554_PCAL
 #define USE_POWER_SUPPLY
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
@@ -566,6 +567,11 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #define USE_SERIAL_PROXY_USB_IDENTITY
+#endif
+// usb_host_uac supports only these variants
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
+#define USE_USB_AUDIO
 #endif
 
 #ifdef USE_ARDUINO

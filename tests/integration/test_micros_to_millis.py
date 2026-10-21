@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -32,9 +33,7 @@ async def test_micros_to_millis(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "micros-to-millis-test"
+        await assert_device_name(client, "micros-to-millis-test")
 
         try:
             await asyncio.wait_for(all_passed.wait(), timeout=2.0)
