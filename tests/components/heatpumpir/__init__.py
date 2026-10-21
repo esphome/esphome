@@ -11,6 +11,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 
     async def to_code(config: ConfigType) -> None:
         # Host tests stub HeatpumpIR headers in this directory.
+        cg.add_define("ESPHOME_HEATPUMPIR_UNIT_TEST")
         cg.add_build_flag(f"-I{Path(__file__).parent}")
 
     manifest.to_code = to_code
