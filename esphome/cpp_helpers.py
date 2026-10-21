@@ -1,8 +1,10 @@
-from collections.abc import Callable, Hashable
+from collections.abc import Awaitable, Callable, Hashable
 from dataclasses import dataclass, field
 import logging
+from typing import Any
 
 from esphome.const import (
+    CONF_ID,
     CONF_SAFE_MODE,
     CONF_SETUP_PRIORITY,
     CONF_TYPE_ID,
@@ -12,15 +14,17 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine, coroutine_with_priority
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import (
+    MockObj,
     RawStatement,
     add,
     add_define,
     add_global,
     get_variable,
+    new_Pvariable,
 )
 from esphome.cpp_types import App
 from esphome.helpers import cpp_string_escape
-from esphome.types import ConfigFragmentType, ConfigType
+from esphome.types import ConfigFragmentType, ConfigType, Expression
 from esphome.util import Registry, RegistryEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -227,6 +231,33 @@ async def gpio_pin_expression(conf):
     return await coroutine(pins.PIN_SCHEMA_REGISTRY[CORE.target_platform][0])(conf)
 
 
+async def add_pin(
+    setter: Callable[[MockObj], Expression], pin_config: ConfigType | None
+) -> MockObj | None:
+    """Pass the pin built from ``pin_config`` to ``setter`` and return it; skip None."""
+    if (pin := await gpio_pin_expression(pin_config)) is not None:
+        add(setter(pin))
+    return pin
+
+
+async def add_variable(
+    setter: Callable[[MockObj], Expression], id_: ID | None
+) -> MockObj | None:
+    """Pass the variable declared by ``id_`` to ``setter`` and return it; skip None."""
+    if id_ is None:
+        return None
+    var = await get_variable(id_)
+    add(setter(var))
+    return var
+
+
+def add_optional[T](setter: Callable[[T], Expression], value: T | None) -> T | None:
+    """Pass ``value`` to ``setter`` and return it; skip None."""
+    if value is not None:
+        add(setter(value))
+    return value
+
+
 def set_setup_priority(var, priority: float) -> None:
     """Emit a setup-priority override for the given component.
 
@@ -291,6 +322,22 @@ async def register_component(var, config):
     comp_entries = CORE.data.setdefault("looping_component_entries", [])
     comp_entries.append(str(var.base.type))
 
+    return var
+
+
+async def new_bus_component(
+    register_device: Callable[[MockObj, ConfigType], Awaitable[None]],
+    config: ConfigType,
+    *args: Any,
+) -> MockObj:
+    """Create a component, register it and attach it to its bus.
+
+    Extra args go to the constructor. Bus wrappers must be plain functions
+    returning this coroutine, so the component source stays their caller.
+    """
+    var = new_Pvariable(config[CONF_ID], *args)
+    await register_component(var, config)
+    await register_device(var, config)
     return var
 
 

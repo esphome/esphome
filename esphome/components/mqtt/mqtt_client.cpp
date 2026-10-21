@@ -217,6 +217,23 @@ void MQTTClientComponent::dump_config() {
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
   // clang-format on
+#ifdef USE_ESP32
+  if (const MQTTTransport transport = this->mqtt_backend_.get_transport();
+      transport != MQTTTransport::MQTT_TRANSPORT_TCP) {
+    ESP_LOGCONFIG(TAG,
+                  "  Transport: %s\n"
+                  "  WebSocket Path: '%s'",
+                  transport == MQTTTransport::MQTT_TRANSPORT_WSS ? LOG_STR_LITERAL("wss") : LOG_STR_LITERAL("ws"),
+                  this->mqtt_backend_.get_ws_path());
+  }
+#endif
+#if defined(USE_MQTT_CERT_BUNDLE)
+  ESP_LOGCONFIG(TAG, "  TLS: certificate bundle");
+#elif defined(USE_MQTT_TLS_INSECURE)
+  ESP_LOGCONFIG(TAG, "  TLS: no verification");
+#elif defined(USE_MQTT_TLS)
+  ESP_LOGCONFIG(TAG, "  TLS: CA certificate");
+#endif
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }

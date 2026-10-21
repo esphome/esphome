@@ -17,7 +17,8 @@ namespace esphome::nextion {
 #endif
 #else
 #define ESP_LOGN(tag, ...) \
-  {}
+  { \
+  }
 #endif
 
 class NextionBase;

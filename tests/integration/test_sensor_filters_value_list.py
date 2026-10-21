@@ -10,6 +10,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -144,12 +145,12 @@ async def test_sensor_filters_value_list(
         # Test 1: FilterOutValueFilter - single value
         sensor_values["filter_out_single"].clear()
         client.button_command(buttons["filter_out_single"])
-        try:
-            await asyncio.wait_for(filter_out_single_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 1 timed out. Values: {sensor_values['filter_out_single']}"
-            )
+        await wait_or_fail(
+            filter_out_single_done,
+            2.0,
+            "Test 1 timed out",
+            values=sensor_values["filter_out_single"],
+        )
 
         expected = [1.0, 2.0, 3.0]
         assert sensor_values["filter_out_single"] == pytest.approx(expected), (
@@ -160,12 +161,12 @@ async def test_sensor_filters_value_list(
         sensor_values["filter_out_multiple"].clear()
         filter_out_multiple_done = loop.create_future()
         client.button_command(buttons["filter_out_multiple"])
-        try:
-            await asyncio.wait_for(filter_out_multiple_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 2 timed out. Values: {sensor_values['filter_out_multiple']}"
-            )
+        await wait_or_fail(
+            filter_out_multiple_done,
+            2.0,
+            "Test 2 timed out",
+            values=sensor_values["filter_out_multiple"],
+        )
 
         expected = [1.0, 2.0, 50.0]
         assert sensor_values["filter_out_multiple"] == pytest.approx(expected), (
@@ -176,12 +177,12 @@ async def test_sensor_filters_value_list(
         sensor_values["throttle_priority_single"].clear()
         throttle_single_done = loop.create_future()
         client.button_command(buttons["throttle_priority_single"])
-        try:
-            await asyncio.wait_for(throttle_single_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 3 timed out. Values: {sensor_values['throttle_priority_single']}"
-            )
+        await wait_or_fail(
+            throttle_single_done,
+            2.0,
+            "Test 3 timed out",
+            values=sensor_values["throttle_priority_single"],
+        )
 
         expected = [1.0, 42.0, 4.0]
         assert sensor_values["throttle_priority_single"] == pytest.approx(expected), (
@@ -192,12 +193,12 @@ async def test_sensor_filters_value_list(
         sensor_values["throttle_priority_multiple"].clear()
         throttle_multiple_done = loop.create_future()
         client.button_command(buttons["throttle_priority_multiple"])
-        try:
-            await asyncio.wait_for(throttle_multiple_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 4 timed out. Values: {sensor_values['throttle_priority_multiple']}"
-            )
+        await wait_or_fail(
+            throttle_multiple_done,
+            2.0,
+            "Test 4 timed out",
+            values=sensor_values["throttle_priority_multiple"],
+        )
 
         expected = [1.0, 0.0, 42.0, 100.0]
         assert sensor_values["throttle_priority_multiple"] == pytest.approx(expected), (
@@ -208,12 +209,12 @@ async def test_sensor_filters_value_list(
         sensor_values["filter_out_nan_test"].clear()
         filter_out_nan_done = loop.create_future()
         client.button_command(buttons["filter_out_nan"])
-        try:
-            await asyncio.wait_for(filter_out_nan_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 5 timed out. Values: {sensor_values['filter_out_nan_test']}"
-            )
+        await wait_or_fail(
+            filter_out_nan_done,
+            2.0,
+            "Test 5 timed out",
+            values=sensor_values["filter_out_nan_test"],
+        )
 
         expected = [1.0, 2.0, 3.0]
         assert sensor_values["filter_out_nan_test"] == pytest.approx(expected), (
@@ -224,12 +225,12 @@ async def test_sensor_filters_value_list(
         sensor_values["filter_out_accuracy_2"].clear()
         filter_out_accuracy_2_done = loop.create_future()
         client.button_command(buttons["filter_out_accuracy_2"])
-        try:
-            await asyncio.wait_for(filter_out_accuracy_2_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 6 timed out. Values: {sensor_values['filter_out_accuracy_2']}"
-            )
+        await wait_or_fail(
+            filter_out_accuracy_2_done,
+            2.0,
+            "Test 6 timed out",
+            values=sensor_values["filter_out_accuracy_2"],
+        )
 
         expected = [42.01, 42.15]
         assert sensor_values["filter_out_accuracy_2"] == pytest.approx(expected), (
@@ -240,12 +241,12 @@ async def test_sensor_filters_value_list(
         sensor_values["throttle_priority_nan"].clear()
         throttle_nan_done = loop.create_future()
         client.button_command(buttons["throttle_priority_nan"])
-        try:
-            await asyncio.wait_for(throttle_nan_done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test 7 timed out. Values: {sensor_values['throttle_priority_nan']}"
-            )
+        await wait_or_fail(
+            throttle_nan_done,
+            2.0,
+            "Test 7 timed out",
+            values=sensor_values["throttle_priority_nan"],
+        )
 
         # First value (1.0) + two NaN priority values
         # NaN values will be compared using math.isnan
