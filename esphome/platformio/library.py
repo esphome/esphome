@@ -984,20 +984,21 @@ def _satisfying_key(
     """The key of a resolved library a version-less dependency names: the registry
     package name (with the owner, when the dependency gives one) or the manifest name."""
     wanted = name.lower()
-    for key, component in components.items():
+
+    def matches(key: str, component: ConvertedLibrary) -> bool:
         node = nodes[key]
         if owner and (node.owner or "").lower() != owner.lower():
-            continue
+            return False
         if (node.pkgname or key).lower() == wanted:
-            return key
+            return True
         manifest_name = component.data.get("name")
-        if (
+        return (
             not owner
             and isinstance(manifest_name, str)
             and manifest_name.lower() == wanted
-        ):
-            return key
-    return None
+        )
+
+    return next((key for key, c in components.items() if matches(key, c)), None)
 
 
 def _fetch_source(

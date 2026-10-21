@@ -1354,12 +1354,12 @@ def test_by_name_node_folds_into_a_later_pin_of_the_same_package(
     """A library fetched by name alone may pull in a manifest that pins the same
     package owner-qualified; the by-name node folds into that one instead of
     converting the package twice."""
+    # Manifests are keyed by the resolved name, so both B nodes read the same one:
+    # B pins C, and C pins owner/B, which arrives after B was fetched by name
     manifests = {
         "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
-        # Fetched by name; its manifest pins C, whose manifest pins owner/B
-        "B": {"name": "B", "dependencies": {"esphome/C": "1.0.0"}},
+        "esphome/B": {"name": "B", "dependencies": {"esphome/C": "1.0.0"}},
         "esphome/C": {"name": "C", "dependencies": {"esphome/B": "1.0.0"}},
-        "esphome/B": {"name": "B"},
     }
     asked = _patch_download_with_manifests(monkeypatch, tmp_path, manifests)
 
