@@ -55,5 +55,4 @@ async def to_code(config: ConfigType) -> None:
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
     )
 
-    if CONF_MAX_DURATION in config:
-        cg.add(var.set_max_duration(config[CONF_MAX_DURATION]))
+    cg.add_optional(var.set_max_duration, config.get(CONF_MAX_DURATION))

@@ -18,12 +18,9 @@ void TTP229LSFComponent::dump_config() {
 }
 void TTP229LSFComponent::loop() {
   uint16_t touched = 0;
-  if (this->read(reinterpret_cast<uint8_t *>(&touched), 2) != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read(reinterpret_cast<uint8_t *>(&touched), 2) == i2c::ERROR_OK))
     return;
-  }
   touched = i2c::i2ctohs(touched);
-  this->status_clear_warning();
   touched = reverse_bits(touched);
   for (auto *channel : this->channels_) {
     channel->process(touched);

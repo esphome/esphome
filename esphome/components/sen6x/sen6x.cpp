@@ -190,7 +190,7 @@ void SEN6XComponent::setup() {
           if ((entry.status == Sen6xStatus::SEN6X_STATUS_GAS_ERROR && !has_voc_nox) ||
               (entry.status == Sen6xStatus::SEN6X_STATUS_CO2_ERROR && !has_co2) ||
               (entry.status == Sen6xStatus::SEN6X_STATUS_HCHO_ERROR && !has_hcho)) {
-            ESP_LOGE(TAG, "'%s' needs a variant with that feature", entry.sensor->get_name().c_str());
+            ESP_LOGE(TAG, "'%s' needs a variant with that feature", LOG_STR_ARG(entry.sensor->get_log_name()));
             continue;
           }
           entry.bit = status_bit(entry.status, this->sen6x_type_);
@@ -360,7 +360,7 @@ void SEN6XComponent::dump_config() {
     }
     if (this->ambient_pressure_source_ != nullptr) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation source: %s",
-                    this->ambient_pressure_source_->get_name().c_str());
+                    LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
     }
   }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
@@ -678,8 +678,7 @@ void SEN6XComponent::parse_and_publish_number_concentration_() {
                                this->pmc_4_0_sensor_, this->pmc_10_0_sensor_};
   uint16_t measurements[std::size(sensors)];
 
-  if (!this->read_data(measurements, std::size(measurements))) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_data(measurements, std::size(measurements)))) {
     ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
     return;
   }
@@ -688,7 +687,6 @@ void SEN6XComponent::parse_and_publish_number_concentration_() {
     if (sensors[i] != nullptr)
       sensors[i]->publish_state(measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
   }
-  this->status_clear_warning();
 }
 #endif
 

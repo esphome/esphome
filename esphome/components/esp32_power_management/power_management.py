@@ -170,10 +170,8 @@ async def to_code(config: ConfigType) -> None:
     await power_management.register_power_management(var, config)
     add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
 
-    if (max_mhz := config.get(CONF_MAX_FREQUENCY)) is not None:
-        cg.add(var.set_max_freq_mhz(max_mhz))
-    if (min_mhz := config.get(CONF_MIN_FREQUENCY)) is not None:
-        cg.add(var.set_min_freq_mhz(min_mhz))
+    cg.add_optional(var.set_max_freq_mhz, config.get(CONF_MAX_FREQUENCY))
+    cg.add_optional(var.set_min_freq_mhz, config.get(CONF_MIN_FREQUENCY))
     if config[CONF_PROFILING]:
         add_idf_sdkconfig_option("CONFIG_PM_PROFILING", True)
     if config[CONF_TRACE]:
