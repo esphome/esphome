@@ -189,5 +189,5 @@ async def to_code(config: ConfigType) -> None:
             min_value=s.min_value,
             max_value=max_range if s.max_value is None else s.max_value,
             step=s.step,
-            apply=f"control_number({s.setting}, value)",
+            apply="control_number(entity, value)",
         )

@@ -459,6 +459,15 @@ void DFRobotSEN0609Component::control_number(NumberSetting setting, float value)
   this->request_write_(static_cast<Param>(progmem_read_byte(&NUMBER_PARAMS[setting])));
 }
 
+void DFRobotSEN0609Component::control_number(number::Number *number, float value) {
+  for (uint8_t i = 0; i < NUMBER_COUNT; i++) {
+    if (this->numbers_[i] == number) {
+      this->control_number(static_cast<NumberSetting>(i), value);
+      return;
+    }
+  }
+}
+
 void DFRobotSEN0609Component::forget_number_changes_(Param param, bool unknown) {
   for (uint8_t i = 0; i < NUMBER_COUNT; i++) {
     if (progmem_read_byte(&NUMBER_PARAMS[i]) != param)
