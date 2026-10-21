@@ -60,7 +60,7 @@ output:
     inverted: true
   - platform: ledc
     id: test_ledc_dithered
-    pin: 8
+    pin: 21
     channel: 4
     frequency: 19531Hz
     dithering: true

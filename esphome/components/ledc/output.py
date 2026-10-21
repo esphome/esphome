@@ -43,6 +43,29 @@ def validate_frequency(value: Any) -> float:
     return value
 
 
+def validate_dithering(value: Any) -> bool:
+    enabled = cv.boolean(value)
+    if not enabled:
+        return False
+
+    return esp32.only_on_variant(
+        supported=[
+            esp32.VARIANT_ESP32,
+            esp32.VARIANT_ESP32C2,
+            esp32.VARIANT_ESP32C3,  # confirmed on hardware
+            esp32.VARIANT_ESP32C5,
+            esp32.VARIANT_ESP32C6,
+            esp32.VARIANT_ESP32C61,
+            esp32.VARIANT_ESP32H2,
+            esp32.VARIANT_ESP32P4,
+            esp32.VARIANT_ESP32S2,
+            esp32.VARIANT_ESP32S3,
+            esp32.VARIANT_ESP32S31,
+        ],
+        msg_prefix="LEDC hardware dithering",
+    )(enabled)
+
+
 ledc_ns = cg.esphome_ns.namespace("ledc")
 LEDCOutput = ledc_ns.class_("LEDCOutput", output.FloatOutput, cg.Component)
 
@@ -54,25 +77,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
             cv.frequency, cv.float_range(min=0, min_included=False)
         ),
         cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_DITHERING): cv.All(
-            cv.boolean,
-            esp32.only_on_variant(
-                supported=[
-                    esp32.VARIANT_ESP32,
-                    esp32.VARIANT_ESP32C2,
-                    esp32.VARIANT_ESP32C3,  # confirmed on hardware
-                    esp32.VARIANT_ESP32C5,
-                    esp32.VARIANT_ESP32C6,
-                    esp32.VARIANT_ESP32C61,
-                    esp32.VARIANT_ESP32H2,
-                    esp32.VARIANT_ESP32P4,
-                    esp32.VARIANT_ESP32S2,
-                    esp32.VARIANT_ESP32S3,
-                    esp32.VARIANT_ESP32S31,
-                ],
-                msg_prefix="LEDC hardware dithering",
-            ),
-        ),
+        cv.Optional(CONF_DITHERING): validate_dithering,
         cv.Optional(CONF_PHASE_ANGLE): cv.All(
             cv.angle, cv.float_range(min=0.0, max=360.0)
         ),
