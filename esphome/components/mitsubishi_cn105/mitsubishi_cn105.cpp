@@ -349,6 +349,9 @@ void MitsubishiCN105::set_remote_temperature_half_deg_(uint8_t temperature_half_
 }
 
 void MitsubishiCN105::set_power(bool power_on) {
+  if (this->status_.power_on != power_on) {
+    this->invalidate_operating_();
+  }
   this->status_.power_on = power_on;
   this->pending_updates_.set(Property::Power::ID);
 }
@@ -363,8 +366,13 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
+  const Mode old_mode = this->status_.mode;
   if (!Property::Mode::validate_and_set(mode, this->status_, this->pending_updates_)) {
     ESP_LOGD(TAG, "Ignoring invalid mode: %u", static_cast<uint8_t>(mode));
+    return;
+  }
+  if (old_mode != this->status_.mode) {
+    this->invalidate_operating_();
   }
 }
 
@@ -498,6 +506,13 @@ void MitsubishiCN105::FrameParser::reset_and_dump_buffer_(const char *prefix) {
 
 void MitsubishiCN105::FrameParser::dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
   ESP_LOGVV_HEX(TAG, data, len, READ_BUFFER_SIZE, "%s (%zu): %s", prefix, len);
+}
+
+// Compressor state reported under the previous mode/power is meaningless for the new one.
+// Clear it and the poll timestamp so a fresh 0x06 is requested on the next status cycle.
+void MitsubishiCN105::invalidate_operating_() {
+  this->status_.operating.reset();
+  this->last_heatpump_request_ms_.reset();
 }
 
 }  // namespace esphome::mitsubishi_cn105
