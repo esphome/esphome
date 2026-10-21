@@ -21,7 +21,7 @@ from google.protobuf import message
 import pytest
 
 from .log_utils import LineWaiter
-from .state_utils import require_entity
+from .state_utils import require_entity, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 ENTITY = "light.kitchen"
@@ -160,8 +160,8 @@ async def test_api_homeassistant_light(
     async with light_entity(
         yaml_config, run_compiled, api_client_connected, "['color_temp', 'rgb']"
     ) as ha:
-        set_force_off = next(s for s in ha.services if s.name == "set_force_off")
-        retarget_many = next(s for s in ha.services if s.name == "retarget_many")
+        set_force_off = require_service(ha.services, "set_force_off")
+        retarget_many = require_service(ha.services, "retarget_many")
         # Normal while Home Assistant starts, so no warning
         ha.report(None, "unavailable")
         ha.report(None, "unknown")

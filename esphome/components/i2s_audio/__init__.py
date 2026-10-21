@@ -370,12 +370,9 @@ async def to_code(config: ConfigType) -> None:
     # Helps avoid callbacks being skipped due to processor load
     add_idf_sdkconfig_option("CONFIG_I2S_ISR_IRAM_SAFE", True)
 
-    if CONF_I2S_LRCLK_PIN in config:
-        cg.add(var.set_lrclk_pin(config[CONF_I2S_LRCLK_PIN]))
-    if CONF_I2S_BCLK_PIN in config:
-        cg.add(var.set_bclk_pin(config[CONF_I2S_BCLK_PIN]))
-    if CONF_I2S_MCLK_PIN in config:
-        cg.add(var.set_mclk_pin(config[CONF_I2S_MCLK_PIN]))
+    cg.add_optional(var.set_lrclk_pin, config.get(CONF_I2S_LRCLK_PIN))
+    cg.add_optional(var.set_bclk_pin, config.get(CONF_I2S_BCLK_PIN))
+    cg.add_optional(var.set_mclk_pin, config.get(CONF_I2S_MCLK_PIN))
     if config[CONF_FULL_DUPLEX]:
         cg.add_define("USE_I2S_AUDIO_FULL_DUPLEX")
 

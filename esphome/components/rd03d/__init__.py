@@ -43,8 +43,6 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
 
-    if CONF_TRACKING_MODE in config:
-        cg.add(var.set_tracking_mode(config[CONF_TRACKING_MODE]))
+    cg.add_optional(var.set_tracking_mode, config.get(CONF_TRACKING_MODE))
 
-    if CONF_THROTTLE in config:
-        cg.add(var.set_throttle(config[CONF_THROTTLE]))
+    cg.add_optional(var.set_throttle, config.get(CONF_THROTTLE))

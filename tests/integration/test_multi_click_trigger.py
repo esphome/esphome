@@ -13,7 +13,9 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -50,33 +52,29 @@ async def test_multi_click_trigger(
     ):
         _entities, services = await client.list_entities_services()
 
-        test_service = next((s for s in services if s.name == "run_all_tests"), None)
-        assert test_service is not None, "run_all_tests service not found"
+        test_service = require_service(services, "run_all_tests")
 
         # Kick off the entire test sequence (runs in YAML with delays)
         await client.execute_service(test_service, {})
 
         # Wait for all three triggers
-        try:
-            count = await asyncio.wait_for(single_click_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for SINGLE_CLICK - on_multi_click did not trigger."
-            )
+        count = await wait_or_fail(
+            single_click_future,
+            5.0,
+            "Timeout waiting for SINGLE_CLICK - on_multi_click did not trigger.",
+        )
         assert count == 1, f"Expected single click count=1, got {count}"
 
-        try:
-            count = await asyncio.wait_for(double_click_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for DOUBLE_CLICK - on_multi_click did not trigger."
-            )
+        count = await wait_or_fail(
+            double_click_future,
+            5.0,
+            "Timeout waiting for DOUBLE_CLICK - on_multi_click did not trigger.",
+        )
         assert count == 1, f"Expected double click count=1, got {count}"
 
-        try:
-            count = await asyncio.wait_for(long_press_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for LONG_PRESS - on_multi_click did not trigger."
-            )
+        count = await wait_or_fail(
+            long_press_future,
+            5.0,
+            "Timeout waiting for LONG_PRESS - on_multi_click did not trigger.",
+        )
         assert count == 1, f"Expected long press count=1, got {count}"
