@@ -633,9 +633,7 @@ async def setup_light_core_(light_var, config, output_var):
     if (color_correct := config.get(CONF_COLOR_CORRECT)) is not None:
         cg.add(output_var.set_correction(*color_correct))
 
-    if (power_supply_id := config.get(CONF_POWER_SUPPLY)) is not None:
-        var_ = await cg.get_variable(power_supply_id)
-        cg.add(output_var.set_power_supply(var_))
+    await cg.add_variable(output_var.set_power_supply, config.get(CONF_POWER_SUPPLY))
 
     if (power_estimation := config.get(CONF_POWER_ESTIMATION)) is not None:
         cg.add_define("USE_LIGHT_POWER_ESTIMATION")
