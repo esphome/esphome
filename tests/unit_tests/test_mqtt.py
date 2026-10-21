@@ -397,7 +397,7 @@ def test_get_esphome_device_ip_broker_disconnect_fails_fast(
             get_esphome_device_ip(_discovery_config(), timeout=5)
 
     assert time.monotonic() - start < 1
-    assert "Disconnected from MQTT broker (5)" in caplog.text
+    assert "Disconnected from MQTT broker (Not authorized, rc=135)" in caplog.text
 
 
 def test_get_esphome_device_ip_sends_discovery_ping() -> None:
