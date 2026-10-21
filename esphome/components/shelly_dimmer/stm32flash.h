@@ -72,17 +72,18 @@ using stm32_cmd_t = struct Stm32Cmd {
   uint8_t crc;
 };
 
+// Word-only fields: the table is in PROGMEM and aligned 32-bit loads from flash are safe on ESP8266
 using stm32_dev_t = struct Stm32Dev {  // NOLINT
-  const uint16_t id;
-  const char *name;
+  const uint32_t id;
   const uint32_t ram_start, ram_end;
   const uint32_t fl_start, fl_end;
-  const uint16_t fl_pps;  // pages per sector
+  const uint32_t fl_pps;  // pages per sector
   const uint32_t *fl_ps;  // page size
   const uint32_t opt_start, opt_end;
   const uint32_t mem_start, mem_end;
   const uint32_t flags;
 };
+static_assert(sizeof(stm32_dev_t) == 12 * sizeof(uint32_t), "stm32_dev_t must stay word-only for flash reads");
 
 using stm32_t = struct Stm32 {
   uart::UARTDevice *stream;

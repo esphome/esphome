@@ -56,29 +56,30 @@ CanbusTrigger = canbus_ns.class_(
 )
 CanSpeed = canbus_ns.enum("CAN_SPEED")
 
-CAN_SPEEDS = {
-    "1KBPS": CanSpeed.CAN_1KBPS,
-    "5KBPS": CanSpeed.CAN_5KBPS,
-    "10KBPS": CanSpeed.CAN_10KBPS,
-    "12K5BPS": CanSpeed.CAN_12K5BPS,
-    "16KBPS": CanSpeed.CAN_16KBPS,
-    "20KBPS": CanSpeed.CAN_20KBPS,
-    "25KBPS": CanSpeed.CAN_25KBPS,
-    "31K25BPS": CanSpeed.CAN_31K25BPS,
-    "33KBPS": CanSpeed.CAN_33KBPS,
-    "40KBPS": CanSpeed.CAN_40KBPS,
-    "50KBPS": CanSpeed.CAN_50KBPS,
-    "80KBPS": CanSpeed.CAN_80KBPS,
-    "83K3BPS": CanSpeed.CAN_83K3BPS,
-    "95KBPS": CanSpeed.CAN_95KBPS,
-    "100KBPS": CanSpeed.CAN_100KBPS,
-    "125KBPS": CanSpeed.CAN_125KBPS,
-    "200KBPS": CanSpeed.CAN_200KBPS,
-    "250KBPS": CanSpeed.CAN_250KBPS,
-    "500KBPS": CanSpeed.CAN_500KBPS,
-    "800KBPS": CanSpeed.CAN_800KBPS,
-    "1000KBPS": CanSpeed.CAN_1000KBPS,
-}
+CAN_SPEEDS = CanSpeed.options(
+    "1KBPS",
+    "5KBPS",
+    "10KBPS",
+    "12K5BPS",
+    "16KBPS",
+    "20KBPS",
+    "25KBPS",
+    "31K25BPS",
+    "33KBPS",
+    "40KBPS",
+    "50KBPS",
+    "80KBPS",
+    "83K3BPS",
+    "95KBPS",
+    "100KBPS",
+    "125KBPS",
+    "200KBPS",
+    "250KBPS",
+    "500KBPS",
+    "800KBPS",
+    "1000KBPS",
+    prefix="CAN_",
+)
 
 
 def get_rate(value: str) -> int:

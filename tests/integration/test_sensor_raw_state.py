@@ -13,7 +13,9 @@ import re
 from aioesphomeapi import APIClient, EntityInfo
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 NO_FILTER_PATTERN = re.compile(r"NO_FILTER: state=([\d.]+) raw_state=([\d.]+)")
 WITH_FILTER_PATTERN = re.compile(r"WITH_FILTER: state=([\d.]+) raw_state=([\d.]+)")
@@ -26,15 +28,9 @@ async def _press_and_read(
     future: asyncio.Future[tuple[float, float]],
     label: str,
 ) -> tuple[float, float]:
-    button = next(
-        (e for e in entities if button_object_id in e.object_id.lower()), None
-    )
-    assert button is not None, f"{button_object_id} not found"
+    button = require_entity(entities, button_object_id)
     client.button_command(button.key)
-    try:
-        return await asyncio.wait_for(future, timeout=5.0)
-    except TimeoutError:
-        pytest.fail(f"Timeout waiting for {label} log message")
+    return await wait_or_fail(future, 5.0, f"Timeout waiting for {label} log message")
 
 
 @pytest.mark.asyncio

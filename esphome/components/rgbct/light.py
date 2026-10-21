@@ -42,17 +42,11 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
 
-    red = await cg.get_variable(config[CONF_RED])
-    cg.add(var.set_red(red))
-    green = await cg.get_variable(config[CONF_GREEN])
-    cg.add(var.set_green(green))
-    blue = await cg.get_variable(config[CONF_BLUE])
-    cg.add(var.set_blue(blue))
-
-    color_temp = await cg.get_variable(config[CONF_COLOR_TEMPERATURE])
-    cg.add(var.set_color_temperature(color_temp))
-    white_brightness = await cg.get_variable(config[CONF_WHITE_BRIGHTNESS])
-    cg.add(var.set_white_brightness(white_brightness))
+    await cg.add_variable(var.set_red, config[CONF_RED])
+    await cg.add_variable(var.set_green, config[CONF_GREEN])
+    await cg.add_variable(var.set_blue, config[CONF_BLUE])
+    await cg.add_variable(var.set_color_temperature, config[CONF_COLOR_TEMPERATURE])
+    await cg.add_variable(var.set_white_brightness, config[CONF_WHITE_BRIGHTNESS])
 
     cg.add(var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE]))
     cg.add(var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
