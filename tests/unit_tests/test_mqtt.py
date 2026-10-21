@@ -33,7 +33,13 @@ from esphome.const import (
     CONF_TOPIC,
 )
 from esphome.core import EsphomeError
-from esphome.mqtt import get_esphome_device_ip, prepare, show_discover, show_logs
+from esphome.mqtt import (
+    clear_topic,
+    get_esphome_device_ip,
+    prepare,
+    show_discover,
+    show_logs,
+)
 
 
 @pytest.mark.parametrize(
@@ -685,3 +691,38 @@ def test_prepare_loads_client_certificate() -> None:
     cert_file, key_file = context.load_cert_chain.call_args.args
     assert not Path(cert_file).exists()
     assert not Path(key_file).exists()
+
+
+@patch("esphome.mqtt.initialize")
+def test_clear_topic_clears_retained_messages_under_the_device(
+    mock_initialize: MagicMock,
+) -> None:
+    """Without a topic the device's discovery subtree is cleared, one empty retained publish per retained message."""
+    clear_topic(_discovery_config(), None)
+
+    assert mock_initialize.call_args.args[1] == ["homeassistant/+/test-device/#"]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    on_message(
+        client,
+        None,
+        MagicMock(
+            topic="homeassistant/sensor/test-device/t", payload=b"1", retain=False
+        ),
+    )
+    on_message(
+        client,
+        None,
+        MagicMock(topic="homeassistant/sensor/test-device/t", payload=b"", retain=True),
+    )
+    client.publish.assert_not_called()
+    on_message(
+        client,
+        None,
+        MagicMock(
+            topic="homeassistant/sensor/test-device/t", payload=b"1", retain=True
+        ),
+    )
+    client.publish.assert_called_once_with(
+        "homeassistant/sensor/test-device/t", None, retain=True
+    )
