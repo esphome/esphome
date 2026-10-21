@@ -2,6 +2,7 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.nrf52 import partitions as nrf52_partitions
 from esphome.components.nrf52.boards import MCUMGR_OTA_BOOTLOADERS
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
@@ -227,22 +228,28 @@ async def to_code(config: ConfigType) -> None:
         #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1,
         #   which ends at the lowest section reserved above (bootloader, coredump).
         sections = zephyr_data()[KEY_PM_STATIC]
-        mcuboot_size = 0x9000
-        sd_end = next(s.end_address for s in sections if "SoftDevice" in s.name)
-        top = min(s.address for s in sections if s.address >= sd_end)
-        slot0_start = sd_end + mcuboot_size
-        # Align slot size down to a 4 KB sector boundary
-        slot_size = ((top - slot0_start) // 2 // 0x1000) * 0x1000
-        slot1_start = slot0_start + slot_size
+        if framework_ver >= cv.Version(3, 4, 0):
+            # Without the Partition Manager (off by default from SDK 3.4.0) nothing adds
+            # the boot and storage partitions, so the whole table is rebuilt here,
+            # together with zigbee's partitions so the two cannot overlap.
+            partition_overlay = nrf52_partitions.uf2_scheme_rebuild_overlay(
+                sections, "zigbee" in CORE.loaded_integrations
+            )
+        else:
+            sd_end = next(s.end_address for s in sections if "SoftDevice" in s.name)
+            top = min(s.address for s in sections if s.address >= sd_end)
+            slot0_start = sd_end + nrf52_partitions.MCUBOOT_SIZE
+            # Align slot size down to a 4 KB sector boundary
+            slot_size = ((top - slot0_start) // 2 // 0x1000) * 0x1000
+            slot1_start = slot0_start + slot_size
 
-        def _mcuboot_partition_overlay() -> str:
             def part(name: str, start: int, size: int) -> str:
                 return f"""
                 {name}: partition@{start:x} {{
                     reg = <0x{start:x} 0x{size:x}>;
                 }};"""
 
-            return f"""
+            partition_overlay = f"""
                 /delete-node/ &boot_partition;
                 /delete-node/ &storage_partition;
                 /delete-node/ &code_partition;
@@ -258,20 +265,18 @@ async def to_code(config: ConfigType) -> None:
                     }};
                 }};
             """
-
-        def _code_partition_overlay() -> str:
-            return """
-                / {
-                    chosen {
-                        zephyr,code-partition = &slot0_partition;
-                    };
+        code_partition_overlay = """
+            / {
+                chosen {
+                    zephyr,code-partition = &slot0_partition;
                 };
-                """
+            };
+            """
 
-        zephyr_add_overlay(_mcuboot_partition_overlay())
-        zephyr_add_overlay(_mcuboot_partition_overlay(), "mcuboot")
-        zephyr_add_overlay(_code_partition_overlay())
-        zephyr_add_overlay(_code_partition_overlay(), "mcuboot")
+        zephyr_add_overlay(partition_overlay)
+        zephyr_add_overlay(partition_overlay, "mcuboot")
+        zephyr_add_overlay(code_partition_overlay)
+        zephyr_add_overlay(code_partition_overlay, "mcuboot")
         # mcuboot is second bootloader. It's only task is to swap partitions.
         # recovery can be done by first bootloader. Keep it small.
         zephyr_add_overlay(
@@ -285,5 +290,7 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("USB_DEVICE_STACK", False, image="mcuboot")
         zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
         zephyr_add_prj_conf(
-            "PM_PARTITION_SIZE_MCUBOOT", HexValue(mcuboot_size), image="mcuboot"
+            "PM_PARTITION_SIZE_MCUBOOT",
+            HexValue(nrf52_partitions.MCUBOOT_SIZE),
+            image="mcuboot",
         )

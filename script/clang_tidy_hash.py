@@ -23,6 +23,16 @@ CLANG_TIDY_GLOBAL_FILES = (
     "esphome/components/nrf52/__init__.py",
 )
 
+# Inputs to the Zephyr CodeChecker compile commands only; kept out of
+# CLANG_TIDY_GLOBAL_FILES so a change does not force a full scan of every
+# platform.
+ZEPHYR_CODECHECKER_FILES = (
+    "esphome/components/nrf52/clang_tidy.py",
+    "esphome/components/nrf52/framework.py",
+    "esphome/components/nrf52/requirements.txt",
+    "esphome/platformio/library.py",
+)
+
 # sdkconfig.defaults and per-target sdkconfig.defaults.<target> files flip the
 # CONFIG flags that decide which variant code paths clang-tidy sees. Matched by
 # this prefix at the repo root.
@@ -75,6 +85,37 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
         hasher.update(read_file_bytes(path))
 
     return hasher.hexdigest()
+
+
+def cache_key(extra: str = "", files: tuple[str, ...] = ()) -> str:
+    """Compute the current cache key (plus extra and the contents of files).
+
+    Snapshot this once, before the work it gates -- recomputed after, it
+    would reflect edits made mid-run rather than what the work actually saw.
+    """
+    if not extra and not files:
+        return calculate_clang_tidy_hash()
+    hasher = hashlib.sha256(calculate_clang_tidy_hash().encode())
+    repo_root = get_repo_root()
+    for name in files:
+        path = repo_root / name
+        if path.is_file():
+            hasher.update(name.encode())
+            hasher.update(read_file_bytes(path))
+    hasher.update(extra.encode())
+    return hasher.hexdigest()
+
+
+def is_cached(hash_path: Path, key: str) -> bool:
+    """True if hash_path already holds `key`."""
+    if not hash_path.is_file():
+        return False
+    return hash_path.read_text(encoding="utf-8").strip() == key
+
+
+def update_cache(hash_path: Path, key: str) -> None:
+    """Record `key` as the fresh cache key."""
+    hash_path.write_text(key + "\n", encoding="utf-8")
 
 
 def calculate_idedata_cache_hash(repo_root: Path | None = None) -> str:
