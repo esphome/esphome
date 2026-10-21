@@ -1,11 +1,13 @@
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <csignal>
 #include <cstdint>
 #include <cstring>
 #include <netinet/in.h>
 #include <string>
 #include <sys/socket.h>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 
@@ -227,6 +229,34 @@ TEST_F(ModbusServerTwoClients, RequestsSentAheadKeepTheirOrder) {
   }
   EXPECT_EQ(got_a, want_a);
   EXPECT_EQ(received(this->b_), read_reply(1, 30));
+}
+
+TEST_F(ModbusServerTwoClients, ClientThatAsksAheadLetsTheOtherClientIn) {
+  // A keeps one request ahead: registers 1 and 2 in one write, register 3 right after the first reply.
+  std::vector<uint8_t> two = read_request(1, 1);
+  std::vector<uint8_t> second = read_request(2, 2);
+  two.insert(two.end(), second.begin(), second.end());
+  send(this->a_, two);
+  this->loops(1);
+  send(this->b_, read_request(1, 9));
+
+  EXPECT_EQ(this->hub_takes_request(), 1);
+  this->hub_answers(10);
+  this->loops(1);
+  send(this->a_, read_request(3, 3));
+  EXPECT_EQ(this->hub_takes_request(), 2);
+  // The hub needs 20 ms for the reply, so register 3 arrives meanwhile.
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  this->loops(3);
+  this->hub_answers(20);
+  this->loops(1);
+
+  // B's register 9 comes next. A sent register 3 after the first reply, so it waits for A's next turn.
+  EXPECT_EQ(this->hub_takes_request(), 9);
+  this->hub_answers(90);
+  this->loops(1);
+  EXPECT_EQ(received(this->b_), read_reply(1, 90));
+  EXPECT_EQ(this->hub_takes_request(), 3);
 }
 
 }  // namespace
