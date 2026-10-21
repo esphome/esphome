@@ -367,7 +367,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
               this->pairing_in_progress_ = true;
             }
           }
-          if (this->pairing_attempts_ > MAX_PAIRING_ATTEMPTS) {
+          if (this->pairing_attempts_ >= MAX_PAIRING_ATTEMPTS) {
             this->halt_("Too many failed/waiting pairing checks");
           }
         }

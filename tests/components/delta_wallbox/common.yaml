@@ -1,3 +1,7 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
 ble_client:
   - id: delta_ble_client
     mac_address: 01:02:03:04:05:06
@@ -5,6 +9,9 @@ ble_client:
 time:
   - platform: sntp
     id: delta_wallbox_time
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
 
 delta_wallbox:
   id: my_charger
