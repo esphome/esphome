@@ -90,10 +90,7 @@ async def test_sensor_timeout_filter(
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Helper to find buttons by object_id substring
         def find_button(object_id_substring: str) -> int:

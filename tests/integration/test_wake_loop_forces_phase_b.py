@@ -26,6 +26,7 @@ import pytest
 
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -51,10 +52,9 @@ async def test_wake_loop_forces_phase_b(
     ):
         await assert_device_name(client, "wake-loop-phase-b")
 
-        try:
-            delta, elapsed = await asyncio.wait_for(result, timeout=15.0)
-        except TimeoutError:
-            pytest.fail("WAKE_RESULT marker never appeared")
+        delta, elapsed = await wait_or_fail(
+            result, 15.0, "WAKE_RESULT marker never appeared"
+        )
 
         # Without the fix, delta would be 0 — loop_interval_=2000ms held
         # Phase B off for the full 500ms observation window. With the fix
