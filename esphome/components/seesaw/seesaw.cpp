@@ -116,8 +116,17 @@ bool Seesaw::get_temperature(float &value) {
 }
 
 bool Seesaw::analog_read(uint8_t pin, uint16_t &value) {
+  // The SAMD09 firmware numbers the ADC inputs: pins 2 to 5 are channels 0 to 3; the other chips take the pin
+  uint8_t channel = pin;
+  if (this->cpuid_ == SEESAW_HW_ID_SAMD09) {
+    if (pin < 2 || pin > 5) {
+      ESP_LOGW(TAG, "Pin %u is not an ADC input", pin);
+      return false;
+    }
+    channel = pin - 2;
+  }
   uint8_t buf[2]{};
-  if (!this->readbuf_(SEESAW_ADC, SEESAW_ADC_CHANNEL_OFFSET + pin, buf, 2, 500))
+  if (!this->readbuf_(SEESAW_ADC, SEESAW_ADC_CHANNEL_OFFSET + channel, buf, 2, 500))
     return false;
   value = encode_uint16(buf[0], buf[1]);
   return true;
