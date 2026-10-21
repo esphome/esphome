@@ -1,1 +1,2 @@
 DOMAIN = "l298n"
+CODEOWNERS = ["@M0ssTee"]
