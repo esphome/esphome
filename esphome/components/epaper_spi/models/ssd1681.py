@@ -10,6 +10,11 @@ MAX_HEIGHT = 200
 
 class SSD1681(SSD1683):
     class_name = "EPaperSSD1681"
+    source_files = (
+        "epaper_spi_mono.cpp",
+        "epaper_spi_ssd1681.cpp",
+        "epaper_spi_ssd1683.cpp",
+    )
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         config = super().validate_config(config)

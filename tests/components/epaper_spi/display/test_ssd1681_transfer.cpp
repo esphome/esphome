@@ -36,6 +36,8 @@ class TestableSSD1681 : public EPaperSSD1681 {
 
   /// Run an update from the point where the frame has been drawn through to idle.
   void run_update() {
+    // What the UPDATE state decides before it hands over to RESET
+    this->partial_ = this->update_count_ != 0;
     this->state_ = EPaperState::RESET;
     while (this->state_ != EPaperState::IDLE)
       this->process_state_();

@@ -5,6 +5,10 @@ from . import EpaperModel
 
 class SpectraE6(EpaperModel):
     class_name = "EPaperSpectraE6"
+    source_files = (
+        "epaper_spi_4bpp.cpp",
+        "epaper_spi_spectra_e6.cpp",
+    )
 
     # fmt: off
     def get_init_sequence(self, config: dict):

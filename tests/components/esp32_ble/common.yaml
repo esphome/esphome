@@ -1,2 +1,13 @@
 esp32_ble:
   io_capability: keyboard_only
+
+button:
+  - platform: template
+    name: Toggle BLE
+    on_press:
+      - if:
+          condition: ble.enabled
+          then:
+            - ble.disable:
+          else:
+            - ble.enable:

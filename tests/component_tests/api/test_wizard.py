@@ -303,6 +303,16 @@ def test_entity_id_is_optional_only_for_wizard_inputs(
         ), errors
 
 
+def test_light_is_a_wizard_input(tmp_path: Path) -> None:
+    entities = "light:\n  - platform: homeassistant\n    id: ha_light\n"
+    errors = config_errors(
+        write_config(
+            tmp_path, ESP32_HEADER, wizard_inputs("- entity: ha_light"), entities
+        )
+    )
+    assert errors == []
+
+
 def test_entity_id_is_optional_for_an_input_and_its_domain_is_checked(
     tmp_path: Path,
 ) -> None:
@@ -490,6 +500,7 @@ WIZARD_DEFINES = {
     "USE_API_WIZARD",
     "USE_API_WIZARD_INPUTS",
     "USE_API_WIZARD_LINKED_INPUTS",
+    "USE_API_WIZARD_MULTIPLE_INPUTS",
     "USE_API_WIZARD_STANDALONE_INPUTS",
 }
 
@@ -550,8 +561,27 @@ WIZARD_DEFINES = {
         ),
         pytest.param(
             "- entities: [{id: sw}]\n  inputs: [{entity: ha_sensor, target: {entity: [{domain: sensor}]}}, {id: standalone}]",
-            WIZARD_DEFINES,
+            WIZARD_DEFINES - {"USE_API_WIZARD_MULTIPLE_INPUTS"},
             id="everything",
+        ),
+        pytest.param(
+            "- inputs: [{id: calendars, multiple: true}]",
+            {
+                "USE_API_WIZARD",
+                "USE_API_WIZARD_INPUTS",
+                "USE_API_WIZARD_STANDALONE_INPUTS",
+                "USE_API_WIZARD_MULTIPLE_INPUTS",
+            },
+            id="multiple-input",
+        ),
+        pytest.param(
+            "- inputs: [{id: calendars, multiple: false}]",
+            {
+                "USE_API_WIZARD",
+                "USE_API_WIZARD_INPUTS",
+                "USE_API_WIZARD_STANDALONE_INPUTS",
+            },
+            id="multiple-false",
         ),
     ],
 )
@@ -925,3 +955,99 @@ def test_an_entity_with_an_entity_id_that_is_no_input_is_valid(
     assert "api_wizard_input_ha_plain_sensor" not in main_cpp
     # Every buffer starts empty
     assert '] = "sensor.' not in main_cpp.split("API_WIZARD_INPUTS")[0]
+
+
+@pytest.mark.parametrize(
+    "input_conf",
+    [
+        "{id: cals, multiple: true}",
+        "{id: cals, multiple: true, max_length: 255}",
+        "{id: cals, multiple: true, max_length: 4095}",
+        "{id: cals, multiple: false}",
+    ],
+)
+def test_multiple_input_is_valid(tmp_path: Path, input_conf: str) -> None:
+    api = wizard_inputs(f"- {input_conf}")
+
+    assert config_errors(write_config(tmp_path, ESP32_HEADER, api)) == []
+
+
+@pytest.mark.parametrize(
+    ("inputs", "message"),
+    [
+        pytest.param(
+            "- {entity: ha_sensor, multiple: true}",
+            "multiple is only for standalone inputs",
+            id="multiple-linked",
+        ),
+        pytest.param(
+            "- {id: cals, max_length: 1023}",
+            "'max_length' is only valid when 'multiple' is true",
+            id="max-length-without-multiple",
+        ),
+        pytest.param(
+            "- {id: cals, multiple: false, max_length: 1023}",
+            "'max_length' is only valid when 'multiple' is true",
+            id="max-length-multiple-false",
+        ),
+        pytest.param(
+            "- {id: cals, multiple: true, max_length: 254}",
+            "value must be at least 255",
+            id="max-length-too-small",
+        ),
+        pytest.param(
+            "- {id: cals, multiple: true, max_length: 4096}",
+            "value must be at most 4095",
+            id="max-length-too-big",
+        ),
+    ],
+)
+def test_invalid_multiple_inputs_are_rejected(
+    tmp_path: Path, inputs: str, message: str
+) -> None:
+    errors = config_errors(write_config(tmp_path, ESP32_HEADER, wizard_inputs(inputs)))
+
+    assert any(message in error for error in errors), errors
+
+
+def test_multiple_input_document_and_table(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    api = wizard_inputs(
+        """
+        - {id: cals, multiple: true, max_length: 1023}
+        - {id: cals_default, multiple: true}
+        - {id: single}
+        """
+    )
+    main_cpp = generate_main(write_config(tmp_path, ESP32_HEADER, api))
+
+    document = json.loads(zstd_module().decompress(blob_in(main_cpp)))
+    inputs = document["pages"][0]["inputs"]
+    # multiple and max_length are only there when set
+    assert inputs == [
+        {"key": fnv1_hash("cals"), "multiple": True, "max_length": 1023},
+        {"key": fnv1_hash("cals_default"), "multiple": True},
+        {"key": fnv1_hash("single")},
+    ]
+    # Only a multiple entry names its buffer size
+    assert 'static char api_wizard_input_cals[1024] = "";' in main_cpp
+    assert 'static char api_wizard_input_cals_default[256] = "";' in main_cpp
+    assert 'static char api_wizard_input_single[256] = "";' in main_cpp
+    assert f"{{{fnv1_hash('cals')}u, api_wizard_input_cals, 1024}}" in main_cpp
+    assert (
+        f"{{{fnv1_hash('cals_default')}u, api_wizard_input_cals_default, 256}}"
+        in main_cpp
+    )
+    assert f"{{{fnv1_hash('single')}u, api_wizard_input_single}}" in main_cpp
+
+
+def test_inputs_without_multiple_keep_the_two_field_table(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    main_cpp = generate_main(
+        write_config(tmp_path, ESP32_HEADER, wizard_inputs("- id: single"))
+    )
+
+    assert f"{{{fnv1_hash('single')}u, api_wizard_input_single}}" in main_cpp
+    assert "MULTIPLE_INPUTS" not in {d.name for d in CORE.defines}

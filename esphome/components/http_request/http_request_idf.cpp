@@ -9,6 +9,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
 #include "esp_crt_bundle.h"
@@ -52,7 +53,8 @@ esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
 
 std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const char *method, const std::string &body,
                                                        const std::vector<Header> &request_headers,
-                                                       const std::vector<std::string> &lower_case_collect_headers) {
+                                                       const std::vector<std::string> &lower_case_collect_headers,
+                                                       uint32_t timeout_ms) {
   if (!network::is_connected()) {
     this->status_momentary_error(ERROR_DURATION_MS);
     ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
@@ -76,13 +78,14 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
     return nullptr;
   }
 
-  bool secure = strstr(url, "https:") != nullptr;
+  // Only the scheme counts; "https:" later in the URL (a query string) does not make it secure
+  bool secure = ESPHOME_strncasecmp_P(url, ESPHOME_PSTR("https:"), 6) == 0;
 
   esp_http_client_config_t config = {};
 
   config.url = url;
   config.method = method_idf;
-  config.timeout_ms = this->timeout_;
+  config.timeout_ms = timeout_ms;
   config.disable_auto_redirect = !this->follow_redirects_;
   config.max_redirection_count = this->redirect_limit_;
   config.auth_type = HTTP_AUTH_TYPE_BASIC;
@@ -104,7 +107,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
   config.buffer_size_tx = this->buffer_size_tx_;
 
   const uint32_t start = millis();
-  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+  const uint32_t watchdog_timeout = this->get_watchdog_timeout(timeout_ms);
+  watchdog::WatchdogManager wdm(watchdog_timeout);
 
   config.event_handler = http_event_handler;
 
@@ -117,6 +121,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
 
   std::shared_ptr<HttpContainerIDF> container = std::make_shared<HttpContainerIDF>(client);
   container->set_parent(this);
+  container->set_watchdog_timeout(watchdog_timeout);
 
   container->set_secure(secure);
 
@@ -261,7 +266,7 @@ bool HttpContainerIDF::is_read_complete() const {
 // This is passed through as a negative return value, which callers treat as an error.
 int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
   const uint32_t start = millis();
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
 
   // Check if we've already read all expected content (non-chunked and no-body only).
   // Use the base class check here, NOT the override: esp_http_client_is_complete_data_received()
@@ -304,7 +309,7 @@ void HttpContainerIDF::end() {
   if (this->client_ == nullptr) {
     return;  // Already cleaned up
   }
-  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
 
   esp_http_client_close(this->client_);
   esp_http_client_cleanup(this->client_);

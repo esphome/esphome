@@ -113,20 +113,18 @@ def _packed_bit_bytes(bits: int) -> int:
     return (bits + 7) // 8
 
 
-def _synchronous_handler(value: ConfigType) -> ConfigType:
-    """Reject deferring actions in a handler: its PDU spans point into hub buffers that are reused
-    once the handler returns, and DelayAction and friends capture the trigger args for later replay."""
-    if automation.has_non_synchronous_actions(value):
-        raise cv.Invalid(
-            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in modbus_client "
-            "handlers: the request/response data is only valid while the handler runs. Copy what you "
-            "need into globals first, then defer in a separate script or automation."
-        )
-    return value
+# Handler PDU spans point into hub buffers that are reused once the handler returns.
+_HANDLER_CONTEXT = "modbus_client handlers"
+_HANDLER_DATA = "the request/response data"
+_synchronous_handler = automation.validate_no_deferring_actions(
+    _HANDLER_CONTEXT, _HANDLER_DATA
+)
 
 
 def _handler_schema() -> cv.All:
-    return cv.All(automation.validate_automation(single=True), _synchronous_handler)
+    return automation.validate_synchronous_automation(
+        _HANDLER_CONTEXT, _HANDLER_DATA, single=True
+    )
 
 
 # Each action is its own hub device: the modbus hub routes the reply straight back to the action that
@@ -188,8 +186,7 @@ async def register_client_action(
 
     response_args are the on_response handler's arguments, which differ per action.
     """
-    parent = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[modbus.CONF_MODBUS_ID])
     cg.add(
         var.set_target_address(
             await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)

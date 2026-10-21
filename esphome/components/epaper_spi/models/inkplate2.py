@@ -5,6 +5,7 @@ from . import EpaperModel
 
 class Inkplate2Model(EpaperModel):
     class_name = "EPaperInkplate2"
+    source_files = ("epaper_spi_inkplate2.cpp",)
 
     def get_init_sequence(self, config: dict):
         width, height = self.get_dimensions(config)

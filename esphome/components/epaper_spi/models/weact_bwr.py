@@ -16,6 +16,7 @@ class WeActBWR(EpaperModel):
     """Base EpaperModel class for WeAct Black/White/Red displays using SSD1683 controller."""
 
     class_name = "EPaperWeAct3C"
+    source_files = ("epaper_weact_3c.cpp",)
 
     def get_init_sequence(self, config):
         """Generate initialization sequence for WeAct BWR displays.

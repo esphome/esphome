@@ -7,6 +7,10 @@ from . import EpaperModel
 
 class Inkplate6ColorModel(EpaperModel):
     class_name = "EPaperInkplate6Color"
+    source_files = (
+        "epaper_spi_4bpp.cpp",
+        "epaper_spi_inkplate6color.cpp",
+    )
 
     # fmt: off
     def get_init_sequence(self, config: dict):

@@ -31,10 +31,7 @@ void MQTTLockComponent::setup() {
   this->lock_->add_on_state_callback(
       [this](LockState /*state*/) { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
-void MQTTLockComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Lock '%s': ", this->lock_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTLockComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTLockComponent, "lock")
 const EntityBase *MQTTLockComponent::get_entity() const { return this->lock_; }

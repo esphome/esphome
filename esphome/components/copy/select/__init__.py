@@ -31,5 +31,4 @@ async def to_code(config: ConfigType) -> None:
     await select.register_select(var, config, options=[])
     await cg.register_component(var, config)
 
-    source = await cg.get_variable(config[CONF_SOURCE_ID])
-    cg.add(var.set_source(source))
+    await cg.add_variable(var.set_source, config[CONF_SOURCE_ID])
