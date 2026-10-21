@@ -24,9 +24,7 @@ char Sml::check_start_end_bytes_(uint8_t byte) {
 }
 
 void Sml::loop() {
-  while (available()) {
-    const char c = read();
-
+  this->read_available([this](uint8_t c) {
     if (this->record_)
       this->sml_data_.emplace_back(c);
 
@@ -57,7 +55,7 @@ void Sml::loop() {
         break;
       };
     };
-  }
+  });
 }
 
 void Sml::process_sml_file_(const BytesView &sml_data) {

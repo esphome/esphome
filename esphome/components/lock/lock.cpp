@@ -30,10 +30,10 @@ void Lock::lock() { this->set_state_(LOCK_STATE_LOCKED); }
 void Lock::unlock() { this->set_state_(LOCK_STATE_UNLOCKED); }
 void Lock::open() {
   if (traits.get_supports_open()) {
-    ESP_LOGD(TAG, "'%s' Opening.", this->get_name().c_str());
+    ESP_LOGD(TAG, "'%s' Opening.", LOG_STR_ARG(this->get_log_name()));
     this->open_latch();
   } else {
-    ESP_LOGW(TAG, "'%s' Does not support Open.", this->get_name().c_str());
+    ESP_LOGW(TAG, "'%s' Does not support Open.", LOG_STR_ARG(this->get_log_name()));
   }
 }
 void Lock::publish_state(LockState state) {
@@ -42,7 +42,7 @@ void Lock::publish_state(LockState state) {
 
   this->state = state;
   this->rtc_.save(&this->state);
-  ESP_LOGV(TAG, "'%s' >> %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
+  ESP_LOGV(TAG, "'%s' >> %s", LOG_STR_ARG(this->get_log_name()), LOG_STR_ARG(lock_state_to_string(state)));
   this->state_callback_.call(state);
 #if defined(USE_LOCK) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_lock_update(this);
@@ -50,7 +50,7 @@ void Lock::publish_state(LockState state) {
 }
 
 void LockCall::perform() {
-  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", LOG_STR_ARG(this->parent_->get_log_name()));
   this->validate_();
   if (this->state_.has_value()) {
     ESP_LOGV(TAG, "  State: %s", LOG_STR_ARG(lock_state_to_string(*this->state_)));
@@ -92,7 +92,7 @@ LockCall &LockCall::set_state(const char *state) {
   } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("NONE")) == 0) {
     this->set_state(LOCK_STATE_NONE);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized state %s", this->parent_->get_name().c_str(), state);
+    ESP_LOGW(TAG, "'%s' - Unrecognized state %s", LOG_STR_ARG(this->parent_->get_log_name()), state);
   }
   return *this;
 }
