@@ -16,7 +16,7 @@ import asyncio
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
+from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 SENSORS = [
@@ -102,8 +102,7 @@ async def test_uart_mock_pylontech(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         try:

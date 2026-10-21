@@ -46,7 +46,6 @@ from .state_utils import (
     InitialStateHelper,
     SensorStateCollector,
     StateWaiter,
-    find_entity,
     require_entity,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -193,8 +192,7 @@ async def test_uart_mock_ld2412(
         await _wait_initial(client, entities, collector.on_state)
 
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
@@ -301,8 +299,7 @@ async def test_uart_mock_ld2412_engineering(
         await _wait_initial(client, entities, collector.on_state)
 
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
@@ -407,8 +404,7 @@ async def test_uart_mock_ld2412_engineering_truncated(
 
         await _wait_initial(client, entities, collector.on_state)
 
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 — valid engineering frame establishes baseline

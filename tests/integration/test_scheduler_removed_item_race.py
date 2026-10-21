@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -67,9 +68,7 @@ async def test_scheduler_removed_item_race(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-removed-item-race"
+        await assert_device_name(client, "scheduler-removed-item-race")
 
         # List services
         _, services = await asyncio.wait_for(
@@ -77,8 +76,7 @@ async def test_scheduler_removed_item_race(
         )
 
         # Find run_test service
-        run_test_service = next((s for s in services if s.name == "run_test"), None)
-        assert run_test_service is not None, "run_test service not found"
+        run_test_service = require_service(services, "run_test")
 
         # Execute the test
         await client.execute_service(run_test_service, {})

@@ -23,7 +23,7 @@ from collections.abc import Callable
 from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo, TextSensorState
 import pytest
 
-from .state_utils import SensorTracker, find_entity, require_entity, wait_for_state
+from .state_utils import SensorTracker, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -832,10 +832,8 @@ async def test_uart_mock_modbus_continuous(
         # Recovery path: a live continuous poll that starts failing goes offline, and the next update()
         # re-arms it once the device answers again. Silence the server so the poll's reads time out; with
         # max_cmd_retries=1 and send_wait_time=100ms the device trips offline quickly and streaming stops.
-        silence = find_entity(entities, "silence_server", SwitchInfo)
-        assert silence is not None, "Silence Server switch not found"
-        start = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start is not None, "Start Scenario button not found"
+        silence = require_entity(entities, "silence_server", SwitchInfo)
+        start = require_entity(entities, "start_scenario", ButtonInfo)
 
         client.switch_command(silence.key, True)
         await asyncio.sleep(1.0)  # let the poll fail and the device trip offline
@@ -890,8 +888,7 @@ async def test_uart_mock_modbus_offline(
         # Register the recovery expectations before waking the device so no update is missed.
         online_future = tracker.expect("link_state", 1)
         value_future = tracker.expect("reg", 259)
-        serve_btn = find_entity(entities, "serve", ButtonInfo)
-        assert serve_btn is not None, "Serve button not found"
+        serve_btn = require_entity(entities, "serve", ButtonInfo)
         client.button_command(serve_btn.key)
 
         # The next offline-cadence retry gets an answer: back online, value published.
@@ -929,8 +926,7 @@ async def test_uart_mock_modbus_fairness(
         # Stop polling so the counters settle to a final, stable value (state
         # coalescing means intermediate values may be skipped, but the final
         # value is always delivered once changes stop).
-        stop_btn = find_entity(entities, "stop_scenario", ButtonInfo)
-        assert stop_btn is not None, "Stop Scenario button not found"
+        stop_btn = require_entity(entities, "stop_scenario", ButtonInfo)
         client.button_command(stop_btn.key)
         await asyncio.sleep(0.5)
 
@@ -1050,8 +1046,7 @@ async def test_uart_mock_modbus_register_offset(
         entities = await tracker.setup_and_start_scenario(client)
         await tracker.await_all(initial, timeout=4.0)
 
-        switch = find_entity(entities, "offset_switch", SwitchInfo)
-        assert switch is not None, "offset_switch not found"
+        switch = require_entity(entities, "offset_switch", SwitchInfo)
         client.switch_command(switch.key, True)
 
         # reg_11 (0x10 + offset 2/2) must receive the write; if the write went to 0x12 this times out.
@@ -1066,8 +1061,7 @@ async def test_uart_mock_modbus_register_offset(
         # into its address (0x10 + 6/2 = 0x13, residual byte 0) and joins the 0x10..0x13 range, so the
         # read lands in-bounds on 0xABCD (bit 0 set) -> ON. Pre-fix the whole byte offset folded into the
         # address (0x16); the server answers ILLEGAL_DATA_ADDRESS there and the switch never publishes.
-        read_switch = find_entity(entities, "read_offset_switch", SwitchInfo)
-        assert read_switch is not None, "read_offset_switch not found"
+        read_switch = require_entity(entities, "read_offset_switch", SwitchInfo)
         # The ON transition happened at the first poll and switch states are deduped, so this relies on
         # wait_for_state's fresh subscribe_states re-dumping every entity's current state.
         await wait_for_state(
@@ -1107,8 +1101,7 @@ async def test_uart_mock_modbus_lambda_write(
         entities = await tracker.setup_and_start_scenario(client)
         await tracker.await_change(initial, "reg_30", timeout=4.0)
 
-        switch = find_entity(entities, "cross_switch", SwitchInfo)
-        assert switch is not None, "cross_switch not found"
+        switch = require_entity(entities, "cross_switch", SwitchInfo)
         client.switch_command(switch.key, True)
 
         # The coil switch's lambda wrote register 0x30 via item->write_single_register(); reg_30 must
@@ -1144,8 +1137,7 @@ async def test_uart_mock_modbus_lambda_invert(
         entities = await tracker.setup_and_start_scenario(client)
         await tracker.await_change(initial, "reg_40", timeout=4.0)
 
-        switch = find_entity(entities, "invert_switch", SwitchInfo)
-        assert switch is not None, "invert_switch not found"
+        switch = require_entity(entities, "invert_switch", SwitchInfo)
 
         client.switch_command(switch.key, True)
         # The wire byte carries the inverted value...
@@ -1202,8 +1194,7 @@ async def test_uart_mock_modbus_deprecated_write_buffer(
         api_client_connected() as client,
     ):
         entities = await tracker.setup_and_start_scenario(client)
-        number = find_entity(entities, "buf_number", NumberInfo)
-        assert number is not None, "buf_number not found"
+        number = require_entity(entities, "buf_number", NumberInfo)
 
         # First write via the deprecated buffer path.
         client.number_command(number.key, 111)
