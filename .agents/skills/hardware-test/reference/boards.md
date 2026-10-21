@@ -88,8 +88,28 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   pulses the reset right before the link checks. A write takes about 75 s. Only a CEN or power reset
   reaches the downloader; no software reboot does.
 - ESPHome logs on UART2 by default; `logger: hardware_uart: UART1` puts them on the flashing adapter.
-- Opening the port resets the chip (bootloader banner on every open, even with DTR/RTS low), so keep one
-  capture open for the whole test and never reopen mid-phase.
+- Opening the port may reset the chip (bootloader banner on open) or may not, depending on the adapter and
+  what pyserial does with DTR and RTS; `serial_capture.py --reset` pulses RTS on CEN and always does, and
+  `lt_get_reboot_reason()` reports that as Power-On. Check for the banner at the start of a capture before
+  assuming either.
+- `flash_bk72xx.py` misses the link now and then (`Timed out attempting to link with chip`); retry up to 3
+  times before suspecting the board.
+- Crashes: `__builtin_trap()` and a call into unmapped memory both end as an undefined-instruction trap
+  (`bk_misc_get_start_type()` 6, `lt_get_reboot_reason()` Crash); reads, unaligned loads and stores to
+  unmapped addresses never fault on the ARM968. Without Wi-Fi the SDK trap handler spins with interrupts off
+  for 10 s and the hardware watchdog resets the chip. With Wi-Fi connected a dev build hangs forever after a
+  crash, and never resets from a plain `portDISABLE_INTERRUPTS(); while (1) {}` either: the boot-time
+  watchdog is dead once Wi-Fi is up, for any lockup. The crash handler fix (#21012) re-arms the watchdog
+  from its wrapper, after which the reboot comes within a second (BK7238 and BK7231N).
+- The SDK prints nothing on UART1 under `sdk_silent: all`; the bootloader then prints the banked
+  `cpsr/spsr/r13/r14` of SVC, IRQ, FIQ and SYS plus `ST:` (the retention register) before `go os_addr`.
+  A CEN or power reset wipes ITCM (reads `0xaaaaaaaa`), so only a watchdog reset keeps a record there. What
+  survives that reboot on the BK7238: ITCM (`0x3F0000..0x3F4000`) and the top 96 KB of SRAM
+  (`0x428000..0x440000`, the heap); the bootloader zeroes SRAM up to about `0x420000` and rewrites
+  `0x400024..0x4000FF` with its own register dump every boot, so neither a `.noinit` after `.bss` nor the
+  SDK's saved register banks are usable. Code is compiled Thumb, the SDK assembly is ARM; in an exception
+  handler only r0 to r3 are shared by all modes. BK7231N ITCM is `0x3FEE00..0x400000` (4.5 KB); a `.noinit`
+  placed there after `.itcm.code` works for a crash record.
 - Callbacks run on the `async_tcp` task and log lines can lose a byte. Wi-Fi connect takes tens of ms;
   radio enable 160 to 278 ms, disable about 200 ms.
 
@@ -123,6 +143,38 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Makerdiary MDK USB dongle: UF2 bootloader without SoftDevice, app at 0x1000, `UF2BOOT` volume,
   adafruit-nrfutil, GPREGRET 0x57 works. RGB LED active low (red P0.23, green P0.22, blue P0.24),
   button P0.18.
+- Adafruit ItsyBitsy nRF52840 Express (UF2 bootloader with S140, bootloader port `239a:0051` plus an
+  `ITSY840BOOT` volume): the board DTS already has `cdc_acm_uart0`, so the logger port is the first CDC
+  port and a `usb_cdc_acm` interface 1 the second. A `dfu: true` build enters the bootloader on the
+  1200 bps touch (an app without it needs a double tap on RESET); `adafruit-nrfutil` over the bootloader
+  serial port can fail, copying `.pioenvs/<name>/zephyr/zephyr.uf2` to the volume works (the copy reports
+  an I/O error as the board reboots, which is normal). Reboot a running `dfu: true` app with a 2001 bps touch.
+- The PCA10059 board DTS already defines a `cdc_acm_uart` node, so every ESPHome CDC port is one USB port
+  later than its number (log on `cdc_acm_uart0` is the second port). A third CDC instance needs
+  `CONFIG_USB_MAX_NUM_TRANSFERS` above 4 or it never moves data (see `recipes/usb_cdc_acm.md`).
+- USB CDC boot output: the Zephyr legacy stack's `cdc_acm` TX ring is 1 KB and `uart_poll_out` drops when it
+  is full, so anything printed in one burst beyond about 1 KB (a coredump, a long table) is lost even with
+  the port open, and the logger warns `logger took a long time`. Print one line per `loop()` instead.
+- Zephyr settings survive a reflash: key a `restore_value` global by a `run` substitution when a test needs
+  a never-saved value.
+
+## Waveshare ESP32-S3-ETH with the OV5640 camera module
+
+- Native USB console (`303a:1001`), ESP32-S3R8, 16 MB flash, 8 MB octal PSRAM, W5500 on SPI (MOSI 11,
+  MISO 12, SCLK 13, CS 14, INT 10, RST 9), TF card on 4..7, WS2812 on 21.
+- Camera header (vendor schematic): XCLK 3, SIOD 48, SIOC 47, VSYNC 1, HREF 2, PCLK 39, D0..D7 = 41, 45,
+  46, 42, 40, 38, 15, 18. PWDN is tied to GND and RESET is an RC to 3.3 V on the board, so no reset or
+  power-down GPIO exists.
+- GPIO8 switches the camera 3.3 V rail through a P-channel MOSFET: LOW = camera powered, gate pulled up so
+  the camera is off by default. `power_down_pin: GPIO8` only pulls it low 10 ms before the probe, which is
+  not enough; use `switch: gpio GPIO8 restore_mode: ALWAYS_OFF setup_priority: 800` plus `on_boot:
+  priority: 700` with `delay(1200)` and `esp32_camera: setup_priority: 200`
+  (`templates/rtsp-waveshare-s3-eth-dut.yaml`). `esphome config` rejects a config that uses GPIO8 for both the switch
+  and `power_down_pin` (pin reuse), so it is one or the other.
+- The sensor at SCCB 0x3C answers only with XCLK running, so the ESPHome i2c scan at boot (before XCLK)
+  reporting no devices on 48/47 is expected. If the SCCB ID register (0x3100 = 0x78) reads fine but every
+  0x30xx register reads 0x00 (`Detected camera not supported`, 0x106), reseat the ribbon before blaming
+  software; `templates/waveshare-s3-eth-camdiag.yaml` runs that probe with LEDC XCLK and raw SCCB reads.
 
 ## ESP Thread Border Router board v1.2 (S3 host + H2 RCP)
 

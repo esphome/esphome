@@ -24,7 +24,8 @@ template<size_t N, typename... Ts> class AndCondition : public Condition<Ts...> 
   }
   // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
   template<typename... Cs>
-  requires(sizeof...(Cs) == N) explicit AndCondition(Cs *...conditions) : conditions_{conditions...} {}
+    requires(sizeof...(Cs) == N)
+  explicit AndCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -45,7 +46,8 @@ template<size_t N, typename... Ts> class OrCondition : public Condition<Ts...> {
   }
   // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
   template<typename... Cs>
-  requires(sizeof...(Cs) == N) explicit OrCondition(Cs *...conditions) : conditions_{conditions...} {}
+    requires(sizeof...(Cs) == N)
+  explicit OrCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -75,7 +77,8 @@ template<size_t N, typename... Ts> class XorCondition : public Condition<Ts...> 
   }
   // Codegen passes each condition as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
   template<typename... Cs>
-  requires(sizeof...(Cs) == N) explicit XorCondition(Cs *...conditions) : conditions_{conditions...} {}
+    requires(sizeof...(Cs) == N)
+  explicit XorCondition(Cs *...conditions) : conditions_{conditions...} {}
   bool check(const Ts &...x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
@@ -210,10 +213,11 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     // Optimization: For no-argument delays (most common case), use direct lambda
     // to avoid overhead from capturing arguments by value
     if constexpr (sizeof...(Ts) == 0) {
+      auto f = [this]() { this->play_next_(); };
       App.scheduler.set_timer_common_(
           /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
-          [this]() { this->play_next_(); },
+          std::move(f),
           /* skip_cancel= */ this->num_running_ > 1,
           // Record the owning script (if any) so the blocking warning can name it; propagates across
           // chained delays via the scheduler.
@@ -234,8 +238,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     }
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override { App.scheduler.cancel_timeout(this); }
 };
@@ -290,7 +293,9 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
     this->then_.set_owner(this);
   }
 
-  void add_else(const std::initializer_list<Action<Ts...> *> &actions) requires(HasElse) {
+  void add_else(const std::initializer_list<Action<Ts...> *> &actions)
+    requires(HasElse)
+  {
     this->else_.add_actions(actions);
     this->else_.set_owner(this);
   }
@@ -299,8 +304,16 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
   // would be a constant array in .rodata, which is RAM on ESP8266.
   void add_then_action(Action<Ts...> *action) { this->then_.add_action(action); }
   void finish_then() { this->then_.set_owner(this); }
-  void add_else_action(Action<Ts...> *action) requires(HasElse) { this->else_.add_action(action); }
-  void finish_else() requires(HasElse) { this->else_.set_owner(this); }
+  void add_else_action(Action<Ts...> *action)
+    requires(HasElse)
+  {
+    this->else_.add_action(action);
+  }
+  void finish_else()
+    requires(HasElse)
+  {
+    this->else_.set_owner(this);
+  }
 
   void play_complex(const Ts &...x) final {
     this->num_running_++;
@@ -426,8 +439,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
     }
   }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override { this->then_.stop(); }
 
@@ -510,8 +522,7 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
  protected:
   struct QueueItem {

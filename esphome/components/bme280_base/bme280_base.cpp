@@ -3,6 +3,7 @@
 
 #include "bme280_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
@@ -144,11 +145,10 @@ void BME280Component::setup() {
   this->calibration_.h1 = read_u8_(BME280_REGISTER_DIG_H1);
   this->calibration_.h2 = read_s16_le_(BME280_REGISTER_DIG_H2);
   this->calibration_.h3 = read_u8_(BME280_REGISTER_DIG_H3);
-  // h4 and h5 are signed 12-bit values; shift left then arithmetic right shift to sign-extend
-  int16_t h4_raw = read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F);
-  this->calibration_.h4 = static_cast<int16_t>(h4_raw << 4) >> 4;
-  int16_t h5_raw = read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4);
-  this->calibration_.h5 = static_cast<int16_t>(h5_raw << 4) >> 4;
+  this->calibration_.h4 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H4) << 4 | (read_u8_(BME280_REGISTER_DIG_H4 + 1) & 0x0F));
+  this->calibration_.h5 =
+      sign_extend<12>(read_u8_(BME280_REGISTER_DIG_H5 + 1) << 4 | (read_u8_(BME280_REGISTER_DIG_H5) >> 4));
   this->calibration_.h6 = read_u8_(BME280_REGISTER_DIG_H6);
 
   uint8_t humid_control_val = 0;
@@ -236,7 +236,7 @@ void BME280Component::update() {
   });
 }
 float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
-  int32_t adc = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
+  int32_t adc = encode_uint24(data[3], data[4], data[5]);
   adc >>= 4;
   if (adc == 0x80000) {
     // temperature was disabled
@@ -256,7 +256,7 @@ float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
 }
 
 float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
-  int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
+  int32_t adc = encode_uint24(data[0], data[1], data[2]);
   adc >>= 4;
   if (adc == 0x80000) {
     // pressure was disabled
@@ -335,8 +335,8 @@ uint8_t BME280Component::read_u8_(uint8_t a_register) {
 }
 uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
-  this->read_byte_16(a_register, &data);
-  return (data >> 8) | (data << 8);
+  this->read_byte_16_le(a_register, &data);
+  return data;
 }
 int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 

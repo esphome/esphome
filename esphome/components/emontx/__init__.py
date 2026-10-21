@@ -132,6 +132,7 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add_define("USE_LINE_READER")
 
     # Initialize sensor storage with count from final_validate before any
     # await, so platform to_code() calls always see it initialized
