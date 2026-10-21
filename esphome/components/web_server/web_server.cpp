@@ -222,7 +222,7 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
 #endif
 
   // Match by entity name
-  if (this->id == entity->get_name()) {
+  if (entity->name_equals(this->id)) {
     result.matched = true;
   }
 
@@ -625,9 +625,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 // Build unique id as: {domain}/{device_name}/{entity_name} or {domain}/{entity_name}
 // Uses names (not object_id) to avoid UTF-8 collision issues
 static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, JsonDetail start_config) {
-  const StringRef &name = obj->get_name();
   size_t prefix_len = strlen(prefix);
-  size_t name_len = name.size();
 
 #ifdef USE_DEVICES
   Device *device = obj->get_device();
@@ -657,13 +655,20 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
     *p++ = '/';
   }
 #endif
-  memcpy(p, name.c_str(), name_len);
-  p[name_len] = '\0';
+#ifdef USE_ESP8266
+  const char *name = p;
+#endif
+  obj->write_name_to(p, id_buf + ID_BUF_SIZE - p);
   root[ESPHOME_F("id")] = static_cast<const char *>(id_buf);
 
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("domain")] = linked(prefix, prefix_len);
-    root[ESPHOME_F("name")] = linked(name);
+#ifdef USE_ESP8266
+    root[ESPHOME_F("name")] = name;  // in id_buf on the stack, so copied
+#else
+    const StringRef &ram_name = obj->get_name_progmem().ram_ref();
+    root[ESPHOME_F("name")] = linked(ram_name.c_str(), ram_name.size());
+#endif
 #ifdef USE_DEVICES
     if (device_name) {
       root[ESPHOME_F("device")] = linked(device_name, device_len);
