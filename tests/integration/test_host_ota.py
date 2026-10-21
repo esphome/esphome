@@ -13,6 +13,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import functools
+import logging
 from pathlib import Path
 import shutil
 import socket
@@ -34,6 +35,8 @@ from .const import (
 from .host_prefs import force_safe_mode
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, CompileFunction, ConfigWriter
+
+_LOGGER = logging.getLogger(__name__)
 
 DEVICE_NAME = "host-ota-test"
 API_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -154,6 +157,9 @@ async def _strip_debug(binary_path: Path) -> Path:
     """The fixtures build with -g; every upload sends the image, so drop the
     debug info (GNU and Apple strip both take -S)."""
     if (strip := shutil.which("strip")) is None:
+        _LOGGER.warning(
+            "strip not found; uploading the unstripped binary, which is much slower"
+        )
         return binary_path
     stripped = binary_path.with_name(f"{binary_path.name}.stripped")
     proc = await asyncio.create_subprocess_exec(
