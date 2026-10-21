@@ -239,6 +239,22 @@ int RuntimeImage::feed_data(uint8_t *data, size_t len) {
   return consumed;
 }
 
+int RuntimeImage::begin_source(DecodeSource *source) {
+  if (!this->decoder_supports_source()) {
+    ESP_LOGE(TAG, "Decoder cannot read a source");
+    return DECODE_ERROR_UNSUPPORTED_FORMAT;
+  }
+  return this->decoder_->begin_source(source);
+}
+
+int RuntimeImage::decode_step() {
+  if (!this->is_decoding()) {
+    ESP_LOGE(TAG, "No decoder initialized");
+    return DECODE_ERROR_INVALID_TYPE;
+  }
+  return this->decoder_->decode_step();
+}
+
 bool RuntimeImage::end_decode() {
   if (!this->is_decoding()) {
     return false;

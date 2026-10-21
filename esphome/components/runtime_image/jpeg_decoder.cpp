@@ -135,6 +135,17 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
     ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
     return DECODE_ERROR_INVALID_TYPE;
   }
+  const int err = this->start_();
+  if (err != 0)
+    return err;
+  if (!this->jpeg_.decode(0, 0, 0))
+    return this->fail_();
+  this->decoded_bytes_ = size;
+  this->jpeg_.close();
+  return size;
+}
+
+int JpegDecoder::start_() {
   auto jpeg_type = this->jpeg_.getJPEGType();
   if (jpeg_type == JPEG_MODE_INVALID) {
     ESP_LOGE(TAG, "Unsupported JPEG image");
@@ -160,26 +171,97 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
   if (this->direct_rgb565_ && !this->prepare_rgb565_scaling_(this->jpeg_.getWidth(), this->jpeg_.getHeight())) {
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
-  if (!this->jpeg_.decode(0, 0, 0)) {
-    auto error = this->jpeg_.getLastError();
-    ESP_LOGE(TAG, "Error while decoding: %d", error);
-    this->jpeg_.close();
-    switch (error) {
-      case JPEG_ERROR_MEMORY:
-        return DECODE_ERROR_OUT_OF_MEMORY;
-      case JPEG_UNSUPPORTED_FEATURE:
-        return DECODE_ERROR_UNSUPPORTED_FORMAT;
-      case JPEG_INVALID_FILE:
-      case JPEG_INVALID_PARAMETER:
-        return DECODE_ERROR_INVALID_TYPE;
-      case JPEG_DECODE_ERROR:
-      default:
-        return DECODE_ERROR_INTERNAL_DECODER_ERROR;
-    }
-  }
-  this->decoded_bytes_ = size;
+  return 0;
+}
+
+int JpegDecoder::fail_() {
+  const int error = this->jpeg_.getLastError();
+  ESP_LOGE(TAG, "Error while decoding: %d", error);
   this->jpeg_.close();
-  return size;
+  this->source_ = nullptr;
+  switch (error) {
+    case JPEG_ERROR_MEMORY:
+      return DECODE_ERROR_OUT_OF_MEMORY;
+    case JPEG_UNSUPPORTED_FEATURE:
+      return DECODE_ERROR_UNSUPPORTED_FORMAT;
+    case JPEG_INVALID_FILE:
+    case JPEG_INVALID_PARAMETER:
+      return DECODE_ERROR_INVALID_TYPE;
+    case JPEG_DECODE_ERROR:
+    default:
+      return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+  }
+}
+
+void JpegDecoder::reset() {
+  // A decode from a source that was given up part way still has the image open
+  if (this->source_ != nullptr) {
+    this->jpeg_.close();
+    this->source_ = nullptr;
+  }
+  ImageDecoder::reset();
+}
+
+int32_t JpegDecoder::source_read_(JPEGFILE *file, uint8_t *buf, int32_t len) {
+  auto *decoder = static_cast<JpegDecoder *>(file->fHandle);
+  const int32_t n = decoder->source_->read(buf, len);
+  if (n < 0) {
+    // JPEGDEC has no way to report a failed read, so remember it and give it no data
+    decoder->source_failed_ = true;
+    return 0;
+  }
+  file->iPos += n;
+  return n;
+}
+
+int32_t JpegDecoder::source_seek_(JPEGFILE *file, int32_t position) {
+  auto *decoder = static_cast<JpegDecoder *>(file->fHandle);
+  if (position < 0 || !decoder->source_->seek(position)) {
+    decoder->source_failed_ = true;
+    return file->iPos;
+  }
+  file->iPos = position;
+  return position;
+}
+
+int JpegDecoder::begin_source(DecodeSource *source) {
+  this->source_ = source;
+  this->source_failed_ = false;
+  if (!source->seek(0) ||
+      !this->jpeg_.open(this, this->expected_size_, source_close_, source_read_, source_seek_, draw_callback)) {
+    ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
+    this->source_ = nullptr;
+    return this->source_failed_ ? DECODE_ERROR_READ : DECODE_ERROR_INVALID_TYPE;
+  }
+  const int err = this->start_();
+  if (err != 0) {
+    this->jpeg_.close();
+    this->source_ = nullptr;
+    return err;
+  }
+  if (!this->jpeg_.decodeBegin(0, 0, 0))
+    return this->fail_();
+  return 0;
+}
+
+int HOT JpegDecoder::decode_step() {
+  if (this->source_ == nullptr)
+    return DECODE_ERROR_INVALID_TYPE;
+  const int result = this->jpeg_.decodeRows(1);
+  if (this->source_failed_) {
+    ESP_LOGE(TAG, "Reading the image failed");
+    this->jpeg_.close();
+    this->source_ = nullptr;
+    return DECODE_ERROR_READ;
+  }
+  if (result == JPEG_DECODE_MORE)
+    return DECODE_STEP_MORE;
+  if (result == 0)
+    return this->fail_();
+  this->decoded_bytes_ = this->expected_size_;
+  this->jpeg_.close();
+  this->source_ = nullptr;
+  return DECODE_STEP_DONE;
 }
 
 }  // namespace esphome::runtime_image

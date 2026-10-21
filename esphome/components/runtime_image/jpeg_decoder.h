@@ -22,19 +22,36 @@ class JpegDecoder : public ImageDecoder {
   ~JpegDecoder() override {}
 
   int HOT decode(uint8_t *buffer, size_t size) override;
+  void reset() override;
+
+  /// The source is read as the decode needs it, through JPEGDEC's own 2 KB buffer
+  bool supports_source() const override { return true; }
+  int begin_source(DecodeSource *source) override;
+  /// Decodes one row of MCUs (8 or 16 pixel rows)
+  int HOT decode_step() override;
 
   bool uses_direct_rgb565() const { return this->direct_rgb565_; }
   void draw_rgb565(int x, int y, int w, int h, const uint8_t *pixels);
 
  protected:
   bool prepare_rgb565_scaling_(int width, int height);
+  /// Set up an opened image for decoding. Returns 0, or a DecodeError.
+  int start_();
+  /// The DecodeError for JPEGDEC's last error, closing the image
+  int fail_();
+
+  static int32_t source_read_(JPEGFILE *file, uint8_t *buf, int32_t len);
+  static int32_t source_seek_(JPEGFILE *file, int32_t position);
+  static void source_close_(void *handle) {}
 
   JPEGDEC jpeg_{};
   FixedVector<uint16_t> x_boundaries_{};
   FixedVector<uint16_t> y_boundaries_{};
   int source_width_{0};
   int source_height_{0};
+  DecodeSource *source_{nullptr};  // Set while a begin_source() decode is in progress
   bool direct_rgb565_{false};
+  bool source_failed_{false};
 };
 
 }  // namespace esphome::runtime_image

@@ -92,7 +92,12 @@ class JPEGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
-        cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
+        # 1.8.4 plus decodeBegin()/decodeRows(), so an image can be decoded a few rows at a time
+        cg.add_library(
+            "JPEGDEC",
+            "1.8.4",
+            "https://github.com/clydebarrow/JPEGDEC#1ed16240a96bafe0a9419b8a457cc2a105f60658",
+        )
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
             # predefines the lowercase __linux__; without this a Linux host

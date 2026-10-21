@@ -1,4 +1,6 @@
 #pragma once
+#include <cstdint>
+
 #include "esphome/core/color.h"
 #include "image_format.h"
 
@@ -9,6 +11,13 @@ enum DecodeError : int {
   DECODE_ERROR_UNSUPPORTED_FORMAT = -2,
   DECODE_ERROR_OUT_OF_MEMORY = -3,
   DECODE_ERROR_INTERNAL_DECODER_ERROR = -4,
+  DECODE_ERROR_READ = -5,
+};
+
+/// Results of ImageDecoder::decode_step() other than a DecodeError
+enum DecodeStep : int {
+  DECODE_STEP_DONE = 0,
+  DECODE_STEP_MORE = 1,
 };
 
 constexpr const char *decode_error_to_string(int error) {
@@ -21,12 +30,24 @@ constexpr const char *decode_error_to_string(int error) {
       return "Out of memory";
     case DECODE_ERROR_INTERNAL_DECODER_ERROR:
       return "Internal decoder error";
+    case DECODE_ERROR_READ:
+      return "Read error";
     default:
       return "Unknown error";
   }
 }
 
 class RuntimeImage;
+
+/// Input that a decoder reads itself as it goes, so the whole image never has to be in memory at once
+class DecodeSource {
+ public:
+  virtual ~DecodeSource() = default;
+  /// Read up to len bytes at the current position. Returns the number read, 0 at the end, or negative on error.
+  virtual int32_t read(uint8_t *buf, uint32_t len) = 0;
+  /// Move to a position counted from the start. Returns false on error.
+  virtual bool seek(uint32_t position) = 0;
+};
 
 /**
  * @brief Class to abstract decoding different image formats.
@@ -87,6 +108,25 @@ class ImageDecoder {
    *               decode anything, or negative in case of a decoding error.
    */
   virtual int decode(uint8_t *buffer, size_t size) = 0;
+
+  /// Whether this decoder can read a DecodeSource itself, a step at a time, instead of being fed data.
+  virtual bool supports_source() const { return false; }
+
+  /**
+   * @brief Start decoding from a source the decoder reads itself. Call after prepare(), in place of decode().
+   *
+   * The source must hold expected_size bytes, and stay valid until the session ends.
+   * @return int 0 on success, or a {@see DecodeError} value.
+   */
+  virtual int begin_source(DecodeSource *source) { return DECODE_ERROR_UNSUPPORTED_FORMAT; }
+
+  /**
+   * @brief Decode a little more of an image started with begin_source(), keeping each call short.
+   *
+   * @return int DECODE_STEP_MORE while there is more to do, DECODE_STEP_DONE when the image is complete,
+   *             or a {@see DecodeError} value.
+   */
+  virtual int decode_step() { return DECODE_ERROR_UNSUPPORTED_FORMAT; }
 
   /**
    * @brief Request the image to be resized once the actual dimensions are known.
