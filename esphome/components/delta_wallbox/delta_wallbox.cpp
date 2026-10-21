@@ -82,6 +82,8 @@ static const char *delta_state_to_string(DeltaState state) {
       return "GET_CHARGER_FW_VERSION";
     case DeltaState::DELTA_STATE_CONNECTED:
       return "CONNECTED";
+    case DeltaState::DELTA_STATE_HALTED:
+      return "HALTED";
     default:
       return "UNKNOWN";
   }
@@ -177,7 +179,7 @@ void DeltaWallbox::loop() {
       ESP_LOGI(TAG, "GATT connection established. Starting authentication state machine.");
       this->state_ = DeltaState::DELTA_STATE_GET_MODEL;
       this->send_next_state_command_();
-    } else if (this->state_ != DeltaState::DELTA_STATE_CONNECTED) {
+    } else if (this->state_ != DeltaState::DELTA_STATE_CONNECTED && this->state_ != DeltaState::DELTA_STATE_HALTED) {
       // Re-transmit state-based command on timeout
       const uint32_t now = App.get_loop_component_start_time();
       if (now - this->last_tx_time_ > RETRANSMIT_TIMEOUT_MS) {
@@ -363,8 +365,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
             }
           }
           if (this->pairing_attempts_ > MAX_PAIRING_ATTEMPTS) {
-            ESP_LOGE(TAG, "Too many failed/waiting pairing checks. Resetting status.");
-            this->reset_state_();
+            this->halt_("Too many failed/waiting pairing checks");
           }
         }
       } else {
@@ -392,10 +393,13 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->advance_to_(DeltaState::DELTA_STATE_GET_LOGIN_ROLE);
         } else {
           ESP_LOGE(TAG, "Login validation failed (0x%02X). Check password.", login_val);
-          this->reset_state_();
+          this->halt_("Bad credentials");
         }
       }
       break;
+    }
+    case DeltaState::DELTA_STATE_HALTED:{
+      break;  // Authentication is halted; ignore any late replies.
     }
     case DeltaState::DELTA_STATE_GET_LOGIN_ROLE: {
       this->advance_to_(DeltaState::DELTA_STATE_TIME_SYNC);
@@ -501,6 +505,15 @@ void DeltaWallbox::reset_state_() {
            this->pairing_in_progress_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"), (unsigned int) this->rx_len_);
   this->rx_len_ = 0;
   this->state_ = DeltaState::DELTA_STATE_IDLE;
+  this->pairing_attempts_ = 0;
+  this->pairing_in_progress_ = false;
+  this->status_set_warning();
+}
+
+void DeltaWallbox::halt_(const char *reason) {
+  ESP_LOGE(TAG, "Halting authentication: %s. A reconnect is required to retry.", reason);
+  this->rx_len_ = 0;
+  this->state_ = DeltaState::DELTA_STATE_HALTED;
   this->pairing_attempts_ = 0;
   this->pairing_in_progress_ = false;
   this->status_set_warning();

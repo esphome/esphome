@@ -30,6 +30,7 @@ enum class DeltaState : uint8_t {
   DELTA_STATE_TIME_SYNC,
   DELTA_STATE_GET_CHARGER_FW_VERSION,
   DELTA_STATE_CONNECTED,
+  DELTA_STATE_HALTED,
 };
 
 class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingComponent {
@@ -83,6 +84,8 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   void handle_frame_(const uint8_t *frame, size_t len);
   void drop_rx_bytes_(size_t count);
   void reset_state_();
+  // Stops the handshake until the next BLE disconnect; used for failures a retry can't fix.
+  void halt_(const char *reason);
 
   StringRef user_;
   StringRef password_;
