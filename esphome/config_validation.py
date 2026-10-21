@@ -1026,6 +1026,8 @@ def _as_tuple(value: typing.Any) -> tuple:
 def _quote_value(value: typing.Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
     return f"'{value}'"
 
 
@@ -1075,16 +1077,12 @@ def only_when(
     assert all(isinstance(v, (str, int, float, bool)) for v in values)
     shown = " or ".join(_quote_value(v) for v in values)
 
+    # The bool tag keeps True from matching 1
+    wanted = [(isinstance(v, bool), v) for v in values]
+
     def passes(obj: dict) -> bool:
         actual = obj.get(selector)
-        # Compare bools by identity so True never matches 1
-        matched = any(
-            v is actual
-            if isinstance(actual, bool) or isinstance(v, bool)
-            else v == actual
-            for v in values
-        )
-        return matched != negate
+        return ((isinstance(actual, bool), actual) in wanted) != negate
 
     return _key_constraint(
         {
