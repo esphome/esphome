@@ -10,12 +10,14 @@ from esphome.const import (
     CONF_ON_DISCONNECT,
     CONF_ON_MESSAGE,
     CONF_PAYLOAD,
-    CONF_TRIGGER_ID,
     CONF_VALUE,
 )
+from esphome.core import ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@bogdanr"]
 DEPENDENCIES = ["ble_client"]
+DOMAIN = "ble_midi"
 MULTI_CONF = True
 
 CONF_CONTROL_NUMBER = "control_number"
@@ -33,41 +35,55 @@ CONF_VELOCITY = "velocity"
 
 ble_midi_ns = cg.esphome_ns.namespace("ble_midi")
 BLEMidi = ble_midi_ns.class_("BLEMidi", cg.Component, ble_client.BLEClientNode)
-
-ConnectTrigger = ble_midi_ns.class_("ConnectTrigger", automation.Trigger.template())
-DisconnectTrigger = ble_midi_ns.class_(
-    "DisconnectTrigger", automation.Trigger.template()
-)
-NoteOnTrigger = ble_midi_ns.class_(
-    "NoteOnTrigger", automation.Trigger.template(cg.uint8, cg.uint8, cg.uint8)
-)
-NoteOffTrigger = ble_midi_ns.class_(
-    "NoteOffTrigger", automation.Trigger.template(cg.uint8, cg.uint8, cg.uint8)
-)
-ControlChangeTrigger = ble_midi_ns.class_(
-    "ControlChangeTrigger", automation.Trigger.template(cg.uint8, cg.uint8, cg.uint8)
-)
-ProgramChangeTrigger = ble_midi_ns.class_(
-    "ProgramChangeTrigger", automation.Trigger.template(cg.uint8, cg.uint8)
-)
-PitchBendTrigger = ble_midi_ns.class_(
-    "PitchBendTrigger", automation.Trigger.template(cg.int16, cg.uint8)
-)
-SysexTrigger = ble_midi_ns.class_(
-    "SysexTrigger", automation.Trigger.template(cg.std_vector.template(cg.uint8))
-)
-MessageTrigger = ble_midi_ns.class_(
-    "MessageTrigger", automation.Trigger.template(cg.std_vector.template(cg.uint8))
-)
-
-BLEMidiConnectedCondition = ble_midi_ns.class_(
-    "BLEMidiConnectedCondition", automation.Condition
-)
+SendSysexAction = ble_midi_ns.class_("SendSysexAction", automation.Action)
+SendRawAction = ble_midi_ns.class_("SendRawAction", automation.Action)
+# The message bytes as a view: data.size() and data[i] work, and nothing is copied
+ByteSpan = cg.std_ns.class_("span").template(cg.uint8.operator("const"))
 
 # MIDI data bytes are 7-bit and channels are 4-bit, matching what goes on the wire and what the triggers report.
 # Channel 0 is the channel that MIDI hardware usually labels "1".
 midi_data_byte = cv.int_range(min=0, max=127)
 midi_channel = cv.int_range(min=0, max=15)
+
+_NOTE_ARGS = [
+    (cg.uint8, CONF_NOTE),
+    (cg.uint8, CONF_VELOCITY),
+    (cg.uint8, CONF_CHANNEL),
+]
+_BYTES_ARGS = [(ByteSpan, CONF_DATA)]
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_CONNECT, "add_on_connect_callback"),
+    automation.CallbackAutomation(CONF_ON_DISCONNECT, "add_on_disconnect_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_NOTE_ON, "add_on_note_on_callback", _NOTE_ARGS
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_NOTE_OFF, "add_on_note_off_callback", _NOTE_ARGS
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CONTROL_CHANGE,
+        "add_on_control_change_callback",
+        [
+            (cg.uint8, CONF_CONTROL_NUMBER),
+            (cg.uint8, CONF_VALUE),
+            (cg.uint8, CONF_CHANNEL),
+        ],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PROGRAM_CHANGE,
+        "add_on_program_change_callback",
+        [(cg.uint8, CONF_PROGRAM), (cg.uint8, CONF_CHANNEL)],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PITCH_BEND,
+        "add_on_pitch_bend_callback",
+        [(cg.int16, CONF_VALUE), (cg.uint8, CONF_CHANNEL)],
+    ),
+    automation.CallbackAutomation(CONF_ON_SYSEX, "add_on_sysex_callback", _BYTES_ARGS),
+    automation.CallbackAutomation(
+        CONF_ON_MESSAGE, "add_on_message_callback", _BYTES_ARGS
+    ),
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -77,33 +93,10 @@ CONFIG_SCHEMA = (
                 min=8, max=2048
             ),
             cv.Optional(CONF_PAIR, default=False): cv.boolean,
-            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ConnectTrigger)}
-            ),
-            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DisconnectTrigger)}
-            ),
-            cv.Optional(CONF_ON_NOTE_ON): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NoteOnTrigger)}
-            ),
-            cv.Optional(CONF_ON_NOTE_OFF): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NoteOffTrigger)}
-            ),
-            cv.Optional(CONF_ON_CONTROL_CHANGE): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlChangeTrigger)}
-            ),
-            cv.Optional(CONF_ON_PROGRAM_CHANGE): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ProgramChangeTrigger)}
-            ),
-            cv.Optional(CONF_ON_PITCH_BEND): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PitchBendTrigger)}
-            ),
-            cv.Optional(CONF_ON_SYSEX): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SysexTrigger)}
-            ),
-            cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MessageTrigger)}
-            ),
+            **{
+                cv.Optional(entry.conf_key): automation.validate_automation({})
+                for entry in _CALLBACK_AUTOMATIONS
+            },
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -111,42 +104,15 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
-
-    cg.add(var.set_max_sysex_size(config[CONF_MAX_SYSEX_SIZE]))
-    cg.add(var.set_pair(config[CONF_PAIR]))
-
-    note_args = [
-        (cg.uint8, CONF_NOTE),
-        (cg.uint8, CONF_VELOCITY),
-        (cg.uint8, CONF_CHANNEL),
-    ]
-    bytes_args = [(cg.std_vector.template(cg.uint8), CONF_DATA)]
-    triggers = (
-        (CONF_ON_CONNECT, []),
-        (CONF_ON_DISCONNECT, []),
-        (CONF_ON_NOTE_ON, note_args),
-        (CONF_ON_NOTE_OFF, note_args),
-        (
-            CONF_ON_CONTROL_CHANGE,
-            [
-                (cg.uint8, CONF_CONTROL_NUMBER),
-                (cg.uint8, CONF_VALUE),
-                (cg.uint8, CONF_CHANNEL),
-            ],
-        ),
-        (CONF_ON_PROGRAM_CHANGE, [(cg.uint8, CONF_PROGRAM), (cg.uint8, CONF_CHANNEL)]),
-        (CONF_ON_PITCH_BEND, [(cg.int16, CONF_VALUE), (cg.uint8, CONF_CHANNEL)]),
-        (CONF_ON_SYSEX, bytes_args),
-        (CONF_ON_MESSAGE, bytes_args),
+async def to_code(config: ConfigType) -> None:
+    size = config[CONF_MAX_SYSEX_SIZE]
+    # SysEx messages are reassembled in a static array, so nothing is allocated at run time
+    buf = f"{config[CONF_ID].id}_sysex_buf"
+    cg.add_global(cg.RawStatement(f"static uint8_t {buf}[{size}];"))
+    var = await ble_client.new_ble_node_component(
+        config, cg.RawExpression(buf), size, config[CONF_PAIR]
     )
-    for key, args in triggers:
-        for conf in config.get(key, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(trigger, args, conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 def _action_schema(keys: dict) -> cv.Schema:
@@ -167,19 +133,18 @@ NOTE_ACTION_SCHEMA = _action_schema(
 )
 
 _CHANNEL = (CONF_CHANNEL, cg.uint8)
-_NOTE_ARGS = ((CONF_NOTE, cg.uint8), (CONF_VELOCITY, cg.uint8), _CHANNEL)
-_BYTES = cg.std_vector.template(cg.uint8)
+_NOTE_CALL_ARGS = ((CONF_NOTE, cg.uint8), (CONF_VELOCITY, cg.uint8), _CHANNEL)
 
 automation.register_apply_action(
     "ble_midi.send_note_on",
     NOTE_ACTION_SCHEMA,
-    automation.ApplyCall("send_note_on({}, {}, {})", _NOTE_ARGS),
+    automation.ApplyCall("send_note_on({}, {}, {})", _NOTE_CALL_ARGS),
 )
 
 automation.register_apply_action(
     "ble_midi.send_note_off",
     NOTE_ACTION_SCHEMA,
-    automation.ApplyCall("send_note_off({}, {}, {})", _NOTE_ARGS),
+    automation.ApplyCall("send_note_off({}, {}, {})", _NOTE_CALL_ARGS),
 )
 
 automation.register_apply_action(
@@ -214,36 +179,59 @@ automation.register_apply_action(
     automation.ApplyCall("send_pitch_bend({}, {})", ((CONF_VALUE, cg.int16), _CHANNEL)),
 )
 
-automation.register_apply_action(
-    "ble_midi.send_sysex",
-    cv.Schema(
+
+def _bytes_action_schema(key: str) -> cv.Schema:
+    return cv.Schema(
         {
             cv.GenerateID(): cv.use_id(BLEMidi),
-            cv.Required(CONF_PAYLOAD): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
+            cv.Required(key): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
         }
-    ),
-    automation.ApplyField(CONF_PAYLOAD, "send_sysex", _BYTES),
-)
-
-automation.register_apply_action(
-    "ble_midi.send_raw",
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(BLEMidi),
-            cv.Required(CONF_DATA): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
-        }
-    ),
-    automation.ApplyField(CONF_DATA, "send_raw", _BYTES),
-)
+    )
 
 
-@automation.register_condition(
-    "ble_midi.connected",
-    BLEMidiConnectedCondition,
-    cv.Schema({cv.GenerateID(): cv.use_id(BLEMidi)}),
+# A constant payload is a shared PROGMEM table; only a lambda builds a vector
+@automation.register_action(
+    "ble_midi.send_sysex", SendSysexAction, _bytes_action_schema(CONF_PAYLOAD)
 )
-async def connected_to_code(config, condition_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, parent)
+async def send_sysex_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: automation.TemplateArgsType,
+) -> cg.MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    await automation.templatable_bytes(
+        config[CONF_PAYLOAD],
+        args,
+        var.set_payload_template,
+        var.set_payload_static,
+        "ble_midi_sysex",
+    )
     return var
+
+
+@automation.register_action(
+    "ble_midi.send_raw", SendRawAction, _bytes_action_schema(CONF_DATA)
+)
+async def send_raw_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: automation.TemplateArgsType,
+) -> cg.MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    await automation.templatable_bytes(
+        config[CONF_DATA],
+        args,
+        var.set_data_template,
+        var.set_data_static,
+        "ble_midi_raw",
+    )
+    return var
+
+
+automation.register_apply_condition(
+    "ble_midi.connected", cv.Schema({cv.GenerateID(): cv.use_id(BLEMidi)}), "is_ready()"
+)

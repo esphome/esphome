@@ -1,5 +1,7 @@
 #include "midi_parser.h"
 
+#include <cstring>
+
 namespace esphome::ble_midi {
 
 const char *message_type_name(MessageType type) {
@@ -55,12 +57,6 @@ static MessageType type_for_status(uint8_t status) {
   }
 }
 
-void MidiParser::init_sysex_buffer(size_t size) {
-  this->sysex_buffer_ = std::make_unique<uint8_t[]>(size);
-  this->sysex_capacity_ = size;
-  this->sysex_length_ = 0;
-}
-
 void MidiParser::reset() {
   this->running_status_ = 0;
   this->sysex_active_ = false;
@@ -103,15 +99,19 @@ uint8_t MidiParser::expected_system_common_data_bytes(uint8_t status) {
 }
 
 void MidiParser::sysex_push_(uint8_t byte) {
-  if (this->sysex_length_ < this->sysex_capacity_)
+  if (this->sysex_length_ < this->sysex_capacity_) {
     this->sysex_buffer_[this->sysex_length_++] = byte;
+  } else {
+    this->sysex_truncated_ = true;
+  }
 }
 
 void MidiParser::emit_sysex_(const std::function<void(const MidiMessage &)> &callback) {
   MidiMessage message;
   message.type = MessageType::SYSEX;
-  message.data = this->sysex_buffer_.get();
+  message.data = this->sysex_buffer_;
   message.length = this->sysex_length_;
+  message.truncated = this->sysex_truncated_;
   this->sysex_active_ = false;
   this->sysex_length_ = 0;
   this->running_status_ = 0;
@@ -213,8 +213,11 @@ void MidiParser::feed(const uint8_t *data, size_t length, const std::function<vo
       // end of the packet.
       this->sysex_active_ = true;
       this->sysex_length_ = 0;
+      this->sysex_truncated_ = false;
       this->sysex_push_(0xF0);
       i++;
+      // Set when a status byte other than 0xF7 cut the SysEx short; that byte is then still unprocessed
+      bool ended_early = false;
       while (i < length) {
         uint8_t sysex_byte = data[i];
         if ((sysex_byte & 0x80) == 0) {
@@ -247,9 +250,10 @@ void MidiParser::feed(const uint8_t *data, size_t length, const std::function<vo
         // outer loop process the status byte.
         this->emit_sysex_(callback);
         i++;
+        ended_early = true;
         break;
       }
-      expect_timestamp = true;
+      expect_timestamp = !ended_early;
       continue;
     }
 
@@ -275,7 +279,9 @@ void MidiParser::feed(const uint8_t *data, size_t length, const std::function<vo
     }
 
     // Any other status byte starts a new message and discards an incomplete
-    // one.
+    // one. A SysEx carried over from the previous packet ends here as well.
+    if (this->sysex_active_)
+      this->emit_sysex_(callback);
     this->reset_current_();
     this->current_message_[0] = byte;
     this->current_length_ = 1;
@@ -290,6 +296,23 @@ void MidiParser::feed(const uint8_t *data, size_t length, const std::function<vo
     }
     i++;
   }
+}
+
+size_t frame_sysex(const uint8_t *payload, size_t length, uint8_t *out, size_t out_size) {
+  if (length == 0)
+    return 0;
+  const size_t skip_start = payload[0] == STATUS_SYSEX_START ? 1 : 0;
+  const size_t skip_end = payload[length - 1] == STATUS_SYSEX_END ? 1 : 0;
+  const size_t body = length - skip_start - skip_end;
+  // 0xF0, the body, then the timestamp before 0xF7
+  const size_t framed = body + 3;
+  if (framed > out_size)
+    return 0;
+  out[0] = STATUS_SYSEX_START;
+  std::memcpy(out + 1, payload + skip_start, body);
+  out[body + 1] = PACKET_TIMESTAMP;
+  out[body + 2] = STATUS_SYSEX_END;
+  return framed;
 }
 
 }  // namespace esphome::ble_midi

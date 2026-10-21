@@ -16,19 +16,20 @@ static constexpr uint8_t TS = 0x80;
 struct Decoded {
   MessageType type;
   std::vector<uint8_t> bytes;
+  bool truncated;
 };
 
 class MidiParserTest : public ::testing::Test {
  protected:
-  void SetUp() override { this->parser_.init_sysex_buffer(64); }
-
   void feed_(const std::vector<uint8_t> &packet) {
     this->parser_.feed(packet.data(), packet.size(), [this](const MidiMessage &message) {
-      this->messages_.push_back({message.type, std::vector<uint8_t>(message.data, message.data + message.length)});
+      this->messages_.push_back(
+          {message.type, std::vector<uint8_t>(message.data, message.data + message.length), message.truncated});
     });
   }
 
-  MidiParser parser_;
+  uint8_t sysex_buffer_[64]{};
+  MidiParser parser_{sysex_buffer_, sizeof(sysex_buffer_)};
   std::vector<Decoded> messages_;
 };
 
@@ -156,20 +157,75 @@ TEST_F(MidiParserTest, RealTimeMessageInterruptsSysex) {
   EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0xF0, 0x7E, 0x7F, 0xF7}));
 }
 
-TEST_F(MidiParserTest, SysexLongerThanTheBufferIsTruncatedAndDoesNotOverflow) {
-  MidiParser small_parser;
-  small_parser.init_sysex_buffer(8);
+TEST_F(MidiParserTest, SysexLongerThanTheBufferIsTruncatedAndFlagged) {
+  uint8_t small_buffer[8]{};
+  MidiParser small_parser{small_buffer, sizeof(small_buffer)};
   std::vector<uint8_t> packet{HDR, TS, 0xF0};
   for (uint8_t i = 0; i < 64; i++)
     packet.push_back(i & 0x7F);
   packet.push_back(TS);
   packet.push_back(0xF7);
 
-  std::vector<size_t> lengths;
-  small_parser.feed(packet.data(), packet.size(),
-                    [&lengths](const MidiMessage &message) { lengths.push_back(message.length); });
-  ASSERT_EQ(lengths.size(), 1u);
-  EXPECT_EQ(lengths[0], 8u);
+  std::vector<Decoded> decoded;
+  small_parser.feed(packet.data(), packet.size(), [&decoded](const MidiMessage &message) {
+    decoded.push_back(
+        {message.type, std::vector<uint8_t>(message.data, message.data + message.length), message.truncated});
+  });
+  ASSERT_EQ(decoded.size(), 1u);
+  EXPECT_EQ(decoded[0].bytes.size(), 8u);
+  EXPECT_TRUE(decoded[0].truncated);
+
+  // The next SysEx that fits is reported whole
+  decoded.clear();
+  small_parser.feed(packet.data(), 5, [&decoded](const MidiMessage &message) {
+    decoded.push_back({message.type, {}, message.truncated});
+  });
+  small_parser.feed(std::vector<uint8_t>{HDR, TS, 0xF7}.data(), 3, [&decoded](const MidiMessage &message) {
+    decoded.push_back({message.type, {}, message.truncated});
+  });
+  ASSERT_EQ(decoded.size(), 1u);
+  EXPECT_FALSE(decoded[0].truncated);
+}
+
+TEST_F(MidiParserTest, StatusByteCuttingASysexShortIsStillDecoded) {
+  this->feed_({HDR, TS, 0xF0, 0x7E, TS, 0x90, 0x3C, 0x40});
+  ASSERT_EQ(this->messages_.size(), 2u);
+  EXPECT_EQ(this->messages_[0].type, MessageType::SYSEX);
+  EXPECT_EQ(this->messages_[0].bytes, std::vector<uint8_t>({0xF0, 0x7E}));
+  EXPECT_EQ(this->messages_[1].type, MessageType::NOTE_ON);
+  EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0x90, 0x3C, 0x40}));
+}
+
+TEST_F(MidiParserTest, SysexCarriedOverEndsWhenTheNextPacketStartsAMessage) {
+  this->feed_({HDR, TS, 0xF0, 0x7E});
+  this->feed_({HDR, TS, 0x90, 0x3C, 0x40, 0x3E, 0x41});
+  ASSERT_EQ(this->messages_.size(), 3u);
+  EXPECT_EQ(this->messages_[0].type, MessageType::SYSEX);
+  EXPECT_EQ(this->messages_[0].bytes, std::vector<uint8_t>({0xF0, 0x7E}));
+  EXPECT_EQ(this->messages_[1].type, MessageType::NOTE_ON);
+  // Running status works again after the SysEx was closed
+  EXPECT_EQ(this->messages_[2].bytes, std::vector<uint8_t>({0x90, 0x3E, 0x41}));
+}
+
+TEST(FrameSysex, AddsTheWrappersAndTheTimestampBeforeTheEnd) {
+  uint8_t out[16];
+  const uint8_t payload[] = {0x7E, 0x7F, 0x06, 0x01};
+  ASSERT_EQ(frame_sysex(payload, sizeof(payload), out, sizeof(out)), 7u);
+  EXPECT_EQ(std::vector<uint8_t>(out, out + 7), std::vector<uint8_t>({0xF0, 0x7E, 0x7F, 0x06, 0x01, TS, 0xF7}));
+}
+
+TEST(FrameSysex, KeepsWrappersThatArePresent) {
+  uint8_t out[16];
+  const uint8_t payload[] = {0xF0, 0x7E, 0xF7};
+  ASSERT_EQ(frame_sysex(payload, sizeof(payload), out, sizeof(out)), 4u);
+  EXPECT_EQ(std::vector<uint8_t>(out, out + 4), std::vector<uint8_t>({0xF0, 0x7E, TS, 0xF7}));
+}
+
+TEST(FrameSysex, RejectsEmptyAndOversizedPayloads) {
+  uint8_t out[4];
+  const uint8_t payload[] = {0x7E, 0x7F};
+  EXPECT_EQ(frame_sysex(payload, 0, out, sizeof(out)), 0u);
+  EXPECT_EQ(frame_sysex(payload, sizeof(payload), out, sizeof(out)), 0u);
 }
 
 TEST_F(MidiParserTest, DataByteWithoutStatusContextIsReportedAsUnknown) {

@@ -2,50 +2,28 @@
 
 #ifdef USE_ESP32
 
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <cstring>
+#include <algorithm>
 
 namespace esphome::ble_midi {
 
-static const char *const TAG = "ble_midi";
+ESPHOME_LOG_TAG(TAG, "ble_midi");
 
 // Standard BLE-MIDI service and characteristic, as defined by the BLE-MIDI
 // specification.
-static const char *const SERVICE_UUID = "03B80E5A-EDE8-4B33-A751-6CE34EC4C700";
-static const char *const CHARACTERISTIC_UUID = "7772E5DB-3868-4112-A1A9-F2669D106BF3";
-
-// A BLE-MIDI packet starts with a header byte and a timestamp byte, both of
-// which have bit 7 set. The remaining timestamp bits are used for jitter
-// reconstruction only and are left at zero when transmitting.
-static const uint8_t PACKET_HEADER = 0x80;
-static const uint8_t PACKET_TIMESTAMP = 0x80;
+static constexpr const char *SERVICE_UUID = "03B80E5A-EDE8-4B33-A751-6CE34EC4C700";
+static constexpr const char *CHARACTERISTIC_UUID = "7772E5DB-3868-4112-A1A9-F2669D106BF3";
 
 // MIDI status bytes for the messages this component can transmit.
-static const uint8_t STATUS_NOTE_OFF = 0x80;
-static const uint8_t STATUS_NOTE_ON = 0x90;
-static const uint8_t STATUS_CONTROL_CHANGE = 0xB0;
-static const uint8_t STATUS_PROGRAM_CHANGE = 0xC0;
-static const uint8_t STATUS_PITCH_BEND = 0xE0;
-static const uint8_t STATUS_SYSEX_START = 0xF0;
-static const uint8_t STATUS_SYSEX_END = 0xF7;
+static constexpr uint8_t STATUS_NOTE_OFF = 0x80;
+static constexpr uint8_t STATUS_NOTE_ON = 0x90;
+static constexpr uint8_t STATUS_CONTROL_CHANGE = 0xB0;
+static constexpr uint8_t STATUS_PROGRAM_CHANGE = 0xC0;
+static constexpr uint8_t STATUS_PITCH_BEND = 0xE0;
 
 // Number of received bytes included in verbose packet logs.
-static const size_t LOG_MAX_BYTES = 32;
-
-template<typename... Ts> static void fire_triggers(const std::vector<Trigger<Ts...> *> &triggers, const Ts &...args) {
-  for (auto *trigger : triggers)
-    trigger->trigger(args...);
-}
-
-void BLEMidi::setup() { this->parser_.init_sysex_buffer(this->max_sysex_size_); }
-
-void BLEMidi::loop() {
-  // Messages arrive through gattc_event_handler() and are dispatched from
-  // there, so this component does not need to run on every loop iteration.
-  this->disable_loop();
-}
+static constexpr size_t LOG_MAX_BYTES = 32;
 
 void BLEMidi::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -53,7 +31,7 @@ void BLEMidi::dump_config() {
                 "  MAC address: %s\n"
                 "  Maximum SysEx size: %u\n"
                 "  Pair on connect: %s",
-                this->parent()->address_str(), static_cast<unsigned>(this->max_sysex_size_), YESNO(this->pair_));
+                this->parent()->address_str(), this->parser_.sysex_capacity(), YESNO(this->pair_));
 }
 
 void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
@@ -74,22 +52,20 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
     case ESP_GATTC_CLOSE_EVT: {
       this->parser_.reset();
       this->characteristic_handle_ = 0;
-      // Both events can arrive for the same disconnect, so the triggers are
-      // fired only for the one that follows an established MIDI connection.
-      bool was_ready = this->notify_registered_;
+      // Both events can arrive for the same disconnect, so the automation runs
+      // only for the one that follows an established MIDI connection.
+      const bool was_ready = this->notify_registered_;
       this->notify_registered_ = false;
       this->node_state = espbt::ClientState::IDLE;
-      if (was_ready) {
-        for (auto *trigger : this->disconnect_triggers_)
-          trigger->trigger();
-      }
+      if (was_ready)
+        this->disconnect_callback_.call();
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto *characteristic = this->parent()->get_characteristic(espbt::ESPBTUUID::from_raw(SERVICE_UUID),
                                                                 espbt::ESPBTUUID::from_raw(CHARACTERISTIC_UUID));
       if (characteristic == nullptr) {
-        ESP_LOGW(TAG, "No BLE MIDI characteristic found on this device");
+        this->status_set_warning(LOG_STR("No BLE MIDI characteristic found on this device"));
         break;
       }
       this->characteristic_handle_ = characteristic->handle;
@@ -97,6 +73,7 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
       esp_err_t err = this->parent()->register_for_notify(characteristic->handle);
       if (err != ESP_OK) {
         ESP_LOGW(TAG, "register_for_notify failed, error=%d", err);
+        this->status_set_warning();
       }
       break;
     }
@@ -105,15 +82,16 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
         break;
       if (param->reg_for_notify.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Enabling notifications failed, status=%d", param->reg_for_notify.status);
+        this->status_set_warning();
         break;
       }
+      this->status_clear_warning();
       this->notify_registered_ = true;
       this->node_state = espbt::ClientState::ESTABLISHED;
       ESP_LOGI(TAG, "MIDI notifications enabled");
       // The device can only be sent to once notifications are enabled, so this
       // is the point where on_connect is useful.
-      for (auto *trigger : this->connect_triggers_)
-        trigger->trigger();
+      this->connect_callback_.call();
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -135,37 +113,36 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
 
 void BLEMidi::handle_message_(const MidiMessage &message) {
   ESP_LOGV(TAG, "Decoded %s", message_type_name(message.type));
-
-  if (!this->message_triggers_.empty()) {
-    std::vector<uint8_t> bytes(message.data, message.data + message.length);
-    fire_triggers(this->message_triggers_, bytes);
-  }
+  this->message_callback_.call(ByteSpan(message.data, message.length));
 
   switch (message.type) {
     case MessageType::NOTE_ON:
-      fire_triggers(this->note_on_triggers_, message.note(), message.velocity(), message.channel());
+      this->note_on_callback_.call(message.note(), message.velocity(), message.channel());
       break;
     case MessageType::NOTE_OFF:
-      fire_triggers(this->note_off_triggers_, message.note(), message.velocity(), message.channel());
+      this->note_off_callback_.call(message.note(), message.velocity(), message.channel());
       break;
     case MessageType::CONTROL_CHANGE:
-      fire_triggers(this->control_change_triggers_, message.control_number(), message.control_value(),
-                    message.channel());
+      this->control_change_callback_.call(message.control_number(), message.control_value(), message.channel());
       break;
     case MessageType::PROGRAM_CHANGE:
-      fire_triggers(this->program_change_triggers_, message.program(), message.channel());
+      this->program_change_callback_.call(message.program(), message.channel());
       break;
     case MessageType::PITCH_BEND:
-      fire_triggers(this->pitch_bend_triggers_, message.pitch_bend(), message.channel());
+      this->pitch_bend_callback_.call(message.pitch_bend(), message.channel());
       break;
     case MessageType::SYSEX: {
-      if (this->sysex_triggers_.empty())
-        break;
-      // Hand the payload to the automation without the 0xF0/0xF7 wrappers.
-      std::vector<uint8_t> payload;
-      if (message.length > 2)
-        payload.assign(message.data + 1, message.data + message.length - 1);
-      fire_triggers(this->sysex_triggers_, payload);
+      if (message.truncated) {
+        ESP_LOGW(TAG, "SysEx longer than %u bytes was cut; raise max_sysex_size", this->parser_.sysex_capacity());
+      }
+      // Hand the payload to the automation without the wrappers; a truncated or
+      // cut-short message has no 0xF7, so only the bytes present are dropped
+      ByteSpan payload(message.data, message.length);
+      if (!payload.empty() && payload.front() == STATUS_SYSEX_START)
+        payload = payload.subspan(1);
+      if (!payload.empty() && payload.back() == STATUS_SYSEX_END)
+        payload = payload.first(payload.size() - 1);
+      this->sysex_callback_.call(payload);
       break;
     }
     case MessageType::UNKNOWN:
@@ -179,23 +156,28 @@ void BLEMidi::handle_message_(const MidiMessage &message) {
 }
 
 bool BLEMidi::write_midi_(const uint8_t *midi_bytes, size_t length) {
-  if (length == 0)
+  if (length == 0) {
+    ESP_LOGW(TAG, "Cannot send: empty message");
     return false;
+  }
   if (!this->is_ready() || this->characteristic_handle_ == 0) {
     ESP_LOGW(TAG, "Cannot send: not connected");
     return false;
   }
-  if (length > MAX_TX_MIDI_BYTES) {
+  uint8_t packet[MAX_TX_MIDI_BYTES + 2];
+  // A write without response has to fit one ATT packet, which the stack does not check for us
+  const size_t limit =
+      this->write_without_response_ ? std::min<size_t>(sizeof(packet), this->parent()->get_mtu() - 3) : sizeof(packet);
+  const size_t packet_length = length + 2;
+  if (packet_length > limit) {
     ESP_LOGW(TAG, "Cannot send: message of %u bytes exceeds the %u byte limit", static_cast<unsigned>(length),
-             static_cast<unsigned>(MAX_TX_MIDI_BYTES));
+             static_cast<unsigned>(limit - 2));
     return false;
   }
 
-  uint8_t packet[MAX_TX_MIDI_BYTES + 2];
   packet[0] = PACKET_HEADER;
   packet[1] = PACKET_TIMESTAMP;
   std::memcpy(packet + 2, midi_bytes, length);
-  size_t packet_length = length + 2;
 
   esp_err_t err = esp_ble_gattc_write_char(
       this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->characteristic_handle_, packet_length,
@@ -243,30 +225,18 @@ void BLEMidi::send_pitch_bend(int16_t value, uint8_t channel) {
   this->write_midi_(bytes, sizeof(bytes));
 }
 
-void BLEMidi::send_sysex(const std::vector<uint8_t> &payload) {
-  if (payload.empty())
-    return;
-  bool has_start = payload.front() == STATUS_SYSEX_START;
-  bool has_end = payload.back() == STATUS_SYSEX_END;
-  size_t length = payload.size() + (has_start ? 0 : 1) + (has_end ? 0 : 1);
-  if (length > MAX_TX_MIDI_BYTES) {
-    ESP_LOGW(TAG, "Cannot send: SysEx of %u bytes exceeds the %u byte limit", static_cast<unsigned>(length),
+void BLEMidi::send_sysex(const uint8_t *payload, size_t length) {
+  uint8_t bytes[MAX_TX_MIDI_BYTES];
+  const size_t framed = frame_sysex(payload, length, bytes, sizeof(bytes));
+  if (framed == 0) {
+    ESP_LOGW(TAG, "Cannot send: SysEx of %u bytes is empty or exceeds the %u byte limit", static_cast<unsigned>(length),
              static_cast<unsigned>(MAX_TX_MIDI_BYTES));
     return;
   }
-
-  uint8_t bytes[MAX_TX_MIDI_BYTES];
-  size_t offset = 0;
-  if (!has_start)
-    bytes[offset++] = STATUS_SYSEX_START;
-  std::memcpy(bytes + offset, payload.data(), payload.size());
-  offset += payload.size();
-  if (!has_end)
-    bytes[offset++] = STATUS_SYSEX_END;
-  this->write_midi_(bytes, offset);
+  this->write_midi_(bytes, framed);
 }
 
-void BLEMidi::send_raw(const std::vector<uint8_t> &bytes) { this->write_midi_(bytes.data(), bytes.size()); }
+void BLEMidi::send_raw(const uint8_t *bytes, size_t length) { this->write_midi_(bytes, length); }
 
 }  // namespace esphome::ble_midi
 

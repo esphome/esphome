@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <memory>
 
 namespace esphome::ble_midi {
 
@@ -39,6 +38,8 @@ struct MidiMessage {
   // includes the 0xF0/0xF7 wrappers.
   const uint8_t *data{nullptr};
   size_t length{0};
+  // SysEx only: bytes past the reassembly buffer were dropped, so the payload is incomplete
+  bool truncated{false};
 
   // Accessors below are only meaningful for the matching message type.
   uint8_t status() const { return this->length > 0 ? this->data[0] : 0; }
@@ -86,9 +87,11 @@ struct MidiMessage {
 /// isolation.
 class MidiParser final {
  public:
-  /// Allocate the buffer that reassembles SysEx messages. Must be called once
-  /// before feed(); SysEx payloads longer than `size` bytes are truncated.
-  void init_sysex_buffer(size_t size);
+  /// `sysex_buffer` reassembles SysEx messages; payloads longer than `sysex_capacity` bytes are truncated.
+  MidiParser(uint8_t *sysex_buffer, uint16_t sysex_capacity)
+      : sysex_buffer_(sysex_buffer), sysex_capacity_(sysex_capacity) {}
+
+  uint16_t sysex_capacity() const { return this->sysex_capacity_; }
 
   /// Drop all parser state. Call on disconnect so running status and partial
   /// messages do not leak into the next session.
@@ -116,10 +119,11 @@ class MidiParser final {
   uint8_t running_status_{0};
 
   // SysEx reassembly across packets.
-  std::unique_ptr<uint8_t[]> sysex_buffer_;
-  size_t sysex_capacity_{0};
-  size_t sysex_length_{0};
+  uint8_t *const sysex_buffer_;
+  const uint16_t sysex_capacity_;
+  uint16_t sysex_length_{0};
   bool sysex_active_{false};
+  bool sysex_truncated_{false};
 
   // Message currently being assembled: status byte plus up to two data bytes.
   uint8_t current_message_[3]{};
@@ -129,5 +133,17 @@ class MidiParser final {
   // Scratch storage for single-byte messages (real-time, undecodable bytes).
   uint8_t single_byte_{0};
 };
+
+// A BLE-MIDI packet starts with a header byte and a timestamp byte, both with bit 7 set. The remaining
+// timestamp bits serve jitter reconstruction only and are left at zero when transmitting.
+static constexpr uint8_t PACKET_HEADER = 0x80;
+static constexpr uint8_t PACKET_TIMESTAMP = 0x80;
+static constexpr uint8_t STATUS_SYSEX_START = 0xF0;
+static constexpr uint8_t STATUS_SYSEX_END = 0xF7;
+
+/// Frame a SysEx payload for one BLE-MIDI packet: 0xF0 and 0xF7 are added when the payload lacks them, with
+/// the timestamp byte the specification requires before 0xF7. Returns the bytes written to `out`, or 0 when
+/// the payload is empty or the framed message does not fit `out_size`.
+size_t frame_sysex(const uint8_t *payload, size_t length, uint8_t *out, size_t out_size);
 
 }  // namespace esphome::ble_midi
