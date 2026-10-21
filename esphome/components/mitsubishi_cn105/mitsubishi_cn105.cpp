@@ -269,19 +269,17 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     return false;
   }
 
+  // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
+  // Catches mode/power changes made outside ESPHome (IR remote, Mitsubishi app); setters handle local changes.
+  if (previous.mode != this->status_.mode || previous.power_on != this->status_.power_on) {
+    this->invalidate_operating_();
+  }
+
   if (msg_type == this->current_status_msg_type_) {
     this->set_state_(State::STATUS_UPDATED);
   }
 
-  // A compressor state reported under the previous mode/power state is meaningless for the new one
-  // (e.g. "operating" while cooling must not be shown as "heating" after switching to HEAT).
-  // Invalidate it and clear the poll timestamp so should_request_heatpump_() fires on the next cycle.
-  if (previous.mode != this->status_.mode || previous.power_on != this->status_.power_on) {
-    this->status_.operating.reset();
-    this->last_heatpump_request_ms_.reset();
-  }
-
-  bool changed =
+  bool changed = =
       previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
       previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
       previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode ||
