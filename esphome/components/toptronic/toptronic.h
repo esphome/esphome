@@ -71,7 +71,7 @@ class TopTronicNumber : public number::Number, public TopTronicBase {
   void set_multiplier(float multiplier) { this->multiplier_ = multiplier; }
   float get_multiplier() { return this->multiplier_; }
   SensorType type() override { return SENSOR; }
-  const StringRef &get_name() const override { return this->number::Number::get_name(); }
+  const LogString *get_log_name() const override { return this->number::Number::get_log_name(); }
   void control(float value) override;
 
  protected:
@@ -84,7 +84,7 @@ class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicBase
  public:
   std::string parse_value(const uint8_t *data, size_t len);
   SensorType type() override { return TEXTSENSOR; }
-  const StringRef &get_name() const override { return this->text_sensor::TextSensor::get_name(); }
+  const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
   void add_option(uint8_t value, const std::string &text) {
     this->to_text_[value] = text;
     this->to_value_[text] = value;
@@ -101,7 +101,7 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
   TopTronicSelect() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
   SensorType type() override { return TEXTSENSOR; }
-  const StringRef &get_name() const override { return this->select::Select::get_name(); }
+  const LogString *get_log_name() const override { return this->select::Select::get_log_name(); }
   void add_option(uint8_t value, const std::string &text) {
     this->to_text_[value] = text;
     this->to_value_[text] = value;
