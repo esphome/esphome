@@ -1,6 +1,6 @@
 """Press a template button on the test device over the API, or list its buttons.
 
-usage: api_button.py HOST KEY list | press "Button name" [...]
+usage: api_button.py HOST KEY list | press "Button name" [...]  (KEY of - means a plaintext API)
 """
 
 import asyncio
@@ -13,7 +13,7 @@ CMD, ARGS = sys.argv[3], sys.argv[4:]
 
 
 async def main() -> None:
-    c = APIClient(HOST, 6053, None, noise_psk=KEY)
+    c = APIClient(HOST, 6053, None, noise_psk=None if KEY == "-" else KEY)
     await c.connect(login=True)
     ents, _ = await c.list_entities_services()
     buttons = {e.name: e for e in ents if isinstance(e, ButtonInfo)}

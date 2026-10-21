@@ -29,6 +29,8 @@ MAX_WIDTH = 1600
 class T133A01Model(EpaperModel):
     """EpaperModel subclass for T133A01-based 6-color e-paper displays."""
 
+    source_files = ("epaper_spi_t133a01.cpp",)
+
     # The driver drives CS and CS1 directly for the dual-CS protocol.
     manages_cs = True
 
