@@ -93,9 +93,5 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], uart_component, usb_cdc)
     await cg.register_component(var, config)
 
-    if dtr_pin_config := config.get(CONF_DTR_PIN):
-        dtr_pin = await cg.gpio_pin_expression(dtr_pin_config)
-        cg.add(var.set_dtr_pin(dtr_pin))
-    if rts_pin_config := config.get(CONF_RTS_PIN):
-        rts_pin = await cg.gpio_pin_expression(rts_pin_config)
-        cg.add(var.set_rts_pin(rts_pin))
+    await cg.add_pin(var.set_dtr_pin, config.get(CONF_DTR_PIN))
+    await cg.add_pin(var.set_rts_pin, config.get(CONF_RTS_PIN))
