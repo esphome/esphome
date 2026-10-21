@@ -343,6 +343,17 @@ TEST(JpegSourceDecode, DecodersThatCannotReadASourceSaySo) {
   EXPECT_EQ(img.decode_step(), DECODE_ERROR_UNSUPPORTED_FORMAT);
 }
 
+TEST(JpegSourceDecode, SourceNeedsTheImageSize) {
+  SourceImage img;
+  MemorySource source(JPEG_ROWS, sizeof(JPEG_ROWS));
+  // JPEGDEC needs the file size up front, and holds it in an int
+  ASSERT_TRUE(img.begin_decode(0));
+  EXPECT_EQ(img.begin_source(&source), DECODE_ERROR_INVALID_TYPE);
+  img.release();
+  ASSERT_TRUE(img.begin_decode(static_cast<size_t>(INT32_MAX) + 1));
+  EXPECT_EQ(img.begin_source(&source), DECODE_ERROR_INVALID_TYPE);
+}
+
 TEST(JpegSourceDecode, StepWithoutADecodeIsRefused) {
   SourceImage img;
   EXPECT_EQ(img.decode_step(), DECODE_ERROR_INVALID_TYPE);

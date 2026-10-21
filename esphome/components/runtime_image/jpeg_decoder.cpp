@@ -225,6 +225,10 @@ int32_t JpegDecoder::source_seek_(JPEGFILE *file, int32_t position) {
 }
 
 int JpegDecoder::begin_source(DecodeSource *source) {
+  if (this->expected_size_ == 0 || this->expected_size_ > INT32_MAX) {
+    ESP_LOGE(TAG, "Image size %zu cannot be read from a source", this->expected_size_);
+    return DECODE_ERROR_INVALID_TYPE;
+  }
   this->source_ = source;
   this->source_failed_ = false;
   if (!source->seek(0) ||
