@@ -11,22 +11,20 @@
 namespace esphome::ble_midi {
 
 template<typename... Ts> class SendSysexAction final : public Action<Ts...>, public Parented<BLEMidi> {
-  TEMPLATABLE_BYTES(payload)
+  TEMPLATABLE_BYTES(bytes)
 
  public:
   void play(const Ts &...x) override {
-    this->payload_.template visit<MAX_TX_MIDI_BYTES>(
-        [this](const uint8_t *data, size_t len) { this->parent_->send_sysex(data, len); }, x...);
+    this->bytes_.visit([this](const uint8_t *data, size_t len) { this->parent_->send_sysex(data, len); }, x...);
   }
 };
 
 template<typename... Ts> class SendRawAction final : public Action<Ts...>, public Parented<BLEMidi> {
-  TEMPLATABLE_BYTES(data)
+  TEMPLATABLE_BYTES(bytes)
 
  public:
   void play(const Ts &...x) override {
-    this->data_.template visit<MAX_TX_MIDI_BYTES>(
-        [this](const uint8_t *data, size_t len) { this->parent_->send_raw(data, len); }, x...);
+    this->bytes_.visit([this](const uint8_t *data, size_t len) { this->parent_->send_raw(data, len); }, x...);
   }
 };
 

@@ -16,17 +16,15 @@ static constexpr uint8_t TS = 0x80;
 struct Decoded {
   MessageType type;
   std::vector<uint8_t> bytes;
-  bool truncated;
 };
 
 class MidiParserTest : public ::testing::Test {
  protected:
-  void feed_(const std::vector<uint8_t> &packet) {
-    this->parser_.feed(packet.data(), packet.size(), [this](const MidiMessage &message) {
-      this->messages_.push_back(
-          {message.type, std::vector<uint8_t>(message.data, message.data + message.length), message.truncated});
-    });
+  static void collect(void *ctx, const MidiMessage &message) {
+    static_cast<MidiParserTest *>(ctx)->messages_.push_back(
+        {message.type, std::vector<uint8_t>(message.data, message.data + message.length)});
   }
+  void feed_(const std::vector<uint8_t> &packet) { this->parser_.feed(packet.data(), packet.size(), collect, this); }
 
   uint8_t sysex_buffer_[64]{};
   MidiParser parser_{sysex_buffer_, sizeof(sysex_buffer_)};
@@ -43,10 +41,10 @@ TEST_F(MidiParserTest, NoteOn) {
 TEST_F(MidiParserTest, ChannelIsTakenFromTheStatusByte) {
   this->feed_({HDR, TS, 0x95, 0x3C, 0x40});
   ASSERT_EQ(this->messages_.size(), 1u);
-  MidiMessage message{this->messages_[0].type, this->messages_[0].bytes.data(), this->messages_[0].bytes.size()};
+  MidiMessage message{this->messages_[0].bytes.data(), 3, this->messages_[0].type};
   EXPECT_EQ(message.channel(), 5);
-  EXPECT_EQ(message.note(), 60);
-  EXPECT_EQ(message.velocity(), 64);
+  EXPECT_EQ(message.data1(), 60);
+  EXPECT_EQ(message.data2(), 64);
 }
 
 TEST_F(MidiParserTest, RunningStatusReusesThePreviousStatusByte) {
@@ -83,11 +81,11 @@ TEST_F(MidiParserTest, NoteOnWithZeroVelocityIsANoteOff) {
 TEST_F(MidiParserTest, ControlChange) {
   this->feed_({HDR, TS, 0xB2, 0x07, 0x64});
   ASSERT_EQ(this->messages_.size(), 1u);
-  MidiMessage message{this->messages_[0].type, this->messages_[0].bytes.data(), this->messages_[0].bytes.size()};
+  MidiMessage message{this->messages_[0].bytes.data(), 3, this->messages_[0].type};
   EXPECT_EQ(message.type, MessageType::CONTROL_CHANGE);
   EXPECT_EQ(message.channel(), 2);
-  EXPECT_EQ(message.control_number(), 7);
-  EXPECT_EQ(message.control_value(), 100);
+  EXPECT_EQ(message.data1(), 7);
+  EXPECT_EQ(message.data2(), 100);
 }
 
 TEST_F(MidiParserTest, ProgramChangeHasASingleDataByte) {
@@ -102,8 +100,7 @@ TEST_F(MidiParserTest, PitchBendIsCenteredOnZero) {
   this->feed_({HDR, TS, 0xE0, 0x00, 0x40, TS, 0xE0, 0x00, 0x00, TS, 0xE0, 0x7F, 0x7F});
   ASSERT_EQ(this->messages_.size(), 3u);
   auto bend = [this](size_t index) {
-    MidiMessage message{this->messages_[index].type, this->messages_[index].bytes.data(),
-                        this->messages_[index].bytes.size()};
+    MidiMessage message{this->messages_[index].bytes.data(), 3, this->messages_[index].type};
     return message.pitch_bend();
   };
   EXPECT_EQ(this->messages_[0].type, MessageType::PITCH_BEND);
@@ -157,7 +154,7 @@ TEST_F(MidiParserTest, RealTimeMessageInterruptsSysex) {
   EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0xF0, 0x7E, 0x7F, 0xF7}));
 }
 
-TEST_F(MidiParserTest, SysexLongerThanTheBufferIsTruncatedAndFlagged) {
+TEST_F(MidiParserTest, SysexLongerThanTheBufferIsReportedIncomplete) {
   uint8_t small_buffer[8]{};
   MidiParser small_parser{small_buffer, sizeof(small_buffer)};
   std::vector<uint8_t> packet{HDR, TS, 0xF0};
@@ -166,31 +163,25 @@ TEST_F(MidiParserTest, SysexLongerThanTheBufferIsTruncatedAndFlagged) {
   packet.push_back(TS);
   packet.push_back(0xF7);
 
-  std::vector<Decoded> decoded;
-  small_parser.feed(packet.data(), packet.size(), [&decoded](const MidiMessage &message) {
-    decoded.push_back(
-        {message.type, std::vector<uint8_t>(message.data, message.data + message.length), message.truncated});
-  });
-  ASSERT_EQ(decoded.size(), 1u);
-  EXPECT_EQ(decoded[0].bytes.size(), 8u);
-  EXPECT_TRUE(decoded[0].truncated);
+  small_parser.feed(packet.data(), packet.size(), collect, this);
+  ASSERT_EQ(this->messages_.size(), 1u);
+  EXPECT_EQ(this->messages_[0].type, MessageType::SYSEX_INCOMPLETE);
+  EXPECT_EQ(this->messages_[0].bytes.size(), 8u);
 
   // The next SysEx that fits is reported whole
-  decoded.clear();
-  small_parser.feed(packet.data(), 5, [&decoded](const MidiMessage &message) {
-    decoded.push_back({message.type, {}, message.truncated});
-  });
-  small_parser.feed(std::vector<uint8_t>{HDR, TS, 0xF7}.data(), 3, [&decoded](const MidiMessage &message) {
-    decoded.push_back({message.type, {}, message.truncated});
-  });
-  ASSERT_EQ(decoded.size(), 1u);
-  EXPECT_FALSE(decoded[0].truncated);
+  const std::vector<uint8_t> start{HDR, TS, 0xF0, 0x00, 0x01};
+  const std::vector<uint8_t> end{HDR, TS, 0xF7};
+  small_parser.feed(start.data(), start.size(), collect, this);
+  small_parser.feed(end.data(), end.size(), collect, this);
+  ASSERT_EQ(this->messages_.size(), 2u);
+  EXPECT_EQ(this->messages_[1].type, MessageType::SYSEX);
+  EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0xF0, 0x00, 0x01, 0xF7}));
 }
 
-TEST_F(MidiParserTest, StatusByteCuttingASysexShortIsStillDecoded) {
+TEST_F(MidiParserTest, StatusByteCuttingASysexShortDropsItAndIsDecoded) {
   this->feed_({HDR, TS, 0xF0, 0x7E, TS, 0x90, 0x3C, 0x40});
   ASSERT_EQ(this->messages_.size(), 2u);
-  EXPECT_EQ(this->messages_[0].type, MessageType::SYSEX);
+  EXPECT_EQ(this->messages_[0].type, MessageType::SYSEX_INCOMPLETE);
   EXPECT_EQ(this->messages_[0].bytes, std::vector<uint8_t>({0xF0, 0x7E}));
   EXPECT_EQ(this->messages_[1].type, MessageType::NOTE_ON);
   EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0x90, 0x3C, 0x40}));
@@ -200,7 +191,7 @@ TEST_F(MidiParserTest, SysexCarriedOverEndsWhenTheNextPacketStartsAMessage) {
   this->feed_({HDR, TS, 0xF0, 0x7E});
   this->feed_({HDR, TS, 0x90, 0x3C, 0x40, 0x3E, 0x41});
   ASSERT_EQ(this->messages_.size(), 3u);
-  EXPECT_EQ(this->messages_[0].type, MessageType::SYSEX);
+  EXPECT_EQ(this->messages_[0].type, MessageType::SYSEX_INCOMPLETE);
   EXPECT_EQ(this->messages_[0].bytes, std::vector<uint8_t>({0xF0, 0x7E}));
   EXPECT_EQ(this->messages_[1].type, MessageType::NOTE_ON);
   // Running status works again after the SysEx was closed

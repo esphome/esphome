@@ -31,6 +31,7 @@ CONF_ON_PROGRAM_CHANGE = "on_program_change"
 CONF_ON_SYSEX = "on_sysex"
 CONF_PAIR = "pair"
 CONF_PROGRAM = "program"
+CONF_SYSEX_BUFFER_ID = "sysex_buffer_id"
 CONF_VELOCITY = "velocity"
 
 ble_midi_ns = cg.esphome_ns.namespace("ble_midi")
@@ -38,7 +39,7 @@ BLEMidi = ble_midi_ns.class_("BLEMidi", cg.Component, ble_client.BLEClientNode)
 SendSysexAction = ble_midi_ns.class_("SendSysexAction", automation.Action)
 SendRawAction = ble_midi_ns.class_("SendRawAction", automation.Action)
 # The message bytes as a view: data.size() and data[i] work, and nothing is copied
-ByteSpan = cg.std_ns.class_("span").template(cg.uint8.operator("const"))
+ByteSpan = cg.std_span.template(cg.uint8.operator("const"))
 
 # MIDI data bytes are 7-bit and channels are 4-bit, matching what goes on the wire and what the triggers report.
 # Channel 0 is the channel that MIDI hardware usually labels "1".
@@ -89,6 +90,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BLEMidi),
+            cv.GenerateID(CONF_SYSEX_BUFFER_ID): cv.declare_id(cg.uint8),
             cv.Optional(CONF_MAX_SYSEX_SIZE, default=256): cv.int_range(
                 min=8, max=2048
             ),
@@ -107,7 +109,7 @@ CONFIG_SCHEMA = (
 async def to_code(config: ConfigType) -> None:
     size = config[CONF_MAX_SYSEX_SIZE]
     # SysEx messages are reassembled in a static array, so nothing is allocated at run time
-    buf = f"{config[CONF_ID].id}_sysex_buf"
+    buf = config[CONF_SYSEX_BUFFER_ID].id
     cg.add_global(cg.RawStatement(f"static uint8_t {buf}[{size}];"))
     var = await ble_client.new_ble_node_component(
         config, cg.RawExpression(buf), size, config[CONF_PAIR]
@@ -125,7 +127,7 @@ def _action_schema(keys: dict) -> cv.Schema:
     )
 
 
-NOTE_ACTION_SCHEMA = _action_schema(
+_NOTE_ACTION_SCHEMA = _action_schema(
     {
         cv.Required(CONF_NOTE): cv.templatable(midi_data_byte),
         cv.Optional(CONF_VELOCITY, default=64): cv.templatable(midi_data_byte),
@@ -137,13 +139,13 @@ _NOTE_CALL_ARGS = ((CONF_NOTE, cg.uint8), (CONF_VELOCITY, cg.uint8), _CHANNEL)
 
 automation.register_apply_action(
     "ble_midi.send_note_on",
-    NOTE_ACTION_SCHEMA,
+    _NOTE_ACTION_SCHEMA,
     automation.ApplyCall("send_note_on({}, {}, {})", _NOTE_CALL_ARGS),
 )
 
 automation.register_apply_action(
     "ble_midi.send_note_off",
-    NOTE_ACTION_SCHEMA,
+    _NOTE_ACTION_SCHEMA,
     automation.ApplyCall("send_note_off({}, {}, {})", _NOTE_CALL_ARGS),
 )
 
@@ -180,57 +182,37 @@ automation.register_apply_action(
 )
 
 
-def _bytes_action_schema(key: str) -> cv.Schema:
-    return cv.Schema(
+def _register_bytes_action(name: str, cls: cg.MockObjClass, key: str) -> None:
+    """A send action whose payload is a byte list: a constant one is a shared PROGMEM table."""
+
+    async def builder(
+        config: ConfigType,
+        action_id: ID,
+        template_arg: cg.TemplateArguments,
+        args: automation.TemplateArgsType,
+    ) -> cg.MockObj:
+        var = cg.new_Pvariable(action_id, template_arg)
+        await cg.register_parented(var, config[CONF_ID])
+        await automation.templatable_bytes(
+            config[key],
+            args,
+            var.set_bytes_template,
+            var.set_bytes_static,
+            name.replace(".", "_"),
+        )
+        return var
+
+    schema = cv.Schema(
         {
             cv.GenerateID(): cv.use_id(BLEMidi),
             cv.Required(key): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
         }
     )
+    automation.register_action(name, cls, schema)(builder)
 
 
-# A constant payload is a shared PROGMEM table; only a lambda builds a vector
-@automation.register_action(
-    "ble_midi.send_sysex", SendSysexAction, _bytes_action_schema(CONF_PAYLOAD)
-)
-async def send_sysex_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: automation.TemplateArgsType,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_PAYLOAD],
-        args,
-        var.set_payload_template,
-        var.set_payload_static,
-        "ble_midi_sysex",
-    )
-    return var
-
-
-@automation.register_action(
-    "ble_midi.send_raw", SendRawAction, _bytes_action_schema(CONF_DATA)
-)
-async def send_raw_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: automation.TemplateArgsType,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA],
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "ble_midi_raw",
-    )
-    return var
-
+_register_bytes_action("ble_midi.send_sysex", SendSysexAction, CONF_PAYLOAD)
+_register_bytes_action("ble_midi.send_raw", SendRawAction, CONF_DATA)
 
 automation.register_apply_condition(
     "ble_midi.connected", cv.Schema({cv.GenerateID(): cv.use_id(BLEMidi)}), "is_ready()"

@@ -1,15 +1,14 @@
 #pragma once
 
+#include "esphome/core/progmem.h"
+
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 
 namespace esphome::ble_midi {
 
-// Decoded MIDI message types emitted by MidiParser.
-// Status bytes in MIDI have the high bit set; the low nibble encodes the
-// channel for channel-voice messages (0x80-0xEF), while system messages
-// (0xF0-0xFF) are channel-less.
+// Decoded MIDI message types. Status bytes have the high bit set; the low nibble of a channel-voice status byte
+// (0x80-0xEF) is the channel, system messages (0xF0-0xFF) have none.
 enum class MessageType : uint8_t {
   NOTE_OFF,            // 0x80
   NOTE_ON,             // 0x90
@@ -18,52 +17,38 @@ enum class MessageType : uint8_t {
   PROGRAM_CHANGE,      // 0xC0
   CHANNEL_AFTERTOUCH,  // 0xD0
   PITCH_BEND,          // 0xE0
-  SYSEX,               // 0xF0 ... 0xF7, possibly fragmented across BLE packets
+  SYSEX,               // 0xF0 ... 0xF7, possibly spread over several BLE packets
+  SYSEX_INCOMPLETE,    // a SysEx cut short by another status byte or longer than the buffer
   SYSTEM_COMMON,       // 0xF1-0xF6, e.g. quarter frame, song position
   SYSTEM_REAL_TIME,    // 0xF8-0xFF, e.g. clock, start, stop
   UNKNOWN,             // malformed/undecodable byte
 };
 
-/// Short human-readable name of a message type, for logging.
-const char *message_type_name(MessageType type);
+PROGMEM_STRING_TABLE(MessageTypeNames, "NOTE_OFF", "NOTE_ON", "POLY_AFTERTOUCH", "CONTROL_CHANGE", "PROGRAM_CHANGE",
+                     "CHANNEL_AFTERTOUCH", "PITCH_BEND", "SYSEX", "SYSEX_INCOMPLETE", "SYSTEM_COMMON",
+                     "SYSTEM_REAL_TIME", "UNKNOWN");
 
-/// A decoded MIDI message.
-///
-/// `data` points into storage owned by the MidiParser and is only valid for the
-/// duration of the parser callback; consumers that need to keep the bytes must
-/// copy them.
+/// A decoded MIDI message. `data` points into the parser's storage or the packet being fed, so it is only valid
+/// for the duration of the handler.
 struct MidiMessage {
-  MessageType type{MessageType::UNKNOWN};
-  // Full message bytes: status byte followed by its data bytes. For SysEx this
-  // includes the 0xF0/0xF7 wrappers.
+  // Status byte followed by its data bytes; a SysEx includes the 0xF0/0xF7 wrappers
   const uint8_t *data{nullptr};
-  size_t length{0};
-  // SysEx only: bytes past the reassembly buffer were dropped, so the payload is incomplete
-  bool truncated{false};
+  uint16_t length{0};
+  MessageType type{MessageType::UNKNOWN};
 
-  // Accessors below are only meaningful for the matching message type.
-  uint8_t status() const { return this->length > 0 ? this->data[0] : 0; }
-  uint8_t channel() const { return this->length > 0 ? (this->data[0] & 0x0F) : 0; }
-
-  // NOTE_ON / NOTE_OFF / POLY_AFTERTOUCH
-  uint8_t note() const { return this->length > 1 ? this->data[1] : 0; }
-  uint8_t velocity() const { return this->length > 2 ? this->data[2] : 0; }
-
-  // CONTROL_CHANGE
-  uint8_t control_number() const { return this->length > 1 ? this->data[1] : 0; }
-  uint8_t control_value() const { return this->length > 2 ? this->data[2] : 0; }
-
-  // PROGRAM_CHANGE / CHANNEL_AFTERTOUCH
-  uint8_t program() const { return this->length > 1 ? this->data[1] : 0; }
-
+  uint8_t status() const { return this->data[0]; }
+  uint8_t channel() const { return this->data[0] & 0x0F; }
+  // The data bytes of a complete channel-voice message: note and velocity, controller and value, or program
+  uint8_t data1() const { return this->data[1]; }
+  uint8_t data2() const { return this->data[2]; }
   // PITCH_BEND: 14-bit value re-centered on zero (-8192..8191).
   int16_t pitch_bend() const {
-    if (this->length < 3)
-      return 0;
-    uint16_t raw = (static_cast<uint16_t>(this->data[2]) << 7) | this->data[1];
-    return static_cast<int16_t>(raw) - 8192;
+    return static_cast<int16_t>((static_cast<uint16_t>(this->data[2]) << 7) | this->data[1]) - 8192;
   }
 };
+
+/// Called once per decoded message with the context passed to feed().
+using MidiMessageHandler = void (*)(void *ctx, const MidiMessage &message);
 
 /// Decoder for the BLE-MIDI packet format (Apple/MMA "Bluetooth Low Energy
 /// MIDI" specification, section 3).
@@ -76,7 +61,7 @@ struct MidiMessage {
 /// - timestamp : 0b1lllllll, bit 7 set, bits 6-0 hold the low bits of the
 /// timestamp
 ///
-/// A timestamp byte precedes every new status byte, except where running status
+/// A timestamp byte precedes every status byte, except where running status
 /// applies. SysEx messages may span several BLE packets and may be interrupted
 /// by real-time messages (0xF8-0xFF).
 ///
@@ -87,7 +72,7 @@ struct MidiMessage {
 /// isolation.
 class MidiParser final {
  public:
-  /// `sysex_buffer` reassembles SysEx messages; payloads longer than `sysex_capacity` bytes are truncated.
+  /// `sysex_buffer` reassembles SysEx messages; one longer than `sysex_capacity` bytes is reported incomplete.
   MidiParser(uint8_t *sysex_buffer, uint16_t sysex_capacity)
       : sysex_buffer_(sysex_buffer), sysex_capacity_(sysex_capacity) {}
 
@@ -97,41 +82,36 @@ class MidiParser final {
   /// messages do not leak into the next session.
   void reset();
 
-  /// Feed one BLE notification payload, invoking `callback` once per decoded
-  /// message. Undecodable bytes are reported as MessageType::UNKNOWN so the
+  /// Feed one BLE notification payload. Undecodable bytes are reported as MessageType::UNKNOWN so the
   /// caller can log them.
-  void feed(const uint8_t *data, size_t length, const std::function<void(const MidiMessage &)> &callback);
+  void feed(const uint8_t *data, size_t length, MidiMessageHandler handler, void *ctx);
 
  protected:
-  // Number of data bytes that follow a channel-voice status byte.
   static uint8_t expected_data_bytes(uint8_t status);
-  // Number of data bytes that follow a system-common status byte.
-  static uint8_t expected_system_common_data_bytes(uint8_t status);
 
-  void emit_current_(const std::function<void(const MidiMessage &)> &callback);
-  void emit_single_(MessageType type, uint8_t byte, const std::function<void(const MidiMessage &)> &callback);
-  void emit_sysex_(const std::function<void(const MidiMessage &)> &callback);
+  void emit_(MessageType type, const uint8_t *data, uint16_t length, MidiMessageHandler handler, void *ctx) {
+    handler(ctx, MidiMessage{data, length, type});
+  }
+  void emit_current_(MidiMessageHandler handler, void *ctx);
+  bool take_data_(const uint8_t *byte, MidiMessageHandler handler, void *ctx);
+  void end_sysex_(bool complete, MidiMessageHandler handler, void *ctx);
   void sysex_push_(uint8_t byte);
-  void reset_current_();
-
-  // Last channel-voice status byte, sticky across bytes and packets until a new
-  // status byte or a system-common message clears it (MIDI running status).
-  uint8_t running_status_{0};
 
   // SysEx reassembly across packets.
   uint8_t *const sysex_buffer_;
   const uint16_t sysex_capacity_;
   uint16_t sysex_length_{0};
   bool sysex_active_{false};
-  bool sysex_truncated_{false};
+  bool sysex_overflow_{false};
 
-  // Message currently being assembled: status byte plus up to two data bytes.
+  // Last channel-voice status byte, sticky across bytes and packets until a new
+  // status byte or a system-common message clears it (MIDI running status).
+  uint8_t running_status_{0};
+
+  // Message being assembled: status byte plus up to two data bytes.
   uint8_t current_message_[3]{};
   uint8_t current_length_{0};
   uint8_t current_expected_{0};
-
-  // Scratch storage for single-byte messages (real-time, undecodable bytes).
-  uint8_t single_byte_{0};
 };
 
 // A BLE-MIDI packet starts with a header byte and a timestamp byte, both with bit 7 set. The remaining

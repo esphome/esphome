@@ -4,34 +4,6 @@
 
 namespace esphome::ble_midi {
 
-const char *message_type_name(MessageType type) {
-  switch (type) {
-    case MessageType::NOTE_OFF:
-      return "NOTE_OFF";
-    case MessageType::NOTE_ON:
-      return "NOTE_ON";
-    case MessageType::POLY_AFTERTOUCH:
-      return "POLY_AFTERTOUCH";
-    case MessageType::CONTROL_CHANGE:
-      return "CONTROL_CHANGE";
-    case MessageType::PROGRAM_CHANGE:
-      return "PROGRAM_CHANGE";
-    case MessageType::CHANNEL_AFTERTOUCH:
-      return "CHANNEL_AFTERTOUCH";
-    case MessageType::PITCH_BEND:
-      return "PITCH_BEND";
-    case MessageType::SYSEX:
-      return "SYSEX";
-    case MessageType::SYSTEM_COMMON:
-      return "SYSTEM_COMMON";
-    case MessageType::SYSTEM_REAL_TIME:
-      return "SYSTEM_REAL_TIME";
-    case MessageType::UNKNOWN:
-    default:
-      return "UNKNOWN";
-  }
-}
-
 static MessageType type_for_status(uint8_t status) {
   if (status >= 0xF8)
     return MessageType::SYSTEM_REAL_TIME;
@@ -57,244 +29,147 @@ static MessageType type_for_status(uint8_t status) {
   }
 }
 
-void MidiParser::reset() {
-  this->running_status_ = 0;
-  this->sysex_active_ = false;
-  this->sysex_length_ = 0;
-  this->reset_current_();
-}
-
-void MidiParser::reset_current_() {
-  this->current_message_[0] = 0;
-  this->current_length_ = 0;
-  this->current_expected_ = 0;
-}
-
+// Data bytes that follow a channel-voice or system-common status byte
 uint8_t MidiParser::expected_data_bytes(uint8_t status) {
+  if (status >= 0xF0) {
+    switch (status) {
+      case 0xF1:  // MIDI Time Code Quarter Frame
+      case 0xF3:  // Song Select
+        return 1;
+      case 0xF2:  // Song Position Pointer
+        return 2;
+      default:  // 0xF4, 0xF5 undefined, 0xF6 Tune Request
+        return 0;
+    }
+  }
   switch (status & 0xF0) {
-    case 0x80:  // Note Off
-    case 0x90:  // Note On
-    case 0xA0:  // Polyphonic Aftertouch
-    case 0xB0:  // Control Change
-    case 0xE0:  // Pitch Bend
-      return 2;
     case 0xC0:  // Program Change
     case 0xD0:  // Channel Aftertouch
       return 1;
     default:
-      return 0;
+      return 2;
   }
 }
 
-uint8_t MidiParser::expected_system_common_data_bytes(uint8_t status) {
-  switch (status) {
-    case 0xF1:  // MIDI Time Code Quarter Frame
-    case 0xF3:  // Song Select
-      return 1;
-    case 0xF2:  // Song Position Pointer
-      return 2;
-    default:  // 0xF4, 0xF5 undefined, 0xF6 Tune Request
-      return 0;
-  }
+void MidiParser::reset() {
+  this->running_status_ = 0;
+  this->sysex_active_ = false;
+  this->sysex_length_ = 0;
+  this->current_length_ = 0;
 }
 
 void MidiParser::sysex_push_(uint8_t byte) {
   if (this->sysex_length_ < this->sysex_capacity_) {
     this->sysex_buffer_[this->sysex_length_++] = byte;
   } else {
-    this->sysex_truncated_ = true;
+    this->sysex_overflow_ = true;
   }
 }
 
-void MidiParser::emit_sysex_(const std::function<void(const MidiMessage &)> &callback) {
-  MidiMessage message;
-  message.type = MessageType::SYSEX;
-  message.data = this->sysex_buffer_;
-  message.length = this->sysex_length_;
-  message.truncated = this->sysex_truncated_;
+// Ends the SysEx being assembled; it is complete when 0xF7 closed it and every byte fit the buffer
+void MidiParser::end_sysex_(bool complete, MidiMessageHandler handler, void *ctx) {
   this->sysex_active_ = false;
-  this->sysex_length_ = 0;
   this->running_status_ = 0;
-  callback(message);
+  this->emit_(complete && !this->sysex_overflow_ ? MessageType::SYSEX : MessageType::SYSEX_INCOMPLETE,
+              this->sysex_buffer_, this->sysex_length_, handler, ctx);
 }
 
-void MidiParser::emit_current_(const std::function<void(const MidiMessage &)> &callback) {
-  if (this->current_message_[0] == 0)
-    return;
-  uint8_t status = this->current_message_[0];
-  MidiMessage message;
-  message.type = type_for_status(status);
+void MidiParser::emit_current_(MidiMessageHandler handler, void *ctx) {
+  const uint8_t status = this->current_message_[0];
+  MessageType type = type_for_status(status);
   // A Note On with velocity zero is canonically a Note Off.
-  if (message.type == MessageType::NOTE_ON && this->current_length_ >= 3 && this->current_message_[2] == 0)
-    message.type = MessageType::NOTE_OFF;
-  message.data = this->current_message_;
-  message.length = this->current_length_;
+  if (type == MessageType::NOTE_ON && this->current_message_[2] == 0)
+    type = MessageType::NOTE_OFF;
   // System Common clears running status; channel-voice messages set it.
-  this->running_status_ = (status >= 0xF0 && status <= 0xF7) ? 0 : status;
+  this->running_status_ = status >= 0xF0 ? 0 : status;
+  const uint16_t length = this->current_length_;
   this->current_length_ = 0;
-  this->current_expected_ = 0;
-  callback(message);
-  // The message bytes must stay valid for the duration of the callback, so the
-  // status byte is cleared afterwards.
-  this->current_message_[0] = 0;
+  this->emit_(type, this->current_message_, length, handler, ctx);
 }
 
-void MidiParser::emit_single_(MessageType type, uint8_t byte,
-                              const std::function<void(const MidiMessage &)> &callback) {
-  this->single_byte_ = byte;
-  MidiMessage message;
-  message.type = type;
-  message.data = &this->single_byte_;
-  message.length = 1;
-  callback(message);
+// Takes a data byte for the message being assembled, or starts one from the running status; true once a message
+// is complete, so the next byte with bit 7 set is a timestamp
+bool MidiParser::take_data_(const uint8_t *byte, MidiMessageHandler handler, void *ctx) {
+  if (this->current_length_ == 0) {
+    if (this->running_status_ == 0) {
+      // Data byte without any status context.
+      this->emit_(MessageType::UNKNOWN, byte, 1, handler, ctx);
+      return true;
+    }
+    this->current_message_[0] = this->running_status_;
+    this->current_length_ = 1;
+    this->current_expected_ = expected_data_bytes(this->running_status_);
+  }
+  this->current_message_[this->current_length_++] = *byte;
+  if (this->current_length_ <= this->current_expected_)
+    return false;
+  this->emit_current_(handler, ctx);
+  return true;
 }
 
-void MidiParser::feed(const uint8_t *data, size_t length, const std::function<void(const MidiMessage &)> &callback) {
+void MidiParser::feed(const uint8_t *data, size_t length, MidiMessageHandler handler, void *ctx) {
   // A BLE-MIDI packet is at least a header byte plus one timestamp or SysEx
   // continuation byte, and the header byte always has bit 7 set. Anything else
   // is malformed.
   if (length < 2 || (data[0] & 0x80) == 0) {
     for (size_t i = 0; i < length; i++)
-      this->emit_single_(MessageType::UNKNOWN, data[i], callback);
+      this->emit_(MessageType::UNKNOWN, data + i, 1, handler, ctx);
     return;
   }
 
-  size_t i = 1;
+  // A timestamp byte precedes every status byte, so after a complete message or a SysEx data byte the next byte
+  // with bit 7 set is a timestamp, and the one after it is a status byte
   bool expect_timestamp = true;
-
-  while (i < length) {
-    uint8_t byte = data[i];
-
-    if (expect_timestamp) {
-      // Either a timestamp byte introducing a new status byte, or a data byte
-      // continuing a SysEx or running status.
-      if ((byte & 0x80) == 0) {
-        if (this->sysex_active_) {
-          this->sysex_push_(byte);
-          i++;
-          continue;
-        }
-        // Running-status data byte: reprocess it below.
-        expect_timestamp = false;
-        continue;
+  for (size_t i = 1; i < length; i++) {
+    const uint8_t byte = data[i];
+    if ((byte & 0x80) == 0) {
+      // A data byte continues the SysEx, the message being assembled, or the running status
+      if (this->sysex_active_) {
+        this->sysex_push_(byte);
+        expect_timestamp = true;
+      } else {
+        expect_timestamp = this->take_data_(data + i, handler, ctx);
       }
-      i++;
+      continue;
+    }
+    if (expect_timestamp) {
       expect_timestamp = false;
       continue;
     }
-
-    if ((byte & 0x80) == 0) {
-      // Data byte belonging to the message being assembled, or to a
-      // running-status message.
-      if (this->current_message_[0] == 0) {
-        if (this->running_status_ == 0) {
-          // Data byte without any status context.
-          this->emit_single_(MessageType::UNKNOWN, byte, callback);
-          i++;
-          continue;
-        }
-        this->current_message_[0] = this->running_status_;
-        this->current_length_ = 1;
-        this->current_expected_ = expected_data_bytes(this->running_status_);
-      }
-      if (this->current_length_ < sizeof(this->current_message_))
-        this->current_message_[this->current_length_++] = byte;
-      if (this->current_length_ >= this->current_expected_ + 1u) {
-        this->emit_current_(callback);
-        expect_timestamp = true;
-      }
-      i++;
+    expect_timestamp = true;
+    if (byte >= 0xF8) {
+      // Real-time messages are single bytes that interrupt anything, a SysEx included, without affecting it
+      this->emit_(MessageType::SYSTEM_REAL_TIME, data + i, 1, handler, ctx);
       continue;
     }
-
-    // Status byte.
-    if (byte == 0xF0) {
-      // Start of SysEx; the rest of the packet is SysEx data until 0xF7 or the
-      // end of the packet.
+    if (byte == STATUS_SYSEX_END) {
+      if (this->sysex_active_) {
+        this->sysex_push_(STATUS_SYSEX_END);
+        this->end_sysex_(true, handler, ctx);
+      } else {
+        this->emit_(MessageType::UNKNOWN, data + i, 1, handler, ctx);
+      }
+      continue;
+    }
+    // Any other status byte ends a SysEx still open and discards a message still being assembled
+    if (this->sysex_active_)
+      this->end_sysex_(false, handler, ctx);
+    if (byte == STATUS_SYSEX_START) {
       this->sysex_active_ = true;
       this->sysex_length_ = 0;
-      this->sysex_truncated_ = false;
-      this->sysex_push_(0xF0);
-      i++;
-      // Set when a status byte other than 0xF7 cut the SysEx short; that byte is then still unprocessed
-      bool ended_early = false;
-      while (i < length) {
-        uint8_t sysex_byte = data[i];
-        if ((sysex_byte & 0x80) == 0) {
-          this->sysex_push_(sysex_byte);
-          i++;
-          continue;
-        }
-        // A byte with bit 7 set inside SysEx is a timestamp; what follows
-        // decides its meaning.
-        if (i + 1 >= length) {
-          // Dangling timestamp at the end of the packet.
-          i++;
-          break;
-        }
-        uint8_t next = data[i + 1];
-        if (next == 0xF7) {
-          this->sysex_push_(0xF7);
-          this->emit_sysex_(callback);
-          i += 2;
-          break;
-        }
-        if (next >= 0xF8) {
-          // Real-time message interrupting the SysEx; SysEx resumes afterwards.
-          this->emit_single_(MessageType::SYSTEM_REAL_TIME, next, callback);
-          i += 2;
-          continue;
-        }
-        // Any other status byte ends the SysEx without an end-of-exclusive
-        // byte: malformed, but recoverable. Skip the timestamp and let the
-        // outer loop process the status byte.
-        this->emit_sysex_(callback);
-        i++;
-        ended_early = true;
-        break;
-      }
-      expect_timestamp = !ended_early;
+      this->sysex_overflow_ = false;
+      this->sysex_push_(STATUS_SYSEX_START);
       continue;
     }
-
-    if (byte == 0xF7) {
-      // End of SysEx without a preceding timestamp byte.
-      if (this->sysex_active_) {
-        this->sysex_push_(0xF7);
-        this->emit_sysex_(callback);
-      } else {
-        this->emit_single_(MessageType::UNKNOWN, byte, callback);
-      }
-      i++;
-      expect_timestamp = true;
-      continue;
-    }
-
-    if (byte >= 0xF8) {
-      // Real-time message: a single byte that does not affect running status.
-      this->emit_single_(MessageType::SYSTEM_REAL_TIME, byte, callback);
-      i++;
-      expect_timestamp = true;
-      continue;
-    }
-
-    // Any other status byte starts a new message and discards an incomplete
-    // one. A SysEx carried over from the previous packet ends here as well.
-    if (this->sysex_active_)
-      this->emit_sysex_(callback);
-    this->reset_current_();
     this->current_message_[0] = byte;
     this->current_length_ = 1;
-    this->current_expected_ =
-        (byte >= 0xF1 && byte <= 0xF6) ? expected_system_common_data_bytes(byte) : expected_data_bytes(byte);
+    this->current_expected_ = expected_data_bytes(byte);
+    // A status byte without data bytes, e.g. Tune Request, is a message on its own
     if (this->current_expected_ == 0) {
-      // The status byte is a complete message on its own, e.g. Tune Request.
-      this->emit_current_(callback);
-      expect_timestamp = true;
+      this->emit_current_(handler, ctx);
     } else {
       expect_timestamp = false;
     }
-    i++;
   }
 }
 

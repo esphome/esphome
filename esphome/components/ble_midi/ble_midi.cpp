@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <cstring>
 
 namespace esphome::ble_midi {
 
@@ -102,8 +103,7 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
       char hex[format_hex_size(LOG_MAX_BYTES)];
       ESP_LOGV(TAG, "Received %u bytes: %s", param->notify.value_len,
                format_hex_to(hex, param->notify.value, param->notify.value_len));
-      this->parser_.feed(param->notify.value, param->notify.value_len,
-                         [this](const MidiMessage &message) { this->handle_message_(message); });
+      this->parser_.feed(param->notify.value, param->notify.value_len, BLEMidi::on_message_, this);
       break;
     }
     default:
@@ -112,39 +112,36 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
 }
 
 void BLEMidi::handle_message_(const MidiMessage &message) {
-  ESP_LOGV(TAG, "Decoded %s", message_type_name(message.type));
+  ESP_LOGV(
+      TAG, "Decoded %s",
+      LOG_STR_ARG(MessageTypeNames::get_log_str(static_cast<uint8_t>(message.type), MessageTypeNames::LAST_INDEX)));
+  if (message.type == MessageType::SYSEX_INCOMPLETE) {
+    ESP_LOGW(TAG, "SysEx of %u bytes dropped: cut short, or longer than max_sysex_size (%u)", message.length,
+             this->parser_.sysex_capacity());
+    return;
+  }
   this->message_callback_.call(ByteSpan(message.data, message.length));
 
   switch (message.type) {
     case MessageType::NOTE_ON:
-      this->note_on_callback_.call(message.note(), message.velocity(), message.channel());
+      this->note_on_callback_.call(message.data1(), message.data2(), message.channel());
       break;
     case MessageType::NOTE_OFF:
-      this->note_off_callback_.call(message.note(), message.velocity(), message.channel());
+      this->note_off_callback_.call(message.data1(), message.data2(), message.channel());
       break;
     case MessageType::CONTROL_CHANGE:
-      this->control_change_callback_.call(message.control_number(), message.control_value(), message.channel());
+      this->control_change_callback_.call(message.data1(), message.data2(), message.channel());
       break;
     case MessageType::PROGRAM_CHANGE:
-      this->program_change_callback_.call(message.program(), message.channel());
+      this->program_change_callback_.call(message.data1(), message.channel());
       break;
     case MessageType::PITCH_BEND:
       this->pitch_bend_callback_.call(message.pitch_bend(), message.channel());
       break;
-    case MessageType::SYSEX: {
-      if (message.truncated) {
-        ESP_LOGW(TAG, "SysEx longer than %u bytes was cut; raise max_sysex_size", this->parser_.sysex_capacity());
-      }
-      // Hand the payload to the automation without the wrappers; a truncated or
-      // cut-short message has no 0xF7, so only the bytes present are dropped
-      ByteSpan payload(message.data, message.length);
-      if (!payload.empty() && payload.front() == STATUS_SYSEX_START)
-        payload = payload.subspan(1);
-      if (!payload.empty() && payload.back() == STATUS_SYSEX_END)
-        payload = payload.first(payload.size() - 1);
-      this->sysex_callback_.call(payload);
+    case MessageType::SYSEX:
+      // The payload without the 0xF0/0xF7 wrappers; a complete SysEx always has both
+      this->sysex_callback_.call(ByteSpan(message.data + 1, message.length - 2));
       break;
-    }
     case MessageType::UNKNOWN:
       ESP_LOGW(TAG, "Undecodable MIDI byte 0x%02X", message.status());
       break;
@@ -155,30 +152,21 @@ void BLEMidi::handle_message_(const MidiMessage &message) {
   }
 }
 
-bool BLEMidi::write_midi_(const uint8_t *midi_bytes, size_t length) {
-  if (length == 0) {
-    ESP_LOGW(TAG, "Cannot send: empty message");
-    return false;
-  }
-  if (!this->is_ready() || this->characteristic_handle_ == 0) {
+bool BLEMidi::write_packet_(uint8_t *packet, size_t midi_length) {
+  if (!this->is_ready()) {
     ESP_LOGW(TAG, "Cannot send: not connected");
     return false;
   }
-  uint8_t packet[MAX_TX_MIDI_BYTES + 2];
-  // A write without response has to fit one ATT packet, which the stack does not check for us
-  const size_t limit =
-      this->write_without_response_ ? std::min<size_t>(sizeof(packet), this->parent()->get_mtu() - 3) : sizeof(packet);
-  const size_t packet_length = length + 2;
+  // Every BLE-MIDI packet has to fit one ATT packet
+  const size_t packet_length = midi_length + 2;
+  const size_t limit = std::min<size_t>(MAX_TX_MIDI_BYTES + 2, this->parent()->get_mtu() - 3);
   if (packet_length > limit) {
-    ESP_LOGW(TAG, "Cannot send: message of %u bytes exceeds the %u byte limit", static_cast<unsigned>(length),
+    ESP_LOGW(TAG, "Cannot send: message of %u bytes exceeds the %u byte limit", static_cast<unsigned>(midi_length),
              static_cast<unsigned>(limit - 2));
     return false;
   }
-
   packet[0] = PACKET_HEADER;
   packet[1] = PACKET_TIMESTAMP;
-  std::memcpy(packet + 2, midi_bytes, length);
-
   esp_err_t err = esp_ble_gattc_write_char(
       this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->characteristic_handle_, packet_length,
       packet, this->write_without_response_ ? ESP_GATT_WRITE_TYPE_NO_RSP : ESP_GATT_WRITE_TYPE_RSP,
@@ -187,53 +175,58 @@ bool BLEMidi::write_midi_(const uint8_t *midi_bytes, size_t length) {
     ESP_LOGW(TAG, "Write failed, error=%d", err);
     return false;
   }
-
   char hex[format_hex_size(LOG_MAX_BYTES)];
   ESP_LOGV(TAG, "Sent %u bytes: %s", static_cast<unsigned>(packet_length), format_hex_to(hex, packet, packet_length));
   return true;
 }
 
+bool BLEMidi::write_midi_(const uint8_t *midi_bytes, size_t length) {
+  if (length == 0 || length > MAX_TX_MIDI_BYTES) {
+    ESP_LOGW(TAG, "Cannot send: message of %u bytes, the limit is %u", static_cast<unsigned>(length),
+             static_cast<unsigned>(MAX_TX_MIDI_BYTES));
+    return false;
+  }
+  uint8_t packet[MAX_TX_MIDI_BYTES + 2];
+  std::memcpy(packet + 2, midi_bytes, length);
+  return this->write_packet_(packet, length);
+}
+
+void BLEMidi::send_channel_(uint8_t status, uint8_t channel, uint8_t data1, uint8_t data2, size_t length) {
+  const uint8_t bytes[3] = {static_cast<uint8_t>(status | (channel & 0x0F)), static_cast<uint8_t>(data1 & 0x7F),
+                            static_cast<uint8_t>(data2 & 0x7F)};
+  this->write_midi_(bytes, length);
+}
+
 void BLEMidi::send_note_on(uint8_t note, uint8_t velocity, uint8_t channel) {
-  const uint8_t bytes[3] = {static_cast<uint8_t>(STATUS_NOTE_ON | (channel & 0x0F)), static_cast<uint8_t>(note & 0x7F),
-                            static_cast<uint8_t>(velocity & 0x7F)};
-  this->write_midi_(bytes, sizeof(bytes));
+  this->send_channel_(STATUS_NOTE_ON, channel, note, velocity, 3);
 }
 
 void BLEMidi::send_note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
-  const uint8_t bytes[3] = {static_cast<uint8_t>(STATUS_NOTE_OFF | (channel & 0x0F)), static_cast<uint8_t>(note & 0x7F),
-                            static_cast<uint8_t>(velocity & 0x7F)};
-  this->write_midi_(bytes, sizeof(bytes));
+  this->send_channel_(STATUS_NOTE_OFF, channel, note, velocity, 3);
 }
 
 void BLEMidi::send_control_change(uint8_t control_number, uint8_t value, uint8_t channel) {
-  const uint8_t bytes[3] = {static_cast<uint8_t>(STATUS_CONTROL_CHANGE | (channel & 0x0F)),
-                            static_cast<uint8_t>(control_number & 0x7F), static_cast<uint8_t>(value & 0x7F)};
-  this->write_midi_(bytes, sizeof(bytes));
+  this->send_channel_(STATUS_CONTROL_CHANGE, channel, control_number, value, 3);
 }
 
 void BLEMidi::send_program_change(uint8_t program, uint8_t channel) {
-  const uint8_t bytes[2] = {static_cast<uint8_t>(STATUS_PROGRAM_CHANGE | (channel & 0x0F)),
-                            static_cast<uint8_t>(program & 0x7F)};
-  this->write_midi_(bytes, sizeof(bytes));
+  this->send_channel_(STATUS_PROGRAM_CHANGE, channel, program, 0, 2);
 }
 
 void BLEMidi::send_pitch_bend(int16_t value, uint8_t channel) {
-  uint16_t unsigned_value = static_cast<uint16_t>(clamp<int32_t>(value, -8192, 8191) + 8192);
-  const uint8_t bytes[3] = {static_cast<uint8_t>(STATUS_PITCH_BEND | (channel & 0x0F)),
-                            static_cast<uint8_t>(unsigned_value & 0x7F),
-                            static_cast<uint8_t>((unsigned_value >> 7) & 0x7F)};
-  this->write_midi_(bytes, sizeof(bytes));
+  const uint16_t unsigned_value = static_cast<uint16_t>(clamp<int32_t>(value, -8192, 8191) + 8192);
+  this->send_channel_(STATUS_PITCH_BEND, channel, unsigned_value & 0x7F, unsigned_value >> 7, 3);
 }
 
 void BLEMidi::send_sysex(const uint8_t *payload, size_t length) {
-  uint8_t bytes[MAX_TX_MIDI_BYTES];
-  const size_t framed = frame_sysex(payload, length, bytes, sizeof(bytes));
+  uint8_t packet[MAX_TX_MIDI_BYTES + 2];
+  const size_t framed = frame_sysex(payload, length, packet + 2, MAX_TX_MIDI_BYTES);
   if (framed == 0) {
     ESP_LOGW(TAG, "Cannot send: SysEx of %u bytes is empty or exceeds the %u byte limit", static_cast<unsigned>(length),
              static_cast<unsigned>(MAX_TX_MIDI_BYTES));
     return;
   }
-  this->write_midi_(bytes, framed);
+  this->write_packet_(packet, framed);
 }
 
 void BLEMidi::send_raw(const uint8_t *bytes, size_t length) { this->write_midi_(bytes, length); }
