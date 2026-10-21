@@ -16,9 +16,9 @@ namespace esphome::epaper_spi {
  * refresh -- carried over largely unchanged, including its yield/CS-holding regression
  * tests (tests/components/epaper_spi/display/test_t133a01_transfer.cpp) covering a real
  * deadlock (issue #17668). It's also confirmed working on Inkplate 13 Spectra hardware.
- * Concrete subclasses supply color_to_native(), reset()/initialise() (board-specific GPIO
- * bring-up and register tables differ enough to keep these separate), and
- * power_on()/power_off()/refresh_screen()/deep_sleep().
+ * Concrete subclasses supply reset()/initialise() (board-specific GPIO bring-up and register
+ * tables differ enough to keep these separate), and override refresh_screen()/deep_sleep()
+ * where the board differs from the T133A01.
  *
  * Partial update uses EPaperBase's dirty box and is used when the model enables
  * partial_update and full_update_every is above 1. The Inkplate 13 Spectra enables it; the
@@ -62,6 +62,7 @@ class EPaperDualCS : public EPaper4bpp {
   static constexpr uint8_t REG_DRF = 0x12;
   static constexpr uint8_t REG_PON = 0x04;
   static constexpr uint8_t REG_POF = 0x02;
+  static constexpr uint8_t REG_DSLP = 0x07;   // deep sleep, with check code 0xA5
   static constexpr uint8_t REG_PTLW = 0x83;   // partial window
   static constexpr uint8_t REG_CMD66 = 0xF0;  // waveform select, required again before PTLW
   static constexpr uint8_t REG_CCSET = 0xE0;  // color set select, resent before every full transfer
@@ -102,6 +103,13 @@ class EPaperDualCS : public EPaper4bpp {
 
   bool transfer_data() override;
   void abort_transfer() override;
+
+  uint8_t color_to_native(Color color) override;
+  void power_on() override;
+  void power_off() override;
+  /// Sends the refresh command with data byte 0x01, which the T133A01 uses.
+  void refresh_screen(bool partial) override;
+  void deep_sleep() override;
 
   /// Full-refresh transfer: each chip in turn streams its half of every row, with its CS held
   /// low across yields.

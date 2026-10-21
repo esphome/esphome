@@ -1,5 +1,4 @@
 #include "epaper_spi_inkplate13spectra.h"
-#include "colorconv.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -7,20 +6,6 @@
 namespace esphome::epaper_spi {
 
 ESPHOME_LOG_TAG(TAG, "epaper_spi.inkplate13spectra");
-
-// Native hardware color codes for this panel's 4-bit color values.
-enum Inkplate13SpectraColor : uint8_t {
-  BLACK = 0x00,
-  WHITE = 0x01,
-  YELLOW = 0x02,
-  RED = 0x03,
-  BLUE = 0x05,
-  GREEN = 0x06,
-};
-
-uint8_t EPaperInkplate13Spectra::color_to_native(Color color) {
-  return color_to_bwyrgb<uint8_t>(color, BLACK, WHITE, YELLOW, RED, GREEN, BLUE);
-}
 
 void EPaperInkplate13Spectra::setup() {
   EPaperDualCS::setup();
@@ -173,11 +158,7 @@ bool EPaperInkplate13Spectra::initialise(bool partial) {
   return true;
 }
 
-void EPaperInkplate13Spectra::power_on() {
-  ESP_LOGV(TAG, "power_on(): sending PON");
-  this->write_command_to_chip_(REG_PON, CHIP_BOTH);
-}
-
+// Sends data byte 0x00 with the refresh command, as Soldered's own driver does.
 void EPaperInkplate13Spectra::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "refresh_screen(): sending DRF");
   this->write_command_to_chip_(REG_DRF, {0x00}, CHIP_BOTH);
@@ -209,12 +190,7 @@ bool EPaperInkplate13Spectra::after_refresh() {
   return true;
 }
 
-// EPaperBase's automatic busy-wait before DEEP_SLEEP covers the wait for POF to complete.
-void EPaperInkplate13Spectra::power_off() {
-  ESP_LOGV(TAG, "power_off(): sending POF");
-  this->write_command_to_chip_(REG_POF, {0x00}, CHIP_BOTH);
-}
-
+// Unlike the T133A01, no deep sleep command is sent: Soldered's driver only releases the pins.
 void EPaperInkplate13Spectra::deep_sleep() {
   this->dc_pin_->pin_mode(gpio::FLAG_INPUT);
   for (auto *cs : this->cs_pins_)

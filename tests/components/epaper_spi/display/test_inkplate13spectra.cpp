@@ -102,6 +102,21 @@ TEST(EPaperInkplate13Spectra, DeepSleepSwitchesThePanelOff) {
   EXPECT_FALSE(display.rst.level) << "reset must be held low while the panel sleeps";
 }
 
+/// The refresh command carries 0x00 (Soldered's value, unlike the T133A01's 0x01), and deep sleep only releases the
+/// pins: no deep sleep command is sent.
+TEST(EPaperInkplate13Spectra, RefreshByteAndDeepSleepDifferFromT133A01) {
+  TestableInkplate13Spectra display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+
+  display.refresh_screen(false);
+  EXPECT_EQ(bus.data[0x12], std::vector<uint8_t>{0x00});
+
+  bus.clear();
+  display.deep_sleep();
+  EXPECT_TRUE(bus.commands.empty()) << "a command was sent on deep sleep";
+}
+
 /// When the panel ignores the refresh command (for example because it never powered up), the
 /// busy pin is released almost at once. That must be flagged rather than reported as a normal
 /// update, which is what happened in the field: the log showed a successful update while the

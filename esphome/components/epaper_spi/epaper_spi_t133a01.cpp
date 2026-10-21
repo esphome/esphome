@@ -1,21 +1,8 @@
 #include "epaper_spi_t133a01.h"
-#include "colorconv.h"
 
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-
-ESPHOME_LOG_TAG(TAG, "epaper_spi.t133a01");
-
-// Native hardware color codes for this panel's 4-bit color values.
-enum T133A01Color : uint8_t {
-  BLACK = 0x00,
-  WHITE = 0x01,
-  YELLOW = 0x02,
-  RED = 0x03,
-  BLUE = 0x05,
-  GREEN = 0x06,
-};
 
 // T133A01 register addresses not shared with EPaperDualCS.
 static constexpr uint8_t R01_PWR = 0x01;
@@ -25,10 +12,6 @@ static constexpr uint8_t R50_CDI = 0x50;
 static constexpr uint8_t R61_TRES = 0x61;
 static constexpr uint8_t RA5_DCDC = 0xA5;
 static constexpr uint8_t RE3_PWS = 0xE3;
-
-uint8_t EPaperT133A01::color_to_native(Color color) {
-  return color_to_bwyrgb<uint8_t>(color, BLACK, WHITE, YELLOW, RED, GREEN, BLUE);
-}
 
 bool EPaperT133A01::reset() {
   for (auto *enable_pin : this->enable_pins_) {
@@ -121,26 +104,6 @@ bool EPaperT133A01::initialise(bool partial) {
   delay(10);
 
   return true;
-}
-
-void EPaperT133A01::power_on() {
-  ESP_LOGV(TAG, "Power on");
-  this->write_command_to_chip_(REG_PON, CHIP_BOTH);
-}
-
-void EPaperT133A01::power_off() {
-  ESP_LOGV(TAG, "Power off");
-  this->write_command_to_chip_(REG_POF, {0x00}, CHIP_BOTH);
-}
-
-void EPaperT133A01::refresh_screen(bool partial) {
-  ESP_LOGV(TAG, "Refresh screen");
-  this->write_command_to_chip_(REG_DRF, {0x01}, CHIP_BOTH);
-}
-
-void EPaperT133A01::deep_sleep() {
-  ESP_LOGV(TAG, "Deep sleep");
-  this->write_command_to_chip_(0x07, {0xA5}, CHIP_BOTH);
 }
 
 }  // namespace esphome::epaper_spi

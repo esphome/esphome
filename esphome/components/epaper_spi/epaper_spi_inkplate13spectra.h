@@ -41,13 +41,9 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
 
   bool reset() override;
   bool initialise(bool partial) override;
-  void power_on() override;
   void refresh_screen(bool partial) override;
   bool after_refresh() override;
-  void power_off() override;
   void deep_sleep() override;
-
-  uint8_t color_to_native(Color color) override;
 
   /// Leaves the panel unpowered: unlike the base, nothing is driven high.
   void setup_pins() const override;

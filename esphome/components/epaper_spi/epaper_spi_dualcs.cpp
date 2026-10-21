@@ -1,4 +1,5 @@
 #include "epaper_spi_dualcs.h"
+#include "colorconv.h"
 
 #include <algorithm>
 
@@ -7,6 +8,29 @@
 namespace esphome::epaper_spi {
 
 ESPHOME_LOG_TAG(TAG, "epaper_spi.dualcs");
+
+uint8_t EPaperDualCS::color_to_native(Color color) { return color_to_spectra6(color); }
+
+void EPaperDualCS::power_on() {
+  ESP_LOGV(TAG, "Power on");
+  this->write_command_to_chip_(REG_PON, CHIP_BOTH);
+}
+
+// EPaperBase's automatic busy-wait before DEEP_SLEEP covers the wait for POF to complete.
+void EPaperDualCS::power_off() {
+  ESP_LOGV(TAG, "Power off");
+  this->write_command_to_chip_(REG_POF, {0x00}, CHIP_BOTH);
+}
+
+void EPaperDualCS::refresh_screen(bool partial) {
+  ESP_LOGV(TAG, "Refresh screen");
+  this->write_command_to_chip_(REG_DRF, {0x01}, CHIP_BOTH);
+}
+
+void EPaperDualCS::deep_sleep() {
+  ESP_LOGV(TAG, "Deep sleep");
+  this->write_command_to_chip_(REG_DSLP, {0xA5}, CHIP_BOTH);
+}
 
 void EPaperDualCS::setup() {
   EPaperBase::setup();
