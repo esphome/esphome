@@ -6,6 +6,7 @@ from esphome.components import spi
 from esphome.components.const import (
     CONF_BITRATE,
     CONF_CRC_ENABLE,
+    CONF_MODULATION,
     CONF_ON_PACKET,
     CONF_RST_PIN,
 )
@@ -28,7 +29,6 @@ CONF_BITSYNC = "bitsync"
 CONF_CODING_RATE = "coding_rate"
 CONF_DEVIATION = "deviation"
 CONF_DIO0_PIN = "dio0_pin"
-CONF_MODULATION = "modulation"
 CONF_PA_PIN = "pa_pin"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
