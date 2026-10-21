@@ -398,7 +398,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       }
       break;
     }
-    case DeltaState::DELTA_STATE_HALTED:{
+    case DeltaState::DELTA_STATE_HALTED: {
       break;  // Authentication is halted; ignore any late replies.
     }
     case DeltaState::DELTA_STATE_GET_LOGIN_ROLE: {
