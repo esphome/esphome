@@ -301,7 +301,10 @@ class AsyncEventSourceResponse {
  public:
   bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  // detail_all events go out while entities are still being listed; state events wait until listing is done
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   void loop();
 
  protected:
@@ -327,6 +330,17 @@ class AsyncEventSourceResponse {
                     size_t sent);
   // Send a state event; JSON too large for the stack buffer is serialized into tail_ instead
   bool send_json_(void *source, message_generator_t *generator);
+  enum class JsonPrepareResult : uint8_t {
+    JSON_PREPARE_RESULT_BUFFER,
+    JSON_PREPARE_RESULT_TAIL,
+    JSON_PREPARE_RESULT_NO_MEMORY,
+    JSON_PREPARE_RESULT_TOO_LARGE,
+  };
+  // Keep the arena out of the caller's frame so it is gone before the state send.
+  // size_out: BUFFER = JSON length, NO_MEMORY = requested tail capacity, TOO_LARGE = available JSON room;
+  // unused for TAIL.
+  JsonPrepareResult __attribute__((noinline))
+  prepare_json_(void *source, message_generator_t *generator, char *buffer, size_t *size_out);
   // Warn once, and close the session once the stall timeout passes with no memory for the tail
   void tail_alloc_failed_(size_t cap);
   void request_close_();
@@ -413,7 +427,9 @@ class AsyncEventSource : public AsyncWebHandler {
   void handleRequest(AsyncWebServerRequest *request) override;
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   /// Returns true if there are sessions remaining (including pending cleanup).
   bool loop();
   bool empty() { return this->count() == 0; }

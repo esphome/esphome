@@ -105,5 +105,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
-    if (host := config.get(CONF_HOST)) is not None:
-        cg.add(var.set_host(host))
+    cg.add_optional(var.set_host, config.get(CONF_HOST))

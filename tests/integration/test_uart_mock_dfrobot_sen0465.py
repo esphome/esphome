@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import math
-from pathlib import Path
 import re
 
 from aioesphomeapi import EntityState, SensorInfo
@@ -30,13 +29,6 @@ async def test_uart_mock_dfrobot_sen0465(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Boot sets passive mode and the alarm before the first reading."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
     alarm_set: asyncio.Future[re.Match[str]] = loop.create_future()
     lines: list[str] = []

@@ -2,7 +2,7 @@ from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import sensor, uart
-from esphome.components.const import CONF_AQI
+from esphome.components.const import CONF_AQI, CONF_ERROR_CODE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ECO2,
@@ -55,7 +55,6 @@ CONF_RAW_HUMIDITY = "raw_humidity"
 CONF_RS0 = "rs0"
 CONF_RS2 = "rs2"
 CONF_RS3 = "rs3"
-CONF_ERROR_CODE = "error_code"
 
 apc1_ns = cg.esphome_ns.namespace("apc1")
 APC1Component = apc1_ns.class_("APC1Component", uart.UARTDevice, cg.Component)
@@ -191,13 +190,8 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_RS3, var.set_rs3_sensor)
     await sensors(CONF_ERROR_CODE, var.set_error_code_sensor)
 
-    if (set_pin_config := config.get(CONF_SET_PIN)) is not None:
-        set_pin = await cg.gpio_pin_expression(set_pin_config)
-        cg.add(var.set_set_pin(set_pin))
-
-    if (reset_pin_config := config.get(CONF_RESET_PIN)) is not None:
-        reset_pin = await cg.gpio_pin_expression(reset_pin_config)
-        cg.add(var.set_reset_pin(reset_pin))
+    await cg.add_pin(var.set_set_pin, config.get(CONF_SET_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
 
 APC1_ACTION_SCHEMA = maybe_simple_id(
