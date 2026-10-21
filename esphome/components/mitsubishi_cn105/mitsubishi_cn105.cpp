@@ -271,9 +271,10 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 
   // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
   // Catches mode/power changes made outside ESPHome (IR remote, Mitsubishi app); setters handle local changes.
-  if (previous.mode != this->status_.mode || previous.power_on != this->status_.power_on) {
-    this->invalidate_operating_();
-  }
+  if (previous.mode != this->status_.mode || previous.power_on != this->status_.power_on ||
+    previous.target_temperature != this->status_.target_temperature) {
+  this->invalidate_operating_();
+}
 
   if (msg_type == this->current_status_msg_type_) {
     this->set_state_(State::STATUS_UPDATED);
@@ -283,7 +284,7 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
       previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
       previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
       previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode ||
-      previous.operating != this->status_.operating;
+      previous.operating != this->status_.operating || previous.auto_direction != this->status_.auto_direction;
 
   if (this->is_telemetry_polling_enabled()) {
     changed |= previous.room_temperature != this->status_.room_temperature;
@@ -316,6 +317,14 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
         return false;
       }
       this->status_.operating = payload[3] != 0;
+      if (!*this->status_.operating || this->status_.mode != Mode::AUTO) {
+        this->status_.auto_direction.reset();
+      } else if (!this->status_.auto_direction.has_value() && !std::isnan(this->status_.room_temperature) &&
+                 !std::isnan(this->status_.target_temperature)) {
+        this->status_.auto_direction = this->status_.room_temperature > this->status_.target_temperature
+                                           ? AutoDirection::COOL
+                                           : AutoDirection::HEAT;
+      }
       this->last_heatpump_request_ms_ = get_loop_time_ms();
       return true;
 
@@ -355,12 +364,16 @@ void MitsubishiCN105::set_power(bool power_on) {
 }
 
 void MitsubishiCN105::set_target_temperature(float target_temperature) {
+  const float old_target = this->status_.target_temperature;
   if (target_temperature < 16 || target_temperature > 31) {
     ESP_LOGD(TAG, "Setting temperature out-of-range: %.1f", target_temperature);
     return;
   }
   this->status_.target_temperature = target_temperature;
   this->pending_updates_.set(Property::Temperature::Target::ID);
+  if (old_target != this->status_.target_temperature) {
+    this->invalidate_operating_();
+  }
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
@@ -510,6 +523,7 @@ void MitsubishiCN105::FrameParser::dump_buffer_vv(const char *prefix, const uint
 // Clear it and the poll timestamp so a fresh 0x06 is requested on the next status cycle.
 void MitsubishiCN105::invalidate_operating_() {
   this->status_.operating.reset();
+  this->status_.auto_direction.reset();
   this->last_heatpump_request_ms_.reset();
 }
 
