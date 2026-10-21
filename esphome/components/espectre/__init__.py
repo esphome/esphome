@@ -151,10 +151,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_traffic_generator_target_ip(target_ip))
     if (group := config.get(CONF_CSI_TRAFFIC_MULTICAST_GROUP)) is not None:
         cg.add(var.set_csi_traffic_multicast_group(group))
-    if (on_hits := config.get(CONF_MOTION_ON_HITS)) is not None:
-        cg.add(var.set_motion_on_hits(on_hits))
-    if (off_hits := config.get(CONF_MOTION_OFF_HITS)) is not None:
-        cg.add(var.set_motion_off_hits(off_hits))
+    cg.add_optional(var.set_motion_on_hits, config.get(CONF_MOTION_ON_HITS))
+    cg.add_optional(var.set_motion_off_hits, config.get(CONF_MOTION_OFF_HITS))
     if esp32.get_esp32_variant() == VARIANT_ESP32C5:
         band = CORE.config[WIFI_DOMAIN].get(wifi.CONF_BAND_MODE, "AUTO")
         cg.add(

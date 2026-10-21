@@ -95,10 +95,26 @@ def prepare(
             time.sleep(wait_time)
             tries += 1
 
-    client = mqtt.Client(client_id or "")
+    # Match the firmware's transport; imported here to keep component code off the CLI start-up path
+    from esphome.components.mqtt import (
+        CONF_TLS,
+        CONF_TRANSPORT,
+        CONF_VERIFY_SSL,
+        CONF_WS_PATH,
+        DEFAULT_WS_PATH,
+        MQTT_TRANSPORT_TCP,
+    )
+
+    transport = config[CONF_MQTT].get(CONF_TRANSPORT, MQTT_TRANSPORT_TCP)
+    websocket = transport != MQTT_TRANSPORT_TCP
+    client = mqtt.Client(
+        client_id or "", transport="websockets" if websocket else "tcp"
+    )
     client.on_connect = on_connect_
     client.on_message = on_message
     client.on_disconnect = on_disconnect
+    if websocket:
+        client.ws_set_options(path=config[CONF_MQTT].get(CONF_WS_PATH, DEFAULT_WS_PATH))
     if username is None:
         if config[CONF_MQTT].get(CONF_USERNAME):
             client.username_pw_set(
@@ -107,15 +123,21 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    if config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY):
-        context = ssl.create_default_context(
-            cadata=config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
-        )
-        if config[CONF_MQTT].get(CONF_SKIP_CERT_CN_CHECK):
+    mqtt_conf = config[CONF_MQTT]
+    # Validation sets tls whenever a certificate option or the wss transport implies it
+    if mqtt_conf.get(CONF_TLS):
+        if mqtt_conf.get(CONF_VERIFY_SSL) is False:
+            context = ssl.create_default_context()
             context.check_hostname = False
-        if config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE) and config[CONF_MQTT].get(
-            CONF_CLIENT_CERTIFICATE_KEY
-        ):
+            context.verify_mode = ssl.CERT_NONE
+        else:
+            # Without a CA the system trust store stands in for the firmware's bundle
+            context = ssl.create_default_context(
+                cadata=mqtt_conf.get(CONF_CERTIFICATE_AUTHORITY)
+            )
+            if mqtt_conf.get(CONF_SKIP_CERT_CN_CHECK):
+                context.check_hostname = False
+        if mqtt_conf.get(CONF_CLIENT_CERTIFICATE):
             with (
                 tempfile.NamedTemporaryFile(
                     encoding="utf-8", mode="w+", delete=False
@@ -125,8 +147,8 @@ def prepare(
                 ) as key_file,
             ):
                 try:
-                    cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
-                    key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                    cert_file.write(mqtt_conf[CONF_CLIENT_CERTIFICATE])
+                    key_file.write(mqtt_conf[CONF_CLIENT_CERTIFICATE_KEY])
                     cert_file.close()
                     key_file.close()
                     context.load_cert_chain(cert_file.name, key_file.name)

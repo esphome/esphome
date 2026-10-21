@@ -14,7 +14,7 @@ from aioesphomeapi import ClimateInfo, ClimateMode
 import pytest
 
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, wait_for_state
+from .state_utils import InitialStateHelper, require_only_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "tmpl-clim-oc-order"
@@ -49,17 +49,12 @@ async def test_template_climate_on_control_ordering(
 
         entities, _ = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
-        test_climate = climate_infos[0]
+        test_climate = require_only_entity(entities, ClimateInfo)
 
         client.subscribe_states(
             initial_state_helper.on_state_wrapper(lambda state: None)
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         client.climate_command(test_climate.key, mode=ClimateMode.HEAT)
         state = await wait_for_climate_state()
