@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 import ssl
 import threading
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
+import paho.mqtt.client as mqtt
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.reasoncodes import ReasonCode
 import pytest
 
 from esphome.components.const import CONF_VERIFY_SSL
@@ -29,7 +33,13 @@ from esphome.const import (
     CONF_TOPIC,
 )
 from esphome.core import EsphomeError
-from esphome.mqtt import get_esphome_device_ip, prepare, show_logs
+from esphome.mqtt import (
+    clear_topic,
+    get_esphome_device_ip,
+    prepare,
+    show_discover,
+    show_logs,
+)
 
 
 @pytest.mark.parametrize(
@@ -54,7 +64,7 @@ def test_show_logs_asks_on_connect(
 
     on_connect = mock_initialize.call_args.args[3]
     client = MagicMock()
-    on_connect(client, None, None, 0)
+    on_connect(client, None, None, 0, None)
     client.publish.assert_called_once_with(
         "esphome/logs/test-device", None, retain=False
     )
@@ -84,7 +94,7 @@ def test_show_logs_requests_crash_log_when_device_reports_online(
     on_message = mock_initialize.call_args.args[2]
     on_connect = mock_initialize.call_args.args[3]
     client = MagicMock()
-    on_connect(client, None, None, 0)
+    on_connect(client, None, None, 0, None)
     client.publish.assert_not_called()
 
     on_message(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
@@ -219,6 +229,10 @@ def _discovery_config() -> dict:
     }
 
 
+def _disconnect_reason(name: str) -> ReasonCode:
+    return ReasonCode(PacketTypes.DISCONNECT, name)
+
+
 def _deliver_on_loop_start(mock_prepare, client, payload: bytes) -> None:
     """Deliver a discovery answer as soon as the network loop starts."""
 
@@ -329,10 +343,15 @@ def test_get_esphome_device_ip_replaces_reconnect_handler(
         get_esphome_device_ip(_discovery_config(), timeout=0.25)
 
     assert client.on_disconnect is not prepare_handler
-    client.on_disconnect(client, None, 0)
+    flags = mqtt.DisconnectFlags(is_disconnect_packet_from_server=True)
+    client.on_disconnect(
+        client, None, flags, _disconnect_reason("Normal disconnection"), None
+    )
     assert "Disconnected from MQTT broker" not in caplog.text
-    client.on_disconnect(client, None, 5)
-    assert "Disconnected from MQTT broker (5)" in caplog.text
+    client.on_disconnect(
+        client, None, flags, _disconnect_reason("Not authorized"), None
+    )
+    assert "Disconnected from MQTT broker (Not authorized, rc=135)" in caplog.text
 
 
 def test_get_esphome_device_ip_answer_without_ip_fails_fast(
@@ -380,7 +399,10 @@ def test_get_esphome_device_ip_broker_disconnect_fails_fast(
     with patch("esphome.mqtt.prepare", return_value=client):
 
         def drop_connection(*args, **kwargs):
-            client.on_disconnect(client, None, 5)
+            flags = mqtt.DisconnectFlags(is_disconnect_packet_from_server=True)
+            client.on_disconnect(
+                client, None, flags, _disconnect_reason("Not authorized"), None
+            )
 
         client.loop_start.side_effect = drop_connection
 
@@ -389,7 +411,7 @@ def test_get_esphome_device_ip_broker_disconnect_fails_fast(
             get_esphome_device_ip(_discovery_config(), timeout=5)
 
     assert time.monotonic() - start < 1
-    assert "Disconnected from MQTT broker (5)" in caplog.text
+    assert "Disconnected from MQTT broker (Not authorized, rc=135)" in caplog.text
 
 
 def test_get_esphome_device_ip_sends_discovery_ping() -> None:
@@ -400,7 +422,7 @@ def test_get_esphome_device_ip_sends_discovery_ping() -> None:
 
         def connect_then_answer(*args, **kwargs):
             on_connect = mock_prepare.call_args.args[3]
-            on_connect(client, None, None, 0)
+            on_connect(client, None, None, 0, None)
             msg = MagicMock()
             msg.payload = json.dumps({"name": "test-device", "ip": "10.0.0.5"}).encode()
             mock_prepare.call_args.args[2](client, None, msg)
@@ -499,7 +521,9 @@ def test_prepare_follows_the_firmware_transport(
     assert prepare(config, [], None, None, None, None, None) is client
 
     mock_client_class.assert_called_once_with(
-        "", transport="websockets" if expect_path else "tcp"
+        mqtt.CallbackAPIVersion.VERSION2,
+        "",
+        transport="websockets" if expect_path else "tcp",
     )
     if expect_path is None:
         client.ws_set_options.assert_not_called()
@@ -511,6 +535,80 @@ def test_prepare_follows_the_firmware_transport(
     else:
         client.tls_set_context.assert_not_called()
     client.connect.assert_called_once_with("mqtt.local", 1883)
+
+
+@patch("esphome.mqtt.mqtt.Client")
+def test_prepare_subscribes_on_connect_then_runs_the_caller_hook(
+    mock_client_class: MagicMock,
+) -> None:
+    """On CONNACK the client subscribes to every topic before the caller's on_connect runs."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_PORT] = 1883
+    on_connect = MagicMock()
+
+    client = prepare(config, ["a/#", "b"], None, on_connect, None, None, None)
+
+    flags = mqtt.ConnectFlags(session_present=False)
+    reason = ReasonCode(PacketTypes.CONNACK, "Success")
+    client.on_connect(client, None, flags, reason, None)
+    assert client.subscribe.call_args_list == [call("a/#"), call("b")]
+    on_connect.assert_called_once_with(client, None, flags, reason, None)
+
+
+@patch("esphome.mqtt.time.sleep")
+@patch("esphome.mqtt.mqtt.Client")
+def test_prepare_reconnects_with_backoff_after_an_unexpected_disconnect(
+    mock_client_class: MagicMock,
+    mock_sleep: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A clean disconnect is left alone; any other reason retries with backoff until the broker answers."""
+    caplog.set_level(logging.INFO)
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_PORT] = 1883
+    client = prepare(config, [], None, None, None, None, None)
+    flags = mqtt.DisconnectFlags(is_disconnect_packet_from_server=False)
+
+    client.on_disconnect(
+        client, None, flags, _disconnect_reason("Normal disconnection"), None
+    )
+    client.reconnect.assert_not_called()
+
+    client.reconnect.side_effect = [OSError("down"), 1, 0]
+    client.on_disconnect(
+        client, None, flags, _disconnect_reason("Unspecified error"), None
+    )
+    assert client.reconnect.call_count == 3
+    assert mock_sleep.call_args_list == [call(1), call(2)]
+    assert (
+        caplog.text.count(
+            "Disconnected from MQTT (Unspecified error, rc=128). Trying to reconnect"
+        )
+        == 2
+    )
+    assert "Successfully reconnected to the MQTT server" in caplog.text
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_discover_broadcasts_on_connect_and_prints_answers(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """The discover listener sends the broadcast once connected and prints every non-empty answer."""
+    show_discover(_discovery_config())
+
+    assert mock_initialize.call_args.args[1] == ["esphome/discover/#"]
+    on_message = mock_initialize.call_args.args[2]
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    flags = mqtt.ConnectFlags(session_present=False)
+    on_connect(client, None, flags, ReasonCode(PacketTypes.CONNACK, "Success"), None)
+    client.publish.assert_called_once_with("esphome/discover", None, retain=False)
+
+    on_message(client, None, MagicMock(payload=b""))
+    mock_print.assert_not_called()
+    on_message(client, None, MagicMock(payload=b"test-device 10.0.0.5"))
+    assert mock_print.call_args.args[0].endswith(" test-device 10.0.0.5")
 
 
 def _mqtt_config(options: dict | None = None) -> dict:
@@ -593,3 +691,38 @@ def test_prepare_loads_client_certificate() -> None:
     cert_file, key_file = context.load_cert_chain.call_args.args
     assert not Path(cert_file).exists()
     assert not Path(key_file).exists()
+
+
+@patch("esphome.mqtt.initialize")
+def test_clear_topic_clears_retained_messages_under_the_device(
+    mock_initialize: MagicMock,
+) -> None:
+    """Without a topic the device's discovery subtree is cleared, one empty retained publish per retained message."""
+    clear_topic(_discovery_config(), None)
+
+    assert mock_initialize.call_args.args[1] == ["homeassistant/+/test-device/#"]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    on_message(
+        client,
+        None,
+        MagicMock(
+            topic="homeassistant/sensor/test-device/t", payload=b"1", retain=False
+        ),
+    )
+    on_message(
+        client,
+        None,
+        MagicMock(topic="homeassistant/sensor/test-device/t", payload=b"", retain=True),
+    )
+    client.publish.assert_not_called()
+    on_message(
+        client,
+        None,
+        MagicMock(
+            topic="homeassistant/sensor/test-device/t", payload=b"1", retain=True
+        ),
+    )
+    client.publish.assert_called_once_with(
+        "homeassistant/sensor/test-device/t", None, retain=True
+    )
