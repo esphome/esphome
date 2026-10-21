@@ -884,9 +884,6 @@ async def test_uart_mock_modbus_continuous(
 
         client.switch_command(silence.key, True)
         await waiter.wait_for("Modbus device=1 set offline", timeout=5.0)
-        # The silenced server answers nothing, so count request timeouts, not states: once offline the
-        # continuous poll must stop sending. Each request it still sent would time out within 100ms.
-        await asyncio.sleep(0.3)
         plateau = len(tracker.sensor_states["continuous_reg"])
 
         def timeouts() -> int:
@@ -894,12 +891,21 @@ async def test_uart_mock_modbus_continuous(
                 "Stop waiting for response from 1 " in line for line in waiter.lines
             )
 
+        # The silenced server answers nothing, so count request timeouts, not states. Going offline
+        # still sends one probe (offline_skip_updates is 0) and its retry, each timing out after a bus
+        # wait of up to a second, so the count may grow twice more; a continuous poll that failed to
+        # stop would keep it growing every few hundred milliseconds instead of settling.
         sent = timeouts()
         assert sent, "no request timed out before the device went offline"
-        await asyncio.sleep(0.5)
-        assert timeouts() == sent, (
-            "the failed continuous poll kept sending requests after the device went offline"
-        )
+        for _ in range(4):
+            await asyncio.sleep(1.5)
+            if timeouts() == sent:
+                break
+            sent = timeouts()
+        else:
+            pytest.fail(
+                "the failed continuous poll kept sending requests after the device went offline"
+            )
 
         # Answer again and trigger update(): the offline probe recovers the device and the continuous
         # poll re-arms, so streaming resumes.
