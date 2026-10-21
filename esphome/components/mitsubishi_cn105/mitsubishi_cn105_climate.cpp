@@ -153,39 +153,43 @@ void MitsubishiCN105Climate::apply_values_() {
     this->swing_mode = *swing_mode;
   }
 
-  // the current action i.e. heating, cooling, or idle.
-  using Action = climate::ClimateAction;
-  std::optional<Action> action;
-  if (!status.power_on) {
-    action = climate::CLIMATE_ACTION_OFF;
-  } else if (status.operating || status.mode == MitsubishiCN105::Mode::FAN_ONLY) {
-    switch (status.mode) {
-      case MitsubishiCN105::Mode::DRY:
-        action = climate::CLIMATE_ACTION_DRYING;
-        break;
-      case MitsubishiCN105::Mode::FAN_ONLY:
-        action = climate::CLIMATE_ACTION_FAN;
-        break;
-      case MitsubishiCN105::Mode::COOL:
-        action = climate::CLIMATE_ACTION_COOLING;
-        break;
-      case MitsubishiCN105::Mode::HEAT:
-        action = climate::CLIMATE_ACTION_HEATING;
-        break;
-      case MitsubishiCN105::Mode::AUTO:
-        if (!std::isnan(status.room_temperature) && !std::isnan(status.target_temperature)) {
-          action = status.room_temperature > status.target_temperature ? climate::CLIMATE_ACTION_COOLING
-                                                                       : climate::CLIMATE_ACTION_HEATING;
-        }
-        // If room_temperature or target_temperature is NAN, action remains null and won't be published.
-        // I.E. guessing the action in Auto mode requires the room temperature from telemetry.
-        break;
-      default:
-        break;
+  // Current action: heating, cooling, drying, fan, idle, or off.
+  if (this->parent_->is_heatpump_polling_enabled()) {
+    std::optional<climate::ClimateAction> action;
+    if (!status.power_on) {
+      action = climate::CLIMATE_ACTION_OFF;
+    } else if (status.mode == MitsubishiCN105::Mode::FAN_ONLY) {
+      action = climate::CLIMATE_ACTION_FAN;
+    } else if (!status.operating.value_or(false)) {
+      // Not operating, or unknown because the mode just changed and a fresh 0x06 report is pending.
+      // Report IDLE rather than guessing from stale compressor state.
+      action = climate::CLIMATE_ACTION_IDLE;
+    } else {
+      switch (status.mode) {
+        case MitsubishiCN105::Mode::DRY:
+          action = climate::CLIMATE_ACTION_DRYING;
+          break;
+        case MitsubishiCN105::Mode::COOL:
+          action = climate::CLIMATE_ACTION_COOLING;
+          break;
+        case MitsubishiCN105::Mode::HEAT:
+          action = climate::CLIMATE_ACTION_HEATING;
+          break;
+        case MitsubishiCN105::Mode::AUTO:
+          // Auto: infer direction from room vs. target temperature (requires telemetry).
+          // If either is NAN, leave the action unchanged.
+          if (!std::isnan(status.room_temperature) && !std::isnan(status.target_temperature)) {
+            action = status.room_temperature > status.target_temperature ? climate::CLIMATE_ACTION_COOLING
+                                                                         : climate::CLIMATE_ACTION_HEATING;
+          }
+          break;
+        default:
+          break;
+      }
     }
-  }
-  if (this->parent_->is_heatpump_polling_enabled() && action.has_value()) {
-    this->action = *action;
+    if (action.has_value()) {
+      this->action = *action;
+    }
   }
 
   this->publish_state();
