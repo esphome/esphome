@@ -11,7 +11,7 @@ import re
 
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -62,11 +62,8 @@ async def test_host_logger_thread_safety(
         # Verify connection works
         await assert_device_name(client, "host-logger-thread-test")
 
-        # Get the button entity - find by name
         entities, _ = await client.list_entities_services()
-        button_entities = [e for e in entities if e.name == "Start Thread Race Test"]
-        assert button_entities, "Could not find Start Thread Race Test button"
-        button_key = button_entities[0].key
+        button_key = require_entity(entities, "start_thread_race_test", exact=True).key
 
         # Press the button to start the thread race test
         client.button_command(button_key)
