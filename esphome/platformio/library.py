@@ -1002,8 +1002,26 @@ def _satisfying_key(
     for key, component in candidates:
         manifest_name = component.data.get("name")
         if isinstance(manifest_name, str) and manifest_name.lower() == wanted:
+            # Visible, so a chance name collision can be pinned to the right package
+            _LOGGER.info(
+                "Dependency %s of %s satisfied by %s through its manifest name",
+                name,
+                requester,
+                key,
+            )
             return key
     return None
+
+
+def _own_names(
+    key: str, nodes: dict[str, _LibNode], components: dict[str, ConvertedLibrary]
+) -> set[str]:
+    """The lower-case key, package and manifest names a resolved library goes by."""
+    names = {key.lower(), (nodes[key].pkgname or key).lower()}
+    manifest_name = components[key].data.get("name")
+    if isinstance(manifest_name, str):
+        names.add(manifest_name.lower())
+    return names
 
 
 def _fetch_source(
@@ -1248,6 +1266,11 @@ def convert_libraries(
         for requester, dependencies in pending_versionless.items():
             for dependency in dependencies:
                 name, owner = dependency["name"], dependency.get("owner")
+                if not owner and name.lower() in _own_names(
+                    requester, nodes, components
+                ):
+                    _LOGGER.debug("Dependency %s of %s names itself", name, requester)
+                    continue
                 # A library in the graph beats a bundled copy, as on the Arduino backend
                 if (
                     match := _satisfying_key(name, owner, requester, nodes, components)

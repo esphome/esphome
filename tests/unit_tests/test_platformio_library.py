@@ -1261,7 +1261,7 @@ def test_versionless_url_ish_dependency_name_warns_cleanly(
 
 
 def test_versionless_dependency_matching_resolved_manifest_name_is_wired(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A bare name no package name matches is satisfied by a listed component's
     manifest name (a fork published under another package name)."""
@@ -1273,12 +1273,40 @@ def test_versionless_dependency_matching_resolved_manifest_name_is_wired(
             "esphome/B-fork": {"name": "B"},
         },
     )
-    top = convert_libraries(
-        [Library("esphome/A", None, None), Library("esphome/B-fork", None, None)],
-        _backend(),
-    )
+    with caplog.at_level(logging.INFO):
+        top = convert_libraries(
+            [Library("esphome/A", None, None), Library("esphome/B-fork", None, None)],
+            _backend(),
+        )
     assert [d.name for d in top[0].dependencies] == ["esphome/B-fork"]
     assert asked == [("esphome", "A"), ("esphome", "B-fork")]
+    assert (
+        "Dependency B of esphome/A satisfied by esphome/B-fork through its manifest name"
+        in caplog.text
+    )
+
+
+def test_dependency_naming_the_requester_itself_is_ignored(
+    tmp_path, monkeypatch
+) -> None:
+    """A manifest that lists its own name as a dependency neither fetches a
+    second copy of itself nor gains a self edge."""
+    asked = _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": "name=A\ndepends=a, esphome/A\n",
+            # No manifest name: the package name still identifies it
+            "esphome/C": {"dependencies": [{"name": "C"}]},
+        },
+        properties=("esphome/A",),
+    )
+    top = convert_libraries(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/C", "1.0.0", None)],
+        _backend(),
+    )
+    assert [c.dependencies for c in top] == [[], []]
+    assert asked == [("esphome", "A"), ("esphome", "C")]
 
 
 def test_versionless_dependency_settles_after_the_graph(
