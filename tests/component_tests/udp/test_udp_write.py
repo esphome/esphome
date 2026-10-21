@@ -18,6 +18,7 @@ def test_write_payloads_share_a_progmem_table(
         main_cpp.count(f"esphome::progmem_memcpy(esphome__bytes, ::{table}, 4);") == 2
     )
     assert main_cpp.count("->send_packet(esphome__bytes, 4);") == 2
-    assert "->send_packet(nullptr, 0);" in main_cpp
+    assert "uint8_t esphome__bytes[1];" in main_cpp
+    assert "->send_packet(esphome__bytes, 0);" in main_cpp
     assert "->send_packet(esphome__bytes.data(), esphome__bytes.size());" in main_cpp
     assert main_cpp.count("->set_should_broadcast();") == 4
