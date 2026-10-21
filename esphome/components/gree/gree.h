@@ -107,7 +107,6 @@ enum VerticalDirections {
   VERTICAL_DIRECTION_DOWN = GREE_VDIR_DOWN,
 };
 
-
 class GreeClimate final : public climate_ir::ClimateIR {
  public:
   GreeClimate()
@@ -125,7 +124,6 @@ class GreeClimate final : public climate_ir::ClimateIR {
   void set_vertical_default(VerticalDirections vertical_direction) {
     this->default_vertical_direction_ = vertical_direction;
   }
-
 
  protected:
   // Transmit via IR the state of this climate controller.
