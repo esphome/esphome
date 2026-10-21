@@ -67,9 +67,7 @@ bool EPaperDualCS::initialise(bool partial) {
 
 void EPaperDualCS::setup() {
   EPaperBase::setup();
-  // Both chip-selects are driven directly by this driver (the dual-CS protocol needs one
-  // held HIGH while the other receives data, which the SPI bus abstraction cannot do on its
-  // own). Start both deselected (HIGH).
+  // The driver drives both chip selects itself: one must stay high while the other receives data.
   for (auto *cs : this->cs_pins_) {
     cs->setup();
     cs->digital_write(true);
@@ -117,10 +115,8 @@ void EPaperDualCS::end_data_(uint8_t chip) {
   this->cs_pins_[chip]->digital_write(true);
 }
 
-// Splits the dirty box (physical panel coordinates, already clipped and transformed by
-// rotate_coordinates_(), x_high_/y_high_ exclusive) across the two chips (primary: left half,
-// secondary: right half). HRST/HRED are in half-column units, VRST/VRED in half-row units --
-// that's the panel's own addressing granularity, not something this code chose.
+// Splits the dirty box (panel coordinates, x_high_/y_high_ exclusive) between the two chips.
+// HRST/HRED count half columns and VRST/VRED half rows, as the panel addresses them.
 bool EPaperDualCS::compute_ptlw_params_() {
   for (auto &p : this->ptlw_)
     p.needed = false;
@@ -164,12 +160,8 @@ bool EPaperDualCS::compute_ptlw_params_() {
   return true;
 }
 
-// Each chip in turn receives its half of every row. CS is held LOW for the ENTIRE DTM data
-// stream of each chip -- toggling CS between chunks resets the controller's data pointer,
-// causing only the last chunk to be retained -- so it stays asserted across timeout
-// boundaries by NOT deselecting on yield. There is deliberately no busy-wait between the
-// chips (unlike the partial-update path below): neither the T133A01 nor the Inkplate 13
-// Spectra have needed one.
+// Each chip in turn receives its half of every row. Its CS stays low for the whole stream, even
+// between calls: raising CS restarts the data pointer, so only the last chunk would be kept.
 bool HOT EPaperDualCS::transfer_full_() {
   const uint32_t start_time = millis();
   const uint16_t half_row_bytes = this->width_ / 4;
@@ -180,8 +172,7 @@ bool HOT EPaperDualCS::transfer_full_() {
   // Counts rows over both chips: chip 0 sends rows 0..rows-1, then chip 1 the same rows again.
   size_t index = this->current_data_index_;
 
-  // CCSET: select color set before data transfer (CS + CS1). Needs resending on every
-  // refresh, not just once at init.
+  // The color set must be selected again before every full transfer, not only at init.
   if (index == 0) {
     this->write_command_to_chip_(REG_CCSET, {0x01}, CHIP_BOTH);
     this->wait_for_idle_(true);
@@ -213,11 +204,8 @@ bool HOT EPaperDualCS::transfer_full_() {
   return true;
 }
 
-// Full refresh unless the update is a partial one (partial_) with a non-empty dirty box. The
-// path is chosen on entry, while transfer_sub_ is TRF_START, and the state returns to TRF_START
-// once the transfer completes so the next update chooses again.
-// buffer_ is a SplitBuffer (not guaranteed contiguous), so each partial row is staged through a
-// small stack buffer before write_array() (transfer_full_() stages through its own buffer).
+// Full transfer unless the update is a partial one with a non-empty dirty box. buffer_ is a
+// SplitBuffer and may not be contiguous, so rows are copied to a stack buffer before sending.
 bool EPaperDualCS::transfer_data() {
   const size_t bytes_per_row = (size_t) this->width_ / 2;
   const uint8_t chip = this->transfer_chip_;
@@ -240,8 +228,7 @@ bool EPaperDualCS::transfer_data() {
       const uint8_t mask = 1 << chip;
       this->write_command_to_chip_(REG_CMD66, CMD66_V, sizeof(CMD66_V), mask);
       if (!params.needed) {
-        // Null PTLW: 4-col x 4-row window at the physical origin of this chip, sent to a chip
-        // the requested rectangle doesn't touch so it still completes CMD66->PTLW->DTM.
+        // Send 4 rows of the NULL_PTLW window
         this->write_command_to_chip_(REG_PTLW, NULL_PTLW, sizeof(NULL_PTLW), mask);
         this->start_data_(chip);
         for (size_t r = 0; r != 4; r++) {

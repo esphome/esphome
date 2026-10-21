@@ -5,33 +5,15 @@
 namespace esphome::epaper_spi {
 
 /**
- * Intermediate base for 4bpp panels split across two chip-selects, each driving half of
- * every row (CS: left half, CS1: right half). Shared by controllers in the GDEP133C02
- * family (T133A01, Inkplate 13 Spectra).
+ * 4bpp panels driven by two controller chips, one chip select each: CS drives the left half of
+ * every row and CS1 the right half (T133A01, Inkplate 13 Spectra).
  *
- * Provides write_command_to_chip_() chip-select routing plus transfer_data(): a full-refresh
- * path (transfer_full_()) and a PTLW-based partial-update path. The full-refresh algorithm
- * is T133A01's -- CS held low across the entire DTM stream for each chip in turn, no
- * busy-wait between the two chips' phases, re-selecting the color set (CCSET) on every
- * refresh -- carried over largely unchanged, including its yield/CS-holding regression
- * tests (tests/components/epaper_spi/display/test_t133a01_transfer.cpp) covering a real
- * deadlock (issue #17668). It's also confirmed working on Inkplate 13 Spectra hardware.
- * Concrete subclasses supply reset() (board-specific GPIO bring-up), and override
- * refresh_screen()/deep_sleep() where the board differs from the T133A01. The register init
- * table comes from the Python model, with a chip mask on every command.
+ * Provides chip select routing, the init sequence replay (the table comes from the Python model,
+ * with a chip mask on every command), the power, refresh and sleep commands, and transfer_data()
+ * with a full path and a partial path that uses the PTLW window of each chip. Subclasses supply
+ * reset(), and override refresh_screen()/deep_sleep() where their board differs.
  *
- * Partial update uses EPaperBase's dirty box and is used when the model enables
- * partial_update and full_update_every is above 1. The Inkplate 13 Spectra enables it; the
- * T133A01 does not, because it is only verified on Inkplate 13 Spectra hardware.
- *
- * Not a generic dual-CS base -- it bakes in this controller family's specifics:
- *   - 4bpp only (via EPaper4bpp)
- *   - an exact 50/50 column split between the two chips (compute_ptlw_params_() hardcodes
- *     panel_w/2)
- *   - this family's fixed register addresses (REG_DTM/DRF/PON/POF/PTLW/CMD66/CCSET) and
- *     PTLW's column/row alignment rules
- * A dual-CS panel that breaks any of these needs real changes here, not just a new
- * subclass.
+ * The partial path is used when the model enables partial_update and full_update_every is above 1.
  *
  * DC is driven low for every command byte and high for its data. The T133A01 needs that;
  * the Inkplate 13 Spectra ignores DC and takes the first byte after CS as the command.
@@ -50,8 +32,7 @@ class EPaperDualCS : public EPaper4bpp {
  protected:
   static constexpr uint8_t CHIP_COUNT = 2;
 
-  // Rows sent per transfer_data() tick -- keeps each SPI burst short enough that the main
-  // loop stays responsive during a multi-second refresh.
+  // Rows sent per transfer_data() call, so the main loop keeps running during a transfer.
   static constexpr size_t ROWS_PER_CHUNK = 16;
 
   // Bytes one chip receives per row. Sizes the stack row buffers; the Python models keep the
@@ -73,15 +54,13 @@ class EPaperDualCS : public EPaper4bpp {
   static constexpr uint8_t CHIP_BOTH = 3;
 
   static constexpr uint8_t CMD66_V[6] = {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10};
-  // 4x4 window at physical origin -- sent to whichever chip the requested rectangle doesn't
-  // touch, so both chips still complete a full CMD66->PTLW->DTM cycle.
+  // 4x4 window at the origin, for a chip outside the update region: both chips must complete
+  // CMD66 -> PTLW -> DTM.
   static constexpr uint8_t NULL_PTLW[9] = {0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x01, 0x01};
 
-  // TRF_START: the path is not chosen yet; transfer_data() picks one, and returns here when done.
-  // Full path: driven entirely by current_data_index_ inside transfer_full_(), no sub-states
-  // needed.
-  // Partial path: TRF_PARTIAL_SETUP -> TRF_PARTIAL_DATA -> TRF_PARTIAL_WAIT, once for each chip
-  // in turn (transfer_chip_), then back to TRF_START.
+  // TRF_START: no path chosen yet; transfer_data() picks one and returns here when done.
+  // TRF_FULL: transfer_full_(), which tracks its position in current_data_index_.
+  // Partial path: TRF_PARTIAL_SETUP -> TRF_PARTIAL_DATA -> TRF_PARTIAL_WAIT for each chip in turn.
   enum TransferSub {
     TRF_START,
     TRF_FULL,
@@ -90,15 +69,14 @@ class EPaperDualCS : public EPaper4bpp {
     TRF_PARTIAL_WAIT,
   };
 
-  // Per-chip PTLW parameters, computed once per partial update in compute_ptlw_params_() so
-  // transfer_data() can stream data without recomputing anything mid-transfer.
+  // The partial window of one chip, computed once per partial update by compute_ptlw_params_().
   struct PartialChipParams {
-    bool needed{false};  // false -> chip is outside the update region, send a null PTLW
-    uint8_t ptlw[9]{};   // 9-byte PTLW payload: HRST(2), HRED(2), VRST(2), VRED(2), PT(1)
-    int mem_col_off{0};  // byte offset from the start of a row in buffer_ for this chip's window
+    bool needed{false};  // false: the chip is outside the update region and gets NULL_PTLW
+    uint8_t ptlw[9]{};   // HRST(2), HRED(2), VRST(2), VRED(2), PT(1)
+    int mem_col_off{0};  // byte offset of the window from the start of a row in buffer_
     int bytes_per_row{0};
-    int row_start{0};  // first physical row to send (inclusive)
-    int row_end{0};    // last physical row to send (inclusive)
+    int row_start{0};  // first row to send (inclusive)
+    int row_end{0};    // last row to send (inclusive)
   };
 
   bool transfer_data() override;
@@ -137,8 +115,8 @@ class EPaperDualCS : public EPaper4bpp {
   GPIOPin *cs_pins_[CHIP_COUNT]{};
 
   TransferSub transfer_sub_{TRF_START};
-  uint8_t transfer_chip_{0};  // chip index the partial path is working on
-  size_t transfer_row_{0};    // used only by the partial path -- the full path uses current_data_index_
+  uint8_t transfer_chip_{0};  // the chip the partial path is working on
+  size_t transfer_row_{0};    // partial path only; the full path uses current_data_index_
   size_t init_index_{0};      // position in init_sequence_ while initialise() waits out a delay
 
   PartialChipParams ptlw_[CHIP_COUNT];

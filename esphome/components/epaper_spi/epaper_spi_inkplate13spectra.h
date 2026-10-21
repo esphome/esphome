@@ -5,18 +5,11 @@
 namespace esphome::epaper_spi {
 
 /**
- * Soldered Inkplate 13 Spectra: 1200x1600 6-color (black/white/yellow/red/blue/green)
- * e-paper, dual-chip controller (13.3" E Ink Spectra 6 panel). Dual-CS data transfer, chip-
- * select routing and PTLW-based partial update come from EPaperDualCS; the panel is split
- * into two halves, each with its own chip-select (CS: left half of every row, CS1: right
- * half). BS0/BS1 select the controllers' interface mode.
+ * Soldered Inkplate 13 Spectra: 1200x1600 6-color e-paper on a 13.3" Spectra 6 panel with two
+ * controller chips. BS0/BS1 select the controllers' interface mode.
  *
- * GPIO power-on bring-up (all-pins-low, then IO setup + PWR_EN, then an RST pulse) runs
- * inside reset(), not initialise(). reset()/RESET_END is the one state EPaperBase never
- * busy-gates (see epaper_spi.h), so this sequence completes before the panel is powered
- * -- and before power-on, BUSY reads the same level as "genuinely busy", so gating on it
- * there would hang forever. initialise() only starts once the panel is actually powered,
- * so its busy-pin checks reflect a real signal.
+ * reset() powers the panel on step by step. It runs in the RESET_END state, which EPaperBase
+ * does not gate on the busy pin: the busy pin of an unpowered panel reads as busy.
  */
 class EPaperInkplate13Spectra : public EPaperDualCS {
  public:
@@ -29,7 +22,7 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
   void dump_config() override;
 
  protected:
-  // GPIO power-on bring-up, run inside reset()/RESET_END (see class-level comment).
+  // The steps of reset()
   enum ResetSub {
     RST_PINS_LOW,
     RST_PINS_LOW_WAIT,  // 500 ms

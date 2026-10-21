@@ -1,7 +1,5 @@
-# The panel is split into two halves, each with its own chip-select: CS (primary, left half
-# of every row) and CS1 (secondary, right half). BS0/BS1 select the controllers' interface mode.
-# The driver's reset() switches the reset and enable pins itself on every refresh cycle, so the
-# reset timing comes from the driver and reset_duration is rejected.
+# BS0/BS1 select the controllers' interface mode. The driver's reset() switches the reset and
+# enable pins itself on every refresh cycle, so reset_duration is rejected.
 
 from collections.abc import Hashable
 from typing import Any
