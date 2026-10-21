@@ -33,5 +33,5 @@ async def to_code(config: ConfigType) -> None:
         hub.set_vertical_direction_select,
         options=list(VERTICAL_DIRECTIONS),
         # The options are in the order of the enum; the hub publishes the state
-        apply=f"set_vertical_direction(static_cast<{VerticalDirection}>(index))",
+        apply=f"control_vertical_direction(static_cast<{VerticalDirection}>(index))",
     )
