@@ -2,20 +2,21 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
+from typing import Any
 
 import pytest
 
 from esphome.components import epaper_spi
 from esphome.components.epaper_spi import (
     BASE_SOURCE_FILE,
-    CLASS_SOURCES,
     DOMAIN,
     FILTER_SOURCE_FILES,
-    register_class,
+    register_sources,
 )
 from esphome.components.epaper_spi.models import EpaperModel
 from esphome.config import iter_components
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE
 
 COMPONENT_DIR = Path(epaper_spi.__file__).parent
 
@@ -60,96 +61,108 @@ def _cpp_names(names: set[str]) -> set[str]:
 
 
 FIX_HINT = (
-    "Update CLASS_SOURCES in esphome/components/epaper_spi/__init__.py: every driver "
-    "class needs an entry mapping it to its .cpp file and the class it derives from "
-    "(None for EPaperBase), so the build keeps the files it needs."
+    "Set source_files on the model in esphome/components/epaper_spi/models/<...> to include "
+    "its class's .cpp and every parent class's .cpp, excluding epaper_spi.cpp."
 )
 
+CLASS_RE = re.compile(r"^class\s+(\w+)\s+(?:final\s+)?:\s*public\s+(\w+)", re.MULTILINE)
 
-def test_table_covers_every_model_and_source() -> None:
-    """A new model or driver file must not be silently dropped from the build."""
-    missing_classes = sorted(
-        {
-            model.class_name
-            for model in EpaperModel.models.values()
-            if model.class_name not in CLASS_SOURCES
-        }
+
+def _class_table() -> dict[str, tuple[str, str]]:
+    """Map each driver class to its header stem and parent class, read from the headers."""
+    table: dict[str, tuple[str, str]] = {}
+    for header in COMPONENT_DIR.glob("*.h"):
+        for name, parent in CLASS_RE.findall(header.read_text()):
+            table[name] = (header.stem, parent)
+    return table
+
+
+def _expected_sources(class_name: str, table: dict[str, tuple[str, str]]) -> set[str]:
+    """The .cpp files of a class and its parents, up to but excluding epaper_spi.cpp."""
+    sources: set[str] = set()
+    current = class_name
+    while current != "EPaperBase":
+        assert current in table, (
+            f"No 'class {current} : public <Parent>' declaration found in the headers "
+            f"in {COMPONENT_DIR}. {FIX_HINT}"
+        )
+        stem, current = table[current]
+        sources.add(f"{stem}.cpp")
+    return sources - {BASE_SOURCE_FILE}
+
+
+@pytest.mark.parametrize("model_name", sorted(EpaperModel.models))
+def test_model_source_files_match_headers(model_name: str) -> None:
+    """A model must list exactly the sources its class hierarchy needs."""
+    model = EpaperModel.models[model_name]
+
+    expected = _expected_sources(model.class_name, _class_table())
+
+    assert expected == set(model.source_files), (
+        f"Model {model_name} ({model.class_name}) needs {sorted(expected)} but lists "
+        f"{sorted(model.source_files)}. {FIX_HINT}"
     )
-    assert not missing_classes, f"Classes with no entry: {missing_classes}. {FIX_HINT}"
 
-    missing_parents = sorted(
-        {
-            parent
-            for _, parent in CLASS_SOURCES.values()
-            if parent is not None and parent not in CLASS_SOURCES
-        }
-    )
-    assert not missing_parents, (
-        f"Parent classes with no entry: {missing_parents}. {FIX_HINT}"
-    )
 
-    table_files = [source for source, _ in CLASS_SOURCES.values()]
-    duplicates = sorted({f for f in table_files if table_files.count(f) > 1})
-    assert not duplicates, f"Files listed more than once: {duplicates}. {FIX_HINT}"
-
+def test_every_source_file_is_claimed_by_a_model() -> None:
     on_disk = {p.name for p in COMPONENT_DIR.glob("*.cpp")} - {BASE_SOURCE_FILE}
-    unlisted = sorted(on_disk - set(table_files))
-    assert not unlisted, f"Source files with no entry: {unlisted}. {FIX_HINT}"
-    stale = sorted(set(table_files) - on_disk)
-    assert not stale, f"Entries for files that do not exist: {stale}. {FIX_HINT}"
+    claimed = {f for m in EpaperModel.models.values() for f in m.source_files}
 
-
-def test_table_is_sorted() -> None:
-    names = list(CLASS_SOURCES)
-    assert names == sorted(names, key=str.lower), (
-        "Keep CLASS_SOURCES in esphome/components/epaper_spi/__init__.py in "
-        "alphabetical order of class name, ignoring case."
+    assert not on_disk - claimed, (
+        f"Source files no model lists: {sorted(on_disk - claimed)}. {FIX_HINT}"
     )
 
 
-def test_filter_excludes_nothing_when_no_class_recorded() -> None:
+def test_listed_source_files_exist() -> None:
+    on_disk = {p.name for p in COMPONENT_DIR.glob("*.cpp")}
+    listed = {f for m in EpaperModel.models.values() for f in m.source_files}
+
+    assert not listed - on_disk, (
+        f"Listed source files that do not exist: {sorted(listed - on_disk)}. {FIX_HINT}"
+    )
+
+
+def test_missing_class_declaration_is_reported() -> None:
+    with pytest.raises(AssertionError, match="No 'class EPaperGone"):
+        _expected_sources("EPaperGone", _class_table())
+
+
+def test_extend_keeps_class_name_and_source_files() -> None:
+
+    class _Model(EpaperModel):
+        def __init__(self, name: str, **kwargs: Any) -> None:
+            super().__init__(name, "EPaperX", **kwargs)
+
+    base = _Model("test-extend-base", source_files=("x.cpp",))
+    try:
+        assert base.extend("test-extend-child").source_files == ("x.cpp",)
+        assert EpaperModel.models["TEST-EXTEND-CHILD"].class_name == "EPaperX"
+        override = base.extend("test-extend-over", source_files=("y.cpp",))
+        assert override.source_files == ("y.cpp",)
+    finally:
+        for key in ("TEST-EXTEND-BASE", "TEST-EXTEND-CHILD", "TEST-EXTEND-OVER"):
+            EpaperModel.models.pop(key, None)
+
+
+def test_filter_excludes_nothing_when_no_sources_recorded() -> None:
     assert FILTER_SOURCE_FILES() == []
 
 
-def test_filter_keeps_parent_chain() -> None:
-    register_class("EPaperSSD1677Gray4")
+def test_filter_excludes_unrecorded_sources() -> None:
+    register_sources(["epaper_spi_jd79660.cpp"])
 
-    excluded = set(FILTER_SOURCE_FILES())
+    excluded = FILTER_SOURCE_FILES()
 
-    kept = {s for s, _ in CLASS_SOURCES.values()} - excluded
-    assert kept == {
-        "epaper_spi_ssd1677_gray4.cpp",
-        "epaper_spi_ssd1677.cpp",
-        "epaper_spi_mono.cpp",
-    }
-    assert BASE_SOURCE_FILE not in excluded
-
-
-def test_filter_keeps_directly_derived_class_only() -> None:
-    register_class("EPaperJD79660")
-
-    excluded = set(FILTER_SOURCE_FILES())
-
+    assert excluded == sorted(excluded)
     assert "epaper_spi_jd79660.cpp" not in excluded
+    assert BASE_SOURCE_FILE not in excluded
     assert "epaper_spi_mono.cpp" in excluded
 
 
 def test_filter_data_lives_in_core_data() -> None:
-    register_class("EPaperMono")
+    register_sources(["epaper_spi_mono.cpp"])
 
     assert CORE.data[DOMAIN].needed_sources == {"epaper_spi_mono.cpp"}
-
-
-def test_register_unknown_class_explains_fix() -> None:
-    with pytest.raises(EsphomeError, match="missing from CLASS_SOURCES"):
-        register_class("EPaperNotInTable")
-
-
-def test_register_unknown_parent_explains_fix(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setitem(CLASS_SOURCES, "EPaperOrphan", ("orphan.cpp", "EPaperGone"))
-
-    with pytest.raises(EsphomeError, match="'EPaperGone' is missing"):
-        register_class("EPaperOrphan")
 
 
 def test_sources_filtered_via_code_generation(
@@ -184,12 +197,3 @@ def test_sources_filtered_for_two_models(
         "epaper_spi_ultrachip.cpp",
         "epaper_spi_uc8179.cpp",
     }
-
-
-@pytest.mark.parametrize("class_name", sorted(CLASS_SOURCES))
-def test_every_class_resolves(class_name: str) -> None:
-    register_class(class_name)
-
-    excluded = set(FILTER_SOURCE_FILES())
-
-    assert CLASS_SOURCES[class_name][0] not in excluded
