@@ -246,12 +246,11 @@ _UDP_WRITE_SCHEMA = cv.maybe_simple_value(
     },
     key=CONF_DATA,
 )
-# Constant payloads up to this size are sent from the stack on ESP8266.
-_STACK_PAYLOAD_SIZE = 128
 _udp_write_builder = automation.apply_action_builder(
     "udp.write",
     _UDP_WRITE_SCHEMA,
-    automation.ApplyBytes(CONF_DATA, "send_packet({})", stack=_STACK_PAYLOAD_SIZE),
+    # Constant payloads up to this size are sent from the stack on ESP8266
+    automation.ApplyBytes(CONF_DATA, "send_packet({})", stack=128),
 )
 
 
