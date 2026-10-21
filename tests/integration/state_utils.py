@@ -181,7 +181,9 @@ def require_entity[T: EntityInfo](
             else f"entity with '{object_id_substring}' in object_id"
         )
         type_info = f" of type {entity_type.__name__}" if entity_type else ""
-        raise AssertionError(f"{desc}{type_info} not found in entities")
+        raise AssertionError(
+            f"{desc}{type_info} not found; available: {[e.object_id for e in entities]}"
+        )
     return entity
 
 
@@ -620,7 +622,6 @@ class SensorTracker:
         if match_initial_states:
             for state in initial_state_helper.initial_states.values():
                 self.on_state(state, first_pending_only=True)
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
         return entities

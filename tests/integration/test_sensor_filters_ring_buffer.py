@@ -7,7 +7,7 @@ import asyncio
 from aioesphomeapi import EntityState, SensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping
+from .state_utils import InitialStateHelper, build_key_to_entity_mapping, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -90,11 +90,7 @@ async def test_sensor_filters_ring_buffer(
             pytest.fail("Timeout waiting for initial states")
 
         # Find the publish button
-        publish_button = next(
-            (e for e in entities if "publish_values_button" in e.object_id.lower()),
-            None,
-        )
-        assert publish_button is not None, "Publish Values Button not found"
+        publish_button = require_entity(entities, "publish_values_button")
 
         # Press the button to publish test values
         client.button_command(publish_button.key)
