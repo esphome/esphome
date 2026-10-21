@@ -21,6 +21,7 @@ import re
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -93,13 +94,13 @@ async def test_script_delay_with_params(
         await client.execute_service(test_service, {})
 
         # Wait for test to complete (10 iterations * ~100ms each + margin)
-        try:
-            await asyncio.wait_for(test_complete.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test timed out. Completed iterations: {sorted(wait_returned)}. "
-                f"This likely indicates the script became a zombie (issue #12044)."
-            )
+        await wait_or_fail(
+            test_complete,
+            5.0,
+            "Test timed out. "
+            "This likely indicates the script became a zombie (issue #12044).",
+            wait_returned=wait_returned,
+        )
 
         # Verify all 10 iterations completed successfully
         expected_iterations = set(range(10))

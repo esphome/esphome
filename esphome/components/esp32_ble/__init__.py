@@ -296,10 +296,6 @@ NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
 
-BLEEnabledCondition = esp32_ble_ns.class_("BLEEnabledCondition", automation.Condition)
-BLEEnableAction = esp32_ble_ns.class_("BLEEnableAction", automation.Action)
-BLEDisableAction = esp32_ble_ns.class_("BLEDisableAction", automation.Action)
-
 IoCapability = esp32_ble_ns.enum("IoCapability")
 IO_CAPABILITY = {
     "none": IoCapability.IO_CAP_NONE,
@@ -539,16 +535,12 @@ async def to_code(config: ConfigType) -> None:
     ):
         cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
 
-    if CONF_AUTH_REQ_MODE in config:
-        cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
-    if CONF_MAX_KEY_SIZE in config:
-        cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
-    if CONF_MIN_KEY_SIZE in config:
-        cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+    cg.add_optional(var.set_auth_req, config.get(CONF_AUTH_REQ_MODE))
+    cg.add_optional(var.set_max_key_size, config.get(CONF_MAX_KEY_SIZE))
+    cg.add_optional(var.set_min_key_size, config.get(CONF_MIN_KEY_SIZE))
 
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
-    if (name := config.get(CONF_NAME)) is not None:
-        cg.add(var.set_name(name))
+    cg.add_optional(var.set_name, config.get(CONF_NAME))
     await cg.register_component(var, config)
 
     # Define max connections for use in C++ code (e.g., ble_server.h)
@@ -613,27 +605,14 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_UUID")
 
 
-automation.register_bare_condition(
-    "ble.enabled",
-    BLEEnabledCondition,
-    cv.Schema({}),
-)
+BLE_AUTOMATION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(ESP32BLE)})
 
+automation.register_apply_condition("ble.enabled", BLE_AUTOMATION_SCHEMA, "is_active()")
 
-automation.register_bare_action(
-    "ble.enable",
-    BLEEnableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
-
-
-automation.register_bare_action(
-    "ble.disable",
-    BLEDisableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
+for _name, _call in (("ble.enable", "enable()"), ("ble.disable", "disable()")):
+    automation.register_apply_action(
+        _name, BLE_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 # ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set

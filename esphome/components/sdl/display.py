@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_DIMENSIONS,
     CONF_HEIGHT,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_POSITION,
     CONF_WIDTH,
     CONF_X,
@@ -158,8 +157,7 @@ async def to_code(config: ConfigType) -> None:
     await display.register_display(var, config)
     await register_snapshot(var, config)
     cg.add(var.set_headless(config[CONF_HEADLESS]))
-    if (key := config.get(CONF_SNAPSHOT_KEY)) is not None:
-        cg.add(var.set_snapshot_key(key))
+    cg.add_optional(var.set_snapshot_key, config.get(CONF_SNAPSHOT_KEY))
 
     dimensions = config[CONF_DIMENSIONS]
     if isinstance(dimensions, dict):
@@ -189,8 +187,4 @@ async def to_code(config: ConfigType) -> None:
             else:
                 cg.add(var.set_position(position[CONF_X], position[CONF_Y]))
 
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

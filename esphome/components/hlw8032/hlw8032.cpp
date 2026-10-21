@@ -30,8 +30,7 @@ static constexpr uint8_t STATE_REG_OVERFLOW_MASK = 0xF;
 static constexpr uint8_t PACKET_LENGTH = 24;
 
 void HLW8032Component::loop() {
-  while (this->available()) {
-    uint8_t data = this->read();
+  this->read_available([this](uint8_t data) {
     if (!this->header_found_) {
       if ((data == STATE_REG_CORRECTION_FUNC_NORMAL) || (data == STATE_REG_CORRECTION_FUNC_FAIL) ||
           (data & STATE_REG_CORRECTION_MASK) == STATE_REG_CORRECTION_MASK) {
@@ -57,7 +56,7 @@ void HLW8032Component::loop() {
         memset(this->raw_data_, 0, PACKET_LENGTH);
       }
     }
-  }
+  });
 }
 
 uint32_t HLW8032Component::read_uint24_(uint8_t offset) {
