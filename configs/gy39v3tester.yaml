@@ -19,8 +19,6 @@ ota:
     encryption:
 
 wifi:
-  ssid: "UnsereKinderSindToll"
-  password: "Greta12Theo16Lilu24!"
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
