@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -69,8 +70,7 @@ async def test_automation_wait_actions(
         _, services = await client.list_entities_services()
 
         # Test 1: wait_until in automation - trigger 5 times rapidly
-        test_service = next((s for s in services if s.name == "test_wait_until"), None)
-        assert test_service is not None, "test_wait_until service not found"
+        test_service = require_service(services, "test_wait_until")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test1_complete, timeout=3.0)
 
@@ -80,8 +80,7 @@ async def test_automation_wait_actions(
         )
 
         # Test 2: script.wait in automation - trigger 5 times rapidly
-        test_service = next((s for s in services if s.name == "test_script_wait"), None)
-        assert test_service is not None, "test_script_wait service not found"
+        test_service = require_service(services, "test_script_wait")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test2_complete, timeout=3.0)
 
@@ -91,10 +90,7 @@ async def test_automation_wait_actions(
         )
 
         # Test 3: wait_until with timeout in automation - trigger 5 times rapidly
-        test_service = next(
-            (s for s in services if s.name == "test_wait_timeout"), None
-        )
-        assert test_service is not None, "test_wait_timeout service not found"
+        test_service = require_service(services, "test_wait_timeout")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test3_complete, timeout=3.0)
 
