@@ -12,7 +12,7 @@ class PCA9554Component final : public Component,
                                public i2c::I2CDevice,
                                public gpio_expander::CachedGpioExpander<uint16_t, 16> {
  public:
-  PCA9554Component() = default;
+  explicit PCA9554Component(uint8_t pin_count) : pin_count_(pin_count), reg_width_((pin_count + 7) / 8) {}
 
   /// Check i2c availability and setup masks
   void setup() override;
@@ -24,10 +24,6 @@ class PCA9554Component final : public Component,
 
   void dump_config() override;
 
-  void set_pin_count(uint8_t pin_count) {
-    this->pin_count_ = pin_count;
-    this->reg_width_ = (pin_count + 7) / 8;
-  }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 #ifdef USE_PCA9554_PCAL
   /// The PCAL parts add pull resistors, input latches, an interrupt mask and drive strength.
@@ -85,9 +81,9 @@ class PCA9554Component final : public Component,
   uint16_t interrupt_mask_{0xFFFF};
 #endif
   /// number of bits the expander has
-  uint8_t pin_count_{8};
+  const uint8_t pin_count_;
   /// width of registers
-  uint8_t reg_width_{1};
+  const uint8_t reg_width_;
 #ifdef USE_PCA9554_PCAL
   bool pcal_{false};
   bool pcal_dirty_{false};  // a PCAL write failed; retried after the next good read or output write
