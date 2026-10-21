@@ -55,19 +55,12 @@ void MAX17048Component::update() {
       ok = false;
     }
   }
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR("Register read failed"));
-  }
+  this->status_comm_result(ok, LOG_STR("Register read failed"));
 }
 
 void MAX17048Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX17048:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_sensor_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);

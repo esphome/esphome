@@ -289,10 +289,10 @@ class EthernetComponent final : public Component {
 #endif
 
   // Group all 8-bit members together
-  uint8_t clk_pin_{0};                             // Must match DEFAULT_CLK_PIN in __init__.py
-  uint8_t phy_addr_{0};                            // Must match DEFAULT_PHY_ADDR in __init__.py
-  uint8_t mdc_pin_{23};                            // Must match DEFAULT_MDC_PIN in __init__.py
-  uint8_t mdio_pin_{18};                           // Must match DEFAULT_MDIO_PIN in __init__.py
+  uint8_t clk_pin_{0};    // Must match DEFAULT_CLK_PIN in __init__.py
+  uint8_t phy_addr_{0};   // Must match DEFAULT_PHY_ADDR in __init__.py
+  uint8_t mdc_pin_{23};   // Must match DEFAULT_MDC_PIN in __init__.py
+  uint8_t mdio_pin_{18};  // Must match DEFAULT_MDIO_PIN in __init__.py
 #endif  // USE_ETHERNET_SPI
 
   // ESP32 pointers

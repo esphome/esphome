@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import audio_dac, i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID, CONF_SAMPLE_RATE
+from esphome.const import CONF_BITS_PER_SAMPLE, CONF_SAMPLE_RATE
 from esphome.types import ConfigType
 
 CONF_DEEMPHASIS = "deemphasis"
@@ -42,12 +42,9 @@ FILTER_SHAPES = {
 }
 
 DeemphasisMode = es9038q2m_katana_ns.enum("DeemphasisMode")
-DEEMPHASIS_MODES = {
-    "bypass": DeemphasisMode.DEEMPHASIS_BYPASS,
-    "32khz": DeemphasisMode.DEEMPHASIS_32KHZ,
-    "44_1khz": DeemphasisMode.DEEMPHASIS_44_1KHZ,
-    "48khz": DeemphasisMode.DEEMPHASIS_48KHZ,
-}
+DEEMPHASIS_MODES = DeemphasisMode.options(
+    "bypass", "32khz", "44_1khz", "48khz", prefix="DEEMPHASIS_"
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -76,9 +73,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_filter_shape(config[CONF_FILTER_SHAPE]))
     cg.add(
