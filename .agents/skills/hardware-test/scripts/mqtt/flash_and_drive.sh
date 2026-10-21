@@ -5,7 +5,8 @@
 # broker restart (the working directory must hold mosquitto-ws.conf and mosquitto.pid), public runs it without a
 # restart, neg only watches for 100 s (a build that must never connect). SUB_PORT is the plain listener cases.sh
 # subscribes on (default 1883). Ends with connect, disconnect, handshake error and crash counts, the config dump's
-# TLS line, the probe heap lines and the broker listener each connection used.
+# TLS line, the probe heap lines and the broker listener each connection used. Exit 1 when the capture did not start,
+# the device reached no MQTT event within 90 s (local and public), it crashed, or the mode's own check failed.
 TREE=$1; YAML=$2; PORT=$3; KEY=$4; B=$5; MODE=$6; SP=${7:-1883}
 case $YAML in /*) ;; *) YAML=$PWD/$YAML;; esac
 HERE=$(cd "$(dirname "$0")" && pwd); PY=${PYTHON:-python3}; N=$(basename "$YAML" .yaml); CAP=$PWD/cap-$N.txt; ULOG=$PWD/upload-$N.log
@@ -15,11 +16,19 @@ pkill -f "[s]erial_capture.py $PORT "; sleep 1
 echo "=== $N: flash ($(date +%T))"
 (cd "$TREE" && PYTHONUNBUFFERED=1 timeout 300 $PY -m esphome upload "$YAML" --device "$PORT" > "$ULOG" 2>&1) || { echo "upload failed"; tail -5 "$ULOG"; exit 1; }
 SECS=200; [ "$MODE" = neg ] && SECS=100
+# a stale capture from an earlier run must not satisfy the wait below
+rm -f "$CAP"
 $PY "$HERE/../serial_capture.py" "$PORT" $SECS "$CAP" > "$PWD/cap-$N.stderr" 2>&1 &
 cap_pid=$!
 i=0; until grep -a -q "MQTT_EVENT_CONNECTED\|\[mqtt:[0-9]*\]: Connected\|mbedtls_ssl_handshake returned\|Failed to verify" "$CAP" 2>/dev/null || [ $i -ge 45 ]; do sleep 2; i=$((i+1)); done
+kill -0 $cap_pid 2>/dev/null && [ -f "$CAP" ] || { echo "serial capture is not running on $PORT"; tail -3 "$PWD/cap-$N.stderr"; exit 1; }
 DEV=$(grep -a -o 'IP Address: [0-9.]*' "$CAP" | head -1 | awk '{print $3}')
-echo "=== $N: first MQTT event after $((i*2)) s, device $DEV ($(date +%T))"
+if [ $i -ge 45 ] || [ -z "$DEV" ]; then
+  echo "=== $N: no MQTT event or no IP within 90 s ($(date +%T))"
+  [ "$MODE" = neg ] || { pkill -f "[s]erial_capture.py $PORT "; exit 1; }
+else
+  echo "=== $N: first MQTT event after $((i*2)) s, device $DEV ($(date +%T))"
+fi
 grep -a 'ESPHome version\|\]:   Transport\|\]:   TLS:' "$CAP" | sed 's/\x1b\[[0-9;]*m//g' | cut -c1-120
 rc=0
 case $MODE in
@@ -31,10 +40,12 @@ wait $cap_pid
 strip() { sed 's/\x1b\[[0-9;]*m//g'; }
 # count the backend's own events so the result does not depend on on_connect/on_disconnect log lines in the config
 connects=$(grep -a -c 'MQTT_EVENT_CONNECTED' "$CAP"); errors=$(grep -a -c 'mbedtls_ssl_handshake returned\|Failed to verify certificate' "$CAP")
-echo "=== $N: connects $connects, disconnects $(grep -a -c 'MQTT_EVENT_DISCONNECTED' "$CAP"), handshake errors $errors, crashes $(grep -a -c 'Guru\|abort()\|Backtrace' "$CAP")"
+crashes=$(grep -a -c 'Guru\|abort()\|Backtrace' "$CAP")
+echo "=== $N: connects $connects, disconnects $(grep -a -c 'MQTT_EVENT_DISCONNECTED' "$CAP"), handshake errors $errors, crashes $crashes"
 grep -a 'mbedtls_ssl_handshake returned\|Failed to verify\|esp-tls' "$CAP" | strip | sed 's/^\[[^]]*\]//' | sort | uniq -c | sort -rn | head -4 | cut -c1-150
 grep -a '\[probe:' "$CAP" | strip | sed 's/.*\[probe:[0-9]*\]: //' | sed -n '1p;$p'
 [ -f "$PWD/mosquitto.log" ] && [ -n "$DEV" ] && echo "broker listeners used by $DEV: $(grep "New connection from $DEV" "$PWD/mosquitto.log" | sed 's/.*on port //' | sort | uniq -c | tr '\n' ';')"
+[ "$crashes" = 0 ] || { echo "device crashed $crashes time(s)"; exit 1; }
 if [ "$MODE" = neg ]; then
   [ "$connects" = 0 ] && [ "$errors" -gt 0 ] || { echo "negative case: expected no connect and a handshake error"; exit 1; }
 else
