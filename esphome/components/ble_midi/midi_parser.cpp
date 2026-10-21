@@ -139,6 +139,8 @@ void MidiParser::feed(const uint8_t *data, size_t length, MidiMessageHandler han
       this->emit_(MessageType::SYSTEM_REAL_TIME, data + i, 1, handler, ctx);
       continue;
     }
+    // Any other status byte discards a message still being assembled
+    this->current_length_ = 0;
     if (byte == STATUS_SYSEX_END) {
       if (this->sysex_active_) {
         this->sysex_push_(STATUS_SYSEX_END);
@@ -148,7 +150,7 @@ void MidiParser::feed(const uint8_t *data, size_t length, MidiMessageHandler han
       }
       continue;
     }
-    // Any other status byte ends a SysEx still open and discards a message still being assembled
+    // Any status byte but 0xF7 ends a SysEx still open
     if (this->sysex_active_)
       this->end_sysex_(false, handler, ctx);
     if (byte == STATUS_SYSEX_START) {

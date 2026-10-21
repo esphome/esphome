@@ -124,6 +124,15 @@ TEST_F(MidiParserTest, RealTimeMessageInsideAChannelMessageLeavesItIntact) {
   EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0x90, 0x3C, 0x40}));
 }
 
+TEST_F(MidiParserTest, SysexDiscardsAPartialChannelMessage) {
+  this->feed_({HDR, TS, 0x90, 0x3C, TS, 0xF0, 0x01, TS, 0xF7, 0x40});
+  ASSERT_EQ(this->messages_.size(), 2u);
+  EXPECT_EQ(this->messages_[0].type, MessageType::SYSEX);
+  // No status is in effect after a SysEx, so the stray data byte does not finish the Note On
+  EXPECT_EQ(this->messages_[1].type, MessageType::UNKNOWN);
+  EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0x40}));
+}
+
 TEST_F(MidiParserTest, SystemCommonMessageWithTwoDataBytes) {
   this->feed_({HDR, TS, 0xF2, 0x01, 0x02});
   ASSERT_EQ(this->messages_.size(), 1u);
