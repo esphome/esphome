@@ -658,6 +658,8 @@ class EsphomeCore:
         self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements: list[Statement] = []
+        # Generated code emitted after the user includes, so it can use what they declare
+        self.global_statements_after_includes: list[Statement] = []
         # A map of platformio libraries to add to the project (shortname: (name, version, repository))
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
@@ -728,6 +730,7 @@ class EsphomeCore:
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
+        self.global_statements_after_includes = []
         self.platformio_libraries = {}
         self.build_flags = set()
         self.cmake_args = {}
@@ -1063,7 +1066,9 @@ class EsphomeCore:
         _LOGGER.debug("Adding: %s", expression)
         return expression
 
-    def add_global(self, expression, prepend=False) -> "Statement":
+    def add_global(
+        self, expression, prepend=False, after_includes=False
+    ) -> "Statement":
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -1072,7 +1077,9 @@ class EsphomeCore:
             raise ValueError(
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
-        if prepend:
+        if after_includes:
+            self.global_statements_after_includes.append(expression)
+        elif prepend:
             self.global_statements.insert(0, expression)
         else:
             self.global_statements.append(expression)
@@ -1258,7 +1265,7 @@ class EsphomeCore:
         from esphome.cpp_generator import statement
 
         global_code = []
-        for exp in self.global_statements:
+        for exp in (*self.global_statements, *self.global_statements_after_includes):
             text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)

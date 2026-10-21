@@ -982,8 +982,19 @@ async def test_register_apply_action_entry(
     action_id, template_arg = mock_cg.new_pvariable.call_args.args
     assert action_id == ID("obj_1")
     assert str(template_arg) == "<esphome__obj_1__fn, int32_t>"
-    # The definition must precede the storage line that names the function.
-    assert [c[0] for c in mock_cg.calls.mock_calls] == ["add_global", "new_pvariable"]
+    # The declaration must precede the storage line that names the function; the body
+    # goes after the user includes.
+    assert [c[0] for c in mock_cg.calls.mock_calls] == [
+        "add_global",
+        "add_global",
+        "new_pvariable",
+    ]
+    declaration, definition = mock_cg.add_global.call_args_list
+    assert str(declaration.args[0]) == (
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x);"
+    )
+    assert not declaration.kwargs
+    assert definition.kwargs == {"after_includes": True}
     assert _apply_definition(mock_cg).startswith(
         "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
     )
