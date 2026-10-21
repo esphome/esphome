@@ -12,6 +12,7 @@ class SeesawEncoder : public sensor::Sensor, public Component, public Parented<S
 
   void setup() override;
   void loop() override;
+  void dump_config() override;
 
   void set_min_value(int32_t min_value) { this->min_value_ = min_value; }
   void set_max_value(int32_t max_value) { this->max_value_ = max_value; }
@@ -19,6 +20,7 @@ class SeesawEncoder : public sensor::Sensor, public Component, public Parented<S
  protected:
   const uint8_t number_;
   int32_t value_{0};
+  uint32_t last_poll_{0};
   int32_t min_value_{INT32_MIN};
   int32_t max_value_{INT32_MAX};
 };

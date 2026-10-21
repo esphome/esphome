@@ -39,6 +39,16 @@ _CONSTRUCTOR_KEYS = {
     CONF_TOUCH: CONF_CHANNEL,
 }
 
+_INT32 = cv.int_range(min=-(2**31), max=2**31 - 1)
+
+
+def _validate_encoder_limits(config: ConfigType) -> ConfigType:
+    low, high = config.get(CONF_MIN_VALUE), config.get(CONF_MAX_VALUE)
+    if low is not None and high is not None and low > high:
+        raise cv.Invalid(f"'{CONF_MIN_VALUE}' must not be above '{CONF_MAX_VALUE}'")
+    return config
+
+
 CONFIG_SCHEMA = cv.typed_schema(
     {
         CONF_ADC: sensor.sensor_schema(
@@ -53,22 +63,25 @@ CONFIG_SCHEMA = cv.typed_schema(
             }
         )
         .extend(cv.polling_component_schema("60s")),
-        CONF_ENCODER: sensor.sensor_schema(
-            SeesawEncoder,
-            unit_of_measurement=UNIT_STEPS,
-            icon=ICON_ROTATE_RIGHT,
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_NONE,
-        )
-        .extend(
-            {
-                cv.GenerateID(CONF_SEESAW_ID): cv.use_id(Seesaw),
-                cv.Optional(CONF_NUMBER, default=0): cv.int_range(min=0, max=255),
-                cv.Optional(CONF_MIN_VALUE): cv.int_,
-                cv.Optional(CONF_MAX_VALUE): cv.int_,
-            }
-        )
-        .extend(cv.COMPONENT_SCHEMA),
+        CONF_ENCODER: cv.All(
+            sensor.sensor_schema(
+                SeesawEncoder,
+                unit_of_measurement=UNIT_STEPS,
+                icon=ICON_ROTATE_RIGHT,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_NONE,
+            )
+            .extend(
+                {
+                    cv.GenerateID(CONF_SEESAW_ID): cv.use_id(Seesaw),
+                    cv.Optional(CONF_NUMBER, default=0): cv.int_range(min=0, max=255),
+                    cv.Optional(CONF_MIN_VALUE): _INT32,
+                    cv.Optional(CONF_MAX_VALUE): _INT32,
+                }
+            )
+            .extend(cv.COMPONENT_SCHEMA),
+            _validate_encoder_limits,
+        ),
         CONF_TEMPERATURE: sensor.sensor_schema(
             SeesawTemperature,
             unit_of_measurement=UNIT_CELSIUS,

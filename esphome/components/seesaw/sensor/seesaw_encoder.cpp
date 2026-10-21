@@ -1,28 +1,46 @@
 #include "seesaw_encoder.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
+
+#include <algorithm>
 
 namespace esphome::seesaw {
 
 ESPHOME_LOG_TAG(TAG, "seesaw.encoder");
 
+static constexpr uint32_t POLL_INTERVAL_MS = 50;
+
 void SeesawEncoder::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Seesaw rotary encoder...");
   this->parent_->enable_encoder(this->number_);
-  this->publish_state(0);
+  int32_t position = 0;
+  this->parent_->get_encoder_position(this->number_, &position);
+  this->value_ = std::clamp(position, this->min_value_, this->max_value_);
+  if (this->value_ != position)
+    this->parent_->set_encoder_position(this->number_, this->value_);
+  this->publish_state(this->value_);
 }
 
 void SeesawEncoder::loop() {
-  int32_t new_value;
-  if (!this->parent_->get_encoder_position(this->number_, &new_value))
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_poll_ < POLL_INTERVAL_MS)
     return;
-  if (new_value < this->min_value_)
-    new_value = this->min_value_;
-  if (new_value > this->max_value_)
-    new_value = this->max_value_;
-  if (new_value == this->value_)
+  this->last_poll_ = now;
+  int32_t position;
+  if (!this->parent_->get_encoder_position(this->number_, &position))
     return;
-  this->value_ = new_value;
-  this->publish_state(new_value);
+  const int32_t value = std::clamp(position, this->min_value_, this->max_value_);
+  // The device keeps counting past a limit; moving it back avoids a dead zone when turning back
+  if (value != position)
+    this->parent_->set_encoder_position(this->number_, value);
+  if (value == this->value_)
+    return;
+  this->value_ = value;
+  this->publish_state(value);
+}
+
+void SeesawEncoder::dump_config() {
+  LOG_SENSOR("", "Seesaw Encoder", this);
+  ESP_LOGCONFIG(TAG, "  Number: %u", this->number_);
 }
 
 }  // namespace esphome::seesaw

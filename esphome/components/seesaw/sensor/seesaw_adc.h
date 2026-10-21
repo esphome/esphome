@@ -10,8 +10,8 @@ class SeesawADC : public sensor::Sensor, public PollingComponent, public Parente
  public:
   explicit SeesawADC(uint8_t pin) : pin_(pin) {}
 
-  void setup() override;
   void update() override;
+  void dump_config() override;
 
  protected:
   const uint8_t pin_;

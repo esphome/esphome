@@ -8,6 +8,8 @@ sensor:
     type: encoder
     name: "Seesaw encoder"
     number: 1
+    min_value: -10
+    max_value: 10
   - platform: seesaw
     id: seesaw_temp
     type: temperature
@@ -19,7 +21,7 @@ sensor:
     seesaw_id: ss_id
     id: seesaw_slider
     type: adc
-    pin: 14
+    pin: 3
 
 binary_sensor:
   - platform: gpio

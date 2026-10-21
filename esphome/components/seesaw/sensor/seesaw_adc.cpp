@@ -5,7 +5,11 @@ namespace esphome::seesaw {
 
 ESPHOME_LOG_TAG(TAG, "seesaw.adc");
 
-void SeesawADC::setup() { ESP_LOGCONFIG(TAG, "Setting up Seesaw touch sensor..."); }
+void SeesawADC::dump_config() {
+  LOG_SENSOR("", "Seesaw ADC", this);
+  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
 
 void SeesawADC::update() {
   uint16_t value = this->parent_->analog_read(this->pin_);

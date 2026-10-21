@@ -8,10 +8,8 @@ namespace esphome::seesaw {
 
 class SeesawTemperature : public sensor::Sensor, public PollingComponent, public Parented<Seesaw> {
  public:
-  void setup() override;
   void update() override;
-
- protected:
+  void dump_config() override;
 };
 
 }  // namespace esphome::seesaw

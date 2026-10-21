@@ -5,7 +5,11 @@ namespace esphome::seesaw {
 
 ESPHOME_LOG_TAG(TAG, "seesaw.touch");
 
-void SeesawTouch::setup() { ESP_LOGCONFIG(TAG, "Setting up Seesaw touch sensor..."); }
+void SeesawTouch::dump_config() {
+  LOG_SENSOR("", "Seesaw Touch", this);
+  ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
+  LOG_UPDATE_INTERVAL(this);
+}
 
 void SeesawTouch::update() {
   int16_t value = this->parent_->get_touch_value(this->channel_);

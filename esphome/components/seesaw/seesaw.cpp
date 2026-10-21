@@ -91,6 +91,11 @@ bool Seesaw::get_encoder_position(uint8_t number, int32_t *position) {
   return true;
 }
 
+void Seesaw::set_encoder_position(uint8_t number, int32_t position) {
+  // Stored negated, as get_encoder_position() reads it
+  this->write32_(SEESAW_ENCODER, SEESAW_ENCODER_POSITION + number, static_cast<uint32_t>(-position));
+}
+
 int16_t Seesaw::get_touch_value(uint8_t channel) {
   uint8_t buf[2];
   if (this->readbuf_(SEESAW_TOUCH, SEESAW_TOUCH_CHANNEL_OFFSET + channel, buf, 2, 3000) != i2c::ERROR_OK)
@@ -110,9 +115,9 @@ float Seesaw::get_temperature() {
   return float(value) / 0x10000;
 }
 
-void Seesaw::set_pinmode(uint8_t pin, uint8_t mode) {
+void Seesaw::set_pinmode(uint8_t pin, gpio::Flags mode) {
   uint32_t pins = 1 << pin;
-  if (mode == gpio::FLAG_OUTPUT) {
+  if (mode & gpio::FLAG_OUTPUT) {
     this->write32_(SEESAW_GPIO, SEESAW_GPIO_DIRSET_BULK, pins);
   } else if (mode & gpio::FLAG_INPUT) {
     this->write32_(SEESAW_GPIO, SEESAW_GPIO_DIRCLR_BULK, pins);
@@ -128,15 +133,6 @@ void Seesaw::set_pinmode(uint8_t pin, uint8_t mode) {
   }
 }
 
-void Seesaw::set_gpio_interrupt(uint32_t pin, bool enabled) {
-  uint32_t pins = 1 << pin;
-  if (enabled) {
-    this->write32_(SEESAW_GPIO, SEESAW_GPIO_INTENSET, pins);
-  } else {
-    this->write32_(SEESAW_GPIO, SEESAW_GPIO_INTENCLR, pins);
-  }
-}
-
 uint16_t Seesaw::analog_read(uint8_t pin) {
   uint8_t buf[2];
   i2c::ErrorCode err = this->readbuf_(SEESAW_ADC, SEESAW_ADC_CHANNEL_OFFSET + pin, buf, 2, 1000);
@@ -148,12 +144,10 @@ uint16_t Seesaw::analog_read(uint8_t pin) {
 bool Seesaw::digital_read(uint8_t pin) {
   uint32_t pins = 1 << pin;
   uint8_t buf[4];
-  i2c::ErrorCode err = this->readbuf_(SEESAW_GPIO, SEESAW_GPIO_BULK, buf, 4);
-  if (err == i2c::ERROR_OK) {
-    uint32_t ret = (buf[0] << 24) + (buf[1] << 16) + (buf[2] << 8) + buf[3];
-    return ret & pins;
-  }
-  return false;
+  // A failed read keeps the last levels, so an inverted input does not read as active on a bus error
+  if (this->status_comm_result(this->readbuf_(SEESAW_GPIO, SEESAW_GPIO_BULK, buf, 4) == i2c::ERROR_OK))
+    this->gpio_levels_ = encode_uint32(buf[0], buf[1], buf[2], buf[3]);
+  return this->gpio_levels_ & pins;
 }
 
 void Seesaw::digital_write(uint8_t pin, bool state) {
