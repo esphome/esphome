@@ -10,7 +10,7 @@ from esphome.const import CONF_MODEL
 
 
 @pytest.mark.parametrize("model", sorted(PARTIAL_UPDATE_MODELS))
-def test_partial_updates_accepts_supported_models(model):
+def test_partial_updates_accepts_supported_models(model: str) -> None:
     config = {
         CONF_MODEL: model,
         CONF_PARTIAL_UPDATES: True,
@@ -27,7 +27,7 @@ def test_partial_updates_accepts_supported_models(model):
         "SSD1305_128X64",
     ],
 )
-def test_partial_updates_rejects_unsupported_models(model):
+def test_partial_updates_rejects_unsupported_models(model: str) -> None:
     config = {
         CONF_MODEL: model,
         CONF_PARTIAL_UPDATES: True,
@@ -40,7 +40,7 @@ def test_partial_updates_rejects_unsupported_models(model):
         _validate_partial_updates(config)
 
 
-def test_partial_updates_disabled_allows_unsupported_model():
+def test_partial_updates_disabled_allows_unsupported_model() -> None:
     config = {
         CONF_MODEL: "SH1106_128X64",
         CONF_PARTIAL_UPDATES: False,

@@ -50,6 +50,9 @@ void I2CSSD1306::setup() {
 #ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
   if (this->partial_update_state_ != nullptr) {
     this->partial_update_state_->initializing_controller = false;
+    if (this->partial_update_state_->transport_failed) {
+      return;  // Keep loop() available even when no polling or manual update() is configured.
+    }
   }
   this->disable_loop();
 #endif
@@ -82,7 +85,10 @@ void I2CSSD1306::command(uint8_t value) {
 #ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
   if (this->partial_updates_enabled_ && this->partial_update_state_ != nullptr) {
     auto &state = *this->partial_update_state_;
-    if (state.reset_phase != ResetPhase::RESET_PHASE_IDLE || (state.initializing_controller && state.command_failed)) {
+    // Public setters retain the requested settings for reinitialization. Do not send partial
+    // command sequences during reset or retry waits; only the recovery initializer may send them.
+    if (state.reset_phase != ResetPhase::RESET_PHASE_IDLE ||
+        (state.initializing_controller ? state.command_failed : state.transport_failed)) {
       return;
     }
     if (!this->write_byte(0x00, value)) {
@@ -102,10 +108,10 @@ void HOT I2CSSD1306::write_display_data() {
 #ifdef USE_SSD1306_I2C_PARTIAL_UPDATES
   if (this->partial_updates_enabled_ && this->partial_update_state_ != nullptr) {
     auto &state = *this->partial_update_state_;
-    if (state.reset_phase != ResetPhase::RESET_PHASE_IDLE || (state.initializing_controller && state.command_failed)) {
+    if (state.reset_phase != ResetPhase::RESET_PHASE_IDLE || state.transport_failed) {
       return;
     }
-    // Direct display() calls bypass update(), but must not bypass initialization or recovery.
+    // Direct display() calls keep the shadow coherent, but initialization must finish first.
     if (this->write_checked_full_frame_() && !state.initializing_controller && !state.transport_failed) {
       this->commit_shadow_buffer_();
     }
@@ -159,6 +165,7 @@ void I2CSSD1306::mark_partial_transport_failure_(bool reinitialize) {
   state.have_previous_buffer = false;
   state.transport_failed = true;
   state.controller_reinit_required |= reinitialize;
+  this->enable_loop();
 }
 
 void I2CSSD1306::commit_shadow_buffer_() {
@@ -222,21 +229,24 @@ bool I2CSSD1306::write_checked_full_frame_() {
   return this->write_checked_region_(full);
 }
 
-bool I2CSSD1306::finish_recovery_(bool reinitialize) {
+void I2CSSD1306::finish_recovery_(bool reinitialize) {
   auto &state = *this->partial_update_state_;
   // Even a data NACK may have accompanied power loss between address probes.
   const bool restore_settings = reinitialize || state.transport_failed;
   if (restore_settings && !this->reinitialize_controller_(reinitialize)) {
-    return false;
+    ESP_LOGD(TAG, "Recovery initialization failed; retry pending");
+    return;
   }
   if (!this->write_checked_full_frame_()) {
     state.controller_reinit_required = true;
-    return false;
+    ESP_LOGD(TAG, "Recovery framebuffer write failed; retry pending");
+    return;
   }
   // Restore the requested power state before trusting the shadow or clearing the warning.
   if (restore_settings && !this->write_byte(0x00, this->is_on_ ? 0xAF : 0xAE)) {
     this->mark_partial_transport_failure_(true);
-    return false;
+    ESP_LOGD(TAG, "Recovery power-state write failed; retry pending");
+    return;
   }
   state.controller_reinit_required = false;
   state.command_failed = false;
@@ -244,10 +254,10 @@ bool I2CSSD1306::finish_recovery_(bool reinitialize) {
   state.retry_wait = false;
   this->commit_shadow_buffer_();
   this->status_clear_warning();
+  this->disable_loop();
   if (reinitialize) {
     ESP_LOGI(TAG, "SSD1306 controller reinitialized and framebuffer resynchronized");
   }
-  return true;
 }
 
 void I2CSSD1306::recover_() {
@@ -264,6 +274,7 @@ void I2CSSD1306::recover_() {
   // Probe before resetting: a disconnected panel should only cost one probe per retry interval.
   if (this->write(nullptr, 0) != i2c::ERROR_OK) {
     this->mark_partial_transport_failure_(true);
+    ESP_LOGD(TAG, "Recovery probe failed; retry pending");
     return;
   }
   if (state.controller_reinit_required && this->reset_pin_ != nullptr) {
@@ -278,7 +289,10 @@ void I2CSSD1306::recover_() {
 }
 
 void I2CSSD1306::loop() {
-  if (this->is_failed() || !this->partial_updates_enabled_ || this->partial_update_state_ == nullptr) {
+  if (this->is_failed()) {
+    return;
+  }
+  if (!this->partial_updates_enabled_ || this->partial_update_state_ == nullptr) {
     this->disable_loop();
     return;
   }
@@ -298,11 +312,14 @@ void I2CSSD1306::loop() {
     }
     this->reset_pin_->digital_write(true);
     state.reset_phase = ResetPhase::RESET_PHASE_IDLE;
-    this->disable_loop();
     this->finish_recovery_(true);
     return;
   }
-  this->disable_loop();
+  if (state.transport_failed) {
+    this->recover_();
+  } else {
+    this->disable_loop();
+  }
 }
 
 void I2CSSD1306::update() {
@@ -321,8 +338,9 @@ void I2CSSD1306::update() {
   }
   if (!state.planner.build(this->buffer_, state.previous_buffer.get(), this->get_width_internal(),
                            this->get_height_internal() / 8)) {
-    // Configuration validation bounds the dimensions, but keep invalid plans away from the transport.
-    this->mark_partial_transport_failure_(true);
+    ESP_LOGE(TAG, "Invalid partial-update planner input: width=%d, height=%d", this->get_width_internal(),
+             this->get_height_internal());
+    this->mark_failed(LOG_STR("Invalid partial-update planner input"));
     return;
   }
   if (state.planner.get_region_count() == 0) {

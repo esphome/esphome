@@ -1,9 +1,0 @@
-#pragma once
-#include "hal.h"
-namespace esphome {
-class Application {
- public:
-  uint32_t get_loop_component_start_time() const { return test::now; }
-};
-inline Application App;
-}  // namespace esphome

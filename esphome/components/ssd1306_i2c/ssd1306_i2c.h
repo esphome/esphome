@@ -47,7 +47,8 @@ class I2CSSD1306 final : public ssd1306_base::SSD1306, public i2c::I2CDevice {
   bool reinitialize_controller_(bool display_off);
   bool write_checked_region_(const Region &region);
   bool write_checked_full_frame_();
-  bool finish_recovery_(bool reinitialize);
+  // Retains the warning and active retry loop on failure; disables the loop only after a complete resync.
+  void finish_recovery_(bool reinitialize);
   void recover_();
 
   bool partial_updates_enabled_{false};

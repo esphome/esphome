@@ -365,6 +365,7 @@ size_t SSD1306::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
 void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
+  // mark_failed() stops scheduling, not direct drawing calls from other components.
   if (this->buffer_ == nullptr) {
     return;
   }
@@ -380,6 +381,7 @@ void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 void SSD1306::fill(Color color) {
+  // Public drawing calls must also be safe before setup or after framebuffer allocation failure.
   if (this->buffer_ == nullptr) {
     return;
   }
