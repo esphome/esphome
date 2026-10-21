@@ -342,8 +342,9 @@ class ApplyField:
     Double a literal brace in a template. ``conf_key`` may be a path into nested sections.
     ``type_`` may be a C++ type string using ``{parent}`` when the type is only known per
     instance. ``const_fn(config, value)`` renders a constant's argument text when ``cg.safe_exp``
-    is not the right spelling (unit conversion belongs in the validator); a lambda or an id
-    bypasses it, so the target must also take a plain ``type_``. An absent key emits nothing.
+    is not the right spelling, or the value depends on another entity's config, such as the unit
+    a climate reports in; a lambda or an id bypasses it, so the target must also take a plain
+    ``type_``. An absent key emits nothing.
     """
 
     conf_key: str | tuple[str, ...]

@@ -9,6 +9,7 @@ import pytest
 
 import esphome.codegen as cg
 from esphome.components import button, number, select, switch
+import esphome.config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -25,6 +26,7 @@ from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
     _register_string,
     _setup_entity_impl,
+    convert_visual_temperatures,
     entity_duplicate_validator,
     finalize_entity_strings,
     get_base_entity_object_id,
@@ -1297,6 +1299,45 @@ async def test_sub_entities_without_parent(
 
     assert await sub("child", hub.set_child) is not None
     assert setup_test_environment == ["hub->set_child(child)"]
+
+
+@pytest.mark.parametrize(
+    ("delta_keys", "delta_section"),
+    [(("step",), None), (("target", "current"), "steps")],
+    ids=["flat step", "nested steps"],
+)
+@pytest.mark.parametrize(
+    ("unit", "expected_min", "expected_step"),
+    [(None, 10.0, 1.0), ("°F", 50.0, 1.8)],
+    ids=["celsius entity", "fahrenheit entity"],
+)
+def test_convert_visual_temperatures(
+    delta_keys: tuple[str, ...],
+    delta_section: str | None,
+    unit: str | None,
+    expected_min: float,
+    expected_step: float,
+) -> None:
+    """Absolute values and the step differences land in the entity's unit, whatever the key shape."""
+    steps = dict.fromkeys(delta_keys, (1.0, "°C"))
+    visual = {"min_temperature": (50.0, "°F"), "max_temperature": (30.0, None)}
+    if delta_section is None:
+        visual.update(steps)
+    else:
+        visual[delta_section] = steps
+    config = {"visual": visual}
+    if unit is not None:
+        config["unit_of_measurement"] = cv.temperature_unit(unit)
+
+    convert_visual_temperatures(config, delta_keys, delta_section)
+
+    assert visual["min_temperature"] == pytest.approx(expected_min)
+    assert visual["max_temperature"] == 30.0
+    section = visual if delta_section is None else visual[delta_section]
+    assert all(section[key] == pytest.approx(expected_step) for key in delta_keys)
+
+    # A domain whose steps are nested may leave them out
+    convert_visual_temperatures({"visual": {}}, delta_keys, delta_section)
 
 
 @pytest.fixture

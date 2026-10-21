@@ -16,8 +16,12 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_VISUAL,
+    UNIT_CELSIUS,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import (
@@ -26,7 +30,7 @@ from esphome.core.config import (
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
 from esphome.cpp_generator import MockObj, MockObjClass, RawStatement, add, get_variable
-from esphome.cpp_types import App
+from esphome.cpp_types import TEMPERATURE_UNITS, App
 import esphome.final_validate as fv
 from esphome.helpers import (
     cpp_string_escape,
@@ -633,6 +637,74 @@ def inherit_property_from(property_to_inherit, parent_id_property, transform=Non
         return config
 
     return inherit_property
+
+
+# Platforms whose entities report in one unit only, set by their traits, keyed by the C++ class name
+_FIXED_TEMPERATURE_UNITS: dict[str, str] = {}
+
+
+def declare_fixed_temperature_unit(class_: MockObjClass, unit: str) -> None:
+    """Record that every entity of ``class_`` reports in ``unit``; nothing is stored in the config, so
+    the unit never appears in a config dump."""
+    _FIXED_TEMPERATURE_UNITS[str(class_)] = unit
+
+
+def entity_temperature_unit(config: ConfigType) -> str:
+    """The unit a climate or water heater reports in: ``unit_of_measurement`` when the platform took
+    the option through its schema factory, the platform's fixed unit when it declared one, else
+    Celsius (anova's option of that name is unrelated)."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        return unit
+    entity_id = config.get(CONF_ID)
+    return _FIXED_TEMPERATURE_UNITS.get(
+        str(entity_id.type) if entity_id is not None else "", UNIT_CELSIUS
+    )
+
+
+def entity_temperature_unit_of_id(entity_id: ID) -> str:
+    """The unit of the entity with this id, for actions that take static temperatures."""
+    return entity_temperature_unit(fv.get_declaring_config(entity_id, CORE.config))
+
+
+def convert_temperature_keys(
+    section: ConfigType, keys: tuple[str, ...], unit: str, *, delta: bool = False
+) -> None:
+    """Convert the ``(value, unit)`` temperatures under ``keys`` into ``unit``; absent or already
+    converted values are left alone."""
+    for key in keys:
+        if isinstance(value := section.get(key), tuple):
+            section[key] = cv.convert_temperature(*value, unit, delta=delta)
+
+
+def convert_visual_temperatures(
+    config: ConfigType, delta_keys: tuple[str, ...], delta_section: str | None = None
+) -> ConfigType:
+    """Convert a climate's or water heater's ``visual`` temperatures into the entity's unit. The
+    step keys are differences, found under ``delta_section`` when the domain nests them."""
+    unit = entity_temperature_unit(config)
+    visual = config[CONF_VISUAL]
+    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
+    section = visual if delta_section is None else visual.get(delta_section)
+    if section is not None:
+        convert_temperature_keys(section, delta_keys, unit, delta=True)
+    return config
+
+
+def temperature_in_entity_unit(
+    config: ConfigType, value: tuple[float, str | None]
+) -> str:
+    """Render a static action temperature in the unit of the entity the action targets."""
+    unit = entity_temperature_unit_of_id(config[CONF_ID])
+    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
+
+
+def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
+    """Pass the unit an entity reports in to its platform, which took the option; a platform with a
+    fixed unit sets it in its own traits."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
 
 
 def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigType]:
