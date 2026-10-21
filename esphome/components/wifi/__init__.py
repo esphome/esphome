@@ -1021,6 +1021,13 @@ async def to_code(config):
         if CONF_AP in config:
             # AP-mode code (wifi_component_zephyr.cpp) needs this for DHCP to work.
             zephyr_add_prj_conf("NET_DHCPV4_SERVER", True)
+            if kconfig == "WIFI_NRF70":
+                # The nRF70 driver's SoftAP support is a separate opt-in choice
+                # (Kconfig.nrfwifi's WIFI_USAGE_MODE only defaults it on for
+                # WIFI_USAGE_MODE_AP/STA_AP, neither of which ESPHome ever selects);
+                # without it NET_REQUEST_WIFI_AP_ENABLE fails at runtime with -ENOTSUP.
+                zephyr_add_prj_conf("WIFI_NM_WPA_SUPPLICANT_AP", True)
+                zephyr_add_prj_conf("NRF70_AP_MODE", True)
         if (min_rssi := config.get(CONF_MIN_RSSI)) is not None:
             cg.add(var.set_min_scan_rssi(min_rssi))
 

@@ -135,6 +135,13 @@ def config_schema(config: ConfigType) -> ConfigType:
         "supported yet. Only Wi-Fi (via the onboard nRF7002) and the application "
         "core's own peripherals (GPIO, UART, I2C, SPI, PWM, ADC) are available."
     )
+    _LOGGER.warning(
+        "nRF5340's hardware RNG lives in the network core, which isn't built here -- "
+        "no entropy source is reachable from the application core, so this variant "
+        "falls back to an insecure software PRNG (CONFIG_TEST_RANDOM_GENERATOR). "
+        "WPA2 key derivation and any TLS use on this board are not cryptographically "
+        "secure until a network-core entropy image is wired up."
+    )
     config = dict(config)
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
