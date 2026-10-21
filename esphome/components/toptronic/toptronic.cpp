@@ -170,7 +170,8 @@ void TopTronicNumber::control(float value) {
   std::vector<uint8_t> data = build_set_request(this->function_group_, this->function_number_, this->datapoint_, bytes);
   this->set_callback_.call(data);
 
-  ESP_LOGD(TAG, "[SET] %s: %f, Data: 0x%s", this->get_name().c_str(), v, hex_str(data.data(), data.size()).c_str());
+  ESP_LOGD(TAG, "[SET] %s: %f, Data: 0x%s", LOG_STR_ARG(this->get_log_name()), v,
+           hex_str(data.data(), data.size()).c_str());
 }
 #endif
 #ifdef USE_TEXT_SENSOR
