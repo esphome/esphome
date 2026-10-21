@@ -185,8 +185,7 @@ async def to_code(config):
     cg.add(var.set_volume_initial(config[CONF_VOLUME_INITIAL]))
     cg.add(var.set_volume_max(config[CONF_VOLUME_MAX]))
     cg.add(var.set_volume_min(config[CONF_VOLUME_MIN]))
-    if (announcement_volume := config.get(CONF_ANNOUNCEMENT_VOLUME)) is not None:
-        cg.add(var.set_announcement_volume(announcement_volume))
+    cg.add_optional(var.set_announcement_volume, config.get(CONF_ANNOUNCEMENT_VOLUME))
 
     announcement_pipeline_config = config[CONF_ANNOUNCEMENT_PIPELINE]
     await cg.add_variable(

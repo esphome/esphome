@@ -189,8 +189,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_volume_initial(config[CONF_VOLUME_INITIAL]))
     cg.add(var.set_volume_max(config[CONF_VOLUME_MAX]))
     cg.add(var.set_volume_min(config[CONF_VOLUME_MIN]))
-    if (announcement_volume := config.get(CONF_ANNOUNCEMENT_VOLUME)) is not None:
-        cg.add(var.set_announcement_volume(announcement_volume))
+    cg.add_optional(var.set_announcement_volume, config.get(CONF_ANNOUNCEMENT_VOLUME))
 
     for pipeline_key, (pipeline_enum, purpose) in _PIPELINE_INFO.items():
         if pipeline_config := config.get(pipeline_key):
