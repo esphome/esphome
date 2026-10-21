@@ -28,10 +28,12 @@ class ChipLogDelegate : public spi::SPIDelegate {
   struct Write {
     bool primary;
     bool secondary;
+    bool dc;
     std::vector<uint8_t> bytes;
   };
 
-  ChipLogDelegate(const RecordingPin *cs, const RecordingPin *cs1) : cs_(cs), cs1_(cs1) {}
+  ChipLogDelegate(const RecordingPin *cs, const RecordingPin *cs1, const RecordingPin *dc)
+      : cs_(cs), cs1_(cs1), dc_(dc) {}
 
   uint8_t transfer(uint8_t data) override {
     this->record_(&data, 1);
@@ -65,23 +67,39 @@ class ChipLogDelegate : public spi::SPIDelegate {
     return false;
   }
 
+  /// How many times the command went to the given chip alone, and how many of those had D/C low
+  std::pair<int, int> command_count(uint8_t command, bool primary) const {
+    int sent = 0;
+    int with_dc_low = 0;
+    for (const auto &w : this->writes) {
+      if (w.primary != primary || w.secondary == primary || w.bytes.size() != 1 || w.bytes[0] != command)
+        continue;
+      sent++;
+      if (!w.dc)
+        with_dc_low++;
+    }
+    return {sent, with_dc_low};
+  }
+
   std::vector<Write> writes;
   int begin_count{0};
   int end_count{0};
 
  protected:
   void record_(const uint8_t *ptr, size_t length) {
-    this->writes.push_back({!this->cs_->level, !this->cs1_->level, std::vector<uint8_t>(ptr, ptr + length)});
+    this->writes.push_back(
+        {!this->cs_->level, !this->cs1_->level, this->dc_->level, std::vector<uint8_t>(ptr, ptr + length)});
   }
 
   const RecordingPin *cs_;
   const RecordingPin *cs1_;
+  const RecordingPin *dc_;
 };
 
-/// Same wiring as the Inkplate 13 Spectra: 3-wire SPI, so no D/C toggling.
+/// A dual chip select panel small enough to check every byte that reaches each chip.
 class TestableDualCS : public EPaperT133A01 {
  public:
-  TestableDualCS() : EPaperT133A01("test", PANEL_W, PANEL_H, nullptr, 0, false), bus(&this->cs, &this->cs1) {
+  TestableDualCS() : EPaperT133A01("test", PANEL_W, PANEL_H, nullptr, 0), bus(&this->cs, &this->cs1, &this->dc) {
     this->delegate_ = &this->bus;
     this->set_dc_pin(&this->dc);
     this->set_primary_cs_pin(&this->cs);
@@ -117,10 +135,10 @@ class TestableDualCS : public EPaperT133A01 {
       ASSERT_LT(++calls, 50) << "transfer never completed";
   }
 
-  /// Calls transfer_data() until it reaches the given step
-  void run_until(TransferSub step) {
+  /// Calls transfer_data() until it reaches the given step for the given chip (0 primary, 1 secondary)
+  void run_until(TransferSub step, uint8_t chip) {
     int calls = 0;
-    while (this->transfer_sub_ != step) {
+    while (this->transfer_sub_ != step || this->transfer_chip_ != chip) {
       ASSERT_FALSE(this->transfer_data());
       ASSERT_LT(++calls, 50) << "never reached the step";
     }
@@ -139,12 +157,12 @@ class TestableDualCS : public EPaperT133A01 {
   using EPaperT133A01::abort_transfer;
   using EPaperT133A01::draw_pixel_at;
   using EPaperT133A01::partial_;
+  using EPaperT133A01::transfer_chip_;
   using EPaperT133A01::transfer_data;
   using EPaperT133A01::transfer_sub_;
   using EPaperT133A01::TransferSub;
-  using EPaperT133A01::TRF_PARTIAL_DATA_M;
-  using EPaperT133A01::TRF_PARTIAL_WAIT_M;
-  using EPaperT133A01::TRF_PARTIAL_WAIT_S;
+  using EPaperT133A01::TRF_PARTIAL_DATA;
+  using EPaperT133A01::TRF_PARTIAL_WAIT;
   using EPaperT133A01::TRF_START;
   using EPaperT133A01::waiting_for_idle_;
 
@@ -252,6 +270,24 @@ TEST(EPaperDualCSPartial, TallRegionIsSentInChunks) {
   expect_chip(d, true, {0x00, 0x08, 0x00, 0x0F, 0x00, 0x00, 0x00, 0x07, 0x01}, d.rows(0, 15, 2, 2));
 }
 
+/// Every data stream starts with DTM sent as a command (D/C low), on both paths and for both chips. The partial
+/// path used to leave D/C high from the PTLW payload, so a panel that reads D/C took DTM for data.
+TEST(EPaperDualCSPartial, DataStreamCommandIsSentWithDcLow) {
+  for (bool partial : {true, false}) {
+    TestableDualCS d;
+    d.draw({{5, 3}});  // primary only, so the secondary gets the null window
+    d.partial_ = partial;
+    d.run_to_completion();
+
+    for (bool primary : {true, false}) {
+      auto [sent, with_dc_low] = d.bus.command_count(REG_DTM, primary);
+      EXPECT_EQ(sent, 1) << (partial ? "partial" : "full") << (primary ? " primary" : " secondary");
+      EXPECT_EQ(with_dc_low, sent) << (partial ? "partial" : "full") << (primary ? " primary" : " secondary")
+                                   << ": DTM went out with D/C high";
+    }
+  }
+}
+
 /// A full update (partial_ is false) takes the full path even when something was drawn.
 TEST(EPaperDualCSPartial, FullUpdateUsesTheFullPath) {
   TestableDualCS d;
@@ -295,7 +331,8 @@ TEST(EPaperDualCSPartial, AbortMidPartialResetsThePath) {
   d.partial_ = true;
 
   ASSERT_FALSE(d.transfer_data());  // PTLW sent, data stream open
-  ASSERT_EQ(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_DATA_M);
+  ASSERT_EQ(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_DATA);
+  ASSERT_EQ(d.transfer_chip_, 0);
   ASSERT_FALSE(d.cs.level);
 
   d.abort_transfer();
@@ -314,7 +351,7 @@ TEST(EPaperDualCSPartial, AbortMidPartialResetsThePath) {
 /// Abandoning an update that has no stream open leaves the chip selects alone but still resets the path.
 TEST(EPaperDualCSPartial, AbortWithNoStreamOpenResetsThePath) {
   TestableDualCS d;
-  d.transfer_sub_ = TestableDualCS::TRF_PARTIAL_WAIT_M;
+  d.transfer_sub_ = TestableDualCS::TRF_PARTIAL_WAIT;
 
   d.abort_transfer();
 
@@ -328,19 +365,20 @@ TEST(EPaperDualCSPartial, WaitsForTheBusyPinBetweenHalves) {
   d.draw({{5, 3}});
   d.partial_ = true;
 
-  d.run_until(TestableDualCS::TRF_PARTIAL_WAIT_M);
+  d.run_until(TestableDualCS::TRF_PARTIAL_WAIT, 0);
   d.busy.busy = true;
   EXPECT_FALSE(d.transfer_data());
-  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_WAIT_M) << "moved on while the panel was busy";
+  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_WAIT) << "moved on while the panel was busy";
+  EXPECT_EQ(d.transfer_chip_, 0) << "moved on while the panel was busy";
   EXPECT_TRUE(d.waiting_for_idle_);
   d.busy.busy = false;
   EXPECT_FALSE(d.transfer_data());
-  EXPECT_NE(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_WAIT_M);
+  EXPECT_EQ(d.transfer_chip_, 1);
 
-  d.run_until(TestableDualCS::TRF_PARTIAL_WAIT_S);
+  d.run_until(TestableDualCS::TRF_PARTIAL_WAIT, 1);
   d.busy.busy = true;
   EXPECT_FALSE(d.transfer_data());
-  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_WAIT_S) << "finished while the panel was busy";
+  EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_PARTIAL_WAIT) << "finished while the panel was busy";
   d.busy.busy = false;
   EXPECT_TRUE(d.transfer_data());
   EXPECT_EQ(d.transfer_sub_, TestableDualCS::TRF_START);

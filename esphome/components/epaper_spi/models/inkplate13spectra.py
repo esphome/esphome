@@ -57,12 +57,6 @@ class Inkplate13SpectraModel(EpaperModel):
     ) -> None:
         super().__init__(name, class_name, **defaults)
 
-    def get_constructor_args(self, config: ConfigType) -> tuple[bool]:
-        # toggle_dc: this panel uses 3-wire SPI (BS0/BS1 select the mode), so
-        # write_command_to_chip_() must not toggle the DC pin -- cmd/data is inferred by
-        # byte position instead.
-        return (False,)
-
     def validate_config(self, config: ConfigType) -> ConfigType:
         # The panel is fixed on the board and the init sequence sets its resolution, so other
         # dimensions would only mismatch the frame buffer and the panel.

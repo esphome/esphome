@@ -82,8 +82,8 @@ void EPaperInkplate13Spectra::set_all_pins_low_() const {
   };
   for (auto *pin : this->enable_pins_)
     drive_low(pin);
-  for (auto *pin : {this->reset_pin_, this->dc_pin_, this->cs_pin_, this->cs1_pin_, this->busy_pin_, this->bs0_pin_,
-                    this->bs1_pin_})
+  for (auto *pin : {this->reset_pin_, this->dc_pin_, this->cs_pins_[0], this->cs_pins_[1], this->busy_pin_,
+                    this->bs0_pin_, this->bs1_pin_})
     drive_low(pin);
 }
 
@@ -91,8 +91,8 @@ void EPaperInkplate13Spectra::set_io_pins_() {
   ESP_LOGV(TAG, "set_io_pins_()");
   this->reset_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->dc_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  this->cs_pin_->pin_mode(gpio::FLAG_OUTPUT);
-  this->cs1_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  for (auto *cs : this->cs_pins_)
+    cs->pin_mode(gpio::FLAG_OUTPUT);
   this->busy_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   for (auto *pin : this->enable_pins_)
     pin->pin_mode(gpio::FLAG_OUTPUT);
@@ -100,8 +100,8 @@ void EPaperInkplate13Spectra::set_io_pins_() {
   this->bs1_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
   this->dc_pin_->digital_write(true);
-  this->cs_pin_->digital_write(true);
-  this->cs1_pin_->digital_write(true);
+  for (auto *cs : this->cs_pins_)
+    cs->digital_write(true);
   this->reset_pin_->digital_write(false);
   for (auto *pin : this->enable_pins_)
     pin->digital_write(false);
@@ -217,8 +217,8 @@ void EPaperInkplate13Spectra::power_off() {
 
 void EPaperInkplate13Spectra::deep_sleep() {
   this->dc_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->cs_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->cs1_pin_->pin_mode(gpio::FLAG_INPUT);
+  for (auto *cs : this->cs_pins_)
+    cs->pin_mode(gpio::FLAG_INPUT);
   // Keep the pullup so this pin reads a defined "idle" level at rest, since reset()
   // relies on that before it powers the panel back on next cycle.
   this->busy_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);

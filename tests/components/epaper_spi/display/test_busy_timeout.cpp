@@ -79,7 +79,7 @@ TEST(EPaperBusyTimeout, StuckBusyPinAbandonsTheUpdateAndRecovers) {
 
 class TestableT133A01 : public EPaperT133A01 {
  public:
-  TestableT133A01() : EPaperT133A01("test", 8, 2, nullptr, 0, true) {}
+  TestableT133A01() : EPaperT133A01("test", 8, 2, nullptr, 0) {}
 
   void install(spi::SPIDelegate *delegate) {
     this->delegate_ = delegate;
@@ -96,8 +96,9 @@ class TestableT133A01 : public EPaperT133A01 {
 
   using EPaperT133A01::draw_pixel_at;
   using EPaperT133A01::partial_;
+  using EPaperT133A01::transfer_chip_;
   using EPaperT133A01::transfer_sub_;
-  using EPaperT133A01::TRF_PARTIAL_WAIT_M;
+  using EPaperT133A01::TRF_PARTIAL_WAIT;
   using EPaperT133A01::waiting_for_idle_;
 
   RecordingPin dc, cs, cs1;
@@ -140,9 +141,10 @@ TEST(EPaperBusyTimeout, StuckBusyPinDuringPartialUpdateAbandonsIt) {
   display.start_transfer();
   display.waiting_for_idle_ = false;
   const uint32_t deadline = millis() + 1000;
-  while (display.transfer_sub_ != TestableT133A01::TRF_PARTIAL_WAIT_M && millis() < deadline)
+  while (display.transfer_sub_ != TestableT133A01::TRF_PARTIAL_WAIT && millis() < deadline)
     display.loop();
-  ASSERT_EQ(display.transfer_sub_, TestableT133A01::TRF_PARTIAL_WAIT_M);
+  ASSERT_EQ(display.transfer_sub_, TestableT133A01::TRF_PARTIAL_WAIT);
+  ASSERT_EQ(display.transfer_chip_, 0);
   display.busy.busy = true;
 
   loop_until_idle(display);

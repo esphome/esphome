@@ -30,24 +30,26 @@ namespace esphome::epaper_spi {
  *     panel_w/2)
  *   - this family's fixed register addresses (REG_DTM/DRF/PON/POF/PTLW/CMD66/CCSET) and
  *     PTLW's column/row alignment rules
- *   - one toggle_dc_ flag per board (always-on or always-off, not variable per command)
  * A dual-CS panel that breaks any of these needs real changes here, not just a new
  * subclass.
+ *
+ * DC is driven low for every command byte and high for its data. The T133A01 needs that;
+ * the Inkplate 13 Spectra ignores DC and takes the first byte after CS as the command.
  */
 class EPaperDualCS : public EPaper4bpp {
  public:
-  EPaperDualCS(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-               size_t init_sequence_length, bool toggle_dc)
-      : EPaper4bpp(name, width, height, init_sequence, init_sequence_length), toggle_dc_(toggle_dc) {}
+  using EPaper4bpp::EPaper4bpp;
 
   // Not named set_cs_pin: that would hide SPIDevice::set_cs_pin(), which this class does not use.
-  void set_primary_cs_pin(GPIOPin *cs) { this->cs_pin_ = cs; }
-  void set_secondary_cs_pin(GPIOPin *cs1) { this->cs1_pin_ = cs1; }
+  void set_primary_cs_pin(GPIOPin *cs) { this->cs_pins_[0] = cs; }
+  void set_secondary_cs_pin(GPIOPin *cs1) { this->cs_pins_[1] = cs1; }
 
   void setup() override;
   void dump_config() override;
 
  protected:
+  static constexpr uint8_t CHIP_COUNT = 2;
+
   // Rows sent per transfer_data() tick -- keeps each SPI burst short enough that the main
   // loop stays responsive during a multi-second refresh.
   static constexpr size_t ROWS_PER_CHUNK = 16;
@@ -64,6 +66,7 @@ class EPaperDualCS : public EPaper4bpp {
   static constexpr uint8_t REG_CMD66 = 0xF0;  // waveform select, required again before PTLW
   static constexpr uint8_t REG_CCSET = 0xE0;  // color set select, resent before every full transfer
 
+  // Chip masks for write_command_to_chip_(); the mask of chip index i is 1 << i.
   static constexpr uint8_t CHIP_PRIMARY = 1;
   static constexpr uint8_t CHIP_SECONDARY = 2;
   static constexpr uint8_t CHIP_BOTH = 3;
@@ -76,17 +79,14 @@ class EPaperDualCS : public EPaper4bpp {
   // TRF_START: the path is not chosen yet; transfer_data() picks one, and returns here when done.
   // Full path: driven entirely by current_data_index_ inside transfer_full_(), no sub-states
   // needed.
-  // Partial path: TRF_PARTIAL_SETUP_M -> TRF_PARTIAL_DATA_M -> TRF_PARTIAL_WAIT_M
-  //               -> TRF_PARTIAL_SETUP_S -> TRF_PARTIAL_DATA_S -> TRF_PARTIAL_WAIT_S -> TRF_START
+  // Partial path: TRF_PARTIAL_SETUP -> TRF_PARTIAL_DATA -> TRF_PARTIAL_WAIT, once for each chip
+  // in turn (transfer_chip_), then back to TRF_START.
   enum TransferSub {
     TRF_START,
     TRF_FULL,
-    TRF_PARTIAL_SETUP_M,
-    TRF_PARTIAL_DATA_M,
-    TRF_PARTIAL_WAIT_M,
-    TRF_PARTIAL_SETUP_S,
-    TRF_PARTIAL_DATA_S,
-    TRF_PARTIAL_WAIT_S,
+    TRF_PARTIAL_SETUP,
+    TRF_PARTIAL_DATA,
+    TRF_PARTIAL_WAIT,
   };
 
   // Per-chip PTLW parameters, computed once per partial update in compute_ptlw_params_() so
@@ -103,8 +103,8 @@ class EPaperDualCS : public EPaper4bpp {
   bool transfer_data() override;
   void abort_transfer() override;
 
-  /// Full-refresh transfer: CS phase then CS1 phase, each streaming the whole half-buffer
-  /// with CS held low across yields. See class comment for provenance.
+  /// Full-refresh transfer: each chip in turn streams its half of every row, with its CS held
+  /// low across yields.
   bool transfer_full_();
 
   /// Send a command (and optional data) to one or both chips. chip: CHIP_PRIMARY/SECONDARY/BOTH.
@@ -114,21 +114,21 @@ class EPaperDualCS : public EPaper4bpp {
   }
   void write_command_to_chip_(uint8_t cmd, uint8_t chip) { this->write_command_to_chip_(cmd, nullptr, 0, chip); }
 
-  /// Fills ptlw_primary_/ptlw_secondary_ from the dirty box. Returns false if the box is empty.
+  /// Opens a DTM data stream to one chip (by index): selects it and sends the command. The
+  /// stream stays open, with the chip selected, until end_data_().
+  void start_data_(uint8_t chip);
+  void end_data_(uint8_t chip);
+
+  /// Fills ptlw_ from the dirty box. Returns false if the box is empty.
   bool compute_ptlw_params_();
 
-  GPIOPin *cs_pin_{nullptr};
-  GPIOPin *cs1_pin_{nullptr};
-
-  // Whether write_command_to_chip_() toggles dc_pin_ around the command byte (4-wire SPI
-  // semantics) or leaves it alone (3-wire SPI, where cmd/data is inferred by byte position).
-  bool toggle_dc_;
+  GPIOPin *cs_pins_[CHIP_COUNT]{};
 
   TransferSub transfer_sub_{TRF_START};
-  size_t transfer_row_{0};  // used only by the partial path -- the full path uses current_data_index_
+  uint8_t transfer_chip_{0};  // chip index the partial path is working on
+  size_t transfer_row_{0};    // used only by the partial path -- the full path uses current_data_index_
 
-  PartialChipParams ptlw_primary_;
-  PartialChipParams ptlw_secondary_;
+  PartialChipParams ptlw_[CHIP_COUNT];
 };
 
 }  // namespace esphome::epaper_spi

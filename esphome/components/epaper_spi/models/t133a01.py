@@ -43,11 +43,6 @@ class T133A01Model(EpaperModel):
     ) -> None:
         super().__init__(name, class_name, **defaults)
 
-    def get_constructor_args(self, config: ConfigType) -> tuple[bool]:
-        # toggle_dc: this panel uses 4-wire SPI, so write_command_to_chip_() must toggle the
-        # DC pin around the command byte.
-        return (True,)
-
     def validate_config(self, config: ConfigType) -> ConfigType:
         width, height = self.get_dimensions(config)
         if width > MAX_WIDTH:

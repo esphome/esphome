@@ -32,12 +32,12 @@ TEST(EPaperBufferLayout, SizesFollowBitsPerPixelAndPlanes) {
   EXPECT_EQ(gray.buffer_length(), 18u);
   EXPECT_FALSE(gray.is_mono());
 
-  Layout<EPaperT133A01> t133(20, 3, true);
+  Layout<EPaperT133A01> t133(20, 3);
   EXPECT_EQ(t133.row_width(), 10);
   EXPECT_EQ(t133.buffer_length(), 30u);
   EXPECT_FALSE(t133.is_mono());
 
-  Layout<EPaperInkplate13Spectra> inkplate13(20, 3, false);
+  Layout<EPaperInkplate13Spectra> inkplate13(20, 3);
   EXPECT_EQ(inkplate13.row_width(), 10);
   EXPECT_EQ(inkplate13.buffer_length(), 30u);
   EXPECT_FALSE(inkplate13.is_mono());

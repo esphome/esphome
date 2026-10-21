@@ -20,7 +20,7 @@ class HighWatchPin : public RecordingPin {
 /// Exposes the power-up state machine in reset() so it can be driven directly.
 class TestableInkplate13Spectra : public EPaperInkplate13Spectra {
  public:
-  TestableInkplate13Spectra() : EPaperInkplate13Spectra("test", 8, 2, nullptr, 0, false) {}
+  TestableInkplate13Spectra() : EPaperInkplate13Spectra("test", 8, 2, nullptr, 0) {}
 
   void install(spi::SPIDelegate *delegate = nullptr) {
     this->delegate_ = delegate;
