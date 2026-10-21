@@ -46,9 +46,10 @@ def pure_python_yaml_util() -> Generator[ModuleType]:
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module  # dataclass(slots=True) needs the module registered
     try:
-        with patch.object(yaml, "CSafeLoader", None):
-            # Deleting the attribute makes the "from yaml import CSafeLoader" fail
-            del yaml.CSafeLoader
+        with pytest.MonkeyPatch.context() as mp:
+            # Without the attribute "from yaml import CSafeLoader" fails, as it
+            # does when PyYAML is built without libyaml
+            mp.delattr(yaml, "CSafeLoader", raising=False)
             spec.loader.exec_module(module)
         yield module
     finally:
@@ -74,15 +75,17 @@ def test_pure_python_fallback_uses_pure_python_loader(
     """Without libyaml the loader falls back to the pure Python SafeLoader."""
     assert pure_python_yaml_util.FastestAvailableSafeLoader is yaml.SafeLoader
     assert issubclass(pure_python_yaml_util.ESPHomeLoader, yaml.SafeLoader)
-    assert not issubclass(pure_python_yaml_util.ESPHomeLoader, yaml.CSafeLoader)
+    if hasattr(yaml, "CSafeLoader"):
+        assert not issubclass(pure_python_yaml_util.ESPHomeLoader, yaml.CSafeLoader)
     assert pure_python_yaml_util is not yaml_util
     assert sys.modules["esphome.yaml_util"] is yaml_util
 
 
 def test_real_module_uses_fastest_available_loader() -> None:
     """The real module is untouched by the pure Python copy."""
-    assert yaml_util.FastestAvailableSafeLoader is yaml.CSafeLoader
-    assert issubclass(yaml_util.ESPHomeLoader, yaml.CSafeLoader)
+    fastest = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+    assert yaml_util.FastestAvailableSafeLoader is fastest
+    assert issubclass(yaml_util.ESPHomeLoader, fastest)
 
 
 def test_include(fixture_path: Path) -> None:

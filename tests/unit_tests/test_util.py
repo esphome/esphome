@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import io
 import logging
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 import sys
 from typing import Any
@@ -1305,7 +1305,8 @@ def test_get_serial_ports(platform: str, monkeypatch: pytest.MonkeyPatch) -> Non
         ("/dev/ttyUSB1", "usb", "VID:PID=1:2"),
         ("/dev/ttyS0", "builtin", "n/a"),
     ]
-    by_id = [Path("/dev/serial/by-id/b"), Path("/dev/serial/by-id/a")]
+    # POSIX paths so the strings and sort order do not depend on the host OS
+    by_id = [PurePosixPath("/dev/serial/by-id/b"), PurePosixPath("/dev/serial/by-id/a")]
     subsystems = {"b": "platform", "a": "usb"}
 
     def make_device(path: Path) -> MagicMock:
