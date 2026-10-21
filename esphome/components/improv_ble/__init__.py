@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, improv_base, output
+from esphome.components.const import CONF_ON_STOP
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_START, CONF_ON_STATE, PLATFORM_ESP32
 from esphome.core import CORE
@@ -38,7 +39,6 @@ CONF_BLE_SERVER_ID = "ble_server_id"
 CONF_IDENTIFY_DURATION = "identify_duration"
 CONF_ON_PROVISIONED = "on_provisioned"
 CONF_ON_PROVISIONING = "on_provisioning"
-CONF_ON_STOP = "on_stop"
 CONF_STATUS_INDICATOR = "status_indicator"
 CONF_WIFI_TIMEOUT = "wifi_timeout"
 
@@ -135,13 +135,8 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_wifi_timeout(config[CONF_WIFI_TIMEOUT]))
 
-    if CONF_AUTHORIZER in config and config[CONF_AUTHORIZER] is not None:
-        activator = await cg.get_variable(config[CONF_AUTHORIZER])
-        cg.add(var.set_authorizer(activator))
-
-    if CONF_STATUS_INDICATOR in config:
-        status_indicator = await cg.get_variable(config[CONF_STATUS_INDICATOR])
-        cg.add(var.set_status_indicator(status_indicator))
+    await cg.add_variable(var.set_authorizer, config.get(CONF_AUTHORIZER))
+    await cg.add_variable(var.set_status_indicator, config.get(CONF_STATUS_INDICATOR))
 
     if any(config.get(entry.conf_key) for entry in _CALLBACK_AUTOMATIONS):
         cg.add_define("USE_IMPROV_BLE_STATE_CALLBACK")

@@ -129,7 +129,8 @@ class AsyncWebServerRequest {
   void requestAuthentication() const;
 #endif
 
-  void redirect(const std::string &url);
+  void redirect(const char *url);
+  void redirect(const std::string &url) { this->redirect(url.c_str()); }
 
   inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
     httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
@@ -182,6 +183,12 @@ class AsyncWebServerRequest {
   std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
+#ifdef USE_WEBSERVER_OTA
+  /// Called when the request ends, including early returns.
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void onDisconnect(std::function<void()> fn) { this->on_disconnect_ = std::move(fn); }
+#endif
+
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -197,6 +204,9 @@ class AsyncWebServerRequest {
   optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
+#ifdef USE_WEBSERVER_OTA
+  std::function<void()> on_disconnect_;
+#endif
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
   AsyncWebServerRequest(httpd_req_t *req, std::string post_query) : req_(req), post_query_(std::move(post_query)) {}
   void init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type);
@@ -291,7 +301,10 @@ class AsyncEventSourceResponse {
  public:
   bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  // detail_all events go out while entities are still being listed; state events wait until listing is done
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   void loop();
 
  protected:
@@ -317,6 +330,17 @@ class AsyncEventSourceResponse {
                     size_t sent);
   // Send a state event; JSON too large for the stack buffer is serialized into tail_ instead
   bool send_json_(void *source, message_generator_t *generator);
+  enum class JsonPrepareResult : uint8_t {
+    JSON_PREPARE_RESULT_BUFFER,
+    JSON_PREPARE_RESULT_TAIL,
+    JSON_PREPARE_RESULT_NO_MEMORY,
+    JSON_PREPARE_RESULT_TOO_LARGE,
+  };
+  // Keep the arena out of the caller's frame so it is gone before the state send.
+  // size_out: BUFFER = JSON length, NO_MEMORY = requested tail capacity, TOO_LARGE = available JSON room;
+  // unused for TAIL.
+  JsonPrepareResult __attribute__((noinline))
+  prepare_json_(void *source, message_generator_t *generator, char *buffer, size_t *size_out);
   // Warn once, and close the session once the stall timeout passes with no memory for the tail
   void tail_alloc_failed_(size_t cap);
   void request_close_();
@@ -329,10 +353,15 @@ class AsyncEventSourceResponse {
   };
   void process_close_();
   static void close_session_work(void *arg);
+  void refresh_lru_();
+  static void refresh_lru_work(void *arg);
+  // httpd frees a session before closing its socket, so the fd may already belong to a new client
+  bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
 
-  // Deletable only after destroy() zeroed fd_ and no queued HTTPD close work still references this object.
+  // Deletable only after destroy() zeroed fd_ and no queued HTTPD work still references this object.
   bool safe_to_delete_() const {
-    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire);
+    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire) &&
+           !this->lru_work_queued_.load(std::memory_order_acquire);
   }
 
   static void destroy(void *p);
@@ -347,11 +376,13 @@ class AsyncEventSourceResponse {
   RAMUniquePtr<uint8_t[]> tail_;
   uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
   uint32_t next_close_attempt_ms_{0};
+  uint32_t last_lru_refresh_ms_{0};
   uint16_t tail_cap_{0};
   uint16_t tail_len_{0};  // Zero means nothing pending
   uint16_t tail_sent_{0};
   // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
   std::atomic<bool> close_work_queued_{false};
+  std::atomic<bool> lru_work_queued_{false};
   // Main-loop only; the HTTPD task never reads or writes these flags.
   bool close_requested_{false};
   bool close_retry_warning_logged_{false};
@@ -373,6 +404,7 @@ class AsyncEventSourceResponse {
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
+  static constexpr uint32_t LRU_REFRESH_INTERVAL_MS = 1000;
 };
 
 using AsyncEventSourceClient = AsyncEventSourceResponse;
@@ -395,7 +427,9 @@ class AsyncEventSource : public AsyncWebHandler {
   void handleRequest(AsyncWebServerRequest *request) override;
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   /// Returns true if there are sessions remaining (including pending cleanup).
   bool loop();
   bool empty() { return this->count() == 0; }

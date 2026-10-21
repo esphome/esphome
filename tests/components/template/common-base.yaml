@@ -77,6 +77,38 @@ esphome:
 
 binary_sensor:
   - platform: template
+    id: template_sensor_above
+    condition:
+      sensor.in_range:
+        id: template_template_sens
+        above: 10.0
+  - platform: template
+    id: template_sensor_between
+    condition:
+      sensor.in_range:
+        id: template_template_sens
+        above: 10.0
+        below: 30.0
+  - platform: template
+    id: template_number_above
+    condition:
+      number.in_range:
+        id: template_number
+        above: 10.0
+  - platform: template
+    id: template_number_below
+    condition:
+      number.in_range:
+        id: template_number
+        below: 90.0
+  - platform: template
+    id: template_number_between
+    condition:
+      number.in_range:
+        id: template_number
+        above: 10.0
+        below: 90.0
+  - platform: template
     id: template_some_binary_sensor
     name: "Garage Door Open"
     lambda: |-

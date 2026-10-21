@@ -29,6 +29,7 @@ import re
 from aioesphomeapi import LogLevel
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -52,9 +53,7 @@ async def test_logger_buffered_recursion_guard(
         run_compiled(yaml_config),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "logger-recursion-test"
+        await assert_device_name(client, "logger-recursion-test")
 
         # Subscribe over the API: this is the exact path that crashed in the field
         # (the API log callback runs during the buffered drain). The API message field

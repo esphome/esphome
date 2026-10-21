@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable
 from pathlib import Path
 import re
 from typing import Any
@@ -12,6 +11,7 @@ from aioesphomeapi import ButtonInfo, EntityInfo
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 DEVICE_NAME = "test_suspend_resume_device"
 
@@ -23,16 +23,6 @@ def find_entity_by_name(
     return next(
         (e for e in entities if isinstance(e, entity_type) and e.name == name), None
     )
-
-
-async def _wait_for(
-    awaitable: Awaitable[Any], message: str, timeout: float = 5.0
-) -> None:
-    """Await a future or coroutine, failing the test with a clear message on timeout."""
-    try:
-        await asyncio.wait_for(awaitable, timeout=timeout)
-    except TimeoutError:
-        pytest.fail(message)
 
 
 async def _poll_until_exists(path: Path) -> None:
@@ -84,28 +74,30 @@ async def test_host_preferences_suspend_resume(
         # --- Positive control: a running syncer flushes to disk. Without this,
         # the suspend assertion below could pass for the wrong reason (e.g. wrong prefs path). ---
         client.button_command(save_button.key)
-        await _wait_for(
-            saved_in_memory, "Preference was not saved to memory within timeout"
+        await wait_or_fail(
+            saved_in_memory, 5.0, "Preference was not saved to memory within timeout"
         )
-        await _wait_for(
+        await wait_or_fail(
             _poll_until_exists(pref_file),
+            10.0,
             "Running syncer never flushed to disk; positive control failed",
-            timeout=10.0,
         )
         saved_in_memory = loop.create_future()
 
         # --- Suspend: a suspended syncer must not flush. ---
         client.button_command(suspend_button.key)
-        await _wait_for(
-            syncer_suspended, "Syncer suspend command was not processed within timeout"
+        await wait_or_fail(
+            syncer_suspended,
+            5.0,
+            "Syncer suspend command was not processed within timeout",
         )
         # Delete only after suspend is confirmed: the poller is now stopped, so
         # nothing can recreate the file before the negative assertion below.
         pref_file.unlink()
 
         client.button_command(save_button.key)
-        await _wait_for(
-            saved_in_memory, "Preference was not saved to memory within timeout"
+        await wait_or_fail(
+            saved_in_memory, 5.0, "Preference was not saved to memory within timeout"
         )
 
         # Wait well past flash_write_interval (1s): a running syncer would
@@ -118,11 +110,13 @@ async def test_host_preferences_suspend_resume(
 
         # --- Resume: flushing must restart. ---
         client.button_command(resume_button.key)
-        await _wait_for(
-            syncer_resumed, "Syncer resume command was not processed within timeout"
+        await wait_or_fail(
+            syncer_resumed,
+            5.0,
+            "Syncer resume command was not processed within timeout",
         )
-        await _wait_for(
+        await wait_or_fail(
             _poll_until_exists(pref_file),
+            10.0,
             "Resumed syncer never flushed to disk; component.resume did not restart the poller",
-            timeout=10.0,
         )

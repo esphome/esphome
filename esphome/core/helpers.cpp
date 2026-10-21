@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #ifdef USE_ESP32
@@ -293,7 +294,78 @@ size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *na
   return total_len;
 }
 
+size_t truncate_name_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, size_t keep_suffix_len) {
+  if (buffer_size == 0) {
+    return 0;
+  }
+  const size_t max_len = buffer_size - 1;
+  if (name_len <= max_len) {
+    memcpy(buffer, name, name_len);
+    buffer[name_len] = '\0';
+    return name_len;
+  }
+  if (keep_suffix_len > max_len) {
+    keep_suffix_len = max_len;
+  }
+  const size_t head_len = max_len - keep_suffix_len;
+  memcpy(buffer, name, head_len);
+  memcpy(buffer + head_len, name + name_len - keep_suffix_len, keep_suffix_len);
+  buffer[max_len] = '\0';
+  return max_len;
+}
+
 // Parsing & formatting
+
+// A plain decimal converts exactly with one division: the digits accumulate
+// into an integer that stays below 2^24 and the fraction's scale is a power of
+// ten up to 1e9 (2^9 * 5^9), so both convert to float exactly and IEEE division
+// rounds the quotient correctly, the same result strtof produces.
+static constexpr uint32_t PARSE_FLOAT_MANTISSA_LIMIT = 1000000;  // one more digit stays below 2^24
+static constexpr uint32_t PARSE_FLOAT_MAX_FRACTION_DIGITS = 9;
+
+optional<float> parse_float(const char *str) {
+  const char *p = str;
+  const bool negative = *p == '-';
+  if (negative || *p == '+')
+    p++;
+  const char *digits = p;
+  const char *dot = nullptr;
+  uint32_t mantissa = 0;
+  for (;; p++) {
+    const uint32_t d = static_cast<unsigned char>(*p) - '0';
+    if (d > 9) {
+      if (*p == '.' && dot == nullptr) {
+        dot = p;
+        continue;
+      }
+      break;
+    }
+    if (mantissa >= PARSE_FLOAT_MANTISSA_LIMIT)
+      break;
+    mantissa = mantissa * 10 + d;
+  }
+  const uint32_t fraction_digits = dot != nullptr ? p - dot - 1 : 0;
+  const bool any_digit = p - digits > (dot != nullptr ? 1 : 0);
+  if (*p == '\0' && any_digit && fraction_digits <= PARSE_FLOAT_MAX_FRACTION_DIGITS) {
+    // The mantissa is exact in a float, so the sign goes on before the one rounding step
+    float value = static_cast<float>(mantissa);
+    if (negative)
+      value = -value;
+    if (fraction_digits != 0) {
+      uint32_t scale = 10;
+      for (uint32_t i = 1; i < fraction_digits; i++)
+        scale *= 10;
+      value /= static_cast<float>(scale);
+    }
+    return value;
+  }
+  // Exponents, hex, inf, nan, leading whitespace and longer inputs take the libc path.
+  char *end = nullptr;
+  const float value = ::strtof(str, &end);
+  if (end == str || *end != '\0' || value == HUGE_VALF)
+    return {};
+  return value;
+}
 
 size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   size_t chars = std::min(length, 2 * count);
@@ -526,7 +598,7 @@ static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_de
   }
 }
 
-// Fast float-to-string for accuracy_decimals 0-3 (covers virtually all sensor usage).
+// Fast float-to-string for accuracy_decimals 0-4 (covers sensors and small PID coefficients).
 // Avoids snprintf("%.*f") which pulls in heavy float formatting machinery.
 // Caller must guarantee value is finite and |value| * mult fits in uint32_t.
 static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy_decimals, uint32_t mult) {
@@ -553,9 +625,9 @@ static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy
 size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
 
-  // Fast path for accuracy 0-3, finite values whose scaled magnitude fits in uint32_t.
-  // For 3 decimals that's |value| < ~4.29e6; larger totals fall through to snprintf.
-  if (accuracy_decimals <= 3 && std::isfinite(value)) {
+  // Fast path for accuracy 0-4, finite values whose scaled magnitude fits in uint32_t.
+  // For 4 decimals that's |value| < ~4.29e5; larger totals fall through to snprintf.
+  if (accuracy_decimals <= 4 && std::isfinite(value)) {
     const uint32_t mult = small_pow10(accuracy_decimals);
     if (std::fabs(value) < static_cast<float>(UINT32_MAX) / mult) {
       return value_accuracy_to_buf_fast(buf.data(), value, accuracy_decimals, mult);
