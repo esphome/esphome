@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -120,9 +121,7 @@ async def test_scheduler_numeric_id_test(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-numeric-id-test"
+        await assert_device_name(client, "scheduler-numeric-id-test")
 
         # Wait for numeric timeout tests
         try:

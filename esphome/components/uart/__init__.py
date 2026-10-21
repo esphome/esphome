@@ -373,8 +373,7 @@ async def to_code(config):
     await cg.add_pin(var.set_tx_pin, config.get(CONF_TX_PIN))
     await cg.add_pin(var.set_rx_pin, config.get(CONF_RX_PIN))
     await cg.add_pin(var.set_flow_control_pin, config.get(CONF_FLOW_CONTROL_PIN))
-    if CONF_PORT in config:
-        cg.add(var.set_name(config[CONF_PORT]))
+    cg.add_optional(var.set_name, config.get(CONF_PORT))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
     if CORE.is_esp32:
         if CONF_RX_FULL_THRESHOLD not in config:
@@ -391,10 +390,8 @@ async def to_code(config):
             )
         cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
-        if CONF_FLUSH_TIMEOUT in config:
-            cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
-        if (tx_buffer_size := config.get(CONF_TX_BUFFER_SIZE)) is not None:
-            cg.add(var.set_tx_buffer_size(tx_buffer_size))
+        cg.add_optional(var.set_flush_timeout, config.get(CONF_FLUSH_TIMEOUT))
+        cg.add_optional(var.set_tx_buffer_size, config.get(CONF_TX_BUFFER_SIZE))
         # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
         if (clock_source := config.get(CONF_CLOCK_SOURCE, "DEFAULT")) != "DEFAULT":
             cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))

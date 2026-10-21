@@ -183,10 +183,6 @@ def validate_char_on_write(char_config):
 
 
 def validate_descriptor(desc_config):
-    if CONF_ON_WRITE in desc_config and not desc_config[CONF_WRITE]:
-        raise cv.Invalid(
-            f"{CONF_ON_WRITE} requires the {CONF_WRITE} property to be set"
-        )
     if CONF_MAX_LENGTH not in desc_config:
         value = desc_config[CONF_VALUE][CONF_DATA]
         if cg.is_template(value):
@@ -436,6 +432,7 @@ DESCRIPTOR_SCHEMA = cv.All(
         cv.Required(CONF_VALUE): value_schema(templatable=False),
         cv.Optional(CONF_MAX_LENGTH): cv.uint16_t,
     },
+    cv.only_when(CONF_ON_WRITE, CONF_WRITE, True),
     validate_descriptor,
 )
 

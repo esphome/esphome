@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -121,9 +122,7 @@ async def test_gpio_expander_cache(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "gpio-expander-cache"
+        await assert_device_name(client, "gpio-expander-cache")
 
         try:
             await asyncio.wait_for(logs_done.wait(), timeout=5.0)
