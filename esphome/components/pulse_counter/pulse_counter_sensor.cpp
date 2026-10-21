@@ -29,9 +29,11 @@ void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg
   if (discard)
     return;
 
-  PulseCounterCountMode mode = arg->fixed_mode;
+  PulseCounterCountMode mode;
   if (arg->read_level) {
     mode = arg->isr_pin.digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
+  } else {
+    mode = arg->rising_edge_mode != PULSE_COUNTER_DISABLE ? arg->rising_edge_mode : arg->falling_edge_mode;
   }
   if (mode == PULSE_COUNTER_INCREMENT) {
     auto x = arg->counter + 1;
@@ -54,14 +56,10 @@ bool BasicPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   gpio::InterruptType type = gpio::INTERRUPT_ANY_EDGE;
   if (!falling) {
     type = gpio::INTERRUPT_RISING_EDGE;
-    this->fixed_mode = this->rising_edge_mode;
   } else if (!rising) {
     type = gpio::INTERRUPT_FALLING_EDGE;
-    this->fixed_mode = this->falling_edge_mode;
-  } else if (this->rising_edge_mode == this->falling_edge_mode) {
-    this->fixed_mode = this->rising_edge_mode;
   } else {
-    this->read_level = true;
+    this->read_level = this->rising_edge_mode != this->falling_edge_mode;
   }
   this->pin->attach_interrupt(BasicPulseCounterStorage::gpio_intr, this, type);
   return true;
