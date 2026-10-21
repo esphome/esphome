@@ -1,11 +1,13 @@
 #include <gtest/gtest.h>
 
 #include <cerrno>
+#include <chrono>
 #include <csignal>
 #include <cstring>
 #include <netinet/in.h>
 #include <string>
 #include <sys/socket.h>
+#include <thread>
 #include <unistd.h>
 
 #include "esphome/components/sensor/sensor.h"
@@ -193,6 +195,34 @@ TEST_F(TcpUartTwoClients, ReleaseWaitsForTheBytesAlreadyRead) {
   EXPECT_EQ(request, '2');
   this->at(5000);
   this->loops(3);
+  EXPECT_EQ(this->uart_.available(), 0u);
+
+  this->uart_.release_turn();
+  this->wait_for_bytes(2);
+  EXPECT_EQ(this->read_all(), "hi");
+}
+
+TEST_F(TcpUartTwoClients, ReleasedTurnReadsNothingNewFromItsConnection) {
+  // A sends "1" and "2" in one write, then B sends "hi".
+  send(this->a_, "12");
+  this->wait_for_bytes(2);
+  send(this->b_, "hi");
+  this->uart_.hold_turn();
+  uint8_t request;
+  ASSERT_TRUE(this->uart_.read_byte(&request));
+  EXPECT_EQ(request, '1');
+  this->uart_.release_turn();
+  this->loops(3);
+
+  // The consumer takes "2" and holds the turn for its reply; meanwhile A sends "3".
+  this->uart_.hold_turn();
+  ASSERT_TRUE(this->uart_.read_byte(&request));
+  EXPECT_EQ(request, '2');
+  send(this->a_, "3");
+  // 20 ms for loopback to deliver "3". The loop passes alone take no time: B's "hi" keeps select() ready.
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  this->loops(3);
+  // "3" stays in A's socket for A's next turn.
   EXPECT_EQ(this->uart_.available(), 0u);
 
   this->uart_.release_turn();
