@@ -1366,7 +1366,7 @@ void ESPVideoCamera::dump_config() {
                 "  Source: %s (%s)\n"
                 "  Resolution: %s\n"
                 "  Max framerate: %.1f fps",
-                this->get_name().c_str(), this->device_.c_str(), this->resolved_device_.c_str(),
+                LOG_STR_ARG(this->get_log_name()), this->device_.c_str(), this->resolved_device_.c_str(),
                 this->resolution_.c_str(), this->max_framerate_);
   if (this->is_hw_jpeg_) {
     ESP_LOGCONFIG(TAG, "  JPEG quality: %d", this->jpeg_quality_);
