@@ -615,7 +615,7 @@ def parse_library_properties(library_properties_path: PathType):
 
 
 def parse_properties_depends(depends: str) -> list[dict[str, str]]:
-    """``depends=Name, Other (>=1.0)`` as dependency entries, as PlatformIO reads it."""
+    """The Arduino ``depends=Name, Other (>=1.0)`` line as dependency entries."""
     entries: list[dict[str, str]] = []
     for item in depends.split(","):
         name, _, version = item.strip().partition("(")
@@ -1203,37 +1203,47 @@ def convert_libraries(
     components: dict[str, ConvertedLibrary] = {}
     resolved_requirements: dict[str, frozenset[str]] = {}
     top_level_keys = set(top_level)
-    # (requester key, dependency) settled once the graph is known, so a library
-    # already in it satisfies the name before the registry is asked
-    pending_versionless: list[tuple[str, dict]] = []
+    # Version-less dependencies per requester key, settled once the graph is
+    # known, so a library already in it satisfies the name before the registry
+    # is asked; a re-walked requester replaces its entries
+    pending_versionless: dict[str, list[dict]] = {}
 
     def settle_versionless() -> list[str]:
         """Wire each deferred dependency to the library that satisfies it, or
         fetch it by name; return the new keys to walk."""
         new_keys: list[str] = []
-        for requester, dependency in pending_versionless:
-            name, owner = dependency["name"], dependency.get("owner")
-            if not owner and backend.provides is not None and backend.provides(name):
-                _LOGGER.debug(
-                    "Skip backend-provided dependency %s of %s", name, requester
-                )
-                backend.provided_requests.add(name)
-                continue
-            if (match := _satisfying_key(name, owner, nodes, components)) is not None:
-                _LOGGER.debug(
-                    "Dependency %s of %s satisfied by %s", name, requester, match
-                )
-                nodes[requester].edges.add(match)
-                continue
-            try:
-                dep_key = add_spec(_owner_pkgname_to_name(owner, name), None, None)
-            except RuntimeError as e:
-                _LOGGER.warning("Skipping dependency %s of %s: %s", name, requester, e)
-                continue
-            if dep_key not in resolved_requirements:
+        for requester, dependencies in pending_versionless.items():
+            for dependency in dependencies:
+                name, owner = dependency["name"], dependency.get("owner")
+                # A library in the graph beats a bundled copy, as on the Arduino backend
+                if (
+                    match := _satisfying_key(name, owner, nodes, components)
+                ) is not None:
+                    _LOGGER.debug(
+                        "Dependency %s of %s satisfied by %s", name, requester, match
+                    )
+                    nodes[requester].edges.add(match)
+                    continue
+                if (
+                    not owner
+                    and backend.provides is not None
+                    and backend.provides(name)
+                ):
+                    _LOGGER.debug(
+                        "Skip backend-provided dependency %s of %s", name, requester
+                    )
+                    backend.provided_requests.add(name)
+                    continue
+                try:
+                    dep_key = add_spec(_owner_pkgname_to_name(owner, name), None, None)
+                except RuntimeError as e:
+                    _LOGGER.warning(
+                        "Skipping dependency %s of %s: %s", name, requester, e
+                    )
+                    continue
                 nodes[dep_key].optional = True
-            nodes[requester].edges.add(dep_key)
-            new_keys.append(dep_key)
+                nodes[requester].edges.add(dep_key)
+                new_keys.append(dep_key)
         pending_versionless.clear()
         return new_keys
 
@@ -1360,6 +1370,7 @@ def convert_libraries(
             # Requirements changed (we got past the short-circuit above), so
             # (re)walk this component's dependencies.
             node.edges = set()
+            pending = pending_versionless[key] = []
             for dependency in normalize_dependencies(
                 component.data.get("dependencies"), component.name
             ):
@@ -1370,7 +1381,7 @@ def convert_libraries(
                         dependency, backend.platform, backend.framework, component.name
                     ):
                         # Filtered or ignored deps are deliberately absent
-                        pending_versionless.append((key, dependency))
+                        pending.append(dependency)
                     continue
                 if not dependency_is_usable(
                     dependency, backend.platform, backend.framework, component.name
@@ -1437,11 +1448,23 @@ def convert_libraries(
 
     # Two graph nodes that resolve to the same component name (e.g. a package
     # referenced both bare and as ``owner/name``) are not deduplicated and can
-    # produce conflicting component definitions. Warn so it's not silent.
+    # produce conflicting component definitions. A node fetched by name alone
+    # folds into the other one; otherwise warn so it's not silent.
     canonical_keys: dict[str, str] = {}
-    for node_key, component in components.items():
+    for node_key, component in list(components.items()):
         canonical = component.get_sanitized_name()
         if canonical_keys.setdefault(canonical, node_key) != node_key:
+            first = canonical_keys[canonical]
+            drop = next((k for k in (node_key, first) if nodes[k].optional), None)
+            if drop is not None:
+                keep = first if drop == node_key else node_key
+                canonical_keys[canonical] = keep
+                del components[drop]
+                for node in nodes.values():
+                    if drop in node.edges:
+                        node.edges.remove(drop)
+                        node.edges.add(keep)
+                continue
             _LOGGER.warning(
                 "Library %s is referenced under multiple names (%s and %s); these "
                 "are not deduplicated. Reference it consistently as %s.",

@@ -119,6 +119,7 @@ def test_write_idf_component_yml_marks_arduino_bundled_libraries_provided(
     CORE.data[esp32.KEY_ESP32] = {
         esp32.KEY_COMPONENTS: {},
         esp32.KEY_IDF_VERSION: cv.Version(5, 5, 4),
+        esp32.KEY_ARDUINO_LIBRARIES: {"Wire", "SPI"},
     }
 
     captured: dict[str, object] = {}
@@ -134,6 +135,20 @@ def test_write_idf_component_yml_marks_arduino_bundled_libraries_provided(
     provides = captured["provides"]
     assert provides("Wire") and provides("SPI")
     assert not provides("Adafruit BusIO")
+
+
+def test_arduino_provides_warns_for_a_bundled_library_not_enabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A manifest dependency on a bundled Arduino library is never fetched, but
+    the library still has to be enabled, so an unenabled one is called out."""
+    CORE.reset()
+    CORE.data[esp32.KEY_ESP32] = {esp32.KEY_ARDUINO_LIBRARIES: {"Wire"}}
+    assert esp32._arduino_provides("Wire")
+    assert "Wire" not in caplog.text
+    assert esp32._arduino_provides("SPI")
+    assert "Arduino library SPI, which is not enabled" in caplog.text
+    assert not esp32._arduino_provides("Adafruit BusIO")
 
 
 @pytest.mark.parametrize(

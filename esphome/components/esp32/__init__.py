@@ -3813,6 +3813,20 @@ def _write_sdkconfig():
             clean_build(clear_pio_cache=False)
 
 
+def _arduino_provides(name: str) -> bool:
+    """Whether arduino-esp32 bundles the library a manifest depends on, so it is
+    never fetched by name; it still has to be enabled to build."""
+    if name not in ARDUINO_DISABLED_LIBRARIES:
+        return False
+    if name not in CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES]:
+        _LOGGER.warning(
+            "A library depends on the Arduino library %s, which is not enabled; "
+            "add it under esphome: libraries:",
+            name,
+        )
+    return True
+
+
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
@@ -3837,10 +3851,7 @@ def _write_idf_component_yml():
         converted = generate_idf_components(
             libraries,
             managed=managed,
-            # The arduino-esp32 component bundles these; never fetch them by name
-            provides=ARDUINO_DISABLED_LIBRARIES.__contains__
-            if CORE.using_arduino
-            else None,
+            provides=_arduino_provides if CORE.using_arduino else None,
         )
     # IDF names a component after its directory and a later registration of the
     # same name replaces the earlier one, so a stub beside a converted library of
