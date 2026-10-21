@@ -400,7 +400,7 @@ class Logger final : public Component {
   // The guard that protects tx_buffer_ on the main loop, for callers that run on any platform
   bool &main_loop_recursion_guard_() { return this->main_task_recursion_guard_; }
 #else
-  bool global_recursion_guard_{false};                    // Simple global recursion guard for single-task platforms
+  bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
   bool &main_loop_recursion_guard_() { return this->global_recursion_guard_; }
 #endif
 

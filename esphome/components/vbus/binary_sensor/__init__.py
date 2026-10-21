@@ -337,12 +337,9 @@ async def to_code(config: ConfigType) -> None:
         await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_bsensor)
 
     elif config[CONF_MODEL] == CONF_CUSTOM:
-        if CONF_COMMAND in config:
-            cg.add(var.set_command(config[CONF_COMMAND]))
-        if CONF_SOURCE in config:
-            cg.add(var.set_source(config[CONF_SOURCE]))
-        if CONF_DEST in config:
-            cg.add(var.set_dest(config[CONF_DEST]))
+        cg.add_optional(var.set_command, config.get(CONF_COMMAND))
+        cg.add_optional(var.set_source, config.get(CONF_SOURCE))
+        cg.add_optional(var.set_dest, config.get(CONF_DEST))
         bsensors = []
         for conf in config[CONF_BINARY_SENSORS]:
             bsens = await binary_sensor.new_binary_sensor(conf)

@@ -16,6 +16,7 @@
 #include "lwip/dns.h"
 #include "lwip/err.h"
 #include "mqtt_component.h"
+#include "mqtt_topic_match.h"
 
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
@@ -212,6 +213,16 @@ void MQTTClientComponent::dump_config() {
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
   // clang-format on
+#ifdef USE_ESP32
+  if (const MQTTTransport transport = this->mqtt_backend_.get_transport();
+      transport != MQTTTransport::MQTT_TRANSPORT_TCP) {
+    ESP_LOGCONFIG(TAG,
+                  "  Transport: %s\n"
+                  "  WebSocket Path: '%s'",
+                  transport == MQTTTransport::MQTT_TRANSPORT_WSS ? LOG_STR_LITERAL("wss") : LOG_STR_LITERAL("ws"),
+                  this->mqtt_backend_.get_ws_path());
+  }
+#endif
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
@@ -609,63 +620,6 @@ void MQTTClientComponent::disable() {
   ESP_LOGD(TAG, "Disabling");
   this->state_ = MQTT_CLIENT_DISABLED;
   this->on_shutdown();
-}
-
-/** Check if the message topic matches the given subscription topic
- *
- * INFO: MQTT spec mandates that topics must not be empty and must be valid NULL-terminated UTF-8 strings.
- *
- * @param message The message topic that was received from the MQTT server. Note: this must not contain
- *                wildcard characters as mandated by the MQTT spec.
- * @param subscription The subscription topic we are matching against.
- * @param is_normal Is this a "normal" topic - Does the message topic not begin with a "$".
- * @param past_separator Are we past the first '/' topic separator.
- * @return true if the subscription topic matches the message topic, false otherwise.
- */
-static bool topic_match(const char *message, const char *subscription, bool is_normal, bool past_separator) {
-  // Reached end of both strings at the same time, this means we have a successful match
-  if (*message == '\0' && *subscription == '\0')
-    return true;
-
-  // Either the message or the subscribe are at the end. This means they don't match.
-  if (*message == '\0' || *subscription == '\0')
-    return false;
-
-  bool do_wildcards = is_normal || past_separator;
-
-  if (*subscription == '+' && do_wildcards) {
-    // single level wildcard
-    // consume + from subscription
-    subscription++;
-    // consume everything from message until '/' found or end of string
-    while (*message != '\0' && *message != '/') {
-      message++;
-    }
-    // after this, both pointers will point to a '/' or to the end of the string
-
-    return topic_match(message, subscription, is_normal, true);
-  }
-
-  if (*subscription == '#' && do_wildcards) {
-    // multilevel wildcard - MQTT mandates that this must be at end of subscribe topic
-    return true;
-  }
-
-  // this handles '/' and normal characters at the same time.
-  if (*message != *subscription)
-    return false;
-
-  past_separator = past_separator || *subscription == '/';
-
-  // consume characters
-  subscription++;
-  message++;
-
-  return topic_match(message, subscription, is_normal, past_separator);
-}
-
-static bool topic_match(const char *message, const char *subscription) {
-  return topic_match(message, subscription, *message != '\0' && *message != '$', false);
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {

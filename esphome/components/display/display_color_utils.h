@@ -9,6 +9,38 @@ enum ColorOrder : uint8_t { COLOR_ORDER_RGB = 0, COLOR_ORDER_BGR = 1, COLOR_ORDE
 enum ColorBitness : uint8_t { COLOR_BITNESS_888 = 0, COLOR_BITNESS_565 = 1, COLOR_BITNESS_332 = 2 };
 inline static uint8_t esp_scale(uint8_t i, uint8_t scale, uint8_t max_value = 255) { return (max_value * i / scale); }
 
+/// esp_scale(value, (1 << bits) - 1) for a field of 2, 3, 5, 6 or 8 bits, as a multiply and shift that gives the
+/// same result for every field value. With bits a constant this avoids a division.
+constexpr uint8_t expand_field(uint8_t value, uint8_t bits) {
+  switch (bits) {
+    case 2:
+      return (value * 170) >> 1;
+    case 3:
+      return (value * 583) >> 4;
+    case 5:
+      return (value * 1053) >> 7;
+    case 6:
+      return (value * 4145) >> 10;
+    case 8:
+      return value;
+    default:
+      return esp_scale(value, (1 << bits) - 1);
+  }
+}
+
+// Remove before 2027.5.0, with the forms that take a color order. Maps a color read in RGB order to the
+// given order, by moving its channels.
+inline Color apply_color_order(Color color, ColorOrder order) {
+  switch (order) {
+    case COLOR_ORDER_BGR:
+      return Color(color.b, color.g, color.r);
+    case COLOR_ORDER_GRB:
+      return Color(color.g, color.r, color.b);
+    default:
+      return color;
+  }
+}
+
 class ColorUtil {
  public:
   /// Reads one packed pixel of the given bitness from a source buffer into the
@@ -23,18 +55,17 @@ class ColorUtil {
         return (ptr[idx] << 8) + ptr[idx + 1];
       return ptr[idx] + (ptr[idx + 1] << 8);
     } else if constexpr (BITNESS == COLOR_BITNESS_888) {
+      // Always the LVGL RGB888 layout, b,g,r in memory; byte order applies to 565 only
       const size_t idx = index * 3;
-      if (big_endian)
-        return (ptr[idx + 0] << 16) + (ptr[idx + 1] << 8) + ptr[idx + 2];
       return ptr[idx + 0] + (ptr[idx + 1] << 8) + (ptr[idx + 2] << 16);
     } else {
       return ptr[index];
     }
   }
 
-  static Color to_color(uint32_t colorcode, ColorOrder color_order,
-                        ColorBitness color_bitness = ColorBitness::COLOR_BITNESS_888, bool right_bit_aligned = true) {
-    uint8_t first_color, second_color, third_color;
+  /// Unpacks a color of the given bitness, red in the most significant bits.
+  static Color to_color(uint32_t colorcode, ColorBitness color_bitness = ColorBitness::COLOR_BITNESS_888,
+                        bool right_bit_aligned = true) {
     uint8_t first_bits = 0;
     uint8_t second_bits = 0;
     uint8_t third_bits = 0;
@@ -57,74 +88,66 @@ class ColorUtil {
         break;
     }
 
-    first_color = right_bit_aligned ? esp_scale(((colorcode >> (second_bits + third_bits)) & ((1 << first_bits) - 1)),
-                                                ((1 << first_bits) - 1))
-                                    : esp_scale(((colorcode >> 16) & 0xFF), (1 << first_bits) - 1);
+    const uint8_t red =
+        right_bit_aligned
+            ? expand_field((colorcode >> (second_bits + third_bits)) & ((1 << first_bits) - 1), first_bits)
+            : esp_scale(((colorcode >> 16) & 0xFF), (1 << first_bits) - 1);
 
-    second_color = right_bit_aligned
-                       ? esp_scale(((colorcode >> third_bits) & ((1 << second_bits) - 1)), ((1 << second_bits) - 1))
-                       : esp_scale(((colorcode >> 8) & 0xFF), ((1 << second_bits) - 1));
+    const uint8_t green = right_bit_aligned
+                              ? expand_field((colorcode >> third_bits) & ((1 << second_bits) - 1), second_bits)
+                              : esp_scale(((colorcode >> 8) & 0xFF), ((1 << second_bits) - 1));
 
-    third_color = (right_bit_aligned ? esp_scale(((colorcode >> 0) & ((1 << third_bits) - 1)), ((1 << third_bits) - 1))
-                                     : esp_scale(((colorcode >> 0) & 0xFF), (1 << third_bits) - 1));
+    const uint8_t blue = right_bit_aligned ? expand_field(colorcode & ((1 << third_bits) - 1), third_bits)
+                                           : esp_scale(((colorcode >> 0) & 0xFF), (1 << third_bits) - 1);
 
-    Color color_return;
-
-    switch (color_order) {
-      case COLOR_ORDER_RGB:
-        color_return.r = first_color;
-        color_return.g = second_color;
-        color_return.b = third_color;
-        break;
-      case COLOR_ORDER_BGR:
-        color_return.b = first_color;
-        color_return.g = second_color;
-        color_return.r = third_color;
-        break;
-      case COLOR_ORDER_GRB:
-        color_return.g = first_color;
-        color_return.r = second_color;
-        color_return.b = third_color;
-        break;
-    }
-    return color_return;
+    return Color(red, green, blue);
+  }
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Packed colors are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
+  static Color to_color(uint32_t colorcode, ColorOrder color_order,
+                        ColorBitness color_bitness = ColorBitness::COLOR_BITNESS_888, bool right_bit_aligned = true) {
+    return apply_color_order(to_color(colorcode, color_bitness, right_bit_aligned), color_order);
   }
   static inline Color rgb332_to_color(uint8_t rgb332_color) {
-    return to_color((uint32_t) rgb332_color, COLOR_ORDER_RGB, COLOR_BITNESS_332);
+    return to_color((uint32_t) rgb332_color, COLOR_BITNESS_332);
   }
-  static uint8_t color_to_332(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) {
-    uint16_t red_color, green_color, blue_color;
-
-    red_color = esp_scale8(color.red, ((1 << 3) - 1));
-    green_color = esp_scale8(color.green, ((1 << 3) - 1));
-    blue_color = esp_scale8(color.blue, (1 << 2) - 1);
-
-    switch (color_order) {
-      case COLOR_ORDER_RGB:
-        return red_color << 5 | green_color << 2 | blue_color;
-      case COLOR_ORDER_BGR:
-        return blue_color << 6 | green_color << 3 | red_color;
-      case COLOR_ORDER_GRB:
-        return green_color << 5 | red_color << 2 | blue_color;
-    }
-    return 0;
+  static uint8_t color_to_332(Color color) {
+    const uint16_t red_color = esp_scale8(color.red, ((1 << 3) - 1));
+    const uint16_t green_color = esp_scale8(color.green, ((1 << 3) - 1));
+    const uint16_t blue_color = esp_scale8(color.blue, (1 << 2) - 1);
+    return red_color << 5 | green_color << 2 | blue_color;
   }
-  static uint16_t color_to_565(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) {
-    uint16_t red_color, green_color, blue_color;
-
-    red_color = esp_scale8(color.red, ((1 << 5) - 1));
-    green_color = esp_scale8(color.green, ((1 << 6) - 1));
-    blue_color = esp_scale8(color.blue, (1 << 5) - 1);
-
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Packed colors are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
+  static uint8_t color_to_332(Color color, ColorOrder color_order) {
+    if (color_order == COLOR_ORDER_RGB)
+      return color_to_332(color);
+    // The other orders move the 2 bit field, so they cannot reuse the RGB packing
+    const uint16_t red_color = esp_scale8(color.red, ((1 << 3) - 1));
+    const uint16_t green_color = esp_scale8(color.green, ((1 << 3) - 1));
+    if (color_order == COLOR_ORDER_BGR)
+      return esp_scale8(color.blue, (1 << 2) - 1) << 6 | green_color << 3 | red_color;
+    return green_color << 5 | red_color << 2 | esp_scale8(color.blue, (1 << 2) - 1);
+  }
+  static uint16_t color_to_565(Color color) {
+    const uint16_t red_color = esp_scale8(color.red, ((1 << 5) - 1));
+    const uint16_t green_color = esp_scale8(color.green, ((1 << 6) - 1));
+    const uint16_t blue_color = esp_scale8(color.blue, (1 << 5) - 1);
+    return red_color << 11 | green_color << 5 | blue_color;
+  }
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Packed colors are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
+  static uint16_t color_to_565(Color color, ColorOrder color_order) {
     switch (color_order) {
-      case COLOR_ORDER_RGB:
-        return red_color << 11 | green_color << 5 | blue_color;
       case COLOR_ORDER_BGR:
-        return blue_color << 11 | green_color << 5 | red_color;
+        return color_to_565(Color(color.b, color.g, color.r));
       case COLOR_ORDER_GRB:
-        return green_color << 10 | red_color << 5 | blue_color;
+        // Green moves to the 5 bit field at the top, so it cannot reuse the RGB packing
+        return esp_scale8(color.green, (1 << 6) - 1) << 10 | esp_scale8(color.red, (1 << 5) - 1) << 5 |
+               esp_scale8(color.blue, (1 << 5) - 1);
+      default:
+        return color_to_565(color);
     }
-    return 0;
   }
   static uint32_t color_to_grayscale4(Color color) {
     uint32_t gs4 = esp_scale8(color.white, 15);
@@ -197,23 +220,13 @@ constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 
  */
 class Rgb565ToMono {
  public:
+  Rgb565ToMono() { this->fill_tables_(REC601_LUMA_R, REC601_LUMA_G, REC601_LUMA_B); }
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Packed colors are always RGB, drop the ColorOrder argument. Removed in 2027.5.0", "2026.11.0")
   explicit Rgb565ToMono(ColorOrder order) {
-    // Rec.601 weight of the 5-bit, 6-bit and 5-bit fields, by the channel each one holds in this order
-    uint16_t high = REC601_LUMA_R, middle = REC601_LUMA_G, low = REC601_LUMA_B;
-    if (order == COLOR_ORDER_BGR) {
-      high = REC601_LUMA_B;
-      low = REC601_LUMA_R;
-    } else if (order == COLOR_ORDER_GRB) {
-      high = REC601_LUMA_G;
-      middle = REC601_LUMA_R;
-    }
-    // Each field value scaled to 0..255, then weighted
-    for (unsigned i = 0; i != 32; i++) {
-      this->high_[i] = high * esp_scale(i, 31);
-      this->low_[i] = low * esp_scale(i, 31);
-    }
-    for (unsigned i = 0; i != 64; i++)
-      this->middle_[i] = middle * esp_scale(i, 63);
+    // The weight of the channel each 5, 6 and 5 bit field holds in this order
+    const Color weights = apply_color_order(Color(REC601_LUMA_R, REC601_LUMA_G, REC601_LUMA_B), order);
+    this->fill_tables_(weights.r, weights.g, weights.b);
   }
 
   uint8_t operator()(uint16_t value) const {
@@ -222,6 +235,16 @@ class Rgb565ToMono {
   }
 
  protected:
+  // Each field value scaled to 0..255, then weighted
+  void fill_tables_(uint16_t high, uint16_t middle, uint16_t low) {
+    for (unsigned i = 0; i != 32; i++) {
+      this->high_[i] = high * esp_scale(i, 31);
+      this->low_[i] = low * esp_scale(i, 31);
+    }
+    for (unsigned i = 0; i != 64; i++)
+      this->middle_[i] = middle * esp_scale(i, 63);
+  }
+
   // Weighted contribution of each value of each field
   std::array<uint16_t, 32> high_{};
   std::array<uint16_t, 64> middle_{};

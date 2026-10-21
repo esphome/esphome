@@ -9,11 +9,9 @@ namespace esphome::text_sensor {
 ESPHOME_LOG_TAG(TAG, "text_sensor");
 
 void log_text_sensor(const char *tag, const char *prefix, const char *type, TextSensor *obj) {
-  if (obj == nullptr) {
+  if (!log_entity_header(tag, prefix, type, obj)) {
     return;
   }
-
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
   LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
   LOG_ENTITY_ICON(tag, prefix, *obj);
 }

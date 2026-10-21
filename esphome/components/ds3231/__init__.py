@@ -2,7 +2,6 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@linkedupbits"]
@@ -23,9 +22,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    await i2c.new_i2c_component(config)
 
 
 automation.register_apply_action(
