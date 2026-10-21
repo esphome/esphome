@@ -18,6 +18,7 @@ import pytest
 
 from .artifact_utils import keep_artifact
 from .bmp_utils import Bmp, capture_when_drawn, wait_for_bmp
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 WIDTH = 680
@@ -76,8 +77,8 @@ async def test_lvgl_color_picker_render(
 
     async with run_compiled(yaml_config), api_client_connected() as client:
         _, services = await client.list_entities_services()
-        take_screenshot = next(s for s in services if s.name == "take_screenshot")
-        set_orange = next(s for s in services if s.name == "set_orange")
+        take_screenshot = require_service(services, "take_screenshot")
+        set_orange = require_service(services, "set_orange")
 
         async def take(name: str) -> None:
             await client.execute_service(take_screenshot, {"name": name})

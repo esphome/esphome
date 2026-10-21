@@ -8,6 +8,7 @@ from esphome.components.network import (
     get_network_priority,
     get_priority_interfaces_from_full_config,
     ip_address_literal,
+    require_ipv4,
 )
 from esphome.config_helpers import (
     filter_source_files_from_defines,
@@ -22,6 +23,7 @@ from esphome.const import (
     CONF_DNS2,
     CONF_DOMAIN,
     CONF_ENABLE_ON_BOOT,
+    CONF_ETHERNET,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
@@ -556,6 +558,7 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
     ),
     _validate,
+    require_ipv4(CONF_ETHERNET),
 )
 
 
@@ -724,8 +727,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
             cg.add(var.set_polling_interval(config[CONF_POLLING_INTERVAL]))
         if _is_framework_spi_polling_mode_supported():
             cg.add_define("USE_ETHERNET_SPI_POLLING_SUPPORT")
-        if CONF_RESET_PIN in config:
-            cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+        cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
@@ -746,8 +748,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
     elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
         # RGMII data pins come from the IDF default config; set MDC/MDIO + PHY addr.
         _add_mdio_setters(var, config)
-        if CONF_POWER_PIN in config:
-            cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        cg.add_optional(var.set_power_pin, config.get(CONF_POWER_PIN))
         _add_phy_registers(var, config)
     else:
         _add_mdio_setters(var, config)
@@ -755,8 +756,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
             cg.add(var.set_clk_mode(clk_mode))
         if (clk_pin := config[CONF_CLK][CONF_PIN]) != DEFAULT_CLK_PIN:
             cg.add(var.set_clk_pin(clk_pin))
-        if CONF_POWER_PIN in config:
-            cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        cg.add_optional(var.set_power_pin, config.get(CONF_POWER_PIN))
         _add_phy_registers(var, config)
 
     # Register Ethernet with the esp32 sdkconfig reconciler. It disables the
@@ -782,10 +782,8 @@ async def _to_code_rp2040(var: cg.MockObj, config: ConfigType) -> None:
     cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
     cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
     cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
-    if CONF_INTERRUPT_PIN in config:
-        cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
-    if CONF_RESET_PIN in config:
-        cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+    cg.add_optional(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     cg.add_define("USE_ETHERNET_SPI")
     cg.add_library(_RP2_SPI_LIBRARIES[config[CONF_TYPE]], None)

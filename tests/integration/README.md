@@ -45,7 +45,7 @@ The `InitialStateHelper` class solves a common problem in integration tests: whe
 - Tracks all entities (except stateless ones like buttons)
 - Swallows the first state broadcast for each entity
 - Forwards all subsequent state changes to your test callback
-- Provides `wait_for_initial_states()` to synchronize before test actions
+- Provides `wait_for_initial_states()` to synchronize before test actions; it fails the test on timeout, naming the entities still without a state
 
 **When to use it:**
 - Any test that triggers entity state changes and needs to verify them
@@ -63,24 +63,45 @@ Consider converting existing integration tests to use `InitialStateHelper` for m
 
 #### Entity Lookup Helpers (`state_utils.py`)
 
-Two helper functions simplify finding entities in test code:
+These helpers simplify finding entities, services and device info in test code:
 
-**`find_entity(entities, object_id_substring, entity_type=None)`**
+**`find_entity(entities, object_id_substring, entity_type=None, *, exact=False)`**
 - Finds an entity by searching for a substring in its `object_id` (case-insensitive)
+- With `exact=True`, the whole `object_id` must match exactly (case-sensitive)
 - Optionally filters by entity type (e.g., `BinarySensorInfo`)
 - Returns `None` if not found
 
-**`require_entity(entities, object_id_substring, entity_type=None, description=None)`**
+**`require_entity(entities, object_id_substring, entity_type=None, description=None, *, exact=False)`**
 - Same as `find_entity` but raises `AssertionError` if not found
 - Use `description` parameter for clearer error messages
 
+**`require_only_entity(entities, entity_type)`**
+- Returns the one entity of `entity_type`; raises `AssertionError` if there is none or more than one
+
+**`require_service(services, name)`**
+- Returns the user service with exactly this name; fails the test with the available names if missing
+
+**`await assert_device_name(client, name)`**
+- Fetches `device_info()`, asserts it is not `None` and has this name, and returns it
+
 ```python
-from aioesphomeapi import BinarySensorInfo
-from .state_utils import require_entity
+from aioesphomeapi import BinarySensorInfo, LockInfo
+from .state_utils import (
+    assert_device_name,
+    require_entity,
+    require_only_entity,
+    require_service,
+)
+
+await assert_device_name(client, "host-test")
+entities, services = await client.list_entities_services()
 
 # Find entities with clear error messages
 binary_sensor = require_entity(entities, "test_sensor", BinarySensorInfo)
 button = require_entity(entities, "set_true", description="Set True button")
+switch = require_entity(entities, "relay", exact=True)  # not "relay_2"
+lock = require_only_entity(entities, LockInfo)
+my_service = require_service(services, "my_service")
 ```
 
 ### Writing Tests
@@ -97,8 +118,7 @@ async def test_my_feature(
     # Write, compile and run the ESPHome device, then connect to API
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Test your feature using the connected client
-        device_info = await client.device_info()
-        assert device_info is not None
+        await assert_device_name(client, "my-test-device")
 ```
 
 ### Creating YAML Fixtures
@@ -212,11 +232,9 @@ initial_state_helper = InitialStateHelper(entities)
 # Subscribe with the wrapper that filters initial states
 client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
-# Wait for all initial states to be broadcast
-try:
-    await initial_state_helper.wait_for_initial_states()
-except TimeoutError:
-    pytest.fail("Timeout waiting for initial states")
+# Wait for all initial states to be broadcast; on timeout this fails the test
+# and lists the entities that never sent one
+await initial_state_helper.wait_for_initial_states()
 
 # Now perform your test actions - on_state will only receive new changes
 # ... trigger state changes ...
@@ -260,8 +278,7 @@ except asyncio.TimeoutError:
 ```python
 # Find and execute service
 entities, services = await client.list_entities_services()
-my_service = next((s for s in services if s.name == "my_service"), None)
-assert my_service is not None
+my_service = require_service(services, "my_service")
 
 # Execute with parameters
 await client.execute_service(my_service, {"param1": "value1", "param2": 42})

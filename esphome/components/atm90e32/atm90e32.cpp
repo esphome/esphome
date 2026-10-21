@@ -629,7 +629,7 @@ float ATM90E32Component::get_chip_temperature_() {
 
 void ATM90E32Component::press_calibration_button(EntityBase *entity, void (ATM90E32Component::*action)(),
                                                  const LogString *hint, const LogString *hint2) {
-  ESP_LOGI(TAG, "%s", entity->get_name().c_str());
+  ESP_LOGI(TAG, "%s", LOG_STR_ARG(entity->get_log_name()));
   if (hint != nullptr) {
     ESP_LOGI(TAG, "%s", LOG_STR_ARG(hint));
   }
@@ -1340,7 +1340,7 @@ void ATM90E32Component::check_phase_status() {
     if (length != 0) {
       length -= 2;  // Remove the trailing separator.
       status[length] = '\0';
-      ESP_LOGW(TAG, "%s: %s", sensor->get_name().c_str(), status);
+      ESP_LOGW(TAG, "%s: %s", LOG_STR_ARG(sensor->get_log_name()), status);
       sensor->publish_state(status, length);
     } else {
       sensor->publish_state("Okay");

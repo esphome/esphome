@@ -225,8 +225,7 @@ async def to_code(config: ConfigType) -> None:
         if cfg := config.get(key):
             cg.add(getattr(var, funcName)(cfg))
 
-    if (model := config.get(CONF_MODEL)) is not None:
-        cg.add(var.set_model(model))
+    cg.add_optional(var.set_model, config.get(CONF_MODEL))
 
     for key, funcName in SENSOR_MAP.items():
         if cfg := config.get(key):

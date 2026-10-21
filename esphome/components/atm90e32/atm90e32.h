@@ -172,7 +172,7 @@ class ATM90E32Component final : public PollingComponent,
 #ifdef USE_NUMBER
     return (phase < 3 && ref_currents_[phase]) ? ref_currents_[phase]->state : 5.0f;  // Default current
 #else
-    return 5.0f;   // Default current
+    return 5.0f;  // Default current
 #endif
   }
   bool using_saved_calibrations_ = false;  // Track if stored calibrations are being used

@@ -749,7 +749,8 @@ def blob_in(main_cpp: str) -> bytes:
 def entity_hash(main_cpp: str, variable: str) -> int:
     """The key the generated code passes to configure_entity_, which ListEntities then sends."""
     match = re.search(
-        rf'App\.register_switch\({variable}, "[^"]*", (\d+)UL, \d+\)', main_cpp
+        rf'App\.register_switch\({variable}, ESPHOME_PSTR\("[^"]*"\), (\d+)UL, \d+\)',
+        main_cpp,
     )
     assert match is not None, variable
     return int(match.group(1))
@@ -982,12 +983,12 @@ def test_multiple_input_is_valid(tmp_path: Path, input_conf: str) -> None:
         ),
         pytest.param(
             "- {id: cals, max_length: 1023}",
-            "max_length only applies to an input with multiple: true",
+            "'max_length' is only valid when 'multiple' is true",
             id="max-length-without-multiple",
         ),
         pytest.param(
             "- {id: cals, multiple: false, max_length: 1023}",
-            "max_length only applies to an input with multiple: true",
+            "'max_length' is only valid when 'multiple' is true",
             id="max-length-multiple-false",
         ),
         pytest.param(
