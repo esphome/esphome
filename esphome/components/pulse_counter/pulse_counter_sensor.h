@@ -45,7 +45,6 @@ struct BasicPulseCounterStorage : public PulseCounterStorageBase {
   volatile uint32_t last_pulse{0};
 
   ISRInternalGPIOPin isr_pin;
-  // DISABLE: the ISR reads the pin level to pick the mode
   PulseCounterCountMode fixed_mode{PULSE_COUNTER_DISABLE};
 };
 
