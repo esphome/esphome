@@ -14,7 +14,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -59,28 +61,22 @@ async def test_wait_until_fifo_ordering(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-wait-until-ordering"
+        await assert_device_name(client, "test-wait-until-ordering")
 
         # Get services
         _, services = await client.list_entities_services()
-        test_service = next(
-            (s for s in services if s.name == "test_wait_until_fifo"), None
-        )
-        assert test_service is not None, "test_wait_until_fifo service not found"
+        test_service = require_service(services, "test_wait_until_fifo")
 
         # Execute the test
         await client.execute_service(test_service, {})
 
         # Wait for test to complete
-        try:
-            await asyncio.wait_for(test_complete.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test timed out. Completed order: {completed_order}. "
-                f"Expected 5 completions but got {len(completed_order)}."
-            )
+        await wait_or_fail(
+            test_complete,
+            5.0,
+            "Test timed out. Expected 5 completions",
+            completed_order=completed_order,
+        )
 
         # Verify FIFO order
         expected_order = [0, 1, 2, 3, 4]

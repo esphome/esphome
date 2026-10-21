@@ -7,13 +7,13 @@ reaches the module as setRange followed by saveConfig.
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import BinarySensorInfo, EntityState, NumberInfo, TextSensorInfo
 import pytest
 
 from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -23,13 +23,6 @@ async def test_uart_mock_dfrobot_sen0609(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Boot reads the module's settings; a number change is written and saved."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
     saved = loop.create_future()
 
@@ -71,10 +64,7 @@ async def test_uart_mock_dfrobot_sen0609(
         assert state_of(min_range) == pytest.approx(0.6)
 
         client.number_command(max_range.key, 8.0)
-        try:
-            await asyncio.wait_for(saved, timeout=10.0)
-        except TimeoutError:
-            pytest.fail("The new range was not written and saved")
+        await wait_or_fail(saved, 10.0, "The new range was not written and saved")
         await wait_for(
             lambda: state_of(max_range) == pytest.approx(8.0), "new maximum range"
         )
