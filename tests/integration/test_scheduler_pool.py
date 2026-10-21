@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -88,9 +89,7 @@ async def test_scheduler_pool(
         api_client_connected() as client,
     ):
         # Verify device is running
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-pool-test"
+        await assert_device_name(client, "scheduler-pool-test")
 
         # Get list of services
         entities, services = await client.list_entities_services()

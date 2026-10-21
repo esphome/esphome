@@ -5,6 +5,7 @@ import asyncio
 from aioesphomeapi import EntityState, Event, EventInfo, UserService
 import pytest
 
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -18,9 +19,7 @@ async def test_scheduler_defer_cancel(
 
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-defer-cancel"
+        await assert_device_name(client, "scheduler-defer-cancel")
 
         # List entities and services
         entity_info, services = await asyncio.wait_for(
@@ -28,18 +27,12 @@ async def test_scheduler_defer_cancel(
         )
 
         # Find our test entities
-        test_complete_entity: EventInfo | None = None
-        test_result_entity: EventInfo | None = None
-
-        for entity in entity_info:
-            if isinstance(entity, EventInfo):
-                if entity.object_id == "test_complete":
-                    test_complete_entity = entity
-                elif entity.object_id == "test_result":
-                    test_result_entity = entity
-
-        assert test_complete_entity is not None, "test_complete event not found"
-        assert test_result_entity is not None, "test_result event not found"
+        test_complete_entity = require_entity(
+            entity_info, "test_complete", EventInfo, exact=True
+        )
+        test_result_entity = require_entity(
+            entity_info, "test_result", EventInfo, exact=True
+        )
 
         # Find our test service
         test_defer_cancel_service: UserService | None = None

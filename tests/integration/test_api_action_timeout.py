@@ -13,6 +13,7 @@ import re
 from aioesphomeapi import UserService
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -79,9 +80,7 @@ async def test_api_action_timeout(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "api-action-timeout-test"
+        await assert_device_name(client, "api-action-timeout-test")
 
         # List services
         _, services = await client.list_entities_services()
