@@ -18,6 +18,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -75,9 +76,8 @@ async def test_legacy_climate_compat(
         # Verify we can set a custom fan mode via API (tests find_custom_fan_mode_ compat path)
         client.climate_command(test_climate.key, custom_fan_mode="Turbo")
 
-        try:
-            turbo_state = await asyncio.wait_for(turbo_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Custom fan mode 'Turbo' not received within 5 seconds")
+        turbo_state = await wait_or_fail(
+            turbo_future, 5.0, "Custom fan mode 'Turbo' not received within 5 seconds"
+        )
 
         assert turbo_state.custom_fan_mode == "Turbo"
