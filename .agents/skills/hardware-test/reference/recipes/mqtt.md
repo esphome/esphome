@@ -44,8 +44,9 @@ the unverified build the insecure flags. `scripts/mqtt/flash_and_drive.sh TREE Y
 local|public|neg` runs one build end to end (flash, bounded capture, `cases.sh` with a restart for the local broker,
 counts and the broker's per-listener connection lines) and prints the config dump's `TLS:` line (`CA certificate`,
 `certificate bundle` or `no verification`). The CLI side (`esphome/mqtt.py`) is covered without a board by
-`scripts/mqtt/cli_tls_check.sh TREE YAML...`, which runs `esphome clean-mqtt` under a timeout: status 124 after
-`Connected to MQTT broker!` is a pass, the negative must fail with `CERTIFICATE_VERIFY_FAILED`. Python's default SSL
+`scripts/mqtt/cli_tls_check.sh TREE [neg] YAML...`, which runs `esphome clean-mqtt` under a timeout: status 124
+after `Connected to MQTT broker!` is a pass, and with `neg` each config must instead fail with
+`CERTIFICATE_VERIFY_FAILED` and never connect. Python's default SSL
 context rejects a CA that lacks a `keyUsage` extension (`CA cert does not include key usage extension`) while mbedTLS
 on the device accepts it, which is why the test CA carries `basicConstraints` and `keyUsage`. A broker kill shows as one
 `Last esp-tls error: 0x8008` on every build, TLS or not. Results:

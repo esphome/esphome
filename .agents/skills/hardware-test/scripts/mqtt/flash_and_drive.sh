@@ -7,12 +7,13 @@
 # subscribes on (default 1883). Ends with connect, disconnect, handshake error and crash counts, the config dump's
 # TLS line, the probe heap lines and the broker listener each connection used.
 TREE=$1; YAML=$2; PORT=$3; KEY=$4; B=$5; MODE=$6; SP=${7:-1883}
-HERE=$(cd "$(dirname "$0")" && pwd); PY=${PYTHON:-python3}; N=$(basename "$YAML" .yaml); CAP=$PWD/cap-$N.txt
+case $YAML in /*) ;; *) YAML=$PWD/$YAML;; esac
+HERE=$(cd "$(dirname "$0")" && pwd); PY=${PYTHON:-python3}; N=$(basename "$YAML" .yaml); CAP=$PWD/cap-$N.txt; ULOG=$PWD/upload-$N.log
 [ -d "$TREE/esphome" ] && [ -e "$PORT" ] && [ -n "$KEY" ] && [ -n "$B" ] || { echo "usage: flash_and_drive.sh TREE YAML PORT KEY BROKER_HOST local|public|neg [SUB_PORT]"; exit 2; }
 case $MODE in local|public|neg) ;; *) echo "MODE must be local, public or neg"; exit 2;; esac
 pkill -f "[s]erial_capture.py $PORT"; sleep 1
 echo "=== $N: flash ($(date +%T))"
-(cd "$TREE" && PYTHONUNBUFFERED=1 timeout 300 $PY -m esphome upload "$YAML" --device "$PORT" > "$PWD/upload-$N.log" 2>&1) || { echo "upload failed"; tail -5 "$PWD/upload-$N.log"; exit 1; }
+(cd "$TREE" && PYTHONUNBUFFERED=1 timeout 300 $PY -m esphome upload "$YAML" --device "$PORT" > "$ULOG" 2>&1) || { echo "upload failed"; tail -5 "$ULOG"; exit 1; }
 SECS=200; [ "$MODE" = neg ] && SECS=100
 $PY "$HERE/../serial_capture.py" "$PORT" $SECS "$CAP" > "$PWD/cap-$N.stderr" 2>&1 &
 cap_pid=$!
