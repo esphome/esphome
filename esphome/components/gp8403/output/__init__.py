@@ -14,7 +14,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.GenerateID(CONF_GP8403_ID): cv.use_id(GP8403Component),
         cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=1),
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config: ConfigType) -> None:

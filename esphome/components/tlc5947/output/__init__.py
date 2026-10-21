@@ -15,7 +15,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.Required(CONF_ID): cv.declare_id(output.ApplyFloatOutput),
         cv.Required(CONF_CHANNEL): cv.uint16_t,
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config: ConfigType) -> None:
