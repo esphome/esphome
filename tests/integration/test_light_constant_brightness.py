@@ -21,6 +21,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -78,10 +79,7 @@ async def test_light_constant_brightness(
 
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         async def send_and_wait(
             light_key: int, timeout: float = 5.0, **kwargs: Any
@@ -89,10 +87,11 @@ async def test_light_constant_brightness(
             """Send a light command and wait for the state response."""
             state_futures[light_key] = loop.create_future()
             client.light_command(key=light_key, **kwargs)
-            try:
-                return await asyncio.wait_for(state_futures[light_key], timeout=timeout)
-            except TimeoutError:
-                pytest.fail(f"Timeout waiting for light state after command: {kwargs}")
+            return await wait_or_fail(
+                state_futures[light_key],
+                timeout,
+                f"Timeout waiting for light state after command: {kwargs}",
+            )
 
         # --- Test constant_brightness: true ---
 

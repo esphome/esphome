@@ -22,6 +22,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 # Number object_id: (value from the seed ACK, value from the ACK under test)
 EXPECTED: dict[str, tuple[float, float]] = {
@@ -118,31 +119,25 @@ async def test_uart_mock_ld2410_query_ack(
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
-        try:
-            await asyncio.wait_for(data_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for the data frame values. Received:\n"
-                f"  sensor_states: {sensor_states}"
-            )
-
-        try:
-            await asyncio.wait_for(final_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for the query ACK values. Received:\n"
-                f"  number_states: {number_states}\n"
-                f"  ack_errors: {ack_errors}"
-            )
+        await wait_or_fail(
+            data_received,
+            5.0,
+            "Timeout waiting for the data frame values",
+            sensor_states=sensor_states,
+        )
+        await wait_or_fail(
+            final_received,
+            5.0,
+            "Timeout waiting for the query ACK values",
+            number_states=number_states,
+            ack_errors=ack_errors,
+        )
 
         # One data frame, so each sensor is published once
         for name, value in SENSOR_EXPECTED.items():
