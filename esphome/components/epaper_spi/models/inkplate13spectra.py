@@ -25,9 +25,8 @@ from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import EpaperModel
+from .dualcs import CONF_CS1_PIN, DualCSModel
 
-CONF_CS1_PIN = "cs1_pin"
 CONF_BS0_PIN = "bs0_pin"
 CONF_BS1_PIN = "bs1_pin"
 
@@ -42,15 +41,8 @@ def _check_inverted_pin_is_internal(pin: ConfigType, path: list[Hashable]) -> No
         )
 
 
-class Inkplate13SpectraModel(EpaperModel):
-    source_files = (
-        "epaper_spi_4bpp.cpp",
-        "epaper_spi_dualcs.cpp",
-        "epaper_spi_inkplate13spectra.cpp",
-    )
-
-    # The driver drives CS and CS1 directly for the dual-chip protocol.
-    manages_cs = True
+class Inkplate13SpectraModel(DualCSModel):
+    source_files = DualCSModel.source_files + ("epaper_spi_inkplate13spectra.cpp",)
 
     def __init__(
         self, name: str, class_name: str = "EPaperInkplate13Spectra", **defaults: Any
@@ -66,6 +58,7 @@ class Inkplate13SpectraModel(EpaperModel):
                 f"{self.name} has a fixed {width}x{height} panel; remove 'dimensions'",
                 path=[CONF_DIMENSIONS],
             )
+        config = super().validate_config(config)
         if CONF_RESET_DURATION in config:
             raise cv.Invalid(
                 f"{self.name} sets its own reset timing; remove '{CONF_RESET_DURATION}'",
@@ -89,22 +82,17 @@ class Inkplate13SpectraModel(EpaperModel):
 
     def get_config_options(self) -> dict[Any, Any]:
         return {
-            self.option(CONF_CS1_PIN, fallback=None): pins.gpio_output_pin_schema,
+            **super().get_config_options(),
             self.option(CONF_BS0_PIN, fallback=None): pins.gpio_output_pin_schema,
             self.option(CONF_BS1_PIN, fallback=None): pins.gpio_output_pin_schema,
         }
 
     async def to_code(self, var: MockObj, config: ConfigType) -> ConfigType:
-        await cg.add_pin(var.set_primary_cs_pin, config[CONF_CS_PIN])
-        await cg.add_pin(var.set_secondary_cs_pin, config[CONF_CS1_PIN])
+        config = await super().to_code(var, config)
         await cg.add_pin(var.set_bs0_pin, config[CONF_BS0_PIN])
         await cg.add_pin(var.set_bs1_pin, config[CONF_BS1_PIN])
-        # Remove these from the config so the base class doesn't try to handle them
-        # (CS via the generic single-CS SPIDevice mechanism).
         return {
-            k: v
-            for k, v in config.items()
-            if k not in (CONF_CS_PIN, CONF_CS1_PIN, CONF_BS0_PIN, CONF_BS1_PIN)
+            k: v for k, v in config.items() if k not in (CONF_BS0_PIN, CONF_BS1_PIN)
         }
 
 
