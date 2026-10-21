@@ -23,6 +23,12 @@ CONF_PWR_EN_PIN = "pwr_en_pin"
 
 
 class Inkplate13SpectraModel(EpaperModel):
+    source_files = (
+        "epaper_spi_4bpp.cpp",
+        "epaper_spi_dualcs.cpp",
+        "epaper_spi_inkplate13spectra.cpp",
+    )
+
     # The driver drives CS and CS1 directly for the dual-chip protocol.
     manages_cs = True
 
