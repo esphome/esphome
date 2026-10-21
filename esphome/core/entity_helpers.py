@@ -648,8 +648,7 @@ def entity_temperature_unit(config: ConfigType) -> str:
 
 def entity_temperature_unit_of_id(entity_id: ID) -> str:
     """The unit of the entity with this id, for actions that take static temperatures."""
-    path = CORE.config.get_path_for_id(entity_id)[:-1]
-    return entity_temperature_unit(CORE.config.get_config_for_path(path))
+    return entity_temperature_unit(fv.get_declaring_config(entity_id, CORE.config))
 
 
 def convert_temperature_keys(

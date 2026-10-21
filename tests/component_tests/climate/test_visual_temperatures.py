@@ -103,7 +103,7 @@ def test_visual_temperatures_converted_once() -> None:
 
 def test_a_fixed_unit_keeps_visual_temperatures_in_it() -> None:
     # friedrich reports in °F through its traits; the unit is stamped, not a user option
-    schema = climate_schema(Climate, temperature_unit=UNIT_FAHRENHEIT)
+    schema = climate_schema(Climate, fixed_temperature_unit=UNIT_FAHRENHEIT)
     config = schema({CONF_NAME: "AC", CONF_VISUAL: {CONF_TEMPERATURE_STEP: "1°F"}})
     unit = config[CONF_UNIT_OF_MEASUREMENT]
     assert unit == UNIT_FAHRENHEIT

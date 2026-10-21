@@ -123,12 +123,8 @@ async def to_code(config: ConfigType) -> None:
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(TemplateWaterHeater),
-            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable(
-                cv.temperature_with_unit
-            ),
-            cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(
-                cv.temperature_with_unit
-            ),
+            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable_temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable_temperature,
             cv.Optional(CONF_MODE): cv.templatable(
                 water_heater.validate_water_heater_mode
             ),
@@ -147,6 +143,7 @@ async def water_heater_template_publish_to_code(
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
+    unit = entity_temperature_unit_of_id(config[CONF_ID])
     for key, setter in (
         (CONF_CURRENT_TEMPERATURE, var.set_current_temperature),
         (CONF_TARGET_TEMPERATURE, var.set_target_temperature),
@@ -154,9 +151,7 @@ async def water_heater_template_publish_to_code(
         if (value := config.get(key)) is None:
             continue
         if isinstance(value, tuple):
-            value = cv.convert_temperature(
-                *value, entity_temperature_unit_of_id(config[CONF_ID])
-            )
+            value = cv.convert_temperature(*value, unit)
         cg.add(setter(await cg.templatable(value, args, cg.float_)))
 
     if mode := config.get(CONF_MODE):

@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from functools import partial
 from typing import Any
 
@@ -167,9 +166,6 @@ def visual_temperature_step(value: Any) -> ConfigType:
     return {CONF_TARGET_TEMPERATURE: value, CONF_CURRENT_TEMPERATURE: value}
 
 
-templatable_temperature = cv.templatable(cv.temperature_with_unit)
-
-
 _visual_temperatures_in_entity_unit = partial(
     convert_visual_temperatures,
     delta_keys=(CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE),
@@ -278,15 +274,16 @@ def climate_schema(
     *,
     entity_category: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
-    temperature_unit: bool | str = False,
+    temperature_unit: bool = False,
+    fixed_temperature_unit: str | None = None,
 ) -> cv.Schema:
-    """``temperature_unit=True`` adds ``unit_of_measurement`` for a platform whose temperatures are
-    all in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``.
-    A unit instead of ``True`` is for a device that reports in that unit only, set by its traits."""
+    """``temperature_unit`` adds ``unit_of_measurement`` for a platform whose temperatures are all
+    in the unit the user picks; the class then needs ``set_temperature_unit(TemperatureUnit)``.
+    ``fixed_temperature_unit`` is for a device that reports in that unit only, set by its traits."""
     schema = {
         cv.GenerateID(): cv.declare_id(class_),
     }
-    if temperature_unit is True:
+    if temperature_unit:
         schema[cv.Optional(CONF_UNIT_OF_MEASUREMENT)] = cv.All(
             cv.temperature_unit, _unit_mqtt_can_report
         )
@@ -299,18 +296,16 @@ def climate_schema(
             schema[cv.Optional(key, default=default)] = validator
 
     extended = _CLIMATE_SCHEMA.extend(schema)
-    if temperature_unit and temperature_unit is not True:
-        # Stamped before the visual conversion runs, with no option for the user
-        extended.prepend_extra(_fixed_temperature_unit(temperature_unit))
+    if fixed_temperature_unit is not None:
+
+        def stamp(config: ConfigType) -> ConfigType:
+            config[CONF_UNIT_OF_MEASUREMENT] = cv.FixedTemperatureUnitValue(
+                fixed_temperature_unit
+            )
+            return config
+
+        extended.prepend_extra(stamp)
     return extended
-
-
-def _fixed_temperature_unit(unit: str) -> Callable[[ConfigType], ConfigType]:
-    def stamp(config: ConfigType) -> ConfigType:
-        config[CONF_UNIT_OF_MEASUREMENT] = cv.FixedTemperatureUnitValue(unit)
-        return config
-
-    return stamp
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -521,9 +516,9 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Climate),
         cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
-        cv.Optional(CONF_TARGET_TEMPERATURE): templatable_temperature,
-        cv.Optional(CONF_TARGET_TEMPERATURE_LOW): templatable_temperature,
-        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): templatable_temperature,
+        cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable_temperature,
+        cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable_temperature,
+        cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable_temperature,
         cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
         cv.Optional(CONF_AWAY): cv.invalid("Use preset instead"),
         cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
@@ -539,7 +534,6 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-# The target temperatures of climate.control and climate.template.publish, in the entity's unit
 TARGET_TEMPERATURE_APPLY_FIELDS = tuple(
     automation.ApplyField(key, setter, cg.float_, temperature_in_entity_unit)
     for key, setter in (
@@ -547,6 +541,9 @@ TARGET_TEMPERATURE_APPLY_FIELDS = tuple(
         (CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low"),
         (CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high"),
     )
+)
+TARGET_TEMPERATURE_KEYS = tuple(
+    field.conf_key for field in TARGET_TEMPERATURE_APPLY_FIELDS
 )
 
 automation.register_apply_action(

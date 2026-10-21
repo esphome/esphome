@@ -15,7 +15,7 @@ MODELS = Model.options("MW12Y3H", prefix="MODEL_")
 
 # The unit reports in Fahrenheit (traits() in friedrich.cpp), so visual temperatures are kept in it
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(
-    FriedrichClimate, temperature_unit=UNIT_FAHRENHEIT
+    FriedrichClimate, fixed_temperature_unit=UNIT_FAHRENHEIT
 ).extend(
     {
         cv.Optional(CONF_MODEL, default="MW12Y3H"): cv.enum(MODELS, upper=True),

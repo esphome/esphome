@@ -25,7 +25,7 @@ class TemplateClimate final : public climate::Climate, public Component {
   void add_feature_flags(uint32_t flags) { this->traits_.add_feature_flags(flags); }
   void set_temperature_unit(TemperatureUnit unit) {
     this->traits_.set_temperature_unit(unit);
-    // Keep the traits' default range in the chosen unit; visual overrides still apply on top
+    // Visual overrides still apply on top of the converted default range
     this->traits_.set_visual_min_temperature(celsius_to(climate::ClimateTraits::DEFAULT_VISUAL_MIN_TEMPERATURE, unit));
     this->traits_.set_visual_max_temperature(celsius_to(climate::ClimateTraits::DEFAULT_VISUAL_MAX_TEMPERATURE, unit));
   }
@@ -73,15 +73,6 @@ class TemplateClimate final : public climate::Climate, public Component {
 
  protected:
   void control(const climate::ClimateCall &call) override;
-
-  static constexpr float CELSIUS_TO_KELVIN = 273.15f;
-  static constexpr float celsius_to(float celsius, TemperatureUnit unit) {
-    if (unit == TemperatureUnit::FAHRENHEIT)
-      return celsius_to_fahrenheit(celsius);
-    if (unit == TemperatureUnit::KELVIN)
-      return celsius + CELSIUS_TO_KELVIN;
-    return celsius;
-  }
 
   climate::ClimateTraits traits_;
   bool optimistic_{false};

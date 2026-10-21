@@ -1608,6 +1608,9 @@ _TEMPERATURE_SCALES = {
 }
 
 
+templatable_temperature = templatable(temperature_with_unit)
+
+
 def convert_temperature(
     value: float, unit: str | None, to_unit: str, *, delta: bool = False
 ) -> float:

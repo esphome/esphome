@@ -1768,6 +1768,15 @@ enum class TemperatureUnit : uint8_t {
   KELVIN = 2,
 };
 
+/// Convert degrees Celsius into the given unit.
+constexpr float celsius_to(float value, TemperatureUnit unit) {
+  if (unit == TemperatureUnit::FAHRENHEIT)
+    return celsius_to_fahrenheit(value);
+  if (unit == TemperatureUnit::KELVIN)
+    return value + 273.15f;
+  return value;
+}
+
 ///@}
 
 /// @name Utilities

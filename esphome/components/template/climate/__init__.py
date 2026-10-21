@@ -196,13 +196,7 @@ def _validate_initial_state(config: ConfigType) -> ConfigType:
             path=[CONF_INITIAL_STATE, CONF_TARGET_HUMIDITY],
         )
     convert_temperature_keys(
-        initial_state,
-        (
-            CONF_TARGET_TEMPERATURE,
-            CONF_TARGET_TEMPERATURE_LOW,
-            CONF_TARGET_TEMPERATURE_HIGH,
-        ),
-        entity_temperature_unit(config),
+        initial_state, climate.TARGET_TEMPERATURE_KEYS, entity_temperature_unit(config)
     )
     return config
 
@@ -381,11 +375,11 @@ CLIMATE_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(TemplateClimate),
-            cv.Optional(CONF_CURRENT_TEMPERATURE): climate.templatable_temperature,
+            cv.Optional(CONF_CURRENT_TEMPERATURE): cv.templatable_temperature,
             cv.Optional(CONF_CURRENT_HUMIDITY): cv.templatable(cv.percentage_int),
-            cv.Optional(CONF_TARGET_TEMPERATURE): climate.templatable_temperature,
-            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): climate.templatable_temperature,
-            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): climate.templatable_temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable_temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable_temperature,
+            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable_temperature,
             cv.Optional(CONF_TARGET_HUMIDITY): cv.templatable(cv.percentage_int),
             cv.Optional(CONF_MODE): cv.templatable(climate.validate_climate_mode),
             cv.Optional(CONF_ACTION): cv.templatable(climate.validate_climate_action),
