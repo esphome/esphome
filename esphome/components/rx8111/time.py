@@ -64,11 +64,9 @@ def _validate_alarm_config(config: ConfigType) -> ConfigType:
             "on_alarm requires alarm_enabled: true or alarm matching fields"
         )
     if (
-        config.get(
-            CONF_TIMER_ENABLED, CONF_TIMER_COUNT in config or CONF_ON_TIMER in config
-        )
-        and CONF_TIMER_COUNT not in config
-    ):
+        config.get(CONF_TIMER_ENABLED, CONF_TIMER_COUNT in config)
+        or CONF_ON_TIMER in config
+    ) and CONF_TIMER_COUNT not in config:
         raise cv.Invalid("timer_enabled or on_timer requires timer_count")
     return config
 
@@ -222,6 +220,7 @@ async def to_code(config: ConfigType) -> None:
             config.get(CONF_ALARM_ENABLED, any(f in config for f in _ALARM_FIELDS))
         )
     )
+    cg.add(var.set_alarm_configured(CONF_ALARM_ENABLED in config))
     if (count := config.get(CONF_TIMER_COUNT)) is not None:
         cg.add(var.set_timer_count(count))
         cg.add(var.set_timer_clock(config[CONF_TIMER_CLOCK]))

@@ -51,6 +51,8 @@ void RX8111Component::setup() {
         this->alarm_configured_ = (control & RX8111_CONTROL_AIE) != 0;
       }
     }
+  } else if (this->alarm_explicitly_configured_ && !this->set_alarm_interrupt_(false)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
   // An omitted timer setting leaves battery-backed state alone; explicit false stops it.
   if (this->timer_configured_) {
@@ -58,27 +60,41 @@ void RX8111Component::setup() {
       this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     } else if (this->timer_enabled_) {
       this->timer_flag_seen_ = false;  // Report a wake-up even when reprogramming the timer.
+    } else if (this->timer_count_ != 0) {
+      this->timer_retained_event_pending_ = true;
     }
   }
-  if (this->alarm_enabled_ || this->timer_enabled_) {
+  if (this->alarm_enabled_ || this->timer_enabled_ || this->timer_retained_event_pending_) {
     this->start_event_polling_();
+  }
+}
+
+void RX8111Component::check_event_flags_() {
+  if (!this->alarm_configured_ && !this->timer_enabled_ && !this->timer_count_)
+    return;
+  if (!this->poll_event_flags_()) {
+    if (!this->calendar_warning_ && !this->status_has_warning()) {
+      this->event_poll_warning_ = true;
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    }
   }
 }
 
 void RX8111Component::start_event_polling_() {
   if (this->event_polling_started_)
     return;
-  this->set_interval(RX8111_EVENT_INTERVAL_ID, this->event_poll_interval_, [this]() {
-    if ((this->alarm_configured_ || this->timer_enabled_) && !this->poll_event_flags_())
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  });
+  this->set_interval(RX8111_EVENT_INTERVAL_ID, this->event_poll_interval_, [this]() { this->check_event_flags_(); });
   this->event_polling_started_ = true;
 }
 
 void RX8111Component::update() {
   this->read_time();
-  if ((this->alarm_configured_ || this->timer_enabled_) && !this->poll_event_flags_())
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  this->check_event_flags_();
+}
+
+void RX8111Component::set_calendar_warning_(const LogString *message) {
+  this->calendar_warning_ = true;
+  this->status_set_warning(message);
 }
 
 void RX8111Component::dump_config() {
@@ -95,22 +111,31 @@ void RX8111Component::dump_config() {
 }
 
 void RX8111Component::read_time() {
+  ESPTime rtc_time;
+  if (!this->read_calendar_(rtc_time))
+    return;
+  ESP_LOGD(TAG, "Read UTC time: %04d-%02d-%02d %02d:%02d:%02d", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
+           rtc_time.hour, rtc_time.minute, rtc_time.second);
+  time::RealTimeClock::synchronize_epoch_(rtc_time.timestamp);
+}
+
+bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
+    this->set_calendar_warning_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
   }
   if (flags & (RX8111_FLAG_VLF | RX8111_FLAG_XST | RX8111_FLAG_POR)) {
     ESP_LOGW(TAG, "RTC time invalidated by power loss or oscillator stop; write trusted time");
-    this->status_set_warning(LOG_STR("RTC time invalidated; write trusted time"));
-    return;
+    this->set_calendar_warning_(LOG_STR("RTC time invalidated; write trusted time"));
+    return false;
   }
 
   uint8_t buf[7];
   // I2C access freezes the RX8111 counter, yielding a coherent calendar snapshot.
   if (!this->read_bytes(RX8111_REG_SEC, buf, sizeof(buf))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
+    this->set_calendar_warning_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
   }
   static constexpr uint8_t CALENDAR_MASKS[7] = {0x7F, 0x7F, 0x3F, 0x00, 0x3F, 0x1F, 0xFF};
   for (size_t i = 0; i < sizeof(buf); i++) {
@@ -119,30 +144,31 @@ void RX8111Component::read_time() {
     buf[i] &= CALENDAR_MASKS[i];
     if ((buf[i] & 0x0F) > 9 || (buf[i] >> 4) > 9) {
       ESP_LOGW(TAG, "Invalid BCD in RTC time");
-      this->status_set_warning(LOG_STR("Invalid RTC time"));
-      return;
+      this->set_calendar_warning_(LOG_STR("Invalid RTC time"));
+      return false;
     }
   }
   const uint8_t onehot = buf[3];
   if (onehot == 0 || onehot > 0x40 || (onehot & (onehot - 1)) != 0) {
     ESP_LOGW(TAG, "Invalid RTC weekday");
-    this->status_set_warning(LOG_STR("Invalid RTC time"));
-    return;
+    this->set_calendar_warning_(LOG_STR("Invalid RTC time"));
+    return false;
   }
-  ESPTime rtc_time = time::decode_bcd_calendar(buf);
+  rtc_time = time::decode_bcd_calendar(buf);
   if (!rtc_time.is_valid(true, false) || rtc_time.second >= 60) {
     ESP_LOGW(TAG, "Invalid RTC time, not syncing to system clock");
-    this->status_set_warning(LOG_STR("Invalid RTC time"));
-    return;
+    this->set_calendar_warning_(LOG_STR("Invalid RTC time"));
+    return false;
   }
-  if (!this->status_comm_result(ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week == rtc_time.day_of_week,
-                                LOG_STR("Invalid RTC time"))) {
+  if (ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week != rtc_time.day_of_week) {
     ESP_LOGW(TAG, "RTC weekday does not match calendar date");
-    return;
+    this->set_calendar_warning_(LOG_STR("Invalid RTC time"));
+    return false;
   }
-  ESP_LOGD(TAG, "Read UTC time: %04d-%02d-%02d %02d:%02d:%02d", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
-           rtc_time.hour, rtc_time.minute, rtc_time.second);
-  time::RealTimeClock::synchronize_epoch_(rtc_time.timestamp);
+  this->calendar_warning_ = false;
+  if (!this->event_poll_warning_)
+    this->status_clear_warning();
+  return true;
 }
 
 void RX8111Component::write_time() {
@@ -250,9 +276,9 @@ bool RX8111Component::schedule_alarm_in(uint32_t seconds) {
     ESP_LOGE(TAG, "Relative alarm requires alarm_enabled and a duration of 1 second to less than 28 days");
     return false;
   }
-  auto now = this->utcnow();
-  if (!now.is_valid() || now.year > 2099) {
-    ESP_LOGE(TAG, "Invalid system time for relative alarm");
+  ESPTime now;
+  if (!this->read_calendar_(now)) {
+    ESP_LOGE(TAG, "Cannot read valid RTC time for relative alarm");
     return false;
   }
   auto target = ESPTime::from_epoch_utc(now.timestamp + seconds);
@@ -310,7 +336,6 @@ bool RX8111Component::configure_timer_(bool clear_stale_flag) {
 bool RX8111Component::start_timer() {
   if (this->timer_count_ == 0 || this->timer_count_ > 0xFFFFFF) {
     ESP_LOGW(TAG, "Cannot start timer without a valid timer_count");
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   if (!this->configure_timer_(true)) {
@@ -321,6 +346,7 @@ bool RX8111Component::start_timer() {
     return false;
   }
   this->timer_enabled_ = true;
+  this->timer_retained_event_pending_ = false;
   this->start_event_polling_();
   return true;
 }
@@ -332,6 +358,7 @@ bool RX8111Component::clear_timer_flag() {
     return false;
   }
   this->timer_flag_seen_ = false;
+  this->timer_retained_event_pending_ = false;
   return true;
 }
 
@@ -353,17 +380,25 @@ bool RX8111Component::poll_event_flags_() {
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
+  if (this->event_poll_warning_) {
+    this->event_poll_warning_ = false;
+    if (!this->calendar_warning_)
+      this->status_clear_warning();
+  }
   const bool alarm_active = (flags & RX8111_FLAG_AF) != 0;
   const bool timer_active = (flags & RX8111_FLAG_TF) != 0;
   const bool alarm_rising = alarm_active && !this->alarm_flag_seen_ && this->alarm_enabled_ && this->alarm_configured_;
-  const bool timer_rising = timer_active && !this->timer_flag_seen_ && this->timer_enabled_;
+  const bool timer_rising =
+      timer_active && !this->timer_flag_seen_ && (this->timer_enabled_ || this->timer_retained_event_pending_);
+  const bool deliver_stopped_event = timer_rising && this->timer_retained_event_pending_;
   // Callbacks may clear flags synchronously: record both edges first.
   this->alarm_flag_seen_ = alarm_active;
   this->timer_flag_seen_ = timer_active;
+  this->timer_retained_event_pending_ = false;
   if (alarm_rising)
     this->alarm_callbacks_.call();
   // An alarm callback may stop the timer before its callback is delivered.
-  if (timer_rising && this->timer_enabled_)
+  if (timer_rising && this->timer_flag_seen_ && (this->timer_enabled_ || deliver_stopped_event))
     this->timer_callbacks_.call();
   return true;
 }

@@ -242,6 +242,7 @@ TEST_F(RX8111Test, RelativeAlarmUsesUTCAndRejectsInvalidDurations) {
   this->rtc_.set_alarm_enabled(true);
   EXPECT_FALSE(this->rtc_.schedule_alarm_in(0));
   EXPECT_FALSE(this->rtc_.schedule_alarm_in(28U * 86400U));
+  this->rtc_.write_time();
   const auto before = ESPTime::from_epoch_utc(::time(nullptr) + 60);
   ASSERT_TRUE(this->rtc_.schedule_alarm_in(60));
   const auto after = ESPTime::from_epoch_utc(::time(nullptr) + 60);
@@ -251,6 +252,32 @@ TEST_F(RX8111Test, RelativeAlarmUsesUTCAndRejectsInvalidDurations) {
            this->bus_.regs[MIN_ALARM + 1] == bcd(time.hour) && this->bus_.regs[MIN_ALARM + 2] == bcd(time.day_of_month);
   };
   EXPECT_TRUE(matches(before) || matches(after));
+}
+
+TEST_F(RX8111Test, RelativeAlarmReadsRTCWithoutSynchronizingSystemClock) {
+  this->rtc_.set_alarm_enabled(true);
+  this->bus_.regs[SEC] = 0x30;
+  this->bus_.regs[SEC + 1] = 0x59;
+  this->bus_.regs[SEC + 2] = 0x23;
+  this->bus_.regs[WEEK] = 0x04;  // Tuesday, 2024-01-02.
+  this->bus_.regs[DAY] = 0x02;
+  this->bus_.regs[MONTH] = 0x01;
+  this->bus_.regs[MONTH + 1] = 0x24;
+  ASSERT_TRUE(this->rtc_.schedule_alarm_in(60));
+  EXPECT_EQ(this->syncs_, 0);
+  EXPECT_EQ(this->bus_.regs[SEC_ALARM], 0x30);
+  EXPECT_EQ(this->bus_.regs[MIN_ALARM], 0x00);
+  EXPECT_EQ(this->bus_.regs[MIN_ALARM + 1], 0x00);
+  EXPECT_EQ(this->bus_.regs[MIN_ALARM + 2], 0x03);
+  this->bus_.regs[FLAG] = 0x80;
+  this->bus_.writes.clear();
+  EXPECT_FALSE(this->rtc_.schedule_alarm_in(60));
+  EXPECT_TRUE(this->bus_.writes.empty());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.regs[FLAG] = 0;
+  this->bus_.regs[WEEK] = 0;
+  EXPECT_FALSE(this->rtc_.schedule_alarm_in(60));
+  EXPECT_TRUE(this->bus_.writes.empty());
 }
 
 TEST_F(RX8111Test, TimerPrograms24BitCountAndPreservesAlarmAndOtherExtensionBits) {
@@ -298,6 +325,64 @@ TEST_F(RX8111Test, ExplicitDisabledTimerStopsBatteryBackedCounter) {
   EXPECT_EQ(this->bus_.regs[EXTENSION], 0xC9);
   this->bus_.fail_write = CONTROL;
   EXPECT_FALSE(this->rtc_.stop_timer());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, ExplicitDisabledAlarmClearsOnlyAIEAndPreservesAF) {
+  this->bus_.regs[CONTROL] = 0x5C;
+  this->bus_.regs[FLAG] = 0x08;
+  this->rtc_.set_alarm_configured(true);
+  this->rtc_.set_alarm_enabled(false);
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[CONTROL], 0x54);
+  EXPECT_EQ(this->bus_.regs[FLAG], 0x08);
+  this->bus_.regs[CONTROL] = 0x5C;
+  this->rtc_.set_alarm_configured(false);
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[CONTROL], 0x5C);
+}
+
+TEST_F(RX8111Test, DisabledTimerReportsRetainedFlagOnceViaScheduler) {
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(false);
+  this->rtc_.set_event_poll_interval(1);
+  this->bus_.regs[FLAG] = 0x10;
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&calls]() { calls++; });
+  this->rtc_.setup();
+  App.scheduler.call(millis());
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(calls, 1);
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x10, 0);
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, EventPollWarningRecoversButCalendarWarningRemains) {
+  this->rtc_.set_timer_count(1);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(false);
+  this->rtc_.setup();
+  // Provide a valid calendar so a failed FLAG poll is the only warning source.
+  this->rtc_.write_time();
+  this->rtc_.read_time();
+  this->bus_.fail_read = FLAG;
+  this->rtc_.update();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = -1;
+  this->rtc_.update();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+  this->bus_.regs[FLAG] = 0x80;
+  this->rtc_.update();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = FLAG;
+  this->rtc_.update();
+  this->bus_.fail_read = -1;
+  // Event polling succeeds, but the invalid calendar still owns the warning.
+  this->rtc_.update();
   EXPECT_TRUE(this->rtc_.status_has_warning());
 }
 
@@ -369,9 +454,10 @@ TEST_F(RX8111Test, StartTimerAfterDisabledBootAndRejectsMissingOrFailedConfigura
 
 TEST_F(RX8111Test, StartTimerWithoutCountDoesNotTouchHardware) {
   this->rtc_.setup();
+  this->rtc_.status_clear_warning();
   this->bus_.writes.clear();
   EXPECT_FALSE(this->rtc_.start_timer());
-  EXPECT_TRUE(this->rtc_.status_has_warning());
+  EXPECT_FALSE(this->rtc_.status_has_warning());
   EXPECT_TRUE(this->bus_.writes.empty());
 }
 
@@ -436,6 +522,25 @@ TEST_F(RX8111Test, AlarmCallbackCanStopTimerBeforeTimerCallback) {
   EXPECT_EQ(timers, 0);
   EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0);
   EXPECT_EQ(this->bus_.regs[CONTROL] & 0x10, 0);
+}
+
+TEST_F(RX8111Test, AlarmCallbackRestartInvalidatesPendingTimerEvent) {
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_count(2);
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  this->rtc_.setup();
+  unsigned timers = 0;
+  this->rtc_.add_on_alarm_callback([this]() { EXPECT_TRUE(this->rtc_.start_timer()); });
+  this->rtc_.add_on_timer_callback([&timers]() { timers++; });
+  this->bus_.regs[FLAG] = 0x18;
+  this->rtc_.update();
+  EXPECT_EQ(timers, 0);
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x10, 0);
+  this->bus_.regs[FLAG] |= 0x10;
+  this->rtc_.update();
+  EXPECT_EQ(timers, 1);
 }
 
 TEST_F(RX8111Test, TimerCallbackCanClearTFAndFailedProgrammingDoesNotStartTimer) {

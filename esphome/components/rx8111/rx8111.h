@@ -14,6 +14,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void read_time();
   void write_time();
   void set_alarm_enabled(bool enabled) { this->alarm_enabled_ = enabled; }
+  void set_alarm_configured(bool configured) { this->alarm_explicitly_configured_ = configured; }
   void set_alarm_second(uint8_t value) { this->alarm_second_ = value; }
   void set_alarm_minute(uint8_t value) { this->alarm_minute_ = value; }
   void set_alarm_hour(uint8_t value) { this->alarm_hour_ = value; }
@@ -40,6 +41,9 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
 
  protected:
   bool set_stop_bit_(bool stop);
+  bool read_calendar_(ESPTime &rtc_time);
+  void set_calendar_warning_(const LogString *message);
+  void check_event_flags_();
   bool program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day);
   bool set_alarm_interrupt_(bool enabled);
   bool configure_timer_(bool clear_stale_flag = false);
@@ -54,13 +58,17 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool timer_enabled_{false};
   bool timer_configured_{false};
   bool timer_flag_seen_{false};
+  bool timer_retained_event_pending_{false};
   bool event_polling_started_{false};
+  bool event_poll_warning_{false};
+  bool calendar_warning_{false};
   uint8_t alarm_second_{0xFF};
   uint8_t alarm_minute_{0xFF};
   uint8_t alarm_hour_{0xFF};
   uint8_t alarm_weekday_{0xFF};
   uint8_t alarm_day_{0xFF};
   bool alarm_enabled_{false};
+  bool alarm_explicitly_configured_{false};
   bool alarm_flag_seen_{false};
   bool alarm_configured_{false};
 };

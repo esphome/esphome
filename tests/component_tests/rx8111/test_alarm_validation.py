@@ -57,7 +57,11 @@ def test_relative_alarm_combines_units() -> None:
 
 @pytest.mark.parametrize(
     "config",
-    [{CONF_TIMER_ENABLED: True}, {CONF_ON_TIMER: [{}]}],
+    [
+        {CONF_TIMER_ENABLED: True},
+        {CONF_ON_TIMER: [{}]},
+        {CONF_TIMER_ENABLED: False, CONF_ON_TIMER: [{}]},
+    ],
 )
 def test_timer_requires_count(config: dict) -> None:
     with pytest.raises(cv.Invalid, match="timer_count"):
