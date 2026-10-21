@@ -277,8 +277,10 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 
   // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
   // Catches mode/power changes made outside ESPHome (IR remote, Mitsubishi app); setters handle local changes.
-  if (previous.mode != this->status_.mode || previous.power_on != this->status_.power_on) {
+  if (previous.power_on != this->status_.power_on) {
     this->invalidate_operating_();
+  } else if (previous.mode != this->status_.mode) {
+    this->handle_mode_change_(previous.mode);
   } else if (previous.target_temperature != this->status_.target_temperature) {
     this->refresh_operating_();
   }
@@ -403,7 +405,7 @@ void MitsubishiCN105::set_mode(Mode mode) {
     return;
   }
   if (old_mode != this->status_.mode) {
-    this->invalidate_operating_();
+    this->handle_mode_change_(old_mode);
   }
 }
 
@@ -552,5 +554,39 @@ void MitsubishiCN105::invalidate_operating_() {
 // auto_direction (the direction of an in-progress AUTO run doesn't flip mid-run). Just request a fresh
 // 0x06 so the action catches up quickly. An in-progress settle window is left untouched.
 void MitsubishiCN105::refresh_operating_() { this->last_heatpump_request_ms_.reset(); }
+
+// HEAT <-> AUTO and COOL <-> AUTO don't interrupt an active run when the direction is unchanged:
+// the compressor keeps delivering heat/cooling, so carry the state over instead of going "unknown".
+// While a settle window is active, operating is never true, so this falls through to invalidate.
+void MitsubishiCN105::handle_mode_change_(Mode old_mode) {
+  const Mode new_mode = this->status_.mode;
+
+  std::optional<AutoDirection> active_direction{};
+  if (this->status_.operating.value_or(false)) {
+    if (old_mode == Mode::HEAT) {
+      active_direction = AutoDirection::HEAT;
+    } else if (old_mode == Mode::COOL) {
+      active_direction = AutoDirection::COOL;
+    } else if (old_mode == Mode::AUTO) {
+      active_direction = this->status_.auto_direction;
+    }
+  }
+
+  if (active_direction.has_value()) {
+    if (new_mode == Mode::AUTO) {
+      this->status_.auto_direction = active_direction;
+      this->refresh_operating_();
+      return;
+    }
+    if ((new_mode == Mode::HEAT && *active_direction == AutoDirection::HEAT) ||
+        (new_mode == Mode::COOL && *active_direction == AutoDirection::COOL)) {
+      this->status_.auto_direction.reset();
+      this->refresh_operating_();
+      return;
+    }
+  }
+
+  this->invalidate_operating_();
+}
 
 }  // namespace esphome::mitsubishi_cn105
