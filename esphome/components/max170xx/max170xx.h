@@ -29,8 +29,8 @@ static constexpr uint16_t MODE_EN_SLEEP = 0x2000;
 static constexpr uint16_t STATUS_HD = 0x1000;
 
 static constexpr uint32_t WAKE_ALERT_CLEAR_TIMEOUT_ID = 0;
-// The gauge raises its false wake alert some time after the wake write, so the clear waits this long
-static constexpr uint32_t WAKE_ALERT_CLEAR_DELAY_MS = 1000;
+// The gauge raises its false wake alert some time after the wake write; on hardware it rose 0.8 to 1.0 s later
+static constexpr uint32_t WAKE_ALERT_CLEAR_DELAY_MS = 2000;
 
 /// Defined in max170xx.cpp, which instantiates both families.
 template<bool MAX17048_FAMILY> class MAX170xxComponent : public PollingComponent, public i2c::I2CDevice {
@@ -39,7 +39,8 @@ template<bool MAX17048_FAMILY> class MAX170xxComponent : public PollingComponent
   void sleep_mode();
 
  protected:
-  /// True once the gauge is configured; otherwise retries the configuration. Call first in update().
+  /// True once the gauge is configured; otherwise retries the configuration and warns if the gauge did not answer.
+  /// Call first in update().
   bool ready_for_update_();
   /// Verify and wake the gauge; false if it did not answer.
   bool configure_();

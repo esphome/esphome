@@ -92,6 +92,7 @@ TEST(MAX170xxTest, SilentBusAtSetupIsRetried) {
   f.gauge.setup();
   EXPECT_FALSE(f.gauge.is_failed());
   EXPECT_FALSE(f.gauge.configured_);
+  EXPECT_TRUE(f.gauge.status_has_warning());
   EXPECT_FALSE(f.gauge.ready_for_update_());
   EXPECT_TRUE(f.gauge.status_has_warning());
 
@@ -199,6 +200,17 @@ TEST(MAX170xxTest, SleepModeOnSilentBusWritesNothing) {
   EXPECT_TRUE(f.bus.writes.empty());
   EXPECT_TRUE(f.gauge.status_has_warning());
   EXPECT_FALSE(f.gauge.is_failed());
+}
+
+TEST(MAX170xxTest, SetupAfterSleepModeKeepsGaugeAsleep) {
+  Fixture<Gauge48> f;
+  f.bus.registers[REG_CONFIG] = 0x971C;
+  // An on_boot with priority above 600 runs before setup()
+  f.gauge.sleep_mode();
+  f.bus.writes.clear();
+  f.gauge.setup();
+  EXPECT_TRUE(f.bus.writes.empty());
+  EXPECT_EQ(f.bus.registers[REG_CONFIG], 0x979C);
 }
 
 TEST(MAX170xxTest, SleepModeWhenFailedWritesNothing) {

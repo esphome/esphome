@@ -7,7 +7,8 @@ ESPHOME_LOG_TAG(TAG, "max170xx");
 
 template<bool MAX17048_FAMILY> void MAX170xxComponent<MAX17048_FAMILY>::setup() {
   // A silent bus is retried from update(): some boards gate the I2C rail until after setup.
-  this->configure_();
+  // An early on_boot may already have configured the gauge and put it to sleep, so this must not configure again.
+  this->ready_for_update_();
 }
 
 template<bool MAX17048_FAMILY> bool MAX170xxComponent<MAX17048_FAMILY>::ready_for_update_() {
@@ -64,13 +65,8 @@ template<bool MAX17048_FAMILY> void MAX170xxComponent<MAX17048_FAMILY>::sleep_mo
   if (this->is_failed())
     return;
   // The deferred configuration clears the sleep bit, so it has to run before the gauge is put to sleep
-  if (!this->configured_ && !this->configure_()) {
-    if (!this->is_failed()) {
-      ESP_LOGW(TAG, "Gauge did not answer, not putting it to sleep");
-      this->status_set_warning(LOG_STR("Gauge did not answer"));
-    }
+  if (!this->ready_for_update_())
     return;
-  }
 
   // A clear still pending would otherwise run against a sleeping gauge
   if (this->cancel_timeout(WAKE_ALERT_CLEAR_TIMEOUT_ID))
@@ -78,16 +74,13 @@ template<bool MAX17048_FAMILY> void MAX170xxComponent<MAX17048_FAMILY>::sleep_mo
 
   if constexpr (MAX17048_FAMILY) {
     if (!this->write_byte_16(REG_MODE, MODE_EN_SLEEP)) {
-      ESP_LOGW(TAG, "Unable to enable sleep mode in the mode register");
-      this->status_set_warning();
+      this->status_set_warning(LOG_STR("Unable to enable sleep mode in the mode register"));
       return;
     }
   }
 
-  if (!this->write_byte_16(REG_CONFIG, CONFIG_POWER_UP_DEFAULT | CONFIG_SLEEP)) {
-    ESP_LOGW(TAG, "Unable to write the sleep bit to config register");
-    this->status_set_warning();
-  }
+  if (!this->write_byte_16(REG_CONFIG, CONFIG_POWER_UP_DEFAULT | CONFIG_SLEEP))
+    this->status_set_warning(LOG_STR("Unable to write the sleep bit to config register"));
 }
 
 template class MAX170xxComponent<false>;
