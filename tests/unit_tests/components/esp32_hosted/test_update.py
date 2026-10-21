@@ -126,6 +126,7 @@ def test_firmware_cache_cleanup(
             "platformdirs.user_cache_dir",
             lambda *args, **kwargs: str(tmp_path / "user-cache"),
         )
+        monkeypatch.delenv("ESPHOME_BUILD_PATH", raising=False)
         clean_all([str(CORE.config_path)])
         assert not cache.exists()
     else:
