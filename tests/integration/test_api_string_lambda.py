@@ -7,6 +7,7 @@ import pytest
 from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -49,10 +50,15 @@ async def test_api_string_lambda(
         )
 
         # Confirms the lambdas compiled and executed
-        await waiter.wait_for_each(
-            "Service called with string: STRING_FROM_LAMBDA",
-            "Service called with int: 42",
-            "Service called with float: 3.14",
-            "Service called with number for char* test: 123",
-            timeout=5.0,
+        await wait_or_fail(
+            waiter.wait_for_each(
+                "Service called with string: STRING_FROM_LAMBDA",
+                "Service called with int: 42",
+                "Service called with float: 3.14",
+                "Service called with number for char* test: 123",
+                timeout=10.0,
+            ),
+            5.0,
+            "Not every lambda service logged its call",
+            logged=waiter.lines,
         )

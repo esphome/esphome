@@ -26,7 +26,8 @@ async def test_api_conditional_memory(
             await assert_device_name(client, "api-conditional-memory-test")
 
             # Wait for connection log
-            await waiter.wait_for("Client", "connected from", timeout=5.0)
+            # The leading space keeps "disconnected from" from matching
+            await waiter.wait_for("Client", " connected from", timeout=5.0)
 
             # List services
             _, services = await client.list_entities_services()

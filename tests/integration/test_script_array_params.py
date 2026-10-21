@@ -44,15 +44,17 @@ async def test_script_array_params(
         await client.execute_service(service, {})
 
         values: dict[str, tuple[str, ...]] = {}
-        for key, pattern in PATTERNS.items():
-            line = await wait_or_fail(
-                waiter.wait_for(f"{key} size="),
-                5.0,
-                "Did not receive all expected log lines",
-                values=values,
-            )
-            assert (m := pattern.search(line)), line
-            values[key] = m.groups()
+
+        async def collect() -> None:
+            for key, pattern in PATTERNS.items():
+                line = await waiter.wait_for(f"{key} size=", timeout=10.0)
+                assert (m := pattern.search(line)), line
+                values[key] = m.groups()
+
+        # One deadline for all four lines, as the original future had
+        await wait_or_fail(
+            collect(), 5.0, "Did not receive all expected log lines", values=values
+        )
 
         assert values == {
             "ints": ("2", "42", "100"),
