@@ -2,7 +2,7 @@
 
 #include "receiver_mitsubishi_heavy.h"
 
-#if defined(USE_ARDUINO) || defined(USE_ESP32) || defined(USE_HOST)
+#if defined(USE_ARDUINO) || defined(USE_ESP32) || defined(ESPHOME_HEATPUMPIR_UNIT_TEST)
 
 #include <cmath>
 #include <IRSender.h>
