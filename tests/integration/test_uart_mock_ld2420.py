@@ -90,7 +90,6 @@ async def test_uart_mock_ld2420(
         # Verify truncated frame warning was logged (PR #14458 bug #3)
         # This assertion FAILS before PR #14458 because the length check
         # and warning message did not exist.
-        # The warning only exists after the fix; before it the frame was read past its end.
         assert any("Energy frame too short" in line for line in waiter.lines), (
             "Expected 'Energy frame too short' warning in logs. "
             "This indicates PR #14458 fix for handle_energy_mode_ length "

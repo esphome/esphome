@@ -495,25 +495,25 @@ async def test_uart_mock_ld2412_truncated_answer(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that a threshold answer merged with the next frame is dropped and the parser recovers."""
-    log = LineWaiter()
+    waiter = LineWaiter()
 
     # Gate bytes of the truncated answer
     merged_values = set(range(0x30, 0x3C))
 
     async with (
-        run_compiled(yaml_config, line_callback=log.callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
         numbers = _threshold_numbers(entities)
 
         states: dict[int, list[float]] = {}
-        waiter = StateWaiter()
-        gate_0_read = waiter.expect(
+        states = StateWaiter()
+        gate_0_read = states.expect(
             _number_state_of(numbers["gate_0_move_threshold"].key),
             label="gate 0 move threshold",
         )
-        gate_5_read = waiter.expect(
+        gate_5_read = states.expect(
             _number_state_of(numbers["gate_5_move_threshold"].key),
             label="gate 5 move threshold",
         )
@@ -521,7 +521,7 @@ async def test_uart_mock_ld2412_truncated_answer(
         def record(state: EntityState) -> None:
             if isinstance(state, NumberState) and not state.missing_state:
                 states.setdefault(state.key, []).append(state.state)
-            waiter.on_state(state)
+            states.on_state(state)
 
         initial_state_helper = await _wait_initial(client, entities, record)
 
@@ -531,14 +531,14 @@ async def test_uart_mock_ld2412_truncated_answer(
 
         try:
             _, gate_0_state, gate_5_state = await asyncio.gather(
-                log.wait_for("Dropping gate threshold answer", timeout=5.0),
+                waiter.wait_for("Dropping gate threshold answer", timeout=5.0),
                 gate_0_read,
                 gate_5_read,
             )
         except TimeoutError:
             pytest.fail(
                 "Timeout waiting for the threshold answers.\n"
-                f"  ld2412 warnings: {[line for line in log.lines if '[W][ld2412' in line]}\n"
+                f"  ld2412 warnings: {[line for line in waiter.lines if '[W][ld2412' in line]}\n"
                 f"  states: {states}"
             )
 

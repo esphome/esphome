@@ -41,6 +41,7 @@ async def test_socket_ipv4_resolve(
     ):
         await assert_device_name(client, "socket-ipv4-resolve-test")
 
+        # The outer bound carries the message; the inner one only has to outlast it
         await wait_or_fail(
             waiter.wait_for("IPv4 resolve test complete", timeout=20.0),
             10.0,
