@@ -24,7 +24,12 @@ from aioesphomeapi import (
 import pytest
 
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, require_entity, wait_for_state
+from .state_utils import (
+    InitialStateHelper,
+    require_entity,
+    require_only_entity,
+    wait_for_state,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "tmpl-clim-publish-all"
@@ -58,8 +63,7 @@ async def test_template_climate_publish_all_fields(
 
         entities, _ = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
+        require_only_entity(entities, ClimateInfo)
 
         publish_button = require_entity(entities, "publish_all", ButtonInfo)
 

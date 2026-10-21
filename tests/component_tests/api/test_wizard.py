@@ -982,12 +982,12 @@ def test_multiple_input_is_valid(tmp_path: Path, input_conf: str) -> None:
         ),
         pytest.param(
             "- {id: cals, max_length: 1023}",
-            "max_length only applies to an input with multiple: true",
+            "'max_length' is only valid when 'multiple' is true",
             id="max-length-without-multiple",
         ),
         pytest.param(
             "- {id: cals, multiple: false, max_length: 1023}",
-            "max_length only applies to an input with multiple: true",
+            "'max_length' is only valid when 'multiple' is true",
             id="max-length-multiple-false",
         ),
         pytest.param(

@@ -157,14 +157,10 @@ CONFIG_SCHEMA = (
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
-    if (direction := config.get(CONF_DIRECTION)) is not None:
-        cg.add(var.set_direction(direction))
-    if (zero_offset := config.get(CONF_ZERO_OFFSET)) is not None:
-        cg.add(var.set_zero_offset(zero_offset))
-    if (hysteresis := config.get(CONF_HYSTERESIS)) is not None:
-        cg.add(var.set_hysteresis(hysteresis))
-    if (output_mode := config.get(CONF_OUTPUT_MODE)) is not None:
-        cg.add(var.set_output_mode(output_mode))
+    cg.add_optional(var.set_direction, config.get(CONF_DIRECTION))
+    cg.add_optional(var.set_zero_offset, config.get(CONF_ZERO_OFFSET))
+    cg.add_optional(var.set_hysteresis, config.get(CONF_HYSTERESIS))
+    cg.add_optional(var.set_output_mode, config.get(CONF_OUTPUT_MODE))
 
     if abz := config.get(CONF_ABZ):
         if (ppr := abz.get(CONF_PULSES_PER_REVOLUTION)) is not None:
