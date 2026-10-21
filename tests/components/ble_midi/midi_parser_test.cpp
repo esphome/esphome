@@ -227,6 +227,12 @@ TEST(FrameSysex, RejectsEmptyAndOversizedPayloads) {
   EXPECT_EQ(frame_sysex(payload, sizeof(payload), out, sizeof(out)), 0u);
 }
 
+TEST(FrameSysex, RejectsABodyByteWithBit7Set) {
+  uint8_t out[16];
+  const uint8_t payload[] = {0x7E, 0x80, 0x01};
+  EXPECT_EQ(frame_sysex(payload, sizeof(payload), out, sizeof(out)), 0u);
+}
+
 TEST_F(MidiParserTest, DataByteWithoutStatusContextIsReportedAsUnknown) {
   this->feed_({HDR, TS, 0x3C});
   ASSERT_EQ(this->messages_.size(), 1u);

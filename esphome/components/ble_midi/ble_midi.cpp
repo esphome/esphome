@@ -49,10 +49,16 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
       }
       break;
     }
+    case ESP_GATTC_CFG_MTU_EVT: {
+      if (param->cfg_mtu.status == ESP_GATT_OK)
+        this->mtu_ = param->cfg_mtu.mtu;
+      break;
+    }
     case ESP_GATTC_DISCONNECT_EVT:
     case ESP_GATTC_CLOSE_EVT: {
       this->parser_.reset();
       this->characteristic_handle_ = 0;
+      this->mtu_ = 23;
       // Both events can arrive for the same disconnect, so the automation runs
       // only for the one that follows an established MIDI connection.
       const bool was_ready = this->notify_registered_;
@@ -63,6 +69,11 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
+      if (param->search_cmpl.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "Service discovery failed, status=%d", param->search_cmpl.status);
+        this->status_set_warning();
+        break;
+      }
       auto *characteristic = this->parent()->get_characteristic(espbt::ESPBTUUID::from_raw(SERVICE_UUID),
                                                                 espbt::ESPBTUUID::from_raw(CHARACTERISTIC_UUID));
       if (characteristic == nullptr) {
@@ -93,6 +104,13 @@ void BLEMidi::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gatt
       // The device can only be sent to once notifications are enabled, so this
       // is the point where on_connect is useful.
       this->connect_callback_.call();
+      break;
+    }
+    case ESP_GATTC_WRITE_CHAR_EVT: {
+      // A write with response reports its outcome here; one without response reports nothing
+      if (param->write.handle == this->characteristic_handle_ && param->write.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "Write rejected, status=%d", param->write.status);
+      }
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -161,7 +179,7 @@ bool BLEMidi::write_packet_(uint8_t *packet, size_t midi_length) {
   }
   // Every BLE-MIDI packet has to fit one ATT packet
   const size_t packet_length = midi_length + 2;
-  const size_t limit = std::min<size_t>(MAX_TX_MIDI_BYTES + 2, this->parent()->get_mtu() - 3);
+  const size_t limit = std::min<size_t>(MAX_TX_MIDI_BYTES + 2, this->mtu_ - 3);
   if (packet_length > limit) {
     ESP_LOGW(TAG, "Cannot send: message of %u bytes exceeds the %u byte limit", static_cast<unsigned>(midi_length),
              static_cast<unsigned>(limit - 2));
@@ -194,8 +212,12 @@ bool BLEMidi::write_midi_(const uint8_t *midi_bytes, size_t length) {
 }
 
 void BLEMidi::send_channel_(uint8_t status, uint8_t channel, uint8_t data1, uint8_t data2, size_t length) {
-  const uint8_t bytes[3] = {static_cast<uint8_t>(status | (channel & 0x0F)), static_cast<uint8_t>(data1 & 0x7F),
-                            static_cast<uint8_t>(data2 & 0x7F)};
+  // Validation covers constants only; a lambda can return any value, and masking it would send a different message
+  if (channel > 0x0F || data1 > 0x7F || data2 > 0x7F) {
+    ESP_LOGW(TAG, "Cannot send: channel %u or value %u/%u out of range", channel, data1, data2);
+    return;
+  }
+  const uint8_t bytes[3] = {static_cast<uint8_t>(status | channel), data1, data2};
   this->write_midi_(bytes, length);
 }
 

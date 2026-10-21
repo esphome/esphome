@@ -123,7 +123,7 @@ static constexpr uint8_t STATUS_SYSEX_END = 0xF7;
 
 /// Frame a SysEx payload for one BLE-MIDI packet: 0xF0 and 0xF7 are added when the payload lacks them, with
 /// the timestamp byte the specification requires before 0xF7. Returns the bytes written to `out`, or 0 when
-/// the payload is empty or the framed message does not fit `out_size`.
+/// the payload is empty, holds a byte with bit 7 set, or does not fit `out_size` once framed.
 size_t frame_sysex(const uint8_t *payload, size_t length, uint8_t *out, size_t out_size);
 
 }  // namespace esphome::ble_midi

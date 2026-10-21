@@ -91,8 +91,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   esp_ble_addr_type_t get_remote_addr_type() const { return this->remote_addr_type_; }
   void set_remote_addr_type(esp_ble_addr_type_t address_type) { this->remote_addr_type_ = address_type; }
   uint16_t get_conn_id() const { return this->conn_id_; }
-  /// The negotiated ATT MTU; a write without response has to fit mtu - 3 bytes.
-  uint16_t get_mtu() const { return this->mtu_; }
   uint64_t get_address() const { return this->address_; }
   bool is_paired() const { return this->paired_; }
   // The proxy clears this when a bond is removed while the link is up.

@@ -106,7 +106,7 @@ class BLEMidi final : public Component, public ble_client::BLEClientNode {
   bool write_midi_(const uint8_t *midi_bytes, size_t length);
   /// Write a packet whose MIDI bytes already sit at packet + 2; the header and timestamp are filled in.
   bool write_packet_(uint8_t *packet, size_t midi_length);
-  /// Channel-voice message: the status byte takes the channel, the data bytes are masked to 7 bits.
+  /// Channel-voice message: the status byte takes the channel; out-of-range values are refused.
   void send_channel_(uint8_t status, uint8_t channel, uint8_t data1, uint8_t data2, size_t length);
 
   MidiParser parser_;
@@ -120,6 +120,8 @@ class BLEMidi final : public Component, public ble_client::BLEClientNode {
   LazyCallbackManager<void(ByteSpan)> sysex_callback_;
   LazyCallbackManager<void(ByteSpan)> message_callback_;
   uint16_t characteristic_handle_{0};
+  // The ATT MTU the link negotiated; every packet has to fit it
+  uint16_t mtu_{23};
   bool notify_registered_{false};
   // Write without response has lower latency and is preferred when the
   // characteristic supports it.

@@ -177,6 +177,11 @@ size_t frame_sysex(const uint8_t *payload, size_t length, uint8_t *out, size_t o
   const size_t framed = body + 3;
   if (framed > out_size)
     return 0;
+  // A body byte with bit 7 set would be read as a timestamp or status byte
+  for (size_t i = 0; i < body; i++) {
+    if (payload[skip_start + i] & 0x80)
+      return 0;
+  }
   out[0] = STATUS_SYSEX_START;
   std::memcpy(out + 1, payload + skip_start, body);
   out[body + 1] = PACKET_TIMESTAMP;
