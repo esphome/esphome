@@ -13,16 +13,9 @@ AUTO_LOAD = ["climate_ir"]
 GreeClimate = gree_ns.class_("GreeClimate", climate_ir.ClimateIR)
 
 Model = gree_ns.enum("Model")
-MODELS = {
-    "generic": Model.GREE_GENERIC,
-    "yan": Model.GREE_YAN,
-    "yaa": Model.GREE_YAA,
-    "yac": Model.GREE_YAC,
-    "yac1fb9": Model.GREE_YAC1FB9,
-    "yx1ff": Model.GREE_YX1FF,
-    "yag": Model.GREE_YAG,
-    "yap1f": Model.GREE_YAP1F,
-}
+MODELS = Model.options(
+    "generic", "yan", "yaa", "yac", "yac1fb9", "yx1ff", "yag", "yap1f", prefix="GREE_"
+)
 
 HorizontalDirections = gree_ns.enum("HorizontalDirections")
 HORIZONTAL_DIRECTIONS = {

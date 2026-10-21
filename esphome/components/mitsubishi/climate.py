@@ -24,24 +24,26 @@ CONF_SUPPORTS_FAN_ONLY = "supports_fan_only"
 CONF_FAHRENHEIT_COMPATIBILITY = "fahrenheit_compatibility"
 
 HorizontalDirections = mitsubishi_ns.enum("HorizontalDirections")
-HORIZONTAL_DIRECTIONS = {
-    "left": HorizontalDirections.HORIZONTAL_DIRECTION_LEFT,
-    "middle-left": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE_LEFT,
-    "middle": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE,
-    "middle-right": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE_RIGHT,
-    "right": HorizontalDirections.HORIZONTAL_DIRECTION_RIGHT,
-    "split": HorizontalDirections.HORIZONTAL_DIRECTION_SPLIT,
-}
+HORIZONTAL_DIRECTIONS = HorizontalDirections.options(
+    "left",
+    "middle-left",
+    "middle",
+    "middle-right",
+    "right",
+    "split",
+    prefix="HORIZONTAL_DIRECTION_",
+)
 
 VerticalDirections = mitsubishi_ns.enum("VerticalDirections")
-VERTICAL_DIRECTIONS = {
-    "auto": VerticalDirections.VERTICAL_DIRECTION_AUTO,
-    "up": VerticalDirections.VERTICAL_DIRECTION_UP,
-    "middle-up": VerticalDirections.VERTICAL_DIRECTION_MIDDLE_UP,
-    "middle": VerticalDirections.VERTICAL_DIRECTION_MIDDLE,
-    "middle-down": VerticalDirections.VERTICAL_DIRECTION_MIDDLE_DOWN,
-    "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
-}
+VERTICAL_DIRECTIONS = VerticalDirections.options(
+    "auto",
+    "up",
+    "middle-up",
+    "middle",
+    "middle-down",
+    "down",
+    prefix="VERTICAL_DIRECTION_",
+)
 
 CONF_VERTICAL_VANES = "vertical_vanes"
 

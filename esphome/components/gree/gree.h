@@ -75,9 +75,12 @@ static constexpr uint8_t GREE_HDIR_MRIGHT = 0x05;
 static constexpr uint8_t GREE_HDIR_RIGHT = 0x06;
 
 // Only available on YX1FF
-// Turbo (high) fan mode + sleep preset mode
+// Turbo (high) fan mode
 static constexpr uint8_t GREE_FAN_TURBO = 0x80;
 static constexpr uint8_t GREE_FAN_TURBO_BIT = 0x10;
+
+// Available on YX1FF and YAC1FB9
+// Sleep preset mode
 static constexpr uint8_t GREE_PRESET_NONE = 0x00;
 static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;

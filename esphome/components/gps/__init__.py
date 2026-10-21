@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_KILOMETER_PER_HOUR,
     UNIT_METER,
 )
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CONF_GPS_ID = "gps_id"
@@ -40,6 +41,16 @@ GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)
 GPSListener = gps_ns.class_("GPSListener")
 
 MULTI_CONF = True
+
+_request_listener_slot = cg.slot_counter("GPS_LISTENER_COUNT")
+
+
+async def register_listener(hub: MockObj, var: MockObj) -> None:
+    """Register a listener with its GPS and count it for the compile-time list size."""
+    _request_listener_slot(str(hub))
+    cg.add(hub.register_listener(var))
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -96,9 +107,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     # Pre-create all sensor variables so automations that reference
     # sibling sensors don't deadlock waiting for unregistered IDs.

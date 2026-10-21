@@ -135,13 +135,8 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_wifi_timeout(config[CONF_WIFI_TIMEOUT]))
 
-    if CONF_AUTHORIZER in config and config[CONF_AUTHORIZER] is not None:
-        activator = await cg.get_variable(config[CONF_AUTHORIZER])
-        cg.add(var.set_authorizer(activator))
-
-    if CONF_STATUS_INDICATOR in config:
-        status_indicator = await cg.get_variable(config[CONF_STATUS_INDICATOR])
-        cg.add(var.set_status_indicator(status_indicator))
+    await cg.add_variable(var.set_authorizer, config.get(CONF_AUTHORIZER))
+    await cg.add_variable(var.set_status_indicator, config.get(CONF_STATUS_INDICATOR))
 
     if any(config.get(entry.conf_key) for entry in _CALLBACK_AUTOMATIONS):
         cg.add_define("USE_IMPROV_BLE_STATE_CALLBACK")
