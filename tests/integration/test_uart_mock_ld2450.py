@@ -22,7 +22,7 @@ import asyncio
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
+from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -108,8 +108,7 @@ async def test_uart_mock_ld2450(
             pytest.fail("Timeout waiting for initial states")
 
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
