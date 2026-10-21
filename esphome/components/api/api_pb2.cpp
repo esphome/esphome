@@ -924,8 +924,7 @@ uint32_t ListEntitiesSensorResponse::calc_size_msg(const void *self) {
   return size;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint8_t *
-SensorStateResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+uint8_t *SensorStateResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const SensorStateResponse *>(self);
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.key);
   if (uint32_t raw = float_to_raw(msg.state); raw != 0) [[likely]] {
@@ -938,8 +937,7 @@ SensorStateResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROT
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint32_t
-SensorStateResponse::calc_size_msg(const void *self) {
+uint32_t SensorStateResponse::calc_size_msg(const void *self) {
   const auto &msg = *static_cast<const SensorStateResponse *>(self);
   uint32_t size = 0;
   size += 5;
@@ -1096,8 +1094,7 @@ void SubscribeLogsRequest::decode_field(void *self, uint32_t tag, const uint8_t 
   }
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint8_t *
-SubscribeLogsResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+uint8_t *SubscribeLogsResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const SubscribeLogsResponse *>(self);
   pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(msg.level));
   pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 26);
@@ -1106,8 +1103,7 @@ SubscribeLogsResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PR
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint32_t
-SubscribeLogsResponse::calc_size_msg(const void *self) {
+uint32_t SubscribeLogsResponse::calc_size_msg(const void *self) {
   const auto &msg = *static_cast<const SubscribeLogsResponse *>(self);
   uint32_t size = 0;
   size += 2;
@@ -2448,8 +2444,8 @@ void SubscribeBluetoothLEAdvertisementsRequest::decode_field(void *self, uint32_
   }
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint8_t *
-BluetoothLERawAdvertisementsResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+uint8_t *BluetoothLERawAdvertisementsResponse::encode_msg(const void *self,
+                                                          uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const BluetoothLERawAdvertisementsResponse *>(self);
   for (uint16_t i = 0; i < msg.advertisements_len; i++) {
     auto &sub_msg = msg.advertisements[i];
@@ -2472,8 +2468,7 @@ BluetoothLERawAdvertisementsResponse::encode_msg(const void *self, uint8_t *__re
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint32_t
-BluetoothLERawAdvertisementsResponse::calc_size_msg(const void *self) {
+uint32_t BluetoothLERawAdvertisementsResponse::calc_size_msg(const void *self) {
   const auto &msg = *static_cast<const BluetoothLERawAdvertisementsResponse *>(self);
   uint32_t size = 0;
   for (uint16_t i = 0; i < msg.advertisements_len; i++) {
@@ -3820,15 +3815,13 @@ void ZWaveProxyFrame::decode_field(void *self, uint32_t tag, const uint8_t *data
   }
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint8_t *
-ZWaveProxyFrame::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+uint8_t *ZWaveProxyFrame::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const ZWaveProxyFrame *>(self);
   pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.data, msg.data_len);
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint32_t
-ZWaveProxyFrame::calc_size_msg(const void *self) {
+uint32_t ZWaveProxyFrame::calc_size_msg(const void *self) {
   const auto &msg = *static_cast<const ZWaveProxyFrame *>(self);
   uint32_t size = 0;
   size += ProtoSize::calc_length(1, msg.data_len);
@@ -3943,8 +3936,7 @@ void InfraredRFTransmitRawTimingsRequest::decode_field(void *self, uint32_t tag,
   }
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint8_t *
-InfraredRFReceiveEvent::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+uint8_t *InfraredRFReceiveEvent::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const InfraredRFReceiveEvent *>(self);
 #ifdef USE_DEVICES
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.device_id);
@@ -3956,8 +3948,7 @@ InfraredRFReceiveEvent::encode_msg(const void *self, uint8_t *__restrict__ pos P
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint32_t
-InfraredRFReceiveEvent::calc_size_msg(const void *self) {
+uint32_t InfraredRFReceiveEvent::calc_size_msg(const void *self) {
   const auto &msg = *static_cast<const InfraredRFReceiveEvent *>(self);
   uint32_t size = 0;
 #ifdef USE_DEVICES
@@ -4061,16 +4052,14 @@ void SerialProxyConfigureRequest::decode_field(void *self, uint32_t tag, const u
   }
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint8_t *
-SerialProxyDataReceived::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+uint8_t *SerialProxyDataReceived::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const SerialProxyDataReceived *>(self);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.instance);
   pos = ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.data_ptr_, msg.data_len_);
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint32_t
-SerialProxyDataReceived::calc_size_msg(const void *self) {
+uint32_t SerialProxyDataReceived::calc_size_msg(const void *self) {
   const auto &msg = *static_cast<const SerialProxyDataReceived *>(self);
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, msg.instance);

@@ -113,13 +113,13 @@ class ISRInternalGPIOPin {
 // int is arbitrary: any T * exercises the public attach_interrupt<T> template.
 template<typename T>
 concept InternalGPIOPinContract = std::derived_from<T, GPIOPin> && std::is_final_v<T> &&
-    requires(const T pin, void (*func)(int *), int *arg, gpio::InterruptType type) {
-  { pin.get_pin() } -> std::same_as<uint8_t>;
-  { pin.is_inverted() } -> std::same_as<bool>;
-  { pin.to_isr() } -> std::same_as<ISRInternalGPIOPin>;
-  { pin.detach_interrupt() } -> std::same_as<void>;
-  { pin.attach_interrupt(func, arg, type) } -> std::same_as<void>;
-};
+                                  requires(const T pin, void (*func)(int *), int *arg, gpio::InterruptType type) {
+                                    { pin.get_pin() } -> std::same_as<uint8_t>;
+                                    { pin.is_inverted() } -> std::same_as<bool>;
+                                    { pin.to_isr() } -> std::same_as<ISRInternalGPIOPin>;
+                                    { pin.detach_interrupt() } -> std::same_as<void>;
+                                    { pin.attach_interrupt(func, arg, type) } -> std::same_as<void>;
+                                  };
 
 // Inline default implementation for GPIOPin::dump_summary.
 // Writes an empty summary; subclasses override to provide pin details.

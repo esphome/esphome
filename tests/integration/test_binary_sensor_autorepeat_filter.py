@@ -17,7 +17,12 @@ import asyncio
 
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
+from .state_utils import (
+    InitialStateHelper,
+    SensorStateCollector,
+    assert_device_name,
+    require_entity,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -38,9 +43,7 @@ async def test_binary_sensor_autorepeat_filter(
         run_compiled(yaml_config),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-autorepeat-filter"
+        await assert_device_name(client, "test-autorepeat-filter")
 
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
