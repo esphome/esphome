@@ -964,6 +964,14 @@ class TestProgmemString:
         assert not CORE.global_statements_after_includes
 
 
+def test_extern_progmem_array_is_an_externally_linked_global() -> None:
+    array = cg.extern_progmem_array("esphome::api::API_TABLE", ct.uint8, [1, 2])
+    assert str(array) == "esphome::api::API_TABLE"
+    assert [str(st) for st in CORE.global_statements if "PROGMEM" in str(st)] == [
+        "const uint8_t esphome::api::API_TABLE[] PROGMEM = {1, 2};"
+    ]
+
+
 def test_static_function_declares_early_and_defines_after_includes() -> None:
     fn = cg.static_function("esphome__act__fn", ct.void, [(ct.int32, "x")], ["return;"])
     assert str(fn) == "esphome__act__fn"
@@ -978,14 +986,6 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
 def test_add_global_after_includes_rejects_non_statements() -> None:
     with pytest.raises(ValueError, match="must be expression or statement"):
         CORE.add_global_after_includes("not a statement")
-
-
-def test_extern_progmem_array_is_an_externally_linked_global() -> None:
-    array = cg.extern_progmem_array("esphome::api::API_TABLE", ct.uint8, [1, 2])
-    assert str(array) == "esphome::api::API_TABLE"
-    assert [str(st) for st in CORE.global_statements if "PROGMEM" in str(st)] == [
-        "const uint8_t esphome::api::API_TABLE[] PROGMEM = {1, 2};"
-    ]
 
 
 class TestEnumOptions:
