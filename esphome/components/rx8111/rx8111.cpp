@@ -58,8 +58,10 @@ void RX8111Component::update() {
 void RX8111Component::dump_config() {
   ESP_LOGCONFIG(TAG, "RX8111:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Alarm interrupt: %s", ONOFF(this->alarm_enabled_));
-  ESP_LOGCONFIG(TAG, "  Wake-up timer: %s", ONOFF(this->timer_enabled_));
+  ESP_LOGCONFIG(TAG,
+                "  Alarm interrupt: %s\n"
+                "  Wake-up timer: %s",
+                ONOFF(this->alarm_enabled_), ONOFF(this->timer_enabled_));
   if (this->timer_enabled_) {
     ESP_LOGCONFIG(TAG, "    Count: %" PRIu32 ", clock: %u", this->timer_count_, this->timer_clock_);
   }
