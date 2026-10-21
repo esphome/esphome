@@ -100,6 +100,7 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
     return this->write_bytes(reg, reinterpret_cast<const uint8_t *>(&value), sizeof(T));
   }
   bool write_command_raw_(float value);
+  bool write_direction_raw_(Direction direction);
   bool read_command_raw_(float *value);
 
 #ifdef USE_SENSOR

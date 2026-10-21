@@ -38,13 +38,26 @@ void M5UnitBldc::setup() {
     this->mark_failed(LOG_STR("Failed to write control mode"));
     return;
   }
-  if (!this->write_byte(REG_DIRECTION, static_cast<uint8_t>(this->initial_direction_))) {
+  // The unit keeps driving its last command across an ESP reboot, so the cache and the number start from it, and
+  // a running motor only takes the direction through the stop and restore sequence
+  float command;
+  if (!this->read_command_raw_(&command)) {
+    this->mark_failed(LOG_STR("Failed to read the motor command"));
+    return;
+  }
+  this->last_command_ = command;
+  if (command != 0 ? !this->write_direction_raw_(this->initial_direction_)
+                   : !this->write_byte(REG_DIRECTION, static_cast<uint8_t>(this->initial_direction_))) {
     this->mark_failed(LOG_STR("Failed to write initial direction"));
     return;
   }
 #ifdef USE_SELECT
   if (this->direction_select_ != nullptr)
     this->direction_select_->publish_state(static_cast<size_t>(this->initial_direction_));
+#endif
+#ifdef USE_NUMBER
+  if (this->command_number_ != nullptr)
+    this->command_number_->publish_state(command);
 #endif
 
   // The previous values only decide whether to save, so they are read only when saving is enabled
@@ -74,16 +87,6 @@ void M5UnitBldc::setup() {
   // value first applied with save_to_flash off is saved only after the unit itself is power-cycled.
   if (changed && !this->write_byte(REG_SAVE_TO_FLASH, 1)) {
     ESP_LOGW(TAG, "Failed to save settings to flash");
-  }
-
-  // The unit keeps driving its last command across an ESP reboot, so the cache and the number start from it
-  float command;
-  if (this->read_command_raw_(&command)) {
-    this->last_command_ = command;
-#ifdef USE_NUMBER
-    if (this->command_number_ != nullptr)
-      this->command_number_->publish_state(command);
-#endif
   }
 
   // Without a readback entity there is nothing to poll
@@ -159,24 +162,26 @@ void M5UnitBldc::dump_config() {
 bool M5UnitBldc::write_command(float value) {
   if (this->is_failed())
     return false;
-  if (!this->direction_change_pending_ && !this->write_command_raw_(value))
+  if (!this->direction_change_pending_ && !this->status_comm_result(this->write_command_raw_(value)))
     return false;
   this->last_command_ = value;
   return true;
 }
 
 bool M5UnitBldc::write_direction(Direction direction) {
-  if (this->is_failed() || !this->write_byte(REG_DIRECTION, static_cast<uint8_t>(direction)))
-    return false;
-  // The new direction latches only after the motor stops: command zero, wait, then restore. A failed stop leaves
-  // any direction change already pending as it is.
-  if (!this->write_command_raw_(0))
+  return !this->is_failed() && this->status_comm_result(this->write_direction_raw_(direction));
+}
+
+// The new direction latches only after the motor stops: command zero, wait, then restore. A failed stop leaves
+// any direction change already pending as it is.
+bool M5UnitBldc::write_direction_raw_(Direction direction) {
+  if (!this->write_byte(REG_DIRECTION, static_cast<uint8_t>(direction)) || !this->write_command_raw_(0))
     return false;
   this->direction_change_pending_ = true;
   this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, DIRECTION_CHANGE_STOP_MS, [this]() {
     this->direction_change_pending_ = false;
-    if (this->last_command_ != 0 && !this->write_command_raw_(this->last_command_))
-      this->status_set_warning(LOG_STR("Failed to restore the motor command after a direction change"));
+    if (this->last_command_ != 0)
+      this->status_comm_result(this->write_command_raw_(this->last_command_));
   });
   return true;
 }
