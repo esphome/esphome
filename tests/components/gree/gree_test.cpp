@@ -88,14 +88,22 @@ static bool decode_yap_frame(const remote_base::RawTimings &timings, uint8_t out
       }
     }
     // trailing mark
-    if (index >= timings.size() || timings[index++] <= 0) {
+    if (index >= timings.size()) {
       return false;
     }
+    if (timings[index] <= 0) {
+      return false;
+    }
+    index++;
     // inter-block message space (negative) between the three repeats
     if (block + 1 < 3) {
-      if (index >= timings.size() || timings[index++] >= 0) {
+      if (index >= timings.size()) {
         return false;
       }
+      if (timings[index] >= 0) {
+        return false;
+      }
+      index++;
     }
   }
   return true;
@@ -207,8 +215,8 @@ TEST(GreeClimateTest, NonYap1fByte5UnchangedWithoutFixedVane) {
   }
   ASSERT_TRUE(expect_mark_space(timings, &index));  // message gap
   uint8_t second_half[4] = {0};
-  for (int i = 0; i < 4; i++) {
-    ASSERT_TRUE(decode_byte(timings, &index, &second_half[i]));
+  for (uint8_t &byte : second_half) {
+    ASSERT_TRUE(decode_byte(timings, &index, &byte));
   }
   EXPECT_EQ(second_half[1], 0x20);
 }
