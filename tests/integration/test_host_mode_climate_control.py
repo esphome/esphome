@@ -40,6 +40,7 @@ async def test_host_mode_climate_control(
         entities, services = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
         test_climate = require_only_entity(entities, ClimateInfo)
+        assert test_climate.name == "Dual-mode Thermostat"
 
         # Subscribe with the wrapper that filters initial states
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
