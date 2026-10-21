@@ -95,6 +95,12 @@ bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
   for (auto *node : this->nodes_)
     node->gattc_event_handler(event, esp_gattc_if, param);
   this->maybe_release_services_();
+  // The automations run after the nodes have seen the event
+  if (event == ESP_GATTC_SEARCH_CMPL_EVT) {
+    this->connect_callbacks_.call();
+  } else if (event == ESP_GATTC_CLOSE_EVT) {
+    this->disconnect_callbacks_.call();
+  }
   return true;
 }
 

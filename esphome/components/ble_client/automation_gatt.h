@@ -18,22 +18,6 @@
 
 namespace esphome::ble_client {
 
-class BLEClientConnectTrigger final : public Trigger<> {
- public:
-  explicit BLEClientConnectTrigger(BLEClient *parent) {
-    parent->add_on_connect_callback([this]() { this->trigger(); });
-  }
-};
-
-class BLEClientDisconnectTrigger final : public Trigger<> {
- public:
-  explicit BLEClientDisconnectTrigger(BLEClient *parent) {
-    // Fires only after a completed connection (never for failed attempts),
-    // matching the legacy CLOSE_EVT semantics.
-    parent->add_on_disconnect_callback([this]() { this->trigger(); });
-  }
-};
-
 template<typename... Ts> class BLEClientConnectAction final : public Action<Ts...> {
  public:
   BLEClientConnectAction(BLEClient *ble_client) {

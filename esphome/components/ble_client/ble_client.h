@@ -42,6 +42,14 @@ class BLEClient final : public BLEClientBase {
     this->nodes_.push_back(node);
   }
 
+  // on_connect fires once discovery completes; on_disconnect on CLOSE_EVT, so only after a completed open
+  template<typename F> void add_on_connect_callback(F &&callback) {
+    this->connect_callbacks_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_disconnect_callback(F &&callback) {
+    this->disconnect_callbacks_.add(std::forward<F>(callback));
+  }
+
   bool enabled;
 
   void set_state(espbt::ClientState state) override;
@@ -80,6 +88,8 @@ class BLEClient final : public BLEClientBase {
 #endif
 
   std::vector<BLEClientNode *> nodes_;
+  LazyCallbackManager<void()> connect_callbacks_;
+  LazyCallbackManager<void()> disconnect_callbacks_;
 #ifdef USE_BLE_CLIENT_GATT_NODES
   // Raise if a migrated node needs more concurrent registrations.
   static constexpr uint8_t MAX_PENDING_NOTIFY_REGS = 4;
