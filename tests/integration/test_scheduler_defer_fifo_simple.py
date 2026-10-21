@@ -5,7 +5,7 @@ import asyncio
 from aioesphomeapi import EntityState, Event, EventInfo, UserService
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -27,18 +27,12 @@ async def test_scheduler_defer_fifo_simple(
         )
 
         # Find our test entities
-        test_complete_entity: EventInfo | None = None
-        test_result_entity: EventInfo | None = None
-
-        for entity in entity_info:
-            if isinstance(entity, EventInfo):
-                if entity.object_id == "test_complete":
-                    test_complete_entity = entity
-                elif entity.object_id == "test_result":
-                    test_result_entity = entity
-
-        assert test_complete_entity is not None, "test_complete event not found"
-        assert test_result_entity is not None, "test_result event not found"
+        test_complete_entity = require_entity(
+            entity_info, "test_complete", EventInfo, exact=True
+        )
+        test_result_entity = require_entity(
+            entity_info, "test_result", EventInfo, exact=True
+        )
 
         # Find our test services
         test_set_timeout_service: UserService | None = None

@@ -14,7 +14,7 @@ import re
 
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -138,17 +138,9 @@ async def test_text_sensor_raw_state(
         entities, _ = await client.list_entities_services()
 
         # Find the test buttons
-        no_filter_button = next(
-            (e for e in entities if "test_no_filter_button" in e.object_id.lower()),
-            None,
-        )
-        assert no_filter_button is not None, "Test No Filter Button not found"
+        no_filter_button = require_entity(entities, "test_no_filter_button")
 
-        with_filter_button = next(
-            (e for e in entities if "test_with_filter_button" in e.object_id.lower()),
-            None,
-        )
-        assert with_filter_button is not None, "Test With Filter Button not found"
+        with_filter_button = require_entity(entities, "test_with_filter_button")
 
         # Test 1: Text sensor without filters
         # get_raw_state() should return the same as state
@@ -186,11 +178,7 @@ async def test_text_sensor_raw_state(
 
         # Test 3: Append filter (StringRef-based)
         # "test" + " suffix" = "test suffix"
-        append_button = next(
-            (e for e in entities if "test_append_button" in e.object_id.lower()),
-            None,
-        )
-        assert append_button is not None, "Test Append Button not found"
+        append_button = require_entity(entities, "test_append_button")
         client.button_command(append_button.key)
 
         state = await wait_or_fail(
@@ -203,11 +191,7 @@ async def test_text_sensor_raw_state(
 
         # Test 4: Prepend filter (StringRef-based)
         # "prefix " + "test" = "prefix test"
-        prepend_button = next(
-            (e for e in entities if "test_prepend_button" in e.object_id.lower()),
-            None,
-        )
-        assert prepend_button is not None, "Test Prepend Button not found"
+        prepend_button = require_entity(entities, "test_prepend_button")
         client.button_command(prepend_button.key)
 
         state = await wait_or_fail(
@@ -220,11 +204,7 @@ async def test_text_sensor_raw_state(
 
         # Test 5: Substitute filter (StringRef-based)
         # "foo says hello" with foo->bar, hello->world = "bar says world"
-        substitute_button = next(
-            (e for e in entities if "test_substitute_button" in e.object_id.lower()),
-            None,
-        )
-        assert substitute_button is not None, "Test Substitute Button not found"
+        substitute_button = require_entity(entities, "test_substitute_button")
         client.button_command(substitute_button.key)
 
         state = await wait_or_fail(
@@ -236,11 +216,7 @@ async def test_text_sensor_raw_state(
         )
 
         # Test 6: Map filter - "ON" -> "Active"
-        map_on_button = next(
-            (e for e in entities if "test_map_on_button" in e.object_id.lower()),
-            None,
-        )
-        assert map_on_button is not None, "Test Map ON Button not found"
+        map_on_button = require_entity(entities, "test_map_on_button")
         client.button_command(map_on_button.key)
 
         state = await wait_or_fail(
@@ -250,11 +226,7 @@ async def test_text_sensor_raw_state(
         assert state == "Active", f"Map ON failed: expected 'Active', got '{state}'"
 
         # Test 7: Map filter - "OFF" -> "Inactive"
-        map_off_button = next(
-            (e for e in entities if "test_map_off_button" in e.object_id.lower()),
-            None,
-        )
-        assert map_off_button is not None, "Test Map OFF Button not found"
+        map_off_button = require_entity(entities, "test_map_off_button")
         client.button_command(map_off_button.key)
 
         state = await wait_or_fail(
@@ -267,11 +239,7 @@ async def test_text_sensor_raw_state(
 
         # Test 8: Map filter - passthrough for unknown values
         # "UNKNOWN" -> "UNKNOWN" (no match, passes through unchanged)
-        map_unknown_button = next(
-            (e for e in entities if "test_map_unknown_button" in e.object_id.lower()),
-            None,
-        )
-        assert map_unknown_button is not None, "Test Map Unknown Button not found"
+        map_unknown_button = require_entity(entities, "test_map_unknown_button")
         client.button_command(map_unknown_button.key)
 
         state = await wait_or_fail(
@@ -284,11 +252,7 @@ async def test_text_sensor_raw_state(
 
         # Test 9: Chained filters (prepend "[" + append "]")
         # "[" + "value" + "]" = "[value]"
-        chained_button = next(
-            (e for e in entities if "test_chained_button" in e.object_id.lower()),
-            None,
-        )
-        assert chained_button is not None, "Test Chained Button not found"
+        chained_button = require_entity(entities, "test_chained_button")
         client.button_command(chained_button.key)
 
         state = await wait_or_fail(
@@ -299,11 +263,7 @@ async def test_text_sensor_raw_state(
 
         # Test 10: to_lower filter
         # "HELLO WORLD" -> "hello world"
-        to_lower_button = next(
-            (e for e in entities if "test_to_lower_button" in e.object_id.lower()),
-            None,
-        )
-        assert to_lower_button is not None, "Test To Lower Button not found"
+        to_lower_button = require_entity(entities, "test_to_lower_button")
         client.button_command(to_lower_button.key)
 
         state = await wait_or_fail(
@@ -316,11 +276,7 @@ async def test_text_sensor_raw_state(
 
         # Test 11: Lambda filter
         # "test" -> "[test]"
-        lambda_button = next(
-            (e for e in entities if "test_lambda_button" in e.object_id.lower()),
-            None,
-        )
-        assert lambda_button is not None, "Test Lambda Button not found"
+        lambda_button = require_entity(entities, "test_lambda_button")
         client.button_command(lambda_button.key)
 
         state = await wait_or_fail(
@@ -331,11 +287,7 @@ async def test_text_sensor_raw_state(
 
         # Test 12: Lambda filter - value passes through
         # "value" -> "value passed"
-        lambda_pass_button = next(
-            (e for e in entities if "test_lambda_pass_button" in e.object_id.lower()),
-            None,
-        )
-        assert lambda_pass_button is not None, "Test Lambda Pass Button not found"
+        lambda_pass_button = require_entity(entities, "test_lambda_pass_button")
         client.button_command(lambda_pass_button.key)
 
         state = await wait_or_fail(
@@ -348,11 +300,7 @@ async def test_text_sensor_raw_state(
 
         # Test 13: Lambda filter - skip publishing (return {})
         # "skip" -> no publish, state remains "value passed" from previous test
-        lambda_skip_button = next(
-            (e for e in entities if "test_lambda_skip_button" in e.object_id.lower()),
-            None,
-        )
-        assert lambda_skip_button is not None, "Test Lambda Skip Button not found"
+        lambda_skip_button = require_entity(entities, "test_lambda_skip_button")
         client.button_command(lambda_skip_button.key)
 
         state = await wait_or_fail(
@@ -368,16 +316,8 @@ async def test_text_sensor_raw_state(
         # Test 14: Lambda filter - verify raw_state is preserved (not mutated)
         # This is critical to verify the in-place mutation optimization is safe
         # "original" -> state="original MODIFIED", raw_state="original"
-        lambda_raw_state_button = next(
-            (
-                e
-                for e in entities
-                if "test_lambda_raw_state_button" in e.object_id.lower()
-            ),
-            None,
-        )
-        assert lambda_raw_state_button is not None, (
-            "Test Lambda Raw State Button not found"
+        lambda_raw_state_button = require_entity(
+            entities, "test_lambda_raw_state_button"
         )
         client.button_command(lambda_raw_state_button.key)
 

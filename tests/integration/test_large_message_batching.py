@@ -5,7 +5,7 @@ from __future__ import annotations
 from aioesphomeapi import SelectInfo
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -25,13 +25,9 @@ async def test_large_message_batching(
         entity_info, services = await client.list_entities_services()
 
         # Find our large select entity
-        large_select = None
-        for entity in entity_info:
-            if isinstance(entity, SelectInfo) and entity.object_id == "large_select":
-                large_select = entity
-                break
-
-        assert large_select is not None, "Could not find large_select entity"
+        large_select = require_entity(
+            entity_info, "large_select", SelectInfo, exact=True
+        )
 
         # Verify the select has all its options
         # We created 100 options with long names

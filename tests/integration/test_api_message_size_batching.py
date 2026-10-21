@@ -7,7 +7,7 @@ import asyncio
 from aioesphomeapi import EntityState, NumberInfo, SelectInfo, TextInfo, TextSensorInfo
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -59,33 +59,13 @@ async def test_api_message_size_batching(
             f"Expected exactly 1 text input entity, got {len(text_inputs)}"
         )
 
-        # Collect all select entity object_ids for error messages
-        select_ids = [s.object_id for s in selects]
-
         # Find our specific test entities
-        small_select = None
-        medium_select = None
-        large_select = None
-
-        for select in selects:
-            if select.object_id == "small_select":
-                small_select = select
-            elif select.object_id == "medium_select":
-                medium_select = select
-            elif (
-                select.object_id
-                == "large_select_with_many_options_to_create_larger_payload"
-            ):
-                large_select = select
-
-        assert small_select is not None, (
-            f"Could not find small_select entity. Found: {select_ids}"
-        )
-        assert medium_select is not None, (
-            f"Could not find medium_select entity. Found: {select_ids}"
-        )
-        assert large_select is not None, (
-            f"Could not find large_select entity. Found: {select_ids}"
+        small_select = require_entity(selects, "small_select", exact=True)
+        medium_select = require_entity(selects, "medium_select", exact=True)
+        large_select = require_entity(
+            selects,
+            "large_select_with_many_options_to_create_larger_payload",
+            exact=True,
         )
 
         # Verify the selects have the expected number of options
@@ -99,44 +79,15 @@ async def test_api_message_size_batching(
             f"Expected 50 options for large_select, got {len(large_select.options)}"
         )
 
-        # Collect all text sensor object_ids for error messages
-        text_sensor_ids = [t.object_id for t in text_sensors]
-
         # Verify text sensors with different value lengths
-        short_text_sensor = None
-        medium_text_sensor = None
-        long_text_sensor = None
-
-        for text_sensor in text_sensors:
-            if text_sensor.object_id == "short_text_sensor":
-                short_text_sensor = text_sensor
-            elif text_sensor.object_id == "medium_text_sensor":
-                medium_text_sensor = text_sensor
-            elif text_sensor.object_id == "long_text_sensor_with_very_long_value":
-                long_text_sensor = text_sensor
-
-        assert short_text_sensor is not None, (
-            f"Could not find short_text_sensor. Found: {text_sensor_ids}"
-        )
-        assert medium_text_sensor is not None, (
-            f"Could not find medium_text_sensor. Found: {text_sensor_ids}"
-        )
-        assert long_text_sensor is not None, (
-            f"Could not find long_text_sensor. Found: {text_sensor_ids}"
+        require_entity(text_sensors, "short_text_sensor", exact=True)
+        require_entity(text_sensors, "medium_text_sensor", exact=True)
+        require_entity(
+            text_sensors, "long_text_sensor_with_very_long_value", exact=True
         )
 
         # Check text input which can have a long max_length
-        text_input = None
-        text_input_ids = [t.object_id for t in text_inputs]
-
-        for ti in text_inputs:
-            if ti.object_id == "test_text_input":
-                text_input = ti
-                break
-
-        assert text_input is not None, (
-            f"Could not find test_text_input. Found: {text_input_ids}"
-        )
+        text_input = require_entity(text_inputs, "test_text_input", exact=True)
         assert text_input.max_length == 255, (
             f"Expected max_length 255, got {text_input.max_length}"
         )
