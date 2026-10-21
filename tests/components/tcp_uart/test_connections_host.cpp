@@ -59,7 +59,7 @@ class TcpUartTwoClients : public ::testing::Test {
 
   static uint16_t free_port() {
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     socklen_t len = sizeof(addr);
     ::bind(fd, reinterpret_cast<struct sockaddr *>(&addr), len);
@@ -79,7 +79,7 @@ class TcpUartTwoClients : public ::testing::Test {
   // Connects a client and runs the loop until the UART took it.
   int connect_client() {
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(this->port_);
@@ -95,9 +95,7 @@ class TcpUartTwoClients : public ::testing::Test {
   }
   // What the client received within 200 ms: "" for nothing, "<closed>" for EOF.
   static std::string received(int fd) {
-    struct pollfd pfd {
-      fd, POLLIN, 0
-    };
+    struct pollfd pfd{fd, POLLIN, 0};
     if (::poll(&pfd, 1, 200) != 1) {
       return "";
     }
