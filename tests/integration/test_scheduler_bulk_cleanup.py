@@ -3,10 +3,9 @@
 import asyncio
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -75,15 +74,7 @@ async def test_scheduler_bulk_cleanup(
         )
 
         # Find our test service
-        trigger_bulk_cleanup_service: UserService | None = None
-        for service in services:
-            if service.name == "trigger_bulk_cleanup":
-                trigger_bulk_cleanup_service = service
-                break
-
-        assert trigger_bulk_cleanup_service is not None, (
-            "trigger_bulk_cleanup service not found"
-        )
+        trigger_bulk_cleanup_service = require_service(services, "trigger_bulk_cleanup")
 
         # Execute the test
         await client.execute_service(trigger_bulk_cleanup_service, {})

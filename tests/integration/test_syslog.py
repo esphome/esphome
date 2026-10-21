@@ -13,7 +13,7 @@ from typing import TypedDict
 
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -252,10 +252,7 @@ async def test_syslog(
 
             # Test message truncation - call service that logs a very long message
             _, services = await client.list_entities_services()
-            log_service = next(
-                (s for s in services if s.name == "log_long_message"), None
-            )
-            assert log_service is not None, "log_long_message service not found"
+            log_service = require_service(services, "log_long_message")
 
             # Call the service to trigger a long log message
             await client.execute_service(log_service, {})
@@ -278,10 +275,7 @@ async def test_syslog(
             )
 
             # Test short message - should arrive complete (not truncated)
-            short_service = next(
-                (s for s in services if s.name == "log_short_message"), None
-            )
-            assert short_service is not None, "log_short_message service not found"
+            short_service = require_service(services, "log_short_message")
 
             await client.execute_service(short_service, {})
 

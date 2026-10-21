@@ -15,7 +15,7 @@ import re
 
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -54,14 +54,8 @@ async def test_wait_until_reentrant_restart(
         await assert_device_name(client, "wait-until-reentrant-restart")
 
         _, services = await client.list_entities_services()
-        self_restart_service = next(
-            (s for s in services if s.name == "start_self_restart"), None
-        )
-        assert self_restart_service is not None, "start_self_restart not found"
-        stop_service = next(
-            (s for s in services if s.name == "start_stop_during_wait"), None
-        )
-        assert stop_service is not None, "start_stop_during_wait not found"
+        self_restart_service = require_service(services, "start_self_restart")
+        stop_service = require_service(services, "start_stop_during_wait")
 
         # Scenario 1: the wait_until timeout continuation restarts its own
         # script five times, re-entering the same wait_until each time.
