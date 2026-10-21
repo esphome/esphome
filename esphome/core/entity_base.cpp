@@ -14,7 +14,7 @@ ESPHOME_LOG_TAG(TAG, "entity_base");
 
 #ifdef USE_ESP8266
 namespace {
-// RAM copies made by get_name(), only for entities whose name is asked for
+// RAM copies made by the deprecated get_name(), only for entities whose name is asked for. Remove before 2027.5.0
 struct NameCopy {
   NameCopy *next;
   const char *key;
@@ -190,7 +190,7 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
 bool log_entity_header(const char *tag, const char *prefix, const char *type, const EntityBase *obj) {
   if (obj == nullptr)
     return false;
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, LOG_STR_ARG(obj->get_log_name()));
   return true;
 }
 
