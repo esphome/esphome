@@ -40,8 +40,6 @@ static constexpr uint16_t PAIRING_STATUS_WAITING = 0x0008;
 static constexpr uint8_t LOGIN_ACCEPTED = 0x01;
 static constexpr uint8_t CHARGING_STATE_ACTIVE = 0x03;
 
-// Clock used until the time source reports a valid time
-
 static constexpr uint8_t CMD_POLL_CHARGING[] = {0x01, 0x03, 0x01, 0x1B, 0x00, 0x09};
 static constexpr uint8_t CMD_GET_MODEL[] = {0x01, 0x03, 0x01, 0x85, 0x00, 0x0E};
 static constexpr uint8_t CMD_GET_BT_FW_VERSION[] = {0x02, 0x03, 0x01, 0x00, 0x00, 0x01};
@@ -304,7 +302,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
   ESP_LOGD(TAG, "Received valid frame in state %s: func=0x%02X len=%u", delta_state_to_string(this->state_), frame[1],
            (unsigned int) len);
   if (frame[1] & FC_EXCEPTION_FLAG) {
-    ESP_LOGE(TAG, "Modbus exception received in state %d! Error code: 0x%02X", (int) this->state_, frame[2]);
+    ESP_LOGE(TAG, "Modbus exception received in state %s! Error code: 0x%02X", delta_state_to_string(this->state_),
+           frame[2]);
     return;
   }
 
@@ -389,7 +388,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       if (frame[2] >= REGISTER_BYTE_COUNT) {
         uint8_t login_val = frame[4];  // respondent data_lo
         if (login_val == LOGIN_ACCEPTED) {
-          ESP_LOGI(TAG, "Credentials accepted! Logged in as Admin.");
+          ESP_LOGI(TAG, "Credentials accepted! Logged in as %s.", this->user_.c_str());
           this->advance_to_(DeltaState::DELTA_STATE_GET_LOGIN_ROLE);
         } else {
           ESP_LOGE(TAG, "Login validation failed (0x%02X). Check password.", login_val);
