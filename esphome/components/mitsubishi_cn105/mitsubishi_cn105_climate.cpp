@@ -177,12 +177,11 @@ void MitsubishiCN105Climate::apply_values_() {
           break;
         case MitsubishiCN105::Mode::AUTO:
           // Auto: infer direction from room vs. target temperature (requires telemetry).
-          // If either is NAN, leave the action unchanged.
-          if (!std::isnan(status.room_temperature) && !std::isnan(status.target_temperature)) {
-            action = status.room_temperature > status.target_temperature ? climate::CLIMATE_ACTION_COOLING
-                                                                         : climate::CLIMATE_ACTION_HEATING;
-          }
-          break;
+            if (status.auto_direction.has_value()) {
+              action = *status.auto_direction == MitsubishiCN105::AutoDirection::COOL ? climate::CLIMATE_ACTION_COOLING
+                                                                                       : climate::CLIMATE_ACTION_HEATING;
+            }
+            break;
         default:
           break;
       }
