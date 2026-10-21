@@ -8,6 +8,7 @@ import re
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -77,16 +78,14 @@ async def test_runtime_stats(
         assert device_info is not None
 
         # Wait for first "Total stats" log (should happen at 1s)
-        try:
-            await asyncio.wait_for(first_stats_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("First 'Total stats' log not seen within 5 seconds")
+        await wait_or_fail(
+            first_stats_future, 5.0, "First 'Total stats' log not seen within 5 seconds"
+        )
 
         # Wait for second "Total stats" log (should happen at 2s)
-        try:
-            await asyncio.wait_for(second_stats_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Second 'Total stats' log not seen. Total seen: {stats_count}")
+        await wait_or_fail(
+            second_stats_future, 5.0, "Second 'Total stats' log not seen"
+        )
 
         # Verify we got at least 2 stats logs
         assert stats_count >= 2, (
