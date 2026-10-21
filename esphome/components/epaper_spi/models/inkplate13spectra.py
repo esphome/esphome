@@ -13,19 +13,16 @@ from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
     CONF_DC_PIN,
-    CONF_DIMENSIONS,
     CONF_ENABLE_PIN,
-    CONF_HEIGHT,
     CONF_INVERTED,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
-    CONF_WIDTH,
 )
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from .dualcs import CONF_CS1_PIN, DualCSModel
+from .dualcs import BOTH, CMD66_DATA, CONF_CS1_PIN, PRIMARY, DualCSModel
 
 CONF_BS0_PIN = "bs0_pin"
 CONF_BS1_PIN = "bs1_pin"
@@ -49,15 +46,41 @@ class Inkplate13SpectraModel(DualCSModel):
     ) -> None:
         super().__init__(name, class_name, **defaults)
 
+    def get_init_sequence(self, config: ConfigType) -> tuple[tuple[int, ...], ...]:
+        # The register values of Soldered's own driver (Inkplate13SPECTRADriver.cpp, screenInit())
+        return (
+            (
+                0x74,
+                PRIMARY,
+                0xC0,
+                0x1C,
+                0x1C,
+                0xCC,
+                0xCC,
+                0xCC,
+                0x15,
+                0x15,
+                0x55,
+            ),  # AN_TM
+            (0xF0, BOTH, *CMD66_DATA),
+            (0x00, BOTH, 0xDF, 0x6B),  # PSR
+            (0x30, BOTH, 0x08),  # PLL
+            (0x50, BOTH, 0xF7),  # CDI
+            (0x60, BOTH, 0x03, 0x03),  # TCON
+            (0x86, BOTH, 0x10),  # AGID
+            (0xE3, BOTH, 0x22),  # PWS
+            (0xE0, BOTH, 0x01),  # CCSET
+            self.resolution(config),  # TRES
+            (0x01, PRIMARY, 0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38),  # PWR
+            (0xB6, PRIMARY, 0x07),  # EN_BUF
+            (0x06, PRIMARY, 0xD8, 0x18),  # BTST_P
+            (0xB7, PRIMARY, 0x01),  # BOOST_VDDP_EN
+            (0x05, PRIMARY, 0xD8, 0x18),  # BTST_N
+            (0xB0, PRIMARY, 0x01),  # BUCK_BOOST_VDDN
+            (0xB1, PRIMARY, 0x02),  # TFT_VCOM_POWER
+        )
+
     def validate_config(self, config: ConfigType) -> ConfigType:
-        # The panel is fixed on the board and the init sequence sets its resolution, so other
-        # dimensions would only mismatch the frame buffer and the panel.
-        width, height = self.get_default(CONF_WIDTH), self.get_default(CONF_HEIGHT)
-        if self.get_dimensions(config) != (width, height):
-            raise cv.Invalid(
-                f"{self.name} has a fixed {width}x{height} panel; remove 'dimensions'",
-                path=[CONF_DIMENSIONS],
-            )
         config = super().validate_config(config)
         if CONF_RESET_DURATION in config:
             raise cv.Invalid(
@@ -97,8 +120,6 @@ class Inkplate13SpectraModel(DualCSModel):
 
 
 # Confirmed on real hardware: rotation=0 needs mirror_x + mirror_y but not swap_xy.
-# initialise() sends its own hardcoded, per-command-routed register sequence instead of
-# using the generic init sequence mechanism, so no initsequence is set here.
 inkplate13spectra = Inkplate13SpectraModel(
     "inkplate13spectra",
     width=1200,

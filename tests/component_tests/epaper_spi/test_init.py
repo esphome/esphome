@@ -700,26 +700,24 @@ def test_is_updating_condition_code_generation(
     assert "epaper_display->is_updating()" in main_cpp
 
 
-def test_model_with_no_default_init_sequence_generates(
+def test_t133a01_init_sequence_follows_dimensions(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Test that code generation succeeds for a model with no default init sequence.
+    """The T133A01 init sequence comes from the model, with the resolution taken from the dimensions.
 
-    The base "t133a01" model (used directly, not via one of its `.extend()`
-    variants) doesn't override `get_init_sequence()` or pass `initsequence` to
-    its constructor, and the user didn't supply `init_sequence:` either.
-    `EpaperModel.get_init_sequence()` used to default to `None` in this case,
-    which made `flatten_sequence()` raise a `TypeError` during code
-    generation. Regression test for that crash.
+    Code generation for the base "t133a01" model used directly (not via one of its `.extend()`
+    variants) also once crashed when it had no init sequence, so this covers that path too.
     """
     main_cpp = generate_main(component_config_path("t133a01_no_init_sequence.yaml"))
 
-    # The generated constructor call takes (name, width, height, init_sequence,
-    # init_sequence_length, ...); a length of 0 confirms the empty init
-    # sequence array was generated instead of raising during code generation.
-    # Allow trailing constructor args after the length.
-    assert re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*0[^;]*\);", main_cpp)
+    # The generated constructor call takes (name, width, height, init_sequence, init_sequence_length).
+    # 16 commands of 2 to 11 bytes plus a 2-byte delay after each.
+    match = re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*(\d+)\);", main_cpp)
+    assert match is not None
+    assert int(match.group(1)) > 16 * 4
+    # TRES for 200x200: command 0x61, count, chip mask (both), width 200, half the height 100
+    assert "97, 5, 3, 0, 200, 0, 100" in main_cpp
 
 
 def test_test_card_overrides_update_interval(
@@ -735,35 +733,53 @@ def test_test_card_overrides_update_interval(
 
 
 @pytest.mark.parametrize(
-    ("dimensions", "accepted"),
+    ("model", "tres"),
     [
-        ({"width": 1200, "height": 1600}, True),
-        ({"width": 800, "height": 600}, False),
+        ("inkplate13spectra", (0x61, 3, 0x04, 0xB0, 0x03, 0x20)),
+        ("seeed-reterminal-e1004", (0x61, 3, 0x04, 0xB0, 0x03, 0x20)),
+        ("t133a01", (0x61, 3, 0x00, 0xC8, 0x00, 0x64)),
     ],
 )
-def test_inkplate13spectra_dimensions_fixed(
+def test_dualcs_resolution_follows_dimensions(
+    model: str, tres: tuple[int, ...]
+) -> None:
+    """Each chip gets the full width and half the height; 1200x1600 is Soldered's 1200x800."""
+    config: ConfigType = {}
+    if model == "t133a01":
+        config[CONF_DIMENSIONS] = {CONF_WIDTH: 200, CONF_HEIGHT: 200}
+    sequence = MODELS[model.upper()].get_init_sequence(config)
+    assert [entry for entry in sequence if entry[0] == 0x61] == [tres]
+
+
+@pytest.mark.parametrize("model", ["inkplate13spectra", "t133a01"])
+def test_dualcs_rejects_custom_init_sequence(
     set_core_config: SetCoreConfigCallable,
     set_component_config: Callable[[str, Any], None],
-    dimensions: dict[str, int],
-    accepted: bool,
+    model: str,
 ) -> None:
-    """The Inkplate 13 Spectra panel is fixed, so only its own dimensions are accepted."""
+    """A dual chip select init sequence needs a chip for every command, which the generic option has not."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
     set_component_config("spi", {"id": "spi_bus", "clk_pin": 38, "mosi_pin": 40})
 
-    config = {
+    config: dict[str, Any] = {
         "id": "test_display",
-        "model": "inkplate13spectra",
-        "dimensions": dimensions,
+        "model": model,
+        "init_sequence": [[0xA0, 0x01]],
     }
-    if accepted:
+    if model == "t133a01":
+        config.update(
+            {
+                "dc_pin": 14,
+                "cs_pin": 42,
+                "cs1_pin": 39,
+                "dimensions": {"width": 1200, "height": 1600},
+            }
+        )
+    with pytest.raises(cv.Invalid, match="does not support a custom 'init_sequence'"):
         run_schema_validation(config)
-    else:
-        with pytest.raises(cv.Invalid, match="fixed 1200x1600 panel"):
-            run_schema_validation(config)
 
 
 def _inkplate13spectra_core(

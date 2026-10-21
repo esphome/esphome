@@ -32,6 +32,39 @@ void EPaperDualCS::deep_sleep() {
   this->write_command_to_chip_(REG_DSLP, {0xA5}, CHIP_BOTH);
 }
 
+// Each entry is the command, a count byte, the chip mask and the data (the count covers the mask
+// and the data); a delay of N ms is N then DELAY_FLAG. The Python model builds this layout with the
+// standard flatten_sequence(), the chip mask riding as the first data byte.
+bool EPaperDualCS::initialise(bool partial) {
+  const uint8_t *sequence = this->init_sequence_;
+  const size_t length = this->init_sequence_length_;
+  while (this->init_index_ != length) {
+    if (length - this->init_index_ < 2) {
+      this->init_index_ = 0;
+      this->mark_failed(LOG_STR("Malformed init sequence"));
+      return false;
+    }
+    const uint8_t cmd = sequence[this->init_index_++];
+    const uint8_t count = sequence[this->init_index_++];
+    if (count == DELAY_FLAG) {
+      ESP_LOGV(TAG, "Delay %u ms", cmd);
+      this->delay_until_ = millis() + cmd;
+      return false;
+    }
+    const uint8_t num_args = count & 0x7F;
+    if (num_args == 0 || length - this->init_index_ < num_args) {
+      this->init_index_ = 0;
+      this->mark_failed(LOG_STR("Malformed init sequence"));
+      return false;
+    }
+    const uint8_t *args = sequence + this->init_index_;
+    this->write_command_to_chip_(cmd, args + 1, num_args - 1, args[0]);
+    this->init_index_ += num_args;
+  }
+  this->init_index_ = 0;
+  return true;
+}
+
 void EPaperDualCS::setup() {
   EPaperBase::setup();
   // Both chip-selects are driven directly by this driver (the dual-CS protocol needs one

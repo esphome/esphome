@@ -5,27 +5,48 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_CS_PIN, CONF_DIMENSIONS
+from esphome.const import CONF_CS_PIN, CONF_DIMENSIONS, CONF_INIT_SEQUENCE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
-from . import EpaperModel
+from . import EpaperModel, ultrachip_resolution
 
 CONF_CS1_PIN = "cs1_pin"
 # Widest row the driver can stage: 4 * EPaperDualCS::MAX_HALF_ROW_BYTES (epaper_spi_dualcs.h),
 # since each chip receives a quarter of the width in bytes per row.
 MAX_WIDTH = 1600
 
+# Chip masks for init sequence entries, the same values as CHIP_* in epaper_spi_dualcs.h
+PRIMARY = 1
+BOTH = 3
+
+# Data of the CMD66 (0xF0) command, the same as EPaperDualCS::CMD66_V
+CMD66_DATA = (0x49, 0x55, 0x13, 0x5D, 0x05, 0x10)
+
 
 class DualCSModel(EpaperModel):
-    """A panel whose two controller chips each drive half of every row, one chip select each."""
+    """A panel whose two controller chips each drive half of every row, one chip select each.
+
+    Init sequence entries are (command, chip mask, *data), or delay(ms) from esphome.components.mipi.
+    """
 
     source_files = ("epaper_spi_4bpp.cpp", "epaper_spi_dualcs.cpp")
 
     # The driver drives CS and CS1 directly for the dual-CS protocol.
     manages_cs = True
 
+    def resolution(self, config: ConfigType) -> tuple[int, ...]:
+        """The resolution (TRES) entry: each chip is set up with the full width and half the height."""
+        width, height = self.get_dimensions(config)
+        command, *data = ultrachip_resolution(width, height // 2)
+        return (command, BOTH, *data)
+
     def validate_config(self, config: ConfigType) -> ConfigType:
+        if CONF_INIT_SEQUENCE in config:
+            raise cv.Invalid(
+                f"{self.name} does not support a custom '{CONF_INIT_SEQUENCE}'",
+                path=[CONF_INIT_SEQUENCE],
+            )
         width, height = self.get_dimensions(config)
         if width > MAX_WIDTH:
             raise cv.Invalid(

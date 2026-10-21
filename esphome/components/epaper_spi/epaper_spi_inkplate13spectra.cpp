@@ -33,26 +33,6 @@ void EPaperInkplate13Spectra::dump_config() {
   LOG_PIN("  BS1 Pin: ", this->bs1_pin_);
 }
 
-void EPaperInkplate13Spectra::send_init_sequence_() {
-  this->write_command_to_chip_(0x74, {0xC0, 0x1C, 0x1C, 0xCC, 0xCC, 0xCC, 0x15, 0x15, 0x55}, CHIP_PRIMARY);  // AN_TM
-  this->write_command_to_chip_(REG_CMD66, CMD66_V, sizeof(CMD66_V), CHIP_BOTH);
-  this->write_command_to_chip_(0x00, {0xDF, 0x6B}, CHIP_BOTH);                             // PSR
-  this->write_command_to_chip_(0x30, {0x08}, CHIP_BOTH);                                   // PLL
-  this->write_command_to_chip_(0x50, {0xF7}, CHIP_BOTH);                                   // CDI
-  this->write_command_to_chip_(0x60, {0x03, 0x03}, CHIP_BOTH);                             // TCON
-  this->write_command_to_chip_(0x86, {0x10}, CHIP_BOTH);                                   // AGID
-  this->write_command_to_chip_(0xE3, {0x22}, CHIP_BOTH);                                   // PWS
-  this->write_command_to_chip_(REG_CCSET, {0x01}, CHIP_BOTH);                              // CCSET
-  this->write_command_to_chip_(0x61, {0x04, 0xB0, 0x03, 0x20}, CHIP_BOTH);                 // TRES
-  this->write_command_to_chip_(0x01, {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38}, CHIP_PRIMARY);  // PWR
-  this->write_command_to_chip_(0xB6, {0x07}, CHIP_PRIMARY);                                // EN_BUF
-  this->write_command_to_chip_(0x06, {0xD8, 0x18}, CHIP_PRIMARY);                          // BTST_P
-  this->write_command_to_chip_(0xB7, {0x01}, CHIP_PRIMARY);                                // BOOST_VDDP_EN
-  this->write_command_to_chip_(0x05, {0xD8, 0x18}, CHIP_PRIMARY);                          // BTST_N
-  this->write_command_to_chip_(0xB0, {0x01}, CHIP_PRIMARY);                                // BUCK_BOOST_VDDN
-  this->write_command_to_chip_(0xB1, {0x02}, CHIP_PRIMARY);                                // TFT_VCOM_POWER
-}
-
 void EPaperInkplate13Spectra::set_all_pins_low_() const {
   ESP_LOGV(TAG, "set_all_pins_low_()");
   // The busy pin is driven too, as Soldered's own driver does, so it cannot hold charge either.
@@ -144,18 +124,6 @@ bool EPaperInkplate13Spectra::reset() {
       return true;
   }
   return false;
-}
-
-// Runs after reset() has already powered the panel on, so is_idle_() here reflects a
-// real, live signal instead of an unpowered floating/pulled line. PON is sent later, in
-// power_on() -- the framework's own set_state_() already busy-waits between TRANSFER_DATA
-// and POWER_ON, and again between POWER_ON and REFRESH_SCREEN, so sending PON in its
-// standard slot (after the framebuffer transfer, before refresh) needs no extra bookkeeping
-// here. Confirmed on real hardware that data-before-power-on works fine on this panel.
-bool EPaperInkplate13Spectra::initialise(bool partial) {
-  ESP_LOGV(TAG, "initialise(): sending register init sequence");
-  this->send_init_sequence_();
-  return true;
 }
 
 // Sends data byte 0x00 with the refresh command, as Soldered's own driver does.

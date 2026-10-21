@@ -40,7 +40,6 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
   };
 
   bool reset() override;
-  bool initialise(bool partial) override;
   void refresh_screen(bool partial) override;
   bool after_refresh() override;
   void deep_sleep() override;
@@ -49,9 +48,6 @@ class EPaperInkplate13Spectra : public EPaperDualCS {
   void setup_pins() const override;
   void set_io_pins_();
   void set_all_pins_low_() const;
-
-  /// Replays the panel register init table.
-  void send_init_sequence_();
 
   /// A real full refresh keeps the panel busy for about 20 s. True when a full refresh command
   /// is pending and the busy pin cleared much sooner, meaning the panel ignored the command (for

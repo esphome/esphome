@@ -99,7 +99,9 @@ class ChipLogDelegate : public spi::SPIDelegate {
 /// A dual chip select panel small enough to check every byte that reaches each chip.
 class TestableDualCS : public EPaperT133A01 {
  public:
-  TestableDualCS() : EPaperT133A01("test", PANEL_W, PANEL_H, nullptr, 0), bus(&this->cs, &this->cs1, &this->dc) {
+  explicit TestableDualCS(const uint8_t *init_sequence = nullptr, size_t init_sequence_length = 0)
+      : EPaperT133A01("test", PANEL_W, PANEL_H, init_sequence, init_sequence_length),
+        bus(&this->cs, &this->cs1, &this->dc) {
     this->delegate_ = &this->bus;
     this->set_dc_pin(&this->dc);
     this->set_primary_cs_pin(&this->cs);
@@ -155,7 +157,10 @@ class TestableDualCS : public EPaperT133A01 {
   }
 
   using EPaperT133A01::abort_transfer;
+  using EPaperT133A01::delay_until_;
   using EPaperT133A01::draw_pixel_at;
+  using EPaperT133A01::init_index_;
+  using EPaperT133A01::initialise;
   using EPaperT133A01::partial_;
   using EPaperT133A01::transfer_chip_;
   using EPaperT133A01::transfer_data;
@@ -286,6 +291,28 @@ TEST(EPaperDualCSPartial, DataStreamCommandIsSentWithDcLow) {
                                    << ": DTM went out with D/C high";
     }
   }
+}
+
+/// Each init command goes to the chips its mask names, and a delay ends the call instead of blocking the main loop.
+TEST(EPaperDualCSInit, SequenceGoesToTheNamedChipsAndYieldsOnDelays) {
+  // 0x74 with data 0xAA to the primary chip, a 20 ms delay, then 0x04 with no data to both chips
+  static constexpr uint8_t SEQUENCE[] = {0x74, 0x02, 0x01, 0xAA, 20, 0xFF, 0x04, 0x01, 0x03};
+  TestableDualCS d(SEQUENCE, sizeof(SEQUENCE));
+
+  const uint32_t before = millis();
+  EXPECT_FALSE(d.initialise(false)) << "the delay should end the call";
+  EXPECT_LT(millis() - before, 20u) << "the delay blocked";
+  EXPECT_GE(static_cast<int32_t>(d.delay_until_ - before), 20) << "the delay was not handed to the main loop";
+  ASSERT_EQ(d.bus.writes.size(), 2u);
+  EXPECT_TRUE(d.bus.writes[0].primary && !d.bus.writes[0].secondary);
+  EXPECT_EQ(d.bus.writes[0].bytes, std::vector<uint8_t>{0x74});
+  EXPECT_EQ(d.bus.writes[1].bytes, std::vector<uint8_t>{0xAA});
+
+  EXPECT_TRUE(d.initialise(false));
+  ASSERT_EQ(d.bus.writes.size(), 3u);
+  EXPECT_TRUE(d.bus.writes[2].primary && d.bus.writes[2].secondary);
+  EXPECT_EQ(d.bus.writes[2].bytes, std::vector<uint8_t>{0x04});
+  EXPECT_EQ(d.init_index_, 0u) << "the next update must replay the sequence from the start";
 }
 
 /// A full update (partial_ is false) takes the full path even when something was drawn.
