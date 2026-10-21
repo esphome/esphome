@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ARDUINO) || defined(USE_ESP32)
+#if defined(USE_ARDUINO) || defined(USE_ESP32) || defined(USE_HOST)
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
