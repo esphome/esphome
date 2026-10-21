@@ -9,7 +9,11 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/logging/log_ctrl.h>
 #include <zephyr/sys/printk.h>
+#ifdef CONFIG_RTT_CONSOLE
+#include <SEGGER_RTT.h>
+#endif
 #include <zephyr/usb/usb_device.h>
 #if __has_include(<zephyr/version.h>)
 #include <zephyr/version.h>
@@ -265,6 +269,18 @@ void k_sys_fatal_error_handler(unsigned int reason, const FatalErrorEsf *esf) {
     crash_buf.thread[sizeof(crash_buf.thread) - 1] = '\0';
   } else {
     crash_buf.thread[0] = '\0';
+  }
+#endif
+#ifdef CONFIG_LOG
+  // Print the queued fault dump before the reset, as Zephyr's default handler does
+  LOG_PANIC();
+#endif
+#if defined(CONFIG_RTT_CONSOLE) && defined(CONFIG_CPU_CORTEX_M)
+  // DHCSR.C_DEBUGEN is set while a debugger is attached; only then wait (up to 300 ms) for it to
+  // read the rest of the dump, since RTT console writes only block when the buffer is full
+  if (*reinterpret_cast<volatile uint32_t *>(0xE000EDF0) & 1) {
+    for (int ms = 0; ms < 300 && SEGGER_RTT_HasDataUp(0); ms++)
+      k_busy_wait(1000);
   }
 #endif
   arch_restart();

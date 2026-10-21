@@ -548,7 +548,12 @@ async def to_code(config):
                 resolve_uart_node_label,
                 validate_dts_label_exists,
             )
-            from esphome.components.zephyr.rtt import enable_rtt_node, rtt_channel
+            from esphome.components.zephyr.rtt import (
+                claim_rtt_channel,
+                enable_rtt_node,
+                rtt_channel,
+                rtt_label_channel,
+            )
 
             zephyr_add_prj_conf("SERIAL", True)
             zephyr_add_prj_conf("RING_BUFFER", True)
@@ -569,6 +574,8 @@ async def to_code(config):
                 node_known = validate_dts_label_exists(
                     "uart", zephyr_data()[KEY_BOARD], port_label
                 )
+                if (label_channel := rtt_label_channel(port_label)) is not None:
+                    claim_rtt_channel(label_channel, f"uart '{config[CONF_ID]}'")
             elif channel is not None:
                 # Enabled by enable_rtt_node(); no pinctrl, and no pins to show
                 port_label = enable_rtt_node(channel, f"uart '{config[CONF_ID]}'")

@@ -51,8 +51,10 @@ from esphome.components.zephyr.const import (
 )
 from esphome.components.zephyr.rtt import (
     RTT_PORTS,
+    claim_rtt_channel,
     enable_rtt_node,
     rtt_channel,
+    rtt_label_channel,
     validate_rtt_port,
 )
 from esphome.config_helpers import filter_source_files_from_platform
@@ -666,6 +668,8 @@ async def _late_logger_init(config: ConfigType) -> None:
                 node_known = validate_dts_label_exists(
                     "uart", zephyr_data()[KEY_BOARD], node
                 )
+                if (label_channel := rtt_label_channel(node)) is not None:
+                    claim_rtt_channel(label_channel, "logger")
             else:
                 from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
 

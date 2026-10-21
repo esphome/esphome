@@ -674,6 +674,8 @@ def zephyr_to_code(config: ConfigType) -> None:
     if log_level != "NONE":
         zephyr_add_prj_conf("LOG", True)
         zephyr_add_prj_conf("LOG_DEFAULT_LEVEL", _ZEPHYR_LOG_LEVEL_TO_INT[log_level])
+        # Fits a whole fault dump until LOG_PANIC(); 1024 loses its first lines
+        zephyr_add_prj_conf("LOG_BUFFER_SIZE", 2048, required=False)
         # Normally pulled in transitively by LOG_BACKEND_UART, which the logger component
         # disables in favor of its own backend, so it must be set explicitly here.
         zephyr_add_prj_conf("LOG_OUTPUT", True)
