@@ -44,4 +44,10 @@ class RealTimeClock : public PollingComponent {
   LazyCallbackManager<void()> time_sync_callback_;
 };
 
+/// Decode the 7-byte BCD calendar (second, minute, hour, one-hot weekday, day, month, year since 2000)
+/// shared by Epson RTCs such as the RX8025T, RX8111 and RX8130, and fill in the UTC timestamp.
+ESPTime decode_bcd_calendar(const uint8_t *raw);
+/// Encode @p time into that 7-byte layout; @p time must be valid (is_valid()), with the year 2000 to 2099.
+void encode_bcd_calendar(const ESPTime &time, uint8_t *raw);
+
 }  // namespace esphome::time

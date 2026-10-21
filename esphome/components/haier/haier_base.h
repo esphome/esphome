@@ -137,7 +137,7 @@ class HaierClimateBase : public esphome::Component,
     esphome::optional<float> target_temperature;
     esphome::optional<esphome::climate::ClimatePreset> preset;
     bool valid;
-    HvacSettings() : valid(false){};
+    HvacSettings() : valid(false) {};
     HvacSettings(const HvacSettings &) = default;
     HvacSettings &operator=(const HvacSettings &) = default;
     void reset();

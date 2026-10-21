@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.alarm_control_panel";
+ESPHOME_LOG_TAG(TAG, "mqtt.alarm_control_panel");
 
 using namespace esphome::alarm_control_panel;
 
@@ -77,7 +77,6 @@ void MQTTAlarmControlPanelComponent::setup() {
 }
 
 void MQTTAlarmControlPanelComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT alarm_control_panel '%s':", this->alarm_control_panel_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true);
   ESP_LOGCONFIG(TAG,
                 "  Supported Features: %" PRIu32 "\n"

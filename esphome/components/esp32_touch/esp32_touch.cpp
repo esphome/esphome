@@ -13,7 +13,7 @@ template<size_t N> static const char *lookup_str(const char *const (&table)[N], 
   return (index < N) ? table[index] : "UNKNOWN";
 }
 
-static const char *const TAG = "esp32_touch";
+ESPHOME_LOG_TAG(TAG, "esp32_touch");
 
 static constexpr uint32_t SETUP_MODE_LOG_INTERVAL_MS = 250;
 static constexpr uint32_t INITIAL_STATE_DELAY_MS = 1500;
@@ -261,16 +261,11 @@ void ESP32TouchComponent::dump_config() {
   if (this->filter_configured_) {
     // TOUCH_BM_IIR_FILTER_256 only exists on V2, shifting JITTER's position
     static constexpr const char *FILTER_STRS[] = {
-      "IIR_4",
-      "IIR_8",
-      "IIR_16",
-      "IIR_32",
-      "IIR_64",
-      "IIR_128",
+        "IIR_4",   "IIR_8", "IIR_16", "IIR_32", "IIR_64", "IIR_128",
 #if SOC_TOUCH_SENSOR_VERSION == 2
-      "IIR_256",
+        "IIR_256",
 #endif
-      "JITTER",
+        "JITTER",
     };
     static constexpr const char *SMOOTH_STRS[] = {"OFF", "IIR_2", "IIR_4", "IIR_8"};
     const char *filter_s = lookup_str(FILTER_STRS, this->filter_mode_);

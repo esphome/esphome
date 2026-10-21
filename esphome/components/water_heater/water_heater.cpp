@@ -11,13 +11,7 @@
 
 namespace esphome::water_heater {
 
-static const char *const TAG = "water_heater";
-
-void log_water_heater(const char *tag, const char *prefix, const char *type, WaterHeater *obj) {
-  if (obj != nullptr) {
-    ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-  }
-}
+ESPHOME_LOG_TAG(TAG, "water_heater");
 
 WaterHeaterCall::WaterHeaterCall(WaterHeater *parent) : parent_(parent) {}
 

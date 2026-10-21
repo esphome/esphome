@@ -3,7 +3,7 @@
 
 namespace esphome::ina2xx_i2c {
 
-static const char *const TAG = "ina2xx_i2c";
+ESPHOME_LOG_TAG(TAG, "ina2xx_i2c");
 
 void INA2XXI2C::setup() {
   auto err = this->write(nullptr, 0);

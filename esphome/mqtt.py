@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import paho.mqtt.client as mqtt
 
 from esphome.const import (
+    CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
     CONF_CLIENT_CERTIFICATE,
@@ -21,7 +22,9 @@ from esphome.const import (
     CONF_MQTT,
     CONF_NAME,
     CONF_PASSWORD,
+    CONF_PAYLOAD,
     CONF_PORT,
+    CONF_RETAIN,
     CONF_SKIP_CERT_CN_CHECK,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
@@ -92,10 +95,26 @@ def prepare(
             time.sleep(wait_time)
             tries += 1
 
-    client = mqtt.Client(client_id or "")
+    # Match the firmware's transport; imported here to keep component code off the CLI start-up path
+    from esphome.components.mqtt import (
+        CONF_TLS,
+        CONF_TRANSPORT,
+        CONF_VERIFY_SSL,
+        CONF_WS_PATH,
+        DEFAULT_WS_PATH,
+        MQTT_TRANSPORT_TCP,
+    )
+
+    transport = config[CONF_MQTT].get(CONF_TRANSPORT, MQTT_TRANSPORT_TCP)
+    websocket = transport != MQTT_TRANSPORT_TCP
+    client = mqtt.Client(
+        client_id or "", transport="websockets" if websocket else "tcp"
+    )
     client.on_connect = on_connect_
     client.on_message = on_message
     client.on_disconnect = on_disconnect
+    if websocket:
+        client.ws_set_options(path=config[CONF_MQTT].get(CONF_WS_PATH, DEFAULT_WS_PATH))
     if username is None:
         if config[CONF_MQTT].get(CONF_USERNAME):
             client.username_pw_set(
@@ -104,15 +123,21 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    if config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY):
-        context = ssl.create_default_context(
-            cadata=config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
-        )
-        if config[CONF_MQTT].get(CONF_SKIP_CERT_CN_CHECK):
+    mqtt_conf = config[CONF_MQTT]
+    # Validation sets tls whenever a certificate option or the wss transport implies it
+    if mqtt_conf.get(CONF_TLS):
+        if mqtt_conf.get(CONF_VERIFY_SSL) is False:
+            context = ssl.create_default_context()
             context.check_hostname = False
-        if config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE) and config[CONF_MQTT].get(
-            CONF_CLIENT_CERTIFICATE_KEY
-        ):
+            context.verify_mode = ssl.CERT_NONE
+        else:
+            # Without a CA the system trust store stands in for the firmware's bundle
+            context = ssl.create_default_context(
+                cadata=mqtt_conf.get(CONF_CERTIFICATE_AUTHORITY)
+            )
+            if mqtt_conf.get(CONF_SKIP_CERT_CN_CHECK):
+                context.check_hostname = False
+        if mqtt_conf.get(CONF_CLIENT_CERTIFICATE):
             with (
                 tempfile.NamedTemporaryFile(
                     encoding="utf-8", mode="w+", delete=False
@@ -122,8 +147,8 @@ def prepare(
                 ) as key_file,
             ):
                 try:
-                    cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
-                    key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                    cert_file.write(mqtt_conf[CONF_CLIENT_CERTIFICATE])
+                    key_file.write(mqtt_conf[CONF_CLIENT_CERTIFICATE_KEY])
                     cert_file.close()
                     key_file.close()
                     context.load_cert_chain(cert_file.name, key_file.name)
@@ -319,13 +344,36 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
         return 1
     _LOGGER.info("Starting log output from %s", topic)
 
-    def on_message(client, userdata, msg):
-        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
-        payload = msg.payload.decode(errors="backslashreplace")
-        message = time_ + payload
-        safe_print(message)
+    logs_topic = f"esphome/logs/{config[CONF_ESPHOME][CONF_NAME]}"
+    # Ask when the retained birth message reports online: a request sent while the device is down is
+    # lost, and only a retained message tells a CLI that connects later that the device is already up.
+    # An empty payload deletes the retained message instead, so it counts as no birth message.
+    birth = config.get(CONF_MQTT, {}).get(CONF_BIRTH_MESSAGE) or {}
+    birth_payload = birth.get(CONF_PAYLOAD)
+    birth_topic = birth.get(CONF_TOPIC) if birth_payload else None
+    ask_on_connect = birth_topic is None or not birth[CONF_RETAIN]
 
-    return initialize(config, [topic], on_message, None, username, password, client_id)
+    def request_crash_log(client):
+        _LOGGER.debug("Requesting the crash log via topic: %s", logs_topic)
+        client.publish(logs_topic, None, retain=False)
+
+    def on_message(client, userdata, msg):
+        payload = msg.payload.decode(errors="backslashreplace")
+        if msg.topic == birth_topic and payload == birth_payload:
+            request_crash_log(client)
+        # The birth topic may sit inside the log subscription, so print by what was asked for
+        if mqtt.topic_matches_sub(topic, msg.topic):
+            time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
+            safe_print(time_ + payload)
+
+    def on_connect(client, userdata, flags, return_code):
+        if ask_on_connect:
+            request_crash_log(client)
+
+    subscriptions = [topic] if birth_topic is None else [topic, birth_topic]
+    return initialize(
+        config, subscriptions, on_message, on_connect, username, password, client_id
+    )
 
 
 def clear_topic(config, topic, username=None, password=None, client_id=None):

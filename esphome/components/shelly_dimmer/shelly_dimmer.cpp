@@ -19,7 +19,7 @@
 
 namespace {
 
-constexpr char TAG[] = "shelly_dimmer";
+ESPHOME_LOG_TAG(TAG, "shelly_dimmer");
 
 constexpr uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
 constexpr uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
@@ -52,7 +52,7 @@ constexpr float VOLTAGE_SCALING_FACTOR = 347800;
 constexpr float CURRENT_SCALING_FACTOR = 1448;
 
 // Essentially std::size() for pre c++17
-template<typename T, size_t N> constexpr size_t size(const T (&/*unused*/)[N]) noexcept { return N; }
+template<typename T, size_t N> constexpr size_t size(const T (& /*unused*/)[N]) noexcept { return N; }
 
 }  // Anonymous namespace
 
@@ -483,10 +483,7 @@ void ShellyDimmer::reset_(bool boot0) {
   // Wait 50ms for the STM32 to reset.
   delay(50);  // NOLINT
 
-  // Clear receive buffer.
-  while (this->available()) {
-    this->read();
-  }
+  this->discard_available();
 
   this->pin_nrst_->digital_write(true);
   // Wait 50ms for the STM32 to boot.

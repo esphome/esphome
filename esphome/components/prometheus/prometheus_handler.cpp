@@ -1,6 +1,6 @@
 #include "prometheus_handler.h"
 #include <cinttypes>
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_HOST)
 #include "esphome/core/application.h"
 
 namespace esphome::prometheus {

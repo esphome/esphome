@@ -4,7 +4,7 @@
 
 namespace esphome::online_image {
 
-static const char *const TAG = "online_image.download_buffer";
+ESPHOME_LOG_TAG(TAG, "online_image.download_buffer");
 
 DownloadBuffer::DownloadBuffer(size_t size) : size_(size) {
   RAMAllocator<uint8_t> allocator;
