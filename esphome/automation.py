@@ -635,24 +635,22 @@ async def _render_bytes(
     args = f"::{table}, {size}" if size else f"{table}, {size}"
     if CORE.is_esp8266 and spec.progmem_target is not None:
         return [send(spec.progmem_target, args)]
-    if not CORE.is_esp8266 or size == 0:
+    if not CORE.is_esp8266:
         return [send(spec.target, args)]
     # A PROGMEM table must be read with aligned loads on ESP8266, so copy it out first;
-    # the length is known here, so the copy is an exact array, on the heap past ``stack``
+    # the length is known here, so the copy is an exact array, on the heap past ``stack``.
+    # An empty payload still gets a one byte array: the raw lwIP socket rejects a null buffer.
     if size <= spec.stack:
-        buffer, data = f"uint8_t esphome__bytes[{size}];", "esphome__bytes"
+        buffer, data = f"uint8_t esphome__bytes[{max(size, 1)}];", "esphome__bytes"
     else:
         buffer, data = (
             f"auto esphome__bytes = std::make_unique<uint8_t[]>({size});",
             "esphome__bytes.get()",
         )
-    return [
-        "{",
-        f"  {buffer}",
-        f"  esphome::progmem_memcpy({data}, {args});",
-        f"  {send(spec.target, f'{data}, {size}')}",
-        "}",
-    ]
+    statements = ["{", f"  {buffer}"]
+    if size:
+        statements.append(f"  esphome::progmem_memcpy({data}, {args});")
+    return [*statements, f"  {send(spec.target, f'{data}, {size}')}", "}"]
 
 
 def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -> bool:

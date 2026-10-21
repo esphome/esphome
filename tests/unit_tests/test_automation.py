@@ -1369,11 +1369,14 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
     assert f"::{PARENT_OBJ}->send_progmem(::esphome__my_apply__bytes, 2);" in text
     assert "progmem_memcpy" not in text
 
-    # An empty payload never touches flash
+    # An empty payload never touches flash but still passes a non-null buffer
     mock_cg.new_pvariable.reset_mock()
     fields = (ApplyBytes("data", "send({})"),)
     await _run_apply_action(registries, fields, {"data": []}, platform="esp8266")
-    assert f"::{PARENT_OBJ}->send(nullptr, 0);" in _apply_definition(mock_cg)
+    text = _apply_definition(mock_cg)
+    assert "uint8_t esphome__bytes[1];" in text
+    assert f"::{PARENT_OBJ}->send(esphome__bytes, 0);" in text
+    assert "progmem_memcpy" not in text
 
 
 @pytest.mark.asyncio
