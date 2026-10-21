@@ -80,8 +80,8 @@ def _warn_missing_hcp2_address(config: ConfigType) -> ConfigType:
     if CONF_ADDRESS not in config:
         _LOGGER.warning(
             "[hoermann_hcp] 'address' is not set. Using 0x02 for now. Default HCP2 address "
-            "will change to 0x%02X in 2027.04.0. Set 'address: 0x%02X' explicitly to silence "
-            "this warning.",
+            "will change to 0x%02X in 2027.04.0. To migrate now, set 'address: 0x%02X', flash the "
+            "updated firmware, and run a bus scan on the drive.",
             HCP2_DEFAULT_ADDRESS,
             HCP2_DEFAULT_ADDRESS,
         )
