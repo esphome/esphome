@@ -1,3 +1,6 @@
+// Requires the isolated headers and flags from script/test_ssd1306_partial.py.
+#ifdef SSD1306_STANDALONE_TEST
+
 #include <iomanip>
 #include <iostream>
 #include <vector>
@@ -59,3 +62,5 @@ int main() {
     }
   }
 }
+
+#endif  // SSD1306_STANDALONE_TEST

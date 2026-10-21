@@ -70,6 +70,7 @@ def main() -> int:
         destination.write_bytes(source.read_bytes())
     flags = [
         "-std=gnu++20",
+        "-DSSD1306_STANDALONE_TEST",
         "-Wall",
         "-Wextra",
         "-Werror",

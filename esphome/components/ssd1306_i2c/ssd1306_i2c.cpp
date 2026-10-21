@@ -105,7 +105,10 @@ void HOT I2CSSD1306::write_display_data() {
     if (state.reset_phase != ResetPhase::RESET_PHASE_IDLE || (state.initializing_controller && state.command_failed)) {
       return;
     }
-    this->write_checked_full_frame_();
+    // Direct display() calls bypass update(), but must not bypass initialization or recovery.
+    if (this->write_checked_full_frame_() && !state.initializing_controller && !state.transport_failed) {
+      this->commit_shadow_buffer_();
+    }
     return;
   }
 #endif

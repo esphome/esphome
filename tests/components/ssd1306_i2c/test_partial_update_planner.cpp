@@ -166,6 +166,8 @@ TEST(SSD1306Planner, DenseCheckerboardFullFrameAndVerticalColumns) {
 }
 
 TEST(SSD1306Planner, RandomCoverageIncludingForcedOverflow) {
+  // Fixed seed keeps coverage failures reproducible; this is not a security RNG.
+  // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp)
   std::mt19937 random(19802);
   const std::array<std::pair<uint16_t, uint8_t>, 6> dimensions{
       {{128, 4}, {128, 8}, {96, 2}, {64, 6}, {64, 4}, {72, 5}}};

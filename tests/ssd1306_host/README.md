@@ -21,16 +21,34 @@ host framework and GoogleTest. Its test manifest includes only the pure planner;
 the firmware matrix still compiles the full driver. The standalone runner uses
 a minimal assertion adapter to run that same planner test source offline.
 
+## Standalone build boundary
+
+The runner defines `SSD1306_STANDALONE_TEST` when compiling its isolated
+`driver_test.cpp`, `legacy_trace.cpp` and `planner_main.cpp` entry points.
+Those files require the substitute runtime and assertion adapter; their
+bodies are not part of ordinary firmware or target-toolchain analysis.
+The runner still builds and executes them, with ASan and UBSan by default.
+The production sources, shared GoogleTest planner tests and benchmark remain
+available to the normal repository checks without this definition.
+
+The planner test deliberately uses a fixed random seed for reproducible
+coverage failures. Only the seed-security diagnostics on that one line are
+suppressed; the test and all its coverage assertions remain enabled.
+
 ## Checks
 
 - Eight planner test groups: 65,536 exhaustive sixteen-column masks, every single
   byte in all six supported geometries, 6,000 seeded random cases, gap/chunk
   boundaries, empty/reused plans, bad dimensions, and forced workspace overflow.
   Coverage and transfer cost are checked independently of the production helpers.
-- Twenty driver test groups: required/optional allocation failure, allocation
+- Twenty-eight driver test groups: required/optional allocation failure, allocation
   order, initialization faults, late display-on failure, brief power loss, warning lifetime,
   data-only resync, retry escalation, reset timing, outage probing, timer wrap,
-  requested settings/power state, unchanged frames, and legacy behavior.
+  requested settings/power state, unchanged frames, and legacy behavior. Direct
+  display calls are covered across all six geometries and both power states,
+  with failures at every 128x64 data chunk, each address-command position, and
+  the packed address window; initialization and pending/reset recovery paths
+  must not prematurely trust the shadow.
 - 112 legacy configurations (14 models, eight parameter sets) match transaction
   traces from PR commit `46c70b4f338bfb2987de77cc45edaca8453a82a5`. They are checked
   both with the feature compiled out and with it compiled in but disabled for
@@ -66,3 +84,7 @@ Reinitialization reuses the shared base initialization sequence. Recovery does
 not allocate the framebuffer again. A shadow is trusted, and its warning cleared,
 only after the frame and any required final on/off command succeed. Rendering
 continues while recovery waits so the recovered screen gets the latest image.
+
+Successful direct `display()` calls refresh the shadow only outside initialization
+and transport recovery. A successful frame write during recovery does not replace
+the required settings and power-state restoration or clear its warning.

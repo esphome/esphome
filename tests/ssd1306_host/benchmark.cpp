@@ -85,8 +85,8 @@ uint32_t per_page(const Workload &work) {
   }
   return total;
 }
-volatile uint32_t sink;
 template<typename F> double time_calls(F function) {
+  [[maybe_unused]] volatile uint32_t sink{0};
   const auto start = std::chrono::steady_clock::now();
   for (unsigned iteration = 0; iteration < 2000; iteration++) {
     std::atomic_signal_fence(std::memory_order_seq_cst);

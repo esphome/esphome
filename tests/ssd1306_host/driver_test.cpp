@@ -1,3 +1,6 @@
+// Requires the isolated headers and flags from script/test_ssd1306_partial.py.
+#ifdef SSD1306_STANDALONE_TEST
+
 #include <algorithm>
 #include <array>
 #include <functional>
@@ -593,6 +596,223 @@ int main() {
            REQUIRE(bus.probes() == 1);
          }
        }},
+      {"direct display keeps the shadow coherent for every geometry and power state",
+       [] {
+         const std::array<std::pair<unsigned, unsigned>, 6> dimensions{
+             {{128, 32}, {128, 64}, {96, 16}, {64, 48}, {64, 32}, {72, 40}}};
+         for (unsigned model = 0; model < dimensions.size(); model++) {
+           for (bool on : {false, true}) {
+             Bus bus;
+             I2CSSD1306 display;
+             configure(display, bus);
+             display.set_model(static_cast<SSD1306Model>(model));
+             display.setup();
+             display.update();
+             if (!on)
+               display.turn_off();
+             const auto allocations = memory::allocation_calls;
+             const auto [width, height] = dimensions[model];
+             const unsigned column = (model == 3 || model == 4) ? 32 : (model == 5 ? 28 : 0);
+             // Repeat the reviewer's black -> direct white -> updated black sequence.
+             for (unsigned cycle = 0; cycle < 2; cycle++) {
+               display.fill(Color::WHITE);
+               display.display();
+               for (unsigned page = 0; page < height / 8; page++) {
+                 for (unsigned x = column; x < column + width; x++)
+                   REQUIRE(bus.ram[page * 128 + x] == 255);
+               }
+               display.fill(Color::BLACK);
+               display.update();
+               REQUIRE(std::all_of(bus.ram.begin(), bus.ram.end(), [](uint8_t byte) { return byte == 0; }));
+               display.fill(Color::WHITE);
+               display.display();
+               bus.clear_transfers();
+               display.update();
+               REQUIRE(bus.transfers.size() == 1);
+               REQUIRE(bus.probes() == 1);
+               REQUIRE(bus.on == on);
+               REQUIRE(!display.status_has_warning());
+               display.fill(Color::BLACK);
+               display.update();
+             }
+             REQUIRE(memory::allocation_calls == allocations);
+           }
+         }
+       }},
+      {"initialization display does not prematurely trust the shadow",
+       [] {
+         Bus bus;
+         I2CSSD1306 display;
+         configure(display, bus);
+         display.setup();
+         bus.clear_transfers();
+         display.update();
+         REQUIRE(bus.probes() == 1);
+         REQUIRE(bus.transfers.size() == 66);
+         REQUIRE(!display.status_has_warning());
+         bus.clear_transfers();
+         display.update();
+         REQUIRE(bus.transfers.size() == 1);
+         REQUIRE(bus.probes() == 1);
+       }},
+      {"direct display data failure at every chunk keeps recovery pending",
+       [] {
+         for (unsigned failed_chunk = 0; failed_chunk < 64; failed_chunk++) {
+           Bus bus;
+           I2CSSD1306 display;
+           healthy(display, bus);
+           unsigned chunk = 0;
+           bus.fail = [&](const std::vector<uint8_t> &bytes) {
+             return !bytes.empty() && bytes[0] == 0x40 && chunk++ == failed_chunk;
+           };
+           display.fill(Color::WHITE);
+           display.display();
+           REQUIRE(display.status_has_warning());
+           REQUIRE(chunk == failed_chunk + 1);
+           bus.fail = {};
+           // Returning to the old shadow must still repair any white chunks already sent.
+           display.fill(Color::BLACK);
+           display.update();
+           REQUIRE(!display.status_has_warning());
+           REQUIRE(std::all_of(bus.ram.begin(), bus.ram.end(), [](uint8_t byte) { return byte == 0; }));
+           bus.clear_transfers();
+           display.update();
+           REQUIRE(bus.transfers.size() == 1);
+           REQUIRE(bus.probes() == 1);
+         }
+       }},
+      {"direct display command failure is not hidden by a successful full frame",
+       [] {
+         for (unsigned failed_command = 0; failed_command < 6; failed_command++) {
+           Bus bus;
+           I2CSSD1306 display;
+           healthy(display, bus);
+           unsigned command = 0;
+           bus.fail = [&](const std::vector<uint8_t> &bytes) {
+             return bytes.size() == 2 && bytes[0] == 0 && command++ == failed_command;
+           };
+           display.fill(Color::WHITE);
+           display.display();
+           REQUIRE(display.status_has_warning());
+           REQUIRE(command == 6);
+           bus.fail = {};
+           bus.clear_transfers();
+           display.update();
+           REQUIRE(!display.status_has_warning());
+           REQUIRE(bus.display_off_commands() == 1);
+           REQUIRE(std::all_of(bus.ram.begin(), bus.ram.end(), [](uint8_t byte) { return byte == 255; }));
+         }
+       }},
+      {"direct display address-window failure does not commit the shadow",
+       [] {
+         Bus bus;
+         I2CSSD1306 display;
+         healthy(display, bus);
+         bus.fail = [](const std::vector<uint8_t> &bytes) { return bytes.size() == 7 && bytes[0] == 0; };
+         display.fill(Color::WHITE);
+         display.display();
+         REQUIRE(display.status_has_warning());
+         REQUIRE(bus.transfers.size() == 7);
+         REQUIRE(bus.transfers.back().failed);
+         bus.fail = {};
+         display.update();
+         REQUIRE(!display.status_has_warning());
+         REQUIRE(std::all_of(bus.ram.begin(), bus.ram.end(), [](uint8_t byte) { return byte == 255; }));
+       }},
+      {"successful direct display cannot bypass pending settings recovery or retry wait",
+       [] {
+         Bus bus;
+         I2CSSD1306 display;
+         healthy(display, bus);
+         display.set_invert(true);
+         display.set_contrast(0.25f);
+         bus.online = false;
+         display.turn_off();
+         display.update();
+         bus.reset_controller();
+         bus.online = true;
+         display.fill(Color::WHITE);
+         display.display();
+         REQUIRE(display.status_has_warning());
+         REQUIRE(bus.inverse == 0);
+         bus.clear_transfers();
+         memory::now += 999;
+         display.update();
+         REQUIRE(bus.transfers.empty());
+         REQUIRE(display.status_has_warning());
+         memory::now += 1;
+         display.update();
+         REQUIRE(!display.status_has_warning());
+         REQUIRE(bus.inverse == 1);
+         REQUIRE(bus.parameters[0x81] == 63);
+         REQUIRE(!bus.on);
+         REQUIRE(!display.is_on());
+         REQUIRE(std::all_of(bus.ram.begin(), bus.ram.end(), [](uint8_t byte) { return byte == 255; }));
+       }},
+      {"direct display cannot bypass a failed recovery display-on command",
+       [] {
+         Bus bus;
+         I2CSSD1306 display;
+         healthy(display, bus);
+         bus.online = false;
+         display.update();
+         display.update();
+         bus.online = true;
+         bus.fail = [](const std::vector<uint8_t> &bytes) { return bytes == std::vector<uint8_t>{0, 0xAF}; };
+         memory::now += 1000;
+         display.update();
+         REQUIRE(display.status_has_warning());
+         REQUIRE(!bus.on);
+         bus.fail = {};
+         display.fill(Color::WHITE);
+         display.display();
+         REQUIRE(display.status_has_warning());
+         REQUIRE(!bus.on);
+         bus.clear_transfers();
+         display.update();
+         REQUIRE(bus.transfers.empty());
+         memory::now += 1000;
+         display.update();
+         REQUIRE(!display.status_has_warning());
+         REQUIRE(bus.on);
+         REQUIRE(bus.display_off_commands() == 1);
+         REQUIRE(std::all_of(bus.ram.begin(), bus.ram.end(), [](uint8_t byte) { return byte == 255; }));
+       }},
+      {"direct display sends nothing during either asynchronous reset phase",
+       [] {
+         Bus bus;
+         Pin pin;
+         I2CSSD1306 display;
+         healthy(display, bus, &pin);
+         bus.online = false;
+         display.update();
+         display.update();
+         bus.online = true;
+         memory::now += 1000;
+         display.update();
+         REQUIRE(display.test_loop_enabled());
+         bus.clear_transfers();
+         display.fill(Color::WHITE);
+         display.display();
+         REQUIRE(bus.transfers.empty());
+         memory::now += 1;
+         display.loop();
+         display.fill(Color::BLACK);
+         display.draw_pixel_at(19, 16);
+         display.display();
+         REQUIRE(bus.transfers.empty());
+         REQUIRE(display.status_has_warning());
+         memory::now += 10;
+         display.loop();
+         REQUIRE(!display.test_loop_enabled());
+         REQUIRE(!display.status_has_warning());
+         REQUIRE(bus.ram[2 * 128 + 19] == 1);
+         REQUIRE(bus.on);
+         bus.clear_transfers();
+         display.update();
+         REQUIRE(bus.transfers.size() == 1);
+         REQUIRE(bus.probes() == 1);
+       }},
   };
   unsigned failures = 0;
   for (const auto &[name, function] : cases) {
@@ -611,3 +831,5 @@ int main() {
   std::cout << "Driver cases: " << cases.size() - failures << " passed, " << failures << " failed\n";
   return failures ? 1 : 0;
 }
+
+#endif  // SSD1306_STANDALONE_TEST
