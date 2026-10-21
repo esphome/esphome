@@ -1,8 +1,10 @@
+from ipaddress import IPv4Address, IPv6Address
 from typing import Any
 
 from esphome import automation
 from esphome.automation import Trigger
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.const import CONF_ON_RECEIVE
 from esphome.components.packet_transport import (
     CONF_BINARY_SENSORS,
@@ -16,6 +18,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
@@ -63,13 +66,80 @@ RELOCATED = {
 }
 
 
-def _consume_udp_sockets(config: ConfigType) -> ConfigType:
-    """Register socket needs for UDP component."""
+def _no_scope_id(addr: IPv4Address | IPv6Address) -> IPv4Address | IPv6Address:
+    """Python accepts a scope id, which neither inet_pton nor lwIP's inet6_aton takes."""
+    if isinstance(addr, IPv6Address) and addr.scope_id is not None:
+        raise cv.Invalid(
+            f"{addr} carries a scope id, which the device cannot parse; "
+            "give the address without the '%' part"
+        )
+    return addr
+
+
+def _address(value: Any) -> IPv4Address | IPv6Address:
+    addr = _no_scope_id(cv.ipaddress(value))
+    # A link-local destination needs a scope id, which the device cannot pick on every platform
+    if isinstance(addr, IPv6Address) and addr.is_link_local:
+        raise cv.Invalid(
+            f"{addr} is link-local; use a multicast, unique local or global address"
+        )
+    return addr
+
+
+def _listen_address(value: Any) -> IPv4Address | IPv6Address:
+    """Accept an IPv4 multicast/broadcast or an IPv6 multicast address, with a family-specific error."""
+    if ":" not in str(value):
+        return cv.ipv4address_multi_broadcast(value)
+    addr = _no_scope_id(cv.ipv6address(value))
+    if not addr.is_multicast:
+        raise cv.Invalid(f"{value} is not an IPv6 multicast address")
+    return addr
+
+
+def _final_validate(config: ConfigType) -> None:
     from esphome.components import socket
 
-    # UDP uses up to 2 sockets: 1 broadcast + 1 listen
-    # Whether each is used depends on code generation, so register worst case
-    socket.consume_sockets(2, "udp", socket.SocketType.UDP)(config)
+    full_config = fv.full_config.get()
+    raw_lwip = (
+        full_config.get(socket.DOMAIN, {}).get(socket.CONF_IMPLEMENTATION)
+        == socket.IMPLEMENTATION_LWIP_TCP
+    )
+    for key, addresses in (
+        (CONF_ADDRESSES, config[CONF_ADDRESSES]),
+        (CONF_LISTEN_ADDRESS, [config[CONF_LISTEN_ADDRESS]]),
+    ):
+        for addr in addresses:
+            if addr.version != 6:
+                continue
+            if raw_lwip:
+                raise cv.Invalid(
+                    f"IPv6 address '{addr}' is not supported on this platform", [key]
+                )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+def _ipv6_addresses(config: ConfigType) -> list[IPv6Address]:
+    return [addr for addr in config[CONF_ADDRESSES] if addr.version == 6]
+
+
+def _require_ipv6_for_ipv6_addresses(config: ConfigType) -> ConfigType:
+    if _ipv6_addresses(config) or config[CONF_LISTEN_ADDRESS].version == 6:
+        network.require_ipv6("udp")(config)
+    return config
+
+
+def _has_ipv4_address(config: ConfigType) -> bool:
+    return any(addr.version == 4 for addr in config[CONF_ADDRESSES])
+
+
+def _consume_udp_sockets(config: ConfigType) -> ConfigType:
+    """Reserve the listen socket plus one send socket per address family in use."""
+    from esphome.components import socket
+
+    count = 1 + _has_ipv4_address(config) + bool(_ipv6_addresses(config))
+    socket.consume_sockets(count, "udp", socket.SocketType.UDP)(config)
     return config
 
 
@@ -88,9 +158,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(
                 CONF_LISTEN_ADDRESS, default="255.255.255.255"
-            ): cv.ipv4address_multi_broadcast,
+            ): _listen_address,
             cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
-                cv.ipv4address,
+                _address
             ),
             cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
                 {
@@ -102,6 +172,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(RELOCATED),
     _consume_udp_sockets,
+    network.require_ipv4("udp"),
+    _require_ipv6_for_ipv6_addresses,
 )
 
 
@@ -125,6 +197,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_broadcast_port(conf_port[CONF_BROADCAST_PORT]))
     if (listen_address := str(config[CONF_LISTEN_ADDRESS])) != "255.255.255.255":
         cg.add(var.set_listen_address(listen_address))
+    if ipv6_addresses := _ipv6_addresses(config):
+        cg.add_define("USE_UDP_IPV6_SEND")
+        cg.add(var.set_ipv6_send(any(addr.is_multicast for addr in ipv6_addresses)))
+        if not _has_ipv4_address(config):
+            cg.add(var.set_ipv4_send(False))
     # Shared flash table ended by nullptr, so the component stores only a pointer.
     if addresses := [str(addr) for addr in config[CONF_ADDRESSES]]:
         cg.add(

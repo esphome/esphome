@@ -72,6 +72,26 @@ script:
           format: "parallel-after-if-%d"
           args: ['run']
 
+  - id: stop_in_later_while_check
+    then:
+      - lambda: 'id(counter) = 0;'
+      - while:
+          condition:
+            lambda: |-
+              if (++id(counter) == 2)
+                id(stop_in_later_while_check).stop();
+              return true;
+          then:
+            - lambda: 'ESP_LOGI("test", "later-check-body-%d", id(counter));'
+      - logger.log: "after-later-check-should-not-run"
+  - id: empty_while
+    then:
+      - while:
+          condition:
+            lambda: 'return true;'
+          then: []
+      - logger.log: "after-empty-while"
+
   - id: nested_if_last_in_while
     then:
       - lambda: 'id(counter) = 0;'
@@ -206,6 +226,14 @@ api:
             ESP_LOGI("test", "stop-running=%d", id(stop_in_branch).is_running() ? 1 : 0);
         - delay: 600ms
         - logger.log: "stop-check-done"
+    - action: run_stop_in_later_while_check
+      then:
+        - script.execute: stop_in_later_while_check
+        - delay: 200ms
+        - logger.log: "later-check-done"
+    - action: run_empty_while
+      then:
+        - script.execute: empty_while
     - action: run_nested_if_last_in_while
       then:
         - script.execute: nested_if_last_in_while
