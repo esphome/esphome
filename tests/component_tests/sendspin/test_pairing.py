@@ -9,7 +9,12 @@ from typing import Any
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.sendspin import CONF_STATIC_PAIRING_CODE, CONFIG_SCHEMA
+from esphome.components.sendspin import (
+    CONF_STATIC_PAIRING_CODE,
+    CONFIG_SCHEMA,
+    FINAL_VALIDATE_SCHEMA,
+    request_pairing_code_display_support,
+)
 from esphome.const import PlatformFramework
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
@@ -75,3 +80,16 @@ def test_unquoted_static_pairing_code_rejected(
 
     with pytest.raises(cv.Invalid):
         CONFIG_SCHEMA(_hub_config(static_pairing_code=1234567))
+
+
+def test_static_code_with_dynamic_code_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Only one pairing code method can be offered, so a static code next to the dynamic
+    code would be silently ignored."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    request_pairing_code_display_support()
+    config = CONFIG_SCHEMA(_hub_config(static_pairing_code="01234567"))
+
+    with pytest.raises(cv.Invalid, match="cannot be used with a dynamic pairing code"):
+        FINAL_VALIDATE_SCHEMA(config)

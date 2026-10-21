@@ -7,6 +7,8 @@ namespace esphome::mics_4514 {
 
 ESPHOME_LOG_TAG(TAG, "mics_4514");
 
+static constexpr uint32_t WARMUP_TIMEOUT_ID = 0;
+
 static const uint8_t SENSOR_REGISTER = 0x04;
 static const uint8_t POWER_MODE_REGISTER = 0x0a;
 
@@ -18,7 +20,7 @@ void MICS4514Component::setup() {
     power_mode = 0x01;
     this->write_register(POWER_MODE_REGISTER, &power_mode, 1);
     delay(100);  // NOLINT
-    this->set_timeout("warmup", 3 * 60 * 1000, [this]() { this->warmed_up_ = true; });
+    this->set_timeout(WARMUP_TIMEOUT_ID, 3 * 60 * 1000, [this]() { this->warmed_up_ = true; });
     this->status_set_warning();
     return;
   }
@@ -41,11 +43,8 @@ void MICS4514Component::update() {
     return;
   }
   uint8_t data[6];
-  if (this->read_register(SENSOR_REGISTER, data, 6) != i2c::ERROR_OK) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_register(SENSOR_REGISTER, data, 6) == i2c::ERROR_OK))
     return;
-  }
-  this->status_clear_warning();
   ESP_LOGV(TAG, "Got data: %02X %02X %02X %02X %02X %02X", data[0], data[1], data[2], data[3], data[4], data[5]);
   uint16_t ox = encode_uint16(data[0], data[1]);
   uint16_t red = encode_uint16(data[2], data[3]);

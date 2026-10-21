@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-import logging
 
 from esphome import automation, pins
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.network import (
@@ -61,13 +59,12 @@ import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["network"]
-LOGGER = logging.getLogger(__name__)
+DOMAIN = "ethernet"
 
 # Key for tracking IP state listener count in CORE.data
 ETHERNET_IP_STATE_LISTENERS_KEY = "ethernet_ip_state_listeners"
 # Key for tracking configured ethernet type
 ETHERNET_TYPE_KEY = "ethernet_type"
-KEY_ETHERNET = "ethernet"
 
 
 def request_ethernet_ip_state_listener() -> None:
@@ -119,27 +116,28 @@ CONF_INTERFACE = "interface"
 CONF_CLOCK_SPEED = "clock_speed"
 
 EthernetType = ethernet_ns.enum("EthernetType")
-ETHERNET_TYPES = {
-    "LAN8720": EthernetType.ETHERNET_TYPE_LAN8720,
-    "RTL8201": EthernetType.ETHERNET_TYPE_RTL8201,
-    "DP83848": EthernetType.ETHERNET_TYPE_DP83848,
-    "IP101": EthernetType.ETHERNET_TYPE_IP101,
-    "JL1101": EthernetType.ETHERNET_TYPE_JL1101,
-    "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
-    "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
-    "W5100": EthernetType.ETHERNET_TYPE_W5100,
-    "W5500": EthernetType.ETHERNET_TYPE_W5500,
-    "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
-    "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
-    "LAN8670": EthernetType.ETHERNET_TYPE_LAN8670,
-    "ENC28J60": EthernetType.ETHERNET_TYPE_ENC28J60,
-    "W6100": EthernetType.ETHERNET_TYPE_W6100,
-    "W6300": EthernetType.ETHERNET_TYPE_W6300,
-    "GENERIC": EthernetType.ETHERNET_TYPE_GENERIC,
-    "YT8531": EthernetType.ETHERNET_TYPE_YT8531,
-    "CH390": EthernetType.ETHERNET_TYPE_CH390,
-    "KSZ8851SNL": EthernetType.ETHERNET_TYPE_KSZ8851SNL,
-}
+ETHERNET_TYPES = EthernetType.options(
+    "LAN8720",
+    "RTL8201",
+    "DP83848",
+    "IP101",
+    "JL1101",
+    "KSZ8081",
+    "KSZ8081RNA",
+    "W5100",
+    "W5500",
+    "OPENETH",
+    "DM9051",
+    "LAN8670",
+    "ENC28J60",
+    "W6100",
+    "W6300",
+    "GENERIC",
+    "YT8531",
+    "CH390",
+    "KSZ8851SNL",
+    prefix="ETHERNET_TYPE_",
+)
 
 # PHY types that need compile-time defines for conditional compilation
 # Each RMII PHY type gets a define so unused PHY drivers are excluded by the linker
@@ -209,19 +207,18 @@ SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
 
-CLK_MODES = {
-    "CLK_EXT_IN": emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
-    "CLK_OUT": emac_rmii_clock_mode_t.EMAC_CLK_OUT,
-}
-
-CLK_MODES_DEPRECATED = {
-    "GPIO0_IN": ("CLK_EXT_IN", 0),
-    "GPIO0_OUT": ("CLK_OUT", 0),
-    "GPIO16_OUT": ("CLK_OUT", 16),
-    "GPIO17_OUT": ("CLK_OUT", 17),
-}
+CLK_MODES = emac_rmii_clock_mode_t.options("CLK_EXT_IN", "CLK_OUT", prefix="EMAC_")
 
 spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
+
+# Must match the member initializers in ethernet_component.h; setters are skipped
+# when the config already equals them.
+DEFAULT_SPI_INTERFACE = "spi2"
+DEFAULT_PHY_ADDR = 0
+DEFAULT_MDC_PIN = 23
+DEFAULT_MDIO_PIN = 18
+DEFAULT_CLK_MODE = "CLK_EXT_IN"
+DEFAULT_CLK_PIN = 0
 
 SPI_INTERFACE_MAP = {
     "spi2": spi_host_device_t.SPI2_HOST,
@@ -240,10 +237,6 @@ MANUAL_IP_SCHEMA = cv.Schema(
 
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
 ManualIP = ethernet_ns.struct("ManualIP")
-EthernetConnectedCondition = ethernet_ns.class_("EthernetConnectedCondition", Condition)
-EthernetEnabledCondition = ethernet_ns.class_("EthernetEnabledCondition", Condition)
-EthernetEnableAction = ethernet_ns.class_("EthernetEnableAction", automation.Action)
-EthernetDisableAction = ethernet_ns.class_("EthernetDisableAction", automation.Action)
 
 
 def _is_framework_spi_polling_mode_supported() -> bool:
@@ -387,23 +380,6 @@ def _validate(config: ConfigType) -> ConfigType:
                 get_esp32_variant,
             )
 
-            if CONF_CLK_MODE in config:
-                mode, pin = CLK_MODES_DEPRECATED[config[CONF_CLK_MODE]]
-                LOGGER.warning(
-                    "[ethernet] The 'clk_mode' option is deprecated. "
-                    "Please replace 'clk_mode: %s' with:\n"
-                    "  clk:\n"
-                    "    mode: %s\n"
-                    "    pin: %s\n"
-                    "Removal scheduled for 2026.11.0.",
-                    config[CONF_CLK_MODE],
-                    mode,
-                    pin,
-                )
-                config[CONF_CLK] = CLK_SCHEMA({CONF_MODE: mode, CONF_PIN: pin})
-                del config[CONF_CLK_MODE]
-            elif CONF_CLK not in config:
-                raise cv.Invalid("'clk' is a required option for [ethernet].")
             variant = get_esp32_variant()
             if variant not in (VARIANT_ESP32, VARIANT_ESP32P4):
                 raise cv.Invalid(
@@ -452,11 +428,20 @@ RMII_SCHEMA = cv.All(
             {
                 cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
                 cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_CLK_MODE): cv.enum(
-                    CLK_MODES_DEPRECATED, upper=True, space="_"
+                # Removed in 2026.11.0 - kept to provide helpful error message
+                # Remove before 2027.5.0
+                cv.Optional(CONF_CLK_MODE): cv.invalid(
+                    "The 'clk_mode' option has been removed in ESPHome 2026.11.0.\n"
+                    "Replace it with a 'clk:' block containing 'mode:' and 'pin:':\n"
+                    "  GPIO0_IN   -> mode: CLK_EXT_IN, pin: GPIO0\n"
+                    "  GPIO0_OUT  -> mode: CLK_OUT, pin: GPIO0\n"
+                    "  GPIO16_OUT -> mode: CLK_OUT, pin: GPIO16\n"
+                    "  GPIO17_OUT -> mode: CLK_OUT, pin: GPIO17"
                 ),
-                cv.Optional(CONF_CLK): CLK_SCHEMA,
-                cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
+                cv.Required(CONF_CLK): CLK_SCHEMA,
+                cv.Optional(CONF_PHY_ADDR, default=DEFAULT_PHY_ADDR): cv.int_range(
+                    min=0, max=31
+                ),
                 cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
             }
@@ -473,7 +458,9 @@ GENERIC_SCHEMA = cv.All(
             {
                 cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
                 cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
+                cv.Optional(CONF_PHY_ADDR, default=DEFAULT_PHY_ADDR): cv.int_range(
+                    min=0, max=31
+                ),
                 cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
             }
@@ -672,7 +659,7 @@ async def to_code(config: ConfigType) -> None:
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))
-    CORE.data.setdefault(KEY_ETHERNET, {})[ETHERNET_TYPE_KEY] = config[CONF_TYPE]
+    CORE.data.setdefault(DOMAIN, {})[ETHERNET_TYPE_KEY] = config[CONF_TYPE]
 
     if CONF_MANUAL_IP in config:
         cg.add_define("USE_ETHERNET_MANUAL_IP")
@@ -702,6 +689,15 @@ async def to_code(config: ConfigType) -> None:
     CORE.add_job(final_step)
 
 
+def _add_mdio_setters(var: cg.MockObj, config: ConfigType) -> None:
+    if (phy_addr := config[CONF_PHY_ADDR]) != DEFAULT_PHY_ADDR:
+        cg.add(var.set_phy_addr(phy_addr))
+    if (mdc_pin := config[CONF_MDC_PIN]) != DEFAULT_MDC_PIN:
+        cg.add(var.set_mdc_pin(mdc_pin))
+    if (mdio_pin := config[CONF_MDIO_PIN]) != DEFAULT_MDIO_PIN:
+        cg.add(var.set_mdio_pin(mdio_pin))
+
+
 async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
     from esphome.components.esp32 import (
         add_idf_component,
@@ -714,13 +710,13 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         if (spi_id := config.get(CONF_SPI_ID)) is not None:
             # Pins and host come from the shared spi bus.
-            spi_parent = await cg.get_variable(spi_id)
-            cg.add(var.set_spi_parent(spi_parent))
+            await cg.add_variable(var.set_spi_parent, spi_id)
         else:
             cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
             cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
             cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
-            cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
+            if (interface := config[CONF_INTERFACE]) != DEFAULT_SPI_INTERFACE:
+                cg.add(var.set_interface(SPI_INTERFACE_MAP[interface]))
         cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
         if CONF_INTERRUPT_PIN in config:
             cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
@@ -728,8 +724,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
             cg.add(var.set_polling_interval(config[CONF_POLLING_INTERVAL]))
         if _is_framework_spi_polling_mode_supported():
             cg.add_define("USE_ETHERNET_SPI_POLLING_SUPPORT")
-        if CONF_RESET_PIN in config:
-            cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+        cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
@@ -749,20 +744,16 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
     elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
         # RGMII data pins come from the IDF default config; set MDC/MDIO + PHY addr.
-        cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
-        cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
-        cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
-        if CONF_POWER_PIN in config:
-            cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        _add_mdio_setters(var, config)
+        cg.add_optional(var.set_power_pin, config.get(CONF_POWER_PIN))
         _add_phy_registers(var, config)
     else:
-        cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
-        cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
-        cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
-        cg.add(var.set_clk_mode(config[CONF_CLK][CONF_MODE]))
-        cg.add(var.set_clk_pin(config[CONF_CLK][CONF_PIN]))
-        if CONF_POWER_PIN in config:
-            cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        _add_mdio_setters(var, config)
+        if (clk_mode := config[CONF_CLK][CONF_MODE]) != DEFAULT_CLK_MODE:
+            cg.add(var.set_clk_mode(clk_mode))
+        if (clk_pin := config[CONF_CLK][CONF_PIN]) != DEFAULT_CLK_PIN:
+            cg.add(var.set_clk_pin(clk_pin))
+        cg.add_optional(var.set_power_pin, config.get(CONF_POWER_PIN))
         _add_phy_registers(var, config)
 
     # Register Ethernet with the esp32 sdkconfig reconciler. It disables the
@@ -788,10 +779,8 @@ async def _to_code_rp2040(var: cg.MockObj, config: ConfigType) -> None:
     cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
     cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
     cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
-    if CONF_INTERRUPT_PIN in config:
-        cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
-    if CONF_RESET_PIN in config:
-        cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+    cg.add_optional(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     cg.add_define("USE_ETHERNET_SPI")
     cg.add_library(_RP2_SPI_LIBRARIES[config[CONF_TYPE]], None)
@@ -913,7 +902,7 @@ _define_filter = filter_source_files_from_defines(
 
 def _filter_source_files() -> list[str]:
     excluded = _platform_filter() + _define_filter()
-    eth_data = CORE.data.get(KEY_ETHERNET, {})
+    eth_data = CORE.data.get(DOMAIN, {})
     eth_type = eth_data.get(ETHERNET_TYPE_KEY)
     # Only compile the custom JL1101 driver when JL1101 is configured
     # and pioarduino doesn't have it builtin (IDF 5.4.2 to 5.x)
@@ -933,15 +922,22 @@ def _filter_source_files() -> list[str]:
 FILTER_SOURCE_FILES = _filter_source_files
 
 
-automation.register_bare_condition(
-    "ethernet.connected", EthernetConnectedCondition, cv.Schema({})
+ETHERNET_AUTOMATION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(EthernetComponent),
+    }
 )
-automation.register_bare_condition(
-    "ethernet.enabled", EthernetEnabledCondition, cv.Schema({})
-)
-automation.register_bare_action(
-    "ethernet.enable", EthernetEnableAction, cv.Schema({}), synchronous=True
-)
-automation.register_bare_action(
-    "ethernet.disable", EthernetDisableAction, cv.Schema({}), synchronous=True
-)
+
+for _name, _check in (
+    ("ethernet.connected", "is_connected()"),
+    ("ethernet.enabled", "is_enabled()"),
+):
+    automation.register_apply_condition(_name, ETHERNET_AUTOMATION_SCHEMA, _check)
+
+for _name, _call in (
+    ("ethernet.enable", "enable()"),
+    ("ethernet.disable", "disable()"),
+):
+    automation.register_apply_action(
+        _name, ETHERNET_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )

@@ -34,9 +34,11 @@ __attribute__((always_inline)) inline void wake_main_task_any_context() {
 void wake_loop_isrsafe(BaseType_t *px_higher_priority_task_woken);
 void wake_loop_any_context();
 
+inline void wake_scheduler_threadsafe() { esphome_main_task_notify(); }
+
 inline void wake_loop_threadsafe() {
   wake_request_set();
-  esphome_main_task_notify();
+  wake_scheduler_threadsafe();
 }
 
 namespace internal {

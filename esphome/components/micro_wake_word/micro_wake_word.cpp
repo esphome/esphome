@@ -17,13 +17,15 @@
 
 namespace esphome::micro_wake_word {
 
+// Config validation checks the YAML, this checks the build: a unicore sdkconfig reached any other way
+static_assert(MICRO_WAKE_WORD_TASK_CORE == tskNO_AFFINITY || MICRO_WAKE_WORD_TASK_CORE < portNUM_PROCESSORS,
+              "micro_wake_word task_core is not a core of this build");
+
 ESPHOME_LOG_TAG(TAG, "micro_wake_word");
 
 static const ssize_t DETECTION_QUEUE_LENGTH = 5;
 
 static const size_t DATA_TIMEOUT_MS = 50;
-
-static const uint32_t RING_BUFFER_DURATION_MS = 120;
 
 #ifdef CONFIG_IDF_TARGET_ESP32P4
 // ESP32-P4 PIE-optimized esp-nn kernels (e.g. depthwise_conv_s8_ch1_pie) require
@@ -84,6 +86,12 @@ static const LogString *micro_wake_word_state_to_string(State state) {
 
 void MicroWakeWord::dump_config() {
   ESP_LOGCONFIG(TAG, "microWakeWord:");
+  // tskNO_AFFINITY is a cast expression, so this cannot be a preprocessor test; the compiler folds it
+  if (MICRO_WAKE_WORD_TASK_CORE == tskNO_AFFINITY) {
+    ESP_LOGCONFIG(TAG, "  Inference task core: any");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Inference task core: %d", MICRO_WAKE_WORD_TASK_CORE);
+  }
   ESP_LOGCONFIG(TAG, "  models:");
   for (auto &model : this->wake_word_models_) {
     model->log_model_config();
@@ -171,7 +179,7 @@ void MicroWakeWord::inference_task(void *params) {
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
       // Round ring buffer size down to a frame multiple so the wrap boundary never splits an int16 sample.
       const size_t ring_buffer_size =
-          (stream_info.ms_to_bytes(RING_BUFFER_DURATION_MS) / bytes_per_frame) * bytes_per_frame;
+          (stream_info.ms_to_bytes(this_mww->ring_buffer_duration_ms_) / bytes_per_frame) * bytes_per_frame;
       std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
       if (temp_ring_buffer == nullptr) {
         xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
@@ -211,7 +219,7 @@ void MicroWakeWord::inference_task(void *params) {
           xEventGroupClearBits(this_mww->event_group_, EventGroupBits::COMMAND_RESET_RING_BUFFER);
         }
 
-        audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS), false);
+        audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS));
 
         // The frontend buffers samples internally and only emits a feature once it has a full window, so we can
         // hand it whatever the source exposes. The frontend consumes at least one sample per call, so available()
@@ -386,9 +394,10 @@ WakeWordModel *MicroWakeWord::get_model_by_id(const std::string &model_id) {
 }
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
-void MicroWakeWord::add_vad_model(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
-                                  size_t tensor_arena_size) {
-  this->vad_model_ = make_unique<VADModel>(model_start, probability_cutoff, sliding_window_size, tensor_arena_size);
+void MicroWakeWord::add_vad_model(const uint8_t *model_start, size_t model_size, uint8_t probability_cutoff,
+                                  size_t sliding_window_size, size_t tensor_arena_size) {
+  this->vad_model_ =
+      make_unique<VADModel>(model_start, model_size, probability_cutoff, sliding_window_size, tensor_arena_size);
 }
 #endif
 
@@ -471,14 +480,15 @@ void MicroWakeWord::loop() {
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
                                    this->microphone_source_->get_audio_stream_info().get_sample_rate())) {
-          this->status_momentary_error("frontend_alloc", 1000);
+          this->status_momentary_error(1000);
           return;
         }
 
         if (!this->inference_task_.create(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE,
-                                          (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_)) {
+                                          (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_,
+                                          MICRO_WAKE_WORD_TASK_CORE)) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
-          this->status_momentary_error("task_start", 1000);
+          this->status_momentary_error(1000);
         }
       }
       break;

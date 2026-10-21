@@ -8,6 +8,8 @@ namespace esphome::current_based {
 
 ESPHOME_LOG_TAG(TAG, "current_based.cover");
 
+static constexpr uint32_t ROLLBACK_TIMEOUT_ID = 0;
+
 using namespace esphome::cover;
 
 CoverTraits CurrentBasedCover::get_traits() {
@@ -73,7 +75,7 @@ void CurrentBasedCover::loop() {
       ESP_LOGD(TAG, "'%s' - Obstacle detected during opening.", this->name_.c_str());
       this->direction_idle_();
       if (this->obstacle_rollback_ != 0) {
-        this->set_timeout("rollback", 300, [this]() {
+        this->set_timeout(ROLLBACK_TIMEOUT_ID, 300, [this]() {
           ESP_LOGD(TAG, "'%s' - Rollback.", this->name_.c_str());
           this->target_position_ = clamp(this->position - this->obstacle_rollback_, 0.0F, 1.0F);
           this->start_direction_(COVER_OPERATION_CLOSING);
@@ -94,7 +96,7 @@ void CurrentBasedCover::loop() {
       ESP_LOGD(TAG, "'%s' - Obstacle detected during closing.", this->name_.c_str());
       this->direction_idle_();
       if (this->obstacle_rollback_ != 0) {
-        this->set_timeout("rollback", 300, [this]() {
+        this->set_timeout(ROLLBACK_TIMEOUT_ID, 300, [this]() {
           ESP_LOGD(TAG, "'%s' - Rollback.", this->name_.c_str());
           this->target_position_ = clamp(this->position + this->obstacle_rollback_, 0.0F, 1.0F);
           this->start_direction_(COVER_OPERATION_OPENING);

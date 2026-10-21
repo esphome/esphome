@@ -1,9 +1,12 @@
 #include "dallas_temp.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::dallas_temp {
 
 ESPHOME_LOG_TAG(TAG, "dallas.temp.sensor");
+
+static constexpr uint32_t CONVERSION_TIMEOUT_ID = 0;
 
 static const uint8_t DALLAS_MODEL_DS18S20 = 0x10;
 static const uint8_t DALLAS_MODEL_DS18B20 = 0x28;
@@ -44,7 +47,7 @@ void DallasTemperatureSensor::update() {
 
   this->send_command_(DALLAS_COMMAND_START_CONVERSION);
 
-  this->set_timeout(this->get_address_name().c_str(), this->millis_to_wait_for_conversion_(), [this] {
+  this->set_timeout(CONVERSION_TIMEOUT_ID, this->millis_to_wait_for_conversion_(), [this] {
     if (!this->read_scratch_pad_() || !this->check_scratch_pad_()) {
       this->publish_state(NAN);
       return;
@@ -134,7 +137,7 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
 }
 
 float DallasTemperatureSensor::get_temp_c_() {
-  int16_t temp = (this->scratch_pad_[1] << 8) | this->scratch_pad_[0];
+  int16_t temp = encode_value_le<int16_t>(this->scratch_pad_);
   if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
     if (this->scratch_pad_[7] == 0) {
       return NAN;
