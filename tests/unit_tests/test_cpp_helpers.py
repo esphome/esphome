@@ -339,3 +339,26 @@ async def test_add_helpers_pass_value_to_setter(
     lookup_mock.assert_awaited_once_with(arg)
     setter.assert_called_once_with(value)
     add_mock.assert_called_once_with(setter.return_value)
+
+
+@pytest.mark.parametrize("value", [0, False, "", 5])
+def test_add_optional_passes_value_to_setter(
+    monkeypatch: pytest.MonkeyPatch, value: Any
+) -> None:
+    add_mock = Mock()
+    monkeypatch.setattr(ch, "add", add_mock)
+    setter = Mock()
+
+    assert ch.add_optional(setter, value) is value
+    setter.assert_called_once_with(value)
+    add_mock.assert_called_once_with(setter.return_value)
+
+
+def test_add_optional_skips_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    add_mock = Mock()
+    monkeypatch.setattr(ch, "add", add_mock)
+    setter = Mock()
+
+    assert ch.add_optional(setter, None) is None
+    setter.assert_not_called()
+    add_mock.assert_not_called()

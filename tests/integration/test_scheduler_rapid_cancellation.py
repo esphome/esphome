@@ -1,12 +1,11 @@
 """Rapid cancellation test - schedule and immediately cancel timeouts with string names."""
 
 import asyncio
-from pathlib import Path
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -17,16 +16,6 @@ async def test_scheduler_rapid_cancellation(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test rapid schedule/cancel cycles that might expose race conditions."""
-
-    # Get the absolute path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
     # Create a future to signal test completion
     loop = asyncio.get_running_loop()
@@ -87,9 +76,7 @@ async def test_scheduler_rapid_cancellation(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "sched-rapid-cancel-test"
+        await assert_device_name(client, "sched-rapid-cancel-test")
 
         # List entities and services
         _, services = await asyncio.wait_for(
@@ -97,15 +84,7 @@ async def test_scheduler_rapid_cancellation(
         )
 
         # Find our test service
-        run_test_service: UserService | None = None
-        for service in services:
-            if service.name == "run_rapid_cancellation_test":
-                run_test_service = service
-                break
-
-        assert run_test_service is not None, (
-            "run_rapid_cancellation_test service not found"
-        )
+        run_test_service = require_service(services, "run_rapid_cancellation_test")
 
         # Call the service to start the test
         await client.execute_service(run_test_service, {})

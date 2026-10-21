@@ -69,8 +69,7 @@ async def to_code(config: ConfigType) -> None:
     var = await uart.new_uart_component(config)
 
     if time_id := config.get(CONF_TIME_ID):
-        time_ = await cg.get_variable(time_id)
-        cg.add(var.set_time_id(time_))
+        await cg.add_variable(var.set_time_id, time_id)
         if time_device_address := config.get(CONF_TIME_DEVICE_ADDRESS):
             cg.add(var.set_time_device_address(time_device_address))
 

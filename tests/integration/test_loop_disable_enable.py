@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -18,16 +18,6 @@ async def test_loop_disable_enable(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that components can disable and enable their loop() method."""
-    # Get the absolute path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     # Track log messages and events
     log_messages: list[str] = []
 
@@ -143,9 +133,7 @@ async def test_loop_disable_enable(
         api_client_connected() as client,
     ):
         # Verify we can connect and get device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "loop-test"
+        await assert_device_name(client, "loop-test")
 
         # Wait for self_disable_10 to disable itself
         try:

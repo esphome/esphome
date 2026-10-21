@@ -196,8 +196,7 @@ async def to_code(config):
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
 
-    paren = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(paren))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
 
     cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
     cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))

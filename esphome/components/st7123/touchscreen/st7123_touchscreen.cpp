@@ -73,12 +73,10 @@ void ST7123Touchscreen::update_touches() {
   // Reading from this register also clears the INT pin so the controller can report the next frame.
   uint8_t data[(ST7123_REG_TOUCH_DATA - ST7123_REG_ADV_TOUCH_INFO) + ST7123_MAX_TOUCHES * ST7123_TOUCH_STRIDE];
   const size_t len = (ST7123_REG_TOUCH_DATA - ST7123_REG_ADV_TOUCH_INFO) + this->max_touches_ * ST7123_TOUCH_STRIDE;
-  if (this->read_register16(ST7123_REG_ADV_TOUCH_INFO, data, len) != i2c::ERROR_OK) {
+  if (!this->status_comm_result(this->read_register16(ST7123_REG_ADV_TOUCH_INFO, data, len) == i2c::ERROR_OK)) {
     this->skip_update_ = true;
-    this->status_set_warning();
     return;
   }
-  this->status_clear_warning();
 
   const uint8_t *points = data + (ST7123_REG_TOUCH_DATA - ST7123_REG_ADV_TOUCH_INFO);
   for (uint8_t i = 0; i != this->max_touches_; i++) {

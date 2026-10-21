@@ -116,24 +116,18 @@ async def setup_component_core_(var, config, arg):
             )
         )
 
-    if CONF_BACKGROUND_COLOR in config:
-        color_component = await cg.get_variable(config[CONF_BACKGROUND_COLOR])
-        cg.add(var.set_background_color(color_component))
+    await cg.add_variable(var.set_background_color, config.get(CONF_BACKGROUND_COLOR))
 
-    if CONF_BACKGROUND_PRESSED_COLOR in config:
-        color_component = await cg.get_variable(config[CONF_BACKGROUND_PRESSED_COLOR])
-        cg.add(var.set_background_pressed_color(color_component))
+    await cg.add_variable(
+        var.set_background_pressed_color, config.get(CONF_BACKGROUND_PRESSED_COLOR)
+    )
 
-    if CONF_FOREGROUND_COLOR in config:
-        color_component = await cg.get_variable(config[CONF_FOREGROUND_COLOR])
-        cg.add(var.set_foreground_color(color_component))
+    await cg.add_variable(var.set_foreground_color, config.get(CONF_FOREGROUND_COLOR))
 
-    if CONF_FOREGROUND_PRESSED_COLOR in config:
-        color_component = await cg.get_variable(config[CONF_FOREGROUND_PRESSED_COLOR])
-        cg.add(var.set_foreground_pressed_color(color_component))
+    await cg.add_variable(
+        var.set_foreground_pressed_color, config.get(CONF_FOREGROUND_PRESSED_COLOR)
+    )
 
-    if CONF_FONT_ID in config:
-        cg.add(var.set_font_id(config[CONF_FONT_ID]))
+    cg.add_optional(var.set_font_id, config.get(CONF_FONT_ID))
 
-    if CONF_VISIBLE in config:
-        cg.add(var.set_visible(config[CONF_VISIBLE]))
+    cg.add_optional(var.set_visible, config.get(CONF_VISIBLE))

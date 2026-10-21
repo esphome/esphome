@@ -85,8 +85,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = await uart.new_uart_component(config)
     if (time_id := config.get(CONF_TIME_ID)) is not None:
-        time_ = await cg.get_variable(time_id)
-        cg.add(var.set_time_id(time_))
+        await cg.add_variable(var.set_time_id, time_id)
         if config[CONF_FORCE_TIME_SYNC]:
             cg.add(var.set_force_time_sync(True))
     await cg.add_pin(var.set_status_pin, config.get(CONF_STATUS_PIN))

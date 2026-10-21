@@ -101,12 +101,10 @@ async def to_code(config: ConfigType) -> None:
     # port_type names the electrical interface (a USB RS485 adapter is RS485), so every
     # usb_uart channel reports USB identity whatever port type it declares
     if is_usb_uart_channel(config[CONF_UART_ID], CORE.config):
-        channel = await cg.get_variable(config[CONF_UART_ID])
-        cg.add(var.set_usb_channel(channel))
+        await cg.add_variable(var.set_usb_channel, config[CONF_UART_ID])
         cg.add_define("USE_SERIAL_PROXY_USB_IDENTITY")
     if uart.is_host_uart(config[CONF_UART_ID], CORE.config):
-        host_uart = await cg.get_variable(config[CONF_UART_ID])
-        cg.add(var.set_host_uart(host_uart))
+        await cg.add_variable(var.set_host_uart, config[CONF_UART_ID])
         cg.add_define("USE_SERIAL_PROXY_HOST_UART")
     cg.add_define("USE_SERIAL_PROXY")
 

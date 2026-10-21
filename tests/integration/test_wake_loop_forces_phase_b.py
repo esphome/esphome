@@ -20,11 +20,11 @@ With the fix, delta>=1 (the wake forces Phase B within one tick of the wake).
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -37,13 +37,6 @@ async def test_wake_loop_forces_phase_b(
     """A wake_loop_threadsafe() call from a background thread must trigger the
     component phase within the next tick, even when loop_interval_ is raised
     well above the observation window."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
     result: asyncio.Future[tuple[int, int]] = loop.create_future()
 
@@ -56,9 +49,7 @@ async def test_wake_loop_forces_phase_b(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "wake-loop-phase-b"
+        await assert_device_name(client, "wake-loop-phase-b")
 
         try:
             delta, elapsed = await asyncio.wait_for(result, timeout=15.0)

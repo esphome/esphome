@@ -42,6 +42,15 @@ MEASUREMENT_MODE_OPTIONS = MeasurementMode.options(
 )
 
 
+def pressure_hpa(value: str | float) -> float:
+    """Pressure in hPa. A bare number is hPa, matching what the C++ sends to the sensor."""
+    try:
+        return cv.float_(value)
+    except cv.Invalid:
+        pass
+    return cv.pressure(value) * 1000  # bar, mbar, mBar
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -72,7 +81,9 @@ CONFIG_SCHEMA = (
                 cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
-            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.pressure,
+            cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION): cv.All(
+                pressure_hpa, cv.Any(cv.float_range(min=700, max=1200), 0)
+            ),
             cv.Optional(CONF_TEMPERATURE_OFFSET, default="4°C"): cv.temperature_delta,
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
                 sensor.Sensor
@@ -112,9 +123,10 @@ async def to_code(config: ConfigType) -> None:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
 
-    if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config:
-        sens = await cg.get_variable(config[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE])
-        cg.add(var.set_ambient_pressure_source(sens))
+    await cg.add_variable(
+        var.set_ambient_pressure_source,
+        config.get(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE),
+    )
 
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
 
