@@ -261,10 +261,11 @@ void RX8111Component::write_time() {
     return;
   }
   this->calendar_warning_ = false;
-  if (this->event_poll_warning_ || this->boot_alarm_warning_ || this->boot_timer_warning_)
+  if (this->event_poll_warning_ || this->boot_alarm_warning_ || this->boot_timer_warning_) {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  else
+  } else {
     this->status_clear_warning();
+  }
   ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
            now.minute, now.second);
 }

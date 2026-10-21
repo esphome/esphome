@@ -254,10 +254,11 @@ TEST_F(RX8111Test, FailedAlarmReprogramOrUnsetKeepsArmedAlarmObservable) {
     EXPECT_EQ(calls, failed_register == EXTENSION ? 1 : 2);
   }
   for (const bool fail_write : {false, true}) {
-    if (fail_write)
+    if (fail_write) {
       this->bus_.fail_write = CONTROL;
-    else
+    } else {
       this->bus_.fail_read = CONTROL;
+    }
     EXPECT_FALSE(this->rtc_.unset_alarm());
     this->bus_.fail_read = -1;
     this->bus_.fail_write = -1;
