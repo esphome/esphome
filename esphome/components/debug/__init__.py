@@ -3,8 +3,11 @@ from esphome.components.nrf52.framework import include_west_project
 from esphome.components.zephyr import (
     ZEPHYR_VARIANT_NATIVE_SIM,
     zephyr_add_prj_conf,
+    zephyr_family_uart_drivers,
     zephyr_variant,
 )
+from esphome.components.zephyr.const import SEGGER_RTT_UART
+from esphome.components.zephyr.rtt import DEBUG_OWNER, claim_rtt_channel
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -24,8 +27,25 @@ DEPENDENCIES = ["logger"]
 DOMAIN = "debug"
 
 CONF_DEBUG_ID = "debug_id"
+CONF_ENABLE_RTT_CONSOLE = "enable_rtt_console"
 debug_ns = cg.esphome_ns.namespace("debug")
 DebugComponent = debug_ns.class_("DebugComponent", cg.PollingComponent)
+
+
+def _validate_rtt_console(config: ConfigType) -> ConfigType:
+    if not config[CONF_ENABLE_RTT_CONSOLE]:
+        return config
+    if not CORE.using_zephyr or CORE.is_nrf52:
+        raise cv.Invalid(
+            f"{CONF_ENABLE_RTT_CONSOLE} is only available on platform: zephyr",
+            path=[CONF_ENABLE_RTT_CONSOLE],
+        )
+    if SEGGER_RTT_UART not in zephyr_family_uart_drivers():
+        raise cv.Invalid(
+            f"{CONF_ENABLE_RTT_CONSOLE} needs SEGGER RTT, which this board's family does not support",
+            path=[CONF_ENABLE_RTT_CONSOLE],
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -47,8 +67,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LOOP_TIME): cv.invalid(
                 "The 'loop_time' option has been moved to the 'debug' sensor component"
             ),
+            cv.Optional(CONF_ENABLE_RTT_CONSOLE, default=False): cv.boolean,
         }
     ).extend(cv.polling_component_schema("60s")),
+    _validate_rtt_console,
 )
 
 
@@ -79,6 +101,19 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("INIT_STACKS", True)
             zephyr_add_prj_conf("THREAD_STACK_INFO", True)
             zephyr_add_prj_conf("CONFIG_STATS_NAMES", True)
+            if config[CONF_ENABLE_RTT_CONSOLE]:
+                # Same RTT console as nrf52 above, for reading a crash in full: blocking
+                # mode drops nothing while a probe reads, and stops the device when none does.
+                claim_rtt_channel(0, DEBUG_OWNER)
+                zephyr_add_prj_conf("USE_SEGGER_RTT", True)
+                # RTT_CONSOLE only exists with CONSOLE, which platform: zephyr turns off
+                zephyr_add_prj_conf("CONSOLE", True)
+                zephyr_add_prj_conf("RTT_CONSOLE", True)
+                zephyr_add_prj_conf("LOG", True)
+                zephyr_add_prj_conf("LOG_BLOCK_IN_THREAD", True)
+                zephyr_add_prj_conf("LOG_BUFFER_SIZE", 4096)
+                zephyr_add_prj_conf("SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL", True)
+                zephyr_add_prj_conf("PRINTK", True)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     cg.add_define("USE_DEBUG")

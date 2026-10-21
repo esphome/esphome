@@ -5,10 +5,19 @@ from collections.abc import Callable
 
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, CONF_BOOTLOADER, ZEPHYR_VARIANT_NRF5340
+from ..const import (
+    BOOTLOADER_MCUBOOT,
+    CONF_BOOTLOADER,
+    SEGGER_RTT_UART,
+    ZEPHYR_VARIANT_NRF5340,
+)
 
 # Devicetree property nordic pinctrl groups pack all their signal macros into.
 PROPERTY_NAME = "psels"
+
+# Software UART drivers (devicetree compatible strings) that work on this family,
+# on top of its hardware UARTs.
+UART_DRIVERS: frozenset[str] = frozenset({SEGGER_RTT_UART})
 
 
 def to_code(config: ConfigType) -> None:

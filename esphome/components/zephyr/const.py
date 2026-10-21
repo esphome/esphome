@@ -117,3 +117,6 @@ ZephyrUartWriteTarget = zephyr_ns.class_("ZephyrUartWriteTarget")
 ZephyrUartEmulator = zephyr_ns.class_(
     "ZephyrUartEmulator", cg.Component, ZephyrUartWriteTarget
 )
+
+# Devicetree compatible of Zephyr's SEGGER RTT UART driver
+SEGGER_RTT_UART = "segger,rtt-uart"

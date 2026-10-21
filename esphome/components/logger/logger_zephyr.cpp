@@ -9,7 +9,11 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
+#include <zephyr/logging/log_ctrl.h>
 #include <zephyr/sys/printk.h>
+#ifdef CONFIG_RTT_CONSOLE
+#include <SEGGER_RTT.h>
+#endif
 #include <zephyr/usb/usb_device.h>
 #if __has_include(<zephyr/version.h>)
 #include <zephyr/version.h>
@@ -162,11 +166,10 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   write(STDOUT_FILENO, msg, len);
 #else
   // Single write with newline already in buffer (added by caller)
-#ifdef CONFIG_RTT_CONSOLE
-  // Requires the debug component and an active SWD connection (pyocd rtt -t nrf52840).
-  // Gated on CONFIG_RTT_CONSOLE, not the broader CONFIG_PRINTK -- the latter is also on
-  // whenever CONFIG_LOG is, which would duplicate every line onto the same console UART
-  // the uart_poll_out() loop below already writes to.
+#if defined(USE_LOGGER_CONSOLE) || defined(CONFIG_RTT_CONSOLE)
+  // USE_LOGGER_CONSOLE: hardware_uart RAM/SEMIHOST. CONFIG_RTT_CONSOLE: nrf52's debug component.
+  // Not gated on the broader CONFIG_PRINTK -- that is also on whenever CONFIG_LOG is,
+  // and would repeat every line on the console UART written below.
   printk("%.*s", static_cast<int>(len), msg);
 #endif
   if (this->uart_dev_ == nullptr) {
@@ -179,6 +182,9 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
 }
 
 const LogString *Logger::get_uart_selection_() {
+#ifdef USE_LOGGER_CONSOLE
+  return LOG_STR(LOGGER_CONSOLE_NAME);
+#else
   switch (this->uart_) {
 #if defined(CONFIG_SERIAL) && defined(LOGGER_UART_NODE_LABEL)
     // Report the real node label -- an "&<label>" override may not match the UART0/UART1 symbol.
@@ -197,6 +203,7 @@ const LogString *Logger::get_uart_selection_() {
     default:
       return LOG_STR("UNKNOWN");
   }
+#endif
 }
 
 static const uint8_t REASON_BUF_SIZE = 32;
@@ -262,6 +269,18 @@ void k_sys_fatal_error_handler(unsigned int reason, const FatalErrorEsf *esf) {
     crash_buf.thread[sizeof(crash_buf.thread) - 1] = '\0';
   } else {
     crash_buf.thread[0] = '\0';
+  }
+#endif
+#ifdef CONFIG_LOG
+  // Print the queued fault dump before the reset, as Zephyr's default handler does
+  LOG_PANIC();
+#endif
+#if defined(CONFIG_RTT_CONSOLE) && defined(CONFIG_CPU_CORTEX_M)
+  // DHCSR.C_DEBUGEN is set while a debugger is attached; only then wait (up to 300 ms) for it to
+  // read the rest of the dump, since RTT console writes only block when the buffer is full
+  if (*reinterpret_cast<volatile uint32_t *>(0xE000EDF0) & 1) {
+    for (int ms = 0; ms < 300 && SEGGER_RTT_HasDataUp(0); ms++)
+      k_busy_wait(1000);
   }
 #endif
   arch_restart();

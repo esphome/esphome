@@ -21,6 +21,11 @@ _XTENSA_VARIANTS = (ZEPHYR_VARIANT_ESP32, ZEPHYR_VARIANT_ESP32_S3)
 # Devicetree property esp32-family pinctrl groups pack all their signal macros into.
 PROPERTY_NAME = "pinmux"
 
+# Software UART drivers (devicetree compatible strings) that work on this family,
+# on top of its hardware UARTs.
+# No Espressif SoC selects HAS_SEGGER_RTT.
+UART_DRIVERS: frozenset[str] = frozenset()
+
 
 def to_code(config: ConfigType) -> None:
     """REQUIRES_FULL_LIBCPP selects GLIBCXX_LIBCPP; without it Zephyr defaults

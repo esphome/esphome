@@ -259,6 +259,8 @@ class ZephyrData(TypedDict):
     sysbuild: bool
     # CDC ACM port number -> components that use it (platform: nrf52 only)
     cdc_acm_users: dict[int, list[CdcAcmUser]]
+    # RTT channel -> its user ("logger", "uart 'id'"), claimed by rtt.enable_rtt_node()
+    rtt_channels: dict[int, str]
 
 
 # platform: nrf52 use only
@@ -304,6 +306,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         blobs=[],
         runner=None,
         sysbuild=False,
+        rtt_channels={},
     )
 
 
@@ -593,6 +596,14 @@ def _get_family_module(family: str):
     return mod
 
 
+def zephyr_family_uart_drivers() -> frozenset[str]:
+    """Software UART drivers (devicetree compatibles) the active family supports. A
+    variant with no family (native_sim) supports none."""
+    if (family := zephyr_variant_family()) is None:
+        return frozenset()
+    return _get_family_module(family).UART_DRIVERS
+
+
 def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.add_define("USE_NATIVE_64BIT_TIME")
@@ -663,6 +674,8 @@ def zephyr_to_code(config: ConfigType) -> None:
     if log_level != "NONE":
         zephyr_add_prj_conf("LOG", True)
         zephyr_add_prj_conf("LOG_DEFAULT_LEVEL", _ZEPHYR_LOG_LEVEL_TO_INT[log_level])
+        # Fits a whole fault dump until LOG_PANIC(); 1024 loses its first lines
+        zephyr_add_prj_conf("LOG_BUFFER_SIZE", 2048, required=False)
         # Normally pulled in transitively by LOG_BACKEND_UART, which the logger component
         # disables in favor of its own backend, so it must be set explicitly here.
         zephyr_add_prj_conf("LOG_OUTPUT", True)

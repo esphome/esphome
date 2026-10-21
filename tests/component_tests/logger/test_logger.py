@@ -7,7 +7,10 @@ import re
 import pytest
 
 from esphome.components.logger import uart_selection, validate_task_log_buffer_alignment
-from esphome.components.zephyr.const import ZEPHYR_VARIANT_NRF52
+from esphome.components.zephyr.const import (
+    ZEPHYR_VARIANT_NATIVE_SIM,
+    ZEPHYR_VARIANT_NRF52,
+)
 from esphome.config_validation import Invalid
 from esphome.const import PlatformFramework
 from esphome.core import CORE
@@ -187,3 +190,119 @@ def test_zephyr_uart3_codegen(
     assert "set_uart_selection(" not in main_cpp
     defines = {d.name: str(d.value) for d in CORE.defines}
     assert defines["LOGGER_UART_NODE_LABEL"] == "uart3"
+
+
+@pytest.mark.parametrize("value", ["rtt0", "Rtt2", "RAM", "semihost"])
+def test_debug_probe_outputs_accepted_on_zephyr(
+    set_core_config: SetCoreConfigCallable, value: str
+) -> None:
+    set_core_config(
+        PlatformFramework.ZEPHYR_ZEPHYR,
+        platform_data={"variant": ZEPHYR_VARIANT_NRF52, "family": "nordic"},
+    )
+    assert uart_selection(value) == value.upper()
+
+
+@pytest.mark.parametrize(
+    ("value", "match"), [("RTT0", "does not support"), ("RAM", "native_sim")]
+)
+def test_debug_probe_outputs_rejected_on_native_sim(
+    set_core_config: SetCoreConfigCallable, value: str, match: str
+) -> None:
+    set_core_config(
+        PlatformFramework.ZEPHYR_ZEPHYR,
+        platform_data={"variant": ZEPHYR_VARIANT_NATIVE_SIM},
+    )
+    with pytest.raises(Invalid, match=match):
+        uart_selection(value)
+
+
+def test_rtt_rejected_on_family_without_rtt(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(
+        PlatformFramework.ZEPHYR_ZEPHYR,
+        platform_data={"variant": "ESP32", "family": "esp32"},
+    )
+    with pytest.raises(Invalid, match="esp32 does not support"):
+        uart_selection("RTT0")
+
+
+def test_debug_probe_outputs_rejected_off_zephyr(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    with pytest.raises(Invalid):
+        uart_selection("RTT0")
+
+
+def test_semihost_warns(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
+) -> None:
+    set_core_config(
+        PlatformFramework.ZEPHYR_ZEPHYR,
+        platform_data={"variant": ZEPHYR_VARIANT_NRF52, "family": "nordic"},
+    )
+    uart_selection("SEMIHOST")
+    assert "no debugger is attached" in caplog.text
+
+
+def test_zephyr_rtt_codegen(generate_main: Callable[[str | Path], str]) -> None:
+    from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
+    from esphome.components.zephyr.const import KEY_OVERLAY, KEY_PRJ_CONF  # noqa: PLC0415
+
+    main_cpp = generate_main("tests/component_tests/logger/test_logger_zephyr_rtt.yaml")
+    assert "set_uart_selection(" not in main_cpp
+    defines = {d.name: str(d.value) for d in CORE.defines}
+    assert defines["LOGGER_UART_NODE_LABEL"] == "rtt0"
+    assert "USE_LOGGER_CONSOLE" not in defines
+    prj_conf = zephyr_data()[KEY_PRJ_CONF][""]
+    assert prj_conf["CONFIG_USE_SEGGER_RTT"] == (True, True)
+    assert prj_conf["CONFIG_LOG_BACKEND_RTT"] == (False, False)
+    overlay = "".join(zephyr_data()[KEY_OVERLAY].values())
+    assert 'rtt0: rtt0 { compatible = "segger,rtt-uart"; }' in overlay
+    assert "zephyr,console = &rtt0;" in overlay
+
+
+def test_zephyr_semihost_codegen(generate_main: Callable[[str | Path], str]) -> None:
+    from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
+    from esphome.components.zephyr.const import KEY_PRJ_CONF  # noqa: PLC0415
+
+    main_cpp = generate_main(
+        "tests/component_tests/logger/test_logger_zephyr_semihost.yaml"
+    )
+    assert "set_uart_selection(" not in main_cpp
+    defines = {d.name: str(d.value) for d in CORE.defines}
+    assert "USE_LOGGER_CONSOLE" in defines
+    assert defines["LOGGER_CONSOLE_NAME"] == '"SEMIHOST"'
+    assert "LOGGER_UART_NODE_LABEL" not in defines
+    prj_conf = zephyr_data()[KEY_PRJ_CONF][""]
+    for option in ("CONSOLE", "PRINTK", "SEMIHOST", "SEMIHOST_CONSOLE"):
+        assert prj_conf[f"CONFIG_{option}"] == (True, True)
+    assert prj_conf["CONFIG_RTT_CONSOLE"] == (False, False)
+
+
+def test_zephyr_rtt_reuses_board_node(
+    monkeypatch: pytest.MonkeyPatch, generate_main: Callable[[str | Path], str]
+) -> None:
+    """A board that already declares rtt0 gets it enabled, not a duplicate label."""
+    from esphome.components.zephyr import dts_lookup, zephyr_data  # noqa: PLC0415
+    from esphome.components.zephyr.const import KEY_OVERLAY  # noqa: PLC0415
+
+    monkeypatch.setattr(
+        dts_lookup, "dts_node_label_exists", lambda board, label: label == "rtt0"
+    )
+    generate_main("tests/component_tests/logger/test_logger_zephyr_rtt.yaml")
+    overlay = "".join(zephyr_data()[KEY_OVERLAY].values())
+    assert '&rtt0 { status = "okay"; };' in overlay
+    assert "rtt0: rtt0" not in overlay
+
+
+def test_rtt3_not_a_logger_keyword(set_core_config: SetCoreConfigCallable) -> None:
+    """Channel 3 needs SEGGER's buffer counts raised; it is only reachable as "&rtt3"."""
+    set_core_config(
+        PlatformFramework.ZEPHYR_ZEPHYR,
+        platform_data={"variant": ZEPHYR_VARIANT_NRF52, "family": "nordic"},
+    )
+    with pytest.raises(Invalid):
+        uart_selection("RTT3")

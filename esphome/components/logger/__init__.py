@@ -49,6 +49,14 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_ESP32_S3,
     ZEPHYR_VARIANT_NATIVE_SIM,
 )
+from esphome.components.zephyr.rtt import (
+    RTT_PORTS,
+    claim_rtt_channel,
+    enable_rtt_node,
+    rtt_channel,
+    rtt_label_channel,
+    validate_rtt_port,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -119,6 +127,10 @@ UART0_SWAP = "UART0_SWAP"
 USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
 USB_CDC = "USB_CDC"
 DEFAULT = "DEFAULT"
+# RAM and SEMIHOST: platform: zephyr logger outputs that a debugger reads; RTT channels
+# are in zephyr/rtt.py. Each enables the <name>_CONSOLE Kconfig option, fed by printk().
+SEMIHOST = "SEMIHOST"
+CONSOLE_BACKENDS = ("RAM", SEMIHOST)
 
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
@@ -224,6 +236,10 @@ def uart_selection(value: Any) -> str:
         # Any UARTn; resolve_uart_node_label() maps it to the board's real node.
         if isinstance(value, str) and ZEPHYR_UART_RE.fullmatch(value.upper()):
             return value.upper()
+        if isinstance(value, str) and value.upper() in RTT_PORTS:
+            return validate_rtt_port(value.upper())
+        if isinstance(value, str) and value.upper() in CONSOLE_BACKENDS:
+            return _console_backend(value.upper())
         if zephyr_variant() in (
             ZEPHYR_VARIANT_ESP32_H2,
             ZEPHYR_VARIANT_ESP32_C6,
@@ -237,6 +253,18 @@ def uart_selection(value: Any) -> str:
             return cv.one_of(*UART_SELECTION_ZEPHYR_USB_CDC, upper=True)(value)
         return cv.one_of(*UART_SELECTION_HOST_ZEPHYR, upper=True)(value)
     raise NotImplementedError
+
+
+def _console_backend(value: str) -> str:
+    if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
+        # write_msg_() writes only to stdout there
+        raise cv.Invalid(f"{value} is not available on native_sim")
+    if value == SEMIHOST:
+        _LOGGER.warning(
+            "logger: SEMIHOST stops the device at every log line, and crashes it "
+            "when no debugger is attached. Use it only while a debugger is connected"
+        )
+    return value
 
 
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
@@ -640,6 +668,8 @@ async def _late_logger_init(config: ConfigType) -> None:
                 node_known = validate_dts_label_exists(
                     "uart", zephyr_data()[KEY_BOARD], node
                 )
+                if (label_channel := rtt_label_channel(node)) is not None:
+                    claim_rtt_channel(label_channel, "logger")
             else:
                 from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
 
@@ -661,6 +691,25 @@ async def _late_logger_init(config: ConfigType) -> None:
             # uart20/uart30) would otherwise resolve to a nonexistent "uart0"/"uart1"
             # node, silently leaving uart_dev_ null and dropping every log line.
             cg.add_define("LOGGER_UART_NODE_LABEL", cg.RawExpression(node))
+        elif (channel := rtt_channel(hw_uart)) is not None:
+            node = enable_rtt_node(channel, "logger")
+            zephyr_add_overlay(
+                f"""/ {{ chosen {{ zephyr,console = &{node}; zephyr,shell-uart = &{node}; }}; }};"""
+            )
+            cg.add_define("LOGGER_UART_NODE_LABEL", cg.RawExpression(node))
+        elif hw_uart in CONSOLE_BACKENDS:
+            # No UART device: write_msg_() sends every line through printk()
+            cg.add_define("USE_LOGGER_CONSOLE")
+            cg.add_define("LOGGER_CONSOLE_NAME", hw_uart)
+            zephyr_add_prj_conf("CONSOLE", True)
+            zephyr_add_prj_conf("PRINTK", True)
+            if hw_uart == SEMIHOST:
+                # SEMIHOST_CONSOLE depends on it rather than selecting it
+                zephyr_add_prj_conf("SEMIHOST", True)
+            zephyr_add_prj_conf(f"{hw_uart}_CONSOLE", True)
+            # Off by default; guards against a board defconfig turning it on, as it
+            # would take the printk() hook from the chosen backend.
+            zephyr_add_prj_conf("RTT_CONSOLE", False, required=False)
         elif hw_uart == USB_SERIAL_JTAG:
             # A standard Zephyr UART device, not a USB CDC-ACM stack like nrf52's
             # USB_CDC option -- CONFIG_SERIAL_ESP32_USB auto-selects once the DTS
@@ -691,6 +740,9 @@ async def _late_logger_init(config: ConfigType) -> None:
         # that would contend with Logger's own write_msg_() for the same UART. Disable
         # it -- logger_zephyr_log_backend.cpp forwards native logs through Logger instead.
         zephyr_add_prj_conf("LOG_BACKEND_UART", False, required=False)
+        # Same for RTT: once USE_SEGGER_RTT is on, Zephyr's own RTT backend would write
+        # native lines to RTT channel 0 as well, alongside Logger's own output.
+        zephyr_add_prj_conf("LOG_BACKEND_RTT", False, required=False)
 
         # LOG_PRINTK redirects printk() through the LOG subsystem, which write_msg_()'s own
         # printk() call (for RTT/pyocd) would then re-enter -- an infinite feedback loop.

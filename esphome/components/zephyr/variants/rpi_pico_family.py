@@ -13,11 +13,15 @@ from esphome.const import CONF_ADVANCED
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
-from ..const import zephyr_ns
+from ..const import SEGGER_RTT_UART, zephyr_ns
 from ..usb_baud_rate import CONF_USB_BAUD_RATE, UsbBaudRate, declare_component_id
 from . import mcuboot_or_none
 
 _LOGGER = logging.getLogger(__name__)
+
+# Software UART drivers (devicetree compatible strings) that work on this family,
+# on top of its hardware UARTs.
+UART_DRIVERS: frozenset[str] = frozenset({SEGGER_RTT_UART})
 
 BootselTouch = zephyr_ns.class_("BootselTouch", cg.Component)
 CONF_BOOTSEL_TOUCH = "bootsel_touch"
