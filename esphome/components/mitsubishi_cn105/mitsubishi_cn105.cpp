@@ -272,9 +272,9 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
   // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
   // Catches mode/power changes made outside ESPHome (IR remote, Mitsubishi app); setters handle local changes.
   if (previous.mode != this->status_.mode || previous.power_on != this->status_.power_on ||
-    previous.target_temperature != this->status_.target_temperature) {
-  this->invalidate_operating_();
-}
+      previous.target_temperature != this->status_.target_temperature) {
+    this->invalidate_operating_();
+  }
 
   if (msg_type == this->current_status_msg_type_) {
     this->set_state_(State::STATUS_UPDATED);
