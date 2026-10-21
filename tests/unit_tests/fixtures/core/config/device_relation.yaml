@@ -1,8 +1,9 @@
 esphome:
   name: test-device-relation
   devices:
-    - id: default_device
-      name: Default Device
+    - id: modbus_meter_device
+      name: Modbus Meter
+      relation: via
     - id: rf_sensor_device
       name: RF Sensor
       relation: via

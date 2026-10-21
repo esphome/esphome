@@ -15,11 +15,11 @@ esphome:
     - id: light_controller_device
       name: Light Controller
       area_id: living_room_area  # Uses top-level area
-      relation: child
+      relation: via
     - id: temp_sensor_device
       name: Temperature Sensor
       area_id: bedroom_area
-      relation: child
+      relation: via
     - id: motion_detector_device
       name: Motion Detector
       area_id: living_room_area  # Reuses top-level area

@@ -30,6 +30,8 @@ from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
     CONF_RELATION,
     CONF_SUSPEND_LOOP,
+    DEVICE_RELATIONS,
+    SHARED_DEVICE_RELATION_DEFINES,
     Area,
     make_app_name_cpp,
     preload_core_config,
@@ -366,12 +368,25 @@ def test_device_without_area(yaml_file: Callable[[str], str]) -> None:
 
 
 def test_device_relation(yaml_file: Callable[[str], str]) -> None:
-    """Test that device relation defaults to via and accepts via and child."""
+    """Test that device relation accepts via and child in any case."""
     result = load_config_from_fixture(yaml_file, "device_relation.yaml", FIXTURES_DIR)
     assert result is not None
 
     devices = result[CONF_ESPHOME][CONF_DEVICES]
     assert [device[CONF_RELATION] for device in devices] == ["via", "via", "child"]
+
+
+def test_device_without_relation(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that a device without a relation fails validation."""
+    result = load_config_from_fixture(
+        yaml_file, "device_missing_relation.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "'relation' is a required option" in captured.out
 
 
 def test_device_with_invalid_relation(
@@ -385,6 +400,11 @@ def test_device_with_invalid_relation(
 
     captured = capsys.readouterr()
     assert "Unknown value 'parent', valid options are 'via', 'child'" in captured.out
+
+
+def test_shared_device_relation_defines_cover_all_relations() -> None:
+    """Every relation needs an entry, so a new one cannot silently report VIA."""
+    assert SHARED_DEVICE_RELATION_DEFINES.keys() == DEVICE_RELATIONS.keys()
 
 
 @pytest.mark.asyncio

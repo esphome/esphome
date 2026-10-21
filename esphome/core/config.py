@@ -123,6 +123,13 @@ DeviceRelation = cg.esphome_ns.enum("DeviceRelation", is_class=True)
 DEVICE_RELATIONS: dict[str, cg.MockObj] = DeviceRelation.options(
     "via", "child", prefix="DEVICE_RELATION_"
 )
+# Relation the C++ getter and field use when nothing sets one, and the API's default
+DEFAULT_DEVICE_RELATION: str = "via"
+# Define for a relation shared by every device
+SHARED_DEVICE_RELATION_DEFINES: dict[str, str | None] = {
+    DEFAULT_DEVICE_RELATION: None,
+    "child": "USE_DEVICE_RELATION_ALL_CHILD",
+}
 Area = cg.esphome_ns.class_("Area")
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
@@ -300,9 +307,7 @@ DEVICE_SCHEMA = cv.Schema(
             cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
-        cv.Optional(CONF_RELATION, default="via"): cv.enum(
-            DEVICE_RELATIONS, lower=True
-        ),
+        cv.Required(CONF_RELATION): cv.enum(DEVICE_RELATIONS, lower=True),
     }
 )
 
@@ -957,8 +962,8 @@ async def to_code(config: ConfigType) -> None:
     mixed_relations: bool = len(relations) > 1
     if mixed_relations:
         cg.add_define("USE_DEVICE_RELATION")
-    elif relations == {"child"}:
-        cg.add_define("USE_DEVICE_RELATION_ALL_CHILD")
+    elif (shared_define := SHARED_DEVICE_RELATION_DEFINES[relations.pop()]) is not None:
+        cg.add_define(shared_define)
 
     # Process each device
     for dev_conf in devices:
@@ -977,7 +982,10 @@ async def to_code(config: ConfigType) -> None:
             cg.add(dev.set_area_id(area_id_hash))
 
         # The field only exists for a mix of relations, and starts as VIA
-        if mixed_relations and (relation := dev_conf[CONF_RELATION]) != "via":
+        if (
+            mixed_relations
+            and (relation := dev_conf[CONF_RELATION]) != DEFAULT_DEVICE_RELATION
+        ):
             cg.add(dev.set_relation(relation))
 
         cg.add(cg.App.register_device(dev))

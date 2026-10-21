@@ -686,6 +686,7 @@ DEVICES_HEADER = """
       devices:
         - id: kitchen_dev
           name: Kitchen
+          relation: via
 
     esp32:
       variant: esp32
