@@ -176,6 +176,31 @@ class MemorySource : public DecodeSource {
   size_t fail_at_;
 };
 
+/// Hands out only the bytes delivered so far, like a download that is still arriving
+class TrickleSource : public DecodeSource {
+ public:
+  TrickleSource(const uint8_t *data, size_t size, size_t delivered) : data_(data), size_(size), delivered_(delivered) {}
+  int32_t read(uint8_t *buf, uint32_t len) override {
+    const size_t n = std::min<size_t>(len, this->delivered_ - this->pos_);
+    memcpy(buf, this->data_ + this->pos_, n);
+    this->pos_ += n;
+    return static_cast<int32_t>(n);
+  }
+  bool seek(uint32_t position) override {
+    if (position > this->delivered_)
+      return false;
+    this->pos_ = position;
+    return true;
+  }
+  void deliver(size_t len) { this->delivered_ = std::min(this->size_, this->delivered_ + len); }
+
+ protected:
+  const uint8_t *data_;
+  size_t size_;
+  size_t delivered_;
+  size_t pos_{0};
+};
+
 static bool decode_fed(RuntimeImage &img) {
   std::vector<uint8_t> buffer(JPEG_ROWS, JPEG_ROWS + sizeof(JPEG_ROWS));
   if (!img.begin_decode(buffer.size()))
@@ -231,6 +256,29 @@ TEST(JpegSourceDecode, SteppedDirectRgb565MatchesFedDecode) {
   int steps;
   ASSERT_EQ(decode_stepped(stepped, source, steps), DECODE_STEP_DONE);
   EXPECT_EQ(pixels(stepped), pixels(fed));
+}
+
+TEST(JpegSourceDecode, WaitsForDataThatHasNotArrived) {
+  SourceImage fed;
+  ASSERT_TRUE(decode_fed(fed));
+
+  // Enough for the headers (the scan starts at byte 609), then 50 bytes between steps
+  SourceImage img;
+  TrickleSource source(JPEG_ROWS, sizeof(JPEG_ROWS), 700);
+  ASSERT_TRUE(img.begin_decode(sizeof(JPEG_ROWS)));
+  ASSERT_EQ(img.begin_source(&source), 0);
+  int waits = 0;
+  int result;
+  while ((result = img.decode_step()) == DECODE_STEP_MORE || result == DECODE_STEP_NEED_DATA) {
+    if (result == DECODE_STEP_NEED_DATA)
+      waits++;
+    source.deliver(50);
+    ASSERT_LT(waits, 1000);
+  }
+  ASSERT_EQ(result, DECODE_STEP_DONE);
+  ASSERT_TRUE(img.end_decode());
+  EXPECT_GT(waits, 0);
+  EXPECT_EQ(pixels(img), pixels(fed));
 }
 
 TEST(JpegSourceDecode, ImageIsHiddenUntilTheLastStep) {

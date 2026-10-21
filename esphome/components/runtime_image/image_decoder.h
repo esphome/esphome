@@ -18,6 +18,7 @@ enum DecodeError : int {
 enum DecodeStep : int {
   DECODE_STEP_DONE = 0,
   DECODE_STEP_MORE = 1,
+  DECODE_STEP_NEED_DATA = 2,  // The source has nothing more yet; call again once more has arrived
 };
 
 constexpr const char *decode_error_to_string(int error) {
@@ -43,7 +44,10 @@ class RuntimeImage;
 class DecodeSource {
  public:
   virtual ~DecodeSource() = default;
-  /// Read up to len bytes at the current position. Returns the number read, 0 at the end, or negative on error.
+  /**
+   * Read up to len bytes at the current position. Returns the number read, which is less than len, even 0, when
+   * no more has arrived yet or at the end of the input, or negative on error.
+   */
   virtual int32_t read(uint8_t *buf, uint32_t len) = 0;
   /// Move to a position counted from the start. Returns false on error.
   virtual bool seek(uint32_t position) = 0;
@@ -123,8 +127,9 @@ class ImageDecoder {
   /**
    * @brief Decode a little more of an image started with begin_source(), keeping each call short.
    *
-   * @return int DECODE_STEP_MORE while there is more to do, DECODE_STEP_DONE when the image is complete,
-   *             or a {@see DecodeError} value.
+   * @return int DECODE_STEP_MORE while there is more to do, DECODE_STEP_NEED_DATA when the source has not
+   *             delivered enough to go on, DECODE_STEP_DONE when the image is complete, or a {@see DecodeError}
+   *             value.
    */
   virtual int decode_step() { return DECODE_ERROR_UNSUPPORTED_FORMAT; }
 

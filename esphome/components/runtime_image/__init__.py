@@ -92,13 +92,14 @@ class JPEGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
-        # 1.8.4 plus decodeBegin()/decodeRows(), so an image can be decoded a few rows at a time,
+        # 1.8.4 plus decodeBegin()/decodeRows(), so an image can be decoded a few rows at a time and
+        # can wait for input that has not arrived yet, fixes for input that arrives in short reads,
         # and two ARM NEON fixes: swapped red and blue in the 4:2:0 RGB8888 path, and writes past
         # the row on clipped MCUs
         cg.add_library(
             "JPEGDEC",
             "1.8.4",
-            "https://github.com/clydebarrow/JPEGDEC#047f891096c921fa08f987401fe0fbe0eb3bc6e5",
+            "https://github.com/clydebarrow/JPEGDEC#0bf32c872d99dbd1fe133dd0441aaabaf1a85c77",
         )
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only

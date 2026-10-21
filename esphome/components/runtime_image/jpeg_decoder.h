@@ -27,7 +27,7 @@ class JpegDecoder : public ImageDecoder {
   /// The source is read as the decode needs it, through JPEGDEC's own 2 KB buffer
   bool supports_source() const override { return true; }
   int begin_source(DecodeSource *source) override;
-  /// Decodes one row of MCUs (8 or 16 pixel rows)
+  /// Decodes one row of MCUs (8 or 16 pixel rows), or waits part way through one for more of the source
   int HOT decode_step() override;
 
   bool uses_direct_rgb565() const { return this->direct_rgb565_; }

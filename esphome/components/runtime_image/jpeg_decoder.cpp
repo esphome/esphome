@@ -256,6 +256,8 @@ int HOT JpegDecoder::decode_step() {
   }
   if (result == JPEG_DECODE_MORE)
     return DECODE_STEP_MORE;
+  if (result == JPEG_DECODE_NEED_DATA)
+    return DECODE_STEP_NEED_DATA;
   if (result == 0)
     return this->fail_();
   this->decoded_bytes_ = this->expected_size_;
