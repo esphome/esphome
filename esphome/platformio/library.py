@@ -615,16 +615,20 @@ def parse_library_properties(library_properties_path: PathType):
 
 
 def parse_properties_depends(depends: str) -> list[dict[str, str]]:
-    """The Arduino ``depends=Name, Other (>=1.0)`` line as dependency entries."""
+    """The Arduino ``depends=Name, Other (>=1.0)`` line as name-only dependency entries.
+
+    An Arduino constraint is not PlatformIO syntax, so it is dropped; the name is
+    satisfied by a listed library or the registry's current version, as the walk
+    does for every version-less dependency.
+    """
     entries: list[dict[str, str]] = []
     for item in depends.split(","):
-        name, _, version = item.strip().partition("(")
+        name, _, constraint = item.strip().partition("(")
         if not (name := name.strip()):
             continue
-        entry = {"name": name}
-        if version.endswith(")"):
-            entry["version"] = version[:-1].strip()
-        entries.append(entry)
+        if constraint:
+            _LOGGER.debug("Ignoring version constraint on depends=%s", item.strip())
+        entries.append({"name": name})
     return entries
 
 
@@ -856,7 +860,8 @@ class _LibNode:
     ref: str | None = None
     local_path: str | None = None
     edges: set[str] = field(default_factory=set)
-    # Requested by name alone from a manifest; a registry miss skips it, not the build
+    # Created for a name-only manifest dependency and never given a version, so
+    # a registry miss skips it instead of failing the build
     optional: bool = False
 
 
@@ -978,27 +983,30 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
 def _satisfying_key(
     name: str,
     owner: str | None,
+    requester: str,
     nodes: dict[str, _LibNode],
     components: dict[str, ConvertedLibrary],
 ) -> str | None:
-    """The key of a resolved library a version-less dependency names: the registry
-    package name (with the owner, when the dependency gives one) or the manifest name."""
+    """The key of a resolved library a version-less dependency names: by registry
+    package name (with the owner, when the dependency gives one) first, then by
+    manifest name; never the requester itself."""
     wanted = name.lower()
-
-    def matches(key: str, component: ConvertedLibrary) -> bool:
-        node = nodes[key]
-        if owner and (node.owner or "").lower() != owner.lower():
-            return False
-        if (node.pkgname or key).lower() == wanted:
-            return True
+    candidates = [
+        (key, component)
+        for key, component in components.items()
+        if key != requester
+        and not (owner and (nodes[key].owner or "").lower() != owner.lower())
+    ]
+    for key, _ in candidates:
+        if (nodes[key].pkgname or key).lower() == wanted:
+            return key
+    if owner:
+        return None
+    for key, component in candidates:
         manifest_name = component.data.get("name")
-        return (
-            not owner
-            and isinstance(manifest_name, str)
-            and manifest_name.lower() == wanted
-        )
-
-    return next((key for key, c in components.items() if matches(key, c)), None)
+        if isinstance(manifest_name, str) and manifest_name.lower() == wanted:
+            return key
+    return None
 
 
 def _fetch_source(
@@ -1190,6 +1198,8 @@ def convert_libraries(
             node.owner, node.pkgname = locator
             if version:
                 node.requirements.add(version)
+                # A versioned request must be honoured, so a miss is an error again
+                node.optional = False
         return key
 
     top_level = [
@@ -1218,23 +1228,24 @@ def convert_libraries(
                 name, owner = dependency["name"], dependency.get("owner")
                 # A library in the graph beats a bundled copy, as on the Arduino backend
                 if (
-                    match := _satisfying_key(name, owner, nodes, components)
+                    match := _satisfying_key(name, owner, requester, nodes, components)
                 ) is not None:
                     _LOGGER.debug(
                         "Dependency %s of %s satisfied by %s", name, requester, match
                     )
                     nodes[requester].edges.add(match)
                     continue
-                if (
-                    not owner
-                    and backend.provides is not None
-                    and backend.provides(name)
+                # provided_requests first, so the backend is asked once per name
+                if not owner and (
+                    name in backend.provided_requests
+                    or (backend.provides is not None and backend.provides(name))
                 ):
                     _LOGGER.debug(
                         "Skip backend-provided dependency %s of %s", name, requester
                     )
                     backend.provided_requests.add(name)
                     continue
+                known = len(nodes)
                 try:
                     dep_key = add_spec(_owner_pkgname_to_name(owner, name), None, None)
                 except RuntimeError as e:
@@ -1242,7 +1253,8 @@ def convert_libraries(
                         "Skipping dependency %s of %s: %s", name, requester, e
                     )
                     continue
-                nodes[dep_key].optional = True
+                if len(nodes) > known:
+                    nodes[dep_key].optional = True
                 nodes[requester].edges.add(dep_key)
                 new_keys.append(dep_key)
         pending_versionless.clear()
@@ -1273,7 +1285,8 @@ def convert_libraries(
                     owner, name, version, url, size = _resolve_registry_version(
                         node.owner, node.pkgname, node.requirements
                     )
-                except (UnknownPackageError, RuntimeError) as e:
+                except UnknownPackageError as e:
+                    # A requirement conflict is a RuntimeError and always raises
                     if not node.optional:
                         raise
                     requesters = sorted(k for k, n in nodes.items() if key in n.edges)
@@ -1459,6 +1472,7 @@ def convert_libraries(
             drop = next((k for k in (node_key, first) if nodes[k].optional), None)
             if drop is not None:
                 keep = first if drop == node_key else node_key
+                _LOGGER.debug("Library %s fetched by name is %s; folding", drop, keep)
                 canonical_keys[canonical] = keep
                 del components[drop]
                 for node in nodes.values():

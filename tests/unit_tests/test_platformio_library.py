@@ -1275,22 +1275,22 @@ def test_versionless_url_ish_dependency_name_warns_cleanly(
 def test_versionless_dependency_matching_resolved_manifest_name_is_wired(
     tmp_path, monkeypatch
 ) -> None:
-    """A bare name satisfied by an owner-qualified component's manifest name
-    is wired to it."""
+    """A bare name no package name matches is satisfied by a listed component's
+    manifest name (a fork published under another package name)."""
     asked = _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
         {
             "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
-            "esphome/B": {"name": "B"},
+            "esphome/B-fork": {"name": "B"},
         },
     )
     top = convert_libraries(
-        [Library("esphome/A", None, None), Library("esphome/B", None, None)],
+        [Library("esphome/A", None, None), Library("esphome/B-fork", None, None)],
         _backend(),
     )
-    assert [d.name for d in top[0].dependencies] == ["esphome/B"]
-    assert asked == [("esphome", "A"), ("esphome", "B")]
+    assert [d.name for d in top[0].dependencies] == ["esphome/B-fork"]
+    assert asked == [("esphome", "A"), ("esphome", "B-fork")]
 
 
 def test_versionless_dependency_settles_after_the_graph(
@@ -1378,19 +1378,134 @@ def test_by_name_node_folds_into_a_later_pin_of_the_same_package(
     assert "multiple names" not in caplog.text
 
 
-def test_parse_properties_depends_reads_names_and_constraints() -> None:
-    assert lib.parse_properties_depends("Adafruit BusIO, Foo (>=1.2), ,Bar( <2 )") == [
+def test_parse_properties_depends_reads_names_and_drops_constraints(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Arduino constraints are not PlatformIO syntax, so only the names survive;
+    an unclosed parenthesis loses nothing more than the constraint."""
+    with caplog.at_level(logging.DEBUG):
+        entries = lib.parse_properties_depends(
+            "Adafruit BusIO, Foo (>=1.2), ,Bar( <2 ), Baz (=1.0, Qux ()"
+        )
+    assert entries == [
         {"name": "Adafruit BusIO"},
-        {"name": "Foo", "version": ">=1.2"},
-        {"name": "Bar", "version": "<2"},
+        {"name": "Foo"},
+        {"name": "Bar"},
+        {"name": "Baz"},
+        {"name": "Qux"},
     ]
+    assert "Ignoring version constraint on depends=Foo (>=1.2)" in caplog.text
+
+
+def test_constrained_depends_is_satisfied_by_a_listed_library(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """``depends=Adafruit BusIO (>=1.0)`` next to a listed ``adafruit/Adafruit
+    BusIO`` wires to that one package instead of fetching a second copy."""
+    asked = _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "adafruit/Adafruit GFX Library": (
+                "name=Adafruit GFX Library\ndepends=Adafruit BusIO (>=1.0)\n"
+            ),
+            "adafruit/Adafruit BusIO": {"name": "Adafruit BusIO"},
+        },
+        properties=("adafruit/Adafruit GFX Library",),
+    )
+    top = convert_libraries(
+        [
+            Library("adafruit/Adafruit GFX Library", "^1.13.0", None),
+            Library("adafruit/Adafruit BusIO", "^1.17.4", None),
+        ],
+        _backend(),
+    )
+    assert [d.name for d in top[0].dependencies] == ["adafruit/Adafruit BusIO"]
+    assert len(asked) == 2
+    assert "multiple names" not in caplog.text
+
+
+def test_by_name_node_pinned_later_reports_a_requirement_conflict(
+    tmp_path, monkeypatch
+) -> None:
+    """A node fetched by name that a later manifest pins under the same spelling
+    is resolved again against the pin; a conflict is an error, not a miss."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
+            "B": {"name": "B", "dependencies": {"C": "1.0.0"}},
+            "C": {"name": "C", "dependencies": {"B": "^2.0"}},
+        },
+    )
+
+    def resolve(owner, pkgname, requirements):
+        if pkgname == "B" and requirements:
+            raise RuntimeError(f"No version of {pkgname} satisfies {requirements}")
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
+    with pytest.raises(RuntimeError, match="No version of B satisfies"):
+        convert_libraries([Library("esphome/A", None, None)], _backend())
+
+
+def test_by_name_request_does_not_make_an_existing_node_optional(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version-less request for a node the walk already created (here one
+    skipped for its platform) neither re-fetches it nor turns a later miss
+    into a warning."""
+    asked = _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "X", "version": "1.0"}, {"name": "X"}],
+            },
+            "X": {"name": "X", "platforms": "espressif8266"},
+        },
+    )
+    top = convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert top[0].dependencies == []
+    assert asked == [("esphome", "A"), (None, "X")]
+    assert "not in the registry" not in caplog.text
+
+
+def test_provided_dependency_asks_the_backend_once_per_name(
+    tmp_path, monkeypatch
+) -> None:
+    """Two requesters of one bundled name cost one provides() call, so a backend
+    warning there is not repeated."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "Wire"}]},
+            "esphome/B": {"name": "B", "dependencies": [{"name": "Wire"}]},
+        },
+    )
+    calls: list[str] = []
+
+    def provides(name: str) -> bool:
+        calls.append(name)
+        return name == "Wire"
+
+    backend = _backend(provides=provides)
+    convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/B", None, None)],
+        backend,
+    )
+    assert calls == ["Wire"]
+    assert backend.provided_requests == {"Wire"}
 
 
 def test_parse_library_properties_turns_depends_into_dependencies(
     tmp_path: Path,
 ) -> None:
     manifest = tmp_path / "library.properties"
-    manifest.write_text("name=A\ndepends=Wire\n")
+    manifest.write_text("name=A\ndepends=Wire (>=1.0)\n")
     data = lib.parse_library_properties(manifest)
     assert data["dependencies"] == [{"name": "Wire"}]
     assert "depends" not in data
