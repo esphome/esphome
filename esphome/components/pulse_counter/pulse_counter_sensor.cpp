@@ -38,7 +38,7 @@ void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg
   if (mode == PULSE_COUNTER_INCREMENT) {
     auto x = arg->counter + 1;
     arg->counter = x;
-  } else {
+  } else if (mode == PULSE_COUNTER_DECREMENT) {
     auto x = arg->counter - 1;
     arg->counter = x;
   }
