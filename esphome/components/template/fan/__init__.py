@@ -36,4 +36,4 @@ async def to_code(config):
 
     cg.add_optional(var.set_speed_count, config.get(CONF_SPEED_COUNT))
 
-    cg.add_optional(var.set_preset_modes, config.get(CONF_PRESET_MODES))
+    fan.set_preset_modes(var, config.get(CONF_PRESET_MODES, []))

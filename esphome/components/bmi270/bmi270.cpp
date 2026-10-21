@@ -284,9 +284,9 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   if (this->is_failed())
     return false;
 
-    //  Accelerometer: registers 0x0C–0x11 (6 bytes: x_lsb, x_msb, y_lsb, y_msb, z_lsb, z_msb)
-    // When the magnetometer is active, the 8 aux data bytes (0x04–0x0B) sit directly before
-    // the accel data, so one burst read from AUX_X_LSB fetches both.
+  //  Accelerometer: registers 0x0C–0x11 (6 bytes: x_lsb, x_msb, y_lsb, y_msb, z_lsb, z_msb)
+  // When the magnetometer is active, the 8 aux data bytes (0x04–0x0B) sit directly before
+  // the accel data, so one burst read from AUX_X_LSB fetches both.
 #ifdef USE_BMI270_BMM150
   const bool read_mag = this->magnetometer_ready_ && !this->magnetometer_callback_.empty();
   uint8_t buf[BMI270_AUX_DATA_LEN + REG_READ_LEN];
