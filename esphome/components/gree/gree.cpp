@@ -142,6 +142,7 @@ void GreeClimate::transmit_state() {
   };
 
   encode(remote_state);
+#ifdef USE_GREE_YAW1F
   if (model == GREE_YAW1F) {
     // The YAW1F remote follows every command with a second message, 00 00 00 A0 | 00 00 00 A0.
     // The command buffer is reused so the payload takes no RAM on ESP8266.
@@ -150,6 +151,7 @@ void GreeClimate::transmit_state() {
     data->space(GREE_YAW1F_FOLLOWUP_SPACE);
     encode(remote_state);
   }
+#endif
   data->space(0);
 
   transmit.perform();
