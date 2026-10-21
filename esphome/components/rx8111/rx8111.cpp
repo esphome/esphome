@@ -36,25 +36,28 @@ void RX8111Component::setup() {
     if (this->alarm_second_ != 0xFF || this->alarm_minute_ != 0xFF || this->alarm_hour_ != 0xFF ||
         this->alarm_weekday_ != 0xFF || this->alarm_day_ != 0xFF) {
       if (!this->program_alarm_(this->alarm_second_, this->alarm_minute_, this->alarm_hour_, this->alarm_weekday_,
-                                this->alarm_day_))
+                                this->alarm_day_)) {
         this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      else
+      } else {
         this->alarm_flag_seen_ = false;  // Report the alarm that may have woken us.
+      }
     } else {
       // Preserve an alarm programmed by an action before a reboot or deep sleep.
       uint8_t control;
-      if (!this->read_byte(RX8111_REG_CONTROL, &control))
+      if (!this->read_byte(RX8111_REG_CONTROL, &control)) {
         this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      else
+      } else {
         this->alarm_configured_ = (control & RX8111_CONTROL_AIE) != 0;
+      }
     }
   }
   // An omitted timer setting leaves battery-backed state alone; explicit false stops it.
   if (this->timer_configured_) {
-    if (!(this->timer_enabled_ ? this->configure_timer_() : this->stop_timer()))
+    if (!(this->timer_enabled_ ? this->configure_timer_() : this->stop_timer())) {
       this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    else if (this->timer_enabled_)
+    } else if (this->timer_enabled_) {
       this->timer_flag_seen_ = false;  // Report a wake-up even when reprogramming the timer.
+    }
   }
   this->set_interval("event_flags", this->event_poll_interval_, [this]() {
     if ((this->alarm_configured_ || this->timer_enabled_) && !this->poll_event_flags_())
