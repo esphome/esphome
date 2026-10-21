@@ -185,6 +185,16 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
+  // Start, data, parity and stop bits of one character; 8N1 where data or stop bits were never set.
+  uint8_t bits_per_char() const {
+    return static_cast<uint8_t>(1 + (this->data_bits_ != 0 ? this->data_bits_ : 8) +
+                                (this->parity_ != UART_CONFIG_PARITY_NONE ? 1 : 0) +
+                                (this->stop_bits_ != 0 ? this->stop_bits_ : 1));
+  }
+
+  // Microseconds that chars characters take at the baud rate, rounded down. A baud rate of 0 counts as 1.
+  uint32_t wire_time_us(size_t chars) const;
+
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.

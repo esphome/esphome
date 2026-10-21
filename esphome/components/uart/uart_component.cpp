@@ -38,10 +38,13 @@ size_t UARTComponent::paced_write_room(uint32_t last_write_ms) {
   return std::max<size_t>(1, paced);
 }
 
+uint32_t UARTComponent::wire_time_us(size_t chars) const {
+  return static_cast<uint32_t>(static_cast<uint64_t>(chars) * this->bits_per_char() * 1000000 /
+                               std::max<uint32_t>(this->baud_rate_, 1));
+}
+
 void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
-  uint8_t bytelength = this->data_bits_ + this->stop_bits_ + 1;
-  if (this->parity_ != UARTParityOptions::UART_CONFIG_PARITY_NONE)
-    bytelength += 1;
+  uint8_t bytelength = this->bits_per_char();
   int32_t val = clamp<int32_t>((this->baud_rate_ / (bytelength * 1000 / time)) - 1, 1, 120);
   this->set_rx_full_threshold(val);
 }
