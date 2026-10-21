@@ -8,10 +8,11 @@ namespace esphome::seesaw {
 
 class SeesawNeopixel : public light::AddressableLight {
  public:
+  explicit SeesawNeopixel(int pin) : pin_(pin) {}
+
   void setup() override;
   void set_num_leds(uint16_t num_leds);
   void set_parent(Seesaw *parent) { parent_ = parent; }
-  void set_pin(int pin) { this->pin_ = pin; }
   light::LightTraits get_traits() override;
   void write_state(light::LightState *state) override;
   void clear_effect_data() override;
@@ -19,7 +20,7 @@ class SeesawNeopixel : public light::AddressableLight {
 
  protected:
   Seesaw *parent_;
-  int pin_;
+  const int pin_;
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
   uint16_t num_leds_{0};

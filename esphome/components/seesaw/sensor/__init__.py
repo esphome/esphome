@@ -3,7 +3,6 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
-    CONF_ID,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
     CONF_NUMBER,
@@ -18,6 +17,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_STEPS,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_SEESAW_ID, Seesaw, seesaw_ns
 
@@ -31,6 +31,13 @@ SeesawTouch = seesaw_ns.class_("SeesawTouch", sensor.Sensor, cg.PollingComponent
 CONF_ADC = "adc"
 CONF_ENCODER = "encoder"
 CONF_TOUCH = "touch"
+
+# The setting each type takes in its constructor
+_CONSTRUCTOR_KEYS = {
+    CONF_ADC: CONF_PIN,
+    CONF_ENCODER: CONF_NUMBER,
+    CONF_TOUCH: CONF_CHANNEL,
+}
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -93,19 +100,12 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def to_code(config: ConfigType) -> None:
+    kind = config[CONF_TYPE]
+    args = [config[_CONSTRUCTOR_KEYS[kind]]] if kind in _CONSTRUCTOR_KEYS else []
+    var = await sensor.new_sensor(config, *args)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
-    seesaw = await cg.get_variable(config[CONF_SEESAW_ID])
-    cg.add(var.set_parent(seesaw))
-    if config[CONF_TYPE] == CONF_ADC:
-        cg.add(var.set_pin(config[CONF_PIN]))
-    elif config[CONF_TYPE] == CONF_ENCODER:
-        cg.add(var.set_number(config[CONF_NUMBER]))
-        if CONF_MIN_VALUE in config:
-            cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
-        if CONF_MAX_VALUE in config:
-            cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
-    elif config[CONF_TYPE] == CONF_TOUCH:
-        cg.add(var.set_channel(config[CONF_CHANNEL]))
+    await cg.register_parented(var, config[CONF_SEESAW_ID])
+    if kind == CONF_ENCODER:
+        cg.add_optional(var.set_min_value, config.get(CONF_MIN_VALUE))
+        cg.add_optional(var.set_max_value, config.get(CONF_MAX_VALUE))

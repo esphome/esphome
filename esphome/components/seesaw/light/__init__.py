@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import light
 import esphome.config_validation as cv
 from esphome.const import CONF_NUM_LEDS, CONF_OUTPUT_ID, CONF_PIN
+from esphome.types import ConfigType
 
 from .. import CONF_SEESAW_ID, Seesaw, seesaw_ns
 
@@ -17,11 +18,8 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
+async def to_code(config: ConfigType) -> None:
+    var = await light.new_light(config, config[CONF_PIN])
     await cg.register_component(var, config)
-    await light.register_light(var, config)
-    seesaw = await cg.get_variable(config[CONF_SEESAW_ID])
+    await cg.register_parented(var, config[CONF_SEESAW_ID])
     cg.add(var.set_num_leds(config[CONF_NUM_LEDS]))
-    cg.add(var.set_parent(seesaw))
-    cg.add(var.set_pin(config[CONF_PIN]))
