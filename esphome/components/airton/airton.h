@@ -36,8 +36,8 @@ static constexpr uint32_t AIRTON_IR_FREQUENCY = 38000;
 static constexpr uint32_t AIRTON_HEADER_MARK = 6630;
 static constexpr uint32_t AIRTON_HEADER_SPACE = 3350;
 static constexpr uint32_t AIRTON_BIT_MARK = 400;
-static constexpr uint32_t AIRTON_ONE_SPACE = 1260;
-static constexpr uint32_t AIRTON_ZERO_SPACE = 430;
+static constexpr remote_base::BitTimings AIRTON_BIT_TIMINGS{
+    .bit_mark = AIRTON_BIT_MARK, .one_space = 1260, .zero_space = 430};
 static constexpr uint32_t AIRTON_MESSAGE_SPACE = 100000;
 
 static constexpr uint8_t AIRTON_STATE_FRAME_SIZE = 7;
