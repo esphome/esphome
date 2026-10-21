@@ -508,12 +508,12 @@ async def test_uart_mock_ld2412_truncated_answer(
         numbers = _threshold_numbers(entities)
 
         states: dict[int, list[float]] = {}
-        states = StateWaiter()
-        gate_0_read = states.expect(
+        state_waiter = StateWaiter()
+        gate_0_read = state_waiter.expect(
             _number_state_of(numbers["gate_0_move_threshold"].key),
             label="gate 0 move threshold",
         )
-        gate_5_read = states.expect(
+        gate_5_read = state_waiter.expect(
             _number_state_of(numbers["gate_5_move_threshold"].key),
             label="gate 5 move threshold",
         )
@@ -521,7 +521,7 @@ async def test_uart_mock_ld2412_truncated_answer(
         def record(state: EntityState) -> None:
             if isinstance(state, NumberState) and not state.missing_state:
                 states.setdefault(state.key, []).append(state.state)
-            states.on_state(state)
+            state_waiter.on_state(state)
 
         initial_state_helper = await _wait_initial(client, entities, record)
 
