@@ -255,6 +255,7 @@ TEST_F(RX8111Test, TimerPrograms24BitCountAndPreservesAlarmAndOtherExtensionBits
   this->bus_.regs[CONTROL] = 0x09;
   this->bus_.regs[FLAG] = 0x1C;
   this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_configured(true);
   this->rtc_.set_timer_count(0x123456);
   this->rtc_.set_timer_clock(1);
   this->rtc_.setup();
@@ -266,22 +267,94 @@ TEST_F(RX8111Test, TimerPrograms24BitCountAndPreservesAlarmAndOtherExtensionBits
   EXPECT_EQ(this->bus_.regs[FLAG] & 0x1C, 0x1C);
   unsigned calls = 0;
   this->rtc_.add_on_timer_callback([&calls]() { calls++; });
-  this->rtc_.update();  // Retained TF is not a new event.
-  EXPECT_EQ(calls, 0);
+  this->rtc_.update();  // Report a retained wake-up event once.
+  EXPECT_EQ(calls, 1);
   ASSERT_TRUE(this->rtc_.clear_timer_flag());
   EXPECT_EQ(this->bus_.regs[FLAG] & 0x1C, 0x0C);
   this->bus_.regs[FLAG] |= 0x10;
   this->rtc_.update();
   this->rtc_.update();
-  EXPECT_EQ(calls, 1);
+  EXPECT_EQ(calls, 2);
   EXPECT_TRUE(this->rtc_.clear_timer_flag());
   this->bus_.regs[FLAG] |= 0x10;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 3);
+}
+
+TEST_F(RX8111Test, ExplicitDisabledTimerStopsBatteryBackedCounter) {
+  this->bus_.regs[EXTENSION] = 0xD9;
+  this->bus_.regs[CONTROL] = 0xB7;
+  this->bus_.regs[FLAG] = 0x10;
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(false);
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[EXTENSION], 0xC9);
+  EXPECT_EQ(this->bus_.regs[CONTROL], 0xA7);
+  EXPECT_EQ(this->bus_.regs[FLAG], 0x10);
+  EXPECT_TRUE(this->rtc_.stop_timer());
+  EXPECT_EQ(this->bus_.regs[EXTENSION], 0xC9);
+  this->bus_.fail_write = CONTROL;
+  EXPECT_FALSE(this->rtc_.stop_timer());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, OmittedTimerConfigurationLeavesBatteryBackedStateAlone) {
+  this->bus_.regs[EXTENSION] = 0xD9;
+  this->bus_.regs[CONTROL] = 0xB7;
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[EXTENSION], 0xD9);
+  EXPECT_EQ(this->bus_.regs[CONTROL], 0xB7);
+}
+
+TEST_F(RX8111Test, BootAlarmIsPreservedAndLatchedEventIsDelivered) {
+  this->bus_.regs[CONTROL] = 0x08;
+  this->bus_.regs[FLAG] = 0x08;
+  this->rtc_.set_alarm_enabled(true);
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([this, &calls]() {
+    calls++;
+    EXPECT_TRUE(this->rtc_.clear_alarm_flag());
+  });
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0x08);
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+  this->bus_.regs[FLAG] |= 0x08;
   this->rtc_.update();
   EXPECT_EQ(calls, 2);
 }
 
+TEST_F(RX8111Test, AlarmAndTimerFlagsAreReadTogetherAndCallbacksCanClearBoth) {
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_count(2);
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  this->rtc_.setup();
+  unsigned alarms = 0;
+  unsigned timers = 0;
+  this->rtc_.add_on_alarm_callback([this, &alarms]() {
+    alarms++;
+    EXPECT_TRUE(this->rtc_.clear_alarm_flag());
+  });
+  this->rtc_.add_on_timer_callback([this, &timers]() {
+    timers++;
+    EXPECT_TRUE(this->rtc_.clear_timer_flag());
+  });
+  this->bus_.regs[FLAG] = 0x18;
+  this->rtc_.update();
+  EXPECT_EQ(alarms, 1);
+  EXPECT_EQ(timers, 1);
+  EXPECT_EQ(this->bus_.regs[FLAG], 0);
+  this->bus_.regs[FLAG] = 0x18;
+  this->rtc_.update();
+  EXPECT_EQ(alarms, 2);
+  EXPECT_EQ(timers, 2);
+}
+
 TEST_F(RX8111Test, TimerCallbackCanClearTFAndFailedProgrammingDoesNotStartTimer) {
   this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_configured(true);
   this->rtc_.set_timer_count(1);
   this->bus_.fail_write = 0x1A;
   this->rtc_.setup();

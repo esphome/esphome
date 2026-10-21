@@ -17,6 +17,7 @@ esphome:
           minutes: 2
       - rx8111.clear_alarm_flag: rtc
       - rx8111.clear_timer_flag: rtc
+      - rx8111.stop_timer: rtc
       - rx8111.unset_alarm: rtc
 
 time:
@@ -29,6 +30,7 @@ time:
     alarm_hour: 7
     timer_count: 2
     timer_clock: 1hz
+    event_poll_interval: 500ms
     on_alarm:
       then:
         - rx8111.clear_alarm_flag: rtc

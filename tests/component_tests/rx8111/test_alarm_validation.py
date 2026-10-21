@@ -5,9 +5,11 @@ import pytest
 from esphome.components.rx8111.time import (
     ALARM_FIELD_UNSET,
     CONF_ALARM_DAY,
+    CONF_ALARM_ENABLED,
     CONF_ALARM_WEEKDAY,
     CONF_DAY,
     CONF_DAYS,
+    CONF_ON_ALARM,
     CONF_ON_TIMER,
     CONF_SECOND,
     CONF_SECONDS,
@@ -19,6 +21,7 @@ from esphome.components.rx8111.time import (
     _validate_set_alarm,
 )
 import esphome.config_validation as cv
+from esphome.core import Lambda
 
 
 @pytest.mark.parametrize(
@@ -64,3 +67,16 @@ def test_timer_requires_count(config: dict) -> None:
 def test_timer_count_allows_explicit_disabled_configuration() -> None:
     config = {CONF_TIMER_COUNT: 0xFFFFFF, CONF_TIMER_ENABLED: False}
     assert _validate_alarm_config(config) == config
+
+
+def test_on_alarm_requires_enabled_alarm() -> None:
+    with pytest.raises(cv.Invalid, match="on_alarm"):
+        _validate_alarm_config({CONF_ON_ALARM: [{}]})
+    assert _validate_alarm_config({CONF_ON_ALARM: [{}], CONF_ALARM_ENABLED: True})
+
+
+def test_templated_relative_seconds_require_no_other_units() -> None:
+    duration = Lambda("return 30;")
+    assert _validate_alarm_duration({CONF_SECONDS: duration})[CONF_SECONDS] is duration
+    with pytest.raises(cv.Invalid, match="templated seconds"):
+        _validate_alarm_duration({CONF_SECONDS: duration, CONF_DAYS: 1})

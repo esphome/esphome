@@ -16,6 +16,9 @@ esphome:
           id: relative_rtc
           hours: 1
           days: 1
+      - rx8111.schedule_alarm_in:
+          id: relative_rtc
+          seconds: !lambda return uint32_t{60};
       - rx8111.set_alarm:
           id: relative_rtc
           minute: !lambda return uint16_t{15};

@@ -38,20 +38,33 @@ void RX8111Component::setup() {
       if (!this->program_alarm_(this->alarm_second_, this->alarm_minute_, this->alarm_hour_, this->alarm_weekday_,
                                 this->alarm_day_))
         this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    } else if (!this->set_alarm_interrupt_(false)) {
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      else
+        this->alarm_flag_seen_ = false;  // Report the alarm that may have woken us.
+    } else {
+      // Preserve an alarm programmed by an action before a reboot or deep sleep.
+      uint8_t control;
+      if (!this->read_byte(RX8111_REG_CONTROL, &control))
+        this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      else
+        this->alarm_configured_ = (control & RX8111_CONTROL_AIE) != 0;
     }
   }
-  // With no alarm configuration, leave existing battery-backed chip settings alone.
-  if (this->timer_enabled_ && !this->configure_timer_())
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // An omitted timer setting leaves battery-backed state alone; explicit false stops it.
+  if (this->timer_configured_) {
+    if (!(this->timer_enabled_ ? this->configure_timer_() : this->stop_timer()))
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    else if (this->timer_enabled_)
+      this->timer_flag_seen_ = false;  // Report a wake-up even when reprogramming the timer.
+  }
+  this->set_interval("event_flags", this->event_poll_interval_, [this]() {
+    if ((this->alarm_configured_ || this->timer_enabled_) && !this->poll_event_flags_())
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  });
 }
 
 void RX8111Component::update() {
   this->read_time();
-  if (this->alarm_enabled_ && this->alarm_configured_ && !this->poll_alarm_flag_())
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  if (this->timer_enabled_ && !this->poll_timer_flag_())
+  if ((this->alarm_configured_ || this->timer_enabled_) && !this->poll_event_flags_())
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 }
 
@@ -191,7 +204,6 @@ bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hou
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
   this->alarm_flag_seen_ = (flags & RX8111_FLAG_AF) != 0;
-  this->alarm_flag_initialized_ = true;
   if (!this->write_byte(RX8111_REG_SEC_ALARM, fields[0]) || !this->write_bytes(RX8111_REG_MIN_ALARM, &fields[1], 3) ||
       !this->write_byte(RX8111_REG_EXTENSION, extension))
     return false;
@@ -257,21 +269,6 @@ bool RX8111Component::clear_alarm_flag() {
     return false;
   }
   this->alarm_flag_seen_ = false;
-  this->alarm_flag_initialized_ = true;
-  return true;
-}
-
-bool RX8111Component::poll_alarm_flag_() {
-  uint8_t flags;
-  if (!this->read_byte(RX8111_REG_FLAG, &flags))
-    return false;
-  const bool active = (flags & RX8111_FLAG_AF) != 0;
-  const bool rising = active && this->alarm_flag_initialized_ && !this->alarm_flag_seen_;
-  this->alarm_flag_seen_ = active;
-  this->alarm_flag_initialized_ = true;
-  // An automation may clear AF synchronously; update edge state before firing it.
-  if (rising)
-    this->alarm_callbacks_.call();
   return true;
 }
 
@@ -285,11 +282,6 @@ bool RX8111Component::configure_timer_() {
       !this->write_byte(RX8111_REG_CONTROL, control & ~RX8111_CONTROL_TIE))
     return false;
 
-  uint8_t flags;
-  if (!this->read_byte(RX8111_REG_FLAG, &flags))
-    return false;
-  this->timer_flag_seen_ = (flags & RX8111_FLAG_TF) != 0;
-  this->timer_flag_initialized_ = true;
   const uint8_t count[] = {static_cast<uint8_t>(this->timer_count_), static_cast<uint8_t>(this->timer_count_ >> 8),
                            static_cast<uint8_t>(this->timer_count_ >> 16)};
   if (!this->write_bytes(RX8111_REG_TIMER0, count, sizeof(count)) ||
@@ -308,19 +300,37 @@ bool RX8111Component::clear_timer_flag() {
     return false;
   }
   this->timer_flag_seen_ = false;
-  this->timer_flag_initialized_ = true;
   return true;
 }
 
-bool RX8111Component::poll_timer_flag_() {
+bool RX8111Component::stop_timer() {
+  uint8_t extension;
+  uint8_t control;
+  if (!this->read_byte(RX8111_REG_EXTENSION, &extension) ||
+      !this->write_byte(RX8111_REG_EXTENSION, extension & ~RX8111_EXTENSION_TE) ||
+      !this->read_byte(RX8111_REG_CONTROL, &control) ||
+      !this->write_byte(RX8111_REG_CONTROL, control & ~RX8111_CONTROL_TIE)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+  this->timer_enabled_ = false;
+  return true;
+}
+
+bool RX8111Component::poll_event_flags_() {
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
-  const bool active = (flags & RX8111_FLAG_TF) != 0;
-  const bool rising = active && this->timer_flag_initialized_ && !this->timer_flag_seen_;
-  this->timer_flag_seen_ = active;
-  this->timer_flag_initialized_ = true;
-  if (rising)
+  const bool alarm_active = (flags & RX8111_FLAG_AF) != 0;
+  const bool timer_active = (flags & RX8111_FLAG_TF) != 0;
+  const bool alarm_rising = alarm_active && !this->alarm_flag_seen_ && this->alarm_enabled_ && this->alarm_configured_;
+  const bool timer_rising = timer_active && !this->timer_flag_seen_ && this->timer_enabled_;
+  // Callbacks may clear flags synchronously: record both edges first.
+  this->alarm_flag_seen_ = alarm_active;
+  this->timer_flag_seen_ = timer_active;
+  if (alarm_rising)
+    this->alarm_callbacks_.call();
+  if (timer_rising && this->timer_enabled_)
     this->timer_callbacks_.call();
   return true;
 }

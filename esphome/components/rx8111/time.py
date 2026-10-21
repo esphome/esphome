@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_SECOND,
     CONF_SECONDS,
 )
+from esphome.core import Lambda
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@techdregs"]
@@ -38,6 +39,7 @@ CONF_TIMER_ENABLED = "timer_enabled"
 CONF_ON_TIMER = "on_timer"
 CONF_WEEKDAY = "weekday"
 CONF_DAYS = "days"
+CONF_EVENT_POLL_INTERVAL = "event_poll_interval"
 
 _ALARM_FIELDS = (
     CONF_ALARM_SECOND,
@@ -55,6 +57,12 @@ _CALLBACK_AUTOMATIONS = (
 def _validate_alarm_config(config: ConfigType) -> ConfigType:
     if CONF_ALARM_DAY in config and CONF_ALARM_WEEKDAY in config:
         raise cv.Invalid("Alarm cannot match both weekday and day of month")
+    if CONF_ON_ALARM in config and not config.get(
+        CONF_ALARM_ENABLED, any(f in config for f in _ALARM_FIELDS)
+    ):
+        raise cv.Invalid(
+            "on_alarm requires alarm_enabled: true or alarm matching fields"
+        )
     if (
         config.get(
             CONF_TIMER_ENABLED, CONF_TIMER_COUNT in config or CONF_ON_TIMER in config
@@ -82,6 +90,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_TIMER_ENABLED): cv.boolean,
             cv.Optional(CONF_ON_TIMER): automation.validate_automation({}),
+            cv.Optional(
+                CONF_EVENT_POLL_INTERVAL, default="1s"
+            ): cv.positive_time_period_milliseconds,
         }
     ).extend(i2c.i2c_device_schema(0x32)),
     _validate_alarm_config,
@@ -109,6 +120,9 @@ automation.register_apply_action(
 )
 automation.register_apply_action(
     "rx8111.unset_alarm", RX8111_ACTION_SCHEMA, automation.ApplyCall("unset_alarm()")
+)
+automation.register_apply_action(
+    "rx8111.stop_timer", RX8111_ACTION_SCHEMA, automation.ApplyCall("stop_timer()")
 )
 
 
@@ -153,6 +167,12 @@ automation.register_apply_action(
 
 
 def _validate_alarm_duration(config: ConfigType) -> ConfigType:
+    if isinstance(config.get(CONF_SECONDS), Lambda):
+        if any(field in config for field in (CONF_MINUTES, CONF_HOURS, CONF_DAYS)):
+            raise cv.Invalid(
+                "templated seconds cannot be combined with other duration fields"
+            )
+        return config
     duration = (
         config.get(CONF_SECONDS, 0)
         + 60 * config.get(CONF_MINUTES, 0)
@@ -171,7 +191,9 @@ automation.register_apply_action(
         cv.Schema(
             {
                 cv.Required(CONF_ID): cv.use_id(RX8111Component),
-                cv.Optional(CONF_SECONDS): cv.int_range(min=0, max=2419200),
+                cv.Optional(CONF_SECONDS): cv.templatable(
+                    cv.int_range(min=0, max=2419200)
+                ),
                 cv.Optional(CONF_MINUTES): cv.int_range(min=0, max=40320),
                 cv.Optional(CONF_HOURS): cv.int_range(min=0, max=672),
                 cv.Optional(CONF_DAYS): cv.int_range(min=0, max=28),
@@ -186,6 +208,7 @@ automation.register_apply_action(
 async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
     await time.register_time(var, config)
+    cg.add(var.set_event_poll_interval(config[CONF_EVENT_POLL_INTERVAL]))
     cg.add_optional(var.set_alarm_second, config.get(CONF_ALARM_SECOND))
     cg.add_optional(var.set_alarm_minute, config.get(CONF_ALARM_MINUTE))
     cg.add_optional(var.set_alarm_hour, config.get(CONF_ALARM_HOUR))
@@ -204,6 +227,7 @@ async def to_code(config: ConfigType) -> None:
             config.get(CONF_TIMER_ENABLED, count is not None or CONF_ON_TIMER in config)
         )
     )
+    cg.add(var.set_timer_configured(CONF_TIMER_ENABLED in config or count is not None))
     for key, method in _CALLBACK_AUTOMATIONS:
         for conf in config.get(key, []):
             await automation.build_callback_automation(var, method, [], conf)
