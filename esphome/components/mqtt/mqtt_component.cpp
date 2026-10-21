@@ -209,8 +209,7 @@ bool MQTTComponent::send_discovery_() {
 
         // Fields from EntityBase
         if (this->get_entity()->has_own_name()) {
-          // ArduinoJson copies flash strings into the document itself
-          root[MQTT_NAME] = reinterpret_cast<ProgmemStr>(this->get_entity()->get_name_progmem().progmem_ptr());
+          root[MQTT_NAME] = json::linked(this->get_entity()->get_name_progmem());
         } else {
           root[MQTT_NAME] = StringRef();
         }
@@ -219,11 +218,11 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_ENABLED_BY_DEFAULT] = false;
         ProgmemStringRef icon = this->get_entity()->get_icon_progmem();
         if (!icon.empty()) {
-          root[MQTT_ICON] = reinterpret_cast<ProgmemStr>(icon.progmem_ptr());
+          root[MQTT_ICON] = json::linked(icon);
         }
         ProgmemStringRef dc = this->get_entity()->get_device_class_progmem();
         if (!dc.empty()) {
-          root[MQTT_DEVICE_CLASS] = reinterpret_cast<ProgmemStr>(dc.progmem_ptr());
+          root[MQTT_DEVICE_CLASS] = json::linked(dc);
         }
 
         const auto entity_category = this->get_entity()->get_entity_category();
