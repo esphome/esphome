@@ -7,17 +7,18 @@ from esphome.const import (
     ICON_ROTATE_RIGHT,
     STATE_CLASS_MEASUREMENT,
     UNIT_HERTZ,
+    UNIT_REVOLUTIONS_PER_MINUTE,
 )
 from esphome.types import ConfigType
 
-from .. import CONF_M5_UNIT_BLDC_ID, UNIT_RPM, M5UnitBldc
+from .. import CONF_M5_UNIT_BLDC_ID, M5UnitBldc
 
 CONF_RPM = "rpm"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_M5_UNIT_BLDC_ID): cv.use_id(M5UnitBldc),
     cv.Optional(CONF_RPM): sensor.sensor_schema(
-        unit_of_measurement=UNIT_RPM,
+        unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
         icon=ICON_ROTATE_RIGHT,
         accuracy_decimals=1,
         state_class=STATE_CLASS_MEASUREMENT,

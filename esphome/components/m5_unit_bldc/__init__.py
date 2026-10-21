@@ -1,15 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_DIRECTION,
-    CONF_MODE,
-    CONF_MODEL,
-    UNIT_REVOLUTIONS_PER_MINUTE,
-)
+from esphome.const import CONF_DIRECTION, CONF_MODE, CONF_MODEL
 from esphome.types import ConfigType
 
-AUTO_LOAD = ["number", "select", "sensor", "text_sensor"]
 CODEOWNERS = ["@lboue"]
 DEPENDENCIES = ["i2c"]
 DOMAIN = "m5_unit_bldc"
@@ -23,11 +17,8 @@ CONF_I = "i"
 CONF_D = "d"
 CONF_SAVE_TO_FLASH = "save_to_flash"
 
-# The device's wire format scales each gain by 100 into a signed 32-bit register. The C++ side multiplies in
-# float32, where 21474836 * 100 rounds up to 2**31, so the limit leaves room for that rounding.
-PID_GAIN_LIMIT = 21474834.0
-
-UNIT_RPM = UNIT_REVOLUTIONS_PER_MINUTE
+# The device stores each gain multiplied by 100 in a signed 32-bit register
+_GAIN = cv.float_range(min=-(2**31) / 100, max=(2**31 - 1) / 100)
 
 m5_unit_bldc_ns = cg.esphome_ns.namespace("m5_unit_bldc")
 M5UnitBldc = m5_unit_bldc_ns.class_("M5UnitBldc", i2c.I2CDevice, cg.PollingComponent)
@@ -52,9 +43,9 @@ MOTOR_MODELS = {
 
 PID_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_P): cv.float_range(min=-PID_GAIN_LIMIT, max=PID_GAIN_LIMIT),
-        cv.Required(CONF_I): cv.float_range(min=-PID_GAIN_LIMIT, max=PID_GAIN_LIMIT),
-        cv.Required(CONF_D): cv.float_range(min=-PID_GAIN_LIMIT, max=PID_GAIN_LIMIT),
+        cv.Required(CONF_P): _GAIN,
+        cv.Required(CONF_I): _GAIN,
+        cv.Required(CONF_D): _GAIN,
     }
 )
 
@@ -91,4 +82,5 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_SAVE_TO_FLASH],
     )
     if pid := config.get(CONF_PID):
-        cg.add(var.set_pid(pid[CONF_P], pid[CONF_I], pid[CONF_D]))
+        p, i, d = (round(pid[key] * 100) for key in (CONF_P, CONF_I, CONF_D))
+        cg.add(var.set_pid(p, i, d))

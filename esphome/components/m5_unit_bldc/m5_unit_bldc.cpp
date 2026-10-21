@@ -1,6 +1,5 @@
 #include "m5_unit_bldc.h"
 
-#include <cmath>
 #include <cstring>
 
 #include "esphome/core/log.h"
@@ -10,151 +9,131 @@ namespace esphome::m5_unit_bldc {
 
 ESPHOME_LOG_TAG(TAG, "m5_unit_bldc");
 
-// Index matches the raw REG_MOTOR_STATUS byte; any value past MOTOR_STATUS_UNKNOWN falls back to it.
+#ifdef USE_TEXT_SENSOR
+// Indexed by the REG_MOTOR_STATUS byte; anything past "Error" reads as "Unknown"
 PROGMEM_STRING_TABLE(MotorStatusStrings, "Standby", "Running", "Error", "Unknown");
-static constexpr uint8_t MOTOR_STATUS_UNKNOWN = 3;
+#endif
 
-bool M5UnitBldc::write_float_(uint8_t reg, float value) {
-  uint8_t buf[4];
-  std::memcpy(buf, &value, 4);
-  return this->write_register(reg, buf, 4) == i2c::ERROR_OK;
+// The device latches a new direction only once the motor has stopped (datasheet note [1] "Change direction")
+static constexpr uint32_t DIRECTION_CHANGE_STOP_MS = 800;
+
+bool M5UnitBldc::write_command_raw_(float value) {
+  if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP)
+    return this->write_reg_(REG_SET_RPM, value);
+  return this->write_reg_(REG_PWM, static_cast<uint16_t>(value));
 }
 
-bool M5UnitBldc::read_float_(uint8_t reg, float *value) {
-  uint8_t buf[4];
-  if (this->read_register(reg, buf, 4) != i2c::ERROR_OK)
+bool M5UnitBldc::read_command_raw_(float *value) {
+  if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP)
+    return this->read_reg_(REG_SET_RPM, value);
+  uint16_t duty;
+  if (!this->read_reg_(REG_PWM, &duty))
     return false;
-  std::memcpy(value, buf, 4);
+  *value = duty;
   return true;
 }
 
 void M5UnitBldc::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up M5Unit-BLDC...");
-
-  uint8_t mode = static_cast<uint8_t>(this->control_mode_);
-  if (this->write_register(REG_MODE, &mode, 1) != i2c::ERROR_OK) {
+  if (!this->write_byte(REG_MODE, static_cast<uint8_t>(this->control_mode_))) {
     this->mark_failed(LOG_STR("Failed to write control mode"));
     return;
   }
-
-  uint8_t direction = static_cast<uint8_t>(this->initial_direction_);
-  if (this->write_register(REG_DIRECTION, &direction, 1) != i2c::ERROR_OK) {
+  if (!this->write_byte(REG_DIRECTION, static_cast<uint8_t>(this->initial_direction_))) {
     this->mark_failed(LOG_STR("Failed to write initial direction"));
     return;
   }
+#ifdef USE_SELECT
+  if (this->direction_select_ != nullptr)
+    this->direction_select_->publish_state(static_cast<size_t>(this->initial_direction_));
+#endif
 
-  if (this->direction_select_ != nullptr) {
-    this->direction_select_->publish_state(this->initial_direction_ == Direction::DIRECTION_BACKWARD ? "Backward"
-                                                                                                     : "Forward");
+  // The previous values only decide whether to save, so they are read only when saving is enabled
+  const uint8_t motor_config[2] = {static_cast<uint8_t>(this->motor_model_), this->pole_pairs_};
+  bool changed = false;
+  if (this->save_to_flash_) {
+    uint8_t previous[2];
+    changed = !this->read_reg_(REG_MOTOR_CONFIG, &previous) || std::memcmp(previous, motor_config, 2) != 0;
   }
-
-  // Read the previously-active values back before overwriting them, so the save-to-flash check
-  // below compares against what the device actually had, not against what this boot just wrote.
-  uint8_t motor_config[2] = {static_cast<uint8_t>(this->motor_model_), this->pole_pairs_};
-  uint8_t previous_motor_config[2];
-  bool had_previous_motor_config = this->read_register(REG_MOTOR_CONFIG, previous_motor_config, 2) == i2c::ERROR_OK;
-  if (this->write_register(REG_MOTOR_CONFIG, motor_config, 2) != i2c::ERROR_OK) {
+  if (!this->write_reg_(REG_MOTOR_CONFIG, motor_config)) {
     this->mark_failed(LOG_STR("Failed to write motor model/pole pairs"));
     return;
   }
 
-  // The device's own MCU keeps running -- and keeps driving whatever PWM/RPM it was last given --
-  // across an ESP reboot. Read that back so `last_pwm_`/`last_target_rpm_` reflect reality (instead
-  // of restarting a reversal from a stale zero) and so the `number` entities come up showing the
-  // motor's actual command instead of unknown. A failed read is not fatal: it just leaves the
-  // entity unpublished, same as any other runtime read failure.
-  uint16_t pwm_raw;
-  if (this->read_pwm_raw_(&pwm_raw)) {
-    this->last_pwm_ = pwm_raw;
-    if (this->pwm_number_ != nullptr)
-      this->pwm_number_->publish_state(pwm_raw);
-  }
-
-  float target_rpm;
-  if (this->read_float_(REG_SET_RPM, &target_rpm)) {
-    this->last_target_rpm_ = target_rpm;
-    if (this->target_rpm_number_ != nullptr)
-      this->target_rpm_number_->publish_state(target_rpm);
-  }
-
-  uint8_t pid[12];
-  uint8_t previous_pid[12];
-  bool had_previous_pid = false;
   if (this->has_pid_) {
-    had_previous_pid = this->read_register(REG_PID, previous_pid, 12) == i2c::ERROR_OK;
-
-    int32_t p_int = lroundf(this->p_ * 100);
-    int32_t i_int = lroundf(this->i_ * 100);
-    int32_t d_int = lroundf(this->d_ * 100);
-    std::memcpy(pid, &p_int, 4);
-    std::memcpy(pid + 4, &i_int, 4);
-    std::memcpy(pid + 8, &d_int, 4);
-    if (this->write_register(REG_PID, pid, 12) != i2c::ERROR_OK) {
+    if (this->save_to_flash_ && !changed) {
+      int32_t previous[3];
+      changed = !this->read_reg_(REG_PID, &previous) || std::memcmp(previous, this->pid_, sizeof(previous)) != 0;
+    }
+    if (!this->write_reg_(REG_PID, this->pid_)) {
       this->mark_failed(LOG_STR("Failed to write PID gains"));
       return;
     }
   }
 
-  if (this->save_to_flash_) {
-    // The device only has a limited number of flash erase/write cycles, so only persist when the
-    // values just written above actually differ from what the device had before this boot;
-    // otherwise every ESP reboot, OTA or crash loop would needlessly wear out the unit's flash.
-    // This compares against the unit's live registers, not its flash contents, so a value that was
-    // already applied on a boot with save_to_flash off (or with a failed save) is not re-saved until
-    // the unit itself is power-cycled.
-    bool needs_save = !had_previous_motor_config || std::memcmp(previous_motor_config, motor_config, 2) != 0;
-    if (!needs_save && this->has_pid_) {
-      needs_save = !had_previous_pid || std::memcmp(previous_pid, pid, 12) != 0;
-    }
-
-    if (needs_save) {
-      uint8_t save = 1;
-      if (this->write_register(REG_SAVE_TO_FLASH, &save, 1) != i2c::ERROR_OK) {
-        ESP_LOGW(TAG, "Failed to save settings to flash");
-      }
-    }
+  // The unit's flash has limited write cycles, so only a change is saved. This compares the live registers, so a
+  // value first applied with save_to_flash off is saved only after the unit itself is power-cycled.
+  if (changed && !this->write_byte(REG_SAVE_TO_FLASH, 1)) {
+    ESP_LOGW(TAG, "Failed to save settings to flash");
   }
+
+  // The unit keeps driving its last command across an ESP reboot, so the cache and the number start from it
+  float command;
+  if (this->read_command_raw_(&command)) {
+    this->last_command_ = command;
+#ifdef USE_NUMBER
+    if (this->command_number_ != nullptr)
+      this->command_number_->publish_state(command);
+#endif
+  }
+
+  // Without a readback entity there is nothing to poll
+#ifdef USE_SENSOR
+  if (this->rpm_sensor_ != nullptr || this->frequency_sensor_ != nullptr)
+    return;
+#endif
+#ifdef USE_TEXT_SENSOR
+  if (this->status_text_sensor_ != nullptr)
+    return;
+#endif
+  this->stop_poller();
 }
 
 void M5UnitBldc::update() {
-  bool read_failed = false;
-
+  bool ok = true;
+#ifdef USE_SENSOR
+  float value;
   if (this->rpm_sensor_ != nullptr) {
-    float rpm;
-    if (this->read_float_(REG_READBACK_RPM, &rpm)) {
-      this->rpm_sensor_->publish_state(rpm);
+    if (this->read_reg_(REG_READBACK_RPM, &value)) {
+      this->rpm_sensor_->publish_state(value);
     } else {
-      read_failed = true;
+      ok = false;
     }
   }
-
   if (this->frequency_sensor_ != nullptr) {
-    float freq;
-    if (this->read_float_(REG_READBACK_FREQ, &freq)) {
-      this->frequency_sensor_->publish_state(freq);
+    if (this->read_reg_(REG_READBACK_FREQ, &value)) {
+      this->frequency_sensor_->publish_state(value);
     } else {
-      read_failed = true;
+      ok = false;
     }
   }
-
+#endif
+#ifdef USE_TEXT_SENSOR
+  uint8_t status;
   if (this->status_text_sensor_ != nullptr) {
-    uint8_t status;
-    if (this->read_register(REG_MOTOR_STATUS, &status, 1) == i2c::ERROR_OK) {
-      ProgmemStr name = MotorStatusStrings::get_progmem_str(status, MOTOR_STATUS_UNKNOWN);
-      char text[16];
-      ESPHOME_strncpy_P(text, reinterpret_cast<ESPHOME_PGM_P>(name), sizeof(text));
-      text[sizeof(text) - 1] = '\0';
+    if (!this->read_byte(REG_MOTOR_STATUS, &status)) {
+      ok = false;
+    } else if (status != this->last_status_) {
+      this->last_status_ = status;
+      char text[MotorStatusStrings::MAX_LENGTH + 1];
+      ESPHOME_strncpy_P(
+          text,
+          reinterpret_cast<ESPHOME_PGM_P>(MotorStatusStrings::get_progmem_str(status, MotorStatusStrings::LAST_INDEX)),
+          sizeof(text));
       this->status_text_sensor_->publish_state(text);
-    } else {
-      read_failed = true;
     }
   }
-
-  if (read_failed) {
-    this->status_set_warning(LOG_STR("Failed to read motor status"));
-  } else {
-    this->status_clear_warning();
-  }
+#endif
+  this->status_comm_result(ok, LOG_STR("Failed to read motor status"));
 }
 
 void M5UnitBldc::dump_config() {
@@ -175,78 +154,29 @@ void M5UnitBldc::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-bool M5UnitBldc::write_pwm_raw_(uint16_t duty) {
-  uint8_t buf[2];
-  std::memcpy(buf, &duty, 2);
-  return this->write_register(REG_PWM, buf, 2) == i2c::ERROR_OK;
-}
-
-bool M5UnitBldc::read_pwm_raw_(uint16_t *duty) {
-  uint8_t buf[2];
-  if (this->read_register(REG_PWM, buf, 2) != i2c::ERROR_OK)
-    return false;
-  std::memcpy(duty, buf, 2);
-  return true;
-}
-
-// Outside a reversal the cache only follows a write the device accepted, so a refused command is not
-// applied later by a direction change
-bool M5UnitBldc::write_pwm(uint16_t duty) {
+// Outside a direction change the cache only follows a write the device accepted, so a refused command is not
+// applied later when the direction change restores the command
+bool M5UnitBldc::write_command(float value) {
   if (this->is_failed())
     return false;
-  if (!this->direction_change_pending_ && !this->write_pwm_raw_(duty))
+  if (!this->direction_change_pending_ && !this->write_command_raw_(value))
     return false;
-  this->last_pwm_ = duty;
-  return true;
-}
-
-bool M5UnitBldc::write_target_rpm(float rpm) {
-  if (this->is_failed())
-    return false;
-  if (!this->direction_change_pending_ && !this->write_float_(REG_SET_RPM, rpm))
-    return false;
-  this->last_target_rpm_ = rpm;
+  this->last_command_ = value;
   return true;
 }
 
 bool M5UnitBldc::write_direction(Direction direction) {
-  if (this->is_failed())
+  if (this->is_failed() || !this->write_byte(REG_DIRECTION, static_cast<uint8_t>(direction)))
     return false;
-  uint8_t value = static_cast<uint8_t>(direction);
-  if (this->write_register(REG_DIRECTION, &value, 1) != i2c::ERROR_OK)
+  // The new direction latches only after the motor stops: command zero, wait, then restore. A failed stop leaves
+  // any direction change already pending as it is.
+  if (!this->write_command_raw_(0))
     return false;
-
-  // The device only latches a new direction once the motor has actually spun down to a stop --
-  // zeroing and immediately restoring the PWM/RPM register isn't enough, it needs real time to
-  // decelerate first (datasheet note "[1] Change direction": setup direction, zero, then
-  // non-zero once stopped). 800ms comfortably covers spin-down for the small motors this driver
-  // targets; restoring is deferred via a named timeout so repeated direction changes replace any
-  // still-pending restore instead of stacking. While a reversal is pending, `write_pwm()` and
-  // `write_target_rpm()` only cache the latest request instead of writing it, so a command
-  // arriving mid-cycle cannot make the motor resume before the stop interval ends.
-  bool zeroed = this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP ? this->write_float_(REG_SET_RPM, 0.0f)
-                                                                             : this->write_pwm_raw_(0);
-  if (!zeroed) {
-    // The motor was never told to stop, so the 800ms spin-down below does not apply; a reversal that
-    // was already pending keeps its state and timer.
-    return false;
-  }
-
   this->direction_change_pending_ = true;
-  this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, 800, [this]() {
+  this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, DIRECTION_CHANGE_STOP_MS, [this]() {
     this->direction_change_pending_ = false;
-    bool restored = true;
-    if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP) {
-      if (this->last_target_rpm_ != 0.0f)
-        restored = this->write_float_(REG_SET_RPM, this->last_target_rpm_);
-    } else {
-      if (this->last_pwm_ != 0)
-        restored = this->write_pwm_raw_(this->last_pwm_);
-    }
-    if (!restored) {
-      ESP_LOGW(TAG, "Failed to restore the motor command after a direction change");
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    }
+    if (this->last_command_ != 0 && !this->write_command_raw_(this->last_command_))
+      this->status_set_warning(LOG_STR("Failed to restore the motor command after a direction change"));
   });
   return true;
 }
