@@ -11,7 +11,7 @@ One file per component, named after it:
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
 - [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback
 - [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx crash report on the next boot
-- [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT
+- [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker
 - [`nrf52.md`](nrf52.md): dongle board support
 - [`online_image.md`](online_image.md): stalled and malformed downloads
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
@@ -28,3 +28,5 @@ One file per component, named after it:
 - [`homeassistant.md`](homeassistant.md): light platform mirrored from a local Home Assistant, held reports versus later calls
 - [`usb_audio.md`](usb_audio.md): USB audio speaker and microphone, the usb_host FIFO split, and Music Assistant playback through sendspin
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
+- [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
+- [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf
