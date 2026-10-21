@@ -50,7 +50,6 @@ RTL87xxBLETracker = rtl87xx_ble_tracker_ns.class_(
 )
 
 StartScanAction = rtl87xx_ble_tracker_ns.class_("StartScanAction", automation.Action)
-StopScanAction = rtl87xx_ble_tracker_ns.class_("StopScanAction", automation.Action)
 
 ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
 BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
@@ -179,11 +178,10 @@ async def start_scan_action_to_code(
     return var
 
 
-automation.register_parented_action(
+automation.register_apply_action(
     "rtl87xx_ble_tracker.stop_scan",
-    StopScanAction,
     automation.maybe_simple_id(
         cv.Schema({cv.GenerateID(): cv.use_id(RTL87xxBLETracker)})
     ),
-    synchronous=True,
+    automation.ApplyCall("stop_scan()"),
 )
