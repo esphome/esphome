@@ -26,6 +26,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -106,13 +107,12 @@ async def test_uart_mock_ld2420(
 
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
-        try:
-            await asyncio.wait_for(recovery_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for recovery frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            5.0,
+            "Timeout waiting for recovery frame",
+            sensor_states=collector.sensor_states,
+        )
 
         # Verify overflow warning was logged
         assert overflow_seen.done(), (
@@ -217,13 +217,12 @@ async def test_uart_mock_ld2420_simple(
         assert collector.binary_states["has_target"][0] is True
 
         # Wait for Phase 4 recovery (distance=50) after overflow
-        try:
-            await asyncio.wait_for(recovery_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for recovery frame. Received:\n"
-                f"  moving_distance: {collector.sensor_states['moving_distance']}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            5.0,
+            "Timeout waiting for recovery frame",
+            moving_distance=collector.sensor_states["moving_distance"],
+        )
 
         # Verify overflow warning was logged
         assert overflow_seen.done(), (
@@ -234,16 +233,15 @@ async def test_uart_mock_ld2420_simple(
         # This assertion FAILS before PR #14458 because the 16-digit frame
         # in Phase 5 causes an infinite loop in handle_simple_mode_ pre-fix.
         # The binary hangs, Phase 6 never fires, and this wait times out.
-        try:
-            await asyncio.wait_for(post_bug_received, timeout=8.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for post-bug recovery (distance=25). "
-                f"This likely means Phase 5 (16-digit frame) caused an infinite "
-                f"loop in handle_simple_mode_, indicating PR #14458 bug #1 fix "
-                f"is missing.\n"
-                f"  moving_distance values: {collector.sensor_states['moving_distance']}"
-            )
+        await wait_or_fail(
+            post_bug_received,
+            8.0,
+            "Timeout waiting for post-bug recovery (distance=25). "
+            "This likely means Phase 5 (16-digit frame) caused an infinite "
+            "loop in handle_simple_mode_, indicating PR #14458 bug #1 fix "
+            "is missing.",
+            moving_distance=collector.sensor_states["moving_distance"],
+        )
 
         # Verify post-bug value
         post_bug_values = [

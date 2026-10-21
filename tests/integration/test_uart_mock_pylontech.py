@@ -18,6 +18,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 SENSORS = [
     "bat1_voltage",
@@ -106,14 +107,13 @@ async def test_uart_mock_pylontech(
         assert start_btn is not None, "Start Scenario button not found"
         client.button_command(start_btn.key)
 
-        try:
-            await asyncio.wait_for(recovery_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for the recovery reply. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  text_states: {collector.text_sensor_states}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            5.0,
+            "Timeout waiting for the recovery reply",
+            sensor_states=collector.sensor_states,
+            text_states=collector.text_sensor_states,
+        )
         # Let any stray publish from the bad phases arrive before the exact checks
         await asyncio.sleep(0.2)
 

@@ -25,6 +25,7 @@ import pytest
 
 from .state_utils import SensorTracker, find_entity, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 def _swap16(value: int) -> int:
@@ -1289,8 +1290,5 @@ async def test_uart_mock_modbus_ranges(
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
         # text_block is not tracker-registered (non-numeric), so time out explicitly.
-        try:
-            await asyncio.wait_for(text_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("text_block never published 'ABCDEF'")
+        await wait_or_fail(text_future, 5.0, "text_block never published 'ABCDEF'")
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
