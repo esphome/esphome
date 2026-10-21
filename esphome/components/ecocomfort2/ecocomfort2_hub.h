@@ -70,8 +70,9 @@ enum class SelectSetting : uint8_t { SELECT_SETTING_SEASON, SELECT_SETTING_FREE_
 
 /// Reads of one settings characteristic. The unit answers in order, so only the last pending answer is current.
 struct SettingsReads {
-  // When a read was last sent or answered; a count still pending that long after is given up (an event was dropped)
-  uint32_t active_ms{0};
+  // When the count last left zero. The unit answers within seconds, so a count that stays above zero for long has
+  // lost an answer; later requests and answers do not move this, or a steady stream of writes would hide the loss
+  uint32_t busy_since_ms{0};
   uint8_t pending{0};
   // One pending slot has no request yet: a write could not queue its readback, so the answers sent before it are
   // dropped until the next read fills the slot

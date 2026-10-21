@@ -38,7 +38,6 @@ void Ecocomfort2Hub::update() {
 
 // Counts an answer. The unit answers reads in order, so only the last pending answer shows the current value
 static bool last_pending_read(SettingsReads &reads) {
-  reads.active_ms = App.get_loop_component_start_time();
   if (reads.pending > 0)
     reads.pending--;
   return reads.pending == 0;
@@ -385,7 +384,8 @@ static constexpr uint32_t SETTINGS_READ_STALL_MS = 30000;
 bool Ecocomfort2Hub::request_read_(uint16_t handle, SettingsReads &reads) {
   if (!this->read_char_(handle))
     return false;
-  reads.active_ms = App.get_loop_component_start_time();
+  if (reads.pending == 0)
+    reads.busy_since_ms = App.get_loop_component_start_time();
   if (reads.owed) {
     reads.owed = false;
   } else {
@@ -398,7 +398,7 @@ bool Ecocomfort2Hub::request_read_(uint16_t handle, SettingsReads &reads) {
 void Ecocomfort2Hub::read_settings_() {
   const uint32_t now = App.get_loop_component_start_time();
   for (auto *reads : {&this->config_reads_, &this->advanced_reads_}) {
-    if (reads->pending != 0 && now - reads->active_ms > SETTINGS_READ_STALL_MS) {
+    if (reads->pending != 0 && now - reads->busy_since_ms > SETTINGS_READ_STALL_MS) {
       ESP_LOGW(TAG, "[%s] Settings read not answered, retrying", this->parent_->address_str());
       *reads = {};
     }
@@ -509,7 +509,8 @@ bool Ecocomfort2Hub::write_settings_(uint16_t handle, uint8_t *data, uint16_t le
     return false;
   // A read sent now returns what this write stored; without one, a reserved slot still drops the older answers
   if (!this->request_read_(handle, reads) && !reads.owed) {
-    reads.active_ms = App.get_loop_component_start_time();
+    if (reads.pending == 0)
+      reads.busy_since_ms = App.get_loop_component_start_time();
     reads.pending++;
     reads.owed = true;
   }
