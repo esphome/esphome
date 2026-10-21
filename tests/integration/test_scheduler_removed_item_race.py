@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -76,8 +76,7 @@ async def test_scheduler_removed_item_race(
         )
 
         # Find run_test service
-        run_test_service = next((s for s in services if s.name == "run_test"), None)
-        assert run_test_service is not None, "run_test service not found"
+        run_test_service = require_service(services, "run_test")
 
         # Execute the test
         await client.execute_service(run_test_service, {})

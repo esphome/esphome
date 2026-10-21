@@ -17,7 +17,7 @@ import time
 
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -51,8 +51,7 @@ async def test_socket_wake_gate_tcp(
         )
 
         _, services = await client.list_entities_services()
-        ping_service = next((s for s in services if s.name == "ping"), None)
-        assert ping_service is not None, "ping service not found"
+        ping_service = require_service(services, "ping")
 
         # Execute the service and time how long until PONG appears in logs.
         # The request bytes arrive on an accept_loop_monitored() TCP socket,

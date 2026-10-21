@@ -2,10 +2,10 @@
 
 import asyncio
 
-from aioesphomeapi import EntityState, Event, EventInfo, UserService
+from aioesphomeapi import EntityState, Event, EventInfo
 import pytest
 
-from .state_utils import assert_device_name, require_entity
+from .state_utils import assert_device_name, require_entity, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -35,14 +35,7 @@ async def test_scheduler_defer_cancel(
         )
 
         # Find our test service
-        test_defer_cancel_service: UserService | None = None
-        for service in services:
-            if service.name == "test_defer_cancel":
-                test_defer_cancel_service = service
-
-        assert test_defer_cancel_service is not None, (
-            "test_defer_cancel service not found"
-        )
+        test_defer_cancel_service = require_service(services, "test_defer_cancel")
 
         # Get the event loop
         loop = asyncio.get_running_loop()

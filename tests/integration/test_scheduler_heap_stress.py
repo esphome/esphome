@@ -3,10 +3,9 @@
 import asyncio
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -76,15 +75,7 @@ async def test_scheduler_heap_stress(
         )
 
         # Find our test service
-        run_stress_test_service: UserService | None = None
-        for service in services:
-            if service.name == "run_heap_stress_test":
-                run_stress_test_service = service
-                break
-
-        assert run_stress_test_service is not None, (
-            "run_heap_stress_test service not found"
-        )
+        run_stress_test_service = require_service(services, "run_heap_stress_test")
 
         # Call the run_heap_stress_test service to start the test
         await client.execute_service(run_stress_test_service, {})

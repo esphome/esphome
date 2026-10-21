@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -41,10 +41,7 @@ async def test_scheduler_null_name(
         )
 
         # Find our test service
-        test_null_name_service = next(
-            (s for s in services if s.name == "test_null_name"), None
-        )
-        assert test_null_name_service is not None, "test_null_name service not found"
+        test_null_name_service = require_service(services, "test_null_name")
 
         # Execute the test
         await client.execute_service(test_null_name_service, {})

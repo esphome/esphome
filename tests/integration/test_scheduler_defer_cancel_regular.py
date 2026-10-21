@@ -2,10 +2,9 @@
 
 import asyncio
 
-from aioesphomeapi import UserService
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -49,13 +48,7 @@ async def test_scheduler_defer_cancels_regular(
         )
 
         # Find our test service
-        test_service: UserService | None = None
-        for service in services:
-            if service.name == "test_defer_cancels_regular":
-                test_service = service
-                break
-
-        assert test_service is not None, "test_defer_cancels_regular service not found"
+        test_service = require_service(services, "test_defer_cancels_regular")
 
         # Execute the test
         await client.execute_service(test_service, {})

@@ -13,7 +13,7 @@ import contextlib
 import pytest
 
 from .log_utils import LineWaiter
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -74,7 +74,7 @@ async def test_tcp_uart_bridge(
         ):
             await assert_device_name(client, "tcp-uart-bridge-test")
             _, services = await client.list_entities_services()
-            send_byte = next(s for s in services if s.name == "send_byte")
+            send_byte = require_service(services, "send_byte")
 
             await wait_or_fail(
                 echo_ok, 15.0, "UART echo through the bridge never arrived"

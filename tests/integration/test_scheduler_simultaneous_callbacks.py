@@ -3,10 +3,9 @@
 import asyncio
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -75,15 +74,7 @@ async def test_scheduler_simultaneous_callbacks(
         )
 
         # Find our test service
-        run_test_service: UserService | None = None
-        for service in services:
-            if service.name == "run_simultaneous_callbacks_test":
-                run_test_service = service
-                break
-
-        assert run_test_service is not None, (
-            "run_simultaneous_callbacks_test service not found"
-        )
+        run_test_service = require_service(services, "run_simultaneous_callbacks_test")
 
         # Call the service to start the test
         await client.execute_service(run_test_service, {})
