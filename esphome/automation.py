@@ -356,6 +356,27 @@ class ApplyField:
         return ApplyCall(target, ((self.conf_key, self.type_, self.const_fn),))
 
 
+@dataclass(frozen=True)
+class ApplyBytes:
+    """A byte payload key forwarded as ``target``, whose ``{}`` stands for ``data, len``.
+
+    A constant payload is a shared PROGMEM table passed as is; on ESP8266 it is first copied
+    to the stack (``stack`` bytes, heap beyond that) unless ``progmem_target`` names a call
+    that reads flash itself. A lambda's ``std::vector<uint8_t>`` is passed as its data and
+    size. The template may name the parent as ``{parent}``. An absent key emits nothing.
+    """
+
+    conf_key: str | tuple[str, ...]
+    target: str
+    stack: int = 64
+    progmem_target: str | None = None
+
+    def __post_init__(self) -> None:
+        for target in (self.target, self.progmem_target):
+            if target is not None and target.count("{}") != 1:
+                raise ValueError(f"apply bytes target {target!r} needs one {{}}")
+
+
 def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
     if isinstance(key, str):
         return config.get(key)
@@ -488,7 +509,7 @@ def _apply_values(config: ConfigType, members: list[tuple[Any, Any, Any]]) -> li
 def register_apply_action(
     name: str,
     schema: cv.Schema,
-    *fields: ApplyField | ApplyCall,
+    *fields: ApplyField | ApplyCall | ApplyBytes,
     call: str | None = None,
     id_key: str = CONF_ID,
 ) -> None:
@@ -504,7 +525,7 @@ def register_apply_action(
 def apply_action_builder(
     name: str,
     schema: cv.Schema,
-    *fields: ApplyField | ApplyCall,
+    *fields: ApplyField | ApplyCall | ApplyBytes,
     call: str | None = None,
     id_key: str = CONF_ID,
 ) -> Callable[..., Awaitable[MockObj]]:
@@ -517,16 +538,20 @@ def apply_action_builder(
     and ``apply_call.perform()`` is appended.
     """
     # An action stores the value, so a std::string constant stays in flash on ESP8266.
-    statements_spec = [
-        (
-            c.target,
-            _default_std_string(c.members, flash_string),
-        )
-        for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
-    ]
+    statements_spec: list[ApplyBytes | tuple[str, list[tuple[Any, Any, Any]]]] = []
+    for f in fields:
+        if isinstance(f, ApplyBytes):
+            statements_spec.append(f)
+            continue
+        c = f if isinstance(f, ApplyCall) else f.call()
+        statements_spec.append((c.target, _default_std_string(c.members, flash_string)))
+    table_name = name.replace(".", "_")
     _check_key_in_schema(name, schema, id_key)
-    for _, members in statements_spec:
-        for conf_key, _, _ in members:
+    for spec in statements_spec:
+        if isinstance(spec, ApplyBytes):
+            _check_key_in_schema(name, schema, spec.conf_key)
+            continue
+        for conf_key, _, _ in spec[1]:
             _check_key_in_schema(name, schema, conf_key)
 
     async def builder(
@@ -539,7 +564,15 @@ def apply_action_builder(
         lambda_args = _apply_lambda_args(args)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
-        for target, members in statements_spec:
+        for spec in statements_spec:
+            if isinstance(spec, ApplyBytes):
+                statements.extend(
+                    await _render_bytes(
+                        spec, config, receiver, parent, lambda_args, table_name
+                    )
+                )
+                continue
+            target, members = spec
             values = _apply_values(config, members)
             if not _apply_call_active(members, values):
                 continue
@@ -558,6 +591,49 @@ def apply_action_builder(
         )
 
     return builder
+
+
+async def _render_bytes(
+    spec: ApplyBytes,
+    config: ConfigType,
+    receiver: str,
+    parent: str,
+    lambda_args: TemplateArgsType,
+    table_name: str,
+) -> list[str]:
+    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined."""
+    value = _config_lookup(config, spec.conf_key)
+    if value is None:
+        return []
+
+    def send(target: str, data: str) -> str:
+        return f"{receiver}{target.format(data, parent=parent)};"
+
+    if isinstance(value, Lambda):
+        inner = await cg.process_lambda(
+            value, lambda_args, return_type=cg.std_vector.template(cg.uint8)
+        )
+        return [
+            "{",
+            f"  const std::vector<uint8_t> apply_bytes = {call_lambda(inner)};",
+            f"  {send(spec.target, 'apply_bytes.data(), apply_bytes.size()')}",
+            "}",
+        ]
+    if (size := len(value)) > 0xFFFF:
+        raise EsphomeError(f"Byte payload is {size} bytes; the maximum is 65535")
+    table = f"{progmem_bytes(table_name, value)}, {size}"
+    if not CORE.is_esp8266 or size == 0:
+        return [send(spec.target, table)]
+    if spec.progmem_target is not None:
+        return [send(spec.progmem_target, table)]
+    # A PROGMEM table must be read with aligned loads on ESP8266, so copy it out first
+    return [
+        "{",
+        f"  SmallBufferWithHeapFallback<{spec.stack}> apply_bytes({size});",
+        f"  progmem_memcpy(apply_bytes.get(), {table});",
+        f"  {send(spec.target, f'apply_bytes.get(), {size}')}",
+        "}",
+    ]
 
 
 def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -> bool:
