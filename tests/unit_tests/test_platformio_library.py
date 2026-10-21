@@ -270,10 +270,15 @@ def _patch_registry_resolve(
 
     def resolve(owner, pkgname, requirements):
         asked.append((owner, pkgname))
-        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+        return _resolution(owner, pkgname)
 
     monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
     return asked
+
+
+def _resolution(owner, pkgname):
+    """What the stubbed registry answers for a package."""
+    return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
 
 
 def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properties=()):
@@ -1158,7 +1163,7 @@ def test_versionless_dependency_registry_miss_is_skipped(
     def resolve(owner, pkgname, requirements):
         if pkgname == "Hash":
             raise UnknownPackageError("Hash")
-        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+        return _resolution(owner, pkgname)
 
     monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
     top = convert_libraries([Library("esphome/A", None, None)], _backend())
@@ -1217,23 +1222,6 @@ def test_versionless_owner_qualified_dependency_is_fetched_despite_provides(
     assert [d.name for d in top[0].dependencies] == ["Foo/Wire"]
     assert ("Foo", "Wire") in asked
     assert not backend.provided_requests
-
-
-def test_versionless_provided_dependency_is_left_to_the_backend(
-    tmp_path, monkeypatch
-) -> None:
-    """An owner-less version-less dependency the backend provides is recorded
-    for it and never fetched."""
-    asked = _patch_download_with_manifests(
-        monkeypatch,
-        tmp_path,
-        {"esphome/A": {"name": "A", "dependencies": [{"name": "Wire"}]}},
-    )
-    backend = _backend(provides=lambda name: name == "Wire")
-    top = convert_libraries([Library("esphome/A", None, None)], backend)
-    assert top[0].dependencies == []
-    assert backend.provided_requests == {"Wire"}
-    assert (None, "Wire") not in asked
 
 
 def test_versionless_dependency_requested_top_level_is_wired(
@@ -1297,14 +1285,14 @@ def test_versionless_dependency_settles_after_the_graph(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The issue 21308 shape: a library.properties depends= naming a library the
-    config lists owner-qualified is wired to that one package, case-insensitively,
-    without a second node for the bare name."""
+    config lists owner-qualified is wired to that one package, case-insensitively
+    and whatever constraint it carries, without a second node for the bare name."""
     asked = _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
         {
             "adafruit/Adafruit GFX Library": (
-                "name=Adafruit GFX Library\ndepends=adafruit busio\n"
+                "name=Adafruit GFX Library\ndepends=adafruit busio (>=1.0)\n"
             ),
             "adafruit/Adafruit BusIO": {"name": "Adafruit BusIO"},
         },
@@ -1365,7 +1353,7 @@ def test_by_name_node_folds_into_a_later_pin_of_the_same_package(
 
     def resolve(owner, pkgname, requirements):
         asked.append((owner, pkgname))
-        return "esphome", pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+        return _resolution("esphome", pkgname)
 
     monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
     emitted: list[str] = []
@@ -1375,6 +1363,30 @@ def test_by_name_node_folds_into_a_later_pin_of_the_same_package(
     )
     assert [d.name for d in top[0].dependencies] == ["esphome/B"]
     assert emitted.count("esphome/B") == 1
+    assert "multiple names" not in caplog.text
+
+
+def test_two_spellings_of_a_name_in_one_round_share_a_node(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Requesters spelling one unlisted name differently get a single by-name
+    fetch and the same node."""
+    asked = _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "Foo"}]},
+            "esphome/B": {"name": "B", "dependencies": [{"name": "foo"}]},
+            "Foo": {"name": "Foo"},
+        },
+    )
+    top = convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/B", None, None)],
+        _backend(),
+    )
+    assert [d.name for d in top[0].dependencies] == ["Foo"]
+    assert [d.name for d in top[1].dependencies] == ["Foo"]
+    assert asked.count((None, "Foo")) + asked.count((None, "foo")) == 1
     assert "multiple names" not in caplog.text
 
 
@@ -1397,34 +1409,6 @@ def test_parse_properties_depends_reads_names_and_drops_constraints(
     assert "Ignoring version constraint on depends=Foo (>=1.2)" in caplog.text
 
 
-def test_constrained_depends_is_satisfied_by_a_listed_library(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """``depends=Adafruit BusIO (>=1.0)`` next to a listed ``adafruit/Adafruit
-    BusIO`` wires to that one package instead of fetching a second copy."""
-    asked = _patch_download_with_manifests(
-        monkeypatch,
-        tmp_path,
-        {
-            "adafruit/Adafruit GFX Library": (
-                "name=Adafruit GFX Library\ndepends=Adafruit BusIO (>=1.0)\n"
-            ),
-            "adafruit/Adafruit BusIO": {"name": "Adafruit BusIO"},
-        },
-        properties=("adafruit/Adafruit GFX Library",),
-    )
-    top = convert_libraries(
-        [
-            Library("adafruit/Adafruit GFX Library", "^1.13.0", None),
-            Library("adafruit/Adafruit BusIO", "^1.17.4", None),
-        ],
-        _backend(),
-    )
-    assert [d.name for d in top[0].dependencies] == ["adafruit/Adafruit BusIO"]
-    assert len(asked) == 2
-    assert "multiple names" not in caplog.text
-
-
 def test_by_name_node_pinned_later_reports_a_requirement_conflict(
     tmp_path, monkeypatch
 ) -> None:
@@ -1443,7 +1427,7 @@ def test_by_name_node_pinned_later_reports_a_requirement_conflict(
     def resolve(owner, pkgname, requirements):
         if pkgname == "B" and requirements:
             raise RuntimeError(f"No version of {pkgname} satisfies {requirements}")
-        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+        return _resolution(owner, pkgname)
 
     monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
     with pytest.raises(RuntimeError, match="No version of B satisfies"):
@@ -1476,14 +1460,15 @@ def test_by_name_request_does_not_make_an_existing_node_optional(
 def test_provided_dependency_asks_the_backend_once_per_name(
     tmp_path, monkeypatch
 ) -> None:
-    """Two requesters of one bundled name cost one provides() call, so a backend
-    warning there is not repeated."""
-    _patch_download_with_manifests(
+    """A bundled name is recorded for the backend and never fetched; two
+    requesters cost one provides() call, so a backend warning there is not
+    repeated. A pinned request on the same name shares the memo."""
+    asked = _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
         {
             "esphome/A": {"name": "A", "dependencies": [{"name": "Wire"}]},
-            "esphome/B": {"name": "B", "dependencies": [{"name": "Wire"}]},
+            "esphome/B": {"name": "B", "dependencies": {"Wire": "*"}},
         },
     )
     calls: list[str] = []
@@ -1499,6 +1484,7 @@ def test_provided_dependency_asks_the_backend_once_per_name(
     )
     assert calls == ["Wire"]
     assert backend.provided_requests == {"Wire"}
+    assert (None, "Wire") not in asked
 
 
 def test_parse_library_properties_turns_depends_into_dependencies(

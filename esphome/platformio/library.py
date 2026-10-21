@@ -860,9 +860,6 @@ class _LibNode:
     ref: str | None = None
     local_path: str | None = None
     edges: set[str] = field(default_factory=set)
-    # Created for a name-only manifest dependency and never given a version, so
-    # a registry miss skips it instead of failing the build
-    optional: bool = False
 
 
 def _url_or_none(value: Any) -> str | None:
@@ -995,7 +992,7 @@ def _satisfying_key(
         (key, component)
         for key, component in components.items()
         if key != requester
-        and not (owner and (nodes[key].owner or "").lower() != owner.lower())
+        and (not owner or (nodes[key].owner or "").lower() == owner.lower())
     ]
     for key, _ in candidates:
         if (nodes[key].pkgname or key).lower() == wanted:
@@ -1135,6 +1132,9 @@ def convert_libraries(
     managed components from ``add_idf_component``); unlike ``backend.provides`` they
     carry an owner. They are excluded like ``lib_ignore`` so nothing is both
     converted and managed, which ESP-IDF refuses to build.
+
+    A dependency named without a version is settled once the graph is known: wired
+    to a library already in it, left to ``backend.provides``, or fetched by name.
     """
     from platformio.package.exception import UnknownPackageError
 
@@ -1198,8 +1198,6 @@ def convert_libraries(
             node.owner, node.pkgname = locator
             if version:
                 node.requirements.add(version)
-                # A versioned request must be honoured, so a miss is an error again
-                node.optional = False
         return key
 
     top_level = [
@@ -1214,6 +1212,28 @@ def convert_libraries(
     components: dict[str, ConvertedLibrary] = {}
     resolved_requirements: dict[str, frozenset[str]] = {}
     top_level_keys = set(top_level)
+
+    def fetched_by_name(key: str) -> bool:
+        """A registry node only version-less manifest dependencies asked for: a
+        miss skips it, and it folds into a node that names the same package."""
+        node = nodes[key]
+        return (
+            key not in top_level_keys
+            and node.is_registry
+            and not (node.is_git or node.is_local)
+            and not node.requirements
+        )
+
+    def backend_provides(name: str, owner: str | None) -> bool:
+        """Whether the framework bundles an owner-less name; asked once per name,
+        since the backend may warn, and recorded in ``provided_requests``."""
+        if owner or backend.provides is None:
+            return False
+        if name in backend.provided_requests or backend.provides(name):
+            backend.provided_requests.add(name)
+            return True
+        return False
+
     # Version-less dependencies per requester key, settled once the graph is
     # known, so a library already in it satisfies the name before the registry
     # is asked; a re-walked requester replaces its entries
@@ -1223,6 +1243,8 @@ def convert_libraries(
         """Wire each deferred dependency to the library that satisfies it, or
         fetch it by name; return the new keys to walk."""
         new_keys: list[str] = []
+        # One node per name this round, however the requesters spell it
+        added: dict[tuple[str, str], str] = {}
         for requester, dependencies in pending_versionless.items():
             for dependency in dependencies:
                 name, owner = dependency["name"], dependency.get("owner")
@@ -1235,28 +1257,25 @@ def convert_libraries(
                     )
                     nodes[requester].edges.add(match)
                     continue
-                # provided_requests first, so the backend is asked once per name
-                if not owner and (
-                    name in backend.provided_requests
-                    or (backend.provides is not None and backend.provides(name))
-                ):
+                if backend_provides(name, owner):
                     _LOGGER.debug(
                         "Skip backend-provided dependency %s of %s", name, requester
                     )
-                    backend.provided_requests.add(name)
                     continue
-                known = len(nodes)
-                try:
-                    dep_key = add_spec(_owner_pkgname_to_name(owner, name), None, None)
-                except RuntimeError as e:
-                    _LOGGER.warning(
-                        "Skipping dependency %s of %s: %s", name, requester, e
-                    )
-                    continue
-                if len(nodes) > known:
-                    nodes[dep_key].optional = True
+                spelling = (name.lower(), (owner or "").lower())
+                if (dep_key := added.get(spelling)) is None:
+                    try:
+                        dep_key = add_spec(
+                            _owner_pkgname_to_name(owner, name), None, None
+                        )
+                    except RuntimeError as e:
+                        _LOGGER.warning(
+                            "Skipping dependency %s of %s: %s", name, requester, e
+                        )
+                        continue
+                    added[spelling] = dep_key
+                    new_keys.append(dep_key)
                 nodes[requester].edges.add(dep_key)
-                new_keys.append(dep_key)
         pending_versionless.clear()
         return new_keys
 
@@ -1287,7 +1306,7 @@ def convert_libraries(
                     )
                 except UnknownPackageError as e:
                     # A requirement conflict is a RuntimeError and always raises
-                    if not node.optional:
+                    if not fetched_by_name(key):
                         raise
                     requesters = sorted(k for k, n in nodes.items() if key in n.edges)
                     _LOGGER.warning(
@@ -1413,11 +1432,7 @@ def convert_libraries(
                 dep_url = _url_or_none(dep_version)
                 if dep_url is not None:
                     dep_version = None
-                elif (
-                    backend.provides is not None
-                    and not dependency.get("owner")
-                    and backend.provides(dep_name)
-                ):
+                elif backend_provides(dep_name, dependency.get("owner")):
                     # The backend adds it from its own tree; resolving here
                     # would fetch a same-named registry package
                     if dep_version and dep_version != "*":
@@ -1430,7 +1445,6 @@ def convert_libraries(
                         )
                     else:
                         _LOGGER.debug("Skip backend-provided dependency %s", dep_name)
-                    backend.provided_requests.add(dep_name)
                     continue
                 dep_key = add_spec(dep_name, dep_version, dep_url)
                 node.edges.add(dep_key)
@@ -1469,7 +1483,7 @@ def convert_libraries(
         canonical = component.get_sanitized_name()
         if canonical_keys.setdefault(canonical, node_key) != node_key:
             first = canonical_keys[canonical]
-            drop = next((k for k in (node_key, first) if nodes[k].optional), None)
+            drop = next((k for k in (node_key, first) if fetched_by_name(k)), None)
             if drop is not None:
                 keep = first if drop == node_key else node_key
                 _LOGGER.debug("Library %s fetched by name is %s; folding", drop, keep)
