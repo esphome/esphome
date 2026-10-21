@@ -73,10 +73,7 @@ async def test_host_mode_many_entities(
             minimum_states_future,
             10.0,
             "Did not receive the expected states (>=50 sensor, >=1 date, time and datetime)",
-            sensor=lambda: sum(
-                isinstance(s, SensorState) and isinstance(s.state, float)
-                for s in states.values()
-            ),
+            sensor=lambda: count(SensorState),
             date=lambda: count(DateState),
             time=lambda: count(TimeState),
             datetime=lambda: count(DateTimeState),

@@ -82,7 +82,7 @@ async def test_scheduler_defer_stress(
             5.0,
             "Stress test did not complete",
             executed=lambda: f"{len(executed_defers)} of 1000 defers",
-            missing_ids=lambda: sorted(set(range(1000)) - executed_defers)[:10],
+            missing_ids=lambda: sorted(set(range(1000)) - executed_defers),
         )
 
         # Verify all defers executed

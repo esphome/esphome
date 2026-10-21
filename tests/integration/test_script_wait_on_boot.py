@@ -108,8 +108,9 @@ async def test_script_wait_on_boot(
             5.0,
             "Boot sequence did not complete",
             progress=progress,
-            # script.wait hanging after show_start_page completed is the issue #12043 bug
-            script_wait_hung=lambda: first_script_completed and not first_wait_returned,
+            issue_12043_script_wait_hung=lambda: (
+                first_script_completed and not first_wait_returned
+            ),
         )
 
         # Verify the complete boot sequence executed in order
