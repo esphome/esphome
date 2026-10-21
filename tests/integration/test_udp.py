@@ -11,7 +11,7 @@ import socket
 
 import pytest
 
-from .state_utils import require_service
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -129,9 +129,7 @@ async def test_udp_send_receive(
             api_client_connected() as client,
         ):
             # Verify device is running
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "udp-test"
+            await assert_device_name(client, "udp-test")
 
             # Get services
             _, services = await client.list_entities_services()

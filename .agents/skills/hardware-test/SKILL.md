@@ -115,7 +115,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
 Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
-capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player).
+capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with WebSocket listeners, test CA, transport case runner).
 
 ## Templates in `$SKILL/templates`
 
@@ -131,7 +131,8 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `l
   `homeassistant-light-dut.yaml`, `deep-sleep-outgoing-dut.yaml`, `outgoing-wifi-drop-dut.yaml`,
   `globals-storage-dut.yaml`, `usb-audio-waveshare-s3-eth-dut.yaml`, `usb-audio-sendspin-s3-eth-dut.yaml`,
   `cast-pro-1-sendspin-control.yaml`, `aux-2-preprod-stock-dut.yaml`, `aux-2-preprod-usb-audio-dut.yaml`,
-  `dfrobot-sen0395-dut.yaml`.
+  `dfrobot-sen0395-dut.yaml`, `aux-2-preprod-speaker-player-dut.yaml`, `web-server-sse-dut.yaml`,
+  `mqtt-transport-dut.yaml`.
 
 ## When something looks wrong
 
@@ -145,6 +146,10 @@ capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `l
   preference and repeat it in a periodic alive line, as `scripts/libretiny_prefs/ltprefs.hpp` does.
 - Multicast from the host never arrives on some access points: test it device to device. Broadcast
   is lossy under Wi-Fi power save, unicast is not. Throttle UDP floods to a fixed packet rate.
+- The merge base comes from a freshly fetched `origin/dev`; a stale local `dev` puts dependency bumps into the
+  PR diff and builds the control from the wrong commit.
+- A `.local` name can stop resolving in the middle of a run; keep the address from the boot log and drive by it.
+- `wc -l` pads its count on macOS, so `tail -n +$n0` needs `$((n0+0))` or an arithmetic expansion.
 - `api:` reboots a board after 15 min without a client: `reboot_timeout: 0s` on `api:` and `mqtt:` for
   soak tests.
 

@@ -13,7 +13,7 @@ from typing import TypedDict
 
 import pytest
 
-from .state_utils import require_service
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -173,9 +173,7 @@ async def test_syslog(
 
         async with run_compiled(config), api_client_connected() as client:
             # Verify device is running
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "syslog-test"
+            await assert_device_name(client, "syslog-test")
 
             # Wait for syslog messages (ESPHome logs during startup)
             try:

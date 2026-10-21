@@ -7,6 +7,7 @@ import asyncio
 from aioesphomeapi import EntityState, NumberInfo, SelectInfo, TextInfo, TextSensorInfo
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -21,9 +22,7 @@ async def test_api_message_size_batching(
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Verify we can get device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "message-size-batching-test"
+        await assert_device_name(client, "message-size-batching-test")
 
         # List entities - this will batch various sized messages together
         entity_info, services = await asyncio.wait_for(

@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from .state_utils import require_service
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -40,9 +40,7 @@ async def test_scheduler_defer_cancels_regular(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-defer-cancel-regular"
+        await assert_device_name(client, "scheduler-defer-cancel-regular")
 
         # List services
         _, services = await asyncio.wait_for(

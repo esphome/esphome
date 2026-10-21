@@ -8,7 +8,7 @@ import re
 from aioesphomeapi import UserServiceArgType
 import pytest
 
-from .state_utils import require_service
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -54,9 +54,7 @@ async def test_api_conditional_memory(
     async with run_compiled(yaml_config, line_callback=check_output):
         async with api_client_connected() as client:
             # Verify device info
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "api-conditional-memory-test"
+            await assert_device_name(client, "api-conditional-memory-test")
 
             # Wait for connection log
             await asyncio.wait_for(connected_future, timeout=5.0)

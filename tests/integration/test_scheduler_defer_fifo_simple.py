@@ -5,7 +5,7 @@ import asyncio
 from aioesphomeapi import EntityState, Event, EventInfo
 import pytest
 
-from .state_utils import require_service
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -19,9 +19,7 @@ async def test_scheduler_defer_fifo_simple(
 
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-defer-fifo-simple"
+        await assert_device_name(client, "scheduler-defer-fifo-simple")
 
         # List entities and services
         entity_info, services = await asyncio.wait_for(

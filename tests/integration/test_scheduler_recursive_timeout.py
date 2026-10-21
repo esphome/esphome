@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from .state_utils import require_service
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -47,9 +47,7 @@ async def test_scheduler_recursive_timeout(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "sched-recursive-timeout"
+        await assert_device_name(client, "sched-recursive-timeout")
 
         # List entities and services
         _, services = await asyncio.wait_for(

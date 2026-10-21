@@ -12,10 +12,7 @@
 
 namespace esphome::climate {
 
-#define LOG_CLIMATE(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-  }
+#define LOG_CLIMATE(prefix, type, obj) log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))
 
 class Climate;
 
