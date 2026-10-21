@@ -64,6 +64,14 @@ enum class NumberSetting : uint8_t {
 enum class SwitchSetting : uint8_t { HUMIDITY_ADVANCED, VOC_ADVANCED, COUNT };
 enum class SelectSetting : uint8_t { SEASON, FREE_COOLING, COUNT };
 
+/// Reads of one settings characteristic. The unit answers in order, so only the last pending answer is current.
+struct SettingsReads {
+  uint8_t pending{0};
+  // One pending slot has no request yet: a write could not queue its readback, so the answers sent before it are
+  // dropped until the next read fills the slot
+  bool owed{false};
+};
+
 /** Hub component for Ecocomfort 2.0 VMC via BLE. */
 class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
@@ -157,7 +165,8 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   /// Change one C_CONFIGURATION byte and leave the others as they are.
   void write_config_(uint8_t index, uint8_t value);
   void write_offsets_(int16_t temperature, int16_t humidity);
-  bool write_settings_(uint16_t handle, uint8_t *data, uint16_t len, uint8_t &reads_pending);
+  bool request_read_(uint16_t handle, SettingsReads &reads);
+  bool write_settings_(uint16_t handle, uint8_t *data, uint16_t len, SettingsReads &reads);
   void publish_config_();
   void publish_offsets_();
 
@@ -204,9 +213,8 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   int16_t offsets_[2]{};
   bool config_read_{false};
   bool offsets_read_{false};
-  // Settings reads sent but not answered yet; the unit answers them in order
-  uint8_t config_reads_pending_{0};
-  uint8_t advanced_reads_pending_{0};
+  SettingsReads config_reads_;
+  SettingsReads advanced_reads_;
   // Each settings characteristic is only read when an entity uses it
   bool needs_config_{false};
   bool needs_offsets_{false};

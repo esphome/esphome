@@ -113,8 +113,8 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       this->char_handle_state_ = 0;
       this->char_handle_info_ = 0;
       this->char_handle_clock_ = 0;
-      this->config_reads_pending_ = 0;
-      this->advanced_reads_pending_ = 0;
+      this->config_reads_ = {};
+      this->advanced_reads_ = {};
       this->char_handle_config_ = 0;
       this->char_handle_advanced_ = 0;
       this->config_read_ = false;
@@ -185,10 +185,10 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
         if (this->read_ok_(param))
           this->on_info_(param->read.value, param->read.value_len);
       } else if (handle == this->char_handle_config_) {
-        if (last_pending_read(this->config_reads_pending_) && this->read_ok_(param))
+        if (last_pending_read(this->config_reads_.pending) && this->read_ok_(param))
           this->on_config_(param->read.value, param->read.value_len);
       } else if (handle == this->char_handle_advanced_) {
-        if (last_pending_read(this->advanced_reads_pending_) && this->read_ok_(param))
+        if (last_pending_read(this->advanced_reads_.pending) && this->read_ok_(param))
           this->on_advanced_(param->read.value, param->read.value_len);
       } else {
         break;
@@ -371,11 +371,25 @@ static constexpr uint8_t KEEP_FREE_COOLING = 0x0F;
 // The thresholds the humidity and VOC advanced flags belong to
 static constexpr uint8_t ADVANCED_THRESHOLD[] = {0, 2};
 
+bool Ecocomfort2Hub::request_read_(uint16_t handle, SettingsReads &reads) {
+  if (!this->read_char_(handle))
+    return false;
+  if (reads.owed) {
+    reads.owed = false;
+  } else {
+    reads.pending++;
+  }
+  return true;
+}
+
+// A poll waits for the answers still pending, so a short update interval cannot keep the count above zero
 void Ecocomfort2Hub::read_settings_() {
-  if (this->needs_config_ && this->char_handle_config_ != 0 && this->read_char_(this->char_handle_config_))
-    this->config_reads_pending_++;
-  if (this->needs_offsets_ && this->char_handle_advanced_ != 0 && this->read_char_(this->char_handle_advanced_))
-    this->advanced_reads_pending_++;
+  if (this->needs_config_ && this->char_handle_config_ != 0 &&
+      (this->config_reads_.pending == 0 || this->config_reads_.owed))
+    this->request_read_(this->char_handle_config_, this->config_reads_);
+  if (this->needs_offsets_ && this->char_handle_advanced_ != 0 &&
+      (this->advanced_reads_.pending == 0 || this->advanced_reads_.owed))
+    this->request_read_(this->char_handle_advanced_, this->advanced_reads_);
 }
 
 // C_CONFIGURATION: role, the humidity, luminosity and VOC thresholds, season and free cooling, then the
@@ -449,9 +463,10 @@ void Ecocomfort2Hub::publish_config_() {
   const bool summer = (this->season_byte_ & SEASON_SUMMER) != 0;
   auto *season = this->selects_[static_cast<uint8_t>(SelectSetting::SEASON)];
   publish_if_changed(season, static_cast<size_t>(summer));
-  // The unit keeps the free cooling level through winter but only runs it in summer
+  // The unit keeps the free cooling level through winter but only runs it in summer. The season's on_value
+  // automations may have changed the season, so it is read again.
   auto *free_cooling = this->selects_[static_cast<uint8_t>(SelectSetting::FREE_COOLING)];
-  const uint8_t level = summer ? this->season_byte_ & KEEP_FREE_COOLING : 0;
+  const uint8_t level = (this->season_byte_ & SEASON_SUMMER) != 0 ? this->season_byte_ & KEEP_FREE_COOLING : 0;
   if (free_cooling != nullptr && free_cooling->has_index(level))
     publish_if_changed(free_cooling, static_cast<size_t>(level));
 #endif
@@ -466,16 +481,18 @@ void Ecocomfort2Hub::publish_offsets_() {
 #endif
 }
 
-bool Ecocomfort2Hub::write_settings_(uint16_t handle, uint8_t *data, uint16_t len, uint8_t &reads_pending) {
+bool Ecocomfort2Hub::write_settings_(uint16_t handle, uint8_t *data, uint16_t len, SettingsReads &reads) {
   if (!this->is_ready() || handle == 0) {
     ESP_LOGW(TAG, "[%s] Not ready, cannot change the setting", this->parent_->address_str());
     return false;
   }
   if (!this->write_char_(handle, data, len))
     return false;
-  // A read sent now returns what this write stored
-  if (this->read_char_(handle))
-    reads_pending++;
+  // A read sent now returns what this write stored; without one, a reserved slot still drops the older answers
+  if (!this->request_read_(handle, reads) && !reads.owed) {
+    reads.pending++;
+    reads.owed = true;
+  }
   return true;
 }
 
@@ -486,7 +503,7 @@ void Ecocomfort2Hub::write_config_(uint8_t index, uint8_t value) {
   uint8_t data[12]{CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP};
   data[index] = value;
   ESP_LOGD(TAG, "[%s] Writing C_CONFIGURATION byte %u: 0x%02x", this->parent_->address_str(), index, value);
-  if (!this->write_settings_(this->char_handle_config_, data, sizeof(data), this->config_reads_pending_))
+  if (!this->write_settings_(this->char_handle_config_, data, sizeof(data), this->config_reads_))
     return;
   if (index == 4) {
     if ((value & 0xF0) != KEEP_SEASON)
@@ -503,7 +520,7 @@ void Ecocomfort2Hub::write_offsets_(int16_t temperature, int16_t humidity) {
   uint8_t data[4]{static_cast<uint8_t>(temperature >> 8), static_cast<uint8_t>(temperature),
                   static_cast<uint8_t>(humidity >> 8), static_cast<uint8_t>(humidity)};
   ESP_LOGD(TAG, "[%s] Writing C_ADVANCED_SETTINGS: offsets %d %d", this->parent_->address_str(), temperature, humidity);
-  if (!this->write_settings_(this->char_handle_advanced_, data, sizeof(data), this->advanced_reads_pending_))
+  if (!this->write_settings_(this->char_handle_advanced_, data, sizeof(data), this->advanced_reads_))
     return;
   this->offsets_[0] = temperature;
   this->offsets_[1] = humidity;
