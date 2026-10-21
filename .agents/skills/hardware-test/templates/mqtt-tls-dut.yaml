@@ -77,9 +77,11 @@ mqtt:
   broker: !secret broker_ip        # test.mosquitto.org for the bundle run
   # No port: it must resolve to 1883 without TLS options and to 8883 with them. Spell it out only for the
   # client-certificate listener (8884), wss (9002) and the public bundle broker (8886).
+  # The next two lines are the own-CA build. Remove both for the broker-only build (skip_cert_cn_check alone turns
+  # TLS on), replace both with verify_ssl: false for the unverified build (the flag is rejected next to it), or with
+  # tls: true for the bundle builds (public broker, and the local one as the negative).
   skip_cert_cn_check: true         # with the local CA: the certificate names an address
-  certificate_authority: !secret mqtt_ca   # own CA; drop it and set verify_ssl: false for the unverified build,
-                                           # or tls: true for the bundle builds (public broker, and the local one as the negative)
+  certificate_authority: !secret mqtt_ca
   # client_certificate: !secret mqtt_client_cert       # with the CA, port 8884
   # client_certificate_key: !secret mqtt_client_key
   # transport: wss                                     # with the CA, port 9002
@@ -91,3 +93,7 @@ mqtt:
         - logger.log:
             format: "cmd payload: %s"
             args: ["x.c_str()"]
+  on_connect:
+    - logger.log: "MQTT on_connect"
+  on_disconnect:
+    - logger.log: "MQTT on_disconnect"

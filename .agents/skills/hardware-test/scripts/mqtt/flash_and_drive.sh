@@ -11,7 +11,7 @@ case $YAML in /*) ;; *) YAML=$PWD/$YAML;; esac
 HERE=$(cd "$(dirname "$0")" && pwd); PY=${PYTHON:-python3}; N=$(basename "$YAML" .yaml); CAP=$PWD/cap-$N.txt; ULOG=$PWD/upload-$N.log
 [ -d "$TREE/esphome" ] && [ -e "$PORT" ] && [ -n "$KEY" ] && [ -n "$B" ] || { echo "usage: flash_and_drive.sh TREE YAML PORT KEY BROKER_HOST local|public|neg [SUB_PORT]"; exit 2; }
 case $MODE in local|public|neg) ;; *) echo "MODE must be local, public or neg"; exit 2;; esac
-pkill -f "[s]erial_capture.py $PORT"; sleep 1
+pkill -f "[s]erial_capture.py $PORT "; sleep 1
 echo "=== $N: flash ($(date +%T))"
 (cd "$TREE" && PYTHONUNBUFFERED=1 timeout 300 $PY -m esphome upload "$YAML" --device "$PORT" > "$ULOG" 2>&1) || { echo "upload failed"; tail -5 "$ULOG"; exit 1; }
 SECS=200; [ "$MODE" = neg ] && SECS=100
@@ -29,8 +29,9 @@ case $MODE in
 esac
 wait $cap_pid
 strip() { sed 's/\x1b\[[0-9;]*m//g'; }
-connects=$(grep -a -c 'MQTT on_connect' "$CAP"); errors=$(grep -a -c 'mbedtls_ssl_handshake returned\|Failed to verify certificate' "$CAP")
-echo "=== $N: connects $connects, disconnects $(grep -a -c 'MQTT on_disconnect' "$CAP"), handshake errors $errors, crashes $(grep -a -c 'Guru\|abort()\|Backtrace' "$CAP")"
+# count the backend's own events so the result does not depend on on_connect/on_disconnect log lines in the config
+connects=$(grep -a -c 'MQTT_EVENT_CONNECTED' "$CAP"); errors=$(grep -a -c 'mbedtls_ssl_handshake returned\|Failed to verify certificate' "$CAP")
+echo "=== $N: connects $connects, disconnects $(grep -a -c 'MQTT_EVENT_DISCONNECTED' "$CAP"), handshake errors $errors, crashes $(grep -a -c 'Guru\|abort()\|Backtrace' "$CAP")"
 grep -a 'mbedtls_ssl_handshake returned\|Failed to verify\|esp-tls' "$CAP" | strip | sed 's/^\[[^]]*\]//' | sort | uniq -c | sort -rn | head -4 | cut -c1-150
 grep -a '\[probe:' "$CAP" | strip | sed 's/.*\[probe:[0-9]*\]: //' | sed -n '1p;$p'
 [ -f "$PWD/mosquitto.log" ] && [ -n "$DEV" ] && echo "broker listeners used by $DEV: $(grep "New connection from $DEV" "$PWD/mosquitto.log" | sed 's/.*on port //' | sort | uniq -c | tr '\n' ';')"
