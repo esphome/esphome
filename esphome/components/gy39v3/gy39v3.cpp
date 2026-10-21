@@ -62,7 +62,7 @@ float GY39v3::calculate_vpd(float t, float rh) {
     const float ex = A / T + B + C * T + D * TT + E * TT * T + F;
     const float vpsat = exp(ex);
 
-    return vpsat * (1 - rh);
+    return vpsat * (1 - rh / 100.f);
   }
 }
 
