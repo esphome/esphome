@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -115,9 +116,7 @@ async def test_scheduler_string_test(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-string-test"
+        await assert_device_name(client, "scheduler-string-test")
 
         # Wait for static string tests
         try:

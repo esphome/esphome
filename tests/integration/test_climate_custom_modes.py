@@ -8,7 +8,7 @@ import aioesphomeapi
 from aioesphomeapi import ClimateInfo, ClimatePreset, EntityState
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -49,10 +49,7 @@ async def test_climate_custom_fan_modes_and_presets(
         # Get entities and set up state synchronization
         entities, services = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
-
-        test_climate = climate_infos[0]
+        test_climate = require_only_entity(entities, ClimateInfo)
 
         # Subscribe with the wrapper that filters initial states
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))

@@ -16,6 +16,7 @@ import re
 from aioesphomeapi import HomeassistantServiceCall
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -184,9 +185,7 @@ async def test_api_homeassistant(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-ha-api"
+        await assert_device_name(client, "test-ha-api")
 
         # Store client reference for use in service call callback
         client_ref.append(client)

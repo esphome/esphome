@@ -8,6 +8,7 @@ import asyncio
 
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -59,7 +60,7 @@ async def test_light_automations(
     ):
         # Get entities
         entities = await client.list_entities_services()
-        light = next(e for e in entities[0] if e.object_id == "test_light")
+        light = require_entity(entities[0], "test_light", exact=True)
 
         # Start counting on_state events now
         counting_enabled = True
