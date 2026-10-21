@@ -32,7 +32,6 @@ static constexpr uint8_t RX8111_KEEP_EVENT_FLAGS = 0x3C;
 static constexpr uint32_t RX8111_EVENT_INTERVAL_ID = 0;
 static constexpr uint32_t RX8111_BOOT_ALARM_RETRY_ID = 1;
 static constexpr uint32_t RX8111_BOOT_TIMER_RETRY_ID = 2;
-static constexpr uint32_t RX8111_BOOT_RETRY_DELAY_MS = 1000;
 static constexpr uint8_t RX8111_BOOT_MAX_ATTEMPTS = 3;
 
 void RX8111Component::setup() {
@@ -93,21 +92,16 @@ void RX8111Component::configure_boot_timer_() {
 
 void RX8111Component::boot_config_result_(bool alarm, bool success) {
   auto &attempts = alarm ? this->boot_alarm_attempts_ : this->boot_timer_attempts_;
-  auto &warning = alarm ? this->boot_alarm_warning_ : this->boot_timer_warning_;
+  const uint8_t warning = alarm ? WARN_BOOT_ALARM : WARN_BOOT_TIMER;
   ++attempts;
   if (success) {
-    const bool had_warning = warning;
-    warning = false;
-    if (had_warning && !this->calendar_warning_ && !this->event_poll_warning_ && !this->boot_alarm_warning_ &&
-        !this->boot_timer_warning_)
-      this->status_clear_warning();
+    this->clear_warning_(warning);
     return;
   }
-  warning = true;
-  this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  this->set_warning_(warning, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   if (attempts >= RX8111_BOOT_MAX_ATTEMPTS)
     return;
-  this->set_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID, RX8111_BOOT_RETRY_DELAY_MS,
+  this->set_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID, this->boot_retry_delay_ms_,
                     [this, alarm]() {
                       if (alarm) {
                         this->configure_boot_alarm_();
@@ -124,24 +118,15 @@ void RX8111Component::cancel_boot_retry_(bool alarm, bool success) {
   } else {
     this->boot_timer_attempts_ = RX8111_BOOT_MAX_ATTEMPTS;
   }
-  if (success) {
-    auto &warning = alarm ? this->boot_alarm_warning_ : this->boot_timer_warning_;
-    const bool had_warning = warning;
-    warning = false;
-    if (had_warning && !this->calendar_warning_ && !this->event_poll_warning_ && !this->boot_alarm_warning_ &&
-        !this->boot_timer_warning_)
-      this->status_clear_warning();
-  }
+  if (success)
+    this->clear_warning_(alarm ? WARN_BOOT_ALARM : WARN_BOOT_TIMER);
 }
 
 void RX8111Component::check_event_flags_() {
   if (!this->alarm_configured_ && !this->timer_enabled_ && !this->timer_retained_event_pending_)
     return;
   if (!this->poll_event_flags_()) {
-    this->event_poll_warning_ = true;
-    if (!this->calendar_warning_ && !this->status_has_warning()) {
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    }
+    this->set_warning_(WARN_EVENT_POLL, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
@@ -157,9 +142,19 @@ void RX8111Component::update() {
   this->check_event_flags_();
 }
 
-void RX8111Component::set_calendar_warning_(const LogString *message) {
-  this->calendar_warning_ = true;
+void RX8111Component::set_calendar_warning_(const LogString *message) { this->set_warning_(WARN_CALENDAR, message); }
+
+void RX8111Component::set_warning_(uint8_t bit, const LogString *message) {
+  this->warnings_ |= bit;
   this->status_set_warning(message);
+}
+
+void RX8111Component::clear_warning_(uint8_t bit) {
+  if ((this->warnings_ & bit) == 0)
+    return;
+  this->warnings_ &= ~bit;
+  if (this->warnings_ == 0)
+    this->status_clear_warning();
 }
 
 void RX8111Component::dump_config() {
@@ -230,9 +225,7 @@ bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
     this->set_calendar_warning_(LOG_STR("Invalid RTC time"));
     return false;
   }
-  this->calendar_warning_ = false;
-  if (!this->event_poll_warning_ && !this->boot_alarm_warning_ && !this->boot_timer_warning_)
-    this->status_clear_warning();
+  this->clear_warning_(WARN_CALENDAR);
   return true;
 }
 
@@ -260,12 +253,12 @@ void RX8111Component::write_time() {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  this->calendar_warning_ = false;
-  if (this->event_poll_warning_ || this->boot_alarm_warning_ || this->boot_timer_warning_) {
+  if (this->warnings_ & ~WARN_CALENDAR)
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  } else {
+  this->clear_warning_(WARN_CALENDAR);
+  // A trusted write also recovers an untracked write error.
+  if (this->warnings_ == 0)
     this->status_clear_warning();
-  }
   ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
            now.minute, now.second);
 }
@@ -344,7 +337,9 @@ bool RX8111Component::set_alarm(uint16_t second, uint16_t minute, uint16_t hour,
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
+  this->cancel_boot_retry_(true, true);
   this->boot_alarm_event_seen_ = true;
+  this->start_event_polling_();
   return true;
 }
 
@@ -469,11 +464,7 @@ bool RX8111Component::poll_event_flags_() {
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
-  if (this->event_poll_warning_) {
-    this->event_poll_warning_ = false;
-    if (!this->calendar_warning_ && !this->boot_alarm_warning_ && !this->boot_timer_warning_)
-      this->status_clear_warning();
-  }
+  this->clear_warning_(WARN_EVENT_POLL);
   const bool alarm_active = (flags & RX8111_FLAG_AF) != 0;
   const bool timer_active = (flags & RX8111_FLAG_TF) != 0;
   if (alarm_active && this->alarm_enabled_ && this->alarm_configured_)

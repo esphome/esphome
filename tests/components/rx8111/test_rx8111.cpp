@@ -1,9 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
-#include <chrono>
 #include <ctime>
-#include <thread>
 #include <vector>
 
 #include "esphome/components/rx8111/rx8111.h"
@@ -68,6 +66,8 @@ class RX8111Test : public ::testing::Test {
   void SetUp() override {
     this->rtc_.set_i2c_bus(&this->bus_);
     this->rtc_.set_i2c_address(ADDRESS);
+    EXPECT_EQ(this->rtc_.boot_retry_delay_ms_, 1000U);  // Production default remains one second.
+    this->rtc_.boot_retry_delay_ms_ = 5;
     this->rtc_.add_on_time_sync_callback([this]() { this->syncs_++; });
   }
 
@@ -79,7 +79,7 @@ class RX8111Test : public ::testing::Test {
   }
 
   void advance_retry_() {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1020));
+    delay(20);
     App.scheduler.call(millis());
   }
 
@@ -473,6 +473,28 @@ TEST_F(RX8111Test, DisabledTimerRetriesFailedRetainedFlagReadBeforeStoppingPoll)
   EXPECT_EQ(this->bus_.flag_reads, flag_reads);
 }
 
+TEST_F(RX8111Test, RearmingAlarmAfterCallbackStopsPollingRestartsInterval) {
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_event_poll_interval(1);
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  this->rtc_.setup();
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([this, &calls]() {
+    calls++;
+    EXPECT_TRUE(this->rtc_.clear_alarm_flag());
+    EXPECT_TRUE(this->rtc_.unset_alarm());
+  });
+  this->bus_.regs[FLAG] = 0x08;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(calls, 1);
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 1, 0, 0xFF, 0xFF));
+  this->bus_.regs[FLAG] = 0x08;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(calls, 2);
+}
+
 TEST_F(RX8111Test, EventPollWarningRecoversButCalendarWarningRemains) {
   this->rtc_.set_timer_count(1);
   this->rtc_.set_timer_configured(true);
@@ -728,6 +750,53 @@ TEST_F(RX8111Test, BootAlarmRetryClearsOnlyItsOwnWarning) {
   this->bus_.fail_write = -1;
   this->advance_retry_();
   EXPECT_TRUE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, RuntimeAlarmClearsSupersededBootWarningAndCancelsRetry) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->bus_.fail_write = MIN_ALARM;
+  this->rtc_.setup();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_write = -1;
+  ASSERT_TRUE(this->rtc_.set_alarm(6, 0xFF, 0xFF, 0xFF, 0xFF));
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+  this->bus_.writes.clear();
+  this->advance_retry_();
+  EXPECT_TRUE(this->bus_.writes.empty());
+}
+
+TEST_F(RX8111Test, RelativeAlarmClearsSupersededBootWarningAndCancelsRetry) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->bus_.fail_write = MIN_ALARM;
+  this->rtc_.setup();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_write = -1;
+  ASSERT_TRUE(this->rtc_.schedule_alarm_in(60));
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+  this->bus_.writes.clear();
+  this->advance_retry_();
+  EXPECT_TRUE(this->bus_.writes.empty());
+}
+
+TEST_F(RX8111Test, RuntimeAlarmClearsOnlyBootAlarmWarning) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(true);
+  this->bus_.fail_read = EXTENSION;
+  this->rtc_.setup();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = -1;
+  ASSERT_TRUE(this->rtc_.set_alarm(6, 0xFF, 0xFF, 0xFF, 0xFF));
+  EXPECT_TRUE(this->rtc_.status_has_warning());  // The timer still owns a boot warning.
+  this->advance_retry_();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
 }
 
 TEST_F(RX8111Test, BootAlarmAndTimerHaveIndependentRetryBudgets) {

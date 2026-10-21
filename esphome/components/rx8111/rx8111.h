@@ -6,6 +6,10 @@
 
 namespace esphome::rx8111 {
 
+namespace testing {
+class RX8111Test;
+}  // namespace testing
+
 class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice {
  public:
   void setup() override;
@@ -40,9 +44,22 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   }
 
  protected:
+  friend class testing::RX8111Test;
+
+  static constexpr uint32_t BOOT_RETRY_DELAY_MS = 1000;
+
+  enum Warning : uint8_t {
+    WARN_CALENDAR = 1 << 0,
+    WARN_EVENT_POLL = 1 << 1,
+    WARN_BOOT_ALARM = 1 << 2,
+    WARN_BOOT_TIMER = 1 << 3,
+  };
+
   bool set_stop_bit_(bool stop);
   bool read_calendar_(ESPTime &rtc_time);
   void set_calendar_warning_(const LogString *message);
+  void set_warning_(uint8_t bit, const LogString *message);
+  void clear_warning_(uint8_t bit);
   void check_event_flags_();
   bool program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day);
   bool set_alarm_interrupt_(bool enabled);
@@ -58,16 +75,14 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   LazyCallbackManager<void()> timer_callbacks_;
   uint32_t timer_count_{0};
   uint32_t event_poll_interval_{1000};
+  uint32_t boot_retry_delay_ms_{BOOT_RETRY_DELAY_MS};
   uint8_t timer_clock_{2};  // 1 Hz
   bool timer_enabled_{false};
   bool timer_configured_{false};
   bool timer_flag_seen_{false};
   bool timer_retained_event_pending_{false};
   bool event_polling_started_{false};
-  bool event_poll_warning_{false};
-  bool calendar_warning_{false};
-  bool boot_alarm_warning_{false};
-  bool boot_timer_warning_{false};
+  uint8_t warnings_{0};
   bool boot_timer_in_progress_{false};
   bool boot_alarm_event_seen_{false};
   bool boot_alarm_in_progress_{false};
