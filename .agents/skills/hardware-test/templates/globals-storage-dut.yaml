@@ -1,0 +1,66 @@
+# Restoring globals with every storage choice; each boot bumps the counters, logs them with the reset reason, saves
+# and syncs; odd boots soft restart, even boots deep sleep (ESP32) or idle (D1 mini). The host's reset pulse and a
+# power cut give the other reset kinds.
+logger:
+  level: DEBUG
+
+preferences:
+  flash_write_interval: 1s
+
+globals:
+  - id: cnt_rtc
+    type: int
+    restore_value: true
+    storage: rtc
+    initial_value: "0"
+  - id: cnt_flash
+    type: int
+    restore_value: true
+    storage: flash
+    initial_value: "0"
+  - id: cnt_default
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: str_rtc
+    type: std::string
+    restore_value: true
+    storage: rtc
+    max_restore_data_length: 24
+    initial_value: '"fresh"'
+  - id: arr_rtc
+    type: uint8_t[2]
+    restore_value: true
+    storage: rtc
+    initial_value: "{0, 0}"
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          id(cnt_rtc) += 1;
+          id(cnt_flash) += 1;
+          id(cnt_default) += 1;
+          id(arr_rtc)[0] += 1;
+          id(arr_rtc)[1] += 2;
+          char buf[24];
+          snprintf(buf, sizeof(buf), "boot%d", id(cnt_rtc));
+          ESP_LOGI("gl", "restored rtc=%d flash=%d default=%d str='%s' arr=%u/%u (values before this boot's bump: one less)",
+                   id(cnt_rtc) - 1, id(cnt_flash) - 1, id(cnt_default) - 1, id(str_rtc).c_str(), id(arr_rtc)[0] - 1, id(arr_rtc)[1] - 2);
+          id(str_rtc) = buf;
+      - delay: 2s
+      - lambda: |-
+          global_preferences->sync();
+          ESP_LOGI("gl", "saved rtc=%d flash=%d default=%d str='%s' arr=%u/%u", id(cnt_rtc), id(cnt_flash), id(cnt_default),
+                   id(str_rtc).c_str(), id(arr_rtc)[0], id(arr_rtc)[1]);
+      - if:
+          condition:
+            lambda: 'return id(cnt_rtc) % 2 == 1;'
+          then:
+            - delay: 3s
+            - lambda: 'ESP_LOGI("gl", "odd boot, soft restart now"); App.safe_reboot();'
+
+button:
+  - platform: restart
+    name: Restart

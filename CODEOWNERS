@@ -133,7 +133,7 @@ esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
 esphome/components/cm1106/* @andrewjswan
 esphome/components/color_temperature/* @jesserockz
-esphome/components/combination/* @Cat-Ion @kahrendt
+esphome/components/combination/* @kahrendt
 esphome/components/const/* @esphome/core
 esphome/components/coolix/* @glmnet
 esphome/components/copy/* @OttoWinter
@@ -279,6 +279,7 @@ esphome/components/hmac_sha256/* @dwmw2
 esphome/components/hoermann_hcp/* @zweckj
 esphome/components/homeassistant/* @esphome/core @OttoWinter
 esphome/components/homeassistant/button/* @jesserockz
+esphome/components/homeassistant/light/* @egormanga
 esphome/components/homeassistant/number/* @landonr
 esphome/components/homeassistant/select/* @jesserockz
 esphome/components/homeassistant/switch/* @Links2004
@@ -601,7 +602,10 @@ esphome/components/ssd1331_base/* @kbx81
 esphome/components/ssd1331_spi/* @kbx81
 esphome/components/ssd1351_base/* @kbx81
 esphome/components/ssd1351_spi/* @kbx81
+esphome/components/st25r/* @JohnMcLear
+esphome/components/st25r_spi/* @JohnMcLear
 esphome/components/st7123/* @miniskipper
+esphome/components/st7305/* @clydebarrow
 esphome/components/st7567_base/* @latonita
 esphome/components/st7567_i2c/* @latonita
 esphome/components/st7567_spi/* @latonita
@@ -684,6 +688,7 @@ esphome/components/ultrasonic/* @ssieb @swoboda1337
 esphome/components/unicode/* @esphome/core
 esphome/components/update/* @jesserockz
 esphome/components/uponor_smatrix/* @kroimon
+esphome/components/usb_audio/* @ab-tools
 esphome/components/usb_cdc_acm/* @kbx81
 esphome/components/usb_host/* @clydebarrow
 esphome/components/usb_uart/* @clydebarrow
@@ -693,6 +698,7 @@ esphome/components/veml3235/* @kbx81
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/vevor_dtx/* @Bofr5555
+esphome/components/vl53l1x/* @will-tm
 esphome/components/voice_assistant/* @jesserockz @kahrendt
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
