@@ -15,6 +15,7 @@ class KeyCollector final : public Component {
   void add_provider(key_provider::KeyProvider *provider);
   void set_min_length(uint16_t min_length) { this->min_length_ = min_length; };
   void set_max_length(uint16_t max_length) { this->max_length_ = max_length; };
+  // The key setters keep the pointer; the strings must outlive the component (codegen passes literals)
   void set_start_keys(const char *start_keys) { this->start_keys_ = StringRef(start_keys); };
   void set_end_keys(const char *end_keys) { this->end_keys_ = StringRef(end_keys); };
   void set_end_key_required(bool end_key_required) { this->end_key_required_ = end_key_required; };
