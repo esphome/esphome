@@ -6,6 +6,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -54,10 +55,9 @@ async def test_scheduler_defer_cancels_regular(
         await client.execute_service(test_service, {})
 
         # Wait for test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Test timed out. Log messages: {log_messages}")
+        await wait_or_fail(
+            test_complete_future, 5.0, "Test timed out", log_messages=log_messages
+        )
 
         # Verify results
         assert not error_detected, (

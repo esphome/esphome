@@ -214,10 +214,13 @@ class MQTTBackendESP32 final : public MQTTBackend {
 
   void loop() final;
 
-  void set_ca_certificate(const std::string &cert) { ca_certificate_ = cert; }
-  void set_cl_certificate(const std::string &cert) { cl_certificate_ = cert; }
-  void set_cl_key(const std::string &key) { cl_key_ = key; }
-  void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
+#ifdef USE_MQTT_TLS
+  // The certificates are string literals from code generation, so only the pointers are kept
+  void set_ca_certificate(const char *cert) { this->ca_certificate_ = cert; }
+  void set_cl_certificate(const char *cert) { this->cl_certificate_ = cert; }
+  void set_cl_key(const char *key) { this->cl_key_ = key; }
+  void set_skip_cert_cn_check(bool skip_check) { this->skip_cert_cn_check_ = skip_check; }
+#endif
   void set_transport(MQTTTransport transport) { this->transport_ = transport; }
   void set_ws_path(const char *path) { this->ws_path_ = path; }
   MQTTTransport get_transport() const { return this->transport_; }
@@ -256,10 +259,12 @@ class MQTTBackendESP32 final : public MQTTBackend {
   std::string client_id_;
   uint16_t keep_alive_;
   bool clean_session_;
-  optional<std::string> ca_certificate_;
-  optional<std::string> cl_certificate_;
-  optional<std::string> cl_key_;
+#ifdef USE_MQTT_TLS
+  const char *ca_certificate_{nullptr};
+  const char *cl_certificate_{nullptr};
+  const char *cl_key_{nullptr};
   bool skip_cert_cn_check_{false};
+#endif
   MQTTTransport transport_{MQTTTransport::MQTT_TRANSPORT_TCP};
   const char *ws_path_{nullptr};
 #if defined(USE_MQTT_IDF_ENQUEUE)
