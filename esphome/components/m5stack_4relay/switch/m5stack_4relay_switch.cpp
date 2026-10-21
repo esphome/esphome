@@ -9,7 +9,7 @@ static const char *const TAG = "switch.M5Stack_4_Relay";
 float M5Stack4RelaySwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void M5Stack4RelaySwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up M5Stack_4_relay Switch '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up M5Stack_4_relay Switch '%s'...", LOG_STR_ARG(this->get_log_name()));
 
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
