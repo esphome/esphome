@@ -12,3 +12,9 @@ output:
   - platform: ledc
     id: test_ledc
     pin: 4
+  - platform: ledc
+    id: test_ledc_dithered
+    pin: 5
+    channel: 2
+    frequency: 19531Hz
+    dithering: true
