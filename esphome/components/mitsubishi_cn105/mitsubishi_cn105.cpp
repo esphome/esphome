@@ -551,8 +551,6 @@ void MitsubishiCN105::invalidate_operating_() {
 // Setpoint change: the current mode's compressor state is still valid, so keep showing it and keep
 // auto_direction (the direction of an in-progress AUTO run doesn't flip mid-run). Just request a fresh
 // 0x06 so the action catches up quickly. An in-progress settle window is left untouched.
-void MitsubishiCN105::refresh_operating_() {
-  this->last_heatpump_request_ms_.reset();
-}
+void MitsubishiCN105::refresh_operating_() { this->last_heatpump_request_ms_.reset(); }
 
 }  // namespace esphome::mitsubishi_cn105
