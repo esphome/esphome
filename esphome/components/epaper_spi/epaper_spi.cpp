@@ -65,32 +65,6 @@ bool EPaperBase::frame_unchanged_() const {
   return true;
 }
 
-bool EPaperBase::bounds_from_changes_() {
-  if (!this->sent_valid_ || this->sent_.size() != this->buffer_.size())
-    return true;
-  bool changed = false;
-  uint16_t row_low = this->height_, row_high = 0, col_low = this->row_width_, col_high = 0;
-  for (uint16_t row = 0; row != this->height_; row++) {
-    const size_t base = row * this->row_width_;
-    for (uint16_t col = 0; col != this->row_width_; col++) {
-      if (this->buffer_[base + col] == this->sent_[base + col])
-        continue;
-      changed = true;
-      row_low = std::min(row_low, row);
-      row_high = std::max<uint16_t>(row_high, row + 1);
-      col_low = std::min(col_low, col);
-      col_high = std::max<uint16_t>(col_high, col + 1);
-    }
-  }
-  if (!changed)
-    return false;
-  this->x_low_ = col_low * 8;
-  this->x_high_ = std::min<uint16_t>(col_high * 8, this->width_);
-  this->y_low_ = row_low;
-  this->y_high_ = row_high;
-  return true;
-}
-
 void EPaperBase::reset_bounds_() {
   this->x_low_ = this->width_;
   this->x_high_ = 0;
@@ -311,8 +285,7 @@ void EPaperBase::process_state_() {
       }
       // A full update resets update_count_ to zero, so a non-zero count marks a partial one
       this->partial_ = this->update_count_ != 0;
-      this->full_window_ =
-          this->x_low_ == 0 && this->y_low_ == 0 && this->x_high_ == this->width_ && this->y_high_ == this->height_;
+      this->sent_count_ = 0;
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
@@ -325,8 +298,8 @@ void EPaperBase::process_state_() {
       if (!this->transfer_data()) {
         return;  // Not done yet, come back next loop
       }
-      if (this->full_window_)
-        this->sent_valid_ = this->sent_.is_valid();
+      if (this->sent_.is_valid() && this->sent_count_ == this->sent_.size())
+        this->sent_valid_ = true;
       this->reset_bounds_();
       this->set_state_(EPaperState::POWER_ON);
       break;

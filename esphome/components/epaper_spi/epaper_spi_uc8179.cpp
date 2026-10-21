@@ -98,8 +98,7 @@ bool HOT EPaperUC8179::transfer_data() {
         bytes_to_send[i] = invert_new_data ? ~byte : byte;
       }
       this->write_array(bytes_to_send, bytes_to_copy);
-      if (!invert_new_data)
-        this->record_sent_(data_idx, bytes_to_send, bytes_to_copy);
+      this->record_sent_(data_idx, bytes_to_send, bytes_to_copy);
       this->current_data_index_ += bytes_to_copy;
       if (millis() - start_time > MAX_TRANSFER_TIME) {
         this->disable();

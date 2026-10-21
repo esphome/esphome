@@ -16,6 +16,8 @@ class EPaperSSD1681 : public EPaperSSD1683 {
   }
 
  protected:
+  // Shrinks the update bounds to the bytes that differ from the frame last sent
+  void bounds_from_changes_();
   bool transfer_data() override;
   void refresh_screen(bool partial) override;
 };
