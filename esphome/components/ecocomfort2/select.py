@@ -14,19 +14,18 @@ DEPENDENCIES = ["ecocomfort2"]
 CONF_FREE_COOLING = "free_cooling"
 CONF_SEASON = "season"
 
-Ecocomfort2Select = ecocomfort2_ns.class_("Ecocomfort2Select", select.Select)
 SelectSetting = ecocomfort2_ns.enum("SelectSetting", is_class=True)
 
 CONFIG_SCHEMA = cv.All(
     ECOCOMFORT2_CLIENT_SCHEMA.extend(
         {
             cv.Optional(CONF_SEASON): select.select_schema(
-                Ecocomfort2Select,
+                select.ApplySelect,
                 entity_category=ENTITY_CATEGORY_CONFIG,
                 icon="mdi:sun-snowflake-variant",
             ),
             cv.Optional(CONF_FREE_COOLING): select.select_schema(
-                Ecocomfort2Select,
+                select.ApplySelect,
                 entity_category=ENTITY_CATEGORY_CONFIG,
                 icon="mdi:snowflake",
             ),
@@ -39,16 +38,16 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ECOCOMFORT2_ID])
     selects = select.sub_selects(config, parent=hub)
-    # Option order follows the values the unit stores
+    # Option order follows the values the unit stores; the hub publishes what the unit confirms
     await selects(
         CONF_SEASON,
         partial(hub.set_select, SelectSetting.SEASON),
-        SelectSetting.SEASON,
+        apply=f"write_select({SelectSetting.SEASON}, index)",
         options=["Winter", "Summer"],
     )
     await selects(
         CONF_FREE_COOLING,
         partial(hub.set_select, SelectSetting.FREE_COOLING),
-        SelectSetting.FREE_COOLING,
+        apply=f"write_select({SelectSetting.FREE_COOLING}, index)",
         options=["Off", "Low", "Medium", "High"],
     )

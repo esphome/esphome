@@ -14,7 +14,6 @@ DEPENDENCIES = ["ecocomfort2"]
 CONF_HUMIDITY_ADVANCED = "humidity_advanced"
 CONF_VOC_ADVANCED = "voc_advanced"
 
-Ecocomfort2Switch = ecocomfort2_ns.class_("Ecocomfort2Switch", switch.Switch)
 SwitchSetting = ecocomfort2_ns.enum("SwitchSetting", is_class=True)
 
 _SWITCHES = {
@@ -27,7 +26,7 @@ CONFIG_SCHEMA = cv.All(
     ECOCOMFORT2_CLIENT_SCHEMA.extend(
         {
             cv.Optional(key): switch.switch_schema(
-                Ecocomfort2Switch,
+                switch.ApplySwitch,
                 default_restore_mode="DISABLED",
                 entity_category=ENTITY_CATEGORY_CONFIG,
                 icon="mdi:fan-plus",
@@ -42,5 +41,10 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ECOCOMFORT2_ID])
     switches = switch.sub_switches(config, parent=hub)
+    # The hub publishes the state the unit confirms
     for key, setting in _SWITCHES.items():
-        await switches(key, partial(hub.set_switch, setting), setting)
+        await switches(
+            key,
+            partial(hub.set_switch, setting),
+            apply=f"write_switch({setting}, state)",
+        )
