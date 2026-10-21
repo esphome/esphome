@@ -79,7 +79,10 @@ class Seesaw : public i2c::I2CDevice, public Component {
   bool show_neopixel(const uint8_t *data, uint16_t len);
 
  protected:
+  // Every transfer starts with a register write, so a failed hub stops using the bus here
   i2c::ErrorCode write_(SeesawModule mod, uint8_t reg, const uint8_t *data = nullptr, size_t len = 0) {
+    if (this->is_failed())
+      return i2c::ERROR_NOT_INITIALIZED;
     return this->write_register16(encode_uint16(mod, reg), data, len);
   }
   i2c::ErrorCode write_byte_(SeesawModule mod, uint8_t reg, uint8_t value) { return this->write_(mod, reg, &value, 1); }

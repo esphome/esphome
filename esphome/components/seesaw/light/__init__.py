@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import light
 import esphome.config_validation as cv
 from esphome.const import CONF_NUM_LEDS, CONF_OUTPUT_ID, CONF_PIN
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import CONF_SEESAW_ID, Seesaw, seesaw_ns
@@ -21,6 +22,22 @@ CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
         cv.Optional(CONF_NUM_LEDS, default=1): cv.int_range(min=1, max=MAX_LEDS),
     }
 )
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # The chip drives one strip: the last light to set it up would take over the pin and length
+    used = fv.full_config.get().data.setdefault("seesaw_lights", set())
+    hub = str(config[CONF_SEESAW_ID])
+    if hub in used:
+        raise cv.Invalid(
+            f"'{hub}' already has a light; a Seesaw drives one NeoPixel strip",
+            [CONF_SEESAW_ID],
+        )
+    used.add(hub)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

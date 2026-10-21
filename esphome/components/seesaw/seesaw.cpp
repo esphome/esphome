@@ -105,8 +105,9 @@ bool Seesaw::get_temperature(float &value) {
   uint8_t buf[4]{};
   if (!this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_TEMP, buf, 4, 1000))
     return false;
-  const uint32_t raw = encode_value<uint32_t>(buf);
-  if (raw == 0xffffffff) {
+  // Signed 16.16 fixed point
+  const auto raw = static_cast<int32_t>(encode_value<uint32_t>(buf));
+  if (raw == -1) {
     ESP_LOGW(TAG, "No temperature sensor");
     return false;
   }

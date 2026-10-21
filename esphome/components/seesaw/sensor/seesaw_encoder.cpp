@@ -18,8 +18,11 @@ void SeesawEncoder::setup() {
   // Clear the delta first, so the position read after it is the base for every later delta
   int32_t delta = 0;
   int32_t position = 0;
-  this->status_comm_result(this->parent_->get_encoder_delta(this->number_, delta) &&
-                           this->parent_->get_encoder_position(this->number_, position));
+  if (!this->parent_->get_encoder_delta(this->number_, delta) ||
+      !this->parent_->get_encoder_position(this->number_, position)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
   this->value_ = std::clamp(position, this->min_value_, this->max_value_);
   this->publish_state(this->value_);
 }
