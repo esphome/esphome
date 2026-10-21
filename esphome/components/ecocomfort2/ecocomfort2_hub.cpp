@@ -481,6 +481,8 @@ bool Ecocomfort2Hub::write_settings_(uint16_t handle, uint8_t *data, uint16_t le
 
 // The readback takes seconds, so the copy and entities follow the write now; it corrects a refused write
 void Ecocomfort2Hub::write_config_(uint8_t index, uint8_t value) {
+  // Bytes 6-11 hold the address of the main unit for a secondary one; the unit ignores them while the role byte
+  // is keep, and the vendor app sends them as 0x00 too
   uint8_t data[12]{CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP, CONFIG_KEEP};
   data[index] = value;
   ESP_LOGD(TAG, "[%s] Writing C_CONFIGURATION byte %u: 0x%02x", this->parent_->address_str(), index, value);
