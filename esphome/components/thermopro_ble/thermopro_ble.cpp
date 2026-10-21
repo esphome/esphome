@@ -25,6 +25,15 @@ ESPHOME_LOG_TAG(TAG, "thermopro_ble");
 static const struct DeviceParserMapping DEVICE_PARSER_MAP[] = {
     {"TP972", parse_tp972}, {"TP970", parse_tp96}, {"TP96", parse_tp96}, {"TP3", parse_tp3}};
 
+static DeviceParser find_device_parser(StringRef device_name) {
+  for (const auto &mapping : DEVICE_PARSER_MAP) {
+    if (device_name.starts_with(mapping.prefix))
+      return mapping.parser;
+  }
+  ESP_LOGVV(TAG, "find_device_parser(): unknown device type %s.", device_name.c_str());
+  return nullptr;
+}
+
 void ThermoProBLE::dump_config() {
   ESP_LOGCONFIG(TAG, "ThermoPro BLE");
   LOG_SENSOR("  ", "Temperature", this->temperature_);
@@ -41,8 +50,8 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
   }
 
   // check for valid device type
-  update_device_type_(device.get_name());
-  if (this->device_parser_ == nullptr) {
+  DeviceParser parser = find_device_parser(device.get_name());
+  if (parser == nullptr) {
     ESP_LOGVV(TAG, "parse_device(): invalid device type.");
     return false;
   }
@@ -70,7 +79,7 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
     std::copy(service_data.data.begin(), service_data.data.end(), std::begin(data) + 2);
 
     // dispatch data to parser
-    optional<ParseResult> result = this->device_parser_(data, data_size);
+    optional<ParseResult> result = parser(data, data_size);
     if (!result.has_value()) {
       continue;
     }
@@ -89,28 +98,6 @@ bool ThermoProBLE::parse_device(const ble_device_base::ESPBTDevice &device) {
   }
 
   return success;
-}
-
-void ThermoProBLE::update_device_type_(StringRef device_name) {
-  // check for changed device name (should only happen on initial call)
-  if (this->device_name_ == device_name) {
-    return;
-  }
-
-  // remember device name
-  this->device_name_ = device_name;
-
-  // try to find device parser
-  for (const auto &mapping : DEVICE_PARSER_MAP) {
-    if (device_name.starts_with(mapping.prefix)) {
-      this->device_parser_ = mapping.parser;
-      return;
-    }
-  }
-
-  // device type unknown
-  this->device_parser_ = nullptr;
-  ESP_LOGVV(TAG, "update_device_type_(): unknown device type %s.", device_name.c_str());
 }
 
 static inline uint16_t read_uint16(const uint8_t *data, std::size_t offset) {
