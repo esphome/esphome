@@ -16,10 +16,10 @@ void SeesawEncoder::setup() {
     return;
   this->parent_->enable_encoder(this->number_);
   // Clear the delta first, so the position read after it is the base for every later delta
-  int32_t delta;
-  this->parent_->get_encoder_delta(this->number_, delta);
+  int32_t delta = 0;
   int32_t position = 0;
-  this->parent_->get_encoder_position(this->number_, position);
+  this->status_comm_result(this->parent_->get_encoder_delta(this->number_, delta) &&
+                           this->parent_->get_encoder_position(this->number_, position));
   this->value_ = std::clamp(position, this->min_value_, this->max_value_);
   this->publish_state(this->value_);
 }
@@ -29,8 +29,8 @@ void SeesawEncoder::loop() {
   if (now - this->last_poll_ < POLL_INTERVAL_MS)
     return;
   this->last_poll_ = now;
-  int32_t delta;
-  if (!this->parent_->get_encoder_delta(this->number_, delta) || delta == 0)
+  int32_t delta = 0;
+  if (!this->status_comm_result(this->parent_->get_encoder_delta(this->number_, delta)) || delta == 0)
     return;
   // Clamping the running value, not the chip's position, means turning back from a limit moves at once
   const int32_t value =

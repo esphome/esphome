@@ -59,6 +59,7 @@ enum : uint8_t {
 class Seesaw : public i2c::I2CDevice, public Component {
  public:
   void setup() override;
+  void loop() override { this->gpio_read_valid_ = false; }
   void dump_config() override;
 
   float get_setup_priority() const override;
@@ -74,13 +75,14 @@ class Seesaw : public i2c::I2CDevice, public Component {
   bool digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool state);
   void setup_neopixel(uint8_t pin, uint16_t num_leds);
-  /// Send the pixel bytes, already in the strip's GRB order, and show them.
-  void show_neopixel(const uint8_t *data, uint16_t len);
+  /// Send the pixel bytes, already in the strip's GRB order, and show them. False when a write failed.
+  bool show_neopixel(const uint8_t *data, uint16_t len);
 
  protected:
   i2c::ErrorCode write_(SeesawModule mod, uint8_t reg, const uint8_t *data = nullptr, size_t len = 0) {
     return this->write_register16(encode_uint16(mod, reg), data, len);
   }
+  i2c::ErrorCode write_byte_(SeesawModule mod, uint8_t reg, uint8_t value) { return this->write_(mod, reg, &value, 1); }
   template<typename T> i2c::ErrorCode write_value_(SeesawModule mod, uint8_t reg, T value) {
     const auto bytes = decode_value(value);
     return this->write_(mod, reg, bytes.data(), bytes.size());
@@ -92,9 +94,8 @@ class Seesaw : public i2c::I2CDevice, public Component {
   uint32_t options_{0};
   // Last GPIO levels read, returned when a read fails
   uint32_t gpio_levels_{0};
-  // Loop pass of the last GPIO read; every pin read in the same pass shares it
-  uint32_t gpio_read_time_{0};
   uint8_t cpuid_{0};
+  // Cleared each loop pass, so the pins read in a pass share one bulk read
   bool gpio_read_valid_{false};
 };
 

@@ -30,7 +30,7 @@ void SeesawNeopixel::write_state(light::LightState *state) {
   if (this->is_failed())
     return;
   this->mark_shown_();
-  this->parent_->show_neopixel(this->buf_, 3 * this->num_leds_);
+  this->status_comm_result(this->parent_->show_neopixel(this->buf_, 3 * this->num_leds_));
 }
 
 }  // namespace esphome::seesaw

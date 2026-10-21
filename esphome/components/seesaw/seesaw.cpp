@@ -1,7 +1,6 @@
 #include "seesaw.h"
 
 #include <cinttypes>
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::seesaw {
@@ -43,11 +42,13 @@ static const LogString *cpuid_to_string(uint8_t id) {
 }
 
 void Seesaw::setup() {
+  // The loop only clears the GPIO cache, so it runs once a pin is set up
+  this->disable_loop();
   if (!this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_HW_ID, &this->cpuid_, 1)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  uint8_t buf[4];
+  uint8_t buf[4]{};
   if (this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_VERSION, buf, 4))
     this->version_ = encode_value<uint32_t>(buf);
   if (this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_OPTIONS, buf, 4))
@@ -72,11 +73,11 @@ void Seesaw::dump_config() {
 }
 
 void Seesaw::enable_encoder(uint8_t number) {
-  this->write_value_<uint8_t>(SEESAW_ENCODER, SEESAW_ENCODER_INTENSET + number, 0x01);
+  this->write_byte_(SEESAW_ENCODER, SEESAW_ENCODER_INTENSET + number, 0x01);
 }
 
 bool Seesaw::get_encoder_position(uint8_t number, int32_t &position) {
-  uint8_t buf[4];
+  uint8_t buf[4]{};
   if (!this->readbuf_(SEESAW_ENCODER, SEESAW_ENCODER_POSITION + number, buf, 4))
     return false;
   position = -encode_value<int32_t>(buf);  // make clockwise positive
@@ -84,7 +85,7 @@ bool Seesaw::get_encoder_position(uint8_t number, int32_t &position) {
 }
 
 bool Seesaw::get_encoder_delta(uint8_t number, int32_t &delta) {
-  uint8_t buf[4];
+  uint8_t buf[4]{};
   // Reading the delta clears it on the chip
   if (!this->readbuf_(SEESAW_ENCODER, SEESAW_ENCODER_DELTA + number, buf, 4))
     return false;
@@ -93,7 +94,7 @@ bool Seesaw::get_encoder_delta(uint8_t number, int32_t &delta) {
 }
 
 bool Seesaw::get_touch_value(uint8_t channel, uint16_t &value) {
-  uint8_t buf[2];
+  uint8_t buf[2]{};
   if (!this->readbuf_(SEESAW_TOUCH, SEESAW_TOUCH_CHANNEL_OFFSET + channel, buf, 2, 3000))
     return false;
   value = encode_uint16(buf[0], buf[1]);
@@ -101,7 +102,7 @@ bool Seesaw::get_touch_value(uint8_t channel, uint16_t &value) {
 }
 
 bool Seesaw::get_temperature(float &value) {
-  uint8_t buf[4];
+  uint8_t buf[4]{};
   if (!this->readbuf_(SEESAW_STATUS, SEESAW_STATUS_TEMP, buf, 4, 1000))
     return false;
   const uint32_t raw = encode_value<uint32_t>(buf);
@@ -114,7 +115,7 @@ bool Seesaw::get_temperature(float &value) {
 }
 
 bool Seesaw::analog_read(uint8_t pin, uint16_t &value) {
-  uint8_t buf[2];
+  uint8_t buf[2]{};
   if (!this->readbuf_(SEESAW_ADC, SEESAW_ADC_CHANNEL_OFFSET + pin, buf, 2, 500))
     return false;
   value = encode_uint16(buf[0], buf[1]);
@@ -122,6 +123,7 @@ bool Seesaw::analog_read(uint8_t pin, uint16_t &value) {
 }
 
 void Seesaw::pin_mode(uint8_t pin, gpio::Flags flags) {
+  this->enable_loop();
   const uint32_t pins = 1UL << pin;
   if (flags & gpio::FLAG_OUTPUT) {
     this->write_value_(SEESAW_GPIO, SEESAW_GPIO_DIRSET_BULK, pins);
@@ -137,14 +139,12 @@ void Seesaw::pin_mode(uint8_t pin, gpio::Flags flags) {
 }
 
 bool Seesaw::digital_read(uint8_t pin) {
-  // One bulk read covers every pin, so pins read in the same loop pass share it. A failed read keeps the last
-  // levels, so an inverted input does not read as active on a bus error.
-  const uint32_t now = App.get_loop_component_start_time();
-  if (!this->gpio_read_valid_ || now != this->gpio_read_time_) {
-    uint8_t buf[4];
+  // One bulk read covers every pin until loop() clears it. A failed read keeps the last levels, so an inverted
+  // input does not read as active on a bus error.
+  if (!this->gpio_read_valid_) {
+    uint8_t buf[4]{};
     if (this->status_comm_result(this->readbuf_(SEESAW_GPIO, SEESAW_GPIO_BULK, buf, 4))) {
       this->gpio_levels_ = encode_value<uint32_t>(buf);
-      this->gpio_read_time_ = now;
       this->gpio_read_valid_ = true;
     }
   }
@@ -156,21 +156,22 @@ void Seesaw::digital_write(uint8_t pin, bool state) {
 }
 
 void Seesaw::setup_neopixel(uint8_t pin, uint16_t num_leds) {
-  this->write_value_<uint8_t>(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_SPEED, 1);
+  this->write_byte_(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_SPEED, 1);
   this->write_value_<uint16_t>(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_BUF_LENGTH, num_leds * 3);
-  this->write_value_<uint8_t>(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_PIN, pin);
+  this->write_byte_(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_PIN, pin);
 }
 
-void Seesaw::show_neopixel(const uint8_t *data, uint16_t len) {
+bool Seesaw::show_neopixel(const uint8_t *data, uint16_t len) {
   uint8_t buf[4 + NEOPIXEL_CHUNK] = {SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_BUF};
   for (uint16_t offset = 0; offset < len; offset += NEOPIXEL_CHUNK) {
     const uint16_t chunk = std::min<uint16_t>(NEOPIXEL_CHUNK, len - offset);
     buf[2] = offset >> 8;
     buf[3] = offset & 0xff;
     memcpy(buf + 4, data + offset, chunk);
-    this->write(buf, 4 + chunk);
+    if (this->write(buf, 4 + chunk) != i2c::ERROR_OK)
+      return false;
   }
-  this->write_(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_SHOW);
+  return this->write_(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_SHOW) == i2c::ERROR_OK;
 }
 
 bool Seesaw::readbuf_(SeesawModule mod, uint8_t reg, uint8_t *buf, uint8_t len, uint32_t wait_us) {
