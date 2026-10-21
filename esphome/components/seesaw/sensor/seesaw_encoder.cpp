@@ -15,14 +15,12 @@ void SeesawEncoder::setup() {
   if (seesaw_hub_failed(this, this->parent_))
     return;
   this->parent_->enable_encoder(this->number_);
-  // Clear the delta first, so the position read after it is the base for every later delta
-  int32_t delta = 0;
   int32_t position = 0;
-  if (!this->parent_->get_encoder_delta(this->number_, delta) ||
-      !this->parent_->get_encoder_position(this->number_, position)) {
+  if (!this->parent_->get_encoder_position(this->number_, position)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
+  this->last_position_ = position;
   this->value_ = std::clamp(position, this->min_value_, this->max_value_);
   this->publish_state(this->value_);
 }
@@ -32,9 +30,15 @@ void SeesawEncoder::loop() {
   if (now - this->last_poll_ < POLL_INTERVAL_MS)
     return;
   this->last_poll_ = now;
-  int32_t delta = 0;
-  if (!this->status_comm_result(this->parent_->get_encoder_delta(this->number_, delta)) || delta == 0)
+  int32_t position = 0;
+  if (!this->status_comm_result(this->parent_->get_encoder_position(this->number_, position)))
     return;
+  // The movement since the last sample; the chip's position may wrap, the difference does not
+  const auto delta =
+      static_cast<int32_t>(static_cast<uint32_t>(position) - static_cast<uint32_t>(this->last_position_));
+  if (delta == 0)
+    return;
+  this->last_position_ = position;
   // Clamping the running value, not the chip's position, means turning back from a limit moves at once
   const int32_t value =
       static_cast<int32_t>(std::clamp<int64_t>(int64_t(this->value_) + delta, this->min_value_, this->max_value_));

@@ -6,8 +6,10 @@ namespace esphome::seesaw {
 ESPHOME_LOG_TAG(TAG, "seesaw.neopixel");
 
 void SeesawNeopixel::setup() {
-  if (!seesaw_hub_failed(this, this->parent_))
-    this->parent_->setup_neopixel(this->pin_, this->num_leds_);
+  if (seesaw_hub_failed(this, this->parent_))
+    return;
+  if (!this->parent_->setup_neopixel(this->pin_, this->num_leds_))
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
 }
 
 void SeesawNeopixel::dump_config() {
@@ -30,7 +32,9 @@ void SeesawNeopixel::write_state(light::LightState *state) {
   if (this->is_failed())
     return;
   this->mark_shown_();
-  this->status_comm_result(this->parent_->show_neopixel(this->buf_, 3 * this->num_leds_));
+  // A frame the bus dropped is sent again on the next loop
+  if (!this->status_comm_result(this->parent_->show_neopixel(this->buf_, 3 * this->num_leds_)))
+    this->schedule_show();
 }
 
 }  // namespace esphome::seesaw

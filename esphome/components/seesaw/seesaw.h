@@ -27,7 +27,6 @@ enum : uint8_t {
 enum : uint8_t {
   SEESAW_ENCODER_INTENSET = 0x10,
   SEESAW_ENCODER_POSITION = 0x30,
-  SEESAW_ENCODER_DELTA = 0x40,
 };
 
 enum : uint8_t {
@@ -66,7 +65,6 @@ class Seesaw : public i2c::I2CDevice, public Component {
 
   void enable_encoder(uint8_t number);
   bool get_encoder_position(uint8_t number, int32_t &position);
-  bool get_encoder_delta(uint8_t number, int32_t &delta);
   bool get_touch_value(uint8_t channel, uint16_t &value);
   bool get_temperature(float &value);
   bool analog_read(uint8_t pin, uint16_t &value);
@@ -74,7 +72,7 @@ class Seesaw : public i2c::I2CDevice, public Component {
   void pin_mode(uint8_t pin, gpio::Flags flags);
   bool digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool state);
-  void setup_neopixel(uint8_t pin, uint16_t num_leds);
+  bool setup_neopixel(uint8_t pin, uint16_t num_leds);
   /// Send the pixel bytes, already in the strip's GRB order, and show them. False when a write failed.
   bool show_neopixel(const uint8_t *data, uint16_t len);
 

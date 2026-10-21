@@ -84,15 +84,6 @@ bool Seesaw::get_encoder_position(uint8_t number, int32_t &position) {
   return true;
 }
 
-bool Seesaw::get_encoder_delta(uint8_t number, int32_t &delta) {
-  uint8_t buf[4]{};
-  // Reading the delta clears it on the chip
-  if (!this->readbuf_(SEESAW_ENCODER, SEESAW_ENCODER_DELTA + number, buf, 4))
-    return false;
-  delta = -encode_value<int32_t>(buf);  // make clockwise positive
-  return true;
-}
-
 bool Seesaw::get_touch_value(uint8_t channel, uint16_t &value) {
   uint8_t buf[2]{};
   if (!this->readbuf_(SEESAW_TOUCH, SEESAW_TOUCH_CHANNEL_OFFSET + channel, buf, 2, 3000))
@@ -142,6 +133,12 @@ void Seesaw::pin_mode(uint8_t pin, gpio::Flags flags) {
     if (flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) {
       this->write_value_(SEESAW_GPIO, SEESAW_GPIO_PULLENSET, pins);
       this->write_value_(SEESAW_GPIO, (flags & gpio::FLAG_PULLUP) ? SEESAW_GPIO_BULK_SET : SEESAW_GPIO_BULK_CLR, pins);
+      // Until the first read succeeds, the pin reads as its idle level
+      if (flags & gpio::FLAG_PULLUP) {
+        this->gpio_levels_ |= pins;
+      } else {
+        this->gpio_levels_ &= ~pins;
+      }
     } else {
       this->write_value_(SEESAW_GPIO, SEESAW_GPIO_PULLENCLR, pins);
     }
@@ -165,10 +162,10 @@ void Seesaw::digital_write(uint8_t pin, bool state) {
   this->write_value_(SEESAW_GPIO, state ? SEESAW_GPIO_BULK_SET : SEESAW_GPIO_BULK_CLR, uint32_t(1UL << pin));
 }
 
-void Seesaw::setup_neopixel(uint8_t pin, uint16_t num_leds) {
-  this->write_byte_(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_SPEED, 1);
-  this->write_value_<uint16_t>(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_BUF_LENGTH, num_leds * 3);
-  this->write_byte_(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_PIN, pin);
+bool Seesaw::setup_neopixel(uint8_t pin, uint16_t num_leds) {
+  return this->write_byte_(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_SPEED, 1) == i2c::ERROR_OK &&
+         this->write_value_<uint16_t>(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_BUF_LENGTH, num_leds * 3) == i2c::ERROR_OK &&
+         this->write_byte_(SEESAW_NEOPIXEL, SEESAW_NEOPIXEL_PIN, pin) == i2c::ERROR_OK;
 }
 
 bool Seesaw::show_neopixel(const uint8_t *data, uint16_t len) {

@@ -20,6 +20,7 @@ class SeesawEncoder : public sensor::Sensor, public Component, public Parented<S
  protected:
   const uint8_t number_;
   int32_t value_{0};
+  int32_t last_position_{0};
   uint32_t last_poll_{0};
   int32_t min_value_{INT32_MIN};
   int32_t max_value_{INT32_MAX};
