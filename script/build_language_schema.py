@@ -636,9 +636,11 @@ def shrink():
                     else:
                         print("expected extends here!" + x)
                     arr_s = merge(key_s, arr_s)
-                    # Keep a schema that still holds key constraints
-                    if arr_s[S_TYPE] in ["enum", "typed"] and not arr_s[S_SCHEMA]:
-                        arr_s.pop(S_SCHEMA)
+                    # Only key constraints survive the collapse
+                    if arr_s[S_TYPE] in ["enum", "typed"] and (
+                        constraints := arr_s.pop(S_SCHEMA).get("constraints")
+                    ):
+                        arr_s[S_SCHEMA] = {"constraints": constraints}
                 else:
                     arr_s.pop(S_EXTENDS)
                     inline_schema(arr_s, key_s[S_SCHEMA])
