@@ -218,7 +218,7 @@ void TopTronicNumber::control(float value) {
   std::vector<uint8_t> data = build_set_request(this->function_group_, this->function_number_, this->datapoint_, bytes);
   this->set_callback_.call(data);
 
-  TT_LOGD("[SET] %s: %f, Data: 0x%s", this->get_name().c_str(), v, hex_str(data.data(), data.size()).c_str());
+  TT_LOGD("[SET] %s: %f, Data: 0x%s", LOG_STR_ARG(this->get_log_name()), v, hex_str(data.data(), data.size()).c_str());
 }
 #endif
 
@@ -247,7 +247,7 @@ void TopTronicSelect::control(const std::string &text) {
                                                 float_to_bytes(static_cast<float>(value), this->type_));
   this->set_callback_.call(data);
 
-  TT_LOGD("[SET] %s: %s, Data: 0x%s", this->get_name().c_str(), text.c_str(),
+  TT_LOGD("[SET] %s: %s, Data: 0x%s", LOG_STR_ARG(this->get_log_name()), text.c_str(),
           hex_str(data.data(), data.size()).c_str());
 }
 #endif
@@ -426,8 +426,8 @@ void TopTronic::register_input_callbacks() {
         if (this->write_min_interval_ms_ > 0) {
           const auto last = this->last_write_ms_.find(id);
           if (last != this->last_write_ms_.end() && (now - last->second) < this->write_min_interval_ms_) {
-            TT_LOGW("[SET] %s rate-limited (min %u ms between writes to this datapoint)", input->get_name().c_str(),
-                    (unsigned) this->write_min_interval_ms_);
+            TT_LOGW("[SET] %s rate-limited (min %u ms between writes to this datapoint)",
+                    LOG_STR_ARG(input->get_log_name()), (unsigned) this->write_min_interval_ms_);
             return;
           }
         }
@@ -439,7 +439,8 @@ void TopTronic::register_input_callbacks() {
         if (this->reject_writes_before_read_) {
           TopTronicBase *sensor = this->get_sensor_(device_id, id);
           if (sensor != nullptr && !this->read_ok_ids_.contains(id)) {
-            TT_LOGW("[SET] %s rejected (datapoint never read since boot — cold cache)", input->get_name().c_str());
+            TT_LOGW("[SET] %s rejected (datapoint never read since boot — cold cache)",
+                    LOG_STR_ARG(input->get_log_name()));
             return;
           }
         }
@@ -587,8 +588,8 @@ void TopTronic::dump_config() {
                 this->reject_writes_before_read_ ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
 }
 
-static void log_response_frame(const uint8_t *data, size_t len, uint32_t can_id, const std::string &sensor_name) {
-  TT_LOGD("[RES] Can-ID: 0x%08X, Sensor: %s, Data: 0x%s", (unsigned int) can_id, sensor_name.c_str(),
+static void log_response_frame(const uint8_t *data, size_t len, uint32_t can_id, const LogString *sensor_name) {
+  TT_LOGD("[RES] Can-ID: 0x%08X, Sensor: %s, Data: 0x%s", (unsigned int) can_id, LOG_STR_ARG(sensor_name),
           hex_str(data, len).c_str());
 }
 
@@ -843,7 +844,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
   }
 #endif
   if (value_len < required_value_len) {
-    TT_LOGW("Response for %s truncated (%u of %u value bytes), ignoring", sensor_base->get_name().c_str(),
+    TT_LOGW("Response for %s truncated (%u of %u value bytes), ignoring", LOG_STR_ARG(sensor_base->get_log_name()),
             (unsigned) value_len, (unsigned) required_value_len);
     return;
   }
@@ -860,7 +861,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
     auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
     float value = sensor->parse_value(data + value_off, value_len);
     sensor->publish_state(value);
-    log_response_frame(data, len, can_id, sensor->get_name());
+    log_response_frame(data, len, can_id, sensor->get_log_name());
   }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -868,7 +869,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
     auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);
     std::string value = sensor->parse_value(data + value_off, value_len);
     sensor->publish_state(value);
-    log_response_frame(data, len, can_id, sensor->get_name());
+    log_response_frame(data, len, can_id, sensor->get_log_name());
   }
 #endif
 }
