@@ -29,15 +29,6 @@ def CheckWaveID(value):
     return value
 
 
-def _validate(config):
-    if CONF_WAVE_CHANNEL_ID in config and CONF_COMPONENT_ID not in config:
-        raise cv.Invalid(
-            f"{CONF_COMPONENT_ID} is required when {CONF_WAVE_CHANNEL_ID} is set"
-        )
-
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         NextionSensor,
@@ -60,7 +51,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(CONFIG_SENSOR_COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("never")),
     cv.has_exactly_one_key(CONF_COMPONENT_ID, CONF_COMPONENT_NAME, CONF_VARIABLE_NAME),
-    _validate,
+    cv.key_requires(CONF_WAVE_CHANNEL_ID, CONF_COMPONENT_ID),
 )
 
 

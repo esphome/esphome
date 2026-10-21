@@ -17,6 +17,7 @@ import asyncio
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -44,9 +45,7 @@ async def test_scheduler_interval_zero_coerced(
         # The API-client connection itself is evidence that the main loop
         # is not starved — if set_interval(0) were spinning we could not
         # get here at all.
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "sched-interval-zero"
+        await assert_device_name(client, "sched-interval-zero")
 
         # Coerce warning must fire at registration
         try:

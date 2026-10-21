@@ -181,7 +181,9 @@ def require_entity[T: EntityInfo](
             else f"entity with '{object_id_substring}' in object_id"
         )
         type_info = f" of type {entity_type.__name__}" if entity_type else ""
-        raise AssertionError(f"{desc}{type_info} not found in entities")
+        raise AssertionError(
+            f"{desc}{type_info} not found; available: {[e.object_id for e in entities]}"
+        )
     return entity
 
 

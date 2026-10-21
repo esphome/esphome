@@ -8,6 +8,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -66,9 +67,7 @@ async def test_action_concurrent_reentry(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "action-concurrent-reentry"
+        await assert_device_name(client, "action-concurrent-reentry")
 
         # Wait for tests to complete with timeout
         await wait_or_fail(test_complete, 8.0, "test timed out")
