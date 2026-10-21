@@ -1,4 +1,4 @@
-"""Validate RX8111 alarm options before generating firmware."""
+"""Validate RX8111 alarm and timer options before generating firmware."""
 
 import pytest
 
