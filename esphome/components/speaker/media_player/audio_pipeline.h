@@ -64,7 +64,7 @@ class AudioPipeline final {
   /// @param task_name FreeRTOS task base name
   /// @param priority FreeRTOS task priority
   /// @param task_core Core shared by the reader and decoder, or -1 for no affinity
-  AudioPipeline(speaker::Speaker *speaker, size_t buffer_size, bool task_stack_in_psram, std::string base_name,
+  AudioPipeline(speaker::Speaker *speaker, size_t buffer_size, bool task_stack_in_psram, const char *base_name,
                 UBaseType_t priority, int task_core);
 
   /// @brief Starts an audio pipeline given a media url
@@ -104,7 +104,7 @@ class AudioPipeline final {
   /// @return ESP_OK if successful or an appropriate error if not
   esp_err_t start_tasks_();
 
-  std::string base_name_;
+  const char *base_name_;
   UBaseType_t priority_;
   int task_core_;
 

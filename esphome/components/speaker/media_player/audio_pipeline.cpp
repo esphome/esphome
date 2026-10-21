@@ -48,8 +48,8 @@ enum EventGroupBits : uint32_t {
 };
 
 AudioPipeline::AudioPipeline(speaker::Speaker *speaker, size_t buffer_size, bool task_stack_in_psram,
-                             std::string base_name, UBaseType_t priority, int task_core)
-    : base_name_(std::move(base_name)),
+                             const char *base_name, UBaseType_t priority, int task_core)
+    : base_name_(base_name),
       priority_(priority),
       task_core_(task_core),
       task_stack_in_psram_(task_stack_in_psram),
@@ -271,12 +271,13 @@ esp_err_t AudioPipeline::allocate_communications_() {
 
 esp_err_t AudioPipeline::start_tasks_() {
   const BaseType_t task_core_id = this->task_core_ < 0 ? tskNO_AFFINITY : this->task_core_;
-
+  char task_name[configMAX_TASK_NAME_LEN];
   if (!this->read_task_.is_created()) {
     // Reader task uses the AudioReader class which uses esp_http_client. This crashes on IDF 5.4 if the task stack is
     // in PSRAM. As a workaround, always allocate the read task in internal memory.
-    if (!this->read_task_.create(read_task, (this->base_name_ + "_read").c_str(), READ_TASK_STACK_SIZE, (void *) this,
-                                 this->priority_, false, task_core_id)) {
+    snprintf(task_name, sizeof(task_name), "%s_read", this->base_name_);
+    if (!this->read_task_.create(read_task, task_name, READ_TASK_STACK_SIZE, (void *) this, this->priority_, false,
+                                 task_core_id)) {
       return ESP_ERR_NO_MEM;
     }
   }
@@ -284,8 +285,9 @@ esp_err_t AudioPipeline::start_tasks_() {
   if (!this->decode_task_.is_created()) {
     // A pinned decoder must preempt its reader when both need the same core.
     const UBaseType_t decoder_priority = this->priority_ + (this->task_core_ >= 0 ? 1 : 0);
-    if (!this->decode_task_.create(decode_task, (this->base_name_ + "_decode").c_str(), DECODE_TASK_STACK_SIZE,
-                                   (void *) this, decoder_priority, this->task_stack_in_psram_, task_core_id)) {
+    snprintf(task_name, sizeof(task_name), "%s_decode", this->base_name_);
+    if (!this->decode_task_.create(decode_task, task_name, DECODE_TASK_STACK_SIZE, (void *) this, decoder_priority,
+                                   this->task_stack_in_psram_, task_core_id)) {
       return ESP_ERR_NO_MEM;
     }
   }

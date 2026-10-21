@@ -14,6 +14,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -57,12 +58,11 @@ async def test_scheduler_background_wake(
             )
             client.button_command(start_button.key)
 
-            try:
-                elapsed, loop_delta = await asyncio.wait_for(
-                    results[delay], timeout=10.0
-                )
-            except TimeoutError:
-                pytest.fail(f"background insert with delay={delay} did not fire")
+            elapsed, loop_delta = await wait_or_fail(
+                results[delay],
+                10.0,
+                f"background insert with delay={delay} did not fire",
+            )
 
             assert elapsed < 1000, (
                 f"background insert with delay={delay} should interrupt the "

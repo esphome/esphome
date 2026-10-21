@@ -530,7 +530,8 @@ template<size_t N> class OrFilter : public Filter {
   explicit OrFilter(std::initializer_list<Filter *> filters) { init_array_from(this->filters_, filters); }
   // Codegen passes each filter as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
   template<typename... Fs>
-  requires(sizeof...(Fs) == N) explicit OrFilter(Fs *...filters) : filters_{filters...} {}
+    requires(sizeof...(Fs) == N)
+  explicit OrFilter(Fs *...filters) : filters_{filters...} {}
 
   void initialize(Sensor *parent, Filter *next) override {
     Filter::initialize(parent, next);
