@@ -279,7 +279,7 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     this->set_state_(State::STATUS_UPDATED);
   }
 
-  bool changed = =
+  bool changed =
       previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
       previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
       previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode ||
