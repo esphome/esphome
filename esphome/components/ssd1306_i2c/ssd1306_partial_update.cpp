@@ -83,8 +83,12 @@ bool PartialUpdatePlanner::add_optimized_page_regions_(uint8_t page, const uint8
       }
     }
   }
-  Region reverse_regions[MAX_RAW_RUNS_PER_PAGE];
-  size_t reverse_count = 0;
+  const size_t new_region_count = this->region_count_ + best_region_count[run_count];
+  if (new_region_count > this->capacity_) {
+    return false;
+  }
+  // Reconstruct backward into the reserved output slots, leaving earlier pages untouched.
+  size_t output_index = new_region_count;
   size_t end = run_count;
   while (end > 0) {
     const size_t start = best_previous[end];
@@ -93,16 +97,10 @@ bool PartialUpdatePlanner::add_optimized_page_regions_(uint8_t page, const uint8
     region.max_x = run_ends[end - 1];
     region.min_page = page;
     region.max_page = page;
-    reverse_regions[reverse_count++] = region;
+    this->regions_[--output_index] = region;
     end = start;
   }
-  if (this->region_count_ + reverse_count > this->capacity_) {
-    return false;
-  }
-  while (reverse_count > 0) {
-    reverse_count--;
-    this->regions_[this->region_count_++] = reverse_regions[reverse_count];
-  }
+  this->region_count_ = new_region_count;
   return true;
 }
 

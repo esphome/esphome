@@ -68,6 +68,23 @@ void verify_plan(const Frame &current, const Frame &previous, uint16_t width, ui
   }
 }
 
+void expect_region(const Region &actual, const Region &expected) {
+  EXPECT_EQ(actual.min_x, expected.min_x);
+  EXPECT_EQ(actual.max_x, expected.max_x);
+  EXPECT_EQ(actual.min_page, expected.min_page);
+  EXPECT_EQ(actual.max_page, expected.max_page);
+}
+
+class PagePlanner : public PartialUpdatePlanner {
+ public:
+  // Initialize unused output slots so a rejected append can be checked for unintended writes.
+  PagePlanner() { this->regions_.fill(Region{255, 255, 255, 255}); }
+  void set_capacity(size_t capacity) { this->capacity_ = capacity; }
+  bool append_page(uint8_t page, const uint8_t *run_starts, const uint8_t *run_ends, size_t run_count) {
+    return this->add_optimized_page_regions_(page, run_starts, run_ends, run_count);
+  }
+};
+
 TEST(SSD1306Planner, UnchangedAndReusedWorkspace) {
   Frame current{};
   Frame previous{};
@@ -150,6 +167,86 @@ TEST(SSD1306Planner, OverflowStillCoversLaterPagesAndLastByte) {
     EXPECT_EQ(planner.get_region(0).max_x, 127);
     EXPECT_EQ(planner.get_region(0).max_page, 7);
   }
+}
+
+TEST(SSD1306Planner, ReconstructionPreservesOrderAtExactCapacity) {
+  Frame current{};
+  Frame previous{};
+  for (size_t x : {0U, 2U, 40U, 42U, 96U, 98U}) {
+    current[x] = 1;
+  }
+  PartialUpdatePlanner planner;
+  ASSERT_TRUE(planner.build(current.data(), previous.data(), 128, 1, 3));
+  ASSERT_EQ(planner.get_region_count(), 3U);
+  EXPECT_FALSE(planner.used_fallback());
+  expect_region(planner.get_region(0), Region{0, 2, 0, 0});
+  expect_region(planner.get_region(1), Region{40, 42, 0, 0});
+  expect_region(planner.get_region(2), Region{96, 98, 0, 0});
+  verify_plan(current, previous, 128, 1, planner);
+}
+
+TEST(SSD1306Planner, ReconstructionAppendsAfterEarlierPages) {
+  Frame current{};
+  Frame previous{};
+  for (size_t x : {0U, 2U, 40U, 42U}) {
+    current[x] = 1;
+  }
+  for (size_t x : {80U, 82U, 120U, 122U}) {
+    current[7 * 128 + x] = 1;
+  }
+  PartialUpdatePlanner planner;
+  ASSERT_TRUE(planner.build(current.data(), previous.data(), 128, 8, 4));
+  ASSERT_EQ(planner.get_region_count(), 4U);
+  EXPECT_FALSE(planner.used_fallback());
+  expect_region(planner.get_region(0), Region{0, 2, 0, 0});
+  expect_region(planner.get_region(1), Region{40, 42, 0, 0});
+  expect_region(planner.get_region(2), Region{80, 82, 7, 7});
+  expect_region(planner.get_region(3), Region{120, 122, 7, 7});
+  verify_plan(current, previous, 128, 8, planner);
+}
+
+TEST(SSD1306Planner, ReconstructionRejectsInsufficientCapacityBeforeWriting) {
+  PagePlanner planner;
+  const std::array<uint8_t, 1> first_run{3};
+  const std::array<uint8_t, 4> runs{40, 42, 96, 98};
+  planner.set_capacity(2);
+  ASSERT_TRUE(planner.append_page(0, first_run.data(), first_run.data(), first_run.size()));
+  EXPECT_FALSE(planner.append_page(1, runs.data(), runs.data(), runs.size()));
+  ASSERT_EQ(planner.get_region_count(), 1U);
+  expect_region(planner.get_region(0), Region{3, 3, 0, 0});
+  for (size_t i = 1; i < PartialUpdatePlanner::MAX_PLANNED_REGIONS; i++) {
+    expect_region(planner.get_region(i), Region{255, 255, 255, 255});
+  }
+  planner.set_capacity(3);
+  ASSERT_TRUE(planner.append_page(1, runs.data(), runs.data(), runs.size()));
+  ASSERT_EQ(planner.get_region_count(), 3U);
+  expect_region(planner.get_region(0), Region{3, 3, 0, 0});
+  expect_region(planner.get_region(1), Region{40, 42, 1, 1});
+  expect_region(planner.get_region(2), Region{96, 98, 1, 1});
+}
+
+TEST(SSD1306Planner, ReconstructionOverflowCoversLaterPagesAndWorkspaceIsReusable) {
+  Frame current{};
+  Frame previous{};
+  current[3] = 1;
+  for (size_t x : {40U, 42U, 96U, 98U}) {
+    current[128 + x] = 1;
+  }
+  current[1023] = 1;
+  PartialUpdatePlanner planner;
+  ASSERT_TRUE(planner.build(current.data(), previous.data(), 128, 8, 2));
+  ASSERT_EQ(planner.get_region_count(), 1U);
+  EXPECT_TRUE(planner.used_fallback());
+  expect_region(planner.get_region(0), Region{3, 127, 0, 7});
+  verify_plan(current, previous, 128, 8, planner);
+  ASSERT_TRUE(planner.build(current.data(), previous.data(), 128, 8, 4));
+  ASSERT_EQ(planner.get_region_count(), 4U);
+  EXPECT_FALSE(planner.used_fallback());
+  expect_region(planner.get_region(0), Region{3, 3, 0, 0});
+  expect_region(planner.get_region(1), Region{40, 42, 1, 1});
+  expect_region(planner.get_region(2), Region{96, 98, 1, 1});
+  expect_region(planner.get_region(3), Region{127, 127, 7, 7});
+  verify_plan(current, previous, 128, 8, planner);
 }
 
 TEST(SSD1306Planner, DenseCheckerboardFullFrameAndVerticalColumns) {
