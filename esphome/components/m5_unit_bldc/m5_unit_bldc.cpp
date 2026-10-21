@@ -133,7 +133,7 @@ void M5UnitBldc::update() {
     }
   }
 #endif
-  this->status_comm_result(ok, LOG_STR("Failed to read motor status"));
+  this->status_comm_result(ok);
 }
 
 void M5UnitBldc::dump_config() {
