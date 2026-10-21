@@ -49,8 +49,10 @@ def test_explicit_port_is_kept() -> None:
 
 
 def test_certificate_authority_with_verify_ssl_false_rejected() -> None:
-    with pytest.raises(cv.Invalid, match="'verify_ssl' cannot be false"):
-        _validate(**{CONF_CERTIFICATE_AUTHORITY: "cert", CONF_VERIFY_SSL: False})
+    with pytest.raises(cv.Invalid, match="only valid when 'verify_ssl' is not false"):
+        cv.only_when(CONF_CERTIFICATE_AUTHORITY, CONF_VERIFY_SSL, False, negate=True)(
+            {**BASE, CONF_CERTIFICATE_AUTHORITY: "cert", CONF_VERIFY_SSL: False}
+        )
 
 
 def test_skip_cert_cn_check_with_verify_ssl_false_rejected() -> None:
