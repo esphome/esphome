@@ -98,12 +98,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    sel = await cg.gpio_pin_expression(config[CONF_SEL_PIN])
-    cg.add(var.set_sel_pin(sel))
-    cf = await cg.gpio_pin_expression(config[CONF_CF_PIN])
-    cg.add(var.set_cf_pin(cf))
-    cf1 = await cg.gpio_pin_expression(config[CONF_CF1_PIN])
-    cg.add(var.set_cf1_pin(cf1))
+    await cg.add_pin(var.set_sel_pin, config[CONF_SEL_PIN])
+    await cg.add_pin(var.set_cf_pin, config[CONF_CF_PIN])
+    await cg.add_pin(var.set_cf1_pin, config[CONF_CF1_PIN])
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

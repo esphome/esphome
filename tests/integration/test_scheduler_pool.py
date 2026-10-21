@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -88,9 +89,7 @@ async def test_scheduler_pool(
         api_client_connected() as client,
     ):
         # Verify device is running
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-pool-test"
+        await assert_device_name(client, "scheduler-pool-test")
 
         # Get list of services
         entities, services = await client.list_entities_services()
@@ -113,10 +112,9 @@ async def test_scheduler_pool(
 
         # Get service objects
         phase_services = {
-            num: next(s for s in services if s.name == f"run_phase_{num}")
-            for num in range(1, 8)
+            num: require_service(services, f"run_phase_{num}") for num in range(1, 8)
         }
-        complete_service = next(s for s in services if s.name == "run_complete")
+        complete_service = require_service(services, "run_complete")
 
         try:
             # Phase 1: Component lifecycle

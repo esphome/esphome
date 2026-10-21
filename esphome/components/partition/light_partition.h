@@ -85,6 +85,12 @@ class PartitionLightOutput final : public light::AddressableLight {
     }
 
     auto view = (*seg.get_src())[src_off];
+#ifdef USE_LIGHT_POWER_ESTIMATION
+    // Writes go through the strip's power factor; a partition has no limit of its own. A view kept alive
+    // across two strips with different limits carries the factor of the strip fetched last.
+    const_cast<light::ESPColorCorrection &>(this->correction_)
+        .set_power_brightness(view.get_color_correction()->get_power_brightness());
+#endif
     view.raw_set_color_correction(&this->correction_);
     return view;
   }

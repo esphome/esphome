@@ -451,8 +451,7 @@ async def add_modbus_base_properties(
     lambda_param_type: cg.MockObj = cg.float_,
     lambda_return_type: Any = float,
 ) -> None:
-    if CONF_CUSTOM_PDU in config:
-        cg.add(var.set_custom_pdu(config[CONF_CUSTOM_PDU]))
+    cg.add_optional(var.set_custom_pdu, config.get(CONF_CUSTOM_PDU))
 
     if config[CONF_RESPONSE_SIZE] > 0:
         cg.add(var.set_register_size(config[CONF_RESPONSE_SIZE]))
