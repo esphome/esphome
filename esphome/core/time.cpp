@@ -95,7 +95,7 @@ ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
 }
 
 struct tm ESPTime::to_c_tm() {
-  struct tm c_tm {};
+  struct tm c_tm{};
   c_tm.tm_sec = this->second;
   c_tm.tm_min = this->minute;
   c_tm.tm_hour = this->hour;
