@@ -259,6 +259,8 @@ class ZephyrData(TypedDict):
     sysbuild: bool
     # CDC ACM port number -> components that use it (platform: nrf52 only)
     cdc_acm_users: dict[int, list[CdcAcmUser]]
+    # RTT channel -> its user ("logger", "uart 'id'"), claimed by rtt.enable_rtt_node()
+    rtt_channels: dict[int, str]
 
 
 # platform: nrf52 use only
@@ -304,6 +306,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         blobs=[],
         runner=None,
         sysbuild=False,
+        rtt_channels={},
     )
 
 
@@ -591,6 +594,14 @@ def _get_family_module(family: str):
     else:
         raise ValueError(f"Unknown zephyr family: {family!r}")
     return mod
+
+
+def zephyr_family_uart_drivers() -> frozenset[str]:
+    """Software UART drivers (devicetree compatibles) the active family supports. A
+    variant with no family (native_sim) supports none."""
+    if (family := zephyr_variant_family()) is None:
+        return frozenset()
+    return _get_family_module(family).UART_DRIVERS
 
 
 def zephyr_to_code(config: ConfigType) -> None:

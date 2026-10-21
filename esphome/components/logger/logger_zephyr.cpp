@@ -162,11 +162,10 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   write(STDOUT_FILENO, msg, len);
 #else
   // Single write with newline already in buffer (added by caller)
-#ifdef CONFIG_RTT_CONSOLE
-  // Requires the debug component and an active SWD connection (pyocd rtt -t nrf52840).
-  // Gated on CONFIG_RTT_CONSOLE, not the broader CONFIG_PRINTK -- the latter is also on
-  // whenever CONFIG_LOG is, which would duplicate every line onto the same console UART
-  // the uart_poll_out() loop below already writes to.
+#if defined(USE_LOGGER_CONSOLE) || defined(CONFIG_RTT_CONSOLE)
+  // USE_LOGGER_CONSOLE: hardware_uart RAM/SEMIHOST. CONFIG_RTT_CONSOLE: nrf52's debug component.
+  // Not gated on the broader CONFIG_PRINTK -- that is also on whenever CONFIG_LOG is,
+  // and would repeat every line on the console UART written below.
   printk("%.*s", static_cast<int>(len), msg);
 #endif
   if (this->uart_dev_ == nullptr) {
@@ -179,6 +178,9 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
 }
 
 const LogString *Logger::get_uart_selection_() {
+#ifdef USE_LOGGER_CONSOLE
+  return LOG_STR(LOGGER_CONSOLE_NAME);
+#else
   switch (this->uart_) {
 #if defined(CONFIG_SERIAL) && defined(LOGGER_UART_NODE_LABEL)
     // Report the real node label -- an "&<label>" override may not match the UART0/UART1 symbol.
@@ -197,6 +199,7 @@ const LogString *Logger::get_uart_selection_() {
     default:
       return LOG_STR("UNKNOWN");
   }
+#endif
 }
 
 static const uint8_t REASON_BUF_SIZE = 32;

@@ -555,6 +555,7 @@ def set_core_data(
         blobs=[],
         runner=runner,
         sysbuild=False,
+        rtt_channels={},
     )
 
 

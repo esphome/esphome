@@ -186,6 +186,12 @@ def validate_host_config(config):
 
 def validate_zephyr_config(config):
     if CORE.is_zephyr and (CONF_TX_PIN in config or CONF_RX_PIN in config):
+        from esphome.components.zephyr.rtt import rtt_channel  # noqa: PLC0415
+
+        if rtt_channel(config.get(CONF_PORT, "")) is not None:
+            raise cv.Invalid(
+                "TX and RX pins are not used by an RTT port; it runs over the debug probe"
+            )
         from esphome.components.zephyr import zephyr_variant  # noqa: PLC0415
         from esphome.components.zephyr.variants import VARIANTS  # noqa: PLC0415
 
@@ -387,12 +393,16 @@ def validate_port(value):
 
         if (override := validate_uart_label_override(value)) is not None:
             return override
+        from esphome.components.zephyr.rtt import RTT_PORTS, validate_rtt_port
+
+        if value.upper() in RTT_PORTS:
+            return validate_rtt_port(value.upper())
         if re.match(r"^UART[0-9]+$", value.upper()):
             return value.upper()
         raise cv.Invalid(
             f"'{value}' is not a valid UART port -- use 'UART0', 'UART1', etc. to "
-            "select a mapped port, or '&<devicetree-label>' to bind directly to a "
-            "devicetree node"
+            f"select a mapped port, {', '.join(RTT_PORTS)} for a SEGGER RTT channel, "
+            "or '&<devicetree-label>' to bind directly to a devicetree node"
         )
     if not re.match(r"^/(?:[^/]+/)[^/]+$", value):
         raise cv.Invalid("Port must be a valid device path")
@@ -538,6 +548,7 @@ async def to_code(config):
                 resolve_uart_node_label,
                 validate_dts_label_exists,
             )
+            from esphome.components.zephyr.rtt import enable_rtt_node, rtt_channel
 
             zephyr_add_prj_conf("SERIAL", True)
             zephyr_add_prj_conf("RING_BUFFER", True)
@@ -549,6 +560,7 @@ async def to_code(config):
             zephyr_add_prj_conf("UART_USE_RUNTIME_CONFIGURE", True)
 
             port_value = config[CONF_PORT]
+            channel = rtt_channel(port_value)
             node_known = True
             # A "&label" may name a zephyr,cdc-acm-uart node, which is unclocked (see
             # mark_unclocked()); only the DTS knows, so mark it once is_unclocked() has a user.
@@ -557,6 +569,9 @@ async def to_code(config):
                 node_known = validate_dts_label_exists(
                     "uart", zephyr_data()[KEY_BOARD], port_label
                 )
+            elif channel is not None:
+                # Enabled by enable_rtt_node(); no pinctrl, and no pins to show
+                port_label = enable_rtt_node(channel, f"uart '{config[CONF_ID]}'")
             else:
                 port_label = resolve_uart_node_label(
                     zephyr_data()[KEY_BOARD],
@@ -571,16 +586,17 @@ async def to_code(config):
                     port_label,
                 )
             )
-            tx_name, rx_name = zephyr_setup_uart_pinctrl(
-                zephyr_data()[KEY_BOARD],
-                port_label,
-                config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None,
-                config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None,
-                config[CONF_BAUD_RATE],
-                node_known,
-            )
-            cg.add(var.set_tx_pin_name(tx_name))
-            cg.add(var.set_rx_pin_name(rx_name))
+            if channel is None:
+                tx_name, rx_name = zephyr_setup_uart_pinctrl(
+                    zephyr_data()[KEY_BOARD],
+                    port_label,
+                    config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None,
+                    config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None,
+                    config[CONF_BAUD_RATE],
+                    node_known,
+                )
+                cg.add(var.set_tx_pin_name(tx_name))
+                cg.add(var.set_rx_pin_name(rx_name))
         else:
             cg.add(var.set_name(config[CONF_PORT]))
     elif CONF_EMULATION in config:

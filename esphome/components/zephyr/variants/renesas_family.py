@@ -5,7 +5,12 @@ investigated. See platform_zephyr_todo memory for the open item."""
 
 from esphome.types import ConfigType
 
+from ..const import SEGGER_RTT_UART
 from . import mcuboot_or_none
+
+# Software UART drivers (devicetree compatible strings) that work on this family,
+# on top of its hardware UARTs.
+UART_DRIVERS: frozenset[str] = frozenset({SEGGER_RTT_UART})
 
 
 def to_code(config: ConfigType) -> None:
