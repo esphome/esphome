@@ -180,12 +180,12 @@ class MitsubishiCN105 {
   bool parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len);
   void send_packet_(std::span<const uint8_t> packet);
   void update_status_();
+  bool should_request_heatpump_() const;
   // Mode/power changed: compressor state from the previous mode is meaningless. Clears it and starts
   // the settle latch so residual spin-down is not reported as activity in the new mode.
   void invalidate_operating_();
   // Setpoint changed: compressor state is still valid for the current mode; just request a fresh 0x06.
   void refresh_operating_();
-  void invalidate_operating_();
   bool should_request_telemetry_() const;
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
