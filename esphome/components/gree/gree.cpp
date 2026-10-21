@@ -11,6 +11,18 @@ ESPHOME_LOG_TAG(TAG, "gree.climate");
 static constexpr remote_base::BitTimings GREE_BIT_TIMINGS{
     .bit_mark = GREE_BIT_MARK, .one_space = GREE_ONE_SPACE, .zero_space = GREE_ZERO_SPACE};
 
+#ifdef USE_GREE_YAP1F
+static constexpr remote_base::BitTimings GREE_YAP_BIT_TIMINGS{
+    .bit_mark = GREE_YAP_BIT_MARK, .one_space = GREE_YAP_ONE_SPACE, .zero_space = GREE_YAP_ZERO_SPACE};
+// YAP1F sends a fixed 0x70 byte in the second frame and 00 00 A0 | 00 00 A0 00 in the third.
+static constexpr uint8_t GREE_YAP_SECOND_FRAME_BYTE = 0x70;
+static constexpr uint8_t GREE_YAP_THIRD_FRAME_BYTE = 0xA0;
+// WiFi-enabled marker (0x82 + bit 6) HeatpumpIR sends in byte 4
+static constexpr uint8_t GREE_YAP_BYTE4 = 0xC2;
+// The remote assumes this temperature in automatic mode
+static constexpr uint8_t GREE_YAP_AUTO_TEMP = 25;
+#endif
+
 static constexpr uint8_t GREE_SWING_AUTO_MASK = 0x40;
 #ifdef USE_GREE_YAW1F
 // The YAW1F second message is 00 00 00 A0 | 00 00 00 A0.
@@ -53,21 +65,26 @@ struct GreeFrameSpaces {
 };
 
 static GreeFrameSpaces frame_spaces(Model model) {
+#ifdef USE_GREE_YAP1F
+  if (model == GREE_YAP1F)
+    return {GREE_YAP_HEADER_SPACE, GREE_YAP_MESSAGE_SPACE};
+#endif
   if (model == GREE_YAC1FB9 || model == GREE_YAW1F)
     return {GREE_YAC1FB9_HEADER_SPACE, GREE_YAC1FB9_MESSAGE_SPACE};
   return {GREE_HEADER_SPACE, GREE_MESSAGE_SPACE};
 }
 
+template<remote_base::BitTimings TIMINGS>
 static void write_frame(remote_base::RemoteTransmitData *data, const GreeState &frame, const GreeFrameSpaces &spaces) {
   data->item(GREE_HEADER_MARK, spaces.header);
-  data->item_bytes<GREE_BIT_TIMINGS>(frame.data(), 4);
+  data->item_bytes<TIMINGS>(frame.data(), 4);
   // Fixed 010 between the two halves, then the message gap
-  data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
-  data->item(GREE_BIT_MARK, GREE_ONE_SPACE);
-  data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
-  data->item(GREE_BIT_MARK, spaces.message);
-  data->item_bytes<GREE_BIT_TIMINGS>(frame.data() + 4, 4);
-  data->mark(GREE_BIT_MARK);
+  data->item(TIMINGS.bit_mark, TIMINGS.zero_space);
+  data->item(TIMINGS.bit_mark, TIMINGS.one_space);
+  data->item(TIMINGS.bit_mark, TIMINGS.zero_space);
+  data->item(TIMINGS.bit_mark, spaces.message);
+  data->item_bytes<TIMINGS>(frame.data() + 4, 4);
+  data->mark(TIMINGS.bit_mark);
 }
 
 #ifdef USE_GREE_RECEIVER
@@ -173,14 +190,33 @@ void GreeProtocol::encode(remote_base::RemoteTransmitData *data, const GreeState
   data->reserve(this->model_ == GREE_YAW1F ? 280 : 140);
   data->set_carrier_frequency(GREE_IR_FREQUENCY);
 
-  write_frame(data, state, spaces);
+#ifdef USE_GREE_YAP1F
+  if (this->model_ == GREE_YAP1F) {
+    // HeatpumpIR builds YAP1F as one 25 byte buffer: each frame's checksum is also the first byte of the next
+    // one. So the second frame is the command with its first byte replaced by the first frame's checksum and
+    // the fixed 0x70 byte, and the third frame is fixed apart from the second frame's checksum.
+    GreeState second{state[GREE_STATE_FRAME_SIZE - 1], state[1], state[2], GREE_YAP_SECOND_FRAME_BYTE};
+    second[GREE_STATE_FRAME_SIZE - 1] = GreeProtocol::calculate_checksum(second);
+    GreeState third{second[GREE_STATE_FRAME_SIZE - 1], 0, 0, GREE_YAP_THIRD_FRAME_BYTE, 0, 0,
+                    GREE_YAP_THIRD_FRAME_BYTE};
+    write_frame<GREE_YAP_BIT_TIMINGS>(data, state, spaces);
+    data->space(spaces.message);
+    write_frame<GREE_YAP_BIT_TIMINGS>(data, second, spaces);
+    data->space(spaces.message);
+    write_frame<GREE_YAP_BIT_TIMINGS>(data, third, spaces);
+    data->space(0);
+    return;
+  }
+#endif
+
+  write_frame<GREE_BIT_TIMINGS>(data, state, spaces);
 #ifdef USE_GREE_YAW1F
   if (this->model_ == GREE_YAW1F) {
     // The YAW1F remote follows every command with a fixed second message.
     GreeState followup{};
     followup[3] = followup[7] = GREE_YAW1F_FOLLOWUP_BYTE;
     data->space(GREE_YAW1F_FOLLOWUP_SPACE);
-    write_frame(data, followup, spaces);
+    write_frame<GREE_BIT_TIMINGS>(data, followup, spaces);
   }
 #endif
   data->space(0);
@@ -232,6 +268,31 @@ bool GreeProtocol::valid_checksum(const GreeState &state) {
 #endif
 
 GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
+#ifdef USE_GREE_YAP1F
+  if (model == GREE_YAP1F) {
+    // Mirrors HeatpumpIR's GreeYAP parameter conversion, including its quirks: automatic mode sends 25 C,
+    // dry forces fan 1, and power off sends heat mode with automatic fan.
+    GreeState yap_state{};
+    uint8_t temperature = clamp<uint8_t>(data.target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX);
+    if (data.mode == climate::CLIMATE_MODE_OFF) {
+      yap_state[0] = GREE_MODE_HEAT;
+    } else {
+      yap_state[0] =
+          GreeClimateCodec::encode_fan_mode(model, data.fan_mode) | GreeClimateCodec::encode_operation_mode(data.mode);
+      if (data.mode == climate::CLIMATE_MODE_HEAT_COOL) {
+        temperature = GREE_YAP_AUTO_TEMP;
+      } else if (data.mode == climate::CLIMATE_MODE_DRY) {
+        yap_state[0] = GreeClimateCodec::encode_operation_mode(data.mode) | GREE_FAN_1;
+      }
+    }
+    yap_state[1] = temperature - GREE_TEMP_MIN;
+    yap_state[2] = data.feature_bits & supported_feature_mask(model);
+    yap_state[3] = 0x50;
+    yap_state[4] = GREE_YAP_BYTE4;
+    yap_state[GREE_STATE_FRAME_SIZE - 1] = GreeProtocol::calculate_checksum(yap_state);
+    return yap_state;
+  }
+#endif
   GreeState state{0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
   const uint8_t vertical_swing = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
   const uint8_t horizontal_swing = GreeClimateCodec::encode_horizontal_swing(data.swing_mode);
@@ -470,6 +531,12 @@ void GreeClimate::set_model(Model model) {
     this->presets_.insert(climate::CLIMATE_PRESET_NONE);
     this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }
+
+#ifdef USE_GREE_YAP1F
+  // YAP1F has no swing IR control in the current frame layout.
+  if (model == GREE_YAP1F)
+    this->swing_modes_ = {climate::CLIMATE_SWING_OFF};
+#endif
 
   this->model_ = model;
   this->feature_bits_ = default_feature_bits(model);
