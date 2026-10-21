@@ -13,9 +13,15 @@ from __future__ import annotations
 import asyncio
 import re
 
-from aioesphomeapi import HomeassistantServiceCall
+from aioesphomeapi import HomeassistantServiceCall, SensorInfo, SensorState
 import pytest
 
+from .state_utils import (
+    assert_device_name,
+    require_entity,
+    require_service,
+    wait_for_state,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -184,9 +190,7 @@ async def test_api_homeassistant(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-ha-api"
+        await assert_device_name(client, "test-ha-api")
 
         # Store client reference for use in service call callback
         client_ref.append(client)
@@ -225,13 +229,23 @@ async def test_api_homeassistant(
             client.send_home_assistant_state(entity, "step", "0.5")
 
         # List entities and services
-        _, services = await client.list_entities_services()
+        entities, services = await client.list_entities_services()
 
         # Find the trigger service
-        trigger_service = next(
-            (s for s in services if s.name == "trigger_all_tests"), None
+        trigger_service = require_service(services, "trigger_all_tests")
+
+        # The complex lambda service reads the template sensor, whose first update lands at
+        # a random point in its interval; until then its state is NAN, which the int cast
+        # turns into INT_MIN. Wait for the first reading before firing the tests.
+        test_sensor = require_entity(entities, "test_sensor", SensorInfo, exact=True)
+        await wait_for_state(
+            client,
+            lambda s: (
+                isinstance(s, SensorState)
+                and s.key == test_sensor.key
+                and s.state == 42.0
+            ),
         )
-        assert trigger_service is not None, "trigger_all_tests service not found"
 
         # Execute all tests
         await client.execute_service(trigger_service, {})

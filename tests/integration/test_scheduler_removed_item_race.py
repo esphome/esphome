@@ -5,7 +5,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -67,9 +69,7 @@ async def test_scheduler_removed_item_race(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-removed-item-race"
+        await assert_device_name(client, "scheduler-removed-item-race")
 
         # List services
         _, services = await asyncio.wait_for(
@@ -77,17 +77,15 @@ async def test_scheduler_removed_item_race(
         )
 
         # Find run_test service
-        run_test_service = next((s for s in services if s.name == "run_test"), None)
-        assert run_test_service is not None, "run_test service not found"
+        run_test_service = require_service(services, "run_test")
 
         # Execute the test
         await client.execute_service(run_test_service, {})
 
         # Wait for test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Test did not complete within timeout")
+        await wait_or_fail(
+            test_complete_future, 5.0, "Test did not complete within timeout"
+        )
 
         # Verify results
         assert test_passed, (

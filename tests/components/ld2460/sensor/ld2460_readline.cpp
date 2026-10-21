@@ -180,4 +180,43 @@ TEST_F(LD2460ReadlineTest, DataCallbackOncePerValidFrame) {
   EXPECT_EQ(calls, 2);
 }
 
+TEST_F(LD2460ReadlineTest, TruncatedPrefixBeforeLargeFrames) {
+  // Three targets still fit behind the truncated prefix; four and five overflow the buffer
+  const std::vector<Point> targets = {{1, 2}, {3, 4}, {5, 6}, {7, 8}, {9, 10}};
+  for (int n = 3; n <= MAX_TARGETS; n++) {
+    SCOPED_TRACE(n);
+    this->ld2460_.feed({0x00, 0xF4, 0xF3, 0xF2, 0xF1, 0x04});
+    this->ld2460_.feed(make_periodic_frame(std::vector<Point>(targets.begin(), targets.begin() + n)));
+    EXPECT_FLOAT_EQ(this->count_.state, n);
+    EXPECT_NEAR(this->x_[n - 1].state, (2 * n - 1) * 0.1f, 0.001f);
+  }
+}
+
+TEST_F(LD2460ReadlineTest, LostFooterTwoTargetResync) {
+  // A two-target frame missing its last byte; the next frame overflows the buffer
+  auto broken = make_periodic_frame({{10, 10}, {20, 20}});
+  broken.pop_back();
+  this->ld2460_.feed(broken);
+  this->ld2460_.feed(make_periodic_frame({{30, 40}, {50, 60}}));
+  EXPECT_FLOAT_EQ(this->count_.state, 2);
+  EXPECT_NEAR(this->x_[1].state, 5.0f, 0.001f);
+  this->ld2460_.feed(make_periodic_frame({{70, 80}}));
+  EXPECT_FLOAT_EQ(this->count_.state, 1);
+  EXPECT_NEAR(this->x_[0].state, 7.0f, 0.001f);
+}
+
+TEST_F(LD2460ReadlineTest, HeaderLikeGarbageThenMaxTargets) {
+  // Header first bytes and whole command headers in the noise do not hold back a real frame
+  this->ld2460_.feed(std::vector<uint8_t>(70, 0xF4));
+  this->ld2460_.feed(make_periodic_frame({{1, 2}, {3, 4}, {5, 6}, {7, 8}, {9, 10}}));
+  EXPECT_FLOAT_EQ(this->count_.state, 5);
+  std::vector<uint8_t> garbage;
+  for (int i = 0; i < 40; i++) {
+    garbage.insert(garbage.end(), {0xFD, 0xFC, 0xFB, 0xFA});
+  }
+  this->ld2460_.feed(garbage);
+  this->ld2460_.feed(make_periodic_frame({{11, 12}, {3, 4}, {5, 6}, {7, 8}, {9, 10}}));
+  EXPECT_NEAR(this->x_[0].state, 1.1f, 0.001f);
+}
+
 }  // namespace esphome::ld2460::testing

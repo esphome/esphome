@@ -5,6 +5,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_REMOTE_ID
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -72,7 +73,6 @@ CONF_CONTROL = "control"
 CONF_CONTROL_IN_KEY = "control_in_key"
 CONF_ROLLING_CODE = "rolling_code"
 CONF_EXTENSION = "extension"
-CONF_REMOTE_ID = "remote_id"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -2709,10 +2709,8 @@ def abbwelcome_binary_sensor(var, config):
     cg.add(var.set_retransmission(config[CONF_RETRANSMISSION]))
     cg.add(var.set_message_type(config[CONF_MESSAGE_TYPE]))
     cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
-    if CONF_MESSAGE_ID in config:
-        cg.add(var.set_message_id(config[CONF_MESSAGE_ID]))
-    if CONF_DATA in config:
-        cg.add(var.set_data(config[CONF_DATA]))
+    cg.add_optional(var.set_message_id, config.get(CONF_MESSAGE_ID))
+    cg.add_optional(var.set_data, config.get(CONF_DATA))
     cg.add(var.finalize())
 
 
