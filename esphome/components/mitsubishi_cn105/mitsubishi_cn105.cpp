@@ -277,8 +277,13 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 
   // Must run before STATUS_UPDATED so did_transition_() sees the cleared timestamp and chains a 0x06 request.
   // Catches mode/power changes made outside ESPHome (IR remote, Mitsubishi app); setters handle local changes.
-  if (previous.power_on != this->status_.power_on) {
-    this->invalidate_operating_();
+  if (previous.mode == Mode::UNKNOWN) {
+    // Initial sync after boot/reconnect: nothing changed on the unit, so there's no spin-down to latch.
+    // Just make sure a 0x06 is requested promptly.
+    this->refresh_operating_();
+  } else if (previous.power_on != this->status_.power_on) {
+    // A unit that was off has no residual run; only latch when turning off.
+    this->invalidate_operating_(/*arm_settle=*/previous.power_on);
   } else if (previous.mode != this->status_.mode) {
     this->handle_mode_change_(previous.mode);
   } else if (previous.target_temperature != this->status_.target_temperature) {
@@ -379,7 +384,8 @@ void MitsubishiCN105::set_remote_temperature_half_deg_(uint8_t temperature_half_
 
 void MitsubishiCN105::set_power(bool power_on) {
   if (this->status_.power_on != power_on) {
-    this->invalidate_operating_();
+    // Powering on from off: no prior compressor run to wait out, so don't arm the settle latch.
+    this->invalidate_operating_(/*arm_settle=*/this->status_.power_on);
   }
   this->status_.power_on = power_on;
   this->pending_updates_.set(Property::Power::ID);
@@ -542,16 +548,20 @@ void MitsubishiCN105::FrameParser::dump_buffer_vv(const char *prefix, const uint
 }
 
 // Compressor state reported under the previous mode/power is meaningless for the new one.
-// Clear it, start the settle latch, and clear the poll timestamp so a fresh 0x06 is requested.
-void MitsubishiCN105::invalidate_operating_() {
+// Clear it, optionally start the settle latch, and clear the poll timestamp so a fresh 0x06 is requested.
+void MitsubishiCN105::invalidate_operating_(bool arm_settle) {
   this->status_.operating.reset();
   this->status_.auto_direction.reset();
-  this->operating_settle_start_ms_ = get_loop_time_ms();
+  if (arm_settle) {
+    this->operating_settle_start_ms_ = get_loop_time_ms();
+  } else {
+    this->operating_settle_start_ms_.reset();
+  }
   this->last_heatpump_request_ms_.reset();
 }
 
-// Setpoint change: the current mode's compressor state is still valid, so keep showing it and keep
-// auto_direction (the direction of an in-progress AUTO run doesn't flip mid-run). Just request a fresh
+// Setpoint change / initial sync: the current mode's compressor state is still valid, so keep showing it and
+// keep auto_direction (the direction of an in-progress AUTO run doesn't flip mid-run). Just request a fresh
 // 0x06 so the action catches up quickly. An in-progress settle window is left untouched.
 void MitsubishiCN105::refresh_operating_() { this->last_heatpump_request_ms_.reset(); }
 
@@ -559,6 +569,14 @@ void MitsubishiCN105::refresh_operating_() { this->last_heatpump_request_ms_.res
 // the compressor keeps delivering heat/cooling, so carry the state over instead of going "unknown".
 // While a settle window is active, operating is never true, so this falls through to invalidate.
 void MitsubishiCN105::handle_mode_change_(Mode old_mode) {
+  if (!this->status_.operating.has_value()) {
+    // State is already unknown (just invalidated by power-on/mode change, or never reported). There's no
+    // observed run to carry over or distrust, so don't (re)arm the settle latch; leave any existing one as-is.
+    this->status_.auto_direction.reset();
+    this->refresh_operating_();
+    return;
+  }
+
   const Mode new_mode = this->status_.mode;
 
   std::optional<AutoDirection> active_direction{};
