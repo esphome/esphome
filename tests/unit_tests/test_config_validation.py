@@ -1932,9 +1932,17 @@ def test_key_requires_ok(obj: dict) -> None:
     assert cv.key_requires("a", "b", "c")(obj) is obj
 
 
-def test_key_requires_all() -> None:
-    with pytest.raises(Invalid, match="'a' requires 'b' and 'c'"):
-        cv.key_requires("a", "b", "c")({"a": 1, "b": 2})
+def test_key_requires_names_missing_keys() -> None:
+    validator = cv.key_requires("a", "b", "c", "d")
+    with pytest.raises(Invalid, match="^'a' requires 'c' and 'd'"):
+        validator({"a": 1, "b": 2})
+
+
+def test_hint_is_added_to_error() -> None:
+    with pytest.raises(Invalid, match="^'a' requires 'b'. Set b first"):
+        cv.key_requires("a", "b", hint="Set b first")({"a": 1})
+    with pytest.raises(Invalid, match="^'a' is only valid when 'm' is 1. Use m 1"):
+        cv.only_when("a", "m", 1, hint="Use m 1")({"a": 1, "m": 2})
 
 
 def test_key_requires_any_of() -> None:

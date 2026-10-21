@@ -1034,12 +1034,14 @@ def _quote_value(value: typing.Any) -> str:
 def _key_constraint(
     record: dict[str, typing.Any],
     passes: typing.Callable[[dict], bool],
-    message: str,
+    message: typing.Callable[[dict], str],
+    hint: str | None,
 ):
     """Reject each of ``record["keys"]`` that is set when *passes* fails.
 
     The schema dump appends *record* to the schema's ``constraints`` list.
     """
+    suffix = f". {hint}" if hint else ""
 
     @schema_extractor("key_constraint")
     def validate(obj):
@@ -1050,7 +1052,7 @@ def _key_constraint(
         if passes(obj):
             return obj
         if errors := [
-            Invalid(f"'{key}' {message}", path=[key])
+            Invalid(f"'{key}' {message(obj)}{suffix}", path=[key])
             for key in record["keys"]
             if key in obj
         ]:
@@ -1066,16 +1068,19 @@ def only_when(
     values: typing.Any,
     *,
     negate: bool = False,
+    hint: str | None = None,
 ):
     """Allow *keys* only when *selector* is one of *values* (none of them with *negate*).
 
-    Place it after the schema in ``cv.All`` so the selector's default counts. Prefer
-    ``cv.typed_schema`` when most of the schema depends on the selector.
+    Place it after the schema in ``cv.All`` so the selector's default counts. *hint* is
+    added to the error. Prefer ``cv.typed_schema`` when most of the schema depends on
+    the selector.
     """
     keys = _as_tuple(keys)
     values = _as_tuple(values)
     assert all(isinstance(v, (str, int, float, bool)) for v in values)
     shown = " or ".join(_quote_value(v) for v in values)
+    message = f"is only valid when '{selector}' is {'not ' if negate else ''}{shown}"
 
     # The bool tag keeps True from matching 1
     wanted = [(isinstance(v, bool), v) for v in values]
@@ -1093,20 +1098,31 @@ def only_when(
             "negate": negate,
         },
         passes,
-        f"is only valid when '{selector}' is {'not ' if negate else ''}{shown}",
+        lambda obj: message,
+        hint,
     )
 
 
 def key_requires(
-    keys: str | list[str] | tuple[str, ...], *required: str, any_of: bool = False
+    keys: str | list[str] | tuple[str, ...],
+    *required: str,
+    any_of: bool = False,
+    hint: str | None = None,
 ):
     """Allow *keys* only when all of *required* are set (any one of them with *any_of*).
 
-    Place it after the schema in ``cv.All``.
+    Place it after the schema in ``cv.All``. *hint* is added to the error.
     """
     assert required
     check = any if any_of else all
-    joiner = " or " if any_of else " and "
+
+    def message(obj: dict) -> str:
+        # Name only the missing keys when all are required
+        if any_of:
+            return f"requires {' or '.join(_quote_value(key) for key in required)}"
+        missing = (_quote_value(key) for key in required if key not in obj)
+        return f"requires {' and '.join(missing)}"
+
     return _key_constraint(
         {
             "type": "key_requires",
@@ -1115,7 +1131,8 @@ def key_requires(
             "any_of": any_of,
         },
         lambda obj: check(key in obj for key in required),
-        f"requires {joiner.join(_quote_value(key) for key in required)}",
+        message,
+        hint,
     )
 
 
