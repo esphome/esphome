@@ -1294,9 +1294,11 @@ async def test_apply_bytes_lambda_is_a_vector_in_a_block(
         registries, fields, config, args=[(cg.uint8, "x")], platform=platform
     )
     text = _apply_definition(mock_cg)
-    assert "const std::vector<uint8_t> apply_bytes = " in text
+    assert "const std::vector<uint8_t> esphome__bytes = " in text
     assert "-> std::vector<uint8_t>" in text
-    assert f"::{PARENT_OBJ}->send(apply_bytes.data(), apply_bytes.size());" in text
+    assert (
+        f"::{PARENT_OBJ}->send(esphome__bytes.data(), esphome__bytes.size());" in text
+    )
     assert "progmem_memcpy" not in text
 
 
@@ -1336,9 +1338,9 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
     )
     text = _apply_definition(mock_cg)
     lines = [
-        "uint8_t apply_bytes[2];",
-        "progmem_memcpy(apply_bytes, esphome__my_apply__bytes, 2);",
-        f"::{PARENT_OBJ}->send(apply_bytes, 2);",
+        "uint8_t esphome__bytes[2];",
+        "progmem_memcpy(esphome__bytes, esphome__my_apply__bytes, 2);",
+        f"::{PARENT_OBJ}->send(esphome__bytes, 2);",
     ]
     positions = [text.index(line) for line in lines]
     assert positions == sorted(positions)
@@ -1350,9 +1352,9 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
         registries, fields, {"data": [0xA1, 0x02]}, platform="esp8266"
     )
     text = _apply_definition(mock_cg)
-    assert "auto apply_bytes = std::make_unique<uint8_t[]>(2);" in text
-    assert "progmem_memcpy(apply_bytes.get(), esphome__my_apply__bytes, 2);" in text
-    assert f"::{PARENT_OBJ}->send(apply_bytes.get(), 2);" in text
+    assert "auto esphome__bytes = std::make_unique<uint8_t[]>(2);" in text
+    assert "progmem_memcpy(esphome__bytes.get(), esphome__my_apply__bytes, 2);" in text
+    assert f"::{PARENT_OBJ}->send(esphome__bytes.get(), 2);" in text
 
     mock_cg.new_pvariable.reset_mock()
     fields = (ApplyBytes("data", "send({})", progmem_target="send_progmem({})"),)
@@ -1398,10 +1400,12 @@ def test_apply_bytes_checks_its_shape(registries: tuple[Registry, Registry]) -> 
         ApplyBytes("data", "send()")
     with pytest.raises(ValueError, match="needs one {}"):
         ApplyBytes("data", "send({})", progmem_target="send_progmem({}, {})")
-    with pytest.raises(ValueError, match="not in the schema"):
+    with pytest.raises(ValueError, match="'dat' is not in the schema"):
         register_apply_action(
             "my.bad",
-            cv.Schema({cv.Required("data"): cv.string}),
+            cv.Schema(
+                {cv.Required(CONF_ID): cv.string, cv.Required("data"): cv.string}
+            ),
             ApplyBytes("dat", "send({})"),
         )
 

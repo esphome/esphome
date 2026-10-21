@@ -611,6 +611,7 @@ async def _render_bytes(
     if value is None:
         return []
 
+    # The temporary carries the generated-name prefix so a trigger argument cannot shadow it
     def send(target: str, data: str) -> str:
         return f"{receiver}{target.format(data, parent=parent)};"
 
@@ -620,8 +621,8 @@ async def _render_bytes(
         )
         return [
             "{",
-            f"  const std::vector<uint8_t> apply_bytes = {call_lambda(inner)};",
-            f"  {send(spec.target, 'apply_bytes.data(), apply_bytes.size()')}",
+            f"  const std::vector<uint8_t> esphome__bytes = {call_lambda(inner)};",
+            f"  {send(spec.target, 'esphome__bytes.data(), esphome__bytes.size()')}",
             "}",
         ]
     table, size = _static_bytes(table_name, value)
@@ -633,11 +634,11 @@ async def _render_bytes(
     # A PROGMEM table must be read with aligned loads on ESP8266, so copy it out first;
     # the length is known here, so the copy is an exact array, on the heap past ``stack``
     if size <= spec.stack:
-        buffer, data = f"uint8_t apply_bytes[{size}];", "apply_bytes"
+        buffer, data = f"uint8_t esphome__bytes[{size}];", "esphome__bytes"
     else:
         buffer, data = (
-            f"auto apply_bytes = std::make_unique<uint8_t[]>({size});",
-            "apply_bytes.get()",
+            f"auto esphome__bytes = std::make_unique<uint8_t[]>({size});",
+            "esphome__bytes.get()",
         )
     return [
         "{",
