@@ -80,9 +80,8 @@ class DisplayBus final : public i2c::I2CBus {
   }
 
   size_t off_commands() const {
-    return std::count_if(this->transfers_.begin(), this->transfers_.end(), [](const Transfer &t) {
-      return !t.failed && t.bytes == std::vector<uint8_t>{0x00, 0xAE};
-    });
+    return std::count_if(this->transfers_.begin(), this->transfers_.end(),
+                         [](const Transfer &t) { return !t.failed && t.bytes == std::vector<uint8_t>{0x00, 0xAE}; });
   }
 
   bool online_{true};
