@@ -643,6 +643,7 @@ esphome/components/template/event/* @nohat
 esphome/components/template/fan/* @ssieb
 esphome/components/text/* @mauritskorse
 esphome/components/tflite_memory_handler/* @nliaudat
+esphome/components/tflite_model_loader/* @nliaudat
 esphome/components/tflite_model_source/* @nliaudat
 esphome/components/tflite_op_processor/* @nliaudat
 esphome/components/tflite_output_processor/* @nliaudat
