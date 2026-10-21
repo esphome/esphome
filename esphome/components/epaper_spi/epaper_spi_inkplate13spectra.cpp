@@ -32,7 +32,7 @@ void EPaperInkplate13Spectra::setup() {
   this->set_all_pins_low_();
 }
 
-void EPaperInkplate13Spectra::setup_pins_() const {
+void EPaperInkplate13Spectra::setup_pins() const {
   for (auto *pin : this->enable_pins_)
     pin->setup();
   this->reset_pin_->setup();

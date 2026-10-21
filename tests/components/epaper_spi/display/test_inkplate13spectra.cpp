@@ -42,7 +42,7 @@ class TestableInkplate13Spectra : public EPaperInkplate13Spectra {
   using EPaperInkplate13Spectra::refresh_started_ms_;
   using EPaperInkplate13Spectra::reset;
   using EPaperInkplate13Spectra::reset_sub_;
-  using EPaperInkplate13Spectra::setup_pins_;
+  using EPaperInkplate13Spectra::setup_pins;
   using EPaperInkplate13Spectra::state_;
   using EPaperInkplate13Spectra::RST_DONE;
   using EPaperInkplate13Spectra::RST_IO_WAIT;
@@ -86,7 +86,7 @@ TEST(EPaperInkplate13Spectra, PinSetupLeavesThePanelUnpowered) {
   TestableInkplate13Spectra display;
   display.install();
 
-  display.setup_pins_();
+  display.setup_pins();
   EXPECT_FALSE(display.pwr_en.driven_high) << "panel power was switched on at boot";
   EXPECT_FALSE(display.rst.driven_high) << "reset was released at boot";
 }
