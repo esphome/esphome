@@ -50,14 +50,13 @@ class TcpUart : public uart::UARTComponent, public Component {
   /// Changes whenever another connection, or a new session, gets the turn.
   /// Reads come from that connection only, writes go to it.
   uint16_t turn() const { return this->turn_; }
-  /// Keeps the turn on the current connection until release_turn().
+  /// Keeps a started turn on its connection until release_turn(). After a release_turn() it reads nothing new.
   void hold_turn() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->held_ = true;
-    this->release_ = false;
 #endif
   }
-  /// Ends the turn as soon as the bytes already read from its connection are consumed.
+  /// Ends the turn as soon as the bytes already read from its connection are consumed and no hold is left.
   void release_turn() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->held_ = false;

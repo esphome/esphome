@@ -208,8 +208,8 @@ void TcpUart::loop_pool_(bool waiting) {
     if (!this->release_ && (this->rx_pending_ || this->slot_(this->holder_).ready())) {
       this->read_holder_(now);
     }
-    if (this->available() == 0 &&
-        (this->release_ || (!this->held_ && now - this->last_traffic_ms_ >= this->turn_timeout_ms_))) {
+    if (this->available() == 0 && !this->held_ &&
+        (this->release_ || now - this->last_traffic_ms_ >= this->turn_timeout_ms_)) {
       this->end_turn_();
     }
   }
