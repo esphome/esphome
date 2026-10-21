@@ -61,7 +61,7 @@ class ModbusServerTwoClients : public ::testing::Test {
 
   static uint16_t free_port() {
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     socklen_t len = sizeof(addr);
     ::bind(fd, reinterpret_cast<struct sockaddr *>(&addr), len);
@@ -80,7 +80,7 @@ class ModbusServerTwoClients : public ::testing::Test {
   }
   int connect_client() {
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(this->port_);
@@ -110,9 +110,7 @@ class ModbusServerTwoClients : public ::testing::Test {
   }
   // What the client received within 200 ms; empty for nothing.
   static std::vector<uint8_t> received(int fd) {
-    struct pollfd pfd {
-      fd, POLLIN, 0
-    };
+    struct pollfd pfd{fd, POLLIN, 0};
     if (::poll(&pfd, 1, 200) != 1) {
       return {};
     }
