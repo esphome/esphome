@@ -127,12 +127,13 @@ class EpaperModel:
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
         defaults.update(kwargs)
-        # Subclass constructors take class_name but not source_files, so set that one after construction
-        model = self.__class__(
-            name, class_name=class_name, initsequence=tuple(initsequence), **defaults
+        return self.__class__(
+            name,
+            class_name=class_name,
+            initsequence=tuple(initsequence),
+            source_files=source_files,
+            **defaults,
         )
-        model.source_files = source_files
-        return model
 
     def check_requirements(self) -> None:
         """
