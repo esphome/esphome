@@ -12,11 +12,15 @@ from aioesphomeapi import (
     APIClient,
     BinarySensorState,
     ButtonInfo,
+    DeviceInfo,
     EntityInfo,
     EntityState,
     SensorState,
     TextSensorState,
+    UserService,
 )
+
+from .wait_utils import wait_or_fail
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +31,7 @@ async def wait_for_state(
     client: APIClient,
     predicate: Callable[[EntityState], bool],
     timeout: float = 5.0,
+    msg: str = "Timed out waiting for a matching state",
 ) -> EntityState:
     """Subscribe to states and wait for one matching ``predicate``.
 
@@ -41,21 +46,24 @@ async def wait_for_state(
         predicate: Callable invoked for every received state; the first
             state for which it returns ``True`` is returned.
         timeout: Maximum time to wait in seconds.
+        msg: Failure message if no matching state arrives in time; the
+            states received are listed after it.
 
     Returns:
         The first state matching ``predicate``.
-
-    Raises:
-        asyncio.TimeoutError: If no matching state arrives within ``timeout``.
     """
     future: asyncio.Future[EntityState] = asyncio.get_running_loop().create_future()
+    received: list[EntityState] = []
 
     def on_state(state: EntityState) -> None:
-        if not future.done() and predicate(state):
+        if future.done():
+            return
+        received.append(state)
+        if predicate(state):
             future.set_result(state)
 
     client.subscribe_states(on_state)
-    return await asyncio.wait_for(future, timeout=timeout)
+    return await wait_or_fail(future, timeout, msg, received=received)
 
 
 class StateWaiter:
@@ -130,6 +138,8 @@ def find_entity[T: EntityInfo](
     entities: list[EntityInfo],
     object_id_substring: str,
     entity_type: type[T] | None = None,
+    *,
+    exact: bool = False,
 ) -> T | EntityInfo | None:
     """Find an entity by object_id substring and optionally by type.
 
@@ -137,6 +147,7 @@ def find_entity[T: EntityInfo](
         entities: List of entity info objects from the API
         object_id_substring: Substring to search for in object_id (case-insensitive)
         entity_type: Optional entity type to filter by (e.g., BinarySensorInfo)
+        exact: Match the whole object_id exactly (case-sensitive) instead
 
     Returns:
         The first matching entity, or None if not found
@@ -147,8 +158,12 @@ def find_entity[T: EntityInfo](
     """
     substring_lower = object_id_substring.lower()
     for entity in entities:
-        if substring_lower in entity.object_id.lower() and (
-            entity_type is None or isinstance(entity, entity_type)
+        if entity_type is not None and not isinstance(entity, entity_type):
+            continue
+        if (
+            entity.object_id == object_id_substring
+            if exact
+            else substring_lower in entity.object_id.lower()
         ):
             return entity
     return None
@@ -159,6 +174,8 @@ def require_entity[T: EntityInfo](
     object_id_substring: str,
     entity_type: type[T] | None = None,
     description: str | None = None,
+    *,
+    exact: bool = False,
 ) -> T | EntityInfo:
     """Find an entity or raise AssertionError if not found.
 
@@ -167,6 +184,7 @@ def require_entity[T: EntityInfo](
         object_id_substring: Substring to search for in object_id (case-insensitive)
         entity_type: Optional entity type to filter by (e.g., BinarySensorInfo)
         description: Human-readable description for error message
+        exact: Match the whole object_id exactly (case-sensitive) instead
 
     Returns:
         The first matching entity
@@ -178,12 +196,56 @@ def require_entity[T: EntityInfo](
         binary_sensor = require_entity(entities, "test_sensor", BinarySensorInfo)
         button = require_entity(entities, "set_true", description="Set True button")
     """
-    entity = find_entity(entities, object_id_substring, entity_type)
+    entity = find_entity(entities, object_id_substring, entity_type, exact=exact)
     if entity is None:
-        desc = description or f"entity with '{object_id_substring}' in object_id"
+        desc = description or (
+            f"entity with object_id '{object_id_substring}'"
+            if exact
+            else f"entity with '{object_id_substring}' in object_id"
+        )
         type_info = f" of type {entity_type.__name__}" if entity_type else ""
-        raise AssertionError(f"{desc}{type_info} not found in entities")
+        raise AssertionError(
+            f"{desc}{type_info} not found; available: {[e.object_id for e in entities]}"
+        )
     return entity
+
+
+def require_only_entity[T: EntityInfo](
+    entities: list[EntityInfo], entity_type: type[T]
+) -> T:
+    """Return the single entity of ``entity_type``.
+
+    Raises AssertionError when there is none or more than one.
+    """
+    matches = [entity for entity in entities if isinstance(entity, entity_type)]
+    assert len(matches) == 1, (
+        f"expected exactly one {entity_type.__name__}, found "
+        f"{[entity.object_id for entity in matches]}"
+    )
+    return matches[0]
+
+
+def require_service(services: list[UserService], name: str) -> UserService:
+    """Return the user service named exactly ``name``.
+
+    Raises AssertionError with the available service names when it is missing.
+    """
+    service = next((s for s in services if s.name == name), None)
+    if service is None:
+        raise AssertionError(
+            f"service '{name}' not found; available: {[s.name for s in services]}"
+        )
+    return service
+
+
+async def assert_device_name(client: APIClient, name: str) -> DeviceInfo:
+    """Fetch device info, assert the device is called ``name`` and return the info."""
+    device_info = await client.device_info()
+    assert device_info is not None, "device_info() returned None"
+    assert device_info.name == name, (
+        f"expected device name '{name}', got '{device_info.name}'"
+    )
+    return device_info
 
 
 def build_key_to_entity_mapping(
@@ -345,15 +407,23 @@ class InitialStateHelper:
         )
 
     async def wait_for_initial_states(self, timeout: float = 5.0) -> None:
-        """Wait for all initial states to be received.
+        """Wait for all initial states to be received, failing the test on timeout.
 
         Args:
             timeout: Maximum time to wait in seconds
-
-        Raises:
-            asyncio.TimeoutError: If initial states aren't received within timeout
         """
-        await asyncio.wait_for(self._initial_states_received, timeout=timeout)
+        await wait_or_fail(
+            self._initial_states_received,
+            timeout,
+            "Timed out waiting for initial states",
+            still_waiting=lambda: sorted(
+                f"{type(entity).__name__} {entity.object_id}"
+                for entity in (
+                    self._entities_by_id[entity_id]
+                    for entity_id in self._wait_initial_states
+                )
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -498,12 +568,29 @@ class SensorStateCollector:
         )
 
     async def wait_for_all(self, timeout: float = 3.0) -> None:
-        """Wait until all sensors and binary sensors have at least one value."""
+        """Wait until every tracked sensor has a value, failing the test on timeout."""
         if self._all_have_values():
             return
         future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
         self._waiters.append((self._all_have_values, future))
-        await asyncio.wait_for(future, timeout=timeout)
+        tracked = (self.sensor_states, self.binary_states, self.text_sensor_states)
+        await wait_or_fail(
+            future,
+            timeout,
+            "Timed out waiting for every sensor to report",
+            still_waiting=lambda: [
+                name
+                for states in tracked
+                for name, values in states.items()
+                if not values
+            ],
+            received=lambda: {
+                name: values
+                for states in tracked
+                for name, values in states.items()
+                if values
+            },
+        )
 
     def add_waiter(self, condition: Callable[[], bool]) -> asyncio.Future[bool]:
         """Add a custom waiter that resolves when condition returns True.
@@ -640,16 +727,10 @@ class SensorTracker:
         )
         initial_state_helper = InitialStateHelper(entities)
         client.subscribe_states(initial_state_helper.on_state_wrapper(self.on_state))
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            import pytest
-
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
         if match_initial_states:
             for state in initial_state_helper.initial_states.values():
                 self.on_state(state, first_pending_only=True)
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
         return entities

@@ -116,6 +116,11 @@ ST7305::Window ST7305::compute_window_() const {
     window.block_start = static_cast<uint16_t>((inv_min >> 2) / 3 * 3);
     window.block_end =
         static_cast<uint16_t>(std::min(((inv_max >> 2) / 3) * 3 + 2, static_cast<int>(window.stride) - 1));
+    // The panel mirrors the column address window (MADCTL MX) but still fills it in ascending
+    // order, so the bands are addressed from the far end of the column range.
+    const int last_band = window.stride / 3 - 1;
+    window.caset_start = static_cast<uint8_t>(this->column_start_ + last_band - window.block_end / 3);
+    window.caset_end = static_cast<uint8_t>(this->column_start_ + last_band - window.block_start / 3);
   } else {
     // RASET rows are y pairs; CASET columns are 12-pixel bands of x blocks.
     window.stride = static_cast<uint16_t>(this->width_ / 4);
@@ -125,9 +130,9 @@ ST7305::Window ST7305::compute_window_() const {
     const int block_max = this->x_high_ >> 2;
     window.block_start = static_cast<uint16_t>(block_min / 3 * 3);
     window.block_end = static_cast<uint16_t>(std::min((block_max / 3) * 3 + 2, static_cast<int>(window.stride) - 1));
+    window.caset_start = static_cast<uint8_t>(this->column_start_ + window.block_start / 3);
+    window.caset_end = static_cast<uint8_t>(this->column_start_ + window.block_end / 3);
   }
-  window.caset_start = static_cast<uint8_t>(this->column_start_ + window.block_start / 3);
-  window.caset_end = static_cast<uint8_t>(this->column_start_ + window.block_end / 3);
   return window;
 }
 

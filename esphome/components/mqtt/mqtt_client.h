@@ -152,6 +152,8 @@ class MQTTClientComponent final : public Component {
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+  void set_transport(MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }
+  void set_ws_path(const char *path) { this->mqtt_backend_.set_ws_path(path); }
 #endif
   const Availability &get_availability();
 
@@ -398,8 +400,7 @@ template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(
-        topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
+    this->parent_->publish_json(topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
   }
 
  protected:
