@@ -19,34 +19,32 @@ _SWITCH_SCHEMA = switch.switch_schema(
     }
 )
 
-CONFIG_SCHEMA = cv.typed_schema(
-    {
-        "sensor_active": _SWITCH_SCHEMA,
-        "turn_on_led": _SWITCH_SCHEMA,
-        "presence_via_uart": _SWITCH_SCHEMA,
-        "start_after_boot": _SWITCH_SCHEMA,
-    }
-)
+# Per type: the hub setter that stores the switch, and the command its writes queue
+_SWITCHES = {
+    "sensor_active": (
+        lambda hub: hub.set_sensor_active_switch,
+        f"enqueue({CommandType.COMMAND_TYPE_POWER}, state)",
+    ),
+    "turn_on_led": (
+        lambda hub: hub.set_turn_on_led_switch,
+        f"enqueue_saved_setting({CommandType.COMMAND_TYPE_LED_MODE}, state)",
+    ),
+    "presence_via_uart": (
+        lambda hub: hub.set_presence_via_uart_switch,
+        f"enqueue_saved_setting({CommandType.COMMAND_TYPE_UART_OUTPUT}, state)",
+    ),
+    "start_after_boot": (
+        lambda hub: hub.set_start_after_boot_switch,
+        f"enqueue_saved_setting({CommandType.COMMAND_TYPE_SENSOR_CFG_START}, state)",
+    ),
+}
+
+CONFIG_SCHEMA = cv.typed_schema(dict.fromkeys(_SWITCHES, _SWITCH_SCHEMA))
 
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DFROBOT_SEN0395_ID])
-    setter, apply = {
-        "sensor_active": (
-            hub.set_sensor_active_switch,
-            f"enqueue({CommandType.COMMAND_TYPE_POWER}, state)",
-        ),
-        "turn_on_led": (
-            hub.set_turn_on_led_switch,
-            f"enqueue_saved_setting({CommandType.COMMAND_TYPE_LED_MODE}, state)",
-        ),
-        "presence_via_uart": (
-            hub.set_presence_via_uart_switch,
-            f"enqueue_saved_setting({CommandType.COMMAND_TYPE_UART_OUTPUT}, state)",
-        ),
-        "start_after_boot": (
-            hub.set_start_after_boot_switch,
-            f"enqueue_saved_setting({CommandType.COMMAND_TYPE_SENSOR_CFG_START}, state)",
-        ),
-    }[config[CONF_TYPE]]
-    await switch.sub_switches(config, parent=hub).create(config, setter, apply=apply)
+    setter, apply = _SWITCHES[config[CONF_TYPE]]
+    await switch.sub_switches(config, parent=hub).create(
+        config, setter(hub), apply=apply
+    )
