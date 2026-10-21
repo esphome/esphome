@@ -124,6 +124,9 @@ automation.register_apply_action(
 automation.register_apply_action(
     "rx8111.stop_timer", RX8111_ACTION_SCHEMA, automation.ApplyCall("stop_timer()")
 )
+automation.register_apply_action(
+    "rx8111.start_timer", RX8111_ACTION_SCHEMA, automation.ApplyCall("start_timer()")
+)
 
 
 def _validate_set_alarm(config: ConfigType) -> ConfigType:

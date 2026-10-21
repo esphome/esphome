@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "esphome/components/rx8111/rx8111.h"
+#include "esphome/core/application.h"
 
 namespace esphome::rx8111::testing {
 
@@ -64,6 +65,8 @@ class RX8111Test : public ::testing::Test {
     this->rtc_.set_i2c_address(ADDRESS);
     this->rtc_.add_on_time_sync_callback([this]() { this->syncs_++; });
   }
+
+  void TearDown() override { App.scheduler.cancel_interval(&this->rtc_, uint32_t{0}); }
 
   RegisterBus bus_;
   RX8111Component rtc_;
@@ -304,6 +307,72 @@ TEST_F(RX8111Test, OmittedTimerConfigurationLeavesBatteryBackedStateAlone) {
   this->rtc_.setup();
   EXPECT_EQ(this->bus_.regs[EXTENSION], 0xD9);
   EXPECT_EQ(this->bus_.regs[CONTROL], 0xB7);
+}
+
+TEST_F(RX8111Test, StartTimerRestartsFullCountAndClearsOnlyStaleTimerFlag) {
+  this->rtc_.set_timer_count(60);
+  this->rtc_.set_timer_clock(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.setup();
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&calls]() { calls++; });
+  this->bus_.regs[FLAG] = 0x1C;
+  ASSERT_TRUE(this->rtc_.stop_timer());
+  this->bus_.writes.clear();
+  ASSERT_TRUE(this->rtc_.start_timer());
+  EXPECT_EQ(this->bus_.regs[FLAG], 0x0C);
+  EXPECT_EQ(this->bus_.regs[0x1A], 60);
+  EXPECT_EQ(this->bus_.regs[0x1B], 0);
+  EXPECT_EQ(this->bus_.regs[0x1C], 0);
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0x10);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x10, 0x10);
+  EXPECT_EQ(this->bus_.writes, (std::vector<uint8_t>{EXTENSION, CONTROL, 0x1A, EXTENSION, FLAG, CONTROL, EXTENSION}));
+  this->rtc_.update();
+  EXPECT_EQ(calls, 0);
+  this->bus_.regs[FLAG] |= 0x10;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+  ASSERT_TRUE(this->rtc_.stop_timer());
+  ASSERT_TRUE(this->rtc_.start_timer());
+  this->bus_.regs[FLAG] |= 0x10;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 2);
+}
+
+TEST_F(RX8111Test, StartTimerAfterDisabledBootAndRejectsMissingOrFailedConfiguration) {
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(false);
+  this->rtc_.set_event_poll_interval(1);
+  this->rtc_.setup();
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&calls]() { calls++; });
+  this->bus_.regs[FLAG] = 0x10;
+  ASSERT_TRUE(this->rtc_.start_timer());
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x10, 0);
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0x10);
+  this->bus_.regs[FLAG] = 0x10;
+  App.scheduler.call(millis());
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(calls, 1);
+  ASSERT_TRUE(this->rtc_.stop_timer());
+  this->bus_.fail_write = FLAG;
+  EXPECT_FALSE(this->rtc_.start_timer());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x10, 0);
+  this->bus_.fail_write = -1;
+  EXPECT_TRUE(this->rtc_.start_timer());
+}
+
+TEST_F(RX8111Test, StartTimerWithoutCountDoesNotTouchHardware) {
+  this->rtc_.setup();
+  this->bus_.writes.clear();
+  EXPECT_FALSE(this->rtc_.start_timer());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  EXPECT_TRUE(this->bus_.writes.empty());
 }
 
 TEST_F(RX8111Test, BootAlarmIsPreservedAndLatchedEventIsDelivered) {

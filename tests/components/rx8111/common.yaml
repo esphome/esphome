@@ -18,6 +18,7 @@ esphome:
       - rx8111.clear_alarm_flag: rtc
       - rx8111.clear_timer_flag: rtc
       - rx8111.stop_timer: rtc
+      - rx8111.start_timer: rtc
       - rx8111.unset_alarm: rtc
 
 time:

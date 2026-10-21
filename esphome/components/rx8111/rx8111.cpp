@@ -61,11 +61,18 @@ void RX8111Component::setup() {
     }
   }
   if (this->alarm_enabled_ || this->timer_enabled_) {
-    this->set_interval(RX8111_EVENT_INTERVAL_ID, this->event_poll_interval_, [this]() {
-      if ((this->alarm_configured_ || this->timer_enabled_) && !this->poll_event_flags_())
-        this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    });
+    this->start_event_polling_();
   }
+}
+
+void RX8111Component::start_event_polling_() {
+  if (this->event_polling_started_)
+    return;
+  this->set_interval(RX8111_EVENT_INTERVAL_ID, this->event_poll_interval_, [this]() {
+    if ((this->alarm_configured_ || this->timer_enabled_) && !this->poll_event_flags_())
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  });
+  this->event_polling_started_ = true;
 }
 
 void RX8111Component::update() {
@@ -278,8 +285,8 @@ bool RX8111Component::clear_alarm_flag() {
   return true;
 }
 
-bool RX8111Component::configure_timer_() {
-  // Stop counting before updating the 24-bit reload value; leave the flag latched.
+bool RX8111Component::configure_timer_(bool clear_stale_flag) {
+  // Stop counting before updating the 24-bit reload value; preserve the boot flag unless explicitly starting.
   uint8_t extension;
   uint8_t control;
   if (!this->read_byte(RX8111_REG_EXTENSION, &extension) ||
@@ -293,10 +300,29 @@ bool RX8111Component::configure_timer_() {
   if (!this->write_bytes(RX8111_REG_TIMER0, count, sizeof(count)) ||
       !this->write_byte(RX8111_REG_EXTENSION,
                         (extension & ~(RX8111_EXTENSION_TE | RX8111_EXTENSION_TSEL)) | this->timer_clock_) ||
+      (clear_stale_flag && !this->clear_timer_flag()) ||
       !this->write_byte(RX8111_REG_CONTROL, control | RX8111_CONTROL_TIE))
     return false;
   return this->write_byte(RX8111_REG_EXTENSION,
                           (extension & ~RX8111_EXTENSION_TSEL) | this->timer_clock_ | RX8111_EXTENSION_TE);
+}
+
+bool RX8111Component::start_timer() {
+  if (this->timer_count_ == 0 || this->timer_count_ > 0xFFFFFF) {
+    ESP_LOGW(TAG, "Cannot start timer without a valid timer_count");
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+  if (!this->configure_timer_(true)) {
+    // A partial configuration can leave either enable bit set. Disable both if the bus permits it.
+    this->stop_timer();
+    this->timer_enabled_ = false;
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+  this->timer_enabled_ = true;
+  this->start_event_polling_();
+  return true;
 }
 
 bool RX8111Component::clear_timer_flag() {
