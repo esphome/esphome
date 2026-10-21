@@ -63,19 +63,16 @@ void MCP9808Sensor::update() {
 
   if ((msb & MCP9808_AMBIENT_TEMP_NEGATIVE) == MCP9808_AMBIENT_TEMP_NEGATIVE) {
     msb = msb & MCP9808_AMBIENT_CLEAR_SIGN;
-    temp = (256 - ((uint16_t) (msb) *16 + lsb / 16.0f)) * -1;
+    temp = (256 - ((uint16_t) (msb) * 16 + lsb / 16.0f)) * -1;
   } else {
-    temp = (uint16_t) (msb) *16 + lsb / 16.0f;
+    temp = (uint16_t) (msb) * 16 + lsb / 16.0f;
   }
 
-  if (std::isnan(temp)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(!std::isnan(temp), nullptr))
     return;
-  }
 
   ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", this->name_.c_str(), temp);
   this->publish_state(temp);
-  this->status_clear_warning();
 }
 
 }  // namespace esphome::mcp9808

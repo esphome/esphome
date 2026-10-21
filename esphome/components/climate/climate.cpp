@@ -479,10 +479,8 @@ void Climate::publish_state() {
 ClimateTraits Climate::get_traits() {
   auto traits = this->traits();
   // Wire custom mode pointers from Climate-owned storage
-  if (this->supported_custom_fan_modes_)
-    traits.set_supported_custom_fan_modes_(this->supported_custom_fan_modes_);
-  if (this->supported_custom_presets_)
-    traits.set_supported_custom_presets_(this->supported_custom_presets_);
+  traits.set_supported_custom_fan_modes_(&this->supported_custom_fan_modes_);
+  traits.set_supported_custom_presets_(&this->supported_custom_presets_);
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
   if (!std::isnan(this->visual_min_temperature_override_)) {
     traits.set_visual_min_temperature(this->visual_min_temperature_override_);
@@ -628,7 +626,7 @@ template<typename T> bool set_primary_mode(optional<T> &primary, const char *&cu
  *   After:  fan_mode=nullopt,          custom_fan_mode_="Turbo" (pointer from traits)
  *
  * Lifetime Safety:
- *   - found_ptr must come from traits.find_custom_*_mode_()
+ *   - found_ptr must come from Climate::find_custom_*_()
  *   - Only pointers found in traits are stored, ensuring they remain valid
  *   - Prevents dangling pointers from temporary strings
  *
@@ -684,11 +682,7 @@ const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode) {
 }
 
 const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode, size_t len) {
-  if (this->supported_custom_fan_modes_) {
-    return vector_find(*this->supported_custom_fan_modes_, custom_fan_mode, len);
-  }
-  // Fallback for deprecated path: external components may set modes on ClimateTraits directly
-  return this->get_traits().find_custom_fan_mode_(custom_fan_mode, len);
+  return vector_find(this->supported_custom_fan_modes_, custom_fan_mode, len);
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset) {
@@ -696,11 +690,7 @@ const char *Climate::find_custom_preset_(const char *custom_preset) {
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset, size_t len) {
-  if (this->supported_custom_presets_) {
-    return vector_find(*this->supported_custom_presets_, custom_preset, len);
-  }
-  // Fallback for deprecated path: external components may set modes on ClimateTraits directly
-  return this->get_traits().find_custom_preset_(custom_preset, len);
+  return vector_find(this->supported_custom_presets_, custom_preset, len);
 }
 
 void Climate::dump_traits_(const char *tag) {

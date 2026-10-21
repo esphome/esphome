@@ -15,12 +15,15 @@ class EPaperMono : public EPaperBase {
  protected:
   void refresh_screen(bool partial) override;
   void power_on() override {}
-  void power_off() override{};
+  void power_off() override {};
   void deep_sleep() override;
   bool reset() override;
   virtual void set_window();
   bool transfer_data() override;
   bool send_red_{true};
+  bool software_reset_{true};  // send 0x12 after the hardware reset
+  // When set, the red RAM pass writes the image rather than blank data.
+  bool send_red_as_image_{false};
 };
 
 }  // namespace esphome::epaper_spi
