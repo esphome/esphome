@@ -57,7 +57,7 @@ namespace esphome::web_server_idf {
 
 ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
-// Only send_json_() may hold the JSON arena: every other frame in this file is capped below one
+// Only prepare_json_() may hold the JSON arena: every other frame in this file is capped below one
 // arena. Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic error "-Wstack-usage=2048"
@@ -148,10 +148,9 @@ void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
   }
-  // Default httpd stack is defined by ESP-IDF. Increase to accommodate SerializationBuffer's
-  // 640-byte stack buffer used by web_server JSON request handlers.
+  // Allow room for SerializationBuffer's 640-byte stack buffer and HTTP request handling.
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.stack_size = config.stack_size + 256;
+  config.stack_size = 4512;
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
@@ -1124,67 +1123,87 @@ void AsyncEventSourceResponse::loop() {
 
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstack-usage="  // the one frame that holds the arena and the JSON buffer
+#pragma GCC diagnostic ignored "-Wstack-usage="  // the one frame that holds the JSON arena
 #endif
-bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *generator) {
-  // The arena lives only in this frame, so no call chain ever holds two of them
+AsyncEventSourceResponse::JsonPrepareResult AsyncEventSourceResponse::prepare_json_(void *source,
+                                                                                    message_generator_t *generator,
+                                                                                    char *buffer, size_t *size_out) {
+  // Log lines emitted while the generator runs are dropped for this session: on the large path they would fill
+  // tail_ before it is overwritten, and on the small path they would go out ahead of the event being built.
+  SendGuard guard{*this};
   json::JsonArena<json::JSON_ARENA_SIZE> arena;
   json::JsonBuilder builder(&arena);
   generator(this->web_server_, source, builder);
-  char buf[JSON_BUF_SIZE];
-  const size_t len = builder.serialize_to(buf, sizeof(buf));
-  if (len < sizeof(buf)) {
-    return this->try_send_nodefer(buf, len, "state");
+  *size_out = builder.serialize_to(buffer, JSON_BUF_SIZE);
+  if (*size_out < JSON_BUF_SIZE) {
+    return JsonPrepareResult::JSON_PREPARE_RESULT_BUFFER;
   }
 
-  // Too large for the stack: the tail holds the whole chunk and loop() drains it. Serialized
-  // JSON has no raw line break, so the body is one data line.
-  if (!this->ready_to_send_()) {
-    return false;
-  }
-  {
-    SendGuard guard{*this};
-    char prefix[PREFIX_BUF_SIZE];
-    const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), "state", 0, 0, true);
+  char prefix[PREFIX_BUF_SIZE];
+  const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), "state", 0, 0, true);
 
-    // Grow the tail until the document fits. Nothing has reached the wire, so a document that
-    // cannot be held costs only this event, and the tail grown for it is released.
-    size_t json_len = 0;
-    size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
-    for (;;) {
-      if (!this->reserve_tail_(cap)) {
-        this->tail_alloc_failed_(cap);
-        return false;  // stays deferred, retried on a later pass
-      }
-      const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
-      json_len = builder.serialize_to(reinterpret_cast<char *>(this->tail_.get()) + prefix_len, room);
-      if (json_len < room) {
-        break;
-      }
-      if (cap >= TAIL_MAX_SIZE) {
-        ESP_LOGW(TAG, "State event does not fit %zu bytes, dropped", room);
-        this->tail_.reset();
-        this->tail_cap_ = 0;
-        this->send_failure_started_ms_ = 0;
-        return true;  // would never fit, reported as sent
-      }
-      cap = std::min<size_t>(cap * 2, TAIL_MAX_SIZE);
+  // Nothing reaches the wire until the complete document and its framing are owned by the caller.
+  size_t json_len = 0;
+  size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
+  for (;;) {
+    if (!this->reserve_tail_(cap)) {
+      *size_out = cap;
+      return JsonPrepareResult::JSON_PREPARE_RESULT_NO_MEMORY;
     }
-
-    const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
-    write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
-    uint8_t *dst = this->tail_.get();
-    std::memcpy(dst, prefix, prefix_len);
-    std::memcpy(dst + prefix_len + json_len, SSE_SUFFIX, SSE_SUFFIX_LEN);
-    this->tail_len_ = total;
-    this->tail_sent_ = 0;
+    const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
+    json_len = builder.serialize_to(reinterpret_cast<char *>(this->tail_.get()) + prefix_len, room);
+    if (json_len < room) {
+      break;
+    }
+    if (cap >= TAIL_MAX_SIZE) {
+      *size_out = room;
+      return JsonPrepareResult::JSON_PREPARE_RESULT_TOO_LARGE;
+    }
+    cap = std::min<size_t>(cap * 2, TAIL_MAX_SIZE);
   }
-  drain_tail_();
-  return true;
+
+  const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
+  write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
+  uint8_t *dst = this->tail_.get();
+  std::memcpy(dst, prefix, prefix_len);
+  std::memcpy(dst + prefix_len + json_len, SSE_SUFFIX, SSE_SUFFIX_LEN);
+  this->tail_len_ = total;
+  this->tail_sent_ = 0;
+  return JsonPrepareResult::JSON_PREPARE_RESULT_TAIL;
 }
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic pop
 #endif
+
+bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *generator) {
+  if (!this->ready_to_send_()) {
+    return false;
+  }
+  char buffer[JSON_BUF_SIZE];
+  size_t size;
+  const auto result = this->prepare_json_(source, generator, buffer, &size);
+  switch (result) {
+    case JsonPrepareResult::JSON_PREPARE_RESULT_BUFFER:
+      return this->try_send_nodefer(buffer, size, "state");
+    case JsonPrepareResult::JSON_PREPARE_RESULT_TAIL:
+      this->drain_tail_();
+      return true;
+    case JsonPrepareResult::JSON_PREPARE_RESULT_NO_MEMORY: {
+      SendGuard guard{*this};
+      this->tail_alloc_failed_(size);
+      return false;
+    }
+    case JsonPrepareResult::JSON_PREPARE_RESULT_TOO_LARGE: {
+      SendGuard guard{*this};
+      ESP_LOGW(TAG, "State event does not fit %zu bytes, dropped", size);
+      this->tail_.reset();
+      this->tail_cap_ = 0;
+      this->send_failure_started_ms_ = 0;
+      return true;
+    }
+  }
+  return false;
+}
 
 void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
   // Same stall clock as a socket that stops draining, so a session cannot retry forever

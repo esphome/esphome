@@ -20,7 +20,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -78,28 +80,23 @@ async def test_script_delay_with_params(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-script-delay-params"
+        await assert_device_name(client, "test-script-delay-params")
 
         # Get services
         _, services = await client.list_entities_services()
-        test_service = next(
-            (s for s in services if s.name == "test_repeat_with_delay"), None
-        )
-        assert test_service is not None, "test_repeat_with_delay service not found"
+        test_service = require_service(services, "test_repeat_with_delay")
 
         # Execute the test
         await client.execute_service(test_service, {})
 
         # Wait for test to complete (10 iterations * ~100ms each + margin)
-        try:
-            await asyncio.wait_for(test_complete.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test timed out. Completed iterations: {sorted(wait_returned)}. "
-                f"This likely indicates the script became a zombie (issue #12044)."
-            )
+        await wait_or_fail(
+            test_complete,
+            5.0,
+            "Test timed out. "
+            "This likely indicates the script became a zombie (issue #12044).",
+            wait_returned=wait_returned,
+        )
 
         # Verify all 10 iterations completed successfully
         expected_iterations = set(range(10))

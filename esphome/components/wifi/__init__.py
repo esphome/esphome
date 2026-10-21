@@ -443,8 +443,6 @@ def final_validate(config):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create, or configure DPP (Easy Connect)."
         )
-    if CONF_ON_DPP_URI in config and not has_dpp:
-        raise cv.Invalid(f"'{CONF_ON_DPP_URI}' requires '{CONF_DPP}'")
 
     ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
     if ap_is_wisp:
@@ -509,15 +507,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 def _validate(config: ConfigType) -> ConfigType:
-    if CONF_PASSWORD in config and CONF_SSID not in config:
-        raise cv.Invalid("Cannot have WiFi password without SSID!")
-
-    if CONF_HIDDEN in config and CONF_SSID not in config:
-        raise cv.Invalid(
-            "Cannot have 'hidden' without 'ssid'. If you are using the 'networks' "
-            "list, put 'hidden' inside the network entry instead."
-        )
-
     if CONF_SSID in config:
         # Automatically move single network to 'networks' section
         config = config.copy()
@@ -703,6 +692,13 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
+    cv.key_requires(CONF_PASSWORD, CONF_SSID),
+    cv.key_requires(
+        CONF_HIDDEN,
+        CONF_SSID,
+        hint="With 'networks', put 'hidden' inside the network entry",
+    ),
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
@@ -751,19 +747,15 @@ def manual_ip(config):
 
 
 def wifi_network(config, ap, static_ip):
-    if CONF_SSID in config:
-        cg.add(ap.set_ssid(config[CONF_SSID]))
-    if CONF_PASSWORD in config:
-        cg.add(ap.set_password(config[CONF_PASSWORD]))
+    cg.add_optional(ap.set_ssid, config.get(CONF_SSID))
+    cg.add_optional(ap.set_password, config.get(CONF_PASSWORD))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
     if CONF_BSSID in config:
         cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
-    if CONF_HIDDEN in config:
-        cg.add(ap.set_hidden(config[CONF_HIDDEN]))
-    if CONF_CHANNEL in config:
-        cg.add(ap.set_channel(config[CONF_CHANNEL]))
+    cg.add_optional(ap.set_hidden, config.get(CONF_HIDDEN))
+    cg.add_optional(ap.set_channel, config.get(CONF_CHANNEL))
     if static_ip is not None:
         cg.add(ap.set_manual_ip(manual_ip(static_ip)))
     # priority_ is 0 in C++; skip the setter when the config matches it.
@@ -952,8 +944,7 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
-        if CONF_BAND_MODE in config:
-            cg.add(var.set_band_mode(config[CONF_BAND_MODE]))
+        cg.add_optional(var.set_band_mode, config.get(CONF_BAND_MODE))
 
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)

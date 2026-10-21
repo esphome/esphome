@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -166,8 +167,7 @@ async def test_script_queued(
         )
 
         # Test 1: Queue depth limit
-        test_service = next((s for s in services if s.name == "test_queue_depth"), None)
-        assert test_service is not None, "test_queue_depth service not found"
+        test_service = require_service(services, "test_queue_depth")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test1_complete, timeout=2.0)
         await asyncio.sleep(0.1)  # Give time for rejections
@@ -181,8 +181,7 @@ async def test_script_queued(
         )
 
         # Test 2: Ring buffer order
-        test_service = next((s for s in services if s.name == "test_ring_buffer"), None)
-        assert test_service is not None, "test_ring_buffer service not found"
+        test_service = require_service(services, "test_ring_buffer")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test2_complete, timeout=2.0)
 
@@ -195,8 +194,7 @@ async def test_script_queued(
         )
 
         # Test 3: Stop clears queue
-        test_service = next((s for s in services if s.name == "test_stop_clears"), None)
-        assert test_service is not None, "test_stop_clears service not found"
+        test_service = require_service(services, "test_stop_clears")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test3_complete, timeout=2.0)
 
@@ -209,8 +207,7 @@ async def test_script_queued(
         )
 
         # Test 4: Rejection enforcement (max_runs=3)
-        test_service = next((s for s in services if s.name == "test_rejection"), None)
-        assert test_service is not None, "test_rejection service not found"
+        test_service = require_service(services, "test_rejection")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test4_complete, timeout=2.0)
         await asyncio.sleep(0.1)  # Give time for rejections
@@ -224,8 +221,7 @@ async def test_script_queued(
         )
 
         # Test 5: No parameters
-        test_service = next((s for s in services if s.name == "test_no_params"), None)
-        assert test_service is not None, "test_no_params service not found"
+        test_service = require_service(services, "test_no_params")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test5_complete, timeout=2.0)
 
@@ -236,8 +232,7 @@ async def test_script_queued(
 
         # Test 5 again: after the queue fully drained (loop disabled while
         # idle), executing again must still work
-        test_service = next((s for s in services if s.name == "test_no_params"), None)
-        assert test_service is not None, "test_no_params service not found"
+        test_service = require_service(services, "test_no_params")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test5_again_complete, timeout=2.0)
         assert test_results["no_params"]["executions"] == 6, (
@@ -246,7 +241,6 @@ async def test_script_queued(
 
         # Test 6: a stopped script (queue cleared, loop disabled) must run
         # again on the next execute; the future resolves only on "END 9"
-        test_service = next((s for s in services if s.name == "test_after_stop"), None)
-        assert test_service is not None, "test_after_stop service not found"
+        test_service = require_service(services, "test_after_stop")
         await client.execute_service(test_service, {})
         await asyncio.wait_for(test6_complete, timeout=2.0)

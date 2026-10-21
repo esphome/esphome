@@ -10,11 +10,11 @@ in 2026.11.0 when the deprecated FanTraits setters are removed.
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import FanInfo, FanState
 import pytest
 
+from .state_utils import require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -25,20 +25,10 @@ async def test_legacy_fan_compat(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that deprecated FanTraits preset mode setters still work end-to-end."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, _ = await client.list_entities_services()
 
-        fan_infos = [e for e in entities if isinstance(e, FanInfo)]
-        assert len(fan_infos) == 1, f"Expected 1 fan entity, got {len(fan_infos)}"
-
-        test_fan = fan_infos[0]
+        test_fan = require_only_entity(entities, FanInfo)
 
         # Verify preset modes set via deprecated FanTraits setter are exposed
         assert set(test_fan.supported_preset_modes) == {

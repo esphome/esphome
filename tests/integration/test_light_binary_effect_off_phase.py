@@ -26,7 +26,7 @@ from typing import Any
 from aioesphomeapi import EntityState, LightState
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 OUTPUT_PATTERN = re.compile(r"BINARY_OUTPUT:(YES|NO)")
@@ -64,7 +64,7 @@ async def test_light_binary_effect_off_phase(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        light = next(e for e in entities if e.object_id == "test_binary_light")
+        light = require_entity(entities, "test_binary_light", exact=True)
 
         state_futures: dict[int, asyncio.Future[LightState]] = {}
 
@@ -163,7 +163,7 @@ async def test_light_binary_zero_brightness_is_recoverable(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        light = next(e for e in entities if e.object_id == "test_binary_light")
+        light = require_entity(entities, "test_binary_light", exact=True)
 
         state_futures: dict[int, asyncio.Future[LightState]] = {}
 

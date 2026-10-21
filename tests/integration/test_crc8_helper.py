@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -17,16 +17,6 @@ async def test_crc8_helper(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test the CRC8 helper function through integration testing."""
-    # Get the path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     # Track test completion with asyncio.Event
     test_complete = asyncio.Event()
 
@@ -76,9 +66,7 @@ async def test_crc8_helper(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "crc8-helper-test"
+        await assert_device_name(client, "crc8-helper-test")
 
         # Wait for tests to complete with timeout
         try:
