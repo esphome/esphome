@@ -37,11 +37,7 @@ async def setup_ssd1325(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
-    if CONF_BRIGHTNESS in config:
-        cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
-    if CONF_EXTERNAL_VCC in config:
-        cg.add(var.set_external_vcc(config[CONF_EXTERNAL_VCC]))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    cg.add_optional(var.init_brightness, config.get(CONF_BRIGHTNESS))
+    cg.add_optional(var.set_external_vcc, config.get(CONF_EXTERNAL_VCC))
     await display.add_writer(var, config)

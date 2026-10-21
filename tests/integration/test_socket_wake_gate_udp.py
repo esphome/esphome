@@ -9,6 +9,7 @@ import time
 import pytest
 
 from .types import RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -37,10 +38,7 @@ async def test_socket_wake_gate_udp(
 
     try:
         async with run_compiled(config, line_callback=on_log_line):
-            try:
-                await asyncio.wait_for(boot_done, timeout=15.0)
-            except TimeoutError:
-                pytest.fail("BOOT_DONE never appeared")
+            await wait_or_fail(boot_done, 15.0, "BOOT_DONE never appeared")
 
             # Datagrams go to the more specific bind, so release the hold before sending
             hold_sock.close()
@@ -50,10 +48,7 @@ async def test_socket_wake_gate_udp(
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as send_sock:
                 send_sock.sendto(b"PING", ("127.0.0.1", listen_port))
 
-            try:
-                await asyncio.wait_for(pong, timeout=5.0)
-            except TimeoutError:
-                pytest.fail("PONG never appeared")
+            await wait_or_fail(pong, 5.0, "PONG never appeared")
 
             elapsed_ms = (time.monotonic() - t_send) * 1000
             # Without the wake the receive waits for loop_interval_; 500ms leaves CI headroom

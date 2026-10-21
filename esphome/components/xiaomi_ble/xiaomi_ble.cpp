@@ -38,12 +38,12 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
   }
   // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
   else if ((value_type == 0x1004) && (value_length == 2)) {
-    const int16_t temperature = encode_uint16(data[1], data[0]);
+    const int16_t temperature = encode_value_le<int16_t>(data);
     result.temperature = temperature / 10.0f;
   }
   // humidity, 2 bytes, 16-bit signed integer (LE), 0.1 %
   else if ((value_type == 0x1006) && (value_length == 2)) {
-    const int16_t humidity = encode_uint16(data[1], data[0]);
+    const int16_t humidity = encode_value_le<int16_t>(data);
     result.humidity = humidity / 10.0f;
   }
   // illuminance (+ motion), 3 bytes, 24-bit unsigned integer (LE), 1 lx
@@ -69,8 +69,8 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
   }
   // temperature + humidity, 4 bytes, 16-bit signed integer (LE) each, 0.1 °C, 0.1 %
   else if ((value_type == 0x100D) && (value_length == 4)) {
-    const int16_t temperature = encode_uint16(data[1], data[0]);
-    const int16_t humidity = encode_uint16(data[3], data[2]);
+    const int16_t temperature = encode_value_le<int16_t>(data);
+    const int16_t humidity = encode_value_le<int16_t>(&data[2]);
     result.temperature = temperature / 10.0f;
     result.humidity = humidity / 10.0f;
   }
