@@ -88,8 +88,9 @@ def prepare(
 
             wait_time = min(2**tries, 300)
             _LOGGER.warning(
-                "Disconnected from MQTT (%s). Trying to reconnect in %s s",
+                "Disconnected from MQTT (%s, rc=%s). Trying to reconnect in %s s",
                 reason_code,
+                reason_code.value,
                 wait_time,
             )
             time.sleep(wait_time)
@@ -273,7 +274,11 @@ def get_esphome_device_ip(
     def on_disconnect(client, userdata, flags, reason_code, properties):
         nonlocal failed
         if reason_code != 0:
-            _LOGGER.warning("Disconnected from MQTT broker (%s)", reason_code)
+            _LOGGER.warning(
+                "Disconnected from MQTT broker (%s, rc=%s)",
+                reason_code,
+                reason_code.value,
+            )
             failed = True
 
     mqtt_client = prepare(
