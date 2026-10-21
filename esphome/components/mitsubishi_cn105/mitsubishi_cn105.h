@@ -57,9 +57,10 @@ class MitsubishiCN105 {
   struct Status {
     float target_temperature{NAN};
     float room_temperature{NAN};
-    // True when the unit reports it is actively operating (compressor running).
-    // This is decoded only from the 0x06 / heatpump-status packet.
-    bool operating{false};
+    // Compressor state decoded from the 0x06 (heatpump-status) packet.
+    // nullopt = unknown: never received yet, or invalidated because mode/power changed
+    // since the last 0x06 report (a stale value would describe the previous mode).
+    std::optional<bool> operating{};
     bool power_on{false};
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
