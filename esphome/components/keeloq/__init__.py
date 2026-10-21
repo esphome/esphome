@@ -173,8 +173,7 @@ async def to_code(config: ConfigType) -> None:
         # The taken-over serial is stored under the type and id, which a new firmware keeps.
         key = fnv1a_32bit_hash(f"keeloq.{config[CONF_TYPE]}.{config[CONF_ID]}")
         cg.add(var.set_take_over_key(key))
-    if (channels := config.get(CONF_CHANNELS)) is not None:
-        cg.add(var.set_channels(channels))
+    cg.add_optional(var.set_channels, config.get(CONF_CHANNELS))
     if CONF_RECEIVER_ID in config:
         await remote_base.register_listener(var, config)
     for conf in config.get(CONF_ON_FRAME, []):
