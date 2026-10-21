@@ -621,12 +621,13 @@ async def _render_bytes(
         )
         return [
             "{",
-            f"  const std::vector<uint8_t> esphome__bytes = {call_lambda(inner)};",
+            f"  const std::vector<uint8_t> esphome__bytes = ({call_lambda(inner)});",
             f"  {send(spec.target, 'esphome__bytes.data(), esphome__bytes.size()')}",
             "}",
         ]
     table, size = _static_bytes(table_name, value)
-    args = f"{table}, {size}"
+    # Qualified so a trigger argument cannot shadow a reused table; an empty payload is nullptr
+    args = f"::{table}, {size}" if size else f"{table}, {size}"
     if CORE.is_esp8266 and spec.progmem_target is not None:
         return [send(spec.progmem_target, args)]
     if not CORE.is_esp8266 or size == 0:

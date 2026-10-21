@@ -1294,7 +1294,8 @@ async def test_apply_bytes_lambda_is_a_vector_in_a_block(
         registries, fields, config, args=[(cg.uint8, "x")], platform=platform
     )
     text = _apply_definition(mock_cg)
-    assert "const std::vector<uint8_t> esphome__bytes = " in text
+    # Parenthesized so a reduced `return a, b;` stays one initializer
+    assert "const std::vector<uint8_t> esphome__bytes = (" in text
     assert "-> std::vector<uint8_t>" in text
     assert (
         f"::{PARENT_OBJ}->send(esphome__bytes.data(), esphome__bytes.size());" in text
@@ -1310,7 +1311,7 @@ async def test_apply_bytes_constant_is_a_shared_table(
     CORE.config = {}
     fields = (ApplyBytes("data", "send({})"),)
     await _run_apply_action(registries, fields, {"data": [0xA1, 0x02]})
-    assert f"::{PARENT_OBJ}->send(esphome__my_apply__bytes, 2);" in _apply_definition(
+    assert f"::{PARENT_OBJ}->send(::esphome__my_apply__bytes, 2);" in _apply_definition(
         mock_cg
     )
 
@@ -1339,7 +1340,7 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
     text = _apply_definition(mock_cg)
     lines = [
         "uint8_t esphome__bytes[2];",
-        "progmem_memcpy(esphome__bytes, esphome__my_apply__bytes, 2);",
+        "progmem_memcpy(esphome__bytes, ::esphome__my_apply__bytes, 2);",
         f"::{PARENT_OBJ}->send(esphome__bytes, 2);",
     ]
     positions = [text.index(line) for line in lines]
@@ -1353,7 +1354,9 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
     )
     text = _apply_definition(mock_cg)
     assert "auto esphome__bytes = std::make_unique<uint8_t[]>(2);" in text
-    assert "progmem_memcpy(esphome__bytes.get(), esphome__my_apply__bytes, 2);" in text
+    assert (
+        "progmem_memcpy(esphome__bytes.get(), ::esphome__my_apply__bytes, 2);" in text
+    )
     assert f"::{PARENT_OBJ}->send(esphome__bytes.get(), 2);" in text
 
     mock_cg.new_pvariable.reset_mock()
@@ -1362,7 +1365,7 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
         registries, fields, {"data": [0xA1, 0x02]}, platform="esp8266"
     )
     text = _apply_definition(mock_cg)
-    assert f"::{PARENT_OBJ}->send_progmem(esphome__my_apply__bytes, 2);" in text
+    assert f"::{PARENT_OBJ}->send_progmem(::esphome__my_apply__bytes, 2);" in text
     assert "progmem_memcpy" not in text
 
     # An empty payload never touches flash
@@ -1388,7 +1391,7 @@ async def test_apply_bytes_beside_other_fields_and_call_object(
     lines = [
         f"auto apply_call = ::{PARENT_OBJ}->make_call();",
         "apply_call.set_channel(3);",
-        "apply_call.write(esphome__my_apply__bytes, 1);",
+        "apply_call.write(::esphome__my_apply__bytes, 1);",
         "apply_call.perform();",
     ]
     positions = [text.index(line) for line in lines]
