@@ -99,6 +99,9 @@ void M5UnitBldc::setup() {
     // The device only has a limited number of flash erase/write cycles, so only persist when the
     // values just written above actually differ from what the device had before this boot;
     // otherwise every ESP reboot, OTA or crash loop would needlessly wear out the unit's flash.
+    // This compares against the unit's live registers, not its flash contents, so a value that was
+    // already applied on a boot with save_to_flash off (or with a failed save) is not re-saved until
+    // the unit itself is power-cycled.
     bool needs_save = !had_previous_motor_config || std::memcmp(previous_motor_config, motor_config, 2) != 0;
     if (!needs_save && this->has_pid_) {
       needs_save = !had_previous_pid || std::memcmp(previous_pid, pid, 12) != 0;
@@ -106,7 +109,9 @@ void M5UnitBldc::setup() {
 
     if (needs_save) {
       uint8_t save = 1;
-      this->write_register(REG_SAVE_TO_FLASH, &save, 1);
+      if (this->write_register(REG_SAVE_TO_FLASH, &save, 1) != i2c::ERROR_OK) {
+        ESP_LOGW(TAG, "Failed to save settings to flash");
+      }
     }
   }
 }
