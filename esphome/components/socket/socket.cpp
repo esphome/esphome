@@ -235,7 +235,7 @@ template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
 
 bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_index_out) {
   if (strchr(ip_address, ':') == nullptr) {
-    struct in_addr ipv4mc {};
+    struct in_addr ipv4mc{};
 #ifdef USE_ZEPHYR
     if (zsock_inet_pton(AF_INET, ip_address, &ipv4mc) != 1) {
 #else
@@ -247,11 +247,11 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
 #ifdef USE_ZEPHYR
     // Zephyr's setsockopt(IP_ADD_MEMBERSHIP) requires exactly sizeof(struct ip_mreqn); it has
     // no plain "struct ip_mreq" at all (unlike POSIX/lwIP).
-    struct ip_mreqn imreq {};
+    struct ip_mreqn imreq{};
     imreq.imr_address.s_addr = ESPHOME_INADDR_ANY;
     imreq.imr_ifindex = 0;
 #else
-    struct ip_mreq imreq {};
+    struct ip_mreq imreq{};
     imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
 #endif
     imreq.imr_multiaddr = ipv4mc;
@@ -264,7 +264,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
     return true;
   }
 #ifdef USE_SOCKET_IPV6
-  struct ipv6_mreq imreq6 {};
+  struct ipv6_mreq imreq6{};
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 #ifdef USE_ZEPHYR
   if (zsock_inet_pton(AF_INET6, ip_address, &imreq6.ipv6mr_multiaddr) != 1) {

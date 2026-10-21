@@ -24,6 +24,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -85,9 +86,7 @@ async def test_script_wait_on_boot(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-script-wait-on-boot"
+        await assert_device_name(client, "test-script-wait-on-boot")
 
         # Wait for on_boot sequence to complete
         # The boot sequence should complete automatically

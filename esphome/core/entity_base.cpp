@@ -185,6 +185,13 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
   return global_preferences->make_preference(size, this->entity_preference_key_(version), in_flash);
 }
 
+bool log_entity_header(const char *tag, const char *prefix, const char *type, const EntityBase *obj) {
+  if (obj == nullptr)
+    return false;
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  return true;
+}
+
 #ifdef USE_ENTITY_ICON
 void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj) {
   ProgmemStringRef icon = obj.get_icon_progmem();

@@ -535,16 +535,12 @@ async def to_code(config: ConfigType) -> None:
     ):
         cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
 
-    if CONF_AUTH_REQ_MODE in config:
-        cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
-    if CONF_MAX_KEY_SIZE in config:
-        cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
-    if CONF_MIN_KEY_SIZE in config:
-        cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+    cg.add_optional(var.set_auth_req, config.get(CONF_AUTH_REQ_MODE))
+    cg.add_optional(var.set_max_key_size, config.get(CONF_MAX_KEY_SIZE))
+    cg.add_optional(var.set_min_key_size, config.get(CONF_MIN_KEY_SIZE))
 
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
-    if (name := config.get(CONF_NAME)) is not None:
-        cg.add(var.set_name(name))
+    cg.add_optional(var.set_name, config.get(CONF_NAME))
     await cg.register_component(var, config)
 
     # Define max connections for use in C++ code (e.g., ble_server.h)

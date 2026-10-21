@@ -8,8 +8,9 @@ import aioesphomeapi
 from aioesphomeapi import ClimateInfo, ClimateMode, EntityState
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -38,8 +39,8 @@ async def test_host_mode_climate_control(
         # Get entities and set up state synchronization
         entities, services = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) >= 1, "Expected at least 1 climate entity"
+        test_climate = require_only_entity(entities, ClimateInfo)
+        assert test_climate.name == "Dual-mode Thermostat"
 
         # Subscribe with the wrapper that filters initial states
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
@@ -50,13 +51,6 @@ async def test_host_mode_climate_control(
         except TimeoutError:
             pytest.fail("Timeout waiting for initial states")
 
-        test_climate = next(
-            (c for c in climate_infos if c.name == "Dual-mode Thermostat"), None
-        )
-        assert test_climate is not None, (
-            "Dual-mode Thermostat thermostat climate not found"
-        )
-
         # Adjust setpoints
         client.climate_command(
             test_climate.key,
@@ -65,10 +59,9 @@ async def test_host_mode_climate_control(
             target_temperature_high=26.5,
         )
 
-        try:
-            climate_state = await asyncio.wait_for(climate_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Climate state not received within 5 seconds")
+        climate_state = await wait_or_fail(
+            climate_future, 5.0, "Climate state not received within 5 seconds"
+        )
 
         assert isinstance(climate_state, aioesphomeapi.ClimateState)
         assert climate_state.mode == ClimateMode.HEAT

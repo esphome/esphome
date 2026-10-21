@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -61,10 +62,7 @@ async def test_delay_action_cancellation(
         entities, services = await client.list_entities_services()
 
         # Find our test service
-        test_service = next(
-            (s for s in services if s.name == "start_delay_then_restart"), None
-        )
-        assert test_service is not None, "start_delay_then_restart service not found"
+        test_service = require_service(services, "start_delay_then_restart")
 
         # Execute the test sequence
         await client.execute_service(test_service, {})
@@ -132,10 +130,7 @@ async def test_parallel_script_delays(
         entities, services = await client.list_entities_services()
 
         # Find our test service
-        test_service = next(
-            (s for s in services if s.name == "test_parallel_delays"), None
-        )
-        assert test_service is not None, "test_parallel_delays service not found"
+        test_service = require_service(services, "test_parallel_delays")
 
         # Execute the test - this will start 3 parallel scripts with 1 second delays
         await client.execute_service(test_service, {})
