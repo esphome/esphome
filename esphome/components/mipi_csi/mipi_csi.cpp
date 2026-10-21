@@ -444,7 +444,7 @@ void MipiCsiCamera::dump_config() {
                 "  Frame rate: %u fps\n"
                 "  Frame buffers: %u\n"
                 "  Flip: horizontal %s, vertical %s",
-                this->get_name().c_str(), this->sensor_name_, this->width_, this->height_,
+                LOG_STR_ARG(this->get_log_name()), this->sensor_name_, this->width_, this->height_,
                 get_format_mapping(this->pixel_format_).name, this->jpeg_quality_, this->framerate_,
                 this->frame_buffer_count_, flip_state(this->horizontal_flip_), flip_state(this->vertical_flip_));
   if (this->is_failed()) {
