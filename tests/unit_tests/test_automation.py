@@ -1308,7 +1308,9 @@ async def test_apply_bytes_constant_is_a_shared_table(
     CORE.config = {}
     fields = (ApplyBytes("data", "send({})"),)
     await _run_apply_action(registries, fields, {"data": [0xA1, 0x02]})
-    assert f"::{PARENT_OBJ}->send(my_apply, 2);" in _apply_definition(mock_cg)
+    assert f"::{PARENT_OBJ}->send(esphome__my_apply__bytes, 2);" in _apply_definition(
+        mock_cg
+    )
 
     mock_cg.new_pvariable.reset_mock()
     await _run_apply_action(registries, fields, {"data": b""})
@@ -1335,7 +1337,7 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
     text = _apply_definition(mock_cg)
     lines = [
         "SmallBufferWithHeapFallback<128> apply_bytes(2);",
-        "progmem_memcpy(apply_bytes.get(), my_apply, 2);",
+        "progmem_memcpy(apply_bytes.get(), esphome__my_apply__bytes, 2);",
         f"::{PARENT_OBJ}->send(apply_bytes.get(), 2);",
     ]
     positions = [text.index(line) for line in lines]
@@ -1347,7 +1349,7 @@ async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
         registries, fields, {"data": [0xA1, 0x02]}, platform="esp8266"
     )
     text = _apply_definition(mock_cg)
-    assert f"::{PARENT_OBJ}->send_progmem(my_apply, 2);" in text
+    assert f"::{PARENT_OBJ}->send_progmem(esphome__my_apply__bytes, 2);" in text
     assert "progmem_memcpy" not in text
 
     # An empty payload never touches flash
@@ -1372,7 +1374,7 @@ async def test_apply_bytes_beside_other_fields_and_call_object(
     lines = [
         f"auto apply_call = ::{PARENT_OBJ}->make_call();",
         "apply_call.set_channel(3);",
-        "apply_call.write(my_apply, 1);",
+        "apply_call.write(esphome__my_apply__bytes, 1);",
         "apply_call.perform();",
     ]
     positions = [text.index(line) for line in lines]
