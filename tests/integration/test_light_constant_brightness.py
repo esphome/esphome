@@ -19,7 +19,7 @@ from typing import Any
 from aioesphomeapi import EntityState, LightInfo, LightState
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -61,9 +61,8 @@ async def test_light_constant_brightness(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        lights = [e for e in entities if isinstance(e, LightInfo)]
-        cb_light = next(e for e in lights if e.object_id.endswith("cb_light"))
-        ncb_light = next(e for e in lights if e.object_id.endswith("ncb_light"))
+        cb_light = require_entity(entities, "test_cb_light", LightInfo, exact=True)
+        ncb_light = require_entity(entities, "test_ncb_light", LightInfo, exact=True)
 
         # Use InitialStateHelper to wait for initial state broadcast
         initial_state_helper = InitialStateHelper(entities)
