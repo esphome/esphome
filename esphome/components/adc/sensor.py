@@ -15,9 +15,11 @@ from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_add_user,
+    zephyr_data,
     zephyr_variant,
     zephyr_variant_family,
 )
+from esphome.components.zephyr.const import KEY_BOARD
 from esphome.components.zephyr.variants import VARIANTS
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -234,10 +236,13 @@ class ADCData:
     # (last-fragment-wins scalar merge, not additive child nodes) instead of adding
     # a new group.
     rpi_pico_adc_pins: list[int] = field(default_factory=list)
-    # ABUS_<port><parity>0_IADC0 macros allocated so far for family "silabs" -- same
+    # ABUS_<port><parity>0_IADC0 tokens allocated so far for family "silabs" -- same
     # regenerate-from-scratch reasoning as rpi_pico_adc_pins above, since they all
-    # live in one pinctrl group's `silabs,analog-bus` property (see _silabs_analog_bus_macro).
+    # live in one pinctrl group's `silabs,analog-bus` property (see _silabs_iadc_token_for).
     silabs_iadc_analog_buses: list[str] = field(default_factory=list)
+    # (bus, parity) role -> the token already chosen for it (see _silabs_iadc_token_for).
+    silabs_iadc_roles: dict[tuple[int, str], str] = field(default_factory=dict)
+    silabs_iadc_board_seeded: bool = False
 
 
 def _get_data() -> ADCData:
@@ -246,21 +251,72 @@ def _get_data() -> ADCData:
     return CORE.data[DOMAIN]
 
 
-def _silabs_analog_bus_macro(pin_num: int, port_width: int) -> str:
-    """Return the ABUS_<port><parity>0_IADC0 macro that must be allocated in pinctrl
-    for pin_num to be usable as an IADC input, per silabs,dbus-pinctrl.yaml's own
-    documentation: analog-bus allocation is port+parity-wide (any even/odd pin on a
-    port shares the same bus slot), not per-pin -- the actual pin is selected
-    separately via the channel's own zephyr,input-positive. Ports C and D share one
-    "CD" bus group (confirmed against the SoC's own dt-bindings header: there is no
-    separate ABUS_C*/ABUS_D* macro family). Slot 0 (of the two available per
-    port+parity) is always used -- this family only emits single-ended channels, so
-    there's never a reason to need the second slot.
-    """
+def _silabs_pin_bus_role(pin_num: int, port_width: int) -> tuple[int, str]:
+    """(bus, EVEN/ODD) that pin_num's IADC analog-bus allocation falls under --
+    per silabs,dbus-pinctrl.yaml, analog-bus allocation is port+parity-wide (any
+    even/odd pin on a port shares the same bus slot), not per-pin; the actual pin
+    is selected separately via the channel's own zephyr,input-positive. Ports C
+    and D share one "CD" bus (confirmed against the SoC's own dt-bindings header:
+    there is no separate ABUS_C*/ABUS_D* macro family)."""
     port_index, pin_in_port = divmod(pin_num, port_width)
-    port_group = "CD" if port_index >= 2 else chr(ord("A") + port_index)
+    bus = min(2, port_index)
     parity = "EVEN" if pin_in_port % 2 == 0 else "ODD"
+    return bus, parity
+
+
+def _silabs_analog_bus_role(raw: int) -> tuple[int, str]:
+    """Decode a resolved `silabs,analog-bus` value's (bus, EVEN/ODD) role, per
+    SILABS_ABUS()'s bit layout (bits 15:14 bus A/B/CD, bits 13:12
+    EVEN0/EVEN1/ODD0/ODD1) -- ignoring which of the two slots and which
+    peripheral currently holds it."""
+    bus = (raw >> 14) & 0x3
+    parity = "ODD" if (raw >> 12) & 0x2 else "EVEN"
+    return bus, parity
+
+
+def _silabs_analog_bus_macro(bus: int, parity: str) -> str:
+    """Return the default ABUS_<port><parity>0_IADC0 macro for a (bus, parity)
+    role that has no existing allocation on this board yet -- slot 0 of the two
+    available, since this family only emits single-ended channels, so there's
+    never a reason to need the second slot."""
+    port_group = ("A", "B", "CD")[bus]
     return f"ABUS_{port_group}{parity}0_IADC0"
+
+
+def _silabs_iadc_token_for(bus: int, parity: str) -> str:
+    """Return the `silabs,analog-bus` token for (bus, parity), reusing the board's
+    own already-declared allocation for that role, if any -- a board can have
+    picked slot 1 there because slot 0 on that same port+parity is already
+    claimed by a sibling node (e.g. VDAC0) invisible from here. Known gap: this
+    only protects a role the board already uses for IADC itself."""
+    data = _get_data()
+    if not data.silabs_iadc_board_seeded:
+        data.silabs_iadc_board_seeded = True
+        from esphome.components.zephyr.dts_lookup import (  # noqa: PLC0415
+            get_pinctrl_group_property,
+            get_pinctrl_states,
+        )
+
+        board = zephyr_data()[KEY_BOARD]
+        states = get_pinctrl_states(board, "adc0") or []
+        for label, groups in states:
+            for group in groups:
+                existing = (
+                    get_pinctrl_group_property(board, label, group, "silabs,analog-bus")
+                    or []
+                )
+                for raw in existing:
+                    token = hex(raw)
+                    data.silabs_iadc_roles.setdefault(
+                        _silabs_analog_bus_role(raw), token
+                    )
+                    if token not in data.silabs_iadc_analog_buses:
+                        data.silabs_iadc_analog_buses.append(token)
+    role = (bus, parity)
+    if (token := data.silabs_iadc_roles.get(role)) is None:
+        token = _silabs_analog_bus_macro(bus, parity)
+        data.silabs_iadc_roles[role] = token
+    return token
 
 
 def _next_zephyr_io_channel_index() -> int:
@@ -516,19 +572,12 @@ async def to_code(config: ConfigType) -> None:
             """
         )
     elif CORE.using_zephyr and zephyr_variant_family() == "silabs":
-        # Silicon Labs IADC. Unlike nRF52's SAADC, adc_ain_map already stores the full
-        # zephyr,input-positive macro name (e.g. "IADC_INPUT_PC4", regular per-pin
-        # silicon fact from silabs-adc.h) -- no extra vendor prefix needed here. Node
-        # label is the SoC's own "adc0" (no generic "adc" alias defined on this board,
-        # unlike nrf52). Gain/reference/resolution match the board DTS's own example
-        # IADC channel (xg24_ek2703a.dts channel@0) -- no attenuation/auto-range yet.
-        # The explicit #include below is required, not just convenient: xg24_ek2703a's
-        # own board DTS happens to already declare an IADC channel@0 example using
-        # these same macros, which pulls the header in as a side effect -- but that's
-        # not true of every Silicon Labs board (e.g. xg27_dk2602a's DTS turns adc0 on
-        # with no channel example at all), so relying on it left IADC_INPUT_* undefined
-        # there, breaking devicetree preprocessing with an opaque parse error. Found on
-        # real xg27_dk2602a hardware, not by inspection.
+        # Silicon Labs IADC. adc_ain_map already stores the full zephyr,input-positive
+        # macro name (silabs-adc.h), so no vendor prefix is needed; node label is the
+        # SoC's own "adc0" (no generic "adc" alias, unlike nrf52). The explicit
+        # #include below is required, not just convenient: unlike xg24_ek2703a,
+        # xg27_dk2602a's DTS declares no IADC channel example to pull it in as a side
+        # effect, leaving IADC_INPUT_* undefined (found on real hardware).
         data = _get_data()
         channel_id = data.zephyr_adc_channel_id
         data.zephyr_adc_channel_id += 1
@@ -540,14 +589,12 @@ async def to_code(config: ConfigType) -> None:
         if pin_num not in ain_map:
             raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
         ain_name = ain_map[pin_num]
-        # The IADC needs its target pin's whole port+parity bus allocated in pinctrl
-        # before it can read it at all (silabs,dbus-pinctrl.yaml's own "ABUS
-        # allocation" property) -- without it the read fails at runtime with an
-        # opaque IADC_IF_PORTALLOCERR ("IADC error, flags=00002000"), not a build
-        # error. Confirmed on real xg27_dk2602a hardware. Regenerated from scratch on
-        # every channel (same reasoning as rpi_pico_adc_pins above): all channels
-        # share one pinctrl group's list property, not one node per channel.
-        analog_bus = _silabs_analog_bus_macro(pin_num, variant_info.gpio_port_width)
+        # The IADC needs its pin's port+parity bus allocated in pinctrl before it can
+        # read at all, or it fails at runtime with IADC_IF_PORTALLOCERR, not a build
+        # error (confirmed on real hardware). Regenerated from scratch on every
+        # channel (same reasoning as rpi_pico_adc_pins above).
+        bus, parity = _silabs_pin_bus_role(pin_num, variant_info.gpio_port_width)
+        analog_bus = _silabs_iadc_token_for(bus, parity)
         if analog_bus not in data.silabs_iadc_analog_buses:
             data.silabs_iadc_analog_buses.append(analog_bus)
         analog_bus_list = ", ".join(f"<{b}>" for b in data.silabs_iadc_analog_buses)
