@@ -77,7 +77,7 @@ void OxtDimmerChannel::write_state(light::LightState *state) {
 }
 
 void OxtDimmerChannel::dump_config() {
-  ESP_LOGCONFIG(TAG, "OXT channel: '%s'", this->light_state_ ? this->light_state_->get_name().c_str() : "");
+  ESP_LOGCONFIG(TAG, "OXT channel: '%s'", this->light_state_ ? LOG_STR_ARG(this->light_state_->get_log_name()) : "");
   ESP_LOGCONFIG(TAG, "  Minimal brightness: %d", this->min_value_);
   ESP_LOGCONFIG(TAG, "  Maximal brightness: %d", this->max_value_);
 }
