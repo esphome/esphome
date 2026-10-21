@@ -1465,6 +1465,30 @@ async def test_sub_entities_apply_shares_equal_functions(
 
 
 @pytest.mark.asyncio
+async def test_sub_outputs_share_one_function_per_hub(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """A hub's channels pass their channel as the index, so they share one function."""
+    calls: list[tuple[Any, ...]] = []
+    cls = output.ApplyFloatOutput
+    config = {"a": _apply_conf("ch0", cls), "b": _apply_conf("ch5", cls)}
+    sub = _apply_sub(calls, config, output.FLOAT_APPLY_ENTITY)
+    await sub("a", None, 0, apply="write_channel(index, state)")
+    await sub("b", None, 5, apply="write_channel(index, state)")
+    assert calls == [
+        ("ch0", "<esphome__ch0__fn>", "0"),
+        ("ch5", "<esphome__ch0__fn>", "5"),
+    ]
+    assert apply_functions == [
+        (
+            "esphome__ch0__fn",
+            "output::FloatOutput * entity, uint16_t index, float state",
+            "::hub->write_channel(index, state);",
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_sub_entities_apply_parent_id(
     monkeypatch: pytest.MonkeyPatch,
     setup_test_environment: list[str],
@@ -1568,13 +1592,13 @@ async def test_sub_entities_apply_needs_parent(
         (
             output.sub_binary_outputs,
             output.ApplyBinaryOutput,
-            "output::BinaryOutput * entity, bool state",
+            "output::BinaryOutput * entity, uint16_t index, bool state",
             None,
         ),
         (
             output.sub_float_outputs,
             output.ApplyFloatOutput,
-            "output::FloatOutput * entity, float state",
+            "output::FloatOutput * entity, uint16_t index, float state",
             None,
         ),
     ],

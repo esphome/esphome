@@ -95,24 +95,29 @@ async def new_output(config: ConfigType, *args: SafeExpType) -> MockObj:
 
 
 BINARY_APPLY_ENTITY = ApplyEntity(
-    ApplyBinaryOutput, ((BinaryOutputPtr, "entity"), (cg.bool_, "state"))
+    ApplyBinaryOutput,
+    ((BinaryOutputPtr, "entity"), (cg.uint16, "index"), (cg.bool_, "state")),
 )
 FLOAT_APPLY_ENTITY = ApplyEntity(
-    ApplyFloatOutput, ((FloatOutputPtr, "entity"), (cg.float_, "state"))
+    ApplyFloatOutput,
+    ((FloatOutputPtr, "entity"), (cg.uint16, "index"), (cg.float_, "state")),
 )
 
 
 def sub_binary_outputs(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_output; ``apply`` statements can use ``entity`` and ``state``."""
+    """Return a SubEntities bound to new_output; ``apply`` can use ``entity``, ``index`` and ``state``.
+
+    ``index`` is the constructor argument (default 0), so a hub's channels share one class.
+    """
     return SubEntities(new_output, config, parent, BINARY_APPLY_ENTITY)
 
 
 def sub_float_outputs(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_output; ``apply`` gets the scaled level as ``state``."""
+    """Like sub_binary_outputs; ``apply`` gets the scaled level as ``state``."""
     return SubEntities(new_output, config, parent, FLOAT_APPLY_ENTITY)
 
 
