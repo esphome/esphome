@@ -6,6 +6,7 @@ import asyncio
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -65,9 +66,7 @@ async def test_crc8_helper(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "crc8-helper-test"
+        await assert_device_name(client, "crc8-helper-test")
 
         # Wait for tests to complete with timeout
         try:

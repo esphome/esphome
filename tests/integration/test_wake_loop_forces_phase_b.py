@@ -24,6 +24,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -48,9 +49,7 @@ async def test_wake_loop_forces_phase_b(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "wake-loop-phase-b"
+        await assert_device_name(client, "wake-loop-phase-b")
 
         try:
             delta, elapsed = await asyncio.wait_for(result, timeout=15.0)

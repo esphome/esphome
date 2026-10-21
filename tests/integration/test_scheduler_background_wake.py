@@ -12,7 +12,7 @@ import re
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import require_entity
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -43,9 +43,7 @@ async def test_scheduler_background_wake(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-background-wake"
+        await assert_device_name(client, "scheduler-background-wake")
         entities, _ = await client.list_entities_services()
         for object_id, delay in (
             ("start_scheduler_timeout", 100),

@@ -13,7 +13,7 @@ using namespace esphome::alarm_control_panel;
 
 ESPHOME_LOG_TAG(TAG, "template.alarm_control_panel");
 
-TemplateAlarmControlPanel::TemplateAlarmControlPanel(){};
+TemplateAlarmControlPanel::TemplateAlarmControlPanel() {};
 
 #ifdef USE_BINARY_SENSOR
 void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, uint8_t flags, AlarmSensorType type) {
