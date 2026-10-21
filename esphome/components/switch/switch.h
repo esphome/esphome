@@ -35,7 +35,7 @@ enum SwitchRestoreMode : uint8_t {
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
  * and a write_state method that writes a state to the hardware.
  */
-class Switch : public EntityBase, public EntityBase_DeviceClass {
+class Switch : public EntityBase {
  public:
   explicit Switch();
 
@@ -87,13 +87,15 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    *
    * @param inverted Whether to invert this switch.
    */
-  void set_inverted(bool inverted);
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
 
   /** Set callback for state changes.
    *
    * @param callback The void(bool) callback.
    */
-  void add_on_state_callback(std::function<void(bool)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   /** Returns the initial state of the switch, as persisted previously,
     or empty if never persisted.
@@ -115,7 +117,7 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    */
   virtual bool assumed_state();
 
-  bool is_inverted() const;
+  bool is_inverted() const { return this->inverted_; }
 
   void set_restore_mode(SwitchRestoreMode restore_mode) { this->restore_mode = restore_mode; }
 
@@ -144,5 +146,15 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
 
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
 void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj);
+
+/// Calls the codegen-generated Fn(this, state) on a state write; the hub and any publish are baked into Fn.
+template<auto Fn> class ApplySwitch final : public Switch {
+ public:
+  // Not "= default": placement new would zero-fill .bss that is already zero.
+  ApplySwitch() {}
+
+ protected:
+  void write_state(bool state) override { Fn(this, state); }
+};
 
 }  // namespace esphome::switch_

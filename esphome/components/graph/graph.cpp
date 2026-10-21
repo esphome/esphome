@@ -4,13 +4,13 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
-namespace esphome {
-namespace graph {
+
+namespace esphome::graph {
 
 using namespace display;
 
-static const char *const TAG = "graph";
-static const char *const TAGL = "graphlegend";
+ESPHOME_LOG_TAG(TAG, "graph");
+ESPHOME_LOG_TAG(TAGL, "graphlegend");
 
 void HistoryData::init(int length) {
   this->length_ = length;
@@ -47,7 +47,7 @@ void HistoryData::take_sample(float data) {
 }
 
 void GraphTrace::init(Graph *g) {
-  ESP_LOGI(TAG, "Init trace for sensor %s", this->get_name().c_str());
+  ESP_LOGI(TAG, "Init trace for sensor %s", this->name_);
   this->data_.init(g->get_width());
   sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
   this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
@@ -139,7 +139,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
   /// Draw grid
   if (!std::isnan(this->gridspacing_y_)) {
     for (int y = yn; y <= ym; y++) {
-      int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0 - (float) (y - yn) / (ym - yn)));
+      int16_t py = (int16_t) roundf((this->height_ - 1) * (1.0f - (float) (y - yn) / (ym - yn)));
       for (uint32_t x = 0; x < this->width_; x += 2) {
         buff->draw_pixel_at(x_offset + x, y_offset + py, color);
       }
@@ -171,13 +171,13 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
     bool prev_b = false;
     int16_t prev_y = 0;
     for (uint32_t i = 0; i < this->width_; i++) {
-      float v = (trace->get_tracedata()->get_value(i) - ymin) / yrange;
+      float v = yrange != 0 ? (trace->get_tracedata()->get_value(i) - ymin) / yrange : NAN;
       if (!std::isnan(v) && (thick > 0)) {
         int16_t x = this->width_ - 1 - i + x_offset;
         uint8_t bit = 1 << ((i % (thick * LineType::PATTERN_LENGTH)) / thick);
         bool b = (trace->get_line_type() & bit) == bit;
         if (b) {
-          int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0 - v)) - thick / 2 + y_offset;
+          int16_t y = (int16_t) roundf((this->height_ - 1) * (1.0f - v)) - thick / 2 + y_offset;
           auto draw_pixel_at = [&buff, c, y_offset, this](int16_t x, int16_t y) {
             if (y >= y_offset && static_cast<uint32_t>(y) < y_offset + this->height_)
               buff->draw_pixel_at(x, y, c);
@@ -220,16 +220,16 @@ void GraphLegend::init(Graph *g) {
   int valw = 0, valh = 0;
   int lt = 0;
   for (auto *trace : g->traces_) {
-    std::string txtstr = trace->get_name();
+    const char *txtstr = trace->name_;
     int fw, fos, fbl, fh;
-    this->font_label_->measure(txtstr.c_str(), &fw, &fos, &fbl, &fh);
+    this->font_label_->measure(txtstr, &fw, &fos, &fbl, &fh);
     if (fw > txtw)
       txtw = fw;
     if (fh > txth)
       txth = fh;
     if (trace->get_line_thickness() > lt)
       lt = trace->get_line_thickness();
-    ESP_LOGI(TAGL, "  %s %d %d", txtstr.c_str(), fw, fh);
+    ESP_LOGI(TAGL, "  %s %d %d", txtstr, fw, fh);
 
     if (this->values_ != VALUE_POSITION_TYPE_NONE) {
       char valstr[VALUE_ACCURACY_MAX_LEN];
@@ -351,10 +351,10 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
   int x = x_offset + legend_->x0_;
   int y = y_offset;
   for (auto *trace : traces_) {
-    std::string txtstr = trace->get_name();
-    ESP_LOGV(TAG, "  %s", txtstr.c_str());
+    const char *txtstr = trace->name_;
+    ESP_LOGV(TAG, "  %s", txtstr);
 
-    buff->printf(x, y, legend_->font_label_, trace->get_line_color(), TextAlign::TOP_CENTER, "%s", txtstr.c_str());
+    buff->printf(x, y, legend_->font_label_, trace->get_line_color(), TextAlign::TOP_CENTER, "%s", txtstr);
 
     if (legend_->lines_) {
       uint16_t thick = trace->get_line_thickness();
@@ -393,9 +393,8 @@ void Graph::setup() {
 
 void Graph::dump_config() {
   for (auto *trace : traces_) {
-    ESP_LOGCONFIG(TAG, "Graph for sensor %s", trace->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "Graph for sensor %s", trace->name_);
   }
 }
 
-}  // namespace graph
-}  // namespace esphome
+}  // namespace esphome::graph

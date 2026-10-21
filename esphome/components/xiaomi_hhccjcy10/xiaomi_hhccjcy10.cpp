@@ -2,12 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+namespace esphome::xiaomi_hhccjcy10 {
 
-namespace esphome {
-namespace xiaomi_hhccjcy10 {
-
-static const char *const TAG = "xiaomi_hhccjcy10";
+ESPHOME_LOG_TAG(TAG, "xiaomi_hhccjcy10");
 
 void XiaomiHHCCJCY10::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi HHCCJCY10");
@@ -18,7 +15,7 @@ void XiaomiHHCCJCY10::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool XiaomiHHCCJCY10::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiHHCCJCY10::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -38,7 +35,7 @@ bool XiaomiHHCCJCY10::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     const uint8_t *data = service_data.data.data();
 
     if (this->temperature_ != nullptr) {
-      const int16_t temperature = encode_uint16(data[1], data[2]);
+      const int16_t temperature = encode_value<int16_t>(&data[1]);
       this->temperature_->publish_state((float) temperature / 10.0f);
     }
 
@@ -63,7 +60,4 @@ bool XiaomiHHCCJCY10::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
   return success;
 }
 
-}  // namespace xiaomi_hhccjcy10
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_hhccjcy10

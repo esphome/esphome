@@ -1,10 +1,9 @@
 #include "rc6_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const RC6_TAG = "remote.rc6";
+ESPHOME_LOG_TAG(RC6_TAG, "remote.rc6");
 
 static constexpr uint16_t RC6_FREQ = 36000;
 static constexpr uint16_t RC6_UNIT = 444;
@@ -177,5 +176,4 @@ void RC6Protocol::dump(const RC6Data &data) {
            data.command, data.toggle);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

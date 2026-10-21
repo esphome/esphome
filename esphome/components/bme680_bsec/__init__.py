@@ -1,25 +1,25 @@
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
+from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Framework
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "text_sensor"]
+CONFLICTS_WITH = ["bme68x_bsec2"]
+DOMAIN = "bme680_bsec"
 MULTI_CONF = True
 
 CONF_BME680_BSEC_ID = "bme680_bsec_id"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_SUPPLY_VOLTAGE = "supply_voltage"
-CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 
 bme680_bsec_ns = cg.esphome_ns.namespace("bme680_bsec")
 
 IAQMode = bme680_bsec_ns.enum("IAQMode")
-IAQ_MODE_OPTIONS = {
-    "STATIC": IAQMode.IAQ_MODE_STATIC,
-    "MOBILE": IAQMode.IAQ_MODE_MOBILE,
-}
+IAQ_MODE_OPTIONS = IAQMode.options("STATIC", "MOBILE", prefix="IAQ_MODE_")
 
 SupplyVoltage = bme680_bsec_ns.enum("SupplyVoltage")
 SUPPLY_VOLTAGE_OPTIONS = {
@@ -28,10 +28,7 @@ SUPPLY_VOLTAGE_OPTIONS = {
 }
 
 SampleRate = bme680_bsec_ns.enum("SampleRate")
-SAMPLE_RATE_OPTIONS = {
-    "LP": SampleRate.SAMPLE_RATE_LP,
-    "ULP": SampleRate.SAMPLE_RATE_ULP,
-}
+SAMPLE_RATE_OPTIONS = SampleRate.options("LP", "ULP", prefix="SAMPLE_RATE_")
 
 BME680BSECComponent = bme680_bsec_ns.class_(
     "BME680BSECComponent", cg.Component, i2c.I2CDevice
@@ -75,10 +72,8 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_device_id(str(config[CONF_ID])))
     cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))

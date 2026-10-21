@@ -1,10 +1,9 @@
 #include "ntc.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ntc {
+namespace esphome::ntc {
 
-static const char *const TAG = "ntc";
+ESPHOME_LOG_TAG(TAG, "ntc");
 
 void NTC::setup() {
   this->sensor_->add_on_state_callback([this](float value) { this->process_(value); });
@@ -22,9 +21,8 @@ void NTC::process_(float value) {
   double v = this->a_ + this->b_ * lr + this->c_ * lr * lr * lr;
   auto temp = float(1.0 / v - 273.15);
 
-  ESP_LOGV(TAG, "'%s' - Temperature: %.1f°C", this->name_.c_str(), temp);
+  ESP_LOGV(TAG, "'%s' - Temperature: %.1f°C", LOG_STR_ARG(this->get_log_name()), temp);
   this->publish_state(temp);
 }
 
-}  // namespace ntc
-}  // namespace esphome
+}  // namespace esphome::ntc

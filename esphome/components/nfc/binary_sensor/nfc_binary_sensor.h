@@ -5,20 +5,18 @@
 #include "esphome/components/nfc/nfc_tag.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
-class NfcTagBinarySensor : public binary_sensor::BinarySensor,
-                           public Component,
-                           public NfcTagListener,
-                           public Parented<Nfcc> {
+class NfcTagBinarySensor final : public binary_sensor::BinarySensor, public Component, public NfcTagListener {
  public:
   void setup() override;
   void dump_config() override;
 
-  void set_ndef_match_string(const std::string &str);
-  void set_tag_name(const std::string &str);
+  // Both keep the pointer; the string must outlive the sensor (codegen passes a literal)
+  void set_ndef_match_string(const char *str);
+  void set_tag_name(const char *str);
   void set_uid(const NfcTagUid &uid);
 
   bool tag_match_ndef_string(const std::shared_ptr<NdefMessage> &msg);
@@ -30,9 +28,8 @@ class NfcTagBinarySensor : public binary_sensor::BinarySensor,
 
  protected:
   bool match_tag_name_{false};
-  std::string match_string_;
+  StringRef match_string_;
   NfcTagUid uid_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

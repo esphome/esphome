@@ -1,19 +1,15 @@
 #ifdef USE_LIBRETINY
 
 #include "task_log_buffer_libretiny.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 
 namespace esphome::logger {
 
-TaskLogBuffer::TaskLogBuffer(size_t total_buffer_size) {
-  this->size_ = total_buffer_size;
-  // Allocate memory for the circular buffer using ESPHome's RAM allocator
-  RAMAllocator<uint8_t> allocator;
-  this->storage_ = allocator.allocate(this->size_);
+TaskLogBuffer::TaskLogBuffer() {
   // Create mutex for thread-safe access
+  // Storage is a member array (embedded in Logger), no heap allocation needed
   this->mutex_ = xSemaphoreCreateMutex();
 }
 
@@ -22,19 +18,14 @@ TaskLogBuffer::~TaskLogBuffer() {
     vSemaphoreDelete(this->mutex_);
     this->mutex_ = nullptr;
   }
-  if (this->storage_ != nullptr) {
-    RAMAllocator<uint8_t> allocator;
-    allocator.deallocate(this->storage_, this->size_);
-    this->storage_ = nullptr;
-  }
 }
 
-size_t TaskLogBuffer::available_contiguous_space() const {
+size_t TaskLogBuffer::available_contiguous_space_() const {
   if (this->head_ >= this->tail_) {
     // head is ahead of or equal to tail
     // Available space is from head to end, plus from start to tail
     // But for contiguous, just from head to end (minus 1 to avoid head==tail ambiguity)
-    size_t space_to_end = this->size_ - this->head_;
+    size_t space_to_end = ESPHOME_TASK_LOG_BUFFER_SIZE - this->head_;
     if (this->tail_ == 0) {
       // Can't use the last byte or head would equal tail
       return space_to_end > 0 ? space_to_end - 1 : 0;
@@ -48,8 +39,8 @@ size_t TaskLogBuffer::available_contiguous_space() const {
 }
 
 bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
-  // Check if buffer was initialized successfully
-  if (this->mutex_ == nullptr || this->storage_ == nullptr) {
+  // Check if mutex was initialized successfully
+  if (this->mutex_ == nullptr) {
     return false;
   }
 
@@ -86,11 +77,11 @@ void TaskLogBuffer::release_message_main_loop() {
   this->tail_ += this->current_message_size_;
 
   // Handle wrap-around if we've reached the end
-  if (this->tail_ >= this->size_) {
+  if (this->tail_ >= ESPHOME_TASK_LOG_BUFFER_SIZE) {
     this->tail_ = 0;
   }
 
-  this->message_count_--;
+  this->message_count_ = this->message_count_ - 1;
   this->current_message_size_ = 0;
 
   xSemaphoreGive(this->mutex_);
@@ -115,9 +106,9 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   // Calculate total size needed (header + text length + null terminator)
   size_t total_size = message_total_size(text_length);
 
-  // Check if buffer was initialized successfully
-  if (this->mutex_ == nullptr || this->storage_ == nullptr) {
-    return false;  // Buffer not initialized, fall back to direct output
+  // Check if mutex was initialized successfully
+  if (this->mutex_ == nullptr) {
+    return false;  // Mutex not initialized, fall back to direct output
   }
 
   // Try to acquire mutex without blocking - don't block logging tasks
@@ -126,7 +117,7 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   }
 
   // Check if we have enough contiguous space
-  size_t contiguous = this->available_contiguous_space();
+  size_t contiguous = this->available_contiguous_space_();
 
   if (contiguous < total_size) {
     // Not enough contiguous space at end
@@ -137,9 +128,9 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
     }
 
     // Need at least enough space to safely write padding marker (level field is at end of struct)
-    constexpr size_t PADDING_MARKER_MIN_SPACE = offsetof(LogMessage, level) + 1;
+    constexpr size_t padding_marker_min_space = offsetof(LogMessage, level) + 1;
 
-    if (space_at_start >= total_size && this->head_ > 0 && contiguous >= PADDING_MARKER_MIN_SPACE) {
+    if (space_at_start >= total_size && this->head_ > 0 && contiguous >= padding_marker_min_space) {
       // Add padding marker (set level field to indicate this is padding, not a real message)
       LogMessage *padding = reinterpret_cast<LogMessage *>(this->storage_ + this->head_);
       padding->level = PADDING_MARKER_LEVEL;
@@ -185,11 +176,11 @@ bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uin
   this->head_ += total_size;
 
   // Handle wrap-around (shouldn't happen due to contiguous space check, but be safe)
-  if (this->head_ >= this->size_) {
+  if (this->head_ >= ESPHOME_TASK_LOG_BUFFER_SIZE) {
     this->head_ = 0;
   }
 
-  this->message_count_++;
+  this->message_count_ = this->message_count_ + 1;
 
   xSemaphoreGive(this->mutex_);
   return true;

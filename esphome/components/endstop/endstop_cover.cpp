@@ -3,10 +3,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace endstop {
+namespace esphome::endstop {
 
-static const char *const TAG = "endstop.cover";
+ESPHOME_LOG_TAG(TAG, "endstop.cover");
 
 using namespace esphome::cover;
 
@@ -37,8 +36,9 @@ void EndstopCover::control(const CoverCall &call) {
       }
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  auto opt_pos = call.get_position();
+  if (opt_pos.has_value()) {
+    auto pos = *opt_pos;
     if (pos == this->position) {
       // already at target
     } else {
@@ -70,20 +70,20 @@ void EndstopCover::loop() {
 
   if (this->current_operation == COVER_OPERATION_OPENING && this->is_open_()) {
     float dur = (now - this->start_dir_time_) / 1e3f;
-    ESP_LOGD(TAG, "'%s' - Open endstop reached. Took %.1fs.", this->name_.c_str(), dur);
+    ESP_LOGD(TAG, "'%s' - Open endstop reached. Took %.1fs.", LOG_STR_ARG(this->get_log_name()), dur);
 
     this->start_direction_(COVER_OPERATION_IDLE);
     this->position = COVER_OPEN;
     this->publish_state();
   } else if (this->current_operation == COVER_OPERATION_CLOSING && this->is_closed_()) {
     float dur = (now - this->start_dir_time_) / 1e3f;
-    ESP_LOGD(TAG, "'%s' - Close endstop reached. Took %.1fs.", this->name_.c_str(), dur);
+    ESP_LOGD(TAG, "'%s' - Close endstop reached. Took %.1fs.", LOG_STR_ARG(this->get_log_name()), dur);
 
     this->start_direction_(COVER_OPERATION_IDLE);
     this->position = COVER_CLOSED;
     this->publish_state();
   } else if (now - this->start_dir_time_ > this->max_duration_) {
-    ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", this->name_.c_str());
+    ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping cover.", LOG_STR_ARG(this->get_log_name()));
     this->start_direction_(COVER_OPERATION_IDLE);
     this->publish_state();
   }
@@ -191,5 +191,4 @@ void EndstopCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace endstop
-}  // namespace esphome
+}  // namespace esphome::endstop

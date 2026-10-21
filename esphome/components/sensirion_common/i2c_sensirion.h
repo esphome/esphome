@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sensirion_common {
+namespace esphome::sensirion_common {
 
 /**
  * Implementation of I2C functions for Sensirion sensors
@@ -16,6 +15,9 @@ namespace sensirion_common {
  *   | 16 Bit Command Code | 16 bit Data word 1 | CRC of DW 1 | 16 bit Data word 1 | CRC of DW 2 | ..
  */
 static const uint8_t CRC_POLYNOMIAL = 0x31;  // default for Sensirion
+
+/// When reading a register and the device reports NACK because the value is not ready yet, don't log it as an error.
+static constexpr uint8_t SENSIRION_OPTION_READ_MAY_NACK = 1u << 0;
 
 class SensirionI2CDevice : public i2c::I2CDevice {
  public:
@@ -140,14 +142,15 @@ class SensirionI2CDevice : public i2c::I2CDevice {
    * @param data pointer to raw result
    * @param len number of words to read
    * @param delay milliseconds to to wait between sending the I2C command and reading the result
+   * @param sensirion_options options for the request
    * @return true if reading succeeded
    */
-  bool get_register_(uint16_t reg, CommandLen command_len, uint16_t *data, uint8_t len, uint8_t delay);
+  bool get_register_(uint16_t reg, CommandLen command_len, uint16_t *data, uint8_t len, uint8_t delay,
+                     uint8_t sensirion_options = 0);
 
   /** last error code from I2C operation
    */
   i2c::ErrorCode last_error_;
 };
 
-}  // namespace sensirion_common
-}  // namespace esphome
+}  // namespace esphome::sensirion_common

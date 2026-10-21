@@ -1,16 +1,138 @@
 #include "addressable_light.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+#include <cstdlib>
+
 namespace esphome::light {
 
-static const char *const TAG = "light.addressable";
+ESPHOME_LOG_TAG(TAG, "light.addressable");
+
+#ifdef USE_LIGHT_POWER_ESTIMATION
+float AddressableLightState::get_estimated_current_ma() const {
+  return static_cast<const AddressableLight *>(this->output_)->get_estimated_current_ma();
+}
+
+void AddressableLightState::loop() {
+  this->apply_effect_and_transformer_();
+  if (this->next_write_)
+    static_cast<AddressableLight *>(this->output_)->limit_power_();
+  this->write_if_pending_();
+}
+
+float AddressableLight::get_estimated_current_ma() const {
+  return this->power_estimation_ == nullptr ? NAN : this->frame_ma_();
+}
+
+// Idle draw plus the weighted levels in the buffer
+float AddressableLight::frame_ma_(float *slack_ma) const {
+  uint32_t sums[4]{};
+  uint32_t lit[4]{};
+  const int32_t count = this->size();
+  for (int32_t i = 0; i < count; i++) {
+    const auto view = this->get_view_internal(i);
+    const uint8_t levels[4] = {view.get_red_raw(), view.get_green_raw(), view.get_blue_raw(), view.get_white_raw()};
+    for (size_t channel = 0; channel < 4; channel++) {
+      sums[channel] += levels[channel];
+      lit[channel] += levels[channel] != 0;
+    }
+  }
+  if (slack_ma != nullptr) {
+    const auto &power = *this->power_estimation_;
+    *slack_ma = 0.0f;
+    for (size_t channel = 0; channel < 4; channel++)
+      *slack_ma += lit[channel] * power.ma_per_level[channel];
+  }
+  return this->draw_ma_(sums);
+}
+
+float AddressableLight::draw_ma_(const uint32_t sums[4]) const {
+  const auto &power = *this->power_estimation_;
+  float ma = power.idle_ma;
+  for (size_t channel = 0; channel < 4; channel++)
+    ma += sums[channel] * power.ma_per_level[channel];
+  return ma;
+}
+
+void AddressableLight::setup_power_budget_() {
+  auto &power = *this->power_estimation_;
+  power.idle_ma = this->size() * power.idle_ma_per_led;
+  power.last_frame_ma = NAN;
+  if (std::isnan(power.max_current_ma))
+    return;
+  power.budget_ma = power.max_current_ma - power.idle_ma;
+  if (power.budget_ma <= 0.0f) {
+    ESP_LOGW(TAG, "max_current_ma %.0f leaves nothing for the pixels after the idle draw of %.0f mA",
+             power.max_current_ma, power.idle_ma);
+  }
+}
+
+// Rounded up on the way down so a lit channel stays lit, down on the way up so a level does not creep
+static uint8_t rescale_level(uint8_t level, uint8_t scale, uint8_t previous) {
+  if (level == 0)
+    return 0;
+  const uint32_t scaled = static_cast<uint32_t>(level) * scale;
+  const uint32_t moved = scale < previous ? (scaled + previous - 1) / previous : scaled / previous;
+  // A level written past the scale in force (set_raw, a partition over another strip) must not wrap
+  return std::clamp<uint32_t>(moved, 1, 255);
+}
+
+// The frame is moved to the new scale before it goes out, so every write path is limited
+void AddressableLight::limit_power_() {
+  auto *power = this->power_estimation_;
+  if (power == nullptr || std::isnan(power->budget_ma))
+    return;
+  // A frame the last pass already left in the buffer, as a driver retry sends, is not limited again: its
+  // levels were rounded up on the way down and read as a hair over budget, which would walk the scale down
+  float slack_ma;
+  const float frame_ma = this->frame_ma_(&slack_ma);
+  if (frame_ma == power->last_frame_ma)
+    return;
+  power->last_frame_ma = frame_ma;
+  // The stored levels already carry the limit in force; the scale comes from the draw the frame asked for
+  const uint8_t previous = this->correction_.get_power_brightness();
+  const float intended_ma = (frame_ma - power->idle_ma) * 255.0f / previous;
+  // Never 0, which would black the strip out and swing the next estimate back to full
+  const uint8_t scale = intended_ma <= power->budget_ma
+                            ? 255
+                            : static_cast<uint8_t>(std::max(power->budget_ma / intended_ma * 255.0f, 1.0f));
+  if (scale == previous)
+    return;
+  // Below full scale the levels were rounded up on the way down, so a frame can read as over budget by up
+  // to one level per lit channel. A drop the frame does not need once that is taken off would only move the
+  // scale under levels that stay where they are, and inflate what they read back as
+  if (previous < 255 && scale < previous && frame_ma - power->idle_ma - slack_ma <= power->budget_ma)
+    return;
+  this->correction_.set_power_brightness(scale);
+  // One divide per level instead of one per channel; ESP8266 has no hardware divide
+  uint8_t map[256];
+  for (size_t level = 0; level < 256; level++)
+    map[level] = rescale_level(level, scale, previous);
+  uint32_t sums[4]{};
+  for (auto view : *this) {
+    const uint8_t r = map[view.get_red_raw()], g = map[view.get_green_raw()], b = map[view.get_blue_raw()],
+                  w = map[view.get_white_raw()];
+    view.set_raw(r, g, b, w);
+    sums[0] += r;
+    sums[1] += g;
+    sums[2] += b;
+    sums[3] += w;
+  }
+  power->last_frame_ma = this->draw_ma_(sums);
+}
+
+#endif
 
 void AddressableLight::call_setup() {
   this->setup();
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  if (this->power_estimation_ != nullptr)
+    this->setup_power_budget_();
+#endif
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   this->set_interval(5000, [this]() {
-    const char *name = this->state_parent_ == nullptr ? "" : this->state_parent_->get_name().c_str();
+    const char *name = this->state_parent_ == nullptr ? "" : LOG_STR_ARG(this->state_parent_->get_log_name());
     ESP_LOGVV(TAG, "Addressable Light '%s' (effect_active=%s)", name, YESNO(this->effect_active_));
     for (int i = 0; i < this->size(); i++) {
       auto color = this->get(i);
@@ -58,6 +180,12 @@ void AddressableLightTransformer::start() {
   // our transition will handle brightness, disable brightness in correction.
   this->light_.correction_.set_local_brightness(255);
   this->target_color_ *= to_uint8_scale(end_values.get_brightness() * end_values.get_state());
+
+  // Uniformity scan is deferred to the first apply() call. start() can run before the underlying
+  // LED output's setup() has allocated its frame buffer (e.g. on_boot at priority > HARDWARE
+  // triggering a transition), and reading through ESPColorView would deref a null buffer.
+  this->uniform_start_scanned_ = false;
+  this->uniform_start_is_uniform_ = false;
 }
 
 inline constexpr uint8_t subtract_scaled_difference(uint8_t a, uint8_t b, int32_t scale) {
@@ -97,12 +225,57 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   // non-linear when applying small deltas.
 
   if (smoothed_progress > this->last_transition_progress_ && this->last_transition_progress_ < 1.f) {
-    int32_t scale = int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
-    for (auto led : this->light_) {
-      led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
-                   subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
-                   subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
-                   subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+    // Lazy uniformity scan: deferred from start() so the LED output's setup() has run and the
+    // frame buffer is valid. When every LED already has the same color (the common case: plain
+    // turn_on/turn_off on a uniform strip), interpolate math-only against a single start color.
+    // Avoiding the per-step read-back through the 8-bit stored byte prevents gamma round-trip
+    // quantization from stalling the fade at low values (e.g. gamma 2.8 pre-gamma values <27
+    // round to stored 0, freezing progress).
+    if (!this->uniform_start_scanned_) {
+      this->uniform_start_scanned_ = true;
+      if (this->light_.size() > 0) {
+        Color first = this->light_[0].get();
+        bool uniform = true;
+        for (int32_t i = 1; i < this->light_.size(); i++) {
+          if (this->light_[i].get() != first) {
+            uniform = false;
+            break;
+          }
+        }
+        if (uniform) {
+          this->uniform_start_color_ = first;
+          this->uniform_start_is_uniform_ = true;
+        }
+      }
+    }
+    if (this->uniform_start_is_uniform_) {
+      // All LEDs started at the same color: compute the interpolated value once and write it to
+      // every LED. No read-back, so each LED's stored byte advances through every gamma threshold
+      // as smoothed_progress crosses it, instead of stalling at 0 for low pre-gamma values.
+      //
+      // Trade-off: any mid-transition writes to individual LEDs (e.g. from a user lambda) will be
+      // overwritten on the next apply() here. The fallback path below would have respected them
+      // via its read-back. Concurrent per-LED mutation during a transition isn't a pattern we
+      // support, so this is acceptable.
+      // lerp(start, target, progress) via existing helper: target - (target-start)*(1-progress).
+      const Color &start = this->uniform_start_color_;
+      int32_t remaining = int32_t(256.f * (1.f - smoothed_progress));
+      uint8_t r = subtract_scaled_difference(this->target_color_.red, start.red, remaining);
+      uint8_t g = subtract_scaled_difference(this->target_color_.green, start.green, remaining);
+      uint8_t b = subtract_scaled_difference(this->target_color_.blue, start.blue, remaining);
+      uint8_t w = subtract_scaled_difference(this->target_color_.white, start.white, remaining);
+      for (auto led : this->light_) {
+        led.set_rgbw(r, g, b, w);
+      }
+    } else {
+      int32_t scale =
+          int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
+      for (auto led : this->light_) {
+        led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
+                     subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
+                     subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
+                     subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+      }
     }
     this->last_transition_progress_ = smoothed_progress;
     this->light_.schedule_show();

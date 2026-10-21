@@ -4,21 +4,18 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace a02yyuw {
+namespace esphome::a02yyuw {
 
-static const char *const TAG = "a02yyuw.sensor";
+ESPHOME_LOG_TAG(TAG, "a02yyuw.sensor");
 
 void A02yyuwComponent::loop() {
-  uint8_t data;
-  while (this->available() > 0) {
-    this->read_byte(&data);
+  this->read_available([this](uint8_t data) {
     if (this->buffer_.empty() && (data != 0xff))
-      continue;
+      return;
     buffer_.push_back(data);
     if (this->buffer_.size() == 4)
       this->check_buffer_();
-  }
+  });
 }
 
 void A02yyuwComponent::check_buffer_() {
@@ -41,5 +38,4 @@ void A02yyuwComponent::check_buffer_() {
 
 void A02yyuwComponent::dump_config() { LOG_SENSOR("", "A02yyuw Sensor", this); }
 
-}  // namespace a02yyuw
-}  // namespace esphome
+}  // namespace esphome::a02yyuw

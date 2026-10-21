@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.const import CONF_ROLE
 from esphome.components.openthread.const import (
     CONF_EXT_PAN_ID,
     CONF_NETWORK_KEY,
@@ -8,11 +9,12 @@ from esphome.components.openthread.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_IP_ADDRESS, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.types import ConfigType
 
-CONF_ROLE = "role"
 CONF_RLOC16 = "rloc16"
 CONF_EUI64 = "eui64"
 CONF_EXT_ADDR = "ext_addr"
+CONF_MESH_LOCAL_EID = "mesh_local_eid"
 
 
 DEPENDENCIES = ["openthread"]
@@ -45,6 +47,9 @@ NetworkKeyOpenThreadInfo = openthread_info_ns.class_(
 PanIdOpenThreadInfo = openthread_info_ns.class_(
     "PanIdOpenThreadInfo", text_sensor.TextSensor, cg.PollingComponent
 )
+MeshLocalEidOpenThreadInfo = openthread_info_ns.class_(
+    "MeshLocalEidOpenThreadInfo", text_sensor.TextSensor, cg.PollingComponent
+)
 ExtPanIdOpenThreadInfo = openthread_info_ns.class_(
     "ExtPanIdOpenThreadInfo", text_sensor.TextSensor, cg.PollingComponent
 )
@@ -54,7 +59,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IP_ADDRESS): text_sensor.text_sensor_schema(
             IPAddressOpenThreadInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ),
+        ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_ROLE): text_sensor.text_sensor_schema(
             RoleOpenThreadInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ).extend(cv.polling_component_schema("1s")),
@@ -79,6 +84,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PAN_ID): text_sensor.text_sensor_schema(  # noqa: F821
             PanIdOpenThreadInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ).extend(cv.polling_component_schema("1s")),
+        cv.Optional(CONF_MESH_LOCAL_EID): text_sensor.text_sensor_schema(
+            MeshLocalEidOpenThreadInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_EXT_PAN_ID): text_sensor.text_sensor_schema(
             ExtPanIdOpenThreadInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ).extend(cv.polling_component_schema("1s")),
@@ -86,13 +94,13 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def setup_conf(config: dict, key: str):
+async def setup_conf(config: dict, key: str) -> None:
     if conf := config.get(key):
         var = await text_sensor.new_text_sensor(conf)
         await cg.register_component(var, conf)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     await setup_conf(config, CONF_IP_ADDRESS)
     await setup_conf(config, CONF_ROLE)
     await setup_conf(config, CONF_RLOC16)
@@ -102,4 +110,5 @@ async def to_code(config):
     await setup_conf(config, CONF_NETWORK_NAME)
     await setup_conf(config, CONF_NETWORK_KEY)
     await setup_conf(config, CONF_PAN_ID)
+    await setup_conf(config, CONF_MESH_LOCAL_EID)
     await setup_conf(config, CONF_EXT_PAN_ID)

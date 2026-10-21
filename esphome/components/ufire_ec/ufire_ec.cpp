@@ -1,14 +1,16 @@
 #include "esphome/core/log.h"
 #include "ufire_ec.h"
+#include <cmath>
 
-namespace esphome {
-namespace ufire_ec {
+namespace esphome::ufire_ec {
 
-static const char *const TAG = "ufire_ec";
+ESPHOME_LOG_TAG(TAG, "ufire_ec");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 void UFireECComponent::setup() {
   uint8_t version;
-  if (!this->read_byte(REGISTER_VERSION, &version) && version != 0xFF) {
+  if (!this->read_byte(REGISTER_VERSION, &version) || version == 0xFF) {
     this->mark_failed();
     return;
   }
@@ -45,7 +47,7 @@ void UFireECComponent::update() {
   }
 
   if (wait > 0) {
-    this->set_timeout("data", wait, [this]() { this->update_internal_(); });
+    this->set_timeout(DATA_TIMEOUT_ID, wait, [this]() { this->update_internal_(); });
   }
 }
 
@@ -60,9 +62,15 @@ float UFireECComponent::measure_temperature_() { return this->read_data_(REGISTE
 
 float UFireECComponent::measure_ms_() { return this->read_data_(REGISTER_MS); }
 
-void UFireECComponent::set_solution_(float solution, float temperature) {
-  solution /= (1 - (this->temperature_coefficient_ * (temperature - 25)));
+bool UFireECComponent::set_solution_(float solution, float temperature) {
+  float denom = 1 - (this->temperature_coefficient_ * (temperature - 25));
+  if (std::abs(denom) < 1e-6f) {
+    ESP_LOGE(TAG, "Temperature compensation denominator is zero");
+    return false;
+  }
+  solution /= denom;
   this->write_data_(REGISTER_SOLUTION, solution);
+  return true;
 }
 
 void UFireECComponent::set_compensation_(float temperature) { this->write_data_(REGISTER_COMPENSATION, temperature); }
@@ -72,7 +80,8 @@ void UFireECComponent::set_coefficient_(float coefficient) { this->write_data_(R
 void UFireECComponent::set_temperature_(float temperature) { this->write_data_(REGISTER_TEMP, temperature); }
 
 void UFireECComponent::calibrate_probe(float solution, float temperature) {
-  this->set_solution_(solution, temperature);
+  if (!this->set_solution_(solution, temperature))
+    return;
   this->write_byte(REGISTER_TASK, COMMAND_CALIBRATE_PROBE);
 }
 
@@ -114,5 +123,4 @@ void UFireECComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
 }
 
-}  // namespace ufire_ec
-}  // namespace esphome
+}  // namespace esphome::ufire_ec

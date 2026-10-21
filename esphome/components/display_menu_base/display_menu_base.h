@@ -6,8 +6,7 @@
 
 #include <forward_list>
 
-namespace esphome {
-namespace display_menu_base {
+namespace esphome::display_menu_base {
 
 enum MenuMode {
   MENU_MODE_ROTARY,
@@ -60,10 +59,10 @@ class DisplayMenuComponent : public Component {
     update();
   }
 
-  virtual void on_before_show(){};
-  virtual void on_after_show(){};
-  virtual void on_before_hide(){};
-  virtual void on_after_hide(){};
+  virtual void on_before_show() {};
+  virtual void on_after_show() {};
+  virtual void on_before_hide() {};
+  virtual void on_after_hide() {};
 
   uint8_t rows_;
   bool active_;
@@ -78,5 +77,4 @@ class DisplayMenuComponent : public Component {
   bool root_on_enter_called_{false};
 };
 
-}  // namespace display_menu_base
-}  // namespace esphome
+}  // namespace esphome::display_menu_base

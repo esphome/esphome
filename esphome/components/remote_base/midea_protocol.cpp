@@ -1,10 +1,9 @@
 #include "midea_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.midea";
+ESPHOME_LOG_TAG(TAG, "remote.midea");
 
 static const int32_t TICK_US = 560;
 static const int32_t HEADER_MARK_US = 8 * TICK_US;
@@ -14,6 +13,15 @@ static const int32_t BIT_ONE_SPACE_US = 3 * TICK_US;
 static const int32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
 static const int32_t FOOTER_MARK_US = 1 * TICK_US;
 static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
+static constexpr BitTimings BIT_TIMINGS{.bit_mark = BIT_MARK_US,
+                                        .one_space = BIT_ONE_SPACE_US,
+                                        .zero_space = BIT_ZERO_SPACE_US,
+                                        .bit_order = BitOrder::BIT_ORDER_MSB_FIRST};
+// The second copy of the frame is sent inverted
+static constexpr BitTimings INVERTED_BIT_TIMINGS{.bit_mark = BIT_MARK_US,
+                                                 .one_space = BIT_ZERO_SPACE_US,
+                                                 .zero_space = BIT_ONE_SPACE_US,
+                                                 .bit_order = BitOrder::BIT_ORDER_MSB_FIRST};
 
 uint8_t MideaData::calc_cs_() const {
   uint8_t cs = 0;
@@ -31,34 +39,15 @@ void MideaProtocol::encode(RemoteTransmitData *dst, const MideaData &src) {
   dst->set_carrier_frequency(38000);
   dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 1);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  for (unsigned idx = 0; idx < 6; idx++) {
-    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-      dst->item(BIT_MARK_US, (src[idx] & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
-  }
+  dst->item_bytes<BIT_TIMINGS>(src.data(), src.size());
   dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  for (unsigned idx = 0; idx < 6; idx++) {
-    for (uint8_t mask = 1 << 7; mask; mask >>= 1)
-      dst->item(BIT_MARK_US, (src[idx] & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US);
-  }
+  dst->item_bytes<INVERTED_BIT_TIMINGS>(src.data(), src.size());
   dst->mark(FOOTER_MARK_US);
 }
 
 static bool decode_data(RemoteReceiveData &src, MideaData &dst) {
-  for (unsigned idx = 0; idx < 6; idx++) {
-    uint8_t data = 0;
-    for (uint8_t mask = 1 << 7; mask; mask >>= 1) {
-      if (!src.expect_mark(BIT_MARK_US))
-        return false;
-      if (src.expect_space(BIT_ONE_SPACE_US)) {
-        data |= mask;
-      } else if (!src.expect_space(BIT_ZERO_SPACE_US)) {
-        return false;
-      }
-    }
-    dst[idx] = data;
-  }
-  return true;
+  return src.expect_bytes<BIT_TIMINGS>(dst.data(), dst.size());
 }
 
 optional<MideaData> MideaProtocol::decode(RemoteReceiveData src) {
@@ -75,5 +64,4 @@ void MideaProtocol::dump(const MideaData &data) {
   ESP_LOGI(TAG, "Received Midea: %s", data.to_str(buf));
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

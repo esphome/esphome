@@ -8,7 +8,8 @@
 namespace esphome::bmp581_base {
 
 static const uint8_t BMP581_ASIC_ID = 0x50;  // BMP581's ASIC chip ID (page 51 of datasheet)
-static const uint8_t RESET_COMMAND = 0xB6;   // Soft reset command
+static const uint8_t BMP585_ASIC_ID = 0x51;
+static const uint8_t RESET_COMMAND = 0xB6;  // Soft reset command
 
 // BMP581 Register Addresses
 enum {
@@ -87,6 +88,9 @@ class BMP581Component : public PollingComponent {
   virtual bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
   virtual bool bmp_write_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
 
+  // Interface activation function. Only used for SPI interface; no-op for I2C.
+  virtual void activate_interface() {}
+
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 
@@ -128,15 +132,6 @@ class BMP581Component : public PollingComponent {
 
   // Sets the power mode on the BMP581 by writing to the ODR register
   bool write_power_mode_(OperationMode mode);
-
-  enum ErrorCode {
-    NONE = 0,
-    ERROR_COMMUNICATION_FAILED,
-    ERROR_WRONG_CHIP_ID,
-    ERROR_SENSOR_STATUS,
-    ERROR_SENSOR_RESET,
-    ERROR_PRIME_IIR_FAILED
-  } error_code_{NONE};
 
   // BMP581's interrupt source register (address 0x15) to configure which interrupts are enabled (page 54 of datasheet)
   union {

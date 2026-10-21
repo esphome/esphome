@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -18,16 +19,6 @@ async def test_gpio_expander_cache(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test gpio_expander::CachedGpioExpander correctly calls hardware functions."""
-    # Get the path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     logs_done = asyncio.Event()
 
     # Patterns to match in logs - match any variation of digital_read
@@ -43,7 +34,7 @@ async def test_gpio_expander_cache(
     # ensure logs are in the expected order
     log_order = [
         (digital_read_hw_pattern, 0),
-        [(digital_read_cache_pattern, i) for i in range(0, 8)],
+        [(digital_read_cache_pattern, i) for i in range(8)],
         (digital_read_hw_pattern, 8),
         [(digital_read_cache_pattern, i) for i in range(8, 16)],
         (digital_read_hw_pattern, 16),
@@ -68,7 +59,7 @@ async def test_gpio_expander_cache(
         # uint16_t component tests (single bank of 16 pins)
         (uint16_read_hw_pattern, 0),  # First pin triggers hw read
         [
-            (uint16_read_cache_pattern, i) for i in range(0, 16)
+            (uint16_read_cache_pattern, i) for i in range(16)
         ],  # All 16 pins return via cache
         # After cache reset
         (uint16_read_hw_pattern, 5),  # First read after reset triggers hw
@@ -132,14 +123,9 @@ async def test_gpio_expander_cache(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "gpio-expander-cache"
+        await assert_device_name(client, "gpio-expander-cache")
 
-        try:
-            await asyncio.wait_for(logs_done.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for logs to complete")
+        await wait_or_fail(logs_done, 5.0, "Timeout waiting for logs to complete")
 
         assert index == len(log_order), (
             f"Expected {len(log_order)} log entries, but got {index}"

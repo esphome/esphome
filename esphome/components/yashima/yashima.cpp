@@ -1,10 +1,9 @@
 #include "yashima.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace yashima {
+namespace esphome::yashima {
 
-static const char *const TAG = "yashima.climate";
+ESPHOME_LOG_TAG(TAG, "yashima.climate");
 
 const uint16_t YASHIMA_STATE_LENGTH = 9;
 const uint16_t YASHIMA_BITS = YASHIMA_STATE_LENGTH * 8;
@@ -76,6 +75,10 @@ const uint16_t YASHIMA_BIT_MARK = 667;
 const uint16_t YASHIMA_ONE_SPACE = 517;
 const uint16_t YASHIMA_ZERO_SPACE = 1543;
 const uint32_t YASHIMA_GAP = YASHIMA_HEADER_SPACE;
+static constexpr remote_base::BitTimings YASHIMA_BIT_TIMINGS{.bit_mark = YASHIMA_BIT_MARK,
+                                                             .one_space = YASHIMA_ONE_SPACE,
+                                                             .zero_space = YASHIMA_ZERO_SPACE,
+                                                             .bit_order = remote_base::BitOrder::BIT_ORDER_MSB_FIRST};
 
 const uint32_t YASHIMA_CARRIER_FREQUENCY = 38000;
 
@@ -120,10 +123,12 @@ void YashimaClimate::setup() {
 }
 
 void YashimaClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value())
-    this->mode = *call.get_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
+  auto call_mode = call.get_mode();
+  if (call_mode.has_value())
+    this->mode = *call_mode;
+  auto call_target = call.get_target_temperature();
+  if (call_target.has_value())
+    this->target_temperature = *call_target;
 
   this->transmit_state_();
   this->publish_state();
@@ -180,14 +185,7 @@ void YashimaClimate::transmit_state_() {
   // Header
   data->mark(YASHIMA_HEADER_MARK);
   data->space(YASHIMA_HEADER_SPACE);
-  // Data (sent from the MSB to the LSB)
-  for (uint8_t i : remote_state) {
-    for (int8_t j = 7; j >= 0; j--) {
-      data->mark(YASHIMA_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? YASHIMA_ONE_SPACE : YASHIMA_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<YASHIMA_BIT_TIMINGS>(remote_state, YASHIMA_STATE_LENGTH);
   // Footer
   data->mark(YASHIMA_BIT_MARK);
   data->space(YASHIMA_GAP);
@@ -195,5 +193,4 @@ void YashimaClimate::transmit_state_() {
   transmit.perform();
 }
 
-}  // namespace yashima
-}  // namespace esphome
+}  // namespace esphome::yashima

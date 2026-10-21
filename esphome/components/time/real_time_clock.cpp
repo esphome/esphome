@@ -10,7 +10,7 @@
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
-#if defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_RP2) || defined(USE_ZEPHYR)
 #include <sys/time.h>
 #endif
 #include <cerrno>
@@ -19,7 +19,7 @@
 
 namespace esphome::time {
 
-static const char *const TAG = "time";
+ESPHOME_LOG_TAG(TAG, "time");
 
 RealTimeClock::RealTimeClock() = default;
 
@@ -85,19 +85,20 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
     ESP_LOGW(TAG, "clock_settime() failed with code %d", ret);
   }
 #else
-  struct timeval timev {
-    .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
+  struct timeval timev{
+      .tv_sec = static_cast<time_t>(epoch),
+      .tv_usec = 0,
   };
+#ifdef USE_ESP8266
+  // ESP8266 settimeofday() requires tz to be nullptr
+  int ret = settimeofday(&timev, nullptr);
+#else
   struct timezone tz = {0, 0};
   int ret = settimeofday(&timev, &tz);
-  if (ret == EINVAL) {
-    // Some ESP8266 frameworks abort when timezone parameter is not NULL
-    // while ESP32 expects it not to be NULL
-    ret = settimeofday(&timev, nullptr);
-  }
+#endif
 
   if (ret != 0) {
-    ESP_LOGW(TAG, "setimeofday() failed with code %d", ret);
+    ESP_LOGW(TAG, "settimeofday() failed with code %d", ret);
   }
 #endif
   auto time = this->now();
@@ -107,35 +108,37 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   this->time_sync_callback_.call();
 }
 
-#ifdef USE_TIME_TIMEZONE
-void RealTimeClock::apply_timezone_(const char *tz) {
-  ParsedTimezone parsed{};
+// Bits of each calendar byte that hold the value, byte 0 lowest; byte 3 is the one-hot weekday.
+// Packed into one constant so it stays in code rather than RAM on ESP8266.
+static constexpr uint64_t BCD_CALENDAR_MASKS = 0xFF1F3F7F3F7F7FULL;
 
-  // Handle null or empty input - use UTC
-  if (tz == nullptr || *tz == '\0') {
-    // Skip if already UTC
-    if (!get_global_tz().has_dst() && get_global_tz().std_offset_seconds == 0) {
-      return;
-    }
-    set_global_tz(parsed);
-    return;
-  }
-
-#ifdef USE_HOST
-  // On host platform, also set TZ environment variable for libc compatibility
-  setenv("TZ", tz, 1);
-  tzset();
-#endif
-
-  // Parse the POSIX TZ string using our custom parser
-  if (!parse_posix_tz(tz, parsed)) {
-    ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
-    return;
-  }
-
-  // Set global timezone for all time conversions
-  set_global_tz(parsed);
+ESPTime decode_bcd_calendar(const uint8_t *raw) {
+  uint8_t value[7];
+  for (size_t i = 0; i < 7; i++)
+    value[i] = bcd_to_uint8(raw[i] & static_cast<uint8_t>(BCD_CALENDAR_MASKS >> (8 * i)));
+  const uint8_t weekday = raw[3] & static_cast<uint8_t>(BCD_CALENDAR_MASKS >> 24);
+  ESPTime time{
+      .second = value[0],
+      .minute = value[1],
+      .hour = value[2],
+      .day_of_week = static_cast<uint8_t>(weekday ? __builtin_ctz(weekday) + 1 : 1),
+      .day_of_month = value[4],
+      .day_of_year = 1,
+      .month = value[5],
+      .year = static_cast<uint16_t>(value[6] + 2000),
+      .is_dst = false,
+      .timestamp = 0,
+  };
+  time.recalc_timestamp_utc(false);
+  return time;
 }
-#endif
+
+void encode_bcd_calendar(const ESPTime &time, uint8_t *raw) {
+  const uint8_t value[7] = {
+      time.second, time.minute, time.hour, 0, time.day_of_month, time.month, static_cast<uint8_t>(time.year % 100)};
+  for (size_t i = 0; i < 7; i++)
+    raw[i] = uint8_to_bcd(value[i]);
+  raw[3] = 1 << (time.day_of_week - 1);
+}
 
 }  // namespace esphome::time

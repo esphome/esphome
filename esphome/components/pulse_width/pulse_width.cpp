@@ -1,10 +1,9 @@
 #include "pulse_width.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pulse_width {
+namespace esphome::pulse_width {
 
-static const char *const TAG = "pulse_width";
+ESPHOME_LOG_TAG(TAG, "pulse_width");
 
 void IRAM_ATTR PulseWidthSensorStore::gpio_intr(PulseWidthSensorStore *arg) {
   const bool new_level = arg->pin_.digital_read();
@@ -23,9 +22,8 @@ void PulseWidthSensor::dump_config() {
 }
 void PulseWidthSensor::update() {
   float width = this->store_.get_pulse_width_s();
-  ESP_LOGCONFIG(TAG, "'%s' - Got pulse width %.3f s", this->name_.c_str(), width);
+  ESP_LOGCONFIG(TAG, "'%s' - Got pulse width %.3f s", LOG_STR_ARG(this->get_log_name()), width);
   this->publish_state(width);
 }
 
-}  // namespace pulse_width
-}  // namespace esphome
+}  // namespace esphome::pulse_width

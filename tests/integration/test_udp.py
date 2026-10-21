@@ -11,7 +11,9 @@ import socket
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @dataclass
@@ -80,7 +82,7 @@ async def udp_listener(port: int = 0) -> AsyncGenerator[tuple[int, UDPReceiver]]
                     receiver.on_message(data)
             except BlockingIOError:
                 await asyncio.sleep(0.01)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 break
 
     task = asyncio.create_task(receive_messages())
@@ -127,20 +129,13 @@ async def test_udp_send_receive(
             api_client_connected() as client,
         ):
             # Verify device is running
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "udp-test"
+            await assert_device_name(client, "udp-test")
 
             # Get services
             _, services = await client.list_entities_services()
 
             # Test sending string message
-            send_message_service = next(
-                (s for s in services if s.name == "send_udp_message"), None
-            )
-            assert send_message_service is not None, (
-                "send_udp_message service not found"
-            )
+            send_message_service = require_service(services, "send_udp_message")
 
             await client.execute_service(send_message_service, {})
 
@@ -153,10 +148,7 @@ async def test_udp_send_receive(
                 )
 
             # Test sending bytes
-            send_bytes_service = next(
-                (s for s in services if s.name == "send_udp_bytes"), None
-            )
-            assert send_bytes_service is not None, "send_udp_bytes service not found"
+            send_bytes_service = require_service(services, "send_udp_bytes")
 
             await client.execute_service(send_bytes_service, {})
 
@@ -189,10 +181,9 @@ async def test_udp_send_receive(
             finally:
                 send_sock.close()
 
-            try:
-                await asyncio.wait_for(receive_event.wait(), timeout=5.0)
-            except TimeoutError:
-                pytest.fail(
-                    f"on_receive did not fire. Expected 'Received UDP:' in logs. "
-                    f"Last log lines: {log_lines[-20:]}"
-                )
+            await wait_or_fail(
+                receive_event,
+                5.0,
+                "on_receive did not fire. Expected 'Received UDP:' in logs",
+                log_lines=log_lines,
+            )

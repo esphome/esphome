@@ -7,14 +7,13 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace xpt2046 {
+namespace esphome::xpt2046 {
 
 using namespace touchscreen;
 
-class XPT2046Component : public Touchscreen,
-                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
+class XPT2046Component final : public Touchscreen,
+                               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                     spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
   /// Set the threshold for the touch detection.
   void set_threshold(int16_t threshold) { this->threshold_ = threshold; }
@@ -23,7 +22,6 @@ class XPT2046Component : public Touchscreen,
 
   void setup() override;
   void dump_config() override;
-  // float get_setup_priority() const override;
 
  protected:
   static int16_t best_two_avg(int16_t value1, int16_t value2, int16_t value3);
@@ -37,5 +35,4 @@ class XPT2046Component : public Touchscreen,
   InternalGPIOPin *irq_pin_{nullptr};
 };
 
-}  // namespace xpt2046
-}  // namespace esphome
+}  // namespace esphome::xpt2046

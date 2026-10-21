@@ -1,23 +1,32 @@
 #include "pca9554.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pca9554 {
+namespace esphome::pca9554 {
 
 // for 16 bit expanders, these addresses will be doubled.
-const uint8_t INPUT_REG = 0;
-const uint8_t OUTPUT_REG = 1;
-const uint8_t INVERT_REG = 2;
-const uint8_t CONFIG_REG = 3;
+static constexpr uint8_t INPUT_REG = 0;
+static constexpr uint8_t OUTPUT_REG = 1;
+static constexpr uint8_t INVERT_REG = 2;
+static constexpr uint8_t CONFIG_REG = 3;
 
-static const char *const TAG = "pca9554";
+#ifdef USE_PCA9554_PCAL
+// PCAL registers, as offsets from PCAL_BASE spaced by the register width like the ones above.
+static constexpr uint8_t PCAL_BASE = 0x40;
+static constexpr uint8_t OUTPUT_DRIVE_0 = 0;
+static constexpr uint8_t OUTPUT_DRIVE_1 = 1;
+static constexpr uint8_t INPUT_LATCH = 2;
+static constexpr uint8_t PUPD_ENABLE = 3;
+static constexpr uint8_t PUPD_SEL = 4;
+static constexpr uint8_t INTERRUPT_MASK = 5;
+#endif
+
+ESPHOME_LOG_TAG(TAG, "pca9554");
 
 void PCA9554Component::setup() {
-  this->reg_width_ = (this->pin_count_ + 7) / 8;
   // Test to see if device exists
   if (!this->read_inputs_()) {
     ESP_LOGE(TAG, "PCA95xx not detected at 0x%02X", this->address_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -30,16 +39,41 @@ void PCA9554Component::setup() {
   // All outputs low
   this->output_mask_ = 0;
   this->write_register_(OUTPUT_REG, this->output_mask_);
+#ifdef USE_PCA9554_PCAL
+  // The chip keeps these across an MCU reboot
+  if (this->pcal_ && !this->write_pcal_shadows_()) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+#endif
   // Read the inputs
   this->read_inputs_();
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
            this->status_has_error());
+
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&PCA9554Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    // Don't invalidate cache on read — only invalidate when interrupt fires
+    this->set_invalidate_on_read_(false);
+  }
+  // Disable loop until an input pin is configured via pin_mode()
+  // For interrupt-driven mode, loop is re-enabled by the ISR
+  // For polling mode, loop is re-enabled when pin_mode() registers an input pin
+  this->disable_loop();
 }
 
+void IRAM_ATTR PCA9554Component::gpio_intr(PCA9554Component *arg) { arg->enable_loop_soon_any_context(); }
+
 void PCA9554Component::loop() {
-  // Invalidate the cache at the start of each loop.
-  // The actual read will happen on demand when digital_read() is called
+  // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
+  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+  // stale state forever; keep looping until the line is released so we self-heal.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
+    this->disable_loop();
+  }
 }
 
 void PCA9554Component::dump_config() {
@@ -47,10 +81,11 @@ void PCA9554Component::dump_config() {
                 "PCA9554:\n"
                 "  I/O Pins: %d",
                 this->pin_count_);
+#ifdef USE_PCA9554_PCAL
+  ESP_LOGCONFIG(TAG, "  PCAL registers: %s", YESNO(this->pcal_));
+#endif
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 bool PCA9554Component::digital_read_hw(uint8_t pin) {
@@ -69,18 +104,41 @@ void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   } else {
     this->output_mask_ &= ~(1 << pin);
   }
+#ifdef USE_PCA9554_PCAL
+  if (this->write_register_(OUTPUT_REG, this->output_mask_))
+    this->retry_pcal_shadows_();  // an output-only hub never reads, so it retries here
+#else
   this->write_register_(OUTPUT_REG, this->output_mask_);
+#endif
 }
 
 void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
-  if (flags == gpio::FLAG_INPUT) {
+  if (flags & gpio::FLAG_INPUT) {
     // Clear mode mask bit
     this->config_mask_ &= ~(1 << pin);
-  } else if (flags == gpio::FLAG_OUTPUT) {
+    // Enable polling loop for input pins (not needed for interrupt-driven mode
+    // where the ISR handles re-enabling loop)
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
+  } else if (flags & gpio::FLAG_OUTPUT) {
     // Set mode mask bit
     this->config_mask_ |= 1 << pin;
   }
   this->write_register_(CONFIG_REG, ~this->config_mask_);
+
+#ifdef USE_PCA9554_PCAL
+  if (this->pcal_) {
+    const uint16_t bit = 1U << pin;
+    // A masked pin never asserts INT, so only inputs are unmasked
+    this->update_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_, bit, this->config_mask_ & bit);
+    const bool pull = flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN);
+    // The select bit means nothing while the pull is disabled
+    if (pull)
+      this->update_pcal_register_(PUPD_SEL, this->pupd_select_, bit, (flags & gpio::FLAG_PULLUP) ? bit : 0);
+    this->update_pcal_register_(PUPD_ENABLE, this->pupd_enable_, bit, pull ? bit : 0);
+  }
+#endif
 }
 
 bool PCA9554Component::read_inputs_() {
@@ -91,49 +149,66 @@ bool PCA9554Component::read_inputs_() {
     return false;
   }
 
-  this->last_error_ = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
+  const i2c::ErrorCode err = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_);
+  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
+    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) err);
     return false;
   }
-  this->status_clear_warning();
   this->input_mask_ = inputs[0];
   if (this->reg_width_ == 2) {
     this->input_mask_ |= inputs[1] << 8;
   }
+#ifdef USE_PCA9554_PCAL
+  // The bus answers again, so retry the settings a failed write left off the chip
+  this->retry_pcal_shadows_();
+#endif
   return true;
 }
 
-bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
+bool PCA9554Component::write_address_(uint8_t address, uint16_t value) {
   uint8_t outputs[2];
   outputs[0] = (uint8_t) value;
   outputs[1] = (uint8_t) (value >> 8);
-  this->last_error_ = this->write_register(reg * this->reg_width_, outputs, this->reg_width_);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
+  const i2c::ErrorCode err = this->write_register(address, outputs, this->reg_width_);
+  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
+    ESP_LOGE(TAG, "write_register(): I2C I/O error: %d", (int) err);
     return false;
   }
-
-  this->status_clear_warning();
   return true;
 }
 
-float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
-
-#ifdef USE_LOOP_PRIORITY
-// Run our loop() method early to invalidate cache before any other components access the pins
-float PCA9554Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
-#endif
-
-void PCA9554GPIOPin::setup() { pin_mode(flags_); }
-void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool PCA9554GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PCA9554GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t PCA9554GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PCA9554", this->pin_);
+#ifdef USE_PCA9554_PCAL
+bool PCA9554Component::write_pcal_register_(uint8_t reg, uint16_t value) {
+  if (this->write_address_(PCAL_BASE + reg * this->reg_width_, value))
+    return true;
+  this->pcal_dirty_ = true;
+  return false;
 }
 
-}  // namespace pca9554
-}  // namespace esphome
+bool PCA9554Component::write_pcal_shadows_() {
+  this->pcal_dirty_ = false;
+  // Every write runs so one failure does not hide the others; each failure sets pcal_dirty_ again
+  bool ok = this->write_pcal_register_(PUPD_ENABLE, this->pupd_enable_);
+  ok &= this->write_pcal_register_(PUPD_SEL, this->pupd_select_);
+  ok &= this->write_pcal_register_(INPUT_LATCH, this->latch_);
+  ok &= this->write_pcal_register_(INTERRUPT_MASK, this->interrupt_mask_);
+  ok &= this->write_pcal_register_(OUTPUT_DRIVE_0, static_cast<uint16_t>(this->drive_));
+  ok &= this->write_pcal_register_(OUTPUT_DRIVE_1, static_cast<uint16_t>(this->drive_ >> (8 * this->reg_width_)));
+  return ok;
+}
+
+void PCA9554Component::update_pcal_register_(uint8_t reg, uint16_t &shadow, uint16_t mask, uint16_t value) {
+  const uint16_t updated = (shadow & ~mask) | (value & mask);
+  // The shadows hold the wanted state; an unchanged value is already on the chip unless a write failed
+  if (updated == shadow && !this->pcal_dirty_)
+    return;
+  shadow = updated;
+  this->write_pcal_register_(reg, shadow);
+}
+#endif
+
+float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
+
+}  // namespace esphome::pca9554
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pca9554::PCA9554Component, "%u via PCA9554")

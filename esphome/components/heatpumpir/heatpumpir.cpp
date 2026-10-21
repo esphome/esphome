@@ -1,15 +1,16 @@
 #include "heatpumpir.h"
 
+#include "receiver_mitsubishi_heavy.h"
+
 #if defined(USE_ARDUINO) || defined(USE_ESP32)
 
-#include <map>
+#include <cmath>
 #include <IRSender.h>
 #include <HeatpumpIRFactory.h>
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace heatpumpir {
+namespace esphome::heatpumpir {
 
 // IRSenderESPHome - bridge between ESPHome's remote_transmitter and HeatpumpIR library
 // Defined here (not in a header) to isolate HeatpumpIR's headers from the rest of ESPHome,
@@ -41,80 +42,87 @@ class IRSenderESPHome : public IRSender {
   remote_base::RemoteTransmitterBase::TransmitCall transmit_;
 };
 
-static const char *const TAG = "heatpumpir.climate";
+ESPHOME_LOG_TAG(TAG, "heatpumpir.climate");
 
-const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP = {
-    {PROTOCOL_AUX, []() { return new AUXHeatpumpIR(); }},                                    // NOLINT
-    {PROTOCOL_BALLU, []() { return new BalluHeatpumpIR(); }},                                // NOLINT
-    {PROTOCOL_CARRIER_MCA, []() { return new CarrierMCAHeatpumpIR(); }},                     // NOLINT
-    {PROTOCOL_CARRIER_NQV, []() { return new CarrierNQVHeatpumpIR(); }},                     // NOLINT
-    {PROTOCOL_DAIKIN_ARC417, []() { return new DaikinHeatpumpARC417IR(); }},                 // NOLINT
-    {PROTOCOL_DAIKIN_ARC480, []() { return new DaikinHeatpumpARC480A14IR(); }},              // NOLINT
-    {PROTOCOL_DAIKIN, []() { return new DaikinHeatpumpIR(); }},                              // NOLINT
-    {PROTOCOL_ELECTROLUXYAL, []() { return new ElectroluxYALHeatpumpIR(); }},                // NOLINT
-    {PROTOCOL_FUEGO, []() { return new FuegoHeatpumpIR(); }},                                // NOLINT
-    {PROTOCOL_FUJITSU_AWYZ, []() { return new FujitsuHeatpumpIR(); }},                       // NOLINT
-    {PROTOCOL_GREE, []() { return new GreeGenericHeatpumpIR(); }},                           // NOLINT
-    {PROTOCOL_GREEYAA, []() { return new GreeYAAHeatpumpIR(); }},                            // NOLINT
-    {PROTOCOL_GREEYAN, []() { return new GreeYANHeatpumpIR(); }},                            // NOLINT
-    {PROTOCOL_GREEYAC, []() { return new GreeYACHeatpumpIR(); }},                            // NOLINT
-    {PROTOCOL_GREEYT, []() { return new GreeYTHeatpumpIR(); }},                              // NOLINT
-    {PROTOCOL_GREEYAP, []() { return new GreeYAPHeatpumpIR(); }},                            // NOLINT
-    {PROTOCOL_HISENSE_AUD, []() { return new HisenseHeatpumpIR(); }},                        // NOLINT
-    {PROTOCOL_HITACHI, []() { return new HitachiHeatpumpIR(); }},                            // NOLINT
-    {PROTOCOL_HYUNDAI, []() { return new HyundaiHeatpumpIR(); }},                            // NOLINT
-    {PROTOCOL_IVT, []() { return new IVTHeatpumpIR(); }},                                    // NOLINT
-    {PROTOCOL_MIDEA, []() { return new MideaHeatpumpIR(); }},                                // NOLINT
-    {PROTOCOL_MITSUBISHI_FA, []() { return new MitsubishiFAHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_MITSUBISHI_FD, []() { return new MitsubishiFDHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_MITSUBISHI_FE, []() { return new MitsubishiFEHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_MITSUBISHI_HEAVY_FDTC, []() { return new MitsubishiHeavyFDTCHeatpumpIR(); }},  // NOLINT
-    {PROTOCOL_MITSUBISHI_HEAVY_ZJ, []() { return new MitsubishiHeavyZJHeatpumpIR(); }},      // NOLINT
-    {PROTOCOL_MITSUBISHI_HEAVY_ZM, []() { return new MitsubishiHeavyZMHeatpumpIR(); }},      // NOLINT
-    {PROTOCOL_MITSUBISHI_HEAVY_ZMP, []() { return new MitsubishiHeavyZMPHeatpumpIR(); }},    // NOLINT
-    {PROTOCOL_MITSUBISHI_KJ, []() { return new MitsubishiKJHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_MITSUBISHI_MSC, []() { return new MitsubishiMSCHeatpumpIR(); }},               // NOLINT
-    {PROTOCOL_MITSUBISHI_MSY, []() { return new MitsubishiMSYHeatpumpIR(); }},               // NOLINT
-    {PROTOCOL_MITSUBISHI_SEZ, []() { return new MitsubishiSEZKDXXHeatpumpIR(); }},           // NOLINT
-    {PROTOCOL_PANASONIC_CKP, []() { return new PanasonicCKPHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_PANASONIC_DKE, []() { return new PanasonicDKEHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_PANASONIC_EKE, []() { return new PanasonicEKEHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_PANASONIC_JKE, []() { return new PanasonicJKEHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_PANASONIC_LKE, []() { return new PanasonicLKEHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_PANASONIC_NKE, []() { return new PanasonicNKEHeatpumpIR(); }},                 // NOLINT
-    {PROTOCOL_SAMSUNG_AQV, []() { return new SamsungAQVHeatpumpIR(); }},                     // NOLINT
-    {PROTOCOL_SAMSUNG_FJM, []() { return new SamsungFJMHeatpumpIR(); }},                     // NOLINT
-    {PROTOCOL_SHARP, []() { return new SharpHeatpumpIR(); }},                                // NOLINT
-    {PROTOCOL_TOSHIBA_DAISEIKAI, []() { return new ToshibaDaiseikaiHeatpumpIR(); }},         // NOLINT
-    {PROTOCOL_TOSHIBA, []() { return new ToshibaHeatpumpIR(); }},                            // NOLINT
-    {PROTOCOL_ZHLT01, []() { return new ZHLT01HeatpumpIR(); }},                              // NOLINT
-    {PROTOCOL_NIBE, []() { return new NibeHeatpumpIR(); }},                                  // NOLINT
-    {PROTOCOL_QLIMA_1, []() { return new Qlima1HeatpumpIR(); }},                             // NOLINT
-    {PROTOCOL_QLIMA_2, []() { return new Qlima2HeatpumpIR(); }},                             // NOLINT
-    {PROTOCOL_SAMSUNG_AQV12MSAN, []() { return new SamsungAQV12MSANHeatpumpIR(); }},         // NOLINT
-    {PROTOCOL_ZHJG01, []() { return new ZHJG01HeatpumpIR(); }},                              // NOLINT
-    {PROTOCOL_AIRWAY, []() { return new AIRWAYHeatpumpIR(); }},                              // NOLINT
-    {PROTOCOL_BGH_AUD, []() { return new BGHHeatpumpIR(); }},                                // NOLINT
-    {PROTOCOL_PANASONIC_ALTDKE, []() { return new PanasonicAltDKEHeatpumpIR(); }},           // NOLINT
-    {PROTOCOL_PHILCO_PHS32, []() { return new PhilcoPHS32HeatpumpIR(); }},                   // NOLINT
-    {PROTOCOL_VAILLANTVAI8, []() { return new VaillantHeatpumpIR(); }},                      // NOLINT
-    {PROTOCOL_R51M, []() { return new R51MHeatpumpIR(); }},                                  // NOLINT
-};
+template<Protocol P> struct ProtocolClass;
+
+template<Protocol P> HeatpumpIR *create_heatpump_ir() {
+  return new typename ProtocolClass<P>::type();  // NOLINT
+}
+
+// Codegen calls only the configured protocols, so the linker drops the other classes
+#define HEATPUMPIR_PROTOCOL(protocol, cls) \
+  template<> struct ProtocolClass<protocol> { \
+    using type = cls; \
+  }; \
+  template HeatpumpIR *create_heatpump_ir<protocol>();
+
+HEATPUMPIR_PROTOCOL(PROTOCOL_AUX, AUXHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_BALLU, BalluHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_CARRIER_MCA, CarrierMCAHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_CARRIER_NQV, CarrierNQVHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_DAIKIN_ARC417, DaikinHeatpumpARC417IR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_DAIKIN_ARC480, DaikinHeatpumpARC480A14IR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_DAIKIN, DaikinHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_ELECTROLUXYAL, ElectroluxYALHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_FUEGO, FuegoHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_FUJITSU_AWYZ, FujitsuHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_GREE, GreeGenericHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_GREEYAA, GreeYAAHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_GREEYAN, GreeYANHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_GREEYAC, GreeYACHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_GREEYT, GreeYTHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_GREEYAP, GreeYAPHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_HISENSE_AUD, HisenseHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_HITACHI, HitachiHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_HYUNDAI, HyundaiHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_IVT, IVTHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MIDEA, MideaHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_FA, MitsubishiFAHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_FD, MitsubishiFDHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_FE, MitsubishiFEHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_HEAVY_FDTC, MitsubishiHeavyFDTCHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_HEAVY_ZJ, MitsubishiHeavyZJHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_HEAVY_ZM, MitsubishiHeavyZMHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_HEAVY_ZMP, MitsubishiHeavyZMPHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_KJ, MitsubishiKJHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_MSC, MitsubishiMSCHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_MSY, MitsubishiMSYHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_MITSUBISHI_SEZ, MitsubishiSEZKDXXHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_PANASONIC_CKP, PanasonicCKPHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_PANASONIC_DKE, PanasonicDKEHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_PANASONIC_EKE, PanasonicEKEHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_PANASONIC_JKE, PanasonicJKEHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_PANASONIC_LKE, PanasonicLKEHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_PANASONIC_NKE, PanasonicNKEHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_SAMSUNG_AQV, SamsungAQVHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_SAMSUNG_FJM, SamsungFJMHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_SHARP, SharpHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_TOSHIBA_DAISEIKAI, ToshibaDaiseikaiHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_TOSHIBA, ToshibaHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_ZHLT01, ZHLT01HeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_NIBE, NibeHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_QLIMA_1, Qlima1HeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_QLIMA_2, Qlima2HeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_SAMSUNG_AQV12MSAN, SamsungAQV12MSANHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_ZHJG01, ZHJG01HeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_AIRWAY, AIRWAYHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_BGH_AUD, BGHHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_PANASONIC_ALTDKE, PanasonicAltDKEHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_PHILCO_PHS32, PhilcoPHS32HeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_VAILLANTVAI8, VaillantHeatpumpIR)
+HEATPUMPIR_PROTOCOL(PROTOCOL_R51M, R51MHeatpumpIR)
+
+#undef HEATPUMPIR_PROTOCOL
 
 void HeatpumpIRClimate::setup() {
-  auto protocol_constructor = PROTOCOL_CONSTRUCTOR_MAP.find(protocol_);
-  if (protocol_constructor == PROTOCOL_CONSTRUCTOR_MAP.end()) {
-    ESP_LOGE(TAG, "Invalid protocol");
-    return;
-  }
-  this->heatpump_ir_ = protocol_constructor->second();
   climate_ir::ClimateIR::setup();
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
 
       IRSenderESPHome esp_sender(this->transmitter_);
-      this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature + 0.5)));
+      this->heatpump_ir_->send(esp_sender, uint8_t(std::lround(this->current_temperature)));
 
       // current temperature changed, publish state
       this->publish_state();
@@ -123,6 +131,13 @@ void HeatpumpIRClimate::setup() {
   } else {
     this->current_temperature = NAN;
   }
+}
+
+void HeatpumpIRClimate::control(const climate::ClimateCall &call) {
+  // Picking a fan speed ends HiPower or Econo, as it does on the remote
+  if (this->has_fan_byte_presets_() && call.get_fan_mode().has_value() && !call.get_preset().has_value())
+    this->preset = climate::CLIMATE_PRESET_NONE;
+  climate_ir::ClimateIR::control(call);
 }
 
 void HeatpumpIRClimate::transmit_state() {
@@ -187,20 +202,37 @@ void HeatpumpIRClimate::transmit_state() {
     swing_h_cmd = HDIR_SWING;
   }
 
+  // MitsubishiMSCHeatpumpIR only knows FAN_1..FAN_3 and sends anything else as auto,
+  // so low/medium/high have to start at FAN_1 there instead of FAN_2. Mitsubishi Heavy
+  // ZJ and ZMP also stop at FAN_3 and use FAN_4 and FAN_5 for HiPower and Econo.
+  const bool three_speed_fan = this->protocol_ == PROTOCOL_MITSUBISHI_MSC || this->has_fan_byte_presets_();
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:
-      fan_speed_cmd = FAN_2;
+      fan_speed_cmd = three_speed_fan ? FAN_1 : FAN_2;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed_cmd = FAN_3;
+      fan_speed_cmd = three_speed_fan ? FAN_2 : FAN_3;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fan_speed_cmd = FAN_4;
+      fan_speed_cmd = three_speed_fan ? FAN_3 : FAN_4;
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
       fan_speed_cmd = FAN_AUTO;
       break;
+  }
+
+  if (this->has_fan_byte_presets_()) {
+    switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
+      case climate::CLIMATE_PRESET_BOOST:
+        fan_speed_cmd = FAN_4;  // HiPower
+        break;
+      case climate::CLIMATE_PRESET_ECO:
+        fan_speed_cmd = FAN_5;  // Econo
+        break;
+      default:
+        break;
+    }
   }
 
   switch (this->mode) {
@@ -243,7 +275,23 @@ void HeatpumpIRClimate::transmit_state() {
                      swing_h_cmd);
 }
 
-}  // namespace heatpumpir
-}  // namespace esphome
+bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
+  switch (this->protocol_) {
+    case PROTOCOL_MITSUBISHI_HEAVY_ZMP: {
+      uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENGTH];
+      if (!decode_mitsubishi_heavy_frame(data, frame, *this))
+        return false;
+      decode_mitsubishi_heavy_zmp(frame, *this);
+      break;
+    }
+    default:
+      return false;  // no decoder for this protocol
+  }
+  this->target_temperature = clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
+  this->publish_state();
+  return true;
+}
+
+}  // namespace esphome::heatpumpir
 
 #endif

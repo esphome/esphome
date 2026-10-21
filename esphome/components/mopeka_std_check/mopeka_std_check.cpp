@@ -3,12 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+namespace esphome::mopeka_std_check {
 
-namespace esphome {
-namespace mopeka_std_check {
-
-static const char *const TAG = "mopeka_std_check";
+ESPHOME_LOG_TAG(TAG, "mopeka_std_check");
 static const uint16_t SERVICE_UUID = 0xADA0;
 static const uint8_t MANUFACTURER_DATA_LENGTH = 23;
 static const uint16_t MANUFACTURER_ID = 0x000D;
@@ -34,7 +31,7 @@ void MopekaStdCheck::dump_config() {
  * Check if advertisement is for our sensor and if so decode it and
  * update the sensor state data.
  */
-bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool MopekaStdCheck::parse_device(const ble_device_base::ESPBTDevice &device) {
   // Validate address.
   if (device.address_uint64() != this->address_) {
     return false;
@@ -53,7 +50,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
       return false;
     }
     const auto &service_uuid = service_uuids[0];
-    if (service_uuid != esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID)) {
+    if (service_uuid != ble_device_base::ESPBTUUID::from_uint16(SERVICE_UUID)) {
       return false;
     }
   }
@@ -67,11 +64,8 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   const auto &manu_data = manu_datas[0];
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char hex_buf[format_hex_pretty_size(MOPEKA_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGVV(TAG, "[%s] Manufacturer data: %s", addr_str,
-            format_hex_pretty_to(hex_buf, manu_data.data.data(), manu_data.data.size()));
+  ESP_LOGVV_HEX(TAG, manu_data.data.data(), manu_data.data.size(), MOPEKA_MAX_LOG_BYTES, "[%s] Manufacturer data: %s",
+                addr_str);
 
   if (manu_data.data.size() != MANUFACTURER_DATA_LENGTH) {
     ESP_LOGE(TAG, "[%s] Unexpected manu_data size (%d)", addr_str, manu_data.data.size());
@@ -108,7 +102,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   }
 
   // Get temperature of sensor
-  uint8_t temp_in_c = this->parse_temperature_(mopeka_data);
+  int8_t temp_in_c = this->parse_temperature_(mopeka_data);
   if (this->temperature_ != nullptr) {
     this->temperature_->publish_state(temp_in_c);
   }
@@ -126,18 +120,18 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     // Copy measurements over into my array.
     {
       u_int8_t measurements_index = 0;
-      for (u_int8_t i = 0; i < 3; i++) {
-        measurements_time[measurements_index] = mopeka_data->val[i].time_0 + 1;
-        measurements_value[measurements_index] = mopeka_data->val[i].value_0;
+      for (const auto &val : mopeka_data->val) {
+        measurements_time[measurements_index] = val.time_0 + 1;
+        measurements_value[measurements_index] = val.value_0;
         measurements_index++;
-        measurements_time[measurements_index] = mopeka_data->val[i].time_1 + 1;
-        measurements_value[measurements_index] = mopeka_data->val[i].value_1;
+        measurements_time[measurements_index] = val.time_1 + 1;
+        measurements_value[measurements_index] = val.value_1;
         measurements_index++;
-        measurements_time[measurements_index] = mopeka_data->val[i].time_2 + 1;
-        measurements_value[measurements_index] = mopeka_data->val[i].value_2;
+        measurements_time[measurements_index] = val.time_2 + 1;
+        measurements_value[measurements_index] = val.value_2;
         measurements_index++;
-        measurements_time[measurements_index] = mopeka_data->val[i].time_3 + 1;
-        measurements_value[measurements_index] = mopeka_data->val[i].value_3;
+        measurements_time[measurements_index] = val.time_3 + 1;
+        measurements_value[measurements_index] = val.value_3;
         measurements_index++;
       }
     }
@@ -223,16 +217,13 @@ uint8_t MopekaStdCheck::parse_battery_level_(const mopeka_std_package *message) 
   return (uint8_t) percent;
 }
 
-uint8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
+int8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
   uint8_t tmp = message->raw_temp;
   if (tmp == 0x0) {
     return -40;
   } else {
-    return (uint8_t) ((tmp - 25.0f) * 1.776964f);
+    return static_cast<int8_t>((tmp - 25.0f) * 1.776964f);
   }
 }
 
-}  // namespace mopeka_std_check
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::mopeka_std_check

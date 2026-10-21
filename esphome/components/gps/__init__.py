@@ -16,6 +16,8 @@ from esphome.const import (
     UNIT_KILOMETER_PER_HOUR,
     UNIT_METER,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CONF_GPS_ID = "gps_id"
 CONF_HDOP = "hdop"
@@ -32,12 +34,23 @@ DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor"]
 
 CODEOWNERS = ["@coogle", "@ximex"]
+DOMAIN = "gps"
 
 gps_ns = cg.esphome_ns.namespace("gps")
-GPS = gps_ns.class_("GPS", cg.Component, uart.UARTDevice)
+GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)
 GPSListener = gps_ns.class_("GPSListener")
 
 MULTI_CONF = True
+
+_request_listener_slot = cg.slot_counter("GPS_LISTENER_COUNT")
+
+
+async def register_listener(hub: MockObj, var: MockObj) -> None:
+    """Register a listener with its GPS and count it for the compile-time list size."""
+    _request_listener_slot(str(hub))
+    cg.add(hub.register_listener(var))
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -93,38 +106,28 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("gps", require_rx=True)
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await uart.new_uart_component(config)
 
-    if latitude_config := config.get(CONF_LATITUDE):
-        sens = await sensor.new_sensor(latitude_config)
-        cg.add(var.set_latitude_sensor(sens))
+    # Pre-create all sensor variables so automations that reference
+    # sibling sensors don't deadlock waiting for unregistered IDs.
+    sensors = [
+        (cg.new_Pvariable(conf[CONF_ID]), conf, setter)
+        for key, setter in (
+            (CONF_LATITUDE, "set_latitude_sensor"),
+            (CONF_LONGITUDE, "set_longitude_sensor"),
+            (CONF_SPEED, "set_speed_sensor"),
+            (CONF_COURSE, "set_course_sensor"),
+            (CONF_ALTITUDE, "set_altitude_sensor"),
+            (CONF_SATELLITES, "set_satellites_sensor"),
+            (CONF_HDOP, "set_hdop_sensor"),
+        )
+        if (conf := config.get(key))
+    ]
 
-    if longitude_config := config.get(CONF_LONGITUDE):
-        sens = await sensor.new_sensor(longitude_config)
-        cg.add(var.set_longitude_sensor(sens))
-
-    if speed_config := config.get(CONF_SPEED):
-        sens = await sensor.new_sensor(speed_config)
-        cg.add(var.set_speed_sensor(sens))
-
-    if course_config := config.get(CONF_COURSE):
-        sens = await sensor.new_sensor(course_config)
-        cg.add(var.set_course_sensor(sens))
-
-    if altitude_config := config.get(CONF_ALTITUDE):
-        sens = await sensor.new_sensor(altitude_config)
-        cg.add(var.set_altitude_sensor(sens))
-
-    if satellites_config := config.get(CONF_SATELLITES):
-        sens = await sensor.new_sensor(satellites_config)
-        cg.add(var.set_satellites_sensor(sens))
-
-    if hdop_config := config.get(CONF_HDOP):
-        sens = await sensor.new_sensor(hdop_config)
-        cg.add(var.set_hdop_sensor(sens))
+    for sens, conf, setter in sensors:
+        await sensor.register_sensor(sens, conf)
+        cg.add(getattr(var, setter)(sens))
 
     # https://platformio.org/lib/show/1655/TinyGPSPlus
     # Using fork of TinyGPSPlus patched to build on ESP-IDF

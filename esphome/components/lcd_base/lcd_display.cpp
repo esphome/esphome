@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace lcd_base {
+namespace esphome::lcd_base {
 
-static const char *const TAG = "lcd";
+ESPHOME_LOG_TAG(TAG, "lcd");
 
 // First set bit determines command, bits after that are the data.
 static const uint8_t LCD_DISPLAY_COMMAND_CLEAR_DISPLAY = 0x01;
@@ -99,7 +98,7 @@ void HOT LCDDisplay::display() {
       this->send(this->buffer_[this->columns_ * 2 + i], true);
   }
 
-  if (this->rows_ >= 1) {
+  if (this->rows_ >= 2) {
     this->command_(LCD_DISPLAY_COMMAND_SET_DDRAM_ADDR | 0x40);
 
     for (uint8_t i = 0; i < this->columns_; i++)
@@ -173,5 +172,4 @@ void LCDDisplay::loadchar(uint8_t location, uint8_t charmap[]) {
   }
 }
 
-}  // namespace lcd_base
-}  // namespace esphome
+}  // namespace esphome::lcd_base

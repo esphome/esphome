@@ -7,17 +7,26 @@ import subprocess
 import sys
 import tempfile
 
+from esphome import config_validation as cv
 from esphome.components.esp32 import PLATFORM_VERSION_LOOKUP
 from esphome.helpers import write_file_if_changed
 
 ver = PLATFORM_VERSION_LOOKUP["recommended"]
-version_str = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
 root = Path(__file__).parent.parent
 boards_file_path = root / "esphome" / "components" / "esp32" / "boards.py"
 
 
 def get_boards():
     with tempfile.TemporaryDirectory() as tempdir:
+        if isinstance(ver, cv.Version):
+            branch = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
+            if ver.extra:
+                branch += f"-{ver.extra}"
+            repo = "https://github.com/pioarduino/platform-espressif32"
+        else:
+            # URL format: "https://github.com/user/repo.git#branch"
+            url = str(ver)
+            repo, branch = url.rsplit("#", 1) if "#" in url else (url, "main")
         subprocess.run(
             [
                 "git",
@@ -28,8 +37,8 @@ def get_boards():
                 "--depth",
                 "1",
                 "--branch",
-                f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}",
-                "https://github.com/pioarduino/platform-espressif32",
+                branch,
+                repo,
                 tempdir,
             ],
             check=True,

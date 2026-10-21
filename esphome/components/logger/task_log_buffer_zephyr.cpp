@@ -17,18 +17,15 @@ static inline uint32_t get_wlen(const mpsc_pbuf_generic *item) {
   return total_size_in_32bit_words(reinterpret_cast<const TaskLogBuffer::LogMessage *>(item)->text_length);
 }
 
-TaskLogBuffer::TaskLogBuffer(size_t total_buffer_size) {
-  // alignment to 4 bytes
-  total_buffer_size = (total_buffer_size + 3) / sizeof(uint32_t);
-  this->mpsc_config_.buf = new uint32_t[total_buffer_size];
-  this->mpsc_config_.size = total_buffer_size;
+TaskLogBuffer::TaskLogBuffer() {
+  // Storage is a member array (embedded in Logger), no heap allocation needed
+  this->mpsc_config_.buf = this->buf_storage_;
+  this->mpsc_config_.size = BUF_WORD_COUNT;
   this->mpsc_config_.flags = MPSC_PBUF_MODE_OVERWRITE;
-  this->mpsc_config_.get_wlen = get_wlen,
+  this->mpsc_config_.get_wlen = get_wlen;
 
   mpsc_pbuf_init(&this->log_buffer_, &this->mpsc_config_);
 }
-
-TaskLogBuffer::~TaskLogBuffer() { delete[] this->mpsc_config_.buf; }
 
 bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
                                              const char *format, va_list args) {

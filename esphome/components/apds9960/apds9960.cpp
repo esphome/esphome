@@ -2,14 +2,13 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace apds9960 {
+namespace esphome::apds9960 {
 
-static const char *const TAG = "apds9960";
+ESPHOME_LOG_TAG(TAG, "apds9960");
 
 #define APDS9960_ERROR_CHECK(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Setting up APDS9960 registers failed")); \
     return; \
   }
 #define APDS9960_WRITE_BYTE(reg, value) APDS9960_ERROR_CHECK(this->write_byte(reg, value));
@@ -17,14 +16,12 @@ static const char *const TAG = "apds9960";
 void APDS9960::setup() {
   uint8_t id;
   if (!this->read_byte(0x92, &id)) {  // ID register
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   if (id != 0xAB && id != 0x9C && id != 0xA8 && id != 0x9E) {  // APDS9960 all should have one of these IDs
-    this->error_code_ = WRONG_ID;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("APDS9960 has invalid id"));
     return;
   }
 
@@ -136,20 +133,6 @@ void APDS9960::dump_config() {
   LOG_SENSOR("  ", "Clear channel", this->clear_sensor_);
   LOG_SENSOR("  ", "Proximity", this->proximity_sensor_);
 #endif
-
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case WRONG_ID:
-        ESP_LOGE(TAG, "APDS9960 has invalid id!");
-        break;
-      default:
-        ESP_LOGE(TAG, "Setting up APDS9960 registers failed!");
-        break;
-    }
-  }
 }
 
 #define APDS9960_WARNING_CHECK(func, warning) \
@@ -179,13 +162,13 @@ void APDS9960::read_color_data_(uint8_t status) {
     return;
   }
 
-  uint8_t raw[8];
-  APDS9960_WARNING_CHECK(this->read_bytes(0x94, raw, 8), "Reading color values failed.");
+  uint16_t raw[4];
+  APDS9960_WARNING_CHECK(this->read_bytes_16_le(0x94, raw, 4), "Reading color values failed.");
 
-  uint16_t uint_clear = (uint16_t(raw[1]) << 8) | raw[0];
-  uint16_t uint_red = (uint16_t(raw[3]) << 8) | raw[2];
-  uint16_t uint_green = (uint16_t(raw[5]) << 8) | raw[4];
-  uint16_t uint_blue = (uint16_t(raw[7]) << 8) | raw[6];
+  uint16_t uint_clear = raw[0];
+  uint16_t uint_red = raw[1];
+  uint16_t uint_green = raw[2];
+  uint16_t uint_blue = raw[3];
 
   float clear_perc = (uint_clear / float(UINT16_MAX)) * 100.0f;
   float red_perc = (uint_red / float(UINT16_MAX)) * 100.0f;
@@ -251,11 +234,11 @@ void APDS9960::read_gesture_data_() {
 
   uint8_t buf[128];
   for (uint8_t pos = 0; pos < fifo_level * 4; pos += 32) {
-    // The ESP's i2c driver has a limited buffer size.
-    // This way of retrieving the data should be wrong according to the datasheet
-    // but it seems to work.
+    // Read in 32-byte chunks due to ESP8266 I2C buffer limit.
+    // Always read from 0xFC — the FIFO auto-increments through 0xFC-0xFF
+    // and advances its internal pointer after every 4th byte.
     uint8_t read = std::min(32, fifo_level * 4 - pos);
-    APDS9960_WARNING_CHECK(this->read_bytes(0xFC + pos, buf + pos, read), "Reading FIFO buffer failed.");
+    APDS9960_WARNING_CHECK(this->read_bytes(0xFC, buf + pos, read), "Reading FIFO buffer failed.");
   }
 
   if (millis() - this->gesture_start_ > 500) {
@@ -402,5 +385,4 @@ bool APDS9960::is_gesture_enabled_() const {
 #endif
 }
 
-}  // namespace apds9960
-}  // namespace esphome
+}  // namespace esphome::apds9960

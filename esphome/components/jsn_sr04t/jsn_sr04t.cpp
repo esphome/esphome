@@ -4,10 +4,9 @@
 
 // Very basic support for JSN_SR04T V3.0 distance sensor in mode 2
 
-namespace esphome {
-namespace jsn_sr04t {
+namespace esphome::jsn_sr04t {
 
-static const char *const TAG = "jsn_sr04t.sensor";
+ESPHOME_LOG_TAG(TAG, "jsn_sr04t.sensor");
 
 void Jsnsr04tComponent::update() {
   this->write_byte((this->model_ == AJ_SR04M) ? 0x01 : 0x55);
@@ -15,19 +14,16 @@ void Jsnsr04tComponent::update() {
 }
 
 void Jsnsr04tComponent::loop() {
-  while (this->available() > 0) {
-    uint8_t data;
-    this->read_byte(&data);
-
+  this->read_available([this](uint8_t data) {
     ESP_LOGV(TAG, "Read byte from sensor: %x", data);
 
     if (this->buffer_.empty() && data != 0xFF)
-      continue;
+      return;
 
     this->buffer_.push_back(data);
     if (this->buffer_.size() == 4)
       this->check_buffer_();
-  }
+  });
 }
 
 void Jsnsr04tComponent::check_buffer_() {
@@ -62,5 +58,4 @@ void Jsnsr04tComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace jsn_sr04t
-}  // namespace esphome
+}  // namespace esphome::jsn_sr04t

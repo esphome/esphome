@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER
+from esphome.types import ConfigType
 
 from .. import MCP3204, mcp3204_ns
 
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_NUMBER],

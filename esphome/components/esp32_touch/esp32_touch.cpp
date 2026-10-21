@@ -13,7 +13,7 @@ template<size_t N> static const char *lookup_str(const char *const (&table)[N], 
   return (index < N) ? table[index] : "UNKNOWN";
 }
 
-static const char *const TAG = "esp32_touch";
+ESPHOME_LOG_TAG(TAG, "esp32_touch");
 
 static constexpr uint32_t SETUP_MODE_LOG_INTERVAL_MS = 250;
 static constexpr uint32_t INITIAL_STATE_DELAY_MS = 1500;
@@ -216,8 +216,9 @@ void ESP32TouchComponent::setup() {
   // Do initial oneshot scans to populate baseline values
   for (uint32_t i = 0; i < ONESHOT_SCAN_COUNT; i++) {
     err = touch_sensor_trigger_oneshot_scanning(this->sens_handle_, ONESHOT_SCAN_TIMEOUT_MS);
+    App.feed_wdt();  // 3 scans with 2s timeout might exceed WDT, so feed it here to be safe
     if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Oneshot scan %d failed: %s", i, esp_err_to_name(err));
+      ESP_LOGW(TAG, "Oneshot scan %" PRIu32 " failed: %s", i, esp_err_to_name(err));
     }
   }
 
@@ -260,16 +261,11 @@ void ESP32TouchComponent::dump_config() {
   if (this->filter_configured_) {
     // TOUCH_BM_IIR_FILTER_256 only exists on V2, shifting JITTER's position
     static constexpr const char *FILTER_STRS[] = {
-      "IIR_4",
-      "IIR_8",
-      "IIR_16",
-      "IIR_32",
-      "IIR_64",
-      "IIR_128",
+        "IIR_4",   "IIR_8", "IIR_16", "IIR_32", "IIR_64", "IIR_128",
 #if SOC_TOUCH_SENSOR_VERSION == 2
-      "IIR_256",
+        "IIR_256",
 #endif
-      "JITTER",
+        "JITTER",
     };
     static constexpr const char *SMOOTH_STRS[] = {"OFF", "IIR_2", "IIR_4", "IIR_8"};
     const char *filter_s = lookup_str(FILTER_STRS, this->filter_mode_);
@@ -345,13 +341,13 @@ void ESP32TouchComponent::loop() {
         child->publish_state(new_state);
 #ifdef USE_ESP32_VARIANT_ESP32
         ESP_LOGV(TAG, "Touch Pad '%s' state: %s (value: %" PRIu32 ", threshold: %" PRIu32 ")",
-                 child->get_name().c_str(), ONOFF(new_state), value, child->get_threshold());
+                 LOG_STR_ARG(child->get_log_name()), ONOFF(new_state), value, child->get_threshold());
 #else
         if (new_state) {
           ESP_LOGV(TAG, "Touch Pad '%s' state: ON (value: %" PRIu32 ", benchmark: %" PRIu32 ", threshold: %" PRIu32 ")",
-                   child->get_name().c_str(), value, benchmark, child->get_threshold());
+                   LOG_STR_ARG(child->get_log_name()), value, benchmark, child->get_threshold());
         } else {
-          ESP_LOGV(TAG, "Touch Pad '%s' state: OFF", child->get_name().c_str());
+          ESP_LOGV(TAG, "Touch Pad '%s' state: OFF", LOG_STR_ARG(child->get_log_name()));
         }
 #endif
       }
@@ -360,11 +356,16 @@ void ESP32TouchComponent::loop() {
   }
 
   // Publish initial OFF state for sensors that haven't received events yet
+  bool all_initial_published = true;
   for (auto *child : this->children_) {
     this->publish_initial_state_if_needed_(child, now);
+    if (!child->initial_state_published_) {
+      all_initial_published = false;
+    }
   }
 
-  if (!this->setup_mode_) {
+  // Only disable loop once all initial states are published
+  if (!this->setup_mode_ && all_initial_published) {
     this->disable_loop();
   }
 }
@@ -469,7 +470,8 @@ void ESP32TouchComponent::process_setup_mode_logging_(uint32_t now) {
       child->value_ = smooth_value;
 
 #ifdef USE_ESP32_VARIANT_ESP32
-      ESP_LOGD(TAG, "Touch Pad '%s' (Ch%d): %" PRIu32, child->get_name().c_str(), child->channel_id_, smooth_value);
+      ESP_LOGD(TAG, "Touch Pad '%s' (Ch%d): %" PRIu32, LOG_STR_ARG(child->get_log_name()), child->channel_id_,
+               smooth_value);
 #else
       uint32_t benchmark = 0;
       touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_BENCHMARK, &benchmark);
@@ -478,7 +480,7 @@ void ESP32TouchComponent::process_setup_mode_logging_(uint32_t now) {
       ESP_LOGD(TAG,
                "Touch Pad '%s' (Ch%d): value=%" PRIu32 ", benchmark=%" PRIu32 ", difference=%" PRId32
                " (set threshold < %" PRId32 " to detect touch)",
-               child->get_name().c_str(), child->channel_id_, smooth_value, benchmark, difference, difference);
+               LOG_STR_ARG(child->get_log_name()), child->channel_id_, smooth_value, benchmark, difference, difference);
 #endif
     }
     this->setup_mode_last_log_print_ = now;
@@ -490,7 +492,7 @@ void ESP32TouchComponent::publish_initial_state_if_needed_(ESP32TouchBinarySenso
     if (now > INITIAL_STATE_DELAY_MS) {
       child->publish_initial_state(false);
       child->initial_state_published_ = true;
-      ESP_LOGV(TAG, "Touch Pad '%s' state: OFF (initial)", child->get_name().c_str());
+      ESP_LOGV(TAG, "Touch Pad '%s' state: OFF (initial)", LOG_STR_ARG(child->get_log_name()));
     }
   }
 }

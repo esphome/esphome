@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/entity_base.h"
-#include "esphome/core/helpers.h"
+#include <cmath>
+#include <cstdint>
 
 namespace esphome::number {
 
@@ -11,7 +11,7 @@ enum NumberMode : uint8_t {
   NUMBER_MODE_SLIDER = 2,
 };
 
-class NumberTraits : public EntityBase_DeviceClass, public EntityBase_UnitOfMeasurement {
+class NumberTraits {
  public:
   // Set/get the number value boundaries.
   void set_min_value(float min_value) { min_value_ = min_value; }
@@ -31,7 +31,7 @@ class NumberTraits : public EntityBase_DeviceClass, public EntityBase_UnitOfMeas
   float min_value_ = NAN;
   float max_value_ = NAN;
   float step_ = NAN;
-  NumberMode mode_{NUMBER_MODE_AUTO};
+  NumberMode mode_{NUMBER_MODE_AUTO};  // Keep in sync with DEFAULT_MODE in __init__.py
 };
 
 }  // namespace esphome::number

@@ -1,9 +1,8 @@
 #include "opentherm_switch.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
-static const char *const TAG = "opentherm.switch";
+ESPHOME_LOG_TAG(TAG, "opentherm.switch");
 
 void OpenthermSwitch::write_state(bool state) { this->publish_state(state); }
 
@@ -11,9 +10,9 @@ void OpenthermSwitch::setup() {
   auto restored = this->get_initial_state_with_restore_mode();
   bool state = false;
   if (!restored.has_value()) {
-    ESP_LOGD(TAG, "Couldn't restore state for OpenTherm switch '%s'", this->get_name().c_str());
+    ESP_LOGD(TAG, "Couldn't restore state for OpenTherm switch '%s'", LOG_STR_ARG(this->get_log_name()));
   } else {
-    ESP_LOGD(TAG, "Restored state for OpenTherm switch '%s': %d", this->get_name().c_str(), restored.value());
+    ESP_LOGD(TAG, "Restored state for OpenTherm switch '%s': %d", LOG_STR_ARG(this->get_log_name()), restored.value());
     state = restored.value();
   }
   this->write_state(state);
@@ -24,5 +23,4 @@ void OpenthermSwitch::dump_config() {
   ESP_LOGCONFIG(TAG, "  Current state: %d", this->state);
 }
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

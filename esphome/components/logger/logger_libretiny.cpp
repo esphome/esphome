@@ -1,9 +1,11 @@
 #ifdef USE_LIBRETINY
 #include "logger.h"
 
+#include "esphome/components/libretiny/core.h"
+
 namespace esphome::logger {
 
-static const char *const TAG = "logger";
+ESPHOME_LOG_TAG(TAG, "logger");
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
@@ -11,18 +13,21 @@ void Logger::pre_setup() {
 #if LT_HW_UART0
       case UART_SELECTION_UART0:
         this->hw_serial_ = &Serial0;
+        libretiny::ensure_serial_handle(0);
         Serial0.begin(this->baud_rate_);
         break;
 #endif
 #if LT_HW_UART1
       case UART_SELECTION_UART1:
         this->hw_serial_ = &Serial1;
+        libretiny::ensure_serial_handle(1);
         Serial1.begin(this->baud_rate_);
         break;
 #endif
 #if LT_HW_UART2
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
+        libretiny::ensure_serial_handle(2);
         Serial2.begin(this->baud_rate_);
         break;
 #endif
@@ -48,8 +53,6 @@ void Logger::pre_setup() {
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
 }
-
-void HOT Logger::write_msg_(const char *msg, uint16_t len) { this->hw_serial_->write(msg, len); }
 
 const LogString *Logger::get_uart_selection_() {
   switch (this->uart_) {

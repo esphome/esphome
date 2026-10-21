@@ -6,6 +6,7 @@
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/media_player/media_player.h"
+#include "esphome/components/speaker/announcement_volume.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/automation.h"
@@ -21,21 +22,23 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
   optional<float> volume;
   optional<bool> announce;
+  // The caller asked for an announcement; `announce` is also forced on in single-pipeline mode
+  bool is_announcement{false};
   optional<std::string *> url;  // Must be manually deleted after receiving this struct from a queue
-  optional<audio::AudioFile *> file;
+  optional<const audio::AudioFile *> file;
   optional<bool> enqueue;
 };
 
 struct PlaylistItem {
   optional<std::string> url;
-  optional<audio::AudioFile *> file;
+  optional<const audio::AudioFile *> file;
+  bool is_announcement{false};
 };
 
 struct VolumeRestoreState {
@@ -43,11 +46,11 @@ struct VolumeRestoreState {
   bool is_muted;
 };
 
-class SpeakerMediaPlayer : public Component,
-                           public media_player::MediaPlayer
+class SpeakerMediaPlayer final : public Component,
+                                 public media_player::MediaPlayer
 #ifdef USE_OTA_STATE_LISTENER
     ,
-                           public ota::OTAGlobalStateListener
+                                 public ota::OTAGlobalStateListener
 #endif
 {
  public:
@@ -75,6 +78,9 @@ class SpeakerMediaPlayer : public Component,
   void set_volume_max(float volume_max) { this->volume_max_ = volume_max; }
   void set_volume_min(float volume_min) { this->volume_min_ = volume_min; }
 
+  /// @brief Sets the volume for announcements that start while nothing else is playing.
+  void set_announcement_volume(float announcement_volume);
+
   void set_announcement_speaker(Speaker *announcement_speaker) { this->announcement_speaker_ = announcement_speaker; }
   void set_announcement_format(const media_player::MediaPlayerSupportedFormat &announcement_format) {
     this->announcement_format_ = announcement_format;
@@ -88,7 +94,7 @@ class SpeakerMediaPlayer : public Component,
   Trigger<> *get_unmute_trigger() { return &this->unmute_trigger_; }
   Trigger<float> *get_volume_trigger() { return &this->volume_trigger_; }
 
-  void play_file(audio::AudioFile *media_file, bool announcement, bool enqueue);
+  void play_file(const audio::AudioFile *media_file, bool announcement, bool enqueue);
 
   void set_playlist_delay_ms(AudioPipelineType pipeline_type, uint32_t delay_ms);
 
@@ -99,6 +105,14 @@ class SpeakerMediaPlayer : public Component,
 
   /// @brief Updates this->volume and saves volume/mute state to flash for restortation if publish is true.
   void set_volume_(float volume, bool publish = true);
+
+  /// @brief Remaps a volume to the configured limits and sends it to the speakers.
+  void apply_speaker_volume_(float volume);
+
+  /// @brief Returns a callable that sends a volume to the speakers, for announcement_volume_ to apply its changes.
+  auto speaker_volume_applier_() {
+    return [this](float volume) { this->apply_speaker_volume_(volume); };
+  }
 
   /// @brief Sets the mute state. Restores previous volume if unmuting. Always saves volume/mute state to flash for
   /// restoration.
@@ -126,11 +140,15 @@ class SpeakerMediaPlayer : public Component,
   optional<media_player::MediaPlayerSupportedFormat> media_format_;
   AudioPipelineState media_pipeline_state_{AudioPipelineState::STOPPED};
   bool media_repeat_one_{false};
+  // Set when the media pipeline reports an error, consumed when it stops, so the failed item is dropped
+  bool media_item_failed_{false};
   uint32_t media_playlist_delay_ms_{0};
 
   optional<media_player::MediaPlayerSupportedFormat> announcement_format_;
   AudioPipelineState announcement_pipeline_state_{AudioPipelineState::STOPPED};
   bool announcement_repeat_one_{false};
+  // Set when the announcement pipeline reports an error, consumed when it stops, so the failed item is dropped
+  bool announcement_item_failed_{false};
   uint32_t announcement_playlist_delay_ms_{0};
 
   QueueHandle_t media_control_command_queue_;
@@ -144,6 +162,9 @@ class SpeakerMediaPlayer : public Component,
 
   bool is_paused_{false};
   bool is_muted_{false};
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  bool is_turn_off_{false};
+#endif
   uint8_t unpause_media_remaining_{0};
   uint8_t unpause_announcement_remaining_{0};
 
@@ -156,6 +177,8 @@ class SpeakerMediaPlayer : public Component,
   float volume_max_;
   float volume_min_;
 
+  AnnouncementVolume announcement_volume_;
+
   // Used to save volume/mute state for restoration on reboot
   ESPPreferenceObject pref_;
 
@@ -164,7 +187,6 @@ class SpeakerMediaPlayer : public Component,
   Trigger<float> volume_trigger_;
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

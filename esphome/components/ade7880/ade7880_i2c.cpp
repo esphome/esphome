@@ -9,14 +9,7 @@
 
 #include "ade7880.h"
 
-namespace esphome {
-namespace ade7880 {
-
-// adapted from https://stackoverflow.com/a/55912127/1886371
-template<size_t Bits, typename T> inline T sign_extend(const T &v) noexcept {
-  using S = struct { signed Val : Bits; };
-  return reinterpret_cast<const S *>(&v)->Val;
-}
+namespace esphome::ade7880 {
 
 // Register types
 // unsigned 8-bit (uint8_t)
@@ -50,7 +43,7 @@ uint16_t ADE7880::read_u16_register16_(uint16_t a_register) {
 
 int32_t ADE7880::read_s24zp_register16_(uint16_t a_register) {
   // s24zp means 24 bit signed value in the lower 24 bits of a 32-bit register
-  int32_t in;
+  uint32_t in;
   this->read_register16(a_register, reinterpret_cast<uint8_t *>(&in), sizeof(in));
   return sign_extend<24>(convert_big_endian(in));
 }
@@ -97,5 +90,4 @@ void ADE7880::write_u32_register16_(uint16_t a_register, uint32_t value) {
   this->write_register16(a_register, reinterpret_cast<uint8_t *>(&out), sizeof(out));
 }
 
-}  // namespace ade7880
-}  // namespace esphome
+}  // namespace esphome::ade7880

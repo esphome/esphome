@@ -8,7 +8,7 @@
 
 namespace esphome::text_sensor {
 
-static const char *const TAG = "text_sensor.filter";
+ESPHOME_LOG_TAG(TAG, "text_sensor.filter");
 
 // Filter
 void Filter::input(std::string value) {
@@ -74,19 +74,13 @@ bool PrependFilter::new_value(std::string &value) {
 }
 
 // Substitute
-SubstituteFilter::SubstituteFilter(const std::initializer_list<Substitution> &substitutions)
-    : substitutions_(substitutions) {}
-
 bool SubstituteFilter::new_value(std::string &value) {
-  for (const auto &sub : this->substitutions_) {
-    // Compute lengths once per substitution (strlen is fast, called infrequently)
-    const size_t from_len = strlen(sub.from);
-    const size_t to_len = strlen(sub.to);
+  for (const Substitution *s = this->substitutions_; s->from != nullptr; s++) {
+    const size_t from_len = strlen(s->from);
+    const size_t to_len = strlen(s->to);
     std::size_t pos = 0;
-    while ((pos = value.find(sub.from, pos, from_len)) != std::string::npos) {
-      value.replace(pos, from_len, sub.to, to_len);
-      // Advance past the replacement to avoid infinite loop when
-      // the replacement contains the search pattern (e.g., f -> foo)
+    while ((pos = value.find(s->from, pos, from_len)) != std::string::npos) {
+      value.replace(pos, from_len, s->to, to_len);
       pos += to_len;
     }
   }
@@ -94,16 +88,14 @@ bool SubstituteFilter::new_value(std::string &value) {
 }
 
 // Map
-MapFilter::MapFilter(const std::initializer_list<Substitution> &mappings) : mappings_(mappings) {}
-
 bool MapFilter::new_value(std::string &value) {
-  for (const auto &mapping : this->mappings_) {
-    if (value == mapping.from) {
-      value.assign(mapping.to);
+  for (const Substitution *m = this->mappings_; m->from != nullptr; m++) {
+    if (value == m->from) {
+      value.assign(m->to);
       return true;
     }
   }
-  return true;  // Pass through if no match
+  return true;
 }
 
 }  // namespace esphome::text_sensor

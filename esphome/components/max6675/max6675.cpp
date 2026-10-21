@@ -1,10 +1,11 @@
 #include "max6675.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max6675 {
+namespace esphome::max6675 {
 
-static const char *const TAG = "max6675";
+ESPHOME_LOG_TAG(TAG, "max6675");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 void MAX6675Sensor::update() {
   this->enable();
@@ -13,8 +14,7 @@ void MAX6675Sensor::update() {
   this->disable();
 
   // Conversion time typ: 170ms, max: 220ms
-  auto f = std::bind(&MAX6675Sensor::read_data_, this);
-  this->set_timeout("value", 250, f);
+  this->set_timeout(READ_TIMEOUT_ID, 250, [this]() { this->read_data_(); });
 }
 
 void MAX6675Sensor::setup() { this->spi_setup(); }
@@ -31,18 +31,15 @@ void MAX6675Sensor::read_data_() {
   uint16_t val = data[1] | (uint16_t(data[0]) << 8);
   this->disable();
 
-  if ((val & 0x04) != 0) {
-    // Thermocouple open
+  // Bit 2 set means the thermocouple is open
+  if (!this->status_comm_result((val & 0x04) == 0, nullptr)) {
     ESP_LOGW(TAG, "Got invalid value from MAX6675Sensor (0x%04X)", val);
-    this->status_set_warning();
     return;
   }
 
   float temperature = float(val >> 3) / 4.0f;
-  ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", this->name_.c_str(), temperature);
+  ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", LOG_STR_ARG(this->get_log_name()), temperature);
   this->publish_state(temperature);
-  this->status_clear_warning();
 }
 
-}  // namespace max6675
-}  // namespace esphome
+}  // namespace esphome::max6675

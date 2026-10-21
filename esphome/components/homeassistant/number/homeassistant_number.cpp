@@ -1,14 +1,16 @@
 #include "homeassistant_number.h"
 
+#include <cstring>
+
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.number";
+ESPHOME_LOG_TAG(TAG, "homeassistant.number");
 
 void HomeassistantNumber::state_changed_(StringRef state) {
   auto number_value = parse_number<float>(state.c_str());
@@ -30,7 +32,7 @@ void HomeassistantNumber::min_retrieved_(StringRef min) {
     ESP_LOGE(TAG, "'%s': Can't convert 'min' value '%s' to number!", this->entity_id_, min.c_str());
     return;
   }
-  ESP_LOGD(TAG, "'%s': Min retrieved: %s", get_name().c_str(), min.c_str());
+  ESP_LOGD(TAG, "'%s': Min retrieved: %s", LOG_STR_ARG(this->get_log_name()), min.c_str());
   this->traits.set_min_value(min_value.value());
 }
 
@@ -40,7 +42,7 @@ void HomeassistantNumber::max_retrieved_(StringRef max) {
     ESP_LOGE(TAG, "'%s': Can't convert 'max' value '%s' to number!", this->entity_id_, max.c_str());
     return;
   }
-  ESP_LOGD(TAG, "'%s': Max retrieved: %s", get_name().c_str(), max.c_str());
+  ESP_LOGD(TAG, "'%s': Max retrieved: %s", LOG_STR_ARG(this->get_log_name()), max.c_str());
   this->traits.set_max_value(max_value.value());
 }
 
@@ -50,20 +52,20 @@ void HomeassistantNumber::step_retrieved_(StringRef step) {
     ESP_LOGE(TAG, "'%s': Can't convert 'step' value '%s' to number!", this->entity_id_, step.c_str());
     return;
   }
-  ESP_LOGD(TAG, "'%s': Step Retrieved %s", get_name().c_str(), step.c_str());
+  ESP_LOGD(TAG, "'%s': Step Retrieved %s", LOG_STR_ARG(this->get_log_name()), step.c_str());
   this->traits.set_step(step_value.value());
 }
 
 void HomeassistantNumber::setup() {
-  api::global_api_server->subscribe_home_assistant_state(
-      this->entity_id_, nullptr, std::bind(&HomeassistantNumber::state_changed_, this, std::placeholders::_1));
+  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr,
+                                                         [this](StringRef state) { this->state_changed_(state); });
 
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, "min", std::bind(&HomeassistantNumber::min_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, "max", std::bind(&HomeassistantNumber::max_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, "step", std::bind(&HomeassistantNumber::step_retrieved_, this, std::placeholders::_1));
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "min",
+                                                   [this](StringRef min) { this->min_retrieved_(min); });
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "max",
+                                                   [this](StringRef max) { this->max_retrieved_(max); });
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "step",
+                                                   [this](StringRef step) { this->step_retrieved_(step); });
 }
 
 void HomeassistantNumber::dump_config() {
@@ -79,29 +81,40 @@ void HomeassistantNumber::control(float value) {
     return;
   }
 
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(this->get_log_name()));
+    return;
+  }
+#endif
+
   this->publish_state(value);
 
-  static constexpr auto SERVICE_NAME = StringRef::from_lit("number.set_value");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr auto VALUE_KEY = StringRef::from_lit("value");
+  // In flash on the ESP8266 and encoded from there
+  static const char NUMBER_SERVICE_NAME[] PROGMEM = "number.set_value";
+  static const char INPUT_NUMBER_SERVICE_NAME[] PROGMEM = "input_number.set_value";
+  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
+  static const char VALUE_KEY[] PROGMEM = "value";
 
   api::HomeassistantActionRequest resp;
-  resp.service = SERVICE_NAME;
+  // An input helper entity id starts with the "input_" its action name starts with
+  const bool input_helper = ESPHOME_strncmp_P(this->entity_id_, INPUT_NUMBER_SERVICE_NAME, sizeof("input_") - 1) == 0;
+  resp.service = input_helper ? ProgmemStringRef::from_lit(INPUT_NUMBER_SERVICE_NAME)
+                              : ProgmemStringRef::from_lit(NUMBER_SERVICE_NAME);
 
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.key = ENTITY_ID_KEY;
-  entity_id.value = StringRef(this->entity_id_);
+  entity_id.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
+  entity_id.value = ProgmemStringRef(StringRef(this->entity_id_));
 
   auto &entity_value = resp.data.emplace_back();
-  entity_value.key = VALUE_KEY;
+  entity_value.key = ProgmemStringRef::from_lit(VALUE_KEY);
   // Stack buffer - no heap allocation; %g produces shortest representation
   char value_buf[16];
   buf_append_printf(value_buf, sizeof(value_buf), 0, "%g", value);
-  entity_value.value = StringRef(value_buf);
+  entity_value.value = ProgmemStringRef(StringRef(value_buf));
 
   api::global_api_server->send_homeassistant_action(resp);
 }
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

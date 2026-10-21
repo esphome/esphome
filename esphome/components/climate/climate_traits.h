@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstring>
-#include <vector>
+#include <type_traits>
 #include "climate_mode.h"
 #include "esphome/core/finite_set_mask.h"
 #include "esphome/core/helpers.h"
@@ -18,9 +18,12 @@ using ClimateSwingModeMask =
     FiniteSetMask<ClimateSwingMode, DefaultBitPolicy<ClimateSwingMode, CLIMATE_SWING_HORIZONTAL + 1>>;
 using ClimatePresetMask = FiniteSetMask<ClimatePreset, DefaultBitPolicy<ClimatePreset, CLIMATE_PRESET_ACTIVITY + 1>>;
 
-// Lightweight linear search for small vectors (1-20 items) of const char* pointers
+/// Custom fan modes and custom presets: a flash table from codegen, or an owned copy set at runtime.
+using ClimateCustomModes = ConstVector<const char *, true>;
+
+// Lightweight linear search for small lists (1-20 items) of const char* pointers
 // Avoids std::find template overhead
-inline bool vector_contains(const std::vector<const char *> &vec, const char *value, size_t len) {
+template<typename List> inline bool vector_contains(const List &vec, const char *value, size_t len) {
   for (const char *item : vec) {
     if (strncmp(item, value, len) == 0 && item[len] == '\0')
       return true;
@@ -28,12 +31,12 @@ inline bool vector_contains(const std::vector<const char *> &vec, const char *va
   return false;
 }
 
-inline bool vector_contains(const std::vector<const char *> &vec, const char *value) {
+template<typename List> inline bool vector_contains(const List &vec, const char *value) {
   return vector_contains(vec, value, strlen(value));
 }
 
-// Find and return matching pointer from vector, or nullptr if not found
-inline const char *vector_find(const std::vector<const char *> &vec, const char *value, size_t len) {
+// Find and return matching pointer from a list, or nullptr if not found
+template<typename List> inline const char *vector_find(const List &vec, const char *value, size_t len) {
   for (const char *item : vec) {
     if (strncmp(item, value, len) == 0 && item[len] == '\0')
       return item;
@@ -71,72 +74,19 @@ inline const char *vector_find(const std::vector<const char *> &vec, const char 
 class Climate;  // Forward declaration
 
 class ClimateTraits {
-  friend class Climate;  // Allow Climate to access protected find methods
+  friend class Climate;  // Climate wires its custom mode lists into traits
 
  public:
+  // Out of line on purpose: an inlined default init makes GCC copy the defaults from a .rodata
+  // template per traits() override, and .rodata is RAM on ESP8266.
+  ClimateTraits();
+
   /// Get/set feature flags (see ClimateFeatures enum in climate_mode.h)
   uint32_t get_feature_flags() const { return this->feature_flags_; }
   void add_feature_flags(uint32_t feature_flags) { this->feature_flags_ |= feature_flags; }
   void clear_feature_flags(uint32_t feature_flags) { this->feature_flags_ &= ~feature_flags; }
   bool has_feature_flags(uint32_t feature_flags) const { return this->feature_flags_ & feature_flags; }
   void set_feature_flags(uint32_t feature_flags) { this->feature_flags_ = feature_flags; }
-
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_current_temperature() const {
-    return this->has_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-  }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_current_temperature(bool supports_current_temperature) {
-    if (supports_current_temperature) {
-      this->add_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-    } else {
-      this->clear_feature_flags(CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-    }
-  }
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_current_humidity() const { return this->has_feature_flags(CLIMATE_SUPPORTS_CURRENT_HUMIDITY); }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_current_humidity(bool supports_current_humidity) {
-    if (supports_current_humidity) {
-      this->add_feature_flags(CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
-    } else {
-      this->clear_feature_flags(CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
-    }
-  }
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_two_point_target_temperature() const {
-    return this->has_feature_flags(CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
-  }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_two_point_target_temperature(bool supports_two_point_target_temperature) {
-    if (supports_two_point_target_temperature)
-    // Use CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE to mimic previous behavior
-    {
-      this->add_feature_flags(CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
-    } else {
-      this->clear_feature_flags(CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE);
-    }
-  }
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_target_humidity() const { return this->has_feature_flags(CLIMATE_SUPPORTS_TARGET_HUMIDITY); }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_target_humidity(bool supports_target_humidity) {
-    if (supports_target_humidity) {
-      this->add_feature_flags(CLIMATE_SUPPORTS_TARGET_HUMIDITY);
-    } else {
-      this->clear_feature_flags(CLIMATE_SUPPORTS_TARGET_HUMIDITY);
-    }
-  }
-  ESPDEPRECATED("This method is deprecated, use get_feature_flags() instead", "2025.11.0")
-  bool get_supports_action() const { return this->has_feature_flags(CLIMATE_SUPPORTS_ACTION); }
-  ESPDEPRECATED("This method is deprecated, use add_feature_flags() instead", "2025.11.0")
-  void set_supports_action(bool supports_action) {
-    if (supports_action) {
-      this->add_feature_flags(CLIMATE_SUPPORTS_ACTION);
-    } else {
-      this->clear_feature_flags(CLIMATE_SUPPORTS_ACTION);
-    }
-  }
 
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
   void add_supported_mode(ClimateMode mode) { this->supported_modes_.insert(mode); }
@@ -147,27 +97,17 @@ class ClimateTraits {
   void add_supported_fan_mode(ClimateFanMode mode) { this->supported_fan_modes_.insert(mode); }
   bool supports_fan_mode(ClimateFanMode fan_mode) const { return this->supported_fan_modes_.count(fan_mode); }
   bool get_supports_fan_modes() const {
-    return !this->supported_fan_modes_.empty() || !this->supported_custom_fan_modes_.empty();
+    if (!this->supported_fan_modes_.empty()) {
+      return true;
+    }
+    return this->supported_custom_fan_modes_ != nullptr && !this->supported_custom_fan_modes_->empty();
   }
   const ClimateFanModeMask &get_supported_fan_modes() const { return this->supported_fan_modes_; }
 
-  void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
-    this->supported_custom_fan_modes_ = modes;
-  }
-  void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
-    this->supported_custom_fan_modes_ = modes;
-  }
-  template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
-    this->supported_custom_fan_modes_.assign(modes, modes + N);
-  }
-
-  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
-  void set_supported_custom_fan_modes(const std::vector<std::string> &modes) = delete;
-  void set_supported_custom_fan_modes(std::initializer_list<std::string> modes) = delete;
-
-  const std::vector<const char *> &get_supported_custom_fan_modes() const { return this->supported_custom_fan_modes_; }
+  /// Empty when the climate has no custom fan modes. Set them on the Climate entity.
+  const ClimateCustomModes &get_supported_custom_fan_modes() const;
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
-    return vector_contains(this->supported_custom_fan_modes_, custom_fan_mode);
+    return vector_contains(this->get_supported_custom_fan_modes(), custom_fan_mode);
   }
   bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
     return this->supports_custom_fan_mode(custom_fan_mode.c_str());
@@ -179,23 +119,10 @@ class ClimateTraits {
   bool get_supports_presets() const { return !this->supported_presets_.empty(); }
   const ClimatePresetMask &get_supported_presets() const { return this->supported_presets_; }
 
-  void set_supported_custom_presets(std::initializer_list<const char *> presets) {
-    this->supported_custom_presets_ = presets;
-  }
-  void set_supported_custom_presets(const std::vector<const char *> &presets) {
-    this->supported_custom_presets_ = presets;
-  }
-  template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
-    this->supported_custom_presets_.assign(presets, presets + N);
-  }
-
-  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
-  void set_supported_custom_presets(const std::vector<std::string> &presets) = delete;
-  void set_supported_custom_presets(std::initializer_list<std::string> presets) = delete;
-
-  const std::vector<const char *> &get_supported_custom_presets() const { return this->supported_custom_presets_; }
+  /// Empty when the climate has no custom presets. Set them on the Climate entity.
+  const ClimateCustomModes &get_supported_custom_presets() const;
   bool supports_custom_preset(const char *custom_preset) const {
-    return vector_contains(this->supported_custom_presets_, custom_preset);
+    return vector_contains(this->get_supported_custom_presets(), custom_preset);
   }
   bool supports_custom_preset(const std::string &custom_preset) const {
     return this->supports_custom_preset(custom_preset.c_str());
@@ -235,6 +162,9 @@ class ClimateTraits {
   float get_visual_max_humidity() const { return this->visual_max_humidity_; }
   void set_visual_max_humidity(float visual_max_humidity) { this->visual_max_humidity_ = visual_max_humidity; }
 
+  TemperatureUnit get_temperature_unit() const { return this->temperature_unit_; }
+  void set_temperature_unit(TemperatureUnit unit) { this->temperature_unit_ = unit; }
+
  protected:
   void set_mode_support_(climate::ClimateMode mode, bool supported) {
     if (supported) {
@@ -258,23 +188,9 @@ class ClimateTraits {
     }
   }
 
-  /// Find and return the matching custom fan mode pointer from supported modes, or nullptr if not found
-  /// This is protected as it's an implementation detail - use Climate::find_custom_fan_mode_() instead
-  const char *find_custom_fan_mode_(const char *custom_fan_mode) const {
-    return this->find_custom_fan_mode_(custom_fan_mode, strlen(custom_fan_mode));
-  }
-  const char *find_custom_fan_mode_(const char *custom_fan_mode, size_t len) const {
-    return vector_find(this->supported_custom_fan_modes_, custom_fan_mode, len);
-  }
-
-  /// Find and return the matching custom preset pointer from supported presets, or nullptr if not found
-  /// This is protected as it's an implementation detail - use Climate::find_custom_preset_() instead
-  const char *find_custom_preset_(const char *custom_preset) const {
-    return this->find_custom_preset_(custom_preset, strlen(custom_preset));
-  }
-  const char *find_custom_preset_(const char *custom_preset, size_t len) const {
-    return vector_find(this->supported_custom_presets_, custom_preset, len);
-  }
+  /// Set custom mode pointers (only Climate::get_traits() should call these).
+  void set_supported_custom_fan_modes_(const ClimateCustomModes *modes) { this->supported_custom_fan_modes_ = modes; }
+  void set_supported_custom_presets_(const ClimateCustomModes *presets) { this->supported_custom_presets_ = presets; }
 
   uint32_t feature_flags_{0};
   float visual_min_temperature_{10};
@@ -288,17 +204,12 @@ class ClimateTraits {
   climate::ClimateFanModeMask supported_fan_modes_;
   climate::ClimateSwingModeMask supported_swing_modes_;
   climate::ClimatePresetMask supported_presets_;
+  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
 
-  /** Custom mode storage using const char* pointers to eliminate std::string overhead.
-   *
-   * Pointers must remain valid for the ClimateTraits lifetime. Safe patterns:
-   *  - String literals: set_supported_custom_fan_modes({"Turbo", "Silent"})
-   *  - Static const data: static const char* MODE = "Eco";
-   *
-   * Climate class setters validate pointers are from these vectors before storing.
-   */
-  std::vector<const char *> supported_custom_fan_modes_;
-  std::vector<const char *> supported_custom_presets_;
+  /// Owned by the Climate entity; get_traits() wires these pointers.
+  const ClimateCustomModes *supported_custom_fan_modes_{nullptr};
+  const ClimateCustomModes *supported_custom_presets_{nullptr};
 };
+static_assert(std::is_trivially_copyable_v<ClimateTraits>, "ClimateTraits is copied on every traits() call");
 
 }  // namespace esphome::climate

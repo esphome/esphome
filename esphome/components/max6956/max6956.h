@@ -3,9 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
-namespace esphome {
-namespace max6956 {
+namespace esphome::max6956 {
 
 /// Modes for MAX6956 pins
 enum MAX6956GPIOMode : uint8_t {
@@ -36,7 +36,7 @@ enum MAX6956GPIOFlag { FLAG_LED = 0x20 };
 
 enum MAX6956CURRENTMODE { GLOBAL = 0x00, SEGMENT = 0x01 };
 
-class MAX6956 : public Component, public i2c::I2CDevice {
+class MAX6956 final : public Component, public i2c::I2CDevice {
  public:
   MAX6956() = default;
 
@@ -63,34 +63,15 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   bool read_reg_(uint8_t reg, uint8_t *value);
   // write a value to a given register
   bool write_reg_(uint8_t reg, uint8_t value);
-  max6956::MAX6956CURRENTMODE brightness_mode_;
-  uint8_t global_brightness_;
+  max6956::MAX6956CURRENTMODE brightness_mode_{};
+  uint8_t global_brightness_{0};
 
  private:
   int8_t prev_bright_[28] = {0};
 };
 
-class MAX6956GPIOPin : public GPIOPin {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
+using MAX6956GPIOPin = gpio_expander::ExpanderGPIOPin<MAX6956>;
 
-  void set_parent(MAX6956 *parent) { parent_ = parent; }
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { flags_ = flags; }
+}  // namespace esphome::max6956
 
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  MAX6956 *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
-
-}  // namespace max6956
-}  // namespace esphome
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::max6956::MAX6956);

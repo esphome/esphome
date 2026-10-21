@@ -1,13 +1,16 @@
 #ifdef USE_LIBRETINY
 
 #include "gpio_arduino.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::libretiny {
 
-static const char *const TAG = "lt.gpio";
+ESPHOME_LOG_TAG(TAG, "libretiny.gpio");
 
 static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
+  flags =
+      flags & (gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN);
   if (flags == gpio::FLAG_INPUT) {
     return INPUT;
   } else if (flags == gpio::FLAG_OUTPUT) {
@@ -35,7 +38,7 @@ ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void ArduinoInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void ArduinoInternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   PinStatus arduino_mode = (PinStatus) 255;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:

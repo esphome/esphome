@@ -1,12 +1,11 @@
-from esphome.components.mipi import DriverChip
-import esphome.config_validation as cv
+from . import DsiDriverChip
 
 # fmt: off
 
 # Source for parameters and initsequence:
 #   https://github.com/waveshareteam/Waveshare-ESP32-components/tree/master/display/lcd/esp_lcd_jd9365_10_1
 # Product page: https://www.waveshare.com/wiki/ESP32-P4-Nano-StartPage
-JD9365_10_1_DSI_TOUCH_A = DriverChip(
+JD9365_10_1_DSI_TOUCH_A = DsiDriverChip(
     "WAVESHARE-P4-NANO-10.1",
     height=1280,
     width=800,
@@ -18,7 +17,6 @@ JD9365_10_1_DSI_TOUCH_A = DriverChip(
     vsync_front_porch=30,
     pclk_frequency="80MHz",
     lane_bit_rate="1.5Gbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     initsequence=[
         (0xE0, 0x00),  # select userpage
@@ -65,7 +63,7 @@ JD9365_10_1_DSI_TOUCH_A.extend(
 # Source for parameters and initsequence:
 #   https://github.com/espressif/esp-iot-solution/tree/master/components/display/lcd/esp_lcd_st7703
 # Product page: https://www.waveshare.com/wiki/ESP32-P4-86-Panel-ETH-2RO
-DriverChip(
+DsiDriverChip(
     "WAVESHARE-P4-86-PANEL",
     height=720,
     width=720,
@@ -77,7 +75,6 @@ DriverChip(
     vsync_front_porch=20,
     pclk_frequency="38MHz",
     lane_bit_rate="480Mbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     reset_pin=27,
     initsequence=[
@@ -103,15 +100,13 @@ DriverChip(
         (0xE9, 0xC8, 0x10, 0x0A, 0x00, 0x00, 0x80, 0x81, 0x12, 0x31, 0x23, 0x4F, 0x86, 0xA0, 0x00, 0x47, 0x08, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x98, 0x02, 0x8B, 0xAF, 0x46, 0x02, 0x88, 0x88, 0x88, 0x88, 0x88, 0x98, 0x13, 0x8B, 0xAF, 0x57, 0x13, 0x88, 0x88, 0x88, 0x88, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
         (0xEA, 0x97, 0x0C, 0x09, 0x09, 0x09, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9F, 0x31, 0x8B, 0xA8, 0x31, 0x75, 0x88, 0x88, 0x88, 0x88, 0x88, 0x9F, 0x20, 0x8B, 0xA8, 0x20, 0x64, 0x88, 0x88, 0x88, 0x88, 0x88, 0x23, 0x00, 0x00, 0x02, 0x71, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x80, 0x81, 0x00, 0x00, 0x00, 0x00),
         (0xEF, 0xFF, 0xFF, 0x01),
-        (0x11, 0x00),
-        (0x29, 0x00),
     ],
 )
 
 # Source for parameters and initsequence:
 #   https://github.com/espressif/esp-iot-solution/tree/master/components/display/lcd/esp_lcd_ek79007
 # Product page: https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-7B
-DriverChip(
+DsiDriverChip(
     "WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-7B",
     height=600,
     width=1024,
@@ -125,6 +120,7 @@ DriverChip(
     lane_bit_rate="900Mbps",
     no_transform=True,
     color_order="RGB",
+    reset_pin=33,
     initsequence=[
         (0x80, 0x8B),
         (0x81, 0x78),
@@ -140,7 +136,7 @@ DriverChip(
 # Source for parameters and initsequence:
 #   https://github.com/waveshareteam/Waveshare-ESP32-components/tree/master/display/lcd/esp_lcd_jd9365
 # Product page: https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-3.4C
-JD9365_3_4_DSI_TOUCH_C = DriverChip(
+JD9365_3_4_DSI_TOUCH_C = DsiDriverChip(
     "WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-3.4C",
     height=800,
     width=800,
@@ -152,7 +148,6 @@ JD9365_3_4_DSI_TOUCH_C = DriverChip(
     vsync_front_porch=24,
     pclk_frequency="80MHz",
     lane_bit_rate="1.5Gbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     initsequence=[
         (0xE0, 0x00),  # select userpage
@@ -198,7 +193,7 @@ JD9365_3_4_DSI_TOUCH_C.extend(
 # Source for parameters and initsequence:
 #   https://github.com/waveshareteam/Waveshare-ESP32-components/tree/master/display/lcd/esp_lcd_jd9365
 # Product page: https://www.waveshare.com/wiki/ESP32-P4-WIFI6-Touch-LCD-4C
-JD9365_4_DSI_TOUCH_C = DriverChip(
+JD9365_4_DSI_TOUCH_C = DsiDriverChip(
     "WAVESHARE-ESP32-P4-WIFI6-TOUCH-LCD-4C",
     height=720,
     width=720,
@@ -210,7 +205,6 @@ JD9365_4_DSI_TOUCH_C = DriverChip(
     vsync_front_porch=24,
     pclk_frequency="80MHz",
     lane_bit_rate="1.5Gbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     initsequence=[
         (0xE0, 0x00),  # select userpage
@@ -256,7 +250,7 @@ JD9365_4_DSI_TOUCH_C.extend(
 # Source for parameters and initsequence:
 #   https://github.com/waveshareteam/Waveshare-ESP32-components/tree/master/display/lcd/esp_lcd_jd9365
 # Product page: https://www.waveshare.com/wiki/8-DSI-TOUCH-A
-DriverChip(
+DsiDriverChip(
     "WAVESHARE-8-DSI-TOUCH-A",
     height=1280,
     width=800,
@@ -268,7 +262,6 @@ DriverChip(
     vsync_front_porch=30,
     pclk_frequency="80MHz",
     lane_bit_rate="1.5Gbps",
-    swap_xy=cv.UNDEFINED,
     color_order="RGB",
     initsequence=[
         (0xE0, 0x00),  # select userpage
@@ -305,7 +298,7 @@ DriverChip(
 # Source for parameters and initsequence:
 #   https://github.com/waveshareteam/Waveshare-ESP32-components/tree/master/display/lcd/esp_lcd_ili9881c
 # Product page: https://www.waveshare.com/wiki/7-DSI-TOUCH-A
-DriverChip(
+DsiDriverChip(
     "WAVESHARE-7-DSI-TOUCH-A",
     height=1280,
     width=720,

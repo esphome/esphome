@@ -5,14 +5,13 @@
 
 namespace esphome::hlk_fm22x {
 
-static const char *const TAG = "hlk_fm22x";
+ESPHOME_LOG_TAG(TAG, "hlk_fm22x");
+static constexpr uint32_t PAYLOAD_TIMEOUT_MS = 20;
 
 void HlkFm22xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-FM22X...");
   this->set_enrolling_(false);
-  while (this->available() > 0) {
-    this->read();
-  }
+  this->discard_available();
   this->defer([this]() { this->send_command_(HlkFm22xCommand::GET_STATUS); });
 }
 
@@ -84,8 +83,7 @@ void HlkFm22xComponent::send_command_(HlkFm22xCommand command, const uint8_t *da
   }
   this->wait_cycles_ = 0;
   this->active_command_ = command;
-  while (this->available() > 0)
-    this->read();
+  this->discard_available();
   this->write((uint8_t) (START_CODE >> 8));
   this->write((uint8_t) (START_CODE & 0xFF));
   this->write((uint8_t) command);
@@ -133,25 +131,33 @@ void HlkFm22xComponent::recv_command_() {
   checksum ^= byte;
   length |= byte;
 
-  if (length > HLK_FM22X_MAX_RESPONSE_SIZE) {
-    ESP_LOGE(TAG, "Response too large: %u bytes", length);
-    // Discard exactly the remaining payload and checksum for this frame
-    for (uint16_t i = 0; i < length + 1 && this->available() > 0; ++i)
-      this->read();
-    return;
+  // Wait for remaining data (payload + checksum) to arrive.
+  // Header bytes are already consumed, so we must finish reading this message.
+  uint32_t start = millis();
+  while (this->available() < length + 1) {
+    if (millis() - start > PAYLOAD_TIMEOUT_MS) {
+      ESP_LOGE(TAG, "Timeout waiting for payload (%u bytes)", length);
+      // Drain any partial payload bytes to resync the parser
+      this->discard_available();
+      return;
+    }
+    delay(1);
   }
 
+  // Read up to buffer size; discard excess bytes while still computing checksum
+  // GET_ALL_FACE_IDS can return all enrolled face data (hundreds of bytes)
+  // but handlers only need the first few bytes
+  size_t to_store = std::min(static_cast<size_t>(length), HLK_FM22X_MAX_RESPONSE_SIZE);
   for (uint16_t idx = 0; idx < length; ++idx) {
     byte = this->read();
     checksum ^= byte;
-    this->recv_buf_[idx] = byte;
+    if (idx < to_store) {
+      this->recv_buf_[idx] = byte;
+    }
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(HLK_FM22X_MAX_RESPONSE_SIZE)];
-  ESP_LOGV(TAG, "Recv type: 0x%.2X, data: %s", response_type,
-           format_hex_pretty_to(hex_buf, this->recv_buf_.data(), length));
-#endif
+  ESP_LOGV_HEX(TAG, this->recv_buf_.data(), to_store, HLK_FM22X_MAX_RESPONSE_SIZE, "Recv type: 0x%.2X, data: %s",
+               response_type);
 
   byte = this->read();
   if (byte != checksum) {
@@ -160,10 +166,10 @@ void HlkFm22xComponent::recv_command_() {
   }
   switch (response_type) {
     case HlkFm22xResponseType::NOTE:
-      this->handle_note_(this->recv_buf_.data(), length);
+      this->handle_note_(this->recv_buf_.data(), to_store);
       break;
     case HlkFm22xResponseType::REPLY:
-      this->handle_reply_(this->recv_buf_.data(), length);
+      this->handle_reply_(this->recv_buf_.data(), to_store);
       break;
     default:
       ESP_LOGW(TAG, "Unexpected response type: 0x%.2X", response_type);
@@ -186,7 +192,7 @@ void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
         int16_t info[8];
         uint8_t offset = 1;
         for (int16_t &i : info) {
-          i = ((int16_t) data[offset + 1] << 8) | data[offset];
+          i = encode_value_le<int16_t>(&data[offset]);
           offset += 2;
         }
         ESP_LOGV(TAG, "Face state: status: %d, left: %d, top: %d, right: %d, bottom: %d, yaw: %d, pitch: %d, roll: %d",
@@ -228,7 +234,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
     return;
   }
 
-  if (data[1] != HlkFm22xResult::SUCCESS) {
+  if (data[1] != HlkFm22xResult::SUCCEEDED) {
     ESP_LOGE(TAG, "Command <0x%.2X> failed. Error: 0x%.2X", data[0], data[1]);
     switch (expected) {
       case HlkFm22xCommand::ENROLL:
@@ -253,7 +259,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
         ESP_LOGE(TAG, "VERIFY response too short: %zu bytes", length);
         break;
       }
-      int16_t face_id = ((int16_t) data[2] << 8) | data[3];
+      int16_t face_id = encode_value<int16_t>(&data[2]);
       const char *name_ptr = reinterpret_cast<const char *>(data + 4);
       ESP_LOGD(TAG, "Face verified. ID: %d, name: %.*s", face_id, (int) HLK_FM22X_NAME_SIZE, name_ptr);
       if (this->last_face_id_sensor_ != nullptr) {
@@ -266,7 +272,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
       break;
     }
     case HlkFm22xCommand::ENROLL: {
-      int16_t face_id = ((int16_t) data[2] << 8) | data[3];
+      int16_t face_id = encode_value<int16_t>(&data[2]);
       HlkFm22xFaceDirection direction = (HlkFm22xFaceDirection) data[4];
       ESP_LOGI(TAG, "Face enrolled. ID: %d, Direction: 0x%.2X", face_id, direction);
       this->enrollment_done_callback_.call(face_id, (uint8_t) direction);
@@ -322,7 +328,8 @@ void HlkFm22xComponent::dump_config() {
   }
   if (this->enrolling_binary_sensor_) {
     LOG_BINARY_SENSOR("  ", "Enrolling", this->enrolling_binary_sensor_);
-    ESP_LOGCONFIG(TAG, "    Current Value: %s", this->enrolling_binary_sensor_->state ? "ON" : "OFF");
+    ESP_LOGCONFIG(TAG, "    Current Value: %s",
+                  this->enrolling_binary_sensor_->state ? LOG_STR_LITERAL("ON") : LOG_STR_LITERAL("OFF"));
   }
   if (this->face_count_sensor_) {
     LOG_SENSOR("  ", "Face Count", this->face_count_sensor_);

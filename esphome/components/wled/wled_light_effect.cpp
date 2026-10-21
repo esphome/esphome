@@ -13,12 +13,11 @@
 #include <WiFiUdp.h>
 #endif
 
-#ifdef USE_BK72XX
+#ifdef USE_LIBRETINY
 #include <WiFiUdp.h>
 #endif
 
-namespace esphome {
-namespace wled {
+namespace esphome::wled {
 
 // Description of protocols:
 // https://github.com/Aircoookie/WLED/wiki/UDP-Realtime-Control
@@ -26,7 +25,7 @@ enum Protocol { WLED_NOTIFIER = 0, WARLS = 1, DRGB = 2, DRGBW = 3, DNRGB = 4 };
 
 constexpr uint32_t DEFAULT_BLANK_TIME = 1000;
 
-static const char *const TAG = "wled_light_effect";
+ESPHOME_LOG_TAG(TAG, "wled_light_effect");
 
 WLEDLightEffect::WLEDLightEffect(const char *name) : AddressableLightEffect(name) {}
 
@@ -161,7 +160,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   // https://kno.wled.ge/interfaces/udp-notifier/
   // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
 
-  if (size < 34) {
+  if (size <= 34) {
     return false;
   }
 
@@ -284,7 +283,6 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
   return true;
 }
 
-}  // namespace wled
-}  // namespace esphome
+}  // namespace esphome::wled
 
 #endif  // USE_ARDUINO

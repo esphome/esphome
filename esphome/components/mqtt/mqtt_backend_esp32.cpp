@@ -8,9 +8,13 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_MQTT_CERT_BUNDLE
+#include "esp_crt_bundle.h"
+#endif
+
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.idf";
+ESPHOME_LOG_TAG(TAG, "mqtt");
 
 bool MQTTBackendESP32::initialize_() {
   mqtt_cfg_.broker.address.hostname = this->host_.c_str();
@@ -39,18 +43,35 @@ bool MQTTBackendESP32::initialize_() {
   if (!this->client_id_.empty()) {
     mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
   }
-  if (ca_certificate_.has_value()) {
-    mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
-    mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
-
-    if (this->cl_certificate_.has_value() && this->cl_key_.has_value()) {
-      mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_.value().c_str();
-      mqtt_cfg_.credentials.authentication.key = this->cl_key_.value().c_str();
-    }
-  } else {
-    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+#ifdef USE_MQTT_TLS
+  mqtt_cfg_.broker.verification.skip_cert_common_name_check = this->skip_cert_cn_check_;
+  mqtt_cfg_.broker.verification.certificate = this->ca_certificate_;
+#ifdef USE_MQTT_CERT_BUNDLE
+  mqtt_cfg_.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
+#endif
+  // Validation only accepts the client certificate together with its key
+  mqtt_cfg_.credentials.authentication.certificate = this->cl_certificate_;
+  mqtt_cfg_.credentials.authentication.key = this->cl_key_;
+#endif
+  // Validation keeps TLS off plain ws, so only the TCP transport has two forms
+  switch (this->transport_) {
+    case MQTTTransport::MQTT_TRANSPORT_WS:
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WS;
+      break;
+    case MQTTTransport::MQTT_TRANSPORT_WSS:
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_WSS;
+      break;
+    case MQTTTransport::MQTT_TRANSPORT_TCP:
+    default:
+#ifdef USE_MQTT_TLS
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+#else
+      mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+#endif
+      break;
   }
+  // Only set for the WebSocket transports
+  mqtt_cfg_.broker.address.path = this->ws_path_;
 
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
@@ -60,7 +81,11 @@ bool MQTTBackendESP32::initialize_() {
 #if defined(USE_MQTT_IDF_ENQUEUE)
     // Create the task only after MQTT client is initialized successfully
     // Use larger stack size when TLS is enabled
-    size_t stack_size = this->ca_certificate_.has_value() ? TASK_STACK_SIZE_TLS : TASK_STACK_SIZE;
+#ifdef USE_MQTT_TLS
+    constexpr size_t stack_size = TASK_STACK_SIZE_TLS;
+#else
+    constexpr size_t stack_size = TASK_STACK_SIZE;
+#endif
     xTaskCreate(esphome_mqtt_task, "esphome_mqtt", stack_size, (void *) this, TASK_PRIORITY, &this->task_handle_);
     if (this->task_handle_ == nullptr) {
       ESP_LOGE(TAG, "Failed to create MQTT task");
@@ -82,10 +107,16 @@ bool MQTTBackendESP32::initialize_() {
 void MQTTBackendESP32::loop() {
   // process new events
   // handle only 1 message per loop iteration
-  if (!mqtt_events_.empty()) {
-    auto &event = mqtt_events_.front();
-    mqtt_event_handler_(event);
-    mqtt_events_.pop();
+  Event *event = this->mqtt_event_queue_.pop();
+  if (event != nullptr) {
+    this->mqtt_event_handler_(*event);
+    this->mqtt_event_pool_.release(event);
+  }
+
+  // Log dropped inbound events (check is cheap - single atomic load in common case)
+  uint16_t inbound_dropped = this->mqtt_event_queue_.get_and_reset_dropped_count();
+  if (inbound_dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u inbound MQTT events", inbound_dropped);
   }
 
 #if defined(USE_MQTT_IDF_ENQUEUE)
@@ -102,7 +133,7 @@ void MQTTBackendESP32::loop() {
   if ((now - this->last_dropped_log_time_) >= DROP_LOG_INTERVAL_MS) {
     uint16_t dropped = this->mqtt_queue_.get_and_reset_dropped_count();
     if (dropped > 0) {
-      ESP_LOGW(TAG, "Dropped %u messages (%us)", dropped, DROP_LOG_INTERVAL_MS / 1000);
+      ESP_LOGW(TAG, "Dropped %u messages (%" PRIu32 "s)", dropped, DROP_LOG_INTERVAL_MS / 1000);
     }
     this->last_dropped_log_time_ = now;
   }
@@ -150,17 +181,16 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
       this->on_publish_.call((int) event.msg_id);
       break;
     case MQTT_EVENT_DATA: {
-      static std::string topic;
       if (!event.topic.empty()) {
         // When a single message arrives as multiple chunks, the topic will be empty
         // on any but the first message, leading to event.topic being an empty string.
         // To ensure handlers get the correct topic, cache the last seen topic to
         // simulate always receiving the topic from underlying library
-        topic = event.topic;
+        this->cached_topic_ = event.topic;
       }
-      ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", topic.c_str());
-      this->on_message_.call(topic.c_str(), event.data.data(), event.data.size(), event.current_data_offset,
-                             event.total_data_len);
+      ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", this->cached_topic_.c_str());
+      this->on_message_.call(this->cached_topic_.c_str(), event.data.data(), event.data.size(),
+                             event.current_data_offset, event.total_data_len);
     } break;
     case MQTT_EVENT_ERROR:
       ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
@@ -184,15 +214,21 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id,
                                           void *event_data) {
   MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
-  // queue event to decouple processing
+  // queue event to decouple processing from ESP-IDF MQTT task to main loop
   if (instance) {
-    auto event = *static_cast<esp_mqtt_event_t *>(event_data);
-    instance->mqtt_events_.emplace(event);
+    auto *event = instance->mqtt_event_pool_.allocate();
+    if (event == nullptr) {
+      // Pool exhausted, drop event (counted via queue's dropped counter)
+      instance->mqtt_event_queue_.increment_dropped_count();
+      return;
+    }
+    event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
+    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+    // allocate() returned non-null, the queue cannot be full.
+    instance->mqtt_event_queue_.push(event);
 
-    // Wake main loop immediately to process MQTT event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+    // Wake main loop immediately to process MQTT event
     App.wake_loop_threadsafe();
-#endif
   }
 }
 
@@ -227,14 +263,14 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
             break;
         }
       }
-      this_mqtt->mqtt_event_pool_.release(elem);
+      this_mqtt->mqtt_outbound_pool_.release(elem);
     }
   }
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
                                 size_t len) {
-  auto *elem = this->mqtt_event_pool_.allocate();
+  auto *elem = this->mqtt_outbound_pool_.allocate();
 
   if (!elem) {
     // Queue is full - increment counter but don't log immediately.
@@ -254,7 +290,7 @@ bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos,
   // Use the helper to allocate and copy data
   if (!elem->set_data(topic, payload, len)) {
     // Allocation failed, return elem to pool
-    this->mqtt_event_pool_.release(elem);
+    this->mqtt_outbound_pool_.release(elem);
     // Increment counter without logging to avoid cascade effect during memory pressure
     this->mqtt_queue_.increment_dropped_count();
     return false;

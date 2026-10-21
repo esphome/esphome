@@ -6,13 +6,20 @@
 
 namespace esphome::alarm_control_panel {
 
-static const char *const TAG = "alarm_control_panel";
+ESPHOME_LOG_TAG(TAG, "alarm_control_panel");
 
 AlarmControlPanelCall::AlarmControlPanelCall(AlarmControlPanel *parent) : parent_(parent) {}
 
 AlarmControlPanelCall &AlarmControlPanelCall::set_code(const char *code) {
   if (code != nullptr) {
-    this->code_ = std::string(code);
+    return this->set_code(code, strlen(code));
+  }
+  return *this;
+}
+
+AlarmControlPanelCall &AlarmControlPanelCall::set_code(const char *code, size_t len) {
+  if (code != nullptr) {
+    this->code_ = std::string(code, len);
   }
   return *this;
 }

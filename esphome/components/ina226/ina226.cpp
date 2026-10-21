@@ -1,12 +1,12 @@
 #include "ina226.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace ina226 {
+namespace esphome::ina226 {
 
-static const char *const TAG = "ina226";
+ESPHOME_LOG_TAG(TAG, "ina226");
 
 // | A0   | A1   | Address |
 // | GND  | GND  | 0x40    |
@@ -41,7 +41,7 @@ void INA226Component::setup() {
 
   config.reset = 1;
   if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   delay(1);
@@ -62,7 +62,7 @@ void INA226Component::setup() {
   config.mode = 0b111;
 
   if (!this->write_byte_16(INA226_REGISTER_CONFIG, config.raw)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -71,12 +71,12 @@ void INA226Component::setup() {
 
   this->calibration_lsb_ = lsb;
 
-  auto calibration = uint32_t(0.00512 / (lsb * this->shunt_resistance_ohm_ / 1000000.0f));
+  auto calibration = uint32_t(0.00512f / (lsb * this->shunt_resistance_ohm_ / 1000000.0f));
 
   ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
 
   if (!this->write_byte_16(INA226_REGISTER_CALIBRATION, calibration)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -85,10 +85,8 @@ void INA226Component::dump_config() {
   ESP_LOGCONFIG(TAG, "INA226:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
   LOG_UPDATE_INTERVAL(this);
 
   ESP_LOGCONFIG(TAG,
@@ -112,7 +110,7 @@ void INA226Component::update() {
       return;
     }
     // Convert for 2's compliment and signed value (though always positive)
-    float bus_voltage_v = this->twos_complement_(raw_bus_voltage, 16);
+    float bus_voltage_v = sign_extend<16>(raw_bus_voltage);
     bus_voltage_v *= 0.00125f;
     this->bus_voltage_sensor_->publish_state(bus_voltage_v);
   }
@@ -124,7 +122,7 @@ void INA226Component::update() {
       return;
     }
     // Convert for 2's compliment and signed value
-    float shunt_voltage_v = this->twos_complement_(raw_shunt_voltage, 16);
+    float shunt_voltage_v = sign_extend<16>(raw_shunt_voltage);
     shunt_voltage_v *= 0.0000025f;
     this->shunt_voltage_sensor_->publish_state(shunt_voltage_v);
   }
@@ -136,7 +134,7 @@ void INA226Component::update() {
       return;
     }
     // Convert for 2's compliment and signed value
-    float current_ma = this->twos_complement_(raw_current, 16);
+    float current_ma = sign_extend<16>(raw_current);
     current_ma *= (this->calibration_lsb_ / 1000.0f);
     this->current_sensor_->publish_state(current_ma / 1000.0f);
   }
@@ -154,12 +152,4 @@ void INA226Component::update() {
   this->status_clear_warning();
 }
 
-int32_t INA226Component::twos_complement_(int32_t val, uint8_t bits) {
-  if (val & ((uint32_t) 1 << (bits - 1))) {
-    val -= (uint32_t) 1 << bits;
-  }
-  return val;
-}
-
-}  // namespace ina226
-}  // namespace esphome
+}  // namespace esphome::ina226

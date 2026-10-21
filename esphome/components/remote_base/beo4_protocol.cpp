@@ -3,10 +3,9 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const char *const TAG = "remote.beo4";
+ESPHOME_LOG_TAG(TAG, "remote.beo4");
 
 // beo4 pulse width, high=carrier_pulse low=data_pulse
 constexpr uint16_t PW_CARR_US = 200;     // carrier pulse length
@@ -128,7 +127,7 @@ optional<Beo4Data> Beo4Protocol::decode(RemoteReceiveData src) {
           case RxSt::RX_STOP: {
             if (PC_STOP == pulse_code) {
               data.source = (uint8_t) ((beo_code >> 8) & 0xff);
-              data.command = (uint8_t) ((beo_code) &0xff);
+              data.command = (uint8_t) ((beo_code) & 0xff);
               data.repeats++;
             }
             if ((n_sym - ic) < 42) {
@@ -149,5 +148,4 @@ void Beo4Protocol::dump(const Beo4Data &data) {
   ESP_LOGI(TAG, "Beo4: source=0x%02x command=0x%02x repeats=%d ", data.source, data.command, data.repeats);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

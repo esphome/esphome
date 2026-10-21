@@ -1,10 +1,9 @@
 #include "mcp2515.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp2515 {
+namespace esphome::mcp2515 {
 
-static const char *const TAG = "mcp2515";
+ESPHOME_LOG_TAG(TAG, "mcp2515");
 
 const struct MCP2515::TxBnRegs MCP2515::TXB[N_TXBUFFERS] = {{MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
                                                             {MCP_TXB1CTRL, MCP_TXB1SIDH, MCP_TXB1DATA},
@@ -42,6 +41,48 @@ bool MCP2515::setup_internal() {
   uint8_t err_flags = this->get_error_flags_();
   ESP_LOGD(TAG, "mcp2515 setup done, error_flags = %02X", err_flags);
   return true;
+}
+
+canbus::CanEventFlags MCP2515::get_events() {
+  uint8_t events = 0;
+  uint8_t error_flags = this->get_error_flags_();
+
+  // Error-passive is one state for RX and TX together, so only a change of the combined flag is an event
+  bool was_passive = this->last_error_flags_ & (EFLG_RXEP | EFLG_TXEP);
+  bool is_passive = error_flags & (EFLG_RXEP | EFLG_TXEP);
+  if (was_passive != is_passive) {
+    events |= is_passive ? canbus::CAN_EVENT_PASSIVE : canbus::CAN_EVENT_ACTIVE;
+  }
+  if ((this->last_error_flags_ ^ error_flags) & EFLG_TXBO) {
+    events |= canbus::CAN_EVENT_BUS_OFF;
+  }
+
+  // The receive flowchart in the datasheet says that if rollover is set (BUKT), RX1OVR flag will be set
+  // once both buffers are full. However, the RX0OVR flag is actually set instead.
+  // We can just check for both though because it doesn't break anything.
+  if (error_flags & (EFLG_RX0OVR | EFLG_RX1OVR)) {
+    events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
+    this->clear_rx_n_ovr_flags_();
+  }
+
+  this->last_error_flags_ = error_flags;
+  return static_cast<canbus::CanEventFlags>(events);
+}
+
+canbus::CanStatus MCP2515::get_status() {
+  canbus::CanStatus status = {};
+
+  uint8_t error_flags = this->get_error_flags_();
+  status.bus_off = error_flags & EFLG_TXBO;
+
+  // Transmit Error Counter is followed by Receive Error Counter so we're reading both at once
+  uint8_t err_counters[2];
+  this->read_registers_(MCP_TEC, err_counters, 2);
+
+  status.rx_error_counter = err_counters[1];
+  status.tx_error_counter = err_counters[0];
+
+  return status;
 }
 
 canbus::Error MCP2515::reset_() {
@@ -332,17 +373,6 @@ canbus::Error MCP2515::read_message(struct canbus::CanFrame *frame) {
     rc = canbus::ERROR_NOMSG;
   }
 
-#ifdef ESPHOME_LOG_HAS_DEBUG
-  uint8_t err = get_error_flags_();
-  // The receive flowchart in the datasheet says that if rollover is set (BUKT), RX1OVR flag will be set
-  // once both buffers are full. However, the RX0OVR flag is actually set instead.
-  // We can just check for both though because it doesn't break anything.
-  if (err & (EFLG_RX0OVR | EFLG_RX1OVR)) {
-    ESP_LOGD(TAG, "receive buffer overrun");
-    clear_rx_n_ovr_flags_();
-  }
-#endif
-
   return rc;
 }
 
@@ -506,6 +536,7 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
           cfg3 = MCP_12MHZ_40KBPS_CFG3;
           break;
         case (canbus::CAN_50KBPS):  //  50Kbps
+          cfg1 = MCP_12MHZ_50KBPS_CFG1;
           cfg2 = MCP_12MHZ_50KBPS_CFG2;
           cfg3 = MCP_12MHZ_50KBPS_CFG3;
           break;
@@ -706,5 +737,4 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
     return canbus::ERROR_FAIL;
   }
 }
-}  // namespace mcp2515
-}  // namespace esphome
+}  // namespace esphome::mcp2515

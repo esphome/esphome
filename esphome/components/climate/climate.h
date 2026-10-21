@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
@@ -11,10 +12,7 @@
 
 namespace esphome::climate {
 
-#define LOG_CLIMATE(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-  }
+#define LOG_CLIMATE(prefix, type, obj) log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))
 
 class Climate;
 
@@ -41,6 +39,8 @@ class ClimateCall {
   ClimateCall &set_mode(optional<ClimateMode> mode);
   /// Set the mode of the climate device based on a string.
   ClimateCall &set_mode(const std::string &mode);
+  /// Set the mode of the climate device based on a C string.
+  ClimateCall &set_mode(const char *mode, size_t len);
   /// Set the target temperature of the climate device.
   ClimateCall &set_target_temperature(float target_temperature);
   /// Set the target temperature of the climate device.
@@ -87,6 +87,8 @@ class ClimateCall {
   ClimateCall &set_swing_mode(optional<ClimateSwingMode> swing_mode);
   /// Set the swing mode of the climate device based on a string.
   ClimateCall &set_swing_mode(const std::string &swing_mode);
+  /// Set the swing mode of the climate device based on a C string.
+  ClimateCall &set_swing_mode(const char *swing_mode, size_t len);
   /// Set the preset of the climate device.
   ClimateCall &set_preset(ClimatePreset preset);
   /// Set the preset of the climate device.
@@ -188,7 +190,9 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_state_callback(std::function<void(Climate &)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   /**
    * Add a callback for the climate device configuration; each time the configuration parameters of a climate device
@@ -196,7 +200,9 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_control_callback(std::function<void(ClimateCall &)> &&callback);
+  template<typename F> void add_on_control_callback(F &&callback) {
+    this->control_callback_.add(std::forward<F>(callback));
+  }
 
   /** Make a climate device control call, this is used to control the climate device, see the ClimateCall description
    * for more info.
@@ -219,12 +225,53 @@ class Climate : public EntityBase {
   ClimateTraits get_traits();
 
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
-  void set_visual_min_temperature_override(float visual_min_temperature_override);
-  void set_visual_max_temperature_override(float visual_max_temperature_override);
-  void set_visual_temperature_step_override(float target, float current);
-  void set_visual_min_humidity_override(float visual_min_humidity_override);
-  void set_visual_max_humidity_override(float visual_max_humidity_override);
+  void set_visual_min_temperature_override(float visual_min_temperature_override) {
+    this->visual_min_temperature_override_ = visual_min_temperature_override;
+  }
+  void set_visual_max_temperature_override(float visual_max_temperature_override) {
+    this->visual_max_temperature_override_ = visual_max_temperature_override;
+  }
+  void set_visual_temperature_step_override(float target, float current) {
+    this->visual_target_temperature_step_override_ = target;
+    this->visual_current_temperature_step_override_ = current;
+  }
+  void set_visual_min_humidity_override(float visual_min_humidity_override) {
+    this->visual_min_humidity_override_ = visual_min_humidity_override;
+  }
+  void set_visual_max_humidity_override(float visual_max_humidity_override) {
+    this->visual_max_humidity_override_ = visual_max_humidity_override;
+  }
 #endif
+
+  /// Set the supported custom fan modes; the list is copied (stored on Climate, referenced by ClimateTraits).
+  void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
+    this->supported_custom_fan_modes_.assign_copy(modes.begin(), modes.size());
+  }
+  void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
+    this->supported_custom_fan_modes_.assign_copy(modes.data(), modes.size());
+  }
+  template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
+    this->supported_custom_fan_modes_.assign_copy(modes, N);
+  }
+  /// Points at a static table that outlives the climate (codegen); call before any runtime copy.
+  void set_supported_custom_fan_modes_static(const char *const *modes, size_t count) {
+    this->supported_custom_fan_modes_.assign_static(modes, count);
+  }
+
+  /// Set the supported custom presets; the list is copied (stored on Climate, referenced by ClimateTraits).
+  void set_supported_custom_presets(std::initializer_list<const char *> presets) {
+    this->supported_custom_presets_.assign_copy(presets.begin(), presets.size());
+  }
+  void set_supported_custom_presets(const std::vector<const char *> &presets) {
+    this->supported_custom_presets_.assign_copy(presets.data(), presets.size());
+  }
+  template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
+    this->supported_custom_presets_.assign_copy(presets, N);
+  }
+  /// Points at a static table that outlives the climate (codegen); call before any runtime copy.
+  void set_supported_custom_presets_static(const char *const *presets, size_t count) {
+    this->supported_custom_presets_.assign_static(presets, count);
+  }
 
   /// Check if a custom fan mode is currently active.
   bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
@@ -327,13 +374,15 @@ class Climate : public EntityBase {
   /** Internal method to save the state of the climate device to recover memory. This is automatically
    * called from publish_state()
    */
-  void save_state_();
+  void save_state_(const ClimateTraits &traits);
+  void save_state_() { this->save_state_(this->get_traits()); }
 
   void dump_traits_(const char *tag);
 
   LazyCallbackManager<void(Climate &)> state_callback_{};
   LazyCallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
+
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
   float visual_min_temperature_override_{NAN};
   float visual_max_temperature_override_{NAN};
@@ -344,16 +393,19 @@ class Climate : public EntityBase {
 #endif
 
  private:
+  ClimateCustomModes supported_custom_fan_modes_;
+  ClimateCustomModes supported_custom_presets_;
+
   /** The active custom fan mode (private - enforces use of safe setters).
    *
-   * Points to an entry in traits.supported_custom_fan_modes_ or nullptr.
+   * Points to an entry in supported_custom_fan_modes_ or nullptr.
    * Use get_custom_fan_mode() to read, set_custom_fan_mode_() to modify.
    */
   const char *custom_fan_mode_{nullptr};
 
   /** The active custom preset (private - enforces use of safe setters).
    *
-   * Points to an entry in traits.supported_custom_presets_ or nullptr.
+   * Points to an entry in supported_custom_presets_ or nullptr.
    * Use get_custom_preset() to read, set_custom_preset_() to modify.
    */
   const char *custom_preset_{nullptr};

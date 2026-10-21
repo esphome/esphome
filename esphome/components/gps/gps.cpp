@@ -1,10 +1,9 @@
 #include "gps.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gps {
+namespace esphome::gps {
 
-static const char *const TAG = "gps";
+ESPHOME_LOG_TAG(TAG, "gps");
 
 TinyGPSPlus &GPSListener::get_tiny_gps() { return this->parent_->get_tiny_gps(); }
 
@@ -85,11 +84,12 @@ void GPS::loop() {
       ESP_LOGV(TAG, "HDOP: %.3f", this->hdop_);
     }
 
+#ifdef GPS_LISTENER_COUNT
     for (auto *listener : this->listeners_) {
       listener->on_update(this->tiny_gps_);
     }
+#endif
   }
 }
 
-}  // namespace gps
-}  // namespace esphome
+}  // namespace esphome::gps

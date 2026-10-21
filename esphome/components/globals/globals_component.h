@@ -1,13 +1,15 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
+
+#include <array>
 #include <cstring>
 
 namespace esphome::globals {
 
-template<typename T> class GlobalsComponent : public Component {
+template<typename T> class GlobalsComponent final : public Component {
  public:
   using value_type = T;
   explicit GlobalsComponent() = default;
@@ -23,7 +25,11 @@ template<typename T> class GlobalsComponent : public Component {
   T value_{};
 };
 
-template<typename T> class RestoringGlobalsComponent : public PollingComponent {
+// Where a restoring global saves its value; STORAGE_PLATFORM keeps the platform default
+enum class Storage : uint8_t { STORAGE_PLATFORM, STORAGE_FLASH, STORAGE_RTC };
+
+template<typename T, Storage STORAGE = Storage::STORAGE_PLATFORM>
+class RestoringGlobalsComponent : public PollingComponent {
  public:
   using value_type = T;
   explicit RestoringGlobalsComponent() : PollingComponent(1000) {}
@@ -37,7 +43,12 @@ template<typename T> class RestoringGlobalsComponent : public PollingComponent {
   T &value() { return this->value_; }
 
   void setup() override {
-    this->rtc_ = global_preferences->make_preference<T>(1944399030U ^ this->name_hash_);
+    if constexpr (STORAGE == Storage::STORAGE_PLATFORM) {
+      this->rtc_ = global_preferences->make_preference<T>(1944399030U ^ this->name_hash_);
+    } else {
+      this->rtc_ =
+          global_preferences->make_preference<T>(1944399030U ^ this->name_hash_, STORAGE == Storage::STORAGE_FLASH);
+    }
     this->rtc_.load(&this->value_);
     memcpy(&this->last_checked_value_, &this->value_, sizeof(T));
   }
@@ -66,7 +77,8 @@ template<typename T> class RestoringGlobalsComponent : public PollingComponent {
 };
 
 // Use with string or subclasses of strings
-template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public PollingComponent {
+template<typename T, uint8_t SZ, Storage STORAGE = Storage::STORAGE_PLATFORM>
+class RestoringGlobalStringComponent : public PollingComponent {
  public:
   using value_type = T;
   explicit RestoringGlobalStringComponent() : PollingComponent(1000) {}
@@ -81,10 +93,15 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public P
 
   void setup() override {
     char temp[SZ];
-    this->rtc_ = global_preferences->make_preference<uint8_t[SZ]>(1944399030U ^ this->name_hash_);
+    if constexpr (STORAGE == Storage::STORAGE_PLATFORM) {
+      this->rtc_ = global_preferences->make_preference<uint8_t[SZ]>(1944399030U ^ this->name_hash_);
+    } else {
+      this->rtc_ = global_preferences->make_preference<uint8_t[SZ]>(1944399030U ^ this->name_hash_,
+                                                                    STORAGE == Storage::STORAGE_FLASH);
+    }
     bool hasdata = this->rtc_.load(&temp);
     if (hasdata) {
-      this->value_.assign(temp + 1, temp[0]);
+      this->value_.assign(temp + 1, static_cast<uint8_t>(temp[0]));
     }
     this->last_checked_value_.assign(this->value_);
   }
@@ -127,22 +144,10 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public P
   ESPPreferenceObject rtc_;
 };
 
-template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...> {
- public:
-  explicit GlobalVarSetAction(C *parent) : parent_(parent) {}
-
-  using T = typename C::value_type;
-
-  TEMPLATABLE_VALUE(T, value);
-
-  void play(const Ts &...x) override { this->parent_->value() = this->value_.value(x...); }
-
- protected:
-  C *parent_;
-};
-
 template<typename T> T &id(GlobalsComponent<T> *value) { return value->value(); }
-template<typename T> T &id(RestoringGlobalsComponent<T> *value) { return value->value(); }
-template<typename T, uint8_t SZ> T &id(RestoringGlobalStringComponent<T, SZ> *value) { return value->value(); }
+template<typename T, Storage STORAGE> T &id(RestoringGlobalsComponent<T, STORAGE> *value) { return value->value(); }
+template<typename T, uint8_t SZ, Storage STORAGE> T &id(RestoringGlobalStringComponent<T, SZ, STORAGE> *value) {
+  return value->value();
+}
 
 }  // namespace esphome::globals

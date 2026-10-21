@@ -6,12 +6,11 @@
 
 #include <vector>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 class NdefRecordText : public NdefRecord {
  public:
-  NdefRecordText(){};
+  NdefRecordText() {};
   NdefRecordText(const std::vector<uint8_t> &payload);
   NdefRecordText(const std::string &language_code, const std::string &text) {
     this->tnf_ = TNF_WELL_KNOWN;
@@ -39,5 +38,4 @@ class NdefRecordText : public NdefRecord {
   std::string language_code_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

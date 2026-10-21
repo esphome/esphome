@@ -1,18 +1,61 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4) || defined(USE_ZEPHYR)
 
 #include "esphome/core/component.h"
 #include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/components/uart/uart_component.h"
 
+#include <array>
+#include <atomic>
+#include <cstring>
 #include <functional>
+#ifdef USE_ZEPHYR
+#include <zephyr/device.h>
+#include <zephyr/sys/ring_buffer.h>
+#else
 #include "freertos/ringbuf.h"
-#include "tusb_cdc_acm.h"
+#include "esp_err.h"
+#include "tinyusb_cdc_acm.h"
+#endif
 
 namespace esphome::usb_cdc_acm {
 
 static const uint8_t EVENT_QUEUE_SIZE = 12;
+// Minimum interval between repeated warnings while a host stall persists
+static constexpr uint32_t LOG_THROTTLE_MS = 1000;
+
+#ifndef USE_ZEPHYR
+// Drain up to out_buf_sz bytes from a byte ring buffer, handling FreeRTOS's wrapped
+// case with a second read. Shared with the cdc_acm_uart bridge platform, whose worker
+// tasks drain the same ring buffers.
+inline esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
+                                    TickType_t x_ticks_to_wait) {
+  size_t read_sz;
+  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, x_ticks_to_wait, out_buf_sz));
+
+  if (buf == nullptr) {
+    return ESP_FAIL;
+  }
+
+  memcpy(out_buf, buf, read_sz);
+  vRingbufferReturnItem(ring_buf, (void *) buf);
+  *rx_data_size = read_sz;
+
+  // Buffer's data can be wrapped, in which case we should perform another read
+  if (*rx_data_size < out_buf_sz) {
+    buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, 0, out_buf_sz - *rx_data_size));
+    if (buf != nullptr) {
+      memcpy(out_buf + *rx_data_size, buf, read_sz);
+      vRingbufferReturnItem(ring_buf, (void *) buf);
+      *rx_data_size += read_sz;
+    }
+  }
+
+  return ESP_OK;
+}
+#endif
 
 // Callback types for line coding and line state changes
 using LineCodingCallback = std::function<void(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits)>;
@@ -50,7 +93,7 @@ struct CDCEvent {
 class USBCDCACMComponent;
 
 /// Represents a single CDC ACM interface instance
-class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
+class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
  public:
   void setup();
   void loop();
@@ -59,12 +102,19 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   void set_interface_number(uint8_t itf) { this->itf_ = itf; }
   // Get the CDC port number for this instance
   uint8_t get_itf() const { return this->itf_; }
+#ifdef USE_ZEPHYR
+  explicit USBCDCACMInstance(const device *uart_dev) : uart_dev_(uart_dev) {}
+#else
+  static void usb_tx_task_fn(void *arg);
+  void usb_tx_task();
+
   // Ring buffer accessors for bridge components
   RingbufHandle_t get_tx_ringbuf() const { return this->usb_tx_ringbuf_; }
   RingbufHandle_t get_rx_ringbuf() const { return this->usb_rx_ringbuf_; }
 
   // Task handle accessor for notifying TX task
   TaskHandle_t get_tx_task_handle() const { return this->usb_tx_task_handle_; }
+#endif
 
   // Callback registration for line coding and line state changes
   void set_line_coding_callback(LineCodingCallback callback) { this->line_coding_callback_ = std::move(callback); }
@@ -74,40 +124,104 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   void queue_line_coding_event(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits);
   void queue_line_state_event(bool dtr, bool rts);
 
-  static void usb_tx_task_fn(void *arg);
-  void usb_tx_task();
-
   // UARTComponent interface implementation
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
-  void flush() override;
+  uart::UARTFlushResult flush() override;
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  // No-op: in CDC ACM device mode the host dictates the line coding, so there are no
+  // local UART settings to (re)apply.
+  void load_settings(bool dump_config) override {}
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+#endif
 
  protected:
-  void check_logger_conflict() override;
+  // A logger on the same port is rejected at validation by the Zephyr claim registry
+  void check_logger_conflict() override {}
 
   // Process queued events and invoke callbacks (called from main loop)
   void process_events_();
+  // Count dropped TX bytes and log a throttled warning
+  void record_tx_drop_(size_t dropped);
+  // Hand a pending peeked byte to read_array(); true when nothing remains to read
+  bool consume_peek_(uint8_t *&data, size_t &len);
+  // Report bytes to the UART debugger; no-ops without USE_UART_DEBUGGER
+  void report_rx_debug_(const uint8_t *data, size_t len) {
+#ifdef USE_UART_DEBUGGER
+    for (size_t i = 0; i < len; i++) {
+      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+    }
+#endif
+  }
+  void report_tx_debug_(const uint8_t *data, size_t len) {
+#ifdef USE_UART_DEBUGGER
+    for (size_t i = 0; i < len; i++) {
+      this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
+    }
+#endif
+  }
+#ifdef USE_ZEPHYR
+  static void uart_irq_handler(const device *dev, void *instance);
+  void uart_rx_process_();
+  void uart_tx_process_();
+
+  const device *uart_dev_;
+  uint32_t last_line_poll_ms_{0};
+  ring_buf rx_ringbuf_;
+  ring_buf tx_ringbuf_;
+  std::atomic<bool> rx_irq_disabled_{false};
+  std::atomic<bool> tx_irq_disabled_{false};
+  // Set by the IRQ handler when our TX ring buffer and the driver's are both empty
+  std::atomic<bool> tx_drained_{false};
+  bool dtr_{false};
+  bool rts_{false};
+  uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];
+  uint8_t tx_ringbuf_data_[ESPHOME_CDC_TX_RING_BUFFER_SIZE];
+#else
+  // True while TX bytes are still in the ring buffer or held by the TX task
+  bool tx_pending_();
   TaskHandle_t usb_tx_task_handle_{nullptr};
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
+  // TX task staging; a member rather than a stack array so it does not size the task stack.
+  std::array<uint8_t, CONFIG_TINYUSB_CDC_TX_BUFSIZE> usb_tx_staging_{};
+  // Non-zero while the TX task holds bytes it has pulled from the ring buffer but not
+  // yet handed to TinyUSB; lets flush() account for data that is in neither the ring
+  // buffer nor TinyUSB's FIFO.
+  // Threading: written only by usb_tx_task(); read by flush()'s bounded wait on the
+  // caller's task (typically the main loop).
+  // std::atomic<uint8_t> rather than std::atomic<bool> because GCC on Xtensa
+  // generates an indirect function call for atomic<bool> ops instead of inlining
+  // them; atomic<uint8_t> inlines correctly on all platforms.
+  std::atomic<uint8_t> usb_tx_busy_{0};
+#endif
+  // Running total of bytes dropped by write_array() (never reset), and the timestamp
+  // of the last "buffer full" log line (throttled so a sustained host stall doesn't
+  // flood the log).
+  size_t tx_dropped_bytes_{0};
+  uint32_t tx_dropped_log_ms_{0};
+  // User-registered callbacks (called from main loop)
+  LineCodingCallback line_coding_callback_{nullptr};
+  LineStateCallback line_state_callback_{nullptr};
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};
   uint8_t itf_{0};
-  // User-registered callbacks (called from main loop)
-  LineCodingCallback line_coding_callback_{nullptr};
-  LineStateCallback line_state_callback_{nullptr};
 
   // Lock-free queue and event pool for cross-task event passing
-  EventPool<CDCEvent, EVENT_QUEUE_SIZE> event_pool_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing both a pool slot leak and an SPSC
+  // violation on the pool's internal free list.
+  EventPool<CDCEvent, EVENT_QUEUE_SIZE - 1> event_pool_;
   LockFreeQueue<CDCEvent, EVENT_QUEUE_SIZE> event_queue_;
 };
 
 /// Main USB CDC ACM component that manages the USB device and all CDC interfaces
-class USBCDCACMComponent : public Component {
+class USBCDCACMComponent final : public Component {
  public:
   USBCDCACMComponent();
 

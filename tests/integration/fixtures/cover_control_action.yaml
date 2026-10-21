@@ -1,0 +1,111 @@
+esphome:
+  name: cover-control-action-test
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: test_position
+    type: float
+    initial_value: "0.42"
+
+cover:
+  - platform: template
+    name: "Test Cover"
+    id: test_cover
+    has_position: true
+    optimistic: true
+    assumed_state: true
+    open_action:
+      - cover.template.publish:
+          id: test_cover
+          position: 1.0
+    close_action:
+      - cover.template.publish:
+          id: test_cover
+          position: 0.0
+    stop_action:
+      - cover.template.publish:
+          id: test_cover
+          current_operation: IDLE
+    tilt_action:
+      - lambda: |-
+          // Manually set tilt and publish
+          id(test_cover).tilt = tilt;
+          id(test_cover).publish_state();
+
+button:
+  # cover.control: position only
+  - platform: template
+    id: btn_position
+    name: "Set Position"
+    on_press:
+      - cover.control:
+          id: test_cover
+          position: 50%
+
+  # cover.control: tilt only
+  - platform: template
+    id: btn_tilt
+    name: "Set Tilt"
+    on_press:
+      - cover.control:
+          id: test_cover
+          tilt: 75%
+
+  # cover.control: position + tilt
+  - platform: template
+    id: btn_pos_tilt
+    name: "Set Pos Tilt"
+    on_press:
+      - cover.control:
+          id: test_cover
+          position: 25%
+          tilt: 30%
+
+  # cover.control: state alias for position
+  - platform: template
+    id: btn_open_state
+    name: "Open State"
+    on_press:
+      - cover.control:
+          id: test_cover
+          state: OPEN
+
+  # cover.control: lambda position (exercises lambda path)
+  - platform: template
+    id: btn_lambda_position
+    name: "Lambda Position"
+    on_press:
+      - cover.control:
+          id: test_cover
+          position: !lambda "return id(test_position);"
+
+  # cover.template.publish: position only
+  - platform: template
+    id: btn_publish_pos
+    name: "Publish Pos"
+    on_press:
+      - cover.template.publish:
+          id: test_cover
+          position: 0.6
+
+  # cover.template.publish: current_operation only
+  - platform: template
+    id: btn_publish_op
+    name: "Publish Op"
+    on_press:
+      - cover.template.publish:
+          id: test_cover
+          current_operation: OPENING
+
+  # cover.control: stop only — runs after Publish Op so the test can
+  # verify current_operation transitions OPENING -> IDLE.
+  - platform: template
+    id: btn_stop
+    name: "Stop Cover"
+    on_press:
+      - cover.control:
+          id: test_cover
+          stop: true

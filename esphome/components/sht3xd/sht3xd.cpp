@@ -1,10 +1,9 @@
 #include "sht3xd.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sht3xd {
+namespace esphome::sht3xd {
 
-static const char *const TAG = "sht3xd";
+ESPHOME_LOG_TAG(TAG, "sht3xd");
 
 // https://sensirion.com/media/documents/E5762713/63D103C2/Sensirion_electronic_identification_code_SHT3x.pdf
 // indicates two possible read serial number registers either with clock stretching enabled or disabled.
@@ -82,5 +81,4 @@ void SHT3XDComponent::update() {
   });
 }
 
-}  // namespace sht3xd
-}  // namespace esphome
+}  // namespace esphome::sht3xd

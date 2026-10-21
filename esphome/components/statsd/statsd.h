@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include "esphome/core/component.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/components/network/ip_address.h"
@@ -20,18 +20,10 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-#ifdef USE_ESP8266
-#include "WiFiUdp.h"
-#include "IPAddress.h"
-#endif
+namespace esphome::statsd {
 
-namespace esphome {
-namespace statsd {
-
-class StatsdComponent : public PollingComponent {
+class StatsdComponent final : public PollingComponent {
  public:
-  ~StatsdComponent();
-
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -72,16 +64,12 @@ class StatsdComponent : public PollingComponent {
 
   std::vector<sensors_t> sensors_;
 
-#ifdef USE_ESP8266
-  WiFiUDP sock_;
-#else
-  std::unique_ptr<esphome::socket::Socket> sock_;
-  struct sockaddr_in destination_;
-#endif
+  std::unique_ptr<esphome::socket::UDPSendSocket> sock_;
+  struct sockaddr_in destination_{};
 
   void send_(std::string *out);
 };
 
-}  // namespace statsd
-}  // namespace esphome
-#endif
+}  // namespace esphome::statsd
+
+#endif  // USE_NETWORK && !USE_ZEPHYR

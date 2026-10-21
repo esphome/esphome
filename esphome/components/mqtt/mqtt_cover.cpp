@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.cover";
+ESPHOME_LOG_TAG(TAG, "mqtt.cover");
 
 using namespace esphome::cover;
 
@@ -63,7 +63,6 @@ void MQTTCoverComponent::setup() {
 }
 
 void MQTTCoverComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT cover '%s':", this->cover_->get_name().c_str());
   auto traits = this->cover_->get_traits();
   bool has_command_topic = traits.get_supports_position() || !traits.get_supports_tilt();
   LOG_MQTT_COMPONENT(true, has_command_topic);
@@ -91,12 +90,6 @@ void MQTTCoverComponent::dump_config() {
 }
 void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  const auto device_class = this->cover_->get_device_class_ref();
-  if (!device_class.empty()) {
-    root[MQTT_DEVICE_CLASS] = device_class;
-  }
-  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
-
   auto traits = this->cover_->get_traits();
   if (traits.get_is_assumed_state()) {
     root[MQTT_OPTIMISTIC] = true;
@@ -129,6 +122,7 @@ void MQTTCoverComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
       root[MQTT_TILT_COMMAND_TOPIC] = this->get_tilt_command_topic_to(topic_buf);
     }
   }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   if (traits.get_supports_tilt() && !traits.get_supports_position()) {
     config.command_topic = false;
   }

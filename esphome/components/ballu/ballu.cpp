@@ -1,16 +1,15 @@
 #include "ballu.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ballu {
+namespace esphome::ballu {
 
-static const char *const TAG = "ballu.climate";
+ESPHOME_LOG_TAG(TAG, "ballu.climate");
 
 const uint16_t BALLU_HEADER_MARK = 9000;
 const uint16_t BALLU_HEADER_SPACE = 4500;
 const uint16_t BALLU_BIT_MARK = 575;
-const uint16_t BALLU_ONE_SPACE = 1675;
-const uint16_t BALLU_ZERO_SPACE = 550;
+static constexpr remote_base::BitTimings BALLU_BIT_TIMINGS{
+    .bit_mark = BALLU_BIT_MARK, .one_space = 1675, .zero_space = 550};
 
 const uint32_t BALLU_CARRIER_FREQUENCY = 38000;
 
@@ -47,7 +46,7 @@ void BalluClimate::transmit_state() {
   remote_state[11] = 0x1e;
 
   // Fan speed
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_HIGH:
       remote_state[4] |= BALLU_FAN_HIGH;
       break;
@@ -105,13 +104,7 @@ void BalluClimate::transmit_state() {
   data->mark(BALLU_HEADER_MARK);
   data->space(BALLU_HEADER_SPACE);
   // Data
-  for (uint8_t i : remote_state) {
-    for (uint8_t j = 0; j < 8; j++) {
-      data->mark(BALLU_BIT_MARK);
-      bool bit = i & (1 << j);
-      data->space(bit ? BALLU_ONE_SPACE : BALLU_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH);
   // Footer
   data->mark(BALLU_BIT_MARK);
 
@@ -125,21 +118,10 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t remote_state[BALLU_STATE_LENGTH] = {0};
-  // Read all bytes.
-  for (int i = 0; i < BALLU_STATE_LENGTH; i++) {
-    // Read bit
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(BALLU_BIT_MARK, BALLU_ONE_SPACE)) {
-        remote_state[i] |= 1 << j;
-
-      } else if (!data.expect_item(BALLU_BIT_MARK, BALLU_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", i, j);
-        return false;
-      }
-    }
-
-    ESP_LOGVV(TAG, "Byte %d %02X", i, remote_state[i]);
+  uint8_t remote_state[BALLU_STATE_LENGTH];
+  if (!data.expect_bytes<BALLU_BIT_TIMINGS>(remote_state, BALLU_STATE_LENGTH)) {
+    ESP_LOGV(TAG, "Data fail");
+    return false;
   }
   // Validate footer
   if (!data.expect_mark(BALLU_BIT_MARK)) {
@@ -147,10 +129,7 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t checksum = 0;
-  // Calculate  checksum and compare with signal value.
-  for (uint8_t i = 0; i < BALLU_STATE_LENGTH - 1; i++)
-    checksum += remote_state[i];
+  const uint8_t checksum = sum_bytes(remote_state, BALLU_STATE_LENGTH - 1);
 
   if (checksum != remote_state[BALLU_STATE_LENGTH - 1]) {
     ESP_LOGVV(TAG, "Checksum fail");
@@ -235,5 +214,4 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace ballu
-}  // namespace esphome
+}  // namespace esphome::ballu

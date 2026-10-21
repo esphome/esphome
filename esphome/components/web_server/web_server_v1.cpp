@@ -42,8 +42,10 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   // Add data attributes for hierarchical URL support
   stream->print("\" data-domain=\"");
   stream->print(klass.c_str());
+  char name_buf[ENTITY_NAME_BUF_SIZE];
+  const char *name = obj->get_name_to(name_buf).c_str();
   stream->print("\" data-name=\"");
-  write_html_escaped(stream, obj->get_name().c_str());
+  write_html_escaped(stream, name);
 #ifdef USE_DEVICES
   Device *device = obj->get_device();
   if (device != nullptr) {
@@ -59,7 +61,7 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
     stream->print("] ");
   }
 #endif
-  write_html_escaped(stream, obj->get_name().c_str());
+  write_html_escaped(stream, name);
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
   if (action_func) {
@@ -69,13 +71,9 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   stream->print("</tr>");
 }
 
-void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
-
-void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
-
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("text/html"));
-  const std::string &title = App.get_name();
+  const auto &title = App.get_name();
   stream->print(ESPHOME_F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
                           "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());

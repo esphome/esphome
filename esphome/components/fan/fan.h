@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -8,12 +10,10 @@
 #include "esphome/core/string_ref.h"
 #include "fan_traits.h"
 
-namespace esphome {
-namespace fan {
+namespace esphome::fan {
 
 #define LOG_FAN(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     (obj)->dump_traits_(TAG, prefix); \
   }
 
@@ -116,17 +116,34 @@ class Fan : public EntityBase {
   /// The current direction of the fan
   FanDirection direction{FanDirection::FORWARD};
 
-  FanCall turn_on();
-  FanCall turn_off();
-  FanCall toggle();
-  FanCall make_call();
+  FanCall turn_on() { return this->make_call().set_state(true); }
+  FanCall turn_off() { return this->make_call().set_state(false); }
+  FanCall toggle() { return this->make_call().set_state(!this->state); }
+  FanCall make_call() { return FanCall(*this); }
 
   /// Register a callback that will be called each time the state changes.
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   void publish_state();
 
   virtual FanTraits get_traits() = 0;
+
+  /// Set the supported preset modes; the list is copied (stored on Fan, referenced by FanTraits).
+  void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
+    this->supported_preset_modes_.assign_copy(preset_modes.begin(), preset_modes.size());
+  }
+  void set_supported_preset_modes(const std::vector<const char *> &preset_modes) {
+    this->supported_preset_modes_.assign_copy(preset_modes.data(), preset_modes.size());
+  }
+  void set_supported_preset_modes(const FanPresetModes &preset_modes) {
+    this->supported_preset_modes_.assign_copy(preset_modes.data(), preset_modes.size());
+  }
+  /// Points at a static table that outlives the fan (codegen); call before any runtime copy.
+  void set_supported_preset_modes_static(const char *const *preset_modes, size_t count) {
+    this->supported_preset_modes_.assign_static(preset_modes, count);
+  }
 
   /// Set the restore mode of this fan.
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
@@ -165,13 +182,16 @@ class Fan : public EntityBase {
   const char *find_preset_mode_(const char *preset_mode);
   const char *find_preset_mode_(const char *preset_mode, size_t len);
 
+  /// Wire the Fan-owned preset modes pointer into the given traits object.
+  void wire_preset_modes_(FanTraits &traits) { traits.set_supported_preset_modes_(&this->supported_preset_modes_); }
+
   LazyCallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
-  FanRestoreMode restore_mode_;
+  FanRestoreMode restore_mode_{FanRestoreMode::NO_RESTORE};
 
  private:
+  FanPresetModes supported_preset_modes_;
   const char *preset_mode_{nullptr};
 };
 
-}  // namespace fan
-}  // namespace esphome
+}  // namespace esphome::fan

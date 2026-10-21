@@ -3,12 +3,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 #include "pid_controller.h"
-#include "pid_simulator.h"
 
 #include <vector>
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 class PIDAutotuner {
  public:
@@ -31,7 +29,8 @@ class PIDAutotuner {
 
   void dump_config();
 
-  void set_autotuner_id(std::string id) { this->id_ = std::move(id); }
+  /// Name shown in log lines; must outlive the autotuner.
+  void set_autotuner_id(const LogString *id) { this->id_ = id; }
 
   void set_noiseband(float noiseband) {
     relay_function_.noiseband = noiseband;
@@ -108,8 +107,7 @@ class PIDAutotuner {
   } state_ = AUTOTUNE_RUNNING;
   float ku_;
   float pu_;
-  std::string id_;
+  const LogString *id_{reinterpret_cast<const LogString *>("")};  // empty until set, like the old std::string
 };
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

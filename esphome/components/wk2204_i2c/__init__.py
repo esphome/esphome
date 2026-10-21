@@ -2,10 +2,12 @@ import esphome.codegen as cg
 from esphome.components import i2c, weikai
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["weikai", "weikai_i2c"]
+DOMAIN = "wk2204_i2c"
 MULTI_CONF = True
 
 weikai_i2c_ns = cg.esphome_ns.namespace("weikai_i2c")
@@ -23,7 +25,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_name(str(config[CONF_ID])))
     await weikai.register_weikai(var, config)

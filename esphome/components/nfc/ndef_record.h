@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static constexpr uint8_t TNF_EMPTY = 0x00;
 static constexpr uint8_t TNF_WELL_KNOWN = 0x01;
@@ -19,7 +18,7 @@ static constexpr uint8_t TNF_RESERVED = 0x07;
 
 class NdefRecord {
  public:
-  NdefRecord(){};
+  NdefRecord() {};
   NdefRecord(std::vector<uint8_t> payload_data);
   void set_tnf(uint8_t tnf) { this->tnf_ = tnf; };
   void set_type(const std::string &type) { this->type_ = type; };
@@ -53,5 +52,4 @@ class NdefRecord {
   std::string payload_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

@@ -5,15 +5,15 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace camera {
+namespace esphome::camera {
 
 /** Different sources for filtering.
  *  IDLE: Camera requests to send an image to the API.
  *  API_REQUESTER: API requests a new image.
  *  WEB_REQUESTER: ESP32 web server request an image. Ignored by API.
+ *  RTSP_REQUESTER: RTSP server requests a stream of images. Ignored by API and web server.
  */
-enum CameraRequester : uint8_t { IDLE, API_REQUESTER, WEB_REQUESTER };
+enum CameraRequester : uint8_t { IDLE, API_REQUESTER, WEB_REQUESTER, RTSP_REQUESTER };
 
 /// Enumeration of different pixel formats.
 enum PixelFormat : uint8_t {
@@ -104,7 +104,8 @@ struct CameraImageSpec {
 /** Abstract camera base class. Collaborates with API.
  *  1) API server starts and registers as a listener (add_listener)
  *     to receive new images from the camera.
- *  2) New API client connects and creates a new image reader (create_image_reader).
+ *  2) API connection creates an image reader (create_image_reader) when it receives
+ *     the first image it will send.
  *  3) API connection receives protobuf CameraImageRequest and calls request_image.
  *  3.a) API connection receives protobuf CameraImageRequest and calls start_stream.
  *  4) Camera implementation provides JPEG data in the CameraImage and notifies listeners.
@@ -134,5 +135,4 @@ class Camera : public EntityBase, public Component {
   static Camera *global_camera;
 };
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera

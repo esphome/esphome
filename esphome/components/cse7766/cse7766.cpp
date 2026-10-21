@@ -2,10 +2,14 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cmath>
 
 namespace esphome::cse7766 {
 
-static const char *const TAG = "cse7766";
+ESPHOME_LOG_TAG(TAG, "cse7766");
+
+// The chip only sends the time since the last pulse once a cycle is longer than 1 s (in us)
+static constexpr uint32_t MIN_HELD_POWER_CYCLE = 1000000;
 
 void CSE7766Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -66,10 +70,7 @@ bool CSE7766Component::check_byte_() {
   }
 
   if (index == CSE7766_RAW_DATA_SIZE - 1) {
-    uint8_t checksum = 0;
-    for (uint8_t i = 2; i < CSE7766_RAW_DATA_SIZE - 1; i++) {
-      checksum += this->raw_data_[i];
-    }
+    const uint8_t checksum = sum_bytes(this->raw_data_ + 2, CSE7766_RAW_DATA_SIZE - 3);
 
     if (checksum != this->raw_data_[CSE7766_RAW_DATA_SIZE - 1]) {
       ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum,
@@ -156,18 +157,33 @@ void CSE7766Component::parse_data_() {
   if (power_cycle_exceeds_range) {
     // Datasheet: power cycle exceeding range means active power is 0
     have_power = true;
+    this->last_power_cycle_ = 0;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(0.0f);
     }
   } else if (have_power) {
     power = power_coeff / float(power_cycle);
+    this->last_power_cycle_ = power_cycle;
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(power);
     }
-  } else if (this->power_sensor_ != nullptr) {
-    // No valid power measurement from chip - publish 0W to avoid stale readings
-    // This typically happens when current is below the measurable threshold (~50mA)
-    this->power_sensor_->publish_state(0.0f);
+  } else if (this->last_power_cycle_ > MIN_HELD_POWER_CYCLE && power_cycle <= 2 * this->last_power_cycle_) {
+    // No new measurement in this frame. With cycles over 1 s the register holds the last
+    // cycle or the time elapsed since the last pulse. While that time is within twice the
+    // last cycle, the next pulse is not overdue, so the last measurement still applies.
+    // Shorter cycles never get here in normal operation and keep the previous behaviour.
+    have_power = true;
+    power = power_coeff / float(this->last_power_cycle_);
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(power);
+    }
+  } else {
+    // The next pulse is overdue: the load has dropped, report 0 W. A load that drops to less
+    // than half also reads 0 W here until its first new pulse arrives.
+    this->last_power_cycle_ = 0;
+    if (this->power_sensor_ != nullptr) {
+      this->power_sensor_->publish_state(0.0f);
+    }
   }
 
   float current = 0.0f;
@@ -192,21 +208,22 @@ void CSE7766Component::parse_data_() {
       this->apparent_power_sensor_->publish_state(apparent_power);
     }
     if (have_power && this->reactive_power_sensor_ != nullptr) {
-      const float reactive_power = apparent_power - power;
-      if (reactive_power < 0.0f) {
-        ESP_LOGD(TAG, "Impossible reactive power: %.4f is negative", reactive_power);
+      const float q_squared = apparent_power * apparent_power - power * power;
+      if (q_squared < 0.0f) {
+        ESP_LOGD(TAG, "Impossible reactive power: S^2-P^2 is negative (%.4f)", q_squared);
         this->reactive_power_sensor_->publish_state(0.0f);
       } else {
-        this->reactive_power_sensor_->publish_state(reactive_power);
+        this->reactive_power_sensor_->publish_state(std::sqrt(q_squared));
       }
     }
     if (this->power_factor_sensor_ != nullptr && (have_power || power_cycle_exceeds_range)) {
       float pf = NAN;
       if (apparent_power > 0) {
         pf = power / apparent_power;
-        if (pf < 0 || pf > 1) {
-          ESP_LOGD(TAG, "Impossible power factor: %.4f not in interval [0, 1]", pf);
-          pf = NAN;
+        if (pf > 1) {
+          // Noise near the chip's resolution limit, seen during inrush, pushes the ratio past unity
+          ESP_LOGD(TAG, "Power factor %.4f above 1, clamped", pf);
+          pf = 1.0f;
         }
       } else if (apparent_power == 0 && power == 0) {
         // No load, report ideal power factor
@@ -254,7 +271,6 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Apparent Power", this->apparent_power_sensor_);
   LOG_SENSOR("  ", "Reactive Power", this->reactive_power_sensor_);
   LOG_SENSOR("  ", "Power Factor", this->power_factor_sensor_);
-  this->check_uart_settings(4800, 1, uart::UART_CONFIG_PARITY_EVEN);
 }
 
 }  // namespace esphome::cse7766

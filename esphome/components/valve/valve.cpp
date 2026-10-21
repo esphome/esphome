@@ -6,10 +6,9 @@
 
 #include <strings.h>
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
-static const char *const TAG = "valve";
+ESPHOME_LOG_TAG(TAG, "valve");
 
 const float VALVE_OPEN = 1.0f;
 const float VALVE_CLOSED = 0.0f;
@@ -43,7 +42,7 @@ ValveCall &ValveCall::set_command(const char *command) {
   } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
     this->set_command_toggle();
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
+    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", LOG_STR_ARG(this->parent_->get_log_name()), command);
   }
   return *this;
 }
@@ -68,21 +67,21 @@ ValveCall &ValveCall::set_position(float position) {
   return *this;
 }
 void ValveCall::perform() {
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", LOG_STR_ARG(this->parent_->get_log_name()));
   auto traits = this->parent_->get_traits();
   this->validate_();
   if (this->stop_) {
-    ESP_LOGD(TAG, "  Command: STOP");
+    ESP_LOGV(TAG, "  Command: STOP");
   }
   if (this->position_.has_value()) {
     if (traits.get_supports_position()) {
-      ESP_LOGD(TAG, "  Position: %.0f%%", *this->position_ * 100.0f);
+      ESP_LOGV(TAG, "  Position: %.0f%%", *this->position_ * 100.0f);
     } else {
-      ESP_LOGD(TAG, "  Command: %s", LOG_STR_ARG(valve_command_to_str(*this->position_)));
+      ESP_LOGV(TAG, "  Command: %s", LOG_STR_ARG(valve_command_to_str(*this->position_)));
     }
   }
   if (this->toggle_.has_value()) {
-    ESP_LOGD(TAG, "  Command: TOGGLE");
+    ESP_LOGV(TAG, "  Command: TOGGLE");
   }
   this->parent_->control(*this);
 }
@@ -93,16 +92,18 @@ void ValveCall::validate_() {
   if (this->position_.has_value()) {
     auto pos = *this->position_;
     if (!traits.get_supports_position() && pos != VALVE_OPEN && pos != VALVE_CLOSED) {
-      ESP_LOGW(TAG, "'%s' - This valve device does not support setting position!", this->parent_->get_name().c_str());
+      ESP_LOGW(TAG, "'%s' - This valve device does not support setting position!",
+               LOG_STR_ARG(this->parent_->get_log_name()));
       this->position_.reset();
     } else if (pos < 0.0f || pos > 1.0f) {
-      ESP_LOGW(TAG, "'%s' - Position %.2f is out of range [0.0 - 1.0]", this->parent_->get_name().c_str(), pos);
+      ESP_LOGW(TAG, "'%s' - Position %.2f is out of range [0.0 - 1.0]", LOG_STR_ARG(this->parent_->get_log_name()),
+               pos);
       this->position_ = clamp(pos, 0.0f, 1.0f);
     }
   }
   if (this->toggle_.has_value()) {
     if (!traits.get_supports_toggle()) {
-      ESP_LOGW(TAG, "'%s' - This valve device does not support toggle!", this->parent_->get_name().c_str());
+      ESP_LOGW(TAG, "'%s' - This valve device does not support toggle!", LOG_STR_ARG(this->parent_->get_log_name()));
       this->toggle_.reset();
     }
   }
@@ -121,28 +122,23 @@ ValveCall &ValveCall::set_stop(bool stop) {
   this->stop_ = stop;
   return *this;
 }
-bool ValveCall::get_stop() const { return this->stop_; }
-
-ValveCall Valve::make_call() { return {this}; }
-
-void Valve::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
 
-  ESP_LOGD(TAG, "'%s' >>", this->name_.c_str());
+  ESP_LOGV(TAG, "'%s' >>", LOG_STR_ARG(this->get_log_name()));
   auto traits = this->get_traits();
   if (traits.get_supports_position()) {
-    ESP_LOGD(TAG, "  Position: %.0f%%", this->position * 100.0f);
+    ESP_LOGV(TAG, "  Position: %.0f%%", this->position * 100.0f);
   } else {
     if (this->position == VALVE_OPEN) {
-      ESP_LOGD(TAG, "  State: OPEN");
+      ESP_LOGV(TAG, "  State: OPEN");
     } else if (this->position == VALVE_CLOSED) {
-      ESP_LOGD(TAG, "  State: CLOSED");
+      ESP_LOGV(TAG, "  State: CLOSED");
     } else {
-      ESP_LOGD(TAG, "  State: UNKNOWN");
+      ESP_LOGV(TAG, "  State: UNKNOWN");
     }
   }
-  ESP_LOGD(TAG, "  Current Operation: %s", LOG_STR_ARG(valve_operation_to_str(this->current_operation)));
+  ESP_LOGV(TAG, "  Current Operation: %s", LOG_STR_ARG(valve_operation_to_str(this->current_operation)));
 
   this->state_callback_.call();
 #if defined(USE_VALVE) && defined(USE_CONTROLLER_REGISTRY)
@@ -164,9 +160,6 @@ optional<ValveRestoreState> Valve::restore_state_() {
   return recovered;
 }
 
-bool Valve::is_fully_open() const { return this->position == VALVE_OPEN; }
-bool Valve::is_fully_closed() const { return this->position == VALVE_CLOSED; }
-
 ValveCall ValveRestoreState::to_call(Valve *valve) {
   auto call = valve->make_call();
   call.set_position(this->position);
@@ -177,5 +170,4 @@ void ValveRestoreState::apply(Valve *valve) {
   valve->publish_state();
 }
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

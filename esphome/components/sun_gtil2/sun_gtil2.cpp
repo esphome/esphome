@@ -1,10 +1,9 @@
 #include "sun_gtil2.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sun_gtil2 {
+namespace esphome::sun_gtil2 {
 
-static const char *const TAG = "sun_gtil2";
+ESPHOME_LOG_TAG(TAG, "sun_gtil2");
 
 static const double NTC_A = 0.0011591051055979914;
 static const double NTC_B = 0.00022878183547845582;
@@ -40,11 +39,7 @@ static_assert(MESSAGE_SIZE == 350, "Expected the message size to be 350 bytes");
 void SunGTIL2::setup() { this->rx_message_.reserve(MESSAGE_SIZE); }
 
 void SunGTIL2::loop() {
-  while (this->available()) {
-    uint8_t c;
-    this->read_byte(&c);
-    this->handle_char_(c);
-  }
+  this->read_available([this](uint8_t c) { this->handle_char_(c); });
 }
 
 const char *SunGTIL2::state_to_string_(uint8_t state, std::span<char, STATE_BUFFER_SIZE> buffer) {
@@ -131,5 +126,4 @@ void SunGTIL2::dump_config() {
 #endif
 }
 
-}  // namespace sun_gtil2
-}  // namespace esphome
+}  // namespace esphome::sun_gtil2

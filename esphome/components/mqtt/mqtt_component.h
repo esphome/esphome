@@ -108,11 +108,11 @@ class MQTTComponent : public Component {
 
   /// Set QOS for state messages.
   void set_qos(uint8_t qos);
-  uint8_t get_qos() const;
+  uint8_t get_qos() const { return this->qos_; }
 
   /// Set whether state message should be retained.
   void set_retain(bool retain);
-  bool get_retain() const;
+  bool get_retain() const { return this->retain_; }
 
   /// Disable discovery. Sets friendly name to "".
   void disable_discovery();
@@ -146,6 +146,9 @@ class MQTTComponent : public Component {
 
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.
   void schedule_resend_state();
+
+  /// Check if a resend is pending (called by MQTTClientComponent to rate-limit work)
+  bool is_resend_pending() const { return this->resend_state_; }
 
   /// Process pending resend if needed (called by MQTTClientComponent)
   void process_resend();
@@ -256,7 +259,9 @@ class MQTTComponent : public Component {
    * @param callback The callback that will be called when a message with matching topic is received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  void subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos = 0);
+  template<typename F> void subscribe(std::string topic, F &&callback, uint8_t qos = 0) {
+    global_mqtt_client->subscribe(std::move(topic), std::forward<F>(callback), qos);
+  }
 
   /** Subscribe to a MQTT topic and automatically parse JSON payload.
    *
@@ -267,9 +272,13 @@ class MQTTComponent : public Component {
    * received.
    * @param qos The MQTT quality of service. Defaults to 0.
    */
-  void subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos = 0);
+  template<typename F> void subscribe_json(std::string topic, F &&callback, uint8_t qos = 0) {
+    global_mqtt_client->subscribe_json(std::move(topic), std::forward<F>(callback), qos);
+  }
 
  protected:
+  static constexpr uint32_t SEND_DEFER_ID = 0;
+
   /// Helper method to get the discovery topic for this component into a buffer.
   StringRef get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
                                     const MQTTDiscoveryInfo &discovery_info) const;
@@ -295,11 +304,13 @@ class MQTTComponent : public Component {
    */
   virtual const EntityBase *get_entity() const = 0;
 
-  /// Get the friendly name of this MQTT component.
+  /// Entity name for a "%s" log argument.
+  const LogString *log_name_() const;
+  ESPDEPRECATED("Use log_name_() for logging. Removed in 2027.5.0", "2026.11.0")
   const StringRef &friendly_name_() const;
 
-  /// Get the icon field of this component as StringRef
-  StringRef get_icon_ref_() const;
+  /// Get the icon field of this component into a stack buffer
+  const char *get_icon_to_(std::span<char, MAX_ICON_LENGTH> buf) const { return this->get_entity()->get_icon_to(buf); }
 
   /// Get whether the underlying Entity is disabled by default
   bool is_disabled_by_default_() const;
