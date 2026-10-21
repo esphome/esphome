@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_MODEL,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["number", "select", "sensor", "text_sensor"]
 CODEOWNERS = ["@lboue"]
@@ -22,8 +23,9 @@ CONF_I = "i"
 CONF_D = "d"
 CONF_SAVE_TO_FLASH = "save_to_flash"
 
-# The device's wire format scales each gain by 100 into a signed 32-bit register.
-PID_GAIN_LIMIT = 21474836.0
+# The device's wire format scales each gain by 100 into a signed 32-bit register. The C++ side multiplies in
+# float32, where 21474836 * 100 rounds up to 2**31, so the limit leaves room for that rounding.
+PID_GAIN_LIMIT = 21474834.0
 
 UNIT_RPM = UNIT_REVOLUTIONS_PER_MINUTE
 
@@ -79,7 +81,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(
         config,
         config[CONF_MODE],
