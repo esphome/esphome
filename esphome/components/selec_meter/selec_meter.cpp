@@ -46,7 +46,7 @@ static void publish_float(sensor::Sensor *sens, std::span<const uint16_t> regist
                           bool word_swapped) {
   float value = read_float(registers, 0, reg, word_swapped);
   if (!std::isfinite(value)) {
-    ESP_LOGD(TAG, "Skipping non-finite value for '%s'", sens->get_name().c_str());
+    ESP_LOGD(TAG, "Skipping non-finite value for '%s'", LOG_STR_ARG(sens->get_log_name()));
     return;
   }
   sens->publish_state(kilo ? value * 1000.0f : value);

@@ -263,9 +263,7 @@ void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
 
 bool ESPHomeOTAComponent::udp_start_() {
   // TCP now only carries a fallback byte; short read timeouts let the UDP link be checked in between
-  struct timeval tv {
-    0, UDP_COMMIT_POLL_MS * 1000
-  };
+  struct timeval tv{0, UDP_COMMIT_POLL_MS * 1000};
   this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
   const uint32_t start = millis();
   while (millis() - start < UDP_COMMIT_TIMEOUT) {
