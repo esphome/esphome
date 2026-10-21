@@ -123,8 +123,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_usb_desc_product(config[CONF_USB_PRODUCT_STR]))
     if config[CONF_USB_SERIAL_STR]:
         cg.add(var.set_usb_desc_serial(config[CONF_USB_SERIAL_STR]))
-    if (vbus_pin := config.get(CONF_VBUS_MONITOR_PIN)) is not None:
-        cg.add(var.set_vbus_monitor_pin(vbus_pin))
+    cg.add_optional(var.set_vbus_monitor_pin, config.get(CONF_VBUS_MONITOR_PIN))
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

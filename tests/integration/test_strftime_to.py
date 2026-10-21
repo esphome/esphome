@@ -7,8 +7,9 @@ import asyncio
 from aioesphomeapi import EntityState, TextSensorState
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import InitialStateHelper, assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -19,9 +20,7 @@ async def test_strftime_to(
 ) -> None:
     """Test ESPTime::strftime_to() formats time correctly."""
     async with run_compiled(yaml_config), api_client_connected() as client:
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "strftime-to-test"
+        await assert_device_name(client, "strftime-to-test")
 
         # Get entities
         entities, _ = await client.list_entities_services()
@@ -68,12 +67,9 @@ async def test_strftime_to(
             pytest.fail("Timeout waiting for initial states")
 
         # Wait for all expected states
-        try:
-            await asyncio.wait_for(all_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for text sensor states. Got: {list(states.keys())}"
-            )
+        await wait_or_fail(
+            all_received, 5.0, "Timeout waiting for text sensor states", states=states
+        )
 
         # Validate strftime_to with full format
         # Note: The exact output depends on timezone, but should contain date components

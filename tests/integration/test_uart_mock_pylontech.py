@@ -12,7 +12,6 @@ Phases, all injected after the Start Scenario button press:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import ButtonInfo
 import pytest
@@ -66,20 +65,13 @@ async def test_uart_mock_pylontech(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test pylontech parsing with happy path, garbage, overflow and recovery."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     overflow_lines: list[str] = []
     rejected_lines: list[str] = []
 
     def line_callback(line: str) -> None:
         if "Line over 199 chars dropped" in line:
             overflow_lines.append(line)
-        if "malformed battery lines" in line:
+        if "malformed lines" in line:
             rejected_lines.append(line)
 
     collector = SensorStateCollector(

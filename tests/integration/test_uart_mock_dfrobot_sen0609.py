@@ -7,7 +7,6 @@ reaches the module as setRange followed by saveConfig.
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import BinarySensorInfo, EntityState, NumberInfo, TextSensorInfo
 import pytest
@@ -23,13 +22,6 @@ async def test_uart_mock_dfrobot_sen0609(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Boot reads the module's settings; a number change is written and saved."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     loop = asyncio.get_running_loop()
     saved = loop.create_future()
 
