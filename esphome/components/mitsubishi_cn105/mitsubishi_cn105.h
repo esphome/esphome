@@ -183,14 +183,16 @@ class MitsubishiCN105 {
   void update_status_();
   bool should_request_heatpump_() const;
   // Power changed, or mode changed in a way that doesn't continue the current run: compressor state from the
-  // previous mode is meaningless. Clears it and starts the settle latch so residual spin-down is not reported
-  // as activity in the new mode.
-  void invalidate_operating_();
-  // Setpoint changed (or a same-direction mode switch carried state over): compressor state is still valid;
-  // just request a fresh 0x06.
+  // previous mode is meaningless. Clears it and, if arm_settle, starts the settle latch so residual spin-down
+  // is not reported as activity in the new mode. Pass arm_settle=false when no prior run can exist
+  // (power-on from off).
+  void invalidate_operating_(bool arm_settle = true);
+  // Setpoint changed, initial sync, or a same-direction mode switch carried state over: compressor state is
+  // still valid; just request a fresh 0x06.
   void refresh_operating_();
-  // Mode changed. HEAT <-> AUTO and COOL <-> AUTO while the compressor is running in the same direction keep
-  // the current action; any other transition invalidates it.
+  // Mode changed. If compressor state is already unknown (e.g. just powered on), only requests a fresh 0x06
+  // without arming the settle latch. HEAT <-> AUTO and COOL <-> AUTO while the compressor is running in the
+  // same direction keep the current action; any other transition invalidates it.
   void handle_mode_change_(Mode old_mode);
   bool should_request_telemetry_() const;
   void apply_settings_();
@@ -211,9 +213,10 @@ class MitsubishiCN105 {
   uint32_t heatpump_request_min_interval_ms_{60000};
   std::optional<uint32_t> last_telemetry_update_ms_;
   std::optional<uint32_t> last_heatpump_request_ms_;
-  // Set by invalidate_operating_(). While set, a "running" 0x06 report is treated as spin-down from the
-  // previous mode and ignored, until a "stopped" report is seen or OPERATING_SETTLE_MS elapses.
-  // Not set by same-direction mode switches handled in handle_mode_change_().
+  // Set by invalidate_operating_(arm_settle=true). While set, a "running" 0x06 report is treated as spin-down
+  // from the previous mode and ignored, until a "stopped" report is seen or OPERATING_SETTLE_MS elapses.
+  // Not set on initial sync, power-on from off, mode changes while state is unknown, or same-direction mode
+  // switches handled in handle_mode_change_().
   std::optional<uint32_t> operating_settle_start_ms_;
   Status status_{};
   State state_{State::NOT_CONNECTED};
