@@ -418,7 +418,7 @@ void VL53L0XSensor::loop() {
     this->initiated_read_ = false;
     this->waiting_for_interrupt_ = false;
     this->publish_state(NAN);
-    this->status_momentary_warning("stall", 5000);
+    this->status_momentary_warning(5000);
 
     if (this->consecutive_stalls_ < STALLS_BEFORE_RESET) {
       // First stall: try aborting the pending measurement, then retry after
