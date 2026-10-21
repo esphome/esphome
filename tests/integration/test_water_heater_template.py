@@ -14,7 +14,7 @@ from aioesphomeapi import (
 )
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -51,12 +51,7 @@ async def test_water_heater_template(
         # Get entities and set up state synchronization
         entities, services = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
-        water_heater_infos = [e for e in entities if isinstance(e, WaterHeaterInfo)]
-        assert len(water_heater_infos) == 1, (
-            f"Expected exactly 1 water heater entity, got {len(water_heater_infos)}. Entity types: {[type(e).__name__ for e in entities]}"
-        )
-
-        test_water_heater = water_heater_infos[0]
+        test_water_heater = require_only_entity(entities, WaterHeaterInfo)
 
         # Verify water heater entity info
         assert test_water_heater.object_id == "test_boiler"
@@ -81,10 +76,7 @@ async def test_water_heater_template(
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
         # Wait for all initial states to be broadcast
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Get initial state and verify
         initial_state = initial_state_helper.initial_states.get(test_water_heater.key)
@@ -155,3 +147,35 @@ async def test_water_heater_template(
         client.water_heater_command(test_water_heater.key, mode=WaterHeaterMode.ECO)
         eco_state = await wait_for_state()
         assert eco_state.mode == WaterHeaterMode.ECO
+
+
+@pytest.mark.asyncio
+async def test_water_heater_template_unknown_temperature(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test a template water heater whose temperature lambdas stay unknown.
+
+    NAN never compares equal to itself, so a lambda that keeps returning NAN must not be
+    mistaken for a changed value and republish the state on every loop iteration.
+    """
+    async with run_compiled(yaml_config), api_client_connected() as client:
+        state_count = 0
+
+        def on_state(state: aioesphomeapi.EntityState) -> None:
+            nonlocal state_count
+            if isinstance(state, WaterHeaterState):
+                state_count += 1
+
+        entities, _ = await client.list_entities_services()
+        require_only_entity(entities, WaterHeaterInfo)
+
+        client.subscribe_states(on_state)
+
+        # Let the device run for a while; only the single initial state may arrive.
+        await asyncio.sleep(1.0)
+        assert state_count <= 1, (
+            f"Expected at most 1 state publish, got {state_count} - "
+            "an unknown (NAN) temperature is republishing every loop"
+        )

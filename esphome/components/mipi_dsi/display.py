@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_ROTATION,
@@ -53,6 +52,7 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 from . import mipi_dsi_ns, models
 from .models import DsiDriverChip
@@ -85,7 +85,7 @@ COLOR_DEPTHS = {
 }
 
 
-def model_schema(config):
+def model_schema(config: ConfigType) -> cv.All:
     model = MODELS[config[CONF_MODEL].upper()]
     transform = model.transform_schema()
     # CUSTOM model will need to provide a custom init sequence
@@ -148,7 +148,7 @@ def model_schema(config):
 
 
 @model_schema_extractor(MODELS, model_schema)
-def _config_schema(config):
+def _config_schema(config: ConfigType) -> ConfigType:
     config = cv.Schema(
         {
             cv.Required(CONF_MODEL): cv.one_of(*MODELS, upper=True),
@@ -175,7 +175,7 @@ def _config_schema(config):
     return config
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     global_config = full_config.get()
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
@@ -183,14 +183,13 @@ def _final_validate(config):
     if not requires_buffer(config) and LVGL_DOMAIN not in global_config:
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
-    return config
 
 
 CONFIG_SCHEMA = _config_schema
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))
@@ -198,10 +197,12 @@ async def to_code(config):
         model.get_dimensions(config)
     )
     var = cg.new_Pvariable(config[CONF_ID], width, height, color_depth, pixel_mode)
+    cg.add(var.set_big_endian(config[CONF_BYTE_ORDER] == BYTE_ORDER_BIG))
 
     sequence = model.get_sequence(config)
     cg.add(var.set_model(config[CONF_MODEL]))
-    cg.add(var.set_init_sequence(sequence))
+    table = cg.shared_progmem_array("mipi_dsi_init_sequence", cg.uint8, sequence)
+    cg.add(var.set_init_sequence(table, len(sequence)))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
     cg.add(var.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))
@@ -212,9 +213,7 @@ async def to_code(config):
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY] / 1.0e6))
     cg.add(var.set_lanes(int(config[CONF_LANES])))
     cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
@@ -222,8 +221,4 @@ async def to_code(config):
     if model.rotation_as_transform(config):
         config[CONF_ROTATION] = 0
     await display.register_display(var, config)
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

@@ -1,4 +1,6 @@
+from collections.abc import Callable, Iterable
 import logging
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32
@@ -23,11 +25,13 @@ from esphome.const import (
     CONF_VOLTAGE_ATTENUATION,
 )
 from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["binary_sensor"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "esp32_touch"
 
 CONF_DEBOUNCE_COUNT = "debounce_count"
 CONF_DENOISE_GRADE = "denoise_grade"
@@ -181,7 +185,7 @@ EFFECTIVE_HIGH_VOLTAGE = {
 }
 
 
-def validate_touch_pad(value):
+def validate_touch_pad(value: Any) -> int:
     value = gpio.gpio_pin_number_validator(value)
     variant = get_esp32_variant()
     pads = TOUCH_PADS.get(variant)
@@ -192,7 +196,7 @@ def validate_touch_pad(value):
     return pads[value]  # Return integer channel ID
 
 
-def validate_variant_vars(config):
+def validate_variant_vars(config: ConfigType) -> ConfigType:
     variant = get_esp32_variant()
     invalid_vars = set()
     if variant == VARIANT_ESP32:
@@ -219,8 +223,8 @@ def validate_variant_vars(config):
     return config
 
 
-def validate_voltage(values):
-    def validator(value):
+def validate_voltage(values: Iterable[str]) -> Callable[[Any], str]:
+    def validator(value: Any) -> str:
         if isinstance(value, float) and value.is_integer():
             value = int(value)
         value = cv.string(value)
@@ -300,7 +304,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # New unified touch sensor driver
     include_builtin_idf_component("esp_driver_touch_sens")
 
@@ -362,20 +366,13 @@ async def to_code(config):
         cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))
 
     if variant in (VARIANT_ESP32S2, VARIANT_ESP32S3, VARIANT_ESP32P4):
-        if CONF_FILTER_MODE in config:
-            cg.add(touch.set_filter_mode(config[CONF_FILTER_MODE]))
-        if CONF_DEBOUNCE_COUNT in config:
-            cg.add(touch.set_debounce_count(config[CONF_DEBOUNCE_COUNT]))
-        if CONF_NOISE_THRESHOLD in config:
-            cg.add(touch.set_noise_threshold(config[CONF_NOISE_THRESHOLD]))
-        if CONF_JITTER_STEP in config:
-            cg.add(touch.set_jitter_step(config[CONF_JITTER_STEP]))
-        if CONF_SMOOTH_MODE in config:
-            cg.add(touch.set_smooth_level(config[CONF_SMOOTH_MODE]))
-        if CONF_DENOISE_GRADE in config:
-            cg.add(touch.set_denoise_grade(config[CONF_DENOISE_GRADE]))
-        if CONF_DENOISE_CAP_LEVEL in config:
-            cg.add(touch.set_denoise_cap(config[CONF_DENOISE_CAP_LEVEL]))
+        cg.add_optional(touch.set_filter_mode, config.get(CONF_FILTER_MODE))
+        cg.add_optional(touch.set_debounce_count, config.get(CONF_DEBOUNCE_COUNT))
+        cg.add_optional(touch.set_noise_threshold, config.get(CONF_NOISE_THRESHOLD))
+        cg.add_optional(touch.set_jitter_step, config.get(CONF_JITTER_STEP))
+        cg.add_optional(touch.set_smooth_level, config.get(CONF_SMOOTH_MODE))
+        cg.add_optional(touch.set_denoise_grade, config.get(CONF_DENOISE_GRADE))
+        cg.add_optional(touch.set_denoise_cap, config.get(CONF_DENOISE_CAP_LEVEL))
         if CONF_WATERPROOF_GUARD_RING in config:
             cg.add(
                 touch.set_waterproof_guard_ring_pad(config[CONF_WATERPROOF_GUARD_RING])

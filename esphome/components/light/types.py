@@ -4,6 +4,7 @@ import esphome.codegen as cg
 # Base
 light_ns = cg.esphome_ns.namespace("light")
 LightState = light_ns.class_("LightState", cg.EntityBase, cg.Component)
+GammaTable = light_ns.struct("GammaTable")
 LightStateRef = LightState.operator("ref")
 AddressableLightState = light_ns.class_("AddressableLightState", LightState)
 LightOutput = light_ns.class_("LightOutput")
@@ -14,37 +15,32 @@ Color = cg.esphome_ns.class_("Color")
 LightColorValues = light_ns.class_("LightColorValues")
 
 LightStateRTCState = light_ns.struct("LightStateRTCState")
-LightCall = light_ns.class_("LightCall")
+
+# Addressable strips
+ChannelColors = light_ns.struct("ChannelColors")
 
 # Color modes
 ColorMode = light_ns.enum("ColorMode", is_class=True)
-COLOR_MODES = {
-    "ON_OFF": ColorMode.ON_OFF,
-    "BRIGHTNESS": ColorMode.BRIGHTNESS,
-    "WHITE": ColorMode.WHITE,
-    "COLOR_TEMPERATURE": ColorMode.COLOR_TEMPERATURE,
-    "COLD_WARM_WHITE": ColorMode.COLD_WARM_WHITE,
-    "RGB": ColorMode.RGB,
-    "RGB_WHITE": ColorMode.RGB_WHITE,
-    "RGB_COLOR_TEMPERATURE": ColorMode.RGB_COLOR_TEMPERATURE,
-    "RGB_COLD_WARM_WHITE": ColorMode.RGB_COLD_WARM_WHITE,
-}
+COLOR_MODES = ColorMode.options(
+    "ON_OFF",
+    "BRIGHTNESS",
+    "WHITE",
+    "COLOR_TEMPERATURE",
+    "COLD_WARM_WHITE",
+    "RGB",
+    "RGB_WHITE",
+    "RGB_COLOR_TEMPERATURE",
+    "RGB_COLD_WARM_WHITE",
+)
 
 # Limit modes
 LimitMode = light_ns.enum("LimitMode", is_class=True)
-LIMIT_MODES = {
-    "CLAMP": LimitMode.CLAMP,
-    "DO_NOTHING": LimitMode.DO_NOTHING,
-}
+LIMIT_MODES = LimitMode.options("CLAMP", "DO_NOTHING")
 
 # Actions
-ToggleAction = light_ns.class_("ToggleAction", automation.Action)
-LightControlAction = light_ns.class_("LightControlAction", automation.Action)
 LightEffectCycleAction = light_ns.class_("LightEffectCycleAction", automation.Action)
 DimRelativeAction = light_ns.class_("DimRelativeAction", automation.Action)
 AddressableSet = light_ns.class_("AddressableSet", automation.Action)
-LightIsOnCondition = light_ns.class_("LightIsOnCondition", automation.Condition)
-LightIsOffCondition = light_ns.class_("LightIsOffCondition", automation.Condition)
 
 # Triggers
 LightTurnOnTrigger = light_ns.class_(

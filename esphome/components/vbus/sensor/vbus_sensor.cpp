@@ -4,14 +4,14 @@
 
 namespace esphome::vbus {
 
-static const char *const TAG = "vbus.sensor";
+ESPHOME_LOG_TAG(TAG, "vbus.sensor");
 
 static inline uint16_t get_u16(std::vector<uint8_t> &message, int start) {
-  return (message[start + 1] << 8) + message[start];
+  return encode_value_le<uint16_t>(&message[start]);
 }
 
 static inline int16_t get_i16(std::vector<uint8_t> &message, int start) {
-  return (int16_t) ((message[start + 1] << 8) + message[start]);
+  return encode_value_le<int16_t>(&message[start]);
 }
 
 void DeltaSolBSPlusSensor::dump_config() {

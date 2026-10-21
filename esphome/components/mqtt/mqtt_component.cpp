@@ -12,7 +12,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.component";
+ESPHOME_LOG_TAG(TAG, "mqtt.component");
 
 // Entity category MQTT strings indexed by EntityCategory enum: NONE(0) is skipped, CONFIG(1), DIAGNOSTIC(2)
 PROGMEM_STRING_TABLE(EntityCategoryMqttStrings, "", "config", "diagnostic");
@@ -38,11 +38,14 @@ inline char *append_char(char *p, char c) {
 
 // Function implementation of LOG_MQTT_COMPONENT macro to reduce code size
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic) {
+  ESP_LOGCONFIG(tag, "MQTT %s '%s':", obj->component_type(), obj->friendly_name_().c_str());
   char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-  if (state_topic)
+  if (state_topic) {
     ESP_LOGCONFIG(tag, "  State Topic: '%s'", obj->get_state_topic_to_(buf).c_str());
-  if (command_topic)
+  }
+  if (command_topic) {
     ESP_LOGCONFIG(tag, "  Command Topic: '%s'", obj->get_command_topic_to_(buf).c_str());
+  }
 }
 
 void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
@@ -310,11 +313,7 @@ bool MQTTComponent::send_discovery_() {
         // Buffer sized for format string expansion: ~4 bytes net growth from format specifier to 8 hex digits, plus
         // safety margin
         char version_buf[sizeof(ver_fmt) + 8];
-#ifdef USE_ESP8266
-        snprintf_P(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
-#else
-        snprintf(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
-#endif
+        ESPHOME_snprintf_P(version_buf, sizeof(version_buf), ver_fmt, App.get_config_hash());
         device_info[MQTT_DEVICE_SW_VERSION] = version_buf;
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
 #if defined(USE_ESP8266) || defined(USE_ESP32)
@@ -340,20 +339,8 @@ bool MQTTComponent::send_discovery_() {
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-uint8_t MQTTComponent::get_qos() const { return this->qos_; }
-
-bool MQTTComponent::get_retain() const { return this->retain_; }
-
 bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
-}
-
-void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
-  global_mqtt_client->subscribe(topic, std::move(callback), qos);
-}
-
-void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_callback_t &callback, uint8_t qos) {
-  global_mqtt_client->subscribe_json(topic, callback, qos);
 }
 
 MQTTComponent::MQTTComponent() = default;

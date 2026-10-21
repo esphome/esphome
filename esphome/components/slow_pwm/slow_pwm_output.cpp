@@ -5,7 +5,7 @@
 
 namespace esphome::slow_pwm {
 
-static const char *const TAG = "output.slow_pwm";
+ESPHOME_LOG_TAG(TAG, "output.slow_pwm");
 
 void SlowPWMOutput::setup() {
   if (this->pin_)

@@ -8,12 +8,12 @@
 
 namespace esphome::es7243e {
 
-static const char *const TAG = "es7243e";
+ESPHOME_LOG_TAG(TAG, "es7243e");
 
 // Mark the component as failed; use only in setup
 #define ES7243E_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 
@@ -23,14 +23,7 @@ static const char *const TAG = "es7243e";
     return false; \
   }
 
-void ES7243E::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES7243E audio ADC:");
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Failed to initialize");
-    return;
-  }
-}
+void ES7243E::dump_config() { ESP_LOGCONFIG(TAG, "ES7243E audio ADC:"); }
 
 void ES7243E::setup() {
   ES7243E_ERROR_FAILED(this->write_byte(ES7243E_CLOCK_MGR_REG01, 0x3A));

@@ -3,15 +3,13 @@
 
 namespace esphome::button {
 
-static const char *const TAG = "button";
+ESPHOME_LOG_TAG(TAG, "button");
 
 // Function implementation of LOG_BUTTON macro to reduce code size
 void log_button(const char *tag, const char *prefix, const char *type, Button *obj) {
-  if (obj == nullptr) {
+  if (!log_entity_header(tag, prefix, type, obj)) {
     return;
   }
-
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
   LOG_ENTITY_ICON(tag, prefix, *obj);
 }
 

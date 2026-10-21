@@ -1,12 +1,13 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome {
 
-static const char *const TAG = "entity_base";
+ESPHOME_LOG_TAG(TAG, "entity_base");
 
 void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
   this->name_ = StringRef(name);
@@ -56,6 +57,15 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
   this->flags_.entity_category = (entity_fields >> ENTITY_FIELD_ENTITY_CATEGORY_SHIFT) & 0x3;
 }
 
+void EntityBase::set_internal(bool internal) {
+  // Remove the after-setup path in 2027.3.0 and ignore the call instead.
+  if (App.is_setup_complete()) {
+    ESP_LOGE(TAG, "'%s': set_internal() after setup is undefined behavior, stops working in 2027.3.0",
+             this->get_name().c_str());
+  }
+  this->flags_.internal = internal;
+}
+
 // Weak default lookup functions — overridden by generated code in main.cpp
 __attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return ""; }
 __attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
@@ -80,24 +90,6 @@ const char *EntityBase::get_device_class_to([[maybe_unused]] std::span<char, MAX
 #endif
 }
 
-#ifndef USE_ESP8266
-// Deprecated device class accessors — not available on ESP8266 (rodata is RAM)
-StringRef EntityBase::get_device_class_ref() const {
-#ifdef USE_ENTITY_DEVICE_CLASS
-  return StringRef(entity_device_class_lookup(this->device_class_idx_));
-#else
-  return StringRef(entity_device_class_lookup(0));
-#endif
-}
-std::string EntityBase::get_device_class() const {
-#ifdef USE_ENTITY_DEVICE_CLASS
-  return std::string(entity_device_class_lookup(this->device_class_idx_));
-#else
-  return std::string(entity_device_class_lookup(0));
-#endif
-}
-#endif  // !USE_ESP8266
-
 // Entity unit of measurement (from index)
 StringRef EntityBase::get_unit_of_measurement_ref() const {
 #ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
@@ -106,10 +98,6 @@ StringRef EntityBase::get_unit_of_measurement_ref() const {
   return StringRef(entity_uom_lookup(0));
 #endif
 }
-std::string EntityBase::get_unit_of_measurement() const {
-  return std::string(this->get_unit_of_measurement_ref().c_str());
-}
-
 // Entity icon — buffer-based API for PROGMEM safety on ESP8266
 const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
 #ifdef USE_ENTITY_ICON
@@ -128,24 +116,6 @@ const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LE
   return entity_icon_lookup(idx);
 #endif
 }
-
-#ifndef USE_ESP8266
-// Deprecated icon accessors — not available on ESP8266 (rodata is RAM)
-StringRef EntityBase::get_icon_ref() const {
-#ifdef USE_ENTITY_ICON
-  return StringRef(entity_icon_lookup(this->icon_idx_));
-#else
-  return StringRef(entity_icon_lookup(0));
-#endif
-}
-std::string EntityBase::get_icon() const {
-#ifdef USE_ENTITY_ICON
-  return std::string(entity_icon_lookup(this->icon_idx_));
-#else
-  return std::string(entity_icon_lookup(0));
-#endif
-}
-#endif  // !USE_ESP8266
 
 // Calculate Object ID Hash directly from name using snake_case + sanitize
 void EntityBase::calc_object_id_() {
@@ -166,7 +136,7 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
+uint32_t EntityBase::entity_preference_key_(uint32_t version) {
   // The key hashes the sanitized object_id, so multiple entity names can collide on one
   // key and overwrite each other's stored preferences ("Living Room" and "living_room",
   // or two UTF-8 names that both sanitize to underscores). Keys hashed from the raw name
@@ -174,9 +144,23 @@ ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t ve
   // esphome integration cannot handle yet. See: https://github.com/esphome/backlog/issues/85
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  uint32_t key = this->get_preference_hash() ^ version;
+  return this->get_preference_hash() ^ version;
 #pragma GCC diagnostic pop
-  return global_preferences->make_preference(size, key);
+}
+
+ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
+  return global_preferences->make_preference(size, this->entity_preference_key_(version));
+}
+
+ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version, bool in_flash) {
+  return global_preferences->make_preference(size, this->entity_preference_key_(version), in_flash);
+}
+
+bool log_entity_header(const char *tag, const char *prefix, const char *type, const EntityBase *obj) {
+  if (obj == nullptr)
+    return false;
+  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
+  return true;
 }
 
 #ifdef USE_ENTITY_ICON

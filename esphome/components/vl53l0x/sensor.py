@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
@@ -10,6 +12,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+from esphome.core import TimePeriodMicroseconds
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -23,7 +27,7 @@ CONF_LONG_RANGE = "long_range"
 CONF_TIMING_BUDGET = "timing_budget"
 
 
-def check_keys(obj):
+def check_keys(obj: ConfigType) -> ConfigType:
     if obj[CONF_ADDRESS] != 0x29 and CONF_ENABLE_PIN not in obj:
         msg = "Address other then 0x29 requires enable_pin definition to allow sensor\r"
         msg += "re-addressing. Also if you have more then one VL53 device on the same\r"
@@ -32,7 +36,7 @@ def check_keys(obj):
     return obj
 
 
-def check_timeout(value):
+def check_timeout(value: Any) -> TimePeriodMicroseconds:
     value = cv.positive_time_period_microseconds(value)
     if value.total_seconds > 60:
         raise cv.Invalid("Maximum timeout can not be greater then 60 seconds")
@@ -70,16 +74,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     cg.add(var.set_signal_rate_limit(config[CONF_SIGNAL_RATE_LIMIT]))
     cg.add(var.set_long_range(config[CONF_LONG_RANGE]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
 
-    if CONF_ENABLE_PIN in config:
-        enable = await cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
-        cg.add(var.set_enable_pin(enable))
+    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
 
     if timing_budget := config.get(CONF_TIMING_BUDGET):
         cg.add(var.set_timing_budget(timing_budget))

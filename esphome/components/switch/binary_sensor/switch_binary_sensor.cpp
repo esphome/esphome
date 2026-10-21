@@ -3,7 +3,7 @@
 
 namespace esphome::switch_ {
 
-static const char *const TAG = "switch.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "switch.binary_sensor");
 
 void SwitchBinarySensor::setup() {
   source_->add_on_state_callback([this](bool value) { this->publish_state(value); });
