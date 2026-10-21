@@ -494,7 +494,15 @@ void Esp32HostedUpdate::perform(bool force) {
   }
 
   // End OTA and activate new firmware
-  esp_err_t end_err = esp_hosted_slave_ota_end();  // NOLINT
+  esp_err_t end_err;
+  esp_err_t activate_err = ESP_OK;
+  {
+    watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
+    end_err = esp_hosted_slave_ota_end();  // NOLINT
+    if (end_err == ESP_OK) {
+      activate_err = esp_hosted_slave_ota_activate();  // NOLINT
+    }
+  }
   if (end_err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to end OTA: %s", esp_err_to_name(end_err));
     this->state_ = prev_state;
@@ -503,7 +511,6 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
-  esp_err_t activate_err = esp_hosted_slave_ota_activate();  // NOLINT
   if (activate_err != ESP_OK) {
     ESP_LOGE(TAG, "Failed to activate OTA: %s", esp_err_to_name(activate_err));
     this->state_ = prev_state;
