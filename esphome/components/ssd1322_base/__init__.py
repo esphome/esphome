@@ -34,8 +34,6 @@ async def setup_ssd1322(var: MockObj, config: ConfigType) -> None:
 
     cg.add(var.set_model(config[CONF_MODEL]))
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
-    if CONF_BRIGHTNESS in config:
-        cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
-    if CONF_EXTERNAL_VCC in config:
-        cg.add(var.set_external_vcc(config[CONF_EXTERNAL_VCC]))
+    cg.add_optional(var.init_brightness, config.get(CONF_BRIGHTNESS))
+    cg.add_optional(var.set_external_vcc, config.get(CONF_EXTERNAL_VCC))
     await display.add_writer(var, config)

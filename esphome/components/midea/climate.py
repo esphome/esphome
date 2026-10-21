@@ -225,16 +225,12 @@ async def to_code(config):
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
     cg.add(var.set_display_control(config[CONF_DISPLAY_CONTROL]))
-    if CONF_SUPPORTED_MODES in config:
-        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
     if CONF_SUPPORTED_SWING_MODES in config:
         cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
-    if CONF_SUPPORTED_PRESETS in config:
-        cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
-    if CONF_CUSTOM_PRESETS in config:
-        cg.add(var.set_custom_presets(config[CONF_CUSTOM_PRESETS]))
-    if CONF_CUSTOM_FAN_MODES in config:
-        cg.add(var.set_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
+    cg.add_optional(var.set_supported_presets, config.get(CONF_SUPPORTED_PRESETS))
+    cg.add_optional(var.set_custom_presets, config.get(CONF_CUSTOM_PRESETS))
+    cg.add_optional(var.set_custom_fan_modes, config.get(CONF_CUSTOM_FAN_MODES))
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_OUTDOOR_TEMPERATURE, var.set_outdoor_temperature_sensor)
     await sensors(CONF_POWER_USAGE, var.set_power_sensor)
