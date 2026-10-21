@@ -64,11 +64,12 @@ class MitsubishiCN105 {
     float target_temperature{NAN};
     float room_temperature{NAN};
     // Compressor state decoded from the 0x06 (heatpump-status) packet.
-    // nullopt = unknown: never received yet, or invalidated because mode/power changed
-    // since the last 0x06 report (a stale value would describe the previous mode).
+    // nullopt = unknown: never received yet, or invalidated because power changed or the mode changed in a
+    // way that doesn't continue the current run (a stale value would describe the previous mode).
     std::optional<bool> operating{};
-    // Direction chosen when the compressor started in AUTO. Held for the whole run and
-    // cleared by invalidate_operating_() (mode/power/setpoint change) or when the compressor stops.
+    // Direction chosen when the compressor started in AUTO, or carried over from HEAT/COOL when switching
+    // into AUTO mid-run. Held for the whole run; cleared on power change, mode reversal, leaving AUTO, or
+    // when the compressor stops.
     std::optional<AutoDirection> auto_direction{};
     bool power_on{false};
     Mode mode{Mode::UNKNOWN};
@@ -181,11 +182,16 @@ class MitsubishiCN105 {
   void send_packet_(std::span<const uint8_t> packet);
   void update_status_();
   bool should_request_heatpump_() const;
-  // Mode/power changed: compressor state from the previous mode is meaningless. Clears it and starts
-  // the settle latch so residual spin-down is not reported as activity in the new mode.
+  // Power changed, or mode changed in a way that doesn't continue the current run: compressor state from the
+  // previous mode is meaningless. Clears it and starts the settle latch so residual spin-down is not reported
+  // as activity in the new mode.
   void invalidate_operating_();
-  // Setpoint changed: compressor state is still valid for the current mode; just request a fresh 0x06.
+  // Setpoint changed (or a same-direction mode switch carried state over): compressor state is still valid;
+  // just request a fresh 0x06.
   void refresh_operating_();
+  // Mode changed. HEAT <-> AUTO and COOL <-> AUTO while the compressor is running in the same direction keep
+  // the current action; any other transition invalidates it.
+  void handle_mode_change_(Mode old_mode);
   bool should_request_telemetry_() const;
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
@@ -207,6 +213,7 @@ class MitsubishiCN105 {
   std::optional<uint32_t> last_heatpump_request_ms_;
   // Set by invalidate_operating_(). While set, a "running" 0x06 report is treated as spin-down from the
   // previous mode and ignored, until a "stopped" report is seen or OPERATING_SETTLE_MS elapses.
+  // Not set by same-direction mode switches handled in handle_mode_change_().
   std::optional<uint32_t> operating_settle_start_ms_;
   Status status_{};
   State state_{State::NOT_CONNECTED};
