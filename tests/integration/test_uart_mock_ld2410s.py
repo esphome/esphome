@@ -43,6 +43,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 CONFIG_START_TX = "FD:FC:FB:FA:04:00:FF:00:01:00:04:03:02:01"
 VERSION_READ_TX = "FD:FC:FB:FA:02:00:00:00:04:03:02:01"
@@ -124,13 +125,12 @@ async def _start_scenario(client: APIClient, collector: SensorStateCollector) ->
 async def _wait_for_presence(
     collector: SensorStateCollector, waiter: asyncio.Future[bool]
 ) -> None:
-    try:
-        await asyncio.wait_for(waiter, timeout=5.0)
-    except TimeoutError:
-        pytest.fail(
-            f"Timeout waiting for presence updates. Received: "
-            f"{collector.binary_states['has_target']}"
-        )
+    await wait_or_fail(
+        waiter,
+        5.0,
+        "Timeout waiting for presence updates",
+        has_target=collector.binary_states["has_target"],
+    )
 
 
 @pytest.mark.asyncio
@@ -181,10 +181,12 @@ async def test_uart_mock_ld2410s(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        try:
-            await asyncio.wait_for(asyncio.gather(setup_done, warning_cleared), 5.0)
-        except TimeoutError:
-            pytest.fail(f"Init sequence did not finish. TX frames: {tx_frames}")
+        await wait_or_fail(
+            asyncio.gather(setup_done, warning_cleared),
+            5.0,
+            "Init sequence did not finish",
+            tx_frames=tx_frames,
+        )
 
         assert tx_frames[:6] == INIT_TX
         assert parsed_answers == PARSED_ANSWERS
@@ -202,10 +204,9 @@ async def test_uart_mock_ld2410s(
         assert initial[no_delay_key].state == pytest.approx(10)
 
         client.number_command(max_distance_key, 7.0)
-        try:
-            await asyncio.wait_for(write_done, 5.0)
-        except TimeoutError:
-            pytest.fail(f"Parameter write not sent. TX frames: {tx_frames}")
+        await wait_or_fail(
+            write_done, 5.0, "Parameter write not sent", tx_frames=tx_frames
+        )
         assert tx_frames[6:9] == WRITE_TX, tx_frames
         assert number_states == [pytest.approx(7.0)]
 
@@ -276,10 +277,12 @@ async def test_uart_mock_ld2410s_recovery(
     ):
         await _start_scenario(client, collector)
         await _wait_for_presence(collector, all_presence)
-        try:
-            await asyncio.wait_for(asyncio.gather(resent, gave_up), 5.0)
-        except TimeoutError:
-            pytest.fail(f"No resend or give-up warning. TX frames: {tx_frames}")
+        await wait_or_fail(
+            asyncio.gather(resent, gave_up),
+            5.0,
+            "No resend or give-up warning",
+            tx_frames=tx_frames,
+        )
         # Let any unexpected extra update arrive before comparing
         await asyncio.sleep(0.3)
 
@@ -355,30 +358,28 @@ async def test_uart_mock_ld2410s_link_lost(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        try:
-            await asyncio.wait_for(setup_done, 5.0)
-        except TimeoutError:
-            pytest.fail(f"Init sequence did not finish. TX frames: {tx_frames}")
+        await wait_or_fail(
+            setup_done, 5.0, "Init sequence did not finish", tx_frames=tx_frames
+        )
 
         await _start_scenario(client, collector)
-        try:
-            await asyncio.wait_for(all_presence, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for presence updates. Received: "
-                f"{collector.binary_states['has_target']}"
-            )
+        await wait_or_fail(
+            all_presence,
+            10.0,
+            "Timeout waiting for presence updates",
+            has_target=collector.binary_states["has_target"],
+        )
         assert collector.binary_states["has_target"] == EXPECTED_LINK_PRESENCE
 
-        try:
-            lost_at = await asyncio.wait_for(link_lost, timeout=7.0)
-            await asyncio.wait_for(
-                asyncio.gather(warning_set_after_loss, restarted), timeout=1.0
-            )
-        except TimeoutError:
-            pytest.fail(
-                f"No link-lost warning, warning flag or restart. TX frames: {tx_frames}"
-            )
+        lost_at = await wait_or_fail(
+            link_lost, 7.0, "No link-lost warning", tx_frames=tx_frames
+        )
+        await wait_or_fail(
+            asyncio.gather(warning_set_after_loss, restarted),
+            1.0,
+            "No warning flag or restart after the link was lost",
+            tx_frames=tx_frames,
+        )
 
         # The stream ran past the link timeout, so only the silence after it counts
         silence = lost_at - rx_injected_at[-1]

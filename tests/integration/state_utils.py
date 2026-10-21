@@ -648,7 +648,6 @@ class SensorTracker:
         if match_initial_states:
             for state in initial_state_helper.initial_states.values():
                 self.on_state(state, first_pending_only=True)
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
         return entities

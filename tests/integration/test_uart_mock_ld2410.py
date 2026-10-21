@@ -23,8 +23,9 @@ import asyncio
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
+from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -92,8 +93,7 @@ async def test_uart_mock_ld2410(
         await initial_state_helper.wait_for_initial_states()
 
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
@@ -108,13 +108,12 @@ async def test_uart_mock_ld2410(
 
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
-        try:
-            await asyncio.wait_for(recovery_received, timeout=15.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for recovery frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            15.0,
+            "Timeout waiting for recovery frame",
+            sensor_states=collector.sensor_states,
+        )
 
         # Verify overflow warning was logged
         assert overflow_seen.done(), (
@@ -208,8 +207,7 @@ async def test_uart_mock_ld2410_engineering(
         await initial_state_helper.wait_for_initial_states()
 
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
@@ -225,12 +223,11 @@ async def test_uart_mock_ld2410_engineering(
         assert collector.binary_states["out_pin_presence"][0] is True
 
         # Wait for Phase 3 frame (still_distance = 291cm, multi-byte)
-        try:
-            await asyncio.wait_for(phase3_received, timeout=15.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 3 frame. Received:\n"
-                f"  still_distance: {collector.sensor_states['still_distance']}"
-            )
+        await wait_or_fail(
+            phase3_received,
+            15.0,
+            "Timeout waiting for Phase 3 frame",
+            still_distance=collector.sensor_states["still_distance"],
+        )
 
         assert pytest.approx(291.0) in collector.sensor_states["still_distance"]
