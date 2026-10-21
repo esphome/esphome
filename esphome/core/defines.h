@@ -241,6 +241,13 @@
 #define NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT 1
 #define USE_NETWORK
 #define USE_NETWORK_DEFAULT_ROUTE
+#define USE_NETWORK_IPV4 true
+// lwIP is built without IPv6 on ESP8266, RP2 and LibreTiny
+#if defined(USE_ESP32) || defined(USE_HOST)
+#define USE_NETWORK_IPV6 true
+#else
+#define USE_NETWORK_IPV6 false
+#endif
 #define USE_NETWORK_PRIMARY_INTERFACE_WIFI
 #define USE_NEXTION_COMMAND_SPACING
 #define USE_NEXTION_CONF_START_UP_PAGE

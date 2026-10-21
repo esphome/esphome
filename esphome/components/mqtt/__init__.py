@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import logger, socket
+from esphome.components import logger, network, socket
 from esphome.components.esp32 import (
     add_idf_component,
     idf_version,
@@ -35,6 +35,7 @@ from esphome.const import (
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_MQTT,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -365,6 +366,7 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
     _consume_mqtt_sockets,
+    network.require_ipv4(CONF_MQTT),
 )
 
 
