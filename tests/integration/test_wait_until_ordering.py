@@ -15,6 +15,7 @@ import re
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -74,13 +75,12 @@ async def test_wait_until_fifo_ordering(
         await client.execute_service(test_service, {})
 
         # Wait for test to complete
-        try:
-            await asyncio.wait_for(test_complete.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Test timed out. Completed order: {completed_order}. "
-                f"Expected 5 completions but got {len(completed_order)}."
-            )
+        await wait_or_fail(
+            test_complete,
+            5.0,
+            "Test timed out. Expected 5 completions",
+            completed_order=completed_order,
+        )
 
         # Verify FIFO order
         expected_order = [0, 1, 2, 3, 4]

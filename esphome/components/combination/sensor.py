@@ -17,7 +17,7 @@ from esphome.const import (
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@Cat-Ion", "@kahrendt"]
+CODEOWNERS = ["@kahrendt"]
 
 combination_ns = cg.esphome_ns.namespace("combination")
 
