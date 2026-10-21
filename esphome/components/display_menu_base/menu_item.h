@@ -118,7 +118,8 @@ class MenuItemNumber final : public MenuItemEditable {
  public:
   explicit MenuItemNumber() : MenuItemEditable(MENU_ITEM_NUMBER) {}
   void set_number_variable(number::Number *var) { this->number_var_ = var; }
-  void set_format(const std::string &fmt) { this->format_ = fmt; }
+  // Keeps the pointer; the string must outlive the item (codegen passes a literal)
+  void set_format(const char *fmt) { this->format_ = fmt; }
 
   bool has_value() const override { return true; }
   std::string get_value_text() const override;
@@ -130,7 +131,7 @@ class MenuItemNumber final : public MenuItemEditable {
   float get_number_value_() const;
 
   number::Number *number_var_{nullptr};
-  std::string format_;
+  const char *format_{""};
 };
 #endif
 
@@ -139,8 +140,9 @@ class MenuItemSwitch final : public MenuItemEditable {
  public:
   explicit MenuItemSwitch() : MenuItemEditable(MENU_ITEM_SWITCH) {}
   void set_switch_variable(switch_::Switch *var) { this->switch_var_ = var; }
-  void set_on_text(const std::string &t) { this->switch_on_text_ = t; }
-  void set_off_text(const std::string &t) { this->switch_off_text_ = t; }
+  // Both keep the pointer; the strings must outlive the item (codegen passes literals)
+  void set_on_text(const char *t) { this->switch_on_text_ = t; }
+  void set_off_text(const char *t) { this->switch_off_text_ = t; }
 
   bool has_value() const override { return true; }
   std::string get_value_text() const override;
@@ -153,8 +155,8 @@ class MenuItemSwitch final : public MenuItemEditable {
   bool toggle_switch_();
 
   switch_::Switch *switch_var_{nullptr};
-  std::string switch_on_text_;
-  std::string switch_off_text_;
+  const char *switch_on_text_{""};
+  const char *switch_off_text_{""};
 };
 #endif
 

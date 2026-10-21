@@ -10,8 +10,8 @@
 namespace esphome::endstop {
 
 // Defined in endstop_actuator.cpp: the logging macros cannot be used in header files.
-void log_endstop_reached(const char *tag, const char *name, bool open, uint32_t duration_ms);
-void log_max_duration_reached(const char *tag, const char *name);
+void log_endstop_reached(const char *tag, const LogString *name, bool open, uint32_t duration_ms);
+void log_max_duration_reached(const char *tag, const LogString *name);
 
 /** Endstop logic shared by the endstop cover and valve platforms.
  *
@@ -122,19 +122,19 @@ template<typename Types> void EndstopActuator<Types>::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
   if (this->current_operation == Types::OPENING && this->is_open_()) {
-    log_endstop_reached(Types::TAG, this->get_name().c_str(), true, now - this->start_dir_time_);
+    log_endstop_reached(Types::TAG, this->get_log_name(), true, now - this->start_dir_time_);
 
     this->start_direction_(Types::IDLE);
     this->position = POSITION_OPEN;
     this->publish_state();
   } else if (this->current_operation == Types::CLOSING && this->is_closed_()) {
-    log_endstop_reached(Types::TAG, this->get_name().c_str(), false, now - this->start_dir_time_);
+    log_endstop_reached(Types::TAG, this->get_log_name(), false, now - this->start_dir_time_);
 
     this->start_direction_(Types::IDLE);
     this->position = POSITION_CLOSED;
     this->publish_state();
   } else if (now - this->start_dir_time_ > this->max_duration_) {
-    log_max_duration_reached(Types::TAG, this->get_name().c_str());
+    log_max_duration_reached(Types::TAG, this->get_log_name());
     this->start_direction_(Types::IDLE);
     this->publish_state();
   }

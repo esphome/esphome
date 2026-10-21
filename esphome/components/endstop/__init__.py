@@ -53,5 +53,4 @@ async def setup_endstop(var: MockObj, config: ConfigType) -> None:
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
     )
 
-    if (max_duration := config.get(CONF_MAX_DURATION)) is not None:
-        cg.add(var.set_max_duration(max_duration))
+    cg.add_optional(var.set_max_duration, config.get(CONF_MAX_DURATION))
