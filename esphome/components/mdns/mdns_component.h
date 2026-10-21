@@ -5,6 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 // On ESP8266 and RP2040 the scheduler-backed MDNS.update() polling window is armed by
 // IP state listener events on whichever network interface is configured.
 #if (defined(USE_ESP8266) || defined(USE_RP2)) && \
@@ -31,6 +32,12 @@
 #define USE_MDNS_DEVICE_INFO_TXT
 #endif
 
+// With both wifi and ethernet, the _esphomelib "network" TXT value follows the connected interface.
+// OpenThread hands its services to the SRP client once, so it keeps the fixed value.
+#if defined(USE_API) && defined(USE_WIFI) && defined(USE_ETHERNET) && !defined(USE_OPENTHREAD)
+#define USE_MDNS_DYNAMIC_NETWORK_TXT
+#endif
+
 namespace esphome::mdns {
 
 // Helper struct that identifies strings that may be stored in flash storage (similar to LogString)
@@ -39,12 +46,7 @@ struct MDNSString;
 // Macro to cast string literals to MDNSString* (works on all platforms)
 #define MDNS_STR(name) (reinterpret_cast<const esphome::mdns::MDNSString *>(name))
 
-#ifdef USE_ESP8266
-#include <pgmspace.h>
-#define MDNS_STR_ARG(s) ((PGM_P) (s))
-#else
-#define MDNS_STR_ARG(s) (reinterpret_cast<const char *>(s))
-#endif
+#define MDNS_STR_ARG(s) (reinterpret_cast<ESPHOME_PGM_P>(s))
 
 // Service count is calculated at compile time by Python codegen
 // MDNS_SERVICE_COUNT will always be defined
@@ -63,6 +65,9 @@ struct MDNSService {
   const MDNSString *proto;
   TemplatableFn<uint16_t> port;
   FixedVector<MDNSTXTRecord> txt_records;
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  bool enabled{true};
+#endif
 };
 
 class MDNSComponent final : public Component
@@ -112,6 +117,19 @@ class MDNSComponent final : public Component
   const StaticVector<MDNSService, MDNS_SERVICE_COUNT> &get_services() const { return this->services_; }
 #endif
 
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+#ifndef USE_MDNS_STORE_SERVICES
+#error "USE_MDNS_SUPPORTS_ENABLE_DISABLE requires USE_MDNS_STORE_SERVICES"
+#endif
+#ifdef USE_OPENTHREAD
+#error "USE_MDNS_SUPPORTS_ENABLE_DISABLE is not supported with OpenThread"
+#endif
+  /// Enable or disable a compiled-in service, matched by type and proto (e.g. "_sendspin", "_tcp").
+  /// Only valid once this component is ready. Re-enabling re-reads the port but keeps the boot-time TXT values.
+  /// Returns true if the service is in the requested state afterwards. Blocks briefly on the mDNS task.
+  bool set_service_enabled(const char *service_type, const char *proto, bool enabled);
+#endif
+
   void on_shutdown() override;
 
 #ifdef USE_MDNS_DYNAMIC_TXT
@@ -137,6 +155,22 @@ class MDNSComponent final : public Component
   using PlatformRegisterFn = void (*)(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &);
 
   void setup_buffers_and_register_(PlatformRegisterFn platform_register);
+
+#ifdef USE_MDNS_DYNAMIC_NETWORK_TXT
+  static constexpr uint32_t NETWORK_TXT_CHECK_INTERVAL_MS = 1000;
+  /// The first connected interface in network: priority order ("ethernet" or "wifi"), else nullptr.
+  const char *connected_network_() const;
+  /// Check the connected interface and publish a changed "network" TXT value.
+  void update_network_txt_();
+  /// Platform-specific: replace the "network" TXT value of the registered _esphomelib service.
+  bool publish_network_txt_(const char *network);
+  /// Advertised value; nullptr until the _esphomelib service is registered, and after a failed publish.
+  const char *network_txt_{nullptr};
+#ifdef USE_MDNS_STORE_SERVICES
+  /// The "network" record in services_, kept in step with network_txt_.
+  MDNSTXTRecord *network_record_{nullptr};
+#endif
+#endif
 
 #ifdef USE_MDNS_DYNAMIC_TXT
   /// Storage for runtime-generated TXT values from user lambdas

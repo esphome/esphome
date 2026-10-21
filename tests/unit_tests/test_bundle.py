@@ -1384,7 +1384,7 @@ def test_force_load_skips_duplicate_include_file() -> None:
             self.parent_file = Path("root.yaml")
             self.load_calls = 0
 
-        def has_unresolved_expressions(self) -> bool:
+        def has_unresolved_file(self) -> bool:
             return False
 
         def load(self) -> dict[str, Any]:

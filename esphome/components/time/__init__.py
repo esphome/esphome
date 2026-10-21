@@ -6,7 +6,6 @@ import logging
 import tzlocal
 
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_defines
@@ -18,7 +17,6 @@ from esphome.const import (
     CONF_DAYS_OF_WEEK,
     CONF_HOUR,
     CONF_HOURS,
-    CONF_ID,
     CONF_MINUTE,
     CONF_MINUTES,
     CONF_MONTHS,
@@ -28,6 +26,8 @@ from esphome.const import (
     CONF_SECONDS,
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -49,7 +49,6 @@ time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
 CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
 SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Component)
-TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 # C++ types for pre-parsed timezone struct generation
 DSTRuleType_cpp = time_ns.enum("DSTRuleType", is_class=True)
@@ -465,22 +464,25 @@ async def register_time(time_var, config):
 async def to_code(config):
     if CORE.using_zephyr:
         zephyr_add_prj_conf("POSIX_CLOCK", True)
+        # From sdk-nrf 2.8.0 newlib time() gets the clock through gettimeofday(),
+        # which Zephyr only provides with XSI_SINGLE_PROCESS. Without it time()
+        # always returns -1.
+        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 8, 0):
+            zephyr_add_prj_conf("POSIX_SINGLE_PROCESS", True)
+            zephyr_add_prj_conf("XSI_SINGLE_PROCESS", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "time.has_time",
-    TimeHasTimeCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(RealTimeClock),
         }
     ),
+    "now().is_valid()",
 )
-async def time_has_time_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 # posix_tz.cpp is fully #ifdef'd on USE_TIME_TIMEZONE, set only when a

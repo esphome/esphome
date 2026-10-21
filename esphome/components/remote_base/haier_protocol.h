@@ -13,9 +13,9 @@ struct HaierData {
 
 class HaierProtocol : public RemoteProtocol<HaierData> {
  public:
-  void encode(RemoteTransmitData *dst, const HaierData &data) override;
-  optional<HaierData> decode(RemoteReceiveData src) override;
-  void dump(const HaierData &data) override;
+  void encode(RemoteTransmitData *dst, const HaierData &data);
+  optional<HaierData> decode(RemoteReceiveData src);
+  void dump(const HaierData &data);
 
  protected:
   void encode_byte_(RemoteTransmitData *dst, uint8_t item);

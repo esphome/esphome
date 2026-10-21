@@ -44,8 +44,10 @@ void MipiRgb::setup_enables_() {
 void MipiRgbSpi::setup() {
   this->setup_enables_();
   this->spi_setup();
-  this->write_init_sequence_();
   this->common_setup_();
+  if (this->is_failed())
+    return;
+  this->write_init_sequence_();
 }
 void MipiRgbSpi::write_command_(uint8_t value) {
   this->enable();
@@ -76,27 +78,28 @@ void MipiRgbSpi::write_data_(uint8_t value) {
 
 void MipiRgbSpi::write_init_sequence_() {
   size_t index = 0;
-  auto &vec = this->init_sequence_;
-  while (index != vec.size()) {
-    if (vec.size() - index < 2) {
+  const uint8_t *seq = this->init_sequence_;
+  const size_t len = this->init_sequence_len_;
+  while (index != len) {
+    if (len - index < 2) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
-    uint8_t cmd = vec[index++];
-    uint8_t x = vec[index++];
+    uint8_t cmd = seq[index++];
+    uint8_t x = seq[index++];
     if (x == DELAY_FLAG) {
       ESP_LOGD(TAG, "Delay %dms", cmd);
       delay(cmd);
     } else {
       uint8_t num_args = x & 0x7F;
-      if (vec.size() - index < num_args) {
+      if (len - index < num_args) {
         this->mark_failed(LOG_STR("Malformed init sequence"));
         return;
       }
       if (cmd == SLEEP_OUT) {
         delay(120);  // NOLINT
       }
-      const auto *ptr = vec.data() + index;
+      const auto *ptr = seq + index;
       char hex_buf[format_hex_pretty_size(MIPI_RGB_MAX_CMD_LOG_BYTES)];
       ESP_LOGD(TAG, "Write command %02X, length %d, byte(s) %s", cmd, num_args,
                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
@@ -109,7 +112,6 @@ void MipiRgbSpi::write_init_sequence_() {
     }
   }
   // this->spi_teardown();  // SPI not needed after this
-  this->init_sequence_.clear();
   delay(10);
 }
 
@@ -259,7 +261,7 @@ bool MipiRgb::check_buffer_() {
 }
 
 void MipiRgb::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y) || this->is_failed())
+  if (this->is_point_clipped(x, y) || this->is_failed())
     return;
 
   switch (this->rotation_) {

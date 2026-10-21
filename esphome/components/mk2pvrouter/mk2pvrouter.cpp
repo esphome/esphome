@@ -1,5 +1,6 @@
 #include "mk2pvrouter.h"
 #include "esphome/core/log.h"
+#include <cstddef>
 #include <cstring>
 
 namespace esphome::mk2pvrouter {
@@ -48,7 +49,7 @@ uint8_t Mk2PVRouter::calculate_crc_(const char *grp, size_t grp_len) {
 // Verifies the CRC of a group against its trailing CRC byte.
 bool Mk2PVRouter::check_crc_(const char *grp, const char *grp_end) {
   const auto grp_len = grp_end - grp;
-  if (grp_len < static_cast<decltype(grp_len)>(CRC_SUFFIX_LEN)) {
+  if (grp_len < static_cast<std::ptrdiff_t>(CRC_SUFFIX_LEN)) {
     ESP_LOGE(TAG, "Empty or too short group");
     return false;
   }

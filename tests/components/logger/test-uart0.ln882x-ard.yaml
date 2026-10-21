@@ -1,0 +1,2 @@
+logger:
+  hardware_uart: UART0

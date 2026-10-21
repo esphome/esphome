@@ -27,9 +27,9 @@ struct MagiQuestData {
 
 class MagiQuestProtocol : public RemoteProtocol<MagiQuestData> {
  public:
-  void encode(RemoteTransmitData *dst, const MagiQuestData &data) override;
-  optional<MagiQuestData> decode(RemoteReceiveData src) override;
-  void dump(const MagiQuestData &data) override;
+  void encode(RemoteTransmitData *dst, const MagiQuestData &data);
+  optional<MagiQuestData> decode(RemoteReceiveData src);
+  void dump(const MagiQuestData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(MagiQuest)

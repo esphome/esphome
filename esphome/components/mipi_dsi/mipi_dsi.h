@@ -55,7 +55,10 @@ class MipiDsi final : public display::Display {
   void set_vsync_pulse_width(uint16_t vsync_pulse_width) { this->vsync_pulse_width_ = vsync_pulse_width; }
   void set_vsync_back_porch(uint16_t vsync_back_porch) { this->vsync_back_porch_ = vsync_back_porch; }
   void set_vsync_front_porch(uint16_t vsync_front_porch) { this->vsync_front_porch_ = vsync_front_porch; }
-  void set_init_sequence(const std::vector<uint8_t> &init_sequence) { this->init_sequence_ = init_sequence; }
+  void set_init_sequence(const uint8_t *init_sequence, size_t len) {
+    this->init_sequence_ = init_sequence;
+    this->init_sequence_len_ = len;
+  }
   void set_model(const char *model) { this->model_ = model; }
   void set_lane_bit_rate(float lane_bit_rate) { this->lane_bit_rate_ = lane_bit_rate; }
   void set_lanes(uint8_t lanes) { this->lanes_ = lanes; }
@@ -91,7 +94,9 @@ class MipiDsi final : public display::Display {
   uint16_t vsync_back_porch_ = 10;
   uint16_t vsync_front_porch_ = 10;
   const char *model_{"Unknown"};
-  std::vector<uint8_t> init_sequence_{};
+  // Shared PROGMEM table
+  const uint8_t *init_sequence_{nullptr};
+  size_t init_sequence_len_{0};
   float pclk_frequency_ = 16;  // in MHz
   float lane_bit_rate_{1500};  // in Mbps
   uint8_t lanes_{2};           // 1, 2, 3 or 4 lanes

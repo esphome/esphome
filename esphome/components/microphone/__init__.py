@@ -14,9 +14,9 @@ from esphome.const import (
     CONF_ON_DATA,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE, ID
+from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
@@ -29,29 +29,10 @@ microphone_ns = cg.esphome_ns.namespace("microphone")
 Microphone = microphone_ns.class_("Microphone")
 MicrophoneSource = microphone_ns.class_("MicrophoneSource")
 
-CaptureAction = microphone_ns.class_(
-    "CaptureAction", automation.Action, cg.Parented.template(Microphone)
-)
-StopCaptureAction = microphone_ns.class_(
-    "StopCaptureAction", automation.Action, cg.Parented.template(Microphone)
-)
-MuteAction = microphone_ns.class_(
-    "MuteAction", automation.Action, cg.Parented.template(Microphone)
-)
-UnmuteAction = microphone_ns.class_(
-    "UnmuteAction", automation.Action, cg.Parented.template(Microphone)
-)
-
-
 DataTrigger = microphone_ns.class_(
     "DataTrigger",
     automation.Trigger.template(cg.std_vector.template(cg.uint8).operator("ref")),
 )
-
-IsCapturingCondition = microphone_ns.class_(
-    "IsCapturingCondition", automation.Condition
-)
-IsMutedCondition = microphone_ns.class_("IsMutedCondition", automation.Condition)
 
 
 async def setup_microphone_core_(var: MockObj, config: ConfigType) -> None:
@@ -189,44 +170,22 @@ async def microphone_source_to_code(
     return mic_source
 
 
-async def microphone_action(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+for _name, _call in (
+    ("microphone.capture", "start()"),
+    ("microphone.stop_capture", "stop()"),
+    ("microphone.mute", "set_mute_state(true)"),
+    ("microphone.unmute", "set_mute_state(false)"),
+):
+    automation.register_apply_action(
+        _name, MICROPHONE_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
-
-automation.register_action(
-    "microphone.capture",
-    CaptureAction,
-    MICROPHONE_ACTION_SCHEMA,
-    synchronous=True,
-)(microphone_action)
-
-automation.register_action(
-    "microphone.stop_capture",
-    StopCaptureAction,
-    MICROPHONE_ACTION_SCHEMA,
-    synchronous=True,
-)(microphone_action)
-
-automation.register_action(
-    "microphone.mute", MuteAction, MICROPHONE_ACTION_SCHEMA, synchronous=True
-)(microphone_action)
-automation.register_action(
-    "microphone.unmute", UnmuteAction, MICROPHONE_ACTION_SCHEMA, synchronous=True
-)(microphone_action)
-
-automation.register_condition(
-    "microphone.is_capturing", IsCapturingCondition, MICROPHONE_ACTION_SCHEMA
-)(microphone_action)
-automation.register_condition(
-    "microphone.is_muted", IsMutedCondition, MICROPHONE_ACTION_SCHEMA
-)(microphone_action)
+automation.register_apply_condition(
+    "microphone.is_capturing", MICROPHONE_ACTION_SCHEMA, "is_running()"
+)
+automation.register_apply_condition(
+    "microphone.is_muted", MICROPHONE_ACTION_SCHEMA, "get_mute_state()"
+)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

@@ -292,8 +292,8 @@ BASE_PROPS = {
         "LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH"
     ).several_of,
     "text_font": lv_font,
-    "text_letter_space": lvalid.lv_positive_int,
-    "text_line_space": lvalid.lv_positive_int,
+    "text_letter_space": lvalid.lv_int,
+    "text_line_space": lvalid.lv_int,
     "text_opa": lvalid.opacity,
     "text_outline_stroke_color": lvalid.lv_color,
     "text_outline_stroke_opa": lvalid.opacity,
@@ -670,11 +670,7 @@ def theme_update_schema(value: dict) -> dict:
     for w_name, style in validated.items():
         for part, states in collect_parts(style).items():
             for state, props in states.items():
-                # collect_parts() unconditionally seeds a main/default entry
-                # even when nothing was set for it (e.g. `{pressed: {...}}`
-                # alone) -- skip combos with no properties so a request for
-                # one state doesn't also create an unused, empty main/default
-                # style that gets attached to every widget of this type.
+                # Skip states with no properties
                 if not props:
                     continue
                 df.get_theme_update_requests().setdefault(w_name, {})[(part, state)] = (

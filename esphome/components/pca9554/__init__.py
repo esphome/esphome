@@ -66,7 +66,7 @@ PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
     mode_validator=validate_mode,
 ).extend(
     {
-        cv.Required(CONF_PCA9554): cv.use_id(PCA9554Component),
+        cv.Required(CONF_PCA9554): pins.use_id_or_address(PCA9554Component),
     }
 )
 

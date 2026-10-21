@@ -133,18 +133,8 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
 
-    if CONF_BUS_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_BUS_VOLTAGE])
-        cg.add(var.set_bus_voltage_sensor(sens))
-
-    if CONF_SHUNT_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_SHUNT_VOLTAGE])
-        cg.add(var.set_shunt_voltage_sensor(sens))
-
-    if CONF_CURRENT in config:
-        sens = await sensor.new_sensor(config[CONF_CURRENT])
-        cg.add(var.set_current_sensor(sens))
-
-    if CONF_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_POWER])
-        cg.add(var.set_power_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BUS_VOLTAGE, var.set_bus_voltage_sensor)
+    await sensors(CONF_SHUNT_VOLTAGE, var.set_shunt_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)

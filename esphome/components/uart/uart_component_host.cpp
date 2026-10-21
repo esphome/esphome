@@ -158,6 +158,8 @@ void HostUartComponent::setup() {
       options.c_cflag |= PARENB;
       options.c_cflag |= PARODD;
       break;
+    default:
+      break;
   };
   // Set stop bits
   if (this->stop_bits_ == 2) {

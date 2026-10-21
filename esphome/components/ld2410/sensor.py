@@ -157,30 +157,19 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    if moving_distance_config := config.get(CONF_MOVING_DISTANCE):
-        sens = await sensor.new_sensor(moving_distance_config)
-        cg.add(ld2410_component.set_moving_target_distance_sensor(sens))
-    if still_distance_config := config.get(CONF_STILL_DISTANCE):
-        sens = await sensor.new_sensor(still_distance_config)
-        cg.add(ld2410_component.set_still_target_distance_sensor(sens))
-    if moving_energy_config := config.get(CONF_MOVING_ENERGY):
-        sens = await sensor.new_sensor(moving_energy_config)
-        cg.add(ld2410_component.set_moving_target_energy_sensor(sens))
-    if still_energy_config := config.get(CONF_STILL_ENERGY):
-        sens = await sensor.new_sensor(still_energy_config)
-        cg.add(ld2410_component.set_still_target_energy_sensor(sens))
-    if light_config := config.get(CONF_LIGHT):
-        sens = await sensor.new_sensor(light_config)
-        cg.add(ld2410_component.set_light_sensor(sens))
-    if detection_distance_config := config.get(CONF_DETECTION_DISTANCE):
-        sens = await sensor.new_sensor(detection_distance_config)
-        cg.add(ld2410_component.set_detection_distance_sensor(sens))
+    hub = await cg.get_variable(config[CONF_LD2410_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_MOVING_DISTANCE, hub.set_moving_target_distance_sensor)
+    await sensors(CONF_STILL_DISTANCE, hub.set_still_target_distance_sensor)
+    await sensors(CONF_MOVING_ENERGY, hub.set_moving_target_energy_sensor)
+    await sensors(CONF_STILL_ENERGY, hub.set_still_target_energy_sensor)
+    await sensors(CONF_LIGHT, hub.set_light_sensor)
+    await sensors(CONF_DETECTION_DISTANCE, hub.set_detection_distance_sensor)
     for x in range(9):
         if gate_conf := config.get(f"g{x}"):
             if move_config := gate_conf.get(CONF_MOVE_ENERGY):
                 sens = await sensor.new_sensor(move_config)
-                cg.add(ld2410_component.set_gate_move_sensor(x, sens))
+                cg.add(hub.set_gate_move_sensor(x, sens))
             if still_config := gate_conf.get(CONF_STILL_ENERGY):
                 sens = await sensor.new_sensor(still_config)
-                cg.add(ld2410_component.set_gate_still_sensor(x, sens))
+                cg.add(hub.set_gate_still_sensor(x, sens))

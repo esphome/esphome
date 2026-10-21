@@ -20,8 +20,7 @@ from esphome.const import (
     CONF_VALUE,
     PlatformFramework,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,11 +36,6 @@ CONF_TRANSMITTER_ID = remote_base.CONF_TRANSMITTER_ID
 remote_transmitter_ns = cg.esphome_ns.namespace("remote_transmitter")
 RemoteTransmitterComponent = remote_transmitter_ns.class_(
     "RemoteTransmitterComponent", remote_base.RemoteTransmitterBase, cg.Component
-)
-DigitalWriteAction = remote_transmitter_ns.class_(
-    "DigitalWriteAction",
-    automation.Action,
-    cg.Parented.template(RemoteTransmitterComponent),
 )
 
 
@@ -138,23 +132,12 @@ DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "remote_transmitter.digital_write",
-    DigitalWriteAction,
     DIGITAL_WRITE_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "digital_write", cg.bool_),
+    id_key=CONF_TRANSMITTER_ID,
 )
-async def digital_write_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_TRANSMITTER_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.bool_)
-    cg.add(var.set_value(template_))
-    return var
 
 
 async def to_code(config: ConfigType) -> None:

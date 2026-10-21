@@ -71,7 +71,7 @@ class HaierClimateBase : public esphome::Component,
   };
   bool can_send_message() const { return haier_protocol_.get_outgoing_queue_size() == 0; };
   void set_answer_timeout(uint32_t timeout);
-  void set_send_wifi(bool send_wifi);
+  void set_send_wifi(bool send_wifi) { this->send_wifi_signal_ = send_wifi; }
   void send_custom_command(const haier_protocol::HaierMessage &message);
   template<typename F> void add_status_message_callback(F &&callback) {
     this->status_message_callback_.add(std::forward<F>(callback));

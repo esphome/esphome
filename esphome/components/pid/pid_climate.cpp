@@ -5,6 +5,17 @@ namespace esphome::pid {
 
 static const char *const TAG = "pid.climate";
 
+bool PIDClimate::set_deadband_thresholds(float threshold_low, float threshold_high) {
+  if (threshold_low > threshold_high) {
+    ESP_LOGW(TAG, "Deadband threshold low %.2f must not be greater than high %.2f", threshold_low, threshold_high);
+    return false;
+  }
+
+  this->set_threshold_low(threshold_low);
+  this->set_threshold_high(threshold_high);
+  return true;
+}
+
 void PIDClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
     // only publish if state/current temperature has changed in two digits of precision
@@ -158,6 +169,14 @@ void PIDClimate::update_pid_() {
   if (this->do_publish_)
     this->publish_state();
 }
+void PIDClimate::start_autotune(float noiseband, float positive_output, float negative_output) {
+  auto tuner = make_unique<PIDAutotuner>();
+  tuner->set_noiseband(noiseband);
+  tuner->set_output_positive(positive_output);
+  tuner->set_output_negative(negative_output);
+  this->start_autotune(std::move(tuner));
+}
+
 void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   this->autotuner_ = std::move(autotune);
   float min_value = this->supports_cool_() ? -1.0f : 0.0f;

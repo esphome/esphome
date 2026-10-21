@@ -13,9 +13,9 @@ struct BrennenstuhlData {
 
 class BrennenstuhlProtocol : public RemoteProtocol<BrennenstuhlData> {
  public:
-  void encode(RemoteTransmitData *dst, const BrennenstuhlData &data) override;
-  optional<BrennenstuhlData> decode(RemoteReceiveData src) override;
-  void dump(const BrennenstuhlData &data) override;
+  void encode(RemoteTransmitData *dst, const BrennenstuhlData &data);
+  optional<BrennenstuhlData> decode(RemoteReceiveData src);
+  void dump(const BrennenstuhlData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Brennenstuhl)

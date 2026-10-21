@@ -275,8 +275,4 @@ void Lc709203f::set_pack_size(uint16_t pack_size) {
   //  not cause an error or crash, so I am not doing any additional checking here.
 }
 
-void Lc709203f::set_thermistor_b_constant(uint16_t b_constant) { this->b_constant_ = b_constant; }
-
-void Lc709203f::set_pack_voltage(LC709203FBatteryVoltage pack_voltage) { this->pack_voltage_ = pack_voltage; }
-
 }  // namespace esphome::lc709203f

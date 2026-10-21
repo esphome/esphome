@@ -120,7 +120,7 @@ void Pixoo::set_pixel_(uint32_t index, Color color) {
 }
 
 void HOT Pixoo::draw_pixel_at(int x, int y, Color color) {
-  if (!this->get_clipping().inside(x, y))
+  if (this->is_point_clipped(x, y))
     return;
   const int side = static_cast<int>(this->model_);
   switch (this->rotation_) {

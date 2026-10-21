@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.const import CONF_ROLE
 from esphome.components.openthread.const import (
     CONF_EXT_PAN_ID,
     CONF_NETWORK_KEY,
@@ -10,7 +11,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_IP_ADDRESS, ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
 
-CONF_ROLE = "role"
 CONF_RLOC16 = "rloc16"
 CONF_EUI64 = "eui64"
 CONF_EXT_ADDR = "ext_addr"

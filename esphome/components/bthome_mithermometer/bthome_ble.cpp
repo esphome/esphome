@@ -422,6 +422,21 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
         }
         break;
       }
+      case 0x45: {  // temperature (0.1C), e.g. Shelly BLU H&T
+        if (this->temperature_ != nullptr) {
+          const int16_t raw = encode_uint16(value[1], value[0]);
+          this->temperature_->publish_state(raw * 0.1f);
+          reported = true;
+        }
+        break;
+      }
+      case 0x2E: {  // humidity (uint8, 1%), e.g. Shelly BLU H&T
+        if (this->humidity_ != nullptr) {
+          this->humidity_->publish_state(value[0]);
+          reported = true;
+        }
+        break;
+      }
       default:
         break;
     }

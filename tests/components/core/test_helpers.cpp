@@ -281,6 +281,27 @@ TEST(Base64, Rfc4648Vectors) {
   }
 }
 
+TEST(Base64, DecodeTruncatesToBuffer) {
+  uint8_t buf[4];
+  size_t len = base64_decode(std::string("Zm9vYmFy"), buf, sizeof(buf));
+  EXPECT_EQ(len, 4u);
+  EXPECT_EQ(memcmp(buf, "foob", 4), 0);
+}
+
+TEST(Base64, DecodeStopsAtNonAlphabetChar) {
+  uint8_t buf[8];
+  EXPECT_EQ(base64_decode(std::string("Zm9v!Zm9v"), buf, sizeof(buf)), 3u);
+  EXPECT_EQ(memcmp(buf, "foo", 3), 0);
+  EXPECT_EQ(base64_decode(std::string("Zm9v Zm9v"), buf, sizeof(buf)), 3u);
+  EXPECT_EQ(base64_decode(std::string("Zm9v\xC3Zm9v"), buf, sizeof(buf)), 3u);
+}
+
+TEST(Base64, DecodeDropsPartialGroup) {
+  uint8_t buf[8];
+  EXPECT_EQ(base64_decode(std::string("Z"), buf, sizeof(buf)), 0u);
+  EXPECT_EQ(base64_decode(std::string("Zm9vY"), buf, sizeof(buf)), 3u);
+}
+
 // --- step_to_accuracy_decimals() ---
 
 TEST(StepToAccuracyDecimals, TypicalSteps) {

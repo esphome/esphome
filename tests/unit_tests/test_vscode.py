@@ -58,7 +58,7 @@ esp8266:
   board: !secret my_secret_board
 """),
             # read_file secrets.yaml
-            _file_response("""my_secret_board: esp1f"""),
+            _file_response("""my_secret_board: d1_mini"""),
         ]
     )
 
@@ -83,7 +83,7 @@ esp8266:
   broad: !secret my_secret_board        # typo here
 """),
             # read_file secrets.yaml
-            _file_response("""my_secret_board: esp1f"""),
+            _file_response("""my_secret_board: d1_mini"""),
         ]
     )
 

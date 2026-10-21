@@ -40,6 +40,10 @@ lvgl:
           - round_trip
           - type: ease_in_out
             weight: 0.5
+          - type: ease_in
+            weight: 0.3
+          - type: ease_out
+            weight: 0.7
         on_start:
           - logger.log: anim started
         on_stop:

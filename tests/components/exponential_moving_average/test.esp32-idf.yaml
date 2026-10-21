@@ -1,0 +1,2 @@
+packages:
+  exponential_moving_average: !include common.yaml

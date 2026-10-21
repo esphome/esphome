@@ -34,7 +34,7 @@ void MQTTSwitchComponent::setup() {
     }
   });
   this->switch_->add_on_state_callback(
-      [this](bool enabled) { this->defer("send", [this, enabled]() { this->publish_state(enabled); }); });
+      [this](bool enabled) { this->defer(SEND_DEFER_ID, [this, enabled]() { this->publish_state(enabled); }); });
 }
 void MQTTSwitchComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Switch '%s': ", this->switch_->get_name().c_str());

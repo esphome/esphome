@@ -4,7 +4,6 @@
 #include <ctime>
 #include <initializer_list>
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/time/real_time_clock.h"
@@ -141,6 +140,7 @@ class Wireguard final : public PollingComponent {
 
   /// The last time the remote peer become offline.
   uint32_t wg_peer_offline_time_ = 0;
+  uint32_t wg_reconnect_time_ = 0;
 
   /** \brief The latest saved handshake.
    *
@@ -160,34 +160,10 @@ void resume_wdt();
 
 /// Size of buffer required for mask_key_to: 5 chars + "[...]=" + null = 12
 static constexpr size_t MASK_KEY_BUFFER_SIZE = 12;
+static constexpr uint32_t RECONNECT_INTERVAL_MS = 30000;
 
 /// Strip most part of the key only for secure printing
 void mask_key_to(char *buffer, size_t len, const char *key);
-
-/// Condition to check if remote peer is online.
-template<typename... Ts>
-class WireguardPeerOnlineCondition final : public Condition<Ts...>, public Parented<Wireguard> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_peer_up(); }
-};
-
-/// Condition to check if Wireguard component is enabled.
-template<typename... Ts> class WireguardEnabledCondition final : public Condition<Ts...>, public Parented<Wireguard> {
- public:
-  bool check(const Ts &...x) override { return this->parent_->is_enabled(); }
-};
-
-/// Action to enable Wireguard component.
-template<typename... Ts> class WireguardEnableAction final : public Action<Ts...>, public Parented<Wireguard> {
- public:
-  void play(const Ts &...x) override { this->parent_->enable(); }
-};
-
-/// Action to disable Wireguard component.
-template<typename... Ts> class WireguardDisableAction final : public Action<Ts...>, public Parented<Wireguard> {
- public:
-  void play(const Ts &...x) override { this->parent_->disable(); }
-};
 
 }  // namespace esphome::wireguard
 #endif

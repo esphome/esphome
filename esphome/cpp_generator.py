@@ -19,7 +19,12 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
-from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
+from esphome.helpers import (
+    cpp_string_escape,
+    ensure_unique_string,
+    indent,
+    indent_all_but_first_and_last,
+)
 from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
@@ -463,6 +468,53 @@ def progmem_array(id_, rhs) -> "MockObj":
     return obj
 
 
+class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
+    __slots__ = ()
+
+    def __str__(self):
+        return f"const {self.type} {self.name}[] PROGMEM = {self.rhs}"
+
+
+def extern_progmem_array(
+    qualified_name: str, type_: "MockObjClass", rhs: SafeExpType
+) -> "MockObj":
+    """Emit an externally linked PROGMEM table that a component declares extern and reads itself."""
+    CORE.add_global(
+        ExternProgmemAssignmentExpression(type_, qualified_name, safe_exp(rhs))
+    )
+    return MockObj(qualified_name, ".")
+
+
+def shared_progmem_array(
+    name: str, type_: "MockObjClass", rhs: SafeExpType, *, share: bool = True
+) -> "MockObj":
+    """Emit a global PROGMEM array once per distinct type and contents; later calls reuse it.
+
+    The array is ``static constexpr``, so elements must be constant expressions and lambdas
+    must be captureless. Its name is made unique against every config id and variable.
+    ``share=False`` always emits a new array, e.g. for lambdas that may keep static state.
+    """
+    from esphome.config import iter_ids
+    from esphome.config_validation import RESERVED_IDS
+
+    arrays: dict[str, MockObj] = CORE.data.setdefault("shared_progmem_array", {})
+    rhs = safe_exp(rhs)
+    key = f"{type_} {rhs}"
+    if share and (array := arrays.get(key)) is not None:
+        return array
+    used = {str(i) for i, _ in iter_ids(CORE.config)}
+    used |= {str(i) for i in CORE.variables}
+    used |= set(RESERVED_IDS) | CORE.loaded_integrations
+    id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+    # Global, so any scope can use it; anything a lambda references is already declared.
+    CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs))
+    array = MockObj(id_, ".")
+    CORE.register_variable(id_, array)
+    if share:
+        arrays[key] = array
+    return array
+
+
 def static_const_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
@@ -668,6 +720,28 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
         args = args[1:]
     rhs = id_.type.new(*args)
     return Pvariable(id_, rhs)
+
+
+def static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+    body: list[str],
+) -> RawExpression:
+    """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
+    expression naming it, for use as a template argument or a function pointer.
+
+    Every id the body names must already be declared, which holds when the statements were
+    rendered through ``get_variable`` or ``process_lambda``.
+    """
+    params = ParameterListExpression(*parameters)
+    add_global(
+        RawStatement(
+            f"static {safe_exp(return_type)} {name}({params}) {{\n"
+            f"{indent(chr(10).join(body))}\n}}"
+        )
+    )
+    return RawExpression(name)
 
 
 def add(expression: Expression | Statement, prepend: bool = False):
@@ -1187,3 +1261,48 @@ class MockObjClass(MockObj):
 
     def __repr__(self):
         return f"MockObjClass<{str(self.base)}, parents={self._parents}>"
+
+
+class StaticCastExpression(Expression):
+    __slots__ = ("type", "exp")
+
+    def __init__(self, type: Any, exp: SafeExpType):
+        self.type = str(type)
+        self.exp = safe_exp(exp)
+
+    def __str__(self):
+        return f"static_cast<{self.type}>({self.exp})"
+
+
+def call_lambda(lamb: LambdaExpression) -> Expression:
+    """
+    Given a lambda, either reduce to a simple expression or call it, possibly with parameters
+    from the surrounding context.
+    This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    :param lamb: The LambdaExpression to call or reduce
+    :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
+    """
+    # Developer error if this is called with a lambda that doesn't have a return type
+    assert lamb.return_type is not None, "Lambda must have a return type to be called"
+    expr = lamb.content.strip()
+    # A lone `return <expr>;` reduces to the expression; anything longer is called as is.
+    # A braced return such as `return {};` needs the lambda's return type, so it is called.
+    if (
+        re.match(r"^return\b", expr)
+        and expr.endswith(";")
+        and expr.count(";") == 1
+        and not expr[6:].lstrip().startswith("{")
+    ):
+        expr = RawExpression(expr[6:-1].strip())
+        # Don't cast if the return type is a class
+        if isinstance(lamb.return_type, MockObjClass):
+            return expr
+        return StaticCastExpression(lamb.return_type, expr)
+    # If lambda has parameters, call it with their names
+    # Parameter names come from hardcoded component code (like "x", "it", "event")
+    # not from user input, so they're safe to use directly
+    if lamb.parameters and lamb.parameters.parameters:
+        return CallExpression(
+            lamb, *[MockObj(x.id) for x in lamb.parameters.parameters]
+        )
+    return CallExpression(lamb)

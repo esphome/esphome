@@ -2,9 +2,8 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_VOLUME
-from esphome.core import ID, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.const import CONF_VOLUME
+from esphome.core import CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -12,10 +11,6 @@ IS_PLATFORM_COMPONENT = True
 
 audio_dac_ns = cg.esphome_ns.namespace("audio_dac")
 AudioDac = audio_dac_ns.class_("AudioDac")
-
-MuteOffAction = audio_dac_ns.class_("MuteOffAction", automation.Action)
-MuteOnAction = audio_dac_ns.class_("MuteOnAction", automation.Action)
-SetVolumeAction = audio_dac_ns.class_("SetVolumeAction", automation.Action)
 
 
 MUTE_ACTION_SCHEMA = maybe_simple_id(
@@ -33,41 +28,19 @@ SET_VOLUME_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
-    "audio_dac.mute_off", MuteOffAction, MUTE_ACTION_SCHEMA, synchronous=True
-)
-@automation.register_action(
-    "audio_dac.mute_on", MuteOnAction, MUTE_ACTION_SCHEMA, synchronous=True
-)
-async def audio_dac_mute_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (
+    ("audio_dac.mute_off", "set_mute_off()"),
+    ("audio_dac.mute_on", "set_mute_on()"),
+):
+    automation.register_apply_action(
+        _name, MUTE_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
 
-
-@automation.register_action(
+automation.register_apply_action(
     "audio_dac.set_volume",
-    SetVolumeAction,
     SET_VOLUME_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyField(CONF_VOLUME, "set_volume", cg.float_),
 )
-async def audio_dac_set_volume_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    template_ = await cg.templatable(config.get(CONF_VOLUME), args, cg.float_)
-    cg.add(var.set_volume(template_))
-
-    return var
 
 
 @coroutine_with_priority(CoroPriority.CORE)

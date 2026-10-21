@@ -65,14 +65,15 @@ bool SensirionI2CDevice::write_command_(uint16_t command, CommandLen command_len
 }
 
 bool SensirionI2CDevice::get_register_(uint16_t reg, CommandLen command_len, uint16_t *data, const uint8_t len,
-                                       const uint8_t delay_ms) {
+                                       const uint8_t delay_ms, uint8_t sensirion_options) {
   if (!this->write_command_(reg, command_len, nullptr, 0)) {
     ESP_LOGE(TAG, "Write failed: reg=0x%X (%d) err=%d,", reg, command_len, this->last_error_);
     return false;
   }
   delay(delay_ms);
   bool result = this->read_data(data, len);
-  if (!result) {
+  if (!result &&
+      (this->last_error_ != i2c::ERROR_NOT_ACKNOWLEDGED || !(sensirion_options & SENSIRION_OPTION_READ_MAY_NACK))) {
     ESP_LOGE(TAG, "Read failed: reg=0x%X err=%d,", reg, this->last_error_);
   }
   return result;

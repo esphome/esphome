@@ -17,6 +17,7 @@ void DeepSleepComponent::setup() {
 
 void DeepSleepComponent::schedule_sleep_() {
   this->next_enter_deep_sleep_ = false;
+  this->disable_loop();
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
     ESP_LOGI(TAG, "Scheduling in %" PRIu32 " ms", *run_duration);
@@ -45,7 +46,7 @@ void DeepSleepComponent::loop() {
 
 void DeepSleepComponent::begin_sleep(bool manual) {
   if (this->prevent_ && !manual) {
-    this->next_enter_deep_sleep_ = true;
+    this->defer_sleep_();
     return;
   }
 

@@ -54,7 +54,6 @@ class Image : public display::BaseImage {
   const uint8_t *data_start_;
   Transparency transparency_;
   size_t bpp_{};
-  size_t stride_{};
 #ifdef USE_LVGL
   lv_img_dsc_t dsc_{};
 #endif

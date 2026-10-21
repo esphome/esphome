@@ -15,7 +15,10 @@ class ArduinoRP2OTABackend final {
   OTAResponseTypes write(uint8_t *data, size_t len);
   OTAResponseTypes end();
   void abort();
-  bool supports_compression() { return false; }
+  // The core's OTA stub inflates a staged gzip image at reboot, on every chip
+  // from 4.0.3 (ESPHome pins 6.0.0). begin() only sees the gzip size; the
+  // inflated size is known when the stub reads the trailer.
+  static constexpr bool supports_compression() { return USE_ARDUINO_VERSION_CODE >= VERSION_CODE(4, 0, 3); }
 
  private:
   bool md5_set_{false};

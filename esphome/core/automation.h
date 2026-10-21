@@ -8,6 +8,7 @@
 #include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -68,6 +69,70 @@ template<typename T, typename... X> class TemplatableFn {
  protected:
   T (*f_)(X...){nullptr};
 };
+
+/// Byte payload that is either a stateless lambda or a static table, which may be in PROGMEM.
+/// 8 bytes on 32-bit; codegen stores constant payloads as shared flash tables.
+template<typename... Ts> class TemplatableBytes {
+ public:
+  void set_template(std::vector<uint8_t> (*func)(Ts...)) {
+    this->code_.func = func;
+    this->len_ = -1;
+  }
+  void set_static(const uint8_t *data, uint16_t len) {
+    this->code_.data = data;
+    this->len_ = len;
+  }
+  bool is_static() const { return this->len_ >= 0; }
+  /// Only valid when is_static(); may point to PROGMEM, so read it with progmem_memcpy or progmem_read_byte.
+  const uint8_t *data() const { return this->code_.data; }
+  /// Only valid when is_static().
+  size_t size() const { return static_cast<size_t>(this->len_); }
+  std::vector<uint8_t> value(const Ts &...x) const {
+    if (this->len_ < 0)
+      return this->code_.func(x...);
+    return to_vector(this->code_.data, this->size());
+  }
+  /// Calls fn(const uint8_t *data, size_t len) with the payload readable from RAM: a lambda's vector, a static
+  /// table directly, or on ESP8266 a copy of the PROGMEM table (on the stack up to N bytes).
+  template<size_t N = 64, typename F> void visit(F &&fn, const Ts &...x) const {
+    if (this->len_ < 0) {
+      const std::vector<uint8_t> bytes = this->code_.func(x...);
+      fn(bytes.data(), bytes.size());
+      return;
+    }
+#ifdef USE_ESP8266
+    SmallBufferWithHeapFallback<N> buf(this->size());
+    if (this->len_ != 0)
+      progmem_memcpy(buf.get(), this->code_.data, this->size());
+    fn(buf.get(), this->size());
+#else
+    fn(this->code_.data, this->size());
+#endif
+  }
+
+ protected:
+  static std::vector<uint8_t> to_vector(const uint8_t *data, size_t len) {
+    std::vector<uint8_t> out(len);
+    // An empty payload is (nullptr, 0), and memcpy from nullptr is undefined even for zero bytes.
+    if (len != 0)
+      progmem_memcpy(out.data(), data, len);  // byte loads from flash fault on ESP8266
+    return out;
+  }
+
+  union {
+    std::vector<uint8_t> (*func)(Ts...);
+    const uint8_t *data;
+  } code_{};
+  int32_t len_{-1};  // -1: lambda, otherwise the length of the static table
+};
+
+#define TEMPLATABLE_BYTES(name) \
+ protected: \
+  TemplatableBytes<Ts...> name##_{}; \
+\
+ public: \
+  void set_##name##_template(std::vector<uint8_t> (*func)(Ts...)) { this->name##_.set_template(func); } \
+  void set_##name##_static(const uint8_t *data, uint16_t len) { this->name##_.set_static(data, len); }
 
 // Forward declaration for TemplatableValue (string specialization needs it)
 template<typename T, typename... X> class TemplatableValue;
@@ -317,13 +382,8 @@ template<typename... X> class TemplatableValue<std::string, X...> {
       case STATIC_STRING:
         return std::string(this->static_str_);
 #ifdef USE_ESP8266
-      case FLASH_STRING: {
-        // PROGMEM pointer — must use _P functions to access on ESP8266
-        size_t len = strlen_P(this->static_str_);
-        std::string result(len, '\0');
-        memcpy_P(result.data(), this->static_str_, len);
-        return result;
-      }
+      case FLASH_STRING:
+        return progmem_string(reinterpret_cast<ProgmemStr>(this->static_str_));
 #endif
       case NONE:
       default:
@@ -431,6 +491,13 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   };
 };
 
+/// How deferring actions store a trigger argument: a copy, since a referenced object may be gone once the trigger
+/// returns, unless the type cannot be copied (e.g. an entity, which outlives the wait). A copyable `Base &` would be
+/// stored sliced, so entity-like argument types must not be copyable.
+template<typename T>
+using stored_trigger_arg_t =
+    std::conditional_t<std::is_copy_constructible_v<std::remove_cvref_t<T>>, std::remove_cvref_t<T>, T>;
+
 /** Base class for all automation conditions.
  *
  * @tparam Ts The template parameters to pass when executing.
@@ -491,7 +558,7 @@ template<typename... Ts> class Action {
     this->play(x...);
     this->play_next_(x...);
   }
-  virtual void stop_complex() {
+  void stop_complex() {
     if (num_running_) {
       this->stop();
       this->num_running_ = 0;
@@ -499,7 +566,7 @@ template<typename... Ts> class Action {
     this->stop_next_();
   }
   /// Check if this or any of the following actions are currently running.
-  virtual bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
+  bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
 
   /// The total number of actions that are currently running in this plus any of
   /// the following actions in the chain.
@@ -608,7 +675,9 @@ template<typename... Ts> class ActionList {
 template<typename... Ts> class Automation {
  public:
   /// Default constructor for use with TriggerForwarder (no Trigger object needed).
-  Automation() = default;
+  // User provided, not "= default": `new(p) Automation()` would zero-fill .bss that is already zero.
+  // constexpr and noexcept keep the rest of the implicit constructor's contract.
+  constexpr Automation() noexcept {}
   explicit Automation(Trigger<Ts...> *trigger) { trigger->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }

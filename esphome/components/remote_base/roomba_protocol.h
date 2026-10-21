@@ -12,9 +12,9 @@ struct RoombaData {
 
 class RoombaProtocol : public RemoteProtocol<RoombaData> {
  public:
-  void encode(RemoteTransmitData *dst, const RoombaData &data) override;
-  optional<RoombaData> decode(RemoteReceiveData src) override;
-  void dump(const RoombaData &data) override;
+  void encode(RemoteTransmitData *dst, const RoombaData &data);
+  optional<RoombaData> decode(RemoteReceiveData src);
+  void dump(const RoombaData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(Roomba)

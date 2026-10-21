@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_CONVERSION_RATE
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
@@ -41,7 +42,6 @@ CONF_LIMIT_LOW = "limit_low"
 CONF_LIMIT_HIGH = "limit_high"
 CONF_FAULT_COUNT = "fault_count"
 CONF_POLARITY = "polarity"
-CONF_CONVERSION_RATE = "conversion_rate"
 CONF_FUNCTION = "function"
 
 CONFIG_SCHEMA = (

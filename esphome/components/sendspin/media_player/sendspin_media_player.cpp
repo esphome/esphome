@@ -1,6 +1,6 @@
 #include "sendspin_media_player.h"
 
-#if defined(USE_ESP32) && defined(USE_MEDIA_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
+#if defined(USE_ESP_IDF) && defined(USE_MEDIA_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -95,6 +95,10 @@ media_player::MediaPlayerTraits SendspinMediaPlayer::get_traits() {
 void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   if (!this->is_ready()) {
     // Ignore any commands sent before the media player is setup
+    return;
+  }
+  if (!this->parent_->is_client_running()) {
+    ESP_LOGW(TAG, "Cannot control media player: Sendspin is disabled");
     return;
   }
 

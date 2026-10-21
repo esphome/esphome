@@ -314,18 +314,6 @@ async def _ctx_to_code(config: ConfigType) -> None:
     cg.add(cg.RawExpression("ZB_AF_REGISTER_DEVICE_CTX(&zb_device_ctx)"))
 
 
-async def zephyr_setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    CORE.add_job(_add_binary_sensor, entity, config)
-
-
-async def zephyr_setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    CORE.add_job(_add_sensor, entity, config)
-
-
-async def zephyr_setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    CORE.add_job(_add_switch, entity, config)
-
-
 async def zephyr_setup_number(
     entity: cg.MockObj,
     config: ConfigType,
@@ -404,7 +392,7 @@ async def _add_zigbee_ep(
     cg.add(var.set_parent(hub))
 
 
-async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+async def add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     await _add_zigbee_ep(
         entity,
         config,
@@ -416,7 +404,7 @@ async def _add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     )
 
 
-async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
+async def add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     # Get BACnet engineering unit from unit_of_measurement
     unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
     bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
@@ -433,7 +421,7 @@ async def _add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
     )
 
 
-async def _add_switch(entity: cg.MockObj, config: ConfigType) -> None:
+async def add_switch(entity: cg.MockObj, config: ConfigType) -> None:
     await _add_zigbee_ep(
         entity,
         config,

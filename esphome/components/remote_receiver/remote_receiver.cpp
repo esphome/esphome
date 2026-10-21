@@ -14,7 +14,7 @@ static void IRAM_ATTR HOT write_value(RemoteReceiverComponentStore *arg, uint32_
   int32_t multiplier = ((int32_t) level << 1) - 1;
   uint32_t buffer_write = arg->buffer_write;
   arg->buffer[buffer_write++] = (int32_t) delta * multiplier;
-  if (buffer_write >= arg->buffer_size) {
+  if (buffer_write >= arg->buffer_entries) {
     buffer_write = 0;
   }
 
@@ -65,8 +65,9 @@ void RemoteReceiverComponent::setup() {
   this->store_.idle_us = this->idle_us_;
   this->store_.filter_us = this->filter_us_;
   this->store_.pin = this->pin_->to_isr();
-  this->store_.buffer = new int32_t[this->buffer_size_];
-  this->store_.buffer_size = this->buffer_size_;
+  // rounded up so a size that is not a multiple of four never holds less than requested
+  this->store_.buffer_entries = (this->buffer_size_ + sizeof(int32_t) - 1) / sizeof(int32_t);
+  this->store_.buffer = new int32_t[this->store_.buffer_entries];
   this->store_.prev_micros = micros();
   this->store_.commit_micros = this->store_.prev_micros;
   this->store_.prev_level = this->pin_->digital_read();
@@ -79,11 +80,11 @@ void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(
       TAG,
       "Remote Receiver:\n"
-      "  Buffer Size: %" PRIu32 "\n"
+      "  Buffer Size: %" PRIu32 " bytes (%" PRIu32 " pulses)\n"
       "  Tolerance: %" PRIu32 "%s\n"
       "  Filter out pulses shorter than: %" PRIu32 " us\n"
       "  Signal is done after %" PRIu32 " us of no changes",
-      this->buffer_size_, this->tolerance_,
+      this->buffer_size_, this->store_.buffer_entries, this->tolerance_,
       (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
       this->filter_us_, this->idle_us_);
   LOG_PIN("  Pin: ", this->pin_);
@@ -119,7 +120,7 @@ void RemoteReceiverComponent::loop() {
   while (temp_read != last_index && (uint32_t) std::abs(s.buffer[temp_read]) < this->idle_us_) {
     reserve_size++;
     temp_read++;
-    if (temp_read >= s.buffer_size) {
+    if (temp_read >= s.buffer_entries) {
       temp_read = 0;
     }
   }
@@ -129,7 +130,7 @@ void RemoteReceiverComponent::loop() {
   // read the buffer
   for (uint32_t i = 0; i < reserve_size + 1; i++) {
     this->temp_.push_back((int32_t) s.buffer[s.buffer_read++]);
-    if (s.buffer_read >= s.buffer_size) {
+    if (s.buffer_read >= s.buffer_entries) {
       s.buffer_read = 0;
     }
   }

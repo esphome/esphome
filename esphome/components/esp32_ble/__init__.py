@@ -32,8 +32,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, ID, TimePeriod
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE, TimePeriod
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -475,12 +474,17 @@ def final_validation(config: ConfigType) -> None:
 
     # Check if hosted bluetooth is being used
     if "esp32_hosted" in full_config:
+        from esphome.components.esp32_hosted import uses_esp_hosted_3x
+
         add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
+        if uses_esp_hosted_3x():
+            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
+        else:
+            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
+            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
 
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
     has_ble_client = (
@@ -606,38 +610,27 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_UUID")
 
 
-@automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
-async def ble_enabled_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_action(
-    "ble.enable", BLEEnableAction, cv.Schema({}), synchronous=True
+automation.register_bare_condition(
+    "ble.enabled",
+    BLEEnabledCondition,
+    cv.Schema({}),
 )
-async def ble_enable_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action(
-    "ble.disable", BLEDisableAction, cv.Schema({}), synchronous=True
+automation.register_bare_action(
+    "ble.enable",
+    BLEEnableAction,
+    cv.Schema({}),
+    synchronous=True,
 )
-async def ble_disable_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return cg.new_Pvariable(action_id, template_arg)
+
+
+automation.register_bare_action(
+    "ble.disable",
+    BLEDisableAction,
+    cv.Schema({}),
+    synchronous=True,
+)
 
 
 # ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set

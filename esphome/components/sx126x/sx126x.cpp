@@ -42,13 +42,13 @@ uint8_t SX126x::read_fifo_(uint8_t offset, std::vector<uint8_t> &packet) {
   return status;
 }
 
-void SX126x::write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet) {
+void SX126x::write_fifo_(uint8_t offset, const uint8_t *data, size_t len) {
   this->enable();
   this->wait_busy_();
   this->transfer_byte(RADIO_WRITE_BUFFER);
   this->transfer_byte(offset);
-  for (const uint8_t &byte : packet) {
-    this->transfer_byte(byte);
+  for (size_t i = 0; i < len; i++) {
+    this->transfer_byte(data[i]);
   }
   this->disable();
   delayMicroseconds(SWITCHING_DELAY_US);
@@ -280,7 +280,7 @@ size_t SX126x::get_max_packet_size() {
   if (this->payload_length_ > 0) {
     return this->payload_length_;
   }
-  return 255;
+  return SX126X_MAX_PACKET_SIZE;
 }
 
 void SX126x::set_packet_params_(uint8_t payload_length) {
@@ -312,12 +312,12 @@ void SX126x::set_packet_params_(uint8_t payload_length) {
   }
 }
 
-SX126xError SX126x::transmit_packet(const std::vector<uint8_t> &packet) {
-  if (this->payload_length_ > 0 && this->payload_length_ != packet.size()) {
+SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
+  if (this->payload_length_ > 0 && this->payload_length_ != len) {
     ESP_LOGE(TAG, "Packet size does not match config");
     return SX126xError::INVALID_PARAMS;
   }
-  if (packet.empty() || packet.size() > this->get_max_packet_size()) {
+  if (len == 0 || len > this->get_max_packet_size()) {
     ESP_LOGE(TAG, "Packet size out of range");
     return SX126xError::INVALID_PARAMS;
   }
@@ -325,9 +325,9 @@ SX126xError SX126x::transmit_packet(const std::vector<uint8_t> &packet) {
   SX126xError ret = SX126xError::NONE;
   this->set_mode_standby(STDBY_XOSC);
   if (this->payload_length_ == 0) {
-    this->set_packet_params_(packet.size());
+    this->set_packet_params_(len);
   }
-  this->write_fifo_(0x00, packet);
+  this->write_fifo_(0x00, data, len);
   this->set_mode_tx();
 
   // wait until transmit completes, typically the delay will be less than 100 ms
