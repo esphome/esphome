@@ -459,9 +459,10 @@ void Ecocomfort2Hub::publish_config_() {
 
 void Ecocomfort2Hub::publish_offsets_() {
 #ifdef USE_NUMBER
-  for (uint8_t i = 0; i < 2; i++)
+  for (uint8_t i = 0; i < 2; i++) {
     publish_if_changed(this->numbers_[static_cast<uint8_t>(NumberSetting::TEMPERATURE_OFFSET) + i],
                        this->offsets_[i] / 100.0f);
+  }
 #endif
 }
 
