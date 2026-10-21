@@ -26,6 +26,7 @@ class RegisterBus final : public i2c::I2CBus {
   std::vector<uint8_t> writes;
   int fail_read{-1};
   int fail_write{-1};
+  unsigned flag_reads{0};
   bool latch_event_before_flag_write{false};
 
   i2c::ErrorCode write_readv(uint8_t address, const uint8_t *out, size_t out_size, uint8_t *in,
@@ -36,6 +37,8 @@ class RegisterBus final : public i2c::I2CBus {
       return i2c::ERROR_TIMEOUT;
     const uint8_t reg = out[0];
     if (in_size > 0) {
+      if (reg == FLAG)
+        this->flag_reads++;
       if (reg == this->fail_read)
         return i2c::ERROR_TIMEOUT;
       for (size_t i = 0; i < in_size; i++)
@@ -66,7 +69,17 @@ class RX8111Test : public ::testing::Test {
     this->rtc_.add_on_time_sync_callback([this]() { this->syncs_++; });
   }
 
-  void TearDown() override { App.scheduler.cancel_interval(&this->rtc_, uint32_t{0}); }
+  void TearDown() override {
+    App.scheduler.cancel_interval(&this->rtc_, uint32_t{0});
+    App.scheduler.cancel_timeout(&this->rtc_, uint32_t{1});
+    App.scheduler.cancel_timeout(&this->rtc_, uint32_t{2});
+    App.scheduler.call(millis());  // Reap cancelled timers while the fixture is still alive.
+  }
+
+  void advance_retry() {
+    delay(1020);
+    App.scheduler.call(millis());
+  }
 
   RegisterBus bus_;
   RX8111Component rtc_;
@@ -219,6 +232,55 @@ TEST_F(RX8111Test, AlarmI2CFailureLeavesInterruptDisabled) {
   EXPECT_TRUE(this->rtc_.status_has_warning());
 }
 
+TEST_F(RX8111Test, FailedAlarmReprogramOrUnsetKeepsArmedAlarmObservable) {
+  this->rtc_.set_alarm_enabled(true);
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([this, &calls]() {
+    calls++;
+    EXPECT_TRUE(this->rtc_.clear_alarm_flag());
+  });
+  this->rtc_.update();  // Establish AF low before each attempt.
+
+  for (const uint8_t failed_register : {EXTENSION, CONTROL}) {
+    this->bus_.fail_read = failed_register;
+    EXPECT_FALSE(this->rtc_.set_alarm(1, 0, 0, 0xFF, 0xFF));
+    this->bus_.fail_read = -1;
+    EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0x08);
+    this->bus_.regs[FLAG] = 0x08;
+    this->rtc_.update();
+    EXPECT_EQ(calls, failed_register == EXTENSION ? 1 : 2);
+  }
+  for (const bool fail_write : {false, true}) {
+    if (fail_write)
+      this->bus_.fail_write = CONTROL;
+    else
+      this->bus_.fail_read = CONTROL;
+    EXPECT_FALSE(this->rtc_.unset_alarm());
+    this->bus_.fail_read = -1;
+    this->bus_.fail_write = -1;
+    EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0x08);
+    this->bus_.regs[FLAG] = 0x08;
+    this->rtc_.update();
+    EXPECT_EQ(calls, fail_write ? 4 : 3);
+  }
+}
+
+TEST_F(RX8111Test, FailedAlarmReprogramAfterDisableDoesNotDeliverOldAlarm) {
+  this->rtc_.set_alarm_enabled(true);
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([&calls]() { calls++; });
+  this->rtc_.update();
+  this->bus_.fail_write = SEC_ALARM;
+  EXPECT_FALSE(this->rtc_.set_alarm(1, 0, 0, 0xFF, 0xFF));
+  this->bus_.fail_write = -1;
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0);
+  this->bus_.regs[FLAG] = 0x08;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 0);
+}
+
 TEST_F(RX8111Test, ClearFromAlarmAutomationAllowsNextEvent) {
   this->rtc_.set_alarm_enabled(true);
   unsigned calls = 0;
@@ -357,14 +419,61 @@ TEST_F(RX8111Test, DisabledTimerReportsRetainedFlagOnceViaScheduler) {
   EXPECT_EQ(calls, 1);
   EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0);
   EXPECT_EQ(this->bus_.regs[CONTROL] & 0x10, 0);
+  const unsigned flag_reads = this->bus_.flag_reads;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.flag_reads, flag_reads);  // No repeated FLAG reads after the retained event.
   this->rtc_.update();
   EXPECT_EQ(calls, 1);
+  EXPECT_TRUE(this->rtc_.start_timer());  // Restart polling when the timer is activated later.
+  this->bus_.regs[FLAG] = 0x10;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(calls, 2);
+}
+
+TEST_F(RX8111Test, DisabledTimerStopsPollingAfterCheckingForRetainedFlag) {
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(false);
+  this->rtc_.set_event_poll_interval(1);
+  this->rtc_.setup();
+  App.scheduler.call(millis());
+  delay(20);
+  App.scheduler.call(millis());
+  const unsigned flag_reads = this->bus_.flag_reads;
+  EXPECT_GT(flag_reads, 0);
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.flag_reads, flag_reads);
+}
+
+TEST_F(RX8111Test, DisabledTimerRetriesFailedRetainedFlagReadBeforeStoppingPoll) {
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(false);
+  this->rtc_.set_event_poll_interval(1);
+  this->rtc_.setup();
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&calls]() { calls++; });
+  this->bus_.fail_read = FLAG;
+  delay(20);
+  App.scheduler.call(millis());
+  this->bus_.fail_read = -1;
+  this->bus_.regs[FLAG] = 0x10;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(calls, 1);
+  const unsigned flag_reads = this->bus_.flag_reads;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.flag_reads, flag_reads);
 }
 
 TEST_F(RX8111Test, EventPollWarningRecoversButCalendarWarningRemains) {
   this->rtc_.set_timer_count(1);
   this->rtc_.set_timer_configured(true);
-  this->rtc_.set_timer_enabled(false);
+  this->rtc_.set_timer_enabled(true);
   this->rtc_.setup();
   // Provide a valid calendar so a failed FLAG poll is the only warning source.
   this->rtc_.write_time();
@@ -384,6 +493,42 @@ TEST_F(RX8111Test, EventPollWarningRecoversButCalendarWarningRemains) {
   // Event polling succeeds, but the invalid calendar still owns the warning.
   this->rtc_.update();
   EXPECT_TRUE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, TrustedWriteClearsCalendarWarningButNotFailedEventPoll) {
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_event_poll_interval(1);
+  ASSERT_TRUE(this->rtc_.set_alarm(0, 0, 0, 0xFF, 0xFF));
+  this->rtc_.setup();
+  this->bus_.regs[FLAG] = 0x80;  // Calendar is invalid until trusted write.
+  this->rtc_.read_time();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = FLAG;
+  delay(20);
+  App.scheduler.call(millis());  // Failed FLAG poll while calendar owns the warning.
+  this->bus_.fail_read = -1;
+  this->rtc_.write_time();
+  EXPECT_TRUE(this->rtc_.status_has_warning());  // Outstanding poll failure survives the write.
+  this->bus_.fail_read = FLAG;
+  delay(20);
+  App.scheduler.call(millis());  // Another failed FLAG poll, after trusted write.
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = -1;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+  this->bus_.regs[FLAG] = 0x80;
+  this->rtc_.read_time();
+  this->rtc_.write_time();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = FLAG;
+  delay(20);
+  App.scheduler.call(millis());  // New poll failure is visible without another calendar read.
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = -1;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_FALSE(this->rtc_.status_has_warning());
 }
 
 TEST_F(RX8111Test, OmittedTimerConfigurationLeavesBatteryBackedStateAlone) {
@@ -477,6 +622,197 @@ TEST_F(RX8111Test, BootAlarmIsPreservedAndLatchedEventIsDelivered) {
   this->bus_.regs[FLAG] |= 0x08;
   this->rtc_.update();
   EXPECT_EQ(calls, 2);
+}
+
+TEST_F(RX8111Test, BootAlarmRetriesPartialWriteAndPreservesLatchedFlag) {
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->bus_.regs[FLAG] = 0x88;
+  this->bus_.fail_write = MIN_ALARM;
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([&calls]() { calls++; });
+  this->rtc_.setup();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0);
+  this->bus_.fail_write = -1;
+  this->advance_retry();
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0x08);
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x08, 0x08);
+  EXPECT_TRUE(this->rtc_.status_has_warning());  // POR still owns the calendar warning.
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, BootAlarmRetryDoesNotRedeliverWakeFlag) {
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->bus_.regs[CONTROL] = 0x08;
+  this->bus_.regs[FLAG] = 0x08;
+  this->bus_.fail_write = CONTROL;
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([&calls]() { calls++; });
+  this->rtc_.setup();
+  this->bus_.fail_write = -1;
+  this->advance_retry();
+  this->rtc_.update();
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, BootAlarmRetryNeverHidesFirstWakeFlag) {
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->bus_.regs[FLAG] = 0x08;
+  this->bus_.fail_write = MIN_ALARM;
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([&calls]() { calls++; });
+  this->rtc_.setup();
+  this->bus_.fail_write = -1;
+  this->advance_retry();
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, AlarmWakeFlagObservedBeforeRetryDoesNotRepeat) {
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  ASSERT_TRUE(this->rtc_.set_alarm(5, 0xFF, 0xFF, 0xFF, 0xFF));
+  this->bus_.regs[FLAG] = 0x08;
+  this->bus_.fail_read = EXTENSION;
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([&calls]() { calls++; });
+  this->rtc_.setup();
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+  this->bus_.fail_read = -1;
+  this->advance_retry();
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, BootAlarmRetriesExhaustAndCalendarReadDoesNotHideFailure) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->bus_.fail_write = MIN_ALARM;
+  this->rtc_.setup();
+  this->rtc_.update();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->advance_retry();
+  this->advance_retry();
+  this->bus_.fail_write = -1;
+  this->advance_retry();
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0);
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, BootAlarmRetryClearsOnlyItsOwnWarning) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->bus_.fail_write = MIN_ALARM;
+  this->rtc_.setup();
+  this->bus_.fail_write = -1;
+  this->rtc_.read_time();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->advance_retry();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+  this->bus_.regs[FLAG] = 0x80;
+  this->rtc_.read_time();
+  this->bus_.fail_write = MIN_ALARM;
+  // A runtime failure must not consume another boot retry or erase the calendar warning.
+  EXPECT_FALSE(this->rtc_.set_alarm(6, 0xFF, 0xFF, 0xFF, 0xFF));
+  this->bus_.fail_write = -1;
+  this->advance_retry();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, BootAlarmAndTimerHaveIndependentRetryBudgets) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(true);
+  this->bus_.fail_read = EXTENSION;
+  this->rtc_.setup();
+  this->bus_.fail_read = -1;
+  this->advance_retry();
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x18, 0x18);
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, RetainedAlarmInspectionRetriesAndDeliversWakeFlag) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->bus_.regs[CONTROL] = 0x08;
+  this->bus_.fail_read = CONTROL;
+  this->rtc_.setup();
+  this->bus_.fail_read = -1;
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([&calls]() { calls++; });
+  this->bus_.regs[FLAG] = 0x08;
+  this->advance_retry();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+  this->rtc_.update();
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, BootRetryDoesNotClearOutstandingEventPollWarning) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  this->bus_.fail_write = MIN_ALARM;
+  this->rtc_.setup();
+  this->bus_.fail_read = FLAG;
+  this->rtc_.update();
+  this->bus_.fail_read = -1;
+  this->bus_.fail_write = -1;
+  this->advance_retry();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->rtc_.update();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, BootTimerRetriesPartialWriteAndRetainedFlagOnce) {
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(true);
+  this->bus_.regs[FLAG] = 0x10;
+  this->bus_.fail_write = 0x1A;
+  this->rtc_.setup();
+  this->bus_.fail_write = -1;
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&calls]() { calls++; });
+  this->advance_retry();
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0x10);
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x10, 0x10);
+  this->rtc_.update();
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, ExplicitBootDisableRetriesAndRuntimeRequestSupersedesRetry) {
+  this->rtc_.set_alarm_enabled(false);
+  this->rtc_.set_alarm_configured(true);
+  this->bus_.regs[CONTROL] = 0x08;
+  this->bus_.fail_write = CONTROL;
+  this->rtc_.setup();
+  this->bus_.fail_write = -1;
+  this->advance_retry();
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0);
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(false);
+  this->bus_.fail_read = EXTENSION;
+  this->rtc_.setup();
+  this->bus_.fail_read = -1;
+  ASSERT_TRUE(this->rtc_.start_timer());
+  this->bus_.writes.clear();
+  this->advance_retry();
+  EXPECT_TRUE(this->bus_.writes.empty());
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0x10);
 }
 
 TEST_F(RX8111Test, AlarmAndTimerFlagsAreReadTogetherAndCallbacksCanClearBoth) {

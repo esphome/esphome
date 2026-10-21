@@ -49,6 +49,10 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool configure_timer_(bool clear_stale_flag = false);
   void start_event_polling_();
   bool poll_event_flags_();
+  void configure_boot_alarm_();
+  void configure_boot_timer_();
+  void boot_config_result_(bool alarm, bool success);
+  void cancel_boot_retry_(bool alarm, bool success);
 
   LazyCallbackManager<void()> alarm_callbacks_;
   LazyCallbackManager<void()> timer_callbacks_;
@@ -62,6 +66,13 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool event_polling_started_{false};
   bool event_poll_warning_{false};
   bool calendar_warning_{false};
+  bool boot_alarm_warning_{false};
+  bool boot_timer_warning_{false};
+  bool boot_timer_in_progress_{false};
+  bool boot_alarm_event_seen_{false};
+  bool boot_alarm_in_progress_{false};
+  uint8_t boot_alarm_attempts_{0};
+  uint8_t boot_timer_attempts_{0};
   uint8_t alarm_second_{0xFF};
   uint8_t alarm_minute_{0xFF};
   uint8_t alarm_hour_{0xFF};

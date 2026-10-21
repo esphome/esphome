@@ -30,51 +30,114 @@ static constexpr uint8_t RX8111_CTRL_STOP = 0x01;
 // FLAG bits are write-zero-to-clear; keep UF/TF/AF/EVF even if they latch during the write.
 static constexpr uint8_t RX8111_KEEP_EVENT_FLAGS = 0x3C;
 static constexpr uint32_t RX8111_EVENT_INTERVAL_ID = 0;
+static constexpr uint32_t RX8111_BOOT_ALARM_RETRY_ID = 1;
+static constexpr uint32_t RX8111_BOOT_TIMER_RETRY_ID = 2;
+static constexpr uint32_t RX8111_BOOT_RETRY_DELAY_MS = 1000;
+static constexpr uint8_t RX8111_BOOT_MAX_ATTEMPTS = 3;
 
 void RX8111Component::setup() {
   this->read_time();
-  if (this->alarm_enabled_) {
-    if (this->alarm_second_ != 0xFF || this->alarm_minute_ != 0xFF || this->alarm_hour_ != 0xFF ||
-        this->alarm_weekday_ != 0xFF || this->alarm_day_ != 0xFF) {
-      if (!this->program_alarm_(this->alarm_second_, this->alarm_minute_, this->alarm_hour_, this->alarm_weekday_,
-                                this->alarm_day_)) {
-        this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      } else {
-        this->alarm_flag_seen_ = false;  // Report the alarm that may have woken us.
-      }
-    } else {
-      // Preserve an alarm programmed by an action before a reboot or deep sleep.
-      uint8_t control;
-      if (!this->read_byte(RX8111_REG_CONTROL, &control)) {
-        this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-      } else {
-        this->alarm_configured_ = (control & RX8111_CONTROL_AIE) != 0;
-      }
-    }
-  } else if (this->alarm_explicitly_configured_ && !this->set_alarm_interrupt_(false)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
-  // An omitted timer setting leaves battery-backed state alone; explicit false stops it.
-  if (this->timer_configured_) {
-    if (!(this->timer_enabled_ ? this->configure_timer_() : this->stop_timer())) {
-      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    } else if (this->timer_enabled_) {
-      this->timer_flag_seen_ = false;  // Report a wake-up even when reprogramming the timer.
-    } else if (this->timer_count_ != 0) {
-      this->timer_retained_event_pending_ = true;
-    }
-  }
+  this->configure_boot_alarm_();
+  this->configure_boot_timer_();
   if (this->alarm_enabled_ || this->timer_enabled_ || this->timer_retained_event_pending_) {
     this->start_event_polling_();
   }
 }
 
+void RX8111Component::configure_boot_alarm_() {
+  bool success = true;
+  if (this->alarm_enabled_) {
+    if (this->alarm_second_ != 0xFF || this->alarm_minute_ != 0xFF || this->alarm_hour_ != 0xFF ||
+        this->alarm_weekday_ != 0xFF || this->alarm_day_ != 0xFF) {
+      this->boot_alarm_in_progress_ = true;
+      success = this->program_alarm_(this->alarm_second_, this->alarm_minute_, this->alarm_hour_, this->alarm_weekday_,
+                                     this->alarm_day_);
+      this->boot_alarm_in_progress_ = false;
+      if (success) {
+        // Only the first successful boot program can introduce a boot wake-up edge.
+        if (!this->boot_alarm_event_seen_)
+          this->alarm_flag_seen_ = false;
+        this->start_event_polling_();
+      }
+    } else {
+      // Preserve an alarm programmed by an action before a reboot or deep sleep.
+      uint8_t control;
+      success = this->read_byte(RX8111_REG_CONTROL, &control);
+      if (success) {
+        this->alarm_configured_ = (control & RX8111_CONTROL_AIE) != 0;
+        if (this->alarm_configured_)
+          this->start_event_polling_();
+      }
+    }
+  } else if (this->alarm_explicitly_configured_) {
+    success = this->set_alarm_interrupt_(false);
+  }
+  this->boot_config_result_(true, success);
+}
+
+void RX8111Component::configure_boot_timer_() {
+  bool success = true;
+  // An omitted timer setting leaves battery-backed state alone; explicit false stops it.
+  if (this->timer_configured_) {
+    const bool start_timer = this->timer_enabled_;
+    this->boot_timer_in_progress_ = true;
+    success = start_timer ? this->configure_timer_() : this->stop_timer();
+    this->boot_timer_in_progress_ = false;
+    if (success && !start_timer && this->timer_count_ != 0) {
+      this->timer_retained_event_pending_ = true;
+      this->start_event_polling_();
+    }
+  }
+  this->boot_config_result_(false, success);
+}
+
+void RX8111Component::boot_config_result_(bool alarm, bool success) {
+  auto &attempts = alarm ? this->boot_alarm_attempts_ : this->boot_timer_attempts_;
+  auto &warning = alarm ? this->boot_alarm_warning_ : this->boot_timer_warning_;
+  ++attempts;
+  if (success) {
+    const bool had_warning = warning;
+    warning = false;
+    if (had_warning && !this->calendar_warning_ && !this->event_poll_warning_ && !this->boot_alarm_warning_ &&
+        !this->boot_timer_warning_)
+      this->status_clear_warning();
+    return;
+  }
+  warning = true;
+  this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (attempts >= RX8111_BOOT_MAX_ATTEMPTS)
+    return;
+  this->set_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID, RX8111_BOOT_RETRY_DELAY_MS,
+                    [this, alarm]() {
+                      if (alarm)
+                        this->configure_boot_alarm_();
+                      else
+                        this->configure_boot_timer_();
+                    });
+}
+
+void RX8111Component::cancel_boot_retry_(bool alarm, bool success) {
+  this->cancel_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID);
+  if (alarm)
+    this->boot_alarm_attempts_ = RX8111_BOOT_MAX_ATTEMPTS;
+  else
+    this->boot_timer_attempts_ = RX8111_BOOT_MAX_ATTEMPTS;
+  if (success) {
+    auto &warning = alarm ? this->boot_alarm_warning_ : this->boot_timer_warning_;
+    const bool had_warning = warning;
+    warning = false;
+    if (had_warning && !this->calendar_warning_ && !this->event_poll_warning_ && !this->boot_alarm_warning_ &&
+        !this->boot_timer_warning_)
+      this->status_clear_warning();
+  }
+}
+
 void RX8111Component::check_event_flags_() {
-  if (!this->alarm_configured_ && !this->timer_enabled_ && !this->timer_count_)
+  if (!this->alarm_configured_ && !this->timer_enabled_ && !this->timer_retained_event_pending_)
     return;
   if (!this->poll_event_flags_()) {
+    this->event_poll_warning_ = true;
     if (!this->calendar_warning_ && !this->status_has_warning()) {
-      this->event_poll_warning_ = true;
       this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     }
   }
@@ -166,7 +229,7 @@ bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
     return false;
   }
   this->calendar_warning_ = false;
-  if (!this->event_poll_warning_)
+  if (!this->event_poll_warning_ && !this->boot_alarm_warning_ && !this->boot_timer_warning_)
     this->status_clear_warning();
   return true;
 }
@@ -191,8 +254,15 @@ void RX8111Component::write_time() {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  if (!this->status_comm_result(this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS)))
+  if (!this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
+  }
+  this->calendar_warning_ = false;
+  if (this->event_poll_warning_ || this->boot_alarm_warning_ || this->boot_timer_warning_)
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  else
+    this->status_clear_warning();
   ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
            now.minute, now.second);
 }
@@ -218,7 +288,6 @@ bool RX8111Component::set_alarm_interrupt_(bool enabled) {
 }
 
 bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day) {
-  this->alarm_configured_ = false;
   uint8_t extension;
   if (!this->read_byte(RX8111_REG_EXTENSION, &extension))
     return false;
@@ -239,10 +308,12 @@ bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hou
   // Disable the interrupt during partial programming; keep AF (past events) latched.
   if (!this->set_alarm_interrupt_(false))
     return false;
+  this->alarm_configured_ = false;
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
-  this->alarm_flag_seen_ = (flags & RX8111_FLAG_AF) != 0;
+  if (!this->boot_alarm_in_progress_)
+    this->alarm_flag_seen_ = (flags & RX8111_FLAG_AF) != 0;
   if (!this->write_byte(RX8111_REG_SEC_ALARM, fields[0]) || !this->write_bytes(RX8111_REG_MIN_ALARM, &fields[1], 3) ||
       !this->write_byte(RX8111_REG_EXTENSION, extension))
     return false;
@@ -264,10 +335,13 @@ bool RX8111Component::set_alarm(uint16_t second, uint16_t minute, uint16_t hour,
     ESP_LOGE(TAG, "Invalid alarm fields");
     return false;
   }
+  // A newer runtime request supersedes pending boot programming.
+  this->cancel_boot_retry_(true, false);
   if (!this->program_alarm_(second, minute, hour, weekday, day)) {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
+  this->boot_alarm_event_seen_ = true;
   return true;
 }
 
@@ -290,14 +364,20 @@ bool RX8111Component::schedule_alarm_in(uint32_t seconds) {
 }
 
 bool RX8111Component::unset_alarm() {
+  this->cancel_boot_retry_(true, false);
+  if (!this->set_alarm_interrupt_(false)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
   this->alarm_configured_ = false;
-  if (!this->set_alarm_interrupt_(false) || !this->write_byte(RX8111_REG_SEC_ALARM, RX8111_ALARM_DISABLED) ||
+  if (!this->write_byte(RX8111_REG_SEC_ALARM, RX8111_ALARM_DISABLED) ||
       !this->write_byte(RX8111_REG_MIN_ALARM, RX8111_ALARM_DISABLED) ||
       !this->write_byte(RX8111_REG_HOUR_ALARM, RX8111_ALARM_DISABLED) ||
       !this->write_byte(RX8111_REG_DAY_ALARM, RX8111_ALARM_DISABLED)) {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
+  this->cancel_boot_retry_(true, true);
   return true;
 }
 
@@ -338,6 +418,7 @@ bool RX8111Component::start_timer() {
     ESP_LOGW(TAG, "Cannot start timer without a valid timer_count");
     return false;
   }
+  this->cancel_boot_retry_(false, false);
   if (!this->configure_timer_(true)) {
     // A partial configuration can leave either enable bit set. Disable both if the bus permits it.
     this->stop_timer();
@@ -345,6 +426,7 @@ bool RX8111Component::start_timer() {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
+  this->cancel_boot_retry_(false, true);
   this->timer_enabled_ = true;
   this->timer_retained_event_pending_ = false;
   this->start_event_polling_();
@@ -363,6 +445,8 @@ bool RX8111Component::clear_timer_flag() {
 }
 
 bool RX8111Component::stop_timer() {
+  if (!this->boot_timer_in_progress_)
+    this->cancel_boot_retry_(false, false);
   uint8_t extension;
   uint8_t control;
   if (!this->read_byte(RX8111_REG_EXTENSION, &extension) ||
@@ -373,6 +457,8 @@ bool RX8111Component::stop_timer() {
     return false;
   }
   this->timer_enabled_ = false;
+  if (!this->boot_timer_in_progress_)
+    this->cancel_boot_retry_(false, true);
   return true;
 }
 
@@ -382,11 +468,13 @@ bool RX8111Component::poll_event_flags_() {
     return false;
   if (this->event_poll_warning_) {
     this->event_poll_warning_ = false;
-    if (!this->calendar_warning_)
+    if (!this->calendar_warning_ && !this->boot_alarm_warning_ && !this->boot_timer_warning_)
       this->status_clear_warning();
   }
   const bool alarm_active = (flags & RX8111_FLAG_AF) != 0;
   const bool timer_active = (flags & RX8111_FLAG_TF) != 0;
+  if (alarm_active && this->alarm_enabled_ && this->alarm_configured_)
+    this->boot_alarm_event_seen_ = true;
   const bool alarm_rising = alarm_active && !this->alarm_flag_seen_ && this->alarm_enabled_ && this->alarm_configured_;
   const bool timer_rising =
       timer_active && !this->timer_flag_seen_ && (this->timer_enabled_ || this->timer_retained_event_pending_);
@@ -400,6 +488,11 @@ bool RX8111Component::poll_event_flags_() {
   // An alarm callback may stop the timer before its callback is delivered.
   if (timer_rising && this->timer_flag_seen_ && (this->timer_enabled_ || deliver_stopped_event))
     this->timer_callbacks_.call();
+  if (!this->alarm_configured_ && !this->timer_enabled_ && !this->timer_retained_event_pending_ &&
+      this->event_polling_started_) {
+    this->cancel_interval(RX8111_EVENT_INTERVAL_ID);
+    this->event_polling_started_ = false;
+  }
   return true;
 }
 
