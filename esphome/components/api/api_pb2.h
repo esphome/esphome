@@ -911,7 +911,7 @@ class BinarySensorStateResponse final : public StateResponseProtoMessage {
 class ListEntitiesCoverResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 13;
-  static constexpr uint8_t ESTIMATED_SIZE = 57;
+  static constexpr uint8_t ESTIMATED_SIZE = 59;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_cover_response"); }
 #endif
@@ -920,6 +920,7 @@ class ListEntitiesCoverResponse final : public InfoResponseProtoMessage {
   bool supports_tilt{false};
   ProgmemStringRef device_class{};
   bool supports_stop{false};
+  bool supports_stop_tilt{false};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
@@ -957,7 +958,7 @@ class CoverStateResponse final : public StateResponseProtoMessage {
 class CoverCommandRequest final : public CommandProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 30;
-  static constexpr uint8_t ESTIMATED_SIZE = 25;
+  static constexpr uint8_t ESTIMATED_SIZE = 27;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("cover_command_request"); }
 #endif
@@ -966,6 +967,7 @@ class CoverCommandRequest final : public CommandProtoMessage {
   bool has_tilt{false};
   float tilt{0.0f};
   bool stop{false};
+  bool stop_tilt{false};
   void decode(const uint8_t *buffer, size_t length) {
     ProtoDecodableMessage::decode_fields(this, buffer, length, &decode_field);
   }
