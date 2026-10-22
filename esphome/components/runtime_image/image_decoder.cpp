@@ -19,6 +19,8 @@ int ImageDecoder::scaled_x_(int x) const {
   if (this->draw_width_ <= 0)
     return 0;
   const uint32_t buffer_width = this->image_->get_buffer_width();
+  if (buffer_width == static_cast<uint32_t>(this->draw_width_))
+    return x;
   return static_cast<int>((static_cast<uint32_t>(x) * buffer_width + this->draw_width_ - 1) / this->draw_width_);
 }
 
@@ -26,6 +28,8 @@ int ImageDecoder::scaled_y_(int y) const {
   if (this->draw_height_ <= 0)
     return 0;
   const uint32_t buffer_height = this->image_->get_buffer_height();
+  if (buffer_height == static_cast<uint32_t>(this->draw_height_))
+    return y;
   return static_cast<int>((static_cast<uint32_t>(y) * buffer_height + this->draw_height_ - 1) / this->draw_height_);
 }
 
