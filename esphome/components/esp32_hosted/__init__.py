@@ -267,7 +267,12 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option(
         "CONFIG_ESP_HOSTED_HOST_RESET_GPIO", config[CONF_RESET_PIN]
     )
-    # Co-processor variant
+    # Co-processor variant. Wi-Fi Remote owns the choice and esp_hosted only
+    # offers the matching CP target, so both must name the same chip
+    esp32.add_idf_sdkconfig_option(
+        f"CONFIG_SLAVE_IDF_TARGET_{config[CONF_VARIANT]}",  # NOLINT
+        True,
+    )
     esp32.add_idf_sdkconfig_option(
         f"CONFIG_ESP_HOSTED_CP_TARGET_{config[CONF_VARIANT]}",
         True,
