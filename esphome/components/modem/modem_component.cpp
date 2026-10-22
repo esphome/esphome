@@ -194,15 +194,19 @@ void ModemComponent::setup() {
       invert |= UART_SIGNAL_CTS_INV;
     }
   }
-  if (invert != 0) {
-    uart_set_line_inverse(this->uart_port_, invert);
+  if (invert != 0 && uart_set_line_inverse(this->uart_port_, invert) != ESP_OK) {
+    this->fail_setup_(LOG_STR("UART line inversion failed"));
+    return;
   }
 #ifdef USE_MODEM_URC
   // Runs on the UART task. CMUX hands each frame over on its own, so lines are assembled here; every
   // chunk is consumed and a complete line is handed to loop() through urc_line_.
   this->dce_->set_enhanced_urc([this](const DTE::UrcBufferInfo &buffer_info) {
-    // The response parser owns the buffer while a command runs; URCs in that window are best effort
+    // The response parser owns the buffer while a command runs; URCs in that window are best effort,
+    // and a line started before it would otherwise be glued to the next one
     if (buffer_info.is_command_active) {
+      this->urc_len_ = 0;
+      this->urc_overflow_ = false;
       return DTE::UrcConsumeInfo{DTE::UrcConsumeResult::CONSUME_NONE, 0};
     }
     for (size_t i = 0; i < buffer_info.new_data_size; i++) {
@@ -354,6 +358,10 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
         }
       }
       if (baud == 0) {
+        // Every candidate was the rate the detection just tried
+        ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.",
+                 this->current_baud_rate_);
+        this->set_warning_(WARN_NO_RESPONSE, LOG_STR("Modem not responding"));
         return this->retry_(ModemComponentState::MODEM_ENABLING, PROBE_RETRY_DELAY_MS);
       }
       if (uart_set_baudrate(this->uart_port_, baud) != ESP_OK) {
@@ -364,6 +372,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       App.feed_wdt();
       if (!this->send_at("AT", 100)) {
         ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.", baud);
+        this->set_warning_(WARN_NO_RESPONSE, LOG_STR("Modem not responding"));
         return this->retry_(ModemComponentState::MODEM_ENABLING, PROBE_RETRY_DELAY_MS);
       }
       ESP_LOGD(TAG, "Modem responded at baud %d", baud);
@@ -433,7 +442,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     this->restored_baud_ = this->current_baud_rate_;
     this->pref_.save(&this->restored_baud_);
   }
-  this->clear_warning_(WARN_BAUD);  // the modem answers at the rate it will keep
+  this->clear_warning_(WARN_BAUD | WARN_NO_RESPONSE);  // the modem answers at the rate it will keep
 
   // The DTE side was set up with the UART; the modem side has to be asked for RTS/CTS as well
   if (this->rts_pin_ != nullptr && this->dce_->set_flow_control(2, 2) != command_result::OK) {
@@ -490,8 +499,10 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
     this->dce_->get_network_system_mode(mode);
     ESP_LOGW(TAG, "Modem not attached yet: registration %d, network type %d, CSQ %d, BER %d", registration, mode, rssi,
              ber);
+    this->set_warning_(WARN_NOT_ATTACHED, LOG_STR("No network attachment"));
     return this->retry_(ModemComponentState::MODEM_CONNECTING, 4 * RETRY_DELAY_MS);
   }
+  this->clear_warning_(WARN_NOT_ATTACHED);
 
   ESP_LOGI(TAG, "Modem initialized and ready, starting PPP");
   if (!this->dce_->set_mode(modem_mode::CMUX_MODE)) {

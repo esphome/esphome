@@ -108,6 +108,8 @@ class ModemComponent : public Component {
     WARN_INIT_AT = 1 << 0,
     WARN_BAUD = 1 << 1,
     WARN_TEARDOWN = 1 << 2,
+    WARN_NO_RESPONSE = 1 << 3,
+    WARN_NOT_ATTACHED = 1 << 4,
   };
 
   void arm_connect_timeout_();
