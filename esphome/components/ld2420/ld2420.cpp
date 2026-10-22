@@ -502,8 +502,11 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
     }
     this->last_normal_periodic_millis = current_millis;
 #ifdef LD2420_LISTENER_COUNT
+    // Every listener gets the distance before any presence callback can run an automation
     for (auto *listener : this->listeners_) {
       listener->on_distance(this->get_distance_());
+    }
+    for (auto *listener : this->listeners_) {
       listener->on_presence(this->get_presence_());
     }
 #endif
