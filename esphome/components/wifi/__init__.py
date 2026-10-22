@@ -431,8 +431,12 @@ def _apply_min_auth_mode_default(config):
     return config
 
 
+def wifi_has_sta(config: ConfigType) -> bool:
+    return bool(config.get(CONF_NETWORKS))
+
+
 def final_validate(config):
-    has_sta = bool(config.get(CONF_NETWORKS, True))
+    has_sta = wifi_has_sta(config)
     has_ap = CONF_AP in config
     has_dpp = CONF_DPP in config
     full_config = fv.full_config.get()
@@ -447,9 +451,12 @@ def final_validate(config):
 
     ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
     if ap_is_wisp:
-        if not has_sta:
+        # The clients are routed through the station, or through a wired or cellular upstream
+        ethernet_config = full_config.get("ethernet")
+        if not has_sta and ethernet_config is None and "modem" not in full_config:
             raise cv.Invalid(
-                "WISP mode requires at least one STA network (wifi.ssid or wifi.networks)"
+                "WISP mode needs a station network (wifi.ssid or wifi.networks), "
+                "or ethernet or modem as the upstream interface"
             )
         if has_captive_portal:
             raise cv.Invalid(
@@ -458,7 +465,7 @@ def final_validate(config):
         # Every client packet passes through the WiFi driver, none through the device's own sockets
         require_high_performance_wifi()
         if CONF_DNS_SERVERS not in config[CONF_AP]:
-            # The access point passes the station's resolvers on, which a static address has to name
+            # The access point passes the upstream's resolvers on, which a static address has to name
             for network in [config, *config.get(CONF_NETWORKS, [])]:
                 static = network.get(CONF_MANUAL_IP)
                 if static and static[CONF_DNS1].is_unspecified:
@@ -466,6 +473,11 @@ def final_validate(config):
                         "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
                         path=[CONF_MANUAL_IP, CONF_DNS1],
                     )
+            static = (ethernet_config or {}).get(CONF_MANUAL_IP)
+            if static and static[CONF_DNS1].is_unspecified:
+                raise cv.Invalid(
+                    "ethernet manual_ip needs dns1 in WISP mode unless ap.dns_servers is set"
+                )
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(

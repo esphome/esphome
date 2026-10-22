@@ -783,7 +783,7 @@ void WiFiComponent::start() {
     // Without fast_connect: go straight to scanning (or hidden mode if all networks are hidden)
     this->start_initial_connection_();
 #endif
-#ifdef USE_WIFI_AP
+#if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_WISP)  // a bridge waits in loop() for the upstream's resolver
   } else if (this->has_ap()) {
     this->setup_ap_config_();
     if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
@@ -937,15 +937,7 @@ void WiFiComponent::loop() {
         return;
     }
 
-#ifdef USE_WIFI_AP_WISP
-    // The bridge comes up once it has a resolver to offer; a start that failed is tried again after ap_timeout
-    if (!this->ap_setup_ && this->ap_dns_known_() &&
-        (this->ap_changed_ == 0 || now - this->ap_changed_ > this->ap_timeout_)) {
-      ESP_LOGI(TAG, "Starting AP");
-      this->ap_changed_ = now;
-      this->setup_ap_config_();
-    }
-#elif defined(USE_WIFI_AP)
+#if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_WISP)
     // Once the provisioning window has closed, don't bring up the fallback AP (or
     // the captive portal on it) - the device must stay unprovisionable until it is
     // power-cycled.
@@ -1012,6 +1004,21 @@ void WiFiComponent::loop() {
       }
     }
   }
+
+#ifdef USE_WIFI_AP_WISP
+  // The bridge comes up once it has a resolver to offer, from the station or from a wired or cellular upstream;
+  // a start that failed is tried again after ap_timeout
+  if (this->state_ != WIFI_COMPONENT_STATE_DISABLED && !this->ap_setup_ && this->ap_dns_known_() &&
+      (this->ap_changed_ == 0 || now - this->ap_changed_ > this->ap_timeout_)) {
+    ESP_LOGI(TAG, "Starting AP");
+    this->ap_changed_ = now;
+    this->setup_ap_config_();
+    // The station path applied the output power in start(); without one the radio only exists now
+    if (!this->has_sta() && !std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
+      ESP_LOGV(TAG, "Setting Output Power Option failed");
+    }
+  }
+#endif
 
 #ifdef USE_WIFI_DPP
   // Without networks no cooldown starts the listen, so a failed or abandoned enrollment is listened for again

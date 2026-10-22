@@ -32,14 +32,6 @@ _CH390_CONFIG = {
 }
 
 
-@pytest.fixture(autouse=True)
-def _reset_full_config():
-    """Reset fv.full_config so each test starts with a clean slate."""
-    token = fv.full_config.set({})
-    yield
-    fv.full_config.reset(token)
-
-
 _WIFI_STA_CONFIG = {CONF_NETWORKS: [{"ssid": "MySSID", "password": "password1"}]}
 _WIFI_AP_CONFIG = {CONF_AP: {"ssid": "espap", "password": "mypassword"}}
 
