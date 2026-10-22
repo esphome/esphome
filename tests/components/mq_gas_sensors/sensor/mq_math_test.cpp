@@ -86,6 +86,13 @@ TEST(MqMath, UnusableInputReadsUnknown) {
   EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, H2_B, 1.0f, REGRESSION_INVERSE)));
 }
 
+TEST(MqMath, UnknownRegressionMethodReadsUnknown) {
+  // Only the three defined methods have a formula; anything else must not be
+  // evaluated with the linear one and published as a plausible reading.
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(H2_A, H2_B, 1.0f, static_cast<RegressionMethod>(0))));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(H2_A, H2_B, 1.0f, static_cast<RegressionMethod>(4))));
+}
+
 TEST(MqMath, BelowTheNoiseFloorReadsZero) {
   // `min_ppm` is the noise floor: a reading below it counts as not detected and
   // reports 0 ppm, and 0 ppm itself is never lifted to `min_ppm`.

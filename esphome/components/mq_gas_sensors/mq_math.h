@@ -146,8 +146,12 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
   } else if (method == REGRESSION_INVERSE) {
     // PPM = (ratio / a)^(1/b).
     log_ppm = (std::log10(static_cast<double>(ratio)) - std::log10(static_cast<double>(a))) / static_cast<double>(b);
-  } else {
+  } else if (method == REGRESSION_LINEAR) {
     log_ppm = (std::log10(static_cast<double>(ratio)) - static_cast<double>(b)) / static_cast<double>(a);
+  } else {
+    // An unknown method has no formula; evaluating it as one of the known ones
+    // would publish a plausible but wrong concentration.
+    return NAN;
   }
 
   if (!std::isfinite(log_ppm))

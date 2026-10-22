@@ -102,44 +102,11 @@ def test_coefficients_the_firmware_clamps_are_resolved_to_the_clamp() -> None:
     assert resolved.b == MQ_MAX_B
 
 
-def test_published_curve_above_the_clamp_resolves_to_the_clamp() -> None:
-    """MQ-3 CH4 publishes a = 2e31, above what the firmware can evaluate."""
-    assert SENSOR_TYPES["MQ3"]["gases"]["CH4"][0] == 2e31
-    assert resolve_sensor("MQ3", "CH4").a == MQ_MAX_A
-    assert resolve_sensor("MQ3", "CH4").built_in_clamped
-    assert not resolve_sensor("MQ8", "H2").built_in_clamped
-
-
-def test_partial_override_still_reports_the_built_in_clamp() -> None:
-    """Overriding one coefficient must not hide the built-in one being clamped."""
-    resolved = resolve_sensor("MQ3", "CH4", b=10.0)
-    assert resolved.a == MQ_MAX_A
-    assert resolved.b == 10.0
-    assert resolved.built_in_clamped
-
-    assert not resolve_sensor("MQ3", "CH4", a=1e10, b=10.0).built_in_clamped
-
-
-def test_unusable_built_in_curve_is_reported(
-    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
-) -> None:
-    """MQ-3 CH4 is the one built-in fit above the firmware clamp, so it is reported."""
-    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    with caplog.at_level("WARNING"):
-        CONFIG_SCHEMA(
-            {
-                "id": "mq3_ch4",
-                "name": "MQ-3 CH4",
-                "sensor_type": "MQ-3",
-                "gas": "CH4",
-                "voltage": "mq8_adc",
-                "r0": 10.0,
-            }
-        )
-    assert (
-        "a built-in coefficient is outside the range the firmware evaluates"
-        in caplog.text
-    )
+def test_mq3_has_no_ch4_curve() -> None:
+    """The collected MQ-3 CH4 fit is unusable, so the combination fails the build."""
+    assert "CH4" not in SENSOR_TYPES["MQ3"]["gases"]
+    with pytest.raises(ValueError, match="MQ-3 has no curve for gas 'CH4'"):
+        resolve_sensor("MQ3", "CH4")
 
 
 def test_clamped_coefficient_is_reported(
@@ -332,6 +299,7 @@ def test_unknown_gas_for_type_is_rejected(
                 "sensor_type": "MQ-8",
                 "gas": "O3",
                 "voltage": "mq8_adc",
+                "r0": 10.0,
             }
         )
 
@@ -377,6 +345,7 @@ def test_internal_adc_burst_is_bounded(
         "sensor_type": "MQ-8",
         "pin": 34,
         "voltage_divider": {"r1": 10.0, "r2": 2.0},
+        "r0": 10.0,
     }
 
     # 16 x 4 is the largest burst the bound allows.
@@ -453,6 +422,7 @@ def test_owned_adc_keeps_the_widest_range_by_default(
         "pin": 34,
         "voltage_divider": {"r1": 10.0, "r2": 2.0},
         "vcc": 5.0,
+        "r0": 10.0,
     }
 
     config = CONFIG_SCHEMA(dict(base))
@@ -467,7 +437,13 @@ def test_adc_options_need_the_owned_pin(
 ) -> None:
     """`adc_attenuation:` / `adc_samples:` describe the internal ADC of `pin:`."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    base = {"id": "mq8", "name": "MQ-8", "sensor_type": "MQ-8", "voltage": "mq8_adc"}
+    base = {
+        "id": "mq8",
+        "name": "MQ-8",
+        "sensor_type": "MQ-8",
+        "voltage": "mq8_adc",
+        "r0": 10.0,
+    }
 
     with pytest.raises(cv.Invalid, match="configures the internal ADC"):
         CONFIG_SCHEMA({**base, "adc_attenuation": "6db"})
@@ -508,6 +484,7 @@ def test_esp32_s31_owned_adc_uses_its_only_attenuation(
         "pin": 42,
         "voltage_divider": {"r1": 10.0, "r2": 1.0},
         "vcc": 5.0,
+        "r0": 10.0,
     }
 
     config = CONFIG_SCHEMA(dict(base))
@@ -531,6 +508,7 @@ def test_declared_range_above_the_owned_adc_is_capped(
         "vcc": 5.0,
         "adc_attenuation": "12db",
         "adc_input_max": 3.34,
+        "r0": 10.0,
     }
     # 5 V through the 10k/20k divider is 3.33 V: below the declared 3.34 V, above
     # the 2.45 V a 12 dB classic ESP32 measures, so the top of the reading clips.
@@ -568,6 +546,7 @@ def test_pin_range_follows_the_attenuation(
         "voltage_divider": {"r1": 10.0, "r2": 20.0},
         "vcc": 5.0,
         "adc_attenuation": "6db",
+        "r0": 10.0,
     }
     # 5 V through the divider is 3.33 V on the pin, above the 1.75 V a classic
     # ESP32 measures at 6 dB: the top of the range clips, so the wiring is refused.
@@ -592,6 +571,7 @@ def test_esp8266_pin_uses_the_fixed_input_range(
         "pin": "A0",
         "voltage_divider": {"r1": 10.0, "r2": 20.0},
         "vcc": 5.0,
+        "r0": 10.0,
     }
     # 5 V through the divider is 3.33 V on A0, above the 1.0 V it measures.
     with pytest.raises(cv.Invalid, match="above the 1.00 V"):
@@ -697,7 +677,13 @@ def test_coefficients_the_method_cannot_use_are_rejected(
 ) -> None:
     """The MQ-135 linear pair has a negative `a`, which exponential cannot take."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    base = {"id": "mq135", "name": "MQ-135", "sensor_type": "MQ-135", "voltage": "adc"}
+    base = {
+        "id": "mq135",
+        "name": "MQ-135",
+        "sensor_type": "MQ-135",
+        "voltage": "adc",
+        "r0": 10.0,
+    }
     with pytest.raises(
         cv.Invalid, match="MQ-135 with 'regression_method: exponential' needs"
     ):
@@ -714,6 +700,7 @@ def test_coefficients_matching_the_overridden_method_are_accepted(
             "name": "MQ-135",
             "sensor_type": "MQ-135",
             "voltage": "adc",
+            "r0": 10.0,
             "regression_method": "exponential",
             "coefficient_a": 110.47,
             "coefficient_b": -2.862,

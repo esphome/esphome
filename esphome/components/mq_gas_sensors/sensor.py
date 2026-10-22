@@ -75,6 +75,7 @@ from . import (
 )
 from .coefficients import (
     SENSOR_TYPES,
+    ResolvedSensor,
     label_for,
     normalize_gas,
     normalize_type,
@@ -335,6 +336,27 @@ def _effective_input_max(
     return known_max
 
 
+def _resolve_sensor(config: ConfigType) -> ResolvedSensor:
+    """Resolve the curve of the entry.
+
+    The one place that lists the configuration keys the coefficients are taken
+    from, used by the validator and by the code generation alike, so the two
+    cannot drift apart.
+    """
+    return resolve_sensor(
+        config[CONF_SENSOR_TYPE],
+        config.get(CONF_GAS),
+        a=config.get(CONF_COEFFICIENT_A),
+        b=config.get(CONF_COEFFICIENT_B),
+        method=config.get(CONF_REGRESSION_METHOD),
+        ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
+        rl=config.get(CONF_RL),
+        vcc=config.get(CONF_VCC),
+        min_ppm=config.get(CONF_MIN_PPM),
+        max_ppm=config.get(CONF_MAX_PPM),
+    )
+
+
 def _validate_config(config: ConfigType) -> ConfigType:
     """Cross-check the coefficients and the wiring at compile time."""
     type_key = config[CONF_SENSOR_TYPE]
@@ -349,26 +371,14 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 )
 
     try:
-        resolved = resolve_sensor(
-            type_key,
-            config.get(CONF_GAS),
-            a=config.get(CONF_COEFFICIENT_A),
-            b=config.get(CONF_COEFFICIENT_B),
-            method=config.get(CONF_REGRESSION_METHOD),
-            ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
-            rl=config.get(CONF_RL),
-            vcc=config.get(CONF_VCC),
-            min_ppm=config.get(CONF_MIN_PPM),
-            max_ppm=config.get(CONF_MAX_PPM),
-        )
+        resolved = _resolve_sensor(config)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
 
     _validate_coefficients(resolved.label, resolved.method, resolved.a, resolved.b)
 
-    # The device clamps `a` / `b` to what it can evaluate (see `MQ_MAX_A`), and
-    # every clamp is reported: a user supplied coefficient here, the one built-in
-    # fit above the limit below.
+    # The device clamps `a` / `b` to what it can evaluate (see `MQ_MAX_A`), so a
+    # user supplied value outside that range must not be applied silently.
     for key, given, evaluated in (
         (CONF_COEFFICIENT_A, config.get(CONF_COEFFICIENT_A), resolved.a),
         (CONF_COEFFICIENT_B, config.get(CONF_COEFFICIENT_B), resolved.b),
@@ -382,18 +392,6 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 given,
                 evaluated,
             )
-
-    if resolved.built_in_clamped:
-        _LOGGER.warning(
-            "%s %s: a built-in coefficient is outside the range the firmware evaluates and "
-            "is clamped to a=%g, b=%g - the curve is then not the published one and "
-            "reports the top of the range for almost every ratio, set "
-            "'coefficient_a:' and 'coefficient_b:' for a usable curve",
-            resolved.label,
-            resolved.gas,
-            resolved.a,
-            resolved.b,
-        )
 
     # The ratio the firmware evaluates in clean air: `r0_from_clean_air()` sets
     # R0 = RS_air / ratio_in_clean_air in either mode, so `r0_rs` reads back its
@@ -414,13 +412,6 @@ def _validate_config(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"max_ppm ({resolved.max_ppm}) must be greater than "
             f"min_ppm ({resolved.min_ppm})"
-        )
-
-    if CONF_R0 not in config and CONF_CALIBRATION not in config:
-        _LOGGER.warning(
-            "%s: neither 'r0:' nor 'calibration:' is set - the PPM output stays "
-            "unknown until R0 is known (calibrate the sensor in clean air first)",
-            label,
         )
 
     if requires_coefficients(type_key):
@@ -608,7 +599,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s")),
     cv.has_exactly_one_key(CONF_VOLTAGE, CONF_PIN),
     cv.has_at_most_one_key(CONF_VOLTAGE_DIVIDER, CONF_VOLTAGE_MULTIPLIER),
-    cv.has_at_most_one_key(CONF_R0, CONF_CALIBRATION),
+    cv.has_exactly_one_key(CONF_R0, CONF_CALIBRATION),
     _validate_config,
 )
 
@@ -635,18 +626,7 @@ async def _create_internal_adc(config: ConfigType):
 
 
 async def to_code(config: ConfigType) -> None:
-    resolved = resolve_sensor(
-        config[CONF_SENSOR_TYPE],
-        config.get(CONF_GAS),
-        a=config.get(CONF_COEFFICIENT_A),
-        b=config.get(CONF_COEFFICIENT_B),
-        method=config.get(CONF_REGRESSION_METHOD),
-        ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
-        rl=config.get(CONF_RL),
-        vcc=config.get(CONF_VCC),
-        min_ppm=config.get(CONF_MIN_PPM),
-        max_ppm=config.get(CONF_MAX_PPM),
-    )
+    resolved = _resolve_sensor(config)
 
     if (source_id := config.get(CONF_VOLTAGE)) is not None:
         source = await cg.get_variable(source_id)

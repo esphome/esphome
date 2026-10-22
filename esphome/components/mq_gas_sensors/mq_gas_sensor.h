@@ -77,6 +77,10 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// Size of the message buffer of `log_message_()` (also the text sensor limit).
   static constexpr size_t LOG_BUFFER_SIZE = 160;
 
+  /// Lowest averaged analog output that is still a measurement rather than a
+  /// missing signal (open circuit, absent supply, or a failed conversion).
+  static constexpr float MIN_VALID_VOLTAGE = 0.01f;
+
   /// Minimum interval between two *per-update* (`LOG_SEVERITY_DEBUG`) messages
   /// mirrored to `log_sensor_`. The sensor may poll at 1 Hz, and a text state
   /// per second would flood the Home Assistant recorder - calibration messages,
@@ -95,6 +99,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
  protected:
   /// Averaged, scaled analog output voltage (V); sampled back to back.
   float sample_voltage_();
+  /// True when `voltage` is a measurement rather than a missing signal. The one
+  /// place `MIN_VALID_VOLTAGE` is applied, shared by `update()` and calibration.
+  bool voltage_usable_(float voltage) const { return std::isfinite(voltage) && voltage > MIN_VALID_VOLTAGE; }
   /// RS in kOhm for the current `sensor_voltage_`.
   float current_rs_() const;
   /// RS/R0 (respecting `ratio_mode_`) for the current `sensor_voltage_`.
@@ -167,6 +174,12 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_last_sample_{0};
   uint32_t calibration_count_{0};
   uint32_t calibration_attempts_{0};
+  /// Why the samples that were not counted failed, so the final message names the
+  /// actual fault instead of pointing at the wiring for every cause.
+  uint32_t calibration_rejected_low_{0};
+  uint32_t calibration_rejected_high_{0};
+  uint32_t calibration_rejected_nonfinite_{0};
+  uint32_t calibration_rejected_rs_{0};
   float calibration_sum_{0.0f};
   bool warned_no_r0_{false};
   /// One flag per fault kind, so each is reported once - and again when the
