@@ -20,23 +20,6 @@ namespace esphome::ld2450 {
 
 ESPHOME_LOG_TAG(TAG, "ld2450");
 
-enum BaudRate : uint8_t {
-  BAUD_RATE_9600 = 1,
-  BAUD_RATE_19200 = 2,
-  BAUD_RATE_38400 = 3,
-  BAUD_RATE_57600 = 4,
-  BAUD_RATE_115200 = 5,
-  BAUD_RATE_230400 = 6,
-  BAUD_RATE_256000 = 7,
-  BAUD_RATE_460800 = 8
-};
-
-enum ZoneType : uint8_t {
-  ZONE_DISABLED = 0,
-  ZONE_DETECTION = 1,
-  ZONE_FILTER = 2,
-};
-
 enum PeriodicData : uint8_t {
   TARGET_X = 4,
   TARGET_Y = 6,
@@ -825,11 +808,14 @@ void LD2450Component::set_bluetooth(bool enable) {
 // Set Baud rate
 void LD2450Component::set_baud_rate(const char *state) {
   const int16_t index = progmem_string_table_find<BaudRateStrings>(state, strlen(state));
-  if (index < 0) {
-    return;
+  if (index >= 0) {
+    this->set_baud_rate(static_cast<BaudRate>(index + 1));
   }
+}
+
+void LD2450Component::set_baud_rate(BaudRate rate) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {static_cast<uint8_t>(index + 1), 0x00};
+  const uint8_t cmd_value[2] = {rate, 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_(); });
 }
@@ -838,10 +824,13 @@ void LD2450Component::set_baud_rate(const char *state) {
 void LD2450Component::set_zone_type(const char *state) {
   ESP_LOGV(TAG, "Set zone type: %s", state);
   const int16_t index = progmem_string_table_find<ZoneTypeStrings>(state, strlen(state));
-  if (index < 0) {
-    return;
+  if (index >= 0) {
+    this->set_zone_type(static_cast<ZoneType>(index));
   }
-  this->zone_type_ = index;
+}
+
+void LD2450Component::set_zone_type(ZoneType type) {
+  this->zone_type_ = type;
   this->send_set_zone_command_();
 }
 
