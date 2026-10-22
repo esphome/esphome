@@ -46,10 +46,7 @@ async def test_host_mode_climate_control(
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
         # Wait for all initial states to be broadcast
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Adjust setpoints
         client.climate_command(

@@ -11,9 +11,13 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32S3,
 )
-from esphome.components.ethernet import CONF_CLOCK_SPEED, CONFIG_SCHEMA, _final_validate
+from esphome.components.ethernet import (
+    CONF_CLOCK_SPEED,
+    CONFIG_SCHEMA,
+    _final_validate_wifi,
+)
 from esphome.components.network import _validate_priority_list
-from esphome.const import CONF_PRIORITY, PlatformFramework
+from esphome.const import CONF_AP, CONF_NETWORKS, CONF_PRIORITY, PlatformFramework
 from esphome.core import CORE
 import esphome.final_validate as fv
 
@@ -28,24 +32,37 @@ _CH390_CONFIG = {
 }
 
 
-def test_rejects_wifi_and_ethernet_without_priority() -> None:
-    """Wi-Fi + ethernet without a network: priority: list must be rejected."""
-    fv.full_config.set({"wifi": {}, "ethernet": {}})
-    with pytest.raises(Invalid, match="cannot be used together with component wifi"):
-        _final_validate({})
+_WIFI_STA_CONFIG = {CONF_NETWORKS: [{"ssid": "MySSID", "password": "password1"}]}
+_WIFI_AP_CONFIG = {CONF_AP: {"ssid": "espap", "password": "mypassword"}}
 
 
-def test_rejects_wifi_and_ethernet_with_incomplete_priority() -> None:
-    """A priority list missing an interface is rejected and names what's missing."""
-    fv.full_config.set(
-        {
-            "wifi": {},
-            "ethernet": {},
-            "network": {CONF_PRIORITY: _validate_priority_list(["ethernet"])},
-        }
-    )
-    with pytest.raises(Invalid, match=r"must.*list both interfaces; missing: wifi"):
-        _final_validate({})
+@pytest.mark.parametrize(
+    ("wifi", "priority", "extra", "match"),
+    [
+        (_WIFI_STA_CONFIG, None, {}, "missing: ethernet, wifi"),
+        (_WIFI_STA_CONFIG, ["ethernet"], {}, "missing: wifi"),
+        (_WIFI_STA_CONFIG, ["wifi", "ethernet"], {}, None),
+        (_WIFI_AP_CONFIG, None, {}, None),
+        # A station can still appear at run time: DPP or a provisioner saves credentials
+        ({"dpp": {}}, None, {}, "missing: ethernet, wifi"),
+        ({"dpp": {}, **_WIFI_AP_CONFIG}, None, {}, "missing: ethernet, wifi"),
+        (_WIFI_AP_CONFIG, None, {"captive_portal": {}}, "missing: ethernet, wifi"),
+        (_WIFI_AP_CONFIG, None, {"improv_serial": {}}, "missing: ethernet, wifi"),
+    ],
+)
+def test_wifi_station_needs_a_full_priority_list_but_an_access_point_does_not(
+    wifi: dict, priority: list[str] | None, extra: dict, match: str | None
+) -> None:
+    """A station, configured or provisioned later, competes with ethernet; an access point does not."""
+    full = {"wifi": wifi, "ethernet": {}, **extra}
+    if priority:
+        full["network"] = {CONF_PRIORITY: _validate_priority_list(priority)}
+    fv.full_config.set(full)
+    if match is None:
+        _final_validate_wifi({})
+    else:
+        with pytest.raises(Invalid, match=match):
+            _final_validate_wifi({})
 
 
 @pytest.mark.parametrize("clock_speed", ["26.67MHz", "72MHz"])

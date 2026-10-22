@@ -5,4 +5,7 @@ esp32:
   board: esp32dev
   framework:
     type: esp-idf
-    version: 5.0.6
+
+network:
+  enable_ipv6: true
+  enable_ipv4: false

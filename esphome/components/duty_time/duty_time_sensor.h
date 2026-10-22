@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <utility>
 
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
@@ -26,7 +27,7 @@ class DutyTimeSensor final : public sensor::Sensor, public PollingComponent {
 #ifdef USE_BINARY_SENSOR
   void set_sensor(binary_sensor::BinarySensor *sensor);
 #endif
-  void set_lambda(std::function<bool()> &&func) { this->func_ = func; }
+  void set_lambda(std::function<bool()> &&func) { this->func_ = std::move(func); }
   void set_last_duty_time_sensor(sensor::Sensor *sensor) { this->last_duty_time_sensor_ = sensor; }
   void set_restore(bool restore) { this->restore_ = restore; }
 

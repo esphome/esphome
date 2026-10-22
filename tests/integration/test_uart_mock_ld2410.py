@@ -90,24 +90,14 @@ async def test_uart_mock_ld2410(
             initial_state_helper.on_state_wrapper(collector.on_state)
         )
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 values: moving=100, still=120, energy=50/25, detect=300
         assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
@@ -214,24 +204,14 @@ async def test_uart_mock_ld2410_engineering(
             initial_state_helper.on_state_wrapper(collector.on_state)
         )
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Start the UART mock scenario now that we're subscribed
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 values (engineering mode frame):
         # moving=30, energy=100, still=30, energy=100, detect=0

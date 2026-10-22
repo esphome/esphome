@@ -23,6 +23,7 @@ from collections.abc import Callable
 from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo, TextSensorState
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import SensorTracker, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -79,6 +80,44 @@ def _make_modbus_line_callback() -> tuple[Callable[[str], None], list[str], list
     return line_callback, error_log_lines, warning_log_lines
 
 
+async def _wait_until(
+    tracker: SensorTracker,
+    names: list[str],
+    predicate: Callable[[dict[str, list[float]]], bool],
+) -> None:
+    """Return once *predicate* holds, re-checking whenever one of *names* gets a state."""
+    while not predicate(tracker.sensor_states):
+        futures = [tracker.expect_any(name) for name in names]
+        await asyncio.wait(futures, return_when=asyncio.FIRST_COMPLETED)
+        for future in futures:
+            future.cancel()
+
+
+async def _wait_for_reads(
+    tracker: SensorTracker, name: str, count: int, timeout: float = 5.0
+) -> None:
+    """Wait until *name* has received at least *count* states in total."""
+    await wait_or_fail(
+        _wait_until(tracker, [name], lambda states: len(states[name]) >= count),
+        timeout,
+        f"{name} did not reach {count} states",
+        states=tracker.sensor_states[name],
+    )
+
+
+async def _wait_until_quiet(
+    tracker: SensorTracker, names: list[str], quiet: float
+) -> None:
+    """Return once none of *names* has received a state for *quiet* seconds."""
+    while True:
+        futures = [tracker.expect_any(name) for name in names]
+        done, _ = await asyncio.wait(futures, timeout=quiet)
+        for future in futures:
+            future.cancel()
+        if not done:
+            return
+
+
 def _assert_no_modbus_errors(
     error_log_lines: list[str], warning_log_lines: list[str]
 ) -> None:
@@ -105,6 +144,7 @@ async def test_uart_mock_modbus(
 ) -> None:
     """Test basic modbus data parsing."""
 
+    waiter = LineWaiter()
     tracker = SensorTracker(
         [
             "basic_register",
@@ -123,20 +163,30 @@ async def test_uart_mock_modbus(
     exception_response_changed = tracker.expect_any("exception_response")
 
     async with (
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         await tracker.setup_and_start_scenario(client)
 
         await tracker.await_change(delayed_response_changed, "delayed_response")
         await tracker.await_change(basic_register_changed, "basic_register")
-        # Run all "must not change" checks concurrently — each waits the full
-        # timeout, so sequential execution would multiply the wall time.
+        # Wait until each failing read has resolved: devices 2 and 3 gave up, device 1 got the exception.
+        await waiter.wait_for_each(
+            "Modbus device=2 set offline",
+            "Modbus device=3 set offline",
+            "Error function code: 0x83 exception: 2, address: 1",
+            timeout=5.0,
+        )
+        # The late reply lands ~100ms after device 2 gives up; the window also covers the API batch delay.
         await asyncio.gather(
-            tracker.await_must_not_change(late_response_changed, "late_response"),
-            tracker.await_must_not_change(no_response_changed, "no_response"),
             tracker.await_must_not_change(
-                exception_response_changed, "exception_response"
+                late_response_changed, "late_response", timeout=0.5
+            ),
+            tracker.await_must_not_change(
+                no_response_changed, "no_response", timeout=0.5
+            ),
+            tracker.await_must_not_change(
+                exception_response_changed, "exception_response", timeout=0.5
             ),
         )
 
@@ -812,23 +862,19 @@ async def test_uart_mock_modbus_continuous(
     """
 
     tracker = SensorTracker(["continuous_reg"])
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # setup_and_start_scenario presses the Start Scenario button, whose on_press triggers the
         # controller's first update(). With continuous that one read re-queues and streams; without it
         # the next poll would not run until the 30s update_interval elapses.
         entities = await tracker.setup_and_start_scenario(client)
-        # Count reads over a window far shorter than the update_interval. Absent continuous polling we
-        # would see ~1 (the triggered poll); continuous re-queues, so the bus fills with reads.
-        await asyncio.sleep(3.0)
-        reads = len(tracker.sensor_states["continuous_reg"])
-        assert reads >= 5, (
-            "expected many continuous reads within the window (update_interval is 30s, so absent "
-            f"continuous polling we would see ~1), got {reads}"
-        )
+        # Absent continuous polling we would see ~1 read (the triggered poll) within the 30s
+        # update_interval; continuous re-queues, so the bus fills with reads.
+        await _wait_for_reads(tracker, "continuous_reg", 5)
 
         # Recovery path: a live continuous poll that starts failing goes offline, and the next update()
         # re-arms it once the device answers again. Silence the server so the poll's reads time out; with
@@ -837,22 +883,35 @@ async def test_uart_mock_modbus_continuous(
         start = require_entity(entities, "start_scenario", ButtonInfo)
 
         client.switch_command(silence.key, True)
-        await asyncio.sleep(1.0)  # let the poll fail and the device trip offline
+        await waiter.wait_for("Modbus device=1 set offline", timeout=5.0)
         plateau = len(tracker.sensor_states["continuous_reg"])
-        await asyncio.sleep(1.0)  # offline: no polls should land
-        assert len(tracker.sensor_states["continuous_reg"]) == plateau, (
-            "reads kept arriving after the server was silenced - the failed continuous poll did not stop"
-        )
+
+        def timeouts() -> int:
+            return sum(
+                "Stop waiting for response from 1 " in line for line in waiter.lines
+            )
+
+        # The silenced server answers nothing, so count request timeouts, not states. Going offline
+        # still sends one probe (offline_skip_updates is 0) and its retry, each timing out after a bus
+        # wait of up to a second, so the count may grow twice more; a continuous poll that failed to
+        # stop would keep it growing every few hundred milliseconds instead of settling.
+        sent = timeouts()
+        assert sent, "no request timed out before the device went offline"
+        for _ in range(4):
+            await asyncio.sleep(1.5)
+            if timeouts() == sent:
+                break
+            sent = timeouts()
+        else:
+            pytest.fail(
+                "the failed continuous poll kept sending requests after the device went offline"
+            )
 
         # Answer again and trigger update(): the offline probe recovers the device and the continuous
         # poll re-arms, so streaming resumes.
         client.switch_command(silence.key, False)
         client.button_command(start.key)
-        await asyncio.sleep(3.0)
-        resumed = len(tracker.sensor_states["continuous_reg"]) - plateau
-        assert resumed >= 5, (
-            f"continuous polling did not resume after the device recovered (got {resumed} new reads)"
-        )
+        await _wait_for_reads(tracker, "continuous_reg", plateau + 5)
 
 
 @pytest.mark.asyncio
@@ -921,15 +980,34 @@ async def test_uart_mock_modbus_fairness(
     ):
         entities = await tracker.setup_and_start_scenario(client)
 
-        # Let both controllers hammer the bus for a while.
-        await asyncio.sleep(2.0)
+        # Let both controllers hammer the bus until each has issued a fair sample of requests.
+        counters = ["requests_1", "requests_2"]
+        await wait_or_fail(
+            _wait_until(
+                tracker,
+                counters,
+                lambda states: (
+                    all(states[name] for name in counters)
+                    and min(states[name][-1] for name in counters) >= 10
+                ),
+            ),
+            5.0,
+            "controllers did not poll",
+            states=tracker.sensor_states,
+        )
 
         # Stop polling so the counters settle to a final, stable value (state
         # coalescing means intermediate values may be skipped, but the final
         # value is always delivered once changes stop).
         stop_btn = require_entity(entities, "stop_scenario", ButtonInfo)
         client.button_command(stop_btn.key)
-        await asyncio.sleep(0.5)
+        # Quiet window longer than the API batch delay (100ms)
+        await wait_or_fail(
+            _wait_until_quiet(tracker, counters, 0.3),
+            3.0,
+            "counters did not settle after stop",
+            states=tracker.sensor_states,
+        )
 
         assert tracker.sensor_states["requests_1"], "controller 1 issued no requests"
         assert tracker.sensor_states["requests_2"], "controller 2 issued no requests"
