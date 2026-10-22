@@ -554,6 +554,8 @@ uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *c
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
   msg.supports_stop = traits.get_supports_stop();
+  msg.supports_stop_tilt = traits.get_supports_stop_tilt();
+  msg.supports_toggle = traits.get_supports_toggle();
   return fill_and_encode_entity_info_with_device_class(cover, msg, msg.device_class, conn, remaining_size);
 }
 void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
@@ -564,6 +566,10 @@ void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
     call.set_tilt(msg.tilt);
   if (msg.stop)
     call.set_command_stop();
+  if (msg.stop_tilt)
+    call.set_command_stop_tilt();
+  if (msg.toggle)
+    call.set_command_toggle();
   call.perform();
 }
 #endif

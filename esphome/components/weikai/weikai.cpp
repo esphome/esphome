@@ -450,9 +450,12 @@ uart::UARTFlushResult WeikaiChannel::flush() {
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {
   size_t total = 0;
-  size_t to_transfer;
-  size_t free;
-  while ((to_transfer = this->rx_in_fifo_()) && (free = this->receive_buffer_.free())) {
+  while (true) {
+    size_t to_transfer = this->rx_in_fifo_();
+    size_t free = this->receive_buffer_.free();
+    if (to_transfer == 0 || free == 0) {
+      break;
+    }
     // while bytes in fifo and some room in the buffer we transfer
     if (to_transfer > XFER_MAX_SIZE)
       to_transfer = XFER_MAX_SIZE;  // we can only do so much

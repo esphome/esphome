@@ -62,7 +62,6 @@ static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid
 #ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif                                        // USE_WIFI_AP
-static bool s_sta_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -1037,7 +1036,6 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
     }
 
-    s_sta_started = true;
     // re-apply power save mode
     wifi_apply_power_save_();
 #ifdef SOC_WIFI_SUPPORT_5G
@@ -1046,7 +1044,6 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_STOP) {
     ESP_LOGV(TAG, "STA stop");
-    s_sta_started = false;
     s_sta_connecting = false;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_AUTHMODE_CHANGE) {
