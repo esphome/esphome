@@ -1270,6 +1270,11 @@ def registered_secret_names() -> set[str]:
     return set(_LOADED_SECRET_NAMES)
 
 
+def registered_secret_values() -> dict[str, str]:
+    """Each registered secret value mapped to its ``!secret`` name."""
+    return dict(_SECRET_VALUES)
+
+
 @contextmanager
 def secret_values_registered(values: dict[str, str]) -> Generator[set[str]]:
     """Make :func:`dump` write these values as ``!secret <name>`` while active.

@@ -367,6 +367,26 @@ def test_redacted_inline_value_becomes_secret_ref(
             id="removed_component_credential_known_by_name",
         ),
         pytest.param(
+            {
+                "scripts.yaml": "script:\n  - id: old_script\n    then:\n"
+                "      - wifi.configure:\n          ssid: x\n          password: hunter2\n",
+                "entry.yaml": "packages:\n  s: !include scripts.yaml\n"
+                "script:\n  - id: !remove old_script\n",
+            },
+            API_KEY,
+            "password in scripts.yaml",
+            id="list_item_removed_by_id",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "packages:\n  vpn:\n    wireguard:\n      private_key: hunter2\n"
+                "  off:\n    wireguard: !remove\n"
+            },
+            API_KEY,
+            "wireguard.private_key in entry.yaml",
+            id="removed_by_an_inline_package",
+        ),
+        pytest.param(
             {"wifi.yaml": "wifi:\n  hunter2:\n    child: x\n"},
             {"ota": [{"password": SensitiveStr("hunter2")}]},
             "mapping key under wifi",
@@ -786,6 +806,28 @@ def test_redacted_fails_closed(
         ),
         pytest.param(
             {
+                "wifi.yaml": "substitutions:\n  wifi_password: hunter2\n"
+                "wifi:\n  password: ${wifi_password}\n"
+            },
+            {"wifi": [{"password": SensitiveStr("hunter2")}]},
+            {"wifi.yaml": "password: ${wifi_password}"},
+            id="substitution_definition",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "packages:\n  board: !include ${board}.yaml\n"
+                "  off: !include {file: missing.yaml, condition: false}\n"
+                "logger:\n  enabled: true\nwifi:\n  password: !secret wifi_password\n"
+                "sensor:\n  - !include s.yaml\n  - !include s.yaml\n",
+                "s.yaml": "platform: template\n",
+                "secrets.yaml": _WIFI_SECRET,
+            },
+            WIFI_PW,
+            {"entry.yaml": "enabled: true", "s.yaml": "platform: template"},
+            id="templated_disabled_and_repeated_includes",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": "substitutions:\n  base_pw: !secret wifi_password\n  pw: ${base_pw}\n"
                 "wifi:\n  password: ${pw}\n",
                 "secrets.yaml": _WIFI_SECRET,
@@ -959,15 +1001,6 @@ def test_gather_emits_every_alias_of_one_file(project: Path, shared: Path) -> No
     [
         pytest.param(
             {
-                "wifi.yaml": "substitutions:\n  wifi_password: hunter2\nwifi:\n  password: ${wifi_password}\n"
-            },
-            {"wifi": [{"password": SensitiveStr("hunter2")}]},
-            "",
-            "also matches",
-            id="substitution_definition",
-        ),
-        pytest.param(
-            {
                 "wifi.yaml": "ssid: Kitchen\nname: Kitchen Temperature\n",
                 "secrets.yaml": "wifi_ssid: Kitchen\n",
             },
@@ -1019,16 +1052,19 @@ def test_remote_package_descriptions() -> None:
         ("https://user:pw@host/repo", "main"),
         ("https://user:pw@host/private", None),
         ("https://github.com/org/x", "v1-secret"),
+        ("https://host/repo?access_token=tok123", None),
     ):
         data.remote_sources[packages.RemotePackageSource(url, ref)] = None
     yaml_util._SECRET_VALUES["https://user:pw@host/private"] = "pkg_url"
     yaml_util._SECRET_VALUES["v1-secret"] = "private_ref"
+    yaml_util._SECRET_VALUES["tok123"] = "git_token"
     assert _remote_package_descriptions() == [
         "https://github.com/org/repo@main",
         "https://github.com/org/other",
         "https://***@host/repo@main",
         "!secret pkg_url",
         "https://github.com/org/x@!secret private_ref",
+        "https://host/repo?access_token=<!secret git_token>",
     ]
 
 

@@ -18,6 +18,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_API,
     CONF_DEFAULTS,
+    CONF_ID,
     CONF_PACKAGES,
     CONF_PASSWORD,
     CONF_SSID,
@@ -464,6 +465,10 @@ def _remote_package_descriptions() -> list[str]:
     def describe(text: str) -> str:
         if (name := yaml_util.is_secret(text)) is not None:
             return f"!secret {name}"
+        # A secret substituted into the URL or ref is shown by name.
+        for value, name in yaml_util.registered_secret_values().items():
+            if value and value in text:
+                text = text.replace(value, f"<!secret {name}>")
         return URL_USERINFO_RE.sub("://***@", text)
 
     return [
@@ -506,7 +511,10 @@ def _generate_redacted_files(
             for i, item in enumerate(node):
                 node[i] = prepare(item, source, rel, path, in_vars)
         elif isinstance(node, Remove):
-            removed.setdefault(rel, set()).add(path)
+            # `id: !remove x` drops the whole list item, not just its id.
+            removed.setdefault(rel, set()).add(
+                path[:-1] if path[-1:] == (CONF_ID,) else path
+            )
         elif isinstance(node, (int, str)) and not isinstance(node, bool):
             # An integer credential, quoted or not, at its own keys or as a variable
             # definition a credential may reference.
@@ -551,10 +559,12 @@ def _generate_redacted_files(
         trees[rel] = prepare(tree, yaml_util.named_path(path), rel, ())
     scopes, prefixes = _include_scopes(includes, trees, captured)
     removed_at = {
-        prefix + path
+        merged
         for rel, paths in removed.items()
         for path in paths
         for prefix in prefixes[rel]
+        for merged in _merged(prefix + path)
+        if merged
     }
 
     # An integer credential is swapped by prepare(), not by the dumper, so an
