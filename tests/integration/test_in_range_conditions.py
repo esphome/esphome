@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Bounds in the fixture: above 0, below 10, both inclusive. A NaN state is never in range.
@@ -48,8 +49,7 @@ async def test_in_range_conditions(
         api_client_connected() as client,
     ):
         _, services = await client.list_entities_services()
-        service = next((s for s in services if s.name == "run_cases"), None)
-        assert service is not None, "run_cases action not found"
+        service = require_service(services, "run_cases")
         await client.execute_service(service, {})
         await asyncio.wait_for(done, timeout=10.0)
 

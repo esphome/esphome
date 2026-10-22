@@ -7,7 +7,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -40,15 +42,12 @@ async def test_fnv1a_hash(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "fnv1a-hash-test"
+        await assert_device_name(client, "fnv1a-hash-test")
 
         # Wait for all tests to complete or timeout
-        try:
-            await asyncio.wait_for(all_tests_complete.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Tests timed out. Got results for: {set(test_results.keys())}")
+        await wait_or_fail(
+            all_tests_complete, 2.0, "Tests timed out", test_results=test_results
+        )
 
         # Verify all tests passed
         assert "empty" in test_results, "empty string test not found"
