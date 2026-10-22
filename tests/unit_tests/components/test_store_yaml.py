@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import struct
+import sys
 
 import pytest
 import yaml
@@ -859,16 +860,24 @@ def test_redacted_symlinked_package_loads_relative_to_its_name(
 def test_redacted_symlinked_dir_include_rebases_where_the_loader_reads(
     project: Path, shared: Path
 ) -> None:
-    """`..` after a symlinked directory follows the link, as the loader does."""
+    """`..` after a symlinked directory goes where the loader reads: through the link
+    on POSIX, lexically on Windows."""
     (shared / "pkgs").mkdir()
     (shared / "pkgs" / "base.yaml").write_text("wifi: !include ../wifi.yaml\n")
-    (shared / "wifi.yaml").write_text("ssid: shared\n")
+    (shared / "wifi.yaml").write_bytes(b"ssid: shared\n")
+    (project / "wifi.yaml").write_bytes(b"ssid: project\n")
     (project / "pkgs").symlink_to(shared / "pkgs")
     (project / "entry.yaml").write_text("packages: !include_dir_named pkgs\n")
     files = _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))
-    assert "wifi: !include '../shared/wifi.yaml'" in files["entry.yaml"].decode()
-    assert files["../shared/wifi.yaml"] == b"ssid: shared\n"
-    assert "!include '../wifi.yaml'" in files["../shared/pkgs/base.yaml"].decode()
+    base = files["../shared/pkgs/base.yaml"].decode()
+    if sys.platform == "win32":
+        assert "wifi: !include 'wifi.yaml'" in files["entry.yaml"].decode()
+        assert files["wifi.yaml"] == b"ssid: project\n"
+        assert "!include '../../project/wifi.yaml'" in base
+    else:
+        assert "wifi: !include '../shared/wifi.yaml'" in files["entry.yaml"].decode()
+        assert files["../shared/wifi.yaml"] == b"ssid: shared\n"
+        assert "!include '../wifi.yaml'" in base
 
 
 def test_include_through_a_directory_symlink(
@@ -891,7 +900,7 @@ def test_include_through_a_directory_symlink(
 
 def test_gather_emits_every_alias_of_one_file(project: Path, shared: Path) -> None:
     """Every name linking to one file appears in the envelope, in both modes."""
-    (shared / "sensor.yaml").write_text("platform: template\n")
+    (shared / "sensor.yaml").write_bytes(b"platform: template\n")
     (project / "a.yaml").symlink_to(shared / "sensor.yaml")
     (project / "b.yaml").symlink_to(shared / "sensor.yaml")
     (project / "entry.yaml").write_text(

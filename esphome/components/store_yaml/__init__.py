@@ -548,9 +548,8 @@ def _generate_redacted_files(
             if node.vars:
                 node.vars = prepare(node.vars, source, rel, path, in_vars=True)
             if not node.has_unresolved_file():
-                # Where the file lands, through directory symlinks and `!include_dir_*` moves.
-                origin = yaml_util.named_path(node.parent_file)
-                target = yaml_util.named_path(origin.parent / node.file)
+                # Where the loader read it, through directory symlinks and `!include_dir_*` moves.
+                target = yaml_util.named_path(Path(node.parent_file).parent / node.file)
                 node = node.with_file(
                     Path(os.path.relpath(target, source.parent)).as_posix()
                 )

@@ -668,6 +668,8 @@ def named_path(path: Path) -> Path:
     """``path`` with its directory resolved but its own name kept: a symlinked file
     keeps its name, and ``..`` after a symlinked directory goes where the OS does."""
     path = Path(path)
+    if os.name == "nt":  # Windows collapses `..` before it follows a directory link
+        path = Path(os.path.normpath(path))
     return path.parent.resolve() / path.name
 
 
