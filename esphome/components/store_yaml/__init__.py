@@ -60,7 +60,7 @@ _Include = tuple[yaml_util.IncludeFile, dict[str, object], tuple[str, ...]]
 # Stands in for an integer credential at its keys and definitions.
 _INT_MARK = "\x00"
 # A removed branch is never validated, so its credentials are known only by name.
-_CREDENTIAL_WORDS = ("password", "key", "secret", "token", "psk")
+_CREDENTIAL_WORDS = ("password", "key", "secret", "token", "psk", "tlv", "pairing_code")
 # A quoted string or a number: a lambda without one cannot spell a credential.
 _LITERAL_RE = re.compile(r"""["']|(?<![\w.])\d""")
 

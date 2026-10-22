@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import struct
 import sys
 
@@ -10,7 +11,7 @@ import pytest
 import yaml
 
 from esphome import yaml_util
-from esphome.components import packages
+from esphome.components import packages, store_yaml
 from esphome.components.store_yaml import (
     CONF_ALLOW_UNENCRYPTED,
     ENVELOPE_MAGIC,
@@ -365,6 +366,15 @@ def test_redacted_inline_value_becomes_secret_ref(
             API_KEY,
             "wireguard.private_key in vpn.yaml",
             id="removed_component_credential_known_by_name",
+        ),
+        pytest.param(
+            {
+                "player.yaml": 'sendspin:\n  static_pairing_code: "123456"\n',
+                "entry.yaml": "packages:\n  p: !include player.yaml\nsendspin: !remove\n",
+            },
+            API_KEY,
+            "sendspin.static_pairing_code in player.yaml",
+            id="removed_credential_outside_the_common_words",
         ),
         pytest.param(
             {
@@ -1200,3 +1210,30 @@ def test_redacted_accepts_include_text_that_is_not_a_tag(
     CORE.config = WIFI_PW
     files = _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))
     assert b"hunter2" not in b"".join(files.values())
+
+
+def test_credential_words_cover_every_sensitive_key() -> None:
+    """A removed branch is matched by name, so every `cv.sensitive` key must be named."""
+    root = Path(store_yaml.__file__).parents[2]
+    sources = [f.read_text() for f in root.rglob("*.py")]
+    consts = {
+        m.group(1): m.group(2)
+        for text in sources
+        for m in re.finditer(r'^(CONF_\w+) = "([^"]+)"', text, re.MULTILINE)
+    }
+    keys = {
+        consts.get(m.group(1), m.group(1))
+        for text in sources
+        for m in re.finditer(
+            r"cv\.(?:Optional|Required|Exclusive|Inclusive)\((CONF_\w+)[^:]*:\s*cv\.sensitive\(",
+            text,
+        )
+    }
+    assert {"password", "tlv", "static_pairing_code"} <= keys
+    # A broadcast SSID is not secret; store_yaml treats it the same way elsewhere.
+    unnamed = {
+        k
+        for k in keys - {"ssid"}
+        if not any(w in k for w in store_yaml._CREDENTIAL_WORDS)
+    }
+    assert not unnamed, f"add a word for {sorted(unnamed)} to _CREDENTIAL_WORDS"
