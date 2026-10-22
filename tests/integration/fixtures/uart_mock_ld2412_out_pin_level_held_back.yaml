@@ -18,7 +18,8 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# Answers only the second basic configuration query, so the select must hold its write back and ask again
+# Answers only the second basic configuration query, and only inside configuration mode, so the select
+# must hold its write back and ask again the way a real module expects
 uart_mock:
   id: mock_uart
   baud_rate: 256000
@@ -27,8 +28,19 @@ uart_mock:
         - lambda: |-
             // The length and command word arrive as one write of their own
             static const std::vector<uint8_t> BASIC_CONF_QUERY = {0x02, 0x00, 0x12, 0x00};
+            static const std::vector<uint8_t> ENABLE_CONF = {0x04, 0x00, 0xFF, 0x00};
+            static const std::vector<uint8_t> DISABLE_CONF = {0x02, 0x00, 0xFE, 0x00};
+            static bool config_mode = false;
             static int queries = 0;
-            if (data != BASIC_CONF_QUERY || ++queries != 2) {
+            if (data == ENABLE_CONF) {
+              config_mode = true;
+              return;
+            }
+            if (data == DISABLE_CONF) {
+              config_mode = false;
+              return;
+            }
+            if (data != BASIC_CONF_QUERY || !config_mode || ++queries != 2) {
               return;
             }
             id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>{

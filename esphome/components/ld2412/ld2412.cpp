@@ -848,8 +848,10 @@ void LD2412Component::set_basic_config() {
   if (from_module && !this->basic_conf_read_) {
     // The module never reported, so the values on hand are the built in defaults
     ESP_LOGW(TAG, "Command %02X held back until the module reports its settings", CMD_BASIC_CONF);
+    this->set_config_mode_(true);
     this->query_parameters_();
-    this->set_timeout(BASIC_CONF_TIMEOUT_ID, QUERY_TIMEOUT_MS, [this]() {
+    this->set_config_mode_(false);
+    this->set_timeout(BASIC_CONF_TIMEOUT_ID, QUERY_TIMEOUT_MS, []() {
       ESP_LOGE(TAG, "Command %02X not sent, the module did not report its settings", CMD_BASIC_CONF);
     });
     return;
