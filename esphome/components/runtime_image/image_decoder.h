@@ -58,8 +58,8 @@ class ImageDecoder {
     this->expected_size_ = 0;
     this->decoded_bytes_ = 0;
     this->size_valid_ = true;
-    this->x_scale_ = 1.0;
-    this->y_scale_ = 1.0;
+    this->draw_width_ = 0;
+    this->draw_height_ = 0;
   }
 
   /**
@@ -134,8 +134,13 @@ class ImageDecoder {
   uint8_t *image_buffer_() const;
   bool image_is_big_endian_() const;
 
-  double x_scale_ = 1.0;
-  double y_scale_ = 1.0;
+  /// The first buffer column, or row, that source column x, or row y, paints: ceil(x * buffer size / draw size)
+  int scaled_x_(int x) const;
+  int scaled_y_(int y) const;
+
+  // Size of the image as the decoder draws it, which draw() spreads over the buffer
+  int draw_width_ = 0;
+  int draw_height_ = 0;
   RuntimeImage *image_;
   size_t expected_size_ = 0;  // Expected data size (0 if unknown)
   size_t decoded_bytes_ = 0;  // Bytes processed so far
