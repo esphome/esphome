@@ -181,8 +181,8 @@ int JpegDecoder::start_() {
   }
   const int decoded_width = (width + this->scale_ - 1) / this->scale_;
   const int decoded_height = (height + this->scale_ - 1) / this->scale_;
-  this->x_scale_ = static_cast<double>(buffer_width) / decoded_width;
-  this->y_scale_ = static_cast<double>(buffer_height) / decoded_height;
+  this->draw_width_ = decoded_width;
+  this->draw_height_ = decoded_height;
   if (this->scale_ != 1) {
     ESP_LOGD(TAG, "Decoding at 1/%d size, %d x %d", this->scale_, decoded_width, decoded_height);
   }
