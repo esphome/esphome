@@ -136,4 +136,34 @@ TEST(MqMath, CorrectionFollowsTemperatureAndHumidity) {
   EXPECT_FLOAT_EQ(2000.0f, clamp_ppm_corrected(3000.0f, 0.0f, 1000.0f, 2.0f, CLAMP_SCALED));
 }
 
+TEST(MqMath, InverseCorrectionMovesTheRatioTheOtherWay) {
+  // RS/R0 and R0/RS run in opposite directions: the same correction has to be
+  // divided into one and multiplied into the other.
+  EXPECT_FLOAT_EQ(0.625f, apply_correction(0.5f, 0.8f));
+  EXPECT_FLOAT_EQ(0.4f, apply_correction_inverse(0.5f, 0.8f));
+  // A missing or unusable correction leaves the ratio alone.
+  EXPECT_FLOAT_EQ(0.5f, apply_correction_inverse(0.5f, 1.0f));
+  EXPECT_FLOAT_EQ(0.5f, apply_correction_inverse(0.5f, 0.0f));
+  EXPECT_FLOAT_EQ(0.5f, apply_correction_inverse(0.5f, NAN));
+
+  // Under R0/RS the inverse path has to stay closer to the uncorrected reading
+  // than the RS/R0 path would: the correction is a small physical adjustment, not
+  // a move to the other end of the curve.
+  const float ratio = 1.5f;
+  const float uncorrected = ppm_from_ratio(H2_A, H2_B, ratio, REGRESSION_EXPONENTIAL);
+  const float wrong = ppm_from_ratio(H2_A, H2_B, apply_correction(ratio, 0.8f), REGRESSION_EXPONENTIAL);
+  const float right = ppm_from_ratio(H2_A, H2_B, apply_correction_inverse(ratio, 0.8f), REGRESSION_EXPONENTIAL);
+  EXPECT_TRUE(std::fabs(right - uncorrected) < std::fabs(wrong - uncorrected));
+}
+
+TEST(MqMath, CoefficientClampLimits) {
+  EXPECT_FLOAT_EQ(static_cast<float>(mqmath::MQ_MAX_A), clamp_a(2e31f));
+  EXPECT_FLOAT_EQ(-static_cast<float>(mqmath::MQ_MAX_A), clamp_a(-2e31f));
+  EXPECT_FLOAT_EQ(static_cast<float>(mqmath::MQ_MAX_B), clamp_b(1000.0f));
+  EXPECT_FLOAT_EQ(-static_cast<float>(mqmath::MQ_MAX_B), clamp_b(-1000.0f));
+  // A non-finite coefficient would drop the curve, so it reads as no curve.
+  EXPECT_FLOAT_EQ(0.0f, clamp_a(NAN));
+  EXPECT_FLOAT_EQ(0.0f, clamp_b(INFINITY));
+}
+
 }  // namespace esphome::mq_gas_sensors::testing

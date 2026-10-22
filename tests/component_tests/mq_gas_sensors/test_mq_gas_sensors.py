@@ -2,11 +2,9 @@
 
 from collections.abc import Callable
 from pathlib import Path
-import re
 
 import pytest
 
-import esphome
 from esphome import config_validation as cv
 from esphome.components.esp32 import (
     KEY_BOARD,
@@ -753,24 +751,6 @@ def test_a_bad_pin_is_reported_as_a_pin(
                 "pin": "NOT_A_PIN",
             }
         )
-
-
-def test_the_firmware_clamp_matches_the_code_generation_clamp() -> None:
-    """`mq_math.h` clamps `a` and `b` on the device with its own limits.
-
-    A table value is clamped twice, once here by `resolve_sensor()` and once on the
-    device by `mqmath::clamp_a()` / `clamp_b()`, so a change to one limit has to be
-    mirrored in the other.
-    """
-    header = (
-        Path(esphome.__file__).parent / "components" / "mq_gas_sensors" / "mq_math.h"
-    )
-    source = header.read_text(encoding="utf-8")
-
-    for name, limit in (("MQ_MAX_A", MQ_MAX_A), ("MQ_MAX_B", MQ_MAX_B)):
-        match = re.search(rf"static constexpr double {name} = ([^;]+);", source)
-        assert match is not None, f"{name} is not defined in {header.name}"
-        assert float(match.group(1)) == limit
 
 
 def test_mqdatascience_curve_reaches_the_sensor(

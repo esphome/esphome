@@ -177,9 +177,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// readable.  Pass the format as `LOG_STR(...)`: on ESP8266 it is read from
   /// flash with `vsnprintf_P()`, like the logger does.
   void log_message_(LogSeverity level, const LogString *format, ...);
-  /// Clear the status warning a fault just ended, or restate the R0 warning that is
+  /// Clear the status warning a fault just ended, or restate the warning that is
   /// still current - the status slot holds one warning only.
-  void refresh_status_warning_();
+  void update_status_();
   /// End a ratio fault that a valid reading supersedes.
   void clear_ratio_warning_();
 
@@ -246,20 +246,26 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// The warm-up window ended; latched, so `in_warmup_()` never reports it again.
   bool warmup_ended_{false};
   bool warned_no_r0_{false};
+  /// A sampler that returned no finite value in the whole averaging window.
+  bool warned_sampler_failure_{false};
   /// Latched faults of the analog input, one per direction: each is warned about
   /// once and re-armed when the wiring reads as expected again.
   bool warned_low_voltage_{false};
   bool warned_high_voltage_{false};
   /// The status warning currently reports a wiring fault, so it is the one to
   /// clear once the input reads as expected (a calibration warning is not ours).
-  bool wiring_warning_{false};
+  const LogString *wiring_warning_{nullptr};
   /// The warning the status slot holds for R0 (a failed calibration, an R0 that
   /// could not be stored): it is restated when another warning that took the slot
   /// clears.
   const LogString *r0_warning_{nullptr};
   /// A reading the curve cannot evaluate while the wiring itself is fine.
   bool warned_unusable_ratio_{false};
+  /// The temperature/humidity sources cannot provide a usable correction.
+  bool correction_degraded_{false};
   bool warned_correction_{false};
+  /// The first rejected calibration sample was logged (debug only).
+  bool calibration_rejection_logged_{false};
   float sensor_voltage_{0.0f};
   float rs_{0.0f};
   float ratio_{0.0f};

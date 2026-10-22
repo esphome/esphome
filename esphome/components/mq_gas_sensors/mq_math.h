@@ -293,6 +293,17 @@ inline float apply_correction(float ratio, float correction) {
   return static_cast<float>(static_cast<double>(ratio) / static_cast<double>(correction));
 }
 
+/// Inverse of `apply_correction()`: `ratio_eff = ratio * correction`.
+///
+/// Under `ratio_mode: r0_rs` the ratio grows as the gas concentration falls, so
+/// the MQDataScience correction has to move it the other way to keep the same
+/// physical meaning.
+inline float apply_correction_inverse(float ratio, float correction) {
+  if (!std::isfinite(ratio) || !std::isfinite(correction) || correction <= 0.0f)
+    return ratio;
+  return static_cast<float>(static_cast<double>(ratio) * static_cast<double>(correction));
+}
+
 /// Where the correction comes from (mirrors `CORRECTION_MODES` in `__init__.py`).
 enum CorrectionMode : uint8_t {
   CORRECTION_NONE = 0,           ///< no compensation (default)
