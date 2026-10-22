@@ -1126,11 +1126,7 @@ for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
 
 
 def load_yaml(
-    fname: Path,
-    clear_secrets: bool = True,
-    *,
-    track_document_range: bool = True,
-    resolve_document_include: bool = True,
+    fname: Path, clear_secrets: bool = True, *, track_document_range: bool = True
 ) -> Any:
     """Load a YAML file.
 
@@ -1140,38 +1136,21 @@ def load_yaml(
     generated code; callers that neither validate nor generate code (the
     upload/logs fast path re-reading the validated config cache) can skip
     it, roughly halving parse time.
-
-    resolve_document_include=False keeps a document that is one ``!include``
-    as the deferred IncludeFile, with its ``vars`` and ``condition``.
     """
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
         _LOADED_SECRET_NAMES.clear()
-    return _load_yaml_internal(
-        fname,
-        track_document_range=track_document_range,
-        resolve_document_include=resolve_document_include,
-    )
+    return _load_yaml_internal(fname, track_document_range=track_document_range)
 
 
-def _load_yaml_internal(
-    fname: Path,
-    *,
-    track_document_range: bool = True,
-    resolve_document_include: bool = True,
-) -> Any:
+def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
     for listener in tuple(load_listeners):
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
-            res = parse_yaml(
-                fname,
-                f_handle,
-                track_document_range=track_document_range,
-                resolve_document_include=resolve_document_include,
-            )
+            res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
     return res
@@ -1196,7 +1175,11 @@ def parse_yaml(
     track_document_range: bool = True,
     resolve_document_include: bool = True,
 ) -> Any:
-    """Parse a YAML file."""
+    """Parse a YAML file.
+
+    resolve_document_include=False keeps a document that is one ``!include``
+    as the deferred IncludeFile, with its ``vars`` and ``condition``.
+    """
     if yaml_loader is None:
         # Nested loads (!include, !secret, !include_dir_*) inherit the
         # same tracking mode.

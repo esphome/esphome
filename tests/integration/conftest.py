@@ -212,8 +212,10 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
     loop = asyncio.get_running_loop()
     content = await loop.run_in_executor(None, read_file, fixture_path)
 
-    # Add the port to a top-level api section; keys ending in "api:" are left alone.
-    content = re.sub(r"(?m)^api:", f"api:\n  port: {unused_tcp_port}", content)
+    # Replace the port in the config if it contains api section
+    if "api:" in content:
+        # Add port configuration after api:
+        content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
 
     # Add debug build flags for integration tests to enable assertions
     if "esphome:" in content and "build_flags:" not in content:

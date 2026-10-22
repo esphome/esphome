@@ -84,21 +84,6 @@ PackageCallback = Callable[
 ]
 
 
-# Keys of a git package entry; any other key under `packages:` names a package.
-REMOTE_PACKAGE_KEYS = frozenset(
-    {
-        CONF_URL,
-        CONF_REF,
-        CONF_REFRESH,
-        CONF_PATH,
-        CONF_FILE,
-        CONF_FILES,
-        CONF_USERNAME,
-        CONF_PASSWORD,
-    }
-)
-
-
 def is_remote_package(package_config: dict) -> bool:
     """Returns True if the package_config is a remote package definition."""
     return CONF_URL in package_config

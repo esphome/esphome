@@ -11,14 +11,12 @@ import yaml
 
 from esphome import yaml_util
 import esphome.codegen as cg
-from esphome.components import packages
-from esphome.components.api import CONF_ENCRYPTION
+from esphome.components import noise, packages
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_API,
     CONF_DEFAULTS,
-    CONF_KEY,
     CONF_PACKAGES,
     CONF_PASSWORD,
     CONF_SUBSTITUTIONS,
@@ -26,7 +24,7 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, Lambda
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG
 import esphome.final_validate as fv
-from esphome.git import URL_USERINFO_RE, redact_url_credentials
+from esphome.git import URL_USERINFO_RE
 from esphome.helpers import ensure_unique_string, zstd_module
 from esphome.types import ConfigType
 
@@ -39,19 +37,19 @@ DOMAIN = "store_yaml"
 CONF_INCLUDE_SECRETS = "include_secrets"
 CONF_ALLOW_UNENCRYPTED = "allow_unencrypted"
 
-
-# Compression level for zstd; 22 is the max and gives ~70-90% reduction on YAML.
+# 22 is the max and gives ~70-90% reduction on YAML.
 ZSTD_LEVEL = 22
-# Envelope magic: "EHY1" = ESPHome YAML, version 1.
+# "EHY1" = ESPHome YAML, version 1.
 ENVELOPE_MAGIC = b"EHY1"
-# Replacement content for secrets files: a fill-in skeleton listing every
-# `!secret` key the recovered config needs.
 SECRETS_SKELETON_HEADER = (
     "# Redacted by store_yaml. Fill in these values and the recovered\n"
     "# config is ready to flash.\n"
 )
-# Envelope path of the note recording content that could not be captured.
 UNCAPTURED_NOTE_PATH = "store_yaml_uncaptured.yaml"
+_FIX = (
+    "Reference them with `!secret`, or set `include_secrets: true` to embed "
+    "secrets deliberately."
+)
 # Substitution names to every value they may take in one file.
 _Scope = dict[str, list[object]]
 
@@ -66,10 +64,7 @@ CONFIG_SCHEMA = cv.Schema(
 def _final_validate(config: ConfigType) -> ConfigType:
     """Require an API encryption key unless ``allow_unencrypted`` is set."""
     full = fv.full_config.get()
-    api_conf = full.get(CONF_API, {})
-    # A keyless `encryption:` accepts the all-zeros PSK until provisioned
-    encryption = api_conf.get(CONF_ENCRYPTION) or {}
-    if CONF_KEY in encryption:
+    if noise.static_encryption_key(full.get(CONF_API, {})) is not None:
         return config
     if config.get(CONF_ALLOW_UNENCRYPTED):
         _LOGGER.warning(
@@ -81,11 +76,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
         )
         return config
     raise cv.Invalid(
-        "store_yaml requires API encryption (configure `api.encryption.key`). "
-        "Without encryption, the embedded YAML — which may contain Wi-Fi "
-        "credentials or opted-in secrets — can be read by any client that "
-        "reaches the device. Set `store_yaml.allow_unencrypted: true` to "
-        "override after acknowledging the risk."
+        "store_yaml requires API encryption (`api.encryption.key`), or any client "
+        "that reaches the device can read the embedded YAML. Set "
+        "`store_yaml.allow_unencrypted: true` to accept that."
     )
 
 
@@ -100,20 +93,12 @@ def _gather_files(
     Returns (relative_path, named_path) pairs, one per name the YAML reached
     the file by, and the relative paths of secrets files.
     """
-    if not discovered.files:
-        raise EsphomeError(
-            "store_yaml could not discover any YAML files for "
-            f"{CORE.config_path}; nothing to embed."
-        )
-
     if discovered.load_errors:
-        # A silently partial recovery blob defeats the feature; fail the build
-        # instead of embedding an incomplete file set.
+        # A partial recovery blob defeats the feature.
         raise EsphomeError(
             "store_yaml: could not load all configuration files: "
             + "; ".join(discovered.load_errors)
         )
-
     if discovered.unresolved:
         _LOGGER.warning(
             "store_yaml: %d !include path(s) use substitutions and cannot be "
@@ -123,7 +108,6 @@ def _gather_files(
         )
 
     root = yaml_util.named_path(CORE.config_path).parent
-
     entries: list[tuple[str, Path]] = []
     secret_rels: set[str] = set()
     for path in discovered.files:
@@ -140,7 +124,6 @@ def _gather_files(
             if path in discovered.secrets:
                 secret_rels.add(rel_str)
             entries.append((rel_str, alias))
-
     return entries, secret_rels
 
 
@@ -163,7 +146,7 @@ def _iter_nodes(
     """Yield (config_path, value, is_key) for every key and scalar in a tree.
 
     Wrappers the dumper writes as text (`!lambda`, `!extend`, `!remove`,
-    `!include` paths and vars) are unwrapped so their payloads are scanned.
+    `!include` paths, vars and conditions) are unwrapped so they are scanned.
     """
     if isinstance(node, dict):
         for key, value in node.items():
@@ -187,31 +170,19 @@ def _iter_nodes(
 @dataclass
 class _SensitiveValue:
     secret_name: str
-    config_path: str  # dotted path, for warnings (never log the value itself)
+    config_path: str  # dotted path, for messages (never the value itself)
     from_secret: bool  # loaded through a real `!secret`
-    # Last path segments the value is sensitive at (e.g. {"password"}), used to
-    # tell the value's own occurrences apart from unrelated collisions.
+    # Last path segments the value is sensitive at, to tell its own
+    # occurrences apart from unrelated collisions.
     sensitive_keys: set[str]
     # Integers skip the substring scan; short PINs would match unrelated text.
     is_int: bool = False
 
 
-def _iter_includes(node: object) -> Generator[yaml_util.IncludeFile]:
-    """Yield every `!include` in a tree, including those inside include vars."""
-    if isinstance(node, dict):
-        for value in node.values():
-            yield from _iter_includes(value)
-    elif isinstance(node, list):
-        for item in node:
-            yield from _iter_includes(item)
-    elif isinstance(node, yaml_util.IncludeFile):
-        yield node
-        if node.vars:
-            yield from _iter_includes(node.vars)
-
-
 def _include_scopes(
-    trees: dict[str, object], sources: dict[str, Path]
+    includes: list[yaml_util.IncludeFile],
+    trees: dict[str, object],
+    sources: dict[str, Path],
 ) -> dict[str, _Scope]:
     """Every value a substitution name may take in each file.
 
@@ -231,15 +202,14 @@ def _include_scopes(
     for rel, path in sources.items():
         rels_by_path.setdefault(path.resolve(), []).append(rel)
     invocations: dict[str, list[dict[str, object]]] = {rel: [] for rel in trees}
-    for tree in trees.values():
-        for include in _iter_includes(tree):
-            if include.has_unresolved_file():
-                continue
-            target = (include.parent_file.parent / include.file).resolve()
-            for target_rel in rels_by_path.get(target, ()):
-                invocations[target_rel].append(
-                    {str(k): v for k, v in (include.vars or {}).items()}
-                )
+    for include in includes:
+        if include.has_unresolved_file():
+            continue
+        target = (include.parent_file.parent / include.file).resolve()
+        for rel in rels_by_path.get(target, ()):
+            invocations[rel].append(
+                {str(k): v for k, v in (include.vars or {}).items()}
+            )
     scopes: dict[str, _Scope] = {}
     for rel, tree in trees.items():
         defaults = mapping(tree, CONF_DEFAULTS)
@@ -255,14 +225,6 @@ def _include_scopes(
                     values.extend(substitutions[name])
         scopes[rel] = scope
     return scopes
-
-
-def _reference_names(text: str) -> list[str]:
-    """Substitution names referenced as `$name` or `${name}` in `text`."""
-    return [
-        m[1:-1] if m.startswith("{") else m
-        for m in SUBSTITUTION_VARIABLE_PROG.findall(text)
-    ]
 
 
 def _check_sensitive_usage(
@@ -284,7 +246,10 @@ def _check_sensitive_usage(
         return not text or text in sensitive or yaml_util.is_secret(text) is not None
 
     def references_verified(text: str, scope: _Scope) -> bool:
-        names = _reference_names(text)
+        names = [
+            m[1:-1] if m.startswith("{") else m
+            for m in SUBSTITUTION_VARIABLE_PROG.findall(text)
+        ]
         return bool(names) and all(
             name in scope and all(verified(str(value)) for value in scope[name])
             for name in names
@@ -295,28 +260,24 @@ def _check_sensitive_usage(
         (`wifi.password` becomes `wifi.networks.password`)."""
         if not part or full[-1] != part[-1]:
             return False
-        pos = len(full) - 1
-        for seg in reversed(part[:-1]):
-            pos = next((i for i in range(pos - 1, -1, -1) if full[i] == seg), -1)
-            if pos < 0:
-                return False
-        return True
+        rest = iter(reversed(full[:-1]))
+        return all(seg in rest for seg in reversed(part[:-1]))
 
     def credential_path(path: tuple[str, ...]) -> bool:
         """Whether `path` lands where the validated config holds a credential.
 
-        A git package password never reaches validation. An inline package
-        merges at the top level, so its `packages.<name>` prefix goes; an
-        included file's path ends the validated one.
+        A git package password never reaches validation; an inline package
+        merges at the top level, so its `packages[.<name>]` prefix goes.
         """
         if not path:
             return False
         if path[0] == CONF_PACKAGES:
             if path[-1] == CONF_PASSWORD:
                 return True
-            path = path[1:]
-            if path and path[0] not in packages.REMOTE_PACKAGE_KEYS:
-                path = path[1:]
+            return any(
+                ends_with(sp, path[1:]) or ends_with(sp, path[2:])
+                for sp in sensitive_paths
+            )
         return any(ends_with(sp, path) for sp in sensitive_paths)
 
     def shown(path: tuple[str, ...]) -> str:
@@ -386,8 +347,8 @@ def _check_sensitive_usage(
                 ):
                     continue
                 if other.from_secret:
-                    # Already a real !secret and overlaps (an SSID in a name)
-                    # are common, so warn without the value instead of failing.
+                    # A real !secret overlapping unrelated text (an SSID in a
+                    # name) is common, so warn without the value.
                     _LOGGER.warning(
                         "store_yaml: the value of !secret %s (sensitive at %s) "
                         "appears inside the value at %s in %s; substring "
@@ -399,51 +360,47 @@ def _check_sensitive_usage(
                     )
                 else:
                     embedded.append(f"{other.config_path} (inside {where} in {rel})")
-    if key_hits:
-        raise EsphomeError(
-            "store_yaml: sensitive value(s) are also used as mapping keys: "
-            f"{', '.join(key_hits)}. The redaction swap would rewrite the key "
-            "and corrupt the recovered config. Change the value, or set "
-            "`include_secrets: true` to embed secrets deliberately."
-        )
-    if embedded:
-        raise EsphomeError(
-            "store_yaml: sensitive value(s) appear embedded inside larger "
-            f"values: {', '.join(embedded)}. Redaction only replaces whole "
-            "scalars, so these would ship unredacted. Move the value into a "
-            "`!secret` referenced on its own, or set `include_secrets: true` "
-            "to embed secrets deliberately."
-        )
-    if unverified:
-        raise EsphomeError(
-            "store_yaml: cannot confirm that these values are redacted: "
-            f"{', '.join(unverified)}. They sit where credentials go but are "
-            "not in the validated config (overridden by a later package, or a "
-            "git package password that is used before validation). Reference "
-            "them with `!secret`, or set `include_secrets: true` to embed "
-            "secrets deliberately."
-        )
+    for hits, why in (
+        (
+            key_hits,
+            "are also used as mapping keys, which the redaction swap would corrupt",
+        ),
+        (
+            embedded,
+            "appear embedded inside larger values, which redaction does not replace",
+        ),
+        (
+            unverified,
+            (
+                "cannot be confirmed redacted: they sit where credentials go but are "
+                "not in the validated config (overridden by a later package, or a git "
+                "package password used before validation)"
+            ),
+        ),
+    ):
+        if hits:
+            raise EsphomeError(
+                f"store_yaml: sensitive value(s) {why}: {', '.join(hits)}. {_FIX}"
+            )
 
 
-def _collect_sensitive_paths() -> set[tuple[str, ...]]:
-    """Every config path validation marked sensitive, empty values included."""
-    return {
-        path
-        for path, node, is_key in _iter_nodes(CORE.config)
-        if not is_key and isinstance(node, yaml_util.Sensitive)
-    }
-
-
-def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
-    """Map each cv.sensitive value to the `!secret` name it is recovered as.
+def _collect_sensitive_values() -> tuple[
+    dict[str, _SensitiveValue], set[tuple[str, ...]]
+]:
+    """Map each cv.sensitive value to the `!secret` name it is recovered as, and
+    collect every sensitive path (empty values included).
 
     `!secret` values keep their name; inline values get one from their config
     path that does not clash with real secrets.
     """
     used = yaml_util.registered_secret_names()
     result: dict[str, _SensitiveValue] = {}
+    paths: set[tuple[str, ...]] = set()
     for path, node, is_key in _iter_nodes(CORE.config):
-        if is_key or not isinstance(node, yaml_util.Sensitive) or not node:
+        if is_key or not isinstance(node, yaml_util.Sensitive):
+            continue
+        paths.add(path)
+        if not node:
             continue
         # Decimal for ints, to match the raw tree's parsed scalars, not HexInt's hex.
         value = str(int(node)) if isinstance(node, int) else str(node)
@@ -459,43 +416,44 @@ def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
             )
         if path:
             entry.sensitive_keys.add(path[-1])
-    return result
+    return result, paths
 
 
 def _uncaptured_note(
     unresolved: list[str], remote_packages: list[str]
 ) -> tuple[str, bytes] | None:
-    """Return a comment-only entry listing uncaptured content, or None if there is none."""
-    if not unresolved and not remote_packages:
+    """A comment-only entry listing uncaptured content, or None if there is none."""
+    sections = (
+        (
+            "These !include paths use substitutions; restore the files manually:",
+            unresolved,
+        ),
+        (
+            "These packages come from remote sources; re-fetch them to complete this config:",
+            remote_packages,
+        ),
+    )
+    body = "".join(
+        f"# {title}\n" + "".join(f"#   {item}\n" for item in items)
+        for title, items in sections
+        if items
+    )
+    if not body:
         return None
-    parts = ["# store_yaml: the following content could not be captured.\n"]
-    if unresolved:
-        parts.append(
-            "# These !include paths use substitutions; restore the files manually:\n"
-            + "".join(f"#   {inc}\n" for inc in unresolved)
-        )
-    if remote_packages:
-        parts.append(
-            "# These packages come from remote sources; re-fetch them to\n"
-            "# complete this config:\n"
-            + "".join(f"#   {pkg}\n" for pkg in remote_packages)
-        )
-    return (UNCAPTURED_NOTE_PATH, "".join(parts).encode("utf-8"))
-
-
-def _describe_url(url: str) -> str:
-    """A URL for notes and logs: its secret name, or the URL with userinfo masked."""
-    if (name := yaml_util.is_secret(url)) is not None:
-        return f"!secret {name}"
-    return redact_url_credentials(url)
+    header = "# store_yaml: the following content could not be captured.\n"
+    return UNCAPTURED_NOTE_PATH, (header + body).encode("utf-8")
 
 
 def _remote_package_descriptions() -> list[str]:
-    """Describe every remote source packages were fetched from; their files cannot be embedded."""
+    """Every remote source packages were fetched from, with its secret name or
+    its URL userinfo masked, plus the ref."""
     return [
-        f"{_describe_url(source.url)}@{source.ref}"
-        if source.ref
-        else _describe_url(source.url)
+        (
+            f"!secret {name}"
+            if (name := yaml_util.is_secret(source.url)) is not None
+            else URL_USERINFO_RE.sub("://***@", source.url)
+        )
+        + (f"@{source.ref}" if source.ref else "")
         for source in packages.get_remote_package_sources()
     ]
 
@@ -506,12 +464,18 @@ def _build_secrets_skeleton(keys: set[str]) -> bytes:
     return (SECRETS_SKELETON_HEADER + (body if keys else "")).encode("utf-8")
 
 
-def _prepare_tree(node: object, source: Path, fold_secrets: bool) -> object:
+def _prepare_tree(
+    node: object,
+    source: Path,
+    fold_secrets: bool,
+    includes: list[yaml_util.IncludeFile],
+) -> object:
     """Make a loaded file's tree dump as the source it came from.
 
     A mapping or list loaded through `!secret` becomes its registered text, which
     the dumper writes as the reference (a plain str would skip the secret check).
-    An `!include` pulled in by `!include_dir_*` is rebased onto `source`.
+    An `!include` pulled in by `!include_dir_*` is rebased onto `source`; every
+    `!include` seen is added to `includes`.
     """
     if (
         fold_secrets
@@ -521,59 +485,55 @@ def _prepare_tree(node: object, source: Path, fold_secrets: bool) -> object:
         return yaml_util.make_data_base(str(node))
     if isinstance(node, dict):
         for key, value in node.items():
-            node[key] = _prepare_tree(value, source, fold_secrets)
+            node[key] = _prepare_tree(value, source, fold_secrets, includes)
     elif isinstance(node, list):
         for i, item in enumerate(node):
-            node[i] = _prepare_tree(item, source, fold_secrets)
+            node[i] = _prepare_tree(item, source, fold_secrets, includes)
     elif isinstance(node, yaml_util.IncludeFile):
         if node.vars:
-            node.vars = _prepare_tree(node.vars, source, fold_secrets)
+            node.vars = _prepare_tree(node.vars, source, fold_secrets, includes)
+        includes.append(node)
         origin = yaml_util.named_path(node.parent_file)
         if origin != source and not node.has_unresolved_file():
-            return yaml_util.IncludeFile(
-                source,
-                Path(
-                    os.path.relpath(origin.parent / node.file, source.parent)
-                ).as_posix(),
-                node.yaml_loader,
-                vars=node.vars,
-                condition=node.condition,
+            target = origin.parent / node.file
+            node = node.with_file(
+                Path(os.path.relpath(target, source.parent)).as_posix()
             )
+            node.parent_file = source
     return node
 
 
 def _generate_redacted_files(
     entries: list[tuple[str, Path]], secret_rels: set[str], remote_packages: list[str]
 ) -> list[tuple[str, bytes]]:
-    """Re-dump captured files with sensitive values as `!secret` and secrets files as a skeleton.
-
-    Comments and formatting are not preserved.
-    """
-    sensitive = _collect_sensitive_values()
+    """Re-dump captured files with sensitive values as `!secret` and secrets files
+    as a skeleton. Comments and formatting are not preserved."""
+    sensitive, sensitive_paths = _collect_sensitive_values()
 
     captured = {rel: path for rel, path in entries if rel not in secret_rels}
-    # A document that is one `!include` keeps its vars and condition.
-    loaded = {
-        rel: yaml_util.load_yaml(
-            path, clear_secrets=False, resolve_document_include=False
-        )
-        for rel, path in captured.items()
-    }
+    loaded = {}
+    for rel, path in captured.items():
+        # A document that is one `!include` keeps its vars and condition.
+        with path.open(encoding="utf-8") as handle:
+            loaded[rel] = yaml_util.parse_yaml(
+                path, handle, resolve_document_include=False
+            )
     fold_secrets = yaml_util.has_container_secrets()
+    includes: list[yaml_util.IncludeFile] = []
     trees = {
-        rel: _prepare_tree(tree, yaml_util.named_path(captured[rel]), fold_secrets)
+        rel: _prepare_tree(
+            tree, yaml_util.named_path(captured[rel]), fold_secrets, includes
+        )
         for rel, tree in loaded.items()
     }
-    _check_sensitive_usage(
-        sensitive, _collect_sensitive_paths(), trees, _include_scopes(trees, captured)
-    )
+    scopes = _include_scopes(includes, trees, captured)
+    _check_sensitive_usage(sensitive, sensitive_paths, trees, scopes)
 
     registered = {value: info.secret_name for value, info in sensitive.items()}
     with yaml_util.secret_values_registered(registered) as skeleton_keys:
         texts = {rel: yaml_util.dump(tree) for rel, tree in trees.items()}
 
-    # An inline value whose name was never emitted was not found as a whole
-    # scalar, so its redaction cannot be verified.
+    # An inline value whose name was never emitted was not found as a whole scalar.
     leaked = [
         info.config_path
         for info in sensitive.values()
@@ -581,13 +541,10 @@ def _generate_redacted_files(
     ]
     if leaked:
         raise EsphomeError(
-            "store_yaml: could not redact the sensitive value(s) of "
-            f"{', '.join(leaked)}. The value was not found in any captured "
-            "file; it may be composed via substitutions, set on the command "
-            "line with -s, or defined inside a remote package"
-            + (f" ({', '.join(remote_packages)})" if remote_packages else "")
-            + ". Reference it with `!secret` in the YAML, or set "
-            "`include_secrets: true` to embed secrets deliberately."
+            f"store_yaml: could not redact the sensitive value(s) of {', '.join(leaked)}; "
+            "not found in any captured file (composed via substitutions, set with -s, "
+            f"or defined in a remote package: {', '.join(remote_packages) or 'none'}). "
+            + _FIX
         )
 
     skeleton = _build_secrets_skeleton(skeleton_keys)
@@ -596,8 +553,7 @@ def _generate_redacted_files(
         for rel, _ in entries
     ]
     if skeleton_keys and yaml_util.SECRET_YAML not in secret_rels:
-        # No captured secrets file lands at the config root, but `!secret` looks
-        # for secrets.yaml beside the config; ship a skeleton so it loads.
+        # `!secret` looks for secrets.yaml beside the config; ship a skeleton there.
         result.append((yaml_util.SECRET_YAML, skeleton))
     return result
 
@@ -607,23 +563,21 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
 
     magic (4) | u32 count | { u16 path_len | path | u32 content_len | content }...
     """
-    parts: list[bytes] = [ENVELOPE_MAGIC, struct.pack("<I", len(files))]
-    seen: set[str] = set()
-    for path, content in files:
-        if path in seen:
-            # unpack_envelope would silently keep only the last duplicate.
-            raise EsphomeError(f"store_yaml: duplicate envelope path: {path}")
-        seen.add(path)
-        path_bytes = path.encode("utf-8")
-        if len(path_bytes) > 0xFFFF:
-            raise EsphomeError(
-                f"store_yaml: path too long ({len(path_bytes)} bytes): {path}"
-            )
-        parts.append(struct.pack("<H", len(path_bytes)))
-        parts.append(path_bytes)
-        parts.append(struct.pack("<I", len(content)))
-        parts.append(content)
-    return b"".join(parts)
+    paths = [path for path, _ in files]
+    if len(set(paths)) != len(paths):
+        # unpack_envelope would silently keep only the last duplicate.
+        raise EsphomeError(f"store_yaml: duplicate envelope path in {paths}")
+    return (
+        ENVELOPE_MAGIC
+        + struct.pack("<I", len(files))
+        + b"".join(
+            struct.pack("<H", len(encoded := path.encode("utf-8")))
+            + encoded
+            + struct.pack("<I", len(content))
+            + content
+            for path, content in files
+        )
+    )
 
 
 def unpack_envelope(blob: bytes) -> dict[str, bytes]:
@@ -633,32 +587,22 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
     """
     if blob[:4] != ENVELOPE_MAGIC:
         raise EsphomeError("envelope must start with EHY1 magic")
-    pos = 4
     files: dict[str, bytes] = {}
-
-    def take(n: int) -> bytes:
-        nonlocal pos
-        if pos + n > len(blob):
-            raise EsphomeError("truncated envelope")
-        chunk = blob[pos : pos + n]
-        pos += n
-        return chunk
-
-    (count,) = struct.unpack("<I", take(4))
-    for _ in range(count):
-        (path_len,) = struct.unpack("<H", take(2))
-        try:
-            path = take(path_len).decode("utf-8")
-        except UnicodeDecodeError as err:
-            raise EsphomeError(f"envelope path is not valid UTF-8: {err}") from err
-        if path.startswith(("/", "\\")) or (len(path) >= 2 and path[1] == ":"):
-            raise EsphomeError(f"envelope contains non-relative path: {path}")
-        if path in files:
-            raise EsphomeError(f"envelope contains duplicate path: {path}")
-        (content_len,) = struct.unpack("<I", take(4))
-        files[path] = take(content_len)
+    try:
+        (count,) = struct.unpack_from("<I", blob, 4)
+        pos = 8
+        for _ in range(count):
+            (path_len,) = struct.unpack_from("<H", blob, pos)
+            path = blob[pos + 2 : pos + 2 + path_len].decode("utf-8")
+            (size,) = struct.unpack_from("<I", blob, pos + 2 + path_len)
+            pos += 6 + path_len
+            if path in files or path.startswith(("/", "\\")) or path[1:2] == ":":
+                raise EsphomeError(f"envelope path rejected: {path}")
+            files[path], pos = blob[pos : pos + size], pos + size
+    except (struct.error, UnicodeDecodeError) as err:
+        raise EsphomeError(f"corrupt envelope: {err}") from err
     if pos != len(blob):
-        raise EsphomeError("envelope has trailing bytes")
+        raise EsphomeError("corrupt envelope: size mismatch")
     return files
 
 
@@ -675,10 +619,7 @@ async def to_code(config: ConfigType) -> None:
         files = _generate_redacted_files(entries, secret_rels, remote_packages)
     if remote_packages:
         _LOGGER.warning(
-            "store_yaml: %d package(s) come from remote sources and cannot be "
-            "captured (%s); the embedded recovery data records the source so "
-            "they can be re-fetched",
-            len(remote_packages),
+            "store_yaml: remote packages are not embedded, only recorded: %s",
             ", ".join(remote_packages),
         )
     if (note := _uncaptured_note(discovered.unresolved, remote_packages)) is not None:

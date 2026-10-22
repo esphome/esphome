@@ -41,52 +41,23 @@ async def test_store_yaml_recovery(
             await client.read_frame(MESSAGE_TYPE_OF[api_pb2.DeviceCapabilitiesResponse])
         )
         (store_yaml,) = capabilities[CAPABILITIES_STORE_YAML_FIELD]
-        assert decode_fields(store_yaml).get(STORE_YAML_SUPPORTED_FIELD) == [1], (
-            "expected DeviceCapabilitiesResponse to report store_yaml.supported"
-        )
+        assert decode_fields(store_yaml).get(STORE_YAML_SUPPORTED_FIELD) == [1]
 
         await client.send_raw(GET_YAML_REQUEST, b"")
-        chunks: list[bytes] = []
-        advertised_total: int | None = None
-        advertised_encoding: str | None = None
-        done = False
-        while not done:
-            fields = decode_fields(await client.read_frame(GET_YAML_RESPONSE))
-            if data := fields.get(DATA_FIELD):
-                chunks.append(data[0])
-            done = fields.get(DONE_FIELD) == [1]
-            if total := fields.get(TOTAL_SIZE_FIELD):
-                advertised_total = total[0]
-            if encoding := fields.get(ENCODING_FIELD):
-                advertised_encoding = encoding[0].decode("utf-8")
+        responses: list[dict[int, list[int | bytes]]] = []
+        while not responses or responses[-1].get(DONE_FIELD) != [1]:
+            responses.append(decode_fields(await client.read_frame(GET_YAML_RESPONSE)))
 
-    compressed = b"".join(chunks)
-    assert advertised_encoding == "zstd", (
-        f"expected encoding 'zstd', got {advertised_encoding!r}"
-    )
-    assert advertised_total == len(compressed), (
-        f"server advertised {advertised_total} bytes but we received {len(compressed)}"
-    )
+    compressed = b"".join(r[DATA_FIELD][0] for r in responses if DATA_FIELD in r)
+    assert responses[0][ENCODING_FIELD] == [b"zstd"]
+    assert responses[0][TOTAL_SIZE_FIELD] == [len(compressed)]
 
     envelope = zstd_module().decompress(compressed)
     files = unpack_envelope(envelope)
-
-    assert files, "envelope should contain at least one file"
     combined = b"\n".join(files.values())
-    assert b"store-yaml-test" in combined, (
-        "expected the fixture's device name to round-trip through the recovery blob"
-    )
-    assert b"store_yaml:" in combined, (
-        "expected the store_yaml config line to be in the recovery blob"
-    )
-
-    # The inline OTA password must come back as a !secret listed in the skeleton.
-    assert b"recoverme123" not in envelope, (
-        "inline sensitive value leaked into the recovery blob"
-    )
-    assert "ota_password" in find_secret_references(combined.decode()), (
-        "expected the inline OTA password to be recovered as a !secret reference"
-    )
-    assert b"ota_password: ''" in files["secrets.yaml"], (
-        "expected the secrets.yaml skeleton to list the ota_password key"
-    )
+    assert b"store-yaml-test" in combined
+    assert b"store_yaml:" in combined
+    # The inline OTA password comes back as a !secret listed in the skeleton.
+    assert b"recoverme123" not in envelope
+    assert "ota_password" in find_secret_references(combined.decode())
+    assert b"ota_password: ''" in files["secrets.yaml"]

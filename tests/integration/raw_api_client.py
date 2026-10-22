@@ -15,6 +15,7 @@ from typing import Self
 from aioesphomeapi import api_pb2
 import aioesphomeapi.core as api_core
 from google.protobuf import message
+from google.protobuf.unknown_fields import UnknownFieldSet
 
 from .const import LOCALHOST
 
@@ -51,32 +52,11 @@ def decode_varint(buf: bytearray, pos: int) -> tuple[int, int] | None:
 
 
 def decode_fields(payload: bytes) -> dict[int, list[int | bytes]]:
-    """Split a protobuf payload into its field values by field number.
-
-    For messages the installed aioesphomeapi does not know yet.
-    """
+    """Field values by number, for messages the installed aioesphomeapi does not know yet."""
     fields: dict[int, list[int | bytes]] = {}
-    buf = bytearray(payload)
-
-    def varint(pos: int) -> tuple[int, int]:
-        decoded = decode_varint(buf, pos)
-        assert decoded is not None, "truncated varint in payload"
-        return decoded
-
-    pos = 0
-    while pos < len(buf):
-        tag, pos = varint(pos)
-        wire_type = tag & 0x07
-        value: int | bytes
-        if wire_type == 0:
-            value, pos = varint(pos)
-        elif wire_type == 2:
-            length, pos = varint(pos)
-            assert pos + length <= len(buf), "truncated length-delimited field"
-            value, pos = bytes(buf[pos : pos + length]), pos + length
-        else:
-            raise AssertionError(f"unexpected wire type {wire_type}")
-        fields.setdefault(tag >> 3, []).append(value)
+    # A message without declared fields keeps every field as unknown.
+    for field in UnknownFieldSet(api_pb2.ListEntitiesRequest.FromString(payload)):
+        fields.setdefault(field.field_number, []).append(field.data)
     return fields
 
 
