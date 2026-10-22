@@ -1019,6 +1019,20 @@ async def to_code(config):
             # No DHCP supplies DNS servers with a static IP; room for dns1 and dns2.
             zephyr_add_prj_conf("DNS_RESOLVER_MAX_SERVERS", 2)
         if CONF_AP in config:
+            if kconfig == "WIFI_NRF70":
+                # wpa_supplicant registers the SoftAP interface type asynchronously,
+                # off a workqueue (modules/hostap/src/supp_main.c's iface_wq), but
+                # wifi_start_ap_() (wifi_component_zephyr.cpp) calls
+                # NET_REQUEST_WIFI_AP_ENABLE immediately during setup() with no wait
+                # for that registration to land -- confirmed on real nRF7002-DK
+                # hardware to fail with -ENOTSUP even with the driver's own SoftAP
+                # Kconfig (WIFI_NM_WPA_SUPPLICANT_AP, NRF70_AP_MODE) turned on, so
+                # there's no working configuration to build for 'ap:' here yet.
+                raise EsphomeError(
+                    "'ap:' is not supported yet on the nRF70 Wi-Fi driver -- "
+                    "NET_REQUEST_WIFI_AP_ENABLE fails at runtime. Remove 'ap:' "
+                    "from this configuration."
+                )
             # AP-mode code (wifi_component_zephyr.cpp) needs this for DHCP to work.
             zephyr_add_prj_conf("NET_DHCPV4_SERVER", True)
         if (min_rssi := config.get(CONF_MIN_RSSI)) is not None:

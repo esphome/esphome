@@ -21,13 +21,25 @@ def to_code(config: ConfigType) -> None:
     import esphome.codegen as cg  # noqa: PLC0415
     from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
 
-    from .. import zephyr_add_prj_conf  # noqa: PLC0415 -- avoids circular import at module load
+    from .. import zephyr_add_prj_conf, zephyr_framework_type, zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
+    from . import VARIANTS  # noqa: PLC0415
 
     zephyr_add_prj_conf("CPP", True)
     zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
     zephyr_add_prj_conf("FPU", True)
-    # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
-    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
+    if (
+        VARIANTS[zephyr_variant()].rng_needs_second_core
+        and zephyr_framework_type() != "ncs"
+    ):
+        # No entropy driver is reachable from this core under mainline Zephyr (see
+        # ZephyrVariant.rng_needs_second_core), so ENTROPY_GENERATOR has nothing to
+        # back sys_rand_get() and the link fails. Same insecure software-PRNG fallback
+        # as rp2040/rp2350 until a second-core entropy image is wired up; not fit for
+        # WPA/TLS use. NCS isn't affected -- it has its own entropy source instead.
+        zephyr_add_prj_conf("TEST_RANDOM_GENERATOR", True)
+    else:
+        # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
+        zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     # ARM Cortex-M's ARCH_HAS_STACKWALK only defaults on when EXTRA_EXCEPTION_INFO
     # is also set (arch/arm/core/Kconfig selects the dependency it needs).
     log_level = config.get(CONF_LOG_LEVEL, "ERROR")
