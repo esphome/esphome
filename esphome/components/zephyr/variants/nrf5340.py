@@ -148,17 +148,6 @@ def config_schema(config: ConfigType) -> ConfigType:
     _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "nrf5340", config, "nRF5340 support"
     )
-    if sdk_name != "ncs":
-        # Under NCS (the default), entropy is routed to the CryptoCell-312, which is
-        # on the application core -- no fallback needed (see nordic_family.py). Only
-        # mainline Zephyr's rng_hci, which needs the un-built network core, hits this.
-        _LOGGER.warning(
-            "Mainline Zephyr has no entropy source reachable from the application "
-            "core on this board -- this variant falls back to an insecure software "
-            "PRNG (CONFIG_TEST_RANDOM_GENERATOR). WPA2 key derivation and any TLS use "
-            "are not cryptographically secure. Use the NCS framework (the default) "
-            "for a real hardware RNG instead."
-        )
     set_core_data(
         VARIANT_NAME,
         config[CONF_BOARD],
@@ -191,10 +180,24 @@ async def to_code(config: ConfigType) -> None:
     # bootloader this variant offers (see _ADVANCED_SCHEMA above), so it's unconditional.
     zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
     zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)
-    if zephyr_framework_type() == "ncs" and CORE.config.get(CONF_WIFI) is not None:
-        # NCS's own sysbuild layer (nrf/sysbuild/CMakeLists.txt) gates the app image's
-        # CONFIG_WIFI_NRF70 on this sysbuild-level symbol: without it, sysbuild force-sets
-        # CONFIG_WIFI_NRF70=n on the app image regardless of what wifi/__init__.py already
-        # requested via the per-image prj.conf (transport_drivers above). Mainline Zephyr
-        # has no such sysbuild gate, hence the framework-type check.
-        zephyr_add_sysbuild_conf("WIFI_NRF70", True)
+    networking_configured = CORE.config.get(CONF_WIFI) is not None
+    if zephyr_framework_type() == "ncs":
+        if networking_configured:
+            # NCS's own sysbuild layer (nrf/sysbuild/CMakeLists.txt) gates the app
+            # image's CONFIG_WIFI_NRF70 on this sysbuild-level symbol: without it,
+            # sysbuild force-sets CONFIG_WIFI_NRF70=n on the app image regardless of
+            # what wifi/__init__.py already requested via the per-image prj.conf
+            # (transport_drivers above). Mainline Zephyr has no such sysbuild gate,
+            # hence the framework-type check.
+            zephyr_add_sysbuild_conf("WIFI_NRF70", True)
+    elif networking_configured:
+        # Only relevant once networking actually links in the TCP/IP stack
+        # (sys_rand_get() is what pulls this in -- see nordic_family.py); nothing to
+        # warn about on a build with no networking configured at all.
+        _LOGGER.warning(
+            "Mainline Zephyr has no entropy source reachable from the application "
+            "core on this board -- this variant falls back to an insecure software "
+            "PRNG (CONFIG_TEST_RANDOM_GENERATOR). WPA2 key derivation and any TLS use "
+            "are not cryptographically secure. Use the NCS framework (the default) "
+            "for a real hardware RNG instead."
+        )
