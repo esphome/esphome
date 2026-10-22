@@ -276,8 +276,13 @@ void OnlineImage::loop_stream_() {
   if (this->downloader_->get_bytes_read() < total) {
     const size_t available = std::min(this->download_buffer_.free_capacity(), this->download_buffer_initial_size_);
     if (available == 0) {
-      // Waiting for the decoder, not the network
-      this->last_data_time_ = now;
+      // compact() already ran, so a full buffer means the decoder read nothing in the last pass
+      if (now - this->last_data_time_ >= this->parent_->get_timeout()) {
+        ESP_LOGE(TAG, "Image does not fit in the %zu byte download buffer; increase buffer_size",
+                 this->download_buffer_.size());
+        this->fail_download_();
+        return;
+      }
     } else {
       const int len = this->downloader_->read(this->download_buffer_.append(), available);
       if (len > 0) {
