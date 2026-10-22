@@ -158,6 +158,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_config_mode_(bool enable);
   void handle_periodic_data_();
   void handle_ack_data_();
+  bool handle_frame_(uint8_t frame_len);
   void process_zone_();
   void readline_(int readch);
   void get_version_();

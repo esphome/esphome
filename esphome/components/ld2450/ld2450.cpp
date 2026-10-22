@@ -820,36 +820,47 @@ void LD2450Component::readline_(int readch) {
     }
   }
   this->buffer_data_[this->buffer_pos_++] = readch;
-  const uint32_t frame_len = ld2450::frame_length(this->buffer_data_, this->buffer_pos_);
-  if (frame_len == 0 || (frame_len <= MAX_LINE_LENGTH && this->buffer_pos_ < frame_len)) {
-    return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
-  }
-  const uint8_t *end = &this->buffer_data_[this->buffer_pos_];
-  if (this->buffer_data_[0] == DATA_FRAME_HEADER[0]) {
-    if (end[-2] == DATA_FRAME_FOOTER[0] && end[-1] == DATA_FRAME_FOOTER[1]) {
-      ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
-      this->handle_periodic_data_();
-      this->buffer_pos_ = 0;
+  // A dropped frame can leave whole frames behind it in the buffer, so keep going until the buffer is
+  // empty or holds only the start of a frame
+  while (true) {
+    const uint32_t frame_len = ld2450::frame_length(this->buffer_data_, this->buffer_pos_);
+    if (frame_len == 0 || (frame_len <= MAX_LINE_LENGTH && this->buffer_pos_ < frame_len)) {
+      return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
+    }
+    const uint8_t total = this->buffer_pos_;
+    if (frame_len <= MAX_LINE_LENGTH && this->handle_frame_(frame_len)) {
+      this->buffer_pos_ = total - frame_len;
+      std::memmove(this->buffer_data_, &this->buffer_data_[frame_len], this->buffer_pos_);
+    } else {
+      // The footer is not where the length says, so the stream lost bytes: drop this frame and keep the
+      // bytes from the next header on
+      ESP_LOGW(TAG, "Invalid header/footer");
+      this->buffer_pos_ = ld2450::drop_to_next_header(this->buffer_data_, total);
+    }
+    if (this->buffer_pos_ == 0) {
       return;
     }
-  } else if (frame_len <= MAX_LINE_LENGTH &&
-             ld2450::validate_header_footer(CMD_FRAME_FOOTER, end - HEADER_FOOTER_SIZE)) {
-    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
-    this->handle_ack_data_();
-    this->buffer_pos_ = 0;
-    return;
   }
-  // The footer is not where the length says, so the stream lost bytes: drop this frame and replay what
-  // follows it, so frames already inside the buffer are dispatched. Each replay is shorter than the
-  // buffer it came from, so the recursion is bounded.
-  ESP_LOGW(TAG, "Invalid header/footer");
-  uint8_t pending[MAX_LINE_LENGTH];
-  const uint8_t pending_len = ld2450::drop_to_next_header(this->buffer_data_, this->buffer_pos_);
-  std::memcpy(pending, this->buffer_data_, pending_len);
-  this->buffer_pos_ = 0;
-  for (uint8_t i = 0; i < pending_len; i++) {
-    this->readline_(pending[i]);  // NOLINT(misc-no-recursion)
+}
+
+// Dispatches the frame of frame_len bytes at the start of the buffer when its footer is in place
+bool LD2450Component::handle_frame_(uint8_t frame_len) {
+  this->buffer_pos_ = frame_len;  // the handlers take the frame length from here
+  const uint8_t *end = &this->buffer_data_[frame_len];
+  if (this->buffer_data_[0] == DATA_FRAME_HEADER[0]) {
+    if (end[-2] != DATA_FRAME_FOOTER[0] || end[-1] != DATA_FRAME_FOOTER[1]) {
+      return false;
+    }
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
+    this->handle_periodic_data_();
+    return true;
   }
+  if (!ld2450::validate_header_footer(CMD_FRAME_FOOTER, end - HEADER_FOOTER_SIZE)) {
+    return false;
+  }
+  ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+  this->handle_ack_data_();
+  return true;
 }
 
 // Set Config Mode - Pre-requisite sending commands
