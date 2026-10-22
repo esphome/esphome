@@ -2,9 +2,21 @@ esp32_ble:
   classic_bt: true
   classic_max_acl_connections: 2
 
+wifi:
+  ap:
+
 speaker:
   - platform: a2dp_source
     id: a2dp_source_speaker
     slot: 1
     num_channels: 2
     sample_rate: 44100
+
+media_player:
+  - platform: speaker
+    id: a2dp_media_player
+    announcement_pipeline:
+      speaker: a2dp_source_speaker
+      format: NONE
+    preconnect_speaker: a2dp_source_speaker
+    preconnect_timeout: 20s

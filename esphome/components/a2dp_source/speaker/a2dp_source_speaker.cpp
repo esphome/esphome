@@ -35,6 +35,7 @@ static std::atomic<bool> classic_profile_ready{false};
 static uint32_t handoff_started_ms = 0;
 static constexpr size_t PCM_BUFFER_BYTES = 32768;
 static constexpr size_t MAX_DISCOVERED = 6;
+static constexpr uint8_t MAX_CONNECT_ATTEMPTS = 3;
 
 struct DiscoveredDevice {
   uint8_t address[6]{};
@@ -70,8 +71,8 @@ std::string A2DPSourceSpeaker::connection_trace() const {
   result.reserve(count * 28);
   for (size_t i = 0; i < count; i++) {
     char line[48];
-    std::snprintf(line, sizeof(line), "%" PRIu32 ",%" PRIu32 ",%u,%u;", events[i].ms, events[i].attempt,
-                  events[i].code, events[i].detail);
+    std::snprintf(line, sizeof(line), "%" PRIu32 ",%" PRIu32 ",%u,%u;", events[i].ms, events[i].attempt, events[i].code,
+                  events[i].detail);
     result += line;
   }
   return result;
@@ -478,8 +479,7 @@ std::string A2DPSourceSpeaker::discovery_results(uint8_t page) const {
       result += " ";
       result.append(snapshot[i].name, strnlen(snapshot[i].name, 24));
     }
-    result += snapshot[i].rssi == -128 ? " (RSSI unavailable)"
-                                       : " (" + std::to_string(snapshot[i].rssi) + " dBm)";
+    result += snapshot[i].rssi == -128 ? " (RSSI unavailable)" : " (" + std::to_string(snapshot[i].rssi) + " dBm)";
     result += this->is_bonded_(snapshot[i].address) ? " [paired]" : " [not paired]";
   }
   return result;
@@ -549,13 +549,14 @@ void A2DPSourceSpeaker::retry_or_abort_connection_(const char *reason) {
   }
   this->connection_failure_count_.fetch_add(1);
   this->trace_event_(4);
-  if ((this->pairing_.load() && !this->connection_session_active_.load()) || this->connect_attempts_.load() >= 4) {
+  if ((this->pairing_.load() && !this->connection_session_active_.load()) ||
+      this->connect_attempts_.load() >= MAX_CONNECT_ATTEMPTS) {
     this->abort_connection_(reason);
     return;
   }
   const uint32_t retry_delay_ms = 3000 + esp_random() % 2001;
-  ESP_LOGW(TAG, "A2DP slot %u: %s; retry %u/4 after %" PRIu32 " ms", this->slot_, reason,
-           static_cast<unsigned>(this->connect_attempts_.load() + 1), retry_delay_ms);
+  ESP_LOGW(TAG, "A2DP slot %u: %s; retry %u/%u after %" PRIu32 " ms", this->slot_, reason,
+           static_cast<unsigned>(this->connect_attempts_.load() + 1), MAX_CONNECT_ATTEMPTS, retry_delay_ms);
   this->connect_pending_.store(false);
   this->next_connect_attempt_ms_ = millis() + retry_delay_ms;
   esp_a2d_source_disconnect(this->address_);
@@ -882,9 +883,8 @@ void A2DPSourceSpeaker::loop() {
         this->retry_or_abort_connection_("A2DP connect call failed");
       }
     } else if (this->requested_.load() && this->connected_.load() && this->avrcp_ready_.load() &&
-               this->received_first_data_.load() &&
-               !this->streaming_.load() && !this->media_check_pending_ && !this->media_start_pending_ &&
-               static_cast<int32_t>(now - this->next_media_check_ms_) >= 0) {
+               this->received_first_data_.load() && !this->streaming_.load() && !this->media_check_pending_ &&
+               !this->media_start_pending_ && static_cast<int32_t>(now - this->next_media_check_ms_) >= 0) {
       if (esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY) == ESP_OK)
         this->media_check_pending_ = true;
       this->next_media_check_ms_ = now + 1000;

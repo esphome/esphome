@@ -95,7 +95,9 @@ def _validate_repeated_speaker(config):
 
 def _validate_preconnect_speaker(config):
     if CONF_PRECONNECT_SPEAKER in config and CONF_MEDIA_PIPELINE in config:
-        raise cv.Invalid("preconnect_speaker currently requires a single announcement pipeline")
+        raise cv.Invalid(
+            "preconnect_speaker currently requires a single announcement pipeline"
+        )
     return config
 
 
@@ -137,7 +139,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_ANNOUNCEMENT_PIPELINE): PIPELINE_SCHEMA,
             cv.Optional(CONF_MEDIA_PIPELINE): PIPELINE_SCHEMA,
             cv.Optional(CONF_PRECONNECT_SPEAKER): cv.use_id(speaker.Speaker),
-            cv.Optional(CONF_PRECONNECT_TIMEOUT, default="20s"): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_PRECONNECT_TIMEOUT, default="20s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
