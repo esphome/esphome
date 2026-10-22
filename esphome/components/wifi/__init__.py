@@ -224,10 +224,8 @@ WIFI_AP_MODE_WISP = "WISP"
 def _validate_ap_mode(value: str) -> str:
     value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
     if value == WIFI_AP_MODE_WISP:
-        # esp_netif_napt_enable() exists from ESP-IDF 5.1
-        cv.require_framework_version(
-            esp_idf=cv.Version(5, 1, 0), extra_message="WISP mode routes through NAT"
-        )(value)
+        # WISP mode routes through NAT, which only ESP-IDF provides
+        cv.only_with_framework(Framework.ESP_IDF)(value)
     return value
 
 
