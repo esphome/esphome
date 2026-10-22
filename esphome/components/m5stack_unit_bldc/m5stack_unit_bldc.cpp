@@ -62,6 +62,7 @@ void M5StackUnitBldc::setup() {
     this->mark_failed(LOG_STR("Failed to write initial direction"));
     return;
   }
+  this->current_direction_ = this->initial_direction_;
 #ifdef USE_SELECT
   if (this->direction_select_ != nullptr)
     this->direction_select_->publish_state(static_cast<size_t>(this->initial_direction_));
@@ -183,7 +184,12 @@ bool M5StackUnitBldc::write_command(float value) {
 }
 
 bool M5StackUnitBldc::write_direction(Direction direction) {
-  return !this->is_failed() && this->status_comm_result(this->write_direction_raw_(direction));
+  if (this->is_failed())
+    return false;
+  // The direction already driven needs no stop-and-restore cycle
+  if (direction == this->current_direction_ && !this->direction_change_pending_)
+    return true;
+  return this->status_comm_result(this->write_direction_raw_(direction));
 }
 
 // The new direction latches only after the motor stops: command zero, wait for the readback to confirm the stop,
@@ -193,6 +199,7 @@ bool M5StackUnitBldc::write_direction_raw_(Direction direction) {
     return false;
   if (!this->direction_change_pending_ && !this->write_command_raw_(0))
     return false;
+  this->current_direction_ = direction;
   this->direction_change_pending_ = true;
   this->direction_change_polls_ = 0;
   this->set_interval(DIRECTION_CHANGE_POLL_ID, DIRECTION_CHANGE_POLL_MS,

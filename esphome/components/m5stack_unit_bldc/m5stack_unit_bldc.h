@@ -44,7 +44,8 @@ class M5StackUnitBldc : public i2c::I2CDevice, public PollingComponent {
  public:
   M5StackUnitBldc(ControlMode mode, Direction initial_direction, MotorModel model, uint8_t pole_pairs,
                   bool save_to_flash)
-      : control_mode_(mode),
+      : current_direction_(initial_direction),
+        control_mode_(mode),
         initial_direction_(initial_direction),
         motor_model_(model),
         pole_pairs_(pole_pairs),
@@ -123,6 +124,7 @@ class M5StackUnitBldc : public i2c::I2CDevice, public PollingComponent {
   ESPPreferenceObject save_pref_;
   // Last command, restored after the stop a direction change needs
   float last_command_{0};
+  Direction current_direction_;  // what the unit drives, so selecting it again does not stop the motor
   const ControlMode control_mode_;
   const Direction initial_direction_;
   const MotorModel motor_model_;
