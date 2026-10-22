@@ -202,7 +202,7 @@ void JpegDecoder::reset() {
   ImageDecoder::reset();
 }
 
-int32_t JpegDecoder::source_read_(JPEGFILE *file, uint8_t *buf, int32_t len) {
+int32_t JpegDecoder::source_read(JPEGFILE *file, uint8_t *buf, int32_t len) {
   auto *decoder = static_cast<JpegDecoder *>(file->fHandle);
   const int32_t n = decoder->source_->read(buf, len);
   if (n < 0) {
@@ -214,7 +214,7 @@ int32_t JpegDecoder::source_read_(JPEGFILE *file, uint8_t *buf, int32_t len) {
   return n;
 }
 
-int32_t JpegDecoder::source_seek_(JPEGFILE *file, int32_t position) {
+int32_t JpegDecoder::source_seek(JPEGFILE *file, int32_t position) {
   auto *decoder = static_cast<JpegDecoder *>(file->fHandle);
   if (position < 0 || !decoder->source_->seek(position)) {
     decoder->source_failed_ = true;
@@ -235,7 +235,7 @@ int JpegDecoder::begin_source(DecodeSource *source) {
   }
   this->source_ = source;
   this->source_failed_ = false;
-  if (!this->jpeg_.open(this, this->expected_size_, source_close_, source_read_, source_seek_, draw_callback)) {
+  if (!this->jpeg_.open(this, this->expected_size_, source_close, source_read, source_seek, draw_callback)) {
     ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
     this->source_ = nullptr;
     return this->source_failed_ ? DECODE_ERROR_READ : DECODE_ERROR_INVALID_TYPE;
