@@ -9,6 +9,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 #include <cmath>
@@ -82,77 +83,18 @@ enum AckData : uint8_t {
   ACK_PAYLOAD = 10,
 };
 
-// Memory-efficient lookup tables
-struct StringToUint8 {
-  const char *str;
-  const uint8_t value;
-};
-
-struct Uint8ToString {
-  const uint8_t value;
-  const char *str;
-};
-
-constexpr StringToUint8 BAUD_RATES_BY_STR[] = {
-    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
-    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
-    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800},
-};
-
-constexpr StringToUint8 DISTANCE_RESOLUTIONS_BY_STR[] = {
-    {"0.2m", DISTANCE_RESOLUTION_0_2},
-    {"0.5m", DISTANCE_RESOLUTION_0_5},
-    {"0.75m", DISTANCE_RESOLUTION_0_75},
-};
-
-constexpr Uint8ToString DISTANCE_RESOLUTIONS_BY_UINT[] = {
-    {DISTANCE_RESOLUTION_0_2, "0.2m"},
-    {DISTANCE_RESOLUTION_0_5, "0.5m"},
-    {DISTANCE_RESOLUTION_0_75, "0.75m"},
-};
-
-constexpr StringToUint8 LIGHT_FUNCTIONS_BY_STR[] = {
-    {"off", LIGHT_FUNCTION_OFF},
-    {"below", LIGHT_FUNCTION_BELOW},
-    {"above", LIGHT_FUNCTION_ABOVE},
-};
-
-constexpr Uint8ToString LIGHT_FUNCTIONS_BY_UINT[] = {
-    {LIGHT_FUNCTION_OFF, "off"},
-    {LIGHT_FUNCTION_BELOW, "below"},
-    {LIGHT_FUNCTION_ABOVE, "above"},
-};
-
-constexpr StringToUint8 OUT_PIN_LEVELS_BY_STR[] = {
-    {"low", OUT_PIN_LEVEL_LOW},
-    {"high", OUT_PIN_LEVEL_HIGH},
-};
-
-constexpr Uint8ToString OUT_PIN_LEVELS_BY_UINT[] = {
-    {OUT_PIN_LEVEL_LOW, "low"},
-    {OUT_PIN_LEVEL_HIGH, "high"},
-};
+// Index + 1 is the BaudRate value; the select options use the same order
+PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200", "230400", "256000", "460800");
+// Names and values in the same order; the select options use it too
+PROGMEM_STRING_TABLE(DistanceResolutionStrings, "0.2m", "0.5m", "0.75m");
+constexpr uint8_t DISTANCE_RESOLUTIONS[] = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_5, DISTANCE_RESOLUTION_0_75};
+// Index is the LightFunction value; the select options use the same order
+PROGMEM_STRING_TABLE(LightFunctionStrings, "off", "below", "above");
+// Names and values in the same order; the select options use it too
+PROGMEM_STRING_TABLE(OutPinLevelStrings, "low", "high");
+constexpr uint8_t OUT_PIN_LEVELS[] = {OUT_PIN_LEVEL_LOW, OUT_PIN_LEVEL_HIGH};
 
 constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
-
-// Helper functions for lookups
-template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const char *str) {
-  for (const auto &entry : arr) {
-    if (strcmp(str, entry.str) == 0) {
-      return entry.value;
-    }
-  }
-  return 0xFF;  // Not found
-}
-
-template<size_t N> const char *find_str(const Uint8ToString (&arr)[N], uint8_t value) {
-  for (const auto &entry : arr) {
-    if (value == entry.value) {
-      return entry.str;
-    }
-  }
-  return "";  // Not found
-}
 
 static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Default used when number component is not defined
 // Commands
@@ -532,11 +474,15 @@ bool LD2412Component::handle_ack_data_() {
       break;
     }
     case CMD_QUERY_DISTANCE_RESOLUTION: {
-      const auto *distance_resolution = find_str(DISTANCE_RESOLUTIONS_BY_UINT, this->buffer_data_[10]);
-      ESP_LOGV(TAG, "Distance resolution: %s", distance_resolution);
+      const auto index = ld24xx::find_index(DISTANCE_RESOLUTIONS, this->buffer_data_[10]);
+      if (!index) {
+        break;
+      }
+      ESP_LOGV(TAG, "Distance resolution: %s",
+               LOG_STR_ARG(DistanceResolutionStrings::get_log_str(*index, DistanceResolutionStrings::LAST_INDEX)));
 #ifdef USE_SELECT
       if (this->distance_resolution_select_ != nullptr) {
-        this->distance_resolution_select_->publish_state(distance_resolution);
+        this->distance_resolution_select_->publish_state(*index);
       }
 #endif
       break;
@@ -545,11 +491,12 @@ bool LD2412Component::handle_ack_data_() {
     case CMD_QUERY_LIGHT_CONTROL: {
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
-      const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
-      ESP_LOGV(TAG, "Light function: %s, threshold: %u", light_function_str, this->light_threshold_);
+      ESP_LOGV(TAG, "Light function: %s, threshold: %u",
+               LOG_STR_ARG(LightFunctionStrings::get_log_str(this->light_function_, LightFunctionStrings::LAST_INDEX)),
+               this->light_threshold_);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
-        this->light_function_select_->publish_state(light_function_str);
+        this->light_function_select_->publish_state(static_cast<size_t>(this->light_function_));
       }
 #endif
 #ifdef USE_NUMBER
@@ -667,9 +614,10 @@ bool LD2412Component::handle_ack_data_() {
       */
       this->out_pin_level_ = this->buffer_data_[14];
 #ifdef USE_SELECT
-      const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
       if (this->out_pin_level_select_ != nullptr) {
-        this->out_pin_level_select_->publish_state(out_pin_level_str);
+        if (const auto index = ld24xx::find_index(OUT_PIN_LEVELS, this->out_pin_level_)) {
+          this->out_pin_level_select_->publish_state(*index);
+        }
       }
 #endif
 #endif
@@ -729,15 +677,23 @@ void LD2412Component::set_bluetooth(bool enable) {
 }
 
 void LD2412Component::set_distance_resolution(const char *state) {
+  const int16_t index = progmem_string_table_find<DistanceResolutionStrings>(state, strlen(state));
+  if (index < 0) {
+    return;
+  }
   this->set_config_mode_(true);
-  const uint8_t cmd_value[6] = {find_uint8(DISTANCE_RESOLUTIONS_BY_STR, state), 0x00, 0x00, 0x00, 0x00, 0x00};
+  const uint8_t cmd_value[6] = {DISTANCE_RESOLUTIONS[index], 0x00, 0x00, 0x00, 0x00, 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
 void LD2412Component::set_baud_rate(const char *state) {
+  const int16_t index = progmem_string_table_find<BaudRateStrings>(state, strlen(state));
+  if (index < 0) {
+    return;
+  }
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
+  const uint8_t cmd_value[2] = {static_cast<uint8_t>(index + 1), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_(); });
 }
@@ -821,7 +777,7 @@ void LD2412Component::set_basic_config() {
   if (this->out_pin_level_select_ != nullptr) {
     if (!this->out_pin_level_select_->has_state())
       return;
-    out_pin_level = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str());
+    out_pin_level = OUT_PIN_LEVELS[*this->out_pin_level_select_->active_index()];
   }
 #endif
 
@@ -894,7 +850,7 @@ void LD2412Component::set_light_out_control() {
 #endif
 #ifdef USE_SELECT
   if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option().c_str());
+    this->light_function_ = *this->light_function_select_->active_index();
   }
 #endif
   uint8_t value[2] = {this->light_function_, this->light_threshold_};
