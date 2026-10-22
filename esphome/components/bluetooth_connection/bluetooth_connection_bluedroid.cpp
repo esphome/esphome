@@ -268,7 +268,6 @@ int BluedroidGattClient::discover_services() {
     case SearchState::REPORT_PENDING:
       return 0;  // One completion is already owed to this claimant.
     case SearchState::NONE:
-      break;
     default:
       break;
   }

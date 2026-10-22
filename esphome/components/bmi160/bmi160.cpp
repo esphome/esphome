@@ -123,7 +123,7 @@ void BMI160Component::internal_setup_(int stage) {
 
 bool BMI160Component::setup_stage_(int stage) {
   switch (stage) {
-    case 0:
+    case 0: {
       uint8_t chipid;
       if (!this->read_byte(BMI160_REGISTER_CHIPID, &chipid) || (chipid != 0b11010001)) {
         return false;
@@ -138,7 +138,7 @@ bool BMI160Component::setup_stage_(int stage) {
       // min 5ms, 10ms
       this->set_timeout(10, [this]() { this->internal_setup_(1); });
       break;
-
+    }
     case 1:
       ESP_LOGV(TAG, "  Bringing gyroscope out of sleep");
       if (!this->write_byte(BMI160_REGISTER_CMD, (uint8_t) Cmd::GYRO_SET_PMU_MODE | (uint8_t) GyroPmuMode::NORMAL)) {
@@ -149,7 +149,7 @@ bool BMI160Component::setup_stage_(int stage) {
       this->set_timeout(GYRO_WAKEUP_TIMEOUT_MS, [this]() { this->internal_setup_(2); });
       break;
 
-    case 2:
+    case 2: {
       ESP_LOGV(TAG, "  Setting up Gyro Config");
       uint8_t gyro_config = (uint8_t) GyroBandwidth::OSR4 | (uint8_t) GyroOuputDataRate::HZ_25;
       ESP_LOGV(TAG, "  Output gyro_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(gyro_config));
@@ -178,6 +178,8 @@ bool BMI160Component::setup_stage_(int stage) {
       }
 
       this->setup_complete_ = true;
+      break;
+    }
     default:
       break;
   }
