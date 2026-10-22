@@ -28,7 +28,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_OPTIONS): cv.All(
                 cv.ensure_list(cv.string_strict), cv.Length(min=1)
             ),
-            cv.Required(CONF_VALUES): cv.All(cv.ensure_list(cv.int_), cv.Length(min=1)),
+            cv.Required(CONF_VALUES): cv.All(
+                cv.ensure_list(cv.uint8_t), cv.Length(min=1)
+            ),
         }
     )
     .extend(text_sensor.text_sensor_schema(TopTronicTextSensor))

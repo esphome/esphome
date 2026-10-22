@@ -449,7 +449,7 @@ void TopTronic::link_inputs_() {
       auto *input_base = i.second;
       auto *sensor_base = this->get_sensor_(this->get_device_id(), input_base->get_id());
       if (sensor_base == nullptr) {
-        ESP_LOGD(TAG, "Input 0x%08X has no matching sensor — sync skipped", (unsigned) input_base->get_id());
+        ESP_LOGD(TAG, "Input 0x%08X has no matching read entity — state sync skipped", (unsigned) input_base->get_id());
         continue;
       }
       if (sensor_base->type() == SENSOR) {
