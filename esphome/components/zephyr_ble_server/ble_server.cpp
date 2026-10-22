@@ -256,6 +256,8 @@ static const char *role_str(uint8_t role) {
       return "Central";
     case BT_CONN_ROLE_PERIPHERAL:
       return "Peripheral";
+    default:
+      break;
   }
 
   return "Unknown";

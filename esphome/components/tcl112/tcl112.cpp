@@ -191,6 +191,8 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
       case TCL112_AUTO:
         this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
+      default:
+        break;
     }
   }
   auto temp = TCL112_TEMP_MAX - remote_state[7];
