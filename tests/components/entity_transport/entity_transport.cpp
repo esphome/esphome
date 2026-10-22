@@ -187,12 +187,18 @@ TEST_F(EntityTransportTest, RefusedPacketSentAgain) {
 TEST_F(EntityTransportTest, LongRefusalWarns) {
   this->link_a_.accept = false;
   auto sender = this->make_sender_();
-  { LoopBlockingGuard guard{nullptr, nullptr, 1000}; }
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 1000};
+  }
   sender->loop();
-  { LoopBlockingGuard guard{nullptr, nullptr, 60999}; }
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 60999};
+  }
   sender->loop();
   EXPECT_FALSE(sender->status_has_warning());
-  { LoopBlockingGuard guard{nullptr, nullptr, 61000}; }
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 61000};
+  }
   sender->loop();
   EXPECT_TRUE(sender->status_has_warning());
   this->link_a_.accept = true;
@@ -322,7 +328,9 @@ TEST_F(EntityTransportTest, LostDictionaryPartRequested) {
   link.deliver_to(this->link_b_);
   EXPECT_TRUE(this->remote_door_.state);
   // Now complete, it is not asked for again
-  { LoopBlockingGuard guard{nullptr, nullptr, 10000}; }
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 10000};
+  }
   this->door_.publish_state(false);
   sender->loop();
   link.deliver_to(this->link_b_);
@@ -501,14 +509,20 @@ TEST_F(EntityTransportTest, RemoteStatesTimeOut) {
   this->door_.publish_state(true);
   auto sender = this->make_sender_();
   auto receiver = this->make_receiver_(DEVICE_NAME, 5000);
-  { LoopBlockingGuard guard{nullptr, nullptr, 1000}; }
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 1000};
+  }
   sender->loop();
   this->link_a_.deliver_to(this->link_b_);
-  { LoopBlockingGuard guard{nullptr, nullptr, 6000}; }
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 6000};
+  }
   receiver->clear_remote_states_(true);
   EXPECT_EQ(this->remote_temp_.get_state(), 6.0f);
   EXPECT_TRUE(this->remote_door_.has_state());
-  { LoopBlockingGuard guard{nullptr, nullptr, 6001}; }
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, 6001};
+  }
   receiver->clear_remote_states_(true);
   EXPECT_TRUE(std::isnan(this->remote_temp_.get_state()));
   EXPECT_FALSE(this->remote_door_.has_state());
