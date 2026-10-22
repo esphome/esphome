@@ -5,14 +5,12 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
     CONF_DATA,
-    CONF_ID,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_MESSAGE,
     CONF_PAYLOAD,
     CONF_VALUE,
 )
-from esphome.core import ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@bogdanr"]
@@ -36,8 +34,6 @@ CONF_VELOCITY = "velocity"
 
 ble_midi_ns = cg.esphome_ns.namespace("ble_midi")
 BLEMidi = ble_midi_ns.class_("BLEMidi", cg.Component, ble_client.BLEClientNode)
-SendSysexAction = ble_midi_ns.class_("SendSysexAction", automation.Action)
-SendRawAction = ble_midi_ns.class_("SendRawAction", automation.Action)
 # The message bytes as a view: data.size() and data[i] work, and nothing is copied
 ByteSpan = cg.std_span.template(cg.uint8.operator("const"))
 
@@ -182,37 +178,26 @@ automation.register_apply_action(
 )
 
 
-def _register_bytes_action(name: str, cls: cg.MockObjClass, key: str) -> None:
-    """A send action whose payload is a byte list: a constant one is a shared PROGMEM table."""
-
-    async def builder(
-        config: ConfigType,
-        action_id: ID,
-        template_arg: cg.TemplateArguments,
-        args: automation.TemplateArgsType,
-    ) -> cg.MockObj:
-        var = cg.new_Pvariable(action_id, template_arg)
-        await cg.register_parented(var, config[CONF_ID])
-        await automation.templatable_bytes(
-            config[key],
-            args,
-            var.set_bytes_template,
-            var.set_bytes_static,
-            name.replace(".", "_"),
-        )
-        return var
-
-    schema = cv.Schema(
+def _bytes_action_schema(key: str) -> cv.Schema:
+    return cv.Schema(
         {
             cv.GenerateID(): cv.use_id(BLEMidi),
             cv.Required(key): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
         }
     )
-    automation.register_action(name, cls, schema)(builder)
 
 
-_register_bytes_action("ble_midi.send_sysex", SendSysexAction, CONF_PAYLOAD)
-_register_bytes_action("ble_midi.send_raw", SendRawAction, CONF_DATA)
+automation.register_apply_action(
+    "ble_midi.send_sysex",
+    _bytes_action_schema(CONF_PAYLOAD),
+    automation.ApplyBytes(CONF_PAYLOAD, "send_sysex({})"),
+)
+
+automation.register_apply_action(
+    "ble_midi.send_raw",
+    _bytes_action_schema(CONF_DATA),
+    automation.ApplyBytes(CONF_DATA, "send_raw({})"),
+)
 
 automation.register_apply_condition(
     "ble_midi.connected", cv.Schema({cv.GenerateID(): cv.use_id(BLEMidi)}), "is_ready()"
