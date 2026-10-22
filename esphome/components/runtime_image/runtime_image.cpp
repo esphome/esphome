@@ -293,7 +293,7 @@ void RuntimeImage::release_buffer_() {
 #ifdef USE_LVGL
     // A widget may still show this image, and LVGL warns on every draw of an image without data, so leave it a
     // transparent pixel to draw until the next image is ready
-    static const uint8_t TRANSPARENT_PIXEL = 0;
+    static constexpr uint8_t TRANSPARENT_PIXEL = 0;
     memset(&this->dsc_, 0, sizeof(this->dsc_));
     this->dsc_.header.cf = LV_COLOR_FORMAT_A8;
     this->dsc_.header.w = 1;
