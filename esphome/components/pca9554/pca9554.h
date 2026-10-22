@@ -38,7 +38,7 @@ class PCA9554Component final : public Component,
 #endif
 
  protected:
-  static void IRAM_ATTR gpio_intr(PCA9554Component *arg);
+  static void gpio_intr(PCA9554Component *arg);
 
   bool read_inputs_();
   bool write_register_(uint8_t reg, uint16_t value) { return this->write_address_(reg * this->reg_width_, value); }
