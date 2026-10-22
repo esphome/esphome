@@ -134,11 +134,7 @@ void Seesaw::pin_mode(uint8_t pin, gpio::Flags flags) {
       this->write_value_(SEESAW_GPIO, SEESAW_GPIO_PULLENSET, pins);
       this->write_value_(SEESAW_GPIO, (flags & gpio::FLAG_PULLUP) ? SEESAW_GPIO_BULK_SET : SEESAW_GPIO_BULK_CLR, pins);
       // Until the first read succeeds, the pin reads as its idle level
-      if (flags & gpio::FLAG_PULLUP) {
-        this->gpio_levels_ |= pins;
-      } else {
-        this->gpio_levels_ &= ~pins;
-      }
+      assign_bits(this->gpio_levels_, pins, (flags & gpio::FLAG_PULLUP) != 0);
     } else {
       this->write_value_(SEESAW_GPIO, SEESAW_GPIO_PULLENCLR, pins);
     }
