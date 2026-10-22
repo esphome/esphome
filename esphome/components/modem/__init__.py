@@ -41,13 +41,8 @@ CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
 CONF_URC = "urc"
 
 # Model name to the esp_modem factory that drives it
-MODEM_MODELS = {
-    "BG96": "BG96",
-    "SIM800": "SIM800",
-    "SIM7000": "SIM7000",
-    "SIM7070": "SIM7070",
+MODEM_MODELS = {m: m for m in ("BG96", "SIM800", "SIM7000", "SIM7070", "SIM7600")} | {
     "SIM7080": "SIM7000",
-    "SIM7600": "SIM7600",
     "SIM7670": "SIM7600",
     "GENERIC": "generic",
 }
@@ -65,17 +60,13 @@ def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
     return ["network"]
 
 
-# Each trigger fires on one state, and none while the component is failed
-_NOT_FAILED = "!{parent}->is_failed()"
-
-
 def _on_state(conf_key: str, state: str) -> automation.CallbackAutomation:
     return automation.CallbackAutomation(
         conf_key,
         "add_on_state_callback",
         params=[(ModemComponentState, "state")],
         forward=[],
-        when=f"{_NOT_FAILED} && state == modem::ModemComponentState::{state}",
+        when=f"state == modem::ModemComponentState::{state}",
     )
 
 
@@ -107,21 +98,20 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INIT_AT): cv.ensure_list(cv.string),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             # The IDF UART driver needs more than its 128 byte FIFO; the setters take uint16_t
-            cv.Optional(CONF_TX_BUFFER_SIZE, default=1024): cv.int_range(
-                min=129, max=65535
-            ),
-            cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.int_range(
-                min=129, max=65535
-            ),
+            **{
+                cv.Optional(k, default=1024): cv.int_range(min=129, max=65535)
+                for k in (CONF_TX_BUFFER_SIZE, CONF_RX_BUFFER_SIZE)
+            },
             cv.Optional(CONF_DTE_BUFFER_SIZE, default=1024): cv.int_range(
                 min=1, max=65535
             ),
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="10min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_CONNECT): automation.validate_automation({}),
-            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation({}),
-            cv.Optional(CONF_ON_SYNC): automation.validate_automation({}),
+            **{
+                cv.Optional(a.conf_key): automation.validate_automation({})
+                for a in _CALLBACK_AUTOMATIONS
+            },
             cv.Optional(CONF_URC): text_sensor_schema(),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -133,17 +123,14 @@ CONFIG_SCHEMA = cv.All(
 MIN_WATCHDOG_TIMEOUT_S = 30
 
 
-def _require_long_watchdog(config: ConfigType) -> ConfigType:
-    esp32_config = fv.full_config.get()[PLATFORM_ESP32]
-    if esp32_config[CONF_WATCHDOG_TIMEOUT].total_seconds < MIN_WATCHDOG_TIMEOUT_S:
+def FINAL_VALIDATE_SCHEMA(config: ConfigType) -> ConfigType:
+    watchdog = fv.full_config.get()[PLATFORM_ESP32][CONF_WATCHDOG_TIMEOUT]
+    if watchdog.total_seconds < MIN_WATCHDOG_TIMEOUT_S:
         raise cv.Invalid(
             f"modem needs 'esp32: {CONF_WATCHDOG_TIMEOUT}: {MIN_WATCHDOG_TIMEOUT_S}s' or more: "
             "a modem command can block the main loop for about 20 s"
         )
     return config
-
-
-FINAL_VALIDATE_SCHEMA = _require_long_watchdog
 
 
 MODEM_ID_SCHEMA = automation.maybe_simple_id(
@@ -157,12 +144,10 @@ SEND_AT_SCHEMA = cv.maybe_simple_value(
     key=CONF_COMMAND,
 )
 
-automation.register_apply_action(
-    "modem.enable", MODEM_ID_SCHEMA, automation.ApplyCall("enable()")
-)
-automation.register_apply_action(
-    "modem.disable", MODEM_ID_SCHEMA, automation.ApplyCall("disable()")
-)
+for _name in ("enable", "disable"):
+    automation.register_apply_action(
+        f"modem.{_name}", MODEM_ID_SCHEMA, automation.ApplyCall(f"{_name}()")
+    )
 automation.register_apply_action(
     "modem.send_at",
     SEND_AT_SCHEMA,

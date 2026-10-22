@@ -22,7 +22,7 @@ namespace esphome::modem {
 
 using namespace esp_modem;
 
-enum class ModemComponentState {
+enum class ModemComponentState : uint8_t {
   MODEM_DISABLED,
   MODEM_ENABLING,
   MODEM_SYNCED,
@@ -32,15 +32,10 @@ enum class ModemComponentState {
   MODEM_DISCONNECTING,
 };
 
-enum class SimResult {
+enum class SimResult : uint8_t {
   SIM_RESULT_READY,
   SIM_RESULT_RETRY,  // status not readable yet, or the PIN was just sent
   SIM_RESULT_FATAL,  // locked with no usable PIN, or PUK locked
-};
-
-struct AtCommandResult {
-  std::string output;
-  bool success{false};
 };
 
 // Every esp_modem factory shares this signature, so codegen picks the one for the model
@@ -87,34 +82,27 @@ class ModemComponent : public Component {
   void enable();
   void disable();
   /// Send an AT command; with verbose the command, result and response are logged.
-  AtCommandResult send_at(const std::string &cmd, uint32_t timeout = 0, bool verbose = false);
+  bool send_at(const std::string &cmd, uint32_t timeout = 0, bool verbose = false);
 
   network::IPAddresses get_ip_addresses();
   const char *get_use_address() const { return this->use_address_; };
 
  protected:
+  static constexpr uint32_t CONNECT_TIMEOUT_ID = 0;
+  static constexpr uint32_t RETRY_DELAY_MS = 1000;
+  static constexpr size_t URC_LINE_SIZE = 128;
+
   ModemComponentState compute_next_state_();
   ModemComponentState handle_state_enabling_();
-  ModemComponentState handle_state_synced_();
   ModemComponentState handle_state_connecting_();
   ModemComponentState handle_state_wait_ip_();
-  ModemComponentState handle_state_connected_();
   ModemComponentState handle_state_disconnecting_();
+  /// Pause the state machine before the next pass, then go to state
+  ModemComponentState retry_(ModemComponentState state, uint32_t delay_ms = RETRY_DELAY_MS);
   void transition_to_(ModemComponentState next_state);
-  void on_enter_state_(ModemComponentState state);
-  void abort_(const char *message);
   void arm_connect_timeout_();
-  void loop_delay_(uint32_t delay_ms);
   void dump_connect_params_();
-
-  bool create_dte_dce_(int baud_rate);
-  bool try_baud_(int baud);
   SimResult prepare_sim_();
-  void log_status_();
-  static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
-
-  static constexpr uint32_t CONNECT_TIMEOUT_ID = 0;
-  static constexpr size_t URC_LINE_SIZE = 128;
 
   InternalGPIOPin *tx_pin_{nullptr};
   InternalGPIOPin *rx_pin_{nullptr};
@@ -125,39 +113,38 @@ class ModemComponent : public Component {
   const char *apn_{""};
   const char *pin_code_{nullptr};
   std::vector<const char *> init_at_commands_;
-  uint16_t tx_buffer_size_{512};
-  uint16_t rx_buffer_size_{512};
-  uint16_t dte_buffer_size_{512};
-  int baud_rate_{0};  // 0 = use the esp_modem default
-  uint32_t timeout_{0};
 #ifdef USE_MODEM_URC
   text_sensor::TextSensor *urc_text_sensor_{nullptr};
-  char urc_line_[URC_LINE_SIZE];
-  std::atomic<bool> urc_pending_{false};
 #endif
-
   std::unique_ptr<DCE> dce_;
   std::shared_ptr<DTE> dte_;
   esp_netif_t *ppp_netif_{nullptr};
+  ESPPreferenceObject pref_;
+  LazyCallbackManager<void(ModemComponentState)> on_state_callback_;
   uart_port_t uart_port_{UART_NUM_MAX};
+  int baud_rate_{0};  // 0 = use the esp_modem default
   int current_baud_rate_{0};
   int restored_baud_{0};
-  ESPPreferenceObject pref_;
+  uint32_t timeout_{0};
+  uint32_t delay_start_{0};
+  uint32_t delay_ms_{0};
+  uint32_t wait_ip_start_{0};
+  uint16_t tx_buffer_size_{512};
+  uint16_t rx_buffer_size_{512};
+  uint16_t dte_buffer_size_{512};
+  ModemComponentState component_state_{ModemComponentState::MODEM_DISABLED};
+  ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};
   uint8_t baud_index_{0};
+  // CONNECTING runs its long commands once: 0 nothing sent, 1 radio on, 2 attach requested
+  uint8_t connect_step_{0};
   // One PIN attempt per enable(): a second wrong PIN could PUK-lock the SIM
   bool pin_sent_{false};
   // Written last by the IP event task, read by loop()
   std::atomic<bool> got_ip_{false};
-
-  LazyCallbackManager<void(ModemComponentState)> on_state_callback_;
-  ModemComponentState component_state_{ModemComponentState::MODEM_DISABLED};
-  ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};
-  uint32_t next_loop_millis_{0};
-  bool delay_pending_{false};
-  // CONNECTING runs its long commands once; the retry passes only poll the attachment
-  bool radio_on_requested_{false};
-  bool attach_requested_{false};
-  uint32_t wait_ip_start_{0};
+#ifdef USE_MODEM_URC
+  std::atomic<bool> urc_pending_{false};
+  char urc_line_[URC_LINE_SIZE];
+#endif
 
  private:
   // Points at a string literal from code generation, never at dynamic storage
