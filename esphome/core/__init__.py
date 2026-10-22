@@ -764,7 +764,8 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+        # "modem" is a component constant; const.py is frozen
+        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD, "modem"):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 

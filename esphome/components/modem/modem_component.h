@@ -103,6 +103,7 @@ class ModemComponent : public Component {
   void transition_to_(ModemComponentState next_state);
   void on_enter_state_(ModemComponentState state);
   void abort_(const char *message);
+  void arm_connect_timeout_();
   void loop_delay_(uint32_t delay_ms);
   void dump_connect_params_();
 
@@ -113,6 +114,7 @@ class ModemComponent : public Component {
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
   static constexpr uint32_t CONNECT_TIMEOUT_ID = 0;
+  static constexpr size_t URC_LINE_SIZE = 128;
 
   InternalGPIOPin *tx_pin_{nullptr};
   InternalGPIOPin *rx_pin_{nullptr};
@@ -130,6 +132,8 @@ class ModemComponent : public Component {
   uint32_t timeout_{0};
 #ifdef USE_MODEM_URC
   text_sensor::TextSensor *urc_text_sensor_{nullptr};
+  char urc_line_[URC_LINE_SIZE];
+  std::atomic<bool> urc_pending_{false};
 #endif
 
   std::unique_ptr<DCE> dce_;
@@ -149,6 +153,7 @@ class ModemComponent : public Component {
   ModemComponentState component_state_{ModemComponentState::MODEM_DISABLED};
   ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};
   uint32_t next_loop_millis_{0};
+  bool delay_pending_{false};
   uint32_t wait_ip_start_{0};
 
  private:

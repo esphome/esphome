@@ -9,6 +9,7 @@
 #include <esp_netif.h>
 #include <esp_netif_ppp.h>
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstring>
 
@@ -36,12 +37,22 @@ void ModemComponent::enable() {
   ESP_LOGI(TAG, "Setting modem target state to CONNECTED");
   this->target_state_ = ModemComponentState::MODEM_CONNECTED;
   this->pin_sent_ = false;
+  this->arm_connect_timeout_();
   this->enable_loop();
 }
 
 void ModemComponent::disable() {
   ESP_LOGI(TAG, "Setting modem target state to DISABLED");
   this->target_state_ = ModemComponentState::MODEM_DISABLED;
+  this->cancel_timeout(CONNECT_TIMEOUT_ID);
+}
+
+void ModemComponent::arm_connect_timeout_() {
+  // Measures time without a connection, like wifi, so retry cycles do not restart it
+  if (this->timeout_ != 0) {
+    this->set_timeout(CONNECT_TIMEOUT_ID, this->timeout_,
+                      [this]() { this->abort_("Modem was not able to connect (timeout)"); });
+  }
 }
 
 network::IPAddresses ModemComponent::get_ip_addresses() {
@@ -57,24 +68,16 @@ void ModemComponent::setup() {
   this->pref_ = global_preferences->make_preference<int>(BAUD_PREF_HASH);
   this->pref_.load(&this->restored_baud_);
 
-#ifdef UART_NUM_2
-  for (auto p : {UART_NUM_2, UART_NUM_1}) {
-#else
-  for (auto p : {UART_NUM_1}) {
-#endif
-    if (!uart_is_driver_installed(p)) {
-      this->uart_port_ = p;
+  // Highest free port first; UART0 stays with the logger
+  for (int p = UART_NUM_MAX - 1; p > UART_NUM_0; p--) {
+    if (!uart_is_driver_installed(static_cast<uart_port_t>(p))) {
+      this->uart_port_ = static_cast<uart_port_t>(p);
       break;
     }
   }
   if (this->uart_port_ == UART_NUM_MAX) {
     this->mark_failed(LOG_STR("No free UART port for modem"));
     return;
-  }
-
-  if (CONFIG_ESP_TASK_WDT_TIMEOUT_S <= 10) {
-    ESP_LOGW(TAG, "WDT timeout (%d s) may be too low for modem. Increase if WDT triggers.",
-             CONFIG_ESP_TASK_WDT_TIMEOUT_S);
   }
 
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
@@ -113,14 +116,18 @@ void ModemComponent::dump_config() {
 
 void ModemComponent::loop() {
   // Some modem steps need a pause; the early return alone defers the work
-  if ((int32_t) (App.get_loop_component_start_time() - this->next_loop_millis_) < 0) {
-    return;
+  if (this->delay_pending_) {
+    if ((int32_t) (App.get_loop_component_start_time() - this->next_loop_millis_) < 0) {
+      return;
+    }
+    this->delay_pending_ = false;
   }
   this->transition_to_(this->compute_next_state_());
 }
 
 void ModemComponent::loop_delay_(uint32_t delay_ms) {
   this->next_loop_millis_ = App.get_loop_component_start_time() + delay_ms;
+  this->delay_pending_ = true;
 }
 
 ModemComponentState ModemComponent::compute_next_state_() {
@@ -183,6 +190,22 @@ void ModemComponent::create_dte_dce_(int baud_rate) {
   this->dte_ = create_uart_dte(&dte_config);
   esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_);
   this->dce_ = this->dce_factory_(&dce_config, this->dte_, this->ppp_netif_);
+#ifdef USE_MODEM_URC
+  // Runs on the UART task: keep one line in a fixed buffer and let loop() publish it
+  this->dce_->set_enhanced_urc([this](const DTE::UrcBufferInfo &buffer_info) {
+    if (!buffer_info.is_command_active && !this->urc_pending_.load(std::memory_order_acquire)) {
+      const size_t len = std::min(buffer_info.new_data_size, sizeof(this->urc_line_) - 1);
+      memcpy(this->urc_line_, buffer_info.new_data_start, len);
+      this->urc_line_[len] = '\0';
+      this->urc_pending_.store(true, std::memory_order_release);
+      this->defer([this]() {
+        this->urc_text_sensor_->publish_state(this->urc_line_);
+        this->urc_pending_.store(false, std::memory_order_release);
+      });
+    }
+    return DTE::UrcConsumeInfo{DTE::UrcConsumeResult::CONSUME_NONE, 0};
+  });
+#endif
 }
 
 bool ModemComponent::try_baud_(int baud) {
@@ -246,18 +269,6 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     return ModemComponentState::MODEM_ENABLING;
   }
 
-#ifdef USE_MODEM_URC
-  this->dce_->set_enhanced_urc([this](const DTE::UrcBufferInfo &buffer_info) {
-    if (!buffer_info.is_command_active) {
-      // Publish from the main loop, not from the UART task
-      this->defer(
-          [this, line = std::string(reinterpret_cast<const char *>(buffer_info.new_data_start),
-                                    buffer_info.new_data_size)]() { this->urc_text_sensor_->publish_state(line); });
-    }
-    return DTE::UrcConsumeInfo{DTE::UrcConsumeResult::CONSUME_NONE, 0};
-  });
-#endif
-
   int radio_state = 1;
   this->dce_->get_radio_state(radio_state);
   if (radio_state == 1) {
@@ -319,6 +330,7 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
       // Retrying would burn the remaining PIN attempts; stay off until the user fixes the SIM
       this->status_set_error(LOG_STR("SIM locked"));
       this->target_state_ = ModemComponentState::MODEM_DISABLED;
+      this->cancel_timeout(CONNECT_TIMEOUT_ID);
       return ModemComponentState::MODEM_DISCONNECTING;
   }
   this->dce_->set_network_attachment_state(1);
@@ -359,7 +371,8 @@ ModemComponentState ModemComponent::handle_state_connected_() {
 }
 
 ModemComponentState ModemComponent::handle_state_disconnecting_() {
-  this->dce_->set_mode(modem_mode::CMUX_MANUAL_EXIT);
+  // COMMAND_MODE stops PPP and leaves CMUX; the manual exit only applies to a warm reboot
+  this->dce_->set_mode(modem_mode::COMMAND_MODE);
   // Turn the radio off; waiting for the lost IP event could take up to 2 min
   if (this->dce_->set_radio_state(0) == command_result::OK) {
     ESP_LOGI(TAG, "Modem set to minimal functionality.");
@@ -381,28 +394,30 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
       previous_state == ModemComponentState::MODEM_CONNECTED) {
     this->on_state_callback_.call(next_state);
   }
+  if (next_state == ModemComponentState::MODEM_DISCONNECTING &&
+      previous_state == ModemComponentState::MODEM_CONNECTED &&
+      this->target_state_ == ModemComponentState::MODEM_CONNECTED) {
+    // A lost connection starts the reconnect watchdog again
+    this->arm_connect_timeout_();
+  }
   this->on_enter_state_(next_state);
 }
 
 void ModemComponent::on_enter_state_(ModemComponentState state) {
   switch (state) {
-    case ModemComponentState::MODEM_ENABLING:
-      if (this->timeout_ != 0) {
-        this->set_timeout(CONNECT_TIMEOUT_ID, this->timeout_,
-                          [this]() { this->abort_("Modem was not able to connect (timeout)"); });
-      }
-      break;
     case ModemComponentState::MODEM_WAIT_IP:
       this->wait_ip_start_ = App.get_loop_component_start_time();
       break;
     case ModemComponentState::MODEM_CONNECTED:
       this->cancel_timeout(CONNECT_TIMEOUT_ID);
       this->status_clear_warning();
+      this->status_clear_error();  // a SIM fault fixed outside is over once PPP is up
       this->dump_connect_params_();
       break;
     case ModemComponentState::MODEM_DISCONNECTING:
       ESP_LOGI(TAG, "Disconnecting modem");
-      this->cancel_timeout(CONNECT_TIMEOUT_ID);
+      // The lost IP event can lag by minutes; a quick re-enable must wait for a fresh address
+      this->got_ip_.store(false, std::memory_order_release);
       this->loop_delay_(COMMAND_TIMEOUT_MS);
       break;
     default:
@@ -443,6 +458,7 @@ SimResult ModemComponent::prepare_sim_() {
   ESP_LOGD(TAG, "SIM: %s", status);
 
   if (strstr(status, "READY") != nullptr) {
+    this->pin_sent_ = false;  // proven correct, so a modem self-reset may send it again
     return SimResult::SIM_RESULT_READY;
   }
   if (strstr(status, "PUK") != nullptr) {

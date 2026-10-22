@@ -2,6 +2,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_RTS_PIN
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+from esphome.components.network import add_use_address
 from esphome.components.text_sensor import new_text_sensor, text_sensor_schema
 import esphome.config_validation as cv
 from esphome.const import (
@@ -18,8 +19,12 @@ from esphome.const import (
     CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
     CONF_USE_ADDRESS,
+    CONF_WATCHDOG_TIMEOUT,
+    PLATFORM_ESP32,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@oarcher"]
@@ -74,6 +79,12 @@ def _on_state(conf_key: str, state: str) -> automation.CallbackAutomation:
     )
 
 
+def _default_use_address(config: ConfigType) -> ConfigType:
+    # The host tools resolve the device through this, like the other network components
+    config.setdefault(CONF_USE_ADDRESS, f"{CORE.name}.local")
+    return config
+
+
 _CALLBACK_AUTOMATIONS = (
     _on_state(CONF_ON_CONNECT, "MODEM_CONNECTED"),
     _on_state(CONF_ON_DISCONNECT, "MODEM_DISCONNECTING"),
@@ -92,12 +103,19 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): cv.one_of(*MODEM_MODELS, upper=True),
             cv.Required(CONF_APN): cv.string,
             cv.Optional(CONF_PIN_CODE): cv.sensitive(cv.string_strict),
-            cv.Optional(CONF_USE_ADDRESS): cv.string,
+            cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_INIT_AT): cv.ensure_list(cv.string),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_TX_BUFFER_SIZE, default=1024): cv.positive_int,
-            cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.positive_int,
-            cv.Optional(CONF_DTE_BUFFER_SIZE, default=1024): cv.positive_int,
+            # The IDF UART driver needs more than its 128 byte FIFO; the setters take uint16_t
+            cv.Optional(CONF_TX_BUFFER_SIZE, default=1024): cv.int_range(
+                min=129, max=65535
+            ),
+            cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.int_range(
+                min=129, max=65535
+            ),
+            cv.Optional(CONF_DTE_BUFFER_SIZE, default=1024): cv.int_range(
+                min=1, max=65535
+            ),
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="10min"
             ): cv.positive_time_period_milliseconds,
@@ -108,7 +126,24 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_none_or_all_keys(CONF_RTS_PIN, CONF_CTS_PIN),
+    _default_use_address,
 )
+
+# Leaving DATA_MODE or turning the radio off can block the loop for about 20 s
+MIN_WATCHDOG_TIMEOUT_S = 30
+
+
+def _require_long_watchdog(config: ConfigType) -> ConfigType:
+    esp32_config = fv.full_config.get()[PLATFORM_ESP32]
+    if esp32_config[CONF_WATCHDOG_TIMEOUT].total_seconds < MIN_WATCHDOG_TIMEOUT_S:
+        raise cv.Invalid(
+            f"modem needs 'esp32: {CONF_WATCHDOG_TIMEOUT}: {MIN_WATCHDOG_TIMEOUT_S}s' or more: "
+            "a modem command can block the main loop for about 20 s"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _require_long_watchdog
 
 
 MODEM_ID_SCHEMA = automation.maybe_simple_id(
@@ -139,7 +174,7 @@ automation.register_apply_condition(
 automation.register_apply_condition("modem.enabled", MODEM_ID_SCHEMA, "is_enabled()")
 
 
-@coroutine_with_priority(60.0)
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config: ConfigType) -> None:
     add_idf_component(name="espressif/esp_modem", ref="2.0.2")
 
@@ -157,7 +192,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add_optional(var.set_use_address, config.get(CONF_USE_ADDRESS))
+    add_use_address(var, config[CONF_USE_ADDRESS])
     cg.add_optional(var.set_pin_code, config.get(CONF_PIN_CODE))
 
     if config[CONF_ENABLE_ON_BOOT]:
