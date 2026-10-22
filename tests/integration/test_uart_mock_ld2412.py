@@ -24,6 +24,9 @@ test_uart_mock_ld2412_engineering_truncated (truncated engineering mode):
 The gate threshold tests (footer_in_payload, truncated_answer, requery_after_giveup) cover
 answers that hold the frame footer or are truncated, writes that fill the gates without a
 number from the module's values, and writes held back until the module reports them.
+
+test_uart_mock_ld2412_selects checks that the distance resolution and baud rate selects show the
+module's values and send the device code of the chosen option.
 """
 
 from __future__ import annotations
@@ -39,6 +42,7 @@ from aioesphomeapi import (
     EntityState,
     NumberInfo,
     NumberState,
+    SelectInfo,
 )
 import pytest
 
@@ -57,6 +61,9 @@ STILL_COMMAND = "10:00:04:00"
 MOTION_QUERY = "02:00:13:00"
 STILL_QUERY = "02:00:14:00"
 CONFIG_MODE_LEFT = "02:00:FE:00"
+# Set distance resolution (6 payload bytes) and set baud rate (2 payload bytes)
+SET_RESOLUTION = "08:00:01:00"
+SET_BAUD_RATE = "04:00:A1:00"
 FACTORY_RESET = "02:00:A2:00"
 # Logged in place of the motion command when the write is held back or given up
 MOTION_HELD_BACK = "Command 03 held back"
@@ -681,3 +688,52 @@ async def test_uart_mock_ld2412_requery_after_giveup(
         assert gate_0_state.state == pytest.approx(25.0)
         assert gate_5_values
         assert all(value == pytest.approx(30.0) for value in gate_5_values)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_selects(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that the selects show the module's values and send the device code of the chosen option."""
+    # 0.2m is device code 0x03; the module answered 0x01, which is 0.5m
+    expected_resolution = "TX 6 bytes: 03:00:00:00:00:00"
+    # 19200 is the second baud rate, so its code is 2
+    expected_baud_rate = "TX 2 bytes: 02:00"
+    events = _LogEvents()
+
+    async with (
+        run_compiled(yaml_config, line_callback=events.on_line),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        initial_state_helper = await _wait_initial(client, entities)
+        resolution = require_entity(entities, "distance_resolution", SelectInfo)
+        baud_rate = require_entity(entities, "baud_rate", SelectInfo)
+        assert initial_state_helper.initial_states[resolution.key].state == "0.5m"
+        # The mock bus runs at 256000, which the select reports at boot
+        assert initial_state_helper.initial_states[baud_rate.key].state == "256000"
+
+        resolution_written = events.next_line_with(expected_resolution)
+        client.select_command(resolution.key, "0.2m")
+        await wait_or_fail(
+            resolution_written,
+            5.0,
+            "Timeout waiting for the distance resolution command",
+            logged=events.lines,
+        )
+        assert events.count(SET_RESOLUTION) == 1
+
+        baud_rate_written = events.next_line_with(expected_baud_rate)
+        client.select_command(baud_rate.key, "19200")
+        await wait_or_fail(
+            baud_rate_written,
+            5.0,
+            "Timeout waiting for the baud rate command",
+            logged=events.lines,
+        )
+        assert events.count(SET_BAUD_RATE) == 1
+        # The payload line follows the length and command line directly
+        start = events.index_after(-1, SET_BAUD_RATE)
+        assert expected_baud_rate in events.lines[start + 1]
