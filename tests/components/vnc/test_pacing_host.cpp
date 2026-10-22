@@ -422,6 +422,39 @@ TEST_F(VncPacingParked, DisplayBusyTooLongSetsAWarningUntilItParks) {
   EXPECT_FALSE(s().client.status_has_warning());
 }
 
+// A refresh the driver gave up on (its warning is set when it parks) is retried once; a retry that fails
+// too is not repeated until the driver finishes a refresh cleanly.
+TEST_F(VncPacingParked, AbandonedRefreshIsRetriedOnce) {
+  set_now(1100);
+  s().deliver(frame());
+  s().at(1300);
+  ASSERT_EQ(d_.updates(), 1);
+  d_.status_set_warning(LOG_STR("Busy pin timeout"));
+  d_.finish();
+  s().tick(10);
+  EXPECT_TRUE(s().client.refresh_pending());
+  s().run_for(300);
+  EXPECT_EQ(d_.updates(), 2);
+  d_.finish();
+  s().run_for(3000);
+  EXPECT_EQ(d_.updates(), 2) << "a failed retry was retried again";
+
+  // A clean refresh arms the retry again
+  d_.status_clear_warning();
+  s().deliver(frame(16, 0x4321));
+  s().run_for(300);
+  ASSERT_EQ(d_.updates(), 3);
+  d_.finish();
+  s().tick(10);
+  d_.status_set_warning(LOG_STR("Busy pin timeout"));
+  s().deliver(frame(32, 0x5678));
+  s().run_for(300);
+  ASSERT_EQ(d_.updates(), 4);
+  d_.finish();
+  s().tick(10);
+  EXPECT_TRUE(s().client.refresh_pending());
+}
+
 TEST_F(VncPacingParked, DisplayParkingKeepsAConnectionWarning) {
   d_.external_update();
   s().run_for(120000, 1000);
