@@ -50,6 +50,7 @@ enum PeriodicDataValue : uint8_t {
 };
 
 enum AckData : uint8_t {
+  FRAME_LENGTH = 4,
   COMMAND = 6,
   COMMAND_STATUS = 7,
 };
@@ -133,7 +134,7 @@ static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x0
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xAA, 0xFF, 0x03, 0x00};
 static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
 // Successful zone query ACK: header (4) + length (2) + command/status (2) + result (2) + zone type (2) +
-// 3 zones * 8 + footer (4). Zone coordinates may contain the command footer bytes.
+// 3 zones * 8 + footer (4).
 static constexpr uint8_t ZONE_ACK_FRAME_SIZE = 40;
 static constexpr uint8_t PERIODIC_FRAME_SIZE = 30;  // header, three targets of 8 bytes, footer
 // MAC address the module uses when Bluetooth is disabled
@@ -184,18 +185,19 @@ static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
 }
 
 // Length of the frame that opens the buffer: periodic frames are fixed size, command frames carry their
-// payload length after the header. Returns 0 while the length field has not arrived yet.
+// payload length after the header. readline_ only buffers a valid header, so its first byte names it.
+// Returns 0 while the length field has not arrived yet.
 static inline uint16_t frame_length(const uint8_t *buffer, uint8_t len) {
   if (len < HEADER_FOOTER_SIZE) {
     return 0;
   }
-  if (validate_header_footer(DATA_FRAME_HEADER, buffer)) {
+  if (buffer[0] == DATA_FRAME_HEADER[0]) {
     return PERIODIC_FRAME_SIZE;
   }
-  if (len < HEADER_FOOTER_SIZE + 2) {
+  if (len < FRAME_LENGTH + 2) {
     return 0;
   }
-  return HEADER_FOOTER_SIZE + 2 + encode_uint16(buffer[5], buffer[4]) + HEADER_FOOTER_SIZE;
+  return FRAME_LENGTH + 2 + encode_value_le<uint16_t>(&buffer[FRAME_LENGTH]) + HEADER_FOOTER_SIZE;
 }
 
 void LD2450Component::setup() {
@@ -823,7 +825,7 @@ void LD2450Component::readline_(int readch) {
     return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
   }
   const uint8_t *end = &this->buffer_data_[this->buffer_pos_];
-  if (ld2450::validate_header_footer(DATA_FRAME_HEADER, this->buffer_data_)) {
+  if (this->buffer_data_[0] == DATA_FRAME_HEADER[0]) {
     if (end[-2] == DATA_FRAME_FOOTER[0] && end[-1] == DATA_FRAME_FOOTER[1]) {
       ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
       this->handle_periodic_data_();
