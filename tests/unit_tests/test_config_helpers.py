@@ -7,6 +7,8 @@ from unittest.mock import patch
 import pytest
 
 from esphome.config_helpers import (
+    Extend,
+    Remove,
     filter_source_files_from_defines,
     filter_source_files_from_platform,
     frameworks_for_platforms,
@@ -174,6 +176,41 @@ def test_filter_source_files_from_defines() -> None:
 
         mock_core.defines = set()
         assert sorted(filter_func()) == ["automation.cpp", "filter.cpp"]
+
+
+def test_extend_str_repr_and_equality() -> None:
+    ext = Extend("my_id")
+
+    assert str(ext) == "!extend my_id"
+    assert repr(ext) == "Extend(my_id)"
+    assert ext == Extend("my_id")
+    assert ext != Extend("other")
+    assert ext != "my_id"
+
+
+def test_remove_str_repr_and_equality() -> None:
+    rem = Remove("my_id")
+
+    assert str(rem) == "!remove my_id"
+    assert repr(rem) == "Remove(my_id)"
+    assert rem == Remove("my_id")
+    assert rem != Remove("other")
+    assert rem != "my_id"
+
+
+def test_filter_source_files_from_platform_unknown_pair() -> None:
+    """A target platform/framework pair with no PlatformFramework yields no exclusions."""
+    mock_core_data = {
+        KEY_CORE: {
+            KEY_TARGET_PLATFORM: "not_a_platform",
+            KEY_TARGET_FRAMEWORK: "arduino",
+        }
+    }
+    with patch("esphome.config_helpers.CORE.data", mock_core_data):
+        func = filter_source_files_from_platform(
+            {"a.cpp": {PlatformFramework.ESP32_ARDUINO}}
+        )
+        assert func() == []
 
 
 def test_iter_include_files(setup_core: Path) -> None:

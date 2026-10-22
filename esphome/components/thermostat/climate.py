@@ -96,22 +96,20 @@ ThermostatClimateTargetTempConfig = thermostat_ns.struct(
 ThermostatPresetEntry = thermostat_ns.struct("ThermostatPresetEntry")
 ThermostatCustomPresetEntry = thermostat_ns.struct("ThermostatCustomPresetEntry")
 OnBootRestoreFrom = thermostat_ns.enum("OnBootRestoreFrom")
-ON_BOOT_RESTORE_FROM = {
-    "MEMORY": OnBootRestoreFrom.MEMORY,
-    "DEFAULT_PRESET": OnBootRestoreFrom.DEFAULT_PRESET,
-}
+ON_BOOT_RESTORE_FROM = OnBootRestoreFrom.options("MEMORY", "DEFAULT_PRESET")
 validate_on_boot_restore_from = cv.enum(ON_BOOT_RESTORE_FROM, upper=True)
 
 ClimateMode = climate_ns.enum("ClimateMode")
-CLIMATE_MODES = {
-    "OFF": ClimateMode.CLIMATE_MODE_OFF,
-    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,
-    "COOL": ClimateMode.CLIMATE_MODE_COOL,
-    "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
-    "DRY": ClimateMode.CLIMATE_MODE_DRY,
-    "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,
-}
+CLIMATE_MODES = ClimateMode.options(
+    "OFF",
+    "HEAT_COOL",
+    "COOL",
+    "HEAT",
+    "DRY",
+    "FAN_ONLY",
+    "AUTO",
+    prefix="CLIMATE_MODE_",
+)
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 ClimatePreset = climate_ns.enum("ClimatePreset")
@@ -175,120 +173,103 @@ def validate_heat_cool_mode(value: Any) -> list:
     return automation.validate_automation(single=True)(value)
 
 
+_KEY_REQUIREMENTS: dict[str, list[str]] = {
+    CONF_HEAT_COOL_MODE: [
+        CONF_COOL_ACTION,
+        CONF_HEAT_ACTION,
+        CONF_MIN_COOLING_OFF_TIME,
+        CONF_MIN_COOLING_RUN_TIME,
+        CONF_MIN_HEATING_OFF_TIME,
+        CONF_MIN_HEATING_RUN_TIME,
+    ],
+    CONF_COOL_MODE: [
+        CONF_COOL_ACTION,
+        CONF_MIN_COOLING_OFF_TIME,
+        CONF_MIN_COOLING_RUN_TIME,
+    ],
+    CONF_DRY_MODE: [
+        CONF_DRY_ACTION,
+        CONF_MIN_COOLING_OFF_TIME,
+        CONF_MIN_COOLING_RUN_TIME,
+    ],
+    CONF_FAN_ONLY_MODE: [
+        CONF_FAN_ONLY_ACTION,
+    ],
+    CONF_HEAT_MODE: [
+        CONF_HEAT_ACTION,
+        CONF_MIN_HEATING_OFF_TIME,
+        CONF_MIN_HEATING_RUN_TIME,
+    ],
+    CONF_COOL_ACTION: [
+        CONF_MIN_COOLING_OFF_TIME,
+        CONF_MIN_COOLING_RUN_TIME,
+    ],
+    CONF_DRY_ACTION: [
+        CONF_MIN_COOLING_OFF_TIME,
+        CONF_MIN_COOLING_RUN_TIME,
+    ],
+    CONF_HEAT_ACTION: [
+        CONF_MIN_HEATING_OFF_TIME,
+        CONF_MIN_HEATING_RUN_TIME,
+    ],
+    CONF_SUPPLEMENTAL_COOLING_ACTION: [
+        CONF_COOL_ACTION,
+        CONF_MAX_COOLING_RUN_TIME,
+        CONF_MIN_COOLING_OFF_TIME,
+        CONF_MIN_COOLING_RUN_TIME,
+        CONF_SUPPLEMENTAL_COOLING_DELTA,
+    ],
+    CONF_SUPPLEMENTAL_HEATING_ACTION: [
+        CONF_HEAT_ACTION,
+        CONF_MAX_HEATING_RUN_TIME,
+        CONF_MIN_HEATING_OFF_TIME,
+        CONF_MIN_HEATING_RUN_TIME,
+        CONF_SUPPLEMENTAL_HEATING_DELTA,
+    ],
+    CONF_MAX_COOLING_RUN_TIME: [
+        CONF_COOL_ACTION,
+        CONF_SUPPLEMENTAL_COOLING_ACTION,
+        CONF_SUPPLEMENTAL_COOLING_DELTA,
+    ],
+    CONF_MAX_HEATING_RUN_TIME: [
+        CONF_HEAT_ACTION,
+        CONF_SUPPLEMENTAL_HEATING_ACTION,
+        CONF_SUPPLEMENTAL_HEATING_DELTA,
+    ],
+    CONF_MIN_FANNING_OFF_TIME: [
+        CONF_FAN_ONLY_ACTION,
+    ],
+    CONF_MIN_FANNING_RUN_TIME: [
+        CONF_FAN_ONLY_ACTION,
+    ],
+    CONF_MIN_HEATING_OFF_TIME: [
+        CONF_HEAT_ACTION,
+    ],
+    CONF_MIN_HEATING_RUN_TIME: [
+        CONF_HEAT_ACTION,
+    ],
+    CONF_SUPPLEMENTAL_COOLING_DELTA: [
+        CONF_COOL_ACTION,
+        CONF_MAX_COOLING_RUN_TIME,
+        CONF_SUPPLEMENTAL_COOLING_ACTION,
+    ],
+    CONF_SUPPLEMENTAL_HEATING_DELTA: [
+        CONF_HEAT_ACTION,
+        CONF_MAX_HEATING_RUN_TIME,
+        CONF_SUPPLEMENTAL_HEATING_ACTION,
+    ],
+    CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION: [
+        CONF_HUMIDITY_CONTROL_OFF_ACTION,
+        CONF_HUMIDITY_SENSOR,
+    ],
+    CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION: [
+        CONF_HUMIDITY_CONTROL_OFF_ACTION,
+        CONF_HUMIDITY_SENSOR,
+    ],
+}
+
+
 def validate_thermostat(config: ConfigType) -> ConfigType:
-    # verify corresponding action(s) exist(s) for any defined climate mode or action
-    requirements = {
-        CONF_HEAT_COOL_MODE: [
-            CONF_COOL_ACTION,
-            CONF_HEAT_ACTION,
-            CONF_MIN_COOLING_OFF_TIME,
-            CONF_MIN_COOLING_RUN_TIME,
-            CONF_MIN_HEATING_OFF_TIME,
-            CONF_MIN_HEATING_RUN_TIME,
-        ],
-        CONF_COOL_MODE: [
-            CONF_COOL_ACTION,
-            CONF_MIN_COOLING_OFF_TIME,
-            CONF_MIN_COOLING_RUN_TIME,
-        ],
-        CONF_DRY_MODE: [
-            CONF_DRY_ACTION,
-            CONF_MIN_COOLING_OFF_TIME,
-            CONF_MIN_COOLING_RUN_TIME,
-        ],
-        CONF_FAN_ONLY_MODE: [
-            CONF_FAN_ONLY_ACTION,
-        ],
-        CONF_HEAT_MODE: [
-            CONF_HEAT_ACTION,
-            CONF_MIN_HEATING_OFF_TIME,
-            CONF_MIN_HEATING_RUN_TIME,
-        ],
-        CONF_COOL_ACTION: [
-            CONF_MIN_COOLING_OFF_TIME,
-            CONF_MIN_COOLING_RUN_TIME,
-        ],
-        CONF_DRY_ACTION: [
-            CONF_MIN_COOLING_OFF_TIME,
-            CONF_MIN_COOLING_RUN_TIME,
-        ],
-        CONF_HEAT_ACTION: [
-            CONF_MIN_HEATING_OFF_TIME,
-            CONF_MIN_HEATING_RUN_TIME,
-        ],
-        CONF_SUPPLEMENTAL_COOLING_ACTION: [
-            CONF_COOL_ACTION,
-            CONF_MAX_COOLING_RUN_TIME,
-            CONF_MIN_COOLING_OFF_TIME,
-            CONF_MIN_COOLING_RUN_TIME,
-            CONF_SUPPLEMENTAL_COOLING_DELTA,
-        ],
-        CONF_SUPPLEMENTAL_HEATING_ACTION: [
-            CONF_HEAT_ACTION,
-            CONF_MAX_HEATING_RUN_TIME,
-            CONF_MIN_HEATING_OFF_TIME,
-            CONF_MIN_HEATING_RUN_TIME,
-            CONF_SUPPLEMENTAL_HEATING_DELTA,
-        ],
-        CONF_MAX_COOLING_RUN_TIME: [
-            CONF_COOL_ACTION,
-            CONF_SUPPLEMENTAL_COOLING_ACTION,
-            CONF_SUPPLEMENTAL_COOLING_DELTA,
-        ],
-        CONF_MAX_HEATING_RUN_TIME: [
-            CONF_HEAT_ACTION,
-            CONF_SUPPLEMENTAL_HEATING_ACTION,
-            CONF_SUPPLEMENTAL_HEATING_DELTA,
-        ],
-        CONF_MIN_FANNING_OFF_TIME: [
-            CONF_FAN_ONLY_ACTION,
-        ],
-        CONF_MIN_FANNING_RUN_TIME: [
-            CONF_FAN_ONLY_ACTION,
-        ],
-        CONF_MIN_HEATING_OFF_TIME: [
-            CONF_HEAT_ACTION,
-        ],
-        CONF_MIN_HEATING_RUN_TIME: [
-            CONF_HEAT_ACTION,
-        ],
-        CONF_SUPPLEMENTAL_COOLING_DELTA: [
-            CONF_COOL_ACTION,
-            CONF_MAX_COOLING_RUN_TIME,
-            CONF_SUPPLEMENTAL_COOLING_ACTION,
-        ],
-        CONF_SUPPLEMENTAL_HEATING_DELTA: [
-            CONF_HEAT_ACTION,
-            CONF_MAX_HEATING_RUN_TIME,
-            CONF_SUPPLEMENTAL_HEATING_ACTION,
-        ],
-        CONF_HUMIDITY_CONTROL_DEHUMIDIFY_ACTION: [
-            CONF_HUMIDITY_CONTROL_OFF_ACTION,
-            CONF_HUMIDITY_SENSOR,
-        ],
-        CONF_HUMIDITY_CONTROL_HUMIDIFY_ACTION: [
-            CONF_HUMIDITY_CONTROL_OFF_ACTION,
-            CONF_HUMIDITY_SENSOR,
-        ],
-    }
-    for config_trigger, req_triggers in requirements.items():
-        for req_trigger in req_triggers:
-            if config_trigger in config and req_trigger not in config:
-                raise cv.Invalid(
-                    f"{req_trigger} must be defined to use {config_trigger}"
-                )
-
-    # Dry mode runs on the cooling timers, so a dehumidifier needs no cool_action.
-    for timer in (CONF_MIN_COOLING_OFF_TIME, CONF_MIN_COOLING_RUN_TIME):
-        if (
-            timer in config
-            and CONF_COOL_ACTION not in config
-            and CONF_DRY_ACTION not in config
-        ):
-            raise cv.Invalid(
-                f"{CONF_COOL_ACTION} or {CONF_DRY_ACTION} must be defined to use {timer}"
-            )
-
     if CONF_FAN_ONLY_ACTION in config:
         # determine validation requirements based on fan_only_action_uses_fan_mode_timer setting
         if config[CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER] is True:
@@ -302,28 +283,6 @@ def validate_thermostat(config: ConfigType) -> ConfigType:
             if config_req_action not in config:
                 raise cv.Invalid(
                     f"{config_req_action} must be defined to use {CONF_FAN_ONLY_ACTION}"
-                )
-
-    # for any fan_mode action, confirm min_fan_mode_switching_time is defined
-    requirements = {
-        CONF_MIN_FAN_MODE_SWITCHING_TIME: [
-            CONF_FAN_MODE_ON_ACTION,
-            CONF_FAN_MODE_OFF_ACTION,
-            CONF_FAN_MODE_AUTO_ACTION,
-            CONF_FAN_MODE_LOW_ACTION,
-            CONF_FAN_MODE_MEDIUM_ACTION,
-            CONF_FAN_MODE_HIGH_ACTION,
-            CONF_FAN_MODE_MIDDLE_ACTION,
-            CONF_FAN_MODE_FOCUS_ACTION,
-            CONF_FAN_MODE_DIFFUSE_ACTION,
-            CONF_FAN_MODE_QUIET_ACTION,
-        ],
-    }
-    for req_config_item, config_triggers in requirements.items():
-        for config_trigger in config_triggers:
-            if config_trigger in config and req_config_item not in config:
-                raise cv.Invalid(
-                    f"{req_config_item} must be defined to use {config_trigger}"
                 )
 
     # determine validation requirements based on fan_only_cooling setting
@@ -695,6 +654,29 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(
         CONF_COOL_ACTION, CONF_DRY_ACTION, CONF_FAN_ONLY_ACTION, CONF_HEAT_ACTION
     ),
+    *(cv.key_requires(key, *required) for key, required in _KEY_REQUIREMENTS.items()),
+    # Dry mode runs on the cooling timers, so a dehumidifier needs no cool_action
+    cv.key_requires(
+        (CONF_MIN_COOLING_OFF_TIME, CONF_MIN_COOLING_RUN_TIME),
+        CONF_COOL_ACTION,
+        CONF_DRY_ACTION,
+        any_of=True,
+    ),
+    cv.key_requires(
+        (
+            CONF_FAN_MODE_ON_ACTION,
+            CONF_FAN_MODE_OFF_ACTION,
+            CONF_FAN_MODE_AUTO_ACTION,
+            CONF_FAN_MODE_LOW_ACTION,
+            CONF_FAN_MODE_MEDIUM_ACTION,
+            CONF_FAN_MODE_HIGH_ACTION,
+            CONF_FAN_MODE_MIDDLE_ACTION,
+            CONF_FAN_MODE_FOCUS_ACTION,
+            CONF_FAN_MODE_DIFFUSE_ACTION,
+            CONF_FAN_MODE_QUIET_ACTION,
+        ),
+        CONF_MIN_FAN_MODE_SWITCHING_TIME,
+    ),
     validate_thermostat,
 )
 
@@ -718,9 +700,7 @@ async def to_code(config: ConfigType) -> None:
     )
     cg.add(var.set_sensor(sens))
 
-    if CONF_HUMIDITY_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_HUMIDITY_SENSOR])
-        cg.add(var.set_humidity_sensor(sens))
+    await cg.add_variable(var.set_humidity_sensor, config.get(CONF_HUMIDITY_SENSOR))
 
     cg.add(var.set_cool_deadband(config[CONF_COOL_DEADBAND]))
     cg.add(var.set_cool_overrun(config[CONF_COOL_OVERRUN]))
@@ -1030,8 +1010,7 @@ async def to_code(config: ConfigType) -> None:
         else:
             cg.add(var.set_default_preset(default_preset_name))
 
-    if CONF_ON_BOOT_RESTORE_FROM in config:
-        cg.add(var.set_on_boot_restore_from(config[CONF_ON_BOOT_RESTORE_FROM]))
+    cg.add_optional(var.set_on_boot_restore_from, config.get(CONF_ON_BOOT_RESTORE_FROM))
 
     if CONF_PRESET_CHANGE in config:
         await automation.build_automation(

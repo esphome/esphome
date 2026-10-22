@@ -8,6 +8,7 @@ from typing import Any
 from esphome.build_helpers.native import native_backend
 from esphome.code_scan import keep_float_scanf
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -52,6 +53,7 @@ from .const import (
     PREFERENCES_RTC_NORMAL_WORDS,
     THROW_STUBS_HEADER,
     check_preferences_fit,
+    check_timer1_users,
     enable_serial,
     enable_serial1,
     esp8266_ns,
@@ -334,6 +336,7 @@ CONFIG_SCHEMA = cv.All(
     _warn_platformio_toolchain,
     _validate_native_toolchain,
     set_core_data,
+    network.require_ipv4(PLATFORM_ESP8266),
 )
 
 
@@ -386,6 +389,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
     cg.add_define("USE_ESP8266_CRASH_HANDLER")
+    cg.add_define("USE_CRASH_HANDLER")
 
     enable_scanf_float = keep_float_scanf(
         config.get(CONF_ENABLE_SCANF_FLOAT),
@@ -504,6 +508,7 @@ async def to_code(config: ConfigType) -> None:
     CORE.add_job(finalize_waveform_config)
     CORE.add_job(finalize_serial_config)
     CORE.add_job(check_preferences_fit)
+    CORE.add_job(check_timer1_users)
 
 
 @coroutine_with_priority(CoroPriority.WORKAROUNDS)

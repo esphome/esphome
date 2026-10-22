@@ -82,7 +82,7 @@ std::string MenuItemNumber::get_value_text() const {
     result = this->value_getter_.value()(this);
   } else {
     char data[32];
-    snprintf(data, sizeof(data), this->format_.c_str(), get_number_value_());
+    snprintf(data, sizeof(data), this->format_, get_number_value_());
     result = data;
   }
 

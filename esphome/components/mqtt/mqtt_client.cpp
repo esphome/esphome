@@ -16,6 +16,7 @@
 #include "lwip/dns.h"
 #include "lwip/err.h"
 #include "mqtt_component.h"
+#include "mqtt_topic_match.h"
 
 #ifdef USE_API
 #include "esphome/components/api/api_server.h"
@@ -49,6 +50,13 @@ MQTTClientComponent::MQTTClientComponent() {
 }
 
 // Connection
+// Room for "esphome/<kind>/<name>" with the longest kind, "discover"
+static constexpr size_t ESPHOME_TOPIC_BUFFER_SIZE = sizeof("esphome/discover/") + ESPHOME_DEVICE_NAME_MAX_LEN;
+
+static void format_esphome_topic(char (&topic)[ESPHOME_TOPIC_BUFFER_SIZE], const char *kind) {
+  buf_append_printf(topic, sizeof(topic), 0, "esphome/%s/%s", kind, App.get_name().c_str());
+}
+
 void MQTTClientComponent::setup() {
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
@@ -78,6 +86,13 @@ void MQTTClientComponent::setup() {
         this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
           static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
         });
+#ifdef USE_MQTT_CRASH_LOG
+    // `esphome logs` announces itself here, like an API client's log subscription, and the record stays
+    // loggable until the next boot, so the offer does too. A log topic that drops errors would swallow the
+    // replay, so it is not offered. The topic is rebuilt from the device name when needed, so nothing is
+    // stored for it.
+    this->crash_log_offered_ = logger::crash_log_pending() && this->log_level_ >= ESPHOME_LOG_LEVEL_ERROR;
+#endif
   }
 #endif
 
@@ -87,10 +102,8 @@ void MQTTClientComponent::setup() {
         2);
 
     // Format topic on stack - subscribe() copies it
-    // "esphome/ping/" (13) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
-    constexpr size_t ping_topic_buffer_size = 13 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
-    char ping_topic[ping_topic_buffer_size];
-    buf_append_printf(ping_topic, sizeof(ping_topic), 0, "esphome/ping/%s", App.get_name().c_str());
+    char ping_topic[ESPHOME_TOPIC_BUFFER_SIZE];
+    format_esphome_topic(ping_topic, "ping");
     this->subscribe(
         ping_topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
   }
@@ -105,10 +118,8 @@ void MQTTClientComponent::send_device_info_() {
     return;
   }
   // Format topic on stack to avoid heap allocation
-  // "esphome/discover/" (17) + name (ESPHOME_DEVICE_NAME_MAX_LEN) + null (1)
-  constexpr size_t topic_buffer_size = 17 + ESPHOME_DEVICE_NAME_MAX_LEN + 1;
-  char topic[topic_buffer_size];
-  buf_append_printf(topic, sizeof(topic), 0, "esphome/discover/%s", App.get_name().c_str());
+  char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+  format_esphome_topic(topic, "discover");
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   this->publish_json(
@@ -202,6 +213,23 @@ void MQTTClientComponent::dump_config() {
                 this->credentials_.username.c_str(), this->credentials_.client_id.c_str(),
                 YESNO(this->credentials_.clean_session));
   // clang-format on
+#ifdef USE_ESP32
+  if (const MQTTTransport transport = this->mqtt_backend_.get_transport();
+      transport != MQTTTransport::MQTT_TRANSPORT_TCP) {
+    ESP_LOGCONFIG(TAG,
+                  "  Transport: %s\n"
+                  "  WebSocket Path: '%s'",
+                  transport == MQTTTransport::MQTT_TRANSPORT_WSS ? LOG_STR_LITERAL("wss") : LOG_STR_LITERAL("ws"),
+                  this->mqtt_backend_.get_ws_path());
+  }
+#endif
+#if defined(USE_MQTT_CERT_BUNDLE)
+  ESP_LOGCONFIG(TAG, "  TLS: certificate bundle");
+#elif defined(USE_MQTT_TLS_INSECURE)
+  ESP_LOGCONFIG(TAG, "  TLS: no verification");
+#elif defined(USE_MQTT_TLS)
+  ESP_LOGCONFIG(TAG, "  TLS: CA certificate");
+#endif
   if (this->is_discovery_ip_enabled()) {
     ESP_LOGCONFIG(TAG, "  Discovery IP enabled");
   }
@@ -354,6 +382,14 @@ void MQTTClientComponent::check_connected() {
   delay(100);  // NOLINT
 
   this->resubscribe_subscriptions_();
+#ifdef USE_MQTT_CRASH_LOG
+  // Best effort: a refused subscription is tried again at the next connection
+  if (this->crash_log_offered_) {
+    char topic[ESPHOME_TOPIC_BUFFER_SIZE];
+    format_esphome_topic(topic, "logs");
+    this->subscribe_(topic, 0);
+  }
+#endif
   this->send_device_info_();
 
   for (MQTTComponent *component : this->children_)
@@ -460,6 +496,19 @@ void MQTTClientComponent::resubscribe_subscriptions_() {
     this->resubscribe_subscription_(&subscription);
   }
 }
+
+#ifdef USE_MQTT_CRASH_LOG
+void MQTTClientComponent::handle_crash_log_request_(const std::string &topic, const std::string &payload) {
+  // Only the CLI's empty request counts: a log_topic pointing at this topic would otherwise replay the crash
+  // log for every line it logs
+  if (!this->crash_log_offered_ || !payload.empty())
+    return;
+  char logs_topic[ESPHOME_TOPIC_BUFFER_SIZE];
+  format_esphome_topic(logs_topic, "logs");
+  if (topic == logs_topic)
+    logger::log_crash_to_client();
+}
+#endif
 
 void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed,
                                             uint8_t qos) {
@@ -580,63 +629,6 @@ void MQTTClientComponent::disable() {
   this->on_shutdown();
 }
 
-/** Check if the message topic matches the given subscription topic
- *
- * INFO: MQTT spec mandates that topics must not be empty and must be valid NULL-terminated UTF-8 strings.
- *
- * @param message The message topic that was received from the MQTT server. Note: this must not contain
- *                wildcard characters as mandated by the MQTT spec.
- * @param subscription The subscription topic we are matching against.
- * @param is_normal Is this a "normal" topic - Does the message topic not begin with a "$".
- * @param past_separator Are we past the first '/' topic separator.
- * @return true if the subscription topic matches the message topic, false otherwise.
- */
-static bool topic_match(const char *message, const char *subscription, bool is_normal, bool past_separator) {
-  // Reached end of both strings at the same time, this means we have a successful match
-  if (*message == '\0' && *subscription == '\0')
-    return true;
-
-  // Either the message or the subscribe are at the end. This means they don't match.
-  if (*message == '\0' || *subscription == '\0')
-    return false;
-
-  bool do_wildcards = is_normal || past_separator;
-
-  if (*subscription == '+' && do_wildcards) {
-    // single level wildcard
-    // consume + from subscription
-    subscription++;
-    // consume everything from message until '/' found or end of string
-    while (*message != '\0' && *message != '/') {
-      message++;
-    }
-    // after this, both pointers will point to a '/' or to the end of the string
-
-    return topic_match(message, subscription, is_normal, true);
-  }
-
-  if (*subscription == '#' && do_wildcards) {
-    // multilevel wildcard - MQTT mandates that this must be at end of subscribe topic
-    return true;
-  }
-
-  // this handles '/' and normal characters at the same time.
-  if (*message != *subscription)
-    return false;
-
-  past_separator = past_separator || *subscription == '/';
-
-  // consume characters
-  subscription++;
-  message++;
-
-  return topic_match(message, subscription, is_normal, past_separator);
-}
-
-static bool topic_match(const char *message, const char *subscription) {
-  return topic_match(message, subscription, *message != '\0' && *message != '$', false);
-}
-
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
 #ifdef USE_ESP8266
   // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
@@ -658,6 +650,9 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
   // DO NOT REMOVE THIS DEFER without understanding the above. It may appear to work
   // in simple tests but will cause crashes with complex automations.
   this->defer([this, topic, payload]() {
+#endif
+#ifdef USE_MQTT_CRASH_LOG
+    this->handle_crash_log_request_(topic, payload);
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.

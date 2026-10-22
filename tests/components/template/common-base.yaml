@@ -77,6 +77,38 @@ esphome:
 
 binary_sensor:
   - platform: template
+    id: template_sensor_above
+    condition:
+      sensor.in_range:
+        id: template_template_sens
+        above: 10.0
+  - platform: template
+    id: template_sensor_between
+    condition:
+      sensor.in_range:
+        id: template_template_sens
+        above: 10.0
+        below: 30.0
+  - platform: template
+    id: template_number_above
+    condition:
+      number.in_range:
+        id: template_number
+        above: 10.0
+  - platform: template
+    id: template_number_below
+    condition:
+      number.in_range:
+        id: template_number
+        below: 90.0
+  - platform: template
+    id: template_number_between
+    condition:
+      number.in_range:
+        id: template_number
+        above: 10.0
+        below: 90.0
+  - platform: template
     id: template_some_binary_sensor
     name: "Garage Door Open"
     lambda: |-
@@ -288,6 +320,10 @@ button:
             ESP_LOGD("test", "%s", preset);
           for (const char *mode : traits.get_supported_custom_fan_modes())
             ESP_LOGD("test", "%s", mode);
+          if (fan_modes.size() > 1) {
+            const auto *it = std::find(fan_modes.begin(), fan_modes.end(), fan_modes[1]);
+            ESP_LOGD("test", "index %d", (int) (it - fan_modes.begin()));
+          }
           std::vector<const char *> presets{"eco_plus", "max"};
           id(template_climate_custom_modes).set_supported_custom_presets(presets);
           id(template_climate_custom_modes).set_supported_custom_presets({"eco_plus"});
@@ -381,6 +417,10 @@ cover:
       - lambda: |-
           id(template_cover_actions).tilt = tilt;
           id(template_cover_actions).publish_state();
+    stop_tilt_action:
+      - cover.template.publish:
+          id: template_cover_actions
+          current_operation: IDLE
     on_idle:
       # position only
       - cover.control:
@@ -399,9 +439,14 @@ cover:
       - cover.control:
           id: template_cover_actions
           stop: true
+      # stop tilt
+      - cover.control:
+          id: template_cover_actions
+          stop_tilt: true
       - cover.open: template_cover_actions
       - cover.close: template_cover_actions
       - cover.stop: template_cover_actions
+      - cover.stop_tilt: template_cover_actions
       - cover.toggle: template_cover_actions
       # CONF_STATE alias for position
       - cover.control:

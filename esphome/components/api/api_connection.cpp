@@ -1,4 +1,7 @@
 #include "api_connection.h"
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+#include "esphome/components/logger/logger.h"
+#endif
 #ifdef USE_API
 #include "api_connection_buffer.h"  // for the APIServer-dependent APIConnection inlines
 #ifdef USE_API_NOISE
@@ -21,10 +24,12 @@
 #endif
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/device.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 #ifdef USE_PROVISIONING
 #include "esphome/components/provisioning/provisioning.h"
@@ -80,8 +85,6 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // WiFi (-70 dBm+), TCP retransmissions push real-world handshake times to
 // 28-30s. See https://github.com/esphome/esphome/issues/14999
 static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
-
-static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
 
 // Cross-validate C++ constants against proto max_data_length annotations in api.proto
 static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
@@ -451,6 +454,15 @@ bool APIConnection::send_disconnect_response_() {
   DisconnectResponse resp;
   return this->send_message(resp);
 }
+void APIConnection::on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
+  this->flags_.log_subscription = msg.level;
+  if (msg.dump_config)
+    App.schedule_dump_config();
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+  logger::log_crash_to_client();
+#endif
+}
+
 void APIConnection::on_disconnect_response() {
   // Don't close socket here, let APIServer::loop() do it
   // so getpeername() still works for the disconnect trigger
@@ -474,13 +486,12 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
   msg.key = entity->get_object_id_hash();
 
   if (entity->has_own_name()) {
-    msg.name = entity->get_name();
+    msg.name = entity->get_name_progmem();
   }
 
   // Set common EntityBase properties
 #ifdef USE_ENTITY_ICON
-  char icon_buf[MAX_ICON_LENGTH];
-  msg.icon = StringRef(entity->get_icon_to(icon_buf));
+  msg.icon = entity->get_icon_progmem();
 #endif
   msg.disabled_by_default = entity->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
@@ -491,12 +502,11 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                      StringRef &device_class_field,
+                                                                      ProgmemStringRef &device_class_field,
                                                                       CalculateSizeFn size_fn,
                                                                       MessageEncodeFn encode_fn, APIConnection *conn,
                                                                       uint32_t remaining_size) {
-  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-  device_class_field = StringRef(entity->get_device_class_to(dc_buf));
+  device_class_field = entity->get_device_class_progmem();
   return fill_and_encode_entity_info(entity, msg, size_fn, encode_fn, conn, remaining_size);
 }
 
@@ -544,6 +554,7 @@ uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *c
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
   msg.supports_stop = traits.get_supports_stop();
+  msg.supports_stop_tilt = traits.get_supports_stop_tilt();
   return fill_and_encode_entity_info_with_device_class(cover, msg, msg.device_class, conn, remaining_size);
 }
 void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
@@ -554,6 +565,8 @@ void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
     call.set_tilt(msg.tilt);
   if (msg.stop)
     call.set_command_stop();
+  if (msg.stop_tilt)
+    call.set_command_stop_tilt();
   call.perform();
 }
 #endif
@@ -1887,6 +1900,11 @@ void APIConnection::complete_authentication_() {
 #endif
 }
 
+// A flash string on ESP8266, a mergeable literal elsewhere; #undef after the device info reply
+#define PROGMEM_STRING_REF(s) ProgmemStringRef(ESPHOME_PSTR(s), sizeof(s) - 1)
+// One flash copy for the hello and device info replies
+static ProgmemStringRef esphome_version_ref() { return PROGMEM_STRING_REF(ESPHOME_VERSION); }
+
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
@@ -1902,7 +1920,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   resp.api_version_major = 1;
   resp.api_version_minor = 19;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
-  resp.server_info = ESPHOME_VERSION_REF;
+  resp.server_info = esphome_version_ref();
   resp.name = StringRef(App.get_name());
 
 #ifdef USE_PROVISIONING
@@ -1957,14 +1975,13 @@ bool APIConnection::send_device_info_response_() {
   format_mac_addr_upper(mac, mac_address);
   resp.mac_address = StringRef(mac_address);
 
-  resp.esphome_version = ESPHOME_VERSION_REF;
+  resp.esphome_version = esphome_version_ref();
 
   // Stack buffer for build time string
   char build_time_str[Application::BUILD_TIME_STR_SIZE];
   App.get_build_time_string(build_time_str);
   resp.compilation_time = StringRef(build_time_str);
 
-  // Manufacturer string - define once, handle ESP8266 PROGMEM separately
 #if defined(USE_ESP8266) || defined(USE_ESP32)
 #define ESPHOME_MANUFACTURER "Espressif"
 #elif defined(USE_RP2)
@@ -1981,48 +1998,19 @@ bool APIConnection::send_device_info_response_() {
 #define ESPHOME_MANUFACTURER "Host"
 #endif
 
-#ifdef USE_ESP8266
-  // ESP8266 requires PROGMEM for flash storage, copy to stack for memcpy compatibility
-  static const char MANUFACTURER_PROGMEM[] PROGMEM = ESPHOME_MANUFACTURER;
-  char manufacturer_buf[sizeof(MANUFACTURER_PROGMEM)];
-  memcpy_P(manufacturer_buf, MANUFACTURER_PROGMEM, sizeof(MANUFACTURER_PROGMEM));
-  resp.manufacturer = StringRef(manufacturer_buf, sizeof(MANUFACTURER_PROGMEM) - 1);
-#else
-  static constexpr auto MANUFACTURER = StringRef::from_lit(ESPHOME_MANUFACTURER);
-  resp.manufacturer = MANUFACTURER;
-#endif
+  resp.manufacturer = PROGMEM_STRING_REF(ESPHOME_MANUFACTURER);
   static_assert(sizeof(ESPHOME_MANUFACTURER) - 1 <= 20, "Update max_data_length for manufacturer in api.proto");
 #undef ESPHOME_MANUFACTURER
 
-#ifdef USE_ESP8266
-  static const char MODEL_PROGMEM[] PROGMEM = ESPHOME_BOARD;
-  char model_buf[sizeof(MODEL_PROGMEM)];
-  memcpy_P(model_buf, MODEL_PROGMEM, sizeof(MODEL_PROGMEM));
-  resp.model = StringRef(model_buf, sizeof(MODEL_PROGMEM) - 1);
-#else
-  static constexpr auto MODEL = StringRef::from_lit(ESPHOME_BOARD);
-  resp.model = MODEL;
-#endif
+  resp.model = PROGMEM_STRING_REF(ESPHOME_BOARD);
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-#ifdef USE_ESP8266
-  static const char PROJECT_NAME_PROGMEM[] PROGMEM = ESPHOME_PROJECT_NAME;
-  static const char PROJECT_VERSION_PROGMEM[] PROGMEM = ESPHOME_PROJECT_VERSION;
-  char project_name_buf[sizeof(PROJECT_NAME_PROGMEM)];
-  char project_version_buf[sizeof(PROJECT_VERSION_PROGMEM)];
-  memcpy_P(project_name_buf, PROJECT_NAME_PROGMEM, sizeof(PROJECT_NAME_PROGMEM));
-  memcpy_P(project_version_buf, PROJECT_VERSION_PROGMEM, sizeof(PROJECT_VERSION_PROGMEM));
-  resp.project_name = StringRef(project_name_buf, sizeof(PROJECT_NAME_PROGMEM) - 1);
-  resp.project_version = StringRef(project_version_buf, sizeof(PROJECT_VERSION_PROGMEM) - 1);
-#else
-  static constexpr auto PROJECT_NAME = StringRef::from_lit(ESPHOME_PROJECT_NAME);
-  static constexpr auto PROJECT_VERSION = StringRef::from_lit(ESPHOME_PROJECT_VERSION);
-  resp.project_name = PROJECT_NAME;
-  resp.project_version = PROJECT_VERSION;
+  resp.project_name = PROGMEM_STRING_REF(ESPHOME_PROJECT_NAME);
+  resp.project_version = PROGMEM_STRING_REF(ESPHOME_PROJECT_VERSION);
 #endif
-#endif
+#undef PROGMEM_STRING_REF
 #ifdef USE_WEBSERVER
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
@@ -2071,6 +2059,7 @@ bool APIConnection::send_device_info_response_() {
     device_info.device_id = device->get_device_id();
     device_info.name = StringRef(device->get_name());
     device_info.area_id = device->get_area_id();
+    device_info.relation = static_cast<enums::DeviceRelation>(device->get_relation());
   }
 #endif
 #ifdef USE_AREAS
@@ -2119,6 +2108,7 @@ bool APIConnection::send_device_capabilities_response_() {
 #endif
 #if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
   resp.sendspin.feature_flags = sendspin_::global_sendspin_hub->get_feature_flags();
+  resp.sendspin.client_id = sendspin_::global_sendspin_hub->get_client_id();
 #endif
   return this->send_message(resp);
 }

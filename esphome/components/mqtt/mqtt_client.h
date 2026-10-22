@@ -24,6 +24,11 @@
 
 #include <vector>
 
+// The crash log replay needs the logger, which mqtt does not depend on
+#if defined(USE_LOGGER) && defined(USE_CRASH_HANDLER)
+#define USE_MQTT_CRASH_LOG
+#endif
+
 namespace esphome::mqtt {
 
 /** Callback for MQTT events.
@@ -142,11 +147,15 @@ class MQTTClientComponent final : public Component {
   bool is_discovery_enabled() const;
   bool is_discovery_ip_enabled() const;
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_MQTT_TLS)
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+#endif
+#ifdef USE_ESP32
+  void set_transport(MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }
+  void set_ws_path(const char *path) { this->mqtt_backend_.set_ws_path(path); }
 #endif
   const Availability &get_availability();
 
@@ -316,6 +325,9 @@ class MQTTClientComponent final : public Component {
     callback(topic, doc.as<JsonObject>());
   }
   void erase_removed_subscriptions_();
+#ifdef USE_MQTT_CRASH_LOG
+  void handle_crash_log_request_(const std::string &topic, const std::string &payload);
+#endif
   void add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
   void resubscribe_subscriptions_();
 
@@ -359,6 +371,9 @@ class MQTTClientComponent final : public Component {
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
   bool enable_on_boot_{true};
+#ifdef USE_MQTT_CRASH_LOG
+  bool crash_log_offered_{false};
+#endif
   std::vector<MQTTComponent *> children_;
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
@@ -387,8 +402,7 @@ template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(
-        topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
+    this->parent_->publish_json(topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
   }
 
  protected:

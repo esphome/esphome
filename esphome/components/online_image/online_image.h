@@ -80,6 +80,7 @@ class OnlineImage final : public PollingComponent,
  protected:
   bool validate_url_(const std::string &url);
   void end_connection_();
+  void finish_download_();
 
   CallbackManager<void(bool)> download_finished_callback_{};
   CallbackManager<void()> download_error_callback_{};
@@ -107,6 +108,7 @@ class OnlineImage final : public PollingComponent,
   std::string last_modified_;
 
   uint32_t start_time_{0};
+  uint32_t last_data_time_{0};
 };
 
 }  // namespace esphome::online_image

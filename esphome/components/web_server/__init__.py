@@ -130,12 +130,6 @@ def validate_auth_type_deprecated(auth: ConfigType) -> ConfigType:
     return auth
 
 
-def validate_local(config: ConfigType) -> ConfigType:
-    if CONF_LOCAL in config and config[CONF_VERSION] == 1:
-        raise cv.Invalid("'local' is not supported in version 1")
-    return config
-
-
 def validate_ota(config: ConfigType) -> ConfigType:
     # The OTA option only accepts False to explicitly disable OTA for web_server
     # IMPORTANT: Setting ota: false ONLY affects the web_server component
@@ -182,14 +176,6 @@ def validate_private_network_access(config: ConfigType) -> ConfigType:
             f"allowed to reach the device (e.g. 'https://example.com'). '*' allows any origin "
             f"but is not recommended.",
             path=[CONF_ENABLE_PRIVATE_NETWORK_ACCESS],
-        )
-    return config
-
-
-def validate_sorting_groups(config: ConfigType) -> ConfigType:
-    if CONF_SORTING_GROUPS in config and config[CONF_VERSION] != 3:
-        raise cv.Invalid(
-            f"'{CONF_SORTING_GROUPS}' is only supported in 'web_server' version 3"
         )
     return config
 
@@ -322,8 +308,8 @@ CONFIG_SCHEMA = cv.All(
     ),
     default_url,
     validate_version_deprecated,
-    validate_local,
-    validate_sorting_groups,
+    cv.only_when(CONF_LOCAL, CONF_VERSION, 1, negate=True),
+    cv.only_when(CONF_SORTING_GROUPS, CONF_VERSION, 3),
     validate_ota,
     validate_private_network_access,
     _consume_web_server_sockets,
