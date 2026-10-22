@@ -36,7 +36,7 @@ struct TMP1075Config {
 
   // Upper byte of the configuration register: OS R1 R0 F1 F0 POL TM SD
   uint8_t to_byte() const {
-    return (this->oneshot << 7) | (this->rate << 5) | (this->faults << 3) | (this->polarity << 2) |
+    return (this->oneshot << 7) | ((this->rate & 0x03) << 5) | ((this->faults & 0x03) << 3) | (this->polarity << 2) |
            (this->alert_mode << 1) | this->shutdown;
   }
 };
