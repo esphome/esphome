@@ -24,6 +24,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, HexInt, Lambda
 from esphome.cpp_generator import (
+    CallExpression,
     Expression,
     LambdaExpression,
     MockObj,
@@ -446,9 +447,17 @@ async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
-    # The generated function's parameters; a std::string arg is never copied.
+    # The generated function's parameters: a reference keeps its spelling, so a mutable
+    # one stays mutable; a value is taken by const reference, so a std::string is never copied.
     return [
-        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), arg)
+        (
+            (
+                t
+                if str(cg.safe_exp(t)).rstrip().endswith("&")
+                else cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &")
+            ),
+            arg,
+        )
         for t, arg in args
     ]
 
@@ -614,7 +623,7 @@ async def _render_bytes(
     """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined.
 
     The payload lambda keeps the automation's own argument types, as ``TemplatableBytes``
-    gave it, so a body that modifies an argument still compiles.
+    gave it, and is always called, so a body that modifies an argument still compiles.
     """
     value = _config_lookup(config, spec.conf_key)
     if value is None:
@@ -628,9 +637,11 @@ async def _render_bytes(
         inner = await cg.process_lambda(
             value, args, return_type=cg.std_vector.template(cg.uint8)
         )
+        # Never reduced into the outer function, whose own parameters are const
+        call = CallExpression(inner, *[cg.MockObj(name) for _, name in args])
         return [
             "{",
-            f"  const std::vector<uint8_t> esphome__bytes = ({call_lambda(inner)});",
+            f"  const std::vector<uint8_t> esphome__bytes = {call};",
             f"  {send(spec.target, 'esphome__bytes.data(), esphome__bytes.size()')}",
             "}",
         ]
