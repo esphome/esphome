@@ -94,13 +94,13 @@ class JPEGFormat(Format):
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
         # 1.8.4 plus decodeBegin()/decodeRows(), so an image can be decoded a few rows at a time and
         # can wait for input that has not arrived yet, and fixes for: input that arrives in short
-        # reads, garbled RGB8888 output of grayscale images, progressive images with skipped blocks,
-        # cropping, and two ARM NEON faults (swapped red and blue in the 4:2:0 RGB8888 path, writes
-        # past the row on clipped MCUs)
+        # reads, garbled RGB8888 output of grayscale images, progressive images (skipped blocks, unused
+        # AC tables that fail to build), cropping, and two ARM NEON faults (swapped red and blue in the
+        # 4:2:0 RGB8888 path, writes past the row on clipped MCUs)
         cg.add_library(
             "JPEGDEC",
             "1.8.4",
-            "https://github.com/clydebarrow/JPEGDEC#684017030a7a38bc038b27c8336135d8fc39223e",
+            "https://github.com/clydebarrow/JPEGDEC#1.8.4-esphome.1",
         )
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
