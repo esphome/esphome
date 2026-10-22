@@ -1256,6 +1256,8 @@ def convert_libraries(
     # known, so a library already in it satisfies the name before the registry
     # is asked; a re-walked requester replaces its entries
     pending_versionless: dict[str, list[dict]] = {}
+    # Keys fetched by name that the registry did not know
+    missed: set[str] = set()
 
     def settle_versionless() -> list[str]:
         """Wire each deferred dependency to the library that satisfies it, or
@@ -1338,6 +1340,7 @@ def convert_libraries(
                         ", ".join(requesters),
                         e,
                     )
+                    missed.add(key)
                     continue
                 component = ConvertedLibrary(
                     _owner_pkgname_to_name(owner, name), version, URLSource(url, size)
@@ -1530,13 +1533,17 @@ def convert_libraries(
     # round pulled in; match those against the finished graph, with no refetch
     for key in components:
         node = nodes[key]
-        for missing in [k for k in node.edges if k not in components]:
-            if not fetched_by_name(missing):
-                continue
+        for missing in node.edges & missed:
             match = _satisfying_key(
                 nodes[missing].pkgname, nodes[missing].owner, key, nodes, components
             )
             if match is not None:
+                _LOGGER.info(
+                    "Dependency %s of %s is satisfied by %s after all",
+                    missing,
+                    key,
+                    match,
+                )
                 node.edges.add(match)
 
     # Wire each component's dependencies to the single resolved instances, then

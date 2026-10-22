@@ -1489,13 +1489,17 @@ def test_missed_name_is_satisfied_by_a_library_pulled_in_later(
         return _resolution(owner, pkgname)
 
     monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
-    top = convert_libraries(
-        [Library("esphome/A", None, None), Library("esphome/X", None, None)],
-        _backend(),
-    )
+    with caplog.at_level(logging.INFO):
+        top = convert_libraries(
+            [Library("esphome/A", None, None), Library("esphome/X", None, None)],
+            _backend(),
+        )
     assert [d.name for d in top[0].dependencies] == ["owner/B-fork"]
     assert asked.count((None, "B")) == 1
     assert "Dependency B of esphome/A is not in the registry" in caplog.text
+    assert "Dependency B of esphome/A is satisfied by owner/B-fork after all" in (
+        caplog.text
+    )
 
 
 def test_by_name_request_does_not_make_an_existing_node_optional(
