@@ -43,6 +43,14 @@ BASE_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+def _consume_replacement_socket(config: ConfigType) -> ConfigType:
+    # A full pool accepts the new client before it closes the quietest one, so for a moment it
+    # holds max_connections + 1 sockets; without the spare that accept can fail with ENFILE.
+    if config.get(CONF_MAX_CONNECTIONS, 1) > 1:
+        socket.consume_sockets(1, "tcp_uart")(config)
+    return config
+
+
 def _validate_turn_timeout(config: ConfigType) -> ConfigType:
     if CONF_TURN_TIMEOUT in config and config.get(CONF_MAX_CONNECTIONS, 1) == 1:
         raise cv.Invalid(
@@ -79,6 +87,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     _validate_turn_timeout,
     socket.consume_role_sockets("tcp_uart", CONF_MAX_CONNECTIONS),
+    _consume_replacement_socket,
 )
 
 
