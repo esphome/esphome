@@ -224,8 +224,8 @@ WIFI_AP_MODE_WISP = "WISP"
 def _validate_ap_mode(value: str) -> str:
     value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
     if value == WIFI_AP_MODE_WISP:
-        # WISP mode routes through NAT, which only ESP-IDF provides
-        cv.only_with_framework(Framework.ESP_IDF)(value)
+        # The bridge is part of the ESP32 backend, on both of its frameworks
+        cv.only_on_esp32(value)
     return value
 
 

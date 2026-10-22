@@ -236,7 +236,7 @@ def wisp_core(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -
         CORE.data,
         KEY_CORE,
         {
-            KEY_TARGET_PLATFORM: Platform.ESP32,
+            KEY_TARGET_PLATFORM: params.get("platform", Platform.ESP32),
             KEY_TARGET_FRAMEWORK: params.get("framework", "esp-idf"),
             KEY_FRAMEWORK_VERSION: params.get("idf", cv.Version(5, 4, 0)),
         },
@@ -312,10 +312,14 @@ def test_second_dns_server_requires_idf_6(wisp_core: None, valid: bool) -> None:
             wifi_network_ap(ap)
 
 
-@pytest.mark.parametrize("wisp_core", [{"framework": "arduino"}], indirect=True)
-def test_wisp_requires_esp_idf(wisp_core: None) -> None:
-    """NAT is only available with the ESP-IDF framework."""
-    with pytest.raises(cv.Invalid, match="only available with framework"):
+@pytest.mark.parametrize(
+    "wisp_core",
+    [{"platform": Platform.ESP8266, "framework": "arduino"}],
+    indirect=True,
+)
+def test_wisp_requires_esp32(wisp_core: None) -> None:
+    """The bridge is part of the ESP32 backend; other platforms have no NAT."""
+    with pytest.raises(cv.Invalid, match="only available on .*ESP32"):
         wifi_network_ap(_wisp_ap())
 
 
