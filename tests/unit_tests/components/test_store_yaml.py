@@ -478,6 +478,16 @@ _PKG_PW = "packages:\n  common: !include pkg/common.yaml\n"
         ),
         pytest.param(
             {
+                "entry.yaml": "cfg: !include {file: base.yaml, vars: !secret common_vars}\n",
+                "base.yaml": "password: ${pw}\n",
+                "secrets.yaml": "common_vars:\n  pw: hunter2\n",
+            },
+            WIFI_PW,
+            "could not redact",
+            id="credential_only_inside_a_secret_mapping",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": "wifi: !include {file: wifi.yaml, vars: {pw: !secret wifi_password}}\n"
                 "wifi2: !include wifi.yaml\n",
                 "wifi.yaml": "defaults:\n  pw: placeholder\npassword: ${pw}\n",
@@ -692,6 +702,29 @@ def test_redacted_fails_closed(
             {"fp.yaml": "password: !secret 'fingerprint_grow_password'"},
             id="zero_credential",
         ),
+        pytest.param(
+            {
+                "entry.yaml": "cfg: !include {file: base.yaml, vars: !secret common_vars}\n",
+                "base.yaml": "name: ${name}\n",
+                "secrets.yaml": "common_vars:\n  name: hunter2\n",
+            },
+            {},
+            {},
+            {"entry.yaml": "vars: !secret 'common_vars'"},
+            id="secret_vars_mapping",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "outer: !include {file: outer.yaml, vars: {pw: !secret wifi_password}}\n",
+                "outer.yaml": "wifi: !include wifi.yaml\n",
+                "wifi.yaml": "password: ${pw}\n",
+                "secrets.yaml": "wifi_password: hunter2\n",
+            },
+            WIFI_PW,
+            {"hunter2": "wifi_password"},
+            {},
+            id="nested_include_inherits_caller_vars",
+        ),
     ],
 )
 def test_redacted_hides_credentials(
@@ -737,6 +770,22 @@ def test_redacted_symlinked_dir_include_rebases_where_the_loader_reads(
     assert "wifi: !include '../shared/wifi.yaml'" in files["entry.yaml"].decode()
     assert files["../shared/wifi.yaml"] == b"ssid: shared\n"
     assert "!include '../wifi.yaml'" in files["../shared/pkgs/base.yaml"].decode()
+
+
+@pytest.mark.parametrize("int_first", [True, False])
+def test_redacted_shared_text_keeps_substring_scan(
+    project: Path, int_first: bool
+) -> None:
+    """A text that is an integer credential in one place and a string in another
+    is still scanned as a substring, whichever is collected first."""
+    thread = ("openthread", {"network_key": SensitiveInt(12345678)})
+    mqtt = ("mqtt", {"password": SensitiveStr("12345678")})
+    config = dict([thread, mqtt] if int_first else [mqtt, thread])
+    files = {
+        "node.yaml": "network_key: 12345678\npassword: '12345678'\nname: node12345678\n"
+    }
+    with pytest.raises(EsphomeError, match="embedded"):
+        _redact(project, files, config)
 
 
 def test_include_through_a_directory_symlink(project: Path, tmp_path: Path) -> None:

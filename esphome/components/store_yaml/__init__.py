@@ -52,6 +52,8 @@ _FIX = (
 )
 # Substitution names to every value they may take in one file.
 _Scope = dict[str, list[object]]
+# (named path of the file holding it, the include, its vars before any folding)
+_Include = tuple[Path, yaml_util.IncludeFile, dict[str, object]]
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -182,14 +184,13 @@ class _SensitiveValue:
 
 
 def _include_scopes(
-    includes: list[yaml_util.IncludeFile],
-    trees: dict[str, object],
-    sources: dict[str, Path],
+    includes: list[_Include], trees: dict[str, object], sources: dict[str, Path]
 ) -> dict[str, _Scope]:
     """Every value a substitution name may take in each file.
 
     Per `!include` of the file, the loader's precedence: that include's vars,
-    else the file's `defaults:`, else every top-level `substitutions:` definition.
+    else the caller's variables (its defaults and its own invocation), else the
+    file's `defaults:`, else every top-level `substitutions:` definition.
     """
 
     def mapping(tree: object, key: str) -> dict[str, object]:
@@ -200,29 +201,39 @@ def _include_scopes(
     for tree in trees.values():
         for name, value in mapping(tree, CONF_SUBSTITUTIONS).items():
             substitutions.setdefault(name, []).append(value)
+    defaults = {rel: mapping(tree, CONF_DEFAULTS) for rel, tree in trees.items()}
     rels_by_path: dict[Path, list[str]] = {}
     for rel, path in sources.items():
         rels_by_path.setdefault(path.resolve(), []).append(rel)
-    invocations: dict[str, list[dict[str, object]]] = {rel: [] for rel in trees}
-    for include in includes:
+    edges: dict[str, list[tuple[str, dict[str, object]]]] = {rel: [] for rel in trees}
+    for holder, include, vars in includes:
         if include.has_unresolved_file():
             continue
         target = (include.parent_file.parent / include.file).resolve()
-        for rel in rels_by_path.get(target, ()):
-            invocations[rel].append(
-                {str(k): v for k, v in (include.vars or {}).items()}
-            )
+        for src in rels_by_path.get(holder.resolve(), ()):
+            edges[src].extend((rel, vars) for rel in rels_by_path.get(target, ()))
+    # Each file's invocations, the caller's variables flowing into nested includes.
+    targeted = {rel for targets in edges.values() for rel, _ in targets}
+    invocations = {rel: [] if rel in targeted else [{}] for rel in trees}
+    pending = [rel for rel in trees if rel not in targeted]
+    while pending:
+        src = pending.pop()
+        for rel, vars in edges[src]:
+            for context in invocations[src]:
+                effective = {**defaults[src], **context, **vars}
+                if effective not in invocations[rel]:
+                    invocations[rel].append(effective)
+                    pending.append(rel)
     scopes: dict[str, _Scope] = {}
-    for rel, tree in trees.items():
-        defaults = mapping(tree, CONF_DEFAULTS)
+    for rel in trees:
         scope: _Scope = {}
         for vars in invocations[rel] or [{}]:
-            for name in {*substitutions, *defaults, *vars}:
+            for name in {*substitutions, *defaults[rel], *vars}:
                 values = scope.setdefault(name, [])
                 if name in vars:
                     values.append(vars[name])
-                elif name in defaults:
-                    values.append(defaults[name])
+                elif name in defaults[rel]:
+                    values.append(defaults[rel][name])
                 else:
                     values.extend(substitutions[name])
         scopes[rel] = scope
@@ -429,6 +440,7 @@ def _collect_sensitive_values() -> tuple[
             entry = result[value] = _SensitiveValue(
                 name, ".".join(path), from_secret, set(), isinstance(node, int)
             )
+        entry.is_int = entry.is_int and isinstance(node, int)
         if path:
             entry.sensitive_keys.add(path[-1])
     return result, paths
@@ -494,7 +506,7 @@ def _prepare_tree(
     node: object,
     source: Path,
     fold_secrets: bool,
-    includes: list[yaml_util.IncludeFile],
+    includes: list[_Include],
 ) -> object:
     """Make a loaded file's tree dump as the source it came from.
 
@@ -516,9 +528,18 @@ def _prepare_tree(
         for i, item in enumerate(node):
             node[i] = _prepare_tree(item, source, fold_secrets, includes)
     elif isinstance(node, yaml_util.IncludeFile):
+        vars = node.vars if isinstance(node.vars, dict) else {}
+        # A vars mapping loaded through `!secret` keeps every value secret.
+        secret_vars = yaml_util.is_secret(vars) is not None
+        includes.append(
+            (
+                source,
+                node,
+                {str(k): vars if secret_vars else v for k, v in vars.items()},
+            )
+        )
         if node.vars:
             node.vars = _prepare_tree(node.vars, source, fold_secrets, includes)
-        includes.append(node)
         if not node.has_unresolved_file():
             # The target's captured name, so a directory symlink or a move by
             # `!include_dir_*` is followed to where the file lands.
@@ -547,7 +568,7 @@ def _generate_redacted_files(
                 path, handle, resolve_document_include=False
             )
     fold_secrets = yaml_util.has_container_secrets()
-    includes: list[yaml_util.IncludeFile] = []
+    includes: list[_Include] = []
     trees = {
         rel: _prepare_tree(
             tree, yaml_util.named_path(captured[rel]), fold_secrets, includes
