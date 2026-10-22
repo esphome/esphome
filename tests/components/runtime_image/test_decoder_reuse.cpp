@@ -365,6 +365,23 @@ static std::vector<uint8_t> pixel_bytes(TestableRuntimeImage &img) {
   return std::vector<uint8_t>(start, start + img.get_width_stride() * img.get_height());
 }
 
+// Shrinking a PNG keeps the first source pixel of each span, as the JPEG path does: the even rows and columns
+TEST(RuntimeImageDecoder, ShrunkPngKeepsTheFirstPixelOfEachSpan) {
+  TestableRuntimeImage img(PNG, image::IMAGE_TYPE_RGB, false, 2, 2);
+  ASSERT_TRUE(decode_all(img, PNG_RGB, sizeof(PNG_RGB), PNG));
+  ASSERT_EQ(img.get_width(), 2);
+  ASSERT_EQ(img.get_height(), 2);
+  for (int row = 0; row < 2; row++) {
+    for (int col = 0; col < 2; col++) {
+      const Color pixel = img.get_pixel(col, row);
+      const uint8_t *expected = PNG_RGB_EXPECTED[row * 2][col * 2];
+      EXPECT_EQ(pixel.r, expected[0]) << col << "," << row;
+      EXPECT_EQ(pixel.g, expected[1]) << col << "," << row;
+      EXPECT_EQ(pixel.b, expected[2]) << col << "," << row;
+    }
+  }
+}
+
 TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
   TestableRuntimeImage img(JPEG);
 
