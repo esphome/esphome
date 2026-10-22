@@ -2,6 +2,7 @@
 
 import esphome.codegen as cg
 from esphome.components import audio, esp32, speaker
+from esphome.components.const import CONF_SLOT
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
 import esphome.final_validate as fv
@@ -10,7 +11,6 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@mbrudka"]
 DEPENDENCIES = ["esp32_ble"]
 AUTO_LOAD = ["a2dp_source", "ring_buffer"]
-CONF_SLOT = "slot"
 
 a2dp_source_ns = cg.esphome_ns.namespace("a2dp_source")
 A2DPSourceSpeaker = a2dp_source_ns.class_(

@@ -8,7 +8,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
-#include <new>
 #include <string>
 
 #include "esphome/components/esp32_ble/ble.h"
@@ -16,6 +15,7 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #endif
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 #include <esp_a2dp_legacy_api.h>
 #include <esp_bt_main.h>
@@ -24,7 +24,7 @@
 
 namespace esphome::a2dp_source {
 
-static const char *const TAG = "a2dp_source";
+ESPHOME_LOG_TAG(TAG, "a2dp_source");
 static std::atomic<A2DPSourceSpeaker *> active_speaker{nullptr};
 static std::atomic<A2DPSourceSpeaker *> desired_speaker{nullptr};
 static A2DPSourceSpeaker *owner_speaker = nullptr;
@@ -110,16 +110,15 @@ static std::string quote_json_string(const char *value, size_t length) {
 }
 
 static bool parse_address(const char *address, uint8_t *result) {
-  if (address == nullptr)
+  if (address == nullptr || std::strlen(address) != 17)
     return false;
-  unsigned int octets[6];
-  int consumed = 0;
-  if (std::sscanf(address, "%2x:%2x:%2x:%2x:%2x:%2x%n", &octets[0], &octets[1], &octets[2], &octets[3], &octets[4],
-                  &octets[5], &consumed) != 6 ||
-      address[consumed] != '\0')
-    return false;
-  for (size_t i = 0; i < 6; i++)
-    result[i] = static_cast<uint8_t>(octets[i]);
+  for (size_t i = 0; i < 6; i++) {
+    const uint8_t high = parse_hex_char(address[i * 3]);
+    const uint8_t low = parse_hex_char(address[i * 3 + 1]);
+    if (high > 15 || low > 15 || (i < 5 && address[i * 3 + 2] != ':'))
+      return false;
+    result[i] = (high << 4) | low;
+  }
   return std::any_of(result, result + 6, [](uint8_t octet) { return octet != 0; });
 }
 
@@ -162,7 +161,8 @@ bool A2DPSourceSpeaker::is_bonded_(const uint8_t *address) const {
   int count = esp_bt_gap_get_bond_device_num();
   if (count <= 0)
     return false;
-  auto bonds = std::unique_ptr<esp_bd_addr_t[]>(new (std::nothrow) esp_bd_addr_t[count]{});
+  auto bonds = std::unique_ptr<esp_bd_addr_t[], decltype(&std::free)>(
+      static_cast<esp_bd_addr_t *>(std::calloc(count, sizeof(esp_bd_addr_t))), &std::free);
   return bonds != nullptr && esp_bt_gap_get_bond_device_list(&count, bonds.get()) == ESP_OK &&
          std::any_of(bonds.get(), bonds.get() + count,
                      [address](const esp_bd_addr_t &bond) { return std::memcmp(bond, address, 6) == 0; });
@@ -181,7 +181,8 @@ std::string A2DPSourceSpeaker::bond_list(uint16_t page) const {
     return "Bluetooth unavailable";
   if (count == 0)
     return "none";
-  auto bonds = std::unique_ptr<esp_bd_addr_t[]>(new (std::nothrow) esp_bd_addr_t[count]{});
+  auto bonds = std::unique_ptr<esp_bd_addr_t[], decltype(&std::free)>(
+      static_cast<esp_bd_addr_t *>(std::calloc(count, sizeof(esp_bd_addr_t))), &std::free);
   if (bonds == nullptr)
     return "out of memory";
   if (esp_bt_gap_get_bond_device_list(&count, bonds.get()) != ESP_OK)
@@ -453,7 +454,13 @@ std::string A2DPSourceSpeaker::discovery_device(size_t index) const {
   std::string result = "{\"address\":\"" + format_address(device.address) + "\",\"name\":";
   result += device.name[0] ? quote_json_string(device.name, strnlen(device.name, sizeof(device.name))) : "null";
   result += ",\"rssi_dbm\":";
-  result += device.rssi == -128 ? "null" : std::to_string(device.rssi);
+  if (device.rssi == -128) {
+    result += "null";
+  } else {
+    char rssi_text[8];
+    std::snprintf(rssi_text, sizeof(rssi_text), "%d", static_cast<int>(device.rssi));
+    result += rssi_text;
+  }
   result += ",\"bonded_to_gateway\":";
   result += this->is_bonded_(device.address) ? "true" : "false";
   result += '}';
@@ -479,7 +486,13 @@ std::string A2DPSourceSpeaker::discovery_results(uint8_t page) const {
       result += " ";
       result.append(snapshot[i].name, strnlen(snapshot[i].name, 24));
     }
-    result += snapshot[i].rssi == -128 ? " (RSSI unavailable)" : " (" + std::to_string(snapshot[i].rssi) + " dBm)";
+    if (snapshot[i].rssi == -128) {
+      result += " (RSSI unavailable)";
+    } else {
+      char rssi_text[16];
+      std::snprintf(rssi_text, sizeof(rssi_text), " (%d dBm)", static_cast<int>(snapshot[i].rssi));
+      result += rssi_text;
+    }
     result += this->is_bonded_(snapshot[i].address) ? " [paired]" : " [not paired]";
   }
   return result;
@@ -629,8 +642,9 @@ void A2DPSourceSpeaker::loop() {
     }
     if (err == ESP_OK) {
       const esp_err_t page_err = esp_bt_gap_set_page_timeout(0x2000);  // 5.12 s per attempt.
-      if (page_err != ESP_OK)
+      if (page_err != ESP_OK) {
         ESP_LOGW(TAG, "Could not shorten Classic page timeout: %s", esp_err_to_name(page_err));
+      }
     }
     if (err == ESP_OK)
       err = esp_avrc_ct_init();
@@ -686,10 +700,11 @@ void A2DPSourceSpeaker::loop() {
     const uint8_t result = this->remove_bond_result_.exchange(0);
     if (result != 0) {
       this->remove_bond_pending_.store(false);
-      if (result == 1 && this->clear_address())
+      if (result == 1 && this->clear_address()) {
         ESP_LOGI(TAG, "Removed pairing for slot %u", this->slot_);
-      else
+      } else {
         ESP_LOGW(TAG, "Could not remove pairing for slot %u", this->slot_);
+      }
     } else if (static_cast<int32_t>(millis() - this->remove_bond_deadline_ms_) >= 0) {
       this->remove_bond_pending_.store(false);
       ESP_LOGW(TAG, "Removing pairing timed out for slot %u", this->slot_);
@@ -1046,10 +1061,12 @@ void A2DPSourceSpeaker::process_avrcp_event_(esp_avrc_ct_cb_event_t event, esp_a
     this->avrcp_actual_volume_.store(-1);
     this->avrcp_last_requested_ = 255;
     this->avrcp_command_pending_ = false;
-    ESP_LOGI(TAG, "AVRCP slot %u %s", this->slot_, connected ? "connected" : "disconnected");
+    ESP_LOGI(TAG, "AVRCP slot %u %s", this->slot_,
+             connected ? LOG_STR_LITERAL("connected") : LOG_STR_LITERAL("disconnected"));
   } else if (event == ESP_AVRC_CT_REMOTE_FEATURES_EVT) {
-    if (std::memcmp(param->rmt_feats.remote_bda, this->address_, 6) == 0)
+    if (std::memcmp(param->rmt_feats.remote_bda, this->address_, 6) == 0) {
       ESP_LOGI(TAG, "AVRCP slot %u remote features 0x%" PRIx32, this->slot_, param->rmt_feats.feat_mask);
+    }
   } else if (event == ESP_AVRC_CT_SET_ABSOLUTE_VOLUME_RSP_EVT && this->avrcp_connected_.load()) {
     this->trace_event_(9, param->set_volume_rsp.volume);
     this->avrcp_response_volume_.store(param->set_volume_rsp.volume);
@@ -1126,7 +1143,8 @@ void A2DPSourceSpeaker::process_gap_event_(esp_bt_gap_cb_event_t event, esp_bt_g
     if (!connected && this->connect_pending_.exchange(false) && !this->failure_reported_for_attempt_.exchange(true))
       this->connection_failed_.store(true);
     ESP_LOGI(TAG, "Classic ACL slot %u connection %s (status 0x%02x, handle 0x%04x)", this->slot_,
-             connected ? "open" : "failed", param->acl_conn_cmpl_stat.stat, param->acl_conn_cmpl_stat.handle);
+             connected ? LOG_STR_LITERAL("open") : LOG_STR_LITERAL("failed"), param->acl_conn_cmpl_stat.stat,
+             param->acl_conn_cmpl_stat.handle);
   } else if (event == ESP_BT_GAP_ACL_DISCONN_CMPL_STAT_EVT) {
     if (std::memcmp(param->acl_disconn_cmpl_stat.bda, this->address_, 6) != 0)
       return;

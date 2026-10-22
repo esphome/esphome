@@ -2,3 +2,4 @@
 
 CODEOWNERS = ["@mbrudka"]
 DEPENDENCIES = ["esp32_ble"]
+DOMAIN = "a2dp_source"
