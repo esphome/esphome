@@ -25,17 +25,8 @@ void HOT EPaperBWR::draw_pixel_at(int x, int y, Color color) {
   const auto bwr =
       color_to_bwr<BwrColor>(color, BwrColor::BWR_COLOR_BLACK, BwrColor::BWR_COLOR_WHITE, BwrColor::BWR_COLOR_RED);
 
-  if (sets_bw_bit(bwr, this->red_sets_black_)) {
-    this->buffer_[pos] |= bit;
-  } else {
-    this->buffer_[pos] &= ~bit;
-  }
-
-  if (bwr == BwrColor::BWR_COLOR_RED) {
-    this->buffer_[red_offset + pos] |= bit;
-  } else {
-    this->buffer_[red_offset + pos] &= ~bit;
-  }
+  assign_bits(this->buffer_[pos], bit, sets_bw_bit(bwr, this->red_sets_black_));
+  assign_bits(this->buffer_[red_offset + pos], bit, bwr == BwrColor::BWR_COLOR_RED);
 }
 
 void EPaperBWR::fill(Color color) {
