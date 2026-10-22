@@ -347,6 +347,24 @@ TEST(VncPacingStart, LoopingDisplayRefreshesAfterTheStartWindow) {
 TEST(VncPacingDisplays, FreeRunningDisplay) { runs_frames_without_deadlock<FakeFreeRunDisplay>(); }
 TEST(VncPacingDisplays, SynchronousParkedDisplay) { runs_frames_without_deadlock<FakeSyncParkedDisplay>(); }
 
+TEST_F(VncPacingParked, FailedDisplayClosesAConnectStillInFlight) {
+  s().client.forget_session();
+  ASSERT_TRUE(s().client.link().connected());
+  d_.mark_failed();
+  s().tick(10);
+  EXPECT_FALSE(s().client.link().connected());
+  EXPECT_TRUE(s().client.status_has_error());
+}
+
+TEST_F(VncPacingParked, DisplayBusyTooLongSetsAWarningUntilItParks) {
+  d_.external_update();
+  s().run_for(120000, 1000);
+  EXPECT_TRUE(s().client.status_has_warning());
+  d_.finish();
+  s().tick(10);
+  EXPECT_FALSE(s().client.status_has_warning());
+}
+
 }  // namespace esphome::vnc::testing
 
 #endif  // USE_HOST

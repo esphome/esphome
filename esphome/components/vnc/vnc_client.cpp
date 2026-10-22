@@ -23,6 +23,8 @@ static constexpr uint32_t HEARTBEAT_MS = 60000;
 static constexpr uint32_t MIN_REQUEST_SPACING_MS = 50;
 // The longest the first refresh waits for a display with a loop to park once after boot.
 static constexpr uint32_t DISPLAY_START_MS = 5000;
+// Longer than any driver's own busy timeout: a panel that stays busy this long is stuck
+static constexpr uint32_t DISPLAY_BUSY_TIMEOUT_MS = 120000;
 static constexpr uint16_t MAX_CURSOR_SIDE = 1024;
 static constexpr uint32_t MAX_TEXT_LEN = 63;
 
@@ -83,8 +85,8 @@ void VncClient::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   this->pass_start_ms_ = millis();
   if (this->display_->is_failed()) {
+    this->link_.close();  // a connect still in flight would otherwise keep its socket for good
     if (this->state_ != VncState::VNC_STATE_IDLE) {
-      this->link_.close();
       this->session_end_(now, VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display failed"));
     }
     this->status_set_error(LOG_STR("Display failed"));
@@ -98,6 +100,17 @@ void VncClient::loop() {
     this->display_busy_ = false;
   } else {
     this->display_busy_ = this->display_parks_;
+  }
+  // A stuck panel, or another owner of the display's loop, would otherwise freeze the screen silently
+  if (!this->display_busy_) {
+    this->busy_since_ms_ = now;
+    if (this->busy_warned_) {
+      this->busy_warned_ = false;
+      this->status_clear_warning();
+    }
+  } else if (!this->busy_warned_ && now - this->busy_since_ms_ >= DISPLAY_BUSY_TIMEOUT_MS) {
+    this->busy_warned_ = true;
+    this->status_set_warning(LOG_STR("Display busy too long"));
   }
 
   if (!this->link_.connected()) {
@@ -286,9 +299,9 @@ void VncClient::skip_(uint32_t count, VncStep next) {
   this->step_ = VncStep::VNC_STEP_SKIP;
 }
 
-void VncClient::send_client_init_() {
+bool VncClient::send_client_init_() {
   const uint8_t shared = 1;
-  this->send_(&shared, 1);
+  return this->send_(&shared, 1);
 }
 
 VncParse VncClient::parse_() {
@@ -312,7 +325,9 @@ VncParse VncClient::parse_() {
         this->rx_pos_ += 12;
         uint8_t reply[12] = {'R', 'F', 'B', ' ', '0', '0', '3', '.', '0', '0', '8', '\n'};
         reply[10] = '0' + this->minor_;
-        this->send_(reply, sizeof(reply));
+        if (!this->send_(reply, sizeof(reply))) {
+          return this->fail_send_();
+        }
         this->step_ = this->minor_ == 3 ? VncStep::VNC_STEP_SECURITY_TYPE_33 : VncStep::VNC_STEP_SECURITY_COUNT;
         break;
       }
@@ -348,11 +363,15 @@ VncParse VncClient::parse_() {
           return this->fail_(VncFailure::VNC_FAILURE_CONFIG, wants_password ? LOG_STR("The server requires a password")
                                                                             : LOG_STR("No supported security type"));
         }
-        this->send_(&chosen, 1);
+        if (!this->send_(&chosen, 1)) {
+          return this->fail_send_();
+        }
         if (this->minor_ == 8) {
           this->step_ = VncStep::VNC_STEP_SECURITY_RESULT;
         } else {
-          this->send_client_init_();
+          if (!this->send_client_init_()) {
+            return this->fail_send_();
+          }
           this->step_ = VncStep::VNC_STEP_SERVER_INIT;
         }
         break;
@@ -366,7 +385,9 @@ VncParse VncClient::parse_() {
         if (type == 0) {
           this->step_ = VncStep::VNC_STEP_REASON_LENGTH;
         } else if (type == SECURITY_NONE) {
-          this->send_client_init_();
+          if (!this->send_client_init_()) {
+            return this->fail_send_();
+          }
           this->step_ = VncStep::VNC_STEP_SERVER_INIT;
         } else {
           return this->fail_(VncFailure::VNC_FAILURE_CONFIG, type == SECURITY_VNC_AUTH
@@ -382,7 +403,9 @@ VncParse VncClient::parse_() {
         const uint32_t result = read_be32(p);
         this->rx_pos_ += 4;
         if (result == 0) {
-          this->send_client_init_();
+          if (!this->send_client_init_()) {
+            return this->fail_send_();
+          }
           this->step_ = VncStep::VNC_STEP_SERVER_INIT;
           break;
         }
@@ -433,7 +456,9 @@ VncParse VncClient::parse_() {
         break;
       }
       case VncStep::VNC_STEP_SESSION_START:
-        this->start_session_(App.get_loop_component_start_time());
+        if (!this->start_session_(App.get_loop_component_start_time())) {
+          return this->fail_send_();
+        }
         this->step_ = VncStep::VNC_STEP_MESSAGE;
         break;
       case VncStep::VNC_STEP_MESSAGE: {
@@ -591,7 +616,7 @@ void VncClient::draw_row_(uint16_t x, uint16_t y, uint16_t count, const uint8_t 
   this->frame_drawn_ = true;
 }
 
-void VncClient::start_session_(uint32_t now) {
+bool VncClient::start_session_(uint32_t now) {
   const bool rgb565 = this->display_->get_display_type() != display::DISPLAY_TYPE_BINARY;
   this->bpp_ = rgb565 ? 2 : 1;
   this->bitness_ = rgb565 ? display::COLOR_BITNESS_565 : display::COLOR_BITNESS_332;
@@ -616,20 +641,23 @@ void VncClient::start_session_(uint32_t now) {
   write_be16(pixel_format + 12, rgb565 ? 31 : 3);
   pixel_format[14] = rgb565 ? 11 : 5;
   pixel_format[15] = rgb565 ? 5 : 2;
-  this->send_(pixel_format, sizeof(pixel_format));
+  if (!this->send_(pixel_format, sizeof(pixel_format))) {
+    return false;
+  }
 
   // SetEncodings: TightVNC uses the first real encoding it supports for every rectangle.
   uint8_t encodings[12] = {2, 0, 0, 2};
   write_be32(encodings + 4, ENCODING_RAW);
   write_be32(encodings + 8, static_cast<uint32_t>(ENCODING_RICH_CURSOR));
-  this->send_(encodings, sizeof(encodings));
-
-  this->send_update_request_(false, now);
+  if (!this->send_(encodings, sizeof(encodings)) || !this->send_update_request_(false, now)) {
+    return false;
+  }
   this->state_ = VncState::VNC_STATE_RUNNING;
   this->session_start_ms_ = now;
   this->status_clear_warning();
   this->status_clear_error();
   this->connect_callback_.call();
+  return true;
 }
 
 void VncClient::pace_(uint32_t now) {
