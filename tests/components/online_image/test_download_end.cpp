@@ -663,8 +663,23 @@ TEST_F(OnlineImageDownloadEnd, JpegReadsInSmallPiecesWithALargeBuffer) {
 
   ASSERT_EQ(this->finished_, 1);
   EXPECT_EQ(this->errors_, 0);
-  EXPECT_LE(container->largest_read, STREAM_READ_CHUNK);
+  EXPECT_LE(container->largest_read, READ_CHUNK);
   EXPECT_EQ(image_pixels(*image), reference_jpeg_pixels());
+}
+
+// A downloaded PNG is read a little at a time too
+TEST_F(OnlineImageDownloadEnd, PngReadsInSmallPiecesWithALargeBuffer) {
+  auto image = this->make_image_(runtime_image::PNG, 65536);
+  std::vector<uint8_t> png(PNG_1X1.begin(), PNG_1X1.end());
+  auto container = std::make_shared<FakeContainer>(png, png.size(), false);
+  this->start_(*image, container);
+
+  for (int i = 0; i < 100 && this->finished_ + this->errors_ == 0; i++)
+    image->loop();
+
+  ASSERT_EQ(this->finished_, 1);
+  EXPECT_EQ(this->errors_, 0);
+  EXPECT_LE(container->largest_read, READ_CHUNK);
 }
 
 // A slow link: the decoder waits part way through the image for the rest to arrive
