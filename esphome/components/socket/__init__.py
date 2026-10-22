@@ -237,10 +237,9 @@ def final_validate_idle_timeout(config: ConfigType) -> ConfigType:
     loop_interval = get_loop_interval()
     if timeout.total_milliseconds < loop_interval.total_milliseconds:
         raise cv.Invalid(
-            f"{CONF_TIMEOUT} of {timeout} is shorter than one main loop pass "
-            f"({CONF_LOOP_INTERVAL} of {loop_interval}) and would close the link "
-            "between polls. Use 0s to turn the timeout off, or at least "
-            f"{loop_interval}.",
+            f"{CONF_TIMEOUT} of {timeout} must be at least one main loop pass "
+            f"({CONF_LOOP_INTERVAL} of {loop_interval}). Use 0s to turn the "
+            "timeout off.",
             path=[CONF_TIMEOUT],
         )
     return config
