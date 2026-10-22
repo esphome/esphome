@@ -86,6 +86,12 @@ void CW2017::init_failed_(const LogString *reason) {
 }
 
 void CW2017::init_() {
+  // A profile upload only takes effect after a restart, so a failed restart is retried, not skipped.
+  if (this->restart_pending_) {
+    this->restart_();
+    return;
+  }
+
   uint8_t mode = 0;
   uint8_t version = 0;
   uint8_t config = 0;
@@ -107,7 +113,7 @@ void CW2017::init_() {
       this->init_failed_(LOG_STR("Battery profile upload failed"));
       return;
     }
-    this->set_timeout(STEP_DELAY_MS, [this]() { this->restart_step_(0); });
+    this->restart_();
     return;
   }
 
@@ -122,12 +128,16 @@ void CW2017::init_() {
   }
 
   if (mode != MODE_NORMAL || !version_is_running(version)) {
-    this->set_timeout(STEP_DELAY_MS, [this]() { this->restart_step_(0); });
+    this->restart_();
     return;
   }
 
-  this->ready_ = true;
-  this->update();
+  this->wait_ready_(0);
+}
+
+void CW2017::restart_() {
+  this->restart_pending_ = true;
+  this->set_timeout(STEP_DELAY_MS, [this]() { this->restart_step_(0); });
 }
 
 void CW2017::restart_step_(uint8_t step) {
@@ -138,6 +148,7 @@ void CW2017::restart_step_(uint8_t step) {
   if (step + 1 < RESTART_STEPS) {
     this->set_timeout(STEP_DELAY_MS, [this, step]() { this->restart_step_(step + 1); });
   } else {
+    this->restart_pending_ = false;
     this->set_timeout(STEP_DELAY_MS, [this]() { this->wait_ready_(0); });
   }
 }
