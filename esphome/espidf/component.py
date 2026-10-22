@@ -151,9 +151,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
             str((read_path / Path(d)).resolve()) for d in build_include_dirs
         ]
 
-    # Split build_flags list into private and public lists
+    # Split build_flags list into private and public lists. Warnings and the optimisation level only concern the
+    # library's own sources, so a library built with -O2 does not change how its users are compiled.
     private_build_flags, public_build_flags = split_list_by_condition(
-        build_flags, lambda a: a if a.startswith("-W") else None
+        build_flags, lambda a: a if a.startswith(("-W", "-O")) else None
     )
 
     # Generate the component

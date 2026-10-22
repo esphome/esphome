@@ -126,7 +126,7 @@ void EmonTx::loop() {
 
   // Read all available data to prevent UART buffer overflow
   this->read_available([this](uint8_t received) {
-    size_t len;
+    size_t len = 0;
     char *line = this->line_reader_.feed(received, len);
     this->line_reader_.log_if_overflowed(TAG);
     if (line == nullptr || len == 0) {
