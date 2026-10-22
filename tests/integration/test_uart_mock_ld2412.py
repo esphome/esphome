@@ -26,7 +26,8 @@ answers that hold the frame footer or are truncated, writes that fill the gates 
 number from the module's values, and writes held back until the module reports them.
 
 test_uart_mock_ld2412_selects checks that the distance resolution and baud rate selects show the
-module's values and send the device code of the chosen option.
+module's values and send the device code of the chosen option, that the name taking setters map a
+name the same way, and that an unknown name sends nothing at all.
 """
 
 from __future__ import annotations
@@ -701,7 +702,11 @@ async def test_uart_mock_ld2412_selects(
     expected_resolution = "TX 6 bytes: 03:00:00:00:00:00"
     # 19200 is the second baud rate, so its code is 2
     expected_baud_rate = "TX 2 bytes: 02:00"
-    events = _LogEvents()
+    # From the name taking setters: 0.75m is device code 0x00 and 57600 is the fourth baud rate
+    named_resolution = "TX 6 bytes: 00:00:00:00:00:00"
+    named_baud_rate = "TX 2 bytes: 04:00"
+    bogus_done = "bogus names done"
+    events = _LogEvents(bogus_done)
 
     async with (
         run_compiled(yaml_config, line_callback=events.on_line),
@@ -737,3 +742,23 @@ async def test_uart_mock_ld2412_selects(
         # The payload line follows the length and command line directly
         start = events.index_after(-1, SET_BAUD_RATE)
         assert expected_baud_rate in events.lines[start + 1]
+
+        # An unknown name writes nothing, not even the configuration mode frames around a command
+        before = len(events.lines)
+        done = events.next_line_with(bogus_done)
+        client.button_command(require_entity(entities, "bogus_names", ButtonInfo).key)
+        await wait_or_fail(done, 5.0, "Timeout waiting for the bogus names lambda")
+        assert [line for line in events.lines[before:] if _is_tx(line)] == []
+
+        # A known name maps to the same device code as the select
+        named_resolution_written = events.next_line_with(named_resolution)
+        named_baud_rate_written = events.next_line_with(named_baud_rate)
+        client.button_command(require_entity(entities, "named_values", ButtonInfo).key)
+        await wait_or_fail(
+            asyncio.gather(named_resolution_written, named_baud_rate_written),
+            5.0,
+            "Timeout waiting for the named setter commands",
+            logged=events.lines,
+        )
+        assert events.count(SET_RESOLUTION) == 2
+        assert events.count(SET_BAUD_RATE) == 2

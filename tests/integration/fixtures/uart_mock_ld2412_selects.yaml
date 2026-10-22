@@ -50,3 +50,19 @@ select:
       name: "Distance Resolution"
     baud_rate:
       name: "Baud Rate"
+
+# Lambdas reach the name taking setters directly, which the API cannot do with an unknown name
+button:
+  - platform: template
+    name: "Bogus Names"
+    on_press:
+      - lambda: |-
+          id(ld2412_dev).set_distance_resolution("bogus");
+          id(ld2412_dev).set_baud_rate("bogus");
+          ESP_LOGI("test", "bogus names done");
+  - platform: template
+    name: "Named Values"
+    on_press:
+      - lambda: |-
+          id(ld2412_dev).set_distance_resolution("0.75m");
+          id(ld2412_dev).set_baud_rate("57600");
