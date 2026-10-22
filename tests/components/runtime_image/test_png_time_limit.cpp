@@ -155,8 +155,8 @@ TEST(PngTimeLimit, LargeImageIsDecodedOverSeveralCalls) {
 
   ASSERT_EQ(img.get_width(), 800);
   ASSERT_EQ(img.get_height(), 600);
-  for (auto [x, y] : {std::pair{0, 0}, std::pair{400, 300}, std::pair{799, 599}}) {
-    const Color pixel = img.get_pixel(x, y);
+  for (auto [col, row] : {std::pair{0, 0}, std::pair{400, 300}, std::pair{799, 599}}) {
+    const Color pixel = img.get_pixel(col, row);
     EXPECT_EQ(pixel.r, 30);
     EXPECT_EQ(pixel.g, 120);
     EXPECT_EQ(pixel.b, 200);
