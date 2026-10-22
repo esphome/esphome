@@ -22,3 +22,12 @@ toptronic:
     refresh_retry_interval_ms: 250ms
     write_min_interval: 3s
     reject_writes_before_read: false
+
+sensor:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Hand-written test sensor
+    function_group: 50
+    function_number: 0
+    datapoint: 40652
+    type: U16

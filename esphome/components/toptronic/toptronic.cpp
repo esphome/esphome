@@ -8,13 +8,13 @@ namespace esphome::toptronic {
 
 ESPHOME_LOG_TAG(TAG, "toptronic");
 
-static const uint8_t RESPONSE = 0x42;
+static constexpr uint8_t RESPONSE = 0x42;
 // 0x56 = extended-format RESPONSE (larger value payload, e.g. cleaning /
 // maint. counters). Same layout as 0x42 but 2 extra bytes (0x80 0x00) between
 // the datapoint and the value.
-static const uint8_t RESPONSE_EXT = 0x56;
-static const uint8_t GET_REQ = 0x40;
-static const uint8_t SET_REQ = 0x46;
+static constexpr uint8_t RESPONSE_EXT = 0x56;
+static constexpr uint8_t GET_REQ = 0x40;
+static constexpr uint8_t SET_REQ = 0x46;
 
 // Multi-frame protocol constants (see §3.5): a standard CAN frame holds 8 bytes;
 // the first frame spends 2 on headers (6 payload bytes), continuation frames 1
@@ -50,8 +50,9 @@ static constexpr UBaseType_t COMMAND_QUEUE_LENGTH = 8;    // producer/consumer b
 static std::vector<TopTronic *> s_all_instances;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static constexpr uint32_t REFRESH_STAGGER_MS = 15000;
 // One-shot post-boot refresh state. The deadline is captured from the FIRST hub
-// that has a non-zero boot_refresh_delay, and fired once from loop() (which only
-// runs after App.setup() has fully completed — so every hub has registered). The
+// that has a non-zero boot_refresh_delay, and fired once from pump() (whose
+// timer arms in setup(), which only runs after App.setup() completed — so every
+// hub has registered). The
 // boot refresh must NOT be scheduled from setup(): App.setup() can stall on a
 // slow component while the scheduler still ticks, which would let an early
 // timeout fire while s_all_instances is incomplete (e.g. only HV registered).
@@ -344,64 +345,13 @@ void TopTronic::register_sensor_callbacks() {
     }
   }
 }
-
-static uint32_t reflect(uint32_t val, uint8_t width) {
-  uint32_t out = 0;
-  for (uint8_t i = 0; i < width; ++i) {
-    out = (out << 1) | (val & 1);
-    val >>= 1;
-  }
-  return out;
-}
-
-// CRC-16 used by the TopTronic multi-frame protocol.
-// Parameters identified by brute-force search against captured bus traffic:
-//   poly=0x1021  init=0xB006  refin=true  refout=true  xorout=0x0000
-// This matches the CRC-16/ARC family with a non-standard init value.
-//
-// Lookup-table form: the bit-wise algorithm reflects each input byte, runs an
-// MSB-first (left-shifting) poly 0x1021 loop, then reflects the final CRC. The
-// table is therefore MSB-first over PRE-REFLECTED bytes:
-//   crc = (crc << 8) ^ table[((crc >> 8) ^ reflect(byte)) & 0xFF]
-// Equivalent to the bit-wise loop (validated against captured samples).
-//
-// Thread-safety: the lazy one-time init below is intentionally not atomic.
-// ESPHome routes all component calls ({parse_frame, loop, update}) through the
-// single main-loop task, so no two tasks can race on `initialized` in practice.
-// Keep this function on the main loop task; do not call it from other FreeRTOS
-// tasks without first adding a mutex or moving the init to setup().
-static const uint16_t *crc16_table() {
-  static uint16_t table[256];
-  static bool initialized = false;
-  if (!initialized) {
-    for (int i = 0; i < 256; ++i) {
-      uint16_t v = static_cast<uint16_t>(i << 8);
-      for (int b = 0; b < 8; ++b) {
-        v = (v & 0x8000) ? static_cast<uint16_t>((v << 1) ^ 0x1021) : static_cast<uint16_t>(v << 1);
-      }
-      table[i] = v;
-    }
-    initialized = true;
-  }
-  return table;
-}
-
-static uint16_t compute_crc16(const uint8_t *data, size_t len) {
-  const uint16_t *const table = crc16_table();
-  uint16_t crc = 0xB006;  // init
-  for (size_t i = 0; i < len; ++i) {
-    uint8_t byte = static_cast<uint8_t>(reflect(data[i], 8));
-    crc = static_cast<uint16_t>((crc << 8) ^ table[((crc >> 8) ^ byte) & 0xFF]);
-  }
-  return static_cast<uint16_t>(reflect(crc, 16));  // refout=true, xorout=0x0000
-}
-
 // Send a SET request over CAN, transparently splitting into multiple frames when needed.
 //
 // A standard CAN frame holds at most 8 bytes. The TopTronic multi-frame protocol works as:
 //   First frame  (msg_id = 0x1F): [frame_count<<3|flags, msg_header, payload[0..5]]
 //   Cont. frames (msg_id ≠ 0x1F): [msg_header, payload[6..12], ...]
-//   Last 2 bytes of the reassembled payload are the CRC-16 checksum (poly=0x1021, init=0xB006).
+//   Last 2 bytes of the reassembled payload are the CRC-16 checksum (poly=0x1021,
+//   init=0xB006, refin/refout — via crc16(…, 0x600D, 0x8408)).
 //
 // The continuation CAN ID clears bits 28-22 (sets the top-priority field to 0) so that
 // parse_frame() on the receiver treats those frames as continuations, not new messages.
@@ -419,7 +369,7 @@ static void send_can_frames(canbus::Canbus *canbus, uint32_t can_id, const std::
 
   // Build the full message payload, then append the 2-byte CRC (big-endian).
   std::vector<uint8_t> msg(data.begin() + 1, data.end());
-  uint16_t crc = compute_crc16(msg.data(), msg.size());
+  uint16_t crc = crc16(msg.data(), msg.size(), 0x600D, 0x8408);
   msg.push_back(static_cast<uint8_t>(crc >> 8));    // CRC high byte
   msg.push_back(static_cast<uint8_t>(crc & 0xFF));  // CRC low byte
 
@@ -509,14 +459,14 @@ void TopTronic::register_input_callbacks() {
 // not compress the boiler's responses into a main-loop-stalling avalanche.
 void TopTronic::update_all() {
   // A burst is already draining. Instead of dropping the request, defer it:
-  // remember that a fresh refresh is wanted and let loop() start a new burst
+  // remember that a fresh refresh is wanted and let pump() start a new burst
   // once the current one empties — so a "Refresh all" press during a burst is
   // honored, never silently lost.
   if (!this->pending_refresh_.empty()) {
     this->refresh_pending_ = true;
     TT_LOGI("Refresh already in progress (%zu sensors pending) [paused=%d], will re-run after it finishes",
             this->pending_refresh_.size(), (int) this->paused_);
-    return;  // loop() kicks off the deferred run when the burst empties
+    return;  // pump() kicks off the deferred run when the burst empties
   }
   size_t sensor_count = 0;
   for (const auto &d : this->devices_) {
@@ -540,8 +490,8 @@ void TopTronic::update_all() {
 
   TT_LOGI("Refresh requested for device 0x%04X (%zu sensors) [paused=%d]", (unsigned) this->get_device_id(),
           sensor_count, (int) this->paused_);
-  // Kick the scheduler-driven drain so the burst starts even if this hub's
-  // component loop() is not invoked by ESPHome.
+  // Kick the scheduler-driven drain so the burst starts promptly even if the
+  // hub's component loop() never runs.
   this->set_timeout("refresh_drain", 1, [this]() { this->drain_refresh_burst(); });
 }
 
@@ -579,7 +529,7 @@ void TopTronic::refresh_all() {
 }
 
 // Thread-safe producers. Safe to call from any FreeRTOS task: they only enqueue a
-// command (non-blocking). The main loop task drains the queue in loop() and performs
+// command (non-blocking). The main loop task drains the queue in pump() and performs
 // the actual work, so component state is never touched from other tasks.
 void TopTronic::request_refresh() {
   Command cmd = Command::REFRESH;
@@ -672,16 +622,8 @@ void TopTronic::resume() {
   TT_LOGI("Hub 0x%04X resumed", (unsigned) this->get_device_id());
 }
 
-void TopTronic::configure_hub() {
-  // All functional wiring runs from the CONFIG phase (emitted by __init__.py
-  // right after the add_sensor/add_input calls) instead of setup(). Reason:
-  // ESPHome sizes components_ (StaticVector) from ESPHOME_COMPONENT_COUNT,
-  // which is computed at CORE codegen priority - BEFORE this component
-  // registers its preset-generated entity IDs in CORE.component_ids. The
-  // under-count silently drops every registration past the StaticVector
-  // capacity, so a hub can be missing from components_ entirely and its
-  // setup() never invoked. Config-phase statements always run for every hub.
-
+void TopTronic::setup() {
+  // Wire the callbacks here, after every platform's add_sensor()/add_input() has run.
   this->link_inputs_();
   this->register_sensor_callbacks();
   this->register_input_callbacks();
@@ -701,19 +643,14 @@ void TopTronic::configure_hub() {
   }
 
   // Producer/consumer bridge for commands issued from other FreeRTOS tasks.
-  // Producers only enqueue; the main loop task drains and executes in loop().
+  // Producers only enqueue; the main loop task drains and executes in pump().
   this->cmd_queue_ = xQueueCreate(COMMAND_QUEUE_LENGTH, sizeof(Command));
 
-  // Drive the work pump from the scheduler (Phase A) so the hub stays fully
-  // functional even if ESPHome does not invoke its component loop() (Phase B) -
-  // the loop partition can silently drop hubs depending on registration order.
+  // Drive the work pump from the scheduler so the hub stays fully functional
+  // even if ESPHome does not call its component loop(); all critical work
+  // (command bridge, burst drain, boot refresh) runs from scheduler callbacks.
   this->set_interval("pump", 50, [this]() { this->pump(); });
-}
 
-void TopTronic::setup() {
-  // Functional wiring lives in configure_hub() (config phase) so it runs even
-  // when ESPHome silently drops this hub from components_ (see configure_hub()).
-  // setup() only keeps the observability log.
   size_t sensor_count = 0;
   size_t input_count = 0;
   for (const auto &d : this->devices_) {
@@ -815,26 +752,19 @@ void TopTronic::drain_refresh_burst() {
     this->update_all();
   }
 
-  // Re-schedule a drain while sensors remain pending, so the burst keeps draining
-  // even on a hub whose component loop() is not invoked by ESPHome (the ESPHome
-  // scheduler runs independently of the Phase-B component loop). loop() calls
-  // drain_refresh_burst() as well; the effective_gap_ms throttle makes the
-  // double-invocation a harmless no-op.
+  // Re-schedule a drain while sensors remain pending, so the burst keeps
+  // draining via the scheduler even without further pump() passes. The
+  // effective_gap_ms throttle makes back-to-back invocations a harmless no-op.
   if (!this->pending_refresh_.empty()) {
     this->set_timeout("refresh_drain", effective_gap_ms > 0 ? effective_gap_ms : 1u,
                       [this]() { this->drain_refresh_burst(); });
   }
 }
 
-void TopTronic::loop() { this->pump(); }
-
-// Scheduler-driven work pump (order-independent). ESPHome may not invoke a hub's
-// component loop() (Phase B) depending on registration order - its loop partition
-// (a fixed-capacity vector) silently drops hubs that do not fit. The Phase-A
-// scheduler, however, always runs this hub's set_interval()/set_timeout()
-// callbacks, so all critical work (command bridge, burst drain, boot refresh,
-// cleanup) is driven from here via set_interval() in setup(). loop() calls pump()
-// too; the operations are time-gated/once-only so the redundancy is harmless.
+// Scheduler-driven work pump. The pump runs on a set_interval() timer installed
+// in setup(), so it is invoked by the scheduler regardless of whether ESPHome
+// calls this hub's component loop(); all work executed here stays
+// time-gated/once-only.
 void TopTronic::pump() {
   // Drain cross-task commands first (non-blocking), so requests issued from other
   // FreeRTOS tasks are serviced on the main loop task — keeping all component state
@@ -869,14 +799,14 @@ void TopTronic::pump() {
   }
 
   // Burst processing (send/retry/drop, completion, stall watchdog, heartbeat,
-  // deferred run) lives in drain_refresh_burst(), which loop() calls and which
-  // also re-schedules itself through the ESPHome scheduler, so a hub whose
-  // component loop() is not invoked still drains its burst.
+  // deferred run) lives in drain_refresh_burst(), which pump() calls on every
+  // pass; the burst re-schedules itself through the ESPHome scheduler so the
+  // pacing (refresh_gap_ms_) is honoured even without new commands.
   this->drain_refresh_burst();
 
   const uint32_t now = millis();
 
-  // One-shot post-boot refresh. loop() only runs after App.setup() has fully
+  // One-shot post-boot refresh. pump() runs after App.setup() has fully
   // completed, so by now every hub is registered in s_all_instances — firing
   // refresh_all() from here always covers all hubs (HV, BM, …, staggered 15 s).
   if (s_boot_refresh_delay_ms != 0 && now - s_boot_refresh_start_ms >= s_boot_refresh_delay_ms) {
@@ -885,23 +815,6 @@ void TopTronic::pump() {
     // hub-order independent; refresh_all() fans out to every hub regardless.
     if (!s_all_instances.empty()) {
       s_all_instances[0]->refresh_all();
-    }
-  }
-
-  // Periodically evict stale multi-frame reassembly buffers so a lost fragment (or a
-  // device going offline mid-message) cannot pin an entry forever. The map is tiny
-  // (capped at this->max_pending_messages_), so the sweep is throttled to avoid per-loop work.
-  if (now - this->last_cleanup_ms_ < this->cleanup_interval_ms_)
-    return;
-  this->last_cleanup_ms_ = now;
-
-  for (auto it = this->pending_messages_.begin(); it != this->pending_messages_.end();) {
-    if (now - it->second.last_update_ms > this->max_pending_age_ms_) {
-      TT_LOGD("Expiring stale pending message 0x%08X (%zu bytes, %u frames remaining)", (unsigned int) it->first,
-              it->second.data.size(), it->second.remaining_frames);
-      it = this->pending_messages_.erase(it);
-    } else {
-      ++it;
     }
   }
 }
@@ -1013,7 +926,7 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
         // (now - last_update_ms) instead of raw timestamps: raw comparisons are
         // wrong across the 32-bit millis() rollover and could erase a freshly
         // updated entry. Entries older than max_pending_age were already evicted
-        // by the loop() sweep, so all ages here are far below the wrap window.
+        // by the sweep interval, so all ages here are far below the wrap window.
         uint32_t oldest_key = this->pending_messages_.begin()->first;
         uint32_t oldest_age = now - this->pending_messages_.begin()->second.last_update_ms;
         for (auto &pending_message : this->pending_messages_) {
@@ -1090,7 +1003,7 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
 
       const uint8_t *msg = pending.data.data();
       uint16_t received_crc = (msg[msg_len - 2] << 8) | msg[msg_len - 1];
-      uint16_t computed_crc = compute_crc16(msg, msg_len - 2);
+      uint16_t computed_crc = crc16(msg, msg_len - 2, 0x600D, 0x8408);
 
       if (received_crc != computed_crc) {
         TT_LOGW("CRC check failed! Recv: 0x%04X, Comp: 0x%04X", received_crc, computed_crc);
@@ -1197,7 +1110,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
   // through from now on.
   this->read_ok_ids_.insert(id);
 
-  // This sensor was answered — drop it from the refresh-retry queue so loop()
+  // This sensor was answered — drop it from the refresh-retry queue so the burst
   // does not re-poll it. The deque is small (self-hub sensors) and the burst
   // drain is O(1) at the front, so a linear erase here is cheap and only runs
   // when a response for a pending refresh sensor actually arrives.
@@ -1221,7 +1134,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
 #ifdef USE_SENSOR
   if (sensor_base->type() == SENSOR) {
     auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
-    float value = sensor->parse_value(data + value_off, value_len);
+    float value = sensor->parse_value(data + value_off, required_value_len);
     sensor->publish_state(value);
     log_response_frame(data, len, can_id, sensor->get_log_name());
   }
