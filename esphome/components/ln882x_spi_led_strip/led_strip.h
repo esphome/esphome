@@ -39,17 +39,15 @@ class LN882xSPILEDStripLightOutput final : public light::AddressableLight {
   uint8_t *color_data_{nullptr};
   uint8_t *effect_data_{nullptr};
   uint8_t *dma_data_{nullptr};
+  uint32_t last_refresh_{0};
+  uint32_t max_refresh_rate_{0};
 
   const light::ChannelColors channel_colors_;
   const uint16_t num_leds_;
   const uint8_t pin_;
-
   const uint8_t prescaler_;
   const uint8_t bit0_high_bits_;
   const uint8_t bit1_high_bits_;
-
-  uint32_t last_refresh_{0};
-  uint32_t max_refresh_rate_{0};
 };
 
 }  // namespace esphome::ln882x_spi_led_strip
