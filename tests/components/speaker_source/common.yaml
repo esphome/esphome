@@ -35,14 +35,14 @@ media_player:
     announcement_volume: 60%
     announcement_pipeline:
       speaker: announcement_mixer_speaker_id
-      format: FLAC
+      format: MP3
+      bitrate: 48
       num_channels: 1
       sources:
         - announcement_audio_file_source
     media_pipeline:
       speaker: media_mixer_speaker_id
-      format: MP3
-      bitrate: 48
+      format: FLAC
       num_channels: 1
       sources:
         - media_audio_file_source

@@ -1785,6 +1785,7 @@ message MediaPlayerSupportedFormat {
   uint32 num_channels = 3;
   MediaPlayerFormatPurpose purpose = 4;
   uint32 sample_bytes = 5;
+  // Constant bitrate in kbps for lossy formats; 0 means no preference
   uint32 bitrate = 6;
 }
 message ListEntitiesMediaPlayerResponse {

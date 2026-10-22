@@ -56,6 +56,29 @@ FORMAT_MAPPING = {
 }
 
 
+# MP3 constant bitrates in kbps; the encoder rounds anything else to the nearest one
+MP3_BITRATES = (
+    8,
+    16,
+    24,
+    32,
+    40,
+    48,
+    56,
+    64,
+    80,
+    96,
+    112,
+    128,
+    160,
+    192,
+    224,
+    256,
+    320,
+)
+validate_mp3_bitrate = cv.one_of(*MP3_BITRATES, int=True)
+
+
 def build_supported_format_struct(
     format_config: ConfigType, purpose: MockObj
 ) -> cg.StructInitializer:
