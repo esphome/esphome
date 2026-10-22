@@ -188,4 +188,23 @@ TEST_F(LD2450ReadlineTest, LargestLengthFieldDoesNotWrapToIncomplete) {
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 }
 
+TEST_F(LD2450ReadlineTest, MixedHeaderPrefixNeverOpensAFrame) {
+  int frames = 0;
+  this->ld2450_.add_on_data_callback([&frames]() { frames++; });
+  // A stray command header byte followed by a periodic header that lost its first byte: the stray byte
+  // picks the command header, so the periodic bytes do not continue it and the buffer restarts on AA
+  std::vector<uint8_t> stream = {0xFD, 0xFF, 0x03, 0x00};
+  this->ld2450_.feed(stream);
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+
+  // The reverse mix is rejected the same way
+  this->ld2450_.feed({0xAA, 0xFC, 0xFB, 0xFA});
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+
+  // A real frame right after is still parsed
+  this->ld2450_.feed(make_periodic_frame());
+  EXPECT_EQ(frames, 1);
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+}
+
 }  // namespace esphome::ld2450::testing
