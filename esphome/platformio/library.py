@@ -1339,13 +1339,8 @@ def convert_libraries(
                     # A requirement conflict is a RuntimeError and always raises
                     if not fetched_by_name(key):
                         raise
-                    requesters = sorted(k for k, n in nodes.items() if key in n.edges)
-                    _LOGGER.warning(
-                        "Dependency %s of %s is not in the registry; skipping: %s",
-                        key,
-                        ", ".join(requesters),
-                        e,
-                    )
+                    # Reported per requester once the graph is final
+                    _LOGGER.debug("Library %s is not in the registry: %s", key, e)
                     missed.add(key)
                     continue
                 component = ConvertedLibrary(
@@ -1523,6 +1518,28 @@ def convert_libraries(
             if key in other.edges:
                 other.edges.remove(key)
                 other.edges.add(match)
+    # A name the registry did not know may be satisfied by a library a later
+    # round pulled in; match those against the finished graph, with no refetch,
+    # and report the rest for every library that asked
+    for key in components:
+        node = nodes[key]
+        for missing in node.edges & missed:
+            match = _satisfying_key(
+                nodes[missing].pkgname, nodes[missing].owner, key, nodes, components
+            )
+            if match is None:
+                _LOGGER.warning(
+                    "Dependency %s of %s is not in the registry; skipping", missing, key
+                )
+                continue
+            _LOGGER.info(
+                "Dependency %s of %s is not in the registry; satisfied by %s",
+                missing,
+                key,
+                match,
+            )
+            node.edges.add(match)
+
     if yielded:
         # What only the yielded library needed is not built either
         reachable: set[str] = set()
@@ -1550,23 +1567,6 @@ def convert_libraries(
                 node_key,
                 canonical,
             )
-
-    # A name the registry did not know may be satisfied by a library a later
-    # round pulled in; match those against the finished graph, with no refetch
-    for key in components:
-        node = nodes[key]
-        for missing in node.edges & missed:
-            match = _satisfying_key(
-                nodes[missing].pkgname, nodes[missing].owner, key, nodes, components
-            )
-            if match is not None:
-                _LOGGER.info(
-                    "Dependency %s of %s is satisfied by %s after all",
-                    missing,
-                    key,
-                    match,
-                )
-                node.edges.add(match)
 
     # Wire each component's dependencies to the single resolved instances, then
     # emit build files.
