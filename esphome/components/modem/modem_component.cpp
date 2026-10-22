@@ -97,7 +97,8 @@ void ModemComponent::setup() {
       self->got_ip_.store(false, std::memory_order_release);
     }
   };
-  // A dead peer or an LCP failure is reported here, not as a lost IP event
+  // A dead peer or an LCP failure is reported here, not as a lost IP event; esp_modem enables these
+  // error events itself when it attaches the netif
   auto ppp_status = [](void *arg, esp_event_base_t, int32_t event_id, void *) {
     if (event_id < NETIF_PP_PHASE_OFFSET && event_id != NETIF_PPP_ERRORNONE) {
       ESP_LOGD(TAG, "PPP error event %d", static_cast<int>(event_id));
@@ -275,7 +276,10 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       if (baud == 0) {
         return ModemComponentState::MODEM_ENABLING;
       }
-      uart_set_baudrate(this->uart_port_, baud);
+      if (uart_set_baudrate(this->uart_port_, baud) != ESP_OK) {
+        ESP_LOGW(TAG, "UART rejected baud rate %d", baud);
+        return this->retry_(ModemComponentState::MODEM_ENABLING);
+      }
       this->current_baud_rate_ = baud;
       App.feed_wdt();
       if (!this->send_at("AT", 100)) {
@@ -290,7 +294,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       break;
 
     case modem_mode::DATA_MODE:
-      // Can block 20 s; esp_modem 2.0 offers no shorter exit
+      // Can block 20 s; esp_modem offers no shorter exit
       ESP_LOGW(TAG, "Exiting DATA_MODE (long blocking call, make sure to have a long WDT)");
       if (!this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
         ESP_LOGW(TAG, "Failed to leave data mode");
@@ -327,7 +331,10 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     ESP_LOGD(TAG, "Setting baud rate: %d -> %d", this->current_baud_rate_, this->baud_rate_);
     if (this->dce_->set_baud(this->baud_rate_) == command_result::OK) {
       delay(200);  // NOLINT
-      uart_set_baudrate(this->uart_port_, this->baud_rate_);
+      if (uart_set_baudrate(this->uart_port_, this->baud_rate_) != ESP_OK) {
+        ESP_LOGE(TAG, "UART rejected baud rate %d", this->baud_rate_);
+        return ModemComponentState::MODEM_DISCONNECTING;
+      }
       this->current_baud_rate_ = this->baud_rate_;
       if (this->dce_->sync() != command_result::OK) {
         ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->baud_rate_);
@@ -426,7 +433,8 @@ ModemComponentState ModemComponent::handle_state_wait_ip_() {
 ModemComponentState ModemComponent::handle_state_disconnecting_() {
   // COMMAND_MODE stops PPP and leaves CMUX; the manual exit only applies to a warm reboot
   if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
-    ESP_LOGE(TAG, "Failed to leave data mode");
+    // The next enable() probes the mode again and retries the exit; the warning keeps this visible
+    this->status_set_warning(LOG_STR("Failed to leave data mode"));
   }
   App.feed_wdt();
   // Turn the radio off; waiting for the lost IP event could take up to 2 min
