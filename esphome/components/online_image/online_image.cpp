@@ -323,6 +323,7 @@ void OnlineImage::loop_stream_() {
     } else if (result == runtime_image::DECODE_STEP_NEED_DATA) {
       if (!arrived)
         return;
+      // JPEGDEC only waits for bytes short of the size it was given, so this guards against a hang
       ESP_LOGE(TAG, "Download ended before the image was complete");
       this->fail_download_();
     } else {

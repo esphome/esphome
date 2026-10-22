@@ -27,6 +27,8 @@ class FakeContainer : public http_request::HttpContainer {
   }
 
   int read(uint8_t *buf, size_t max_len) override {
+    if (this->read_error_)
+      return -1;
     size_t len = std::min(max_len, this->available_ - this->bytes_read_);
     std::memcpy(buf, this->body_.data() + this->bytes_read_, len);
     this->bytes_read_ += len;
@@ -42,6 +44,8 @@ class FakeContainer : public http_request::HttpContainer {
   }
 
   void set_content_length(size_t length) { this->content_length = length; }
+  /// Make every read from now on fail, like a dropped connection
+  void fail_reads() { this->read_error_ = true; }
   /// Let len more bytes of the body arrive
   void deliver(size_t len) { this->available_ = std::min(this->body_.size(), this->available_ + len); }
   void add_response_header(const std::string &name, const std::string &value) {
@@ -51,6 +55,7 @@ class FakeContainer : public http_request::HttpContainer {
  protected:
   std::vector<uint8_t> body_;
   size_t available_;
+  bool read_error_{false};
 };
 
 class FakeHttpRequest : public http_request::HttpRequestComponent {
@@ -507,6 +512,39 @@ TEST_F(OnlineImageDownloadEnd, JpegHeadersLargerThanTheBufferReportError) {
   for (int i = 0; i < 10 && this->finished_ + this->errors_ == 0; i++)
     image->loop();
 
+  EXPECT_EQ(this->errors_, 1);
+  EXPECT_EQ(this->finished_, 0);
+}
+
+// Scan data that cannot be decoded fails the download part way through
+TEST_F(OnlineImageDownloadEnd, JpegDecodeErrorFailsTheDownload) {
+  auto image = this->make_image_(runtime_image::JPEG, 1024);
+  std::vector<uint8_t> body(JPEG_48X40, JPEG_48X40 + sizeof(JPEG_48X40));
+  std::fill(body.begin() + 700, body.end() - 2, 0xFE);
+  auto container = std::make_shared<FakeContainer>(body, 1024, false);
+  this->start_(*image, container);
+
+  for (int i = 0; i < 100 && this->finished_ + this->errors_ == 0; i++) {
+    image->loop();
+    container->deliver(256);
+  }
+
+  EXPECT_EQ(this->errors_, 1);
+  EXPECT_EQ(this->finished_, 0);
+}
+
+// A read that fails part way through the download ends it with an error
+TEST_F(OnlineImageDownloadEnd, JpegReadErrorFailsTheDownload) {
+  auto image = this->make_image_(runtime_image::JPEG, 1024);
+  auto container =
+      std::make_shared<FakeContainer>(std::vector<uint8_t>(JPEG_48X40, JPEG_48X40 + sizeof(JPEG_48X40)), 1024, false);
+  this->start_(*image, container);
+  for (int i = 0; i < 5; i++)
+    image->loop();
+  ASSERT_EQ(this->errors_, 0);
+
+  container->fail_reads();
+  image->loop();
   EXPECT_EQ(this->errors_, 1);
   EXPECT_EQ(this->finished_, 0);
 }
