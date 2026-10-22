@@ -51,10 +51,7 @@ def _validate_decimator_source(config: ConfigType) -> ConfigType:
             raise cv.Invalid("fast_decimation currently supports only classic ESP32")
     if not config[CONF_FAST_DECIMATION]:
         return config
-    full_config = fv.full_config.get()
-    source_id = config[CONF_MICROPHONE][CONF_MICROPHONE]
-    source_path = full_config.get_path_for_id(source_id)[:-1]
-    source_config = full_config.get_config_for_path(source_path)
+    source_config = fv.get_declaring_config(config[CONF_MICROPHONE][CONF_MICROPHONE])
     if source_config.get(CONF_SAMPLE_RATE) != 48000:
         raise cv.Invalid("fast_decimation requires a 48 kHz source microphone")
     return config
