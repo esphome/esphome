@@ -7,12 +7,16 @@ modem:
   id: atmodem
   rx_pin: GPIO26
   tx_pin: GPIO27
+  rts_pin: GPIO25
+  cts_pin: GPIO33
   baud_rate: 115200
   model: SIM7600
   apn: orange
   pin_code: "0000"
   init_at:
     - ATI
+  urc:
+    name: Modem URC
   enable_on_boot: True
   reboot_timeout: 5min
   on_connect:

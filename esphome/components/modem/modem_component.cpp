@@ -82,14 +82,19 @@ void ModemComponent::setup() {
 
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
   this->ppp_netif_ = esp_netif_new(&netif_ppp_config);
-  assert(this->ppp_netif_);
+  if (this->ppp_netif_ == nullptr) {
+    this->mark_failed(LOG_STR("PPP netif creation failed"));
+    return;
+  }
 
   if (esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, this) != ESP_OK) {
     this->mark_failed(LOG_STR("IP event handler register failed"));
     return;
   }
 
-  this->create_dte_dce_(this->baud_rate_);
+  if (!this->create_dte_dce_(this->baud_rate_)) {
+    this->mark_failed(LOG_STR("Modem DTE/DCE creation failed"));
+  }
 }
 
 void ModemComponent::dump_config() {
@@ -161,7 +166,7 @@ ModemComponentState ModemComponent::compute_next_state_() {
   return this->component_state_;
 }
 
-void ModemComponent::create_dte_dce_(int baud_rate) {
+bool ModemComponent::create_dte_dce_(int baud_rate) {
   this->current_baud_rate_ = baud_rate;
 
   esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
@@ -188,28 +193,57 @@ void ModemComponent::create_dte_dce_(int baud_rate) {
   this->dce_.reset();
   this->dte_.reset();
   this->dte_ = create_uart_dte(&dte_config);
+  if (!this->dte_) {
+    return false;
+  }
   esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_);
   this->dce_ = this->dce_factory_(&dce_config, this->dte_, this->ppp_netif_);
+  if (!this->dce_) {
+    return false;
+  }
 #ifdef USE_MODEM_URC
   // Runs on the UART task: keep one line in a fixed buffer and let loop() publish it
   this->dce_->set_enhanced_urc([this](const DTE::UrcBufferInfo &buffer_info) {
-    if (!buffer_info.is_command_active && !this->urc_pending_.load(std::memory_order_acquire)) {
-      const size_t len = std::min(buffer_info.new_data_size, sizeof(this->urc_line_) - 1);
-      memcpy(this->urc_line_, buffer_info.new_data_start, len);
-      this->urc_line_[len] = '\0';
-      this->urc_pending_.store(true, std::memory_order_release);
-      this->defer([this]() {
-        this->urc_text_sensor_->publish_state(this->urc_line_);
-        this->urc_pending_.store(false, std::memory_order_release);
-      });
+    const DTE::UrcConsumeInfo none{DTE::UrcConsumeResult::CONSUME_NONE, 0};
+    if (buffer_info.is_command_active) {
+      return none;
     }
-    return DTE::UrcConsumeInfo{DTE::UrcConsumeResult::CONSUME_NONE, 0};
+    // The chunk is raw UART data; drop the line ends around the URC
+    const uint8_t *start = buffer_info.new_data_start;
+    size_t len = buffer_info.new_data_size;
+    while (len > 0 && (*start == '\r' || *start == '\n')) {
+      start++;
+      len--;
+    }
+    while (len > 0 && (start[len - 1] == '\r' || start[len - 1] == '\n')) {
+      len--;
+    }
+    if (len == 0) {
+      return none;
+    }
+    if (this->urc_pending_.load(std::memory_order_acquire)) {
+      ESP_LOGD(TAG, "URC dropped; the previous one is not published yet");
+      return none;
+    }
+    len = std::min(len, sizeof(this->urc_line_) - 1);
+    memcpy(this->urc_line_, start, len);
+    this->urc_line_[len] = '\0';
+    this->urc_pending_.store(true, std::memory_order_release);
+    this->defer([this]() {
+      this->urc_text_sensor_->publish_state(this->urc_line_);
+      this->urc_pending_.store(false, std::memory_order_release);
+    });
+    return none;
   });
 #endif
+  return true;
 }
 
 bool ModemComponent::try_baud_(int baud) {
-  this->create_dte_dce_(baud);
+  if (!this->create_dte_dce_(baud)) {
+    this->abort_("Modem DTE/DCE creation failed");
+    return false;
+  }
   this->dce_->set_mode(modem_mode::AUTODETECT);
   if (this->dce_->get_mode() != modem_mode::UNDEF) {
     return true;
@@ -253,7 +287,9 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     case modem_mode::DATA_MODE:
       // Can block 20 s; esp_modem 2.0 offers no shorter exit
       ESP_LOGW(TAG, "Exiting DATA_MODE (long blocking call, make sure to have a long WDT)");
-      this->dce_->set_mode(modem_mode::COMMAND_MODE);
+      if (!this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
+        ESP_LOGW(TAG, "Failed to leave data mode");
+      }
       break;
 
     default:
@@ -269,9 +305,10 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     return ModemComponentState::MODEM_ENABLING;
   }
 
-  int radio_state = 1;
-  this->dce_->get_radio_state(radio_state);
-  if (radio_state == 1) {
+  int radio_state = 0;
+  if (this->dce_->get_radio_state(radio_state) != command_result::OK) {
+    ESP_LOGW(TAG, "Failed to read the radio state; skipping the radio off step");
+  } else if (radio_state == 1) {
     // On warm reboot, drop the previous network session first
     if (this->dce_->set_radio_state(0) != command_result::OK) {
       ESP_LOGW(TAG, "Failed to disconnect previous network session");
@@ -288,7 +325,9 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       return ModemComponentState::MODEM_ENABLING;
     }
     delay(200);  // NOLINT
-    this->create_dte_dce_(this->baud_rate_);
+    if (!this->create_dte_dce_(this->baud_rate_)) {
+      this->abort_("Modem DTE/DCE creation failed");
+    }
     App.feed_wdt();
     delay(200);  // NOLINT
     if (this->dce_->sync() != command_result::OK) {
@@ -308,35 +347,58 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
 ModemComponentState ModemComponent::handle_state_synced_() {
   for (const char *cmd : this->init_at_commands_) {
     App.feed_wdt();
-    this->send_at(cmd, 0, true);
+    if (!this->send_at(cmd, 0, true).success) {
+      this->status_set_warning(LOG_STR("init_at command failed"));
+    }
   }
   return ModemComponentState::MODEM_CONNECTING;
 }
 
 ModemComponentState ModemComponent::handle_state_connecting_() {
-  if (this->dce_->sync() != command_result::OK) {
-    ESP_LOGW(TAG, "Modem not synced during network init");
-    return ModemComponentState::MODEM_ENABLING;
+  if (!this->radio_on_requested_) {
+    if (this->dce_->sync() != command_result::OK) {
+      ESP_LOGW(TAG, "Modem not synced during network init");
+      return ModemComponentState::MODEM_ENABLING;
+    }
+    if (this->dce_->set_radio_state(1) != command_result::OK) {
+      ESP_LOGW(TAG, "Failed to turn the radio on");
+      this->loop_delay_(RETRY_DELAY_MS);
+      return ModemComponentState::MODEM_CONNECTING;
+    }
+    this->radio_on_requested_ = true;
   }
 
-  this->dce_->set_radio_state(1);
-  switch (this->prepare_sim_()) {
-    case SimResult::SIM_RESULT_READY:
-      break;
-    case SimResult::SIM_RESULT_RETRY:
-      this->loop_delay_(COMMAND_TIMEOUT_MS);
+  if (!this->attach_requested_) {
+    switch (this->prepare_sim_()) {
+      case SimResult::SIM_RESULT_READY:
+        break;
+      case SimResult::SIM_RESULT_RETRY:
+        this->loop_delay_(COMMAND_TIMEOUT_MS);
+        return ModemComponentState::MODEM_CONNECTING;
+      case SimResult::SIM_RESULT_FATAL:
+        // Retrying would burn the remaining PIN attempts; stay off until the user fixes the SIM
+        this->status_set_error(LOG_STR("SIM locked"));
+        this->target_state_ = ModemComponentState::MODEM_DISABLED;
+        this->cancel_timeout(CONNECT_TIMEOUT_ID);
+        return ModemComponentState::MODEM_DISCONNECTING;
+    }
+    if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
+      ESP_LOGW(TAG, "Failed to request network attachment");
+      this->loop_delay_(RETRY_DELAY_MS);
       return ModemComponentState::MODEM_CONNECTING;
-    case SimResult::SIM_RESULT_FATAL:
-      // Retrying would burn the remaining PIN attempts; stay off until the user fixes the SIM
-      this->status_set_error(LOG_STR("SIM locked"));
-      this->target_state_ = ModemComponentState::MODEM_DISABLED;
-      this->cancel_timeout(CONNECT_TIMEOUT_ID);
-      return ModemComponentState::MODEM_DISCONNECTING;
+    }
+    this->attach_requested_ = true;
   }
-  this->dce_->set_network_attachment_state(1);
 
   int attached = 0;
-  this->dce_->get_network_attachment_state(attached);
+  if (this->dce_->get_network_attachment_state(attached) != command_result::OK) {
+    ESP_LOGW(TAG, "Failed to read the network attachment state");
+    // Start over with a sync on the next pass
+    this->radio_on_requested_ = false;
+    this->attach_requested_ = false;
+    this->loop_delay_(RETRY_DELAY_MS);
+    return ModemComponentState::MODEM_CONNECTING;
+  }
   if (!attached) {
     this->log_status_();
     this->loop_delay_(4 * RETRY_DELAY_MS);
@@ -372,7 +434,9 @@ ModemComponentState ModemComponent::handle_state_connected_() {
 
 ModemComponentState ModemComponent::handle_state_disconnecting_() {
   // COMMAND_MODE stops PPP and leaves CMUX; the manual exit only applies to a warm reboot
-  this->dce_->set_mode(modem_mode::COMMAND_MODE);
+  if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
+    ESP_LOGE(TAG, "Failed to leave data mode");
+  }
   // Turn the radio off; waiting for the lost IP event could take up to 2 min
   if (this->dce_->set_radio_state(0) == command_result::OK) {
     ESP_LOGI(TAG, "Modem set to minimal functionality.");
@@ -405,6 +469,10 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
 
 void ModemComponent::on_enter_state_(ModemComponentState state) {
   switch (state) {
+    case ModemComponentState::MODEM_CONNECTING:
+      this->radio_on_requested_ = false;
+      this->attach_requested_ = false;
+      break;
     case ModemComponentState::MODEM_WAIT_IP:
       this->wait_ip_start_ = App.get_loop_component_start_time();
       break;
@@ -457,7 +525,8 @@ SimResult ModemComponent::prepare_sim_() {
   }
   ESP_LOGD(TAG, "SIM: %s", status);
 
-  if (strstr(status, "READY") != nullptr) {
+  // A whole-token match: "NOT READY" also contains READY
+  if (strncmp(status, "READY", 5) == 0) {
     this->pin_sent_ = false;  // proven correct, so a modem self-reset may send it again
     return SimResult::SIM_RESULT_READY;
   }
@@ -466,7 +535,8 @@ SimResult ModemComponent::prepare_sim_() {
     return SimResult::SIM_RESULT_FATAL;
   }
   if (strstr(status, "PIN") == nullptr) {
-    return SimResult::SIM_RESULT_RETRY;  // e.g. the SIM is still initializing
+    ESP_LOGW(TAG, "SIM not ready: %s", status);  // e.g. NOT READY or NOT INSERTED
+    return SimResult::SIM_RESULT_RETRY;
   }
   if (this->pin_code_ == nullptr) {
     ESP_LOGE(TAG, "SIM requires a PIN but pin_code is not set");
@@ -509,14 +579,17 @@ void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, in
 
 void ModemComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
-  esp_netif_dns_info_t dns_main;
-  esp_netif_dns_info_t dns_backup;
   if (!this->is_connected() || esp_netif_get_ip_info(this->ppp_netif_, &ip) != ESP_OK) {
     ESP_LOGCONFIG(TAG, "  Connection: not connected");
     return;
   }
-  esp_netif_get_dns_info(this->ppp_netif_, ESP_NETIF_DNS_MAIN, &dns_main);
-  esp_netif_get_dns_info(this->ppp_netif_, ESP_NETIF_DNS_BACKUP, &dns_backup);
+  auto dns_str = [this](esp_netif_dns_type_t type, char *buf) -> const char * {
+    esp_netif_dns_info_t dns{};
+    if (esp_netif_get_dns_info(this->ppp_netif_, type, &dns) != ESP_OK) {
+      return LOG_STR_LITERAL("unavailable");
+    }
+    return network::IPAddress(&dns.ip.u_addr.ip4).str_to(buf);
+  };
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char netmask_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char gw_buf[network::IP_ADDRESS_BUFFER_SIZE];
@@ -532,8 +605,7 @@ void ModemComponent::dump_connect_params_() {
                 "    DNS backup: %s",
                 network::IPAddress(&ip.ip).str_to(ip_buf), App.get_name().c_str(),
                 network::IPAddress(&ip.netmask).str_to(netmask_buf), network::IPAddress(&ip.gw).str_to(gw_buf),
-                network::IPAddress(&dns_main.ip.u_addr.ip4).str_to(dns_main_buf),
-                network::IPAddress(&dns_backup.ip.u_addr.ip4).str_to(dns_backup_buf));
+                dns_str(ESP_NETIF_DNS_MAIN, dns_main_buf), dns_str(ESP_NETIF_DNS_BACKUP, dns_backup_buf));
 }
 
 }  // namespace esphome::modem

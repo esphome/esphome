@@ -178,10 +178,8 @@ automation.register_apply_condition("modem.enabled", MODEM_ID_SCHEMA, "is_enable
 async def to_code(config: ConfigType) -> None:
     add_idf_component(name="espressif/esp_modem", ref="2.0.2")
 
-    add_idf_sdkconfig_option("CONFIG_PPP", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DELAY_AFTER_DLCI_SETUP", 500)
-    add_idf_sdkconfig_option("CONFIG_PPP_SUPPORT", True)
     add_idf_sdkconfig_option(
         "CONFIG_ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", True
     )  # Slower but more reliable

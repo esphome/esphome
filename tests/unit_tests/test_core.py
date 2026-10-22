@@ -593,6 +593,21 @@ class TestEsphomeCore:
 
         assert target.address == "1.2.3.4"
 
+    def test_address__modem(self, target):
+        target.config = {}
+        target.config[const.CONF_WIFI] = {const.CONF_USE_ADDRESS: "1.2.3.4"}
+        target.config["modem"] = {const.CONF_USE_ADDRESS: "10.0.0.1"}
+
+        assert target.address == "10.0.0.1"
+
+    def test_address__wifi_first_priority(self, target):
+        target.config = {}
+        target.config[const.CONF_WIFI] = {const.CONF_USE_ADDRESS: "1.2.3.4"}
+        target.config["modem"] = {const.CONF_USE_ADDRESS: "10.0.0.1"}
+        target.config["network"] = {const.CONF_PRIORITY: [{"interface": "wifi"}]}
+
+        assert target.address == "1.2.3.4"
+
     def test_address__ethernet(self, target):
         target.config = {}
         target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}

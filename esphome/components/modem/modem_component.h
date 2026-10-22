@@ -107,7 +107,7 @@ class ModemComponent : public Component {
   void loop_delay_(uint32_t delay_ms);
   void dump_connect_params_();
 
-  void create_dte_dce_(int baud_rate);
+  bool create_dte_dce_(int baud_rate);
   bool try_baud_(int baud);
   SimResult prepare_sim_();
   void log_status_();
@@ -154,6 +154,9 @@ class ModemComponent : public Component {
   ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};
   uint32_t next_loop_millis_{0};
   bool delay_pending_{false};
+  // CONNECTING runs its long commands once; the retry passes only poll the attachment
+  bool radio_on_requested_{false};
+  bool attach_requested_{false};
   uint32_t wait_ip_start_{0};
 
  private:
