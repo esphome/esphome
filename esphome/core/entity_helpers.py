@@ -42,6 +42,7 @@ from esphome.helpers import (
     sanitize,
     snake_case,
 )
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
 
 _LOGGER = logging.getLogger(__name__)
@@ -764,3 +765,53 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         return config
 
     return validator
+
+
+# restore_state: keywords, shared by the entity domains that save their state
+RESTORE_STATE_KEEP = "KEEP"
+RESTORE_STATE_INVERT = "INVERT"
+RESTORE_STATE_INITIAL = "INITIAL"
+RESTORE_STATE_ALL = "ALL"
+RESTORE_STATE_NONE = "NONE"
+
+
+def restore_state_keyword(value: Any, keywords: tuple[str, ...]) -> str | None:
+    """The upper-cased keyword when `value` spells one of `keywords`, else None."""
+    if isinstance(value, str):
+        upper = value.strip().upper()
+        if upper in keywords:
+            return upper
+    return None
+
+
+def restore_state_schema(fields_schema: cv.Schema, none: Any) -> Callable[[Any], Any]:
+    """The validator for a domain's `restore_state:` key.
+
+    A mapping is validated with `fields_schema`. The shorthand `all` is the empty mapping,
+    so every field keeps its saved value, and `none` becomes `none`: a mapping is validated
+    like one the user wrote, anything else is returned as it is.
+    """
+
+    @schema_extractor("schema")
+    def validate(value: Any) -> Any:
+        if value == SCHEMA_EXTRACT:
+            # The shorthands have no representation in the extracted schema
+            return fields_schema
+        if isinstance(value, str):
+            keyword = restore_state_keyword(
+                value, (RESTORE_STATE_ALL, RESTORE_STATE_NONE)
+            )
+            if keyword == RESTORE_STATE_ALL:
+                value = {}
+            elif keyword == RESTORE_STATE_NONE:
+                if not isinstance(none, dict):
+                    return none
+                value = dict(none)
+            else:
+                raise cv.Invalid(
+                    f"Unknown restore_state '{value}'; expected 'all', 'none' or a mapping, "
+                    "for example '{state: INVERT}'"
+                )
+        return fields_schema(value)
+
+    return validate

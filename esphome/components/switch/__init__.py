@@ -27,15 +27,18 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    RESTORE_STATE_INITIAL,
+    RESTORE_STATE_INVERT,
+    RESTORE_STATE_KEEP,
     ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
+    restore_state_schema,
     setup_device_class,
     setup_entity,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
-from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -68,11 +71,6 @@ RESTORE_MODES = {
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
-RESTORE_STATE_KEEP = "KEEP"
-RESTORE_STATE_INVERT = "INVERT"
-RESTORE_STATE_INITIAL = "INITIAL"
-RESTORE_STATE_ALL = "ALL"
-RESTORE_STATE_NONE = "NONE"
 _RESTORE_STATE_STATES = (
     RESTORE_STATE_KEEP,
     RESTORE_STATE_INVERT,
@@ -115,23 +113,10 @@ _RESTORE_STATE_FIELDS_SCHEMA = cv.Schema(
 _RESTORE_STATE_FIELDS_SCHEMA.add_extra(_validate_restore_state_storage)
 
 
-@schema_extractor("schema")
-def RESTORE_STATE_SCHEMA(value: object) -> ConfigType:
-    """A mapping of `state` and `storage`, or light's shorthands `all` (KEEP) and `none`."""
-    if value == SCHEMA_EXTRACT:
-        return _RESTORE_STATE_FIELDS_SCHEMA
-    if isinstance(value, str):
-        upper = value.strip().upper()
-        if upper == RESTORE_STATE_ALL:
-            value = {}
-        elif upper == RESTORE_STATE_NONE:
-            value = {CONF_STATE: RESTORE_STATE_INITIAL}
-        else:
-            raise cv.Invalid(
-                f"Unknown restore_state '{value}'; expected 'all', 'none' or a mapping, "
-                "for example '{state: INVERT}'"
-            )
-    return _RESTORE_STATE_FIELDS_SCHEMA(value)
+# A mapping of `state` and `storage`, or the shorthands `all` (KEEP) and `none` (INITIAL)
+RESTORE_STATE_SCHEMA = restore_state_schema(
+    _RESTORE_STATE_FIELDS_SCHEMA, {CONF_STATE: RESTORE_STATE_INITIAL}
+)
 
 
 def _validate_initial_state(config: ConfigType) -> ConfigType:
