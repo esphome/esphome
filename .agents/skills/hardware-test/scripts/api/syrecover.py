@@ -168,6 +168,9 @@ async def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for rel, content in files.items():
         target = OUT / rel.replace("../", "up_/")
+        if not target.resolve().is_relative_to(OUT.resolve()):
+            print("skipping a path outside the output directory:", rel)
+            continue
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         note = ""

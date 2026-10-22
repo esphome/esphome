@@ -1,6 +1,6 @@
-"""Drive the LD2450 harness over the API: press buttons, set selects, print LD2450 state updates and save the log.
-usage: lddrive.py HOST KEY(- for plaintext) LOGFILE OP [OP ...]
-  OP: list | press:NAME | sel:NAME=OPTION | wait:SECONDS
+"""Drive the http_request update harness over the API: press buttons, print every update state and save the log.
+usage: updrive.py HOST KEY(- for plaintext) LOGFILE OP [OP ...]
+  OP: list | press:NAME | set:NAME=VALUE | sel:NAME=OPTION | wait:SECONDS
 """
 
 import asyncio
@@ -75,12 +75,8 @@ async def main() -> None:
                     f"{stamp()} SEL {e.name} = {s.state!r}{' (missing)' if s.missing_state else ''}",
                     flush=True,
                 )
-            elif (
-                isinstance(s, SensorState)
-                and isinstance(e, SensorInfo)
-                and "Count" in e.name
-            ):
-                print(f"{stamp()} CNT {e.name} = {s.state:.0f}", flush=True)
+            elif isinstance(s, SensorState) and isinstance(e, SensorInfo):
+                print(f"{stamp()} SEN {e.name} = {s.state:.0f}", flush=True)
 
         def on_log(msg) -> None:
             log.write(f"{stamp()} {msg.message.decode(errors='replace')}\n")

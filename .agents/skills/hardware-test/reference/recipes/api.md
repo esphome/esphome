@@ -49,7 +49,8 @@ logging, and do not pass `%.*s` to `logger.log`, whose validator counts it as on
 `DeviceCapabilitiesRequest`, then `GetYamlRequest` (161), collects `GetYamlResponse` (162) frames by field number
 (1 data, 2 done, 3 total_size, 4 encoding) until done, requests again, decompresses with `compression.zstd` and
 unpacks the envelope with the tree's `unpack_envelope` (run with `PYTHONPATH` on that tree). Configs in
-`templates/store_yaml/`: a package one directory above the entry file with `!secret` and an inline OTA password,
+`templates/store_yaml/`: entry files in `boards/`, a package one directory above them with `!secret` and an inline
+OTA password,
 so the redaction and the `..` paths are exercised. Repetitive YAML compresses into one chunk even at 22 KB; a 6 KB
 include of random base64 lines with `include_secrets: true` gives four chunks (1390 byte packets). Rough edge at
 0bd3738430: `include_secrets: true` fails the build when a package in another directory uses `!secret` and has no
