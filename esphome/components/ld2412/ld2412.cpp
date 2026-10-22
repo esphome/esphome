@@ -197,8 +197,6 @@ static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0x
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
-// The length field counts the command word, the status word and the gates
-static constexpr uint16_t GATE_SENS_ACK_LENGTH = GATE_SENS_ACK_SIZE - COMMAND - HEADER_FOOTER_SIZE;
 
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
