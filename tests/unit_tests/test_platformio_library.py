@@ -304,6 +304,9 @@ def _patch_download_with_manifests(
             (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
 
     monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
+    # The wave prefetch would clone git sources for real; the walk's own
+    # download() above is what these tests exercise
+    monkeypatch.setattr(lib, "_prefetch_wave", lambda *args: None)
     return _patch_registry_resolve(monkeypatch, unknown=unknown, owner=owner)
 
 
