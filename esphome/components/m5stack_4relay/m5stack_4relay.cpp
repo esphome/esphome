@@ -20,10 +20,9 @@ void M5Stack4Relay::setup() {
     switch_::Switch *sw = this->switches_[channel];
     if (sw == nullptr)
       continue;
-    // The chip keeps the relays across an ESP reboot, so a switch with restore mode DISABLED shows what it
-    // holds; the other modes drive the relay through control(), so inverted: applies
-    sw->publish_state((this->relays_ >> channel) & 1);
-    sw->restore();
+    // The chip keeps the relays across an ESP reboot, so a switch with restore mode DISABLED keeps what it
+    // holds. Every mode goes through control(), so inverted: applies and the first publish is the saved one.
+    sw->restore(((this->relays_ >> channel) & 1) != sw->is_inverted());
   }
 #endif
 }
