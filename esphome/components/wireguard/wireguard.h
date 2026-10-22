@@ -2,7 +2,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_WIREGUARD
 #include <ctime>
-#include <initializer_list>
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -58,9 +57,8 @@ class Wireguard final : public PollingComponent {
   void set_peer_public_key(const std::string &key) = delete;
   void set_preshared_key(const std::string &key) = delete;
 
-  void set_allowed_ips(std::initializer_list<AllowedIP> ips) { this->allowed_ips_ = ips; }
-  /// Prevent accidental use of std::string which would dangle
-  void set_allowed_ips(std::initializer_list<std::tuple<std::string, std::string>> ips) = delete;
+  /// Table ended by an entry with a null ip; must outlive the component.
+  void set_allowed_ips(const AllowedIP *ips) { this->allowed_ips_ = ips; }
 
   void set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
   void set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
@@ -105,7 +103,7 @@ class Wireguard final : public PollingComponent {
   const char *peer_public_key_{nullptr};
   const char *preshared_key_{nullptr};
 
-  FixedVector<AllowedIP> allowed_ips_;
+  const AllowedIP *allowed_ips_{nullptr};
 
   uint16_t peer_port_;
   uint16_t keepalive_;

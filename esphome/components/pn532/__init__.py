@@ -13,6 +13,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
 AUTO_LOAD = ["binary_sensor", "nfc"]
+DOMAIN = "pn532"
 MULTI_CONF = True
 
 CONF_PN532_ID = "pn532_id"

@@ -4,13 +4,14 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, logger, uart
 from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
+from esphome.components.logger import DOMAIN as LOGGER_DOMAIN
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BEEPER,
     CONF_CURRENT_TEMPERATURE,
     CONF_DISPLAY,
     CONF_LEVEL,
-    CONF_LOGGER,
     CONF_LOGS,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
@@ -22,7 +23,6 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE,
     CONF_TEMPERATURE_STEP,
     CONF_VISUAL,
-    CONF_WIFI,
 )
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
@@ -67,23 +67,14 @@ Smartair2Climate = haier_ns.class_("Smartair2Climate", HaierClimateBase)
 CONF_HAIER_ID = "haier_id"
 
 AirflowVerticalDirection = hon_protocol_ns.enum("VerticalSwingMode", True)
-AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
-    "HEALTH_UP": AirflowVerticalDirection.HEALTH_UP,
-    "MAX_UP": AirflowVerticalDirection.MAX_UP,
-    "UP": AirflowVerticalDirection.UP,
-    "CENTER": AirflowVerticalDirection.CENTER,
-    "DOWN": AirflowVerticalDirection.DOWN,
-    "HEALTH_DOWN": AirflowVerticalDirection.HEALTH_DOWN,
-}
+AIRFLOW_VERTICAL_DIRECTION_OPTIONS = AirflowVerticalDirection.options(
+    "HEALTH_UP", "MAX_UP", "UP", "CENTER", "DOWN", "HEALTH_DOWN"
+)
 
 AirflowHorizontalDirection = hon_protocol_ns.enum("HorizontalSwingMode", True)
-AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = {
-    "MAX_LEFT": AirflowHorizontalDirection.MAX_LEFT,
-    "LEFT": AirflowHorizontalDirection.LEFT,
-    "CENTER": AirflowHorizontalDirection.CENTER,
-    "RIGHT": AirflowHorizontalDirection.RIGHT,
-    "MAX_RIGHT": AirflowHorizontalDirection.MAX_RIGHT,
-}
+AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = AirflowHorizontalDirection.options(
+    "MAX_LEFT", "LEFT", "CENTER", "RIGHT", "MAX_RIGHT"
+)
 
 SUPPORTED_SWING_MODES_OPTIONS = {
     "OFF": ClimateSwingMode.CLIMATE_SWING_OFF,
@@ -114,11 +105,9 @@ SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
 }
 
 HonControlMethod = haier_ns.enum("HonControlMethod", True)
-SUPPORTED_HON_CONTROL_METHODS = {
-    "MONITOR_ONLY": HonControlMethod.MONITOR_ONLY,
-    "SET_GROUP_PARAMETERS": HonControlMethod.SET_GROUP_PARAMETERS,
-    "SET_SINGLE_PARAMETER": HonControlMethod.SET_SINGLE_PARAMETER,
-}
+SUPPORTED_HON_CONTROL_METHODS = HonControlMethod.options(
+    "MONITOR_ONLY", "SET_GROUP_PARAMETERS", "SET_SINGLE_PARAMETER"
+)
 
 
 def validate_visual(config):
@@ -186,7 +175,12 @@ def _base_config_schema(class_: MockObjClass) -> cv.Schema:
                 cv.Optional(
                     CONF_ANSWER_TIMEOUT,
                 ): cv.positive_time_period_milliseconds,
-                cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation({}),
+                # data points into the protocol's receive buffer, reused for the next frame
+                cv.Optional(
+                    CONF_ON_STATUS_MESSAGE
+                ): automation.validate_synchronous_automation(
+                    "on_status_message", "the received frame"
+                ),
             }
         )
         .extend(uart.UART_DEVICE_SCHEMA)
@@ -326,9 +320,9 @@ automation.register_apply_action(
 
 def _final_validate(config) -> None:
     full_config = fv.full_config.get()
-    if CONF_LOGGER in full_config:
+    if LOGGER_DOMAIN in full_config:
         _level = "NONE"
-        logger_config = full_config[CONF_LOGGER]
+        logger_config = full_config[LOGGER_DOMAIN]
         if CONF_LOGS in logger_config:
             if "haier.protocol" in logger_config[CONF_LOGS]:
                 _level = logger_config[CONF_LOGS]["haier.protocol"]
@@ -344,7 +338,7 @@ def _final_validate(config) -> None:
             "No logger component found, logging for Haier protocol is disabled"
         )
         cg.add_build_flag("-DHAIER_LOG_LEVEL=0")
-    if config.get(CONF_WIFI_SIGNAL) and CONF_WIFI not in full_config:
+    if config.get(CONF_WIFI_SIGNAL) and WIFI_DOMAIN not in full_config:
         raise cv.Invalid(
             f"No WiFi configured, if you want to use haier climate without WiFi add {CONF_WIFI_SIGNAL}: false to climate configuration"
         )
@@ -379,20 +373,14 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
-    if CONF_CONTROL_METHOD in config:
-        cg.add(var.set_control_method(config[CONF_CONTROL_METHOD]))
-    if CONF_BEEPER in config:
-        cg.add(var.set_beeper_state(config[CONF_BEEPER]))
-    if CONF_DISPLAY in config:
-        cg.add(var.set_display_state(config[CONF_DISPLAY]))
-    if CONF_SUPPORTED_MODES in config:
-        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
+    cg.add_optional(var.set_control_method, config.get(CONF_CONTROL_METHOD))
+    cg.add_optional(var.set_beeper_state, config.get(CONF_BEEPER))
+    cg.add_optional(var.set_display_state, config.get(CONF_DISPLAY))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
     if CONF_SUPPORTED_SWING_MODES in config:
         cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
-    if CONF_SUPPORTED_PRESETS in config:
-        cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
-    if CONF_ANSWER_TIMEOUT in config:
-        cg.add(var.set_answer_timeout(config[CONF_ANSWER_TIMEOUT]))
+    cg.add_optional(var.set_supported_presets, config.get(CONF_SUPPORTED_PRESETS))
+    cg.add_optional(var.set_answer_timeout, config.get(CONF_ANSWER_TIMEOUT))
     if CONF_ALTERNATIVE_SWING_CONTROL in config:
         cg.add(
             var.set_alternative_swing_control(config[CONF_ALTERNATIVE_SWING_CONTROL])

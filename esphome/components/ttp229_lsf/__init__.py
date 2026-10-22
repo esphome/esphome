@@ -1,11 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["binary_sensor"]
+DOMAIN = "ttp229_lsf"
 
 CONF_TTP229_ID = "ttp229_id"
 ttp229_lsf_ns = cg.esphome_ns.namespace("ttp229_lsf")
@@ -27,6 +27,4 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    await i2c.new_i2c_component(config)

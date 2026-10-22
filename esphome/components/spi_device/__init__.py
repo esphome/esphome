@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 CODEOWNERS = ["@clydebarrow"]
+DOMAIN = "spi_device"
 
 MULTI_CONF = True
 spi_device_ns = cg.esphome_ns.namespace("spi_device")
@@ -13,10 +14,7 @@ spi_device_ns = cg.esphome_ns.namespace("spi_device")
 spi_device = spi_device_ns.class_("SPIDeviceComponent", cg.Component, spi.SPIDevice)
 
 BitOrder = spi.spi_ns.enum("SPIBitOrder")
-ORDERS = {
-    "msb_first": BitOrder.BIT_ORDER_MSB_FIRST,
-    "lsb_first": BitOrder.BIT_ORDER_LSB_FIRST,
-}
+ORDERS = BitOrder.options("msb_first", "lsb_first", prefix="BIT_ORDER_")
 CONF_BIT_ORDER = "bit_order"
 
 CONFIG_SCHEMA = cv.Schema(

@@ -27,6 +27,15 @@ class Toolchain(StrEnum):
     HOST = "host"
 
 
+class ErrorFormat(StrEnum):
+    """How configuration errors are printed."""
+
+    # Errors embedded in a dump of the failing YAML
+    YAML = "yaml"
+    # One `file:line:col: error: message` line per error
+    LINE = "line"
+
+
 # Toolchains that drive their build natively and never read platformio.ini.
 # SDK_NRF is absent on purpose: the zephyr backend keeps consuming
 # platformio_options.
@@ -1433,6 +1442,7 @@ KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
+KEY_IDF_EXTRA_TARGETS = "idf_extra_targets"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
 # esp32 storage keys; defined here so the upload/logs fast path
 # (storage_json.apply_to_core, espidf.toolchain) can use them without

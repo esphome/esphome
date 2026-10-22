@@ -22,6 +22,29 @@ esphome:
             - script.is_running: my_script
           then:
             - logger.log: my_script is running
+      - if:
+          any:
+            - script.is_running: my_script
+            - script.is_running: my_script_restart
+          then:
+            - logger.log: a script is running
+      - script.execute: my_script_stops_itself
+      - choose:
+          - if:
+              script.is_running: my_script
+            then:
+              - logger.log: first choice
+          - if:
+              - lambda: return true;
+              - script.is_running: my_script_restart
+            then:
+              - logger.log: second choice
+          - else:
+              - logger.log: default choice
+
+globals:
+  - id: nested_total
+    type: int
 
 script:
   - id: my_script
@@ -40,8 +63,22 @@ script:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
   - id: my_script_restart
     mode: restart
+    on_stop:
+      - logger.log: my_script_restart stopped
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_stops_itself
+    on_stop:
+      then:
+        - logger.log: my_script_stops_itself stopped
+    then:
+      - delay: 1s
+      - if:
+          lambda: return true;
+          then:
+            - script.stop
+      - script.stop:
+      - logger.log: never reached
   - id: my_script_with_array_params
     parameters:
       ints: int[]
@@ -71,3 +108,16 @@ script:
           count: 5
           then:
             - logger.log: looping!
+      - repeat:
+          count: 2
+          then:
+            - repeat:
+                count: 2
+                then:
+                  - delay: 200ms
+                  - lambda: 'ESP_LOGD("main", "inner iteration %u", iteration);'
+                  - globals.set:
+                      id: nested_total
+                      value: !lambda |-
+                        int total = iteration;
+                        return total;
