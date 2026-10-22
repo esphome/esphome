@@ -4,7 +4,7 @@ from esphome import core
 import esphome.codegen as cg
 from esphome.components import ble_device_base
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MAC_ADDRESS
+from esphome.const import CONF_ID, CONF_KEY, CONF_MAC_ADDRESS
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import TemplateArguments
 from esphome.types import ConfigType
@@ -26,6 +26,7 @@ _REMOTE_DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(RemoteDevice),
         cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_KEY): cv.bind_key,
     }
 )
 
@@ -79,6 +80,10 @@ def add_handler(handler_var: cg.MockObj, device_id: core.ID, object_id: int) -> 
     _get_data().handlers.setdefault(str(device_id), []).append((object_id, handler_var))
 
 
+def _parse_key_bytes(key: str) -> list[int]:
+    return [int(key[j : j + 2], 16) for j in range(0, 32, 2)]
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _create_remote_devices(listener: cg.MockObj, config: ConfigType) -> None:
     data = _get_data()
@@ -90,6 +95,9 @@ async def _create_remote_devices(listener: cg.MockObj, config: ConfigType) -> No
         handlers = sorted(data.handlers.get(str(device_id), []), key=lambda h: h[0])
         device_var = cg.new_Pvariable(device_id, TemplateArguments(len(handlers)))
         cg.add(device_var.set_address(device_config[CONF_MAC_ADDRESS].as_hex))
+        if key := device_config.get(CONF_KEY):
+            cg.add(device_var.set_encryption_key(_parse_key_bytes(key)))
+            cg.add_define("USE_BTHOME_DECRYPTION")
         for index, (_, handler_var) in enumerate(handlers):
             cg.add(device_var.set_handler(index, handler_var))
         cg.add(listener.set_device(i, device_var))

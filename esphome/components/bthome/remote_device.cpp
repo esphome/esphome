@@ -1,6 +1,9 @@
 #include "remote_device.h"
 #include "decoder.h"
+#include "encryption.h"
 #include "esphome/core/log.h"
+
+#include <array>
 
 namespace esphome::bthome::client {
 
@@ -76,16 +79,52 @@ bool RemoteDeviceBase::parse_data(const ble_device_base::ESPBTDevice &device, co
   const uint8_t *payload;
   size_t payload_size;
 
+#ifdef USE_BTHOME_DECRYPTION
+  std::array<uint8_t, BTHOME_MAX_ENCRYPTED_PAYLOAD> decrypted_payload{};
+  if (header.encrypted()) {
+    if (!this->encryption_key_.has_value()) {
+      if (!this->encryption_mismatch_logged_) {
+        this->encryption_mismatch_logged_ = true;
+        char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        ESP_LOGW(TAG, "Encrypted BTHome frames from %s are ignored: no key configured",
+                 device.address_str_to(addr_buf));
+      }
+      return true;
+    }
+
+    if (!bthome_decrypt(data + 1, data_size - 1, device.address(), header, this->encryption_key_.value(),
+                        decrypted_payload, payload_size)) {
+      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      ESP_LOGVV(TAG, "Failed to decrypt BTHome frame from %s", device.address_str_to(addr_buf));
+      return true;
+    }
+    payload = decrypted_payload.data();
+  } else {
+    if (this->encryption_key_.has_value()) {
+      if (!this->encryption_mismatch_logged_) {
+        this->encryption_mismatch_logged_ = true;
+        char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        ESP_LOGW(TAG, "Unencrypted BTHome frames from %s are ignored: a key is configured",
+                 device.address_str_to(addr_buf));
+      }
+      return true;
+    }
+    payload = data + 1;
+    payload_size = data_size - 1;
+  }
+
+#else
   if (header.encrypted()) {
     if (!this->encryption_mismatch_logged_) {
       this->encryption_mismatch_logged_ = true;
       char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-      ESP_LOGW(TAG, "Encrypted BTHome frames are not supported yet, ignoring %s", device.address_str_to(addr_buf));
+      ESP_LOGW(TAG, "Encrypted BTHome frames from %s are ignored: no key configured", device.address_str_to(addr_buf));
     }
     return true;
   }
   payload = data + 1;
   payload_size = data_size - 1;
+#endif
 
   if (header.mac_included()) {
     if (payload_size < MAC_ADDRESS_SIZE) {

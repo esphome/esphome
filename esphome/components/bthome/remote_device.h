@@ -1,6 +1,7 @@
 #pragma once
 #include "remote_object.h"
 #include "bthome.h"
+#include "encryption.h"
 #include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/defines.h"
@@ -9,11 +10,25 @@
 #include <cstddef>
 #include <span>
 
+#ifdef USE_BTHOME_DECRYPTION
+#include <algorithm>
+#include <initializer_list>
+#endif
+
 namespace esphome::bthome::client {
 
 class RemoteDeviceBase {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
+#ifdef USE_BTHOME_DECRYPTION
+  void set_encryption_key(std::initializer_list<uint8_t> key) {
+    if (key.size() != EncryptionKey{}.size())
+      return;
+    EncryptionKey k{};
+    std::copy(key.begin(), key.end(), k.begin());
+    this->encryption_key_ = k;
+  }
+#endif
   virtual void set_handler(size_t index, BTHomeRemoteObject *handler) = 0;
   bool parse_data(const ble_device_base::ESPBTDevice &device, const uint8_t *data, size_t data_size);
   void dump_config();
@@ -30,6 +45,9 @@ class RemoteDeviceBase {
   uint8_t next_seen_payload_{0};
   // Set once a frame with an unexpected encryption state has been logged, so it is not logged every time.
   bool encryption_mismatch_logged_{false};
+#ifdef USE_BTHOME_DECRYPTION
+  optional<EncryptionKey> encryption_key_;
+#endif
 
  private:
   bool is_duplicate_(uint8_t packet_id, const uint8_t *payload, size_t payload_size);

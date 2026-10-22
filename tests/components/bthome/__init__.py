@@ -6,6 +6,9 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 
     # This function is executed instead of to_code() during c++ testing
     async def to_code_testing(config):
+        # During testing, enable decryption code unconditionally.
+        cg.add_define("USE_BTHOME_DECRYPTION")
+
         # During testing, enable all sensor types unconditionally.
         # The entity count defines are normally generated from CORE.platform_counts by
         # _add_platform_defines(); here they come from the bthome platform components
