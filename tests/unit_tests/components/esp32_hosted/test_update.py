@@ -136,20 +136,18 @@ def test_firmware_cache_cleanup(
         assert cache.read_bytes() == FIRMWARE
 
 
-def test_unwritable_cache_still_returns_the_verified_bytes(
+def test_unwritable_cache_fails_validation(
     monkeypatch: pytest.MonkeyPatch, downloader: Mock
 ) -> None:
-    """A cache that cannot be written costs the next build a download, not this one."""
+    """Codegen reads the cached file, so a cache that cannot be written is a validation error."""
 
     def refuse(self: Path, target: Path) -> Path:
         raise OSError("read-only cache")
 
     monkeypatch.setattr(Path, "replace", refuse)
-    assert hosted_update._read_firmware(remote_config()) == FIRMWARE
+    with pytest.raises(cv.Invalid, match="Could not cache"):
+        hosted_update.FINAL_VALIDATE_SCHEMA(remote_config())
     assert not cache_file().exists()
-    # Codegen asks again after validation; the verified bytes are kept for the run
-    assert hosted_update._read_firmware(remote_config()) == FIRMWARE
-    assert downloader.call_count == 1
 
 
 def test_verified_cache_never_accesses_network(downloader: Mock) -> None:

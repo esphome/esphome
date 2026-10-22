@@ -1,5 +1,4 @@
 import hashlib
-import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -15,8 +14,6 @@ from esphome.const import CONF_ID, CONF_PATH, CONF_SOURCE, CONF_TYPE, CONF_URL
 from esphome.core import CORE, ID, HexInt
 from esphome.types import ConfigType
 
-_LOGGER = logging.getLogger(__name__)
-
 CODEOWNERS = ["@swoboda1337"]
 AUTO_LOAD = ["sha256", "watchdog", "json"]
 DEPENDENCIES = ["esp32_hosted"]
@@ -24,7 +21,6 @@ DEPENDENCIES = ["esp32_hosted"]
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
 TYPE_EMBEDDED = "embedded"
-_KEY_VERIFIED_FIRMWARE = "esp32_hosted_verified_firmware"
 TYPE_HTTP = "http"
 
 esp32_hosted_ns = cg.esphome_ns.namespace("esp32_hosted")
@@ -92,47 +88,36 @@ def _check_firmware_hash(data: bytes, expected: str, source: str | Path) -> None
         )
 
 
-def _read_firmware(config: ConfigType) -> bytes:
-    """The verified firmware bytes, fetched once per run: validation and codegen both need them."""
-    expected = config[CONF_SHA256].lower()
-    verified: dict[str, bytes] = CORE.data.setdefault(_KEY_VERIFIED_FIRMWARE, {})
-    if (data := verified.get(expected)) is None:
-        data = verified[expected] = _fetch_firmware(config, expected)
-    return data
-
-
-def _fetch_firmware(config: ConfigType, expected: str) -> bytes:
-    if url := config.get(CONF_URL):
+def _firmware_path(config: ConfigType) -> Path:
+    """The configured image file, or the cache slot of the pinned digest for a downloaded one."""
+    if CONF_URL in config:
         cache_dir = external_files.compute_local_file_dir("esp32_hosted") / "firmware"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cached = cache_dir / f"{expected}.bin"
-        if cached.is_file():
-            data = cached.read_bytes()
-            # A pinned digest needs no remote freshness check.
-            if hashlib.sha256(data).hexdigest() == expected:
-                return data
-
-        # Keep unverified bytes out of the shared cache, even across concurrent builds.
-        with TemporaryDirectory(dir=cache_dir) as temporary:
-            candidate = Path(temporary) / "firmware.bin"
-            data = external_files.download_content(url, candidate, allow_stale=False)
-            _check_firmware_hash(data, expected, url)
-            try:
-                candidate.replace(cached)
-            except OSError as err:
-                # The bytes are verified; a cache that cannot be written only costs the next build a download
-                _LOGGER.warning("Could not cache the firmware from %s: %s", url, err)
-        return data
-
-    path = CORE.relative_config_path(config[CONF_PATH])
-    data = path.read_bytes()
-    _check_firmware_hash(data, expected, path)
-    return data
+        return cache_dir / f"{config[CONF_SHA256].lower()}.bin"
+    return CORE.relative_config_path(config[CONF_PATH])
 
 
 def _validate_firmware(config: ConfigType) -> None:
-    if config[CONF_TYPE] == TYPE_EMBEDDED:
-        _read_firmware(config)
+    """Fetch and verify the image here; codegen only reads the file this leaves behind."""
+    if config[CONF_TYPE] != TYPE_EMBEDDED:
+        return
+    expected = config[CONF_SHA256].lower()
+    target = _firmware_path(config)
+    if (url := config.get(CONF_URL)) is None:
+        _check_firmware_hash(target.read_bytes(), expected, target)
+        return
+    # A pinned digest needs no remote freshness check.
+    if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest() == expected:
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    # Keep unverified bytes out of the shared cache, even across concurrent builds.
+    with TemporaryDirectory(dir=target.parent) as temporary:
+        candidate = Path(temporary) / "firmware.bin"
+        data = external_files.download_content(url, candidate, allow_stale=False)
+        _check_firmware_hash(data, expected, url)
+        try:
+            candidate.replace(target)
+        except OSError as err:
+            raise cv.Invalid(f"Could not cache the firmware from {url}: {err}") from err
 
 
 FINAL_VALIDATE_SCHEMA = _validate_firmware
@@ -142,7 +127,7 @@ async def to_code(config: dict[str, Any]) -> None:
     var = await update.new_update(config)
 
     if config[CONF_TYPE] == TYPE_EMBEDDED:
-        firmware_data = _read_firmware(config)
+        firmware_data = _firmware_path(config).read_bytes()
         rhs = [HexInt(x) for x in firmware_data]
         arr_id = ID(f"{config[CONF_ID]}_data", is_declaration=True, type=cg.uint8)
         prog_arr = cg.progmem_array(arr_id, rhs)
