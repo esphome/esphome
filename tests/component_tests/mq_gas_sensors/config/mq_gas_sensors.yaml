@@ -41,6 +41,24 @@ sensor:
       r2: 10.0
     r0: 10.0
 
+  # No built-in coefficients: they come from the YAML, with the R0/RS
+  # convention and a custom range.
+  - platform: mq_gas_sensors
+    id: mq136_custom
+    name: MQ-136 custom
+    sensor_type: MQ-136
+    voltage: mq8_adc
+    voltage_divider:
+      r1: 20.0
+      r2: 10.0
+    coefficient_a: 36.0
+    coefficient_b: -2.0
+    regression_method: linear
+    ratio_mode: r0_rs
+    min_ppm: 1.0
+    max_ppm: 200.0
+    r0: 10.0
+
   # Owned wiring and diagnostics: `pin:` creates the hidden `adc` sensor, the
   # 20k/10k divider brings the 5 V output down to the ADC input, and the linked
   # T/RH sensors switch the compensation on.

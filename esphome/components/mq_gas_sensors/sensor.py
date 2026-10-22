@@ -544,13 +544,6 @@ def _validate_config(config: ConfigType) -> ConfigType:
             resolved.method,
         )
 
-    if CONF_R0 in config and CONF_CALIBRATION in config:
-        _LOGGER.warning(
-            "%s: both 'r0:' and 'calibration:' are set - the fixed R0 value wins and "
-            "automatic calibration is disabled",
-            label,
-        )
-
     if CONF_R0 not in config and CONF_CALIBRATION not in config:
         _LOGGER.warning(
             "%s: neither 'r0:' nor 'calibration:' is set - the PPM output stays "
@@ -771,6 +764,10 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s")),
     cv.has_exactly_one_key(CONF_VOLTAGE, CONF_PIN),
     cv.has_at_most_one_key(CONF_VOLTAGE_DIVIDER, CONF_VOLTAGE_MULTIPLIER),
+    # A boot calibration and a fixed R0 both define the reference. Either one may
+    # be omitted: the R0 can also be restored from preferences or set by the
+    # `mq_gas_sensors.calibrate_r0` action at run time.
+    cv.has_at_most_one_key(CONF_R0, CONF_CALIBRATION),
     _validate_config,
 )
 
