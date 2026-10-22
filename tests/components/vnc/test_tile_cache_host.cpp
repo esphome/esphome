@@ -323,6 +323,16 @@ TEST_F(VncTileCacheLayout, HalfTurnForgetsTheTiles) {
   EXPECT_EQ(this->draws(full), 0);
 }
 
+TEST_F(VncTileCacheLayout, RotationDuringASessionReconnects) {
+  this->session(64, 48);
+  ASSERT_EQ(this->draws(screen(64, 48, 0x1000)), 12);
+  s().run_for(300);
+  d_.set_rotation(display::DISPLAY_ROTATION_180_DEGREES);
+  s().tick(10);
+  EXPECT_EQ(c().state(), VncState::VNC_STATE_IDLE);
+  EXPECT_FALSE(c().link().connected());
+}
+
 TEST_F(VncTileCacheLayout, TooManyCellsTurnsTheCacheOff) {
   this->session(64, 48);
   const Bytes tile = tiles({{0, 0, 0x1234}});
