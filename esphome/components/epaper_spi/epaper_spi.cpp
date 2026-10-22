@@ -1,4 +1,6 @@
 #include "epaper_spi.h"
+
+#include <cstring>
 #include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -389,13 +391,11 @@ void HOT EPaperBase::draw_pixel_at(int x, int y, Color color) {
 }
 
 namespace {
-// One source row of an RGB565 block, written into a contiguous 1 bit per pixel buffer. Without SwapAxes the row lies
-// along a buffer row and the bit moves by step; with it the row lies along a bit column and the byte moves by step
-// rows.
-template<bool SwapAxes, bool BigEndianSource>
-void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, size_t row_width, const uint8_t *source, int count,
+// One source row of an RGB565 block, written into a contiguous 1 bit per pixel buffer along a buffer row, the bit
+// moving by step.
+template<bool BigEndianSource>
+void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, const uint8_t *source, int count,
                           const Rgb565ToMono &to_mono) {
-  const ptrdiff_t byte_step = SwapAxes ? step * static_cast<ptrdiff_t>(row_width) : 0;
   for (; count != 0; count--, source += 2) {
     const uint16_t value = BigEndianSource ? (source[0] << 8) | source[1] : source[0] | (source[1] << 8);
     if (to_mono(value)) {
@@ -403,9 +403,7 @@ void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, size_t row_widt
     } else {
       *byte &= ~mask;
     }
-    if constexpr (SwapAxes) {
-      byte += byte_step;
-    } else if (step > 0) {
+    if (step > 0) {
       mask >>= 1;
       if (mask == 0) {
         mask = 0x80;
@@ -416,6 +414,95 @@ void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, size_t row_widt
       if (mask == 0) {
         mask = 0x01;
         byte--;
+      }
+    }
+  }
+}
+
+// Luma rises with the blue field, so each red and green pair has a lowest blue value that comes out white: one
+// compare per pixel instead of three weighted lookups. 32 marks a pair that is never white.
+class MonoThreshold {
+ public:
+  constexpr MonoThreshold() {
+    const Rgb565ToMono to_mono;
+    for (uint32_t red_green = 0; red_green != 2048; red_green++) {
+      uint8_t low = 0, high = 32;
+      while (low != high) {
+        const uint8_t blue = (low + high) / 2;
+        if (to_mono(static_cast<uint16_t>((red_green << 5) | blue))) {
+          high = blue;
+        } else {
+          low = blue + 1;
+        }
+      }
+      this->lowest_white_blue_[red_green] = low;
+    }
+  }
+  const uint8_t *table() const { return this->lowest_white_blue_; }
+
+ protected:
+  uint8_t lowest_white_blue_[2048] = {};
+};
+
+// Thresholds one source row into bit `shift` of every `stride`th byte from `dest`. Kept out of line: inlined into
+// the block routine it runs out of registers and spills in the loop.
+template<bool BigEndianSource>
+__attribute__((noinline)) void HOT threshold_rgb565_row(uint8_t *dest, size_t stride, const uint8_t *source, int count,
+                                                        unsigned shift, const uint8_t *table) {
+  for (; count != 0; count--, source += 2, dest += stride) {
+    uint16_t value;
+    if constexpr (BigEndianSource) {
+      value = (source[0] << 8) | source[1];
+    } else {
+      // LVGL's buffer is 16 bit aligned and the target little endian: one load per pixel.
+      value = *reinterpret_cast<const uint16_t *>(source);
+    }
+    *dest |= static_cast<uint8_t>((value & 0x1F) >= table[value >> 5]) << shift;
+  }
+}
+
+// With the axes swapped a source row lies along a bit column of the buffer, so a run of TILE_ROWS source rows
+// fills TILE_BYTES consecutive bytes in each buffer row. The rows are gathered TILE_COLUMNS at a time into a tile
+// in internal RAM and each buffer row then gets its bytes in one go; a frame buffer in PSRAM would otherwise
+// miss the cache on every byte.
+constexpr int TILE_ROWS = 64;
+constexpr int TILE_BYTES = TILE_ROWS / 8;
+constexpr int TILE_COLUMNS = 256;
+
+struct TileRow {
+  uint8_t byte;
+  uint8_t shift;
+};
+
+template<bool BigEndianSource>
+void HOT write_rgb565_tile(uint8_t *first_byte, ptrdiff_t byte_step, const TileRow *rows, int row_count,
+                           const uint8_t *const *sources, int count, const uint8_t *table) {
+  uint8_t tile[TILE_COLUMNS * TILE_BYTES];
+  uint8_t covered[TILE_BYTES] = {};
+  for (int i = 0; i != row_count; i++)
+    covered[rows[i].byte] |= 1u << rows[i].shift;
+  int covered_bytes = 0;
+  bool full = true;
+  for (int k = 0; k != TILE_BYTES; k++) {
+    if (covered[k] != 0)
+      covered_bytes = k + 1;
+    full = full && covered[k] == 0xFF;
+  }
+  for (int start = 0; start < count; start += TILE_COLUMNS) {
+    const int n = std::min(TILE_COLUMNS, count - start);
+    memset(tile, 0, n * TILE_BYTES);
+    for (int i = 0; i != row_count; i++) {
+      threshold_rgb565_row<BigEndianSource>(tile + rows[i].byte, TILE_BYTES, sources[i] + start * 2, n, rows[i].shift,
+                                            table);
+    }
+    uint8_t *byte = first_byte + start * byte_step;
+    const uint8_t *column = tile;
+    for (int c = 0; c != n; c++, byte += byte_step, column += TILE_BYTES) {
+      if (full) {
+        memcpy(byte, column, TILE_BYTES);
+      } else {
+        for (int k = 0; k != covered_bytes; k++)
+          byte[k] = (byte[k] & ~covered[k]) | column[k];
       }
     }
   }
@@ -459,27 +546,47 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
   const int y_high = y_low + (swap ? columns : rows);
 
   const Rgb565ToMono to_mono;
+  static constexpr MonoThreshold THRESHOLD;
   const size_t line_stride = x_offset + w + x_pad;
   const size_t row_width = this->row_width_;
   const int step = column_mirrored ? -1 : 1;
-  for (int row = first_row; row != end_row; row++) {
-    const uint8_t *source = ptr + ((y_offset + row) * line_stride + x_offset + first_column) * 2;
-    const int along = column_to_buffer(first_column);
-    const int across = row_to_buffer(row);
-    const int x = swap ? across : along;
-    const int y = swap ? along : across;
-    uint8_t *byte = buffer + y * row_width + x / 8;
-    const uint8_t mask = 0x80u >> (x % 8);
-    if (swap) {
-      if (big_endian) {
-        write_rgb565_row<true, true>(byte, mask, step, row_width, source, columns, to_mono);
-      } else {
-        write_rgb565_row<true, false>(byte, mask, step, row_width, source, columns, to_mono);
+  auto source_row = [&](int row) { return ptr + ((y_offset + row) * line_stride + x_offset + first_column) * 2; };
+  if (swap) {
+    const ptrdiff_t byte_step = step * static_cast<ptrdiff_t>(row_width);
+    for (int row = first_row; row != end_row;) {
+      // The buffer bytes this run of rows lands in, taken in the direction the rows move
+      const int first_x = row_to_buffer(row);
+      const int low_byte = row_mirrored ? std::max(0, first_x / 8 - (TILE_BYTES - 1)) : first_x / 8;
+      const int end_byte = low_byte + TILE_BYTES;
+      TileRow rows[TILE_ROWS];
+      const uint8_t *sources[TILE_ROWS];
+      int row_count = 0;
+      while (row + row_count != end_row) {
+        const int x = row_to_buffer(row + row_count);
+        if (x / 8 < low_byte || x / 8 >= end_byte)
+          break;
+        rows[row_count] = {static_cast<uint8_t>(x / 8 - low_byte), static_cast<uint8_t>(7 - x % 8)};
+        sources[row_count] = source_row(row + row_count);
+        row_count++;
       }
-    } else if (big_endian) {
-      write_rgb565_row<false, true>(byte, mask, step, row_width, source, columns, to_mono);
-    } else {
-      write_rgb565_row<false, false>(byte, mask, step, row_width, source, columns, to_mono);
+      uint8_t *first_byte = buffer + column_to_buffer(first_column) * row_width + low_byte;
+      if (big_endian) {
+        write_rgb565_tile<true>(first_byte, byte_step, rows, row_count, sources, columns, THRESHOLD.table());
+      } else {
+        write_rgb565_tile<false>(first_byte, byte_step, rows, row_count, sources, columns, THRESHOLD.table());
+      }
+      row += row_count;
+    }
+  } else {
+    for (int row = first_row; row != end_row; row++) {
+      const int x = column_to_buffer(first_column);
+      uint8_t *byte = buffer + row_to_buffer(row) * row_width + x / 8;
+      const uint8_t mask = 0x80u >> (x % 8);
+      if (big_endian) {
+        write_rgb565_row<true>(byte, mask, step, source_row(row), columns, to_mono);
+      } else {
+        write_rgb565_row<false>(byte, mask, step, source_row(row), columns, to_mono);
+      }
     }
   }
   this->x_low_ = clamp_at_most(this->x_low_, x_low);
