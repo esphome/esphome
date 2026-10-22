@@ -25,6 +25,12 @@ static constexpr uint8_t GREE_FAN_1 = 0x10;
 static constexpr uint8_t GREE_FAN_2 = 0x20;
 static constexpr uint8_t GREE_FAN_3 = 0x30;
 
+// Mode bits (stored in byte 2 high nibble)
+static constexpr uint8_t GREE_MODE_BIT_TURBO = 0x10;
+static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
+static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
+static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
+
 // IR Transmission
 static constexpr uint32_t GREE_IR_FREQUENCY = 38000;
 static constexpr uint32_t GREE_HEADER_MARK = 9000;
@@ -79,16 +85,29 @@ static constexpr uint8_t GREE_PRESET_NONE = 0x00;
 static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
-// Mode bits stored in remote_state[2] bits 4..7 for YAN/YAA/YAC/YAC1FB9.
-static constexpr uint8_t GREE_MODE_BIT_TURBO = 0x10;
-static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
-static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
-static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
-
 // Model codes
-enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
+enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG, GREE_YAP1F };
 
-class GreeClimate final : public climate_ir::ClimateIR {
+// Direction enums (used for default fixed vane positions)
+enum HorizontalDirections {
+  HORIZONTAL_DIRECTION_AUTO = GREE_HDIR_AUTO,
+  HORIZONTAL_DIRECTION_LEFT = GREE_HDIR_LEFT,
+  HORIZONTAL_DIRECTION_MLEFT = GREE_HDIR_MLEFT,
+  HORIZONTAL_DIRECTION_MIDDLE = GREE_HDIR_MIDDLE,
+  HORIZONTAL_DIRECTION_MRIGHT = GREE_HDIR_MRIGHT,
+  HORIZONTAL_DIRECTION_RIGHT = GREE_HDIR_RIGHT,
+};
+
+enum VerticalDirections {
+  VERTICAL_DIRECTION_AUTO = GREE_VDIR_AUTO,
+  VERTICAL_DIRECTION_UP = GREE_VDIR_UP,
+  VERTICAL_DIRECTION_MUP = GREE_VDIR_MUP,
+  VERTICAL_DIRECTION_MIDDLE = GREE_VDIR_MIDDLE,
+  VERTICAL_DIRECTION_MDOWN = GREE_VDIR_MDOWN,
+  VERTICAL_DIRECTION_DOWN = GREE_VDIR_DOWN,
+};
+
+class GreeClimate : public climate_ir::ClimateIR {
  public:
   GreeClimate()
       : climate_ir::ClimateIR(GREE_TEMP_MIN, GREE_TEMP_MAX, 1.0f, true, true,
@@ -99,10 +118,19 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   void set_model(Model model);
   void set_mode_bit(uint8_t bit_mask, bool enabled);
+  void set_horizontal_default(HorizontalDirections horizontal_direction) {
+    this->default_horizontal_direction_ = horizontal_direction;
+  }
+  void set_vertical_default(VerticalDirections vertical_direction) {
+    this->default_vertical_direction_ = vertical_direction;
+  }
+
+  void register_mode_bit_switch(uint8_t bit_mask, void *arg, void (*publish_state)(void *arg, bool state));
 
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  bool on_receive(remote_base::RemoteReceiveData data) override;
 
   uint8_t operation_mode_();
   uint8_t fan_speed_();
@@ -113,6 +141,15 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   Model model_{};
   uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};  // The display light is on until a switch says otherwise
+
+  HorizontalDirections default_horizontal_direction_{HORIZONTAL_DIRECTION_AUTO};
+  VerticalDirections default_vertical_direction_{VERTICAL_DIRECTION_AUTO};
+
+  uint8_t mode_bit_switch_masks_[4]{};
+  void *mode_bit_switch_args_[4]{};
+  void (*mode_bit_switch_publish_state_)(void *arg, bool state){nullptr};
+  uint8_t mode_bit_switch_count_{0};
+  void publish_mode_bit_switches_();
 };
 
 }  // namespace esphome::gree
