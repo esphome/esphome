@@ -41,7 +41,6 @@ void Tormatic::dump_config() {
     LOG_SWITCH("", "Tormatic Light Switch", this->light_switch_);
   }
 #endif
-  this->check_uart_settings(9600, 1, uart::UART_CONFIG_PARITY_NONE, 8);
 
   ESP_LOGCONFIG(TAG,
                 "  Open Duration: %.1fs\n"
