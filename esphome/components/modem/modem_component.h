@@ -16,7 +16,6 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace esphome::modem {
 
@@ -65,7 +64,10 @@ class ModemComponent : public Component {
   void set_rx_buffer_size(uint16_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
   void set_dte_buffer_size(uint16_t dte_buffer_size) { this->dte_buffer_size_ = dte_buffer_size; }
   void set_apn(const char *apn) { this->apn_ = apn; }
-  void set_init_at_commands(std::initializer_list<const char *> cmds) { this->init_at_commands_ = cmds; }
+  void set_init_at_commands(const char *const *cmds, uint8_t count) {
+    this->init_at_commands_ = cmds;
+    this->init_at_count_ = count;
+  }
 #ifdef USE_MODEM_URC
   void set_urc_text_sensor(text_sensor::TextSensor *urc_text_sensor) { this->urc_text_sensor_ = urc_text_sensor; }
 #endif
@@ -112,7 +114,7 @@ class ModemComponent : public Component {
   DceFactory dce_factory_{nullptr};
   const char *apn_{""};
   const char *pin_code_{nullptr};
-  std::vector<const char *> init_at_commands_;
+  const char *const *init_at_commands_{nullptr};  // static array from code generation
 #ifdef USE_MODEM_URC
   text_sensor::TextSensor *urc_text_sensor_{nullptr};
 #endif
@@ -134,6 +136,7 @@ class ModemComponent : public Component {
   uint16_t dte_buffer_size_{512};
   ModemComponentState component_state_{ModemComponentState::MODEM_DISABLED};
   ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};
+  uint8_t init_at_count_{0};
   uint8_t baud_index_{0};
   // CONNECTING runs its long commands once: 0 nothing sent, 1 radio on, 2 attach requested
   uint8_t connect_step_{0};

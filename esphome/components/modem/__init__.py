@@ -22,7 +22,7 @@ from esphome.const import (
     CONF_WATCHDOG_TIMEOUT,
     PLATFORM_ESP32,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, ID, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -50,6 +50,8 @@ modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
 
 ModemComponentState = modem_ns.enum("ModemComponentState", is_class=True)
+# Element type of the static init_at array: `static const char *const name[]`
+_CHAR_PTR_CONST = cg.global_ns.namespace("char *const")
 
 
 def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
@@ -161,7 +163,7 @@ automation.register_apply_condition("modem.enabled", MODEM_ID_SCHEMA, "is_enable
 
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config: ConfigType) -> None:
-    add_idf_component(name="espressif/esp_modem", ref="2.0.2")
+    add_idf_component(name="espressif/esp_modem", ref="2.1.0")
 
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DELAY_AFTER_DLCI_SETUP", 500)
@@ -181,7 +183,13 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.enable())
 
-    cg.add_optional(var.set_init_at_commands, config.get(CONF_INIT_AT))
+    if init_at := config.get(CONF_INIT_AT):
+        # The commands are literals in flash; the component keeps a pointer to the array
+        arr_id = ID(
+            f"{config[CONF_ID]}_init_at", is_declaration=True, type=_CHAR_PTR_CONST
+        )
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*init_at))
+        cg.add(var.set_init_at_commands(arr, len(init_at)))
 
     model = config[CONF_MODEL]
     factory = cg.RawExpression(f"esp_modem::create_{MODEM_MODELS[model]}_dce")

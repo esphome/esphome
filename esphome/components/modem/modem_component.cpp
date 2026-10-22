@@ -97,8 +97,16 @@ void ModemComponent::setup() {
       self->got_ip_.store(false, std::memory_order_release);
     }
   };
-  if (esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, ip_event, this) != ESP_OK) {
-    this->mark_failed(LOG_STR("IP event handler register failed"));
+  // A dead peer or an LCP failure is reported here, not as a lost IP event
+  auto ppp_status = [](void *arg, esp_event_base_t, int32_t event_id, void *) {
+    if (event_id < NETIF_PP_PHASE_OFFSET && event_id != NETIF_PPP_ERRORNONE) {
+      ESP_LOGD(TAG, "PPP error event %d", static_cast<int>(event_id));
+      static_cast<ModemComponent *>(arg)->got_ip_.store(false, std::memory_order_release);
+    }
+  };
+  if (esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, ip_event, this) != ESP_OK ||
+      esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, ppp_status, this) != ESP_OK) {
+    this->mark_failed(LOG_STR("Event handler register failed"));
     return;
   }
 
@@ -133,6 +141,7 @@ void ModemComponent::setup() {
   // Runs on the UART task: keep one line in a fixed buffer and let loop() publish it
   this->dce_->set_enhanced_urc([this](const DTE::UrcBufferInfo &buffer_info) {
     const DTE::UrcConsumeInfo none{DTE::UrcConsumeResult::CONSUME_NONE, 0};
+    // The response parser owns the buffer while a command runs; URCs in that window are best effort
     if (buffer_info.is_command_active) {
       return none;
     }
@@ -220,9 +229,9 @@ ModemComponentState ModemComponent::compute_next_state_() {
       return this->handle_state_enabling_();
     case ModemComponentState::MODEM_SYNCED:
       this->init_at_failed_ = false;
-      for (const char *cmd : this->init_at_commands_) {
+      for (uint8_t i = 0; i != this->init_at_count_; i++) {
         App.feed_wdt();
-        if (!this->send_at(cmd, 0, true)) {
+        if (!this->send_at(this->init_at_commands_[i], 0, true)) {
           this->init_at_failed_ = true;
           this->status_set_warning(LOG_STR("init_at command failed"));
         }
@@ -307,27 +316,28 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
   if (this->dce_->get_radio_state(radio_state) != command_result::OK) {
     ESP_LOGW(TAG, "Failed to read the radio state; skipping the radio off step");
   } else if (radio_state == 1) {
-    // On warm reboot, drop the previous network session first
-    if (this->dce_->set_radio_state(0) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to disconnect previous network session");
+    // On warm reboot, drop the previous network session first; a modem that refuses is used as it is
+    if (this->dce_->set_radio_state(0) == command_result::OK) {
+      return this->retry_(ModemComponentState::MODEM_ENABLING);
     }
-    return this->retry_(ModemComponentState::MODEM_ENABLING);
+    ESP_LOGW(TAG, "Failed to disconnect previous network session");
   }
 
   if (this->baud_rate_ != 0 && this->baud_rate_ != this->current_baud_rate_) {
     ESP_LOGD(TAG, "Setting baud rate: %d -> %d", this->current_baud_rate_, this->baud_rate_);
-    if (this->dce_->set_baud(this->baud_rate_) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to set modem baud rate to %d. Using %d.", this->baud_rate_, this->current_baud_rate_);
-      return this->retry_(ModemComponentState::MODEM_ENABLING);
+    if (this->dce_->set_baud(this->baud_rate_) == command_result::OK) {
+      delay(200);  // NOLINT
+      uart_set_baudrate(this->uart_port_, this->baud_rate_);
+      this->current_baud_rate_ = this->baud_rate_;
+      if (this->dce_->sync() != command_result::OK) {
+        ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->baud_rate_);
+        return ModemComponentState::MODEM_DISCONNECTING;
+      }
+      ESP_LOGI(TAG, "Modem synced at baud rate %d.", this->current_baud_rate_);
+    } else {
+      // The modem still answers at the probed rate, so a rejected rate is not worth a retry loop
+      ESP_LOGW(TAG, "Modem rejected baud rate %d. Staying at %d.", this->baud_rate_, this->current_baud_rate_);
     }
-    delay(200);  // NOLINT
-    uart_set_baudrate(this->uart_port_, this->baud_rate_);
-    this->current_baud_rate_ = this->baud_rate_;
-    if (this->dce_->sync() != command_result::OK) {
-      ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->baud_rate_);
-      return ModemComponentState::MODEM_DISCONNECTING;
-    }
-    ESP_LOGI(TAG, "Modem synced at baud rate %d.", this->current_baud_rate_);
   }
 
   if (this->restored_baud_ != this->current_baud_rate_) {
@@ -420,8 +430,11 @@ ModemComponentState ModemComponent::handle_state_disconnecting_() {
   }
   App.feed_wdt();
   // Turn the radio off; waiting for the lost IP event could take up to 2 min
-  const bool off = this->dce_->set_radio_state(0) == command_result::OK;
-  ESP_LOGI(TAG, "Radio off: %s", off ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("FAILED"));
+  if (this->dce_->set_radio_state(0) == command_result::OK) {
+    ESP_LOGI(TAG, "Radio off");
+  } else {
+    this->status_set_warning(LOG_STR("Radio off failed"));
+  }
   return ModemComponentState::MODEM_DISABLED;
 }
 
@@ -454,9 +467,13 @@ bool ModemComponent::send_at(const std::string &cmd, uint32_t timeout, bool verb
   }
   std::string output;
   const bool ok = this->dce_->at(cmd, output, timeout == 0 ? COMMAND_TIMEOUT_MS : timeout) == command_result::OK;
-  if (verbose) {
-    ESP_LOGI(TAG, "AT '%s' -> %s: %s", cmd.c_str(), ok ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("FAILED"),
-             output.c_str());
+  if (!verbose) {
+    return ok;
+  }
+  if (ok) {
+    ESP_LOGI(TAG, "AT '%s' -> OK: %s", cmd.c_str(), output.c_str());
+  } else {
+    ESP_LOGW(TAG, "AT '%s' -> FAILED: %s", cmd.c_str(), output.c_str());
   }
   return ok;
 }
