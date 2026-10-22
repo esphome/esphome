@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/preferences.h"
 #include "esphome/components/i2c/i2c.h"
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
@@ -92,7 +93,7 @@ class M5StackUnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool write_direction(Direction direction);
 
  protected:
-  static constexpr uint32_t DIRECTION_CHANGE_TIMEOUT_ID = 0;
+  static constexpr uint32_t DIRECTION_CHANGE_POLL_ID = 0;
 
   template<typename T> bool read_reg_(uint8_t reg, T *value) {
     return this->read_bytes(reg, reinterpret_cast<uint8_t *>(value), sizeof(T));
@@ -103,6 +104,7 @@ class M5StackUnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool write_command_raw_(float value);
   bool write_direction_raw_(Direction direction);
   bool read_command_raw_(float *value);
+  void finish_direction_change_();
 
 #ifdef USE_SENSOR
   sensor::Sensor *rpm_sensor_{nullptr};
@@ -118,6 +120,7 @@ class M5StackUnitBldc : public i2c::I2CDevice, public PollingComponent {
   number::Number *command_number_{nullptr};
 #endif
   int32_t pid_[3]{};
+  ESPPreferenceObject save_pref_;
   // Last command, restored after the stop a direction change needs
   float last_command_{0};
   const ControlMode control_mode_;
@@ -128,6 +131,7 @@ class M5StackUnitBldc : public i2c::I2CDevice, public PollingComponent {
   bool has_pid_{false};
   // While a direction change waits for the motor to stop, commands are only cached
   bool direction_change_pending_{false};
+  uint8_t direction_change_polls_{0};
 #ifdef USE_TEXT_SENSOR
   uint8_t last_status_{0xFF};
 #endif

@@ -1,8 +1,8 @@
 #include "m5stack_unit_bldc.h"
 
-#include <cstring>
-
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 #include "esphome/core/progmem.h"
 
 namespace esphome::m5stack_unit_bldc {
@@ -14,8 +14,12 @@ ESPHOME_LOG_TAG(TAG, "m5stack_unit_bldc");
 PROGMEM_STRING_TABLE(MotorStatusStrings, "Standby", "Running", "Error", "Unknown");
 #endif
 
-// The device latches a new direction only once the motor has stopped (datasheet note [1] "Change direction")
-static constexpr uint32_t DIRECTION_CHANGE_STOP_MS = 800;
+// The device latches a new direction only once the motor has stopped (datasheet note [1] "Change direction"); the
+// RPM readback says when that is, polled at this rate for at most this many polls
+static constexpr uint32_t DIRECTION_CHANGE_POLL_MS = 200;
+static constexpr uint8_t DIRECTION_CHANGE_MAX_POLLS = 25;
+// What was last saved to the unit's flash, keyed by the I2C address
+static constexpr uint32_t SAVE_PREF_HASH = 0x7B1D4C25;
 
 bool M5StackUnitBldc::write_command_raw_(float value) {
   if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP)
@@ -67,33 +71,36 @@ void M5StackUnitBldc::setup() {
     this->command_number_->publish_state(command);
 #endif
 
-  // The previous values only decide whether to save, so they are read only when saving is enabled
   const uint8_t motor_config[2] = {static_cast<uint8_t>(this->motor_model_), this->pole_pairs_};
-  bool changed = false;
-  if (this->save_to_flash_) {
-    uint8_t previous[2];
-    changed = !this->read_reg_(REG_MOTOR_CONFIG, &previous) || std::memcmp(previous, motor_config, 2) != 0;
-  }
   if (!this->write_reg_(REG_MOTOR_CONFIG, motor_config)) {
     this->mark_failed(LOG_STR("Failed to write motor model/pole pairs"));
     return;
   }
-
-  if (this->has_pid_) {
-    if (this->save_to_flash_ && !changed) {
-      int32_t previous[3];
-      changed = !this->read_reg_(REG_PID, &previous) || std::memcmp(previous, this->pid_, sizeof(previous)) != 0;
-    }
-    if (!this->write_reg_(REG_PID, this->pid_)) {
-      this->mark_failed(LOG_STR("Failed to write PID gains"));
-      return;
-    }
+  if (this->has_pid_ && !this->write_reg_(REG_PID, this->pid_)) {
+    this->mark_failed(LOG_STR("Failed to write PID gains"));
+    return;
   }
 
-  // The unit's flash has limited write cycles, so only a change is saved. This compares the live registers, so a
-  // value first applied with save_to_flash off is saved only after the unit itself is power-cycled.
-  if (changed && !this->write_byte(REG_SAVE_TO_FLASH, 1)) {
-    ESP_LOGW(TAG, "Failed to save settings to flash");
+  // The unit's flash has limited write cycles and its live registers do not say whether they are persisted, so
+  // a hash of what was last saved is kept on the ESP: each configuration is saved once, and a failed save is
+  // retried at the next boot
+  if (this->save_to_flash_) {
+    uint32_t wanted = fnv1a_hash_extend(FNV1_OFFSET_BASIS, static_cast<uint8_t>(this->motor_model_));
+    wanted = fnv1a_hash_extend(wanted, this->pole_pairs_);
+    if (this->has_pid_) {
+      for (const int32_t gain : this->pid_)
+        wanted = fnv1a_hash_extend(wanted, gain);
+    }
+    this->save_pref_ = global_preferences->make_preference<uint32_t>(SAVE_PREF_HASH ^ this->address_);
+    uint32_t saved = 0;
+    this->save_pref_.load(&saved);
+    if (saved != wanted) {
+      if (this->write_byte(REG_SAVE_TO_FLASH, 1)) {
+        this->save_pref_.save(&wanted);
+      } else {
+        ESP_LOGW(TAG, "Failed to save settings to flash");
+      }
+    }
   }
 
   // Without a readback entity there is nothing to poll
@@ -179,18 +186,40 @@ bool M5StackUnitBldc::write_direction(Direction direction) {
   return !this->is_failed() && this->status_comm_result(this->write_direction_raw_(direction));
 }
 
-// The new direction latches only after the motor stops: command zero, wait, then restore. A failed stop leaves
-// any direction change already pending as it is.
+// The new direction latches only after the motor stops: command zero, wait for the readback to confirm the stop,
+// then restore. A change already pending has stopped the motor, so only the direction byte is replaced.
 bool M5StackUnitBldc::write_direction_raw_(Direction direction) {
-  if (!this->write_byte(REG_DIRECTION, static_cast<uint8_t>(direction)) || !this->write_command_raw_(0))
+  if (!this->write_byte(REG_DIRECTION, static_cast<uint8_t>(direction)))
+    return false;
+  if (!this->direction_change_pending_ && !this->write_command_raw_(0))
     return false;
   this->direction_change_pending_ = true;
-  this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, DIRECTION_CHANGE_STOP_MS, [this]() {
-    this->direction_change_pending_ = false;
-    if (this->last_command_ != 0)
-      this->status_comm_result(this->write_command_raw_(this->last_command_));
-  });
+  this->direction_change_polls_ = 0;
+  this->set_interval(DIRECTION_CHANGE_POLL_ID, DIRECTION_CHANGE_POLL_MS,
+                     [this]() { this->finish_direction_change_(); });
   return true;
+}
+
+void M5StackUnitBldc::finish_direction_change_() {
+  float rpm;
+  const bool stopped = this->read_reg_(REG_READBACK_RPM, &rpm) && rpm == 0;
+  if (!stopped && ++this->direction_change_polls_ < DIRECTION_CHANGE_MAX_POLLS)
+    return;
+  this->cancel_interval(DIRECTION_CHANGE_POLL_ID);
+  this->direction_change_pending_ = false;
+  if (!stopped) {
+    // Restoring now could start the motor in the old direction, so the output stays off
+    ESP_LOGW(TAG, "Motor still turning after %u ms; output left at zero",
+             static_cast<unsigned>(DIRECTION_CHANGE_POLL_MS * DIRECTION_CHANGE_MAX_POLLS));
+    this->last_command_ = 0;
+#ifdef USE_NUMBER
+    if (this->command_number_ != nullptr)
+      this->command_number_->publish_state(0);
+#endif
+    return;
+  }
+  if (this->last_command_ != 0)
+    this->status_comm_result(this->write_command_raw_(this->last_command_));
 }
 
 }  // namespace esphome::m5stack_unit_bldc
