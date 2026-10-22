@@ -3,6 +3,7 @@ import logging
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_RTS_PIN
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.text_sensor import new_text_sensor, text_sensor_schema
 import esphome.config_validation as cv
@@ -32,13 +33,12 @@ CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["network", "uart", "text_sensor"]
 CONFLICTS_WITH = ["captive_portal", "ethernet"]
+DOMAIN = "modem"
 
 CONF_MODEM = "modem"
 CONF_MODEM_ID = "modem_id"
 CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
-CONF_DTR_PIN = "dtr_pin"
-CONF_RTS_PIN = "rts_pin"
 CONF_CTS_PIN = "cts_pin"
 CONF_INIT_AT = "init_at"
 CONF_ON_SYNC = "on_sync"
@@ -236,11 +236,9 @@ async def to_code(config):
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_apn(config[CONF_APN]))
 
-    tx_pin = await cg.gpio_pin_expression(config[CONF_TX_PIN])
-    cg.add(var.set_tx_pin(tx_pin))
+    await cg.add_pin(var.set_tx_pin, config[CONF_TX_PIN])
 
-    rx_pin = await cg.gpio_pin_expression(config[CONF_RX_PIN])
-    cg.add(var.set_rx_pin(rx_pin))
+    await cg.add_pin(var.set_rx_pin, config[CONF_RX_PIN])
 
     if rts_pin := config.get(CONF_RTS_PIN, None):
         rts_pin_expr = await cg.gpio_pin_expression(rts_pin)

@@ -30,7 +30,7 @@
 
 namespace esphome::modem {
 
-static const char *const TAG = "modem";
+ESPHOME_LOG_TAG(TAG, "modem");
 
 ModemComponent *global_modem_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -90,13 +90,16 @@ void ModemComponent::setup() {
   ESP_LOGCONFIG(TAG, "Config Modem:");
   ESP_LOGCONFIG(TAG, "  Model     : %s", this->modem_handler->model.c_str());
   ESP_LOGCONFIG(TAG, "  APN       : %s", this->modem_handler->apn.c_str());
-  ESP_LOGCONFIG(TAG, "  PIN code  : %s", (this->modem_handler->pin_code.empty()) ? "No" : "Yes (not shown)");
+  ESP_LOGCONFIG(TAG, "  PIN code  : %s",
+                (this->modem_handler->pin_code.empty()) ? LOG_STR_LITERAL("No") : LOG_STR_LITERAL("Yes (not shown)"));
   ESP_LOGCONFIG(TAG, "  Tx Pin    : GPIO%u", this->modem_handler->tx_pin->get_pin());
   ESP_LOGCONFIG(TAG, "  Rx Pin    : GPIO%u", this->modem_handler->rx_pin->get_pin());
-  ESP_LOGCONFIG(TAG, "  Enabled   : %s",
-                (this->component_state_ != ModemComponentState::MODEM_DISABLED) ? "Yes" : "No");
-  if (this->modem_handler->baud_rate != 0)
+  ESP_LOGCONFIG(
+      TAG, "  Enabled   : %s",
+      (this->component_state_ != ModemComponentState::MODEM_DISABLED) ? LOG_STR_LITERAL("Yes") : LOG_STR_LITERAL("No"));
+  if (this->modem_handler->baud_rate != 0) {
     ESP_LOGCONFIG(TAG, "  Baud rate : %d", this->modem_handler->baud_rate);
+  }
   ESP_LOGCONFIG(TAG, "  UART port : %d", this->modem_handler->uart_port_num);
   ESP_LOGCONFIG(TAG, "  TX  buffer size     : %d", this->modem_handler->tx_buffer_size);
   ESP_LOGCONFIG(TAG, "  RX  buffer size     : %d", this->modem_handler->rx_buffer_size);

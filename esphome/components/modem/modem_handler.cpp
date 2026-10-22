@@ -9,7 +9,7 @@ namespace esphome::modem {
 
 using namespace esp_modem;
 
-static const char *const TAG = "modem_handler";
+ESPHOME_LOG_TAG(TAG, "modem_handler");
 
 void ModemHandler::modem_create_dte_dce(int baud_rate) {
   this->current_baud_rate = baud_rate;
@@ -127,8 +127,9 @@ void ModemHandler::modem_log_status() {
   ESP_LOGI(TAG,
            "Modem status: %s, attached: %s, registration state: %d, radio function: %s, SIM: %s, type: %d, ber: %.0f "
            "%%, rssi: %.0f dB",
-           connected ? "Good" : (synced ? "BAD" : "No SYNC"), attached ? "Yes" : "NO", registration_state, cfun_str,
-           sim_status.c_str(), (int) network_mode, ber * 100.0f, rssi);
+           connected ? LOG_STR_LITERAL("Good") : (synced ? LOG_STR_LITERAL("BAD") : LOG_STR_LITERAL("No SYNC")),
+           attached ? LOG_STR_LITERAL("Yes") : LOG_STR_LITERAL("NO"), registration_state, cfun_str, sim_status.c_str(),
+           (int) network_mode, ber * 100.0f, rssi);
 }
 
 bool ModemHandler::prepare_sim() {
