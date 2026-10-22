@@ -18,8 +18,7 @@ void HoneywellHIComponent::read_sensor_data_() {
   uint8_t data[4];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -38,8 +37,7 @@ void HoneywellHIComponent::read_sensor_data_() {
 
 void HoneywellHIComponent::start_measurement_() {
   if (this->write(REQUEST_CMD, sizeof(REQUEST_CMD)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -50,8 +48,7 @@ bool HoneywellHIComponent::is_measurement_ready_() {
   uint8_t data[1];
 
   if (this->read(data, sizeof(data)) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
 
@@ -60,9 +57,8 @@ bool HoneywellHIComponent::is_measurement_ready_() {
 }
 
 void HoneywellHIComponent::measurement_timeout_() {
-  ESP_LOGE(TAG, "Honeywell HIH Timeout!");
   this->measurement_running_ = false;
-  this->mark_failed();
+  this->mark_failed(LOG_STR("Measurement timeout"));
 }
 
 void HoneywellHIComponent::update() {
@@ -84,9 +80,6 @@ void HoneywellHIComponent::loop() {
 void HoneywellHIComponent::dump_config() {
   ESP_LOGD(TAG, "Honeywell HIH:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_UPDATE_INTERVAL(this);

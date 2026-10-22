@@ -182,6 +182,20 @@ bool RemoteTransmitData::set_data_from_base64url(const std::string &base64url) {
 
 /* RemoteTransmitterBase */
 
+RemoteTransmitterBase::TransmitCall RemoteTransmitterBase::transmit() {
+  this->temp_.reset();
+  return TransmitCall(this, this->take_seq_());
+}
+
+void RemoteTransmitterBase::transmit_encoded_(EncodeFn encode, const void *data, uint32_t send_times,
+                                              uint32_t send_wait) {
+  auto call = this->transmit();
+  encode(call.get_data(), data);
+  call.set_send_times(send_times);
+  call.set_send_wait(send_wait);
+  call.perform();
+}
+
 void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait, [[maybe_unused]] uint16_t seq) {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   const auto &vec = this->temp_.get_data();

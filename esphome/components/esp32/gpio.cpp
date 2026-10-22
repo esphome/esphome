@@ -164,6 +164,10 @@ void ESP32InternalGPIOPin::setup() {
   conf.pull_down_en = this->flags_ & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
   conf.intr_type = GPIO_INTR_DISABLE;
   gpio_config(&conf);
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  // If auto light sleep is used gpio sleep mode needs to be disabled for the pin
+  gpio_sleep_sel_dis(this->get_pin_num());
+#endif
   if (this->flags_ & gpio::FLAG_OUTPUT) {
     gpio_set_drive_capability(this->get_pin_num(), this->get_drive_strength());
   }
@@ -234,7 +238,7 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  gpio::Flags diff = (gpio::Flags)(flags ^ arg->flags);
+  gpio::Flags diff = (gpio::Flags) (flags ^ arg->flags);
   if (diff & gpio::FLAG_OUTPUT) {
     if (flags & gpio::FLAG_OUTPUT) {
       gpio_hal_output_enable(&GPIO_HAL, arg->pin);

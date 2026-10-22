@@ -1,0 +1,101 @@
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      # Just the defined configuration
+      - bq25186.apply_configuration: bq25186_charger
+      # Just the defined configuration with some overrides
+      - bq25186.apply_configuration:
+          id: bq25186_charger
+          battery_regulation_voltage: 4.1V
+          fast_charge_current: 200mA
+
+bq25186:
+  - id: bq25186_charger
+    i2c_id: i2c_bus
+    configure_on_boot: false
+    fast_charge_current: 150mA
+    battery_regulation_voltage: 4.2V
+    input_current_limit: 500ma
+    system_regulation: 4.5v
+    charge_enabled: true
+  # Second charger with the boot-time write enabled
+  - id: bq25186_boot
+    i2c_id: i2c_bus
+    address: 0x6B
+    configure_on_boot: true
+    fast_charge_current: 20mA
+    watchdog: 160s_software_reset
+    update_interval: 30s
+
+binary_sensor:
+  - platform: bq25186
+    bq25186_id: bq25186_charger
+    ts:
+      name: TS Open
+    charging:
+      name: Charging
+    charge_done:
+      name: Charge Done
+    ilim:
+      name: ILIM Active
+    vdppm:
+      name: VDPPM Active
+    vindpm:
+      name: VINDPM Active
+    thermreg:
+      name: Thermal Regulation Active
+    power_good:
+      name: VIN Power Good
+    vin_ovp:
+      name: VIN OVP Active
+    battery_uvlo:
+      name: Battery UVLO Active
+    safety_timer_flag:
+      name: Safety Timer Flag
+    wake1_flag:
+      name: Wake 1 Flag
+    wake2_flag:
+      name: Wake 2 Flag
+    ts_flag:
+      name: TS Flag
+    ilim_flag:
+      name: ILIM Flag
+    vdppm_flag:
+      name: VDPPM Flag
+    vindpm_flag:
+      name: VINDPM Flag
+    thermreg_flag:
+      name: Thermal Regulation Flag
+    vin_ovp_flag:
+      name: VIN OVP Flag
+    battery_uvlo_flag:
+      name: Battery UVLO Flag
+    battery_ocp_flag:
+      name: Battery OCP Flag
+
+text_sensor:
+  - platform: bq25186
+    bq25186_id: bq25186_charger
+    charge_status:
+      name: Charge Status
+    ts_status:
+      name: TS Status
+
+button:
+  - platform: bq25186
+    bq25186_id: bq25186_charger
+    software_reset:
+      name: Software Reset
+    shutdown:
+      name: Shutdown
+    ship_mode:
+      name: Ship Mode
+    hardware_reset:
+      name: Hardware Reset
+
+switch:
+  - platform: bq25186
+    bq25186_id: bq25186_boot
+    pg_gpo:
+      name: PG GPO

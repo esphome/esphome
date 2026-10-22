@@ -20,31 +20,19 @@ from esphome.const import (
     CONF_TILT_ACTION,
     CONF_TILT_LAMBDA,
 )
-from esphome.types import ConfigType
 
 from .. import template_ns
 
 TemplateCover = template_ns.class_("TemplateCover", cover.Cover, cg.Component)
 
 TemplateCoverRestoreMode = template_ns.enum("TemplateCoverRestoreMode")
-RESTORE_MODES = {
-    "NO_RESTORE": TemplateCoverRestoreMode.COVER_NO_RESTORE,
-    "RESTORE": TemplateCoverRestoreMode.COVER_RESTORE,
-    "RESTORE_AND_CALL": TemplateCoverRestoreMode.COVER_RESTORE_AND_CALL,
-}
+RESTORE_MODES = TemplateCoverRestoreMode.options(
+    "NO_RESTORE", "RESTORE", "RESTORE_AND_CALL", prefix="COVER_"
+)
 
 CONF_HAS_POSITION = "has_position"
 CONF_STOP_TILT_ACTION = "stop_tilt_action"
 CONF_TOGGLE_ACTION = "toggle_action"
-
-
-def _validate_stop_tilt_action(config: ConfigType) -> ConfigType:
-    if CONF_STOP_TILT_ACTION in config and CONF_TILT_ACTION not in config:
-        raise cv.Invalid(
-            f"'{CONF_STOP_TILT_ACTION}' requires '{CONF_TILT_ACTION}' to be set",
-            path=[CONF_STOP_TILT_ACTION],
-        )
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -79,7 +67,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    _validate_stop_tilt_action,
+    cv.key_requires(CONF_STOP_TILT_ACTION, CONF_TILT_ACTION),
 )
 
 

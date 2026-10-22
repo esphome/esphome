@@ -110,6 +110,13 @@ esp32_ble_server:
               - ble_server.descriptor.set_value:
                   id: test_change_descriptor
                   value: "Changed"
+              # Empty constants
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value: ""
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value: ""
               # Lambdas that read the trigger argument
               - ble_server.characteristic.set_value:
                   id: test_change_characteristic

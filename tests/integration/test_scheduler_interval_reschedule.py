@@ -19,7 +19,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -81,22 +83,18 @@ async def test_scheduler_interval_reschedule(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "sched-interval-resched"
+        await assert_device_name(client, "sched-interval-resched")
 
         # 1. Fast interval (50ms) should reach 10 fires within ~600ms
-        try:
-            await asyncio.wait_for(fast_10_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Fast interval (50ms) did not fire 10 times")
+        await wait_or_fail(
+            fast_10_future, 5.0, "Fast interval (50ms) did not fire 10 times"
+        )
 
         # 2. Medium interval (100ms) should reach 5 fires
         #    At that point, fast_count should be roughly 2x medium_count
-        try:
-            result = await asyncio.wait_for(medium_5_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Medium interval (100ms) did not fire 5 times")
+        result = await wait_or_fail(
+            medium_5_future, 5.0, "Medium interval (100ms) did not fire 5 times"
+        )
 
         fast_at_medium_5 = result[0]
         # Fast runs at 50ms, medium at 100ms, so fast should be ~2x medium
@@ -108,10 +106,9 @@ async def test_scheduler_interval_reschedule(
 
         # 3. Slow interval (200ms) should reach 3 fires
         #    At that point, both fast and medium should have proportionally more fires
-        try:
-            result = await asyncio.wait_for(slow_3_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Slow interval (200ms) did not fire 3 times")
+        result = await wait_or_fail(
+            slow_3_future, 5.0, "Slow interval (200ms) did not fire 3 times"
+        )
 
         fast_at_slow_3, medium_at_slow_3 = result
         # At 600ms: fast ~12, medium ~6, slow 3
@@ -125,10 +122,9 @@ async def test_scheduler_interval_reschedule(
         )
 
         # 4. Self-cancelling interval should have stopped after exactly 3 fires
-        try:
-            await asyncio.wait_for(self_cancel_stopped_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Self-cancelling interval did not stop")
+        await wait_or_fail(
+            self_cancel_stopped_future, 5.0, "Self-cancelling interval did not stop"
+        )
 
         # Wait a bit to ensure it doesn't fire again
         await asyncio.sleep(0.3)
@@ -138,18 +134,18 @@ async def test_scheduler_interval_reschedule(
         )
 
         # 5. Timeout scheduled from interval callback should have fired
-        try:
-            await asyncio.wait_for(callback_timeout_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout scheduled from interval callback did not fire")
+        await wait_or_fail(
+            callback_timeout_future,
+            5.0,
+            "Timeout scheduled from interval callback did not fire",
+        )
 
         # 6. Interval that replaces itself via set_interval from within callback
         #    The original fires once, sets up a new named interval, then stops itself.
         #    The replacement interval should fire 3 times then cancel itself.
-        try:
-            await asyncio.wait_for(replace_original_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Replace-test original interval did not fire")
+        await wait_or_fail(
+            replace_original_future, 5.0, "Replace-test original interval did not fire"
+        )
 
         try:
             await asyncio.wait_for(replaced_stopped_future, timeout=5.0)
