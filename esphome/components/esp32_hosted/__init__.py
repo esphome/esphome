@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from esphome.const import (
 )
 from esphome.cpp_generator import add_define
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@swoboda1337"]
 DEPENDENCIES = ["esp32"]
@@ -61,7 +64,7 @@ _MAX_CUSTOM_MSG_HANDLERS = 8
 BASE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_VARIANT): cv.one_of(*esp32.VARIANTS, upper=True),
-        cv.Required(CONF_ACTIVE_HIGH): cv.boolean,
+        cv.Optional(CONF_ACTIVE_HIGH): cv.boolean,
         cv.Required(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_USE_PSRAM, default=False): cv.boolean,
     }
@@ -82,6 +85,23 @@ SDIO_SCHEMA = BASE_SCHEMA.extend(
         ),
     }
 )
+
+
+def _validate_active_high(config: ConfigType) -> ConfigType:
+    # Remove before 2027.5.0
+    if (active_high := config.get(CONF_ACTIVE_HIGH)) is None:
+        return config
+    if not active_high:
+        raise cv.Invalid(
+            "esp_hosted always parks the reset line high with a low pulse, so "
+            "'active_high: false' is not supported.",
+            path=[CONF_ACTIVE_HIGH],
+        )
+    _LOGGER.warning(
+        "'active_high' is deprecated and ignored, remove it from esp32_hosted. "
+        "Removed in 2027.5.0"
+    )
+    return config
 
 
 def _validate_sdio(config: ConfigType) -> ConfigType:
@@ -139,8 +159,8 @@ def _validate_spi(config: ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        "sdio": cv.All(SDIO_SCHEMA, _validate_sdio),
-        "spi": cv.All(SPI_SCHEMA, _validate_spi),
+        "sdio": cv.All(SDIO_SCHEMA, _validate_sdio, _validate_active_high),
+        "spi": cv.All(SPI_SCHEMA, _validate_spi, _validate_active_high),
     },
     default_type="sdio",
 )
@@ -152,12 +172,6 @@ def _final_validate(config: ConfigType) -> None:
             f"esp32_hosted requires ESP-IDF 5.5 or newer, got {idf_ver}. "
             "Remove the framework version from your configuration to use the "
             "recommended version, or pin a version at or above 5.5."
-        )
-    if not config[CONF_ACTIVE_HIGH]:
-        raise cv.Invalid(
-            "esp_hosted always parks the reset line high with a low pulse, so "
-            "'active_high: false' is not supported.",
-            path=[CONF_ACTIVE_HIGH],
         )
 
 
