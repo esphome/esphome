@@ -27,7 +27,7 @@ class TCA9555Component final : public Component,
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(TCA9555Component *arg);
+  static void gpio_intr(TCA9555Component *arg);
   // Virtual methods from GpioExpander base class — names come from base
   bool digital_read_hw(uint8_t pin) override;               // NOLINT(readability-identifier-naming)
   bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)

@@ -1,7 +1,7 @@
 """Minimal plaintext native-api client over a raw socket.
 
 Reads only when told to, so tests control when the TCP pipe backs up toward
-the device; payloads are skipped and only message types are counted.
+the device; message types are counted and each frame is kept for inspection.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 import socket
+import struct
 from typing import Self
 
 from aioesphomeapi import api_pb2
@@ -49,6 +50,36 @@ def decode_varint(buf: bytearray, pos: int) -> tuple[int, int] | None:
     return None
 
 
+WIRE_VARINT, WIRE_LENGTH, WIRE_FIXED32 = 0, 2, 5
+
+
+def tag(field: int, wire_type: int) -> bytes:
+    return encode_varint((field << 3) | wire_type)
+
+
+def decode_fields(payload: bytes) -> dict[int, list[int | bytes]]:
+    """Split a protobuf payload into field number -> raw values; a test reads fields the client lacks."""
+    fields: dict[int, list[int | bytes]] = {}
+    buf = bytearray(payload)
+    pos = 0
+    while pos < len(buf):
+        key, pos = decode_varint(buf, pos)
+        field, wire_type = key >> 3, key & 0x07
+        if wire_type == WIRE_VARINT:
+            value, pos = decode_varint(buf, pos)
+        elif wire_type == WIRE_LENGTH:
+            length, pos = decode_varint(buf, pos)
+            value = bytes(buf[pos : pos + length])
+            pos += length
+        elif wire_type == WIRE_FIXED32:
+            value = struct.unpack_from("<I", buf, pos)[0]
+            pos += 4
+        else:
+            raise AssertionError(f"unexpected wire type {wire_type} for field {field}")
+        fields.setdefault(field, []).append(value)
+    return fields
+
+
 def encode_frame(msg_type: int, payload: bytes) -> bytes:
     """Encode one plaintext api frame: 0x00, payload length, message type."""
     return b"\x00" + encode_varint(len(payload)) + encode_varint(msg_type) + payload
@@ -59,15 +90,17 @@ class FrameParser:
 
     def __init__(self) -> None:
         self._buf = bytearray()
+        self.frames: list[tuple[int, bytes]] = []
 
     def feed(self, data: bytes) -> list[int]:
         self._buf.extend(data)
         types: list[int] = []
-        while (msg_type := self._try_parse()) is not None:
-            types.append(msg_type)
+        while (frame := self._try_parse()) is not None:
+            self.frames.append(frame)
+            types.append(frame[0])
         return types
 
-    def _try_parse(self) -> int | None:
+    def _try_parse(self) -> tuple[int, bytes] | None:
         buf = self._buf
         if not buf:
             return None
@@ -80,8 +113,9 @@ class FrameParser:
         msg_type, pos = type_decoded
         if len(buf) - pos < size:
             return None
+        payload = bytes(buf[pos : pos + size])
         del buf[: pos + size]
-        return msg_type
+        return msg_type, payload
 
 
 class RawApiClient:
@@ -144,6 +178,10 @@ class RawApiClient:
                 self.frame_counts.update(self._parser.feed(data))
 
         await asyncio.wait_for(_read_loop(), timeout)
+
+    def frames(self, msg_type: int) -> list[bytes]:
+        """Payloads of every frame of msg_type received so far."""
+        return [payload for kind, payload in self._parser.frames if kind == msg_type]
 
     def close(self) -> None:
         self._sock.close()
