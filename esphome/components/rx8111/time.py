@@ -49,26 +49,29 @@ _ALARM_FIELDS = (
     CONF_ALARM_DAY,
 )
 _CALLBACK_AUTOMATIONS = (
-    (CONF_ON_ALARM, "add_on_alarm_callback"),
-    (CONF_ON_TIMER, "add_on_timer_callback"),
+    automation.CallbackAutomation(CONF_ON_ALARM, "add_on_alarm_callback"),
+    automation.CallbackAutomation(CONF_ON_TIMER, "add_on_timer_callback"),
 )
 
 
 def _validate_alarm_config(config: ConfigType) -> ConfigType:
-    if CONF_ALARM_DAY in config and CONF_ALARM_WEEKDAY in config:
-        raise cv.Invalid("Alarm cannot match both weekday and day of month")
+    """Rules that depend on the derived alarm_enabled and timer_enabled defaults."""
     if CONF_ON_ALARM in config and not config.get(
         CONF_ALARM_ENABLED, any(f in config for f in _ALARM_FIELDS)
     ):
         raise cv.Invalid(
             "on_alarm requires alarm_enabled: true or alarm matching fields"
         )
-    if (
-        config.get(CONF_TIMER_ENABLED, CONF_TIMER_COUNT in config)
-        or CONF_ON_TIMER in config
-    ) and CONF_TIMER_COUNT not in config:
+    if CONF_TIMER_COUNT not in config and (
+        config.get(CONF_TIMER_ENABLED) or CONF_ON_TIMER in config
+    ):
         raise cv.Invalid("timer_enabled or on_timer requires timer_count")
     return config
+
+
+_validate_alarm_options = cv.All(
+    cv.has_at_most_one_key(CONF_ALARM_DAY, CONF_ALARM_WEEKDAY), _validate_alarm_config
+)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -88,55 +91,49 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_TIMER_ENABLED): cv.boolean,
             cv.Optional(CONF_ON_TIMER): automation.validate_automation({}),
-            cv.Optional(
-                CONF_EVENT_POLL_INTERVAL, default="1s"
-            ): cv.positive_time_period_milliseconds,
+            # Below 500 ms a scheduler interval costs more than it saves
+            cv.Optional(CONF_EVENT_POLL_INTERVAL, default="1s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=cv.TimePeriod(milliseconds=500)),
+            ),
         }
     ).extend(i2c.i2c_device_schema(0x32)),
-    _validate_alarm_config,
+    _validate_alarm_options,
 )
 
 RX8111_ACTION_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(RX8111Component)}
 )
 
-automation.register_apply_action(
-    "rx8111.write_time", RX8111_ACTION_SCHEMA, automation.ApplyCall("write_time()")
-)
-automation.register_apply_action(
-    "rx8111.read_time", RX8111_ACTION_SCHEMA, automation.ApplyCall("read_time()")
-)
-automation.register_apply_action(
-    "rx8111.clear_alarm_flag",
-    RX8111_ACTION_SCHEMA,
-    automation.ApplyCall("clear_alarm_flag()"),
-)
-automation.register_apply_action(
-    "rx8111.clear_timer_flag",
-    RX8111_ACTION_SCHEMA,
-    automation.ApplyCall("clear_timer_flag()"),
-)
-automation.register_apply_action(
-    "rx8111.unset_alarm", RX8111_ACTION_SCHEMA, automation.ApplyCall("unset_alarm()")
-)
-automation.register_apply_action(
-    "rx8111.stop_timer", RX8111_ACTION_SCHEMA, automation.ApplyCall("stop_timer()")
-)
-automation.register_apply_action(
-    "rx8111.start_timer", RX8111_ACTION_SCHEMA, automation.ApplyCall("start_timer()")
-)
+# Actions that call one argument-less method on the component
+for _method in (
+    "write_time",
+    "read_time",
+    "clear_alarm_flag",
+    "clear_timer_flag",
+    "unset_alarm",
+    "stop_timer",
+    "start_timer",
+):
+    automation.register_apply_action(
+        f"rx8111.{_method}", RX8111_ACTION_SCHEMA, automation.ApplyCall(f"{_method}()")
+    )
+
+_SET_ALARM_FIELDS = (CONF_SECOND, CONF_MINUTE, CONF_HOUR, CONF_WEEKDAY, CONF_DAY)
 
 
-def _validate_set_alarm(config: ConfigType) -> ConfigType:
-    """Checks the fields given and marks the rest unset, so set_alarm() always gets all five."""
-    fields = (CONF_SECOND, CONF_MINUTE, CONF_HOUR, CONF_WEEKDAY, CONF_DAY)
-    if not any(field in config for field in fields):
-        raise cv.Invalid("set_alarm requires at least one matching field")
-    if CONF_WEEKDAY in config and CONF_DAY in config:
-        raise cv.Invalid("set_alarm cannot match both weekday and day")
-    for field in fields:
+def _fill_unset_alarm_fields(config: ConfigType) -> ConfigType:
+    """Marks the fields not given as unset, so set_alarm() always gets all five."""
+    for field in _SET_ALARM_FIELDS:
         config.setdefault(field, ALARM_FIELD_UNSET)
     return config
+
+
+_validate_set_alarm = cv.All(
+    cv.has_at_least_one_key(*_SET_ALARM_FIELDS),
+    cv.has_at_most_one_key(CONF_WEEKDAY, CONF_DAY),
+    _fill_unset_alarm_fields,
+)
 
 
 automation.register_apply_action(
@@ -224,12 +221,7 @@ async def to_code(config: ConfigType) -> None:
     if (count := config.get(CONF_TIMER_COUNT)) is not None:
         cg.add(var.set_timer_count(count))
         cg.add(var.set_timer_clock(config[CONF_TIMER_CLOCK]))
-    cg.add(
-        var.set_timer_enabled(
-            config.get(CONF_TIMER_ENABLED, count is not None or CONF_ON_TIMER in config)
-        )
-    )
+    # Validation guarantees on_timer comes with a timer_count
+    cg.add(var.set_timer_enabled(config.get(CONF_TIMER_ENABLED, count is not None)))
     cg.add(var.set_timer_configured(CONF_TIMER_ENABLED in config or count is not None))
-    for key, method in _CALLBACK_AUTOMATIONS:
-        for conf in config.get(key, []):
-            await automation.build_callback_automation(var, method, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

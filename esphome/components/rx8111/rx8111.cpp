@@ -38,7 +38,7 @@ void RX8111Component::setup() {
   this->configure_boot_alarm_();
   this->configure_boot_timer_();
   this->read_time();
-  if (this->alarm_enabled_ || this->timer_enabled_ || this->timer_retained_event_pending_) {
+  if (this->alarm_enabled_ || this->watching_()) {
     this->start_event_polling_();
   }
 }
@@ -46,12 +46,11 @@ void RX8111Component::setup() {
 void RX8111Component::configure_boot_alarm_() {
   bool success = true;
   if (this->alarm_enabled_) {
-    if (this->alarm_second_ != 0xFF || this->alarm_minute_ != 0xFF || this->alarm_hour_ != 0xFF ||
-        this->alarm_weekday_ != 0xFF || this->alarm_day_ != 0xFF) {
-      this->boot_alarm_in_progress_ = true;
+    if (this->alarm_second_ != ALARM_FIELD_UNSET || this->alarm_minute_ != ALARM_FIELD_UNSET ||
+        this->alarm_hour_ != ALARM_FIELD_UNSET || this->alarm_weekday_ != ALARM_FIELD_UNSET ||
+        this->alarm_day_ != ALARM_FIELD_UNSET) {
       success = this->program_alarm_(this->alarm_second_, this->alarm_minute_, this->alarm_hour_, this->alarm_weekday_,
-                                     this->alarm_day_);
-      this->boot_alarm_in_progress_ = false;
+                                     this->alarm_day_, true);
       if (success) {
         // Only the first successful boot program can introduce a boot wake-up edge.
         if (!this->boot_alarm_event_seen_)
@@ -79,9 +78,12 @@ void RX8111Component::configure_boot_timer_() {
   // An omitted timer setting leaves battery-backed state alone; explicit false stops it.
   if (this->timer_configured_) {
     const bool start_timer = this->timer_enabled_;
-    this->boot_timer_in_progress_ = true;
-    success = start_timer ? this->configure_timer_() : this->stop_timer();
-    this->boot_timer_in_progress_ = false;
+    if (start_timer) {
+      success = this->configure_timer_();
+    } else {
+      uint8_t extension, control;
+      success = this->disable_timer_(extension, control);
+    }
     if (success && !start_timer && this->timer_count_ != 0) {
       this->timer_retained_event_pending_ = true;
       this->start_event_polling_();
@@ -92,7 +94,7 @@ void RX8111Component::configure_boot_timer_() {
 
 void RX8111Component::boot_config_result_(bool alarm, bool success) {
   auto &attempts = alarm ? this->boot_alarm_attempts_ : this->boot_timer_attempts_;
-  const uint16_t warning = alarm ? WARN_BOOT_ALARM : WARN_BOOT_TIMER;
+  const uint8_t warning = alarm ? WARN_ALARM : WARN_TIMER;
   ++attempts;
   if (success) {
     this->clear_warning_(warning);
@@ -111,19 +113,13 @@ void RX8111Component::boot_config_result_(bool alarm, bool success) {
                     });
 }
 
-void RX8111Component::cancel_boot_retry_(bool alarm, bool success) {
+// A runtime action supersedes pending boot programming of the same feature
+void RX8111Component::cancel_boot_retry_(bool alarm) {
   this->cancel_timeout(alarm ? RX8111_BOOT_ALARM_RETRY_ID : RX8111_BOOT_TIMER_RETRY_ID);
-  if (alarm) {
-    this->boot_alarm_attempts_ = RX8111_BOOT_MAX_ATTEMPTS;
-  } else {
-    this->boot_timer_attempts_ = RX8111_BOOT_MAX_ATTEMPTS;
-  }
-  if (success)
-    this->clear_warning_(alarm ? WARN_BOOT_ALARM : WARN_BOOT_TIMER);
 }
 
 void RX8111Component::check_event_flags_() {
-  if (!this->alarm_armed_ && !this->timer_enabled_ && !this->timer_retained_event_pending_)
+  if (!this->watching_())
     return;
   if (!this->poll_event_flags_()) {
     this->set_warning_(WARN_EVENT_POLL, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
@@ -142,14 +138,12 @@ void RX8111Component::update() {
   this->check_event_flags_();
 }
 
-void RX8111Component::set_calendar_warning_(const LogString *message) { this->set_warning_(WARN_CALENDAR, message); }
-
-void RX8111Component::set_warning_(uint16_t bit, const LogString *message) {
+void RX8111Component::set_warning_(uint8_t bit, const LogString *message) {
   this->warnings_ |= bit;
   this->status_set_warning(message);
 }
 
-void RX8111Component::clear_warning_(uint16_t bit) {
+void RX8111Component::clear_warning_(uint8_t bit) {
   if ((this->warnings_ & bit) == 0)
     return;
   this->warnings_ &= ~bit;
@@ -182,47 +176,40 @@ void RX8111Component::read_time() {
 bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags)) {
-    this->set_calendar_warning_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_CALENDAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   if (flags & (RX8111_FLAG_VLF | RX8111_FLAG_XST | RX8111_FLAG_POR)) {
     ESP_LOGW(TAG, "RTC time invalidated by power loss or oscillator stop; write trusted time");
-    this->set_calendar_warning_(LOG_STR("RTC time invalidated; write trusted time"));
+    this->set_warning_(WARN_CALENDAR, LOG_STR("RTC time invalidated; write trusted time"));
     return false;
   }
 
   uint8_t buf[7];
   // I2C access freezes the RX8111 counter, yielding a coherent calendar snapshot.
   if (!this->read_bytes(RX8111_REG_SEC, buf, sizeof(buf))) {
-    this->set_calendar_warning_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_CALENDAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
+  // decode_bcd_calendar() masks the same bits; the check here catches a corrupted register
   static constexpr uint8_t CALENDAR_MASKS[7] = {0x7F, 0x7F, 0x3F, 0x00, 0x3F, 0x1F, 0xFF};
+  bool valid = true;
   for (size_t i = 0; i < sizeof(buf); i++) {
     if (i == 3)
       continue;  // Weekday uses one-hot encoding, not BCD.
     buf[i] &= CALENDAR_MASKS[i];
-    if ((buf[i] & 0x0F) > 9 || (buf[i] >> 4) > 9) {
-      ESP_LOGW(TAG, "Invalid BCD in RTC time");
-      this->set_calendar_warning_(LOG_STR("Invalid RTC time"));
-      return false;
-    }
+    valid = valid && (buf[i] & 0x0F) <= 9 && (buf[i] >> 4) <= 9;
   }
   const uint8_t onehot = buf[3];
-  if (onehot == 0 || onehot > 0x40 || (onehot & (onehot - 1)) != 0) {
-    ESP_LOGW(TAG, "Invalid RTC weekday");
-    this->set_calendar_warning_(LOG_STR("Invalid RTC time"));
-    return false;
+  valid = valid && onehot != 0 && onehot <= 0x40 && (onehot & (onehot - 1)) == 0;
+  if (valid) {
+    rtc_time = time::decode_bcd_calendar(buf);
+    valid = rtc_time.is_valid(true, false) && rtc_time.second < 60 &&
+            ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week == rtc_time.day_of_week;
   }
-  rtc_time = time::decode_bcd_calendar(buf);
-  if (!rtc_time.is_valid(true, false) || rtc_time.second >= 60) {
+  if (!valid) {
     ESP_LOGW(TAG, "Invalid RTC time, not syncing to system clock");
-    this->set_calendar_warning_(LOG_STR("Invalid RTC time"));
-    return false;
-  }
-  if (ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week != rtc_time.day_of_week) {
-    ESP_LOGW(TAG, "RTC weekday does not match calendar date");
-    this->set_calendar_warning_(LOG_STR("Invalid RTC time"));
+    this->set_warning_(WARN_CALENDAR, LOG_STR("Invalid RTC time"));
     return false;
   }
   this->clear_warning_(WARN_CALENDAR);
@@ -260,38 +247,31 @@ void RX8111Component::write_time() {
 }
 
 bool RX8111Component::set_stop_bit_(bool stop) {
-  uint8_t control;
-  if (!this->read_byte(RX8111_REG_CONTROL, &control))
-    return false;
-  if (stop) {
-    control |= RX8111_CTRL_STOP;
-  } else {
-    control &= ~RX8111_CTRL_STOP;
-  }
-  return this->write_byte(RX8111_REG_CONTROL, control);
+  return this->update_register(RX8111_REG_CONTROL, RX8111_CTRL_STOP, stop ? RX8111_CTRL_STOP : 0);
 }
 
 bool RX8111Component::set_alarm_interrupt_(bool enabled) {
   return this->update_register(RX8111_REG_CONTROL, RX8111_CONTROL_AIE, enabled ? RX8111_CONTROL_AIE : 0);
 }
 
-bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day) {
+bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day,
+                                     bool boot) {
   uint8_t extension;
   if (!this->read_byte(RX8111_REG_EXTENSION, &extension))
     return false;
-  if (weekday != 0xFF) {
+  if (weekday != ALARM_FIELD_UNSET) {
     extension &= ~RX8111_EXTENSION_WADA;
-  } else if (day != 0xFF) {
+  } else if (day != ALARM_FIELD_UNSET) {
     extension |= RX8111_EXTENSION_WADA;
   }
 
   const uint8_t fields[] = {
-      second == 0xFF ? RX8111_ALARM_DISABLED : uint8_to_bcd(second),
-      minute == 0xFF ? RX8111_ALARM_DISABLED : uint8_to_bcd(minute),
-      hour == 0xFF ? RX8111_ALARM_DISABLED : uint8_to_bcd(hour),
-      weekday != 0xFF ? static_cast<uint8_t>(1U << (weekday - 1))
-      : day != 0xFF   ? uint8_to_bcd(day)
-                      : RX8111_ALARM_DISABLED,
+      second == ALARM_FIELD_UNSET ? RX8111_ALARM_DISABLED : uint8_to_bcd(second),
+      minute == ALARM_FIELD_UNSET ? RX8111_ALARM_DISABLED : uint8_to_bcd(minute),
+      hour == ALARM_FIELD_UNSET ? RX8111_ALARM_DISABLED : uint8_to_bcd(hour),
+      weekday != ALARM_FIELD_UNSET ? static_cast<uint8_t>(1U << (weekday - 1))
+      : day != ALARM_FIELD_UNSET   ? uint8_to_bcd(day)
+                                   : RX8111_ALARM_DISABLED,
   };
   // Disable the interrupt during partial programming; keep AF (past events) latched.
   if (!this->set_alarm_interrupt_(false))
@@ -300,7 +280,7 @@ bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hou
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
-  if (!this->boot_alarm_in_progress_)
+  if (!boot)
     this->alarm_flag_seen_ = (flags & RX8111_FLAG_AF) != 0;
   if (!this->write_byte(RX8111_REG_SEC_ALARM, fields[0]) || !this->write_bytes(RX8111_REG_MIN_ALARM, &fields[1], 3) ||
       !this->write_byte(RX8111_REG_EXTENSION, extension))
@@ -316,21 +296,20 @@ bool RX8111Component::set_alarm(uint16_t second, uint16_t minute, uint16_t hour,
     ESP_LOGE(TAG, "Alarm interrupt disabled; set alarm_enabled: true");
     return false;
   }
-  if ((second != 0xFF && second > 59) || (minute != 0xFF && minute > 59) || (hour != 0xFF && hour > 23) ||
-      (weekday != 0xFF && (weekday < 1 || weekday > 7)) || (day != 0xFF && (day < 1 || day > 31)) ||
-      (weekday != 0xFF && day != 0xFF) ||
-      (second == 0xFF && minute == 0xFF && hour == 0xFF && weekday == 0xFF && day == 0xFF)) {
+  constexpr uint16_t unset = ALARM_FIELD_UNSET;
+  if ((second != unset && second > 59) || (minute != unset && minute > 59) || (hour != unset && hour > 23) ||
+      (weekday != unset && (weekday < 1 || weekday > 7)) || (day != unset && (day < 1 || day > 31)) ||
+      (weekday != unset && day != unset) ||
+      (second == unset && minute == unset && hour == unset && weekday == unset && day == unset)) {
     ESP_LOGE(TAG, "Invalid alarm fields");
     return false;
   }
-  // A newer runtime request supersedes pending boot programming.
-  this->cancel_boot_retry_(true, false);
+  this->cancel_boot_retry_(true);
   if (!this->program_alarm_(second, minute, hour, weekday, day)) {
-    this->set_warning_(WARN_RUNTIME_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
-  this->cancel_boot_retry_(true, true);
-  this->clear_warning_(WARN_RUNTIME_ALARM);
+  this->clear_warning_(WARN_ALARM);
   this->boot_alarm_event_seen_ = true;
   this->start_event_polling_();
   return true;
@@ -351,30 +330,28 @@ bool RX8111Component::schedule_alarm_in(uint32_t seconds) {
     ESP_LOGE(TAG, "Relative alarm target is outside RTC year range");
     return false;
   }
-  return this->set_alarm(target.second, target.minute, target.hour, 0xFF, target.day_of_month);
+  return this->set_alarm(target.second, target.minute, target.hour, ALARM_FIELD_UNSET, target.day_of_month);
 }
 
 bool RX8111Component::unset_alarm() {
-  this->cancel_boot_retry_(true, false);
+  this->cancel_boot_retry_(true);
   if (!this->set_alarm_interrupt_(false)) {
-    this->set_warning_(WARN_RUNTIME_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->alarm_armed_ = false;
+  // Minute, hour and day alarm registers are contiguous
+  static constexpr uint8_t DISABLED[3] = {RX8111_ALARM_DISABLED, RX8111_ALARM_DISABLED, RX8111_ALARM_DISABLED};
   if (!this->write_byte(RX8111_REG_SEC_ALARM, RX8111_ALARM_DISABLED) ||
-      !this->write_byte(RX8111_REG_MIN_ALARM, RX8111_ALARM_DISABLED) ||
-      !this->write_byte(RX8111_REG_HOUR_ALARM, RX8111_ALARM_DISABLED) ||
-      !this->write_byte(RX8111_REG_DAY_ALARM, RX8111_ALARM_DISABLED)) {
-    this->set_warning_(WARN_RUNTIME_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      !this->write_bytes(RX8111_REG_MIN_ALARM, DISABLED, sizeof(DISABLED))) {
+    this->set_warning_(WARN_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
-  this->cancel_boot_retry_(true, true);
-  this->clear_warning_(WARN_RUNTIME_ALARM);
+  this->clear_warning_(WARN_ALARM);
   return true;
 }
 
 bool RX8111Component::clear_alarm_flag() {
-  // Write-zero-to-clear: ones protect every other flag, even one latched during this write.
   if (!this->write_byte(RX8111_REG_FLAG, static_cast<uint8_t>(~RX8111_FLAG_AF))) {
     this->set_warning_(WARN_ALARM_FLAG_CLEAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
@@ -384,14 +361,19 @@ bool RX8111Component::clear_alarm_flag() {
   return true;
 }
 
+// Clears TE and TIE; returns the register values read so callers can build on them
+bool RX8111Component::disable_timer_(uint8_t &extension, uint8_t &control) {
+  return this->read_byte(RX8111_REG_EXTENSION, &extension) &&
+         this->write_byte(RX8111_REG_EXTENSION, extension & ~RX8111_EXTENSION_TE) &&
+         this->read_byte(RX8111_REG_CONTROL, &control) &&
+         this->write_byte(RX8111_REG_CONTROL, control & ~RX8111_CONTROL_TIE);
+}
+
 bool RX8111Component::configure_timer_(bool clear_stale_flag) {
   // Stop counting before updating the 24-bit reload value; preserve the boot flag unless explicitly starting.
   uint8_t extension;
   uint8_t control;
-  if (!this->read_byte(RX8111_REG_EXTENSION, &extension) ||
-      !this->write_byte(RX8111_REG_EXTENSION, extension & ~RX8111_EXTENSION_TE) ||
-      !this->read_byte(RX8111_REG_CONTROL, &control) ||
-      !this->write_byte(RX8111_REG_CONTROL, control & ~RX8111_CONTROL_TIE))
+  if (!this->disable_timer_(extension, control))
     return false;
 
   const uint8_t count[] = {static_cast<uint8_t>(this->timer_count_), static_cast<uint8_t>(this->timer_count_ >> 8),
@@ -411,16 +393,16 @@ bool RX8111Component::start_timer() {
     ESP_LOGW(TAG, "Cannot start timer without a valid timer_count");
     return false;
   }
-  this->cancel_boot_retry_(false, false);
+  this->cancel_boot_retry_(false);
   if (!this->configure_timer_(true)) {
     // A partial configuration can leave either enable bit set. Disable both if the bus permits it.
-    this->stop_timer();
+    uint8_t extension, control;
+    this->disable_timer_(extension, control);
     this->timer_enabled_ = false;
-    this->set_warning_(WARN_RUNTIME_TIMER, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_TIMER, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
-  this->cancel_boot_retry_(false, true);
-  this->clear_warning_(WARN_RUNTIME_TIMER);
+  this->clear_warning_(WARN_TIMER);
   this->timer_enabled_ = true;
   this->timer_retained_event_pending_ = false;
   this->start_event_polling_();
@@ -428,7 +410,6 @@ bool RX8111Component::start_timer() {
 }
 
 bool RX8111Component::clear_timer_flag() {
-  // Write-zero-to-clear without clearing other flags latched concurrently.
   if (!this->write_byte(RX8111_REG_FLAG, static_cast<uint8_t>(~RX8111_FLAG_TF))) {
     this->set_warning_(WARN_TIMER_FLAG_CLEAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
@@ -440,23 +421,14 @@ bool RX8111Component::clear_timer_flag() {
 }
 
 bool RX8111Component::stop_timer() {
-  if (!this->boot_timer_in_progress_)
-    this->cancel_boot_retry_(false, false);
-  uint8_t extension;
-  uint8_t control;
-  if (!this->read_byte(RX8111_REG_EXTENSION, &extension) ||
-      !this->write_byte(RX8111_REG_EXTENSION, extension & ~RX8111_EXTENSION_TE) ||
-      !this->read_byte(RX8111_REG_CONTROL, &control) ||
-      !this->write_byte(RX8111_REG_CONTROL, control & ~RX8111_CONTROL_TIE)) {
-    if (!this->boot_timer_in_progress_)
-      this->set_warning_(WARN_RUNTIME_TIMER, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  this->cancel_boot_retry_(false);
+  uint8_t extension, control;
+  if (!this->disable_timer_(extension, control)) {
+    this->set_warning_(WARN_TIMER, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->timer_enabled_ = false;
-  if (!this->boot_timer_in_progress_)
-    this->cancel_boot_retry_(false, true);
-  if (!this->boot_timer_in_progress_)
-    this->clear_warning_(WARN_RUNTIME_TIMER);
+  this->clear_warning_(WARN_TIMER);
   return true;
 }
 
@@ -467,17 +439,18 @@ bool RX8111Component::poll_event_flags_() {
   this->clear_warning_(WARN_EVENT_POLL);
   const bool alarm_active = (flags & RX8111_FLAG_AF) != 0;
   const bool timer_active = (flags & RX8111_FLAG_TF) != 0;
-  if (alarm_active && this->alarm_enabled_ && this->alarm_armed_)
+  // alarm_armed_ is only ever set while the alarm is enabled
+  const bool timer_watched = this->timer_enabled_ || this->timer_retained_event_pending_;
+  if (alarm_active && this->alarm_armed_)
     this->boot_alarm_event_seen_ = true;
-  const bool alarm_rising = alarm_active && !this->alarm_flag_seen_ && this->alarm_enabled_ && this->alarm_armed_;
-  const bool timer_rising =
-      timer_active && !this->timer_flag_seen_ && (this->timer_enabled_ || this->timer_retained_event_pending_);
+  const bool alarm_rising = alarm_active && !this->alarm_flag_seen_ && this->alarm_armed_;
+  const bool timer_rising = timer_active && !this->timer_flag_seen_ && timer_watched;
   const bool deliver_stopped_event = timer_rising && this->timer_retained_event_pending_;
   // Record eligible edges before callbacks, which may clear flags synchronously.
   // Leave flags unseen while boot configuration is still waiting to enable delivery.
-  if (this->alarm_enabled_ && this->alarm_armed_)
+  if (this->alarm_armed_)
     this->alarm_flag_seen_ = alarm_active;
-  if (this->timer_enabled_ || this->timer_retained_event_pending_)
+  if (timer_watched)
     this->timer_flag_seen_ = timer_active;
   this->timer_retained_event_pending_ = false;
   if (alarm_rising)
@@ -485,8 +458,7 @@ bool RX8111Component::poll_event_flags_() {
   // An alarm callback may stop the timer before its callback is delivered.
   if (timer_rising && this->timer_flag_seen_ && (this->timer_enabled_ || deliver_stopped_event))
     this->timer_callbacks_.call();
-  if (!this->alarm_armed_ && !this->timer_enabled_ && !this->timer_retained_event_pending_ &&
-      this->event_polling_started_) {
+  if (!this->watching_() && this->event_polling_started_) {
     this->cancel_interval(RX8111_EVENT_INTERVAL_ID);
     this->event_polling_started_ = false;
   }

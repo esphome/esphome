@@ -18,6 +18,7 @@ from esphome.components.rx8111.time import (
     CONF_WEEKDAY,
     _validate_alarm_config,
     _validate_alarm_duration,
+    _validate_alarm_options,
     _validate_set_alarm,
 )
 import esphome.config_validation as cv
@@ -41,7 +42,7 @@ def test_set_alarm_marks_missing_fields_unset() -> None:
 
 def test_fixed_alarm_rejects_day_and_weekday() -> None:
     with pytest.raises(cv.Invalid):
-        _validate_alarm_config({CONF_ALARM_DAY: 1, CONF_ALARM_WEEKDAY: 2})
+        _validate_alarm_options({CONF_ALARM_DAY: 1, CONF_ALARM_WEEKDAY: 2})
 
 
 @pytest.mark.parametrize("duration", [0, 28 * 86400, 29 * 86400])
