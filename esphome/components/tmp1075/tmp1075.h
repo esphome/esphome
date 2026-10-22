@@ -64,10 +64,10 @@ class TMP1075Sensor final : public PollingComponent, public sensor::Sensor, publ
   // the IC. The setup() function also does this.
   void set_alert_limit_low(const float temp) { this->alert_limit_low_ = temp; }
   void set_alert_limit_high(const float temp) { this->alert_limit_high_ = temp; }
-  void set_oneshot(const bool oneshot) { config_.oneshot = oneshot; }
-  void set_conversion_rate(const enum EConversionRate rate) { config_.rate = rate; }
-  void set_alert_polarity(const bool polarity) { config_.polarity = polarity; }
-  void set_alert_function(const enum EAlertFunction function) { config_.alert_mode = function; }
+  void set_oneshot(const bool oneshot) { this->config_.oneshot = oneshot; }
+  void set_conversion_rate(const enum EConversionRate rate) { this->config_.rate = rate; }
+  void set_alert_polarity(const bool polarity) { this->config_.polarity = polarity; }
+  void set_alert_function(const enum EAlertFunction function) { this->config_.alert_mode = function; }
   void set_fault_count(int faults);
 
   void write_config();

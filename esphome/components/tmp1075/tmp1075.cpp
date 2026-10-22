@@ -51,8 +51,8 @@ void TMP1075Sensor::dump_config() {
                 "  polarity   : %d\n"
                 "  alert_mode : %d\n"
                 "  shutdown   : %d",
-                alert_limit_low_, alert_limit_high_, config_.oneshot, config_.rate, config_.faults, config_.polarity,
-                config_.alert_mode, config_.shutdown);
+                this->alert_limit_low_, this->alert_limit_high_, this->config_.oneshot, this->config_.rate,
+                this->config_.faults, this->config_.polarity, this->config_.alert_mode, this->config_.shutdown);
 }
 
 void TMP1075Sensor::set_fault_count(const int faults) {
@@ -64,7 +64,7 @@ void TMP1075Sensor::set_fault_count(const int faults) {
     ESP_LOGE(TAG, "'%s' - fault_count too high: %d", LOG_STR_ARG(this->get_log_name()), faults);
     return;
   }
-  config_.faults = faults - 1;
+  this->config_.faults = faults - 1;
 }
 
 void TMP1075Sensor::log_config_() {
@@ -75,27 +75,28 @@ void TMP1075Sensor::log_config_() {
            "  polarity  : %d\n"
            "  alert_mode: %d\n"
            "  shutdown  : %d",
-           config_.oneshot, config_.rate, config_.faults, config_.polarity, config_.alert_mode, config_.shutdown);
+           this->config_.oneshot, this->config_.rate, this->config_.faults, this->config_.polarity,
+           this->config_.alert_mode, this->config_.shutdown);
 }
 
 void TMP1075Sensor::write_config() {
-  send_alert_limit_low_();
-  send_alert_limit_high_();
-  send_config_();
+  this->send_alert_limit_low_();
+  this->send_alert_limit_high_();
+  this->send_config_();
 }
 
 void TMP1075Sensor::send_config_() {
-  ESP_LOGV(TAG, "'%s' - sending configuration %02x", LOG_STR_ARG(this->get_log_name()), config_.to_byte());
-  log_config_();
-  if (!this->write_byte(REG_CFGR, config_.to_byte())) {
+  ESP_LOGV(TAG, "'%s' - sending configuration %02x", LOG_STR_ARG(this->get_log_name()), this->config_.to_byte());
+  this->log_config_();
+  if (!this->write_byte(REG_CFGR, this->config_.to_byte())) {
     ESP_LOGW(TAG, "'%s' - unable to write configuration register", LOG_STR_ARG(this->get_log_name()));
     return;
   }
 }
 
 void TMP1075Sensor::send_alert_limit_low_() {
-  ESP_LOGV(TAG, "'%s' - sending alert limit low %.3f °C", LOG_STR_ARG(this->get_log_name()), alert_limit_low_);
-  const uint16_t regvalue = temp2regvalue(alert_limit_low_);
+  ESP_LOGV(TAG, "'%s' - sending alert limit low %.3f °C", LOG_STR_ARG(this->get_log_name()), this->alert_limit_low_);
+  const uint16_t regvalue = temp2regvalue(this->alert_limit_low_);
   if (!this->write_byte_16(REG_LLIM, regvalue)) {
     ESP_LOGW(TAG, "'%s' - unable to write low limit register", LOG_STR_ARG(this->get_log_name()));
     return;
@@ -103,8 +104,8 @@ void TMP1075Sensor::send_alert_limit_low_() {
 }
 
 void TMP1075Sensor::send_alert_limit_high_() {
-  ESP_LOGV(TAG, "'%s' - sending alert limit high %.3f °C", LOG_STR_ARG(this->get_log_name()), alert_limit_high_);
-  const uint16_t regvalue = temp2regvalue(alert_limit_high_);
+  ESP_LOGV(TAG, "'%s' - sending alert limit high %.3f °C", LOG_STR_ARG(this->get_log_name()), this->alert_limit_high_);
+  const uint16_t regvalue = temp2regvalue(this->alert_limit_high_);
   if (!this->write_byte_16(REG_HLIM, regvalue)) {
     ESP_LOGW(TAG, "'%s' - unable to write high limit register", LOG_STR_ARG(this->get_log_name()));
     return;
