@@ -18,6 +18,10 @@ namespace esphome::mq_gas_sensors {
 /// R0 comes from the configuration or from a clean air calibration at boot.
 class MQGasSensor : public sensor::Sensor, public PollingComponent {
  public:
+  /// Lowest averaged analog output that is still a measurement rather than a
+  /// missing signal (open circuit, absent supply, or a failed conversion).
+  static constexpr float MIN_VALID_VOLTAGE = 0.01f;
+
   explicit MQGasSensor(voltage_sampler::VoltageSampler *source) : source_(source) {}
 
   void setup() override;
@@ -51,6 +55,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
  protected:
   /// Averaged, scaled analog output voltage (V); sampled back to back.
   float sample_voltage_();
+  /// True when `voltage` is a measurement rather than a missing signal. The one
+  /// place `MIN_VALID_VOLTAGE` is applied, shared by `update()` and calibration.
+  static bool voltage_usable_(float voltage) { return std::isfinite(voltage) && voltage > MIN_VALID_VOLTAGE; }
   /// RS in kOhm for `voltage`.
   float current_rs_(float voltage) const;
   /// RS/R0 ratio for `rs`.
@@ -94,9 +101,18 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_last_sample_{0};
   uint32_t calibration_count_{0};
   uint32_t calibration_attempts_{0};
+  /// Why the samples that were not counted failed, so the final message names the
+  /// actual fault instead of pointing at the wiring for every cause.
+  uint32_t calibration_rejected_low_{0};
+  uint32_t calibration_rejected_high_{0};
+  uint32_t calibration_rejected_nonfinite_{0};
+  uint32_t calibration_rejected_rs_{0};
   float calibration_sum_{0.0f};
   bool warned_no_r0_{false};
-  bool warned_voltage_{false};
+  /// One flag per fault kind, so each is reported once - and again when it recurs
+  /// after the wiring read as expected in between.
+  bool warned_low_voltage_{false};
+  bool warned_high_voltage_{false};
 };
 
 }  // namespace esphome::mq_gas_sensors

@@ -11,10 +11,6 @@ runtime.
 """
 
 from dataclasses import dataclass
-import math
-
-MQ_MAX_A = 1e30
-MQ_MAX_B = 100.0
 
 
 @dataclass(frozen=True)
@@ -30,7 +26,6 @@ class ResolvedSensor:
     vcc: float
     min_ppm: float
     max_ppm: float
-    built_in_clamped: bool = False
 
 
 def normalize_type(value: str) -> str:
@@ -79,7 +74,6 @@ SENSOR_TYPES: dict[str, dict] = {
         "max_ppm": 10000.0,
         "gases": {  # alcohol
             "LPG": (44771.0, -3.245),
-            "CH4": (2e31, 19.01),
             "CO": (521853.0, -3.821),
             "ALCOHOL": (0.3934, -1.504),
             "BENZENE": (4.8387, -2.68),
@@ -215,18 +209,6 @@ SENSOR_TYPES: dict[str, dict] = {
 }
 
 
-def _clamp_coefficient(value: float, limit: float) -> float:
-    """Clamp a coefficient to the range the firmware can evaluate (see `MQ_MAX_A`).
-
-    Only the collected MQ-3 CH4 entry is above the limit, and the clamp changes
-    that curve, so `resolve_sensor()` marks it and ``_validate_config()`` in
-    ``sensor.py`` warns about it.
-    """
-    if not math.isfinite(value):
-        return 0.0
-    return max(-limit, min(limit, value))
-
-
 def resolve_sensor(
     type_key: str,
     gas: str | None = None,
@@ -254,18 +236,13 @@ def resolve_sensor(
             f"available gases: {', '.join(sorted(gases))}"
         )
 
-    clamped_a = _clamp_coefficient(float(gases[gas_key][0]), MQ_MAX_A)
-    clamped_b = _clamp_coefficient(float(gases[gas_key][1]), MQ_MAX_B)
     return ResolvedSensor(
         type_key=type_key,
         label=definition["label"],
         gas=gas_key,
         method=definition["method"],
-        a=clamped_a,
-        b=clamped_b,
-        # A clamped built-in fit is not the published curve (see `_clamp_coefficient()`).
-        built_in_clamped=clamped_a != float(gases[gas_key][0])
-        or clamped_b != float(gases[gas_key][1]),
+        a=float(gases[gas_key][0]),
+        b=float(gases[gas_key][1]),
         ratio_in_clean_air=float(
             definition["ratio_in_clean_air"]
             if ratio_in_clean_air is None

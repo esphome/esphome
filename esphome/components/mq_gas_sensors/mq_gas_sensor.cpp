@@ -108,17 +108,25 @@ void MQGasSensor::update() {
                    ? LOG_STR_LITERAL("the clean-air calibration did not complete, check the AO wiring and the supply")
                    : LOG_STR_LITERAL("set 'r0:' or 'calibration:' in the configuration"));
     }
+    // The degraded state lasts as long as R0 is unknown, so it must stay visible
+    // in the status and not only in the log line above.
+    this->status_set_warning(this->calibration_enabled_
+                                 ? LOG_STR("clean-air calibration failed - check the AO wiring and the supply")
+                                 : LOG_STR("no R0 available - set 'r0:' or 'calibration:' in the configuration"));
     this->publish_state(NAN);
     return;
   }
 
   const float voltage = this->sample_voltage_();
-  if (!std::isfinite(voltage) || voltage <= 0.01f) {
-    if (!this->warned_voltage_) {
-      this->warned_voltage_ = true;
+  if (!this->voltage_usable_(voltage)) {
+    if (!this->warned_low_voltage_) {
+      this->warned_low_voltage_ = true;
       ESP_LOGW(TAG, "'%s %s': analog output reads %.4f V - open circuit, missing supply or bad wiring?",
                this->type_.c_str(), this->gas_.c_str(), voltage);
     }
+    // Raised on every update while the fault lasts, not only when it appears: a
+    // status warning is a state, not an event.
+    this->status_set_warning(LOG_STR("analog output reads at or below 0.01 V - check the AO wiring"));
     this->publish_state(NAN);
     return;
   }
@@ -126,17 +134,20 @@ void MQGasSensor::update() {
     // Only a wrong `vcc:` / `voltage_multiplier:` reads at or above the supply, and
     // reading it as the saturated end of the range would turn a configuration error
     // into what looks like a real measurement.
-    if (!this->warned_voltage_) {
-      this->warned_voltage_ = true;
+    if (!this->warned_high_voltage_) {
+      this->warned_high_voltage_ = true;
       ESP_LOGW(TAG,
                "'%s %s': analog output reads %.4f V, at or above the configured vcc (%.2f V) - check 'vcc:' and "
                "'voltage_multiplier:'",
                this->type_.c_str(), this->gas_.c_str(), voltage, this->vcc_);
     }
+    this->status_set_warning(LOG_STR("analog output is at or above vcc - check 'vcc:' and 'voltage_multiplier:'"));
     this->publish_state(NAN);
     return;
   }
-  this->warned_voltage_ = false;
+  this->warned_low_voltage_ = false;
+  this->warned_high_voltage_ = false;
+  this->status_clear_warning();
 
   const float rs = this->current_rs_(voltage);
   const float ratio = this->current_ratio_(rs);
@@ -172,6 +183,10 @@ void MQGasSensor::begin_calibration_() {
   this->calibration_last_sample_ = App.get_loop_component_start_time();
   this->calibration_count_ = 0;
   this->calibration_attempts_ = 0;
+  this->calibration_rejected_low_ = 0;
+  this->calibration_rejected_high_ = 0;
+  this->calibration_rejected_nonfinite_ = 0;
+  this->calibration_rejected_rs_ = 0;
   this->calibration_sum_ = 0.0f;
   this->enable_loop();
 
@@ -184,11 +199,19 @@ void MQGasSensor::process_calibration_() {
   this->calibration_attempts_++;
 
   const float voltage = this->sample_voltage_();
-  if (std::isfinite(voltage) && voltage > 0.01f && voltage < this->vcc_) {
+  if (!std::isfinite(voltage)) {
+    this->calibration_rejected_nonfinite_++;
+  } else if (!this->voltage_usable_(voltage)) {
+    this->calibration_rejected_low_++;
+  } else if (voltage >= this->vcc_) {
+    this->calibration_rejected_high_++;
+  } else {
     const float r0 = mqmath::r0_from_clean_air(this->current_rs_(voltage), this->ratio_in_clean_air_);
     if (r0 > 0.0f) {
       this->calibration_sum_ += r0;
       this->calibration_count_++;
+    } else {
+      this->calibration_rejected_rs_++;
     }
   }
 
@@ -205,10 +228,14 @@ void MQGasSensor::finish_calibration_() {
   const uint32_t required = std::min<uint32_t>(std::max<uint32_t>((attempts + 1) / 2, 2), attempts);
 
   if (valid < required) {
+    // Name the reason each rejected sample failed, so a wrong `vcc:` is not
+    // mistaken for a wiring fault just because the generic message says so.
     ESP_LOGE(TAG,
-             "'%s %s': calibration failed, %" PRIu32 " of %" PRIu32
-             " samples produced a valid RS - check the AO wiring and the supply",
-             this->type_.c_str(), this->gas_.c_str(), valid, attempts);
+             "'%s %s': calibration failed, %" PRIu32 " of %" PRIu32 " valid RS: %" PRIu32 " below %.2f V, %" PRIu32
+             " at/above vcc, %" PRIu32 " non-finite, %" PRIu32 " bad RS - check AO wiring and supply",
+             this->type_.c_str(), this->gas_.c_str(), valid, attempts, this->calibration_rejected_low_,
+             MIN_VALID_VOLTAGE, this->calibration_rejected_high_, this->calibration_rejected_nonfinite_,
+             this->calibration_rejected_rs_);
     this->status_set_warning(LOG_STR("clean-air calibration failed"));
     return;
   }
