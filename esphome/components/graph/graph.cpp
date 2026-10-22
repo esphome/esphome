@@ -47,7 +47,7 @@ void HistoryData::take_sample(float data) {
 }
 
 void GraphTrace::init(Graph *g) {
-  ESP_LOGI(TAG, "Init trace for sensor %s", this->get_name().c_str());
+  ESP_LOGI(TAG, "Init trace for sensor %s", this->name_);
   this->data_.init(g->get_width());
   sensor_->add_on_state_callback([this](float state) { this->data_.take_sample(state); });
   this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
@@ -220,16 +220,16 @@ void GraphLegend::init(Graph *g) {
   int valw = 0, valh = 0;
   int lt = 0;
   for (auto *trace : g->traces_) {
-    std::string txtstr = trace->get_name();
+    const char *txtstr = trace->name_;
     int fw, fos, fbl, fh;
-    this->font_label_->measure(txtstr.c_str(), &fw, &fos, &fbl, &fh);
+    this->font_label_->measure(txtstr, &fw, &fos, &fbl, &fh);
     if (fw > txtw)
       txtw = fw;
     if (fh > txth)
       txth = fh;
     if (trace->get_line_thickness() > lt)
       lt = trace->get_line_thickness();
-    ESP_LOGI(TAGL, "  %s %d %d", txtstr.c_str(), fw, fh);
+    ESP_LOGI(TAGL, "  %s %d %d", txtstr, fw, fh);
 
     if (this->values_ != VALUE_POSITION_TYPE_NONE) {
       char valstr[VALUE_ACCURACY_MAX_LEN];
@@ -351,10 +351,10 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
   int x = x_offset + legend_->x0_;
   int y = y_offset;
   for (auto *trace : traces_) {
-    std::string txtstr = trace->get_name();
-    ESP_LOGV(TAG, "  %s", txtstr.c_str());
+    const char *txtstr = trace->name_;
+    ESP_LOGV(TAG, "  %s", txtstr);
 
-    buff->printf(x, y, legend_->font_label_, trace->get_line_color(), TextAlign::TOP_CENTER, "%s", txtstr.c_str());
+    buff->printf(x, y, legend_->font_label_, trace->get_line_color(), TextAlign::TOP_CENTER, "%s", txtstr);
 
     if (legend_->lines_) {
       uint16_t thick = trace->get_line_thickness();
@@ -393,7 +393,7 @@ void Graph::setup() {
 
 void Graph::dump_config() {
   for (auto *trace : traces_) {
-    ESP_LOGCONFIG(TAG, "Graph for sensor %s", trace->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "Graph for sensor %s", trace->name_);
   }
 }
 
