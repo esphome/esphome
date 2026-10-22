@@ -132,7 +132,7 @@ on_raw:
   then:
     - logger.log:
         format: "on_raw: %lu"
-        args: ["long(x.front())"]
+        args: ["(unsigned long) x.front()"]
 on_rc5:
   then:
     - logger.log:
