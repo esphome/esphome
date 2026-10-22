@@ -1,7 +1,7 @@
 sensor:
   - platform: toptronic
     name: "AF1 - Aussenf\xFChler 1"
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 0
@@ -15,7 +15,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Normal-Raumtemperatur Heizbetrieb (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3051
@@ -30,7 +30,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Spar-Raumtemperatur Heizbetrieb (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3053
@@ -45,7 +45,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Normal-Raumtemperatur Heizbetrieb (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3051
@@ -60,7 +60,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Spar-Raumtemperatur Heizbetrieb (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3053
@@ -75,7 +75,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Normal-Raumtemperatur Heizbetrieb (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3051
@@ -90,7 +90,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Spar-Raumtemperatur Heizbetrieb (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3053
@@ -105,7 +105,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Raum-Soll (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1001
@@ -119,7 +119,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Raum-Soll (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1001
@@ -133,7 +133,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Raum-Soll (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1001
@@ -147,7 +147,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Solltemperatur Handbetrieb (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 7009
@@ -162,7 +162,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Solltemperatur Handbetrieb (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 7009
@@ -177,7 +177,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Solltemperatur Handbetrieb (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 7009
@@ -192,7 +192,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Vorlauf Soll Konstantanf. Heizen (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 7036
@@ -207,7 +207,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Vorlauf Soll Konstantanf. Heizen (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 7036
@@ -222,7 +222,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Vorlauf Soll Konstantanf. Heizen (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 7036
@@ -237,7 +237,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Normal-Warmwassertemperatur
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 5051
@@ -252,7 +252,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Spar-Warmwassertemperatur
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 5086
@@ -264,7 +264,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Warmwasser-Soll
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 1004
@@ -278,7 +278,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Warmwasser-Ist SF
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 4
@@ -292,14 +292,14 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: SLP Warmwasser-Ladepumpe
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 1066
     type: U8
   - platform: toptronic
     name: "AF2 - Aussenf\xFChler 2"
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 21100
@@ -313,7 +313,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Raum-Ist (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1
@@ -328,7 +328,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Raum-Ist (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1
@@ -343,7 +343,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Raum-Ist (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1
@@ -358,7 +358,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Vorlauf-Ist (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 2
@@ -372,7 +372,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Vorlauf-Ist (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 2
@@ -386,7 +386,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Vorlauf-Ist (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 2
@@ -400,7 +400,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: FAV Vorlauf-Solltemp.
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 22021
@@ -414,7 +414,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: FAV Vorlauf-Ist Temp.
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 21059
@@ -428,14 +428,14 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: AVP Pumpe
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 22055
     type: U8
   - platform: toptronic
     name: YAV Mischer
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 22056
@@ -446,7 +446,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "R\xFCcklauf-Ist (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3
@@ -460,7 +460,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "R\xFCcklauf-Ist (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3
@@ -474,7 +474,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "R\xFCcklauf-Ist (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3
@@ -488,7 +488,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Mischer (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1021
@@ -499,7 +499,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Mischer (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1021
@@ -510,7 +510,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Mischer (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1021
@@ -521,28 +521,28 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Pumpe (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1020
     type: U8
   - platform: toptronic
     name: Pumpe (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1020
     type: U8
   - platform: toptronic
     name: Pumpe (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1020
     type: U8
   - platform: toptronic
     name: Zirkulationskreistemperatur
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 118
@@ -556,14 +556,14 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Warmwasser-Zirkulationspumpe
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 1065
     type: U8
   - platform: toptronic
     name: Vorlauf-Soll (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1002
@@ -577,7 +577,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Vorlauf-Soll (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1002
@@ -591,7 +591,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Vorlauf-Soll (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1002
@@ -605,7 +605,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Vorlauf Soll Konstantanf. K\xFChlen (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 7047
@@ -620,7 +620,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "Vorlauf Soll Konstantanf. K\xFChlen (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 7047
@@ -635,7 +635,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "Vorlauf Soll Konstantanf. K\xFChlen (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 7047
@@ -651,7 +651,7 @@ sensor:
 text_sensor:
   - platform: toptronic
     name: Betriebswahl Heizung (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3050
@@ -673,7 +673,7 @@ text_sensor:
       - 8
   - platform: toptronic
     name: Betriebswahl Heizung (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3050
@@ -695,7 +695,7 @@ text_sensor:
       - 8
   - platform: toptronic
     name: Betriebswahl Heizung (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3050
@@ -717,7 +717,7 @@ text_sensor:
       - 8
   - platform: toptronic
     name: Betriebswahl Warmwasser
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 5050
@@ -735,7 +735,7 @@ text_sensor:
       - 6
   - platform: toptronic
     name: Status Heizkreisregelung (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 2051
@@ -775,7 +775,7 @@ text_sensor:
       - 26
   - platform: toptronic
     name: Status Heizkreisregelung (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 2051
@@ -815,7 +815,7 @@ text_sensor:
       - 26
   - platform: toptronic
     name: Status Heizkreisregelung (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 2051
@@ -855,7 +855,7 @@ text_sensor:
       - 26
   - platform: toptronic
     name: Status Warmwasserregelung
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 2052

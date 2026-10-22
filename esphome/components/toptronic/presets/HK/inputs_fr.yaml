@@ -1,7 +1,7 @@
 number:
   - platform: toptronic
     name: "temp\xE9rature local normale mode chauffage (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3051
@@ -15,7 +15,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "temp\xE9rature local \xE9co mode chauffage (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3053
@@ -29,7 +29,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "temp\xE9rature local normale mode chauffage (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3051
@@ -43,7 +43,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "temp\xE9rature local \xE9co mode chauffage (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3053
@@ -57,7 +57,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "temp\xE9rature local normale mode chauffage (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3051
@@ -71,7 +71,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "temp\xE9rature local \xE9co mode chauffage (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3053
@@ -85,7 +85,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: temp. consigne comm. man. (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 7009
@@ -99,7 +99,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: temp. consigne comm. man. (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 7009
@@ -113,7 +113,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: temp. consigne comm. man. (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 7009
@@ -127,7 +127,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "D\xE9p. consigne demande const. chauffer (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 7036
@@ -141,7 +141,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "D\xE9p. consigne demande const. chauffer (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 7036
@@ -155,7 +155,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "D\xE9p. consigne demande const. chauffer (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 7036
@@ -169,7 +169,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "temp\xE9rature d'eau chaude normale"
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 5051
@@ -183,7 +183,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "temp\xE9rature eau chaude \xE9co"
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 5086
@@ -197,13 +197,13 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "Valeur r\xE9elle pi\xE8ce (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1
     type: S16
     min_value: 0
-    max_value: 0
+    max_value: 500
     step: 1
     decimal: 1
     unit_of_measurement: "\xB0C"
@@ -211,13 +211,13 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "Valeur r\xE9elle pi\xE8ce (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1
     type: S16
     min_value: 0
-    max_value: 0
+    max_value: 500
     step: 1
     decimal: 1
     unit_of_measurement: "\xB0C"
@@ -225,13 +225,13 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "Valeur r\xE9elle pi\xE8ce (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1
     type: S16
     min_value: 0
-    max_value: 0
+    max_value: 500
     step: 1
     decimal: 1
     unit_of_measurement: "\xB0C"
@@ -239,7 +239,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "D\xE9p. consigne demande const. refroid. (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 7047
@@ -253,7 +253,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "D\xE9p. consigne demande const. refroid. (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 7047
@@ -267,7 +267,7 @@ number:
     device_class: temperature
   - platform: toptronic
     name: "D\xE9p. consigne demande const. refroid. (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 7047
@@ -282,7 +282,7 @@ number:
 select:
   - platform: toptronic
     name: "S\xE9lection fonctionnement chauffage (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3050
@@ -304,7 +304,7 @@ select:
       - 8
   - platform: toptronic
     name: "S\xE9lection fonctionnement chauffage (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3050
@@ -326,7 +326,7 @@ select:
       - 8
   - platform: toptronic
     name: "S\xE9lection fonctionnement chauffage (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3050
@@ -348,7 +348,7 @@ select:
       - 8
   - platform: toptronic
     name: "S\xE9lection fonct. eau chaude"
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 5050

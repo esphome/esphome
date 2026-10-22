@@ -290,7 +290,7 @@ select:
       - Deakt.
       - Automatik
       - Heizen
-      - K?hlen
+      - "K\xFChlen"
     values:
       - 0
       - 1

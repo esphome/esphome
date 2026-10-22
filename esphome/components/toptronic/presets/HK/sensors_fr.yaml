@@ -1,7 +1,7 @@
 sensor:
   - platform: toptronic
     name: "AF 1 - sonde ext\xE9rieure 1"
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 0
@@ -15,7 +15,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "temp\xE9rature local normale mode chauffage (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3051
@@ -30,7 +30,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "temp\xE9rature local \xE9co mode chauffage (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3053
@@ -45,7 +45,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "temp\xE9rature local normale mode chauffage (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3051
@@ -60,7 +60,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "temp\xE9rature local \xE9co mode chauffage (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3053
@@ -75,7 +75,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "temp\xE9rature local normale mode chauffage (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3051
@@ -90,7 +90,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "temp\xE9rature local \xE9co mode chauffage (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3053
@@ -105,7 +105,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "Valeur de consigne pi\xE8ce (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1001
@@ -119,7 +119,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Valeur de consigne pi\xE8ce (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1001
@@ -133,7 +133,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Valeur de consigne pi\xE8ce (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1001
@@ -147,7 +147,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: temp. consigne comm. man. (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 7009
@@ -162,7 +162,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: temp. consigne comm. man. (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 7009
@@ -177,7 +177,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: temp. consigne comm. man. (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 7009
@@ -192,7 +192,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "D\xE9p. consigne demande const. chauffer (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 7036
@@ -207,7 +207,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "D\xE9p. consigne demande const. chauffer (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 7036
@@ -222,7 +222,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "D\xE9p. consigne demande const. chauffer (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 7036
@@ -237,7 +237,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "temp\xE9rature d'eau chaude normale"
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 5051
@@ -252,7 +252,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "temp\xE9rature eau chaude \xE9co"
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 5086
@@ -264,7 +264,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: Eau chaude consigne
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 1004
@@ -278,7 +278,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Eau chaude r\xE9elle SF"
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 4
@@ -292,14 +292,14 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: SLP pompe de charge eau chaude
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 1066
     type: U8
   - platform: toptronic
     name: "AF 2 - sonde ext\xE9rieure 2"
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 21100
@@ -313,7 +313,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Valeur r\xE9elle pi\xE8ce (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1
@@ -328,7 +328,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "Valeur r\xE9elle pi\xE8ce (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1
@@ -343,7 +343,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "Valeur r\xE9elle pi\xE8ce (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1
@@ -358,7 +358,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "Aller r\xE9el (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 2
@@ -372,7 +372,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Aller r\xE9el (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 2
@@ -386,7 +386,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Aller r\xE9el (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 2
@@ -400,7 +400,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Temp\xE9rature de consigne de d\xE9part FAV"
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 22021
@@ -414,7 +414,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Temp. d\xE9part r\xE9elle AVF"
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 21059
@@ -428,14 +428,14 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Pompe AVP
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 22055
     type: U8
   - platform: toptronic
     name: "M\xE9langeur YAV"
-    device_type: HKW
+    device_type: HK
     function_group: 0
     function_number: 0
     datapoint: 22056
@@ -446,7 +446,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Retour r\xE9el (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3
@@ -460,7 +460,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Retour r\xE9el (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3
@@ -474,7 +474,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "Retour r\xE9el (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3
@@ -488,7 +488,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "M\xE9langeur (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1021
@@ -499,7 +499,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "M\xE9langeur (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1021
@@ -510,7 +510,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "M\xE9langeur (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1021
@@ -521,28 +521,28 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Pompe (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1020
     type: U8
   - platform: toptronic
     name: Pompe (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1020
     type: U8
   - platform: toptronic
     name: Pompe (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1020
     type: U8
   - platform: toptronic
     name: "temp\xE9rature circuit de circulation"
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 118
@@ -556,14 +556,14 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Pompe de circulation eau chaude
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 1065
     type: U8
   - platform: toptronic
     name: Aller consigne (1)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 1002
@@ -577,7 +577,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Aller consigne (2)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 1002
@@ -591,7 +591,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: Aller consigne (3)
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 1002
@@ -605,7 +605,7 @@ sensor:
     state_class: measurement
   - platform: toptronic
     name: "D\xE9p. consigne demande const. refroid. (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 7047
@@ -620,7 +620,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "D\xE9p. consigne demande const. refroid. (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 7047
@@ -635,7 +635,7 @@ sensor:
     internal: true
   - platform: toptronic
     name: "D\xE9p. consigne demande const. refroid. (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 7047
@@ -651,7 +651,7 @@ sensor:
 text_sensor:
   - platform: toptronic
     name: "S\xE9lection fonctionnement chauffage (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 3050
@@ -673,7 +673,7 @@ text_sensor:
       - 8
   - platform: toptronic
     name: "S\xE9lection fonctionnement chauffage (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 3050
@@ -695,7 +695,7 @@ text_sensor:
       - 8
   - platform: toptronic
     name: "S\xE9lection fonctionnement chauffage (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 3050
@@ -717,7 +717,7 @@ text_sensor:
       - 8
   - platform: toptronic
     name: "S\xE9lection fonct. eau chaude"
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 5050
@@ -735,7 +735,7 @@ text_sensor:
       - 6
   - platform: toptronic
     name: "Statut r\xE9gulation circuit de chauffage (1)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 0
     datapoint: 2051
@@ -775,7 +775,7 @@ text_sensor:
       - 26
   - platform: toptronic
     name: "Statut r\xE9gulation circuit de chauffage (2)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 1
     datapoint: 2051
@@ -815,7 +815,7 @@ text_sensor:
       - 26
   - platform: toptronic
     name: "Statut r\xE9gulation circuit de chauffage (3)"
-    device_type: HKW
+    device_type: HK
     function_group: 1
     function_number: 2
     datapoint: 2051
@@ -855,7 +855,7 @@ text_sensor:
       - 26
   - platform: toptronic
     name: "Statut r\xE9gulation eau chaude"
-    device_type: HKW
+    device_type: HK
     function_group: 2
     function_number: 0
     datapoint: 2052

@@ -59,8 +59,8 @@ sensor:
     datapoint: 37600
     type: U8
     unit_of_measurement: '%'
-    icon: mdi:percent
-    device_class: power_factor
+    icon: mdi:water-percent
+    device_class: humidity
     state_class: measurement
   - platform: toptronic
     name: Temperatur Aussenluft

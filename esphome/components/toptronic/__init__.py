@@ -1,25 +1,26 @@
 from dataclasses import dataclass, field
 from enum import Enum
+import logging
 import pathlib
 
 import yaml
 
 import esphome.codegen as cg
-from esphome.components import button as button_platform
+from esphome.components import button as button_platform, ota
 from esphome.components.canbus import CanbusComponent
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
-    CONF_FRIENDLY_NAME,
     CONF_ICON,
     CONF_ID,
     CONF_NAME,
     CONF_OPTIONS,
-    CONF_SUBSTITUTIONS,
 )
 from esphome.core import CORE, ID
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["canbus"]
@@ -42,9 +43,9 @@ CONF_MAX_PENDING_AGE = "max_pending_age"
 CONF_CLEANUP_INTERVAL = "cleanup_interval"
 CONF_MAX_REFRESH_PER_LOOP = "max_refresh_per_loop"
 CONF_MAX_FRAMES_PER_MESSAGE = "max_frames_per_message"
-CONF_REFRESH_GAP_MS = "refresh_gap_ms"
+CONF_REFRESH_GAP = "refresh_gap"
 CONF_MAX_REFRESH_RETRIES = "max_refresh_retries"
-CONF_REFRESH_RETRY_INTERVAL_MS = "refresh_retry_interval_ms"
+CONF_REFRESH_RETRY_INTERVAL = "refresh_retry_interval"
 CONF_WRITE_MIN_INTERVAL = "write_min_interval"
 CONF_REJECT_WRITES_BEFORE_READ = "reject_writes_before_read"
 
@@ -58,7 +59,9 @@ TopTronicBase = toptronic.class_("TopTronicBase", cg.PollingComponent)
 # Auto-generated "Refresh all" button (one per build). press_action() calls the
 # parent hub's refresh_all(), which fans out to every registered hub.
 TopTronicRefreshButton = toptronic.class_(
-    "TopTronicRefreshButton", button_platform.Button, cg.Component
+    "TopTronicRefreshButton",
+    button_platform.Button,
+    cg.Parented.template(TopTronicComponent),
 )
 
 TT_TYPE = toptronic.enum("TypeName")
@@ -108,6 +111,8 @@ class TopTronicData:
     # FINAL_VALIDATE_SCHEMA, so its Component ID is recorded early enough to
     # count into ESPHOME_COMPONENT_COUNT).
     refresh_button: ConfigType | None = None
+    # True once the button has been emitted, so only the first hub generates it.
+    refresh_button_generated: bool = False
 
 
 def _get_data() -> TopTronicData:
@@ -198,11 +203,11 @@ CONFIG_SCHEMA = cv.Schema(
             min=3, max=31
         ),
         cv.Optional(
-            CONF_REFRESH_GAP_MS, default="50ms"
+            CONF_REFRESH_GAP, default="50ms"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_REFRESH_RETRIES, default=1): cv.int_range(min=0, max=10),
         cv.Optional(
-            CONF_REFRESH_RETRY_INTERVAL_MS, default="200ms"
+            CONF_REFRESH_RETRY_INTERVAL, default="200ms"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(
             CONF_WRITE_MIN_INTERVAL, default="2s"
@@ -222,9 +227,31 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _load_entities(device_type: str, language: str):
+    """Load the preset files for one device type and language.
+
+    Presets are shipped per language. When the requested language has no files
+    but English ones exist, English is used and a warning names the language, so
+    a typo or a not-yet-translated language is visible instead of silently
+    yielding no entities.
+    """
+    directory = PRESETS_DIR / device_type
+    kinds = ("sensors", "inputs", "buttons")
+    if (
+        not any((directory / f"{kind}_{language}.yaml").exists() for kind in kinds)
+        and language != "en"
+        and any((directory / f"{kind}_en.yaml").exists() for kind in kinds)
+    ):
+        _LOGGER.warning(
+            "No toptronic presets for device type %s in language '%s', "
+            "falling back to 'en'",
+            device_type,
+            language,
+        )
+        language = "en"
+
     entities = []
-    for kind in ("sensors", "inputs", "buttons"):
-        path = PRESETS_DIR / device_type / f"{kind}_{language}.yaml"
+    for kind in kinds:
+        path = directory / f"{kind}_{language}.yaml"
         if not path.exists():
             continue
         with pathlib.Path(path).open(encoding="utf-8") as f:
@@ -291,6 +318,24 @@ def _register_preset_entities(config: ConfigType) -> None:
     }
     used_ids = _shared_used_ids()
     generated = []
+
+    # Two hubs of the same device type would otherwise generate identically
+    # named preset entities, which ESPHome rejects. Qualify the names with the
+    # device type and address only when that ambiguity exists, so the common
+    # single-hub names stay unchanged.
+    from esphome import final_validate as fv
+
+    same_type = [
+        hub
+        for hub in fv.full_config.get().get(DOMAIN) or []
+        if str(hub.get("device_type", "")).upper() == config["device_type"]
+    ]
+    prefix = (
+        f"{config['device_type']} {config[CONF_DEVICE_ADDR]}: "
+        if len(same_type) > 1
+        else ""
+    )
+
     for platform_name, entity_conf in _load_entities(
         config["device_type"], config[CONF_LANGUAGE]
     ):
@@ -298,6 +343,8 @@ def _register_preset_entities(config: ConfigType) -> None:
             raise cv.Invalid(
                 f"Unsupported platform '{platform_name}' in toptronic preset"
             )
+        if prefix and (name := entity_conf.get(CONF_NAME)) is not None:
+            entity_conf[CONF_NAME] = f"{prefix}{name}"
         entity_conf.pop("platform", None)
         entity_conf.pop("device_type", None)
         entity_conf.pop(CONF_DEVICE_ADDR, None)
@@ -340,16 +387,9 @@ def _register_refresh_button() -> None:
     if (data := _get_data()).refresh_button is not None:
         return
 
-    from esphome import final_validate as fv
-
-    friendly_name = (fv.full_config.get().get(CONF_SUBSTITUTIONS, {}) or {}).get(
-        CONF_FRIENDLY_NAME, ""
-    ) or ""
-    name = f"{friendly_name} Refresh all" if friendly_name else "Refresh all"
-
     cfg = button_platform.button_schema(TopTronicRefreshButton)(
         {
-            CONF_NAME: name,
+            CONF_NAME: "Refresh all",
             CONF_ICON: "mdi:refresh",
             CONF_ENTITY_CATEGORY: "config",
         }
@@ -364,18 +404,22 @@ async def _generate_refresh_button(hub_var) -> None:
     The on-press action is handled in C++ (TopTronicRefreshButton::press_action()
     -> refresh_all()), so no lambda or hardcoded hub id is needed in YAML.
     """
-    if (cfg := _get_data().refresh_button) is None:
+    data = _get_data()
+    if (cfg := data.refresh_button) is None or data.refresh_button_generated:
         return
+    data.refresh_button_generated = True
     var = cg.new_Pvariable(cfg[CONF_ID])
     cg.add(var.set_parent(hub_var))
     await button_platform.register_button(var, cfg)
-    await cg.register_component(var, cfg)
 
 
 async def to_code(config):
     cbus = await cg.get_variable(config[CONF_CANBUS_ID])
     var = cg.new_Pvariable(config[CONF_ID], cbus)
     await cg.register_component(var, config)
+
+    # Pause CAN processing while an OTA update runs.
+    ota.request_ota_state_listeners()
 
     device_type = get_device_type(config["device_type"])
     cg.add(var.set_device_type(device_type))
@@ -386,9 +430,9 @@ async def to_code(config):
     cg.add(var.set_cleanup_interval_ms(config[CONF_CLEANUP_INTERVAL]))
     cg.add(var.set_max_refresh_per_loop(config[CONF_MAX_REFRESH_PER_LOOP]))
     cg.add(var.set_max_frames_per_message(config[CONF_MAX_FRAMES_PER_MESSAGE]))
-    cg.add(var.set_refresh_gap_ms(config[CONF_REFRESH_GAP_MS]))
+    cg.add(var.set_refresh_gap_ms(config[CONF_REFRESH_GAP]))
     cg.add(var.set_max_refresh_retries(config[CONF_MAX_REFRESH_RETRIES]))
-    cg.add(var.set_refresh_retry_interval_ms(config[CONF_REFRESH_RETRY_INTERVAL_MS]))
+    cg.add(var.set_refresh_retry_interval_ms(config[CONF_REFRESH_RETRY_INTERVAL]))
     cg.add(var.set_write_min_interval(config[CONF_WRITE_MIN_INTERVAL]))
     cg.add(var.set_reject_writes_before_read(config[CONF_REJECT_WRITES_BEFORE_READ]))
 

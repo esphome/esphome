@@ -146,9 +146,9 @@ number:
     function_number: 0
     datapoint: 1001
     type: S16
-    min_value: 0
-    max_value: 0
-    step: 1
+    min_value: 100
+    max_value: 300
+    step: 5
     decimal: 1
     unit_of_measurement: "\xB0C"
     icon: mdi:temperature-celsius
@@ -160,9 +160,9 @@ number:
     function_number: 1
     datapoint: 1001
     type: S16
-    min_value: 0
-    max_value: 0
-    step: 1
+    min_value: 100
+    max_value: 300
+    step: 5
     decimal: 1
     unit_of_measurement: "\xB0C"
     icon: mdi:temperature-celsius
@@ -174,9 +174,9 @@ number:
     function_number: 2
     datapoint: 1001
     type: S16
-    min_value: 0
-    max_value: 0
-    step: 1
+    min_value: 100
+    max_value: 300
+    step: 5
     decimal: 1
     unit_of_measurement: "\xB0C"
     icon: mdi:temperature-celsius
@@ -188,9 +188,9 @@ number:
     function_number: 3
     datapoint: 1001
     type: S16
-    min_value: 0
-    max_value: 0
-    step: 1
+    min_value: 100
+    max_value: 300
+    step: 5
     decimal: 1
     unit_of_measurement: "\xB0C"
     icon: mdi:temperature-celsius
@@ -202,9 +202,9 @@ number:
     function_number: 4
     datapoint: 1001
     type: S16
-    min_value: 0
-    max_value: 0
-    step: 1
+    min_value: 100
+    max_value: 300
+    step: 5
     decimal: 1
     unit_of_measurement: "\xB0C"
     icon: mdi:temperature-celsius
