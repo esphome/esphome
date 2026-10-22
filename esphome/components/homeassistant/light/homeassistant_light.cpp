@@ -408,7 +408,7 @@ void HomeassistantLight::write_state(LightState *state) {
   }
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", state->get_name().c_str());
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(state->get_log_name()));
     this->fall_back_();
     return;
   }

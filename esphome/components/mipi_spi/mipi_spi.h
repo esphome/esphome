@@ -244,9 +244,9 @@ class MipiSpi : public display::Display,
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
     // Don't spam the log after setup
     if (this->init_sequence_len_ == 0) {
-      esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+      esph_log_v(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     } else {
-      esph_log_d(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+      esph_log_d(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     }
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();
