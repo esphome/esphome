@@ -1471,7 +1471,9 @@ def test_by_name_fetch_yields_to_a_fork_pulled_in_later(tmp_path, monkeypatch) -
         {
             "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
             "esphome/X": {"name": "X", "dependencies": [{"name": "C"}]},
-            "B": {"name": "B"},
+            # The upstream B pulls in D, which nothing else needs
+            "B": {"name": "B", "dependencies": {"esphome/D": "1.0.0"}},
+            "esphome/D": {"name": "D"},
             "C": {"name": "C", "dependencies": {"custom/B-fork": "1.0.0"}},
             "custom/B-fork": {"name": "B"},
         },
@@ -1482,7 +1484,7 @@ def test_by_name_fetch_yields_to_a_fork_pulled_in_later(tmp_path, monkeypatch) -
         _backend(emit=lambda c: emitted.append(c.name)),
     )
     assert [d.name for d in top[0].dependencies] == ["custom/B-fork"]
-    assert "B" not in emitted
+    assert sorted(emitted) == ["C", "custom/B-fork", "esphome/A", "esphome/X"]
 
 
 def test_registry_miss_resolves_again_as_a_git_source(tmp_path, monkeypatch) -> None:

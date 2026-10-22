@@ -1510,6 +1510,7 @@ def convert_libraries(
     # same name, whichever round brought it in; the settle step applied that
     # rule to the names it could match up front
     explicit = {k: c for k, c in components.items() if not fetched_by_name(k)}
+    yielded = False
     for key in [k for k in components if fetched_by_name(k)]:
         node = nodes[key]
         match = _satisfying_key(node.pkgname, node.owner, key, nodes, explicit)
@@ -1517,10 +1518,22 @@ def convert_libraries(
             continue
         _LOGGER.debug("Library %s fetched by name yields to %s", key, match)
         del components[key]
+        yielded = True
         for other in nodes.values():
             if key in other.edges:
                 other.edges.remove(key)
                 other.edges.add(match)
+    if yielded:
+        # What only the yielded library needed is not built either
+        reachable: set[str] = set()
+        stack = [key for key in top_level if key in components]
+        while stack:
+            if (key := stack.pop()) in reachable:
+                continue
+            reachable.add(key)
+            stack.extend(edge for edge in nodes[key].edges if edge in components)
+        for key in [key for key in components if key not in reachable]:
+            del components[key]
 
     # Two graph nodes that resolve to the same component name (e.g. a package
     # referenced both bare and as ``owner/name``) are not deduplicated and can
