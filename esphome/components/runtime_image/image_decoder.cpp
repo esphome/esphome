@@ -19,8 +19,6 @@ int ImageDecoder::scaled_x_(int x) const {
   if (this->draw_width_ <= 0)
     return 0;
   const uint32_t buffer_width = this->image_->get_buffer_width();
-  if (buffer_width == static_cast<uint32_t>(this->draw_width_))
-    return x;
   return static_cast<int>((static_cast<uint32_t>(x) * buffer_width + this->draw_width_ - 1) / this->draw_width_);
 }
 
@@ -28,8 +26,6 @@ int ImageDecoder::scaled_y_(int y) const {
   if (this->draw_height_ <= 0)
     return 0;
   const uint32_t buffer_height = this->image_->get_buffer_height();
-  if (buffer_height == static_cast<uint32_t>(this->draw_height_))
-    return y;
   return static_cast<int>((static_cast<uint32_t>(y) * buffer_height + this->draw_height_ - 1) / this->draw_height_);
 }
 
@@ -42,10 +38,18 @@ void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
   // source pixel that reaches it, rather than by every pixel that lands on it. Integer maths: the S3 has no double FPU.
   const int buffer_width = this->image_->get_buffer_width();
   const int buffer_height = this->image_->get_buffer_height();
-  const int x1 = this->scaled_x_(x);
-  const int y1 = this->scaled_y_(y);
-  const int x2 = std::min(buffer_width, this->scaled_x_(x + w));
-  const int y2 = std::min(buffer_height, this->scaled_y_(y + h));
+  int x1 = x;
+  int y1 = y;
+  int x2 = x + w;
+  int y2 = y + h;
+  if (buffer_width != this->draw_width_ || buffer_height != this->draw_height_) {
+    x1 = this->scaled_x_(x);
+    y1 = this->scaled_y_(y);
+    x2 = this->scaled_x_(x + w);
+    y2 = this->scaled_y_(y + h);
+  }
+  x2 = std::min(buffer_width, x2);
+  y2 = std::min(buffer_height, y2);
   for (int i = x1; i < x2; i++) {
     for (int j = y1; j < y2; j++) {
       this->image_->draw_pixel(i, j, color);
