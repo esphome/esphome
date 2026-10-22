@@ -506,8 +506,8 @@ def shared_progmem_array(
     used |= {str(i) for i in CORE.variables}
     used |= set(RESERVED_IDS) | CORE.loaded_integrations
     id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
-    # Global, so any scope can use it; anything a lambda references is already declared.
-    CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs))
+    # After the user includes, so a lambda in the table can use what their headers declare.
+    CORE.add_global_after_includes(ProgmemAssignmentExpression(type_, id_, rhs))
     array = MockObj(id_, ".")
     CORE.register_variable(id_, array)
     if share:
@@ -731,15 +731,16 @@ def static_function(
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
 
-    Every id the body names must already be declared, which holds when the statements were
-    rendered through ``get_variable`` or ``process_lambda``.
+    The declaration goes with the other globals, so a template argument can name the function
+    at once; the body goes after the user includes, where every id and everything those
+    headers declare is in scope.
     """
-    params = ParameterListExpression(*parameters)
-    add_global(
-        RawStatement(
-            f"static {safe_exp(return_type)} {name}({params}) {{\n"
-            f"{indent(chr(10).join(body))}\n}}"
-        )
+    signature = (
+        f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
+    )
+    add_global(RawStatement(f"{signature};"))
+    add_global_after_includes(
+        RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
     )
     return RawExpression(name)
 
@@ -756,6 +757,13 @@ def add(expression: Expression | Statement, prepend: bool = False):
 def add_global(expression: SafeExpType | Statement, prepend: bool = False):
     """Add an expression to the codegen global storage (above setup())."""
     CORE.add_global(expression, prepend)
+
+
+def add_global_after_includes(expression: SafeExpType | Statement):
+    """Add a global after the user's ``includes:`` headers, for generated code whose
+    lambdas may use what those headers declare.
+    """
+    CORE.add_global_after_includes(expression)
 
 
 def add_library(name: str, version: str | None, repository: str | None = None):

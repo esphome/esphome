@@ -512,7 +512,9 @@ class MockCodegen(NamedTuple):
     new_pvariable: MagicMock
     register_parented: AsyncMock
     add_global: MagicMock
-    calls: MagicMock  # new_pvariable and add_global attached, to check their order
+    add_global_after_includes: MagicMock
+    add: MagicMock
+    calls: MagicMock  # the global emitters and new_pvariable attached, to check their order
 
 
 @pytest.fixture
@@ -525,14 +527,25 @@ def mock_cg() -> Generator[MockCodegen]:
             "esphome.codegen.register_parented", new_callable=AsyncMock
         ) as register_parented,
         patch("esphome.cpp_generator.add_global") as add_global,
+        patch(
+            "esphome.cpp_generator.add_global_after_includes"
+        ) as add_global_after_includes,
+        patch("esphome.codegen.add") as add,
     ):
         get_variable.return_value = PARENT_OBJ
         new_pvariable.return_value = NEW_OBJ
         calls = MagicMock()
         calls.attach_mock(new_pvariable, "new_pvariable")
         calls.attach_mock(add_global, "add_global")
+        calls.attach_mock(add_global_after_includes, "add_global_after_includes")
         yield MockCodegen(
-            get_variable, new_pvariable, register_parented, add_global, calls
+            get_variable,
+            new_pvariable,
+            register_parented,
+            add_global,
+            add_global_after_includes,
+            add,
+            calls,
         )
 
 
@@ -660,7 +673,7 @@ async def _run_apply_condition(
 
 
 def _apply_definition(mock_cg: MockCodegen) -> str:
-    return str(mock_cg.add_global.call_args.args[0])
+    return str(mock_cg.add_global_after_includes.call_args.args[0])
 
 
 @pytest.mark.asyncio
@@ -674,8 +687,16 @@ async def test_register_apply_action_entry(
     action_id, template_arg = mock_cg.new_pvariable.call_args.args
     assert action_id == ID("obj_1")
     assert str(template_arg) == "<esphome__obj_1__fn, int32_t>"
-    # The definition must precede the storage line that names the function.
-    assert [c[0] for c in mock_cg.calls.mock_calls] == ["add_global", "new_pvariable"]
+    # The declaration must precede the storage line that names the function; the body
+    # goes after the user includes.
+    assert [c[0] for c in mock_cg.calls.mock_calls] == [
+        "add_global",
+        "add_global_after_includes",
+        "new_pvariable",
+    ]
+    assert str(mock_cg.add_global.call_args.args[0]) == (
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x);"
+    )
     assert _apply_definition(mock_cg).startswith(
         "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
     )
