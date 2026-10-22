@@ -28,6 +28,7 @@ class FakeContainer : public http_request::HttpContainer {
   }
 
   int read(uint8_t *buf, size_t max_len) override {
+    this->largest_read = std::max(this->largest_read, max_len);
     if (this->read_error_)
       return -1;
     size_t len = std::min(max_len, this->available_ - this->bytes_read_);
@@ -52,6 +53,9 @@ class FakeContainer : public http_request::HttpContainer {
   void add_response_header(const std::string &name, const std::string &value) {
     this->response_headers_.push_back({name, value});
   }
+
+  /// The most bytes any one read() asked for
+  size_t largest_read{0};
 
  protected:
   std::vector<uint8_t> body_;
@@ -493,6 +497,25 @@ TEST_F(OnlineImageDownloadEnd, JpegDecodesThroughASmallBuffer) {
   this->http_.next = std::make_shared<FakeContainer>(std::vector<uint8_t>{}, 0, false);
   image->update();
   EXPECT_TRUE(this->http_.sent_header("if-none-match"));
+}
+
+// A read() waits for every byte it asks for, so a large buffer is filled a little at a time rather than in one
+// read that blocks the loop until the whole buffer has arrived
+TEST_F(OnlineImageDownloadEnd, JpegReadsInSmallPiecesWithALargeBuffer) {
+  auto image = this->make_image_(runtime_image::JPEG, 65536);
+  auto container =
+      std::make_shared<FakeContainer>(std::vector<uint8_t>(JPEG_48X40, JPEG_48X40 + sizeof(JPEG_48X40)), 0, false);
+  this->start_(*image, container);
+
+  for (int i = 0; i < 100 && this->finished_ + this->errors_ == 0; i++) {
+    container->deliver(sizeof(JPEG_48X40));
+    image->loop();
+  }
+
+  ASSERT_EQ(this->finished_, 1);
+  EXPECT_EQ(this->errors_, 0);
+  EXPECT_LE(container->largest_read, STREAM_READ_CHUNK);
+  EXPECT_EQ(image_pixels(*image), reference_jpeg_pixels());
 }
 
 // A slow link: the decoder waits part way through the image for the rest to arrive
