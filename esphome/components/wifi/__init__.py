@@ -456,7 +456,8 @@ def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
     ``napt:`` adds the lwip forwarding that lets the AP subnet out through the
     station. ``coexist:`` also needs an upstream to fall back from (a station,
     or ethernet), and no post-connect roaming, whose scan would take the AP
-    down again.
+    down again. ``napt:`` hands the upstream's resolver to the AP clients, so a
+    static upstream address has to name one.
 
     ``ap_mode: WISP`` covers this ground on its own, so the two cannot be
     combined.
@@ -487,6 +488,11 @@ def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
                 "AP+STA coexistence (coexist: true) needs a station network (wifi.ssid or wifi.networks), "
                 "or ethernet as the upstream interface"
             )
+        if napt:
+            # AP clients resolve through the upstream, which a static address has to name
+            _validate_upstream_dns(
+                config, full_config, mode=" with napt: true", ap_dns_servers=False
+            )
         # The scan after a connect would take the AP down again; with no way for a
         # network to appear at run time there is nothing for it to roam to.
         if config[CONF_POST_CONNECT_ROAMING] and not wifi_stays_ap_only(
@@ -510,6 +516,42 @@ def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
             )
         raise cv.Invalid(
             "IP routing / NAPT (napt: true) requires AP+STA coexistence (coexist: true) to be enabled."
+        )
+
+
+def _validate_upstream_dns(
+    config: ConfigType,
+    full_config: ConfigType,
+    *,
+    mode: str,
+    ap_dns_servers: bool,
+) -> None:
+    """Reject a static upstream whose resolver the AP could not pass on.
+
+    DHCP hands its resolver over with the address; a static ``manual_ip``
+    without ``dns1`` leaves lwIP without one, so AP clients would be handed the
+    AP's own address and could not resolve names.
+    """
+    if ap_dns_servers and CONF_DNS_SERVERS in config[CONF_AP]:
+        return
+    suffix = " unless ap.dns_servers is set" if ap_dns_servers else ""
+    upstreams = [
+        ([], config),
+        *(
+            ([CONF_NETWORKS, i], network)
+            for i, network in enumerate(config.get(CONF_NETWORKS, []))
+        ),
+        (None, full_config.get(CONF_ETHERNET, {})),
+    ]
+    for path, network in upstreams:
+        static = network.get(CONF_MANUAL_IP)
+        if not static or not static[CONF_DNS1].is_unspecified:
+            continue
+        if path is None:
+            raise cv.Invalid(f"ethernet manual_ip needs dns1{mode}{suffix}")
+        raise cv.Invalid(
+            f"manual_ip needs dns1{mode}{suffix}",
+            path=[*path, CONF_MANUAL_IP, CONF_DNS1],
         )
 
 
@@ -544,28 +586,10 @@ def final_validate(config):
             )
         # Every client packet passes through the WiFi driver, none through the device's own sockets
         require_high_performance_wifi()
-        if CONF_DNS_SERVERS not in config[CONF_AP]:
-            # The access point passes the upstream's resolvers on, which a static address has to name
-            upstreams = [
-                ([], config),
-                *(
-                    ([CONF_NETWORKS, i], network)
-                    for i, network in enumerate(config.get(CONF_NETWORKS, []))
-                ),
-                (None, full_config.get(CONF_ETHERNET, {})),
-            ]
-            for path, network in upstreams:
-                static = network.get(CONF_MANUAL_IP)
-                if not static or not static[CONF_DNS1].is_unspecified:
-                    continue
-                if path is None:
-                    raise cv.Invalid(
-                        "ethernet manual_ip needs dns1 in WISP mode unless ap.dns_servers is set"
-                    )
-                raise cv.Invalid(
-                    "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
-                    path=[*path, CONF_MANUAL_IP, CONF_DNS1],
-                )
+        # The access point passes the upstream's resolvers on, which a static address has to name
+        _validate_upstream_dns(
+            config, full_config, mode=" in WISP mode", ap_dns_servers=True
+        )
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(

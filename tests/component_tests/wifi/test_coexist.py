@@ -8,6 +8,7 @@ C++ setters, so the firmware either has the mode or it does not.
 """
 
 from collections.abc import Callable
+from ipaddress import IPv4Address
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,9 @@ from esphome import config_validation as cv, final_validate as fv
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 from esphome.components.wifi import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 from esphome.const import (
+    CONF_DNS1,
     CONF_ETHERNET,
+    CONF_MANUAL_IP,
     KEY_FRAMEWORK_VERSION,
     Platform,
     PlatformFramework,
@@ -291,4 +294,64 @@ def test_coexist_with_ethernet_upstream(
     fv.full_config.get()[CONF_ETHERNET] = {}
     # No station network and no post_connect_roaming: with nothing to roam to,
     # the default scan can never take the AP down.
+    _validate({"ap": {"ssid": "fallback", "coexist": True, "napt": True}})
+
+
+def _static_ip(dns1: str | None = None) -> ConfigType:
+    """A complete station manual_ip block, with dns1 only when named."""
+    config: ConfigType = {
+        "static_ip": "192.168.1.50",
+        "gateway": "192.168.1.1",
+        "subnet": "255.255.255.0",
+    }
+    if dns1 is not None:
+        config["dns1"] = dns1
+    return config
+
+
+def test_napt_requires_dns1_on_a_static_station(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """AP clients resolve through the station, which a static address has to name."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    with pytest.raises(cv.Invalid, match=r"manual_ip needs dns1 with napt: true"):
+        _validate(
+            {
+                "networks": [{**_STA_NETWORK, "manual_ip": _static_ip()}],
+                "post_connect_roaming": False,
+                "ap": {"ssid": "fallback", "coexist": True, "napt": True},
+            }
+        )
+    # Named, the same upstream passes: the AP clients get that resolver.
+    _validate(
+        {
+            "networks": [{**_STA_NETWORK, "manual_ip": _static_ip(dns1="1.1.1.1")}],
+            "post_connect_roaming": False,
+            "ap": {"ssid": "fallback", "coexist": True, "napt": True},
+        }
+    )
+
+
+def test_napt_requires_dns1_on_static_ethernet(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Ethernet is an upstream too, so its static address needs a resolver."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    with pytest.raises(
+        cv.Invalid, match=r"ethernet manual_ip needs dns1 with napt: true"
+    ):
+        fv.full_config.get()[CONF_ETHERNET] = {
+            CONF_MANUAL_IP: {CONF_DNS1: IPv4Address("0.0.0.0")}
+        }
+        _validate({"ap": {"ssid": "fallback", "coexist": True, "napt": True}})
+    # DHCP hands its resolver over, so an ethernet block without manual_ip is fine.
+    fv.full_config.get()[CONF_ETHERNET] = {}
     _validate({"ap": {"ssid": "fallback", "coexist": True, "napt": True}})

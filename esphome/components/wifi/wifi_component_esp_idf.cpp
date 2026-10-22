@@ -1470,8 +1470,8 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 #endif
 
 #if defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)
-  // Offer resolvers through DHCP: the configured ones, otherwise the station's. Without them the server would
-  // offer the AP's own address, so a failure fails the setup and it is tried again.
+  // Offer resolvers through DHCP: the configured ones, otherwise the upstream's, and the AP's own address while
+  // it has none to offer. A failure to set them fails the setup, which is then tried again.
   uint8_t dns_offer = 1;
   err =
       esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dns_offer, sizeof(dns_offer));
@@ -1482,7 +1482,7 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
   // Clients that join while there is no upstream resolver to offer are handed the AP's own address. apply_ap_dns_()
-  // uses the flag to drop them once the station has one, so they rejoin and pick it up instead of keeping the dead
+  // uses the flag to drop them once the upstream has one, so they rejoin and pick it up instead of keeping the dead
   // one for the whole lease.
   this->ap_dns_pending_ = !this->ap_dns_known_();
 #endif
@@ -1657,7 +1657,7 @@ static constexpr uint32_t AP_DNS[] = {
 };
 #endif
 
-static uint32_t ap_dns_to_offer(size_t i) {
+static uint32_t upstream_dns(size_t i) {
 #ifdef USE_WIFI_AP_WISP_STATIC_DNS
   return i < std::size(AP_DNS) ? AP_DNS[i] : 0;
 #else
@@ -1665,7 +1665,23 @@ static uint32_t ap_dns_to_offer(size_t i) {
 #endif
 }
 
-bool WiFiComponent::ap_dns_known_() { return ap_dns_to_offer(0) != 0; }
+/// What the DHCP server is told: the upstream's resolver, or while there is none the AP's own address, where
+/// the portal's DNS server answers. Only NAPT gets there, as the WISP bridge starts once it has a resolver to
+/// offer, and a client that joined on the AP's address is dropped once a real one is back (apply_ap_dns_()).
+static uint32_t ap_dns_to_offer(size_t i) {
+  const uint32_t upstream = upstream_dns(i);
+#ifdef USE_WIFI_AP_NAPT
+  // No resolver at all, so every slot takes the AP's address and a stale upstream entry is replaced as well
+  if (upstream_dns(0) == 0) {
+    esp_netif_ip_info_t ip{};
+    if (s_ap_netif != nullptr && esp_netif_get_ip_info(s_ap_netif, &ip) == ESP_OK)
+      return ip.ip.addr;
+  }
+#endif
+  return upstream;
+}
+
+bool WiFiComponent::ap_dns_known_() { return upstream_dns(0) != 0; }
 
 bool WiFiComponent::write_ap_dns_() {
   bool ok = true;
@@ -1692,7 +1708,8 @@ void WiFiComponent::apply_ap_dns_() {
   if (!this->ap_setup_)
     return;  // loop() brings the bridge up once the upstream has a resolver, and its setup writes them
   // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
-  // next lease. A resolver the station lost stays offered: set_dns_info rejects an empty address.
+  // next lease. A resolver the upstream lost is replaced by the AP's own address, so clients can still reach the
+  // portal with their lookups.
   bool changed = false;
   for (size_t i = 0; i < AP_DNS_COUNT && !changed; i++) {
     const uint32_t addr = ap_dns_to_offer(i);
@@ -1703,7 +1720,7 @@ void WiFiComponent::apply_ap_dns_() {
   }
   if (!changed)
     return;
-  // A client that joined before the station had a resolver was handed the AP's own address. wifi_ap_ip_config_() below
+  // A client that joined before the upstream had a resolver was handed the AP's own address. wifi_ap_ip_config_() below
   // now offers a real one, so drop the clients to rejoin and pick it up; a resolver that later changes is left to the
   // next lease, since by then the offered address at least works.
   const bool dns_was_missing = this->ap_dns_pending_;
@@ -1718,7 +1735,7 @@ void WiFiComponent::apply_ap_dns_() {
     return;
   }
   if (dns_was_missing && esp_wifi_deauth_sta(0) != ESP_OK) {
-    ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the station's resolver");
+    ESP_LOGW(TAG, "Failed to drop AP clients so they pick up the upstream's resolver");
   }
 }
 #endif  // USE_WIFI_AP_WISP_STATIC_DNS

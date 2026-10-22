@@ -746,14 +746,14 @@ class WiFiComponent final : public Component {
 #endif  // USE_WIFI_AP
 
 #if defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)
-  /// Whether there is an IPv4 resolver to offer AP clients: a configured one, or the station's
+  /// Whether there is an IPv4 resolver to offer AP clients: a configured one, or the upstream's
   bool ap_dns_known_();
   /// Hand the AP DHCP server its resolvers; false when one could not be set
   bool write_ap_dns_();
   /// Take the AP down so loop() sets it up again on a later pass
   void fail_bridge_();
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
-  /// Pass the station's resolvers on to AP clients when they changed
+  /// Pass the upstream's resolvers on to AP clients when they changed
   void apply_ap_dns_();
 #endif
 #endif  // USE_WIFI_AP_WISP || USE_WIFI_AP_NAPT
@@ -1157,7 +1157,7 @@ class WiFiComponent final : public Component {
 #endif  // USE_WIFI_AP
 #if (defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
   // The AP DHCP server had no upstream resolver to offer, so clients that joined hold the AP's own address;
-  // apply_ap_dns_() drops them once the station has one
+  // apply_ap_dns_() drops them once the upstream has one
   bool ap_dns_pending_{false};
 #endif
   bool passive_scan_{false};
