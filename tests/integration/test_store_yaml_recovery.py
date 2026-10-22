@@ -87,6 +87,6 @@ async def test_store_yaml_recovery(
     assert "ota_password" in find_secret_references(combined.decode()), (
         "expected the inline OTA password to be recovered as a !secret reference"
     )
-    assert b'ota_password: ""' in files["secrets.yaml"], (
+    assert b"ota_password: ''" in files["secrets.yaml"], (
         "expected the secrets.yaml skeleton to list the ota_password key"
     )
