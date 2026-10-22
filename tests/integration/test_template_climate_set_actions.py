@@ -65,10 +65,7 @@ async def test_template_climate_set_actions(
         client.subscribe_states(
             initial_state_helper.on_state_wrapper(lambda state: None)
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Both traits are derived from the low/high and humidity set actions, not declared.
         assert test_climate.supports_two_point_target_temperature

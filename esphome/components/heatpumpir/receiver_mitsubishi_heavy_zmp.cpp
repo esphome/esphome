@@ -40,6 +40,8 @@ void decode_mitsubishi_heavy_zmp(const uint8_t frame[MITSUBISHI_HEAVY_FRAME_LENG
     case MITSUBISHI_HEAVY_ZMP_ECONO:
       climate.preset = climate::CLIMATE_PRESET_ECO;
       break;
+    default:
+      break;
   }
 
   uint8_t swing_h = frame[BYTE_SWING_H] & HORIZONTAL_SWING_MASK;
