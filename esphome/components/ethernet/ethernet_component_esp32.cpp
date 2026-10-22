@@ -6,9 +6,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#ifdef USE_NETWORK_IPV6_ONLY
-#include "lwip/dhcp6.h"
-#endif
 #include "w5500_custom_spi.h"
 
 #include <lwip/dns.h>
@@ -17,6 +14,9 @@
 #if USE_NETWORK_IPV6
 #include <esp_netif_net_stack.h>
 #include <lwip/netif.h>
+#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
+#include <lwip/dhcp6.h>
+#endif
 #endif
 #ifdef USE_PSRAM
 #include <esp_psram.h>
@@ -245,16 +245,6 @@ void EthernetComponent::ethernet_lazy_init_() {
 
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
   this->eth_netif_ = esp_netif_new(&cfg);
-#ifdef USE_NETWORK_IPV6_ONLY
-  // Stop DHCPv4 before the driver starts. The netif glue's link-up handler starts the client for an
-  // INIT client, and start_connect_() only runs later from loop(), so DHCPv4 would leak at boot.
-  if (this->eth_netif_ != nullptr) {
-    esp_err_t dhcp_err = esp_netif_dhcpc_stop(this->eth_netif_);
-    if (dhcp_err != ESP_OK && dhcp_err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-      ESP_LOGW(TAG, "Stopping DHCP client failed: %s", esp_err_to_name(dhcp_err));
-    }
-  }
-#endif
 
   // Init MAC and PHY configs to default
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
@@ -735,6 +725,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   if (!this->ethernet_initialized_)
     return addresses;  // all-zero IPs
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(this->eth_netif_, &ip);
   if (err != ESP_OK) {
@@ -744,6 +735,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
+#endif
 #if USE_NETWORK_IPV6
   network::fill_ip6_addresses(this->eth_netif_, addresses);
 #endif /* USE_NETWORK_IPV6 */
@@ -830,8 +822,9 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
   // after a link flap fires another event for the same address.
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(global_eth_component->eth_netif_, if_ip6s);
-#if defined(USE_NETWORK_IPV6_ONLY)
-  global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
+#if !USE_NETWORK_IPV4
+  // Without IPv4 an IPv6 address is the connection, so wait for at least one
+  global_eth_component->connected_ = global_eth_component->ipv6_count_ >= std::max(USE_NETWORK_MIN_IPV6_ADDR_COUNT, 1);
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #elif (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ =
@@ -848,41 +841,38 @@ void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_
 #endif /* USE_NETWORK_IPV6 */
 
 #if USE_NETWORK_IPV6
-void EthernetComponent::enable_stateless_dhcp6_() {
-#if defined(USE_NETWORK_IPV6_ONLY) && LWIP_IPV6_DHCP6
-  // Stateless DHCPv6 for DNS servers; esp_netif never starts it. Idempotent in lwIP.
-  if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
-    LwIPLock lock;
-    dhcp6_enable_stateless(netif);
-  }
-#endif
-}
-
 // Create the link-local address unless the interface already has one, including one still in
 // duplicate address detection: recreating it would restart DAD. esp_netif_get_ip6_linklocal()
 // only reports a preferred address, so ask lwIP for the slot state instead.
 esp_err_t EthernetComponent::ensure_ip6_linklocal_() {
-  bool present = false;
   if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
     u8_t state;
     {
       LwIPLock lock;
       state = netif_ip6_addr_state(netif, 0);
     }
-    present = ip6_addr_istentative(state) || ip6_addr_isvalid(state);
-  }
-  esp_err_t err = ESP_OK;
-  if (!present) {
-    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-    if (err == ESP_OK) {
-      ESP_LOGD(TAG, "IPv6 link-local address created");
+    if (ip6_addr_istentative(state) || ip6_addr_isvalid(state)) {
+      this->enable_stateless_dhcp6_();
+      return ESP_OK;
     }
   }
+  esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
   if (err == ESP_OK) {
-    // The link-up handler may have created the address already, so hook DHCPv6 here, not on creation.
+    ESP_LOGD(TAG, "IPv6 link-local address created");
     this->enable_stateless_dhcp6_();
   }
   return err;
+}
+
+// Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter.
+// Idempotent in lwIP, and the link-up handler may have created the link-local already, so hook it on both paths.
+void EthernetComponent::enable_stateless_dhcp6_() {
+#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
+  if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_)); netif != nullptr) {
+    LwIPLock lock;
+    dhcp6_enable_stateless(netif);
+  }
+#endif
 }
 #endif /* USE_NETWORK_IPV6 */
 
@@ -924,6 +914,7 @@ void EthernetComponent::start_connect_() {
     ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
   }
 
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t info;
 #ifdef USE_ETHERNET_MANUAL_IP
   if (this->manual_ip_.has_value()) {
@@ -978,13 +969,12 @@ void EthernetComponent::start_connect_() {
   } else
 #endif
   {
-#ifndef USE_NETWORK_IPV6_ONLY
     err = esp_netif_dhcpc_start(this->eth_netif_);
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
-#endif
   }
+#endif  // USE_NETWORK_IPV4
 #if USE_NETWORK_IPV6
   // Attempt to create IPv6 link-local address
   // We MUST attempt this here, not just in finish_connect_(), because with
@@ -1019,8 +1009,13 @@ void EthernetComponent::dump_connect_params_() {
     ESP_LOGCONFIG(TAG, "  uninitialized/disabled");
     return;
   }
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
+  network::IPAddress ip4(&ip.ip), subnet(&ip.netmask), gateway(&ip.gw);
+#else
+  network::IPAddress ip4, subnet, gateway;
+#endif
   const ip_addr_t *dns_ip1;
   const ip_addr_t *dns_ip2;
   {
@@ -1059,8 +1054,7 @@ void EthernetComponent::dump_connect_params_() {
                 "  MAC Address: %s\n"
                 "  Is Full Duplex: %s\n"
                 "  Link Speed: %u",
-                network::IPAddress(&ip.ip).str_to(ip_buf), App.get_name().c_str(),
-                network::IPAddress(&ip.netmask).str_to(subnet_buf), network::IPAddress(&ip.gw).str_to(gateway_buf),
+                ip4.str_to(ip_buf), App.get_name().c_str(), subnet.str_to(subnet_buf), gateway.str_to(gateway_buf),
                 network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf),
                 this->get_eth_mac_address_pretty_into_buffer(mac_buf),
                 YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), link_speed);

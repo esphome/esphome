@@ -533,6 +533,14 @@ SPI_SCHEMA_CH390 = _spi_schema(max_clock=int(72e6))
 # https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/KSZ8851SNL-Single-Port-Ethernet-Controller-with-SPI-DS00002381C.pdf
 SPI_SCHEMA_KSZ8851SNL = _spi_schema(max_clock=int(40e6))
 
+
+def _require_ipv4_features(config: ConfigType) -> ConfigType:
+    """SLAAC works without IPv4, a static address doesn't."""
+    if CONF_MANUAL_IP in config:
+        require_ipv4(CONF_ETHERNET)(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -559,7 +567,7 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
     ),
     _validate,
-    require_ipv4(CONF_ETHERNET),
+    _require_ipv4_features,
 )
 
 

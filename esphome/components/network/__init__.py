@@ -675,6 +675,9 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
+        if not enable_ipv4:
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_RDNSS_MAX_DNS_SERVERS", 2)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_DHCP6", True)
 
     # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
     # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config

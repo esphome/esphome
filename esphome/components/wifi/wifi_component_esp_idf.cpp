@@ -40,7 +40,7 @@
 #include "lwip/apps/sntp.h"
 #include "lwip/dns.h"
 #include "lwip/err.h"
-#ifdef USE_NETWORK_IPV6_ONLY
+#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
 #include <esp_netif_net_stack.h>
 #include "lwip/dhcp6.h"
 #endif
@@ -708,6 +708,11 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
 
+#if !USE_NETWORK_IPV4
+  // No IPv4 stack: addresses come from SLAAC, validation rejects manual_ip
+  (void) manual_ip;
+  return true;
+#else
   esp_netif_dhcp_status_t dhcp_status;
   esp_err_t err = esp_netif_dhcpc_get_status(s_sta_netif, &dhcp_status);
   if (err != ESP_OK) {
@@ -753,15 +758,6 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     // https://github.com/esphome/issues/issues/2299
     disable_dhcp_sntp();
 
-#ifdef USE_NETWORK_IPV6_ONLY
-    // Keep the DHCPv4 client stopped. esp_netif then makes this netif the default route on link-up.
-    (void) dhcp_status;
-    err = esp_netif_dhcpc_stop(s_sta_netif);
-    if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-      ESP_LOGV(TAG, "Stopping DHCP client failed: %s", esp_err_to_name(err));
-    }
-    return true;
-#else
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
       err = esp_netif_dhcpc_start(s_sta_netif);
@@ -771,7 +767,6 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
       return err == ESP_OK;
     }
     return true;
-#endif  // USE_NETWORK_IPV6_ONLY
   }
 
   esp_netif_ip_info_t info;  // struct of ip4_addr_t with ip, netmask, gw
@@ -799,6 +794,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 
   return true;
+#endif  // USE_NETWORK_IPV4
 }
 
 #ifdef USE_WIFI_LEASE_CACHE
@@ -871,6 +867,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
   network::IPAddresses addresses;
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -880,6 +877,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
+#endif
 #if USE_NETWORK_IPV6
   network::fill_ip6_addresses(s_sta_netif, addresses);
 #endif /* USE_NETWORK_IPV6 */
@@ -1082,8 +1080,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     if (esp_err_t ll_err = esp_netif_create_ip6_linklocal(s_sta_netif); ll_err != ESP_OK) {
       ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed: %s", esp_err_to_name(ll_err));
     }
-#if defined(USE_NETWORK_IPV6_ONLY) && LWIP_IPV6_DHCP6
-    // Stateless DHCPv6 for DNS servers; esp_netif never starts it.
+#if !USE_NETWORK_IPV4 && LWIP_IPV6_DHCP6
+    // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter
     if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
       LwIPLock lock;
       dhcp6_enable_stateless(netif);
@@ -1366,9 +1364,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
-#ifdef USE_NETWORK_IPV6_ONLY
-  // Validation guarantees USE_NETWORK_MIN_IPV6_ADDR_COUNT >= 1.
-  if (s_sta_connected && this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
+#if !USE_NETWORK_IPV4
+  // Without IPv4 an IPv6 address is the connection, so wait for at least one
+  if (s_sta_connected && this->num_ipv6_addresses_ >= std::max(USE_NETWORK_MIN_IPV6_ADDR_COUNT, 1)) {
     return WiFiSTAConnectStatus::CONNECTED;
   }
 #else
@@ -1381,7 +1379,7 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
     return WiFiSTAConnectStatus::CONNECTED;
 #endif  /* USE_NETWORK_IPV6 */
   }
-#endif  // USE_NETWORK_IPV6_ONLY
+#endif  // USE_NETWORK_IPV4
   if (s_sta_connect_error) {
     return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
   }
@@ -1648,6 +1646,7 @@ int32_t WiFiComponent::get_wifi_channel() {
   return primary;
 }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() {
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -1655,8 +1654,12 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() {
     return {};
   }
   return network::IPAddress(&ip.netmask);
+#else
+  return {};
+#endif
 }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() {
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -1664,6 +1667,9 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
     return {};
   }
   return network::IPAddress(&ip.gw);
+#else
+  return {};
+#endif
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
