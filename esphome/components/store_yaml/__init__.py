@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_DEFAULTS,
     CONF_PACKAGES,
     CONF_PASSWORD,
+    CONF_SSID,
     CONF_SUBSTITUTIONS,
 )
 from esphome.core import CORE, EsphomeError, Lambda
@@ -389,8 +390,8 @@ def _check_sensitive_usage(
                     or (is_key and text in other.sensitive_keys)
                 ):
                     continue
-                if other.from_secret:
-                    # An SSID inside a name is common; warn without the value.
+                if other.from_secret and other.sensitive_keys <= {CONF_SSID}:
+                    # A broadcast SSID inside a name is common; warn without the value.
                     _LOGGER.warning(
                         "store_yaml: the value of !secret %s (sensitive at %s) "
                         "appears inside the value at %s in %s; substring "
@@ -556,6 +557,19 @@ def _generate_redacted_files(
                 )
         return node
 
+    for rel, path in entries:
+        # A secrets file becomes a key skeleton; what it includes would ship verbatim.
+        if rel in secret_rels and (
+            nested := [
+                p.name
+                for p in yaml_util.discover_user_yaml_files(path).files
+                if p != path.resolve()
+            ]
+        ):
+            raise EsphomeError(
+                f"store_yaml: {rel} loads {', '.join(nested)}, which redaction cannot "
+                f"follow. Inline them into {rel}, or set `include_secrets: true`."
+            )
     captured = {rel: path for rel, path in entries if rel not in secret_rels}
     trees: dict[str, object] = {}
     for rel, path in captured.items():

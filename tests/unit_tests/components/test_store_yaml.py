@@ -378,6 +378,15 @@ def test_redacted_inline_value_becomes_secret_ref(
             id="credential_from_a_lambda",
         ),
         pytest.param(
+            {
+                "ota.yaml": "password: !secret ota_pw\nurl: http://host/?pw=hunter2\n",
+                "secrets.yaml": "ota_pw: hunter2\n",
+            },
+            {"ota": [{"password": SensitiveStr("hunter2")}]},
+            "inside url in ota.yaml",
+            id="secret_inside_a_larger_value",
+        ),
+        pytest.param(
             {"fp.yaml": "fingerprint_grow:\n  password: !lambda 'return 12345678;'\n"},
             {
                 "fingerprint_grow": {
@@ -1102,3 +1111,12 @@ def test_final_validate_allows_unencrypted_with_escape_hatch(
     config = {CONF_ALLOW_UNENCRYPTED: True, "include_secrets": include_secrets}
     assert _run_final_validate({"api": {}}, config) is config
     assert expected in caplog.text
+
+
+def test_redacted_rejects_a_secrets_file_that_includes_files(project: Path) -> None:
+    """What a secrets file includes would ship verbatim beside its skeleton."""
+    (project / "entry.yaml").write_text("wifi:\n  password: !secret wifi_password\n")
+    (project / "secrets.yaml").write_text("<<: !include shared.yaml\n")
+    (project / "shared.yaml").write_text("wifi_password: hunter2\n")
+    with pytest.raises(EsphomeError, match="secrets.yaml loads shared.yaml"):
+        _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))

@@ -1,10 +1,11 @@
 from collections.abc import Callable, Generator
 import importlib.util
 import io
+import os
 from pathlib import Path
 import shutil
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -2805,3 +2806,16 @@ def test_dump_secret_valued_float_lambda_and_id() -> None:
     assert "!secret 'float_secret'" in dumped
     assert "!secret 'lambda_secret'" in dumped
     assert "!secret 'id_secret'" in dumped
+
+
+def test_named_path_collapses_dotdot_lexically_on_windows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows resolves `..` before following a directory link, so named_path does too."""
+    (tmp_path / "real").mkdir()
+    (tmp_path / "link").symlink_to(tmp_path / "real")
+    # Only yaml_util sees Windows; pathlib keeps resolving with the real os
+    monkeypatch.setattr(yaml_util, "os", SimpleNamespace(name="nt", path=os.path))
+    assert yaml_util.named_path(tmp_path / "link" / ".." / "x.yaml") == (
+        tmp_path.resolve() / "x.yaml"
+    )
