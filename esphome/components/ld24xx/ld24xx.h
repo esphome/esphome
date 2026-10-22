@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #include <memory>
 #include <span>
@@ -33,24 +34,21 @@ template<size_t N> optional<size_t> find_index(const uint32_t (&arr)[N], uint32_
   return {};
 }
 
-static const char *const UNKNOWN_MAC = "unknown";
-static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
-
-// Helper function to format MAC address with stack allocation
-// Returns pointer to UNKNOWN_MAC constant or formatted buffer
+// Formats the MAC address into the buffer, or "unknown" when it is not valid
 inline const char *format_mac_str(const uint8_t *mac_address, std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buffer) {
   if (mac_address_is_valid(mac_address)) {
     format_mac_addr_upper(mac_address, buffer.data());
-    return buffer.data();
+  } else {
+    ESPHOME_strncpy_P(buffer.data(), ESPHOME_PSTR("unknown"), buffer.size());
   }
-  return UNKNOWN_MAC;
+  return buffer.data();
 }
 
 // Helper function to format firmware version with stack allocation
 // Buffer must be exactly 20 bytes (format: "x.xxXXXXXX" fits in 11 + null terminator, 20 for safety)
 inline void format_version_str(const uint8_t *version, std::span<char, 20> buffer) {
-  snprintf(buffer.data(), buffer.size(), VERSION_FMT, version[1], version[0], version[5], version[4], version[3],
-           version[2]);
+  ESPHOME_snprintf_P(buffer.data(), buffer.size(), ESPHOME_PSTR("%u.%02X.%02X%02X%02X%02X"), version[1], version[0],
+                     version[5], version[4], version[3], version[2]);
 }
 
 #ifdef USE_SENSOR
