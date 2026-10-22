@@ -7,5 +7,6 @@ esphome:
     - id: test_device
       name: Test Device
       area_id: bedroom_area
+      relation: via
 
 host:

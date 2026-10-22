@@ -318,20 +318,21 @@ void HaierClimateBase::process_protocol_reset() {
 
 bool HaierClimateBase::prepare_pending_action() {
   if (this->action_request_.has_value()) {
-    switch (this->action_request_.value().action) {
+    PendingAction &request = this->action_request_.value();
+    switch (request.action) {
       case ActionRequest::SEND_CUSTOM_COMMAND:
         return true;
       case ActionRequest::TURN_POWER_ON:
-        this->action_request_.value().message = this->get_power_message(true);
+        request.message = this->get_power_message(true);
         return true;
       case ActionRequest::TURN_POWER_OFF:
-        this->action_request_.value().message = this->get_power_message(false);
+        request.message = this->get_power_message(false);
         return true;
       case ActionRequest::TOGGLE_POWER:
-        this->action_request_.value().message = this->get_power_message(this->mode == ClimateMode::CLIMATE_MODE_OFF);
+        request.message = this->get_power_message(this->mode == ClimateMode::CLIMATE_MODE_OFF);
         return true;
       default:
-        ESP_LOGW(TAG, "Unsupported action: %d", (uint8_t) this->action_request_.value().action);
+        ESP_LOGW(TAG, "Unsupported action: %d", (uint8_t) request.action);
         this->action_request_.reset();
         return false;
     }

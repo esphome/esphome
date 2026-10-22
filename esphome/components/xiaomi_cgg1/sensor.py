@@ -61,8 +61,7 @@ async def to_code(config: ConfigType) -> None:
     var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    if CONF_BINDKEY in config:
-        cg.add(var.set_bindkey(config[CONF_BINDKEY]))
+    cg.add_optional(var.set_bindkey, config.get(CONF_BINDKEY))
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature)

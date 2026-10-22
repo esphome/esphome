@@ -354,10 +354,8 @@ async def number_in_range_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
 
-    if (above := config.get(CONF_ABOVE)) is not None:
-        cg.add(var.set_min(above))
-    if (below := config.get(CONF_BELOW)) is not None:
-        cg.add(var.set_max(below))
+    cg.add_optional(var.set_min, config.get(CONF_ABOVE))
+    cg.add_optional(var.set_max, config.get(CONF_BELOW))
 
     return var
 
