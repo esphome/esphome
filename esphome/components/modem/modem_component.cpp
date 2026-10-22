@@ -1,32 +1,16 @@
 #ifdef USE_ESP32
 #include "modem_component.h"
-#include "modem_handler.h"
 
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/core/defines.h"
+#include "esphome/core/log.h"
 #include "esphome/components/network/util.h"
 
+#include <esp_event.h>
 #include <esp_netif.h>
 #include <esp_netif_ppp.h>
-#include <esp_event.h>
-#include <driver/gpio.h>
-#include <lwip/dns.h>
-
-#include <cxx_include/esp_modem_dte.hpp>
-#include <esp_modem_config.h>
-#include <cxx_include/esp_modem_api.hpp>
 
 #include <cinttypes>
-#include <cmath>
 #include <cstring>
-
-#define ESPHL_ERROR_CHECK(err, message) \
-  if ((err) != ESP_OK) { \
-    ESP_LOGE(TAG, message ": (%d) %s", err, esp_err_to_name(err)); \
-    this->mark_failed(); \
-    return; \
-  }
 
 namespace esphome::modem {
 
@@ -34,58 +18,56 @@ ESPHOME_LOG_TAG(TAG, "modem");
 
 ModemComponent *global_modem_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+static constexpr uint32_t COMMAND_TIMEOUT_MS = 1000;
+static constexpr uint32_t WAIT_IP_TIMEOUT_MS = 50000;
+static constexpr uint32_t RETRY_DELAY_MS = 1000;
+static constexpr uint8_t UART_EVENT_QUEUE_SIZE = 10;
+static constexpr size_t UART_EVENT_TASK_STACK_SIZE = 4096;
+static constexpr uint8_t UART_EVENT_TASK_PRIORITY = 5;
+static constexpr uint32_t BAUD_PREF_HASH = 76007670UL;
+static constexpr int FALLBACK_BAUD_RATE = 115200;
+
 ModemComponent::ModemComponent() {
   assert(global_modem_component == nullptr);
   global_modem_component = this;
-  this->modem_handler = std::make_unique<ModemHandler>();
-}
-
-// Delegated methods
-AtCommandResult ModemComponent::send_at(const std::string &cmd, uint32_t timeout, bool verbose) {
-  return this->modem_handler->send_at(cmd, timeout, verbose);
 }
 
 void ModemComponent::enable() {
   ESP_LOGI(TAG, "Setting modem target state to CONNECTED");
   this->target_state_ = ModemComponentState::MODEM_CONNECTED;
-  this->modem_handler->pin_sent = false;
-  // State machine in loop() will handle the ascent
+  this->pin_sent_ = false;
   this->enable_loop();
 }
 
 void ModemComponent::disable() {
   ESP_LOGI(TAG, "Setting modem target state to DISABLED");
   this->target_state_ = ModemComponentState::MODEM_DISABLED;
-  // State machine in loop() will handle the descent
 }
 
 network::IPAddresses ModemComponent::get_ip_addresses() {
   network::IPAddresses addresses;
-  if (this->component_state_ == ModemComponentState::MODEM_CONNECTED &&
-      this->modem_handler->network_infos.got_ip.load(std::memory_order_acquire)) {
-    addresses[0] = network::IPAddress(&this->modem_handler->network_infos.ip_info.ip);
+  esp_netif_ip_info_t ip;
+  if (this->is_connected() && esp_netif_get_ip_info(this->ppp_netif_, &ip) == ESP_OK) {
+    addresses[0] = network::IPAddress(&ip.ip);
   }
   return addresses;
 }
 
 void ModemComponent::setup() {
-  ESP_LOGI(TAG, "Modem setup...");
-  this->pref_ = global_preferences->make_preference<ModemRestoreState>(76007670UL);
-  this->pref_.load(&this->modem_restore_state_);
+  this->pref_ = global_preferences->make_preference<int>(BAUD_PREF_HASH);
+  this->pref_.load(&this->restored_baud_);
 
-  // find an available UART
 #ifdef UART_NUM_2
   for (auto p : {UART_NUM_2, UART_NUM_1}) {
 #else
   for (auto p : {UART_NUM_1}) {
 #endif
     if (!uart_is_driver_installed(p)) {
-      this->modem_handler->uart_port_num = p;
+      this->uart_port_ = p;
       break;
     }
   }
-  if (this->modem_handler->uart_port_num == UART_NUM_MAX) {
-    ESP_LOGE(TAG, "No free UART port for modem");
+  if (this->uart_port_ == UART_NUM_MAX) {
     this->mark_failed(LOG_STR("No free UART port for modem"));
     return;
   }
@@ -96,77 +78,66 @@ void ModemComponent::setup() {
   }
 
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
-  this->modem_handler->ppp_netif = esp_netif_new(&netif_ppp_config);
-  assert(this->modem_handler->ppp_netif);
+  this->ppp_netif_ = esp_netif_new(&netif_ppp_config);
+  assert(this->ppp_netif_);
 
-  esp_err_t err = esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemHandler::ip_event_handler,
-                                             this->modem_handler.get());
-  ESPHL_ERROR_CHECK(err, "IP event handler register failed");
+  if (esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemComponent::ip_event_handler, this) != ESP_OK) {
+    this->mark_failed(LOG_STR("IP event handler register failed"));
+    return;
+  }
 
-  this->modem_handler->modem_create_dte_dce(this->modem_handler->baud_rate);
-
-  ESP_LOGV(TAG, "Setup complete");
+  this->create_dte_dce_(this->baud_rate_);
 }
 
 void ModemComponent::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Modem:\n"
-                "  Model: %s\n"
-                "  APN: %s\n"
-                "  PIN code: %s\n"
-                "  TX Pin: GPIO%u\n"
-                "  RX Pin: GPIO%u\n"
-                "  UART port: %d\n"
-                "  TX buffer size: %u\n"
-                "  RX buffer size: %u\n"
-                "  DTE buffer size: %u\n"
-                "  Enabled: %s",
-                this->modem_handler->model.c_str(), this->modem_handler->apn.c_str(),
-                this->modem_handler->pin_code.empty() ? LOG_STR_LITERAL("No") : LOG_STR_LITERAL("Yes (not shown)"),
-                this->modem_handler->tx_pin->get_pin(), this->modem_handler->rx_pin->get_pin(),
-                this->modem_handler->uart_port_num, this->modem_handler->tx_buffer_size,
-                this->modem_handler->rx_buffer_size, this->modem_handler->dte_buffer_size, YESNO(this->is_enabled()));
-  if (this->modem_handler->baud_rate != 0) {
-    ESP_LOGCONFIG(TAG, "  Baud rate: %d", this->modem_handler->baud_rate);
-  }
-  if (this->timeout_ == 0) {
-    ESP_LOGCONFIG(TAG, "  Reboot timeout: disabled");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Reboot timeout: %" PRIu32 " s", this->timeout_ / 1000);
-  }
+  ESP_LOGCONFIG(
+      TAG,
+      "Modem:\n"
+      "  Model: %s\n"
+      "  APN: %s\n"
+      "  PIN code: %s\n"
+      "  TX Pin: GPIO%u\n"
+      "  RX Pin: GPIO%u\n"
+      "  UART port: %d\n"
+      "  Baud rate: %d\n"
+      "  TX buffer size: %u\n"
+      "  RX buffer size: %u\n"
+      "  DTE buffer size: %u\n"
+      "  Reboot timeout: %" PRIu32 " ms\n"
+      "  Enabled: %s",
+      this->model_, this->apn_, this->pin_code_ == nullptr ? LOG_STR_LITERAL("No") : LOG_STR_LITERAL("Yes (not shown)"),
+      this->tx_pin_->get_pin(), this->rx_pin_->get_pin(), this->uart_port_, this->baud_rate_, this->tx_buffer_size_,
+      this->rx_buffer_size_, this->dte_buffer_size_, this->timeout_, YESNO(this->is_enabled()));
   this->dump_connect_params_();
 }
 
 void ModemComponent::loop() {
-  // Some commands require a delay; the early return alone defers the work
+  // Some modem steps need a pause; the early return alone defers the work
   if ((int32_t) (App.get_loop_component_start_time() - this->next_loop_millis_) < 0) {
     return;
   }
+  this->transition_to_(this->compute_next_state_());
+}
 
-  // Calculate next step toward target_state_
-  ModemComponentState next_state = this->compute_next_state_();
-
-  if (next_state != this->component_state_) {
-    this->transition_to_(next_state);
-  }
+void ModemComponent::loop_delay_(uint32_t delay_ms) {
+  this->next_loop_millis_ = App.get_loop_component_start_time() + delay_ms;
 }
 
 ModemComponentState ModemComponent::compute_next_state_() {
-  // Priority 1: If target = DISABLED and we're not there, descend
   if (this->target_state_ == ModemComponentState::MODEM_DISABLED) {
     if (this->component_state_ == ModemComponentState::MODEM_DISABLED) {
-      return ModemComponentState::MODEM_DISABLED;  // Stay
+      // Parked until enable() turns the loop back on
+      this->disable_loop();
+      return ModemComponentState::MODEM_DISABLED;
     }
     if (this->component_state_ != ModemComponentState::MODEM_DISCONNECTING) {
-      return ModemComponentState::MODEM_DISCONNECTING;  // Start descent
+      return ModemComponentState::MODEM_DISCONNECTING;
     }
-    // Otherwise we're already in DISCONNECTING, let handler manage
   }
 
-  // Priority 2: Execute current state logic
   switch (this->component_state_) {
     case ModemComponentState::MODEM_DISABLED:
-      return this->handle_state_disabled_();
+      return ModemComponentState::MODEM_ENABLING;
     case ModemComponentState::MODEM_ENABLING:
       return this->handle_state_enabling_();
     case ModemComponentState::MODEM_SYNCED:
@@ -180,183 +151,169 @@ ModemComponentState ModemComponent::compute_next_state_() {
     case ModemComponentState::MODEM_DISCONNECTING:
       return this->handle_state_disconnecting_();
   }
-
-  return this->component_state_;  // Fallback
+  return this->component_state_;
 }
 
-ModemComponentState ModemComponent::handle_state_disabled_() {
-  // If target is DISABLED, stay here; enable() turns the loop back on
-  if (this->target_state_ == ModemComponentState::MODEM_DISABLED) {
-    this->disable_loop();
-    return ModemComponentState::MODEM_DISABLED;
-  }
+void ModemComponent::create_dte_dce_(int baud_rate) {
+  this->current_baud_rate_ = baud_rate;
 
-  // Otherwise, target is CONNECTED, start ascent
-  return ModemComponentState::MODEM_ENABLING;
+  esp_modem_dte_config_t dte_config = ESP_MODEM_DTE_DEFAULT_CONFIG();
+  dte_config.uart_config.tx_io_num = this->tx_pin_->get_pin();
+  dte_config.uart_config.rx_io_num = this->rx_pin_->get_pin();
+  dte_config.uart_config.rx_buffer_size = this->rx_buffer_size_;
+  dte_config.uart_config.tx_buffer_size = this->tx_buffer_size_;
+  dte_config.uart_config.event_queue_size = UART_EVENT_QUEUE_SIZE;
+  dte_config.uart_config.port_num = this->uart_port_;
+  if (baud_rate != 0) {
+    dte_config.uart_config.baud_rate = baud_rate;
+  }
+  if (this->rts_pin_ != nullptr) {
+    dte_config.uart_config.rts_io_num = this->rts_pin_->get_pin();
+    dte_config.uart_config.cts_io_num = this->cts_pin_->get_pin();
+    dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_HW;
+  } else {
+    dte_config.uart_config.flow_control = ESP_MODEM_FLOW_CONTROL_NONE;
+  }
+  dte_config.task_stack_size = UART_EVENT_TASK_STACK_SIZE;
+  dte_config.task_priority = UART_EVENT_TASK_PRIORITY;
+  dte_config.dte_buffer_size = this->dte_buffer_size_;
+
+  this->dce_.reset();
+  this->dte_.reset();
+  this->dte_ = create_uart_dte(&dte_config);
+  esp_modem_dce_config_t dce_config = ESP_MODEM_DCE_DEFAULT_CONFIG(this->apn_);
+  this->dce_ = this->dce_factory_(&dce_config, this->dte_, this->ppp_netif_);
+}
+
+bool ModemComponent::try_baud_(int baud) {
+  this->create_dte_dce_(baud);
+  this->dce_->set_mode(modem_mode::AUTODETECT);
+  if (this->dce_->get_mode() != modem_mode::UNDEF) {
+    return true;
+  }
+  // Some modems ignore the autobaud probe, so confirm with a plain AT
+  App.feed_wdt();
+  return this->send_at("AT", 100).success;
 }
 
 ModemComponentState ModemComponent::handle_state_enabling_() {
-  // Connect to the modem (testing different baud), and set the modem in a fresh state (disconnect from a previous
-  // connection) the modem will be synced at expected baud rate when exiting this state.
-
-  auto try_autobaud = [&](int baud) {
-    this->modem_handler->modem_create_dte_dce(baud);
-    this->modem_handler->dce->set_mode(esp_modem::modem_mode::AUTODETECT);
-    bool success = this->modem_handler->dce->get_mode() != esp_modem::modem_mode::UNDEF;
-    // Sometimes the modem does not answer autobaud commands,
-    // so try sending an AT command to confirm it's responsive at this baud rate.
-    if (!success) {
-      App.feed_wdt();
-      auto result = this->modem_handler->send_at("AT", 100);
-      success = result.esp_modem_command_result == command_result::OK;
-    }
-    if (success) {
-      this->modem_handler->current_baud_rate = baud;
-      this->modem_restore_state_.baud_rate = baud;
-      this->pref_.save(&this->modem_restore_state_);
-    }
-    return success;
-  };
-
-  // possible baud rate to try
-  std::vector<int> bauds = {this->modem_handler->current_baud_rate, this->modem_restore_state_.baud_rate,
-                            this->modem_handler->baud_rate, 115200};
-  std::sort(bauds.begin(), bauds.end());
-  bauds.erase(std::unique(bauds.begin(), bauds.end()), bauds.end());
-
-  this->modem_handler->dce->set_mode(esp_modem::modem_mode::AUTODETECT);
-
-  auto mode = this->modem_handler->dce->get_mode();
-
-  ESP_LOGI(TAG, "Autodetect mode (1st): %d", static_cast<int>(mode));
+  // Find the baud rate the modem answers at and leave it in command mode, synced
+  this->dce_->set_mode(modem_mode::AUTODETECT);
+  auto mode = this->dce_->get_mode();
+  ESP_LOGI(TAG, "Autodetect mode: %d", static_cast<int>(mode));
 
   switch (mode) {
     case modem_mode::CMUX_MANUAL_MODE:
       ESP_LOGD(TAG, "Modem warm reboot. Exiting CMUX");
-      this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
+      this->dce_->set_mode(modem_mode::CMUX_MANUAL_EXIT);
       break;
 
     case modem_mode::UNDEF: {
-      ESP_LOGD(TAG, "Trying other baud rate");
-      bool responded = false;
-      for (int b : bauds) {
-        if (try_autobaud(b)) {
-          ESP_LOGD(TAG, "Modem responded at baud %d", b);
-          responded = true;
-          break;
-        }
-      }
-      if (!responded) {
-        ESP_LOGW(TAG, "Modem not responding. Check power, PWRKEY and TX/RX wiring.");
-        this->loop_delay_(1000);
+      // One candidate per pass keeps each loop() pass short
+      const int bauds[] = {this->current_baud_rate_, this->restored_baud_, this->baud_rate_, FALLBACK_BAUD_RATE};
+      const int baud = bauds[this->baud_index_++ % 4];
+      if (baud == 0) {
         return ModemComponentState::MODEM_ENABLING;
       }
+      if (!this->try_baud_(baud)) {
+        ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.", baud);
+        this->loop_delay_(RETRY_DELAY_MS);
+        return ModemComponentState::MODEM_ENABLING;
+      }
+      ESP_LOGD(TAG, "Modem responded at baud %d", baud);
       break;
     }
 
     case modem_mode::COMMAND_MODE:
-      ESP_LOGD(TAG, "OK: Modem in COMMAND mode.");
       break;
 
     case modem_mode::DATA_MODE:
-      // Can block 20s! But no workaround found (with esp_modem 2.0.0)
-      ESP_LOGW(TAG, "Exiting DATA_MODE. (long blocking call, make sur to have a long WDT!)");
-      this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
+      // Can block 20 s; esp_modem 2.0 offers no shorter exit
+      ESP_LOGW(TAG, "Exiting DATA_MODE (long blocking call, make sure to have a long WDT)");
+      this->dce_->set_mode(modem_mode::COMMAND_MODE);
       break;
 
     default:
-      ESP_LOGW(TAG, "Modem in unexpected mode %d. Attempting to switch to COMMAND mode.", static_cast<int>(mode));
-      this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
-      this->modem_handler->dce->set_mode(modem_mode::UNDEF);
-      // return ModemComponentState::MODEM_ENABLING;
+      ESP_LOGW(TAG, "Modem in unexpected mode %d. Switching to COMMAND mode.", static_cast<int>(mode));
+      this->dce_->set_mode(modem_mode::COMMAND_MODE);
+      this->dce_->set_mode(modem_mode::UNDEF);
       break;
   }
 
-  if (this->modem_handler->dce->sync() != esp_modem::command_result::OK) {
+  if (this->dce_->sync() != command_result::OK) {
     ESP_LOGW(TAG, "Waiting SYNC");
-    this->loop_delay_(1000);
+    this->loop_delay_(RETRY_DELAY_MS);
     return ModemComponentState::MODEM_ENABLING;
   }
 
 #ifdef USE_MODEM_URC
-  auto urc_handler = [this](const esp_modem::DTE::UrcBufferInfo &buffer_info) {
+  this->dce_->set_enhanced_urc([this](const DTE::UrcBufferInfo &buffer_info) {
     if (!buffer_info.is_command_active) {
-      std::string line(reinterpret_cast<const char *>(buffer_info.new_data_start), buffer_info.new_data_size);
-      // Publish to text sensor if configured
-      if (this->urc_text_sensor != nullptr) {
-        // defer so we won't be in the callback context
-        this->defer([this, line]() { this->urc_text_sensor->publish_state(line); });
-      }
+      // Publish from the main loop, not from the UART task
+      this->defer(
+          [this, line = std::string(reinterpret_cast<const char *>(buffer_info.new_data_start),
+                                    buffer_info.new_data_size)]() { this->urc_text_sensor_->publish_state(line); });
     }
-    return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
-  };
-  this->modem_handler->dce->set_enhanced_urc(urc_handler);
+    return DTE::UrcConsumeInfo{DTE::UrcConsumeResult::CONSUME_NONE, 0};
+  });
 #endif
 
   int radio_state = 1;
-  this->modem_handler->dce->get_radio_state(radio_state);
+  this->dce_->get_radio_state(radio_state);
   if (radio_state == 1) {
-    // On warm reboot, we need to disconnect modem radio.
-    if (this->modem_handler->dce->set_radio_state(0) != command_result::OK) {
+    // On warm reboot, drop the previous network session first
+    if (this->dce_->set_radio_state(0) != command_result::OK) {
       ESP_LOGW(TAG, "Failed to disconnect previous network session");
     }
-    this->loop_delay_(1000);
+    this->loop_delay_(RETRY_DELAY_MS);
     return ModemComponentState::MODEM_ENABLING;
   }
 
-  if (this->modem_handler->baud_rate != 0 && this->modem_handler->baud_rate != this->modem_handler->current_baud_rate) {
-    ESP_LOGD(TAG, "Setting baud rate: %d -> %d", this->modem_handler->current_baud_rate,
-             this->modem_handler->baud_rate);
-    this->modem_handler->dce->sync();
-    if (this->modem_handler->dce->set_baud(this->modem_handler->baud_rate) == esp_modem::command_result::OK) {
-      ESP_LOGD(TAG, "Modem baud rate set to %d.", this->modem_handler->baud_rate);
-      delay(200);  // NOLINT
-      this->modem_handler->modem_create_dte_dce(this->modem_handler->baud_rate);
-      App.feed_wdt();
-      delay(200);  // NOLINT
-      this->modem_handler->dce->sync();
-      if (this->modem_handler->dce->sync() == esp_modem::command_result::OK) {
-        ESP_LOGI(TAG, "Modem synced at baud rate %d.", this->modem_handler->current_baud_rate);
-        this->modem_restore_state_.baud_rate = this->modem_handler->current_baud_rate;
-        this->pref_.save(&this->modem_restore_state_);
-        global_preferences->sync();
-      } else {
-        ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->modem_handler->baud_rate);
-        return ModemComponentState::MODEM_DISCONNECTING;
-      }
-    } else {
-      ESP_LOGW(TAG, "Failed to set modem baud rate to %d. Using %d.", this->modem_handler->baud_rate,
-               this->modem_handler->current_baud_rate);
-      this->loop_delay_(1000);
+  if (this->baud_rate_ != 0 && this->baud_rate_ != this->current_baud_rate_) {
+    ESP_LOGD(TAG, "Setting baud rate: %d -> %d", this->current_baud_rate_, this->baud_rate_);
+    if (this->dce_->set_baud(this->baud_rate_) != command_result::OK) {
+      ESP_LOGW(TAG, "Failed to set modem baud rate to %d. Using %d.", this->baud_rate_, this->current_baud_rate_);
+      this->loop_delay_(RETRY_DELAY_MS);
       return ModemComponentState::MODEM_ENABLING;
     }
+    delay(200);  // NOLINT
+    this->create_dte_dce_(this->baud_rate_);
+    App.feed_wdt();
+    delay(200);  // NOLINT
+    if (this->dce_->sync() != command_result::OK) {
+      ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->baud_rate_);
+      return ModemComponentState::MODEM_DISCONNECTING;
+    }
+    ESP_LOGI(TAG, "Modem synced at baud rate %d.", this->current_baud_rate_);
   }
 
+  if (this->restored_baud_ != this->current_baud_rate_) {
+    this->restored_baud_ = this->current_baud_rate_;
+    this->pref_.save(&this->restored_baud_);
+  }
   return ModemComponentState::MODEM_SYNCED;
 }
 
 ModemComponentState ModemComponent::handle_state_synced_() {
-  for (const auto &cmd : this->modem_handler->init_at_commands) {
+  for (const char *cmd : this->init_at_commands_) {
     App.feed_wdt();
-    this->modem_handler->send_at(cmd, 0, true);  // logs the command, result and response
+    this->send_at(cmd, 0, true);
   }
   return ModemComponentState::MODEM_CONNECTING;
 }
 
 ModemComponentState ModemComponent::handle_state_connecting_() {
-  // Merges INIT_NETWORK and START_PPP states
-  if (this->modem_handler->dce->sync() != esp_modem::command_result::OK) {
+  if (this->dce_->sync() != command_result::OK) {
     ESP_LOGW(TAG, "Modem not synced during network init");
     return ModemComponentState::MODEM_ENABLING;
   }
 
-  int attachement_state = 0;
-  this->modem_handler->dce->set_radio_state(1);
-  switch (this->modem_handler->prepare_sim()) {
+  this->dce_->set_radio_state(1);
+  switch (this->prepare_sim_()) {
     case SimResult::SIM_RESULT_READY:
       break;
     case SimResult::SIM_RESULT_RETRY:
-      this->loop_delay_(this->modem_handler->command_delay);
+      this->loop_delay_(COMMAND_TIMEOUT_MS);
       return ModemComponentState::MODEM_CONNECTING;
     case SimResult::SIM_RESULT_FATAL:
       // Retrying would burn the remaining PIN attempts; stay off until the user fixes the SIM
@@ -364,37 +321,29 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
       this->target_state_ = ModemComponentState::MODEM_DISABLED;
       return ModemComponentState::MODEM_DISCONNECTING;
   }
-  this->modem_handler->dce->set_network_attachment_state(1);
+  this->dce_->set_network_attachment_state(1);
 
-  this->modem_handler->dce->get_network_attachment_state(attachement_state);
-
-  if (!attachement_state) {
-    ESP_LOGW(TAG, "Modem not yet ready to connect");
-    this->modem_handler->modem_log_status();
-    this->loop_delay_(4000);
+  int attached = 0;
+  this->dce_->get_network_attachment_state(attached);
+  if (!attached) {
+    this->log_status_();
+    this->loop_delay_(4 * RETRY_DELAY_MS);
     return ModemComponentState::MODEM_CONNECTING;
   }
 
   ESP_LOGI(TAG, "Modem initialized and ready, starting PPP");
-
-  if (!this->modem_handler->dce->set_mode(esp_modem::modem_mode::CMUX_MODE)) {
+  if (!this->dce_->set_mode(modem_mode::CMUX_MODE)) {
     ESP_LOGE(TAG, "Failed to enter PPP. Resetting modem.");
     return ModemComponentState::MODEM_DISCONNECTING;
   }
-
   return ModemComponentState::MODEM_WAIT_IP;
 }
 
 ModemComponentState ModemComponent::handle_state_wait_ip_() {
-  if (this->modem_handler->network_infos.got_ip.load(std::memory_order_acquire)) {
+  if (this->got_ip_.load(std::memory_order_acquire)) {
     return ModemComponentState::MODEM_CONNECTED;
   }
-  if (this->wait_ip_retry_ > 0) {
-    --this->wait_ip_retry_;
-  }
-  if (this->wait_ip_retry_ > 0) {
-    ESP_LOGD(TAG, "Wait IP left retry: %d", this->wait_ip_retry_);
-    this->loop_delay_(this->modem_handler->connect_retry_delay);
+  if (App.get_loop_component_start_time() - this->wait_ip_start_ < WAIT_IP_TIMEOUT_MS) {
     return ModemComponentState::MODEM_WAIT_IP;
   }
   ESP_LOGE(TAG, "Unable to get IP address");
@@ -402,19 +351,17 @@ ModemComponentState ModemComponent::handle_state_wait_ip_() {
 }
 
 ModemComponentState ModemComponent::handle_state_connected_() {
-  if (!this->modem_handler->network_infos.got_ip.load(std::memory_order_acquire)) {
+  if (!this->got_ip_.load(std::memory_order_acquire)) {
     ESP_LOGW(TAG, "Lost IP");
-    this->loop_delay_(this->modem_handler->connect_retry_delay);
     return ModemComponentState::MODEM_DISCONNECTING;
   }
   return ModemComponentState::MODEM_CONNECTED;
 }
 
 ModemComponentState ModemComponent::handle_state_disconnecting_() {
-  this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
-
-  // turn off radio.It can take up to 2 min to get lost IP event.
-  if (this->modem_handler->dce->set_radio_state(0) == esp_modem::command_result::OK) {
+  this->dce_->set_mode(modem_mode::CMUX_MANUAL_EXIT);
+  // Turn the radio off; waiting for the lost IP event could take up to 2 min
+  if (this->dce_->set_radio_state(0) == command_result::OK) {
     ESP_LOGI(TAG, "Modem set to minimal functionality.");
   } else {
     ESP_LOGE(TAG, "Failed to set modem to minimal functionality.");
@@ -438,10 +385,6 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
 }
 
 void ModemComponent::on_enter_state_(ModemComponentState state) {
-  // State invariants (entry establishes these):
-  // - MODEM_WAIT_IP: waiting for PPP got IP, retry counter initialized.
-  // - MODEM_CONNECTED: got_ip expected, connect timeout cancelled, params dumped.
-  // - DISABLED: no modem timeouts active, no retries pending.
   switch (state) {
     case ModemComponentState::MODEM_ENABLING:
       if (this->timeout_ != 0) {
@@ -450,7 +393,7 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
       }
       break;
     case ModemComponentState::MODEM_WAIT_IP:
-      this->wait_ip_retry_ = 10;
+      this->wait_ip_start_ = App.get_loop_component_start_time();
       break;
     case ModemComponentState::MODEM_CONNECTED:
       this->cancel_timeout(CONNECT_TIMEOUT_ID);
@@ -460,11 +403,7 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
     case ModemComponentState::MODEM_DISCONNECTING:
       ESP_LOGI(TAG, "Disconnecting modem");
       this->cancel_timeout(CONNECT_TIMEOUT_ID);
-      this->loop_delay_(this->modem_handler->command_delay);
-      break;
-    case ModemComponentState::MODEM_DISABLED:
-      this->cancel_timeout(CONNECT_TIMEOUT_ID);
-      this->wait_ip_retry_ = 0;
+      this->loop_delay_(COMMAND_TIMEOUT_MS);
       break;
     default:
       break;
@@ -473,22 +412,95 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
 
 void ModemComponent::abort_(const char *message) {
   ESP_LOGE(TAG, "Aborting: %s.", message);
-  this->pref_.save(&this->modem_restore_state_);
   App.reboot();
 }
 
-void ModemComponent::loop_delay_(uint32_t delay_ms) {
-  this->next_loop_millis_ = App.get_loop_component_start_time() + delay_ms;
+AtCommandResult ModemComponent::send_at(const std::string &cmd, uint32_t timeout, bool verbose) {
+  AtCommandResult result;
+  if (!this->dce_) {
+    ESP_LOGE(TAG, "Modem DCE not ready, cannot send AT command: %s", cmd.c_str());
+    return result;
+  }
+  result.success =
+      this->dce_->at(cmd, result.output, timeout == 0 ? COMMAND_TIMEOUT_MS : timeout) == command_result::OK;
+  if (verbose) {
+    ESP_LOGI(TAG, "AT '%s' -> %s: %s", cmd.c_str(), result.success ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("FAILED"),
+             result.output.c_str());
+  }
+  return result;
+}
+
+SimResult ModemComponent::prepare_sim_() {
+  AtCommandResult result = this->send_at("AT+CPIN?");
+  if (!result.success) {
+    ESP_LOGW(TAG, "Failed to check pin: %s", result.output.c_str());
+    return SimResult::SIM_RESULT_RETRY;
+  }
+  const char *status = result.output.c_str();
+  if (result.output.starts_with("+CPIN: ")) {
+    status += 7;
+  }
+  ESP_LOGD(TAG, "SIM: %s", status);
+
+  if (strstr(status, "READY") != nullptr) {
+    return SimResult::SIM_RESULT_READY;
+  }
+  if (strstr(status, "PUK") != nullptr) {
+    ESP_LOGE(TAG, "SIM is PUK locked; unlock it in a phone");
+    return SimResult::SIM_RESULT_FATAL;
+  }
+  if (strstr(status, "PIN") == nullptr) {
+    return SimResult::SIM_RESULT_RETRY;  // e.g. the SIM is still initializing
+  }
+  if (this->pin_code_ == nullptr) {
+    ESP_LOGE(TAG, "SIM requires a PIN but pin_code is not set");
+    return SimResult::SIM_RESULT_FATAL;
+  }
+  if (this->pin_sent_) {
+    ESP_LOGE(TAG, "SIM still locked after sending the PIN; check pin_code");
+    return SimResult::SIM_RESULT_FATAL;
+  }
+  this->pin_sent_ = true;
+  ESP_LOGD(TAG, "Unlocking SIM with PIN...");
+  if (this->dce_->set_pin(this->pin_code_) != command_result::OK) {
+    ESP_LOGE(TAG, "The modem rejected the PIN; check pin_code");
+    return SimResult::SIM_RESULT_FATAL;
+  }
+  return SimResult::SIM_RESULT_RETRY;  // AT+CPIN? confirms READY on the next pass
+}
+
+void ModemComponent::log_status_() {
+  int rssi = 99, ber = 99, registration = 0, mode = 0, cfun = -1;
+  this->dce_->get_radio_state(cfun);
+  this->dce_->get_network_registration_state(registration);
+  this->dce_->get_signal_quality(rssi, ber);
+  this->dce_->get_network_system_mode(mode);
+  ESP_LOGW(TAG, "Modem not attached yet: registration %d, radio %d, network type %d, CSQ %d, BER %d", registration,
+           cfun, mode, rssi, ber);
+}
+
+void ModemComponent::ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+  auto *self = static_cast<ModemComponent *>(arg);
+  if (event_id == IP_EVENT_PPP_GOT_IP) {
+    auto *event = static_cast<ip_event_got_ip_t *>(event_data);
+    ESP_LOGD(TAG, "PPP IP event: Got IP " IPSTR, IP2STR(&event->ip_info.ip));
+    self->got_ip_.store(true, std::memory_order_release);
+  } else if (event_id == IP_EVENT_PPP_LOST_IP) {
+    ESP_LOGD(TAG, "PPP IP event: Lost IP");
+    self->got_ip_.store(false, std::memory_order_release);
+  }
 }
 
 void ModemComponent::dump_connect_params_() {
-  if (this->component_state_ != ModemComponentState::MODEM_CONNECTED) {
+  esp_netif_ip_info_t ip;
+  esp_netif_dns_info_t dns_main;
+  esp_netif_dns_info_t dns_backup;
+  if (!this->is_connected() || esp_netif_get_ip_info(this->ppp_netif_, &ip) != ESP_OK) {
     ESP_LOGCONFIG(TAG, "  Connection: not connected");
     return;
   }
-  esp_netif_ip_info_t ip = this->modem_handler->network_infos.ip_info;
-  esp_netif_dns_info_t dns_main = this->modem_handler->network_infos.dns_main;
-  esp_netif_dns_info_t dns_backup = this->modem_handler->network_infos.dns_backup;
+  esp_netif_get_dns_info(this->ppp_netif_, ESP_NETIF_DNS_MAIN, &dns_main);
+  esp_netif_get_dns_info(this->ppp_netif_, ESP_NETIF_DNS_BACKUP, &dns_backup);
   char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char netmask_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char gw_buf[network::IP_ADDRESS_BUFFER_SIZE];

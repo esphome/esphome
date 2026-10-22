@@ -18,7 +18,6 @@ from esphome.const import (
     CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
     CONF_USE_ADDRESS,
-    DEVICE_CLASS_EMPTY,
 )
 from esphome.core import coroutine_with_priority
 from esphome.types import ConfigType
@@ -36,16 +35,17 @@ CONF_ON_SYNC = "on_sync"
 CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
 CONF_URC = "urc"
 
-MODEM_MODELS = [
-    "BG96",
-    "SIM800",
-    "SIM7000",
-    "SIM7070",
-    "SIM7080",
-    "SIM7600",
-    "SIM7670",
-    "GENERIC",
-]
+# Model name to the esp_modem factory that drives it
+MODEM_MODELS = {
+    "BG96": "BG96",
+    "SIM800": "SIM800",
+    "SIM7000": "SIM7000",
+    "SIM7070": "SIM7070",
+    "SIM7080": "SIM7000",
+    "SIM7600": "SIM7600",
+    "SIM7670": "SIM7600",
+    "GENERIC": "generic",
+}
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
 
@@ -90,7 +90,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_APN): cv.string,
             cv.Optional(CONF_PIN_CODE): cv.sensitive(cv.string_strict),
             cv.Optional(CONF_USE_ADDRESS): cv.string,
-            cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
+            cv.Optional(CONF_INIT_AT): cv.ensure_list(cv.string),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=1024): cv.positive_int,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.positive_int,
@@ -101,9 +101,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation({}),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation({}),
             cv.Optional(CONF_ON_SYNC): automation.validate_automation({}),
-            cv.Optional(CONF_URC): text_sensor_schema(
-                device_class=DEVICE_CLASS_EMPTY,
-            ),
+            cv.Optional(CONF_URC): text_sensor_schema(),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_none_or_all_keys(CONF_RTS_PIN, CONF_CTS_PIN),
@@ -151,12 +149,6 @@ async def to_code(config: ConfigType) -> None:
     )  # Slower but more reliable
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_URC_HANDLER", True)
 
-    # If "Uart queue full" messages appear (e.g., with A7672), these config options might need adjustment
-    # See: https://github.com/espressif/esp-protocols/issues/272#issuecomment-1558682967
-    # add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DEFRAGMENT_PAYLOAD", True)
-    # add_idf_sdkconfig_option("CONFIG_ESP_MODEM_USE_INFLATABLE_BUFFER_IF_NEEDED", True)
-    # add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", False)
-
     cg.add_define("USE_MODEM")
 
     var = cg.new_Pvariable(config[CONF_ID])
@@ -168,10 +160,11 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.enable())
 
-    for cmd in config.get(CONF_INIT_AT, []):
-        cg.add(var.add_init_at_command(cmd))
+    cg.add_optional(var.set_init_at_commands, config.get(CONF_INIT_AT))
 
-    cg.add(var.set_model(config[CONF_MODEL]))
+    model = config[CONF_MODEL]
+    factory = cg.RawExpression(f"esp_modem::create_{MODEM_MODELS[model]}_dce")
+    cg.add(var.set_model(model, factory))
     cg.add(var.set_apn(config[CONF_APN]))
 
     await cg.add_pin(var.set_tx_pin, config[CONF_TX_PIN])
@@ -186,9 +179,8 @@ async def to_code(config: ConfigType) -> None:
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    if urc_config := config.get(CONF_URC, None):
+    if (urc_config := config.get(CONF_URC)) is not None:
         cg.add_define("USE_MODEM_URC")
-        urc_text_sensor = await new_text_sensor(urc_config)
-        cg.add(var.set_urc_text_sensor(urc_text_sensor))
+        cg.add(var.set_urc_text_sensor(await new_text_sensor(urc_config)))
 
     await cg.register_component(var, config)
