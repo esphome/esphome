@@ -24,19 +24,4 @@ class SymphonyProtocol : public RemoteProtocol<SymphonyData> {
 
 DECLARE_REMOTE_PROTOCOL(Symphony)
 
-template<typename... Ts> class SymphonyAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, data)
-  TEMPLATABLE_VALUE(uint8_t, nbits)
-  TEMPLATABLE_VALUE(uint8_t, repeats)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    SymphonyData data{};
-    data.data = this->data_.value(x...);
-    data.nbits = this->nbits_.value(x...);
-    data.repeats = this->repeats_.value(x...);
-    SymphonyProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

@@ -57,7 +57,7 @@ namespace esphome::web_server_idf {
 
 ESPHOME_LOG_TAG(TAG, "web_server_idf");
 
-// Only send_json_() may hold the JSON arena: every other frame in this file is capped below one
+// Only prepare_json_() may hold the JSON arena: every other frame in this file is capped below one
 // arena. Measured at -Os on GCC 14; newer toolchains stay checked on purpose, older ones skip it.
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic error "-Wstack-usage=2048"
@@ -148,10 +148,9 @@ void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
   }
-  // Default httpd stack is defined by ESP-IDF. Increase to accommodate SerializationBuffer's
-  // 640-byte stack buffer used by web_server JSON request handlers.
+  // Allow room for SerializationBuffer's 640-byte stack buffer and HTTP request handling.
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.stack_size = config.stack_size + 256;
+  config.stack_size = 4512;
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
@@ -311,6 +310,10 @@ esp_err_t AsyncWebServer::handle_raw_body_(httpd_req_t *r, const char *content_t
 }
 
 AsyncWebServerRequest::~AsyncWebServerRequest() {
+#ifdef USE_WEBSERVER_OTA
+  if (this->on_disconnect_)
+    this->on_disconnect_();
+#endif
   delete this->rsp_;
   for (auto *param : this->params_) {
     delete param;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -335,9 +338,9 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   return StringRef(buffer.data(), decoded_len);
 }
 
-void AsyncWebServerRequest::redirect(const std::string &url) {
+void AsyncWebServerRequest::redirect(const char *url) {
   httpd_resp_set_status(*this, "302 Found");
-  httpd_resp_set_hdr(*this, "Location", url.c_str());
+  httpd_resp_set_hdr(*this, "Location", url);
   httpd_resp_set_hdr(*this, "Connection", "close");
   httpd_resp_send(*this, nullptr, 0);
 }
@@ -793,14 +796,13 @@ void AsyncEventSource::try_send_nodefer(const char *message, size_t message_len,
   }
 }
 
-void AsyncEventSource::deferrable_send_state(void *source, const char *event_type,
-                                             message_generator_t *message_generator) {
+void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator) {
   // Skip if no connected clients to avoid unnecessary processing
   if (this->empty())
     return;
   for (auto *ses : this->sessions_) {
     if (ses->fd_.load() != 0) {  // Skip dead sessions
-      ses->deferrable_send_state(source, event_type, message_generator);
+      ses->deferrable_send_state(source, detail_all, message_generator);
     }
   }
 }
@@ -850,7 +852,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
   for (auto &group : ws->sorting_groups_) {
     json::JsonBuilder builder;
     JsonObject root = builder.root();
-    root["name"] = group.second.name;
+    root["name"] = json::linked(group.second.name);
     root["sorting_weight"] = group.second.weight;
     message = builder.serialize();
 
@@ -955,10 +957,39 @@ void AsyncEventSourceResponse::process_close_() {
   }
 }
 
+void AsyncEventSourceResponse::refresh_lru_() {
+  // httpd only advances a session's LRU counter when a request arrives, and an event stream receives one
+  // request ever, so the purge that frees a socket for a new client would evict the live streams first.
+  // The HTTPD task owns the session table, so the refresh runs there.
+  // A stalled stream is the socket the purge should take, and a zeroed fd has no session left to refresh.
+  if (this->send_failure_started_ms_ != 0 || this->fd_.load() == 0)
+    return;
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_lru_refresh_ms_ < LRU_REFRESH_INTERVAL_MS ||
+      this->lru_work_queued_.load(std::memory_order_acquire)) {
+    return;
+  }
+  this->last_lru_refresh_ms_ = now;  // a full queue also waits for the next interval
+  this->lru_work_queued_.store(true, std::memory_order_release);
+  if (httpd_queue_work(this->hd_, &AsyncEventSourceResponse::refresh_lru_work, this) != ESP_OK) {
+    this->lru_work_queued_.store(false, std::memory_order_release);
+  }
+}
+
+void AsyncEventSourceResponse::refresh_lru_work(void *arg) {
+  auto *response = static_cast<AsyncEventSourceResponse *>(arg);
+  const int fd = response->fd_.load();
+  if (response->owns_session_(fd)) {
+    httpd_sess_update_lru_counter(response->hd_, fd);
+  }
+  // Release self only after the HTTPD-task callback has finished every access.
+  response->lru_work_queued_.store(false, std::memory_order_release);
+}
+
 void AsyncEventSourceResponse::close_session_work(void *arg) {
   auto *response = static_cast<AsyncEventSourceResponse *>(arg);
   const int fd = response->fd_.load();
-  if (fd != 0 && httpd_sess_get_ctx(response->hd_, fd) == response) {
+  if (response->owns_session_(fd)) {
     // The HTTPD task remains the session owner. Shutting the socket down makes
     // its next select/recv path delete the session and invoke destroy().
     shutdown(fd, SHUT_RDWR);
@@ -972,10 +1003,10 @@ ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
   // httpd frees a session before closing its socket, so the fd may already be a new client's.
   // Treated as would-block; the stall timer ends a session that never becomes ours again.
   const int fd = this->fd_.load();
-  if (httpd_sess_get_ctx(this->hd_, fd) != this) {
+  if (!this->owns_session_(fd)) {
     return 0;
   }
-  struct msghdr msg {};
+  struct msghdr msg{};
   msg.msg_iov = iov;
   msg.msg_iovlen = iovcnt;
   const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);
@@ -1081,6 +1112,7 @@ void AsyncEventSourceResponse::loop() {
     this->process_close_();
     return;
   }
+  this->refresh_lru_();
   drain_tail_();
   process_deferred_queue_();
   if (this->close_requested_)
@@ -1091,67 +1123,87 @@ void AsyncEventSourceResponse::loop() {
 
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstack-usage="  // the one frame that holds the arena and the JSON buffer
+#pragma GCC diagnostic ignored "-Wstack-usage="  // the one frame that holds the JSON arena
 #endif
-bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *generator) {
-  // The arena lives only in this frame, so no call chain ever holds two of them
+AsyncEventSourceResponse::JsonPrepareResult AsyncEventSourceResponse::prepare_json_(void *source,
+                                                                                    message_generator_t *generator,
+                                                                                    char *buffer, size_t *size_out) {
+  // Log lines emitted while the generator runs are dropped for this session: on the large path they would fill
+  // tail_ before it is overwritten, and on the small path they would go out ahead of the event being built.
+  SendGuard guard{*this};
   json::JsonArena<json::JSON_ARENA_SIZE> arena;
   json::JsonBuilder builder(&arena);
   generator(this->web_server_, source, builder);
-  char buf[JSON_BUF_SIZE];
-  const size_t len = builder.serialize_to(buf, sizeof(buf));
-  if (len < sizeof(buf)) {
-    return this->try_send_nodefer(buf, len, "state");
+  *size_out = builder.serialize_to(buffer, JSON_BUF_SIZE);
+  if (*size_out < JSON_BUF_SIZE) {
+    return JsonPrepareResult::JSON_PREPARE_RESULT_BUFFER;
   }
 
-  // Too large for the stack: the tail holds the whole chunk and loop() drains it. Serialized
-  // JSON has no raw line break, so the body is one data line.
-  if (!this->ready_to_send_()) {
-    return false;
-  }
-  {
-    SendGuard guard{*this};
-    char prefix[PREFIX_BUF_SIZE];
-    const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), "state", 0, 0, true);
+  char prefix[PREFIX_BUF_SIZE];
+  const size_t prefix_len = build_chunk_prefix(prefix, sizeof(prefix), "state", 0, 0, true);
 
-    // Grow the tail until the document fits. Nothing has reached the wire, so a document that
-    // cannot be held costs only this event, and the tail grown for it is released.
-    size_t json_len = 0;
-    size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
-    for (;;) {
-      if (!this->reserve_tail_(cap)) {
-        this->tail_alloc_failed_(cap);
-        return false;  // stays deferred, retried on a later pass
-      }
-      const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
-      json_len = builder.serialize_to(reinterpret_cast<char *>(this->tail_.get()) + prefix_len, room);
-      if (json_len < room) {
-        break;
-      }
-      if (cap >= TAIL_MAX_SIZE) {
-        ESP_LOGW(TAG, "State event does not fit %zu bytes, dropped", room);
-        this->tail_.reset();
-        this->tail_cap_ = 0;
-        this->send_failure_started_ms_ = 0;
-        return true;  // would never fit, reported as sent
-      }
-      cap = std::min<size_t>(cap * 2, TAIL_MAX_SIZE);
+  // Nothing reaches the wire until the complete document and its framing are owned by the caller.
+  size_t json_len = 0;
+  size_t cap = std::max<size_t>(JSON_BUF_SIZE * 2, this->tail_cap_);
+  for (;;) {
+    if (!this->reserve_tail_(cap)) {
+      *size_out = cap;
+      return JsonPrepareResult::JSON_PREPARE_RESULT_NO_MEMORY;
     }
-
-    const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
-    write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
-    uint8_t *dst = this->tail_.get();
-    std::memcpy(dst, prefix, prefix_len);
-    std::memcpy(dst + prefix_len + json_len, SSE_SUFFIX, SSE_SUFFIX_LEN);
-    this->tail_len_ = total;
-    this->tail_sent_ = 0;
+    const size_t room = cap - prefix_len - SSE_SUFFIX_LEN;
+    json_len = builder.serialize_to(reinterpret_cast<char *>(this->tail_.get()) + prefix_len, room);
+    if (json_len < room) {
+      break;
+    }
+    if (cap >= TAIL_MAX_SIZE) {
+      *size_out = room;
+      return JsonPrepareResult::JSON_PREPARE_RESULT_TOO_LARGE;
+    }
+    cap = std::min<size_t>(cap * 2, TAIL_MAX_SIZE);
   }
-  drain_tail_();
-  return true;
+
+  const size_t total = prefix_len + json_len + SSE_SUFFIX_LEN;
+  write_chunk_header(prefix, total - CHUNK_HDR_LEN - CHUNK_END_LEN);
+  uint8_t *dst = this->tail_.get();
+  std::memcpy(dst, prefix, prefix_len);
+  std::memcpy(dst + prefix_len + json_len, SSE_SUFFIX, SSE_SUFFIX_LEN);
+  this->tail_len_ = total;
+  this->tail_sent_ = 0;
+  return JsonPrepareResult::JSON_PREPARE_RESULT_TAIL;
 }
 #if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 14 && defined(__OPTIMIZE_SIZE__)
 #pragma GCC diagnostic pop
 #endif
+
+bool AsyncEventSourceResponse::send_json_(void *source, message_generator_t *generator) {
+  if (!this->ready_to_send_()) {
+    return false;
+  }
+  char buffer[JSON_BUF_SIZE];
+  size_t size;
+  const auto result = this->prepare_json_(source, generator, buffer, &size);
+  switch (result) {
+    case JsonPrepareResult::JSON_PREPARE_RESULT_BUFFER:
+      return this->try_send_nodefer(buffer, size, "state");
+    case JsonPrepareResult::JSON_PREPARE_RESULT_TAIL:
+      this->drain_tail_();
+      return true;
+    case JsonPrepareResult::JSON_PREPARE_RESULT_NO_MEMORY: {
+      SendGuard guard{*this};
+      this->tail_alloc_failed_(size);
+      return false;
+    }
+    case JsonPrepareResult::JSON_PREPARE_RESULT_TOO_LARGE: {
+      SendGuard guard{*this};
+      ESP_LOGW(TAG, "State event does not fit %zu bytes, dropped", size);
+      this->tail_.reset();
+      this->tail_cap_ = 0;
+      this->send_failure_started_ms_ = 0;
+      return true;
+    }
+  }
+  return false;
+}
 
 void AsyncEventSourceResponse::tail_alloc_failed_(size_t cap) {
   // Same stall clock as a socket that stops draining, so a session cannot retry forever
@@ -1234,23 +1286,12 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   return this->stash_chunk_(prefix, prefix_len, message, message_len, g.total, sent);
 }
 
-void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *event_type,
+void AsyncEventSourceResponse::deferrable_send_state(void *source, bool detail_all,
                                                      message_generator_t *message_generator) {
-  // allow all json "details_all" to go through before publishing bare state events, this avoids unnamed entries showing
-  // up in the web GUI and reduces event load during initial connect
-  if (!this->entities_iterator_.completed() && 0 != strcmp(event_type, "state_detail_all"))
+  // Let the detail_all listing finish before bare state events, so the web UI never shows unnamed entries and
+  // initial connect sends less
+  if (!detail_all && !this->entities_iterator_.completed())
     return;
-
-  if (source == nullptr)
-    return;
-  if (event_type == nullptr)
-    return;
-  if (message_generator == nullptr)
-    return;
-
-  if (0 != strcmp(event_type, "state_detail_all") && 0 != strcmp(event_type, "state")) {
-    ESP_LOGE(TAG, "Can't defer non-state event");
-  }
 
   drain_tail_();
   process_deferred_queue_();

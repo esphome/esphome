@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -89,21 +90,16 @@ async def test_select_stringref_trigger(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "select-stringref-test"
+        await assert_device_name(client, "select-stringref-test")
 
         # List entities to find our select
         entities, _ = await client.list_entities_services()
 
-        select_entity = next((e for e in entities if e.name == "Test Select"), None)
-        assert select_entity is not None, "Test Select entity not found"
+        select_entity = require_entity(entities, "test_select", exact=True)
 
-        baud_entity = next((e for e in entities if e.name == "Baud Rate"), None)
-        assert baud_entity is not None, "Baud Rate entity not found"
+        baud_entity = require_entity(entities, "baud_rate", exact=True)
 
-        action_entity = next((e for e in entities if e.name == "Action Select"), None)
-        assert action_entity is not None, "Action Select entity not found"
+        action_entity = require_entity(entities, "action_select", exact=True)
 
         # Change select to Option B - this should trigger on_value with StringRef
         client.select_command(select_entity.key, "Option B")
