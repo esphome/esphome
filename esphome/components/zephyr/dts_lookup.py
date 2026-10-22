@@ -859,6 +859,15 @@ def _find_board_yaml(board_dir: Path, board: str) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def _cpp_command(cpp: str, include_dirs: list[str], src_file: Path) -> list[str]:
+    """The preprocessor command line, shared by the real run and the candidate check."""
+    cmd = [cpp, "-x", "assembler-with-cpp", "-nostdinc", "-E", "-P"]
+    for d in include_dirs:
+        cmd += ["-I", d]
+    cmd.append(str(src_file))
+    return cmd
+
+
 def _preprocess_dts_file(
     src_file: Path, zephyr_base: Path, extra_include_dirs: list[str]
 ) -> str:
@@ -866,14 +875,10 @@ def _preprocess_dts_file(
     (assembler-with-cpp, no standard includes). Raises _DtsReadError on failure."""
     cpp = _find_cpp()
     if cpp is None:
-        raise _DtsReadError("C preprocessor 'cpp' not found in PATH")
+        raise _DtsReadError("No working C preprocessor (cpp, gcc or cc) found in PATH")
 
     include_dirs = _get_dts_include_paths(zephyr_base) + extra_include_dirs
-
-    cmd = [cpp, "-x", "assembler-with-cpp", "-nostdinc", "-E", "-P"]
-    for d in include_dirs:
-        cmd += ["-I", d]
-    cmd.append(str(src_file))
+    cmd = _cpp_command(cpp, include_dirs, src_file)
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)  # noqa: S603
@@ -976,28 +981,21 @@ def _snippet_overlay_files(snippet_dir: Path, board: str) -> list[Path]:
 
 
 def _cpp_candidate_works(path: str) -> bool:
-    """Smoke-test a preprocessor candidate with the exact invocation
-    _preprocess_dts_file() uses. On macOS, 'cpp', 'gcc' and 'cc' are all the
-    same Apple clang driver binary, but its 'cpp' personality mishandles
-    '-x assembler-with-cpp' together with a trailing source file and fails
-    with "cc: error: no input files", even though the identical binary works
-    fine invoked as 'gcc'/'cc'. shutil.which() alone can't tell them apart."""
-    try:
-        result = subprocess.run(  # noqa: S603
-            [path, "-x", "assembler-with-cpp", "-E", "-P", "-"],
-            input="",
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError:
-        return False
+    """On macOS, cpp is a clang alias that fails this command with a file argument."""
+    with tempfile.TemporaryDirectory() as tmp:
+        src = Path(tmp) / "check.dts"
+        src.write_text("")
+        try:
+            result = subprocess.run(  # noqa: S603
+                _cpp_command(path, [], src), capture_output=True, check=False
+            )
+        except OSError:
+            return False
     return result.returncode == 0
 
 
 def _find_cpp() -> str | None:
-    """Return the cached path to a working cpp/gcc/cc on PATH, or None if none
-    works."""
+    """Return the cached path to a working cpp/gcc/cc on PATH, or None."""
     zd = CORE.data[KEY_ZEPHYR]
     if zd["cpp_path"] == "":
         found = None
