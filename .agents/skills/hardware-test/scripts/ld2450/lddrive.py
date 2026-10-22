@@ -14,6 +14,7 @@ from aioesphomeapi import (
     APIClient,
     ButtonInfo,
     LogLevel,
+    NumberState,
     SelectInfo,
     SelectState,
     SensorInfo,
@@ -49,6 +50,8 @@ async def run(c: APIClient, log) -> None:
         missing = " (missing)" if getattr(s, "missing_state", False) else ""
         if isinstance(s, TextSensorState):
             print(f"{stamp()} TXT {e.name} = {s.state!r}{missing}", flush=True)
+        elif isinstance(s, NumberState):
+            print(f"{stamp()} NUM {e.name} = {s.state:.0f}{missing}", flush=True)
         elif isinstance(s, SelectState):
             print(f"{stamp()} SEL {e.name} = {s.state!r}{missing}", flush=True)
         elif (
