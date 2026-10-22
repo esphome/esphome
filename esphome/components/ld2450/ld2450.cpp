@@ -40,10 +40,15 @@ enum AckData : uint8_t {
 
 // Index + 1 is the BaudRate value; the select options use the same order
 PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200", "230400", "256000", "460800");
+static_assert(BAUD_RATE_9600 == 1 && BAUD_RATE_460800 == BaudRateStrings::COUNT, "BaudRate is index + 1");
 // Index is the Direction value
 PROGMEM_STRING_TABLE(DirectionStrings, "Approaching", "Moving away", "Stationary", "NA");
+static_assert(DIRECTION_APPROACHING == 0 && DIRECTION_MOVING_AWAY == 1 && DIRECTION_STATIONARY == 2 &&
+                  DIRECTION_NA == 3,
+              "Direction is the table index");
 // Index is the ZoneType value; the select options use the same order
 PROGMEM_STRING_TABLE(ZoneTypeStrings, "Disabled", "Detection", "Filter");
+static_assert(ZONE_DISABLED == 0 && ZONE_DETECTION == 1 && ZONE_FILTER == 2, "ZoneType is the table index");
 
 // Baud rates in the same order as BaudRateStrings for index-based lookup
 static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};

@@ -27,9 +27,14 @@ namespace esphome::ld24xx {
 
 // Index of value in a constant table that may live in flash, or none
 template<typename T, size_t N> optional<size_t> find_index(const T (&arr)[N], T value) {
+  static_assert(sizeof(T) == 1 || sizeof(T) == 4, "flash tables are read as bytes or aligned 32 bit words");
   for (size_t i = 0; i < N; i++) {
     T entry;
-    progmem_memcpy(&entry, &arr[i], sizeof(entry));
+    if constexpr (sizeof(T) == 1) {
+      entry = progmem_read_byte(reinterpret_cast<const uint8_t *>(&arr[i]));
+    } else {
+      entry = arr[i];  // an aligned 32 bit read from flash is safe on ESP8266
+    }
     if (entry == value)
       return i;
   }
