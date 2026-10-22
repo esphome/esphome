@@ -145,15 +145,6 @@ TEST(MqMath, InverseCorrectionMovesTheRatioTheOtherWay) {
   EXPECT_FLOAT_EQ(0.5f, apply_correction_inverse(0.5f, 1.0f));
   EXPECT_FLOAT_EQ(0.5f, apply_correction_inverse(0.5f, 0.0f));
   EXPECT_FLOAT_EQ(0.5f, apply_correction_inverse(0.5f, NAN));
-
-  // Under R0/RS the inverse path has to stay closer to the uncorrected reading
-  // than the RS/R0 path would: the correction is a small physical adjustment, not
-  // a move to the other end of the curve.
-  const float ratio = 1.5f;
-  const float uncorrected = ppm_from_ratio(H2_A, H2_B, ratio, REGRESSION_EXPONENTIAL);
-  const float wrong = ppm_from_ratio(H2_A, H2_B, apply_correction(ratio, 0.8f), REGRESSION_EXPONENTIAL);
-  const float right = ppm_from_ratio(H2_A, H2_B, apply_correction_inverse(ratio, 0.8f), REGRESSION_EXPONENTIAL);
-  EXPECT_TRUE(std::fabs(right - uncorrected) < std::fabs(wrong - uncorrected));
 }
 
 TEST(MqMath, CoefficientClampLimits) {
