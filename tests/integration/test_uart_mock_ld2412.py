@@ -7,6 +7,7 @@ test_uart_mock_ld2412 (normal mode):
   3. Truncated frame handling - partial frame doesn't corrupt state
   4. Truncated frame recovery - the frame is dropped once its length is reached
   5. Post-garbage parsing - the next valid frame is parsed correctly
+  6. Footer bytes in the values - a frame whose values spell the command footer is parsed whole
   6. TX logging - verifies LD2412 sends expected setup commands
 
 test_uart_mock_ld2412_engineering (engineering mode):
@@ -177,6 +178,7 @@ async def test_uart_mock_ld2412(
             and pytest.approx(100.0) in collector.sensor_states["moving_energy"]
             and pytest.approx(80.0) in collector.sensor_states["still_energy"]
             and pytest.approx(50.0) in collector.sensor_states["detection_distance"]
+            and pytest.approx(772.0) in collector.sensor_states["moving_distance"]
         )
     )
 
@@ -232,6 +234,13 @@ async def test_uart_mock_ld2412(
         assert pytest.approx(100.0) in collector.sensor_states["moving_energy"]
         assert pytest.approx(80.0) in collector.sensor_states["still_energy"]
         assert pytest.approx(50.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 6: the values 04 03 02 01 did not end the frame early
+        assert pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(2.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(1.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(5.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(772.0) in collector.sensor_states["detection_distance"]
 
         # Verify binary sensors detected targets (from Phase 1 frame)
         assert collector.binary_states["has_target"][0] is True

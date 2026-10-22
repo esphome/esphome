@@ -687,8 +687,6 @@ void LD2412Component::handle_ack_data_() {
     default:
       break;
   }
-
-  return;
 }
 
 void LD2412Component::readline_(int readch) {
@@ -712,15 +710,15 @@ void LD2412Component::readline_(int readch) {
     return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
   }
   if (frame_len <= MAX_LINE_LENGTH) {
-    const uint8_t *footer = &this->buffer_data_[this->buffer_pos_ - HEADER_FOOTER_SIZE];
+    const uint8_t *tail = &this->buffer_data_[this->buffer_pos_ - HEADER_FOOTER_SIZE];
     if (ld2412::validate_header_footer(DATA_FRAME_HEADER, this->buffer_data_)) {
-      if (ld2412::validate_header_footer(DATA_FRAME_FOOTER, footer)) {
+      if (ld2412::validate_header_footer(DATA_FRAME_FOOTER, tail)) {
         ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
         this->handle_periodic_data_();
         this->buffer_pos_ = 0;
         return;
       }
-    } else if (ld2412::validate_header_footer(CMD_FRAME_FOOTER, footer)) {
+    } else if (ld2412::validate_header_footer(CMD_FRAME_FOOTER, tail)) {
       ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
       this->handle_ack_data_();
       this->buffer_pos_ = 0;
