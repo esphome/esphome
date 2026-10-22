@@ -105,8 +105,8 @@ class VncClient : public Component {
   void service_rx_(uint32_t now);
   VncParse parse_();
   void pace_(uint32_t now);
-  void start_session_(uint32_t now);
-  void send_client_init_();
+  bool start_session_(uint32_t now);
+  bool send_client_init_();
   void frame_done_();
   void rect_done_();
   void next_tile_();
@@ -124,6 +124,7 @@ class VncClient : public Component {
   bool send_(const uint8_t *data, size_t len);
   bool send_update_request_(bool incremental, uint32_t now);
   VncParse fail_(VncFailure failure, const LogString *reason);
+  VncParse fail_send_() { return this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Send failed")); }
   VncFailure lost_failure_() const;
   void session_lost_(uint32_t now);
   void session_end_(uint32_t now, VncFailure failure, const LogString *reason);
@@ -147,6 +148,7 @@ class VncClient : public Component {
   uint32_t hold_ms_{0};
   uint32_t hold_start_ms_{0};
   uint32_t setup_ms_{0};
+  uint32_t busy_since_ms_{0};
   uint32_t session_start_ms_{0};
   uint32_t update_start_ms_{0};
   // The first and the latest frame drawn since the display last refreshed.
@@ -206,6 +208,7 @@ class VncClient : public Component {
   bool subrects_coloured_{false};
   bool display_parks_{false};
   bool display_busy_{false};
+  bool busy_warned_{false};
   bool network_was_up_{false};
   bool big_endian_;  // the pixel order the display takes
 

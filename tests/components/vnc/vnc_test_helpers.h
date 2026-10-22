@@ -206,6 +206,9 @@ class TestVncClient : public VncClient {
     this->link_.close();
   }
 
+  /// The state a connect still in flight has: a socket, but no session yet.
+  void forget_session() { this->state_ = VncState::VNC_STATE_IDLE; }
+
   /// Hand the client a connected stream, as connect_step_() does after a successful connect.
   void adopt(int fd) {
     // connect_step_() has seen the network up before any connect succeeds.
