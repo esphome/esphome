@@ -63,6 +63,17 @@ network::IPAddresses ModemComponent::get_ip_addresses() {
   return addresses;
 }
 
+// A failed component's own timers are skipped, so the reboot watchdog is armed outside it
+void ModemComponent::fail_setup_(const LogString *reason) {
+  this->mark_failed(reason);
+  if (this->timeout_ != 0 && this->target_state_ == ModemComponentState::MODEM_CONNECTED) {
+    App.scheduler.set_timeout(this, this->timeout_, []() {
+      ESP_LOGE(TAG, "Modem setup failed, rebooting");
+      App.reboot();
+    });
+  }
+}
+
 void ModemComponent::setup() {
   this->pref_ = global_preferences->make_preference<int>(BAUD_PREF_HASH);
   this->pref_.load(&this->restored_baud_);
@@ -82,7 +93,7 @@ void ModemComponent::setup() {
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
   this->ppp_netif_ = esp_netif_new(&netif_ppp_config);
   if (this->ppp_netif_ == nullptr) {
-    this->mark_failed(LOG_STR("PPP netif creation failed"));
+    this->fail_setup_(LOG_STR("PPP netif creation failed"));
     return;
   }
 
@@ -107,7 +118,7 @@ void ModemComponent::setup() {
   };
   if (esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, ip_event, this) != ESP_OK ||
       esp_event_handler_register(NETIF_PPP_STATUS, ESP_EVENT_ANY_ID, ppp_status, this) != ESP_OK) {
-    this->mark_failed(LOG_STR("Event handler register failed"));
+    this->fail_setup_(LOG_STR("Event handler register failed"));
     return;
   }
 
@@ -135,7 +146,7 @@ void ModemComponent::setup() {
     this->dce_ = this->dce_factory_(&dce_config, this->dte_, this->ppp_netif_);
   }
   if (!this->dce_) {
-    this->mark_failed(LOG_STR("Modem DTE/DCE creation failed"));
+    this->fail_setup_(LOG_STR("Modem DTE/DCE creation failed"));
     return;
   }
 #ifdef USE_MODEM_URC
@@ -338,6 +349,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       this->current_baud_rate_ = this->baud_rate_;
       if (this->dce_->sync() != command_result::OK) {
         ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->baud_rate_);
+        this->status_set_warning(LOG_STR("No answer at the configured baud rate"));
         return ModemComponentState::MODEM_DISCONNECTING;
       }
       ESP_LOGI(TAG, "Modem synced at baud rate %d.", this->current_baud_rate_);
@@ -432,9 +444,11 @@ ModemComponentState ModemComponent::handle_state_wait_ip_() {
 
 ModemComponentState ModemComponent::handle_state_disconnecting_() {
   // COMMAND_MODE stops PPP and leaves CMUX; the manual exit only applies to a warm reboot
+  bool clean = true;
   if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
     // The next enable() probes the mode again and retries the exit; the warning keeps this visible
     this->status_set_warning(LOG_STR("Failed to leave data mode"));
+    clean = false;
   }
   App.feed_wdt();
   // Turn the radio off; waiting for the lost IP event could take up to 2 min
@@ -442,6 +456,10 @@ ModemComponentState ModemComponent::handle_state_disconnecting_() {
     ESP_LOGI(TAG, "Radio off");
   } else {
     this->status_set_warning(LOG_STR("Radio off failed"));
+    clean = false;
+  }
+  if (clean && !this->init_at_failed_) {
+    this->status_clear_warning();  // a clean teardown ends whatever the warning was about
   }
   return ModemComponentState::MODEM_DISABLED;
 }

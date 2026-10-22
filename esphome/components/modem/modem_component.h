@@ -103,6 +103,7 @@ class ModemComponent : public Component {
   ModemComponentState retry_(ModemComponentState state, uint32_t delay_ms = RETRY_DELAY_MS);
   void transition_to_(ModemComponentState next_state);
   void arm_connect_timeout_();
+  void fail_setup_(const LogString *reason);
   void dump_connect_params_();
   SimResult prepare_sim_();
 
