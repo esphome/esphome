@@ -126,6 +126,17 @@ TEST_F(VncDecode, HextileBackgroundOnly) {
   EXPECT_EQ(d.drawn_count(), 256u);
 }
 
+TEST(VncDecodeBigEndian, HextileTilesKeepTheServerByteOrder) {
+  FakeDisplay d(64, 48);
+  Session s(&d, 1000, true);
+  s.start(64, 48);
+  set_now(now_ms() + 100);
+  s.deliver(
+      Rfb().fbu(2).rect(0, 0, 16, 16, HEXTILE).u8(0x02).u16(0x1234).rect(16, 0, 1, 1, HEXTILE).u8(0x01).u16(0xF800));
+  expect_solid(d, 0, 0, 16, 16, 0x1234, 2);
+  EXPECT_EQ(d.pixel(16, 0), expect_px(0xF800, 2));
+}
+
 TEST_F(VncDecode, HextileForegroundSubrects) {
   FakeDisplay d(64, 48);
   this->start(d, 64, 48);
