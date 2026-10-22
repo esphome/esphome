@@ -6,6 +6,7 @@ from esphome.const import CONF_ID
 CODEOWNERS = ["@rawsludge"]
 DEPENDENCIES = ["ble_client", "esp32_ble_tracker"]
 AUTO_LOAD = []
+DOMAIN = "fendt_caravan"
 PLATFORMS = ["esp32"]
 
 MULTI_CONF = True
@@ -40,9 +41,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
+    await ble_client.new_ble_node_component(config)
     if CONF_MAIN_CONTROL_UNIT in config:
         hub = cg.new_Pvariable(config[CONF_MAIN_CONTROL_UNIT][CONF_ID])
         await cg.register_component(hub, config[CONF_MAIN_CONTROL_UNIT])

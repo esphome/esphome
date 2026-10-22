@@ -9,7 +9,7 @@ namespace espbt = esphome::esp32_ble_tracker;
 
 using namespace std;
 const uint8_t WAIT_COMMAND = 200;
-static const char *const TAG = "fendt_caravan";
+ESPHOME_LOG_TAG(TAG, "fendt_caravan");
 
 void FendtCaravan::dump_config() {
   ESP_LOGCONFIG(TAG,

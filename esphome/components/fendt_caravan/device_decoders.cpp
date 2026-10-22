@@ -2,7 +2,7 @@
 
 #ifdef USE_ESP32
 namespace esphome::fendt_caravan {
-static const char *const TAG = "FC.COD";
+ESPHOME_LOG_TAG(TAG, "FC.COD");
 
 float DeviceDecoders::decode_temperature(const std::string &data) {
   std::string value = data;
