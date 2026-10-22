@@ -631,7 +631,7 @@ void A2DPSourceSpeaker::loop() {
     return;
 
   if (this == owner_speaker && !profile_initialized) {
-    esp_err_t err = esp_bt_gap_register_callback(A2DPSourceSpeaker::gap_event_);
+    esp_err_t err = esp_bt_gap_register_callback(A2DPSourceSpeaker::gap_event);
     if (err == ESP_OK) {
       uint8_t iocap = ESP_BT_IO_CAP_IO;
       err = esp_bt_gap_set_security_param(ESP_BT_SP_IOCAP_MODE, &iocap, sizeof(iocap));
@@ -649,13 +649,13 @@ void A2DPSourceSpeaker::loop() {
     if (err == ESP_OK)
       err = esp_avrc_ct_init();
     if (err == ESP_OK)
-      err = esp_avrc_ct_register_callback(A2DPSourceSpeaker::avrcp_event_);
+      err = esp_avrc_ct_register_callback(A2DPSourceSpeaker::avrcp_event);
     if (err == ESP_OK)
       err = esp_a2d_source_init();
     if (err == ESP_OK)
-      err = esp_a2d_register_callback(A2DPSourceSpeaker::a2dp_event_);
+      err = esp_a2d_register_callback(A2DPSourceSpeaker::a2dp_event);
     if (err == ESP_OK)
-      err = esp_a2d_source_register_data_callback(A2DPSourceSpeaker::audio_data_);
+      err = esp_a2d_source_register_data_callback(A2DPSourceSpeaker::audio_data);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "A2DP init failed: %s", esp_err_to_name(err));
       profile_initialization_failed = true;
@@ -1039,12 +1039,12 @@ size_t A2DPSourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ti
   return written;
 }
 
-void A2DPSourceSpeaker::a2dp_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
+void A2DPSourceSpeaker::a2dp_event(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
   if (auto *speaker = active_speaker.load())
     speaker->process_event_(event, param);
 }
 
-void A2DPSourceSpeaker::avrcp_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
+void A2DPSourceSpeaker::avrcp_event(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
   if (auto *speaker = active_speaker.load())
     speaker->process_avrcp_event_(event, param);
 }
@@ -1073,7 +1073,7 @@ void A2DPSourceSpeaker::process_avrcp_event_(esp_avrc_ct_cb_event_t event, esp_a
   }
 }
 
-void A2DPSourceSpeaker::gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
+void A2DPSourceSpeaker::gap_event(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
   if (event == ESP_BT_GAP_REMOVE_BOND_DEV_COMPLETE_EVT) {
     if (owner_speaker != nullptr && owner_speaker->forget_pending_.load() &&
         std::memcmp(owner_speaker->forget_address_, param->remove_bond_dev_cmpl.bda, 6) == 0)
@@ -1249,7 +1249,7 @@ void A2DPSourceSpeaker::process_event_(esp_a2d_cb_event_t event, esp_a2d_cb_para
   }
 }
 
-int32_t A2DPSourceSpeaker::audio_data_(uint8_t *data, int32_t length) {
+int32_t A2DPSourceSpeaker::audio_data(uint8_t *data, int32_t length) {
   auto *speaker = active_speaker.load();
   if (!speaker || !data || length <= 0)
     return 0;
