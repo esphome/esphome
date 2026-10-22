@@ -7,6 +7,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -47,9 +48,8 @@ async def test_scheduler_null_name(
         await client.execute_service(test_null_name_service, {})
 
         # Wait for test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(
-                "Test did not complete within timeout - likely crashed due to NULL name"
-            )
+        await wait_or_fail(
+            test_complete_future,
+            10.0,
+            "Test did not complete within timeout - likely crashed due to NULL name",
+        )

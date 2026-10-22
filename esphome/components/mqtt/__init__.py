@@ -2,9 +2,11 @@ from dataclasses import dataclass, field
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import logger, socket
+from esphome.components import logger, network, socket
+from esphome.components.const import CONF_VERIFY_SSL
 from esphome.components.esp32 import (
     add_idf_component,
+    allow_insecure_tls,
     idf_version,
     include_builtin_idf_component,
     request_tls,
@@ -39,6 +41,7 @@ from esphome.const import (
     CONF_LEVEL,
     CONF_LOG_TOPIC,
     CONF_NAME_ADD_MAC_SUFFIX,
+    CONF_MQTT,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -82,6 +85,7 @@ def AUTO_LOAD():
     return ["json"]
 
 
+CONF_TLS = "tls"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 CONF_TRANSPORT = "transport"
@@ -215,26 +219,8 @@ _DEFAULT_MESSAGES: tuple[tuple[str, str, str | None], ...] = (
 
 
 def validate_config(value):
-    transport = value.get(CONF_TRANSPORT)
-    # A certificate with plain ws is almost certainly a typo for wss
-    if transport == MQTT_TRANSPORT_WS and (
-        CONF_CERTIFICATE_AUTHORITY in value or CONF_CLIENT_CERTIFICATE in value
-    ):
-        raise cv.Invalid(
-            "transport 'ws' is unencrypted; remove the certificate options "
-            "or switch to transport 'wss'"
-        )
-    # TLS runs only with a CA or over wss, so a client certificate needs one of them
     if (
-        CONF_CLIENT_CERTIFICATE in value
-        and CONF_CERTIFICATE_AUTHORITY not in value
-        and transport != MQTT_TRANSPORT_WSS
-    ):
-        raise cv.Invalid(
-            "'client_certificate' requires 'certificate_authority' or transport 'wss'"
-        )
-    if (
-        transport not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
+        value.get(CONF_TRANSPORT) not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
         and CONF_WS_PATH in value
     ):
         raise cv.Invalid(
@@ -263,6 +249,47 @@ def validate_config(value):
     return out
 
 
+# Keys that only make sense over TLS; any of them switches it on
+TLS_IMPLYING_KEYS = frozenset(
+    {CONF_CERTIFICATE_AUTHORITY, CONF_VERIFY_SSL, CONF_CLIENT_CERTIFICATE}
+)
+
+
+def _derive_tls(config: ConfigType) -> ConfigType:
+    """Derive ``tls`` from the certificate options and the transport, reject contradictions, pick the port."""
+    # skip_cert_cn_check has a default on ESP32, so its value decides, not its presence
+    if config.get(CONF_VERIFY_SSL) is False and config.get(CONF_SKIP_CERT_CN_CHECK):
+        raise cv.Invalid(
+            "'skip_cert_cn_check' has no effect when 'verify_ssl' is false."
+        )
+    transport = config.get(CONF_TRANSPORT)
+    if (
+        config.keys() & TLS_IMPLYING_KEYS
+        or config.get(CONF_SKIP_CERT_CN_CHECK)
+        or transport == MQTT_TRANSPORT_WSS
+    ):
+        if config.get(CONF_TLS) is False:
+            raise cv.Invalid(
+                "'tls' cannot be false when a certificate, 'verify_ssl', "
+                "'skip_cert_cn_check' or transport 'wss' is set."
+            )
+        config[CONF_TLS] = True
+    # TLS with plain ws is almost certainly a typo for wss
+    if transport == MQTT_TRANSPORT_WS and config.get(CONF_TLS):
+        raise cv.Invalid(
+            "transport 'ws' is unencrypted; remove the TLS options "
+            "or switch to transport 'wss'"
+        )
+    config.setdefault(CONF_PORT, 8883 if config.get(CONF_TLS) else 1883)
+    return config
+
+
+_validate_tls = cv.All(
+    cv.only_when(CONF_CERTIFICATE_AUTHORITY, CONF_VERIFY_SSL, False, negate=True),
+    _derive_tls,
+)
+
+
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
     # MQTT needs 1 socket for the broker connection
@@ -286,7 +313,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(MQTTClientComponent),
             cv.Required(CONF_BROKER): cv.string_strict,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_PORT, default=1883): cv.port,
+            cv.Optional(CONF_PORT): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
@@ -298,6 +325,8 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            cv.Optional(CONF_TLS): cv.All(cv.boolean, cv.only_on_esp32),
+            cv.Optional(CONF_VERIFY_SSL): cv.All(cv.boolean, cv.only_on_esp32),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
                 cv.string, cv.only_on_esp32
             ),
@@ -359,6 +388,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
+    _validate_tls,
     cv.only_on(
         [
             PLATFORM_BK72XX,
@@ -369,6 +399,7 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
     _consume_mqtt_sockets,
+    network.require_ipv4(CONF_MQTT),
 )
 
 
@@ -517,21 +548,28 @@ async def to_code(config):
 
     # esp-idf only
     transport = config.get(CONF_TRANSPORT)
-    ca = cg.add_optional(var.set_ca_certificate, config.get(CONF_CERTIFICATE_AUTHORITY))
-    if ca is not None or transport == MQTT_TRANSPORT_WSS:
-        cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+    if config.get(CONF_TLS):
+        cg.add_define("USE_MQTT_TLS")
         if (client_certificate := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
             cg.add(var.set_cl_certificate(client_certificate))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
+        if config.get(CONF_SKIP_CERT_CN_CHECK):
+            cg.add(var.set_skip_cert_cn_check(True))
+        # Trust source: none, the given CA, or the certificate bundle
+        if config.get(CONF_VERIFY_SSL) is False:
+            cg.add_define("USE_MQTT_TLS_INSECURE")
+            allow_insecure_tls()
+        elif (ca := config.get(CONF_CERTIFICATE_AUTHORITY)) is not None:
+            cg.add(var.set_ca_certificate(ca))
+        else:
+            cg.add_define("USE_MQTT_CERT_BUNDLE")
+            require_certificate_bundle()
 
     if CORE.is_esp32:
         if transport != MQTT_TRANSPORT_TCP:
             cg.add(var.set_transport(transport))
         if transport in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
             cg.add(var.set_ws_path(config.get(CONF_WS_PATH, DEFAULT_WS_PATH)))
-        # wss without an explicit CA verifies the broker against the bundled roots
-        if transport == MQTT_TRANSPORT_WSS and ca is None:
-            require_certificate_bundle()
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")

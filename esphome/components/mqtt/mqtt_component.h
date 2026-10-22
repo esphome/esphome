@@ -304,11 +304,10 @@ class MQTTComponent : public Component {
    */
   virtual const EntityBase *get_entity() const = 0;
 
-  /// Get the friendly name of this MQTT component.
+  /// Entity name for a "%s" log argument.
+  const LogString *log_name_() const;
+  ESPDEPRECATED("Use log_name_() for logging. Removed in 2027.5.0", "2026.11.0")
   const StringRef &friendly_name_() const;
-
-  /// Get the icon field of this component into a stack buffer
-  const char *get_icon_to_(std::span<char, MAX_ICON_LENGTH> buf) const { return this->get_entity()->get_icon_to(buf); }
 
   /// Get whether the underlying Entity is disabled by default
   bool is_disabled_by_default_() const;
