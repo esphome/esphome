@@ -615,4 +615,46 @@ TEST(RuntimeImageDecoder, QoiRunsCrossRows) {
   }
 }
 
+// 8x2 1bpp BMP: the top row has its right half set, the bottom row its left half (rows padded to 4 bytes)
+static const uint8_t BMP_1BPP[] = {
+    0x42, 0x4D, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00,
+    0x08, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00,
+    0x00, 0x00, 0x13, 0x0B, 0x00, 0x00, 0x13, 0x0B, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x00, 0xF0, 0x00, 0x00, 0x00, 0x0F, 0x00, 0x00, 0x00,
+};
+
+// BMP has no alpha, so no pixel may come out transparent, whatever transparency the image has
+TEST(RuntimeImageDecoder, BmpPixelsAreOpaque) {
+  const std::pair<const uint8_t *, size_t> images[] = {
+      {BMP_24BPP, sizeof(BMP_24BPP)},
+      {BMP_8BPP, sizeof(BMP_8BPP)},
+      {BMP_1BPP, sizeof(BMP_1BPP)},
+  };
+  for (auto transparency : {image::TRANSPARENCY_ALPHA_CHANNEL, image::TRANSPARENCY_CHROMA_KEY}) {
+    for (auto type : {image::IMAGE_TYPE_RGB, image::IMAGE_TYPE_RGB565}) {
+      for (auto [data, len] : images) {
+        RuntimeImage img(BMP, type, transparency, nullptr, false, 0, 0);
+        decode_into(img, BMP, data, len);
+        for (int y = 0; y < img.get_height(); y++) {
+          for (int x = 0; x < img.get_width(); x++) {
+            EXPECT_EQ(img.get_pixel(x, y).w, 0xFF) << "image of " << len << " bytes, type " << type << ", transparency "
+                                                   << transparency << ", pixel (" << x << "," << y << ")";
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST(RuntimeImageDecoder, Bmp1BppPixels) {
+  TestableRuntimeImage img(BMP, image::TRANSPARENCY_ALPHA_CHANNEL);
+  ASSERT_TRUE(decode_all(img, BMP_1BPP, sizeof(BMP_1BPP)));
+  ASSERT_EQ(img.get_width(), 8);
+  ASSERT_EQ(img.get_height(), 2);
+  for (int x = 0; x < 8; x++) {
+    EXPECT_EQ(img.get_pixel(x, 0).r, x >= 4 ? 0xFF : 0x00) << "pixel (" << x << ",0)";
+    EXPECT_EQ(img.get_pixel(x, 1).r, x < 4 ? 0xFF : 0x00) << "pixel (" << x << ",1)";
+  }
+}
+
 }  // namespace esphome::runtime_image::testing

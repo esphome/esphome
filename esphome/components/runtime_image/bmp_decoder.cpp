@@ -13,6 +13,9 @@ namespace esphome::runtime_image {
 
 ESPHOME_LOG_TAG(TAG, "image_decoder.bmp");
 
+// BMP has no alpha. Every pixel is drawn opaque, or a transparent image would hide it
+static constexpr Color OPAQUE_BLACK(0, 0, 0, 0xFF);
+
 void BmpDecoder::reset() {
   ImageDecoder::reset();
   this->bits_per_pixel_ = 0;
@@ -165,7 +168,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         }
         uint8_t current_byte = buffer[index];
         for (uint8_t i = 0; i < pixels_in_byte; i++) {
-          Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : display::COLOR_OFF;
+          Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : OPAQUE_BLACK;
           this->draw(x + i, y, 1, 1, c);
         }
         this->paint_index_ += pixels_in_byte;
@@ -201,7 +204,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         uint8_t b = rgb & 0xff;
         uint8_t g = (rgb >> 8) & 0xff;
         uint8_t r = (rgb >> 16) & 0xff;
-        this->draw(x, y, 1, 1, Color(r, g, b));
+        this->draw(x, y, 1, 1, Color(r, g, b, 0xFF));
         this->paint_index_++;
         this->current_index_++;
         index++;
@@ -226,7 +229,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         uint8_t b = buffer[index];
         uint8_t g = buffer[index + 1];
         uint8_t r = buffer[index + 2];
-        this->draw(x, y, 1, 1, Color(r, g, b));
+        this->draw(x, y, 1, 1, Color(r, g, b, 0xFF));
         this->paint_index_++;
         this->current_index_ += 3;
         index += 3;
