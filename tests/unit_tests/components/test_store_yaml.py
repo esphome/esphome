@@ -1106,10 +1106,40 @@ def test_final_validate_allows_unencrypted_with_escape_hatch(
     assert expected in caplog.text
 
 
-def test_redacted_rejects_a_secrets_file_that_includes_files(project: Path) -> None:
+@pytest.mark.parametrize(
+    "secrets",
+    [
+        "<<: !include shared.yaml\n",
+        "wifi_password: hunter2\nextra: !include_dir_named creds\n",
+    ],
+    ids=["include", "include_dir"],
+)
+def test_redacted_rejects_a_secrets_file_that_includes_files(
+    project: Path, secrets: str
+) -> None:
     """What a secrets file includes would ship verbatim beside its skeleton."""
     (project / "entry.yaml").write_text("wifi:\n  password: !secret wifi_password\n")
-    (project / "secrets.yaml").write_text("<<: !include shared.yaml\n")
+    (project / "secrets.yaml").write_text(secrets)
     (project / "shared.yaml").write_text("wifi_password: hunter2\n")
+    (project / "creds").mkdir()
     with pytest.raises(EsphomeError, match="secrets.yaml uses !include"):
         _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))
+
+
+@pytest.mark.parametrize(
+    "secrets",
+    [
+        "# Credentials for !include wifi.yaml\nwifi_password: hunter2\n",
+        "wifi_password: hunter2\nnote: '!include is not used here'\n",
+    ],
+    ids=["comment", "quoted"],
+)
+def test_redacted_accepts_include_text_that_is_not_a_tag(
+    project: Path, secrets: str
+) -> None:
+    """Only a real include tag rejects a secrets file, not the word in text."""
+    (project / "entry.yaml").write_text("wifi:\n  password: !secret wifi_password\n")
+    (project / "secrets.yaml").write_text(secrets)
+    CORE.config = WIFI_PW
+    files = _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))
+    assert b"hunter2" not in b"".join(files.values())

@@ -532,7 +532,10 @@ def _generate_redacted_files(
 
     for rel, path in entries:
         # A secrets file becomes a key skeleton; what it includes would ship verbatim.
-        if rel in secret_rels and "!include" in path.read_text(encoding="utf-8"):
+        if rel in secret_rels and any(
+            isinstance(token, yaml.TagToken) and token.value[1].startswith("include")
+            for token in yaml.scan(path.read_text(encoding="utf-8"), yaml.SafeLoader)
+        ):
             raise EsphomeError(
                 f"store_yaml: {rel} uses !include, which redaction cannot follow. "
                 f"Inline the files into {rel}, or set `include_secrets: true`."
