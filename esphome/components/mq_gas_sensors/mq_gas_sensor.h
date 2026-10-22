@@ -204,6 +204,12 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   mqmath::CorrectionMode correction_mode_{mqmath::CORRECTION_NONE};
   mqmath::CorrectionClamp correction_clamp_{mqmath::CLAMP_ABSOLUTE};
   mqmath::TcCorrectionCoefficients tc_{};
+  /// Last state of the linked correction sources, used to detect a source that
+  /// has stopped updating while `has_state()` stays true.
+  uint32_t temperature_last_ms_{0};
+  uint32_t humidity_last_ms_{0};
+  bool temperature_seen_{false};
+  bool humidity_seen_{false};
   uint8_t samples_{2};
   uint32_t sample_interval_{20};
   uint32_t warmup_time_{0};

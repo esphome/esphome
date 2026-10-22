@@ -165,6 +165,16 @@ inline bool calibration_is_stable(float min_value, float max_value, float mean) 
   return spread <= static_cast<double>(MAX_CALIBRATION_SPREAD) * static_cast<double>(mean);
 }
 
+/// True when a source state is recent enough to be used.
+///
+/// `has_state()` stays true after the last publish, so a source that stops
+/// updating (a failed I2C device, a dead remote source) would otherwise keep
+/// correcting readings with a frozen value. `last_ms` is the loop timestamp of
+/// the last finite state; the unsigned subtraction also handles the wrap.
+inline bool source_is_fresh(bool seen, uint32_t last_ms, uint32_t now_ms, uint32_t max_age_ms) {
+  return seen && (now_ms - last_ms) <= max_age_ms;
+}
+
 /// ratio (+ a, b) -> PPM, MQUnifiedsensor::readSensorR0Rs().
 /// FLT_MAX signals "above the range" so the caller can clamp it: a ratio of
 /// exactly 0 is RS at 0 (V_AO at VCC), the output of a saturated sensor, and

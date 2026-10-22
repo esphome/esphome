@@ -118,6 +118,18 @@ TEST(MqMath, CalibrationSamplesMustAgree) {
   EXPECT_FALSE(calibration_is_stable(10.0f, 10.0f, 0.0f));
 }
 
+TEST(MqMath, CorrectionSourceGoesStale) {
+  // A source that never published cannot be used, whatever its timestamp.
+  EXPECT_FALSE(source_is_fresh(false, 1000, 1000, 500));
+  // Fresh and exactly at the limit pass; an older one does not.
+  EXPECT_TRUE(source_is_fresh(true, 700, 1000, 500));
+  EXPECT_TRUE(source_is_fresh(true, 500, 1000, 500));
+  EXPECT_FALSE(source_is_fresh(true, 499, 1000, 500));
+  // The timestamp wraps with the 32-bit loop clock: the unsigned age still
+  // measures the interval across the wrap.
+  EXPECT_TRUE(source_is_fresh(true, UINT32_MAX - 49, 100, 500));
+}
+
 TEST(MqMath, CorrectionFollowsTemperatureAndHumidity) {
   // At RH 33 % and 20 C the MQ-8 model reports 0.9052.
   EXPECT_NEAR(0.9052f, correction_coefficient(33.0f, 20.0f, MQ8_TC), 0.0001f);
