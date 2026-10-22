@@ -16,7 +16,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome::m5_unit_bldc {
+namespace esphome::m5stack_unit_bldc {
 
 // I2C register map, from M5Stack's "Unit BLDC I2C Protocol" datasheet and the M5UnitBLDC library
 // (https://github.com/m5stack/M5Unit-BLDC). Multi-byte values are little-endian.
@@ -39,9 +39,10 @@ enum class Direction : uint8_t { DIRECTION_FORWARD = 0, DIRECTION_BACKWARD = 1 }
 enum class MotorModel : uint8_t { MOTOR_MODEL_LOW_SPEED = 0, MOTOR_MODEL_HIGH_SPEED = 1 };
 
 /// Hub for one M5Stack M5Unit-BLDC brushless motor driver.
-class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
+class M5StackUnitBldc : public i2c::I2CDevice, public PollingComponent {
  public:
-  M5UnitBldc(ControlMode mode, Direction initial_direction, MotorModel model, uint8_t pole_pairs, bool save_to_flash)
+  M5StackUnitBldc(ControlMode mode, Direction initial_direction, MotorModel model, uint8_t pole_pairs,
+                  bool save_to_flash)
       : control_mode_(mode),
         initial_direction_(initial_direction),
         motor_model_(model),
@@ -132,4 +133,4 @@ class M5UnitBldc : public i2c::I2CDevice, public PollingComponent {
 #endif
 };
 
-}  // namespace esphome::m5_unit_bldc
+}  // namespace esphome::m5stack_unit_bldc

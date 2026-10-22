@@ -1,4 +1,4 @@
-m5_unit_bldc:
+m5stack_unit_bldc:
   i2c_id: i2c_bus
   id: bldc_hub
   mode: closed_loop
@@ -7,7 +7,7 @@ m5_unit_bldc:
   pole_pairs: 7
 
 number:
-  - platform: m5_unit_bldc
-    m5_unit_bldc_id: bldc_hub
+  - platform: m5stack_unit_bldc
+    m5stack_unit_bldc_id: bldc_hub
     target_rpm:
       name: Motor Target RPM

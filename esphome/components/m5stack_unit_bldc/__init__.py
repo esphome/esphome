@@ -6,10 +6,10 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@lboue"]
 DEPENDENCIES = ["i2c"]
-DOMAIN = "m5_unit_bldc"
+DOMAIN = "m5stack_unit_bldc"
 MULTI_CONF = True
 
-CONF_M5_UNIT_BLDC_ID = "m5_unit_bldc_id"
+CONF_M5STACK_UNIT_BLDC_ID = "m5stack_unit_bldc_id"
 CONF_POLE_PAIRS = "pole_pairs"
 CONF_PID = "pid"
 CONF_P = "p"
@@ -20,16 +20,18 @@ CONF_SAVE_TO_FLASH = "save_to_flash"
 # The device stores each gain multiplied by 100 in a signed 32-bit register
 _GAIN = cv.float_range(min=-(2**31) / 100, max=(2**31 - 1) / 100)
 
-m5_unit_bldc_ns = cg.esphome_ns.namespace("m5_unit_bldc")
-M5UnitBldc = m5_unit_bldc_ns.class_("M5UnitBldc", i2c.I2CDevice, cg.PollingComponent)
+m5stack_unit_bldc_ns = cg.esphome_ns.namespace("m5stack_unit_bldc")
+M5StackUnitBldc = m5stack_unit_bldc_ns.class_(
+    "M5StackUnitBldc", i2c.I2CDevice, cg.PollingComponent
+)
 
-ControlMode = m5_unit_bldc_ns.enum("ControlMode", is_class=True)
+ControlMode = m5stack_unit_bldc_ns.enum("ControlMode", is_class=True)
 CONTROL_MODES = ControlMode.options("open_loop", "closed_loop", prefix="CONTROL_MODE_")
 
-Direction = m5_unit_bldc_ns.enum("Direction", is_class=True)
+Direction = m5stack_unit_bldc_ns.enum("Direction", is_class=True)
 DIRECTIONS = Direction.options("forward", "backward", prefix="DIRECTION_")
 
-MotorModel = m5_unit_bldc_ns.enum("MotorModel", is_class=True)
+MotorModel = m5stack_unit_bldc_ns.enum("MotorModel", is_class=True)
 MOTOR_MODELS = MotorModel.options("low_speed", "high_speed", prefix="MOTOR_MODEL_")
 
 PID_SCHEMA = cv.Schema(
@@ -43,7 +45,7 @@ PID_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(M5UnitBldc),
+            cv.GenerateID(): cv.declare_id(M5StackUnitBldc),
             cv.Optional(CONF_MODE, default="open_loop"): cv.enum(
                 CONTROL_MODES, lower=True
             ),

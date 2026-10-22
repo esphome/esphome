@@ -1,13 +1,13 @@
-#include "m5_unit_bldc.h"
+#include "m5stack_unit_bldc.h"
 
 #include <cstring>
 
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome::m5_unit_bldc {
+namespace esphome::m5stack_unit_bldc {
 
-ESPHOME_LOG_TAG(TAG, "m5_unit_bldc");
+ESPHOME_LOG_TAG(TAG, "m5stack_unit_bldc");
 
 #ifdef USE_TEXT_SENSOR
 // Indexed by the REG_MOTOR_STATUS byte; anything past "Error" reads as "Unknown"
@@ -17,13 +17,13 @@ PROGMEM_STRING_TABLE(MotorStatusStrings, "Standby", "Running", "Error", "Unknown
 // The device latches a new direction only once the motor has stopped (datasheet note [1] "Change direction")
 static constexpr uint32_t DIRECTION_CHANGE_STOP_MS = 800;
 
-bool M5UnitBldc::write_command_raw_(float value) {
+bool M5StackUnitBldc::write_command_raw_(float value) {
   if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP)
     return this->write_reg_(REG_SET_RPM, value);
   return this->write_reg_(REG_PWM, static_cast<uint16_t>(value));
 }
 
-bool M5UnitBldc::read_command_raw_(float *value) {
+bool M5StackUnitBldc::read_command_raw_(float *value) {
   if (this->control_mode_ == ControlMode::CONTROL_MODE_CLOSED_LOOP)
     return this->read_reg_(REG_SET_RPM, value);
   uint16_t duty;
@@ -33,7 +33,7 @@ bool M5UnitBldc::read_command_raw_(float *value) {
   return true;
 }
 
-void M5UnitBldc::setup() {
+void M5StackUnitBldc::setup() {
   if (!this->write_byte(REG_MODE, static_cast<uint8_t>(this->control_mode_))) {
     this->mark_failed(LOG_STR("Failed to write control mode"));
     return;
@@ -108,7 +108,7 @@ void M5UnitBldc::setup() {
   this->stop_poller();
 }
 
-void M5UnitBldc::update() {
+void M5StackUnitBldc::update() {
   bool ok = true;
 #ifdef USE_SENSOR
   float value;
@@ -146,7 +146,7 @@ void M5UnitBldc::update() {
   this->status_comm_result(ok);
 }
 
-void M5UnitBldc::dump_config() {
+void M5StackUnitBldc::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "M5Unit-BLDC:\n"
                 "  Control mode: %s\n"
@@ -166,7 +166,7 @@ void M5UnitBldc::dump_config() {
 
 // Outside a direction change the cache only follows a write the device accepted, so a refused command is not
 // applied later when the direction change restores the command
-bool M5UnitBldc::write_command(float value) {
+bool M5StackUnitBldc::write_command(float value) {
   if (this->is_failed())
     return false;
   if (!this->direction_change_pending_ && !this->status_comm_result(this->write_command_raw_(value)))
@@ -175,13 +175,13 @@ bool M5UnitBldc::write_command(float value) {
   return true;
 }
 
-bool M5UnitBldc::write_direction(Direction direction) {
+bool M5StackUnitBldc::write_direction(Direction direction) {
   return !this->is_failed() && this->status_comm_result(this->write_direction_raw_(direction));
 }
 
 // The new direction latches only after the motor stops: command zero, wait, then restore. A failed stop leaves
 // any direction change already pending as it is.
-bool M5UnitBldc::write_direction_raw_(Direction direction) {
+bool M5StackUnitBldc::write_direction_raw_(Direction direction) {
   if (!this->write_byte(REG_DIRECTION, static_cast<uint8_t>(direction)) || !this->write_command_raw_(0))
     return false;
   this->direction_change_pending_ = true;
@@ -193,4 +193,4 @@ bool M5UnitBldc::write_direction_raw_(Direction direction) {
   return true;
 }
 
-}  // namespace esphome::m5_unit_bldc
+}  // namespace esphome::m5stack_unit_bldc

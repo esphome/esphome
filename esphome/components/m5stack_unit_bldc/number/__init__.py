@@ -5,13 +5,13 @@ from esphome.const import CONF_MODE, ICON_ROTATE_RIGHT, UNIT_REVOLUTIONS_PER_MIN
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_M5_UNIT_BLDC_ID, M5UnitBldc
+from .. import CONF_M5STACK_UNIT_BLDC_ID, M5StackUnitBldc
 
 CONF_PWM = "pwm"
 CONF_TARGET_RPM = "target_rpm"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_M5_UNIT_BLDC_ID): cv.use_id(M5UnitBldc),
+    cv.GenerateID(CONF_M5STACK_UNIT_BLDC_ID): cv.use_id(M5StackUnitBldc),
     cv.Optional(CONF_PWM): number.number_schema(
         number.ApplyNumber,
         icon=ICON_ROTATE_RIGHT,
@@ -26,7 +26,7 @@ CONFIG_SCHEMA = {
 
 def _final_validate(config: ConfigType) -> None:
     is_closed_loop = (
-        fv.get_declaring_config(config[CONF_M5_UNIT_BLDC_ID])[CONF_MODE]
+        fv.get_declaring_config(config[CONF_M5STACK_UNIT_BLDC_ID])[CONF_MODE]
         == "closed_loop"
     )
     if CONF_PWM in config and is_closed_loop:
@@ -47,7 +47,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_M5_UNIT_BLDC_ID])
+    hub = await cg.get_variable(config[CONF_M5STACK_UNIT_BLDC_ID])
     # Validation allows only the key that matches the hub's mode, so both share the command setter
     numbers = number.sub_numbers(config, parent=hub)
     await numbers(

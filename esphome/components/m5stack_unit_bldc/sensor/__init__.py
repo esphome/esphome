@@ -11,12 +11,12 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_M5_UNIT_BLDC_ID, M5UnitBldc
+from .. import CONF_M5STACK_UNIT_BLDC_ID, M5StackUnitBldc
 
 CONF_RPM = "rpm"
 
 CONFIG_SCHEMA = {
-    cv.GenerateID(CONF_M5_UNIT_BLDC_ID): cv.use_id(M5UnitBldc),
+    cv.GenerateID(CONF_M5STACK_UNIT_BLDC_ID): cv.use_id(M5StackUnitBldc),
     cv.Optional(CONF_RPM): sensor.sensor_schema(
         unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
         icon=ICON_ROTATE_RIGHT,
@@ -33,7 +33,7 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_M5_UNIT_BLDC_ID])
+    hub = await cg.get_variable(config[CONF_M5STACK_UNIT_BLDC_ID])
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_RPM, hub.set_rpm_sensor)
     await sensors(CONF_FREQUENCY, hub.set_frequency_sensor)
