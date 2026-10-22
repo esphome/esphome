@@ -611,14 +611,14 @@ void LD2410Component::readline_(int readch) {
   }
   // Only a frame header opens the buffer; other bytes are dropped until one starts. The first byte
   // picks the header, so the two headers cannot mix.
-  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
+  if (this->buffer_pos_ > 0 && this->buffer_pos_ < HEADER_FOOTER_SIZE) {
     const uint8_t *header = this->buffer_data_[0] == DATA_FRAME_HEADER[0] ? DATA_FRAME_HEADER : CMD_FRAME_HEADER;
-    if (this->buffer_pos_ > 0 && readch != header[this->buffer_pos_]) {
+    if (readch != header[this->buffer_pos_]) {
       this->buffer_pos_ = 0;
     }
-    if (this->buffer_pos_ == 0 && readch != DATA_FRAME_HEADER[0] && readch != CMD_FRAME_HEADER[0]) {
-      return;
-    }
+  }
+  if (this->buffer_pos_ == 0 && readch != DATA_FRAME_HEADER[0] && readch != CMD_FRAME_HEADER[0]) {
+    return;
   }
   this->buffer_data_[this->buffer_pos_++] = readch;
   // A dropped frame can leave whole frames behind it in the buffer, so keep going until the buffer is
