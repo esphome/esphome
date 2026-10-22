@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -579,6 +580,54 @@ TEST_F(OnlineImageDownloadEnd, JpegProgressiveReportsError) {
 
   EXPECT_EQ(this->errors_, 1);
   EXPECT_EQ(this->finished_, 0);
+}
+
+// Progress starts at 0, is reported at most every 100 ms, and always reaches 100%
+TEST_F(OnlineImageDownloadEnd, ProgressIsReportedAsTheImageDownloads) {
+  auto image = this->make_image_(runtime_image::JPEG, 1024);
+  std::vector<float> reports;
+  image->add_on_progress_callback([&reports](float progress, size_t) { reports.push_back(progress); });
+  auto container =
+      std::make_shared<FakeContainer>(std::vector<uint8_t>(JPEG_48X40, JPEG_48X40 + sizeof(JPEG_48X40)), 100, false);
+  uint32_t now = 1000;
+  set_loop_time(now);
+  this->start_(*image, container);
+  ASSERT_EQ(reports.size(), 1u);
+  EXPECT_EQ(reports[0], 0.0f);
+
+  int passes = 0;
+  for (; passes < 1000 && this->finished_ + this->errors_ == 0; passes++) {
+    now += 50;
+    set_loop_time(now);
+    container->deliver(100);
+    image->loop();
+  }
+
+  ASSERT_EQ(this->finished_, 1);
+  EXPECT_EQ(reports.back(), 100.0f);
+  EXPECT_TRUE(std::is_sorted(reports.begin(), reports.end()));
+  // A report every 100 ms of a 50 ms loop, plus the start and the end
+  EXPECT_LE(reports.size(), static_cast<size_t>(passes / 2 + 2));
+  EXPECT_GT(reports.size(), 3u);
+}
+
+// Without a Content-Length the percentage is unknown, but the bytes read are still reported
+TEST_F(OnlineImageDownloadEnd, ProgressOfAChunkedDownloadHasNoPercentage) {
+  auto image = this->make_image_(runtime_image::PNG);
+  std::vector<std::pair<float, size_t>> reports;
+  image->add_on_progress_callback(
+      [&reports](float progress, size_t bytes_read) { reports.emplace_back(progress, bytes_read); });
+  auto container =
+      std::make_shared<FakeContainer>(std::vector<uint8_t>(PNG_1X1.begin(), PNG_1X1.end()), PNG_1X1.size(), true);
+  set_loop_time(1000);
+  this->start_(*image, container);
+  set_loop_time(2000);
+  for (int i = 0; i < 10 && this->finished_ + this->errors_ == 0; i++)
+    image->loop();
+
+  ASSERT_GE(reports.size(), 2u);
+  EXPECT_TRUE(std::isnan(reports.back().first));
+  EXPECT_EQ(reports.back().second, PNG_1X1.size());
 }
 
 // Scan data that cannot be decoded fails the download part way through

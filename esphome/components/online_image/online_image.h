@@ -73,6 +73,10 @@ class OnlineImage final : public PollingComponent,
   template<typename F> void add_on_finished_callback(F &&callback) {
     this->download_finished_callback_.add(std::forward<F>(callback));
   }
+  /// Called with the percentage downloaded (NAN when the server did not send the size) and the bytes read so far
+  template<typename F> void add_on_progress_callback(F &&callback) {
+    this->download_progress_callback_.add(std::forward<F>(callback));
+  }
   template<typename F> void add_on_error_callback(F &&callback) {
     this->download_error_callback_.add(std::forward<F>(callback));
   }
@@ -84,9 +88,12 @@ class OnlineImage final : public PollingComponent,
   /// loop() for a JPEG that is decoded as it downloads
   void loop_stream_();
   void fail_download_();
+  /// Reports download progress, at most every PROGRESS_INTERVAL_MS unless force is set
+  void report_progress_(bool force);
 
   CallbackManager<void(bool)> download_finished_callback_{};
   CallbackManager<void()> download_error_callback_{};
+  LazyCallbackManager<void(float, size_t)> download_progress_callback_{};
 
   std::shared_ptr<http_request::HttpContainer> downloader_{nullptr};
   DownloadBuffer download_buffer_;
@@ -113,6 +120,7 @@ class OnlineImage final : public PollingComponent,
 
   uint32_t start_time_{0};
   uint32_t last_data_time_{0};
+  uint32_t last_progress_time_{0};
   bool streaming_{false};       // The decoder reads the download itself, as it arrives
   bool stream_started_{false};  // The decoder has read the headers
 };
