@@ -7,14 +7,7 @@
 #include <span>
 
 #ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-
-#define SUB_SENSOR_WITH_DEDUP(name, dedup_type) \
- protected: \
-  ld24xx::SensorWithDedup<dedup_type> name##_sensor_{}; \
-\
- public: \
-  void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_.set_sensor(sensor); }
+#include "esphome/components/sensor/sensor_with_dedup.h"
 #endif
 
 #define LOG_SENSOR_WITH_DEDUP_SAFE(tag, name, sensor) \
@@ -26,8 +19,8 @@
 
 #define SAFE_PUBLISH_SENSOR_UNKNOWN(sensor) (sensor).publish_state_unknown()
 
-#define highbyte(val) (uint8_t)((val) >> 8)
-#define lowbyte(val) (uint8_t)((val) &0xff)
+#define highbyte(val) (uint8_t) ((val) >> 8)
+#define lowbyte(val) (uint8_t) ((val) & 0xff)
 
 namespace esphome::ld24xx {
 
@@ -61,33 +54,6 @@ inline void format_version_str(const uint8_t *version, std::span<char, 20> buffe
 }
 
 #ifdef USE_SENSOR
-/// Sensor with deduplication — sensor may be null, null check is internal.
-/// Stored inline, no heap allocation. Does nothing when no sensor is set.
-template<typename T> class SensorWithDedup {
- public:
-  void set_sensor(sensor::Sensor *sens) {
-    this->sens_ = sens;
-    this->dedup_ = {};
-  }
-
-  void publish_state_if_not_dup(T state) {
-    if (this->sens_ != nullptr && this->dedup_.next(state)) {
-      this->sens_->publish_state(static_cast<float>(state));
-    }
-  }
-
-  void publish_state_unknown() {
-    if (this->sens_ != nullptr && this->dedup_.next_unknown()) {
-      this->sens_->publish_state(NAN);
-    }
-  }
-
-  bool has_sensor() const { return this->sens_ != nullptr; }
-  sensor::Sensor *get_sensor() const { return this->sens_; }
-
- protected:
-  sensor::Sensor *sens_{nullptr};
-  Deduplicator<T> dedup_;
-};
+template<typename T> using SensorWithDedup = sensor::SensorWithDedup<T>;
 #endif
 }  // namespace esphome::ld24xx

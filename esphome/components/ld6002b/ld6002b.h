@@ -329,9 +329,6 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   void apply_area_config_();
   void wake_();
 
-  static uint16_t read_u16_be(const uint8_t *data);
-  static uint32_t read_u32_le(const uint8_t *data);
-  static int32_t read_int32_le(const uint8_t *data);
   static float read_f32_le(const uint8_t *data);
   static void write_u32_le(uint8_t *data, uint32_t value);
   static void write_int32_le(uint8_t *data, int32_t value);
@@ -413,12 +410,12 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   // How long the module stays awake after any frame, and so still answers the next one.
   static constexpr uint32_t MODULE_AWAKE_MS = 10000;
   static constexpr uint8_t CMD_MAX_RETRIES = 3;
-  // Named so a repeated press replaces its own pending timeout instead of stacking
+  // Keyed so a repeated press replaces its own pending timeout instead of stacking
   // another, and so the command path can cancel it when it takes the pin over.
-  static constexpr const char *WAKE_BUTTON_TIMEOUT = "wake_button";
-  // Named so a burst of writes collapses to one read once they settle, rather than
+  static constexpr uint32_t WAKE_BUTTON_TIMEOUT_ID = 0;
+  // Keyed so a burst of writes collapses to one read once they settle, rather than
   // one read per write.
-  static constexpr const char *AREA_REFRESH_TIMEOUT = "area_refresh";
+  static constexpr uint32_t AREA_REFRESH_TIMEOUT_ID = 1;
   // A reply cannot trail the frame that earned it for longer than this; the field worst case is ~726ms.
   static constexpr uint32_t STALE_ACK_MAX_AGE_MS = 1000;
 

@@ -10,7 +10,7 @@
 #include "esphome/components/light/light_json_schema.h"
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.light";
+ESPHOME_LOG_TAG(TAG, "mqtt.light");
 
 using namespace esphome::light;
 
@@ -28,7 +28,7 @@ void MQTTJSONLightComponent::setup() {
 }
 
 void MQTTJSONLightComponent::on_light_remote_values_update() {
-  this->defer("send", [this]() { this->publish_state_(); });
+  this->defer(SEND_DEFER_ID, [this]() { this->publish_state_(); });
 }
 
 MQTTJSONLightComponent::MQTTJSONLightComponent(LightState *state) : state_(state) {}
@@ -87,10 +87,7 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   }
 }
 bool MQTTJSONLightComponent::send_initial_state() { return this->publish_state_(); }
-void MQTTJSONLightComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Light '%s':", this->state_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTJSONLightComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 }  // namespace esphome::mqtt
 

@@ -13,7 +13,7 @@
 
 namespace esphome::cdc_acm_uart {
 
-static const char *const TAG = "cdc_acm_uart";
+ESPHOME_LOG_TAG(TAG, "cdc_acm_uart");
 
 static constexpr size_t UART_TASK_STACK_SIZE = 4096;
 static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;

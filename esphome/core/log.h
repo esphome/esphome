@@ -16,7 +16,7 @@
 #include <cinttypes>
 #include <string>
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
 #include "WString.h"
 #endif
 
@@ -63,7 +63,8 @@ namespace esphome {
 
 void esp_log_printf_(int level, const char *tag, int line, const char *format, ...)  // NOLINT
     __attribute__((format(printf, 4, 5)));
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
+// NOLINTNEXTLINE(readability-identifier-naming)
 void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
 #endif
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
@@ -71,7 +72,7 @@ void esp_log_vprintf_(int level, const char *tag, int line, const char *format, 
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
 #define ESPHOME_LOG_FORMAT(format) F(format)
 #else
 #define ESPHOME_LOG_FORMAT(format) format
@@ -159,10 +160,43 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #define ESP_LOGV(tag, ...) esph_log_v(tag, __VA_ARGS__)
 #define ESP_LOGVV(tag, ...) esph_log_vv(tag, __VA_ARGS__)
 
+// Log \p format with up to \p max_bytes of \p data as colon separated hex appended as its last %s argument.
+// The stack buffer exists only when the level is compiled in. Needs esphome/core/helpers.h.
+#define ESPHOME_LOG_HEX_(log_macro, tag, data, len, max_bytes, format, ...) \
+  do { \
+    char esph_log_hex_buf_[::esphome::format_hex_pretty_size(max_bytes)]; \
+    log_macro(tag, format, __VA_ARGS__ __VA_OPT__(, )::esphome::format_hex_pretty_to(esph_log_hex_buf_, data, len)); \
+  } while (0)
+#ifdef ESPHOME_LOG_HAS_DEBUG
+#define ESP_LOGD_HEX(tag, data, len, max_bytes, format, ...) \
+  ESPHOME_LOG_HEX_(ESP_LOGD, tag, data, len, max_bytes, format, __VA_ARGS__)
+#else
+#define ESP_LOGD_HEX(tag, data, len, max_bytes, format, ...) \
+  do { \
+  } while (0)
+#endif
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+#define ESP_LOGV_HEX(tag, data, len, max_bytes, format, ...) \
+  ESPHOME_LOG_HEX_(ESP_LOGV, tag, data, len, max_bytes, format, __VA_ARGS__)
+#else
+#define ESP_LOGV_HEX(tag, data, len, max_bytes, format, ...) \
+  do { \
+  } while (0)
+#endif
+#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+#define ESP_LOGVV_HEX(tag, data, len, max_bytes, format, ...) \
+  ESPHOME_LOG_HEX_(ESP_LOGVV, tag, data, len, max_bytes, format, __VA_ARGS__)
+#else
+#define ESP_LOGVV_HEX(tag, data, len, max_bytes, format, ...) \
+  do { \
+  } while (0)
+#endif
+
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte) \
-  ((byte) &0x80 ? '1' : '0'), ((byte) &0x40 ? '1' : '0'), ((byte) &0x20 ? '1' : '0'), ((byte) &0x10 ? '1' : '0'), \
-      ((byte) &0x08 ? '1' : '0'), ((byte) &0x04 ? '1' : '0'), ((byte) &0x02 ? '1' : '0'), ((byte) &0x01 ? '1' : '0')
+  ((byte) & 0x80 ? '1' : '0'), ((byte) & 0x40 ? '1' : '0'), ((byte) & 0x20 ? '1' : '0'), ((byte) & 0x10 ? '1' : '0'), \
+      ((byte) & 0x08 ? '1' : '0'), ((byte) & 0x04 ? '1' : '0'), ((byte) & 0x02 ? '1' : '0'), \
+      ((byte) & 0x01 ? '1' : '0')
 #define YESNO(b) ((b) ? "YES" : "NO")
 #define ONOFF(b) ((b) ? "ON" : "OFF")
 #define TRUEFALSE(b) ((b) ? "TRUE" : "FALSE")
@@ -172,7 +206,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 // Helper class that identifies strings that may be stored in flash storage (similar to Arduino's __FlashStringHelper)
 struct LogString;
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
 
 #include <pgmspace.h>
 
@@ -181,12 +215,21 @@ struct LogString;
 #define LOG_STR(s) (reinterpret_cast<const LogString *>(PSTR(s)))
 #define LOG_STR_LITERAL(s) LOG_STR_ARG(LOG_STR(s))
 
-#else  // !USE_STORE_LOG_STR_IN_FLASH
+#else  // !USE_ESP8266
 
 #define LOG_STR(s) (reinterpret_cast<const LogString *>(s))
 #define LOG_STR_ARG(s) (reinterpret_cast<const char *>(s))
 #define LOG_STR_LITERAL(s) (s)
 
+#endif
+
+// Declares a static log tag at namespace scope, in a source file or a header; on ESP8266 it lives in flash, so
+// read it with the _P functions, never strcmp/strlen. Not usable for a class member: the ESP8266 form is a
+// PROGMEM array, which cannot be initialized in a class.
+#ifdef USE_ESP8266
+#define ESPHOME_LOG_TAG(name, tag) static const char name[] PROGMEM = tag
+#else
+#define ESPHOME_LOG_TAG(name, tag) static constexpr const char *const name = tag
 #endif
 
 }  // namespace esphome

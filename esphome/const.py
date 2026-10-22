@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.10.0-dev"
+__version__ = "2026.11.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -23,12 +23,23 @@ class Toolchain(StrEnum):
     SDK_NRF = "sdk-nrf"
     # ESP8266: the Arduino core built directly (no PlatformIO)
     ARDUINO = "arduino"
+    # host: the system C/C++ compiler driven by ninja (no PlatformIO)
+    HOST = "host"
+
+
+class ErrorFormat(StrEnum):
+    """How configuration errors are printed."""
+
+    # Errors embedded in a dump of the failing YAML
+    YAML = "yaml"
+    # One `file:line:col: error: message` line per error
+    LINE = "line"
 
 
 # Toolchains that drive their build natively and never read platformio.ini.
 # SDK_NRF is absent on purpose: the zephyr backend keeps consuming
 # platformio_options.
-NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO})
+NATIVE_TOOLCHAINS = frozenset({Toolchain.ESP_IDF, Toolchain.ARDUINO, Toolchain.HOST})
 
 
 class Platform(StrEnum):
@@ -1431,6 +1442,7 @@ KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
+KEY_IDF_EXTRA_TARGETS = "idf_extra_targets"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
 # esp32 storage keys; defined here so the upload/logs fast path
 # (storage_json.apply_to_core, espidf.toolchain) can use them without

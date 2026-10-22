@@ -17,10 +17,12 @@ from dataclasses import dataclass
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.usb_uart import is_usb_uart_channel
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME
+from esphome.const import CONF_NAME, CONF_UART_ID
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -34,11 +36,9 @@ SerialProxyTap = serial_proxy_ns.class_("SerialProxyTap")
 
 api_enums_ns = cg.esphome_ns.namespace("api").namespace("enums")
 SerialProxyPortType = api_enums_ns.enum("SerialProxyPortType")
-SERIAL_PROXY_PORT_TYPES = {
-    "TTL": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_TTL,
-    "RS232": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_RS232,
-    "RS485": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_RS485,
-}
+SERIAL_PROXY_PORT_TYPES = SerialProxyPortType.options(
+    "TTL", "RS232", "RS485", "USB_SERIAL", prefix="SERIAL_PROXY_PORT_TYPE_"
+)
 
 CONF_DTR_PIN = "dtr_pin"
 CONF_PORT_TYPE = "port_type"
@@ -73,6 +73,18 @@ CONFIG_SCHEMA = (
 )
 
 
+def _final_validate(config: ConfigType) -> ConfigType:
+    is_usb = is_usb_uart_channel(config[CONF_UART_ID], fv.full_config.get())
+    if config[CONF_PORT_TYPE] == "USB_SERIAL" and not is_usb:
+        raise cv.Invalid(
+            f"{CONF_PORT_TYPE} USB_SERIAL requires {CONF_UART_ID} to be a usb_uart channel"
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_serial_proxy_count_define() -> None:
     """Emit the SERIAL_PROXY_COUNT define once with the final instance count."""
@@ -82,12 +94,18 @@ async def _add_serial_proxy_count_define() -> None:
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     cg.add(cg.App.register_serial_proxy(var))
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_port_type(config[CONF_PORT_TYPE]))
+    # port_type names the electrical interface (a USB RS485 adapter is RS485), so every
+    # usb_uart channel reports USB identity whatever port type it declares
+    if is_usb_uart_channel(config[CONF_UART_ID], CORE.config):
+        await cg.add_variable(var.set_usb_channel, config[CONF_UART_ID])
+        cg.add_define("USE_SERIAL_PROXY_USB_IDENTITY")
+    if uart.is_host_uart(config[CONF_UART_ID], CORE.config):
+        await cg.add_variable(var.set_host_uart, config[CONF_UART_ID])
+        cg.add_define("USE_SERIAL_PROXY_HOST_UART")
     cg.add_define("USE_SERIAL_PROXY")
 
     # Track instance count for the FINAL priority define
@@ -97,10 +115,5 @@ async def to_code(config: ConfigType) -> None:
         CORE.add_job(_add_serial_proxy_count_define)
     data.count += 1
 
-    if CONF_RTS_PIN in config:
-        rts_pin = await cg.gpio_pin_expression(config[CONF_RTS_PIN])
-        cg.add(var.set_rts_pin(rts_pin))
-
-    if CONF_DTR_PIN in config:
-        dtr_pin = await cg.gpio_pin_expression(config[CONF_DTR_PIN])
-        cg.add(var.set_dtr_pin(dtr_pin))
+    await cg.add_pin(var.set_rts_pin, config.get(CONF_RTS_PIN))
+    await cg.add_pin(var.set_dtr_pin, config.get(CONF_DTR_PIN))
