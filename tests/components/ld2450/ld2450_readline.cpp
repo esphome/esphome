@@ -51,11 +51,10 @@ TEST_F(LD2450ReadlineTest, BackToBackMixedFrames) {
 // --- Garbage then valid frame tests ---
 
 TEST_F(LD2450ReadlineTest, GarbageThenValidFrame) {
-  // Garbage bytes accumulate in the buffer but don't match any footer.
-  // A valid frame follows; its footer resets the buffer and resyncs.
+  // Garbage bytes never open the buffer; a valid frame that follows is parsed as usual.
   std::vector<uint8_t> garbage = {0x01, 0x02, 0x03, 0x42, 0x99};
   this->ld2450_.feed(garbage);
-  EXPECT_GT(this->ld2450_.buffer_pos_, 0);  // Garbage accumulated
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 
   auto frame = make_periodic_frame();
   this->ld2450_.feed(frame);
@@ -139,6 +138,40 @@ TEST_F(LD2450ReadlineTest, SimulatedRestartThenFrames) {
 
   // Subsequent frames should work normally
   this->ld2450_.feed(frame);
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+}
+
+// --- Frame payloads that look like footers ---
+
+TEST_F(LD2450ReadlineTest, CmdFooterBytesInPeriodicPayloadDoNotEndTheFrame) {
+  int frames = 0;
+  this->ld2450_.add_on_data_callback([&frames]() { frames++; });
+  // Target 1 at x 772 and y 258: its first four bytes are the command footer 04 03 02 01
+  auto frame = make_periodic_frame();
+  frame[4] = 0x04;
+  frame[5] = 0x03;
+  frame[6] = 0x02;
+  frame[7] = 0x01;
+  this->ld2450_.feed(frame);
+  EXPECT_EQ(frames, 1);
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+
+  // The parser is still in step: the next frames are handled as usual
+  this->ld2450_.feed(make_ack_frame());
+  this->ld2450_.feed(make_periodic_frame());
+  EXPECT_EQ(frames, 2);
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+}
+
+TEST_F(LD2450ReadlineTest, BogusLengthFieldResyncsOnTheNextHeader) {
+  int frames = 0;
+  this->ld2450_.add_on_data_callback([&frames]() { frames++; });
+  // A command header claiming a 255 byte payload, then a complete periodic frame
+  std::vector<uint8_t> stream = {0xFD, 0xFC, 0xFB, 0xFA, 0xFF, 0x00};
+  auto frame = make_periodic_frame();
+  stream.insert(stream.end(), frame.begin(), frame.end());
+  this->ld2450_.feed(stream);
+  EXPECT_EQ(frames, 1);
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 }
 
