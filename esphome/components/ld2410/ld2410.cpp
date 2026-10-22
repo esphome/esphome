@@ -458,6 +458,9 @@ void LD2410Component::handle_ack_data_() {
     }
 
     case CMD_QUERY_DISTANCE_RESOLUTION: {
+      if (this->buffer_pos_ < 11 + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold the resolution
+      }
       const auto *distance_resolution = find_str(DISTANCE_RESOLUTIONS_BY_UINT, this->buffer_data_[10]);
       ESP_LOGV(TAG, "Distance resolution: %s", distance_resolution);
 #ifdef USE_SELECT
@@ -469,6 +472,9 @@ void LD2410Component::handle_ack_data_() {
     }
 
     case CMD_QUERY_LIGHT_CONTROL: {
+      if (this->buffer_pos_ < 13 + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold the light settings
+      }
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
       this->out_pin_level_ = this->buffer_data_[12];
