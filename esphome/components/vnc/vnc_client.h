@@ -105,6 +105,7 @@ class VncClient : public Component {
   uint32_t backoff_ms_{0};
   uint32_t hold_ms_{0};
   uint32_t hold_start_ms_{0};
+  uint32_t setup_ms_{0};
   uint32_t session_start_ms_{0};
   uint32_t update_start_ms_{0};
   // The first and the latest frame drawn since the display last refreshed.

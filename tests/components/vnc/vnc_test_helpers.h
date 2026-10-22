@@ -151,6 +151,23 @@ class FakeParkingDisplay : public FakeDisplay {
   bool busy() const override { return !this->is_idle(); }
 };
 
+/// Starts with its loop running and parks once its start-up is done, like it8951 at boot.
+class FakeStartingDisplay : public FakeParkingDisplay {
+ public:
+  FakeStartingDisplay() {
+    this->component_state_ |= COMPONENT_HAS_LOOP;
+    this->enable_loop();
+  }
+  void finish_start() {
+    this->started_ = true;
+    this->finish();
+  }
+  bool busy() const override { return this->started_ && FakeParkingDisplay::busy(); }
+
+ protected:
+  bool started_{false};
+};
+
 /// A display whose loop always runs (never reports idle).
 class FakeFreeRunDisplay : public FakeDisplay {
  public:
@@ -158,6 +175,12 @@ class FakeFreeRunDisplay : public FakeDisplay {
     this->disable_loop();
     this->enable_loop();
   }
+};
+
+/// A display with its own loop that never parks.
+class FakeLoopingDisplay : public FakeFreeRunDisplay {
+ public:
+  FakeLoopingDisplay() { this->component_state_ |= COMPONENT_HAS_LOOP; }
 };
 
 /// Parked from setup and refreshes synchronously inside update(), like headless SDL.
