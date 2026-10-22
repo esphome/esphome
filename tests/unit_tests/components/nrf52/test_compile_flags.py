@@ -26,7 +26,14 @@ def test_double_promotion_warning_is_off_for_the_app(tmp_path: Path) -> None:
     ):
         nrf52._generate_cmake_lists(False)
     text = (tmp_path / "build" / "zephyr" / "CMakeLists.txt").read_text()
+    # The define may sit in the target options, which come before the ones inherited from
+    # zephyr_interface; the warning flag must not, or Zephyr's -Wdouble-promotion would win
+    target_options = text.split("target_compile_options(app PRIVATE", 1)[1]
+    assert '"-DUSE_ZEPHYR"' in target_options
     assert (
-        'target_compile_options(app PRIVATE\n  "-DUSE_ZEPHYR"\n  "-Wno-double-promotion"\n)'
-        in text
+        "-Wno-double-promotion" not in text.split("set_source_files_properties", 1)[0]
     )
+    assert (
+        "set_source_files_properties(${APP_SOURCES} PROPERTIES\n"
+        '  COMPILE_OPTIONS "-Wno-double-promotion"\n)'
+    ) in text
