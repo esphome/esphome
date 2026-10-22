@@ -91,7 +91,9 @@ CompactString &CompactString::operator=(const CompactString &other) {
 }
 
 CompactString::CompactString(CompactString &&other) noexcept : length_(other.length_), is_heap_(other.is_heap_) {
-  // Copy full storage (includes null terminator for inline, or pointer for heap)
+  // Copy full storage (includes null terminator for inline, or pointer for heap). The bytes past the
+  // terminator are never read, and a fixed-size copy is 8 bytes of flash smaller than a sized one.
+  // NOLINTNEXTLINE(clang-analyzer-unix.cstring.UninitializedRead)
   std::memcpy(this->storage_, other.storage_, INLINE_CAPACITY + 1);
   other.length_ = 0;
   other.is_heap_ = 0;
@@ -696,7 +698,8 @@ void WiFiComponent::setup() {
 
 void WiFiComponent::start() {
   ESP_LOGCONFIG(TAG, "Starting");
-  this->last_connected_ = millis();
+  // The loop's time, not millis(): a wifi.enable from a trigger in this pass must not stamp a time after now
+  this->set_last_connected_(App.get_loop_component_start_time());
 
   uint32_t hash = this->has_sta() ? App.get_config_version_hash() : 88491487UL;
 
@@ -853,10 +856,11 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
-        // Skip cooldown if new credentials were provided while connecting
+        // Credentials not tried yet: retry whatever the driver reports. The flag outlives an adapter restart,
+        // which only lands back here, and start_connecting() clears it once they are tried
         if (this->skip_cooldown_next_cycle_) {
-          this->skip_cooldown_next_cycle_ = false;
-          this->check_connecting_finished(now);
+          ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
+          this->retry_connect();
           break;
         }
         // Use longer cooldown when a portal/improv is active to avoid disrupting a user on the AP
@@ -890,7 +894,7 @@ void WiFiComponent::loop() {
           this->retry_connect();
         } else {
           this->status_clear_warning();
-          this->last_connected_ = now;
+          this->set_last_connected_(now);
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
           // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the
@@ -946,12 +950,14 @@ void WiFiComponent::loop() {
     // the captive portal on it) - the device must stay unprovisionable until it is
     // power-cycled.
     if (this->has_ap() && !this->ap_setup_ && !this->is_provisioning_closed_()) {
+      const uint32_t since_connected = now - this->last_connected_;
       if (this->ap_timeout_ != 0 &&
-          (now - this->last_connected_ > this->ap_timeout_)
 #ifdef USE_WIFI_AP_EXCLUSIVE
-          // After a pause, or a start that failed, the networks get a full
-          // ap_timeout before the AP is tried again.
-          && now - this->ap_changed_ > this->ap_timeout_
+          // After a pause, or a start that failed, the networks get a full ap_timeout before the AP is tried again
+          since_connected > this->ap_timeout_ && now - this->ap_changed_ > this->ap_timeout_
+#else
+          // Tried in whole ap_timeout slots after the last connection; after UINT8_MAX slots it is no longer tried
+          this->ap_start_failures_ != UINT8_MAX && since_connected / this->ap_timeout_ > this->ap_start_failures_
 #endif
       ) {
         ESP_LOGI(TAG, "Starting fallback AP");
@@ -959,16 +965,14 @@ void WiFiComponent::loop() {
         this->ap_changed_ = now;
 #endif
         this->setup_ap_config_();
-        // A portal is only started behind an AP that came up: the portal keeps a reference to the web server
-        // on every start, and a failed start is tried again later
-        if (this->ap_setup_) {
-#ifdef USE_CAPTIVE_PORTAL
-          // Reset so we force one full scan after captive portal starts
-          // (previous scans were filtered because captive portal wasn't active yet)
-          this->has_completed_scan_after_captive_portal_start_ = false;
-#endif
-          this->start_ap_portal_();
+#ifndef USE_WIFI_AP_EXCLUSIVE
+        if (!this->ap_setup_) {
+          // Skip the next slot too, so at least a full ap_timeout passes wherever in its slot this try ran
+          uint32_t slot = since_connected / this->ap_timeout_ + 1;
+          this->ap_start_failures_ = slot < UINT8_MAX ? slot : UINT8_MAX;
         }
+#endif
+        this->start_ap_portal_();
       }
     }
 #endif  // USE_WIFI_AP
@@ -1182,7 +1186,7 @@ void WiFiComponent::set_sta(const WiFiAP &ap) {
   this->init_sta(1);
   this->add_sta(ap);
   this->selected_sta_index_ = 0;
-  // When new credentials are set (e.g., from improv), skip cooldown to retry immediately
+  // New credentials end the next cooldown early; start_connecting() clears this once they are tried
   this->skip_cooldown_next_cycle_ = true;
 #ifdef USE_WIFI_LEASE_CACHE
   // Index 0 is a different network now, so its cached lease must not be re-applied
@@ -1251,29 +1255,18 @@ void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
   WiFiAP sta{};
   sta.set_ssid(ssid);
   sta.set_password(password);
+  // No retry here: a captive portal save runs in lwIP's context on the ESP8266, where retry_connect() yields and
+  // panics. set_sta() flags the credentials and loop() tries them
   this->set_sta(sta);
-
-  // Trigger connection attempt (exits cooldown if needed, no-op if already connecting/connected)
-  this->connect_soon_();
-}
-
-void WiFiComponent::connect_soon_() {
 #ifdef USE_WIFI_AP_EXCLUSIVE
-  // New credentials from the portal: the AP pauses for them once its answer
-  // is out, and the STA state machine picks them up from there.
+  // The AP pauses for the new credentials once its answer is out, and the STA state machine picks them up
   if (this->ap_setup_) {
     this->set_timeout(AP_HANDOVER_TIMEOUT_ID, WIFI_AP_EXCLUSIVE_HANDOVER_MS, [this]() {
       if (this->ap_setup_)
         this->pause_exclusive_ap_();
     });
-    return;
   }
 #endif
-  // Only trigger retry if we're in cooldown - if already connecting/connected, do nothing
-  if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN) {
-    ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
-    this->retry_connect();
-  }
 }
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
@@ -1365,6 +1358,8 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // enters COOLDOWN without calling start_connecting(), and ESP8266 clears it again
   // after wifi_station_connect(), whose callbacks fire synchronously.
   this->error_from_callback_ = false;
+  // Every attempt passes through here, so the credentials set_sta() flagged are tried now
+  this->skip_cooldown_next_cycle_ = false;
 
   if (!this->wifi_sta_connect_(ap)) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
@@ -1825,7 +1820,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #endif
 
     // The fallback and reboot checks later in this pass must see the connection, not the old timestamp
-    this->last_connected_ = now;
+    this->set_last_connected_(now);
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     // Refresh is_connected() cache; loop()'s refresh ran before this transition.
     this->update_connected_state_();
@@ -2441,7 +2436,12 @@ bool WiFiComponent::is_ap_portal_active_() {
 // global_web_server needs no null check: codegen always instantiates WebServer when
 // USE_WEBSERVER_CAPTIVE is defined, and the constructor assigns the global.
 void WiFiComponent::start_ap_portal_() {
+  // Only behind an AP that came up; a fallback AP (networks and an ap_timeout) is retried by loop()
+  if (!this->ap_setup_)
+    return;
 #ifdef USE_CAPTIVE_PORTAL
+  // Force one full scan now that the portal lists networks (earlier scans were filtered)
+  this->has_completed_scan_after_captive_portal_start_ = false;
   if (captive_portal::global_captive_portal != nullptr)
     captive_portal::global_captive_portal->start();
 #endif

@@ -154,6 +154,16 @@ template<> const char *proto_enum_to_string<enums::DisconnectReason>(enums::Disc
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::DeviceRelation>(enums::DeviceRelation value) {
+  switch (value) {
+    case enums::DEVICE_RELATION_VIA:
+      return ESPHOME_PSTR("DEVICE_RELATION_VIA");
+    case enums::DEVICE_RELATION_CHILD:
+      return ESPHOME_PSTR("DEVICE_RELATION_CHILD");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::SerialProxyPortType value) {
   switch (value) {
     case enums::SERIAL_PROXY_PORT_TYPE_TTL:
@@ -970,7 +980,7 @@ const char *HelloResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HelloResponse"));
   dump_field(out, ESPHOME_PSTR("api_version_major"), this->api_version_major);
   dump_field(out, ESPHOME_PSTR("api_version_minor"), this->api_version_minor);
-  dump_field(out, ESPHOME_PSTR("server_info"), this->server_info);
+  dump_progmem_string_field(out, ESPHOME_PSTR("server_info"), this->server_info);
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   return out.c_str();
 }
@@ -1005,6 +1015,7 @@ const char *DeviceInfo::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("area_id"), this->area_id);
+  dump_field(out, ESPHOME_PSTR("relation"), static_cast<enums::DeviceRelation>(this->relation));
   return out.c_str();
 }
 #endif
@@ -1021,17 +1032,17 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceInfoResponse"));
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("mac_address"), this->mac_address);
-  dump_field(out, ESPHOME_PSTR("esphome_version"), this->esphome_version);
+  dump_progmem_string_field(out, ESPHOME_PSTR("esphome_version"), this->esphome_version);
   dump_field(out, ESPHOME_PSTR("compilation_time"), this->compilation_time);
-  dump_field(out, ESPHOME_PSTR("model"), this->model);
+  dump_progmem_string_field(out, ESPHOME_PSTR("model"), this->model);
 #ifdef USE_DEEP_SLEEP
   dump_field(out, ESPHOME_PSTR("has_deep_sleep"), this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  dump_field(out, ESPHOME_PSTR("project_name"), this->project_name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("project_name"), this->project_name);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  dump_field(out, ESPHOME_PSTR("project_version"), this->project_version);
+  dump_progmem_string_field(out, ESPHOME_PSTR("project_version"), this->project_version);
 #endif
 #ifdef USE_WEBSERVER
   dump_field(out, ESPHOME_PSTR("webserver_port"), this->webserver_port);
@@ -1039,7 +1050,7 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_BLUETOOTH_PROXY
   dump_field(out, ESPHOME_PSTR("bluetooth_proxy_feature_flags"), this->bluetooth_proxy_feature_flags);
 #endif
-  dump_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
+  dump_progmem_string_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
   dump_field(out, ESPHOME_PSTR("friendly_name"), this->friendly_name);
 #ifdef USE_VOICE_ASSISTANT
   dump_field(out, ESPHOME_PSTR("voice_assistant_feature_flags"), this->voice_assistant_feature_flags);
@@ -1191,12 +1202,12 @@ const char *ListEntitiesBinarySensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesBinarySensorResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
   dump_field(out, ESPHOME_PSTR("is_status_binary_sensor"), this->is_status_binary_sensor);
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
@@ -1220,20 +1231,21 @@ const char *ListEntitiesCoverResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesCoverResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("assumed_state"), this->assumed_state);
   dump_field(out, ESPHOME_PSTR("supports_position"), this->supports_position);
   dump_field(out, ESPHOME_PSTR("supports_tilt"), this->supports_tilt);
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, ESPHOME_PSTR("supports_stop"), this->supports_stop);
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("supports_stop_tilt"), this->supports_stop_tilt);
   dump_field(out, ESPHOME_PSTR("supports_toggle"), this->supports_toggle);
   return out.c_str();
 }
@@ -1259,6 +1271,7 @@ const char *CoverCommandRequest::dump_to(DumpBuffer &out) const {
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("stop_tilt"), this->stop_tilt);
   dump_field(out, ESPHOME_PSTR("toggle"), this->toggle);
   return out.c_str();
 }
@@ -1268,14 +1281,14 @@ const char *ListEntitiesFanResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesFanResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("supports_oscillation"), this->supports_oscillation);
   dump_field(out, ESPHOME_PSTR("supports_speed"), this->supports_speed);
   dump_field(out, ESPHOME_PSTR("supports_direction"), this->supports_direction);
   dump_field(out, ESPHOME_PSTR("supported_speed_count"), this->supported_speed_count);
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
   for (const auto &it : *this->supported_preset_modes) {
@@ -1323,7 +1336,7 @@ const char *ListEntitiesLightResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesLightResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   for (const auto &it : *this->supported_color_modes) {
     dump_field(out, ESPHOME_PSTR("supported_color_modes"), static_cast<enums::ColorMode>(it), 4);
   }
@@ -1334,7 +1347,7 @@ const char *ListEntitiesLightResponse::dump_to(DumpBuffer &out) const {
   }
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
@@ -1402,14 +1415,14 @@ const char *ListEntitiesSensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSensorResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("unit_of_measurement"), this->unit_of_measurement);
   dump_field(out, ESPHOME_PSTR("accuracy_decimals"), this->accuracy_decimals);
   dump_field(out, ESPHOME_PSTR("force_update"), this->force_update);
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
   dump_field(out, ESPHOME_PSTR("state_class"), static_cast<enums::SensorStateClass>(this->state_class));
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -1434,14 +1447,14 @@ const char *ListEntitiesSwitchResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSwitchResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("assumed_state"), this->assumed_state);
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
@@ -1472,13 +1485,13 @@ const char *ListEntitiesTextSensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesTextSensorResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
@@ -1703,10 +1716,10 @@ const char *ListEntitiesCameraResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesCameraResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
@@ -1736,7 +1749,7 @@ const char *ListEntitiesClimateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesClimateResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("supports_current_temperature"), this->supports_current_temperature);
   dump_field(out, ESPHOME_PSTR("supports_two_point_target_temperature"), this->supports_two_point_target_temperature);
   for (const auto &it : *this->supported_modes) {
@@ -1763,7 +1776,7 @@ const char *ListEntitiesClimateResponse::dump_to(DumpBuffer &out) const {
   }
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, ESPHOME_PSTR("visual_current_temperature_step"), this->visual_current_temperature_step);
@@ -1834,9 +1847,9 @@ const char *ListEntitiesWaterHeaterResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesWaterHeaterResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -1888,9 +1901,9 @@ const char *ListEntitiesNumberResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesNumberResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("min_value"), this->min_value);
   dump_field(out, ESPHOME_PSTR("max_value"), this->max_value);
@@ -1899,7 +1912,7 @@ const char *ListEntitiesNumberResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
   dump_field(out, ESPHOME_PSTR("unit_of_measurement"), this->unit_of_measurement);
   dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::NumberMode>(this->mode));
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
@@ -1930,9 +1943,9 @@ const char *ListEntitiesSelectResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSelectResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   for (const auto &it : *this->options) {
     dump_field(out, ESPHOME_PSTR("options"), it, 4);
@@ -1969,9 +1982,9 @@ const char *ListEntitiesSirenResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSirenResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   for (const auto &it : *this->tones) {
@@ -2016,9 +2029,9 @@ const char *ListEntitiesLockResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesLockResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -2057,13 +2070,13 @@ const char *ListEntitiesButtonResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesButtonResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
@@ -2092,9 +2105,9 @@ const char *ListEntitiesMediaPlayerResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesMediaPlayerResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -2482,9 +2495,9 @@ const char *ListEntitiesAlarmControlPanelResponse::dump_to(DumpBuffer &out) cons
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesAlarmControlPanelResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -2521,9 +2534,9 @@ const char *ListEntitiesTextResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesTextResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -2561,9 +2574,9 @@ const char *ListEntitiesDateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesDateResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -2601,9 +2614,9 @@ const char *ListEntitiesTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesTimeResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -2641,13 +2654,13 @@ const char *ListEntitiesEventResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesEventResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
   for (const auto &it : *this->event_types) {
     dump_field(out, ESPHOME_PSTR("event_types"), it, 4);
   }
@@ -2671,13 +2684,13 @@ const char *ListEntitiesValveResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesValveResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
   dump_field(out, ESPHOME_PSTR("assumed_state"), this->assumed_state);
   dump_field(out, ESPHOME_PSTR("supports_position"), this->supports_position);
   dump_field(out, ESPHOME_PSTR("supports_stop"), this->supports_stop);
@@ -2713,9 +2726,9 @@ const char *ListEntitiesDateTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesDateTimeResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -2749,13 +2762,13 @@ const char *ListEntitiesUpdateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesUpdateResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
@@ -2812,9 +2825,9 @@ const char *ListEntitiesInfraredResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesInfraredResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
@@ -2870,9 +2883,9 @@ const char *ListEntitiesRadioFrequencyResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesRadioFrequencyResponse"));
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
-  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));

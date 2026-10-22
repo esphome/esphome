@@ -65,9 +65,9 @@ PROGMEM_STRING_TABLE(
     "Formaldehyde sensor failure", "VOC sensor failure", "CO2 sensor failure", "Firewall failure", "Unknown");
 
 HonClimate::HonClimate()
-    : cleaning_status_(CleaningState::NO_CLEANING), got_valid_outdoor_temp_(false), active_alarms_{0x00, 0x00, 0x00,
-                                                                                                   0x00, 0x00, 0x00,
-                                                                                                   0x00, 0x00} {
+    : cleaning_status_(CleaningState::NO_CLEANING),
+      got_valid_outdoor_temp_(false),
+      active_alarms_{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00} {
   this->fan_mode_speed_ = (uint8_t) hon_protocol::FanMode::FAN_MID;
   this->other_modes_fan_speed_ = (uint8_t) hon_protocol::FanMode::FAN_AUTO;
 }

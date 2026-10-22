@@ -76,9 +76,7 @@ void XGZP68XXComponent::update() {
     ESP_LOGV(TAG, "Got raw pressure=%" PRIu32 ", raw temperature=%u, K value=%u", pressure_raw, temperature_raw,
              this->k_value_);
 
-    // Sign extend the pressure
-    float pressure_in_pa = (float) (((int32_t) pressure_raw << 8) >> 8);
-    pressure_in_pa /= (float) (this->k_value_);
+    const float pressure_in_pa = static_cast<float>(sign_extend<24>(pressure_raw)) / this->k_value_;
 
     float temperature = ((float) (int16_t) temperature_raw) / 256.0f;
 
@@ -95,11 +93,11 @@ void XGZP68XXComponent::setup() {
 
   // Display some sample bits to confirm we are talking to the sensor
   if (i2c::ErrorCode::ERROR_OK != this->read_register(SYSCONFIG_ADDRESS, &config1, 1)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (i2c::ErrorCode::ERROR_OK != this->read_register(PCONFIG_ADDRESS, &config2, 1)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   ESP_LOGD(TAG, "sys_config 0x%x, p_config 0x%x", config1, config2);
@@ -113,9 +111,6 @@ void XGZP68XXComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
   }
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Connection failed");
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 

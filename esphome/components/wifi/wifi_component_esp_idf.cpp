@@ -1,4 +1,5 @@
 #include "wifi_component.h"
+#include "esphome/components/network/util.h"
 
 #ifdef USE_WIFI
 #ifdef USE_ESP32
@@ -863,14 +864,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
     addresses[0] = network::IPAddress(&ip.ip);
   }
 #if USE_NETWORK_IPV6
-  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
-  uint8_t count = 0;
-  count = esp_netif_get_all_ip6(s_sta_netif, if_ip6s);
-  assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
-  assert(count < addresses.size());
-  for (int i = 0; i < count; i++) {
-    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
-  }
+  network::fill_ip6_addresses(s_sta_netif, addresses);
 #endif /* USE_NETWORK_IPV6 */
   return addresses;
 }
@@ -1312,7 +1306,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     this->dpp_listening_ = false;
     ESP_LOGI(TAG, "DPP configured network " LOG_SECRET("'%s'"), credentials->ssid);
     // The reboot timer starts over for the connect attempt, as after a boot with saved credentials
-    this->last_connected_ = App.get_loop_component_start_time();
+    this->set_last_connected_(App.get_loop_component_start_time());
     // Saved like portal credentials; from a cooldown this already restarts the retries
     this->save_wifi_sta(credentials->ssid, credentials->password);
     if (this->state_ == WIFI_COMPONENT_STATE_OFF || this->state_ == WIFI_COMPONENT_STATE_AP) {
@@ -1703,7 +1697,7 @@ void WiFiComponent::apply_ap_dns_() {
   }
   if (!changed)
     return;
-    // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
+  // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
 #ifdef USE_WIFI_MANUAL_IP
   const bool ok = this->wifi_ap_ip_config_(this->ap_.get_manual_ip());
 #else

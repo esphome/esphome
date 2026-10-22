@@ -10,7 +10,7 @@ ESPHOME_LOG_TAG(TAG, "ds1307");
 
 void DS1307Component::setup() {
   if (!this->read_rtc_()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
@@ -19,9 +19,6 @@ void DS1307Component::update() { this->read_time(); }
 void DS1307Component::dump_config() {
   ESP_LOGCONFIG(TAG, "DS1307:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   RealTimeClock::dump_config();
 }
 
