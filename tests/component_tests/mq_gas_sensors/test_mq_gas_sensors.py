@@ -336,23 +336,38 @@ def test_unknown_gas_for_type_is_rejected(
         )
 
 
-def test_r0_and_calibration_warn_but_resolve(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """A fixed R0 wins over the calibration; the configuration stays valid."""
-    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    config = CONFIG_SCHEMA(
-        {
-            "id": "mq8",
-            "name": "MQ-8",
-            "sensor_type": "MQ-8",
-            "voltage": "mq8_adc",
-            "r0": 9.5,
-            "calibration": {"delay": "5s"},
-        }
-    )
+def test_r0_and_calibration_are_exclusive() -> None:
+    """A fixed R0 and a boot calibration cannot both define the reference."""
+    with pytest.raises(cv.Invalid, match="Cannot specify more than one of"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "voltage": "mq8_adc",
+                "r0": 9.5,
+                "calibration": {"delay": "5s"},
+            }
+        )
 
-    assert config["r0"] == pytest.approx(9.5)
+
+def test_neither_r0_nor_calibration_is_allowed_for_the_action(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The persisted R0 or the runtime action can provide the reference later."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    with caplog.at_level("WARNING"):
+        config = CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "voltage": "mq8_adc",
+            }
+        )
+
+    assert "neither 'r0:' nor 'calibration:'" in caplog.text
+    assert "r0" not in config
 
 
 def test_pin_creates_an_internal_adc(
@@ -703,6 +718,26 @@ def test_diagnostics_and_log_are_owned_entities(
     )
     assert "mq8_pin->set_temperature_source(mq8_temperature);" in main_cpp
     assert "mq8_pin->set_humidity_source(mq8_humidity);" in main_cpp
+
+
+def test_custom_coefficients_reach_the_sensor(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Types without built-in curves take `coefficient_a/b` from the YAML."""
+    main_cpp = generate_main(component_config_path("mq_gas_sensors.yaml"))
+
+    assert "mq136_custom->set_a(36.0f);" in main_cpp
+    assert "mq136_custom->set_b(-2.0f);" in main_cpp
+    assert (
+        "mq136_custom->set_regression_method(mq_gas_sensors::mqmath::REGRESSION_LINEAR);"
+        in main_cpp
+    )
+    assert (
+        "mq136_custom->set_ratio_mode(mq_gas_sensors::mqmath::RATIO_R0_RS);" in main_cpp
+    )
+    assert "mq136_custom->set_min_ppm(1.0f);" in main_cpp
+    assert "mq136_custom->set_max_ppm(200.0f);" in main_cpp
 
 
 def test_diagnostics_default_to_the_diagnostic_category(
