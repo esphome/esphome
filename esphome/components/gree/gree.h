@@ -88,7 +88,7 @@ static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 // Model codes
 enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
 
-class GreeClimate final : public climate_ir::ClimateIR {
+class GreeClimate : public climate_ir::ClimateIR {
  public:
   GreeClimate()
       : climate_ir::ClimateIR(GREE_TEMP_MIN, GREE_TEMP_MAX, 1.0f, true, true,
@@ -103,6 +103,8 @@ class GreeClimate final : public climate_ir::ClimateIR {
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  // Decode a received frame into the climate state. A malformed frame returns false and changes nothing.
+  bool on_receive(remote_base::RemoteReceiveData data) override;
 
   uint8_t operation_mode_();
   uint8_t fan_speed_();

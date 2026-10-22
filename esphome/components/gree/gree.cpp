@@ -5,6 +5,123 @@ namespace esphome::gree {
 
 ESPHOME_LOG_TAG(TAG, "gree.climate");
 
+static uint8_t gree_standard_checksum(const uint8_t *buffer) {
+  const uint8_t sum = (buffer[0] & 0x0F) + (buffer[1] & 0x0F) + (buffer[2] & 0x0F) + (buffer[3] & 0x0F) +
+                      ((buffer[4] & 0xF0) >> 4) + ((buffer[5] & 0xF0) >> 4) + ((buffer[6] & 0xF0) >> 4) + 0x0A;
+  return uint8_t(((sum & 0x0F) << 4) | (buffer[7] & 0x0F));
+}
+
+static uint8_t gree_yan_checksum(const uint8_t *buffer) { return uint8_t((buffer[0] << 4) + (buffer[1] << 4) + 0xC0); }
+
+static uint8_t gree_yag_checksum(const uint8_t *buffer) {
+  const uint8_t sum = (buffer[0] & 0x0F) + (buffer[1] & 0x0F) + (buffer[2] & 0x0F) + (buffer[3] & 0x0F) +
+                      ((buffer[4] & 0xF0) >> 4) + ((buffer[5] & 0xF0) >> 4) + ((buffer[6] & 0xF0) >> 4) + 0x0A;
+  return uint8_t((sum & 0x0F) << 4);
+}
+
+static bool gree_is_fixed_vertical_direction(uint8_t direction) {
+  switch (direction) {
+    case GREE_VDIR_AUTO:
+    case GREE_VDIR_UP:
+    case GREE_VDIR_MUP:
+    case GREE_VDIR_MIDDLE:
+    case GREE_VDIR_MDOWN:
+    case GREE_VDIR_DOWN:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static bool gree_is_fixed_horizontal_direction(uint8_t direction) {
+  switch (direction) {
+    case GREE_HDIR_AUTO:
+    case GREE_HDIR_LEFT:
+    case GREE_HDIR_MLEFT:
+    case GREE_HDIR_MIDDLE:
+    case GREE_HDIR_MRIGHT:
+    case GREE_HDIR_RIGHT:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static uint32_t gree_header_space(Model model) {
+  if (model == GREE_YAC1FB9) {
+    return GREE_YAC1FB9_HEADER_SPACE;
+  }
+  return GREE_HEADER_SPACE;
+}
+
+static uint32_t gree_message_space(Model model) {
+  if (model == GREE_YAC1FB9) {
+    return GREE_YAC1FB9_MESSAGE_SPACE;
+  }
+  return GREE_MESSAGE_SPACE;
+}
+
+static climate::ClimateMode gree_decode_mode(uint8_t mode) {
+  switch (mode) {
+    case GREE_MODE_AUTO:
+      return climate::CLIMATE_MODE_HEAT_COOL;
+    case GREE_MODE_COOL:
+      return climate::CLIMATE_MODE_COOL;
+    case GREE_MODE_DRY:
+      return climate::CLIMATE_MODE_DRY;
+    case GREE_MODE_FAN:
+      return climate::CLIMATE_MODE_FAN_ONLY;
+    case GREE_MODE_HEAT:
+      return climate::CLIMATE_MODE_HEAT;
+    default:
+      return climate::CLIMATE_MODE_HEAT_COOL;
+  }
+}
+
+static climate::ClimateFanMode gree_decode_fan(uint8_t fan, bool yx1ff) {
+  if (yx1ff) {
+    switch (fan) {
+      case GREE_FAN_1:
+        return climate::CLIMATE_FAN_QUIET;
+      case GREE_FAN_2:
+        return climate::CLIMATE_FAN_LOW;
+      case GREE_FAN_3:
+        return climate::CLIMATE_FAN_MEDIUM;
+      case GREE_FAN_TURBO:
+        return climate::CLIMATE_FAN_HIGH;
+      case GREE_FAN_AUTO:
+      default:
+        return climate::CLIMATE_FAN_AUTO;
+    }
+  }
+
+  switch (fan) {
+    case GREE_FAN_1:
+      return climate::CLIMATE_FAN_LOW;
+    case GREE_FAN_2:
+      return climate::CLIMATE_FAN_MEDIUM;
+    case GREE_FAN_3:
+      return climate::CLIMATE_FAN_HIGH;
+    case GREE_FAN_AUTO:
+    default:
+      return climate::CLIMATE_FAN_AUTO;
+  }
+}
+
+// Reads one byte sent least significant bit first.
+static bool gree_read_byte(remote_base::RemoteReceiveData &data, uint8_t *value) {
+  uint8_t out = 0;
+  for (uint8_t bit = 0; bit < 8; bit++) {
+    if (data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE)) {
+      out |= static_cast<uint8_t>(1U << bit);
+    } else if (!data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE)) {
+      return false;
+    }
+  }
+  *value = out;
+  return true;
+}
+
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN) {
     // YAN only has a vertical vane; the horizontal swing IR bytes are not defined for this model.
@@ -30,6 +147,156 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
     this->mode_bits_ &= ~bit_mask;
   }
   this->transmit_state();
+}
+
+// Received vane positions are validated but not stored. Writing them to the configured defaults would
+// overwrite the user's default_vertical_direction / default_horizontal_direction on every received frame.
+bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
+  uint8_t buffer[GREE_STATE_FRAME_SIZE] = {0};
+
+  if (!data.expect_item(GREE_HEADER_MARK, gree_header_space(this->model_))) {
+    return false;
+  }
+
+  for (size_t i = 0; i < 4; i++) {
+    if (!gree_read_byte(data, &buffer[i])) {
+      return false;
+    }
+  }
+
+  if (!data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE) || !data.expect_item(GREE_BIT_MARK, GREE_ONE_SPACE) ||
+      !data.expect_item(GREE_BIT_MARK, GREE_ZERO_SPACE)) {
+    return false;
+  }
+
+  if (!data.expect_item(GREE_BIT_MARK, gree_message_space(this->model_))) {
+    return false;
+  }
+
+  for (size_t i = 4; i < 8; i++) {
+    if (!gree_read_byte(data, &buffer[i])) {
+      return false;
+    }
+  }
+
+  if (!data.expect_mark(GREE_BIT_MARK)) {
+    return false;
+  }
+
+  uint8_t expected_checksum = 0;
+  switch (this->model_) {
+    case GREE_YAN:
+    case GREE_YX1FF:
+      expected_checksum = gree_yan_checksum(buffer);
+      break;
+    case GREE_YAG:
+      expected_checksum = gree_yag_checksum(buffer);
+      break;
+    default:
+      expected_checksum = gree_standard_checksum(buffer);
+      break;
+  }
+
+  if (buffer[7] != expected_checksum) {
+    ESP_LOGVV(TAG, "Checksum mismatch (got %02X expected %02X)", buffer[7], expected_checksum);
+    return false;
+  }
+
+  // Validate every field before writing any state, so a rejected frame changes nothing.
+  if (buffer[1] > (GREE_TEMP_MAX - GREE_TEMP_MIN)) {
+    ESP_LOGVV(TAG, "Unsupported temperature value: 0x%02X", buffer[1]);
+    return false;
+  }
+
+  bool vertical_swing = false;
+  bool horizontal_swing = false;
+  bool supports_horizontal_swing = false;
+
+  if (this->model_ == GREE_YAN || this->model_ == GREE_YX1FF) {
+    const uint8_t vdir = buffer[4] & 0x0F;
+    vertical_swing = vdir == GREE_VDIR_SWING;
+    if (!vertical_swing && !gree_is_fixed_vertical_direction(vdir)) {
+      ESP_LOGVV(TAG, "Unsupported vertical direction value: 0x%02X", vdir);
+      return false;
+    }
+  } else if (this->model_ == GREE_YAA || this->model_ == GREE_YAC || this->model_ == GREE_YAC1FB9) {
+    vertical_swing = (buffer[0] & (1 << 6)) != 0;
+    if (!vertical_swing) {
+      const uint8_t vdir = buffer[5] & 0x0F;
+      if (!gree_is_fixed_vertical_direction(vdir)) {
+        ESP_LOGVV(TAG, "Unsupported vertical direction value: 0x%02X", vdir);
+        return false;
+      }
+    }
+    if (this->model_ == GREE_YAC) {
+      supports_horizontal_swing = true;
+      const uint8_t hdir = (buffer[4] >> 4) & 0x0F;
+      horizontal_swing = hdir == GREE_HDIR_SWING;
+      if (!horizontal_swing && !gree_is_fixed_horizontal_direction(hdir)) {
+        ESP_LOGVV(TAG, "Unsupported horizontal direction value: 0x%02X", hdir);
+        return false;
+      }
+    }
+  } else if (this->model_ == GREE_YAG) {
+    supports_horizontal_swing = true;
+    const uint8_t vdir = buffer[4] & 0x0F;
+    const uint8_t hdir = (buffer[4] >> 4) & 0x0F;
+    vertical_swing = vdir == GREE_VDIR_SWING;
+    horizontal_swing = hdir == GREE_HDIR_SWING;
+    if (!vertical_swing && !gree_is_fixed_vertical_direction(vdir)) {
+      ESP_LOGVV(TAG, "Unsupported vertical direction value: 0x%02X", vdir);
+      return false;
+    }
+    if (!horizontal_swing && !gree_is_fixed_horizontal_direction(hdir)) {
+      ESP_LOGVV(TAG, "Unsupported horizontal direction value: 0x%02X", hdir);
+      return false;
+    }
+  }
+
+  const bool power_on = (buffer[0] & GREE_MODE_ON) != 0;
+  this->mode = power_on ? gree_decode_mode(buffer[0] & 0x07) : climate::CLIMATE_MODE_OFF;
+  this->target_temperature = float(buffer[1] + GREE_TEMP_MIN);
+
+  if (this->model_ == GREE_YX1FF) {
+    // Turbo also sets byte 0 bit 7, so sleep is only read when turbo is off.
+    const bool turbo = (buffer[2] & GREE_FAN_TURBO_BIT) != 0;
+    this->fan_mode = gree_decode_fan(turbo ? GREE_FAN_TURBO : (buffer[0] & 0x30), true);
+    this->preset =
+        !turbo && (buffer[0] & GREE_PRESET_SLEEP_BIT) ? climate::CLIMATE_PRESET_SLEEP : climate::CLIMATE_PRESET_NONE;
+  } else {
+    this->fan_mode = gree_decode_fan(buffer[0] & 0x30, false);
+    if (this->model_ == GREE_YAC1FB9) {
+      this->preset = (buffer[0] & GREE_PRESET_SLEEP_BIT) ? climate::CLIMATE_PRESET_SLEEP : climate::CLIMATE_PRESET_NONE;
+    }
+  }
+
+  // Generic frames carry no vane state, so the swing mode is left as it is.
+  if (this->model_ != GREE_GENERIC) {
+    climate::ClimateSwingMode swing_mode;
+    if (supports_horizontal_swing) {
+      if (vertical_swing && horizontal_swing) {
+        swing_mode = climate::CLIMATE_SWING_BOTH;
+      } else if (vertical_swing) {
+        swing_mode = climate::CLIMATE_SWING_VERTICAL;
+      } else if (horizontal_swing) {
+        swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+      } else {
+        swing_mode = climate::CLIMATE_SWING_OFF;
+      }
+    } else {
+      swing_mode = vertical_swing ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
+    }
+    this->swing_mode = swing_mode;
+  }
+
+  // Only these models merge mode bits into the frame in transmit_state(), so only they carry them.
+  if (this->model_ == GREE_YAN || this->model_ == GREE_YAA || this->model_ == GREE_YAC ||
+      this->model_ == GREE_YAC1FB9) {
+    this->mode_bits_ = buffer[2] & 0xF0;
+  }
+
+  this->publish_state();
+  return true;
 }
 
 void GreeClimate::transmit_state() {
