@@ -188,7 +188,7 @@ sensor:
     address: 0x9050
     value_type: U_WORD
     lambda: |-
-      return modbus::helpers::get_data<uint16_t>(data.data(), item->offset) * 0.1f;
+      return modbus_controller::get_data<uint16_t>(data, item->offset) * 0.1f;
   # The deprecated force_new_range migrates to reuse_previous_range: false, so this sensor never
   # joins a range built before it and the lower-address sensors above keep their own ranges.
   - platform: modbus_controller
