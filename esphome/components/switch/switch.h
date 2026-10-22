@@ -114,6 +114,11 @@ class Switch : public EntityBase {
    */
   optional<bool> get_initial_state_with_restore_mode();
 
+  /// Drive the switch to the state its restore mode yields, through control(), so inversion and
+  /// write_state() apply; a disabled restore mode drives \p when_disabled, or nothing without one.
+  void restore();
+  void restore(bool when_disabled);
+
   /** Return whether this switch uses an assumed state - i.e. if both the ON/OFF actions should be displayed in Home
    * Assistant because the real state is unknown.
    *

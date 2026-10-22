@@ -60,6 +60,13 @@ optional<bool> Switch::get_initial_state_with_restore_mode() {
   }
   return initial_state;
 }
+void Switch::restore() {
+  if (auto initial = this->get_initial_state_with_restore_mode())
+    this->control(*initial);
+}
+void Switch::restore(bool when_disabled) {
+  this->control(this->get_initial_state_with_restore_mode().value_or(when_disabled));
+}
 void Switch::publish_state(bool state) {
   if (!this->publish_dedup_.next(state))
     return;
