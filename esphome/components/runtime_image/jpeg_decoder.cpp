@@ -229,10 +229,13 @@ int JpegDecoder::begin_source(DecodeSource *source) {
     ESP_LOGE(TAG, "Image size %zu cannot be read from a source", this->expected_size_);
     return DECODE_ERROR_INVALID_TYPE;
   }
+  if (!source->seek(0)) {
+    ESP_LOGE(TAG, "Could not read the image");
+    return DECODE_ERROR_READ;
+  }
   this->source_ = source;
   this->source_failed_ = false;
-  if (!source->seek(0) ||
-      !this->jpeg_.open(this, this->expected_size_, source_close_, source_read_, source_seek_, draw_callback)) {
+  if (!this->jpeg_.open(this, this->expected_size_, source_close_, source_read_, source_seek_, draw_callback)) {
     ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
     this->source_ = nullptr;
     return this->source_failed_ ? DECODE_ERROR_READ : DECODE_ERROR_INVALID_TYPE;
