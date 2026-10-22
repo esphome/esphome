@@ -407,12 +407,10 @@ void LD2410Component::handle_periodic_data_() {
 }
 
 #ifdef USE_NUMBER
-std::function<void()> set_number_value(number::Number *n, float value) {
+void set_number_value(number::Number *n, float value) {
   if (n != nullptr && (!n->has_state() || n->state != value)) {
-    n->state = value;
-    return [n, value]() { n->publish_state(value); };
+    n->publish_state(value);
   }
-  return []() {};
 }
 #endif
 
@@ -560,29 +558,24 @@ bool LD2410Component::handle_ack_data_() {
         Moving distance range: 13th byte
         Still distance range: 14th byte
       */
-      std::vector<std::function<void()>> updates;
-      updates.push_back(set_number_value(this->max_move_distance_gate_number_, this->buffer_data_[12]));
-      updates.push_back(set_number_value(this->max_still_distance_gate_number_, this->buffer_data_[13]));
+      set_number_value(this->max_move_distance_gate_number_, this->buffer_data_[12]);
+      set_number_value(this->max_still_distance_gate_number_, this->buffer_data_[13]);
       /*
         Moving Sensitivities: 15~23th bytes
       */
-      for (std::vector<number::Number *>::size_type i = 0; i != this->gate_move_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[14 + i]));
+      for (size_t i = 0; i < TOTAL_GATES; i++) {
+        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[14 + i]);
       }
       /*
         Still Sensitivities: 24~32th bytes
       */
-      for (std::vector<number::Number *>::size_type i = 0; i != this->gate_still_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[23 + i]));
+      for (size_t i = 0; i < TOTAL_GATES; i++) {
+        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[23 + i]);
       }
       /*
         None Duration: 33~34th bytes
       */
-      updates.push_back(
-          set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[33], this->buffer_data_[32])));
-      for (auto &update : updates) {
-        update();
-      }
+      set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[33], this->buffer_data_[32]));
 #endif
       break;
     }
