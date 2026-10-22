@@ -9,6 +9,7 @@ import struct
 from aioesphomeapi import CoverInfo, CoverState, EntityState, api_pb2
 import pytest
 
+from .log_utils import LineWaiter
 from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient, decode_varint, encode_varint
 from .state_utils import InitialStateHelper, StateWaiter, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -57,8 +58,9 @@ async def test_api_cover_toggle(
     api_client_connected: APIClientConnectedFactory,
     unused_tcp_port: int,
 ) -> None:
+    lines = LineWaiter()
     async with (
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=lines.callback),
         api_client_connected() as client,
         RawApiClient(unused_tcp_port) as raw,
     ):
@@ -109,8 +111,9 @@ async def test_api_cover_toggle(
         await raw.send_raw(COVER_COMMAND, key_field(toggle_cover.key) + toggle)
         await toggled
 
-        # A cover without toggle_action drops the request; the control only republishes its state
+        # A cover without toggle_action drops the request with a warning; its state does not change
         await raw.send_raw(COVER_COMMAND, key_field(plain_cover.key) + toggle)
+        await lines.wait_for("Plain Cover", "toggle unsupported", timeout=2.0)
         await asyncio.sleep(0.5)
         assert all(p == pytest.approx(1.0) for p in positions[plain_cover.key])
 
