@@ -11,6 +11,7 @@ from esphome import final_validate as fv
 import esphome.codegen as cg
 from esphome.components import button, number, select, switch
 from esphome.config import Config
+import esphome.config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -1740,3 +1741,31 @@ def test_inherit_property_from_path_missing_is_ignored() -> None:
         fv.full_config.reset(token)
 
     assert "absent" not in config["sensor"][1]
+
+
+_RESTORE_FIELDS = cv.Schema({cv.Optional("state", default="KEEP"): cv.string})
+
+
+def test_restore_state_schema_shorthands() -> None:
+    validate = entity_helpers.restore_state_schema(
+        _RESTORE_FIELDS, {"state": "INITIAL"}
+    )
+    assert validate(" all ") == {"state": "KEEP"}
+    assert validate("None") == {"state": "INITIAL"}
+    assert validate({"state": "INVERT"}) == {"state": "INVERT"}
+    with pytest.raises(Invalid, match="expected 'all', 'none' or a mapping"):
+        validate("everything")
+
+
+def test_restore_state_schema_keeps_a_keyword_for_none() -> None:
+    validate = entity_helpers.restore_state_schema(
+        _RESTORE_FIELDS, entity_helpers.RESTORE_STATE_NONE
+    )
+    assert validate("none") == entity_helpers.RESTORE_STATE_NONE
+
+
+def test_restore_state_keyword() -> None:
+    keywords = (entity_helpers.RESTORE_STATE_KEEP, entity_helpers.RESTORE_STATE_INVERT)
+    assert entity_helpers.restore_state_keyword(" invert ", keywords) == "INVERT"
+    assert entity_helpers.restore_state_keyword("INITIAL", keywords) is None
+    assert entity_helpers.restore_state_keyword(True, keywords) is None

@@ -17,8 +17,8 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
-    idf_version,
     only_on_variant,
+    require_idf_version,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.config_helpers import filter_source_files_from_platform
@@ -143,19 +143,12 @@ TYPE_CLASS = {
 }
 
 
-def _require_psram_dma_idf(value: Any) -> Any:
-    if idf_version() < cv.Version(5, 5, 3):
-        raise cv.Invalid("psram_dma requires ESP-IDF 5.5.3 or newer")
-    return value
-
-
 def _validate_psram_dma(value: Any) -> bool:
     value = cv.boolean(value)
     if not value:
         return value
     return cv.All(
-        cv.only_on_esp32,
-        _require_psram_dma_idf,
+        require_idf_version(cv.Version(5, 5, 3), "psram_dma"),
         only_on_variant(
             supported=[
                 VARIANT_ESP32C5,
