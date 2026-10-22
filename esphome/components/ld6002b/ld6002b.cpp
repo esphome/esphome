@@ -286,11 +286,9 @@ void LD6002BComponent::setup() {
     if (this->target_display_switch_ != nullptr) {
       target_display_controlled = true;
       // Nothing reports this switch back, so its restored state is the only state
-      // there is.  Restoring through the switch keeps its inversion in the path:
-      // the restored value is logical, and driving the switch is what turns it
-      // into the raw command, the published state and the stream flag.
-      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
-      this->target_display_switch_->control(state);
+      // there is; driving the switch turns it into the raw command, the published
+      // state and the stream flag.
+      this->target_display_switch_->restore(true);
     }
 #endif
     if (!target_display_controlled) {
@@ -307,10 +305,8 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
       point_cloud_controlled = true;
-      // The switch owns the stream, so it is also what applies the restored state:
-      // driving it rather than the module keeps the entity's inversion in the path.
-      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->point_cloud_switch_->control(state);
+      // The switch owns the stream, so it is also what applies the restored state.
+      this->point_cloud_switch_->restore(false);
     }
 #endif
     if (!point_cloud_controlled) {
@@ -349,11 +345,10 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     bool want_low_power = this->low_power_switch_ != nullptr;
     if (want_low_power) {
-      // The module reports this one back, so the query below confirms what it took.
-      // Driving the switch applies its inversion; it also marks the restored value
-      // as reported, so the work mode fallback runs on that until the query lands.
-      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->low_power_switch_->control(state);
+      // The module reports this one back, so the query below confirms what it took;
+      // the restored value counts as reported, so the work mode fallback runs on it
+      // until the query lands.
+      this->low_power_switch_->restore(false);
     }
 #else
     bool want_low_power = false;
