@@ -7,6 +7,7 @@ import pytest
 from esphome.components.keeloq import (
     CONFIG_SCHEMA,
     JAROLIFT_COMMANDS,
+    SEND_SCHEMA,
     _channels,
     _command,
 )
@@ -62,3 +63,20 @@ def test_channels_as_list_or_mask() -> None:
         _channels([1, 1])
     with pytest.raises(cv.Invalid):
         _channels([17])
+
+
+def test_empty_channel_list_is_rejected() -> None:
+    # No motor acts on a frame without a channel.
+    with pytest.raises(cv.Invalid, match="set at least one channel"):
+        _channels([])
+
+
+def test_channel_mask_0_is_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="set at least one channel"):
+        _channels(0)
+
+
+def test_send_action_rejects_an_empty_channel_list() -> None:
+    action = {"id": "shutter_remote", "command": "up", "channels": []}
+    with pytest.raises(cv.Invalid, match="set at least one channel"):
+        SEND_SCHEMA(action)
