@@ -37,6 +37,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    RESTORE_STATE_NONE,
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
@@ -56,7 +57,6 @@ from .effects import (
 )
 from .restore_state import (
     LEGACY_RESTORE_MODES,
-    RESTORE_STATE_NONE,
     RESTORE_STATE_SCHEMA,
     _build_state_lambda,
     _initial_state_overridden_by_legacy_mode,

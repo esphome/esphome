@@ -50,6 +50,10 @@ void MQTTCoverComponent::setup() {
   }
   if (traits.get_supports_tilt()) {
     this->subscribe(this->get_tilt_command_topic(), [this](const std::string &topic, const std::string &payload) {
+      if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("STOP")) == 0) {
+        this->cover_->make_call().set_command_stop_tilt().perform();
+        return;
+      }
       auto value = parse_number<float>(payload);
       if (!value.has_value()) {
         ESP_LOGW(TAG, "Invalid tilt value: '%s'", payload.c_str());
