@@ -99,7 +99,7 @@ class JPEGFormat(Format):
         cg.add_library(
             "JPEGDEC",
             "1.8.4",
-            "https://github.com/clydebarrow/JPEGDEC#1.8.4-esphome.1",
+            "https://github.com/esphome-libs/JPEGDEC#1.8.4-esphome.1",
         )
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
