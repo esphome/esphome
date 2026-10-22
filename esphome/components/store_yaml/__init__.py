@@ -465,8 +465,10 @@ def _remote_package_descriptions() -> list[str]:
     def describe(text: str) -> str:
         if (name := yaml_util.is_secret(text)) is not None:
             return f"!secret {name}"
-        # A secret substituted into the URL or ref is shown by name.
-        for value, name in yaml_util.registered_secret_values().items():
+        # A secret substituted into the URL or ref is shown by name, longest first so
+        # a secret containing another is replaced whole.
+        secrets = yaml_util.registered_secret_values().items()
+        for value, name in sorted(secrets, key=lambda item: -len(item[0])):
             if value and value in text:
                 text = text.replace(value, f"<!secret {name}>")
         return URL_USERINFO_RE.sub("://***@", text)

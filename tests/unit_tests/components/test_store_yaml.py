@@ -1063,11 +1063,14 @@ def test_remote_package_descriptions() -> None:
         ("https://user:pw@host/private", None),
         ("https://github.com/org/x", "v1-secret"),
         ("https://host/repo?access_token=tok123", None),
+        ("https://host/repo?k=hunter2abc", None),
     ):
         data.remote_sources[packages.RemotePackageSource(url, ref)] = None
     yaml_util._SECRET_VALUES["https://user:pw@host/private"] = "pkg_url"
     yaml_util._SECRET_VALUES["v1-secret"] = "private_ref"
     yaml_util._SECRET_VALUES["tok123"] = "git_token"
+    yaml_util._SECRET_VALUES["hunter2"] = "pw"
+    yaml_util._SECRET_VALUES["hunter2abc"] = "long_token"
     assert _remote_package_descriptions() == [
         "https://github.com/org/repo@main",
         "https://github.com/org/other",
@@ -1075,6 +1078,7 @@ def test_remote_package_descriptions() -> None:
         "!secret pkg_url",
         "https://github.com/org/x@!secret private_ref",
         "https://host/repo?access_token=<!secret git_token>",
+        "https://host/repo?k=<!secret long_token>",
     ]
 
 
