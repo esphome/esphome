@@ -1809,6 +1809,25 @@ def test_discover_user_yaml_files_tolerates_templated_top_level_include(
     assert (tmp_path / "wrapper.yaml").resolve() in discovered.files
 
 
+def test_discover_user_yaml_files_skips_missing_secrets_probe(
+    tmp_path: Path,
+) -> None:
+    """A `!secret` in a package first probes a secrets.yaml next to that file;
+    when only the entry directory has one, the missing probe is not tracked."""
+    _write(tmp_path, "pkg/common.yaml", "wifi:\n  password: !secret pw\n")
+    secrets = _write(tmp_path, "cfg/secrets.yaml", "pw: value\n")
+    entry = _write(
+        tmp_path,
+        "cfg/entry.yaml",
+        "esphome:\n  name: test\npackages:\n  common: !include ../pkg/common.yaml\n",
+    )
+    with patch.object(core.CORE, "config_path", entry):
+        discovered = discover_user_yaml_files(entry)
+    assert discovered.load_errors == []
+    assert discovered.secrets == {secrets.resolve()}
+    assert all(p.is_file() for p in discovered.files)
+
+
 def test_track_yaml_loads_records_resolved_paths(
     tmp_path: Path, yaml_util_module: ModuleType
 ) -> None:

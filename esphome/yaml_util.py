@@ -1123,10 +1123,12 @@ def load_yaml(
 
 def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
-    for listener in tuple(load_listeners):
-        listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
+            # Only after the open succeeds: `!secret` probes a secrets.yaml next to
+            # the including file before falling back, and that probe may not exist.
+            for listener in tuple(load_listeners):
+                listener(fname)
             res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
