@@ -2,6 +2,7 @@
 #include "modem_component.h"
 #include "soc/soc_caps.h"
 #include <driver/uart.h>
+#include <esp_task_wdt.h>
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -18,6 +19,27 @@
 namespace esphome::modem {
 
 ESPHOME_LOG_TAG(TAG, "modem");
+
+// esp_modem's calls block until the modem answers or their own timeouts run out, up to a minute for a
+// mode change. The loop task leaves the task watchdog for one state step so such a call cannot trip it.
+class WatchdogPause {
+ public:
+  WatchdogPause() : subscribed_(esp_task_wdt_status(nullptr) == ESP_OK) {
+    if (this->subscribed_) {
+      esp_task_wdt_delete(nullptr);
+    }
+  }
+  ~WatchdogPause() {
+    if (this->subscribed_) {
+      esp_task_wdt_add(nullptr);
+    }
+  }
+  WatchdogPause(const WatchdogPause &) = delete;
+  WatchdogPause &operator=(const WatchdogPause &) = delete;
+
+ protected:
+  bool subscribed_;
+};
 
 #ifdef SOC_UART_HP_NUM
 static constexpr int HP_UART_COUNT = SOC_UART_HP_NUM;
@@ -270,6 +292,7 @@ void ModemComponent::loop() {
   if (App.get_loop_component_start_time() - this->delay_start_ < this->delay_ms_) {
     return;
   }
+  WatchdogPause pause;
   this->transition_to_(this->compute_next_state_());
 }
 
@@ -298,7 +321,6 @@ ModemComponentState ModemComponent::compute_next_state_() {
     case ModemComponentState::MODEM_SYNCED:
       this->clear_warning_(WARN_INIT_AT);
       for (uint8_t i = 0; i != this->init_at_count_; i++) {
-        App.feed_wdt();
         if (!this->send_at(this->init_at_commands_[i], 0, true)) {
           this->set_warning_(WARN_INIT_AT, LOG_STR("init_at command failed"));
         }
@@ -334,13 +356,11 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     case modem_mode::CMUX_MANUAL_MODE:
       // The detection resumed a data session that survived the ESP reboot; PPP has to stop before the
       // CMUX exit, or esp_modem skips starting it again on the next connect. Without a session this
-      // waits up to 30 s for a PPP exit that never comes, which the watchdog floor covers.
+      // waits up to 30 s for a PPP exit that never comes.
       ESP_LOGD(TAG, "Modem warm reboot. Leaving the data session and CMUX");
-      App.feed_wdt();
       if (!this->dce_->set_mode(modem_mode::CMUX_MANUAL_COMMAND)) {
         ESP_LOGW(TAG, "Failed to stop the previous data session");
       }
-      App.feed_wdt();
       if (!this->dce_->set_mode(modem_mode::CMUX_MANUAL_EXIT)) {
         ESP_LOGW(TAG, "Failed to exit CMUX");
       }
@@ -369,7 +389,6 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
         return this->retry_(ModemComponentState::MODEM_ENABLING);
       }
       this->current_baud_rate_ = baud;
-      App.feed_wdt();
       if (!this->send_at("AT", 100)) {
         ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.", baud);
         this->set_warning_(WARN_NO_RESPONSE, LOG_STR("Modem not responding"));
@@ -399,7 +418,6 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       break;
   }
 
-  App.feed_wdt();  // a mode switch can take up to 20 s; the watchdog floor covers one long call
   if (this->dce_->sync() != command_result::OK) {
     ESP_LOGW(TAG, "Waiting SYNC");
     return this->retry_(ModemComponentState::MODEM_ENABLING);
@@ -458,6 +476,12 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
     if (this->dce_->sync() != command_result::OK) {
       ESP_LOGW(TAG, "Modem not synced during network init");
       return ModemComponentState::MODEM_ENABLING;
+    }
+    // The APN has to be in the PDP context before the attachment; esp_modem only sends it when PPP starts
+    esp_modem::PdpContext pdp(this->apn_);
+    if (this->dce_->set_pdp_context(pdp) != command_result::OK) {
+      ESP_LOGW(TAG, "Failed to set the APN");
+      return this->retry_(ModemComponentState::MODEM_CONNECTING);
     }
     if (this->dce_->set_radio_state(1) != command_result::OK) {
       ESP_LOGW(TAG, "Failed to turn the radio on");
@@ -536,13 +560,11 @@ ModemComponentState ModemComponent::handle_state_disconnecting_() {
   this->modem_synced_ = false;
   // COMMAND_MODE stops PPP and leaves CMUX; the manual exit only applies to a warm reboot
   bool clean = true;
-  App.feed_wdt();  // leaving CMUX can wait 30 s for PPP to exit, the watchdog floor covers that from here
   if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
     // The next enable() probes the mode again and retries the exit; the warning keeps this visible
     this->set_warning_(WARN_TEARDOWN, LOG_STR("Failed to leave data mode"));
     clean = false;
   }
-  App.feed_wdt();
   // Turn the radio off; waiting for the lost IP event could take up to 2 min
   if (this->dce_->set_radio_state(0) == command_result::OK) {
     ESP_LOGI(TAG, "Radio off");

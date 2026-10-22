@@ -1,6 +1,3 @@
-esp32:
-  watchdog_timeout: 45s
-
 logger:
 
 # No wifi: a cellular-only node must satisfy the api network dependency

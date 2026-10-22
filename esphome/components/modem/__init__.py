@@ -19,12 +19,9 @@ from esphome.const import (
     CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
     CONF_USE_ADDRESS,
-    CONF_WATCHDOG_TIMEOUT,
-    PLATFORM_ESP32,
 )
 from esphome.core import CORE, ID, coroutine_with_priority
 from esphome.coroutine import CoroPriority
-import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@oarcher"]
@@ -123,20 +120,6 @@ CONFIG_SCHEMA = cv.All(
     require_ipv4(DOMAIN),
 )
 
-# Leaving CMUX waits up to 30 s for PPP to exit before the channels close; a plain data mode exit
-# or the radio off command take about 20 s
-MIN_WATCHDOG_TIMEOUT_S = 45
-
-
-def FINAL_VALIDATE_SCHEMA(config: ConfigType) -> ConfigType:
-    watchdog = fv.full_config.get()[PLATFORM_ESP32][CONF_WATCHDOG_TIMEOUT]
-    if watchdog.total_seconds < MIN_WATCHDOG_TIMEOUT_S:
-        raise cv.Invalid(
-            f"modem needs 'esp32: {CONF_WATCHDOG_TIMEOUT}: {MIN_WATCHDOG_TIMEOUT_S}s' or more: "
-            "a modem command can block the main loop for over 30 s"
-        )
-    return config
-
 
 MODEM_ID_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(ModemComponent)}
@@ -169,6 +152,8 @@ async def to_code(config: ConfigType) -> None:
     add_idf_component(name="espressif/esp_modem", ref="2.1.0")
 
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)
+    # LCP echo probes notice a modem that went away without a word, which ends the PPP session
+    add_idf_sdkconfig_option("CONFIG_LWIP_ENABLE_LCP_ECHO", True)
     add_idf_sdkconfig_option("CONFIG_ESP_MODEM_CMUX_DELAY_AFTER_DLCI_SETUP", 500)
     add_idf_sdkconfig_option(
         "CONFIG_ESP_MODEM_CMUX_USE_SHORT_PAYLOADS_ONLY", True
