@@ -55,7 +55,7 @@ file does, and it is the authority when they disagree. The most useful starting 
 *   https://developers.esphome.io/contributing/code/ - contribution rules, public API and breaking changes.
 
 *   **Formatting:**
-    *   **Python:** Uses `ruff` and `flake8` for linting and formatting. Configuration is in `pyproject.toml`.
+    *   **Python:** Uses `ruff` for linting and formatting. Configuration is in `pyproject.toml`.
     *   **C++:** Uses `clang-format` for formatting. Configuration is in `.clang-format`.
 
 *   **Naming Conventions:**
@@ -80,13 +80,15 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```python
         # Bad - looks up CONF_BLAH twice
         if CONF_BLAH in config:
-            cg.add(var.set_blah(config[CONF_BLAH]))
+            cg.add(var.set_blah_ms(config[CONF_BLAH].total_milliseconds))
 
         # Good - single lookup, value bound inline
         if (blah := config.get(CONF_BLAH)) is not None:
-            cg.add(var.set_blah(blah))
+            cg.add(var.set_blah_ms(blah.total_milliseconds))
         ```
         The same applies to `while` loops and comprehensions where it avoids recomputing a value. Don't contort code to use it — reach for `:=` only when it genuinely cuts repetition or an extra assignment line.
+        When the setter takes the value unchanged, use `cg.add_optional(var.set_blah, config.get(CONF_BLAH))`
+        instead; it is not awaited, and it skips only `None`, so `0` and `False` are still set.
 
 *   **C++ Field Visibility:**
     *   **Prefer `protected`:** Use `protected` for most class fields to enable extensibility and testing. Fields should be `lower_snake_case_with_trailing_underscore_`.
@@ -208,8 +210,14 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Fixed sets of names** (status words, model names): a `PROGMEM_STRING_TABLE` (`esphome/core/progmem.h`),
         logged with `get_log_str` and `LOG_STR_ARG`, copied out with `ESPHOME_strncpy_P` before `publish_state`.
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
-    *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `reverse_bits`, `encode_uint16`);
-        pick the helper's polynomial and bit-order arguments instead of writing a CRC loop.
+    *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
+        `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`); pick the helper's
+        arguments instead of writing a loop. Epson style 7-byte RTC calendars (one-hot weekday) use
+        `time::decode_bcd_calendar`.
+    *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
+        `LineReader<N>`; I2C has `update_register`, `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id`
+        and `read_bytes_16_le`. `if (!this->status_comm_result(ok)) return;` sets or clears the warning.
+        A child sensor that skips repeated values is `SUB_SENSOR_WITH_DEDUP(name, type)`.
     *   **An unset float is `NAN`**, not `optional<float>`; the optional costs 4 to 8 bytes of padding per member.
     *   **`PollingComponent` first runs `update()`** after a random share of the interval; call `this->update()` at the
         end of `setup()` when the entities need a state at boot.
@@ -225,6 +233,15 @@ file does, and it is the authority when they disagree. The most useful starting 
         stays inside the `#ifdef`.
     *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
         sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
+    *   **`dump_config()` already prints the failure reason:** for a failed component, core prints
+        `<component> is marked FAILED: <reason>` right after the component's `dump_config()`, using the reason
+        passed to `mark_failed()`. So `dump_config()` never checks `is_failed()` to log a failure, and no
+        `error_code_` member exists only to pick that message. Pass the reason where setup fails instead:
+        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))` for a failed bus transfer, a short specific reason
+        otherwise (`LOG_STR("Wrong chip ID")`). Core also logs it at that moment, so no `ESP_LOGE` repeats it
+        before `mark_failed()`; keep a separate line only when it prints a value read at run time, such as the
+        chip ID that did not match. Only the first reason is kept, so do not call `status_set_error()` before
+        `mark_failed()` and do not mark the component failed again after a helper already did.
     *   **Fixed platform facts compile to nothing:** gate on `#ifdef USE_ESP8266` and friends, not on a
         runtime check of something the build already knows.
     *   **Logging string literals:** wrap literals passed as `%s` arguments in `LOG_STR_LITERAL()` so they
@@ -278,7 +295,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           `from esphome.components.my_component import DOMAIN`. Keep it in alphabetical order with the other
           metadata constants. CI (`lint_component_domain`) fails without it.
         - `DEPENDENCIES`: List of required components
-        - `AUTO_LOAD`: Components to automatically load
+        - `AUTO_LOAD`: Components to automatically load. Not a way to put entities under the component's
+          own key; see "Entities of a hub" below.
         - `CONFLICTS_WITH`: Incompatible components
         - `CODEOWNERS`: GitHub usernames responsible for maintenance
         - `MULTI_CONF`: Whether multiple instances are allowed
@@ -370,6 +388,26 @@ file does, and it is the authority when they disagree. The most useful starting 
               var = await switch.new_switch(config)
           ```
 
+        - **Entities of a hub:** a new component's entities go in platform files (`sensor.py`,
+          `binary_sensor.py`, ...) that take the hub's id, never under the hub's own key with their platforms
+          added to `AUTO_LOAD` to make that work. Auto loading a platform because the C++ uses its type is
+          fine. See https://developers.esphome.io/architecture/components/#exposing-multiple-entities.
+          ```yaml
+          # Bad - entities under the hub's key
+          my_hub:
+            connected:
+              name: Connected
+
+          # Good - the hub, then one platform entry that holds its entities
+          my_hub:
+            id: hub1
+          binary_sensor:
+            - platform: my_hub
+              my_hub_id: hub1  # optional with a single hub
+              connected:
+                name: Connected
+          ```
+
         - **Optional child entities of a hub:** bind the config once with `sensor.sub_sensors(config)` (or
           `sub_binary_sensors`, `sub_text_sensors`, `sub_buttons`, `sub_switches`, `sub_numbers`,
           `sub_selects` in their domains), adding `parent=hub` for entities that derive from `Parented<T>`,
@@ -380,14 +418,40 @@ file does, and it is the authority when they disagree. The most useful starting 
           itself, `hub` for one fetched with `cg.get_variable`) so the calls fit on one line. Loops whose
           setter also takes an index, such as `set_gate_threshold(x, n)`, stay as they are.
           ```python
+          # my_hub/sensor.py
           async def to_code(config):
-              var = cg.new_Pvariable(config[CONF_ID])
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
               sensors = sensor.sub_sensors(config)
-              await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
-              await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
-              buttons = button.sub_buttons(config, parent=var)
-              await buttons(CONF_RESTART, var.set_restart_button)
+              await sensors(CONF_TEMPERATURE, hub.set_temperature_sensor)
+              await sensors(CONF_HUMIDITY, hub.set_humidity_sensor)
+
+
+          # my_hub/button.py
+          async def to_code(config):
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
+              buttons = button.sub_buttons(config, parent=hub)
+              await buttons(CONF_RESTART, hub.set_restart_button)
           ```
+
+        - **Pins and referenced components:** set them with `await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])`
+          and `await cg.add_variable(var.set_bus, config[CONF_BUS_ID])`; both skip a `None` value, so pass
+          `config.get(KEY)` for an optional key, and return what they created. Use `cg.register_parented` for `set_parent`.
+
+        - **Hub forwarding entities need no C++ class:** a button, switch, number or select that only calls its hub
+          uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
+          and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
+          `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the state.
+          ```python
+          switches = switch.sub_switches(config, parent=hub)
+          await switches(CONF_BLUETOOTH, None, apply="set_bluetooth(state)", publish="after")
+          ```
+
+        - **Other codegen helpers:** `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`,
+          `spi.new_spi_component`, `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`)
+          constructs, registers and attaches in one call; `display.add_writer(var, config)` sets the lambda;
+          `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict; `button.restart_button_schema(cls)` (and
+          `factory_reset_`, `query_`) are button presets; `fv.get_declaring_config(id)` finds a hub's config in
+          final validation.
 
 *   **Automations (Triggers, Actions, Conditions):**
 

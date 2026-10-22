@@ -1270,6 +1270,9 @@ class MockObj(Expression):
         return MockObj(op)
 
 
+_ENUM_NON_ALNUM = re.compile(r"[^A-Za-z0-9]")
+
+
 class MockObjEnum(MockObj):
     def __init__(self, *args, **kwargs):
         self._enum = kwargs.pop("enum")
@@ -1288,6 +1291,17 @@ class MockObjEnum(MockObj):
 
     def __repr__(self):
         return f"MockObj<{str(self.base)}>"
+
+    def options(self, *names: str, prefix: str = "") -> dict[str, "MockObj"]:
+        """Map option names to prefix + NAME enumerators (non-alphanumerics become "_"), for cv.enum."""
+        enumerators = {
+            name: prefix + _ENUM_NON_ALNUM.sub("_", name).upper() for name in names
+        }
+        if len(set(enumerators.values())) != len(names):
+            raise ValueError(f"Option names must map to distinct enumerators: {names}")
+        return {
+            name: getattr(self, enumerator) for name, enumerator in enumerators.items()
+        }
 
 
 class MockObjClass(MockObj):

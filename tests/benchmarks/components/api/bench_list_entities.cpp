@@ -16,7 +16,7 @@ static ListEntitiesSensorResponse make_sensor_response() {
   ListEntitiesSensorResponse msg;
   msg.object_id = StringRef::from_lit("living_room_temperature");
   msg.key = 0x12345678;
-  msg.name = StringRef::from_lit("Living Room Temperature");
+  msg.name = ProgmemStringRef(StringRef::from_lit("Living Room Temperature"));
 #ifdef USE_ENTITY_ICON
   msg.icon = StringRef::from_lit("mdi:thermometer");
 #endif
@@ -87,7 +87,7 @@ static ListEntitiesBinarySensorResponse make_binary_sensor_response() {
   ListEntitiesBinarySensorResponse msg;
   msg.object_id = StringRef::from_lit("front_door_contact");
   msg.key = 0xAABBCCDD;
-  msg.name = StringRef::from_lit("Front Door Contact");
+  msg.name = ProgmemStringRef(StringRef::from_lit("Front Door Contact"));
 #ifdef USE_ENTITY_ICON
   msg.icon = StringRef::from_lit("mdi:door");
 #endif
@@ -176,7 +176,7 @@ static ListEntitiesLightResponse make_light_response() {
   ListEntitiesLightResponse msg;
   msg.object_id = StringRef::from_lit("kitchen_ceiling_light");
   msg.key = 0x55667788;
-  msg.name = StringRef::from_lit("Kitchen Ceiling Light");
+  msg.name = ProgmemStringRef(StringRef::from_lit("Kitchen Ceiling Light"));
 #ifdef USE_ENTITY_ICON
   msg.icon = StringRef::from_lit("mdi:ceiling-light");
 #endif

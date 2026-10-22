@@ -35,7 +35,7 @@ class MockUARTComponent : public uart::UARTComponent {
 
   size_t available() override { return this->rx.size(); }
 
-  MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
+  MOCK_METHOD(bool, peek_byte, (uint8_t *data), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
 #if defined(USE_ESP8266) || defined(USE_ESP32)
@@ -51,9 +51,9 @@ class TestableAPCProteousCover : public APCProteousCover {
   using APCProteousCover::MAX_RESPONSE_LEN;
   using APCProteousCover::command_retries_;
   using APCProteousCover::last_command_tx_;
+  using APCProteousCover::line_reader_;
   using APCProteousCover::pending_command_;
   using APCProteousCover::pending_command_time_;
-  using APCProteousCover::rx_len_;
   using APCProteousCover::target_position_;
 };
 
