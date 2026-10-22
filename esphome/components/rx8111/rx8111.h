@@ -48,18 +48,23 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
 
   static constexpr uint32_t BOOT_RETRY_DELAY_MS = 1000;
 
-  enum Warning : uint8_t {
+  enum Warning : uint16_t {
     WARN_CALENDAR = 1 << 0,
     WARN_EVENT_POLL = 1 << 1,
     WARN_BOOT_ALARM = 1 << 2,
     WARN_BOOT_TIMER = 1 << 3,
+    WARN_WRITE_TIME = 1 << 4,
+    WARN_RUNTIME_ALARM = 1 << 5,
+    WARN_RUNTIME_TIMER = 1 << 6,
+    WARN_ALARM_FLAG_CLEAR = 1 << 7,
+    WARN_TIMER_FLAG_CLEAR = 1 << 8,
   };
 
   bool set_stop_bit_(bool stop);
   bool read_calendar_(ESPTime &rtc_time);
   void set_calendar_warning_(const LogString *message);
-  void set_warning_(uint8_t bit, const LogString *message);
-  void clear_warning_(uint8_t bit);
+  void set_warning_(uint16_t bit, const LogString *message);
+  void clear_warning_(uint16_t bit);
   void check_event_flags_();
   bool program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day);
   bool set_alarm_interrupt_(bool enabled);
@@ -82,7 +87,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool timer_flag_seen_{false};
   bool timer_retained_event_pending_{false};
   bool event_polling_started_{false};
-  uint8_t warnings_{0};
+  uint16_t warnings_{0};
   bool boot_timer_in_progress_{false};
   bool boot_alarm_event_seen_{false};
   bool boot_alarm_in_progress_{false};

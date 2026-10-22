@@ -178,6 +178,89 @@ TEST_F(RX8111Test, I2CFailuresDoNotSyncOrLeaveTheCounterStopped) {
   EXPECT_EQ(this->bus_.regs[CONTROL] & 1, 0);
 }
 
+TEST_F(RX8111Test, WriteFailureClearsOnSuccessfulWriteButPreservesEventPollWarning) {
+  this->bus_.fail_write = SEC;
+  this->rtc_.write_time();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_write = -1;
+  this->rtc_.write_time();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+
+  this->rtc_.set_alarm_enabled(true);
+  ASSERT_TRUE(this->rtc_.set_alarm(1, 0xFF, 0xFF, 0xFF, 0xFF));
+  this->bus_.fail_read = FLAG;
+  this->rtc_.update();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = -1;
+  this->bus_.fail_write = FLAG;
+  this->rtc_.write_time();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_write = -1;
+  this->rtc_.write_time();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->rtc_.update();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, RuntimeAlarmFailureRecoversOnlyAfterSuccessfulAlarmRequest) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->bus_.fail_write = MIN_ALARM;
+  EXPECT_FALSE(this->rtc_.set_alarm(1, 0xFF, 0xFF, 0xFF, 0xFF));
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_write = -1;
+  this->rtc_.read_time();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  ASSERT_TRUE(this->rtc_.set_alarm(2, 0xFF, 0xFF, 0xFF, 0xFF));
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+
+  this->bus_.regs[FLAG] = 0x80;
+  this->rtc_.read_time();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = CONTROL;
+  EXPECT_FALSE(this->rtc_.unset_alarm());
+  this->bus_.fail_read = -1;
+  ASSERT_TRUE(this->rtc_.unset_alarm());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->rtc_.write_time();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, RuntimeTimerAndFlagClearFailuresRecoverIndependently) {
+  this->rtc_.write_time();
+  this->rtc_.set_timer_count(2);
+  this->bus_.fail_read = EXTENSION;
+  EXPECT_FALSE(this->rtc_.start_timer());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_read = -1;
+  ASSERT_TRUE(this->rtc_.start_timer());
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+
+  this->bus_.fail_write = FLAG;
+  EXPECT_FALSE(this->rtc_.clear_alarm_flag());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_write = -1;
+  ASSERT_TRUE(this->rtc_.stop_timer());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  ASSERT_TRUE(this->rtc_.clear_timer_flag());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  ASSERT_TRUE(this->rtc_.clear_alarm_flag());
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, FailedBootTimerProgrammingRecoversOnRetry) {
+  this->rtc_.write_time();
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_configured(true);
+  this->bus_.fail_write = 0x1A;  // Timer reload register; boot does not clear a retained TF.
+  this->rtc_.setup();
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  this->bus_.fail_write = -1;
+  this->advance_retry_();
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+}
+
 TEST_F(RX8111Test, AlarmProgramsMaskedFieldsAndPreservesOtherControls) {
   this->bus_.regs[CONTROL] = 0x54;
   this->bus_.regs[EXTENSION] = 0xC8;

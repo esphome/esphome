@@ -92,7 +92,7 @@ void RX8111Component::configure_boot_timer_() {
 
 void RX8111Component::boot_config_result_(bool alarm, bool success) {
   auto &attempts = alarm ? this->boot_alarm_attempts_ : this->boot_timer_attempts_;
-  const uint8_t warning = alarm ? WARN_BOOT_ALARM : WARN_BOOT_TIMER;
+  const uint16_t warning = alarm ? WARN_BOOT_ALARM : WARN_BOOT_TIMER;
   ++attempts;
   if (success) {
     this->clear_warning_(warning);
@@ -144,12 +144,12 @@ void RX8111Component::update() {
 
 void RX8111Component::set_calendar_warning_(const LogString *message) { this->set_warning_(WARN_CALENDAR, message); }
 
-void RX8111Component::set_warning_(uint8_t bit, const LogString *message) {
+void RX8111Component::set_warning_(uint16_t bit, const LogString *message) {
   this->warnings_ |= bit;
   this->status_set_warning(message);
 }
 
-void RX8111Component::clear_warning_(uint8_t bit) {
+void RX8111Component::clear_warning_(uint16_t bit) {
   if ((this->warnings_ & bit) == 0)
     return;
   this->warnings_ &= ~bit;
@@ -236,7 +236,7 @@ void RX8111Component::write_time() {
     return;
   }
   if (!this->set_stop_bit_(true)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -246,19 +246,15 @@ void RX8111Component::write_time() {
   // Always try to restart the counter, even after a failed calendar write.
   const bool restarted = this->set_stop_bit_(false);
   if (!written || !restarted) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (!this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  if (this->warnings_ & ~WARN_CALENDAR)
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  this->clear_warning_(WARN_WRITE_TIME);
   this->clear_warning_(WARN_CALENDAR);
-  // A trusted write also recovers an untracked write error.
-  if (this->warnings_ == 0)
-    this->status_clear_warning();
   ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
            now.minute, now.second);
 }
@@ -334,10 +330,11 @@ bool RX8111Component::set_alarm(uint16_t second, uint16_t minute, uint16_t hour,
   // A newer runtime request supersedes pending boot programming.
   this->cancel_boot_retry_(true, false);
   if (!this->program_alarm_(second, minute, hour, weekday, day)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_RUNTIME_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->cancel_boot_retry_(true, true);
+  this->clear_warning_(WARN_RUNTIME_ALARM);
   this->boot_alarm_event_seen_ = true;
   this->start_event_polling_();
   return true;
@@ -364,7 +361,7 @@ bool RX8111Component::schedule_alarm_in(uint32_t seconds) {
 bool RX8111Component::unset_alarm() {
   this->cancel_boot_retry_(true, false);
   if (!this->set_alarm_interrupt_(false)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_RUNTIME_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->alarm_configured_ = false;
@@ -372,20 +369,22 @@ bool RX8111Component::unset_alarm() {
       !this->write_byte(RX8111_REG_MIN_ALARM, RX8111_ALARM_DISABLED) ||
       !this->write_byte(RX8111_REG_HOUR_ALARM, RX8111_ALARM_DISABLED) ||
       !this->write_byte(RX8111_REG_DAY_ALARM, RX8111_ALARM_DISABLED)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_RUNTIME_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->cancel_boot_retry_(true, true);
+  this->clear_warning_(WARN_RUNTIME_ALARM);
   return true;
 }
 
 bool RX8111Component::clear_alarm_flag() {
   // Write-zero-to-clear: ones protect every other flag, even one latched during this write.
   if (!this->write_byte(RX8111_REG_FLAG, static_cast<uint8_t>(~RX8111_FLAG_AF))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_ALARM_FLAG_CLEAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->alarm_flag_seen_ = false;
+  this->clear_warning_(WARN_ALARM_FLAG_CLEAR);
   return true;
 }
 
@@ -421,10 +420,11 @@ bool RX8111Component::start_timer() {
     // A partial configuration can leave either enable bit set. Disable both if the bus permits it.
     this->stop_timer();
     this->timer_enabled_ = false;
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_RUNTIME_TIMER, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->cancel_boot_retry_(false, true);
+  this->clear_warning_(WARN_RUNTIME_TIMER);
   this->timer_enabled_ = true;
   this->timer_retained_event_pending_ = false;
   this->start_event_polling_();
@@ -434,11 +434,14 @@ bool RX8111Component::start_timer() {
 bool RX8111Component::clear_timer_flag() {
   // Write-zero-to-clear without clearing other flags latched concurrently.
   if (!this->write_byte(RX8111_REG_FLAG, static_cast<uint8_t>(~RX8111_FLAG_TF))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    if (!this->boot_timer_in_progress_)
+      this->set_warning_(WARN_TIMER_FLAG_CLEAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->timer_flag_seen_ = false;
   this->timer_retained_event_pending_ = false;
+  if (!this->boot_timer_in_progress_)
+    this->clear_warning_(WARN_TIMER_FLAG_CLEAR);
   return true;
 }
 
@@ -451,12 +454,15 @@ bool RX8111Component::stop_timer() {
       !this->write_byte(RX8111_REG_EXTENSION, extension & ~RX8111_EXTENSION_TE) ||
       !this->read_byte(RX8111_REG_CONTROL, &control) ||
       !this->write_byte(RX8111_REG_CONTROL, control & ~RX8111_CONTROL_TIE)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    if (!this->boot_timer_in_progress_)
+      this->set_warning_(WARN_RUNTIME_TIMER, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->timer_enabled_ = false;
   if (!this->boot_timer_in_progress_)
     this->cancel_boot_retry_(false, true);
+  if (!this->boot_timer_in_progress_)
+    this->clear_warning_(WARN_RUNTIME_TIMER);
   return true;
 }
 
