@@ -9,6 +9,8 @@ from . import EpaperModel
 
 
 class JD79660(EpaperModel):
+    source_files = ("epaper_spi_jd79660.cpp",)
+
     def __init__(self, name, class_name="EPaperJD79660", fast_update=None, **kwargs):
         # Only a fast_update sequence lets the driver do anything but a full refresh
         kwargs.setdefault("partial_update", fast_update is not None)
@@ -87,6 +89,38 @@ jd79660.extend(
     ),
 )
 
+# Waveshare 2.13-G (V2 hardware/init revision, PCB marked "rev 2.1" or later)
+#
+# Vendor init derived from vendor sample code
+# <https://github.com/waveshareteam/e-Paper/blob/master/E-paper_Separate_Program/2in13_e-Paper_G/ESP32/EPD_2in13g_V2.cpp>
+# Compatible MIT license, see esphome/LICENSE file.
+#
+# Note: busy pin uses LOW=busy, HIGH=idle. Configure with inverted: true in YAML.
+# Note: panel is 122px wide, but vendor code declares the TRES register as a fixed
+# 124 on this revision. width=124 is declared here (rather than 122) purely so the
+# transferred bytes-per-row matches what the vendor init tells the IC to expect; the
+# extra 2 columns fall outside the visible glass. The model width must equal the
+# TRES value in initsequence, so overriding dimensions: in YAML brings the shear back.
+#
+# fmt: off
+jd79660.extend(
+    "Waveshare-2.13in-G",
+    width=124,
+    height=250,
+
+    initsequence=(
+        (0x61, 0x00, 0x7C, 0x00, 0xFA,),  # TRES: 124x250 fixed (124 = TRES stride value)
+        (0xE9, 0x01,),
+        # Power On (0x04): Must be early part of init seq = Disabled later!
+        (0x04,),
+    ),
+    fast_update=(
+        (0xE0, 0x02,),
+        (0xE6, 0x5A,),
+        (0xA5,),
+    ),
+)
+
 # Waveshare 7.5-H
 #
 # Vendor init derived from vendor sample code
@@ -130,7 +164,7 @@ jd79660.extend(
 # Note: busy pin uses LOW=busy, HIGH=idle.
 #
 # fmt: off
-jd79660.extend(
+gdey0213f51 = jd79660.extend(
     "goodisplay-gdey0213f51-2.13",
     width=128,
     height=250,
@@ -154,3 +188,13 @@ jd79660.extend(
         (0x04,),
     ),
 )
+
+# Waveshare 2.13-G (V1 hardware/init revision, older stock): the same panel and init as the Good
+# Display entry above, byte for byte, so it only adds the name. Vendor sample:
+# <https://github.com/waveshareteam/e-Paper/blob/master/E-paper_Separate_Program/2in13_e-Paper_G/ESP32/EPD_2in13g.cpp>
+# Compatible MIT license, see esphome/LICENSE file.
+#
+# Note: busy pin uses LOW=busy, HIGH=idle. Configure with inverted: true in YAML.
+# Note: width=128 is the TRES value the init sequence programs, not the 122 visible columns; overriding
+# dimensions: in YAML shears the image. Not tested on V1 hardware.
+gdey0213f51.extend("Waveshare-2.13in-G-V1")

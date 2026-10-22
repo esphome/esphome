@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -31,7 +32,7 @@ async def test_light_control_action(
 
         # Get entities
         entities = await client.list_entities_services()
-        light = next(e for e in entities[0] if e.object_id == "test_light")
+        light = require_entity(entities[0], "test_light", exact=True)
         buttons = {e.name: e for e in entities[0] if hasattr(e, "name")}
 
         async def wait_for_state(key: int, timeout: float = 5.0) -> Any:

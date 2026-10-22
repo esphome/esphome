@@ -39,9 +39,6 @@ static const std::string DOSING_MODE_CONTINUOUS = "Continuous";
 
 void EzoPMP::dump_config() {
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -177,6 +174,8 @@ void EzoPMP::read_command_result_() {
         case 3:
           third_parameter_buffer[position_in_parameter_buffer] = current_char;
           third_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
+          break;
+        default:
           break;
       }
       position_in_parameter_buffer++;

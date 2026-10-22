@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -70,8 +71,7 @@ async def test_script_queued_idle_loop(
         await asyncio.wait_for(boot_disabled, timeout=5.0)
 
         _, services = await client.list_entities_services()
-        run_twice = next((s for s in services if s.name == "run_twice"), None)
-        assert run_twice is not None, "run_twice service not found"
+        run_twice = require_service(services, "run_twice")
         await client.execute_service(run_twice, {})
 
         # Queueing the second instance must re-enable the loop
