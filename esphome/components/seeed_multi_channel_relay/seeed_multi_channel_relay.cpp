@@ -1,72 +1,69 @@
 #include "seeed_multi_channel_relay.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::seeed_multi_channel_relay {
 
 ESPHOME_LOG_TAG(TAG, "seeed_multi_channel_relay");
 
-void SeeedMultiChannelRelay::channel_ctrl_(uint8_t state) {
-  this->channel_state_ = state;
-  this->write1_byte_(CMD_CHANNEL_CTRL, state);
+static constexpr uint8_t CMD_CHANNEL_CTRL = 0x10;
+static constexpr uint8_t CMD_SAVE_I2C_ADDR = 0x11;
+static constexpr uint8_t CMD_READ_FIRMWARE_VER = 0x13;
+
+void SeeedMultiChannelRelay::setup() {
+  if (this->change_address_to_ != 0 && this->change_address_to_ != this->address_)
+    this->apply_address_change_();
+  if (!this->read_firmware_version_()) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+#ifdef USE_SWITCH
+  // The board has no state read-back and powers up with every relay off, so restore_mode decides
+  for (switch_::Switch *sw : this->switches_) {
+    if (sw != nullptr)
+      sw->restore();
+  }
+#endif
 }
 
-void SeeedMultiChannelRelay::turn_on_channel_(uint8_t channel) {
-  this->channel_state_ |= (1 << (channel - 1));
-  this->channel_ctrl_(channel_state_);
+void SeeedMultiChannelRelay::apply_address_change_() {
+  const uint8_t old_address = this->address_;
+  // A previous boot may already have stored the new address
+  this->set_i2c_address(this->change_address_to_);
+  if (this->read_firmware_version_())
+    return;
+  this->set_i2c_address(old_address);
+  if (this->write_byte(CMD_SAVE_I2C_ADDR, this->change_address_to_)) {
+    this->set_i2c_address(this->change_address_to_);
+    ESP_LOGI(TAG, "I2C address changed from 0x%02X to 0x%02X", old_address, this->change_address_to_);
+  }
 }
 
-void SeeedMultiChannelRelay::turn_off_channel_(uint8_t channel) {
-  this->channel_state_ &= ~(1 << (channel - 1));
-  this->channel_ctrl_(channel_state_);
+bool SeeedMultiChannelRelay::read_firmware_version_() {
+  return this->read_byte(CMD_READ_FIRMWARE_VER, &this->firmware_version_);
 }
 
 void SeeedMultiChannelRelay::dump_config() {
-  ESP_LOGCONFIG(TAG, "Seeed Multi Channel Relays:");
+  ESP_LOGCONFIG(TAG,
+                "Seeed Multi Channel Relay:\n"
+                "  Firmware version: %u",
+                this->firmware_version_);
   LOG_I2C_DEVICE(this);
 }
 
-/*! @brief Read a certain length of data to the specified register address. */
-uint8_t SeeedMultiChannelRelay::read1_byte_(uint8_t register_address) {
-  uint8_t data;
-  if (!this->status_comm_result(this->read_byte(register_address, &data), LOG_STR("Read from relay failed")))
-    return 0;
-  return data;
-}
-
-/*! @brief Control the on/off of the specified relay.
-  *  @param number Bit number of relay (1~8).
-    @param state OFF = 0, ON = 1 . */
-void SeeedMultiChannelRelay::relay_write(uint8_t number, bool state) {
-  if (state) {
-    this->turn_on_channel_(number);
-  } else {
-    this->turn_off_channel_(number);
-  }
-}
-
-void SeeedMultiChannelRelay::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Seeed Multi Channel Relay...");
-  ESP_LOGCONFIG(TAG, "Firmware version of the Seeed Multi Channel Relay %u", this->get_firmware_version());
-  if (this->address_changed_) {
-    this->write1_byte_(CMD_SAVE_I2C_ADDR, this->new_addr_);
-    this->set_i2c_address(this->new_addr_);
-    ESP_LOGCONFIG(TAG, "I2C address of control changed to %u", this->new_addr_);
-  }
-}
-
-void SeeedMultiChannelRelay::change_i2c_address(uint8_t new_addr) {
-  this->new_addr_ = new_addr;
-  address_changed_ = true;
-}
-
-uint8_t SeeedMultiChannelRelay::get_firmware_version() {
-  uint8_t firmware_from_device = this->read1_byte_(CMD_READ_FIRMWARE_VER);
-  return firmware_from_device;
-}
-
-/*! @brief Write a certain length of data to the specified register address. */
-void SeeedMultiChannelRelay::write1_byte_(uint8_t register_address, uint8_t data) {
-  this->status_comm_result(this->write_byte(register_address, data), LOG_STR("Write to relay failed"));
+bool SeeedMultiChannelRelay::set_relay(uint8_t channel, bool on) {
+  if (this->is_failed())
+    return false;
+  uint8_t value = this->channels_;
+  assign_bits(value, 1 << channel, on);
+  if (!this->status_comm_result(this->write_byte(CMD_CHANNEL_CTRL, value)))
+    return false;
+  this->channels_ = value;
+#ifdef USE_SWITCH
+  if (this->switches_[channel] != nullptr)
+    this->switches_[channel]->publish_state(on);
+#endif
+  return true;
 }
 
 }  // namespace esphome::seeed_multi_channel_relay
