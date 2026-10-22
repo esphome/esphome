@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import ble_client, time
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PASSWORD, CONF_PIN, CONF_TIME_ID
+from esphome.const import CONF_PASSWORD, CONF_PIN, CONF_TIME_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@epicRE"]
@@ -33,9 +33,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_client.register_ble_node(var, config)
+    var = await ble_client.new_ble_node_component(config)
 
     cg.add(var.set_user(config[CONF_USER]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
