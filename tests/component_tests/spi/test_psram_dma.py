@@ -98,6 +98,17 @@ def test_psram_dma_accepts_arduino_on_idf_5_5_3(
     assert config[CONF_PSRAM_DMA] is True
 
 
+def test_psram_dma_rejects_other_platforms(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """No ESP32 state to read a version from: the platform check comes first."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    CORE.loaded_integrations.add("psram")
+
+    with pytest.raises(cv.Invalid, match="only available on"):
+        _schema()({CONF_PSRAM_DMA: True})
+
+
 def test_psram_dma_rejects_older_arduino(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
