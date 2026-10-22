@@ -9,6 +9,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
     get_esp32_variant,
+    idf_version,
     only_on_variant,
     request_wifi,
     require_mbedtls_tls,
@@ -232,12 +233,9 @@ def _validate_ap_mode(value: str) -> str:
 def _validate_dns_servers(value: list) -> list:
     if any(ip.is_unspecified for ip in value):
         raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
-    if len(value) > 1:
-        cv.require_framework_version(
-            esp_idf=cv.Version(6, 0, 0),
-            esp32_arduino=cv.Version(4, 0, 0, "alpha1"),
-            extra_message="The access point offers a second DNS server from ESP-IDF 6.0",
-        )(value)
+    # The underlying ESP-IDF version counts, whichever framework builds it
+    if len(value) > 1 and idf_version() < cv.Version(6, 0, 0):
+        raise cv.Invalid("The access point offers a second DNS server from ESP-IDF 6.0")
     return value
 
 
