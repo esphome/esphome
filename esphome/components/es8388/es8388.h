@@ -25,6 +25,19 @@ enum AdcInputMicLine : uint8_t {
   ADC_INPUT_MIC_DIFFERENCE,
 };
 
+/// @brief ADC PGA gain for microphone recording, per ES8388 datasheet reg 0x09.
+enum ES8388MicGain : uint8_t {
+  ES8388_MIC_GAIN_0DB = 0x00,
+  ES8388_MIC_GAIN_3DB = 0x11,
+  ES8388_MIC_GAIN_6DB = 0x22,
+  ES8388_MIC_GAIN_9DB = 0x33,
+  ES8388_MIC_GAIN_12DB = 0x44,
+  ES8388_MIC_GAIN_15DB = 0x55,
+  ES8388_MIC_GAIN_18DB = 0x66,
+  ES8388_MIC_GAIN_21DB = 0x77,
+  ES8388_MIC_GAIN_24DB = 0x88,
+};
+
 class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
 #ifdef USE_ES8388_SELECT
   SUB_SELECT(dac_output)
@@ -68,6 +81,10 @@ class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I
   bool set_dac_output(DacOutputLine line);
   bool set_adc_input_mic(AdcInputMicLine line);
 
+  /// @brief Sets the ADC PGA gain applied in setup().
+  /// @param gain The gain to apply to both ADC channels.
+  void set_mic_gain(ES8388MicGain gain) { this->mic_gain_ = gain; }
+
 #ifdef USE_ES8388_SELECT
   /// Line to apply in setup() instead of keeping what the codec reports.
   void set_dac_output_initial(DacOutputLine line) { this->dac_output_initial_ = line; }
@@ -79,6 +96,8 @@ class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I
   /// @param mute_state True to mute, false to unmute
   /// @return True if successful and false otherwise
   bool set_mute_state_(bool mute_state);
+
+  ES8388MicGain mic_gain_{ES8388_MIC_GAIN_0DB};
 
 #ifdef USE_ES8388_SELECT
   optional<DacOutputLine> dac_output_initial_{};
