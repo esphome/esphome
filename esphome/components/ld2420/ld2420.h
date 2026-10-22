@@ -21,11 +21,9 @@
 
 namespace esphome::ld2420 {
 
-#ifdef USE_HOST
 namespace testing {
 class LD2420OperatingModeTest;
 }  // namespace testing
-#endif
 
 static constexpr uint8_t CALIBRATE_SAMPLES = 64;
 // Energy frame is 45 bytes; +1 for null terminator, +4 so that a frame footer always lands
@@ -208,9 +206,8 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   StaticVector<LD2420Listener *, LD2420_LISTENER_COUNT> listeners_;
 #endif
 
-#ifdef USE_HOST
+  // clang-tidy compiles the host tests without USE_HOST, so the friend is unconditional
   friend class testing::LD2420OperatingModeTest;
-#endif
 };
 
 }  // namespace esphome::ld2420
