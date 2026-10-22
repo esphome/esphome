@@ -3,14 +3,17 @@
 import pytest
 from voluptuous import Invalid
 
-from esphome.components.wifi import _validate
+from esphome.components.wifi import _validate, validate_variant
 from esphome.const import (
+    CONF_AP,
     CONF_HIDDEN,
     CONF_NETWORKS,
     CONF_PASSWORD,
     CONF_SSID,
     CONF_USE_ADDRESS,
+    PlatformFramework,
 )
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 def test_hidden_folded_into_networks() -> None:
@@ -49,3 +52,23 @@ def test_hidden_without_ssid_rejected() -> None:
     """A 'hidden' option without an SSID has nothing to apply to and is rejected."""
     with pytest.raises(Invalid, match="hidden"):
         _validate({CONF_HIDDEN: True, CONF_USE_ADDRESS: "test.local"})
+
+
+def _set_zephyr_with_ap(set_core_config: SetCoreConfigCallable, variant: str) -> None:
+    set_core_config(
+        PlatformFramework.ZEPHYR_ZEPHYR,
+        platform_data={"variant": variant, "board": "some_board"},
+        full_config={"wifi": {CONF_AP: {}}},
+    )
+
+
+def test_ap_rejected_on_nrf70(set_core_config: SetCoreConfigCallable) -> None:
+    _set_zephyr_with_ap(set_core_config, "NRF5340")
+    # The final-validate chain passes the previous step's None, not the wifi config.
+    with pytest.raises(Invalid, match="'ap:' is not supported yet on the nRF70"):
+        validate_variant(None)
+
+
+def test_ap_allowed_on_zephyr_esp32(set_core_config: SetCoreConfigCallable) -> None:
+    _set_zephyr_with_ap(set_core_config, "ESP32C6")
+    validate_variant(None)
