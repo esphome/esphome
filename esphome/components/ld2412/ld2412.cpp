@@ -873,6 +873,12 @@ void LD2412Component::basic_conf_timeout_() {
     }
   }
 #endif
+#ifdef USE_SELECT
+  // The select already shows the level it asked for, so put back the one the module still has
+  if (this->out_pin_level_select_ != nullptr) {
+    this->out_pin_level_select_->publish_state(find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_));
+  }
+#endif
 }
 
 #ifdef USE_NUMBER
