@@ -563,14 +563,12 @@ void MQGasSensor::finish_calibration_() {
   if (valid < required) {
     // Name the reason each rejected sample failed, so a wrong `vcc:` is not
     // mistaken for a wiring fault just because the generic message says so.
-    this->log_message_(LOG_SEVERITY_ERROR,
-                       LOG_STR("calibration failed, %" PRIu32 " of %" PRIu32 " samples produced a valid RS (%" PRIu32
-                               " below %.2f V, %" PRIu32 " at or above vcc, %" PRIu32 " non-finite, %" PRIu32
-                               " with an unusable RS) - check the AO wiring "
-                               "and the supply"),
-                       valid, attempts, this->calibration_rejected_low_, MIN_VALID_VOLTAGE,
-                       this->calibration_rejected_high_, this->calibration_rejected_nonfinite_,
-                       this->calibration_rejected_rs_);
+    this->log_message_(
+        LOG_SEVERITY_ERROR,
+        LOG_STR("calibration failed, %" PRIu32 " of %" PRIu32 " valid RS: %" PRIu32 " below %.2f V, %" PRIu32
+                " at/above vcc, %" PRIu32 " non-finite, %" PRIu32 " bad RS - check AO wiring and supply"),
+        valid, attempts, this->calibration_rejected_low_, MIN_VALID_VOLTAGE, this->calibration_rejected_high_,
+        this->calibration_rejected_nonfinite_, this->calibration_rejected_rs_);
     this->schedule_calibration_retry_();
     return;
   }
