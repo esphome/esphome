@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 #include <memory>
@@ -24,10 +25,12 @@
 
 namespace esphome::ld24xx {
 
-// Helper to find index of value in constexpr array
-template<size_t N> optional<size_t> find_index(const uint32_t (&arr)[N], uint32_t value) {
+// Index of value in a constant table that may live in flash, or none
+template<typename T, size_t N> optional<size_t> find_index(const T (&arr)[N], T value) {
   for (size_t i = 0; i < N; i++) {
-    if (arr[i] == value)
+    T entry;
+    progmem_memcpy(&entry, &arr[i], sizeof(entry));
+    if (entry == value)
       return i;
   }
   return {};

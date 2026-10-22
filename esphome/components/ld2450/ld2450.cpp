@@ -63,7 +63,7 @@ PROGMEM_STRING_TABLE(DirectionStrings, "Approaching", "Moving away", "Stationary
 PROGMEM_STRING_TABLE(ZoneTypeStrings, "Disabled", "Detection", "Filter");
 
 // Baud rates in the same order as BaudRateStrings for index-based lookup
-constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
+static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
 
 // LD2450 UART Serial Commands
 static constexpr uint8_t CMD_ENABLE_CONF = 0xFF;
