@@ -2808,3 +2808,11 @@ def test_discover_user_yaml_files_lists_only_existing_files_after_a_load_error(
     assert discovered.load_errors
     assert discovered.files == [entry.resolve()]
     assert list(discovered.aliases) == [entry.resolve()]
+
+
+def test_dump_literal_inside_a_shared_container_keeps_the_container() -> None:
+    """A literal must not take over the alias of the list that holds it."""
+    shared = [yaml_util.make_literal({"x": "y"})]
+    out = yaml_util.dump({"a": shared, "b": shared})
+    loaded = yaml.load(out.replace("!literal", ""), Loader=yaml.SafeLoader)
+    assert loaded == {"a": [{"x": "y"}], "b": [{"x": "y"}]}
