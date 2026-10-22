@@ -124,13 +124,15 @@ TEST_F(MidiParserTest, RealTimeMessageInsideAChannelMessageLeavesItIntact) {
   EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0x90, 0x3C, 0x40}));
 }
 
-TEST_F(MidiParserTest, SysexDiscardsAPartialChannelMessage) {
+TEST_F(MidiParserTest, SysexCutsAPartialChannelMessageShort) {
   this->feed_({HDR, TS, 0x90, 0x3C, TS, 0xF0, 0x01, TS, 0xF7, 0x40});
-  ASSERT_EQ(this->messages_.size(), 2u);
-  EXPECT_EQ(this->messages_[0].type, MessageType::SYSEX);
+  ASSERT_EQ(this->messages_.size(), 3u);
+  EXPECT_EQ(this->messages_[0].type, MessageType::INCOMPLETE);
+  EXPECT_EQ(this->messages_[0].bytes, std::vector<uint8_t>({0x90, 0x3C}));
+  EXPECT_EQ(this->messages_[1].type, MessageType::SYSEX);
   // No status is in effect after a SysEx, so the stray data byte does not finish the Note On
-  EXPECT_EQ(this->messages_[1].type, MessageType::UNKNOWN);
-  EXPECT_EQ(this->messages_[1].bytes, std::vector<uint8_t>({0x40}));
+  EXPECT_EQ(this->messages_[2].type, MessageType::UNKNOWN);
+  EXPECT_EQ(this->messages_[2].bytes, std::vector<uint8_t>({0x40}));
 }
 
 TEST_F(MidiParserTest, SystemCommonMessageWithTwoDataBytes) {
@@ -262,10 +264,12 @@ TEST_F(MidiParserTest, EmptyAndSingleByteInputAreHandled) {
   EXPECT_EQ(this->messages_.size(), 1u);
 }
 
-TEST_F(MidiParserTest, IncompleteMessageIsDiscardedWhenANewStatusByteArrives) {
+TEST_F(MidiParserTest, IncompleteMessageIsReportedWhenANewStatusByteArrives) {
   this->feed_({HDR, TS, 0x90, 0x3C, TS, 0xB0, 0x07, 0x10});
-  ASSERT_EQ(this->messages_.size(), 1u);
-  EXPECT_EQ(this->messages_[0].type, MessageType::CONTROL_CHANGE);
+  ASSERT_EQ(this->messages_.size(), 2u);
+  EXPECT_EQ(this->messages_[0].type, MessageType::INCOMPLETE);
+  EXPECT_EQ(this->messages_[0].bytes, std::vector<uint8_t>({0x90, 0x3C}));
+  EXPECT_EQ(this->messages_[1].type, MessageType::CONTROL_CHANGE);
 }
 
 TEST_F(MidiParserTest, MultipleMessagesInOnePacket) {

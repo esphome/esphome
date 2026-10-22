@@ -139,8 +139,12 @@ void MidiParser::feed(const uint8_t *data, size_t length, MidiMessageHandler han
       this->emit_(MessageType::SYSTEM_REAL_TIME, data + i, 1, handler, ctx);
       continue;
     }
-    // Any other status byte discards a message still being assembled
-    this->current_length_ = 0;
+    // Any other status byte cuts a message still being assembled short
+    if (this->current_length_ > 0) {
+      const uint16_t length = this->current_length_;
+      this->current_length_ = 0;
+      this->emit_(MessageType::INCOMPLETE, this->current_message_, length, handler, ctx);
+    }
     if (byte == STATUS_SYSEX_END) {
       if (this->sysex_active_) {
         this->sysex_push_(STATUS_SYSEX_END);

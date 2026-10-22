@@ -139,6 +139,10 @@ void BLEMidi::handle_message_(const MidiMessage &message) {
              this->parser_.sysex_capacity());
     return;
   }
+  if (message.type == MessageType::INCOMPLETE) {
+    ESP_LOGW(TAG, "MIDI message 0x%02X dropped: cut short by another status byte", message.status());
+    return;
+  }
   if (message.type == MessageType::UNKNOWN) {
     ESP_LOGW(TAG, "Undecodable MIDI byte 0x%02X", message.status());
     return;
@@ -211,34 +215,42 @@ bool BLEMidi::write_midi_(const uint8_t *midi_bytes, size_t length) {
   return this->write_packet_(packet, length);
 }
 
-void BLEMidi::send_channel_(uint8_t status, uint8_t channel, uint8_t data1, uint8_t data2, size_t length) {
-  // Validation covers constants only; a lambda can return any value, and masking it would send a different message
-  if (channel > 0x0F || data1 > 0x7F || data2 > 0x7F) {
-    ESP_LOGW(TAG, "Cannot send: channel %u or value %u/%u out of range", channel, data1, data2);
+void BLEMidi::send_channel_(uint8_t status, int32_t channel, int32_t data1, int32_t data2, size_t length) {
+  // Validation covers constants only; a lambda can return any value, and masking it would send a different message.
+  // The values arrive unnarrowed so a negative or wrapped one is caught here (the unsigned compare covers negatives).
+  if (static_cast<uint32_t>(channel) > 0x0F || static_cast<uint32_t>(data1) > 0x7F ||
+      static_cast<uint32_t>(data2) > 0x7F) {
+    ESP_LOGW(TAG, "Cannot send: channel %" PRId32 " or value %" PRId32 "/%" PRId32 " out of range", channel, data1,
+             data2);
     return;
   }
-  const uint8_t bytes[3] = {static_cast<uint8_t>(status | channel), data1, data2};
+  const uint8_t bytes[3] = {static_cast<uint8_t>(status | channel), static_cast<uint8_t>(data1),
+                            static_cast<uint8_t>(data2)};
   this->write_midi_(bytes, length);
 }
 
-void BLEMidi::send_note_on(uint8_t note, uint8_t velocity, uint8_t channel) {
+void BLEMidi::send_note_on(int32_t note, int32_t velocity, int32_t channel) {
   this->send_channel_(STATUS_NOTE_ON, channel, note, velocity, 3);
 }
 
-void BLEMidi::send_note_off(uint8_t note, uint8_t velocity, uint8_t channel) {
+void BLEMidi::send_note_off(int32_t note, int32_t velocity, int32_t channel) {
   this->send_channel_(STATUS_NOTE_OFF, channel, note, velocity, 3);
 }
 
-void BLEMidi::send_control_change(uint8_t control_number, uint8_t value, uint8_t channel) {
+void BLEMidi::send_control_change(int32_t control_number, int32_t value, int32_t channel) {
   this->send_channel_(STATUS_CONTROL_CHANGE, channel, control_number, value, 3);
 }
 
-void BLEMidi::send_program_change(uint8_t program, uint8_t channel) {
+void BLEMidi::send_program_change(int32_t program, int32_t channel) {
   this->send_channel_(STATUS_PROGRAM_CHANGE, channel, program, 0, 2);
 }
 
-void BLEMidi::send_pitch_bend(int16_t value, uint8_t channel) {
-  const uint16_t unsigned_value = static_cast<uint16_t>(clamp<int32_t>(value, -8192, 8191) + 8192);
+void BLEMidi::send_pitch_bend(int32_t value, int32_t channel) {
+  if (value < -8192 || value > 8191) {
+    ESP_LOGW(TAG, "Cannot send: pitch bend %" PRId32 " out of range", value);
+    return;
+  }
+  const uint16_t unsigned_value = static_cast<uint16_t>(value + 8192);
   this->send_channel_(STATUS_PITCH_BEND, channel, unsigned_value & 0x7F, unsigned_value >> 7, 3);
 }
 
@@ -253,7 +265,19 @@ void BLEMidi::send_sysex(const uint8_t *payload, size_t length) {
   this->write_packet_(packet, framed);
 }
 
-void BLEMidi::send_raw(const uint8_t *bytes, size_t length) { this->write_midi_(bytes, length); }
+void BLEMidi::send_raw(const uint8_t *bytes, size_t length) {
+  // The packet carries one timestamp, in front of the first byte, so the payload has to be a single message
+  // with its status byte first; a SysEx goes through send_sysex
+  bool one_message = length > 0 && bytes[0] != STATUS_SYSEX_START && bytes[0] != STATUS_SYSEX_END;
+  for (size_t i = 1; one_message && i < length; i++) {
+    one_message = (bytes[i] & 0x80) == 0;
+  }
+  if (!one_message) {
+    ESP_LOGW(TAG, "Cannot send: raw payload must be one message, a status byte followed by data bytes");
+    return;
+  }
+  this->write_midi_(bytes, length);
+}
 
 }  // namespace esphome::ble_midi
 

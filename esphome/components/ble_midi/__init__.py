@@ -130,8 +130,9 @@ _NOTE_ACTION_SCHEMA = _action_schema(
     }
 )
 
-_CHANNEL = (CONF_CHANNEL, cg.uint8)
-_NOTE_CALL_ARGS = ((CONF_NOTE, cg.uint8), (CONF_VELOCITY, cg.uint8), _CHANNEL)
+# Wider than the wire values so the C++ range check sees a lambda's result before it is narrowed
+_CHANNEL = (CONF_CHANNEL, cg.int32)
+_NOTE_CALL_ARGS = ((CONF_NOTE, cg.int32), (CONF_VELOCITY, cg.int32), _CHANNEL)
 
 automation.register_apply_action(
     "ble_midi.send_note_on",
@@ -155,7 +156,7 @@ automation.register_apply_action(
     ),
     automation.ApplyCall(
         "send_control_change({}, {}, {})",
-        ((CONF_CONTROL_NUMBER, cg.uint8), (CONF_VALUE, cg.uint8), _CHANNEL),
+        ((CONF_CONTROL_NUMBER, cg.int32), (CONF_VALUE, cg.int32), _CHANNEL),
     ),
 )
 
@@ -163,7 +164,7 @@ automation.register_apply_action(
     "ble_midi.send_program_change",
     _action_schema({cv.Required(CONF_PROGRAM): cv.templatable(midi_data_byte)}),
     automation.ApplyCall(
-        "send_program_change({}, {})", ((CONF_PROGRAM, cg.uint8), _CHANNEL)
+        "send_program_change({}, {})", ((CONF_PROGRAM, cg.int32), _CHANNEL)
     ),
 )
 
@@ -174,7 +175,7 @@ automation.register_apply_action(
             cv.Required(CONF_VALUE): cv.templatable(cv.int_range(min=-8192, max=8191)),
         }
     ),
-    automation.ApplyCall("send_pitch_bend({}, {})", ((CONF_VALUE, cg.int16), _CHANNEL)),
+    automation.ApplyCall("send_pitch_bend({}, {})", ((CONF_VALUE, cg.int32), _CHANNEL)),
 )
 
 

@@ -49,13 +49,13 @@ class BLEMidi final : public Component, public ble_client::BLEClientNode {
   /// are enabled.
   bool is_ready() const { return this->notify_registered_; }
 
-  // Channel is 0-15, note/velocity/controller/value/program are 0-127.
-  void send_note_on(uint8_t note, uint8_t velocity, uint8_t channel);
-  void send_note_off(uint8_t note, uint8_t velocity, uint8_t channel);
-  void send_control_change(uint8_t control_number, uint8_t value, uint8_t channel);
-  void send_program_change(uint8_t program, uint8_t channel);
+  // Channel is 0-15, note/velocity/controller/value/program are 0-127; anything else is refused with a warning.
+  void send_note_on(int32_t note, int32_t velocity, int32_t channel);
+  void send_note_off(int32_t note, int32_t velocity, int32_t channel);
+  void send_control_change(int32_t control_number, int32_t value, int32_t channel);
+  void send_program_change(int32_t program, int32_t channel);
   /// Pitch bend value is -8192 to 8191, centered on zero.
-  void send_pitch_bend(int16_t value, uint8_t channel);
+  void send_pitch_bend(int32_t value, int32_t channel);
   /// Send a System Exclusive message. The 0xF0/0xF7 wrappers are added if the
   /// payload does not already carry them.
   void send_sysex(const uint8_t *payload, size_t length);
@@ -107,7 +107,7 @@ class BLEMidi final : public Component, public ble_client::BLEClientNode {
   /// Write a packet whose MIDI bytes already sit at packet + 2; the header and timestamp are filled in.
   bool write_packet_(uint8_t *packet, size_t midi_length);
   /// Channel-voice message: the status byte takes the channel; out-of-range values are refused.
-  void send_channel_(uint8_t status, uint8_t channel, uint8_t data1, uint8_t data2, size_t length);
+  void send_channel_(uint8_t status, int32_t channel, int32_t data1, int32_t data2, size_t length);
 
   MidiParser parser_;
   LazyCallbackManager<void()> connect_callback_;

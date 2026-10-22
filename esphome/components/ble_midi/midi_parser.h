@@ -21,12 +21,13 @@ enum class MessageType : uint8_t {
   SYSEX_INCOMPLETE,    // a SysEx cut short by another status byte or longer than the buffer
   SYSTEM_COMMON,       // 0xF1-0xF6, e.g. quarter frame, song position
   SYSTEM_REAL_TIME,    // 0xF8-0xFF, e.g. clock, start, stop
+  INCOMPLETE,          // a channel or system common message cut short by another status byte
   UNKNOWN,             // malformed/undecodable byte
 };
 
 PROGMEM_STRING_TABLE(MessageTypeNames, "NOTE_OFF", "NOTE_ON", "POLY_AFTERTOUCH", "CONTROL_CHANGE", "PROGRAM_CHANGE",
                      "CHANNEL_AFTERTOUCH", "PITCH_BEND", "SYSEX", "SYSEX_INCOMPLETE", "SYSTEM_COMMON",
-                     "SYSTEM_REAL_TIME", "UNKNOWN");
+                     "SYSTEM_REAL_TIME", "INCOMPLETE", "UNKNOWN");
 
 /// A decoded MIDI message. `data` points into the parser's storage or the packet being fed, so it is only valid
 /// for the duration of the handler.
