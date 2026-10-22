@@ -851,9 +851,7 @@ void LD2412Component::set_basic_config() {
     this->set_config_mode_(true);
     this->query_parameters_();
     this->set_config_mode_(false);
-    this->set_timeout(BASIC_CONF_TIMEOUT_ID, QUERY_TIMEOUT_MS, []() {
-      ESP_LOGE(TAG, "Command %02X not sent, the module did not report its settings", CMD_BASIC_CONF);
-    });
+    this->set_timeout(BASIC_CONF_TIMEOUT_ID, QUERY_TIMEOUT_MS, [this]() { this->basic_conf_timeout_(); });
     return;
   }
 
@@ -863,6 +861,18 @@ void LD2412Component::set_basic_config() {
   this->set_config_mode_(true);
   this->send_command_(CMD_BASIC_CONF, value, sizeof(value));
   this->set_config_mode_(false);
+}
+
+void LD2412Component::basic_conf_timeout_() {
+  ESP_LOGE(TAG, "Command %02X not sent, the module did not report its settings", CMD_BASIC_CONF);
+#ifdef USE_NUMBER
+  // The values on hand never reached the module, so forgetting them loses nothing
+  for (number::Number *n : {this->min_distance_gate_number_, this->max_distance_gate_number_, this->timeout_number_}) {
+    if (n != nullptr) {
+      n->publish_state(NAN);
+    }
+  }
+#endif
 }
 
 #ifdef USE_NUMBER
