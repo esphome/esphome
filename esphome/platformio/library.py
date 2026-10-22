@@ -627,7 +627,12 @@ def parse_properties_depends(depends: str) -> list[dict[str, str]]:
         if not (name := name.strip()):
             continue
         if constraint:
-            _LOGGER.debug("Ignoring version constraint on depends=%s", item.strip())
+            # A plain lower bound is met by the registry's current version; an
+            # exact or capped one may not be, so say so
+            log = (
+                _LOGGER.debug if constraint.lstrip().startswith(">=") else _LOGGER.info
+            )
+            log("Ignoring version constraint on depends=%s", item.strip())
         entries.append({"name": name})
     return entries
 
@@ -988,11 +993,17 @@ def _satisfying_key(
     package name (with the owner, when the dependency gives one) first, then by
     manifest name; never the requester itself."""
     wanted = name.lower()
+
+    def owner_of(key: str, component: ConvertedLibrary) -> str:
+        # The owner as requested, else the one the registry (or a git path) gave
+        head, sep, _ = component.name.partition("/")
+        return nodes[key].owner or (head if sep else "")
+
     candidates = [
         (key, component)
         for key, component in components.items()
         if key != requester
-        and (not owner or (nodes[key].owner or "").lower() == owner.lower())
+        and (not owner or owner_of(key, component).lower() == owner.lower())
     ]
     for key, _ in candidates:
         if (nodes[key].pkgname or key).lower() == wanted:
@@ -1350,9 +1361,9 @@ def convert_libraries(
         _prefetch_wave(wave, salt, backend.cache_key)
         for key, component in wave:
             node = nodes[key]
-            if frozenset(node.requirements) != resolved_requirements[key]:
-                # Requirements grew mid-wave: skip parsing a manifest the
-                # next wave will re-resolve and replace
+            if frozenset(node.requirements) != resolved_requirements.get(key):
+                # Requirements grew (or the source changed) mid-wave: skip parsing
+                # a manifest the next wave will re-resolve and replace
                 worklist.append(key)
                 continue
             component.download(salt=salt, namespace=backend.cache_key)
@@ -1502,13 +1513,24 @@ def convert_libraries(
             )
 
     # A library asked for explicitly beats one fetched by name that goes by the
-    # same name, whichever round brought it in; the settle step applied that
+    # same name, whichever round brought it in, and one package fetched by name
+    # under two spellings keeps a single node; the settle step applied the first
     # rule to the names it could match up front
     explicit = {k: c for k, c in components.items() if not fetched_by_name(k)}
     yielded = False
     for key in [k for k in components if fetched_by_name(k)]:
         node = nodes[key]
         match = _satisfying_key(node.pkgname, node.owner, key, nodes, explicit)
+        if match is None:
+            canonical = components[key].get_sanitized_name()
+            match = next(
+                (
+                    k
+                    for k, c in components.items()
+                    if k != key and c.get_sanitized_name() == canonical
+                ),
+                None,
+            )
         if match is None:
             continue
         _LOGGER.debug("Library %s fetched by name yields to %s", key, match)
@@ -1518,27 +1540,19 @@ def convert_libraries(
             if key in other.edges:
                 other.edges.remove(key)
                 other.edges.add(match)
+
     # A name the registry did not know may be satisfied by a library a later
-    # round pulled in; match those against the finished graph, with no refetch,
-    # and report the rest for every library that asked
+    # round pulled in; match those against the finished graph, with no refetch
+    late: list[tuple[str, str, str | None]] = []
     for key in components:
         node = nodes[key]
         for missing in node.edges & missed:
             match = _satisfying_key(
                 nodes[missing].pkgname, nodes[missing].owner, key, nodes, components
             )
-            if match is None:
-                _LOGGER.warning(
-                    "Dependency %s of %s is not in the registry; skipping", missing, key
-                )
-                continue
-            _LOGGER.info(
-                "Dependency %s of %s is not in the registry; satisfied by %s",
-                missing,
-                key,
-                match,
-            )
-            node.edges.add(match)
+            if match is not None:
+                node.edges.add(match)
+            late.append((key, missing, match))
 
     if yielded:
         # What only the yielded library needed is not built either
@@ -1551,6 +1565,22 @@ def convert_libraries(
             stack.extend(edge for edge in nodes[key].edges if edge in components)
         for key in [key for key in components if key not in reachable]:
             del components[key]
+
+    # Reported once the graph is final, for every library that asked and is built
+    for key, missing, match in late:
+        if key not in components:
+            continue
+        if match is None:
+            _LOGGER.warning(
+                "Dependency %s of %s is not in the registry; skipping", missing, key
+            )
+        else:
+            _LOGGER.info(
+                "Dependency %s of %s is not in the registry; satisfied by %s",
+                missing,
+                key,
+                match,
+            )
 
     # Two graph nodes that resolve to the same component name (e.g. a package
     # referenced both bare and as ``owner/name``) are not deduplicated and can

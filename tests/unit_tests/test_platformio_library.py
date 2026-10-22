@@ -1432,6 +1432,18 @@ def test_parse_properties_depends_reads_names_and_drops_constraints(
         entries = lib.parse_properties_depends(
             "Adafruit BusIO, Foo (>=1.2), ,Bar( <2 ), Baz (=1.0, Qux ()"
         )
+    levels = {
+        r.message.removeprefix("Ignoring version constraint on depends="): r.levelno
+        for r in caplog.records
+        if "Ignoring version constraint" in r.message
+    }
+    # A lower bound is met by the current version; a cap or pin may not be
+    assert levels == {
+        "Foo (>=1.2)": logging.DEBUG,
+        "Bar( <2 )": logging.INFO,
+        "Baz (=1.0": logging.INFO,
+        "Qux ()": logging.INFO,
+    }
     assert entries == [
         {"name": "Adafruit BusIO"},
         {"name": "Foo"},
@@ -1467,7 +1479,11 @@ def test_by_name_node_pinned_later_reports_a_requirement_conflict(
         convert_libraries([Library("esphome/A", None, None)], _backend())
 
 
-def test_by_name_fetch_yields_to_a_fork_pulled_in_later(tmp_path, monkeypatch) -> None:
+def test_by_name_fetch_yields_to_a_fork_pulled_in_later(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from platformio.package.exception import UnknownPackageError
+
     """A name fetched from the registry yields to a library another round
     pins explicitly under the same manifest name, so only the fork is built."""
     _patch_download_with_manifests(
@@ -1476,13 +1492,21 @@ def test_by_name_fetch_yields_to_a_fork_pulled_in_later(tmp_path, monkeypatch) -
         {
             "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
             "esphome/X": {"name": "X", "dependencies": [{"name": "C"}]},
-            # The upstream B pulls in D, which nothing else needs
+            # The upstream B pulls in D, which nothing else needs; D asks for a
+            # name the registry does not know
             "B": {"name": "B", "dependencies": {"esphome/D": "1.0.0"}},
-            "esphome/D": {"name": "D"},
+            "esphome/D": {"name": "D", "dependencies": [{"name": "Zed"}]},
             "C": {"name": "C", "dependencies": {"custom/B-fork": "1.0.0"}},
             "custom/B-fork": {"name": "B"},
         },
     )
+
+    def resolve(owner, pkgname, requirements):
+        if pkgname == "Zed":
+            raise UnknownPackageError("Zed")
+        return _resolution(owner, pkgname)
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
     emitted: list[str] = []
     top = convert_libraries(
         [Library("esphome/A", None, None), Library("esphome/X", None, None)],
@@ -1490,6 +1514,91 @@ def test_by_name_fetch_yields_to_a_fork_pulled_in_later(tmp_path, monkeypatch) -
     )
     assert [d.name for d in top[0].dependencies] == ["custom/B-fork"]
     assert sorted(emitted) == ["C", "custom/B-fork", "esphome/A", "esphome/X"]
+    # The miss belongs to a library that is not built, so it is not reported
+    assert "Zed" not in caplog.text
+
+
+def test_git_source_replacing_a_registry_key_in_the_same_wave(
+    tmp_path, monkeypatch
+) -> None:
+    """A manifest in one wave naming a key of the same wave as a git source
+    defers that key to the next wave instead of tripping over its stale record."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "o/A": {"name": "A", "dependencies": {"B": "https://github.com/o/B.git"}},
+            "o/B": {"name": "B"},
+        },
+    )
+    emitted: dict[str, ConvertedLibrary] = {}
+    top = convert_libraries(
+        [Library("o/A", "1.0.0", None), Library("o/B", "1.0.0", None)],
+        _backend(emit=lambda c: emitted.__setitem__(c.name, c)),
+    )
+    assert [c.name for c in top] == ["o/A", "o/B"]
+    assert isinstance(emitted["o/B"].source, GitSource)
+    assert [d.name for d in top[0].dependencies] == ["o/B"]
+
+
+def test_owner_qualified_name_matches_the_resolved_owner(tmp_path, monkeypatch) -> None:
+    """A version-less ``o/B`` is satisfied by a bare ``B`` pin the registry
+    resolved to owner ``o``, so the package is not fetched a second time."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [
+                    {"name": "B", "version": "1.0.0"},
+                    {"name": "B", "owner": "o"},
+                ],
+            },
+            "o/B": {"name": "B"},
+        },
+    )
+    asked: list[tuple[str | None, str]] = []
+
+    def resolve(owner, pkgname, requirements):
+        asked.append((owner, pkgname))
+        return _resolution(owner or "o", pkgname)
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
+    top = convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert [d.name for d in top[0].dependencies] == ["o/B"]
+    assert asked.count((None, "B")) == 1
+    assert ("o", "B") not in asked
+
+
+def test_two_spellings_fetched_by_name_fold_into_one_node(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Version-less ``B`` and ``o/B`` from two requesters resolve to one
+    package; only one copy is built and both requesters depend on it."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
+            "esphome/X": {"name": "X", "dependencies": [{"name": "B", "owner": "o"}]},
+            "o/B": {"name": "B"},
+        },
+    )
+    monkeypatch.setattr(
+        lib,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: _resolution(owner or "o", pkgname),
+    )
+    emitted: list[str] = []
+    top = convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/X", None, None)],
+        _backend(emit=lambda c: emitted.append(c.name)),
+    )
+    assert emitted.count("o/B") == 1
+    kept = top[0].dependencies[0]
+    assert top[1].dependencies == [kept]
+    assert "multiple names" not in caplog.text
 
 
 def test_registry_miss_resolves_again_as_a_git_source(tmp_path, monkeypatch) -> None:
