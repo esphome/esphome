@@ -745,6 +745,17 @@ def test_redacted_fails_closed(
         ),
         pytest.param(
             {
+                "fp.yaml": "fingerprint_grow:\n  - password: 12345678\n  - password: '12345678'\n"
+            },
+            {"fingerprint_grow": [{"password": SensitiveInt(12345678)}] * 2},
+            {
+                "fp.yaml": "fingerprint_grow:\n  - password: !secret 'fingerprint_grow_password'\n"
+                "  - password: !secret 'fingerprint_grow_password'\n"
+            },
+            id="int_credential_written_quoted",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": "substitutions:\n  base_pw: !secret wifi_password\n  pw: ${base_pw}\n"
                 "wifi:\n  password: ${pw}\n",
                 "secrets.yaml": _WIFI_SECRET,

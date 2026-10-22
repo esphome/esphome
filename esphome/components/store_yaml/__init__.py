@@ -530,8 +530,9 @@ def _generate_redacted_files(
                 node[i] = prepare(item, source, rel, path, in_vars)
         elif isinstance(node, Remove):
             removed.setdefault(rel, set()).add(path)
-        elif isinstance(node, int) and not isinstance(node, bool):
-            # At its own keys, or as a variable definition a credential may reference.
+        elif isinstance(node, (int, str)) and not isinstance(node, bool):
+            # An integer credential, quoted or not, at its own keys or as a variable
+            # definition a credential may reference.
             info = sensitive.get(str(node))
             at_key = info is not None and info.sensitive_keys.intersection(path[-1:])
             definition = (
