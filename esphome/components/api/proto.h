@@ -301,7 +301,7 @@ constexpr uint32_t VARINT_MAX_1_BYTE = 1 << 7;   // 128
 constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
 
 /// Generated encode body: writes the fields at pos, returns the cursor past them.
-using ProtoEncodeFn = uint8_t *(*) (const void *, uint8_t *PROTO_ENCODE_DEBUG_PARAM);
+using ProtoEncodeFn = uint8_t *(*)(const void *, uint8_t *PROTO_ENCODE_DEBUG_PARAM);
 
 /// Static encode helpers for the generated encode bodies. Each takes the write cursor by value and
 /// returns it advanced, so outlined calls at -Os chain through the return register instead of a
