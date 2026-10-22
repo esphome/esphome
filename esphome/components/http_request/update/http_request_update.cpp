@@ -26,8 +26,11 @@ ESPHOME_LOG_TAG(TAG, "http_request.update");
 
 // Wraps UpdateInfo + error for the task→main-loop handoff.
 struct TaskResult {
+  HttpRequestUpdate *update;
+  const char *source_url;  // the URL this check reads, fixed before the task starts
   update::UpdateInfo info;
   const LogString *error_str{nullptr};
+  bool source_url_retired{false};  // source_url was replaced while the check ran; freed when it ends
 };
 
 static const size_t MAX_READ_SIZE = 256;
@@ -84,8 +87,8 @@ void HttpRequestUpdate::release_source_url_() {
   this->source_url_owned_ = false;
 #ifdef USE_ESP32
   // A running check still reads the buffer it started with; the completion handler frees it.
-  if (this->update_task_handle_ != nullptr && this->source_url_ == this->task_source_url_) {
-    this->task_source_url_retired_ = true;
+  if (this->task_result_ != nullptr && this->source_url_ == this->task_result_->source_url) {
+    this->task_result_->source_url_retired = true;
     return;
   }
 #endif
@@ -99,29 +102,32 @@ void HttpRequestUpdate::update() {
   }
   this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
-  if (this->update_task_handle_ != nullptr) {
+  if (this->task_result_ != nullptr) {
     ESP_LOGW(TAG, "Update check already in progress");
     return;
   }
-  this->task_source_url_ = this->source_url_;
-  xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
+#endif
+  // Allocated once per check; every path in the task returns via its single defer, which frees it.
+  auto *result = new TaskResult();
+  result->update = this;
+  result->source_url = this->source_url_;
+#ifdef USE_ESP32
+  this->task_result_ = result;
+  if (xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, result, 1, nullptr) != pdPASS) {
+    this->task_result_ = nullptr;
+    delete result;
+  }
 #else
-  this->update_task(this);
+  this->update_task(result);
 #endif
 }
 
 void HttpRequestUpdate::update_task(void *params) {
-  HttpRequestUpdate *this_update = (HttpRequestUpdate *) params;
-
-  // Allocate once — every path below returns via the single defer at the end.
+  auto *result = static_cast<TaskResult *>(params);
+  HttpRequestUpdate *this_update = result->update;
   // On failure, error_str is set; on success it is nullptr.
-  auto *result = new TaskResult();
   auto *info = &result->info;
-#ifdef USE_ESP32
-  const char *source_url = this_update->task_source_url_;
-#else
-  const char *source_url = this_update->source_url_;
-#endif
+  const char *source_url = result->source_url;
 
   auto container = this_update->request_parent_->get(source_url);
 
@@ -245,11 +251,9 @@ defer:
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on supported toolchains.
   this_update->defer([this_update, result]() {
 #ifdef USE_ESP32
-    this_update->update_task_handle_ = nullptr;
-    if (this_update->task_source_url_retired_) {
-      delete[] this_update->task_source_url_;
-      this_update->task_source_url_retired_ = false;
-    }
+    this_update->task_result_ = nullptr;
+    if (result->source_url_retired)
+      delete[] result->source_url;
 #endif
     if (result->error_str != nullptr) {
       this_update->status_set_error(result->error_str);

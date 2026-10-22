@@ -13,6 +13,8 @@
 
 namespace esphome::http_request {
 
+struct TaskResult;
+
 class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
  public:
   void setup() override;
@@ -47,22 +49,15 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 
   static void update_task(void *params);
 #ifdef USE_ESP32
-  TaskHandle_t update_task_handle_{nullptr};
+  TaskResult *task_result_{nullptr};  // set while a check runs on the update task
 #endif
   uint8_t initial_check_remaining_{0};
 
  private:
   void release_source_url_();
 
-  // The two flags sit in the padding after initial_check_remaining_.
-  bool source_url_owned_{false};  // source_url_ was copied by a run-time setter
-#ifdef USE_ESP32
-  bool task_source_url_retired_{false};  // task_source_url_ was replaced while the check ran; freed when it ends
-#endif
+  bool source_url_owned_{false};  // source_url_ was copied by a run-time setter; sits in the padding above
   const char *source_url_{nullptr};
-#ifdef USE_ESP32
-  const char *task_source_url_{nullptr};  // the URL the running update task reads, fixed before it starts
-#endif
 };
 
 }  // namespace esphome::http_request
