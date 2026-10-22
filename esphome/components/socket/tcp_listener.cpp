@@ -34,7 +34,7 @@ void TcpListener::try_listen_(TcpClientLink &link) {
   link.note_attempt();
 }
 
-std::unique_ptr<Socket> TcpListener::accept() {
+std::unique_ptr<Socket> TcpListener::accept(TcpClientLink &clock) {
   struct sockaddr_storage peer{};
   socklen_t peer_len = sizeof(peer);
   auto client = this->listen_->accept_loop_monitored(reinterpret_cast<struct sockaddr *>(&peer), &peer_len);
@@ -43,9 +43,14 @@ std::unique_ptr<Socket> TcpListener::accept() {
     if (errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED || errno == EINTR) {
       return nullptr;
     }
-    // Out of sockets (ENFILE, EMFILE) or another error: keep listening and try again on the next loop.
-    // Closing the listen socket would turn away every client until the backoff has passed.
-    ESP_LOGW(this->tag_, "Accept failed: %d", errno);
+    int err = errno;
+    ESP_LOGW(this->tag_, "Accept failed: %d", err);
+    // Out of sockets or memory: closing would turn away every client until the backoff, so the next loop tries again.
+    // Any other error rebuilds the listener after the backoff instead of spinning on it.
+    if (err != ENFILE && err != EMFILE && err != ENOBUFS && err != ENOMEM) {
+      this->listen_.reset();
+      clock.note_attempt();
+    }
     return nullptr;
   }
   const auto *sa = reinterpret_cast<const struct sockaddr *>(&peer);
@@ -61,7 +66,7 @@ std::unique_ptr<Socket> TcpListener::accept() {
 }
 
 void TcpListener::accept_into_(TcpClientLink &link) {
-  auto client = this->accept();
+  auto client = this->accept(link);
   if (client != nullptr) {
     link.adopt(std::move(client));
   }
