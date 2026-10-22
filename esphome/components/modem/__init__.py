@@ -104,8 +104,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(k, default=1024): cv.int_range(min=129, max=65535)
                 for k in (CONF_TX_BUFFER_SIZE, CONF_RX_BUFFER_SIZE)
             },
+            # CMUX keeps 128 bytes of the DTE buffer back, so a smaller buffer could not be read
             cv.Optional(CONF_DTE_BUFFER_SIZE, default=1024): cv.int_range(
-                min=1, max=65535
+                min=256, max=65535
             ),
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="10min"
@@ -122,8 +123,9 @@ CONFIG_SCHEMA = cv.All(
     require_ipv4(DOMAIN),
 )
 
-# Leaving DATA_MODE or turning the radio off can block the loop for about 20 s
-MIN_WATCHDOG_TIMEOUT_S = 30
+# Leaving CMUX waits up to 30 s for PPP to exit before the channels close; a plain data mode exit
+# or the radio off command take about 20 s
+MIN_WATCHDOG_TIMEOUT_S = 45
 
 
 def FINAL_VALIDATE_SCHEMA(config: ConfigType) -> ConfigType:
@@ -131,7 +133,7 @@ def FINAL_VALIDATE_SCHEMA(config: ConfigType) -> ConfigType:
     if watchdog.total_seconds < MIN_WATCHDOG_TIMEOUT_S:
         raise cv.Invalid(
             f"modem needs 'esp32: {CONF_WATCHDOG_TIMEOUT}: {MIN_WATCHDOG_TIMEOUT_S}s' or more: "
-            "a modem command can block the main loop for about 20 s"
+            "a modem command can block the main loop for over 30 s"
         )
     return config
 

@@ -187,7 +187,8 @@ void ModemComponent::setup() {
     if (buffer_info.is_command_active) {
       return none;
     }
-    // The chunk is raw UART data; wait for the line end, then drop the line ends around the URC
+    // The chunk is raw UART data; wait for the line end, then drop the line ends around the URC.
+    // An unconsumed chunk is offered again in full with the next read, so a split line is seen whole.
     const uint8_t *start = buffer_info.new_data_start;
     size_t len = buffer_info.new_data_size;
     if (len == 0 || (start[len - 1] != '\r' && start[len - 1] != '\n')) {
@@ -207,7 +208,11 @@ void ModemComponent::setup() {
       ESP_LOGW(TAG, "URC dropped; the previous one is not published yet");
       return all;
     }
-    len = std::min(len, sizeof(this->urc_line_) - 1);
+    if (len >= sizeof(this->urc_line_)) {
+      ESP_LOGW(TAG, "URC of %u bytes cut to %u", static_cast<unsigned>(len),
+               static_cast<unsigned>(sizeof(this->urc_line_) - 1));
+      len = sizeof(this->urc_line_) - 1;
+    }
     memcpy(this->urc_line_, start, len);
     this->urc_line_[len] = '\0';
     this->urc_pending_.store(true, std::memory_order_release);
@@ -316,11 +321,18 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       break;
 
     case modem_mode::UNDEF: {
-      // One candidate per pass keeps each loop() pass short; the current baud was just probed
+      // One candidate per pass keeps each loop() pass short; unset candidates and the rate the detection
+      // above just probed are skipped
       const int bauds[] = {this->restored_baud_, this->baud_rate_, FALLBACK_BAUD_RATE};
-      const int baud = bauds[this->baud_index_++ % 3];
+      int baud = 0;
+      for (uint8_t i = 0; i != 3 && baud == 0; i++) {
+        const int candidate = bauds[this->baud_index_++ % 3];
+        if (candidate != 0 && candidate != this->current_baud_rate_) {
+          baud = candidate;
+        }
+      }
       if (baud == 0) {
-        return ModemComponentState::MODEM_ENABLING;
+        return this->retry_(ModemComponentState::MODEM_ENABLING, PROBE_RETRY_DELAY_MS);
       }
       if (uart_set_baudrate(this->uart_port_, baud) != ESP_OK) {
         ESP_LOGW(TAG, "UART rejected baud rate %d", baud);
@@ -491,6 +503,7 @@ ModemComponentState ModemComponent::handle_state_disconnecting_() {
   this->modem_synced_ = false;
   // COMMAND_MODE stops PPP and leaves CMUX; the manual exit only applies to a warm reboot
   bool clean = true;
+  App.feed_wdt();  // leaving CMUX can wait 30 s for PPP to exit, the watchdog floor covers that from here
   if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
     // The next enable() probes the mode again and retries the exit; the warning keeps this visible
     this->set_warning_(WARN_TEARDOWN, LOG_STR("Failed to leave data mode"));
@@ -571,7 +584,12 @@ SimResult ModemComponent::prepare_sim_() {
     ESP_LOGE(TAG, "SIM is PUK locked; unlock it in a phone");
     return SimResult::SIM_RESULT_FATAL;
   }
-  if (strstr(status, "PIN") == nullptr) {
+  // Only the plain SIM PIN takes pin_code; SIM PIN2 and the PH-* locks need other credentials
+  if (strncmp(status, "SIM PIN", 7) != 0 || status[7] == '2') {
+    if (strstr(status, "PIN") != nullptr) {
+      ESP_LOGE(TAG, "SIM lock %s needs a credential pin_code cannot provide", status);
+      return SimResult::SIM_RESULT_FATAL;
+    }
     ESP_LOGW(TAG, "SIM not ready: %s", status);  // e.g. NOT READY or NOT INSERTED
     return SimResult::SIM_RESULT_RETRY;
   }

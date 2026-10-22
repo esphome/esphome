@@ -1,5 +1,5 @@
 esp32:
-  watchdog_timeout: 30s
+  watchdog_timeout: 45s
 
 logger:
 
