@@ -38,6 +38,15 @@ ZephyrSPIDelegate::ZephyrSPIDelegate(ZephyrSPIBus *bus, uint32_t data_rate, SPIB
   this->cfg_.operation = build_operation(bit_order, mode);
 }
 
+// The driver skips a config at the address it applied last, so a delegate created later in this allocation
+// would run with the old settings: hand it the bus's own config before this one goes away.
+ZephyrSPIDelegate::~ZephyrSPIDelegate() {
+  if (this->bus_->active_ != this)
+    return;
+  this->bus_->active_ = nullptr;
+  spi_transceive(this->bus_->dev_, &this->bus_->idle_cfg_, nullptr, nullptr);
+}
+
 // The driver applies cfg_ (and the SCK idle level for CPOL) at the start of each transfer, so switch
 // it over with an empty transfer before CS goes low; otherwise SCK changes level while CS is active.
 void ZephyrSPIDelegate::begin_transaction() {

@@ -24,6 +24,9 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
     ESP_LOGE(TAG, "Device already registered");
     return this->devices_[device];
   }
+  if (this->spi_bus_ == nullptr) {
+    return SPIDelegate::NULL_DELEGATE;  // the bus failed in setup(); the device stays not ready
+  }
   SPIDelegate *delegate =
       this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin, release_device, write_only);  // NOLINT
   this->devices_[device] = delegate;
@@ -31,6 +34,9 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
 }
 
 void SPIComponent::unregister_device(SPIClient *device) {
+  if (this->spi_bus_ == nullptr) {
+    return;  // nothing was registered on a failed bus
+  }
   if (!this->devices_.contains(device)) {
     esph_log_e(TAG, "Device not registered");
     return;
@@ -73,6 +79,9 @@ void SPIComponent::dump_config() {
   LOG_PIN("  SDO Pin: ", this->sdo_pin_);
   for (size_t i = 0; i != this->data_pins_.size(); i++) {
     ESP_LOGCONFIG(TAG, "  Data pin %zu: GPIO%d", i, this->data_pins_[i]);
+  }
+  if (this->spi_bus_ == nullptr) {
+    return;
   }
   if (this->spi_bus_->is_hw()) {
     ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", this->interface_name_);

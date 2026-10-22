@@ -13,7 +13,10 @@ class ZephyrSPIBus : public SPIBus {
   friend class ZephyrSPIDelegate;
 
  public:
-  explicit ZephyrSPIBus(const device *dev) : dev_(dev) {}
+  explicit ZephyrSPIBus(const device *dev) : dev_(dev) {
+    this->idle_cfg_.frequency = IDLE_FREQUENCY;
+    this->idle_cfg_.operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(8);
+  }
 
   bool is_hw() override { return true; }
 
@@ -21,14 +24,20 @@ class ZephyrSPIBus : public SPIBus {
                             bool release_device, bool write_only) override;
 
  protected:
+  // The lowest rate the SPIM driver accepts; only ever applied with no device selected
+  static constexpr uint32_t IDLE_FREQUENCY = 125000;
+
   const device *dev_;
   // Delegate whose mode and frequency the driver last applied
   const ZephyrSPIDelegate *active_{nullptr};
+  // Applied when the active delegate is deleted, so the driver never keeps a pointer to a freed config
+  spi_config idle_cfg_{};
 };
 
 class ZephyrSPIDelegate : public SPIDelegate {
  public:
   ZephyrSPIDelegate(ZephyrSPIBus *bus, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin);
+  ~ZephyrSPIDelegate() override;
 
   void begin_transaction() override;
 
