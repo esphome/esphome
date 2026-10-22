@@ -272,11 +272,7 @@ bool RX8111Component::set_stop_bit_(bool stop) {
 }
 
 bool RX8111Component::set_alarm_interrupt_(bool enabled) {
-  uint8_t control;
-  if (!this->read_byte(RX8111_REG_CONTROL, &control))
-    return false;
-  control = enabled ? (control | RX8111_CONTROL_AIE) : (control & ~RX8111_CONTROL_AIE);
-  return this->write_byte(RX8111_REG_CONTROL, control);
+  return this->update_register(RX8111_REG_CONTROL, RX8111_CONTROL_AIE, enabled ? RX8111_CONTROL_AIE : 0);
 }
 
 bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day) {
