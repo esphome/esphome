@@ -2213,6 +2213,22 @@ def idf_version() -> cv.Version:
     return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
 
 
+def require_idf_version(
+    minimum: cv.Version, feature: str = "This feature"
+) -> Callable[[Any], Any]:
+    """Validator for an option that needs the underlying ESP-IDF at ``minimum`` or newer."""
+
+    def validator(value: Any) -> Any:
+        cv.only_on_esp32(value)
+        if (version := idf_version()) < minimum:
+            raise cv.Invalid(
+                f"{feature} requires ESP-IDF {minimum} or newer, got {version}"
+            )
+        return value
+
+    return validator
+
+
 def require_fatfs() -> None:
     """Mark that FATFS support is required by a component.
 

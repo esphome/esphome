@@ -9,9 +9,9 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
     get_esp32_variant,
-    idf_version,
     only_on_variant,
     request_wifi,
+    require_idf_version,
     require_mbedtls_tls,
     require_mbedtls_tls_extras,
 )
@@ -232,8 +232,8 @@ def _validate_ap_mode(value: str) -> str:
 def _validate_dns_servers(value: list) -> list:
     if any(ip.is_unspecified for ip in value):
         raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
-    if len(value) > 1 and CORE.is_esp32 and idf_version() < cv.Version(6, 0, 0):
-        raise cv.Invalid("The access point offers a second DNS server from ESP-IDF 6.0")
+    if len(value) > 1:
+        require_idf_version(cv.Version(6, 0, 0), "A second DNS server")(value)
     return value
 
 
