@@ -57,7 +57,6 @@ uart_mock:
           0x78, 0x00,
           0x19,
           0x64, 0x00,
-          0x00,
           0x55, 0x00,
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
@@ -69,17 +68,13 @@ uart_mock:
       inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
 
     # Phase 3 (t=400ms): Truncated frame (header + partial data, no footer)
-    # Starts with valid data frame header so parser accepts it.
-    # After this, buffer_pos_ = 8.
+    # Starts with a valid data frame header, so the parser waits for the 23 bytes its length announces.
     - delay: 100ms
       inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0x0D, 0x00, 0x02, 0xAA]
 
-    # Phase 4 (t=600ms): Overflow - inject 60 bytes of 0xFF (MAX_LINE_LENGTH=54)
-    # Buffer has 8 bytes from phase 3 (garbage in phase 2 was rejected).
-    # Overflow math: buffer_pos_ starts at 8, overflow triggers when
-    # buffer_pos_ reaches 53 (MAX_LINE_LENGTH - 1). Need 45 more bytes to
-    # fill positions 8-52, then byte 46 triggers overflow. After overflow,
-    # buffer_pos_ = 0 and remaining 0xFF bytes are rejected (don't match header).
+    # Phase 4 (t=600ms): 60 bytes of 0xFF
+    # The first 15 complete the truncated frame's 23 bytes without its footer, so it is dropped
+    # with an 'Invalid length' warning; the rest cannot start a header and are dropped too.
     - delay: 200ms
       inject_rx:
         [
@@ -91,8 +86,8 @@ uart_mock:
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]
 
-    # Phase 5 (t=700ms): Valid frame after overflow - recovery test
-    # Buffer was reset by overflow. This valid frame should parse correctly.
+    # Phase 5 (t=700ms): Valid frame after the garbage - recovery test
+    # The buffer is empty again, so this valid frame should parse correctly.
     # Moving target: 50cm, energy 100
     # Still target: 75cm, energy 80
     # detection_distance = 50 (moving target distance, since MOVE_BITMASK set)
@@ -108,7 +103,6 @@ uart_mock:
           0x4B, 0x00,
           0x50,
           0x32, 0x00,
-          0x00,
           0x55, 0x00,
           0xF8, 0xF7, 0xF6, 0xF5,
         ]

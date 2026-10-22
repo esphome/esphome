@@ -218,15 +218,13 @@ static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
   return 0;
 }
 
-// Length of the frame that opens the buffer, from the count after its header. A periodic frame has a check
-// byte after the counted bytes, a command frame only the footer. Returns 0 while the count is missing.
+// Length of the frame that opens the buffer: the header, the two byte count, the counted bytes (for a
+// periodic frame up to and including its check byte) and the footer. Returns 0 while the count is missing.
 static inline uint16_t frame_length(const uint8_t *buffer, uint8_t len) {
-  if (len < FRAME_LENGTH + 2) {
+  if (len < HEADER_FOOTER_SIZE + 2) {
     return 0;
   }
-  const uint16_t declared = encode_uint16(buffer[FRAME_LENGTH + 1], buffer[FRAME_LENGTH]);
-  const uint8_t check = validate_header_footer(DATA_FRAME_HEADER, buffer) ? 1 : 0;
-  return FRAME_LENGTH + 2 + declared + check + HEADER_FOOTER_SIZE;
+  return HEADER_FOOTER_SIZE + 2 + encode_uint16(buffer[FRAME_LENGTH + 1], buffer[FRAME_LENGTH]) + HEADER_FOOTER_SIZE;
 }
 
 void LD2412Component::dump_config() {
@@ -697,11 +695,14 @@ void LD2412Component::readline_(int readch) {
   if (readch < 0) {
     return;  // No data available
   }
-  // Only a frame header opens the buffer; other bytes are dropped until one starts
-  if (this->buffer_pos_ < HEADER_FOOTER_SIZE && readch != DATA_FRAME_HEADER[this->buffer_pos_] &&
-      readch != CMD_FRAME_HEADER[this->buffer_pos_]) {
-    this->buffer_pos_ = 0;
-    if (readch != DATA_FRAME_HEADER[0] && readch != CMD_FRAME_HEADER[0]) {
+  // Only a frame header opens the buffer; other bytes are dropped until one starts. The first byte
+  // picks the header, so the two headers cannot mix.
+  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
+    const uint8_t *header = this->buffer_data_[0] == DATA_FRAME_HEADER[0] ? DATA_FRAME_HEADER : CMD_FRAME_HEADER;
+    if (this->buffer_pos_ > 0 && readch != header[this->buffer_pos_]) {
+      this->buffer_pos_ = 0;
+    }
+    if (this->buffer_pos_ == 0 && readch != DATA_FRAME_HEADER[0] && readch != CMD_FRAME_HEADER[0]) {
       return;
     }
   }

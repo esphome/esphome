@@ -5,8 +5,8 @@ test_uart_mock_ld2412 (normal mode):
   1. Happy path - valid data frame publishes correct sensor values
   2. Garbage resilience - random bytes don't crash the component
   3. Truncated frame handling - partial frame doesn't corrupt state
-  4. Buffer overflow recovery - overflow resets the parser
-  5. Post-overflow parsing - next valid frame after overflow is parsed correctly
+  4. Truncated frame recovery - the frame is dropped once its length is reached
+  5. Post-garbage parsing - the next valid frame is parsed correctly
   6. TX logging - verifies LD2412 sends expected setup commands
 
 test_uart_mock_ld2412_engineering (engineering mode):
@@ -138,18 +138,18 @@ async def test_uart_mock_ld2412(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test LD2412 data parsing with happy path, garbage, overflow, and recovery."""
+    """Test LD2412 data parsing with happy path, garbage, a truncated frame, and recovery."""
     loop = asyncio.get_running_loop()
 
-    # Track overflow warning in logs
-    overflow_seen = loop.create_future()
+    # Track the warning for the dropped truncated frame in logs
+    resync_seen = loop.create_future()
 
     # Track TX data logged by the mock for assertions
     tx_log_lines: list[str] = []
 
     def line_callback(line: str) -> None:
-        if "Max command length exceeded" in line and not overflow_seen.done():
-            overflow_seen.set_result(True)
+        if "Invalid length" in line and not resync_seen.done():
+            resync_seen.set_result(True)
         # Capture all TX log lines from uart_mock
         if _is_tx(line):
             tx_log_lines.append(line)
@@ -204,7 +204,7 @@ async def test_uart_mock_ld2412(
         assert collector.sensor_states["detection_distance"][0] == pytest.approx(100.0)
 
         # Wait for the recovery frame (Phase 5) to be parsed
-        # This proves the component survived garbage + truncated + overflow
+        # This proves the component survived garbage + truncated frame + filler bytes
         await wait_or_fail(
             recovery_received,
             3.0,
@@ -212,10 +212,8 @@ async def test_uart_mock_ld2412(
             sensor_states=collector.sensor_states,
         )
 
-        # Verify overflow warning was logged
-        assert overflow_seen.done(), (
-            "Expected 'Max command length exceeded' warning in logs"
-        )
+        # Verify the truncated frame was dropped with a warning
+        assert resync_seen.done(), "Expected 'Invalid length' warning in logs"
 
         # Verify LD2412 sent setup commands (TX logging)
         assert len(tx_log_lines) > 0, "Expected TX log lines from uart_mock"
@@ -524,7 +522,7 @@ async def test_uart_mock_ld2412_truncated_answer(
     def line_callback(line: str) -> None:
         if "[W][ld2412" in line:
             warnings.append(line)
-        if "Dropping gate threshold answer" in line and not dropped.done():
+        if "Invalid length" in line and not dropped.done():
             dropped.set_result(True)
 
     # Gate bytes of the truncated answer
