@@ -99,6 +99,29 @@ class TcpClientLinkClock : public ::testing::Test {
     ASSERT_EQ(errno, EAGAIN);
     this->link_.set_socket(std::make_unique<Socket>(fds[0]));
   }
+  // The peer is a loopback listener on a free port. Its backlog completes a connect, nothing accepts.
+  uint16_t listen_on_loopback() {
+    this->peer_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    socklen_t len = sizeof(addr);
+    EXPECT_EQ(::bind(this->peer_fd_, reinterpret_cast<struct sockaddr *>(&addr), len), 0);
+    EXPECT_EQ(::listen(this->peer_fd_, 2), 0);
+    EXPECT_EQ(::getsockname(this->peer_fd_, reinterpret_cast<struct sockaddr *>(&addr), &len), 0);
+    return ntohs(addr.sin_port);
+  }
+  // One poll() starts the connect, the next one sees it finished, as two loop passes do.
+  bool connect_now() {
+    this->link_.poll();
+    if (!this->link_.has_socket()) {
+      return false;
+    }
+    struct pollfd pfd{this->link_.fd(), POLLOUT, 0};
+    ::poll(&pfd, 1, 1000);
+    this->link_.poll();
+    return this->link_.connected();
+  }
 
   LinkUnderTest link_;
   int peer_fd_{-1};
@@ -234,11 +257,11 @@ TEST(TcpClientLink, FatalWriteInsideFlushDropsTheLink) {
   EXPECT_FALSE(p.link_.connected());
 }
 
-TEST(TcpClientLink, QuietLinkClosesAfterTheTimeout) {
+// Adopted at 1000 with a 100 ms timeout and no byte since: up at 1099, closed at 1100.
+TEST(TcpClientLink, AdoptStartsTheIdleClock) {
+  set_loop_time(1000);
   LinkPeer p;
   p.link_.set_idle_timeout(100);
-  set_loop_time(1000);
-  p.link_.note_io();
   set_loop_time(1099);
   p.link_.check_idle();
   EXPECT_TRUE(p.link_.connected());
@@ -362,6 +385,26 @@ TEST(TcpClientLink, IdleCloseWaitsTheReconnectInterval) {
   EXPECT_TRUE(p.link_.in_backoff());
   set_loop_time(6100);
   EXPECT_FALSE(p.link_.in_backoff());
+}
+
+// Connected at 1000 with a 100 ms timeout and no byte since: up at 1099, closed at 1100.
+// check_idle() while down must not restart the 5000 ms backoff, so the link reconnects at 6100.
+TEST_F(TcpClientLinkClock, ConnectStartsTheIdleClock) {
+  this->link_.set_host("127.0.0.1");
+  this->link_.set_port(this->listen_on_loopback());
+  this->link_.set_idle_timeout(100);
+  this->link_.begin("link_test");
+  ASSERT_TRUE(this->connect_now());
+  set_loop_time(1099);
+  this->link_.check_idle();
+  EXPECT_TRUE(this->link_.connected());
+  set_loop_time(1100);
+  this->link_.check_idle();
+  ASSERT_FALSE(this->link_.connected());
+  set_loop_time(3000);
+  this->link_.check_idle();
+  set_loop_time(6100);
+  EXPECT_TRUE(this->connect_now());
 }
 
 }  // namespace esphome::socket::testing
