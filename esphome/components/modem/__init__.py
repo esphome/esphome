@@ -52,9 +52,12 @@ ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
 ModemComponentState = modem_ns.enum("ModemComponentState", is_class=True)
 
 
-def AUTO_LOAD(config: ConfigType) -> list[str]:
-    # The URC text sensor is the only entity the component owns
-    return ["network", "text_sensor"] if CONF_URC in config else ["network"]
+def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
+    # The URC text sensor is the only entity the component owns; tooling that
+    # resolves AUTO_LOAD without a config gets the full list
+    if config is None or CONF_URC in config:
+        return ["network", "text_sensor"]
+    return ["network"]
 
 
 # Each trigger fires on one state, and none while the component is failed
