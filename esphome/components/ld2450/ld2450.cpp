@@ -170,10 +170,10 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
-// Drop the frame at the start of the buffer, keeping bytes from the next frame header (or a partial
-// header at the end). Returns the new buffer length.
-static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
-  for (uint8_t start = 1; start < len; start++) {
+// Drop the first `start` bytes of the buffer and anything after them that does not begin a frame header
+// (a partial header at the end is kept). Returns the new buffer length.
+static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len, uint8_t start) {
+  for (; start < len; start++) {
     const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, len - start);
     if (std::memcmp(&buffer[start], CMD_FRAME_HEADER, n) == 0 ||
         std::memcmp(&buffer[start], DATA_FRAME_HEADER, n) == 0) {
@@ -829,13 +829,13 @@ void LD2450Component::readline_(int readch) {
     }
     const uint8_t total = this->buffer_pos_;
     if (frame_len <= MAX_LINE_LENGTH && this->handle_frame_(frame_len)) {
-      this->buffer_pos_ = total - frame_len;
-      std::memmove(this->buffer_data_, &this->buffer_data_[frame_len], this->buffer_pos_);
+      // Whatever follows the frame must itself begin with a header before the next pass reads it
+      this->buffer_pos_ = ld2450::drop_to_next_header(this->buffer_data_, total, frame_len);
     } else {
       // The footer is not where the length says, so the stream lost bytes: drop this frame and keep the
       // bytes from the next header on
       ESP_LOGW(TAG, "Invalid header/footer");
-      this->buffer_pos_ = ld2450::drop_to_next_header(this->buffer_data_, total);
+      this->buffer_pos_ = ld2450::drop_to_next_header(this->buffer_data_, total, 1);
     }
     if (this->buffer_pos_ == 0) {
       return;
