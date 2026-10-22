@@ -2,8 +2,8 @@
 
 An ordinary data frame comes first, then two query ACKs. Move thresholds 4, 3, 2, 1
 put the command footer inside the ACK values. Every value must come from the whole
-38 byte frame, not from bytes left by the previous frame. Between the ACKs, a version
-answer cut short must not publish footer bytes as the version; the whole one that follows is.
+38 byte frame, not from bytes left by the previous frame. A version answer cut short between
+the ACKs publishes nothing; the whole one after it does.
 The ACKs are synthetic, built from the layout the component parses, not device captures.
 """
 

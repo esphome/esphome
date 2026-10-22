@@ -59,8 +59,7 @@ uart_mock:
           0x04, 0x03, 0x02, 0x01,
         ]
 
-    # A version answer cut after two version bytes: the footer sits where the version would be,
-    # so the version must not be read from it
+    # Version answer cut after two bytes, so the footer sits where the version would be
     - delay: 100ms
       inject_rx:
         [

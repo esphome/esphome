@@ -55,8 +55,7 @@ inline void format_version_str(const uint8_t *version, std::span<char, 20> buffe
            version[2]);
 }
 
-// Every module frames commands and their answers the same way: this header, a little-endian count of
-// the bytes between it and the footer, and this footer. Only the periodic data frame differs.
+// Commands and their answers share this header, a little-endian byte count and this footer
 static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
 static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
 static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
@@ -65,8 +64,7 @@ inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
-// Length of the command frame at the start of the buffer, or 0 while its count has not arrived.
-// 32 bit so the largest count cannot wrap around to 0.
+// Whole command frame length, or 0 until the count arrives; 32 bit so 0xFFFF cannot wrap to 0
 inline uint32_t cmd_frame_length(const uint8_t *buffer, uint8_t count) {
   if (count < HEADER_FOOTER_SIZE + 2) {
     return 0;
@@ -74,8 +72,7 @@ inline uint32_t cmd_frame_length(const uint8_t *buffer, uint8_t count) {
   return HEADER_FOOTER_SIZE + 2 + encode_value_le<uint16_t>(&buffer[HEADER_FOOTER_SIZE]) + HEADER_FOOTER_SIZE;
 }
 
-// Drops the first `from` bytes of the buffer and anything after them that does not begin a command or
-// data frame header (a partial header at the end is kept). Returns how many of the `count` bytes remain.
+// Drops the first `from` bytes and anything after them that does not begin a header; returns the bytes kept
 inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t count, uint8_t from, const uint8_t *data_header) {
   for (; from < count; from++) {
     const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, count - from);
@@ -87,18 +84,14 @@ inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t count, uint8_t from,
   return 0;
 }
 
-// Feeds one byte into a frame buffer of N bytes. A frame starts with the command header or `data_header`
-// and runs for the length `frame_length(buffer, count)` reports (0 while unknown); footer bytes inside its
-// payload cannot end it early. `handle_frame(len)` dispatches a complete frame that fits the buffer and
-// returns false when its footer is not where the count says; that frame, or one too long for the buffer,
-// is dropped after `on_drop()`. After a frame only the bytes from the next header start on are kept, so
-// the buffer always begins with a header. `handle_frame` may overwrite `pos` (the handlers read the frame
-// length from it); the splitter works from the count it saved before the call.
+// Feeds one byte into a frame buffer. A frame opens with the command header or `data_header` and ends at
+// `frame_length(buffer, count)` bytes (0 while unknown); `handle_frame(len)` returns false for a footer out
+// of place. A dropped or oversized frame calls `on_drop()`. The handler may overwrite `pos`; the splitter
+// works from the count it saved.
 template<size_t N, typename LengthFn, typename HandleFn, typename DropFn>
 void feed_frame_byte(uint8_t (&buffer)[N], uint8_t &pos, uint8_t byte, const uint8_t *data_header,
                      LengthFn frame_length, HandleFn handle_frame, DropFn on_drop) {
-  // Only a frame header opens the buffer; other bytes are dropped until one starts. The first byte picks
-  // the header, so the two headers cannot mix.
+  // The first byte picks the header; bytes that do not continue it are dropped
   if (pos > 0 && pos < HEADER_FOOTER_SIZE) {
     const uint8_t *header = buffer[0] == data_header[0] ? data_header : CMD_FRAME_HEADER;
     if (byte != header[pos]) {
@@ -109,17 +102,14 @@ void feed_frame_byte(uint8_t (&buffer)[N], uint8_t &pos, uint8_t byte, const uin
     return;
   }
   buffer[pos++] = byte;
-  // A dropped frame can leave whole frames behind it in the buffer, so keep going until the buffer is
-  // empty or holds only the start of a frame
+  // Drain every whole frame left in the buffer
   while (true) {
     const uint32_t frame_len = frame_length(buffer, pos);
     if (frame_len == 0 || (frame_len <= N && pos < frame_len)) {
       return;
     }
     const uint8_t total = pos;
-    // Whatever follows a handled frame must itself begin with a header before the next pass reads it. A
-    // frame whose footer is not where the count says means the stream lost bytes: drop it and keep the
-    // bytes from the next header on
+    // Keep only what begins a header: after the frame, or after its first byte when it is dropped
     uint8_t from = 1;
     if (frame_len <= N && handle_frame(static_cast<uint8_t>(frame_len))) {
       from = frame_len;
