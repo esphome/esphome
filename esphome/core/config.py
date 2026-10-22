@@ -590,7 +590,8 @@ async def add_arduino_global_workaround():
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
-    # Add includes at the very end, so that the included files can access global variables
+    # After the id declarations, so the headers can use id(x); the generated function bodies
+    # and flash tables come later still, so their lambdas can use the headers.
     for include in includes:
         path = CORE.relative_config_path(include)
         if path.is_dir():
