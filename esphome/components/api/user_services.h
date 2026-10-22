@@ -40,13 +40,20 @@ template<typename T> enums::ServiceArgType to_service_arg_type();
 // All strings live in one PROGMEM pointer table emitted by codegen (see _action_strings in
 // __init__.py), so each service costs a single pointer of RAM. Layout: the action name, then
 // each argument name; with USE_API_USER_DEFINED_ACTION_METADATA the action description follows
-// the name and every argument is (name, description, example). Unset metadata is nullptr.
+// the name and every argument is (name, description, example); with
+// USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS every argument ends with its default: nullptr for a
+// required argument, "" for an optional one without a default. Unset is nullptr.
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
 static constexpr size_t USER_ACTION_HEADER_STRINGS = 2;
-static constexpr size_t USER_ACTION_ARG_STRINGS = 3;
+static constexpr size_t USER_ACTION_ARG_BASE_STRINGS = 3;
 #else
 static constexpr size_t USER_ACTION_HEADER_STRINGS = 1;
-static constexpr size_t USER_ACTION_ARG_STRINGS = 1;
+static constexpr size_t USER_ACTION_ARG_BASE_STRINGS = 1;
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+static constexpr size_t USER_ACTION_ARG_STRINGS = USER_ACTION_ARG_BASE_STRINGS + 1;
+#else
+static constexpr size_t USER_ACTION_ARG_STRINGS = USER_ACTION_ARG_BASE_STRINGS;
 #endif
 class UserServiceStatic : public UserServiceDescriptor {
  public:
