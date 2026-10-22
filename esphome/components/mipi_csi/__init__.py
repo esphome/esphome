@@ -62,12 +62,9 @@ MipiCsiStreamStopTrigger = mipi_csi_ns.class_(
 )
 
 PixelFormat = mipi_csi_ns.enum("PixelFormat", is_class=True)
-PIXEL_FORMATS = {
-    "RGB565": PixelFormat.PIXEL_FORMAT_RGB565,
-    "RGB888": PixelFormat.PIXEL_FORMAT_RGB888,
-    "YUV422": PixelFormat.PIXEL_FORMAT_YUV422,
-    "GRAYSCALE": PixelFormat.PIXEL_FORMAT_GRAYSCALE,
-}
+PIXEL_FORMATS = PixelFormat.options(
+    "RGB565", "RGB888", "YUV422", "GRAYSCALE", prefix="PIXEL_FORMAT_"
+)
 
 _RESOLUTION_PATTERN = re.compile(r"^\s*(\d+)\s*[xX]\s*(\d+)\s*$")
 
@@ -196,8 +193,7 @@ async def to_code(config: ConfigType) -> None:
         )
     )
 
-    i2c_bus = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_bus(i2c_bus))
+    await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
 
     if (external_clock := config.get(CONF_EXTERNAL_CLOCK)) is not None:
         cg.add(
