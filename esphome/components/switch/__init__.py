@@ -56,8 +56,8 @@ SwitchPtr = Switch.operator("ptr")
 ApplySwitch = switch_ns.class_("ApplySwitch", Switch)
 
 SwitchRestoreMode = switch_ns.enum("SwitchRestoreMode")
-RESTORE_MODE_STORAGE_FLASH_MASK = switch_ns.namespace("RESTORE_MODE_STORAGE_FLASH_MASK")
-RESTORE_MODE_STORAGE_RTC_MASK = switch_ns.namespace("RESTORE_MODE_STORAGE_RTC_MASK")
+RESTORE_MODE_STORAGE_FLASH_MASK = switch_ns.RESTORE_MODE_STORAGE_FLASH_MASK
+RESTORE_MODE_STORAGE_RTC_MASK = switch_ns.RESTORE_MODE_STORAGE_RTC_MASK
 
 RESTORE_MODES = {
     "RESTORE_DEFAULT_OFF": SwitchRestoreMode.SWITCH_RESTORE_DEFAULT_OFF,

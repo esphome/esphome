@@ -788,8 +788,8 @@ def restore_state_schema(fields_schema: cv.Schema, none: Any) -> Callable[[Any],
     """The validator for a domain's `restore_state:` key.
 
     A mapping is validated with `fields_schema`. The shorthand `all` is the empty mapping,
-    so every field keeps its saved value, and `none` is returned as it is, so it must already
-    be a valid result.
+    so every field keeps its saved value, and `none` is returned as it is; a mapping goes through
+    `fields_schema` like one the user wrote, so each config gets its own copy.
     """
 
     @schema_extractor("schema")
@@ -801,7 +801,9 @@ def restore_state_schema(fields_schema: cv.Schema, none: Any) -> Callable[[Any],
         if keyword == RESTORE_STATE_ALL:
             value = {}
         elif keyword == RESTORE_STATE_NONE:
-            return none
+            if not isinstance(none, dict):
+                return none
+            value = none
         elif isinstance(value, str):
             raise cv.Invalid(
                 f"Unknown restore_state '{value}'; expected 'all', 'none' or a mapping, "
