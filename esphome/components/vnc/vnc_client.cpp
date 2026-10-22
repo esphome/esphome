@@ -77,6 +77,15 @@ void VncClient::on_shutdown() { this->link_.close(); }
 void VncClient::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   this->pass_start_ms_ = millis();
+  if (this->display_->is_failed()) {
+    if (this->state_ != VncState::VNC_STATE_IDLE) {
+      this->link_.close();
+      this->session_end_(now, VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display failed"));
+    }
+    this->status_set_error(LOG_STR("Display failed"));
+    this->disable_loop();
+    return;
+  }
   // A display that parks its loop when idle is busy while that loop runs. Displays that never
   // park (no loop, or one that always runs) update synchronously, so they are never busy.
   if (this->display_->is_idle()) {

@@ -251,6 +251,20 @@ TEST(VncPacingParkedDelay, NoRequestInTheRefreshPassWithZeroDelay) {
   EXPECT_EQ(hex(s.take()), hex(INCREMENTAL));
 }
 
+TEST_F(VncPacingParked, FailedDisplayEndsTheSessionAndStops) {
+  set_now(1100);
+  s().deliver(frame());
+  s().take();
+  s().at(1300);
+  ASSERT_EQ(d_.updates(), 1);
+  d_.mark_failed();
+  s().tick(10);
+  EXPECT_EQ(s().client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_FALSE(s().client.link().connected());
+  EXPECT_TRUE(s().client.status_has_error());
+  EXPECT_TRUE(s().client.is_idle());
+}
+
 TEST_F(VncPacingParked, NoRequestWhileBusyBetweenFrames) {
   // Inside the 50 ms floor, so the next request is still due when the panel turns busy.
   set_now(1010);
