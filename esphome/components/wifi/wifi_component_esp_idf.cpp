@@ -128,6 +128,10 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_GOT_IP6) {
     memcpy(&event.data.ip_got_ip6, event_data, sizeof(ip_event_got_ip6_t));
 #endif
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+  } else if (event_base == IP_EVENT && event_id == IP_EVENT_ETH_GOT_IP) {  // NOLINT(bugprone-branch-clone)
+    // no data: the bridge rereads the resolvers an ethernet upstream just received
+#endif
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {  // NOLINT(bugprone-branch-clone)
     // no data
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_SCAN_DONE) {
@@ -726,7 +730,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
 
     uint32_t age = lease_cache_age_secs(lease);
     uint32_t remaining = lease.lease_secs > age ? lease.lease_secs - age : 0;
-    ESP_LOGI(TAG, "Applying cached lease " IPSTR ", ~%us left, skipping DHCP", IP2STR(&ip4), remaining);
+    ESP_LOGI(TAG, "Applying cached lease " IPSTR ", ~%" PRIu32 "s left, skipping DHCP", IP2STR(&ip4), remaining);
 
     // Still awake at T1: switch to real DHCP. lease_valid_for_apply_() guarantees age < T1.
     uint32_t renew_in = lease_renew_at_secs(lease) - age;
@@ -842,7 +846,7 @@ void WiFiComponent::save_lease_settings_() {
   this->lease_cache_pref_.save(&lease);
   this->cached_lease_ = lease;
 
-  ESP_LOGD(TAG, "Lease cache: saved " IPSTR " (network %d, lease %us)", IP2STR(&info.ip), lease.ap_index,
+  ESP_LOGD(TAG, "Lease cache: saved " IPSTR " (network %d, lease %" PRIu32 "s)", IP2STR(&info.ip), lease.ap_index,
            lease.lease_secs);
 }
 #endif
@@ -1123,6 +1127,10 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     this->notify_disconnect_state_listeners_();
 #endif
 
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+  } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_ETH_GOT_IP) {
+    this->apply_ap_dns_();
+#endif
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
@@ -1397,10 +1405,6 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   esp_err_t err;
 
-  // enable AP
-  if (!this->wifi_mode_({}, true))
-    return false;
-
   // Check if the AP interface is initialized before using it
   if (s_ap_netif == nullptr) {
     ESP_LOGW(TAG, "AP interface not initialized");
@@ -1478,8 +1482,8 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 #endif
 
   err = esp_netif_dhcps_start(s_ap_netif);
-
-  if (err != ESP_OK) {
+  // Before the access point is up, its start event brings the server up with these settings
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_IF_NOT_READY) {
     ESP_LOGE(TAG, "esp_netif_dhcps_start failed: %d", err);
     return false;
   }
@@ -1488,6 +1492,17 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 }
 
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
+  // The address and DHCP settings go in before the access point starts: its start event starts the DHCP
+  // server on the event task, and settings written after that race it.
+#ifdef USE_WIFI_MANUAL_IP
+  if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
+#else
+  if (!this->wifi_ap_ip_config_({})) {
+#endif
+    ESP_LOGE(TAG, "wifi_ap_ip_config_ failed:");
+    return false;
+  }
+
   // enable AP
   if (!this->wifi_mode_({}, true))
     return false;
@@ -1524,19 +1539,6 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     ESP_LOGE(TAG, "esp_wifi_set_config failed: %d", err);
     return false;
   }
-
-#ifdef USE_WIFI_MANUAL_IP
-  if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
-    ESP_LOGE(TAG, "wifi_ap_ip_config_ failed:");
-    return false;
-  }
-#else
-  if (!this->wifi_ap_ip_config_({})) {
-    ESP_LOGE(TAG, "wifi_ap_ip_config_ failed:");
-    return false;
-  }
-#endif
-
   return true;
 }
 
@@ -1681,7 +1683,7 @@ bool WiFiComponent::write_ap_dns_() {
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
 void WiFiComponent::apply_ap_dns_() {
   if (!this->ap_setup_)
-    return;  // loop() brings the bridge up once the station has a resolver, and its setup writes them
+    return;  // loop() brings the bridge up once the upstream has a resolver, and its setup writes them
   // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
   // next lease. A resolver the station lost stays offered: set_dns_info rejects an empty address.
   bool changed = false;

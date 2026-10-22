@@ -77,6 +77,9 @@ enum WakeupCause : uint8_t {
 /// Return why the device woke from deep sleep. Implemented per platform.
 WakeupCause get_wakeup_cause();
 
+/// Return true when this boot is a wake from deep sleep.
+inline bool woke_from_deep_sleep() { return get_wakeup_cause() != WAKEUP_CAUSE_NONE; }
+
 #ifdef USE_DEEP_SLEEP_ON_WAKE
 
 /** Setup priority of on_wake triggers.
