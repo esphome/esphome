@@ -31,6 +31,11 @@ static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
 // esphome/core/config.py
 static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
 
+// Maximum entity name length - keep in sync with NAME_MAX_LENGTH in esphome/config_validation.py
+static constexpr size_t ESPHOME_ENTITY_NAME_MAX_LEN = 120;
+
+static constexpr size_t ENTITY_NAME_BUF_SIZE = ESPHOME_ENTITY_NAME_MAX_LEN + 1;
+
 // Maximum domain length (longest: "alarm_control_panel" = 19)
 static constexpr size_t ESPHOME_DOMAIN_MAX_LEN = 20;
 
@@ -67,8 +72,32 @@ static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-  // Get the name of this Entity
-  const StringRef &get_name() const { return this->name_; }
+#ifdef USE_ESP8266
+  /// The name is in flash here; the first call makes a RAM copy that is kept for the life of the device.
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
+  const StringRef &get_name() const;
+  /// Get the name of this Entity, copied out of flash into buffer.
+  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const {
+    return StringRef(buffer.data(), this->write_name_to(buffer.data(), buffer.size()));
+  }
+#else
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
+  const StringRef &get_name() const { return this->name_.ram_ref(); }
+  const StringRef &get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_.ram_ref(); }
+#endif
+
+  bool name_equals(const StringRef &other) const { return this->name_.equals(other); }
+
+  /// The name as stored, for consumers that read flash themselves (e.g. API progmem fields).
+  const ProgmemStringRef &get_name_progmem() const { return this->name_; }
+
+  /// Copy the name into buf (null terminated), returns its length.
+  size_t write_name_to(char *buf, size_t buf_size) const { return this->name_.write_to(buf, buf_size); }
+
+  /// Get the name for a "%s" log argument (LOG_STR_ARG).
+  const LogString *get_log_name() const { return reinterpret_cast<const LogString *>(this->name_.progmem_ptr()); }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -121,6 +150,8 @@ class EntityBase {
   // On non-ESP8266: returns pointer to PROGMEM string directly (buffer unused).
   // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
   const char *get_device_class_to(std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const;
+  /// The device class as stored (in flash on ESP8266), for consumers that read flash themselves.
+  ProgmemStringRef get_device_class_progmem() const;
 
   // Get unit of measurement as StringRef (from packed index)
   StringRef get_unit_of_measurement_ref() const;
@@ -129,6 +160,8 @@ class EntityBase {
   // On ESP32: returns pointer to PROGMEM string directly (buffer unused).
   // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
   const char *get_icon_to(std::span<char, MAX_ICON_LENGTH> buffer) const;
+  /// The icon as stored (in flash on ESP8266), for consumers that read flash themselves.
+  ProgmemStringRef get_icon_progmem() const;
 
 #ifdef USE_DEVICES
   // Get this entity's device id
@@ -218,9 +251,7 @@ class EntityBase {
   /// Key for both helpers; preference hash migration goes here.
   uint32_t entity_preference_key_(uint32_t version);
 
-  void calc_object_id_();
-
-  StringRef name_;
+  ProgmemStringRef name_;
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};

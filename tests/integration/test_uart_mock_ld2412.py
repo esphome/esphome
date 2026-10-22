@@ -89,10 +89,7 @@ async def _wait_initial(
     """Subscribe to states and wait until every entity has sent its initial state."""
     initial_state_helper = InitialStateHelper(entities)
     client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-    try:
-        await initial_state_helper.wait_for_initial_states()
-    except TimeoutError:
-        pytest.fail("Timeout waiting for initial states")
+    await initial_state_helper.wait_for_initial_states()
     return initial_state_helper
 
 
@@ -197,14 +194,7 @@ async def test_uart_mock_ld2412(
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 values: moving=100, still=120, energy=50/25, detect=100
         assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
@@ -303,14 +293,7 @@ async def test_uart_mock_ld2412_engineering(
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 values (engineering mode frame):
         # moving=30, energy=100, still=30, energy=100, detect=30
@@ -406,14 +389,7 @@ async def test_uart_mock_ld2412_engineering_truncated(
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 — valid engineering frame establishes baseline
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 baseline: gate_0_move=100, light=87
         assert collector.sensor_states["gate_0_move_energy"][0] == pytest.approx(100.0)

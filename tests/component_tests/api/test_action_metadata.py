@@ -112,7 +112,7 @@ def test_empty_metadata_is_unset() -> None:
         "description": "",
         "variables": {"b": {"type": "int", "description": "", "example": "ex"}},
     }
-    strings = _action_strings(conf, has_metadata=True)
+    strings = _action_strings(conf, has_metadata=True, has_optional=False)
     assert strings == ["a", None, "b", None, "ex"]
 
 
