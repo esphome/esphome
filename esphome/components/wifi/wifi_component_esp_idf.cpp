@@ -1405,10 +1405,6 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   esp_err_t err;
 
-  // enable AP
-  if (!this->wifi_mode_({}, true))
-    return false;
-
   // Check if the AP interface is initialized before using it
   if (s_ap_netif == nullptr) {
     ESP_LOGW(TAG, "AP interface not initialized");
@@ -1486,8 +1482,8 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 #endif
 
   err = esp_netif_dhcps_start(s_ap_netif);
-
-  if (err != ESP_OK) {
+  // Before the access point is up, its start event brings the server up with these settings
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_IF_NOT_READY) {
     ESP_LOGE(TAG, "esp_netif_dhcps_start failed: %d", err);
     return false;
   }
@@ -1496,6 +1492,17 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 }
 
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
+  // The address and DHCP settings go in before the access point starts: its start event starts the DHCP
+  // server on the event task, and settings written after that race it.
+#ifdef USE_WIFI_MANUAL_IP
+  if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
+#else
+  if (!this->wifi_ap_ip_config_({})) {
+#endif
+    ESP_LOGE(TAG, "wifi_ap_ip_config_ failed:");
+    return false;
+  }
+
   // enable AP
   if (!this->wifi_mode_({}, true))
     return false;
@@ -1532,19 +1539,6 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     ESP_LOGE(TAG, "esp_wifi_set_config failed: %d", err);
     return false;
   }
-
-#ifdef USE_WIFI_MANUAL_IP
-  if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
-    ESP_LOGE(TAG, "wifi_ap_ip_config_ failed:");
-    return false;
-  }
-#else
-  if (!this->wifi_ap_ip_config_({})) {
-    ESP_LOGE(TAG, "wifi_ap_ip_config_ failed:");
-    return false;
-  }
-#endif
-
   return true;
 }
 
