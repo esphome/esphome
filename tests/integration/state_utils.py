@@ -399,13 +399,6 @@ class InitialStateHelper:
 
         return wrapper
 
-    @property
-    def pending_object_ids(self) -> list[str]:
-        """Object ids of the entities whose initial state has not arrived yet."""
-        return sorted(
-            self._entities_by_id[k].object_id for k in self._wait_initial_states
-        )
-
     async def wait_for_initial_states(self, timeout: float = 5.0) -> None:
         """Wait for all initial states to be received, failing the test on timeout.
 
