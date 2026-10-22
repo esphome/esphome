@@ -17,6 +17,7 @@ import time
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -43,17 +44,14 @@ async def test_socket_wake_gate_tcp(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "socket-wake-gate-tcp"
+        await assert_device_name(client, "socket-wake-gate-tcp")
 
         await wait_or_fail(
             boot_done, 15.0, "BOOT_DONE never appeared — device did not complete boot"
         )
 
         _, services = await client.list_entities_services()
-        ping_service = next((s for s in services if s.name == "ping"), None)
-        assert ping_service is not None, "ping service not found"
+        ping_service = require_service(services, "ping")
 
         # Execute the service and time how long until PONG appears in logs.
         # The request bytes arrive on an accept_loop_monitored() TCP socket,

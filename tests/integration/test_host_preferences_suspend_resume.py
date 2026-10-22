@@ -5,24 +5,15 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 import re
-from typing import Any
 
-from aioesphomeapi import ButtonInfo, EntityInfo
+from aioesphomeapi import ButtonInfo
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
 DEVICE_NAME = "test_suspend_resume_device"
-
-
-def find_entity_by_name(
-    entities: list[EntityInfo], entity_type: type, name: str
-) -> Any:
-    """Helper to find an entity by type and name."""
-    return next(
-        (e for e in entities if isinstance(e, entity_type) and e.name == name), None
-    )
 
 
 async def _poll_until_exists(path: Path) -> None:
@@ -64,12 +55,15 @@ async def test_host_preferences_suspend_resume(
     ):
         entities, _ = await client.list_entities_services()
 
-        save_button = find_entity_by_name(entities, ButtonInfo, "Save Preference")
-        suspend_button = find_entity_by_name(entities, ButtonInfo, "Suspend Syncer")
-        resume_button = find_entity_by_name(entities, ButtonInfo, "Resume Syncer")
-        assert save_button is not None, "Save Preference button not found"
-        assert suspend_button is not None, "Suspend Syncer button not found"
-        assert resume_button is not None, "Resume Syncer button not found"
+        save_button = require_entity(
+            entities, "save_preference", ButtonInfo, exact=True
+        )
+        suspend_button = require_entity(
+            entities, "suspend_syncer", ButtonInfo, exact=True
+        )
+        resume_button = require_entity(
+            entities, "resume_syncer", ButtonInfo, exact=True
+        )
 
         # --- Positive control: a running syncer flushes to disk. Without this,
         # the suspend assertion below could pass for the wrong reason (e.g. wrong prefs path). ---

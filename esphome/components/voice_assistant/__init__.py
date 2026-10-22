@@ -1,6 +1,12 @@
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components import media_player, micro_wake_word, microphone, speaker
+from esphome.components import (
+    media_player,
+    micro_wake_word,
+    microphone,
+    network,
+    speaker,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -65,16 +71,6 @@ VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
 
 
 Timer = voice_assistant_ns.struct("Timer")
-
-
-def tts_stream_validate(config: ConfigType) -> ConfigType:
-    if CONF_SPEAKER not in config and (
-        CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
-    ):
-        raise cv.Invalid(
-            f"{CONF_SPEAKER} is required when using {CONF_ON_TTS_STREAM_START} and/or {CONF_ON_TTS_STREAM_END}"
-        )
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -178,7 +174,8 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    tts_stream_validate,
+    cv.key_requires((CONF_ON_TTS_STREAM_START, CONF_ON_TTS_STREAM_END), CONF_SPEAKER),
+    network.require_ipv4("voice_assistant"),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(

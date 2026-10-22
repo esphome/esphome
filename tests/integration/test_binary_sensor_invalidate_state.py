@@ -14,7 +14,7 @@ import asyncio
 from aioesphomeapi import BinarySensorInfo, BinarySensorState, EntityState
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import InitialStateHelper, assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -51,9 +51,7 @@ async def test_binary_sensor_invalidate_state(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-binary-sensor-invalidate"
+        await assert_device_name(client, "test-binary-sensor-invalidate")
 
         # Get entities
         entities, _ = await client.list_entities_services()
@@ -75,10 +73,7 @@ async def test_binary_sensor_invalidate_state(
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
         # Wait for initial states
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Check initial state - should be missing (unknown)
         initial_state = initial_state_helper.initial_states.get(binary_sensor.key)

@@ -26,11 +26,14 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     Toolchain,
 )
-from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
+from esphome.core import CORE, ID, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
     CONF_LOOP_INTERVAL,
+    CONF_RELATION,
     CONF_SUSPEND_LOOP,
     DEFAULT_LOOP_INTERVAL,
+    DEVICE_RELATIONS,
+    SHARED_DEVICE_RELATION_DEFINES,
     Area,
     get_loop_interval,
     make_app_name_cpp,
@@ -382,6 +385,83 @@ def test_device_without_area(yaml_file: Callable[[str], str]) -> None:
 
     # Verify no area_id is present
     assert "area_id" not in device
+
+
+def test_device_relation(yaml_file: Callable[[str], str]) -> None:
+    """Test that device relation accepts via and child in any case."""
+    result = load_config_from_fixture(yaml_file, "device_relation.yaml", FIXTURES_DIR)
+    assert result is not None
+
+    devices = result[CONF_ESPHOME][CONF_DEVICES]
+    assert [device[CONF_RELATION] for device in devices] == ["via", "via", "child"]
+
+
+def test_device_without_relation(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that a device without a relation fails validation."""
+    result = load_config_from_fixture(
+        yaml_file, "device_missing_relation.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "'relation' is a required option" in captured.out
+
+
+def test_device_with_invalid_relation(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that an unknown device relation fails validation."""
+    result = load_config_from_fixture(
+        yaml_file, "device_invalid_relation.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "Unknown value 'parent', valid options are 'via', 'child'" in captured.out
+
+
+def test_shared_device_relation_defines_cover_all_relations() -> None:
+    """Every relation needs an entry, so a new one cannot silently report VIA."""
+    assert SHARED_DEVICE_RELATION_DEFINES.keys() == DEVICE_RELATIONS.keys()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("fixture", "expected_relations", "expected_define"),
+    [
+        ("device_relation.yaml", ["DEVICE_RELATION_CHILD"], "USE_DEVICE_RELATION"),
+        ("device_child_only.yaml", [], "USE_DEVICE_RELATION_ALL_CHILD"),
+        ("device_via_only.yaml", [], None),
+    ],
+)
+async def test_device_relation_to_code(
+    yaml_file: Callable[[str], Path],
+    fixture: str,
+    expected_relations: list[str],
+    expected_define: str | None,
+) -> None:
+    """A shared relation becomes a define; only a mix needs per-device setters."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is not None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    set_relation = mock_cg.new_Pvariable.return_value.set_relation
+    assert [
+        str(c.args[0].enum_value).rsplit("::", 1)[-1]
+        for c in set_relation.call_args_list
+    ] == expected_relations
+    relation_defines = [
+        c.args[0]
+        for c in mock_cg.add_define.call_args_list
+        if c.args[0].startswith("USE_DEVICE_RELATION")
+    ]
+    assert relation_defines == ([expected_define] if expected_define else [])
 
 
 def test_device_with_invalid_area_id(
@@ -1052,6 +1132,40 @@ async def test_add_includes_with_single_file(
 
     # Verify include statement was added
     assert any('#include "my_header.h"' in inc for inc in includes_added)
+
+
+@pytest.mark.asyncio
+async def test_add_includes_sit_between_declarations_and_generated_code(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """A header can name an id, and generated functions and tables can use the header."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
+    header = tmp_path / "my_header.h"
+    header.write_text("static constexpr int MY_CONSTANT = 42;")
+    CORE.config = {}
+
+    value = cg.new_Pvariable(ID("my_value", is_declaration=True, type=cg.int32))
+    cg.static_function(
+        "esphome__my_action__fn", cg.void, [], [f"*{value} = MY_CONSTANT;"]
+    )
+    cg.shared_progmem_array("my_table", cg.int32, [cg.RawExpression("MY_CONSTANT")])
+    await config.add_includes([str(header)])
+    # A job that runs after the includes still lands before the generated code.
+    cg.add_global(cg.RawStatement("static constexpr int FINAL_JOB = 1;"))
+
+    section = CORE.cpp_global_section
+    expected_order = [
+        "*const my_value",
+        "static void esphome__my_action__fn();",
+        '#include "my_header.h"',
+        "static constexpr int FINAL_JOB = 1;",
+        "static void esphome__my_action__fn() {",
+        "my_table[] PROGMEM",
+    ]
+    positions = [section.index(text) for text in expected_order]
+    assert positions == sorted(positions), section
 
 
 @pytest.mark.asyncio

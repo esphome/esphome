@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 from aioesphomeapi import ButtonInfo
@@ -10,6 +9,7 @@ import pytest
 
 from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 EXIT_SENT = re.compile(r"Config exit sent (\d+)")
 
@@ -51,10 +51,7 @@ async def test_uart_mock_ld2420_config_exit(
         client.subscribe_states(
             initial_state_helper.on_state_wrapper(collector.on_state)
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
@@ -62,14 +59,13 @@ async def test_uart_mock_ld2420_config_exit(
         resumed = collector.add_waiter(
             lambda: len(collector.sensor_states["moving_distance"]) >= 2
         )
-        try:
-            await asyncio.wait_for(resumed, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Energy reports did not resume after the last config exit.\n"
-                f"  exit sends: {exit_sends}\n"
-                f"  sensor_states: {collector.sensor_states}"
-            )
+        await wait_or_fail(
+            resumed,
+            5.0,
+            "Energy reports did not resume after the last config exit",
+            exit_sends=exit_sends,
+            sensor_states=collector.sensor_states,
+        )
 
         # The sensor skips repeated values, so each distinct distance is one report
         assert collector.sensor_states["moving_distance"] == pytest.approx(
