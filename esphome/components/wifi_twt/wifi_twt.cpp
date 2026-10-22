@@ -17,6 +17,8 @@ ESPHOME_LOG_TAG(TAG, "wifi_twt");
 static constexpr uint32_t SETUP_RETRY_BASE_MS = 5000;
 static constexpr uint32_t SETUP_RETRY_MAX_MS = 60000;
 
+static constexpr uint32_t SETUP_RETRY_TIMEOUT_ID = 0;
+
 void WiFiTWT::dump_config() {
   ESP_LOGCONFIG(TAG, "WiFi TWT:");
   ESP_LOGCONFIG(TAG, "  Wake Interval: %" PRIu32 " ms", this->wake_interval_ms_);
@@ -37,7 +39,7 @@ void WiFiTWT::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> 
   if (ssid.empty()) {
     this->setup_pending_ = false;
     this->setup_retry_count_ = 0;
-    this->cancel_timeout("twt_retry");
+    this->cancel_timeout(SETUP_RETRY_TIMEOUT_ID);
     if (this->active_flow_id_ != UINT8_MAX) {
       ESP_LOGD(TAG, "WiFi disconnected — resetting active TWT flow_id");
       this->active_flow_id_ = UINT8_MAX;
@@ -48,9 +50,10 @@ void WiFiTWT::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> 
   }
 }
 
+// The setup_* fields are only touched on the main loop, so the event-task handlers defer their writes.
 void WiFiTWT::twt_setup_failed() {
-  this->setup_pending_ = false;
   this->defer([this]() {
+    this->setup_pending_ = false;
     // Guard: skip if disabled, or a session was established some other way, before this
     // defer ran.
     if (this->disabled_ || this->active_flow_id_ != UINT8_MAX)
@@ -62,23 +65,22 @@ void WiFiTWT::twt_setup_failed() {
     if (delay_ms > SETUP_RETRY_MAX_MS)
       delay_ms = SETUP_RETRY_MAX_MS;
     ESP_LOGW(TAG, "iTWT setup rejected (attempt %u); retrying in %" PRIu32 " ms", this->setup_retry_count_, delay_ms);
-    this->set_timeout("twt_retry", delay_ms, [this]() { this->start_twt(); });
+    this->set_timeout(SETUP_RETRY_TIMEOUT_ID, delay_ms, [this]() { this->start_twt(); });
   });
   wake_loop_threadsafe();
 }
 
 void WiFiTWT::twt_setup_success(uint8_t flow_id) {
-  this->setup_pending_ = false;
-  this->setup_retry_count_ = 0;
   bool was_active = (this->active_flow_id_ != UINT8_MAX);
   this->active_flow_id_ = flow_id;
   if (was_active) {
     ESP_LOGD(TAG, "iTWT renegotiated: new flow_id=%u", flow_id);
-    return;
   }
-  this->defer([this]() {
+  this->defer([this, was_active]() {
+    this->setup_pending_ = false;
+    this->setup_retry_count_ = 0;
     // Guard: skip if teardown arrived before this defer ran.
-    if (this->active_flow_id_ != UINT8_MAX)
+    if (!was_active && this->active_flow_id_ != UINT8_MAX)
       this->start_callback_.call();
   });
   wake_loop_threadsafe();
