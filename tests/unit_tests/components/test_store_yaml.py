@@ -1219,7 +1219,7 @@ def test_redacted_accepts_include_text_that_is_not_a_tag(
 def test_credential_words_cover_every_sensitive_key() -> None:
     """A removed branch is matched by name, so every `cv.sensitive` key must be named."""
     root = Path(store_yaml.__file__).parents[2]
-    sources = [f.read_text() for f in root.rglob("*.py")]
+    sources = [f.read_text(encoding="utf-8") for f in root.rglob("*.py")]
     consts = {
         m.group(1): m.group(2)
         for text in sources
