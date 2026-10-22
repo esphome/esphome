@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstdio>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
@@ -25,6 +26,8 @@
 namespace esphome::a2dp_source {
 
 ESPHOME_LOG_TAG(TAG, "a2dp_source");
+// The Bluetooth callbacks and output slots share this state across component instances.
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 static std::atomic<A2DPSourceSpeaker *> active_speaker{nullptr};
 static std::atomic<A2DPSourceSpeaker *> desired_speaker{nullptr};
 static A2DPSourceSpeaker *owner_speaker = nullptr;
@@ -47,6 +50,7 @@ static DiscoveredDevice discovered[MAX_DISCOVERED]{};
 static size_t discovered_count = 0;
 static std::atomic<bool> classic_discovery_running{false};
 static portMUX_TYPE discovery_mux = portMUX_INITIALIZER_UNLOCKED;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 void A2DPSourceSpeaker::trace_event_(uint8_t code, uint16_t detail) {
   const ConnectionTraceEvent event{millis(), this->connection_attempt_count_.load(), detail, code};
@@ -162,7 +166,8 @@ bool A2DPSourceSpeaker::is_bonded_(const uint8_t *address) const {
   if (count <= 0)
     return false;
   auto bonds = std::unique_ptr<esp_bd_addr_t[], decltype(&std::free)>(
-      static_cast<esp_bd_addr_t *>(std::calloc(count, sizeof(esp_bd_addr_t))), &std::free);
+      static_cast<esp_bd_addr_t *>(std::calloc(count, sizeof(esp_bd_addr_t))),  // NOLINT(cppcoreguidelines-no-malloc)
+      &std::free);
   return bonds != nullptr && esp_bt_gap_get_bond_device_list(&count, bonds.get()) == ESP_OK &&
          std::any_of(bonds.get(), bonds.get() + count,
                      [address](const esp_bd_addr_t &bond) { return std::memcmp(bond, address, 6) == 0; });
@@ -182,7 +187,8 @@ std::string A2DPSourceSpeaker::bond_list(uint16_t page) const {
   if (count == 0)
     return "none";
   auto bonds = std::unique_ptr<esp_bd_addr_t[], decltype(&std::free)>(
-      static_cast<esp_bd_addr_t *>(std::calloc(count, sizeof(esp_bd_addr_t))), &std::free);
+      static_cast<esp_bd_addr_t *>(std::calloc(count, sizeof(esp_bd_addr_t))),  // NOLINT(cppcoreguidelines-no-malloc)
+      &std::free);
   if (bonds == nullptr)
     return "out of memory";
   if (esp_bt_gap_get_bond_device_list(&count, bonds.get()) != ESP_OK)
@@ -451,7 +457,7 @@ std::string A2DPSourceSpeaker::discovery_device(size_t index) const {
   if (!found)
     return "null";
 
-  std::string result = "{\"address\":\"" + format_address(device.address) + "\",\"name\":";
+  std::string result = R"({"address":")" + format_address(device.address) + R"(","name":)";
   result += device.name[0] ? quote_json_string(device.name, strnlen(device.name, sizeof(device.name))) : "null";
   result += ",\"rssi_dbm\":";
   if (device.rssi == -128) {
@@ -483,7 +489,7 @@ std::string A2DPSourceSpeaker::discovery_results(uint8_t page) const {
       result += "; ";
     result += format_address(snapshot[i].address);
     if (snapshot[i].name[0]) {
-      result += " ";
+      result += ' ';
       result.append(snapshot[i].name, strnlen(snapshot[i].name, 24));
     }
     if (snapshot[i].rssi == -128) {
@@ -925,13 +931,13 @@ void A2DPSourceSpeaker::dump_config() {
 
 void A2DPSourceSpeaker::set_volume(float volume) {
   this->volume_ = std::clamp(volume, 0.0f, 1.0f);
-  this->avrcp_target_volume_.store(this->muted_.load() ? 0 : static_cast<uint8_t>(this->volume_ * 127.0f + 0.5f));
+  this->avrcp_target_volume_.store(this->muted_.load() ? 0 : static_cast<uint8_t>(std::lround(this->volume_ * 127.0f)));
 }
 
 void A2DPSourceSpeaker::set_mute_state(bool mute_state) {
   this->mute_state_ = mute_state;
   this->muted_.store(mute_state);
-  this->avrcp_target_volume_.store(mute_state ? 0 : static_cast<uint8_t>(this->volume_ * 127.0f + 0.5f));
+  this->avrcp_target_volume_.store(mute_state ? 0 : static_cast<uint8_t>(std::lround(this->volume_ * 127.0f)));
 }
 
 const char *A2DPSourceSpeaker::avrcp_status() const {
@@ -1103,9 +1109,10 @@ void A2DPSourceSpeaker::gap_event(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_par
         uint8_t length = 0;
         auto *name =
             esp_bt_gap_resolve_eir_data(static_cast<uint8_t *>(prop.val), ESP_BT_EIR_TYPE_CMPL_LOCAL_NAME, &length);
-        if (name == nullptr)
+        if (name == nullptr) {
           name =
               esp_bt_gap_resolve_eir_data(static_cast<uint8_t *>(prop.val), ESP_BT_EIR_TYPE_SHORT_LOCAL_NAME, &length);
+        }
         if (name != nullptr && length > 0) {
           size_t copy_length = std::min<size_t>(length, sizeof(device.name) - 1);
           std::memcpy(device.name, name, copy_length);
