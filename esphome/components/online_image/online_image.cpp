@@ -15,8 +15,8 @@ static const char *const IF_MODIFIED_SINCE_HEADER_NAME = "if-modified-since";
 
 namespace esphome::online_image {
 
-// Time one loop pass may spend reading and decoding a JPEG as it downloads
-static constexpr uint32_t STREAM_PASS_BUDGET_MS = 20;
+// Time one loop pass may spend reading, and decoding a JPEG as it downloads
+static constexpr uint32_t PASS_BUDGET_MS = 20;
 
 OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
@@ -191,15 +191,21 @@ void OnlineImage::loop() {
   }
 
   // Download and decode more data
-  size_t available = this->download_buffer_.free_capacity();
-  if (available > 0) {
-    // Download in chunks to avoid blocking
-    available = std::min(available, this->download_buffer_initial_size_);
-    auto len = this->downloader_->read(this->download_buffer_.append(), available);
-
-    if (len > 0) {
-      this->last_data_time_ = App.get_loop_component_start_time();
+  if (this->download_buffer_.free_capacity() > 0) {
+    const uint32_t now = App.get_loop_component_start_time();
+    size_t received = 0;
+    int len;
+    do {
+      len = this->downloader_->read(this->download_buffer_.append(),
+                                    std::min(this->download_buffer_.free_capacity(), READ_CHUNK));
+      if (len <= 0)
+        break;
       this->download_buffer_.write(len);
+      received += len;
+    } while (this->download_buffer_.free_capacity() != 0 && millis() - now < PASS_BUDGET_MS);
+
+    if (received > 0) {
+      this->last_data_time_ = now;
 
       // Feed data to decoder
       auto consumed = this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread());
@@ -286,13 +292,13 @@ void OnlineImage::loop_stream_() {
       int len;
       do {
         len = this->downloader_->read(this->download_buffer_.append(),
-                                      std::min(this->download_buffer_.free_capacity(), STREAM_READ_CHUNK));
+                                      std::min(this->download_buffer_.free_capacity(), READ_CHUNK));
         if (len <= 0)
           break;
         this->last_data_time_ = now;
         this->download_buffer_.write(len);
       } while (this->downloader_->get_bytes_read() < total && this->download_buffer_.free_capacity() != 0 &&
-               millis() - now < STREAM_PASS_BUDGET_MS);
+               millis() - now < PASS_BUDGET_MS);
       if (len < 0) {
         ESP_LOGE(TAG, "Error downloading image: %d", len);
         this->fail_download_();
@@ -354,7 +360,7 @@ void OnlineImage::loop_stream_() {
       this->fail_download_();
     }
     return;
-  } while (millis() - now < STREAM_PASS_BUDGET_MS);
+  } while (millis() - now < PASS_BUDGET_MS);
 }
 
 void OnlineImage::fail_download_() {
