@@ -54,7 +54,7 @@ def test_rh_correction_codegen(
     )
     # A templated offset keeps the user's lambda body and passes use_fahrenheit through
     assert re.search(
-        r"sensor::RHCorrectionFilter\(\[\]\(\) -> float \{[^}]*return -7\.3;\s*\}, "
+        r"sensor::RHCorrectionFilter\(\[\]\(\) -> float \{[^}]*return -7\.3;[^}]*\}, "
         r"temperature, true\);\s*templated_offset->add_filter\(",
         main_cpp,
     )
