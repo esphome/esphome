@@ -57,11 +57,8 @@ FloatOutputPtr = FloatOutput.operator("ptr")
 
 
 async def setup_output_platform_(obj, config):
-    if CONF_INVERTED in config:
-        cg.add(obj.set_inverted(config[CONF_INVERTED]))
-    if CONF_POWER_SUPPLY in config:
-        power_supply_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
-        cg.add(obj.set_power_supply(power_supply_))
+    cg.add_optional(obj.set_inverted, config.get(CONF_INVERTED))
+    await cg.add_variable(obj.set_power_supply, config.get(CONF_POWER_SUPPLY))
     # The C++ initializers are max_power 1.0 and min_power 0.0; skip the setter when
     # the config matches them. The define stays whenever the key is present because
     # platforms such as ac_dimmer read the scaling fields directly.

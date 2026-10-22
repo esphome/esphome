@@ -5,7 +5,7 @@
 #include "esphome/core/log.h"
 #include "core.h"
 
-#include <time.h>
+#include <ctime>
 #include <unistd.h>
 #include <cerrno>
 #include <cstdlib>

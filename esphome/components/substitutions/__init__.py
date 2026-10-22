@@ -68,8 +68,9 @@ def raise_first_undefined(
             for e, p_path, _ in errors[1:]
         )
         _LOGGER.debug("Additional undefined variables in %s: %s", context_label, extras)
-    raise cv.Invalid(
-        f"Undefined variable in {context_label}: {err.message}\n{format_path(err_path, err_value)}"
+    raise cv.SourceTraceInvalid(
+        f"Undefined variable in {context_label}: {err.message}",
+        format_path(err_path, err_value),
     )
 
 
@@ -223,13 +224,13 @@ def _expand_substitutions(
                 errors=errors,
             )
         except JinjaError as err:
-            raise cv.Invalid(
+            raise cv.SourceTraceInvalid(
                 f"{err.error_name()} Error evaluating jinja expression"
                 f" '{value}': {str(err.parent())}."
                 f"\nEvaluation stack: (most recent evaluation last)"
                 f"\n{err.stack_trace_str()}"
-                f"\nRelevant context:\n{err.context_trace_str()}"
-                f"\n{format_path(path, orig_value)}",
+                f"\nRelevant context:\n{err.context_trace_str()}",
+                format_path(path, orig_value),
                 path,
             ) from err
         else:
@@ -389,9 +390,9 @@ def resolve_include(
         return include.load() if include.should_load() else {}
     except (esphome.core.EsphomeError, cv.Invalid) as err:
         resolved = f" (expanded from '{original}')" if substituted else ""
-        raise cv.Invalid(
-            f"Error including file '{filename}'{resolved}: {err}"
-            f"\n{format_path(path, original)}",
+        raise cv.SourceTraceInvalid(
+            f"Error including file '{filename}'{resolved}: {err}",
+            format_path(path, original),
             path + [f"<{filename}>"],
         ) from err
 
