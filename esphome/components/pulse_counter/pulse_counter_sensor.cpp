@@ -197,13 +197,13 @@ void PulseCounterSensor::update() {
   if (this->last_time_ != 0) {
     uint32_t interval = now - this->last_time_;
     float value = (60000.0f * raw) / float(interval);  // per minute
-    ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
+    ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", LOG_STR_ARG(this->get_log_name()), value);
     this->publish_state(value);
   }
 
   if (this->total_sensor_ != nullptr) {
     current_total_ += raw;
-    ESP_LOGD(TAG, "'%s': Total : %" PRIu32 " pulses", this->get_name().c_str(), current_total_);
+    ESP_LOGD(TAG, "'%s': Total : %" PRIu32 " pulses", LOG_STR_ARG(this->get_log_name()), current_total_);
     this->total_sensor_->publish_state(current_total_);
   }
   this->last_time_ = now;

@@ -64,8 +64,7 @@ inline uint32_t pack(Color c) { return (static_cast<uint32_t>(c.r) << 16) | (sta
 
 /// The colour a wire pixel must show as, decoded the way the display API decodes it.
 inline uint32_t expect_px(uint16_t wire, uint8_t bpp) {
-  return pack(display::ColorUtil::to_color(wire, display::COLOR_ORDER_RGB,
-                                           bpp == 2 ? display::COLOR_BITNESS_565 : display::COLOR_BITNESS_332));
+  return pack(display::ColorUtil::to_color(wire, bpp == 2 ? display::COLOR_BITNESS_565 : display::COLOR_BITNESS_332));
 }
 
 class FakeDisplay : public display::Display {
@@ -89,8 +88,8 @@ class FakeDisplay : public display::Display {
     this->pixels_[static_cast<size_t>(y) * this->width_ + x] = pack(color);
   }
 
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override {
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override {
     this->draw_calls_++;
     if (w <= 0 || h <= 0 || x_start < 0 || y_start < 0 || x_start + w > this->width_ || y_start + h > this->height_) {
       this->out_of_bounds_++;
@@ -104,8 +103,7 @@ class FakeDisplay : public display::Display {
     if (this->draw_delay_us_ != 0) {
       usleep(this->draw_delay_us_);
     }
-    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                     x_pad);
+    display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
   }
 
   virtual bool busy() const { return false; }
@@ -363,7 +361,7 @@ inline int count_fburs(const Bytes &tx, bool incremental) {
 /// A loopback port that was free a moment ago, so a connect to it is refused.
 inline uint16_t refused_port() {
   int probe = ::socket(AF_INET, SOCK_STREAM, 0);
-  struct sockaddr_in addr {};
+  struct sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   socklen_t len = sizeof(addr);
@@ -378,7 +376,7 @@ class Listener {
  public:
   Listener() {
     this->fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     socklen_t len = sizeof(addr);

@@ -109,7 +109,7 @@ void MediaPlayerCall::validate_() {
 }
 
 void MediaPlayerCall::perform() {
-  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", LOG_STR_ARG(this->parent_->get_log_name()));
   this->validate_();
   if (this->command_.has_value()) {
     const char *command_s = media_player_command_to_string(this->command_.value());
@@ -177,7 +177,7 @@ MediaPlayerCall &MediaPlayerCall::set_command(const char *command) {
   } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("GROUP_JOIN")) == 0) {
     this->set_command(MEDIA_PLAYER_COMMAND_GROUP_JOIN);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
+    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", LOG_STR_ARG(this->parent_->get_log_name()), command);
   }
   return *this;
 }

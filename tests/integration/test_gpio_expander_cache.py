@@ -9,6 +9,7 @@ import pytest
 
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -124,10 +125,7 @@ async def test_gpio_expander_cache(
         # Verify device info
         await assert_device_name(client, "gpio-expander-cache")
 
-        try:
-            await asyncio.wait_for(logs_done.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for logs to complete")
+        await wait_or_fail(logs_done, 5.0, "Timeout waiting for logs to complete")
 
         assert index == len(log_order), (
             f"Expected {len(log_order)} log entries, but got {index}"
