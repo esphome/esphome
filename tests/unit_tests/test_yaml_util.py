@@ -1809,6 +1809,22 @@ def test_discover_user_yaml_files_static_include_condition(
     assert bool(discovered.load_errors) == (condition == "true")
 
 
+def test_discover_user_yaml_files_skips_a_disabled_templated_include(
+    tmp_path: Path,
+) -> None:
+    """A statically disabled include is skipped before its templated name is expanded."""
+    _write(tmp_path, "optional-x.yaml", "broken: [\n")
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        "packages:\n"
+        '  opt: !include {file: "optional-${board}.yaml", condition: false}\n',
+    )
+    discovered = discover_user_yaml_files(entry)
+    assert not discovered.load_errors
+    assert all(p.name != "optional-x.yaml" for p in discovered.files)
+
+
 def test_discover_user_yaml_files_skips_missing_secrets_probe(
     tmp_path: Path,
 ) -> None:

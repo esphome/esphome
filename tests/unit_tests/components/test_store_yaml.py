@@ -358,6 +358,15 @@ def test_redacted_inline_value_becomes_secret_ref(
             id="removed_component_keeps_credential_keys",
         ),
         pytest.param(
+            {
+                "vpn.yaml": "wireguard:\n  private_key: hunter2\n",
+                "entry.yaml": "packages:\n  vpn: !include vpn.yaml\nwireguard: !remove\n",
+            },
+            API_KEY,
+            "wireguard.private_key in vpn.yaml",
+            id="removed_component_credential_known_by_name",
+        ),
+        pytest.param(
             {"wifi.yaml": "wifi:\n  hunter2:\n    child: x\n"},
             {"ota": [{"password": SensitiveStr("hunter2")}]},
             "mapping key under wifi",
@@ -762,6 +771,18 @@ def test_redacted_fails_closed(
                 "  - password: !secret 'fingerprint_grow_password'\n"
             },
             id="int_credential_written_quoted",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "packages:\n  base:\n    api:\n      actions:\n"
+                "        - action: login\n          variables:\n"
+                "            password: string\n"
+                "wifi:\n  password: !secret wifi_password\n",
+                "secrets.yaml": _WIFI_SECRET,
+            },
+            WIFI_PW,
+            {"entry.yaml": "password: string"},
+            id="inline_package_field_named_password",
         ),
         pytest.param(
             {

@@ -560,6 +560,8 @@ def _force_load_include_files(
         if id(obj) in _seen:
             return
         _seen.add(id(obj))
+        if not include_enabled(obj):
+            return
         if obj.has_unresolved_file():
             _load_include_candidates(
                 obj,
@@ -570,8 +572,6 @@ def _force_load_include_files(
                 keepalive=_keepalive,
                 result=_result,
             )
-            return
-        if not include_enabled(obj):
             return
         try:
             loaded = obj.load()

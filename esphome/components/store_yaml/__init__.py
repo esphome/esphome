@@ -58,6 +58,8 @@ _Scope = dict[str, list[object]]
 _Include = tuple[yaml_util.IncludeFile, dict[str, object], tuple[str, ...]]
 # Stands in for an integer credential at its keys and definitions.
 _INT_MARK = "\x00"
+# A removed branch is never validated, so its credentials are known only by name.
+_CREDENTIAL_WORDS = ("password", "key", "secret", "token", "psk")
 # A quoted string or a number: a lambda without one cannot spell a credential.
 _LITERAL_RE = re.compile(r"""["']|(?<![\w.])\d""")
 
@@ -299,17 +301,17 @@ def _check_sensitive_usage(
 
     def credential_path(path: tuple[str, ...]) -> bool:
         """Whether `path` lands where the validated config holds a credential."""
-        if path and path[0] == CONF_PACKAGES and path[-1] == CONF_PASSWORD:
-            return True
-        if not path or path[-1] not in credential_keys:
+        if not path:
             return False
-        return any(
-            p
-            and (
-                any(list_starts_with(p, r) for r in removed)
-                or any(_ends_with(sp, p) for sp in sensitive_paths)
+        merged = _merged(path)
+        if path[0] == CONF_PACKAGES and (CONF_PASSWORD,) in merged:
+            return True  # a remote package's own git password
+        if any(p and any(list_starts_with(p, r) for r in removed) for p in merged):
+            return path[-1] in credential_keys or any(
+                word in path[-1] for word in _CREDENTIAL_WORDS
             )
-            for p in _merged(path)
+        return path[-1] in credential_keys and any(
+            p and any(_ends_with(sp, p) for sp in sensitive_paths) for p in merged
         )
 
     def shown(path: tuple[str, ...]) -> str:
