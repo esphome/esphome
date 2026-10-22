@@ -238,15 +238,6 @@ class TopTronic : public Component {
   // Wire up write callbacks for inputs so they send SET requests over CAN.
   void register_input_callbacks();
 
-  // One-time functional wiring (link_inputs_, sensor/input callbacks). Called
-  // from the CONFIG phase (emitted by __init__.py right after all
-  // add_sensor/add_input calls)
-  // instead of setup(): ESPHome sizes components_ from ESPHOME_COMPONENT_COUNT,
-  // which is computed before this component registers its preset-entity IDs, so
-  // a hub can be silently dropped from components_ and its setup() never runs.
-  // Config-phase statements always run for every hub.
-  void configure_hub();
-
   // Trigger a GET refresh for every registered sensor across all devices.
   // Can be called from a template button or automation to force an update.
   void update_all();
@@ -283,7 +274,6 @@ class TopTronic : public Component {
   bool is_paused() { return this->paused_; }
 
   void setup() override;
-  void loop() override;
   void dump_config() override;
 
  protected:
@@ -331,12 +321,10 @@ class TopTronic : public Component {
   size_t max_pending_messages_{32};
   // A pending message with no continuation frame for this long is considered lost (default 5000 ms).
   uint32_t max_pending_age_ms_{5000};
-  // Throttle interval for the stale-fragment sweep in loop() (default 5000 ms).
+  // Sweep interval for the stale-fragment eviction (default 5000 ms).
   uint32_t cleanup_interval_ms_{5000};
   // Largest sane multi-frame message in total frames (default 8).
   uint8_t max_frames_per_message_{8};
-  // Timestamp of the last stale-fragment sweep in loop().
-  uint32_t last_cleanup_ms_{0};
 
   // Write safety state.
   // Last SET timestamp per datapoint (keyed by get_id()) for the rate limit.
