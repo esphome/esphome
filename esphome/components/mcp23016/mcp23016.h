@@ -38,7 +38,7 @@ class MCP23016 final : public Component, public i2c::I2CDevice, public gpio_expa
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(MCP23016 *arg);
+  static void gpio_intr(MCP23016 *arg);
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;

@@ -16,8 +16,9 @@ import asyncio
 from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, find_entity
+from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 SENSORS = [
     "bat1_voltage",
@@ -97,23 +98,18 @@ async def test_uart_mock_pylontech(
         client.subscribe_states(
             initial_state_helper.on_state_wrapper(collector.on_state)
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
-        try:
-            await asyncio.wait_for(recovery_received, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for the recovery reply. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  text_states: {collector.text_sensor_states}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            5.0,
+            "Timeout waiting for the recovery reply",
+            sensor_states=collector.sensor_states,
+            text_states=collector.text_sensor_states,
+        )
         # Let any stray publish from the bad phases arrive before the exact checks
         await asyncio.sleep(0.2)
 

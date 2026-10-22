@@ -29,7 +29,7 @@ class PCA9505Component final : public Component,
   void dump_config() override;
 
  protected:
-  static void IRAM_ATTR gpio_intr(PCA9505Component *arg);
+  static void gpio_intr(PCA9505Component *arg);
 
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;

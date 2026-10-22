@@ -84,9 +84,11 @@ void GPS::loop() {
       ESP_LOGV(TAG, "HDOP: %.3f", this->hdop_);
     }
 
+#ifdef GPS_LISTENER_COUNT
     for (auto *listener : this->listeners_) {
       listener->on_update(this->tiny_gps_);
     }
+#endif
   }
 }
 
