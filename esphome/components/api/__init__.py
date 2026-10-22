@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from ipaddress import IPv4Address, IPv6Address
 import logging
+import math
 import re
 from typing import Any
 
@@ -257,12 +258,32 @@ def _not_boolean(value: Any) -> Any:
     return value
 
 
-# The wire carries the default as text; the client parses it into ExecuteServiceArgument's types
+def _finite(value: float) -> float:
+    if not math.isfinite(value):
+        raise cv.Invalid("Expected a finite number")
+    return value
+
+
+def _no_nul(value: str) -> str:
+    # The default is a C string in flash, so a NUL would cut it short
+    if "\0" in value:
+        raise cv.Invalid("A default cannot contain a NUL character")
+    return value
+
+
+# The wire carries the default as text; the client parses it into ExecuteServiceArgument's
+# types, so the values are kept within what int32 and float hold
+FLOAT32_MAX = 3.4028235e38
 _DEFAULT_VALUE_VALIDATORS: dict[str, Callable[[Any], Any]] = {
     "bool": cv.boolean,
     "int": cv.All(_not_boolean, cv.int_range(min=-(2**31), max=2**31 - 1)),
-    "float": cv.All(_not_boolean, cv.float_),
-    "string": cv.string,
+    "float": cv.All(
+        _not_boolean,
+        cv.float_,
+        _finite,
+        cv.float_range(min=-FLOAT32_MAX, max=FLOAT32_MAX),
+    ),
+    "string": cv.All(cv.string_strict, _no_nul),
 }
 assert _DEFAULT_VALUE_VALIDATORS.keys() == _SERVICE_ARG_SCALAR_TYPES.keys()
 

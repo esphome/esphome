@@ -121,6 +121,8 @@ def test_default_slot_marks_optional_and_keeps_the_type(
         ({"type": "int", "default": 2**31 - 1}, 2**31 - 1),
         ({"type": "bool", "default": "true"}, True),
         ({"type": "float", "default": "1.5"}, 1.5),
+        ({"type": "float", "default": 3.4028235e38}, 3.4028235e38),
+        ({"type": "string", "default": "0123"}, "0123"),
     ],
 )
 def test_default_is_validated_against_type(var: dict, expected: object) -> None:
@@ -140,6 +142,15 @@ def test_default_is_validated_against_type(var: dict, expected: object) -> None:
         # A boolean is an int in Python but "true" is not a number on the wire
         {"type": "int", "default": True},
         {"type": "float", "default": False},
+        # ExecuteServiceArgument.float_ is a 32-bit float
+        {"type": "float", "default": 1e40},
+        {"type": "float", "default": "nan"},
+        {"type": "float", "default": "inf"},
+        # A string default is what the user typed, and a C string in flash
+        {"type": "string", "default": 123},
+        {"type": "string", "default": "a\0b"},
+        {"type": "string", "default": "\0a"},
+        {"type": "float", "default": -1e40},
     ],
 )
 def test_variable_rejects_invalid_optionality(var: dict) -> None:
