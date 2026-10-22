@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
+import re
 import struct
 
 import yaml
@@ -54,8 +55,10 @@ _FIX = (
 _Scope = dict[str, list[object]]
 # An `!include`, its vars before any folding, and the config path of its site.
 _Include = tuple[yaml_util.IncludeFile, dict[str, object], tuple[str, ...]]
-# Stands in for an integer credential, which is swapped only at its own keys.
+# Stands in for an integer credential at its keys and definitions.
 _INT_MARK = "\x00"
+# A quoted string or a number: a lambda without one cannot spell a credential.
+_LITERAL_RE = re.compile(r"""["']|(?<![\w.])\d""")
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -152,9 +155,10 @@ def _iter_nodes(
     elif isinstance(node, (list, tuple)):
         for item in node:
             yield from _iter_nodes(item, path)
-    elif isinstance(node, (Lambda, Extend, Remove)):
-        # A lambda cv.sensitive marked stays whole so the collector can see it.
-        yield path, node if isinstance(node, yaml_util.Sensitive) else node.value, False
+    elif isinstance(node, Lambda):
+        yield path, node, False
+    elif isinstance(node, (Extend, Remove)):
+        yield path, node.value, False
     elif isinstance(node, yaml_util.IncludeFile):
         yield path, str(node.file), False
         if isinstance(node.condition, str):
@@ -186,6 +190,11 @@ def _merged(path: tuple[str, ...]) -> set[tuple[str, ...]]:
     return {path}
 
 
+def _defines_substitution(path: tuple[str, ...]) -> bool:
+    """`path` is a `substitutions:` entry, also inside an inline package."""
+    return any(len(p) > 1 and p[0] == CONF_SUBSTITUTIONS for p in _merged(path))
+
+
 @dataclass
 class _SensitiveValue:
     secret_name: str
@@ -207,8 +216,9 @@ def _include_scopes(
     the config paths its content lands under."""
     substitutions: _Scope = {}
     for tree in trees.values():
-        for name, value in _str_keys(_str_keys(tree).get(CONF_SUBSTITUTIONS)).items():
-            substitutions.setdefault(name, []).append(value)
+        for path, node, is_key in _iter_nodes(tree):
+            if not is_key and _defines_substitution(path):
+                substitutions.setdefault(path[-1], []).append(node)
     defaults = {
         rel: _str_keys(_str_keys(tree).get(CONF_DEFAULTS))
         for rel, tree in trees.items()
@@ -291,6 +301,15 @@ def _check_sensitive_usage(
             and all(value_verified(v, scope, seen | {name}) for v in scope[name])
         )
 
+    def redacted_or_traced(node: object, text: str, scope: _Scope) -> bool:
+        """A lambda holding no literal, or a whole-scalar reference to verified
+        values; an expression cannot be traced."""
+        if isinstance(node, Lambda):
+            return _LITERAL_RE.search(text) is None
+        return SUBSTITUTION_VARIABLE_PROG.fullmatch(text) is not None and (
+            references_verified(text, scope)
+        )
+
     def credential_path(path: tuple[str, ...]) -> bool:
         """Whether `path` lands where the validated config holds a credential."""
         if path and path[0] == CONF_PACKAGES and path[-1] == CONF_PASSWORD:
@@ -332,7 +351,7 @@ def _check_sensitive_usage(
                         f"{info.config_path} (as a mapping key under {place} in {rel})"
                     )
                 elif not info.is_int and (
-                    path[:1] != (CONF_SUBSTITUTIONS,)
+                    not _defines_substitution(path)
                     and not info.sensitive_keys.intersection(path[-1:])
                 ):
                     _LOGGER.warning(
@@ -356,11 +375,7 @@ def _check_sensitive_usage(
             elif (
                 not is_key
                 and any(credential_path(prefix + path) for prefix in prefixes[rel])
-                and not (
-                    # Only a whole-scalar reference can be traced; an expression cannot.
-                    SUBSTITUTION_VARIABLE_PROG.fullmatch(text) is not None
-                    and references_verified(text, scope)
-                )
+                and not redacted_or_traced(node, text, scope)
             ):
                 unverified.append(f"{shown(path)} in {rel}")
                 continue
@@ -406,10 +421,12 @@ def _collect_sensitive_values() -> tuple[
             continue
         paths.add(path)
         if isinstance(node, Lambda):
-            raise EsphomeError(
-                f"store_yaml: the credential at {'.'.join(path)} is set by a lambda, "
-                f"which cannot be redacted. {_FIX}"
-            )
+            if _LITERAL_RE.search(node.value) is not None:
+                raise EsphomeError(
+                    f"store_yaml: the credential at {'.'.join(path)} is set by a "
+                    f"lambda holding a literal, which cannot be redacted. {_FIX}"
+                )
+            continue
         if isinstance(node, str) and not node:
             continue
         # Decimal for ints, to match the raw tree's parsed scalars, not HexInt's hex.
@@ -516,9 +533,8 @@ def _generate_redacted_files(
             # At its own keys, or as a variable definition a credential may reference.
             info = sensitive.get(str(node))
             at_key = info is not None and info.sensitive_keys.intersection(path[-1:])
-            definition = in_vars or path[:1] in (
-                (CONF_SUBSTITUTIONS,),
-                (CONF_DEFAULTS,),
+            definition = (
+                in_vars or path[:1] == (CONF_DEFAULTS,) or _defines_substitution(path)
             )
             if info and info.is_int and (at_key or definition):
                 return yaml_util.make_data_base(_INT_MARK + info.secret_name)

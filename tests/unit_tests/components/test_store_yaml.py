@@ -377,6 +377,18 @@ def test_redacted_inline_value_becomes_secret_ref(
             id="credential_from_a_lambda",
         ),
         pytest.param(
+            {"fp.yaml": "fingerprint_grow:\n  password: !lambda 'return 12345678;'\n"},
+            {
+                "fingerprint_grow": {
+                    "password": add_class_to_obj(
+                        Lambda("return 12345678;"), yaml_util.Sensitive
+                    )
+                }
+            },
+            "set by a lambda",
+            id="credential_from_a_lambda_number",
+        ),
+        pytest.param(
             {
                 "entry.yaml": "substitutions:\n  a: ${b}\n  b: ${a}\nwifi:\n  password: ${a}\n"
             },
@@ -739,6 +751,58 @@ def test_redacted_fails_closed(
             WIFI_PW,
             {"entry.yaml": "base_pw: !secret 'wifi_password'"},
             id="substitution_alias_of_a_secret",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "packages:\n  base:\n    substitutions:\n"
+                "      pw: !secret wifi_password\nwifi:\n  password: ${pw}\n",
+                "secrets.yaml": _WIFI_SECRET,
+            },
+            WIFI_PW,
+            {"entry.yaml": "pw: !secret 'wifi_password'"},
+            id="substitution_defined_in_an_inline_package",
+        ),
+        pytest.param(
+            {
+                "fp.yaml": "packages:\n  base:\n    substitutions:\n"
+                "      fp_password: 12345678\n"
+                "fingerprint_grow:\n  password: ${fp_password}\n"
+            },
+            {"fingerprint_grow": {"password": SensitiveInt(12345678)}},
+            {"fp.yaml": "fp_password: !secret 'fingerprint_grow_password'"},
+            id="int_substitution_defined_in_an_inline_package",
+        ),
+        pytest.param(
+            {
+                "wifi.yaml": "button:\n  - on_press:\n      wifi.configure:\n"
+                "        ssid: !lambda 'return id(ssid_text).state;'\n"
+                "        password: !lambda 'return id(pw_text).state;'\n"
+            },
+            {
+                "button": [
+                    {
+                        "on_press": [
+                            {
+                                "then": [
+                                    {
+                                        "wifi.configure": {
+                                            key: add_class_to_obj(
+                                                Lambda(f"return id({key}_text).state;"),
+                                                yaml_util.Sensitive,
+                                            )
+                                            for key in ("ssid", "password")
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "wifi.yaml": "password: !lambda |-\n          return id(pw_text).state;\n"
+            },
+            id="lambda_reading_an_entity_is_kept",
         ),
     ],
 )
