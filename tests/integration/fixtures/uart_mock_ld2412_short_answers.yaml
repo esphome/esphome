@@ -18,8 +18,7 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# Answers cut short so that the footer sits where their values would be, each followed by a whole one.
-# Only the whole answers may reach the entities.
+# Answers cut short, so the footer sits where their values would be, each followed by a whole one
 uart_mock:
   id: mock_uart
   baud_rate: 256000

@@ -27,8 +27,7 @@ test_uart_mock_ld2412_engineering_truncated (truncated engineering mode):
 The gate threshold tests (footer_in_payload, truncated_answer, requery_after_giveup) cover
 answers that hold the frame footer or are truncated, writes that fill the gates without a
 number from the module's values, and writes held back until the module reports them.
-test_uart_mock_ld2412_short_answers checks that a version or basic configuration answer cut
-short publishes nothing, while the whole answer after it does.
+test_uart_mock_ld2412_short_answers: answers cut short publish nothing, the whole ones after them do.
 """
 
 from __future__ import annotations

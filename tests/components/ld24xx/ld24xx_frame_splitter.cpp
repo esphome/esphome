@@ -12,7 +12,7 @@ constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF
 constexpr uint8_t DATA_FRAME_SIZE = 12;  // header, four payload bytes, footer
 constexpr size_t BUFFER_SIZE = 40;
 
-// Command frame with the given payload bytes after the count.
+// Command frame around the payload
 std::vector<uint8_t> make_cmd_frame(const std::vector<uint8_t> &payload) {
   std::vector<uint8_t> frame(std::begin(CMD_FRAME_HEADER), std::end(CMD_FRAME_HEADER));
   frame.push_back(payload.size());
@@ -30,7 +30,7 @@ std::vector<uint8_t> make_data_frame(uint8_t fill) {
 }
 }  // namespace
 
-// A parser like the radar components': data frames are fixed size, command frames carry their count.
+// Data frames are fixed size, command frames carry their count, as in the radar components
 class LD24xxFrameSplitterTest : public ::testing::Test {
  protected:
   void feed_(const std::vector<uint8_t> &bytes) {
@@ -80,7 +80,7 @@ TEST_F(LD24xxFrameSplitterTest, BytesBeforeAHeaderAreNeverBuffered) {
 }
 
 TEST_F(LD24xxFrameSplitterTest, AHeaderRestartsWhenItsBytesStopMatching) {
-  // The first byte picks the command header, so F3 cannot continue it, and FD after FC starts over
+  // F3 cannot continue the command header, and FD after FC starts it over
   this->feed_({0xFD, 0xF3, 0xFD, 0xFC, 0xFD, 0xFC, 0xFB, 0xFA, 0x00, 0x00});
   EXPECT_EQ(this->pos_, 6) << "only the header that matched through and its count are buffered";
   this->feed_({0x04, 0x03, 0x02, 0x01});
@@ -90,7 +90,7 @@ TEST_F(LD24xxFrameSplitterTest, AHeaderRestartsWhenItsBytesStopMatching) {
 }
 
 TEST_F(LD24xxFrameSplitterTest, ImpossibleCountsAreDroppedAndTheNextFrameParsed) {
-  // 0xFFF6 totals 65536, which must not wrap to 0; 0xFFFF is simply too long for the buffer
+  // 0xFFF6 totals 65536, which must not wrap to 0
   this->feed_({0xFD, 0xFC, 0xFB, 0xFA, 0xF6, 0xFF});
   this->feed_({0xFD, 0xFC, 0xFB, 0xFA, 0xFF, 0xFF});
   EXPECT_EQ(this->drops_, 2);
@@ -101,7 +101,7 @@ TEST_F(LD24xxFrameSplitterTest, ImpossibleCountsAreDroppedAndTheNextFrameParsed)
 }
 
 TEST_F(LD24xxFrameSplitterTest, AFrameCaughtInsideADroppedFrameIsReplayed) {
-  // A header whose count reaches 20 bytes into the stream swallows the whole frame that follows
+  // The count reaches 20 bytes in, past the whole frame that follows
   std::vector<uint8_t> bytes = {0xFD, 0xFC, 0xFB, 0xFA, 0x0A, 0x00, 0x61, 0x01};
   auto inner = make_data_frame(0x44);
   bytes.insert(bytes.end(), inner.begin(), inner.end());
@@ -113,7 +113,7 @@ TEST_F(LD24xxFrameSplitterTest, AFrameCaughtInsideADroppedFrameIsReplayed) {
 }
 
 TEST_F(LD24xxFrameSplitterTest, EveryWholeFrameLeftByADropIsDrained) {
-  // The dropped frame's window holds two whole data frames and the start of a third
+  // The window holds two whole data frames and the start of a third
   std::vector<uint8_t> bytes = {0xFD, 0xFC, 0xFB, 0xFA, 0x18, 0x00, 0x61, 0x01};
   for (uint8_t fill : {0x55, 0x66}) {
     auto inner = make_data_frame(fill);
