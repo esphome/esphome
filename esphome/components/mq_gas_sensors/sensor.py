@@ -622,10 +622,7 @@ def _final_validate_voltage_source(config: ConfigType) -> ConfigType:
 
     from esphome.components.adc import sensor as adc_sensor
 
-    fconf = fv.full_config.get()
-    sampler = fconf.get_config_for_path(
-        fconf.get_path_for_id(config[CONF_VOLTAGE])[:-1]
-    )
+    sampler = fv.get_declaring_config(config[CONF_VOLTAGE])
     if sampler.get(CONF_PLATFORM) != ADC_DOMAIN:
         # A declared range is what `_validate_config` checked the divider against;
         # without one, nothing here says what an external sampler measures.
@@ -866,8 +863,7 @@ async def to_code(config: ConfigType) -> None:
         await cg.add_variable(var.set_temperature_source, config[CONF_TEMPERATURE])
         await cg.add_variable(var.set_humidity_source, config[CONF_HUMIDITY])
 
-    if (r0 := config.get(CONF_R0)) is not None:
-        cg.add(var.set_r0(r0))
+    cg.add_optional(var.set_r0, config.get(CONF_R0))
 
     if calibration is not None and CONF_R0 not in config:
         cg.add(
