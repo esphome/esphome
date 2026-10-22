@@ -16,25 +16,14 @@ void M5Stack4Relay::setup() {
     return;
   }
 #ifdef USE_SWITCH
-  // The chip keeps the relays across an ESP reboot, so a switch with restore mode DISABLED shows what the chip has.
-  bool restored = false;
   for (size_t channel = 0; channel < this->switches_.size(); channel++) {
     switch_::Switch *sw = this->switches_[channel];
     if (sw == nullptr)
       continue;
-    auto initial = sw->get_initial_state_with_restore_mode();
-    if (initial.has_value()) {
-      assign_bits(this->relays_, 1 << channel, *initial);
-      restored = true;
-    }
-  }
-  if (restored && !this->write_byte(REG_RELAY, this->relays_)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
-  for (size_t channel = 0; channel < this->switches_.size(); channel++) {
-    if (this->switches_[channel] != nullptr)
-      this->switches_[channel]->publish_state((this->relays_ >> channel) & 1);
+    // The chip keeps the relays across an ESP reboot, so a switch with restore mode DISABLED shows what it
+    // holds; the other modes drive the relay through control(), so inverted: applies
+    sw->publish_state((this->relays_ >> channel) & 1);
+    sw->restore();
   }
 #endif
 }
