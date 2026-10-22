@@ -88,6 +88,10 @@ class RX8111Test : public ::testing::Test {
     App.scheduler.call(millis());
   }
 
+  // TEST_F bodies are subclasses, so the friendship stops here
+  bool polling_started_() const { return this->rtc_.event_polling_started_; }
+  bool timer_enabled_() const { return this->rtc_.timer_enabled_; }
+
   RegisterBus bus_;
   RX8111Component rtc_;
   unsigned syncs_{0};
@@ -1151,6 +1155,54 @@ TEST_F(RX8111Test, TimerCallbackCanClearTFAndFailedProgrammingDoesNotStartTimer)
   this->bus_.regs[FLAG] = 0x10;
   this->rtc_.update();
   EXPECT_EQ(calls, 2);
+}
+
+TEST_F(RX8111Test, StopTimerOutsideCallbackCancelsEventPolling) {
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_event_poll_interval(1);
+  this->rtc_.setup();
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&calls]() { calls++; });
+  App.scheduler.call(millis());
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_GT(this->bus_.flag_reads, 0);
+  EXPECT_TRUE(this->polling_started_());
+  ASSERT_TRUE(this->rtc_.stop_timer());
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_FALSE(this->polling_started_());
+  const unsigned flag_reads = this->bus_.flag_reads;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(this->bus_.flag_reads, flag_reads);
+  ASSERT_TRUE(this->rtc_.start_timer());
+  EXPECT_TRUE(this->polling_started_());
+  this->bus_.regs[FLAG] = 0x10;
+  delay(20);
+  App.scheduler.call(millis());
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, FailedRestartWithUnreadableBusKeepsRunningTimerWatched) {
+  this->rtc_.set_timer_enabled(true);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_count(2);
+  this->rtc_.setup();
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0x10);
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&calls]() { calls++; });
+  this->bus_.fail_read = EXTENSION;
+  EXPECT_FALSE(this->rtc_.start_timer());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  EXPECT_TRUE(this->timer_enabled_());
+  EXPECT_EQ(this->bus_.regs[EXTENSION] & 0x10, 0x10);
+  this->bus_.fail_read = -1;
+  this->bus_.regs[FLAG] = 0x10;
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
 }
 
 }  // namespace esphome::rx8111::testing

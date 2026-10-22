@@ -123,10 +123,12 @@ void RX8111Component::cancel_boot_retry_(bool alarm) {
 }
 
 void RX8111Component::check_event_flags_() {
-  if (!this->watching_())
-    return;
-  if (!this->poll_event_flags_()) {
+  if (this->watching_() && !this->poll_event_flags_())
     this->set_warning_(WARN_EVENT_POLL, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // A callback or a runtime action may have stopped the last watched feature
+  if (!this->watching_() && this->event_polling_started_) {
+    this->cancel_interval(RX8111_EVENT_INTERVAL_ID);
+    this->event_polling_started_ = false;
   }
 }
 
@@ -400,10 +402,11 @@ bool RX8111Component::start_timer() {
   }
   this->cancel_boot_retry_(false);
   if (!this->configure_timer_(true)) {
-    // A partial configuration can leave either enable bit set. Disable both if the bus permits it.
+    // A partial configuration can leave either enable bit set. Disable both if the bus permits it;
+    // otherwise keep watching a timer that may still be running.
     uint8_t extension, control;
-    this->disable_timer_(extension, control);
-    this->timer_enabled_ = false;
+    if (this->disable_timer_(extension, control))
+      this->timer_enabled_ = false;
     this->set_warning_(WARN_TIMER, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
@@ -463,10 +466,6 @@ bool RX8111Component::poll_event_flags_() {
   // An alarm callback may stop the timer before its callback is delivered.
   if (timer_rising && this->timer_flag_seen_ && (this->timer_enabled_ || deliver_stopped_event))
     this->timer_callbacks_.call();
-  if (!this->watching_() && this->event_polling_started_) {
-    this->cancel_interval(RX8111_EVENT_INTERVAL_ID);
-    this->event_polling_started_ = false;
-  }
   return true;
 }
 
