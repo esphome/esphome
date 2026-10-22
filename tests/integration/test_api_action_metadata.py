@@ -5,20 +5,11 @@ from __future__ import annotations
 import asyncio
 import re
 
-from aioesphomeapi import api_pb2
 import pytest
 
 from esphome.helpers import fnv1_hash
 
-from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient, decode_fields
 from .types import APIClientConnectedFactory, RunCompiledFunction
-
-LIST_SERVICE = MESSAGE_TYPE_OF[api_pb2.ListEntitiesServicesResponse]
-LIST_DONE = MESSAGE_TYPE_OF[api_pb2.ListEntitiesDoneResponse]
-# ListEntitiesServicesResponse fields, then the ListEntitiesServicesArgument fields the installed
-# client library does not know yet
-FIELD_SERVICE_NAME, FIELD_ARGS = 1, 3
-FIELD_ARG_NAME, FIELD_OPTIONAL, FIELD_DEFAULT_VALUE = 1, 5, 6
 
 
 @pytest.mark.asyncio
@@ -26,7 +17,6 @@ async def test_api_action_metadata(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
-    unused_tcp_port: int,
 ) -> None:
     """Action and argument metadata reach the client and the actions still run."""
     loop = asyncio.get_running_loop()
@@ -44,7 +34,6 @@ async def test_api_action_metadata(
     async with (
         run_compiled(yaml_config, line_callback=check_output),
         api_client_connected() as client,
-        RawApiClient(unused_tcp_port) as raw,
     ):
         _, services = await client.list_entities_services()
 
@@ -68,23 +57,12 @@ async def test_api_action_metadata(
         assert plain.description == ""
         assert plain.args[0].description == ""
 
-        # Optional flags and defaults come straight from the frames, as (optional, default) per argument
-        await raw.connect()
-        await raw.send_message(api_pb2.ListEntitiesRequest())
-        await raw.read_until_frame(LIST_DONE)
-        wire: dict[str, dict[str, tuple[bool, str]]] = {}
-        for payload in raw.frames(LIST_SERVICE):
-            fields = decode_fields(payload)
-            args = {}
-            for arg_payload in fields.get(FIELD_ARGS, []):
-                arg = decode_fields(arg_payload)
-                args[arg[FIELD_ARG_NAME][0].decode()] = (
-                    bool(arg.get(FIELD_OPTIONAL, [0])[0]),
-                    arg.get(FIELD_DEFAULT_VALUE, [b""])[0].decode(),
-                )
-            wire[fields[FIELD_SERVICE_NAME][0].decode()] = args
-        assert wire["plain_action"] == {"value": (False, "")}
-        assert wire["optional_args_action"] == {
+        # Optional flags and defaults, as (optional, default) per argument
+        def flags(service) -> dict[str, tuple[bool, str]]:
+            return {arg.name: (arg.optional, arg.default_value) for arg in service.args}
+
+        assert flags(plain) == {"value": (False, "")}
+        assert flags(by_name["optional_args_action"]) == {
             "song_str": (True, ""),
             "octave": (True, "5"),
             "loud": (True, "true"),
