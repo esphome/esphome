@@ -252,14 +252,6 @@ class ModbusClientHub : public Modbus {
   void set_turnaround_time(uint16_t time_in_ms) { this->turnaround_delay_us_ = time_in_ms * 1000UL; }
   bool tx_buffer_empty();
   bool tx_blocked() override;
-  ESPDEPRECATED("Use queue_pdu() with create_client_pdu() instead. Removed in 2026.10.0", "2026.4.0")
-  void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-            uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr) {
-    this->queue_pdu(address,
-                    helpers::create_client_pdu((FunctionCode) function_code, start_address, number_of_entities, payload,
-                                               payload_len),
-                    device);
-  };
   /// Queue a request. True = accepted: it resolves in exactly one terminal callback (a broadcast,
   /// address 0, gets only on_sent()). False = refused, and no callback of any kind follows.
   /// Neither means anything reached the wire - on_sent() reports that.
@@ -444,6 +436,21 @@ class ModbusClientDevice {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     return this->on_modbus_no_response();
 #pragma GCC diagnostic pop
+  }
+  /// Overloads of the hooks above with the device address of the request first, taken from the request frame, so it
+  /// stays correct after set_address(). The hub calls these; the defaults forward to the hooks above.
+  /// Override one form per hook: overriding an address form drops its forward, so the other form is no longer called.
+  virtual void on_response(uint8_t address, std::span<const uint8_t> request_pdu,
+                           std::span<const uint8_t> response_pdu) {
+    this->on_response(request_pdu, response_pdu);
+  }
+  virtual void on_error(uint8_t address, std::span<const uint8_t> request_pdu, ExceptionCode exception_code) {
+    this->on_error(request_pdu, exception_code);
+  }
+  virtual void on_not_sent(uint8_t address, std::span<const uint8_t> request_pdu) { this->on_not_sent(request_pdu); }
+  virtual void on_sent(uint8_t address, std::span<const uint8_t> request_pdu) { this->on_sent(request_pdu); }
+  virtual bool on_no_response(uint8_t address, std::span<const uint8_t> request_pdu) {
+    return this->on_no_response(request_pdu);
   }
   // Remove before 2027.2.0
   ESPDEPRECATED("Override on_not_sent() instead. Removed in 2027.2.0", "2026.8.0")

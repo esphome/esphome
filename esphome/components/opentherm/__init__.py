@@ -5,12 +5,13 @@ import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, PLATFORM_ESP32, PLATFORM_ESP8266
+from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266
 from esphome.core import CORE
 
 from . import const, generate, schema, validate
 
 CODEOWNERS = ["@olegtarasov"]
+DOMAIN = "opentherm"
 MULTI_CONF = True
 
 CONF_IN_PIN = "in_pin"
@@ -26,14 +27,16 @@ CONF_SYNC_MODE = "sync_mode"
 CONF_BEFORE_SEND = "before_send"
 CONF_BEFORE_PROCESS_RESPONSE = "before_process_response"
 
-# Triggers
-BeforeSendTrigger = generate.opentherm_ns.class_(
-    "BeforeSendTrigger",
-    automation.Trigger.template(generate.OpenthermData.operator("ref")),
-)
-BeforeProcessResponseTrigger = generate.opentherm_ns.class_(
-    "BeforeProcessResponseTrigger",
-    automation.Trigger.template(generate.OpenthermData.operator("ref")),
+_DATA_ARGS = [(generate.OpenthermData.operator("ref"), "x")]
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_BEFORE_SEND, "add_on_before_send_callback", _DATA_ARGS
+    ),
+    automation.CallbackAutomation(
+        CONF_BEFORE_PROCESS_RESPONSE,
+        "add_on_before_process_response_callback",
+        _DATA_ARGS,
+    ),
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -50,17 +53,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SUMMER_MODE_ACTIVE, False): cv.boolean,
             cv.Optional(CONF_DHW_BLOCK, False): cv.boolean,
             cv.Optional(CONF_SYNC_MODE, False): cv.boolean,
-            cv.Optional(CONF_BEFORE_SEND): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BeforeSendTrigger),
-                }
-            ),
+            cv.Optional(CONF_BEFORE_SEND): automation.validate_automation({}),
             cv.Optional(CONF_BEFORE_PROCESS_RESPONSE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        BeforeProcessResponseTrigger
-                    ),
-                }
+                {}
             ),
         }
     )
@@ -80,6 +75,11 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: dict[str, Any]) -> None:
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import use_timer1
+
+        # Per hub: every hub programs the timer and the interrupt has one instance pointer
+        use_timer1(f"{DOMAIN} {config[CONF_ID]}")
     if CORE.is_esp32:
         include_builtin_idf_component("esp_driver_gptimer")
 
@@ -87,11 +87,8 @@ async def to_code(config: dict[str, Any]) -> None:
     await cg.register_component(var, config)
 
     # Set pins
-    in_pin = await cg.gpio_pin_expression(config[CONF_IN_PIN])
-    cg.add(var.set_in_pin(in_pin))
-
-    out_pin = await cg.gpio_pin_expression(config[CONF_OUT_PIN])
-    cg.add(var.set_out_pin(out_pin))
+    await cg.add_pin(var.set_in_pin, config[CONF_IN_PIN])
+    await cg.add_pin(var.set_out_pin, config[CONF_OUT_PIN])
 
     non_sensors = {
         CONF_ID,
@@ -106,8 +103,9 @@ async def to_code(config: dict[str, Any]) -> None:
         if key in non_sensors:
             continue
         if key in schema.INPUTS:
-            input_sensor = await cg.get_variable(value)
-            cg.add(getattr(var, f"set_{key}_{const.INPUT_SENSOR}")(input_sensor))
+            await cg.add_variable(
+                getattr(var, f"set_{key}_{const.INPUT_SENSOR}"), value
+            )
             input_sensors.append(key)
         elif key in schema.SETTINGS:
             if value == schema.SETTINGS[key].default_value:
@@ -131,14 +129,4 @@ async def to_code(config: dict[str, Any]) -> None:
         generate.define_setting_readers(const.SETTING, settings)
         generate.add_messages(var, settings, schema.SETTINGS)
 
-    for conf in config.get(CONF_BEFORE_SEND, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(generate.OpenthermData.operator("ref"), "x")], conf
-        )
-
-    for conf in config.get(CONF_BEFORE_PROCESS_RESPONSE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(generate.OpenthermData.operator("ref"), "x")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
