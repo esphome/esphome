@@ -1604,6 +1604,8 @@ class ESPHomeDumper(yaml.SafeDumper):
     def represent_data(self, data):
         # str, dict and list precede the ESPLiteralValue mixin in the MRO.
         if isinstance(data, ESPLiteralValue):
+            # Not aliased, so the enclosing container's alias entry stays its own
+            self.alias_key = None
             return self.represent_literal(data)
         return super().represent_data(data)
 
