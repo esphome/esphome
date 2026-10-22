@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_VNC_AUTH
 #include "vnc_des.h"
 #endif
@@ -11,6 +12,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
+#include <iterator>
 
 namespace esphome::vnc {
 
@@ -38,6 +40,11 @@ static constexpr uint8_t SECURITY_VNC_AUTH = 2;
 static constexpr int32_t ENCODING_RAW = 0;
 static constexpr int32_t ENCODING_HEXTILE = 5;
 static constexpr int32_t ENCODING_RICH_CURSOR = -239;
+// In preference order: TightVNC uses the first real encoding it supports for every rectangle.
+static constexpr int32_t ENCODINGS[] = {ENCODING_HEXTILE, ENCODING_RAW, ENCODING_RICH_CURSOR};
+
+// Indexed by VncPixelFormat
+PROGMEM_STRING_TABLE(PixelFormatStrings, "auto", "RGB565", "RGB332");
 
 static constexpr uint8_t HEXTILE_RAW = 0x01;
 static constexpr uint8_t HEXTILE_BACKGROUND = 0x02;
@@ -78,8 +85,9 @@ void VncClient::setup() {
   this->setup_ms_ = App.get_loop_component_start_time();
   this->link_.begin(TAG);
   // Sized for the display now; a rotation changed later swaps the sides but keeps the cell count.
-  const uint32_t cells = static_cast<uint32_t>((this->display_->get_width() + 15) / 16) *
-                         static_cast<uint32_t>((this->display_->get_height() + 15) / 16);
+  const uint32_t cells = std::min<uint32_t>(static_cast<uint32_t>((this->display_->get_width() + 15) / 16) *
+                                                static_cast<uint32_t>((this->display_->get_height() + 15) / 16),
+                                            UINT16_MAX);
   RAMAllocator<uint32_t> allocator;
   this->tile_hashes_ = allocator.allocate(cells);
   if (this->tile_hashes_ == nullptr) {
@@ -111,9 +119,7 @@ void VncClient::dump_config() {
                 "  Pixel Format: %s",
                 this->link_.host(), this->link_.port(), this->link_.reconnect_interval(), this->update_delay_ms_,
                 this->max_update_delay_ms_,
-                this->pixel_format_ == VncPixelFormat::VNC_PIXEL_FORMAT_RGB565   ? LOG_STR_LITERAL("RGB565")
-                : this->pixel_format_ == VncPixelFormat::VNC_PIXEL_FORMAT_RGB332 ? LOG_STR_LITERAL("RGB332")
-                                                                                 : LOG_STR_LITERAL("auto"));
+                LOG_STR_ARG(PixelFormatStrings::get_log_str(static_cast<uint8_t>(this->pixel_format_), 0)));
 #ifdef USE_VNC_AUTH
   ESP_LOGCONFIG(TAG, "  Password: %s", this->auth_key_ != nullptr ? LOG_STR_LITERAL("set") : LOG_STR_LITERAL("none"));
 #endif
@@ -192,7 +198,7 @@ void VncClient::loop() {
   }
   if (this->state_ == VncState::VNC_STATE_RUNNING) {
     // A new session lays the screen out again for the new rotation and redraws all of it.
-    if (static_cast<uint16_t>(this->display_->get_rotation()) != this->hash_rotation_) {
+    if (static_cast<uint8_t>(this->display_->get_rotation() / 90) != this->hash_rotation_) {
       this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display rotation changed"));
       return;
     }
@@ -673,6 +679,7 @@ VncParse VncClient::parse_() {
           if (this->rect_w_ == 0 || this->rect_h_ == 0) {
             this->rect_done_();
           } else if (encoding == ENCODING_RAW) {
+            this->forget_tiles_(this->rect_x_, this->rect_y_, this->rect_w_, this->rect_h_);
             this->pos_x_ = 0;
             this->pos_y_ = 0;
             this->step_ = VncStep::VNC_STEP_RAW;
@@ -733,6 +740,7 @@ VncParse VncClient::parse_() {
         const uint8_t flags = p[0];
         this->tile_w_ = std::min<uint32_t>(16, static_cast<uint32_t>(this->rect_x_) + this->rect_w_ - this->pos_x_);
         this->tile_h_ = std::min<uint32_t>(16, static_cast<uint32_t>(this->rect_y_) + this->rect_h_ - this->pos_y_);
+        this->tile_hidden_ = this->pos_x_ >= this->vis_w_ || this->pos_y_ >= this->vis_h_;
         // With the raw bit set the other bits mean nothing and the pixels follow at once.
         if (flags & HEXTILE_RAW) {
           this->rx_pos_ += 1;
@@ -747,11 +755,11 @@ VncParse VncClient::parse_() {
         }
         const uint8_t *q = p + 1;
         if (flags & HEXTILE_BACKGROUND) {
-          this->hex_bg_ = this->read_pixel_(q);
+          std::memcpy(this->hex_bg_, q, this->bpp_);
           q += this->bpp_;
         }
         if (flags & HEXTILE_FOREGROUND) {
-          this->hex_fg_ = this->read_pixel_(q);
+          std::memcpy(this->hex_fg_, q, this->bpp_);
           q += this->bpp_;
         }
         this->subrects_left_ = (flags & HEXTILE_ANY_SUBRECTS) ? *q : 0;
@@ -786,10 +794,10 @@ VncParse VncClient::parse_() {
         if (avail < need) {
           return VncParse::VNC_PARSE_MORE;
         }
-        uint16_t pixel = this->hex_fg_;
+        const uint8_t *pixel = this->hex_fg_;
         const uint8_t *q = p;
         if (this->subrects_coloured_) {
-          pixel = this->read_pixel_(q);
+          pixel = q;
           q += this->bpp_;
         }
         this->fill_tile_(q[0] >> 4, q[0] & 0x0F, (q[1] >> 4) + 1, (q[1] & 0x0F) + 1, pixel);
@@ -856,13 +864,12 @@ void VncClient::draw_row_(uint16_t x, uint16_t y, uint16_t count, const uint8_t 
     return;
   }
   const int visible = std::min<int>(count, this->vis_w_ - x);
-  this->forget_tiles_(x, y, visible, 1);
   this->display_->draw_pixels_at(x, y, visible, 1, pixels, this->bitness_, this->big_endian_);
   this->frame_drawn_ = true;
 }
 
 void VncClient::draw_tile_() {
-  if (this->pos_x_ >= this->vis_w_ || this->pos_y_ >= this->vis_h_) {
+  if (this->tile_hidden_) {
     return;
   }
   const int w = std::min<int>(this->tile_w_, this->vis_w_ - this->pos_x_);
@@ -891,11 +898,18 @@ void VncClient::draw_tile_() {
 }
 
 uint32_t VncClient::tile_hash_() const {
-  // The tile's place, size, pixel size and pixels. Zero means "unknown".
-  uint32_t hash = fnv1a_hash_extend(FNV1_OFFSET_BASIS, static_cast<uint32_t>(this->pos_x_) << 16 | this->pos_y_);
-  hash = fnv1a_hash_extend(hash, static_cast<uint32_t>(this->tile_w_) << 16 | this->tile_h_ << 8 | this->bpp_);
+  // The tile's size, pixel size and pixels; the cell gives its place. Zero means "unknown".
+  uint32_t hash = fnv1a_hash_extend(FNV1_OFFSET_BASIS,
+                                    static_cast<uint32_t>(this->tile_w_) << 16 | this->tile_h_ << 8 | this->bpp_);
   const size_t len = static_cast<size_t>(this->tile_w_) * this->tile_h_ * this->bpp_;
-  for (size_t i = 0; i < len; i++) {
+  size_t i = 0;
+  for (; i + 4 <= len; i += 4) {
+    uint32_t word;
+    std::memcpy(&word, this->tile_ + i, sizeof(word));  // tile_ is aligned, so this is one load
+    // Byte by byte: XOR-ing whole words lets high-bit changes in two words cancel.
+    hash = fnv1a_hash_extend(hash, word);
+  }
+  for (; i < len; i++) {
     hash = fnv1a_hash_extend(hash, this->tile_[i]);
   }
   return hash == 0 ? 1 : hash;
@@ -914,22 +928,25 @@ void VncClient::forget_tiles_(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
   }
 }
 
-void VncClient::fill_tile_(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint16_t pixel) {
-  if (this->pos_x_ >= this->vis_w_ || this->pos_y_ >= this->vis_h_ || x >= this->tile_w_ || y >= this->tile_h_) {
+void VncClient::fill_tile_(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *pixel) {
+  if (this->tile_hidden_ || x >= this->tile_w_ || y >= this->tile_h_) {
     return;
   }
   w = std::min<uint8_t>(w, this->tile_w_ - x);
   h = std::min<uint8_t>(h, this->tile_h_ - y);
-  for (uint8_t row = y; row < y + h; row++) {
-    uint8_t *dst = this->tile_ + (static_cast<size_t>(row) * this->tile_w_ + x) * this->bpp_;
-    if (this->bpp_ == 1) {
-      std::memset(dst, pixel, w);
-      continue;
+  const size_t stride = static_cast<size_t>(this->tile_w_) * this->bpp_;
+  const size_t row_len = static_cast<size_t>(w) * this->bpp_;
+  uint8_t *first = this->tile_ + y * stride + x * this->bpp_;
+  if (this->bpp_ == 1) {
+    std::memset(first, pixel[0], w);
+  } else {
+    for (size_t i = 0; i < row_len; i += 2) {
+      first[i] = pixel[0];
+      first[i + 1] = pixel[1];
     }
-    for (uint8_t col = 0; col < w; col++) {
-      dst[col * 2] = pixel;
-      dst[col * 2 + 1] = pixel >> 8;
-    }
+  }
+  for (uint8_t row = 1; row < h; row++) {
+    std::memcpy(first + row * stride, first, row_len);
   }
 }
 
@@ -954,7 +971,7 @@ bool VncClient::start_session_(uint32_t now) {
   }
   const uint16_t cols = (this->vis_w_ + 15) / 16;
   const uint16_t rows = (this->vis_h_ + 15) / 16;
-  const auto rotation = static_cast<uint16_t>(this->display_->get_rotation());
+  const auto rotation = static_cast<uint8_t>(this->display_->get_rotation() / 90);
   const bool rotated = rotation != this->hash_rotation_;
   this->hash_rotation_ = rotation;
   if (static_cast<uint32_t>(cols) * rows > this->hash_capacity_) {
@@ -981,11 +998,12 @@ bool VncClient::start_session_(uint32_t now) {
     return false;
   }
 
-  // SetEncodings: TightVNC uses the first real encoding it supports for every rectangle.
-  uint8_t encodings[16] = {2, 0, 0, 3};
-  write_be32(encodings + 4, ENCODING_HEXTILE);
-  write_be32(encodings + 8, ENCODING_RAW);
-  write_be32(encodings + 12, static_cast<uint32_t>(ENCODING_RICH_CURSOR));
+  // SetEncodings
+  uint8_t encodings[4 + 4 * std::size(ENCODINGS)] = {2};
+  write_be16(encodings + 2, std::size(ENCODINGS));
+  for (size_t i = 0; i < std::size(ENCODINGS); i++) {
+    write_be32(encodings + 4 + 4 * i, static_cast<uint32_t>(ENCODINGS[i]));
+  }
   if (!this->send_(encodings, sizeof(encodings)) || !this->send_update_request_(false, now)) {
     return false;
   }

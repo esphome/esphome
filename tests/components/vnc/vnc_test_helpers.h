@@ -588,6 +588,33 @@ class Session {
   size_t out_pos_{0};
 };
 
+inline constexpr int32_t HEXTILE = 5;
+
+/// Whether the w x h block at x,y shows one RGB565 wire colour.
+inline bool solid(const FakeDisplay &d, int x, int y, int w, int h, uint16_t colour) {
+  for (int row = y; row < y + h; row++) {
+    for (int col = x; col < x + w; col++) {
+      if (d.pixel(col, row) != expect_px(colour, 2)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+class VncSessionTest : public ::testing::Test {
+ protected:
+  void TearDown() override { this->session_.reset(); }
+  /// Starts a session, then moves past the 50 ms request spacing so the next request goes out as soon as a frame ends.
+  void start(FakeDisplay &display, uint16_t fb_w, uint16_t fb_h) {
+    this->session_ = std::make_unique<Session>(&display);
+    this->session_->start(fb_w, fb_h);
+    set_now(now_ms() + 100);
+  }
+  Session &s() { return *this->session_; }
+  std::unique_ptr<Session> session_;
+};
+
 }  // namespace esphome::vnc::testing
 
 #endif  // USE_HOST

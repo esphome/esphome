@@ -7,7 +7,6 @@
 namespace esphome::vnc::testing {
 
 static constexpr int32_t RAW = 0;
-static constexpr int32_t HEXTILE = 5;
 
 static std::vector<uint16_t> pattern(size_t count, uint16_t seed) {
   std::vector<uint16_t> out(count);
@@ -27,21 +26,7 @@ static void expect_block(const FakeDisplay &d, int x, int y, int w, int h, const
   }
 }
 
-static void expect_solid(const FakeDisplay &d, int x, int y, int w, int h, uint16_t px, uint8_t bpp) {
-  expect_block(d, x, y, w, h, std::vector<uint16_t>(static_cast<size_t>(w) * h, px), bpp);
-}
-
-class VncDecode : public ::testing::Test {
- protected:
-  void start(FakeDisplay &display, uint16_t fb_w, uint16_t fb_h) {
-    this->session_ = std::make_unique<Session>(&display);
-    this->session_->start(fb_w, fb_h);
-    // Past the 50 ms request spacing, so the next request goes out as soon as a frame ends.
-    set_now(now_ms() + 100);
-  }
-  Session &s() { return *this->session_; }
-  std::unique_ptr<Session> session_;
-};
+class VncDecode : public VncSessionTest {};
 
 TEST_F(VncDecode, Raw16bpp) {
   FakeDisplay d(64, 48);
@@ -122,7 +107,7 @@ TEST_F(VncDecode, HextileBackgroundOnly) {
   FakeDisplay d(64, 48);
   this->start(d, 64, 48);
   s().deliver(Rfb().fbu(1).rect(0, 0, 16, 16, HEXTILE).u8(0x02).px(0x1234));
-  expect_solid(d, 0, 0, 16, 16, 0x1234, 2);
+  EXPECT_TRUE(solid(d, 0, 0, 16, 16, 0x1234));
   EXPECT_EQ(d.drawn_count(), 256u);
 }
 
@@ -133,7 +118,7 @@ TEST(VncDecodeBigEndian, HextileTilesKeepTheServerByteOrder) {
   set_now(now_ms() + 100);
   s.deliver(
       Rfb().fbu(2).rect(0, 0, 16, 16, HEXTILE).u8(0x02).u16(0x1234).rect(16, 0, 1, 1, HEXTILE).u8(0x01).u16(0xF800));
-  expect_solid(d, 0, 0, 16, 16, 0x1234, 2);
+  EXPECT_TRUE(solid(d, 0, 0, 16, 16, 0x1234));
   EXPECT_EQ(d.pixel(16, 0), expect_px(0xF800, 2));
 }
 
@@ -175,7 +160,7 @@ TEST_F(VncDecode, HextileColouredSubrects) {
                   .px(0x07E0)
                   .u8(0xFF)
                   .u8(0x00));
-  expect_solid(d, 16, 0, 2, 2, 0xF800, 2);
+  EXPECT_TRUE(solid(d, 16, 0, 2, 2, 0xF800));
   EXPECT_EQ(d.pixel(31, 15), expect_px(0x07E0, 2));
   EXPECT_EQ(d.pixel(18, 0), expect_px(0x0001, 2));
   EXPECT_EQ(d.pixel(30, 15), expect_px(0x0001, 2));
@@ -202,10 +187,10 @@ TEST_F(VncDecode, HextileCarriesColoursBetweenTiles) {
                   .u8(0xFF)
                   .u8(0x00));
   EXPECT_EQ(d.pixel(0, 0), expect_px(0xBBBB, 2));
-  expect_solid(d, 1, 1, 15, 15, 0xAAAA, 2);
-  expect_solid(d, 16, 0, 16, 16, 0xAAAA, 2);
+  EXPECT_TRUE(solid(d, 1, 1, 15, 15, 0xAAAA));
+  EXPECT_TRUE(solid(d, 16, 0, 16, 16, 0xAAAA));
   EXPECT_EQ(d.pixel(47, 15), expect_px(0xBBBB, 2));
-  expect_solid(d, 32, 0, 15, 15, 0xAAAA, 2);
+  EXPECT_TRUE(solid(d, 32, 0, 15, 15, 0xAAAA));
 }
 
 TEST_F(VncDecode, HextileCarriesColoursAcrossRawTile) {
@@ -219,7 +204,7 @@ TEST_F(VncDecode, HextileCarriesColoursAcrossRawTile) {
   }
   f.u8(0x08).u8(1).u8(0x00).u8(0x00);
   s().deliver(f);
-  expect_solid(d, 0, 16, 16, 16, 0xCCCC, 2);
+  EXPECT_TRUE(solid(d, 0, 16, 16, 16, 0xCCCC));
   expect_block(d, 16, 16, 16, 16, raw, 2);
   EXPECT_EQ(d.pixel(32, 16), expect_px(0xDDDD, 2));
   EXPECT_EQ(d.pixel(33, 16), expect_px(0xCCCC, 2));
@@ -256,7 +241,7 @@ TEST_F(VncDecode, HextileTileGrid) {
   const int hs[] = {16, 5};
   for (int row = 0; row < 2; row++) {
     for (int col = 0; col < 3; col++) {
-      expect_solid(d, xs[col], ys[row], ws[col], hs[row], 0x1000 + row * 3 + col, 2);
+      EXPECT_TRUE(solid(d, xs[col], ys[row], ws[col], hs[row], 0x1000 + row * 3 + col));
     }
   }
   EXPECT_EQ(d.drawn_count(), 37u * 21u);
@@ -397,7 +382,7 @@ TEST(VncDecodeClip, ServerLargerThanDisplay) {
       ASSERT_EQ(d.pixel(x, y), expect_px(raw[(y - 5) * 90 + (x - 5)], 2)) << x << "," << y;
     }
   }
-  expect_solid(d, 56, 40, 8, 8, 0x5000, 2);
+  EXPECT_TRUE(solid(d, 56, 40, 8, 8, 0x5000));
   EXPECT_EQ(d.pixel(4, 4), UNSET);
   EXPECT_TRUE(s.client.is_connected());
   EXPECT_EQ(hex(s.take()), hex(fbur(true, 64, 48)));
@@ -487,7 +472,7 @@ TEST_F(VncZeroByteEnd, SolidHextileTile) {
   }
   f.u8(0x02).px(0x4444);
   this->deliver_bytewise(f.bytes, f.bytes.size());
-  expect_solid(d, 16, 0, 16, 16, 0x4444, 2);
+  EXPECT_TRUE(solid(d, 16, 0, 16, 16, 0x4444));
   s().run_for(300);
   EXPECT_EQ(d.updates(), 1);
 }
@@ -498,7 +483,7 @@ TEST_F(VncZeroByteEnd, CarriedBackgroundTile) {
   Rfb f;
   f.fbu(1).rect(0, 0, 32, 16, HEXTILE).u8(0x02).px(0x5555).u8(0x00);
   this->deliver_bytewise(f.bytes, f.bytes.size());
-  expect_solid(d, 0, 0, 32, 16, 0x5555, 2);
+  EXPECT_TRUE(solid(d, 0, 0, 32, 16, 0x5555));
   s().run_for(300);
   EXPECT_EQ(d.updates(), 1);
 }
@@ -509,7 +494,7 @@ TEST_F(VncZeroByteEnd, TileWithZeroSubrects) {
   Rfb f;
   f.fbu(1).rect(0, 0, 16, 16, HEXTILE).u8(0x02 | 0x08).px(0x6666).u8(0);
   this->deliver_bytewise(f.bytes, f.bytes.size());
-  expect_solid(d, 0, 0, 16, 16, 0x6666, 2);
+  EXPECT_TRUE(solid(d, 0, 0, 16, 16, 0x6666));
   s().run_for(300);
   EXPECT_EQ(d.updates(), 1);
 }
@@ -572,7 +557,7 @@ TEST_F(VncDecode, BudgetPausesBetweenTilesAndFinishesOnTheLastOne) {
   s().loop(2);
   EXPECT_FALSE(s().client.rx_pending());
   EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
-  expect_solid(d, 32, 0, 16, 16, 0x0C0C, 2);
+  EXPECT_TRUE(solid(d, 32, 0, 16, 16, 0x0C0C));
 }
 
 TEST_F(VncDecode, BudgetPausesInsideARawRect) {
