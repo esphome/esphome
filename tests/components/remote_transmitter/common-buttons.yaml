@@ -93,6 +93,14 @@ button:
           rc_code_1: 0xB24DBF4050AF
           rc_code_2: 0xD5660001003C
   - platform: template
+    name: IRA211
+    on_press:
+      - remote_transmitter.transmit_ira211:
+          command: sync
+          temperature: 22.5
+          mode: timer
+          fan_mode: high
+  - platform: template
     name: Sony
     on_press:
       remote_transmitter.transmit_sony:
@@ -127,6 +135,18 @@ button:
           rc_code_2: 0xA506
           repeat:
             times: 2
+  - platform: template
+    name: Pioneer WYT
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        # Captured from the factory remote: cool mode, 26°C. The encoder appends the checksum.
+        code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80]
+  - platform: template
+    name: Pioneer WYT With Checksum
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        # Same capture with its checksum byte included
+        code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x80, 0xC1]
   - platform: template
     name: RC Switch Raw
     on_press:
@@ -366,6 +386,17 @@ button:
         suffix: 0x00
         suffix_bits: 8
   - platform: template
+    name: KeeLoq TDEF group
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x1234500
+        command: 0x8
+        code: 0xF94A09F2
+        group: 0x0F
+        repeat:
+          times: 2
+          wait_time: 0ms
+  - platform: template
     name: KeeLoq lambda with repeat
     on_press:
       remote_transmitter.transmit_keeloq:
@@ -375,6 +406,23 @@ button:
         repeat:
           times: 3
           wait_time: 10ms
+  - platform: template
+    name: A-OK
+    on_press:
+      remote_transmitter.transmit_aok:
+        remote_id: 0x123456
+        channels: 0x00A1
+        command: 0x0B
+  - platform: template
+    name: A-OK lambda with repeat
+    on_press:
+      remote_transmitter.transmit_aok:
+        remote_id: 0x123456
+        channels: !lambda return 0x1000;
+        command: 0x43
+        repeat:
+          times: 8
+          wait_time: 5ms
   - platform: template
     name: Toto with repeat
     on_press:
@@ -443,6 +491,54 @@ button:
       remote_transmitter.transmit_roomba:
         data: 0x88
   - platform: template
+    name: Pronto
+    on_press:
+      remote_transmitter.transmit_pronto:
+        data: "0000 006D 0001 0000 0015 0016"
+  - platform: template
+    name: RC6
+    on_press:
+      remote_transmitter.transmit_rc6:
+        address: 0x00
+        command: !lambda return 0x0C;
+  - platform: template
+    name: Midea
+    on_press:
+      remote_transmitter.transmit_midea:
+        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+  - platform: template
+    name: Midea lambda
+    on_press:
+      remote_transmitter.transmit_midea:
+        code: !lambda return {0xA2, 0x08, 0xFF, 0xFF, 0xFF};
+  - platform: template
+    name: Haier lambda
+    on_press:
+      remote_transmitter.transmit_haier:
+        code: !lambda return {0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05};
+  - platform: template
+    name: Mirage lambda
+    on_press:
+      remote_transmitter.transmit_mirage:
+        code: !lambda return {0x56, 0x77, 0x00, 0x00, 0x22, 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  - platform: template
+    name: AEHA lambda
+    on_press:
+      remote_transmitter.transmit_aeha:
+        address: 0x8008
+        data: !lambda return {0x00, 0x02, 0xFD, 0xFF};
+  - platform: template
+    name: ABBWelcome fixed message id
+    on_press:
+      remote_transmitter.transmit_abbwelcome:
+        source_address: 0x123456
+        destination_address: 0x654321
+        three_byte_address: true
+        retransmission: true
+        message_type: 0x01
+        message_id: 0x42
+        data: [0x10, 0x20]
+  - platform: template
     name: SomfyRTS
     on_press:
       - remote_transmitter.transmit_somfy_rts:
@@ -463,3 +559,8 @@ button:
           repeat:
             times: 3
             wait_time: 30ms
+  - platform: template
+    name: PD Pioneer
+    on_press:
+      - remote_transmitter.transmit_pd_pioneer:
+          code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80]

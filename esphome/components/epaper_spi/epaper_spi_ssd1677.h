@@ -23,8 +23,8 @@ namespace esphome::epaper_spi {
 class EPaperSSD1677 : public EPaperMono {
  public:
   EPaperSSD1677(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-                size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY)
-      : EPaperMono(name, width, height, init_sequence, init_sequence_length, display_type) {}
+                size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY, uint8_t bits_per_pixel = 1)
+      : EPaperMono(name, width, height, init_sequence, init_sequence_length, display_type, bits_per_pixel) {}
 
   void setup() override;
 
@@ -34,9 +34,6 @@ class EPaperSSD1677 : public EPaperMono {
   void init_comparison_frame_();
   // Bytes in one row of a RAM plane: 8 pixels per byte, whatever the buffer holds.
   size_t plane_row_length_() const { return (this->width_ + 7) / 8; }
-  // Whether the buffer already holds the frame as a RAM plane does, so it can be sent as it is.
-  // A subclass with a deeper buffer returns false and overrides plane_row().
-  virtual bool buffer_is_plane() const { return true; }
   // Row y of the frame as a RAM plane holds it, 1 bit per pixel with 1 = white.
   virtual void plane_row(size_t y, uint8_t *out);
   bool reset() override;
