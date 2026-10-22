@@ -285,9 +285,7 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->target_display_switch_ != nullptr) {
       target_display_controlled = true;
-      // Nothing reports this switch back, so its restored state is the only state
-      // there is; driving the switch turns it into the raw command, the published
-      // state and the stream flag.
+      // Nothing reports this switch back, so its restored state is the only state there is.
       this->target_display_switch_->restore(true);
     }
 #endif
@@ -305,7 +303,6 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
       point_cloud_controlled = true;
-      // The switch owns the stream, so it is also what applies the restored state.
       this->point_cloud_switch_->restore(false);
     }
 #endif
@@ -345,9 +342,8 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     bool want_low_power = this->low_power_switch_ != nullptr;
     if (want_low_power) {
-      // The module reports this one back, so the query below confirms what it took;
-      // the restored value counts as reported, so the work mode fallback runs on it
-      // until the query lands.
+      // The query below confirms what the module took; until it lands, the work mode
+      // fallback runs on the restored value.
       this->low_power_switch_->restore(false);
     }
 #else
