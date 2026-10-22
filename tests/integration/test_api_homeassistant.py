@@ -13,9 +13,15 @@ from __future__ import annotations
 import asyncio
 import re
 
-from aioesphomeapi import HomeassistantServiceCall
+from aioesphomeapi import HomeassistantServiceCall, SensorInfo, SensorState
 import pytest
 
+from .state_utils import (
+    assert_device_name,
+    require_entity,
+    require_service,
+    wait_for_state,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -86,6 +92,15 @@ async def test_api_homeassistant(
         "nonexistent.action_for_error_test": loop.create_future(),  # error_test_call
     }
 
+    # Futures keyed by (service, entity_id) for the real homeassistant numbers
+    ha_real_number_futures = {
+        ("number.set_value", "number.test_real_number"): loop.create_future(),
+        (
+            "input_number.set_value",
+            "input_number.test_real_input_number",
+        ): loop.create_future(),
+    }
+
     # Future for error message test
     action_error_received_future = loop.create_future()
 
@@ -101,6 +116,10 @@ async def test_api_homeassistant(
             future = service_call_futures[service_call.service]
             if not future.done():
                 future.set_result(service_call)
+
+        key = (service_call.service, service_call.data.get("entity_id"))
+        if key in ha_real_number_futures and not ha_real_number_futures[key].done():
+            ha_real_number_futures[key].set_result(service_call)
 
         # Immediately respond to the error test call so the test can proceed
         # This needs to happen synchronously so ESPHome receives the response
@@ -171,9 +190,7 @@ async def test_api_homeassistant(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-ha-api"
+        await assert_device_name(client, "test-ha-api")
 
         # Store client reference for use in service call callback
         client_ref.append(client)
@@ -201,14 +218,34 @@ async def test_api_homeassistant(
         # Empty state with valid entity should work (use different entity to not interfere with test)
         client.send_home_assistant_state("sensor.edge_case_empty_state", "", "")
 
+        # The real homeassistant numbers reject values outside min/max, which
+        # default to 0 until Home Assistant provides them
+        for entity in (
+            "number.test_real_number",
+            "input_number.test_real_input_number",
+        ):
+            client.send_home_assistant_state(entity, "min", "0")
+            client.send_home_assistant_state(entity, "max", "100")
+            client.send_home_assistant_state(entity, "step", "0.5")
+
         # List entities and services
-        _, services = await client.list_entities_services()
+        entities, services = await client.list_entities_services()
 
         # Find the trigger service
-        trigger_service = next(
-            (s for s in services if s.name == "trigger_all_tests"), None
+        trigger_service = require_service(services, "trigger_all_tests")
+
+        # The complex lambda service reads the template sensor, whose first update lands at
+        # a random point in its interval; until then its state is NAN, which the int cast
+        # turns into INT_MIN. Wait for the first reading before firing the tests.
+        test_sensor = require_entity(entities, "test_sensor", SensorInfo, exact=True)
+        await wait_for_state(
+            client,
+            lambda s: (
+                isinstance(s, SensorState)
+                and s.key == test_sensor.key
+                and s.state == 42.0
+            ),
         )
-        assert trigger_service is not None, "trigger_all_tests service not found"
 
         # Execute all tests
         await client.execute_service(trigger_service, {})
@@ -333,6 +370,21 @@ async def test_api_homeassistant(
             assert number_call.data["entity_id"] == "input_number.test_number"
             # The value might be formatted with trailing zeros
             assert float(number_call.data["value"]) == 42.5
+
+            # 7b. Real homeassistant numbers pick the action from the entity domain
+            real_number_call = await asyncio.wait_for(
+                ha_real_number_futures[("number.set_value", "number.test_real_number")],
+                timeout=2.0,
+            )
+            assert float(real_number_call.data["value"]) == 12.5
+
+            real_input_number_call = await asyncio.wait_for(
+                ha_real_number_futures[
+                    ("input_number.set_value", "input_number.test_real_input_number")
+                ],
+                timeout=2.0,
+            )
+            assert float(real_input_number_call.data["value"]) == 7
 
             # 8. HA Switch service calls
             switch_on_call = await asyncio.wait_for(

@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.inkplate2";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.inkplate2");
 
 // Map RGB to the panel's black/white/red via the shared converter.
 enum class Inkplate2Color : uint8_t { BLACK, WHITE, RED };

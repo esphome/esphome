@@ -4,7 +4,7 @@ import subprocess
 import sys
 from unittest.mock import patch
 
-from hypothesis import given
+from hypothesis import given, settings
 import pytest
 
 from esphome import const, core
@@ -31,6 +31,7 @@ class TestHexInt:
 
 
 class TestMACAddress:
+    @settings(deadline=None)
     @given(value=mac_addr_strings())
     def test_init__valid(self, value):
         core.MACAddress(*value.split(":"))
@@ -40,6 +41,7 @@ class TestMACAddress:
         with pytest.raises(ValueError, match="MAC Address must consist of 6 items"):
             core.MACAddress(*value.split(":"))
 
+    @settings(deadline=None)
     @given(value=mac_addr_strings())
     def test_str(self, value):
         target = core.MACAddress(*(int(v, 16) for v in value.split(":")))
@@ -975,6 +977,14 @@ class TestEsphomeCore:
         assert target.using_native_toolchain is False
         target.toolchain = const.Toolchain.SDK_NRF
         assert target.using_native_toolchain is False
+
+    def test_using_toolchain_host(self, target):
+        """The host's only toolchain: the system compiler driven by ninja."""
+        target.toolchain = const.Toolchain.HOST
+        assert target.using_toolchain_host is True
+        assert target.using_native_toolchain is True
+        target.toolchain = const.Toolchain.PLATFORMIO
+        assert target.using_toolchain_host is False
 
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""

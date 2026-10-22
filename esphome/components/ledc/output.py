@@ -12,8 +12,6 @@ from esphome.const import (
     CONF_PHASE_ANGLE,
     CONF_PIN,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
@@ -45,7 +43,6 @@ def validate_frequency(value: Any) -> float:
 
 ledc_ns = cg.esphome_ns.namespace("ledc")
 LEDCOutput = ledc_ns.class_("LEDCOutput", output.FloatOutput, cg.Component)
-SetFrequencyAction = ledc_ns.class_("SetFrequencyAction", automation.Action)
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
@@ -70,32 +67,18 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], gpio)
     await cg.register_component(var, config)
     await output.register_output(var, config)
-    if CONF_CHANNEL in config:
-        cg.add(var.set_channel(config[CONF_CHANNEL]))
+    cg.add_optional(var.set_channel, config.get(CONF_CHANNEL))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
-    if CONF_PHASE_ANGLE in config:
-        cg.add(var.set_phase_angle(config[CONF_PHASE_ANGLE]))
+    cg.add_optional(var.set_phase_angle, config.get(CONF_PHASE_ANGLE))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "output.ledc.set_frequency",
-    SetFrequencyAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(LEDCOutput),
             cv.Required(CONF_FREQUENCY): cv.templatable(validate_frequency),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FREQUENCY, "update_frequency", cg.float_),
 )
-async def ledc_set_frequency_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)
-    cg.add(var.set_frequency(template_))
-    return var

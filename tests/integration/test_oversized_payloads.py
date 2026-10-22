@@ -6,7 +6,9 @@ import asyncio
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedWithDisconnectFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -35,9 +37,7 @@ async def test_oversized_payload_plaintext(
     async with run_compiled(yaml_config, line_callback=check_logs):
         async with api_client_connected_with_disconnect() as (client, disconnect_event):
             # Verify basic connection works first
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-plaintext"
+            await assert_device_name(client, "oversized-plaintext")
 
             # Create an oversized payload (>32768 bytes which is our new limit)
             oversized_data = b"X" * 40000  # ~40KiB, exceeds the 32768 byte limit
@@ -55,18 +55,15 @@ async def test_oversized_payload_plaintext(
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
         # Wait for the expected log message (may arrive after disconnect event)
-        try:
-            await asyncio.wait_for(helper_log_event.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                "Expected to see HELPER_LOG about message size exceeding maximum"
-            )
+        await wait_or_fail(
+            helper_log_event,
+            2.0,
+            "Expected to see HELPER_LOG about message size exceeding maximum",
+        )
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect() as (client2, _):
-            device_info = await client2.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-plaintext"
+            await assert_device_name(client2, "oversized-plaintext")
 
 
 @pytest.mark.asyncio
@@ -98,9 +95,7 @@ async def test_oversized_protobuf_message_id_plaintext(
     async with run_compiled(yaml_config, line_callback=check_logs):
         async with api_client_connected_with_disconnect() as (client, disconnect_event):
             # Verify basic connection works first
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-protobuf-plaintext"
+            await assert_device_name(client, "oversized-protobuf-plaintext")
 
             # Access the internal connection to send raw message with large ID
             frame_helper = client._connection._frame_helper
@@ -118,18 +113,15 @@ async def test_oversized_protobuf_message_id_plaintext(
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
         # Wait for the expected log message (may arrive after disconnect event)
-        try:
-            await asyncio.wait_for(helper_log_event.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                "Expected to see HELPER_LOG about message type exceeding maximum"
-            )
+        await wait_or_fail(
+            helper_log_event,
+            2.0,
+            "Expected to see HELPER_LOG about message type exceeding maximum",
+        )
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect() as (client2, _):
-            device_info = await client2.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-protobuf-plaintext"
+            await assert_device_name(client2, "oversized-protobuf-plaintext")
 
 
 @pytest.mark.asyncio
@@ -163,9 +155,7 @@ async def test_oversized_payload_noise(
             disconnect_event,
         ):
             # Verify basic connection works first
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-noise"
+            await assert_device_name(client, "oversized-noise")
 
             # Create an oversized payload (>32768 bytes which is our new limit)
             oversized_data = b"Y" * 40000  # ~40KiB, exceeds the 32768 byte limit
@@ -184,21 +174,18 @@ async def test_oversized_payload_noise(
         # After disconnection, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
         # Wait for the expected log message (may arrive after disconnect event)
-        try:
-            await asyncio.wait_for(helper_log_event.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                "Expected to see HELPER_LOG about message size exceeding maximum"
-            )
+        await wait_or_fail(
+            helper_log_event,
+            2.0,
+            "Expected to see HELPER_LOG about message size exceeding maximum",
+        )
 
         # Try to reconnect to verify the process is still running
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
             client2,
             _,
         ):
-            device_info = await client2.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-noise"
+            await assert_device_name(client2, "oversized-noise")
 
 
 @pytest.mark.asyncio
@@ -228,9 +215,7 @@ async def test_oversized_protobuf_message_id_noise(
             disconnect_event,
         ):
             # Verify basic connection works first
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-noise"
+            await assert_device_name(client, "oversized-noise")
 
             # With noise, message types are uint16_t, so we test with an unknown but valid value
             frame_helper = client._connection._frame_helper
@@ -253,9 +238,7 @@ async def test_oversized_protobuf_message_id_noise(
             )
 
             # Verify we can still communicate by sending a valid request
-            device_info2 = await client.device_info()
-            assert device_info2 is not None
-            assert device_info2.name == "oversized-noise"
+            await assert_device_name(client, "oversized-noise")
 
         # After test, verify process didn't crash
         assert not process_exited, "ESPHome process should not crash"
@@ -265,9 +248,7 @@ async def test_oversized_protobuf_message_id_noise(
             client2,
             _,
         ):
-            device_info = await client2.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-noise"
+            await assert_device_name(client2, "oversized-noise")
 
 
 @pytest.mark.asyncio
@@ -307,9 +288,7 @@ async def test_noise_corrupt_encrypted_frame(
             disconnect_event,
         ):
             # Verify basic connection works first
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-noise"
+            await assert_device_name(client, "oversized-noise")
 
             # Get the socket to send raw corrupt data
             socket = client._connection._socket
@@ -336,19 +315,16 @@ async def test_noise_corrupt_encrypted_frame(
             "ESPHome process should not crash on corrupt encrypted frames"
         )
         # Wait for the expected log message (may arrive after disconnect event)
-        try:
-            await asyncio.wait_for(cipherstate_event.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                "Expected to see log about noise_cipherstate_decrypt failure"
-                " or CIPHERSTATE_DECRYPT_FAILED"
-            )
+        await wait_or_fail(
+            cipherstate_event,
+            2.0,
+            "Expected to see log about noise_cipherstate_decrypt failure"
+            " or CIPHERSTATE_DECRYPT_FAILED",
+        )
 
         # Verify we can still reconnect after handling the corrupt frame
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
             client2,
             _,
         ):
-            device_info = await client2.device_info()
-            assert device_info is not None
-            assert device_info.name == "oversized-noise"
+            await assert_device_name(client2, "oversized-noise")

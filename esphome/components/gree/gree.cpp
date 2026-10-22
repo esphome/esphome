@@ -3,18 +3,7 @@
 
 namespace esphome::gree {
 
-static const char *const TAG = "gree.climate";
-
-climate::ClimateTraits GreeClimate::traits() {
-  auto t = climate_ir::ClimateIR::traits();
-  // ClimateIR unconditionally includes HEAT_COOL in the base mode set; remove it when heat is not supported.
-  if (!this->supports_heat_) {
-    auto modes = t.get_supported_modes();
-    modes.erase(climate::CLIMATE_MODE_HEAT_COOL);
-    t.set_supported_modes(modes);
-  }
-  return t;
-}
+ESPHOME_LOG_TAG(TAG, "gree.climate");
 
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN) {
@@ -23,9 +12,12 @@ void GreeClimate::set_model(Model model) {
     this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
   }
   if (model == GREE_YX1FF) {
-    this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);   // YX1FF 4 speed
-    this->presets_.insert(climate::CLIMATE_PRESET_NONE);   // YX1FF sleep mode
-    this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);  // YX1FF sleep mode
+    this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);  // YX1FF 4 speed
+  }
+  // Models with a sleep preset
+  if (model == GREE_YX1FF || model == GREE_YAC1FB9) {
+    this->presets_.insert(climate::CLIMATE_PRESET_NONE);
+    this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }
 
   this->model_ = model;
@@ -48,7 +40,6 @@ void GreeClimate::transmit_state() {
   remote_state[1] = this->temperature_();
 
   if (model == GREE_YAN) {
-    remote_state[2] = 0x20;  // bits 0..3 always 0000, bits 4..7 TURBO, LIGHT, HEALTH, X-FAN
     remote_state[3] = 0x50;  // bits 4..7 always 0101
     remote_state[4] = this->vertical_swing_();
   }
@@ -72,7 +63,6 @@ void GreeClimate::transmit_state() {
   }
 
   if (model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
-    remote_state[2] = 0x20;  // bits 0..3 always 0000, bits 4..7 TURBO, LIGHT, HEALTH, X-FAN
     remote_state[3] = 0x50;  // bits 4..7 always 0101
     remote_state[6] = 0x20;  // YAA1FB, FAA1FB1, YB1F2 bits 4..7 always 0010
 
@@ -93,10 +83,10 @@ void GreeClimate::transmit_state() {
     if (this->fan_speed_() == GREE_FAN_TURBO) {
       remote_state[2] |= GREE_FAN_TURBO_BIT;
     }
+  }
 
-    if (this->preset_() == GREE_PRESET_SLEEP) {
-      remote_state[0] |= GREE_PRESET_SLEEP_BIT;
-    }
+  if (this->preset_() == GREE_PRESET_SLEEP) {
+    remote_state[0] |= GREE_PRESET_SLEEP_BIT;
   }
 
   // Calculate the checksum
@@ -237,12 +227,12 @@ uint8_t GreeClimate::vertical_swing_() {
 }
 
 uint8_t GreeClimate::temperature_() {
-  return (uint8_t) roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX));
+  return (uint8_t) roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX)) - GREE_TEMP_MIN;
 }
 
 uint8_t GreeClimate::preset_() {
-  // YX1FF has sleep preset
-  if (this->model_ == GREE_YX1FF) {
+  // YX1FF and YAC1FB9 have sleep preset
+  if (this->model_ == GREE_YX1FF || this->model_ == GREE_YAC1FB9) {
     switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
       case climate::CLIMATE_PRESET_NONE:
         return GREE_PRESET_NONE;
