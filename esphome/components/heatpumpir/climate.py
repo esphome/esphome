@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir
+from esphome.components.const import CONF_HORIZONTAL_DEFAULT, CONF_VERTICAL_DEFAULT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAX_TEMPERATURE,
@@ -76,13 +77,11 @@ PROTOCOLS = {
     "r51m": Protocol.PROTOCOL_R51M,
 }
 
-CONF_HORIZONTAL_DEFAULT = "horizontal_default"
 HorizontalDirections = heatpumpir_ns.enum("HorizontalDirections")
 HORIZONTAL_DIRECTIONS = HorizontalDirections.options(
     "auto", "middle", "left", "mleft", "mright", "right", prefix="HORIZONTAL_DIRECTION_"
 )
 
-CONF_VERTICAL_DEFAULT = "vertical_default"
 VerticalDirections = heatpumpir_ns.enum("VerticalDirections")
 VERTICAL_DIRECTIONS = VerticalDirections.options(
     "auto", "up", "mup", "middle", "mdown", "down", prefix="VERTICAL_DIRECTION_"

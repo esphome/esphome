@@ -13,10 +13,15 @@ from __future__ import annotations
 import asyncio
 import re
 
-from aioesphomeapi import HomeassistantServiceCall
+from aioesphomeapi import HomeassistantServiceCall, SensorInfo, SensorState
 import pytest
 
-from .state_utils import assert_device_name, require_service
+from .state_utils import (
+    assert_device_name,
+    require_entity,
+    require_service,
+    wait_for_state,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -224,10 +229,23 @@ async def test_api_homeassistant(
             client.send_home_assistant_state(entity, "step", "0.5")
 
         # List entities and services
-        _, services = await client.list_entities_services()
+        entities, services = await client.list_entities_services()
 
         # Find the trigger service
         trigger_service = require_service(services, "trigger_all_tests")
+
+        # The complex lambda service reads the template sensor, whose first update lands at
+        # a random point in its interval; until then its state is NAN, which the int cast
+        # turns into INT_MIN. Wait for the first reading before firing the tests.
+        test_sensor = require_entity(entities, "test_sensor", SensorInfo, exact=True)
+        await wait_for_state(
+            client,
+            lambda s: (
+                isinstance(s, SensorState)
+                and s.key == test_sensor.key
+                and s.state == 42.0
+            ),
+        )
 
         # Execute all tests
         await client.execute_service(trigger_service, {})
