@@ -32,8 +32,10 @@ from esphome.components.esp32 import (
     _user_sdkconfig_wants_tls,
     allow_insecure_tls,
     idf_version,
+    require_idf_version,
 )
 from esphome.components.esp32.const import (
+    KEY_BOARD,
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
     KEY_IDF_VERSION,
@@ -2442,3 +2444,44 @@ def test_allow_insecure_tls_only_switches_the_flags_on(
         "CONFIG_ESP_TLS_INSECURE": True,
         "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY": True,
     }
+
+
+@pytest.mark.parametrize(
+    ("platform_framework", "idf", "ok"),
+    [
+        (PlatformFramework.ESP32_IDF, cv.Version(5, 5, 3), True),
+        (PlatformFramework.ESP32_IDF, cv.Version(5, 5, 2), False),
+        (PlatformFramework.ESP32_ARDUINO, cv.Version(5, 5, 3), True),
+        (PlatformFramework.ESP32_ARDUINO, cv.Version(5, 5, 2), False),
+    ],
+)
+def test_require_idf_version_compares_the_idf_underneath(
+    set_core_config: SetCoreConfigCallable,
+    platform_framework: PlatformFramework,
+    idf: cv.Version,
+    ok: bool,
+) -> None:
+    set_core_config(
+        platform_framework,
+        platform_data={
+            KEY_BOARD: "esp32dev",
+            KEY_VARIANT: VARIANT_ESP32,
+            KEY_IDF_VERSION: idf,
+        },
+    )
+    validator = require_idf_version(cv.Version(5, 5, 3), "The thing")
+    if ok:
+        assert validator("x") == "x"
+    else:
+        with pytest.raises(
+            cv.Invalid, match="The thing requires ESP-IDF 5.5.3 or newer, got 5.5.2"
+        ):
+            validator("x")
+
+
+def test_require_idf_version_rejects_other_platforms(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    with pytest.raises(cv.Invalid, match="only available on"):
+        require_idf_version(cv.Version(5, 5, 3))("x")

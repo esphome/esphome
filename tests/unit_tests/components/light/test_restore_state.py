@@ -16,10 +16,6 @@ from esphome.components.light import (
 from esphome.components.light.restore_state import (
     _RESTORE_STATE_FIELDS_SCHEMA,
     LEGACY_RESTORE_MODES,
-    RESTORE_STATE_INITIAL,
-    RESTORE_STATE_INVERT,
-    RESTORE_STATE_KEEP,
-    RESTORE_STATE_NONE,
     RESTORE_STATE_SCHEMA,
     StateStatement,
     _initial_state_overridden_by_legacy_mode,
@@ -33,6 +29,12 @@ from esphome.components.light.types import ColorMode
 import esphome.config_validation as cv
 from esphome.const import CONF_STATE
 from esphome.core import Lambda
+from esphome.core.entity_helpers import (
+    RESTORE_STATE_INITIAL,
+    RESTORE_STATE_INVERT,
+    RESTORE_STATE_KEEP,
+    RESTORE_STATE_NONE,
+)
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 # (mode name, expected cold_boot_state, expected restore_action, expected save_enabled)
