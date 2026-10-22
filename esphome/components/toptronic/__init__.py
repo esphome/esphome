@@ -5,6 +5,7 @@ import pathlib
 import yaml
 
 import esphome.codegen as cg
+from esphome.components import ota
 from esphome.components.canbus import CanbusComponent
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_OPTIONS
@@ -32,9 +33,9 @@ CONF_MAX_PENDING_AGE = "max_pending_age"
 CONF_CLEANUP_INTERVAL = "cleanup_interval"
 CONF_MAX_REFRESH_PER_LOOP = "max_refresh_per_loop"
 CONF_MAX_FRAMES_PER_MESSAGE = "max_frames_per_message"
-CONF_REFRESH_GAP_MS = "refresh_gap_ms"
+CONF_REFRESH_GAP = "refresh_gap"
 CONF_MAX_REFRESH_RETRIES = "max_refresh_retries"
-CONF_REFRESH_RETRY_INTERVAL_MS = "refresh_retry_interval_ms"
+CONF_REFRESH_RETRY_INTERVAL = "refresh_retry_interval"
 CONF_WRITE_MIN_INTERVAL = "write_min_interval"
 CONF_REJECT_WRITES_BEFORE_READ = "reject_writes_before_read"
 
@@ -174,11 +175,11 @@ CONFIG_SCHEMA = cv.Schema(
             min=3, max=31
         ),
         cv.Optional(
-            CONF_REFRESH_GAP_MS, default="50ms"
+            CONF_REFRESH_GAP, default="50ms"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_REFRESH_RETRIES, default=1): cv.int_range(min=0, max=10),
         cv.Optional(
-            CONF_REFRESH_RETRY_INTERVAL_MS, default="200ms"
+            CONF_REFRESH_RETRY_INTERVAL, default="200ms"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(
             CONF_WRITE_MIN_INTERVAL, default="2s"
@@ -305,6 +306,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], cbus)
     await cg.register_component(var, config)
 
+    # Pause CAN processing while an OTA update runs.
+    ota.request_ota_state_listeners()
+
     device_type = get_device_type(config["device_type"])
     cg.add(var.set_device_type(device_type))
     cg.add(var.set_device_addr(config[CONF_DEVICE_ADDR]))
@@ -314,9 +318,9 @@ async def to_code(config):
     cg.add(var.set_cleanup_interval_ms(config[CONF_CLEANUP_INTERVAL]))
     cg.add(var.set_max_refresh_per_loop(config[CONF_MAX_REFRESH_PER_LOOP]))
     cg.add(var.set_max_frames_per_message(config[CONF_MAX_FRAMES_PER_MESSAGE]))
-    cg.add(var.set_refresh_gap_ms(config[CONF_REFRESH_GAP_MS]))
+    cg.add(var.set_refresh_gap_ms(config[CONF_REFRESH_GAP]))
     cg.add(var.set_max_refresh_retries(config[CONF_MAX_REFRESH_RETRIES]))
-    cg.add(var.set_refresh_retry_interval_ms(config[CONF_REFRESH_RETRY_INTERVAL_MS]))
+    cg.add(var.set_refresh_retry_interval_ms(config[CONF_REFRESH_RETRY_INTERVAL]))
     cg.add(var.set_write_min_interval(config[CONF_WRITE_MIN_INTERVAL]))
     cg.add(var.set_reject_writes_before_read(config[CONF_REJECT_WRITES_BEFORE_READ]))
 

@@ -17,9 +17,9 @@ toptronic:
     boot_refresh_delay: 20s
     max_refresh_per_loop: 6
     max_frames_per_message: 8
-    refresh_gap_ms: 60ms
+    refresh_gap: 60ms
     max_refresh_retries: 0
-    refresh_retry_interval_ms: 250ms
+    refresh_retry_interval: 250ms
     write_min_interval: 3s
     reject_writes_before_read: false
 
@@ -32,12 +32,12 @@ switch:
 button:
   - platform: toptronic
     toptronic_id: tt_hv
+    name: Hand-written test button
     function_group: 20
     function_number: 0
     datapoint: 1
     type: U8
     value: 1
-    name: Setpoint reset
 
 sensor:
   - platform: toptronic

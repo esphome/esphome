@@ -24,6 +24,9 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include <deque>
 #include <map>
@@ -66,48 +69,58 @@ std::vector<uint8_t> build_get_request(uint8_t function_group, uint8_t function_
 std::vector<uint8_t> build_set_request(uint8_t function_group, uint8_t function_number, uint32_t datapoint,
                                        const std::vector<uint8_t> &value);
 
-// Base class shared by all TopTronic entity types (sensor, number, text sensor, select).
-// Extends PollingComponent so ESPHome calls update() on a configurable interval,
-// which triggers a GET request to read the latest value from the boiler.
-//
-// Device addressing (device_type_/device_addr_) is owned by the TopTronic hub and
-// inherited by every entity registered on it.
-class TopTronicBase : public PollingComponent {
+// Datapoint addressing shared by every TopTronic entity type (sensor, number,
+// text sensor, select, button). It deliberately does NOT derive from Component:
+// write-only entities such as buttons have nothing to poll or schedule, so
+// pulling in the component machinery would only add RAM and a no-op loop tick.
+class TopTronicDatapoint {
  public:
+  virtual ~TopTronicDatapoint() = default;
+
   void set_function_group(uint8_t function_group) { this->function_group_ = function_group; }
   void set_function_number(uint8_t function_number) { this->function_number_ = function_number; }
   void set_datapoint(uint16_t datapoint) { this->datapoint_ = datapoint; }
 
   // Unique entity ID: encodes function_group | function_number | datapoint into a single uint32.
   // Used as the key in the per-device sensor/input hash maps.
-  uint32_t get_id();
+  uint32_t get_id() const;
 
   // Returns the pre-built GET request payload. Must call cache_request_data() first (done at setup).
-  const std::vector<uint8_t> &get_request_data();
+  const std::vector<uint8_t> &get_request_data() const { return this->request_data_; }
   // Builds and stores the GET request payload once, avoiding a heap allocation on every poll.
   void cache_request_data();
 
-  virtual SensorType type() = 0;
+  virtual SensorType type() const = 0;
 
-  // Called by ESPHome scheduler at the configured polling interval.
-  void update() override;
+  // Fire the polling path (a GET request) without needing a Component.
+  void request_update() { this->update_callback_.call(); }
+
   void add_on_update_callback(std::function<void()> &&callback);
   void add_on_set_callback(std::function<void(const std::vector<uint8_t> &)> &&callback);
 
-  // Human-readable entity name (the YAML name). TopTronicBase has no Entity
+  // Human-readable entity name (the YAML name). TopTronicDatapoint has no Entity
   // base, so each concrete entity type forwards this to its ESPHome Entity.
   virtual const LogString *get_log_name() const = 0;
 
  protected:
-  uint8_t function_group_;
-  uint8_t function_number_;
-  uint16_t datapoint_;
+  uint8_t function_group_{0};
+  uint8_t function_number_{0};
+  uint16_t datapoint_{0};
 
   // GET request bytes, built once at setup. Returned by reference to avoid copying on every poll.
   std::vector<uint8_t> request_data_;
 
   CallbackManager<void()> update_callback_;
   CallbackManager<void(const std::vector<uint8_t> &)> set_callback_;
+};
+
+// Base class shared by the polled entity types (sensor, number, text sensor,
+// select). Extends PollingComponent so ESPHome calls update() on a configurable
+// interval, which triggers a GET request to read the latest value from the boiler.
+class TopTronicBase : public PollingComponent, public TopTronicDatapoint {
+ public:
+  // Called by ESPHome scheduler at the configured polling interval.
+  void update() override;
 };
 
 #ifdef USE_SENSOR
@@ -123,7 +136,7 @@ class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
   // configured type (1/2/4/8) - used to reject truncated frames before they
   // are decoded and before the cold-cache write guard is unlocked.
   size_t value_width() const;
-  SensorType type() override { return SENSOR; }
+  SensorType type() const override { return SENSOR; }
   const LogString *get_log_name() const override { return this->sensor::Sensor::get_log_name(); }
 
  protected:
@@ -143,7 +156,7 @@ class TopTronicNumber : public number::Number, public TopTronicBase {
   void set_type(TypeName type) { this->type_ = type; }
   void set_multiplier(float multiplier) { this->multiplier_ = multiplier; }
   float get_multiplier() { return this->multiplier_; }
-  SensorType type() override { return SENSOR; }
+  SensorType type() const override { return SENSOR; }
   const LogString *get_log_name() const override { return this->number::Number::get_log_name(); }
   // Called by ESPHome when the user sets a new value from Home Assistant.
   void control(float value) override;
@@ -162,7 +175,7 @@ class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicBase
   // Decode raw bytes from the CAN response into a string label using the option map.
   // data/len point into the reassembly buffer or the received CAN frame — no copy.
   std::string parse_value(const uint8_t *data, size_t len);
-  SensorType type() override { return TEXTSENSOR; }
+  SensorType type() const override { return TEXTSENSOR; }
   const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
 
   // Register a value↔text mapping (called from generated YAML code at startup).
@@ -188,7 +201,7 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
   // TopTronicNumber for the SCHEDULER_DONT_RUN rationale.
   TopTronicSelect() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
-  SensorType type() override { return TEXTSENSOR; }
+  SensorType type() const override { return TEXTSENSOR; }
   const LogString *get_log_name() const override { return this->select::Select::get_log_name(); }
   TypeName get_value_type() { return this->type_; }
 
@@ -210,42 +223,30 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
 
 #ifdef USE_BUTTON
 // Fire-and-forget button: sends a fixed SET request on the CAN bus when pressed.
-// The value is configured in YAML (e.g. an acknowledgment or reset command).
-class TopTronicButton : public button::Button, public TopTronicBase {
+// The value is configured in YAML (e.g. an acknowledgement or reset command) and
+// is validated against the datapoint's type range at config time.
+class TopTronicButton : public button::Button, public TopTronicDatapoint {
  public:
-  // Fire-and-forget: never polls (no update callback registered). See
-  // TopTronicNumber for the SCHEDULER_DONT_RUN rationale.
-  TopTronicButton() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
-  void set_value(float value) { this->value_ = value; }
-  SensorType type() override { return BUTTON; }
+  void set_value(int64_t value) { this->value_ = value; }
+  SensorType type() const override { return BUTTON; }
   const LogString *get_log_name() const override { return this->button::Button::get_log_name(); }
 
  protected:
-  TypeName type_;
-  float value_{0.0f};
+  TypeName type_{U8};
+  int64_t value_{0};
 
   // Called by ESPHome when the user presses the button from Home Assistant.
   void press_action() override;
-};
-
-// Build-wide "Refresh all" button, generated once by the component codegen
-// (__init__.py). press_action() calls the parent hub's refresh_all(), which
-// fans out to EVERY registered hub (HV, BM, WEZ …) and staggers each hub's
-// batch by REFRESH_STAGGER_MS so the 50 kbps bus is not spammed.
-class TopTronicRefreshButton : public button::Button, public Component {
- public:
-  void set_parent(TopTronic *parent) { this->parent_ = parent; }
-
- protected:
-  // Called by ESPHome when the user presses the button from Home Assistant.
-  void press_action() override;
-
-  TopTronic *parent_{nullptr};
 };
 #endif
 
 #ifdef USE_SWITCH
+// Which debug feature a debug switch controls. Generated from Python
+// (switch.py debug_mode), so the YAML values and the C++ enumerators cannot
+// drift apart.
+enum class DebugMode : uint8_t { CANDUMP, FIND_CAN_ID };
+
 // Debug switches, one per independent debug feature. Each switch controls its
 // own build-wide boolean flag (s_candump_enabled / s_find_can_id_enabled) and
 // registers on its own per-feature callback manager, so the two switches are
@@ -256,10 +257,9 @@ class TopTronicRefreshButton : public button::Button, public Component {
 class TopTronicDebugSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(TopTronic *parent) { this->parent_ = parent; }
-  // The debug feature this switch controls (1 = candump, 2 = find can_id).
   // This is only a discriminator — the actual enable/disable path uses the
   // dedicated set_candump_enabled() / set_find_can_id_enabled() setters.
-  void set_debug_mode(uint8_t mode) { this->mode_ = mode; }
+  void set_debug_mode(DebugMode mode) { this->mode_ = mode; }
 
   void setup() override;
   void dump_config() override;
@@ -278,7 +278,7 @@ class TopTronicDebugSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 
   TopTronic *parent_{nullptr};
-  uint8_t mode_{0};
+  DebugMode mode_{DebugMode::CANDUMP};
 };
 #endif
 
@@ -290,20 +290,25 @@ class TopTronicDevice {
   // Per §5.9 the maps stay private (pointer lifetime safety — the pointers are
   // owned by the ESPHome registry, never deleted here); the hub reaches them
   // only through these accessors.
-  std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() { return this->sensors_; }
-  const std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() const { return this->sensors_; }
-  std::unordered_map<uint32_t, TopTronicBase *> &get_inputs() { return this->inputs_; }
-  const std::unordered_map<uint32_t, TopTronicBase *> &get_inputs() const { return this->inputs_; }
+  std::unordered_map<uint32_t, TopTronicDatapoint *> &get_sensors() { return this->sensors_; }
+  const std::unordered_map<uint32_t, TopTronicDatapoint *> &get_sensors() const { return this->sensors_; }
+  std::unordered_map<uint32_t, TopTronicDatapoint *> &get_inputs() { return this->inputs_; }
+  const std::unordered_map<uint32_t, TopTronicDatapoint *> &get_inputs() const { return this->inputs_; }
 
  private:
-  std::unordered_map<uint32_t, TopTronicBase *> sensors_;  // keyed by get_id()
-  std::unordered_map<uint32_t, TopTronicBase *> inputs_;   // keyed by get_id()
+  std::unordered_map<uint32_t, TopTronicDatapoint *> sensors_;  // keyed by get_id()
+  std::unordered_map<uint32_t, TopTronicDatapoint *> inputs_;   // keyed by get_id()
 };
 
 // Root component: owns all TopTronicDevice instances and is the entry point
 // for every incoming CAN frame (parse_frame is called from the internal
 // canbus callback registered in setup()).
-class TopTronic : public Component {
+class TopTronic : public Component
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                  public ota::OTAGlobalStateListener
+#endif
+{
  public:
   // Registers this hub in the build-wide registry immediately, so refresh_all()
   // always covers every hub even if setup() has not run yet (e.g. during a slow
@@ -312,8 +317,8 @@ class TopTronic : public Component {
   explicit TopTronic(canbus::Canbus *canbus);
 
   // Register sensors and inputs (called from generated YAML code).
-  void add_sensor(TopTronicBase *sensor);
-  void add_input(TopTronicBase *input);
+  void add_sensor(TopTronicDatapoint *sensor);
+  void add_input(TopTronicDatapoint *input);
 
   // Called on every received CAN frame. Handles multi-frame reassembly,
   // then dispatches to interpret_message_() once a complete message is available.
@@ -335,29 +340,9 @@ class TopTronic : public Component {
   void refresh_all();
 
   // Process the throttled refresh burst (send/retry/drop, completion log, stall
-  // watchdog, state heartbeat, deferred run). Called from loop() and also
-  // re-scheduled through the ESPHome scheduler, so a hub whose component loop()
-  // is not invoked still drains its burst.
+  // watchdog, state heartbeat, deferred run). Driven by a scheduler interval
+  // installed in setup().
   void drain_refresh_burst();
-
-  // Scheduler-driven work pump (order-independent): all critical work (command
-  // bridge, burst drain, boot refresh, cleanup) is driven from here via
-  // set_interval() in setup(), so a hub works even if ESPHome does not invoke
-  // its component loop() (Phase B). loop() calls pump() as well.
-  void pump();
-
-  // Thread-safe requests callable from any FreeRTOS task. They only enqueue a
-  // command; the main loop task drains the queue and does the real work, so all
-  // component state stays single-threaded. Non-blocking (not ISR-safe).
-  void request_refresh();
-  void request_pause();
-  void request_resume();
-
-  // Fan out Pause/Resume to EVERY registered hub via the build-wide registry,
-  // so OTA pause/resume lambdas can target any single hub id and still cover
-  // all hubs (HV, BM, WEZ …). Thread-safe request variants.
-  void request_pause_all();
-  void request_resume_all();
 
   void set_device_type(uint16_t device_type) { this->device_type_ = device_type; }
   void set_device_addr(uint8_t device_addr) { this->device_addr_ = device_addr; }
@@ -427,8 +412,13 @@ class TopTronic : public Component {
   bool is_paused() { return this->paused_; }
 
   void setup() override;
-  void on_shutdown() override;
   void dump_config() override;
+
+#ifdef USE_OTA_STATE_LISTENER
+  // Pause CAN processing while an OTA update runs so the update connection is
+  // not starved, and resume on completion/abort/error.
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
+#endif
 
  protected:
   // State of an in-progress multi-frame message being reassembled.
@@ -444,7 +434,7 @@ class TopTronic : public Component {
   // subscribe so the input stays in sync with the current boiler value.
   void link_inputs_();
   // Return the sensor for a given (device_id, sensor_id) pair, or nullptr if not found.
-  TopTronicBase *get_sensor_(uint32_t device_id, uint32_t sensor_id);
+  TopTronicDatapoint *get_sensor_(uint32_t device_id, uint32_t sensor_id);
   // Parse a fully reassembled CAN message and update the matching sensor or input.
   // data/len reference the reassembly buffer directly — no per-frame heap copies.
   void interpret_message_(const uint8_t *data, size_t len, uint32_t can_id, bool remote_transmission_request);
@@ -454,6 +444,10 @@ class TopTronic : public Component {
   // membership is a single O(1) lookup — it covers EVERY device this hub owns,
   // not a single hardcoded address.
   bool owns_device_(uint32_t device_id) const { return this->devices_.contains(device_id); }
+
+  // Send a SET request, splitting into multiple frames when needed. Returns the
+  // bus result so the caller only records a successful write.
+  canbus::Error send_can_frames_(uint32_t can_id, const std::vector<uint8_t> &data);
 
   canbus::Canbus *canbus_;
 
@@ -470,13 +464,6 @@ class TopTronic : public Component {
   // CAN address of this gateway node (used when building outgoing CAN IDs).
   uint16_t device_type_{0};
   uint8_t device_addr_{0};
-
-  // Commands marshalled from other tasks into the main loop task.
-  // Enumerator names are UPPER_SNAKE_CASE per §5.3; values stay 0/1/2.
-  enum class Command : uint8_t { REFRESH, PAUSE, RESUME };
-  // Producer/consumer bridge: other tasks enqueue here, pump() drains on the
-  // main loop task. Created in setup(); nullptr until then.
-  QueueHandle_t cmd_queue_{nullptr};
 
   // Delay (ms) for the one-shot post-boot refresh; 0 disables it.
   uint32_t boot_refresh_delay_ms_{30000};
@@ -518,16 +505,16 @@ class TopTronic : public Component {
   // retry updates the in-place entry (update_all() never queues duplicates).
   // Empty = no burst pending.
   struct RefreshEntry {
-    TopTronicBase *sensor;
+    TopTronicDatapoint *sensor;
     uint32_t last_send_ms;  // millis() when this GET was last sent
     uint32_t attempts;      // GETs sent so far for this sensor this burst
   };
   std::deque<RefreshEntry> pending_refresh_;
 
   // Coalesced refresh request: set by update_all() when a refresh is asked for
-  // while a burst is still draining. pump() starts one fresh burst once the
-  // current one empties, so a "Refresh all" press during a burst is deferred
-  // and honored rather than silently dropped.
+  // while a burst is still draining. drain_refresh_burst() starts one fresh burst
+  // once the current one empties, so a "Refresh all" press during a burst is
+  // deferred and honored rather than silently dropped.
   bool refresh_pending_{false};
 
   // Refresh-burst observability + stall watchdog. burst_in_progress_ is true
@@ -544,6 +531,9 @@ class TopTronic : public Component {
   // Write safety state.
   // Last SET timestamp per datapoint (keyed by get_id()) for the rate limit.
   std::unordered_map<uint32_t, uint32_t> last_write_ms_;
+  // Reassembly key for outgoing multi-frame messages: per hub, so two hubs never
+  // reuse the same header at the same time.
+  uint8_t msg_counter_{0};
   // Datapoints (get_id()) that have published at least one value since boot.
   std::unordered_set<uint32_t> read_ok_ids_;
   // Minimum ms between two SETs of the same datapoint (0 = no limit).
