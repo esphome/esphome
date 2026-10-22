@@ -183,6 +183,14 @@ async def main() -> None:
     helper.close()
     if errors:
         sys.exit(f"transport errors: {errors}")
+    if encoding != "zstd":
+        sys.exit(f"unexpected encoding {encoding!r}, expected 'zstd'")
+    if total is not None and len(compressed) != total:
+        sys.exit(f"received {len(compressed)} bytes but the device advertised {total}")
+    if again != len(compressed):
+        sys.exit(
+            f"the second request returned {again} bytes, the first {len(compressed)}"
+        )
     envelope = zstd.decompress(compressed)
     files = unpack_envelope(envelope)
     print(
