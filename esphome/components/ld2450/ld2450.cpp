@@ -187,7 +187,7 @@ static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
 // Length of the frame that opens the buffer: periodic frames are fixed size, command frames carry their
 // payload length after the header. readline_ only buffers a valid header, so its first byte names it.
 // Returns 0 while the length field has not arrived yet.
-static inline uint16_t frame_length(const uint8_t *buffer, uint8_t len) {
+static inline uint32_t frame_length(const uint8_t *buffer, uint8_t len) {
   if (len < HEADER_FOOTER_SIZE) {
     return 0;
   }
@@ -820,7 +820,7 @@ void LD2450Component::readline_(int readch) {
     }
   }
   this->buffer_data_[this->buffer_pos_++] = readch;
-  const uint16_t frame_len = ld2450::frame_length(this->buffer_data_, this->buffer_pos_);
+  const uint32_t frame_len = ld2450::frame_length(this->buffer_data_, this->buffer_pos_);
   if (frame_len == 0 || (frame_len <= MAX_LINE_LENGTH && this->buffer_pos_ < frame_len)) {
     return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
   }

@@ -175,4 +175,17 @@ TEST_F(LD2450ReadlineTest, BogusLengthFieldResyncsOnTheNextHeader) {
   EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
 }
 
+TEST_F(LD2450ReadlineTest, LargestLengthFieldDoesNotWrapToIncomplete) {
+  int frames = 0;
+  this->ld2450_.add_on_data_callback([&frames]() { frames++; });
+  // A 0xFFF6 byte payload makes the frame 65536 bytes long, which must not wrap around to 0
+  std::vector<uint8_t> stream = {0xFD, 0xFC, 0xFB, 0xFA, 0xF6, 0xFF};
+  stream.insert(stream.end(), MAX_LINE_LENGTH, 0x11);
+  auto frame = make_periodic_frame();
+  stream.insert(stream.end(), frame.begin(), frame.end());
+  this->ld2450_.feed(stream);
+  EXPECT_EQ(frames, 1);
+  EXPECT_EQ(this->ld2450_.buffer_pos_, 0);
+}
+
 }  // namespace esphome::ld2450::testing
