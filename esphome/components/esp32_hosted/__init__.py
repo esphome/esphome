@@ -32,7 +32,7 @@ DOMAIN = "esp32_hosted"
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
 AUTO_LOAD = ["watchdog"]
 
-# 3.x is opt-in via a pin under esp32.framework.components (needs ESP-IDF 5.5)
+# A pin under esp32.framework.components picks the line; see uses_esp_hosted_3x()
 ESP_HOSTED_COMPONENT = "espressif/esp_hosted"
 
 CONF_ACTIVE_HIGH = "active_high"
@@ -161,13 +161,16 @@ CONFIG_SCHEMA = cv.typed_schema(
 _PINNED_MAJOR = re.compile(r"^(?:==|\^|~=|~)?(\d+)(?:\.(?:\d+|\*))*$")
 
 
+def _full_config() -> ConfigType:
+    try:
+        return fv.full_config.get()
+    except LookupError:
+        return CORE.config
+
+
 def user_esp_hosted_major() -> int | None:
     """Major version of a user-pinned esp_hosted, or None without a pin."""
-    try:
-        full_config = fv.full_config.get()
-    except LookupError:
-        full_config = CORE.config
-    esp32_config = full_config.get(KEY_ESP32) or {}
+    esp32_config = _full_config().get(KEY_ESP32) or {}
     for component in esp32_config.get(CONF_FRAMEWORK, {}).get(CONF_COMPONENTS, []):
         if component.get(CONF_NAME) != ESP_HOSTED_COMPONENT:
             continue
@@ -181,8 +184,18 @@ def user_esp_hosted_major() -> int | None:
 
 
 def uses_esp_hosted_3x() -> bool:
-    """Whether the user pinned esp_hosted 3.x."""
-    return (major := user_esp_hosted_major()) is not None and major >= 3
+    """Whether the build takes the esp_hosted 3.x line.
+
+    A user pin decides. Without one, 3.x is the default; the build stays on 2.x
+    when ESP-IDF is older than 5.5 or the reset line is 'active_high: false',
+    which 3.x cannot express (it always parks the pin high with a low pulse).
+    """
+    if (major := user_esp_hosted_major()) is not None:
+        return major >= 3
+    return (
+        esp32.idf_version() >= cv.Version(5, 5, 0)
+        and _full_config()[DOMAIN][CONF_ACTIVE_HIGH]
+    )
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -209,13 +222,6 @@ def _final_validate(config: ConfigType) -> None:
             "'active_high: false' cannot be expressed on it. Remove the "
             f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
             "on the 2.x line."
-        )
-    if config[CONF_TYPE] == "sdio" and config[CONF_BUS_WIDTH] == 1:
-        raise cv.Invalid(
-            "esp_hosted 3.x cannot be built with a 1-bit SDIO bus "
-            "(espressif/esp-hosted-mcu#245). Remove the "
-            f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
-            "on the 2.x line, or use a 4-bit bus."
         )
 
 
@@ -283,10 +289,10 @@ def _configure_sdio_3x(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option(
         "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D0", config[CONF_D0_PIN]
     )
+    # D1 carries the card interrupt on a 1-bit bus too
+    if (d1_pin := config.get(CONF_D1_PIN)) is not None:
+        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D1", d1_pin)
     if config[CONF_BUS_WIDTH] == 4:
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D1", config[CONF_D1_PIN]
-        )
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D2", config[CONF_D2_PIN]
         )
@@ -433,6 +439,9 @@ def _configure_2x(config: ConfigType) -> None:
 
 
 def _configure_3x(config: ConfigType) -> None:
+    # The board choice defaults to an Espressif dev board, which locks every
+    # pin's Kconfig range to that board and silently drops other values
+    esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_P4_DEV_BOARD_NONE", True)
     esp32.add_idf_sdkconfig_option(
         "CONFIG_ESP_HOSTED_HOST_RESET_GPIO", config[CONF_RESET_PIN]
     )
@@ -485,7 +494,9 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.5")
     esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
     esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.13")
+    esp32.add_idf_component(
+        name=ESP_HOSTED_COMPONENT, ref="3.0.10" if use_3x else "2.12.13"
+    )
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",
