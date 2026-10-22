@@ -237,12 +237,10 @@ bool USBUartTypeCP210X::config_step(USBUartChannelBase *channel, uint8_t step, b
           ~(SERIAL_DSR_HANDSHAKE | SERIAL_DCD_HANDSHAKE | SERIAL_DSR_SENSITIVITY | SERIAL_CTS_HANDSHAKE);
       if (channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS)
         block.control_handshake |= SERIAL_CTS_HANDSHAKE;
+      assign_bits(block.flow_replace, SERIAL_AUTO_TRANSMIT | SERIAL_AUTO_RECEIVE, xon_xoff);
       if (xon_xoff) {
-        block.flow_replace |= SERIAL_AUTO_TRANSMIT | SERIAL_AUTO_RECEIVE;
         block.xon_limit = XON_XOFF_LIMIT;
         block.xoff_limit = XON_XOFF_LIMIT;
-      } else {
-        block.flow_replace &= ~(SERIAL_AUTO_TRANSMIT | SERIAL_AUTO_RECEIVE);
       }
       set_block_modem_lines(block, channel->dtr_, channel->rts_);
       this->set_flow_transfer_(channel);
