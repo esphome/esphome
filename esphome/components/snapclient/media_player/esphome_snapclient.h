@@ -25,7 +25,7 @@ using audioDACdata_t = struct AudioDaCdataS {
   int volume;
 };
 
-static const char *const TAG = "snapclient";
+ESPHOME_LOG_TAG(TAG, "snapclient");
 
 class SnapClientComponent : public i2s_audio::I2SAudioOut, public media_player::MediaPlayer, public Component {
  public:

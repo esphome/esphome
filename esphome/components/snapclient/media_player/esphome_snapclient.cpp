@@ -82,12 +82,14 @@ void SnapClientComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Mute Pin: None");
   }
 #ifdef USE_AUDIO_DAC
-  ESP_LOGCONFIG(TAG, "  Audio DAC: %s", this->audio_dac_ != nullptr ? "configured" : "None");
+  ESP_LOGCONFIG(TAG, "  Audio DAC: %s",
+                this->audio_dac_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("None"));
 #else
   ESP_LOGCONFIG(TAG, "  Audio DAC: None");
 #endif
   ESP_LOGCONFIG(TAG, "  Client Name: %s", CONFIG_SNAPCLIENT_NAME);
-  ESP_LOGCONFIG(TAG, "  Discovery Mode: %s", this->snapserver_use_mdns_ ? "mDNS" : "Static Host");
+  ESP_LOGCONFIG(TAG, "  Discovery Mode: %s",
+                this->snapserver_use_mdns_ ? LOG_STR_LITERAL("mDNS") : LOG_STR_LITERAL("Static Host"));
   ESP_LOGCONFIG(TAG, "  Snapserver Hostname: %s", this->snapserver_hostname_.c_str());
   ESP_LOGCONFIG(TAG, "  Snapserver Port: %u", this->snapserver_port_);
 }
@@ -163,7 +165,7 @@ void SnapClientComponent::dac_control_() {
       }
 #endif
       this->mute_state_ = mute;
-      ESP_LOGD(TAG, "%s", mute ? "Mute" : "Unmute");
+      ESP_LOGD(TAG, "%s", mute ? LOG_STR_LITERAL("Mute") : LOG_STR_LITERAL("Unmute"));
     }
   }
   if (this->dac_data_.volume != dac_data_old.volume) {

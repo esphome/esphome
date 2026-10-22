@@ -112,8 +112,7 @@ async def to_code(config):
     cg.add(var.set_snapserver_port(config[CONF_PORT]))
     cg.add(var.set_snapserver_use_mdns(use_mdns))
     if CONF_MUTE_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_MUTE_PIN])
-        cg.add(var.set_mute_pin(pin))
+        await cg.add_pin(var.set_mute_pin, config[CONF_MUTE_PIN])
     if audio_dac_config := config.get(CONF_AUDIO_DAC):
         aud_dac = await cg.get_variable(audio_dac_config)
         cg.add(var.set_audio_dac(aud_dac))
