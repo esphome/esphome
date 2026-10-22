@@ -27,11 +27,9 @@ from .. import template_ns
 TemplateCover = template_ns.class_("TemplateCover", cover.Cover, cg.Component)
 
 TemplateCoverRestoreMode = template_ns.enum("TemplateCoverRestoreMode")
-RESTORE_MODES = {
-    "NO_RESTORE": TemplateCoverRestoreMode.COVER_NO_RESTORE,
-    "RESTORE": TemplateCoverRestoreMode.COVER_RESTORE,
-    "RESTORE_AND_CALL": TemplateCoverRestoreMode.COVER_RESTORE_AND_CALL,
-}
+RESTORE_MODES = TemplateCoverRestoreMode.options(
+    "NO_RESTORE", "RESTORE", "RESTORE_AND_CALL", prefix="COVER_"
+)
 
 CONF_HAS_POSITION = "has_position"
 CONF_STOP_TILT_ACTION = "stop_tilt_action"

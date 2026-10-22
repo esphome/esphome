@@ -12,7 +12,9 @@ import contextlib
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 PAYLOAD = b"hello link"
 SECOND_PAYLOAD = b"second session"
@@ -77,25 +79,15 @@ async def test_socket_tcp_client_link(
             run_compiled(yaml_config, line_callback=on_log_line),
             api_client_connected() as client,
         ):
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "socket-tcp-client-link-test"
+            await assert_device_name(client, "socket-tcp-client-link-test")
 
-            try:
-                await asyncio.wait_for(echo_done.wait(), timeout=15.0)
-            except TimeoutError:
-                pytest.fail("Link never connected or echoed")
+            await wait_or_fail(echo_done, 15.0, "Link never connected or echoed")
             assert echoed and echoed[0] == PAYLOAD, "Echo payload mismatch"
 
-            try:
-                await asyncio.wait_for(link_down.wait(), timeout=15.0)
-            except TimeoutError:
-                pytest.fail("Link never reported the drop")
-            try:
-                await asyncio.wait_for(reconnected.wait(), timeout=15.0)
-                await asyncio.wait_for(second_link_up.wait(), timeout=15.0)
-            except TimeoutError:
-                pytest.fail("Link did not reconnect after the server dropped it")
+            await wait_or_fail(link_down, 15.0, "Link never reported the drop")
+            msg = "Link did not reconnect after the server dropped it"
+            await wait_or_fail(reconnected, 15.0, msg)
+            await wait_or_fail(second_link_up, 15.0, msg)
             assert second_echoed == [SECOND_PAYLOAD], (
                 "Second session echo wrong; stale bytes from the first session?"
             )

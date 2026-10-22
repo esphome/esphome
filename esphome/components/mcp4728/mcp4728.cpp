@@ -10,7 +10,7 @@ ESPHOME_LOG_TAG(TAG, "mcp4728");
 void MCP4728Component::setup() {
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -18,9 +18,6 @@ void MCP4728Component::setup() {
 void MCP4728Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP4728:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void MCP4728Component::loop() {
