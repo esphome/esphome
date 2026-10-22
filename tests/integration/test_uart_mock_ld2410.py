@@ -8,7 +8,8 @@ test_uart_mock_ld2410 (normal mode):
   4. Truncated frame recovery - the frame is dropped once its length is reached
   5. Post-garbage parsing - the next valid frame is parsed correctly
   6. Footer bytes in the values - a frame whose values spell the command footer is parsed whole
-  6. TX logging - verifies LD2410 sends expected setup commands
+  7. Replay after a drop - a valid frame caught inside a dropped frame's window is still parsed
+  8. TX logging - verifies LD2410 sends expected setup commands
 
 test_uart_mock_ld2410_engineering (engineering mode):
   1. Engineering mode frames with per-gate energy data and light sensor
@@ -76,6 +77,7 @@ async def test_uart_mock_ld2410(
             and pytest.approx(80.0) in collector.sensor_states["still_energy"]
             and pytest.approx(127.0) in collector.sensor_states["detection_distance"]
             and pytest.approx(772.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(400.0) in collector.sensor_states["moving_distance"]
         )
     )
 
@@ -157,6 +159,13 @@ async def test_uart_mock_ld2410(
         assert pytest.approx(1.0) in collector.sensor_states["still_distance"]
         assert pytest.approx(5.0) in collector.sensor_states["still_energy"]
         assert pytest.approx(772.0) in collector.sensor_states["detection_distance"]
+
+        # Phase 7: the valid frame inside the dropped frame's window was replayed and parsed
+        assert pytest.approx(400.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(7.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(200.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(9.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(400.0) in collector.sensor_states["detection_distance"]
 
         # Verify binary sensors detected targets (from Phase 1 frame)
         assert collector.binary_states["has_target"][0] is True
