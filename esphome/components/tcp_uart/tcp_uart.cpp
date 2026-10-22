@@ -249,7 +249,7 @@ void TcpUart::slot_edge_(uint8_t i) {
 }
 
 void TcpUart::accept_slot_(uint32_t now) {
-  auto sock = this->listener_.accept();
+  auto sock = this->listener_.accept(this->link_);
   if (sock == nullptr) {
     return;
   }
