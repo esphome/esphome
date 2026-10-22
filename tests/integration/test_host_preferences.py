@@ -4,22 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import Any
 
-from aioesphomeapi import ButtonInfo, EntityInfo, NumberInfo, SwitchInfo
+from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
-
-
-def find_entity_by_name(
-    entities: list[EntityInfo], entity_type: type, name: str
-) -> Any:
-    """Helper to find an entity by type and name."""
-    return next(
-        (e for e in entities if isinstance(e, entity_type) and e.name == name), None
-    )
 
 
 @pytest.mark.asyncio
@@ -84,18 +75,17 @@ async def test_host_preferences_save_load(
         # Get entity list
         entities, _ = await client.list_entities_services()
 
-        # Find our test entities using helper
-        test_switch = find_entity_by_name(entities, SwitchInfo, "Test Switch")
-        test_number = find_entity_by_name(entities, NumberInfo, "Test Number")
-        save_button = find_entity_by_name(entities, ButtonInfo, "Save Preferences")
-        load_button = find_entity_by_name(entities, ButtonInfo, "Load Preferences")
-        verify_button = find_entity_by_name(entities, ButtonInfo, "Verify Preferences")
-
-        assert test_switch is not None, "Test Switch not found"
-        assert test_number is not None, "Test Number not found"
-        assert save_button is not None, "Save Preferences button not found"
-        assert load_button is not None, "Load Preferences button not found"
-        assert verify_button is not None, "Verify Preferences button not found"
+        test_switch = require_entity(entities, "test_switch", SwitchInfo, exact=True)
+        test_number = require_entity(entities, "test_number", NumberInfo, exact=True)
+        save_button = require_entity(
+            entities, "save_preferences", ButtonInfo, exact=True
+        )
+        load_button = require_entity(
+            entities, "load_preferences", ButtonInfo, exact=True
+        )
+        verify_button = require_entity(
+            entities, "verify_preferences", ButtonInfo, exact=True
+        )
 
         # Set initial values
         client.switch_command(test_switch.key, True)

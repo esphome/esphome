@@ -88,10 +88,7 @@ async def test_template_climate_basic(
         client.subscribe_states(
             initial_state_helper.on_state_wrapper(lambda state: None)
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         initial = initial_state_helper.initial_states.get(test_climate.key)
         assert initial is not None, "No initial climate state received"
