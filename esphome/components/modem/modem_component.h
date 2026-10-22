@@ -165,6 +165,8 @@ class ModemComponent : public Component {
   void hand_over_(uint32_t pending);
   /// Send an AT command from the task and log the result; blocks for up to the timeout
   bool at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
+  /// Send cmd and keep the whole reply in output, ERROR lines included (dce_->at() drops those)
+  esp_modem::command_result command_raw_(const char *cmd, std::string &output, uint32_t timeout);
   void publish_status_();
   void not_responding_(int baud);
   void dump_connect_params_();
@@ -228,6 +230,7 @@ class ModemComponent : public Component {
   bool pin_sent_{false};
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
+  bool cme_numeric_{false};   // AT+CMEE=1 accepted, so a wrong PIN answers +CME ERROR: 16
   char at_command_[AT_COMMAND_SIZE];
 #ifdef USE_MODEM_URC
   // The UART task assembles a line in urc_buf_ and hands it to loop() by setting urc_pending_; until loop()

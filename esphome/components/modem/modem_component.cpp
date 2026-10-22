@@ -614,7 +614,8 @@ ModemState ModemComponent::handle_state_enabling_() {
   if (this->rts_pin_ != nullptr && this->dce_->set_flow_control(2, 2) != command_result::OK) {
     ESP_LOGW(TAG, "Modem refused hardware flow control; UART overruns are possible");
   }
-  this->at_("AT+CMEE=1");  // numeric +CME ERROR codes, so a wrong PIN can be told from other failures
+  // Numeric +CME ERROR codes tell a wrong PIN from other failures; without them any ERROR counts as a refusal
+  this->cme_numeric_ = this->at_("AT+CMEE=1");
   this->modem_synced_ = true;
   this->synced_at_ = millis();
   return ModemState::MODEM_STATE_SYNCED;
@@ -806,15 +807,38 @@ bool ModemComponent::send_at(const char *cmd, uint32_t timeout) {
   return true;
 }
 
+command_result ModemComponent::command_raw_(const char *cmd, std::string &output, uint32_t timeout) {
+  char line[AT_COMMAND_SIZE + 1];
+  snprintf(line, sizeof(line), "%s\r", cmd);
+  const command_result result = this->dte_->command(
+      line,
+      [&output](uint8_t *data, size_t len) {
+        output.assign(reinterpret_cast<char *>(data), len);
+        if (output.find("OK") != std::string::npos)
+          return command_result::OK;
+        if (output.find("ERROR") != std::string::npos)
+          return command_result::FAIL;
+        return command_result::TIMEOUT;
+      },
+      timeout);
+  // Trailing line ends only; a reply that spans lines is logged as it came
+  while (!output.empty() && (output.back() == '\r' || output.back() == '\n')) {
+    output.pop_back();
+  }
+  return result;
+}
+
 bool ModemComponent::at_(const char *cmd, uint32_t timeout) {
   std::string output;
-  const bool ok = this->dce_->at(cmd, output, timeout) == command_result::OK;
-  if (ok) {
+  const command_result result = this->command_raw_(cmd, output, timeout);
+  if (result == command_result::OK) {
     ESP_LOGI(TAG, "AT '%s' -> OK: %s", cmd, output.c_str());
   } else {
-    ESP_LOGW(TAG, "AT '%s' -> FAILED: %s", cmd, output.c_str());
+    ESP_LOGW(TAG, "AT '%s' -> %s: %s", cmd,
+             result == command_result::TIMEOUT ? LOG_STR_LITERAL("TIMEOUT") : LOG_STR_LITERAL("FAILED"),
+             output.c_str());
   }
-  return ok;
+  return result == command_result::OK;
 }
 
 SimResult ModemComponent::prepare_sim_() {
@@ -873,25 +897,17 @@ SimResult ModemComponent::prepare_sim_() {
   this->pin_sent_ = true;
   this->pin_sent_at_ = millis();
   ESP_LOGD(TAG, "Unlocking SIM with PIN...");
-  // dce_->at() drops every line that contains ERROR, so the reply is read raw to keep the +CME ERROR code
   char cmd[AT_COMMAND_SIZE];
-  snprintf(cmd, sizeof(cmd), "AT+CPIN=\"%s\"\r", this->pin_code_);
-  const command_result result = this->dte_->command(
-      cmd,
-      [&output](uint8_t *data, size_t len) {
-        output.assign(reinterpret_cast<char *>(data), len);
-        if (output.find("OK") != std::string::npos)
-          return command_result::OK;
-        if (output.find("ERROR") != std::string::npos)
-          return command_result::FAIL;
-        return command_result::TIMEOUT;
-      },
-      PIN_TIMEOUT_MS);
+  snprintf(cmd, sizeof(cmd), "AT+CPIN=\"%s\"", this->pin_code_);
+  const command_result result = this->command_raw_(cmd, output, PIN_TIMEOUT_MS);
   if (result == command_result::OK) {
     return SimResult::SIM_RESULT_RETRY;  // AT+CPIN? confirms READY on the next pass
   }
-  // Only "incorrect password" (+CME ERROR: 16) is a refused PIN; a PUK code or any other error is not remembered
-  if (output.find("+CME ERROR: 16") != std::string::npos) {
+  // "incorrect password" (+CME ERROR: 16, or the text in verbose mode) is a refused PIN; so is any ERROR when the
+  // modem gives no codes, since a blind resend could PUK-lock the SIM. A PUK code or another error is not remembered
+  if (result == command_result::FAIL &&
+      (output.find("+CME ERROR: 16") != std::string::npos || output.find("incorrect password") != std::string::npos ||
+       (!this->cme_numeric_ && output.find("+CME ERROR") == std::string::npos))) {
     ESP_LOGE(TAG, "The SIM rejected the PIN; check pin_code");
     this->rejected_pin_hash_ = pin_hash;
     this->hand_over_(PENDING_SAVE_PIN);
