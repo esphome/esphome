@@ -30,8 +30,6 @@ uart_mock:
     # Detection distance: 300cm
     # Target state: 0x03 (moving + still)
     #
-    # Note: LD2410's two_byte_to_int() uses signed char, so low bytes must be
-    # <=127 to produce correct values. Values >127 wrap negative.
     #
     # Frame layout (23 bytes):
     #   [0-3]  F4 F3 F2 F1 = data frame header
