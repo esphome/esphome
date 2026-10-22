@@ -1279,24 +1279,33 @@ def test_platformio_arduino_enables_reproducible_build(
 
 
 @pytest.mark.parametrize(
-    ("config_file", "expected"),
-    [
-        ("reproducible_build.yaml", True),
-        ("reproducible_build_arduino.yaml", True),
-        ("file_macro_idf_5_0.yaml", False),
-    ],
+    "config_file", ["reproducible_build.yaml", "reproducible_build_arduino.yaml"]
 )
 def test_file_macro_is_basename_only(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     config_file: str,
-    expected: bool,
 ) -> None:
-    """__FILE__ becomes the basename on GCC 12 toolchains; IDF 5.0 (GCC 11) is skipped."""
+    """__FILE__ becomes the basename; every supported IDF ships a GCC 12 toolchain."""
     generate_main(component_config_path(config_file))
 
-    assert ("-D__FILE__=__FILE_NAME__" in CORE.build_flags) is expected
-    assert ("-Wno-builtin-macro-redefined" in CORE.build_flags) is expected
+    assert "-D__FILE__=__FILE_NAME__" in CORE.build_flags
+    assert "-Wno-builtin-macro-redefined" in CORE.build_flags
+
+
+def test_esp_idf_5_0_is_rejected(set_core_config: SetCoreConfigCallable) -> None:
+    """ESP-IDF 5.0 is out: its Kconfig names and toolchain predate what the component writes."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    with pytest.raises(cv.Invalid, match=r"Only ESP-IDF 5\.1\+ is supported"):
+        CONFIG_SCHEMA(
+            {
+                "variant": "esp32",
+                "board": "esp32dev",
+                "framework": {"type": "esp-idf", "version": "5.0.6"},
+            }
+        )
 
 
 def test_native_idf_enables_reproducible_build(
