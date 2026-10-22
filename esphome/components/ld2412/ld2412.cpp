@@ -71,12 +71,10 @@ PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200
 static_assert(BAUD_RATE_9600 == 1 && BAUD_RATE_460800 == BaudRateStrings::COUNT, "BaudRate is index + 1");
 // Same order as DISTANCE_RESOLUTIONS
 PROGMEM_STRING_TABLE(DistanceResolutionStrings, "0.2m", "0.5m", "0.75m");
-// Index is the LightFunction value; the select options use the same order
-PROGMEM_STRING_TABLE(LightFunctionStrings, "off", "below", "above");
+// The light function select options are in enum order
 static_assert(LIGHT_FUNCTION_OFF == 0 && LIGHT_FUNCTION_BELOW == 1 && LIGHT_FUNCTION_ABOVE == 2,
-              "LightFunction is the table index");
-// Names and values in the same order; the select options use it too
-PROGMEM_STRING_TABLE(OutPinLevelStrings, "low", "high");
+              "LightFunction is the select option index");
+// Device values of the out pin level select options, in option order
 static constexpr uint8_t OUT_PIN_LEVELS[] PROGMEM = {OUT_PIN_LEVEL_LOW, OUT_PIN_LEVEL_HIGH};
 
 static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
@@ -476,9 +474,7 @@ bool LD2412Component::handle_ack_data_() {
     case CMD_QUERY_LIGHT_CONTROL: {
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
-      ESP_LOGV(TAG, "Light function: %s, threshold: %u",
-               LOG_STR_ARG(LightFunctionStrings::get_log_str(this->light_function_, LightFunctionStrings::LAST_INDEX)),
-               this->light_threshold_);
+      ESP_LOGV(TAG, "Light function: %u, threshold: %u", this->light_function_, this->light_threshold_);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
         this->light_function_select_->publish_state(static_cast<size_t>(this->light_function_));
