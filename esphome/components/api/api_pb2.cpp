@@ -4433,7 +4433,6 @@ uint8_t *GetYamlResponse::encode_msg(const void *self, uint8_t *__restrict__ pos
   pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
   pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, msg.done ? 0x01 : 0x00);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.total_size);
-  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.encoding);
   return pos;
 }
 uint32_t GetYamlResponse::calc_size_msg(const void *self) {
@@ -4442,7 +4441,6 @@ uint32_t GetYamlResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_length_force(1, msg.data_len);
   size += ProtoSize::calc_bool_force(1);
   size += ProtoSize::calc_uint32(1, msg.total_size);
-  size += !msg.encoding.empty() ? 2 + msg.encoding.size() : 0;
   return size;
 }
 #endif

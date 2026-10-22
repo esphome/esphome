@@ -22,7 +22,7 @@ GET_YAML_RESPONSE = 162
 CAPABILITIES_STORE_YAML_FIELD = 7
 STORE_YAML_SUPPORTED_FIELD = 1
 # GetYamlResponse fields
-DATA_FIELD, DONE_FIELD, TOTAL_SIZE_FIELD, ENCODING_FIELD = 1, 2, 3, 4
+DATA_FIELD, DONE_FIELD, TOTAL_SIZE_FIELD = 1, 2, 3
 
 
 @pytest.mark.asyncio
@@ -49,7 +49,6 @@ async def test_store_yaml_recovery(
             responses.append(decode_fields(await client.read_frame(GET_YAML_RESPONSE)))
 
     compressed = b"".join(r[DATA_FIELD][0] for r in responses if DATA_FIELD in r)
-    assert responses[0][ENCODING_FIELD] == [b"zstd"]
     assert responses[0][TOTAL_SIZE_FIELD] == [len(compressed)]
 
     envelope = zstd_module().decompress(compressed)

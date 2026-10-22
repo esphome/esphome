@@ -4233,7 +4233,7 @@ class SendspinPairingTokenResponse final : public ProtoMessage {
 class GetYamlResponse final : public ProtoMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 162;
-  static constexpr uint8_t ESTIMATED_SIZE = 34;
+  static constexpr uint8_t ESTIMATED_SIZE = 25;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("get_yaml_response"); }
 #endif
@@ -4241,7 +4241,6 @@ class GetYamlResponse final : public ProtoMessage {
   uint16_t data_len{0};
   bool done{false};
   uint32_t total_size{0};
-  StringRef encoding{nullptr, 0};  // null until set, encode only
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);

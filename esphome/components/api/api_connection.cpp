@@ -1248,10 +1248,8 @@ void APIConnection::try_send_store_yaml_() {
     GetYamlResponse resp;
     resp.data = store_yaml::STORE_YAML_DATA + this->store_yaml_pos_;
     resp.data_len = to_send;
-    if (this->store_yaml_pos_ == 0) {
+    if (this->store_yaml_pos_ == 0)
       resp.total_size = STORE_YAML_DATA_SIZE;
-      resp.encoding = StringRef(store_yaml::ENCODING);
-    }
     resp.done = this->store_yaml_pos_ + to_send == STORE_YAML_DATA_SIZE;
     if (!this->send_message(resp))
       return;

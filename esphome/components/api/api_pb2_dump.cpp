@@ -3034,7 +3034,6 @@ const char *GetYamlResponse::dump_to(DumpBuffer &out) const {
   dump_progmem_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
   dump_field(out, ESPHOME_PSTR("done"), this->done);
   dump_field(out, ESPHOME_PSTR("total_size"), this->total_size);
-  dump_field(out, ESPHOME_PSTR("encoding"), this->encoding);
   return out.c_str();
 }
 #endif
