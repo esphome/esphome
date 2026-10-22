@@ -131,6 +131,7 @@ static constexpr uint8_t ENERGY_SENSOR_START = 9;
 static constexpr uint8_t CALIBRATE_REPORT_INTERVAL = 4;
 // Index + 1 is the OpMode value; the select options use the same order
 PROGMEM_STRING_TABLE(OpModeStrings, "Normal", "Calibrate", "Simple");
+static_assert(OP_NORMAL_MODE == 1 && OP_CALIBRATE_MODE == 2 && OP_SIMPLE_MODE == 3, "OpMode is index + 1");
 PROGMEM_STRING_TABLE(ErrMessages, "None", "Unknown", "Timeout");
 
 static uint8_t calc_checksum(const void *data, size_t size) {
@@ -210,6 +211,7 @@ void LD2420Component::setup() {
     this->set_mode_(CMD_SYSTEM_MODE_SIMPLE);
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
   } else {
+    this->set_operating_mode(OP_NORMAL_MODE);
     this->set_mode_(CMD_SYSTEM_MODE_ENERGY);
   }
 #ifdef USE_NUMBER
