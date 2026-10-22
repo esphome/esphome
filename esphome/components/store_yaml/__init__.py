@@ -335,9 +335,9 @@ def _check_sensitive_usage(
     failures: dict[str, list[str]] = {
         "appear embedded inside larger values or as mapping keys, which redaction "
         "does not replace": [],
-        "cannot be confirmed redacted: they sit where credentials go but are not in "
-        "the validated config (overridden by a later package, or a git package "
-        "password used before validation)": [],
+        "cannot be confirmed redacted: they sit at a credential key or location but "
+        "are not a known secret (for example a literal password, or one a merge, "
+        "override or `!remove` dropped before validation)": [],
     }
     embedded, unverified = failures.values()
     for rel, tree in trees.items():
