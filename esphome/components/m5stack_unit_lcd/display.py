@@ -67,8 +67,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
 
-    if (lambda_config := config.get(CONF_LAMBDA)) is not None:
-        lambda_ = await cg.process_lambda(
-            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
