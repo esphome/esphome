@@ -328,15 +328,6 @@ def run_tidy(
             # glibc's assert() expands to a call the check mistakes for a
             # constant condition.
             disabled_checks += ["-misc-static-assert", "-cert-dcl03-c"]
-        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx", "host")):
-            # bugprone-pointer-arithmetic-on-polymorphic-object (and its
-            # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
-            # recursion on lvgl_esphome.h under the RP2 defines and on the
-            # all-include file under the host defines.
-            disabled_checks += [
-                "-bugprone-pointer-arithmetic-on-polymorphic-object",
-                "-cert-ctr56-cpp",
-            ]
         if os.path.normpath(path) in ANALYZER_SKIPPED_FILES:
             disabled_checks.append("-clang-analyzer-*")
         if disabled_checks:
