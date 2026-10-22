@@ -53,8 +53,8 @@ void ModemComponent::disable() {
 }
 
 void ModemComponent::wake_task_() {
-  if (this->task_handle_ != nullptr) {
-    xTaskNotifyGive(this->task_handle_);
+  if (this->task_.is_created()) {
+    xTaskNotifyGive(this->task_.get_handle());
   }
 }
 
@@ -251,7 +251,7 @@ void ModemComponent::setup() {
     return DTE::UrcConsumeInfo{DTE::UrcConsumeResult::CONSUME_ALL, 0};
   });
 #endif
-  if (xTaskCreate(ModemComponent::task_entry_, "modem", TASK_STACK_SIZE, this, 1, &this->task_handle_) != pdPASS) {
+  if (!this->task_.create(ModemComponent::task_entry_, "modem", TASK_STACK_SIZE, this, 1, false)) {
     this->fail_setup_(LOG_STR("Task creation failed"));
   }
 }

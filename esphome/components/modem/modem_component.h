@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/static_task.h"
 #include "esphome/components/network/ip_address.h"
 #ifdef USE_MODEM_URC
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -11,8 +12,6 @@
 
 #include <cxx_include/esp_modem_api.hpp>
 #include <esp_modem_config.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 
 #include <atomic>
 #include <memory>
@@ -150,7 +149,7 @@ class ModemComponent : public Component {
   int baud_rate_{0};  // 0 = use the esp_modem default
   int current_baud_rate_{0};
   int restored_baud_{0};
-  TaskHandle_t task_handle_{nullptr};
+  StaticTask task_;
   uint32_t timeout_{0};
   uint32_t step_delay_ms_{0};
   uint32_t wait_ip_start_{0};
