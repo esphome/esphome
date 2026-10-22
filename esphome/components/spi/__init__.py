@@ -143,14 +143,19 @@ TYPE_CLASS = {
 }
 
 
+def _require_psram_dma_idf(value: Any) -> Any:
+    if idf_version() < cv.Version(5, 5, 3):
+        raise cv.Invalid("psram_dma requires ESP-IDF 5.5.3 or newer")
+    return value
+
+
 def _validate_psram_dma(value: Any) -> bool:
     value = cv.boolean(value)
     if not value:
         return value
-    cv.only_on_esp32(value)
-    if idf_version() < cv.Version(5, 5, 3):
-        raise cv.Invalid("psram_dma requires ESP-IDF 5.5.3 or newer")
     return cv.All(
+        cv.only_on_esp32,
+        _require_psram_dma_idf,
         only_on_variant(
             supported=[
                 VARIANT_ESP32C5,
