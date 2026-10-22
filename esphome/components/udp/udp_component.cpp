@@ -67,7 +67,7 @@ void UDPComponent::setup() {
   // create listening socket if we either want to subscribe to providers, or need to listen
   // for ping key broadcasts.
   if (this->should_listen_) {
-    struct sockaddr_storage server {};
+    struct sockaddr_storage server{};
     socklen_t server_len;
     if (this->listen_address_ != nullptr) {
       server_len =
@@ -154,7 +154,7 @@ bool UDPComponent::network_poll_() {
   }
 #ifdef USE_SOCKET_IPV6
   if (ok && (this->poll_pending_ & POLL_BIND)) {
-    struct sockaddr_storage server {};
+    struct sockaddr_storage server{};
     socklen_t server_len =
         socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), this->listen_address_, this->listen_port_);
     // POSIX bind() on a link-local group needs it; lwIP ignores it

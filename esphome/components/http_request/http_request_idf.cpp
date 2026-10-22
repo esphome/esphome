@@ -9,6 +9,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
 #include "esp_crt_bundle.h"
@@ -77,7 +78,8 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
     return nullptr;
   }
 
-  bool secure = strstr(url, "https:") != nullptr;
+  // Only the scheme counts; "https:" later in the URL (a query string) does not make it secure
+  bool secure = ESPHOME_strncasecmp_P(url, ESPHOME_PSTR("https:"), 6) == 0;
 
   esp_http_client_config_t config = {};
 

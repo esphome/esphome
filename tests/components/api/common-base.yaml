@@ -5,6 +5,17 @@ esphome:
           condition:
             api.connected:
               state_subscription_only: true
+      - if:
+          condition:
+            api.connected:
+          then:
+            - logger.log: "API client connected"
+      - if:
+          condition:
+            api.connected:
+              state_subscription_only: !lambda "return true;"
+          then:
+            - logger.log: "API client subscribed to states"
       - homeassistant.event:
           event: esphome.button_pressed
           data:

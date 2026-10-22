@@ -5,11 +5,10 @@ import re
 from typing import Any
 
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
-from esphome.components.network import DOMAIN as NETWORK_DOMAIN
+from esphome.components.network import require_ipv4, require_ipv6
 
 # ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
 # components and downstream consumers that import them from api
@@ -31,7 +30,6 @@ from esphome.const import (
     CONF_DATA_TEMPLATE,
     CONF_DEFAULT,
     CONF_DELAY,
-    CONF_ENABLE_IPV6,
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
@@ -55,7 +53,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import Expression, MockObj, TemplateArgsType
-import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigFragmentType, ConfigType
@@ -101,7 +98,6 @@ ActionResponse = api_ns.class_("ActionResponse")
 HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
-APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
 APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
 APIUnregisterServiceCallAction = api_ns.class_(
     "APIUnregisterServiceCallAction", automation.Action
@@ -336,11 +332,6 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
 def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
     if (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None:
         return config
-    if CONF_ENCRYPTION not in config:
-        raise cv.Invalid(
-            "outgoing_connection requires 'encryption' so the peer is verified by key",
-            path=[CONF_OUTGOING_CONNECTION],
-        )
     # A device with no client reboots once reboot_timeout passes, so a delay that
     # reaches it would reboot the device before it ever dials
     reboot_timeout = config[CONF_REBOOT_TIMEOUT]
@@ -368,7 +359,10 @@ def _validate_outgoing_host(value: str) -> IPv4Address | IPv6Address:
                 "give the address without the '%' part"
             )
         if (mapped := address.ipv4_mapped) is not None:
-            return mapped
+            address = mapped
+    # The build must carry the host's address family for the dial to work
+    require = require_ipv6 if isinstance(address, IPv6Address) else require_ipv4
+    require("api.outgoing_connection")(value)
     return address
 
 
@@ -475,6 +469,11 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    cv.key_requires(
+        CONF_OUTGOING_CONNECTION,
+        CONF_ENCRYPTION,
+        hint="The peer is verified by its key",
+    ),
     _validate_outgoing_connection,
     _consume_api_sockets,
     _register_provisioning_source,
@@ -536,24 +535,6 @@ def _action_strings(
     return strings
 
 
-def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
-    """An IPv6 host can never be parsed, so never dialed, without IPv6."""
-    if (
-        (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None
-        or (host := outgoing.get(CONF_HOST)) is None
-        or host.version != 6
-    ):
-        return config
-    network_conf = fv.full_config.get().get(NETWORK_DOMAIN) or {}
-    if not network_conf.get(CONF_ENABLE_IPV6):
-        raise cv.Invalid(
-            "outgoing_connection host is an IPv6 address but IPv6 is not "
-            "enabled; set 'network: enable_ipv6: true'",
-            path=[CONF_OUTGOING_CONNECTION, CONF_HOST],
-        )
-    return config
-
-
 def _validate_wizard(config: ConfigType) -> ConfigType:
     wizard.final_validate(config)
     return config
@@ -572,7 +553,6 @@ def _validate_optional_arg_positions(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
-    _validate_outgoing_host_ipv6,
     _validate_wizard,
     _validate_optional_arg_positions,
 )
@@ -809,15 +789,6 @@ VARIABLES_FIELDS_SCHEMA = cv.All(VARIABLES_SCHEMA, cv.Length(max=_FIELD_MAP_MAX)
 
 
 def _validate_response_config(config: ConfigType) -> ConfigType:
-    # Validate dependencies:
-    # - response_template requires capture_response: true
-    # - capture_response: true requires on_success
-    if CONF_RESPONSE_TEMPLATE in config and not config[CONF_CAPTURE_RESPONSE]:
-        raise cv.Invalid(
-            f"`{CONF_RESPONSE_TEMPLATE}` requires `{CONF_CAPTURE_RESPONSE}: true` to be set.",
-            path=[CONF_RESPONSE_TEMPLATE],
-        )
-
     if config[CONF_CAPTURE_RESPONSE] and CONF_ON_SUCCESS not in config:
         raise cv.Invalid(
             f"`{CONF_CAPTURE_RESPONSE}: true` requires `{CONF_ON_SUCCESS}` to be set.",
@@ -852,6 +823,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     ),
     cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
     cv.rename_key(CONF_SERVICE, CONF_ACTION),
+    cv.only_when(CONF_RESPONSE_TEMPLATE, CONF_CAPTURE_RESPONSE, True),
     _validate_response_config,
 )
 
@@ -1136,19 +1108,13 @@ API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_condition(
-    "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "api.connected",
+    API_CONNECTED_CONDITION_SCHEMA,
+    automation.ApplyCall(
+        "is_connected({})", ((CONF_STATE_SUBSCRIPTION_ONLY, cg.bool_),)
+    ),
 )
-async def api_connected_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
-    cg.add(var.set_state_subscription_only(templ))
-    return var
 
 
 # user_services.cpp is only needed when user defined actions exist; the

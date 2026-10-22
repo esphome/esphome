@@ -91,7 +91,9 @@ CompactString &CompactString::operator=(const CompactString &other) {
 }
 
 CompactString::CompactString(CompactString &&other) noexcept : length_(other.length_), is_heap_(other.is_heap_) {
-  // Copy full storage (includes null terminator for inline, or pointer for heap)
+  // Copy full storage (includes null terminator for inline, or pointer for heap). The bytes past the
+  // terminator are never read, and a fixed-size copy is 8 bytes of flash smaller than a sized one.
+  // NOLINTNEXTLINE(clang-analyzer-unix.cstring.UninitializedRead)
   std::memcpy(this->storage_, other.storage_, INLINE_CAPACITY + 1);
   other.length_ = 0;
   other.is_heap_ = 0;
