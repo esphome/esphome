@@ -692,7 +692,7 @@ void LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_VERSION: {
-      if (this->buffer_pos_ < 12 + sizeof(this->version_)) {
+      if (this->buffer_pos_ < 12 + sizeof(this->version_) + HEADER_FOOTER_SIZE) {
         break;  // too short to hold a version
       }
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
@@ -756,7 +756,7 @@ void LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_TARGET_MODE:
-      if (this->buffer_pos_ < 11) {
+      if (this->buffer_pos_ < 11 + HEADER_FOOTER_SIZE) {
         break;  // too short to hold the mode
       }
       ESP_LOGV(TAG, "Query target tracking mode");
