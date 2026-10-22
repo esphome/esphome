@@ -674,6 +674,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
     """
     from esphome.const import SECRETS_FILES
 
+    root = Path(config_path).absolute().parent
     secrets: set[Path] = set()
     # Insertion ordered, so its keys are the loaded files in first-seen order.
     aliases: dict[Path, list[Path]] = {}
@@ -687,10 +688,15 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         names = aliases.setdefault(resolved, [])
         if (alias := named_path(fname)) not in names:
             names.append(alias)
-        # The outermost directory symlink on the way; `..` after one is the OS's call.
+        # The outermost directory symlink below the config directory; `..` after
+        # one is the OS's call.
         if ".." not in fname.parts:
             for directory in reversed((fname.parent, *fname.parent.parents)):
-                if directory.is_symlink():
+                if (
+                    directory.is_relative_to(root)
+                    and directory != root
+                    and directory.is_symlink()
+                ):
                     links[directory] = directory.resolve()
                     break
 

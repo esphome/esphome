@@ -478,8 +478,9 @@ _PKG_PW = "packages:\n  common: !include pkg/common.yaml\n"
         ),
         pytest.param(
             {
-                "entry.yaml": "outer: !include {file: outer.yaml, vars: {pw: !secret wifi_password}}\n",
-                "outer.yaml": "inner: !include inner.yaml\n",
+                "entry.yaml": "packages:\n"
+                "  outer: !include {file: outer.yaml, vars: {pw: !secret wifi_password}}\n",
+                "outer.yaml": "packages:\n  inner: !include inner.yaml\n",
                 "inner.yaml": "defaults:\n  pw: realpw\nmqtt:\n  password: ${pw}\n",
                 "secrets.yaml": "wifi_password: hunter2\n",
             },
@@ -707,11 +708,24 @@ def test_redacted_fails_closed(
             id="literal",
         ),
         pytest.param(
-            {"fp.yaml": "password: 0\n"},
+            {"fp.yaml": "password: 0\naccuracy_decimals: 0\n"},
             {"fingerprint_grow": {"password": SensitiveInt(0)}},
             {},
-            {"fp.yaml": "password: !secret 'fingerprint_grow_password'"},
-            id="zero_credential",
+            {
+                "fp.yaml": "password: !secret 'fingerprint_grow_password'\naccuracy_decimals: 0\n"
+            },
+            id="zero_credential_swapped_only_at_its_key",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "api:\n  encryption:\n    key: !secret api_key\n"
+                "binary_sensor: !include buttons.yaml\n",
+                "buttons.yaml": "- platform: matrix_keypad\n  key: A\n",
+            },
+            API_KEY,
+            {"SUPER_SECRET": "api_key"},
+            {"buttons.yaml": "key: A"},
+            id="list_file_key_is_not_the_encryption_key",
         ),
         pytest.param(
             {
@@ -726,7 +740,8 @@ def test_redacted_fails_closed(
         ),
         pytest.param(
             {
-                "entry.yaml": "outer: !include {file: outer.yaml, vars: {pw: !secret wifi_password}}\n",
+                "entry.yaml": "packages:\n"
+                "  outer: !include {file: outer.yaml, vars: {pw: !secret wifi_password}}\n",
                 "outer.yaml": "wifi: !include wifi.yaml\n",
                 "wifi.yaml": "password: ${pw}\n",
                 "secrets.yaml": "wifi_password: hunter2\n",
