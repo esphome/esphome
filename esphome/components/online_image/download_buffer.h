@@ -36,6 +36,8 @@ class DownloadBuffer {
 
   void reset() { this->unread_ = 0; }
   size_t resize(size_t size);
+  /// Make the buffer at least size bytes, keeping the unread data. Returns false if the allocation failed.
+  bool grow(size_t size);
 
  protected:
   uint8_t *buffer_;

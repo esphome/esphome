@@ -535,18 +535,23 @@ TEST_F(OnlineImageDownloadEnd, JpegDownloadThatStopsTimesOut) {
   EXPECT_EQ(this->finished_, 0);
 }
 
-// Headers that do not fit the download buffer cannot be read, so the download fails with a hint
-TEST_F(OnlineImageDownloadEnd, JpegHeadersLargerThanTheBufferReportError) {
+// Headers that do not fit the download buffer cannot be read as the image arrives, so the whole image is
+// downloaded first, keeping the bytes already read
+TEST_F(OnlineImageDownloadEnd, JpegHeadersLargerThanTheBufferDownloadTheWholeImage) {
   auto image = this->make_image_(runtime_image::JPEG, 256);
   auto container = std::make_shared<FakeContainer>(std::vector<uint8_t>(JPEG_48X40, JPEG_48X40 + sizeof(JPEG_48X40)),
                                                    sizeof(JPEG_48X40), false);
   this->start_(*image, container);
 
-  for (int i = 0; i < 10 && this->finished_ + this->errors_ == 0; i++)
+  for (int i = 0; i < 100 && this->finished_ + this->errors_ == 0; i++) {
     image->loop();
+    container->deliver(256);
+  }
 
-  EXPECT_EQ(this->errors_, 1);
-  EXPECT_EQ(this->finished_, 0);
+  ASSERT_EQ(this->finished_, 1);
+  EXPECT_EQ(this->errors_, 0);
+  EXPECT_EQ(container->get_bytes_read(), sizeof(JPEG_48X40));
+  EXPECT_EQ(image_pixels(*image), reference_jpeg_pixels());
 }
 
 // The pass that opens the image does not decode any of it
@@ -656,6 +661,26 @@ TEST_F(OnlineImageDownloadEnd, JpegReadErrorFailsTheDownload) {
   image->loop();
   EXPECT_EQ(this->errors_, 1);
   EXPECT_EQ(this->finished_, 0);
+}
+
+TEST(DownloadBufferGrow, KeepsTheUnreadData) {
+  DownloadBuffer buffer(16);
+  std::memcpy(buffer.append(), "abcdef", 6);
+  buffer.write(6);
+  buffer.read(2);
+
+  ASSERT_TRUE(buffer.grow(64));
+  EXPECT_EQ(buffer.size(), 64u);
+  ASSERT_EQ(buffer.unread(), 4u);
+  EXPECT_EQ(std::memcmp(buffer.data(), "cdef", 4), 0);
+
+  // A failed allocation leaves the buffer as it was
+  EXPECT_FALSE(buffer.grow(SIZE_MAX / 2));
+  EXPECT_EQ(buffer.size(), 64u);
+  EXPECT_EQ(std::memcmp(buffer.data(), "cdef", 4), 0);
+  // Growing to a smaller size changes nothing
+  EXPECT_TRUE(buffer.grow(8));
+  EXPECT_EQ(buffer.size(), 64u);
 }
 
 }  // namespace esphome::online_image::testing

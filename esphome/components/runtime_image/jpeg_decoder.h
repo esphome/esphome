@@ -37,7 +37,7 @@ class JpegDecoder : public ImageDecoder {
   bool prepare_rgb565_scaling_(int width, int height);
   /// Set up an opened image for decoding. Returns 0, or a DecodeError.
   int start_();
-  /// The DecodeError for JPEGDEC's last error, closing the image
+  /// The DecodeError for a failed read of the source or JPEGDEC's last error, closing the image
   int fail_();
 
   static int32_t source_read(JPEGFILE *file, uint8_t *buf, int32_t len);

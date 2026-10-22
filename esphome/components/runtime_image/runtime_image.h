@@ -82,7 +82,8 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Decode from a source the decoder reads itself, in place of feed_data().
    *
-   * Call after begin_decode() when decoder_supports_source() is true, then call decode_step() until it
+   * Call after begin_decode() when decoder_supports_source() is true, once the image headers can be read from the
+   * source, then call decode_step() until it
    * returns DECODE_STEP_DONE, and finish with end_decode().
    * @return 0 on success, or a DecodeError value.
    */

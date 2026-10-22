@@ -58,6 +58,23 @@ bool DownloadSource::seek(uint32_t position) {
   return true;
 }
 
+bool DownloadBuffer::grow(size_t size) {
+  if (this->size_ >= size)
+    return true;
+  RAMAllocator<uint8_t> allocator;
+  uint8_t *buffer = allocator.allocate(size);
+  if (buffer == nullptr) {
+    ESP_LOGE(TAG, "allocation of %zu bytes failed. Biggest block in heap: %zu Bytes", size,
+             allocator.get_max_free_block_size());
+    return false;
+  }
+  memcpy(buffer, this->buffer_, this->unread_);
+  allocator.deallocate(this->buffer_, this->size_);
+  this->buffer_ = buffer;
+  this->size_ = size;
+  return true;
+}
+
 size_t DownloadBuffer::resize(size_t size) {
   if (this->size_ >= size) {
     // Avoid useless reallocations; if the buffer is big enough, don't reallocate.

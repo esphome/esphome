@@ -308,12 +308,21 @@ void OnlineImage::loop_stream_() {
       return;
     const int err = this->begin_source(&this->source_);
     if (err != 0) {
-      ESP_LOGE(TAG, "Error decoding image: %s", runtime_image::decode_error_to_string(err));
-      // Headers cut short by a full buffer fail to parse, or make the decoder seek past the buffer
+      // Headers cut short by a full buffer fail to parse, or make the decoder seek past the buffer. Such an image
+      // still decodes once it is all in memory, as it did before JPEG images were decoded as they download.
       if (!arrived && (err == runtime_image::DECODE_ERROR_INVALID_TYPE || err == runtime_image::DECODE_ERROR_READ)) {
-        ESP_LOGE(TAG, "The image headers may not fit the %zu byte download buffer; increase buffer_size",
+        ESP_LOGW(TAG,
+                 "The image headers do not fit the %zu byte download buffer, so the whole image is downloaded "
+                 "before it is decoded; increase buffer_size to decode it as it downloads",
                  this->download_buffer_.size());
+        // grow() logs a failed allocation
+        if (this->download_buffer_.grow(total))
+          this->streaming_ = false;
+        else
+          this->fail_download_();
+        return;
       }
+      ESP_LOGE(TAG, "Error decoding image: %s", runtime_image::decode_error_to_string(err));
       this->fail_download_();
       return;
     }
