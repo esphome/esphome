@@ -24,6 +24,7 @@ DEPENDENCIES = ["esp32_hosted"]
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
 TYPE_EMBEDDED = "embedded"
+_KEY_VERIFIED_FIRMWARE = "esp32_hosted_verified_firmware"
 TYPE_HTTP = "http"
 
 esp32_hosted_ns = cg.esphome_ns.namespace("esp32_hosted")
@@ -92,7 +93,15 @@ def _check_firmware_hash(data: bytes, expected: str, source: str | Path) -> None
 
 
 def _read_firmware(config: ConfigType) -> bytes:
+    """The verified firmware bytes, fetched once per run: validation and codegen both need them."""
     expected = config[CONF_SHA256].lower()
+    verified: dict[str, bytes] = CORE.data.setdefault(_KEY_VERIFIED_FIRMWARE, {})
+    if (data := verified.get(expected)) is None:
+        data = verified[expected] = _fetch_firmware(config, expected)
+    return data
+
+
+def _fetch_firmware(config: ConfigType, expected: str) -> bytes:
     if url := config.get(CONF_URL):
         cache_dir = external_files.compute_local_file_dir("esp32_hosted") / "firmware"
         cache_dir.mkdir(parents=True, exist_ok=True)

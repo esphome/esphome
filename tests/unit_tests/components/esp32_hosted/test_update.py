@@ -147,6 +147,9 @@ def test_unwritable_cache_still_returns_the_verified_bytes(
     monkeypatch.setattr(Path, "replace", refuse)
     assert hosted_update._read_firmware(remote_config()) == FIRMWARE
     assert not cache_file().exists()
+    # Codegen asks again after validation; the verified bytes are kept for the run
+    assert hosted_update._read_firmware(remote_config()) == FIRMWARE
+    assert downloader.call_count == 1
 
 
 def test_verified_cache_never_accesses_network(downloader: Mock) -> None:
