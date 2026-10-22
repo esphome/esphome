@@ -133,16 +133,25 @@ def test_dsp_decimator_chunking_and_reset(tmp_path: Path) -> None:
         r"""
 #pragma once
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cstddef>
+#include <thread>
 
 #define ESP_OK 0
+inline std::atomic<bool> fir_active{false};
+inline std::atomic<bool> pause_next_fir{false};
+inline std::atomic<bool> fir_paused{false};
+inline std::atomic<bool> resume_fir{false};
+inline std::atomic<int> reset_count{0};
 struct fir_f32_t {
   const float *coefficients;
   float *delay;
 };
 inline int dsps_fird_init_f32(fir_f32_t *fir, const float *coefficients, float *delay,
                               int taps, int decimation) {
+  assert(!fir_active.load());
+  ++reset_count;
   assert(taps == 64 && decimation == 3);
   fir->coefficients = coefficients;
   fir->delay = delay;
@@ -150,6 +159,12 @@ inline int dsps_fird_init_f32(fir_f32_t *fir, const float *coefficients, float *
   return ESP_OK;
 }
 inline void dsps_fird_f32_ae32(fir_f32_t *fir, const float *input, float *output, int count) {
+  fir_active.store(true);
+  if (pause_next_fir.exchange(false)) {
+    fir_paused.store(true);
+    while (!resume_fir.load())
+      std::this_thread::yield();
+  }
   for (int frame = 0; frame < count; ++frame) {
     for (int i = 0; i < 61; ++i)
       fir->delay[i] = fir->delay[i + 3];
@@ -160,6 +175,7 @@ inline void dsps_fird_f32_ae32(fir_f32_t *fir, const float *input, float *output
       sum += fir->coefficients[tap] * fir->delay[tap];
     output[frame] = sum;
   }
+  fir_active.store(false);
 }
 """,
         encoding="utf-8",
@@ -173,6 +189,7 @@ inline void dsps_fird_f32_ae32(fir_f32_t *fir, const float *input, float *output
 #include <cmath>
 #include <cstdint>
 #include <numbers>
+#include <thread>
 #include <vector>
 
 #include "esphome/components/resampler/microphone/decimator_3.h"
@@ -226,6 +243,28 @@ int main() {
   chunked.process(input, after_reset);
   assert(after_reset == reference);
 
+  std::vector<uint8_t> short_input(input.begin(), input.begin() + 1536);
+  std::vector<uint8_t> in_flight;
+  pause_next_fir.store(true);
+  std::thread worker([&] { assert(chunked.process(short_input, in_flight)); });
+  while (!fir_paused.load())
+    std::this_thread::yield();
+  const int resets_before_request = reset_count.load();
+  chunked.request_reset();
+  assert(reset_count.load() == resets_before_request);
+  resume_fir.store(true);
+  worker.join();
+  assert(reset_count.load() == resets_before_request);
+
+  std::vector<uint8_t> after_restart;
+  assert(chunked.process(short_input, after_restart));
+  assert(reset_count.load() == resets_before_request + 1);
+  DspDecimator3 fresh;
+  assert(fresh.reset());
+  std::vector<uint8_t> fresh_output;
+  assert(fresh.process(short_input, fresh_output));
+  assert(after_restart == fresh_output);
+
   DspDecimator3 anti_alias;
   assert(anti_alias.reset());
   std::vector<uint8_t> stop_band;
@@ -254,6 +293,7 @@ int main() {
             compiler,
             "-std=c++20",
             "-O2",
+            "-pthread",
             "-DUSE_DSP_DECIMATOR",
             "-DUSE_ESP_IDF",
             "-I",

@@ -68,10 +68,7 @@ void ResamplerMicrophone::loop() {
     case microphone::STATE_STOPPED:
       if (this->fast_decimation_) {
 #if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
-        if (!this->dsp_decimator_.reset()) {
-          this->mark_failed();
-          return;
-        }
+        this->dsp_decimator_.request_reset();
 #endif
       }
       this->source_->start();
@@ -168,7 +165,10 @@ void ResamplerMicrophone::process_audio_(const std::vector<uint8_t> &data) {
 
   if (this->fast_decimation_ && input_stream_info.get_sample_rate() != this->target_sample_rate_) {
 #if defined(USE_DSP_DECIMATOR) && defined(USE_ESP_IDF)
-    this->dsp_decimator_.process(data, this->output_buffer_);
+    if (!this->dsp_decimator_.process(data, this->output_buffer_)) {
+      ESP_LOGE(TAG, "ESP-DSP decimator reset failed");
+      return;
+    }
 #endif
     if (!this->output_buffer_.empty())
       this->data_callbacks_.call(this->output_buffer_);

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -18,6 +19,8 @@ namespace esphome::resampler {
 // result is saturated here; the library's s16 FIR wraps on full-scale input.
 class DspDecimator3 {
  public:
+  void request_reset() { this->reset_pending_.store(true, std::memory_order_relaxed); }
+
   bool reset() {
     this->coefficients_[0] = 0.0f;  // 64th tap required by the DSP FIR
     for (size_t i = 0; i < 63; ++i)
@@ -26,7 +29,12 @@ class DspDecimator3 {
     return dsps_fird_init_f32(&this->fir_, this->coefficients_.data(), this->delay_.data(), 64, 3) == ESP_OK;
   }
 
-  void process(const std::vector<uint8_t> &input, std::vector<uint8_t> &output) {
+  bool process(const std::vector<uint8_t> &input, std::vector<uint8_t> &output) {
+    if (this->reset_pending_.exchange(false, std::memory_order_relaxed) && !this->reset()) {
+      this->reset_pending_.store(true, std::memory_order_relaxed);
+      output.clear();
+      return false;
+    }
     const size_t input_samples = input.size() / sizeof(int16_t);
     const size_t old_pending = this->pending_count_;
     const size_t complete_samples = ((old_pending + input_samples) / 3) * 3;
@@ -35,7 +43,7 @@ class DspDecimator3 {
       for (size_t i = 0; i < input_samples; ++i)
         this->pending_[this->pending_count_++] = static_cast<float>(decode(input, i));
       output.clear();
-      return;
+      return true;
     }
     this->input_.resize(complete_samples);
     for (size_t i = 0; i < old_pending; ++i)
@@ -55,6 +63,7 @@ class DspDecimator3 {
       output[2 * i] = static_cast<uint8_t>(sample);
       output[2 * i + 1] = static_cast<uint8_t>(sample >> 8);
     }
+    return true;
   }
 
  private:
@@ -77,6 +86,7 @@ class DspDecimator3 {
   std::vector<float> output_;
   float pending_[2]{};
   size_t pending_count_{0};
+  std::atomic<bool> reset_pending_{false};
 };
 #endif
 
