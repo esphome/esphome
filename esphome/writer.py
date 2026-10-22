@@ -267,12 +267,6 @@ def copy_src_tree():
     for t in ignore_targets:
         source_files_copy.pop(t, None)
 
-    # Files to exclude from sources_changed tracking (generated files)
-    generated_files = {
-        Path("esphome/core/build_info_data.h"),
-        Path("esphome/core/build_info_data.cpp"),
-    }
-
     sources_changed = False
     for fname in walk_files(CORE.relative_src_path("esphome")):
         p = Path(fname)
@@ -287,13 +281,12 @@ def copy_src_tree():
         if target not in source_files_copy:
             # Source file removed, delete target
             p.unlink()
-            if target not in generated_files:
-                _LOGGER.debug("Source removed: %s", target)
-                sources_changed = True
+            _LOGGER.debug("Source removed: %s", target)
+            sources_changed = True
         else:
             src_file = source_files_copy.pop(target)
             with src_file.path() as src_path:
-                if copy_file_if_changed(src_path, p) and target not in generated_files:
+                if copy_file_if_changed(src_path, p):
                     _LOGGER.debug("Source changed: %s", target)
                     sources_changed = True
 
@@ -301,10 +294,7 @@ def copy_src_tree():
     for target, src_file in source_files_copy.items():
         dst_path = CORE.relative_src_path(*target.parts)
         with src_file.path() as src_path:
-            if (
-                copy_file_if_changed(src_path, dst_path)
-                and target not in generated_files
-            ):
+            if copy_file_if_changed(src_path, dst_path):
                 _LOGGER.debug("Source added: %s", target)
                 sources_changed = True
 

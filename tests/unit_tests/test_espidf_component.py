@@ -367,6 +367,56 @@ def test_generate_cmakelists_txt_references_project_managed_components_variable(
     assert "${ESPHOME_PROJECT_MANAGED_COMPONENTS}" in content
 
 
+def test_generate_cmakelists_txt_uses_declared_src_dir(
+    tmp_component: IDFComponent,
+) -> None:
+    """A library.json srcDir is used as is instead of probing src/Src/."""
+    lib_dir = tmp_component.path / "lib"
+    lib_dir.mkdir()
+    (lib_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {"build": {"srcDir": "lib"}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert "SRCS" in content
+    assert "main.c" in content
+    assert "INCLUDE_DIRS" in content
+
+
+def test_generate_cmakelists_txt_without_include_dirs(
+    tmp_component: IDFComponent,
+) -> None:
+    """No INCLUDE_DIRS line when none of the include directories exist."""
+    tmp_component.data = {"build": {"srcDir": "missing"}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert "INCLUDE_DIRS" not in content
+
+
+def test_generate_idf_component_yml_with_several_dependencies(
+    tmp_component: IDFComponent, tmp_path: Path
+) -> None:
+    """Every dependency lands under one shared dependencies section."""
+    deps = []
+    for name in ("dep_a", "dep_b"):
+        dep = IDFComponent(name, "1.0", source=URLSource("http://dummy.com"))
+        dep.path = tmp_path / name
+        deps.append(dep)
+    tmp_component.dependencies = deps
+    tmp_component.data = {}
+
+    result = generate_idf_component_yml(tmp_component)
+
+    assert result == (
+        "dependencies:\n"
+        "  dep_a:\n"
+        f"    override_path: {deps[0].path}\n"
+        "  dep_b:\n"
+        f"    override_path: {deps[1].path}\n"
+    )
+
+
 def test_generate_idf_component_yml_basic(tmp_component):
     tmp_component.data = {"description": "test", "repository": {"url": "http://aaa"}}
     result = generate_idf_component_yml(tmp_component)
