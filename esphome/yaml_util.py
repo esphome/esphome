@@ -1269,11 +1269,6 @@ def _load_yaml_internal_with_type(
         loader.dispose()
 
 
-def has_container_secrets() -> bool:
-    """Whether a mapping or list was loaded through ``!secret``."""
-    return any(value[:1] in "{[" for value in _SECRET_VALUES)
-
-
 def registered_secret_names() -> set[str]:
     """Names of all ``!secret`` keys the loader has seen since the last clear."""
     return set(_LOADED_SECRET_NAMES)

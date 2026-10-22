@@ -739,23 +739,22 @@ def test_represent_include_file_with_condition() -> None:
 
 
 @pytest.mark.parametrize(
-    ("value", "expected"),
+    ("value", "secrets", "expected"),
     [
-        ("${x}", "key: !literal '${x}'\n"),
-        ({"a": "${x}"}, "key: !literal\n  a: ${x}\n"),
-        (["${x}"], "key: !literal\n  - ${x}\n"),
+        ("${x}", {}, "key: !literal '${x}'\n"),
+        ({"a": "${x}"}, {}, "key: !literal\n  a: ${x}\n"),
+        (["${x}"], {}, "key: !literal\n  - ${x}\n"),
+        # A literal equal to a registered secret is written as the secret.
+        ("hunter2", {"hunter2": "pw"}, "key: !secret 'pw'\n"),
     ],
-    ids=["scalar", "mapping", "sequence"],
+    ids=["scalar", "mapping", "sequence", "secret"],
 )
-def test_represent_literal(value: object, expected: str) -> None:
+def test_represent_literal(
+    value: object, secrets: dict[str, str], expected: str
+) -> None:
     """`!literal` values keep their tag when dumped."""
+    yaml_util._SECRET_VALUES.update(secrets)
     assert yaml_util.dump({"key": make_literal(value)}) == expected
-
-
-def test_represent_literal_secret() -> None:
-    """A literal equal to a registered secret is written as the secret."""
-    yaml_util._SECRET_VALUES["hunter2"] = "pw"
-    assert yaml_util.dump({"key": make_literal("hunter2")}) == "key: !secret 'pw'\n"
 
 
 def test_represent_include_file_with_data_base_mixin() -> None:
