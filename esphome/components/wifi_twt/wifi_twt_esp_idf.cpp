@@ -220,15 +220,23 @@ void WiFiTWT::start_twt() {
 }
 
 void WiFiTWT::stop_twt() {
+  // Before the check: a disconnect handled first has already reset the flow.
+  this->reconfigure_pending_ = false;
   uint8_t flow_id = this->active_flow_id_;
   if (flow_id == UINT8_MAX) {
     ESP_LOGW(TAG, "stop_twt() called but no active TWT agreement");
     return;
   }
-  // Explicit stop clears the pending flag so the agreement is not revived on reconnect.
-  this->reconfigure_pending_ = false;
   esp_err_t err = esp_wifi_sta_itwt_teardown(flow_id);
-  if (err != ESP_OK) {
+  if (err == ESP_ERR_WIFI_NOT_ASSOC) {
+    // No teardown event will arrive; a flow left set would be revived on reconnect.
+    ESP_LOGD(TAG, "Not associated; iTWT flow_id=%u already gone", flow_id);
+    this->active_flow_id_ = UINT8_MAX;
+    this->defer([this]() {
+      if (this->active_flow_id_ == UINT8_MAX)
+        this->stop_callback_.call();
+    });
+  } else if (err != ESP_OK) {
     ESP_LOGE(TAG, "iTWT teardown failed: %s", esp_err_to_name(err));
   }
 }
