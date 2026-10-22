@@ -422,10 +422,15 @@ static bool is_valid_ras_2819t_command(uint64_t rc_code_1, uint64_t rc_code_2 = 
 }
 
 void ToshibaClimate::setup() {
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+  if (this->model_ == MODEL_RAS_25J2KVSG_ND)
+    this->setup_ras_25j2kvsg_nd_();
+#endif
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
-      this->transmit_rac_pt1411hwru_temp_();
+      if (this->model_ != MODEL_RAS_25J2KVSG_ND)
+        this->transmit_rac_pt1411hwru_temp_();
       // current temperature changed, publish state
       this->publish_state();
     });
@@ -436,6 +441,10 @@ void ToshibaClimate::setup() {
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+    if (this->model_ == MODEL_RAS_25J2KVSG_ND)
+      this->restore_ras_25j2kvsg_nd_(*restore);
+#endif
     restore->apply(this);
   } else {
     // restore from defaults
@@ -469,7 +478,7 @@ void ToshibaClimate::setup() {
   }
 
   // Ensure fan mode is valid
-  if (!this->fan_mode.has_value()) {
+  if (!this->fan_mode.has_value() && !this->has_custom_fan_mode()) {
     ESP_LOGW(TAG, "Fan mode not set during setup, defaulting to AUTO");
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
   }
@@ -491,6 +500,12 @@ void ToshibaClimate::setup() {
 }
 
 void ToshibaClimate::transmit_state() {
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+  if (this->model_ == MODEL_RAS_25J2KVSG_ND) {
+    this->transmit_ras_25j2kvsg_nd_();
+    return;
+  }
+#endif
   if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F) {
     this->transmit_rac_pt1411hwru_();
   } else if (this->model_ == MODEL_RAS_2819T) {
@@ -1152,7 +1167,7 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 
 bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Try modern ToshibaAcProtocol decoder first (handles RAS-2819T and potentially others)
-  if (this->model_ != MODEL_SEIYA) {
+  if (this->model_ != MODEL_SEIYA && this->model_ != MODEL_RAS_25J2KVSG_ND) {
     remote_base::ToshibaAcProtocol toshiba_protocol;
     auto decode_result = toshiba_protocol.decode(data);
 
@@ -1178,6 +1193,10 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!this->decode_(&data, message, message_length)) {
     return false;
   }
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+  if (this->model_ == MODEL_RAS_25J2KVSG_ND && (message[0] != 0xF2 || message[1] != 0x0D))
+    return false;
+#endif
   // Determine incoming message protocol version and/or length
   if (this->is_valid_rac_pt1411hwru_header_(message)) {
     // We already received four bytes
@@ -1187,8 +1206,9 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   } else {
     // First checksum was valid so continue receiving the remaining bits
-    // The shortest frame is 9 bytes (length byte 3); longer ones must still fit the buffer
-    if (message[2] < 3 || message[2] > sizeof(message) - TOSHIBA_HEADER_LENGTH - 2) {
+    // Only the WH-TA15PE model handles the seven-byte motion commands.
+    const uint8_t minimum_length = this->model_ == MODEL_RAS_25J2KVSG_ND ? 1 : 3;
+    if (message[2] < minimum_length || message[2] > sizeof(message) - TOSHIBA_HEADER_LENGTH - 2) {
       return false;
     }
     message_length = message[2] + 2;
@@ -1341,6 +1361,13 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
       if (checksum != message[message_length - 1]) {
         return false;
       }
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+      if (this->model_ == MODEL_RAS_25J2KVSG_ND) {
+        if (!data.expect_mark(timings.bit_mark))
+          return false;
+        return this->receive_ras_25j2kvsg_nd_(message, message_length);
+      }
+#endif
       // Check if this is a short swing/fix message
       if (message[4] & TOSHIBA_COMMAND_MOTION) {
         // Not supported yet
@@ -1356,6 +1383,17 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   this->publish_state();
   return true;
+}
+
+void ToshibaClimate::fix() {
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+  if (this->model_ == MODEL_RAS_25J2KVSG_ND &&
+      this->ras_25j2kvsg_nd_preset_() != ToshibaPreset::TOSHIBA_PRESET_HADA_CARE) {
+    this->transmit_ras_25j2kvsg_nd_motion_(TOSHIBA_MOTION_FIX, 0);
+    return;
+  }
+#endif
+  ESP_LOGW(TAG, "FIX is unavailable for this model or preset");
 }
 
 void ToshibaClimate::encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, const uint8_t nbytes,

@@ -1,7 +1,14 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
+#include "esphome/components/climate/climate.h"
 #include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
+#if defined(USE_TOSHIBA_RAS_25J2KVSG_ND) && defined(USE_SELECT)
+#include "esphome/components/select/select.h"
+#endif
 
 namespace esphome::toshiba {
 
@@ -13,6 +20,7 @@ enum Model {
   MODEL_RAS_2819T = 3,         // RAS-2819T protocol variant, temperature range 18 to 30
   MODEL_SEIYA = 4,             // Seiya family (RAS-B13E2KVG-E etc.), generic frame with a swing byte
   MODEL_RAS_B10N3KV2 = 5,      // RAS-B13 remote family, generic frame with IRremoteESP8266's TOSHIBA_AC timings
+  MODEL_RAS_25J2KVSG_ND = 6,   // WH-TA15PE remote
 };
 
 // Supported temperature ranges
@@ -34,8 +42,48 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
 
   void setup() override;
   void set_model(Model model) { this->model_ = model; }
+  void fix();
+
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+  void set_power_selection(size_t index);
+#ifdef USE_SELECT
+  SUB_SELECT(power_selection)
+#endif
+#endif
 
  protected:
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+  enum class ToshibaPreset : uint8_t {
+    TOSHIBA_PRESET_NONE,
+    TOSHIBA_PRESET_BOOST,
+    TOSHIBA_PRESET_ECO,
+    TOSHIBA_PRESET_FIREPLACE_1,
+    TOSHIBA_PRESET_FIREPLACE_2,
+    TOSHIBA_PRESET_FROST_PROTECTION,
+    TOSHIBA_PRESET_HADA_CARE,
+    TOSHIBA_PRESET_SLEEP_1H,
+    TOSHIBA_PRESET_SLEEP_3H,
+    TOSHIBA_PRESET_SLEEP_5H,
+    TOSHIBA_PRESET_SLEEP_9H,
+  };
+  void control(const climate::ClimateCall &call) override;
+  void setup_ras_25j2kvsg_nd_();
+  void restore_ras_25j2kvsg_nd_(climate::ClimateDeviceRestoreState &restore);
+  void transmit_ras_25j2kvsg_nd_();
+  void transmit_ras_25j2kvsg_nd_motion_(uint8_t command, uint8_t repeat);
+  bool receive_ras_25j2kvsg_nd_(const uint8_t *message, uint8_t length);
+  ToshibaPreset ras_25j2kvsg_nd_preset_() const;
+  void set_ras_25j2kvsg_nd_preset_(ToshibaPreset preset);
+  uint8_t ras_25j2kvsg_nd_fan_() const;
+  void set_ras_25j2kvsg_nd_fan_(uint8_t code);
+  void publish_power_selection_();
+
+  float normal_target_temperature_{24.0f};
+  uint32_t last_swing_received_{0};
+  uint8_t power_selection_{0};
+  uint8_t sleep_fan_{0};
+  bool swing_received_{false};
+#endif
   void transmit_state() override;
   void transmit_generic_();
   void transmit_rac_pt1411hwru_();
@@ -59,6 +107,8 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   float last_target_temperature_{24.0f};
 
   float temperature_min_() {
+    if (this->model_ == MODEL_RAS_25J2KVSG_ND)
+      return 5.0f;  // Frost protection; control() enforces the separate normal range.
     if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F)
       return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
     if (this->model_ == MODEL_RAS_2819T)
