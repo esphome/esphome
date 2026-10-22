@@ -1565,6 +1565,26 @@ def test_registry_miss_resolves_again_as_a_git_source(tmp_path, monkeypatch) -> 
     assert [d.name for d in emitted["C"].dependencies] == ["o/B"]
 
 
+def test_empty_version_is_settled_like_a_missing_one(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """``{"Foo": ""}`` carries no version either, so it is matched, fetched by
+    name or reported like a version-less entry rather than failing or vanishing."""
+    asked = _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": {"Foo": "", "Bar": ""}},
+            "Bar": {"name": "Bar"},
+        },
+        unknown={"Foo"},
+    )
+    top = convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert [d.name for d in top[0].dependencies] == ["Bar"]
+    assert (None, "Foo") in asked
+    assert "Dependency Foo of esphome/A was not resolved; skipping" in caplog.text
+
+
 def test_bundled_name_is_satisfied_by_a_replacement_pulled_in_later(
     tmp_path, monkeypatch
 ) -> None:

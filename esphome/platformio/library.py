@@ -802,7 +802,6 @@ def normalize_dependencies(
     warning for entries that cannot be normalized.
 
     Bare-name spellings carry no version; the walk settles them once the graph is known.
-    framework libraries (Wire, SPI) that need no registry install.
     """
     if dependencies is None:
         return []
@@ -1426,7 +1425,8 @@ def convert_libraries(
             for dependency in normalize_dependencies(
                 component.data.get("dependencies"), component.name
             ):
-                if "version" not in dependency:
+                if not dependency.get("version"):
+                    # An empty version is as good as none; it settles the same way
                     if not is_lib_ignored(
                         dependency.get("name"), lib_ignore
                     ) and dependency_is_usable(
