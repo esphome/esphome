@@ -23,7 +23,7 @@ MAX_GATES = 600
 class WaveshareBWR(EpaperModel):
     """EpaperModel class for Waveshare Black/White/Red displays using UC8179 controller."""
 
-    source_files = ("epaper_waveshare_bwr.cpp",)
+    source_files = ("epaper_spi_bwr.cpp", "epaper_waveshare_bwr.cpp")
 
     def __init__(self, name, **defaults):
         defaults.setdefault("minimum_update_interval", "30s")
