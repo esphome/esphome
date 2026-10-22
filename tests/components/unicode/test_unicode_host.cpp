@@ -2,8 +2,8 @@
 
 #include <gtest/gtest.h>
 
-#include <array>
 #include <cstring>
+#include <memory>
 
 namespace esphome::unicode::testing {
 
@@ -12,18 +12,14 @@ struct Decoded {
   size_t length;
 };
 
-// Decodes the first sequence of text placed right before the end of a small buffer, so a read past the
-// terminator lands on the guard bytes that make the result wrong instead of silently passing
+// Decodes the first sequence of text from an allocation of exactly its size, so a read past the
+// terminator is a heap overflow the sanitizer reports instead of a silent pass
 static Decoded decode(const char *text) {
-  std::array<char, 8> buffer{};
-  const size_t len = std::strlen(text);
-  std::memcpy(buffer.data(), text, len);
-  buffer[len] = '\0';
-  for (size_t i = len + 1; i < buffer.size(); i++) {
-    buffer[i] = static_cast<char>(0x80);  // looks like a continuation byte to a decoder that reads on
-  }
+  const size_t size = std::strlen(text) + 1;
+  auto buffer = std::make_unique<char[]>(size);
+  std::memcpy(buffer.get(), text, size);
   Decoded result{};
-  result.code_point = extract_unicode_codepoint(buffer.data(), &result.length);
+  result.code_point = extract_unicode_codepoint(buffer.get(), &result.length);
   return result;
 }
 
@@ -58,6 +54,7 @@ TEST(Unicode, RejectsMalformedSequences) {
   EXPECT_EQ(decode("\xF0\x80\x80\xAF").length, 0u);      // overlong '/'
   EXPECT_EQ(decode("\xED\xA0\x80").length, 0u);          // surrogate U+D800
   EXPECT_EQ(decode("\xF4\x90\x80\x80").length, 0u);      // U+110000, past the last code point
+  EXPECT_EQ(decode("\xF5\x80\x80\x80").length, 0u);      // lead byte past U+10FFFF
   EXPECT_EQ(decode("\xC3\x41").length, 0u);              // second byte is not a continuation byte
 }
 
