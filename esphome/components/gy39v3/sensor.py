@@ -3,7 +3,6 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALTITUDE,
-    CONF_DELTA,
     CONF_HUMIDITY,
     CONF_ILLUMINANCE,
     CONF_PRESSURE,
@@ -30,13 +29,10 @@ DEPENDENCIES = ["i2c"]
 gy39v3_ns = cg.esphome_ns.namespace("gy39v3")
 GY39v3 = gy39v3_ns.class_("GY39v3", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor)
 
-CONF_VAPOR_PRESSURE_DEFICIT = "vapor_pressure_deficit"
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(GY39v3),
-            cv.Optional(CONF_DELTA): float,
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 GY39v3,
                 unit_of_measurement=UNIT_LUX,
@@ -77,14 +73,6 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_DISTANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(),
-            cv.Optional(CONF_VAPOR_PRESSURE_DEFICIT): sensor.sensor_schema(
-                GY39v3,
-                unit_of_measurement=UNIT_PASCAL,
-                icon="mdi:crystal-ball",
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -94,12 +82,9 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = await i2c.new_i2c_component(config)
-    if delta := config.get(CONF_DELTA):
-        cg.add(var.set_delta(delta))
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
     await sensors(CONF_PRESSURE, var.set_pressure_sensor)
     await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
     await sensors(CONF_ALTITUDE, var.set_altitude_sensor)
-    await sensors(CONF_VAPOR_PRESSURE_DEFICIT, var.set_vapor_pressure_deficit_sensor)
