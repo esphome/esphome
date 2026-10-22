@@ -91,6 +91,8 @@ class ModemComponent : public Component {
 
  protected:
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
+  // Each probe of a silent modem blocks the loop for about a second, so they are spaced out
+  static constexpr uint32_t PROBE_RETRY_DELAY_MS = 5000;
   static constexpr size_t URC_LINE_SIZE = 128;
 
   ModemComponentState compute_next_state_();
@@ -109,6 +111,7 @@ class ModemComponent : public Component {
   };
 
   void arm_connect_timeout_();
+  void cancel_connect_timeout_();
   void fail_setup_(const LogString *reason);
   void set_warning_(uint8_t bit, const LogString *message);
   void clear_warning_(uint8_t bit);
@@ -152,6 +155,8 @@ class ModemComponent : public Component {
   uint8_t connect_step_{0};
   // One PIN attempt per enable(): a second wrong PIN could PUK-lock the SIM
   bool pin_sent_{false};
+  bool connect_timeout_armed_{false};
+  bool modem_synced_{false};  // a modem that never answered has nothing to tear down
   // Written last by the IP event task, read by loop()
   std::atomic<bool> got_ip_{false};
 #ifdef USE_MODEM_URC

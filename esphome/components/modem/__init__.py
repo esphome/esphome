@@ -2,7 +2,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_RTS_PIN
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
-from esphome.components.network import add_use_address
+from esphome.components.network import add_use_address, require_ipv4
 from esphome.components.text_sensor import new_text_sensor, text_sensor_schema
 import esphome.config_validation as cv
 from esphome.const import (
@@ -94,7 +94,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_APN): cv.string,
             cv.Optional(CONF_PIN_CODE): cv.sensitive(cv.string_strict),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional(CONF_INIT_AT): cv.ensure_list(cv.string),
+            # The command count is stored in a byte
+            cv.Optional(CONF_INIT_AT): cv.All(
+                cv.ensure_list(cv.string), cv.Length(max=255)
+            ),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             # The IDF UART driver needs more than its 128 byte FIFO; the setters take uint16_t
             **{
@@ -116,6 +119,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_none_or_all_keys(CONF_RTS_PIN, CONF_CTS_PIN),
     _default_use_address,
+    require_ipv4(DOMAIN),
 )
 
 # Leaving DATA_MODE or turning the radio off can block the loop for about 20 s

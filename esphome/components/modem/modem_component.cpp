@@ -1,5 +1,6 @@
 #ifdef USE_ESP32
 #include "modem_component.h"
+#include "soc/soc_caps.h"
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -16,6 +17,12 @@
 namespace esphome::modem {
 
 ESPHOME_LOG_TAG(TAG, "modem");
+
+#ifdef SOC_UART_HP_NUM
+static constexpr int HP_UART_COUNT = SOC_UART_HP_NUM;
+#else
+static constexpr int HP_UART_COUNT = UART_NUM_MAX;
+#endif
 
 ModemComponent *global_modem_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -41,18 +48,25 @@ void ModemComponent::enable() {
 void ModemComponent::disable() {
   ESP_LOGI(TAG, "Setting modem target state to DISABLED");
   this->target_state_ = ModemComponentState::MODEM_DISABLED;
-  App.scheduler.cancel_timeout(this);
+  this->cancel_connect_timeout_();
 }
 
 // Self-keyed so it still fires after a failed setup, where the component's own timers are skipped
 void ModemComponent::arm_connect_timeout_() {
-  // Measures time without a connection, like wifi, so retry cycles do not restart it
-  if (this->timeout_ != 0) {
-    App.scheduler.set_timeout(this, this->timeout_, []() {
-      ESP_LOGE(TAG, "Modem was not able to connect (timeout), rebooting");
-      App.reboot();
-    });
+  // Measures time without a connection, like wifi: neither retry cycles nor a repeated enable() restart it
+  if (this->timeout_ == 0 || this->connect_timeout_armed_) {
+    return;
   }
+  this->connect_timeout_armed_ = true;
+  App.scheduler.set_timeout(this, this->timeout_, []() {
+    ESP_LOGE(TAG, "Modem was not able to connect (timeout), rebooting");
+    App.reboot();
+  });
+}
+
+void ModemComponent::cancel_connect_timeout_() {
+  this->connect_timeout_armed_ = false;
+  App.scheduler.cancel_timeout(this);
 }
 
 network::IPAddresses ModemComponent::get_ip_addresses() {
@@ -91,8 +105,9 @@ void ModemComponent::setup() {
   this->pref_ = global_preferences->make_preference<int>(BAUD_PREF_HASH);
   this->pref_.load(&this->restored_baud_);
 
-  // Highest free port first; UART0 stays with the logger
-  for (int p = UART_NUM_MAX - 1; p > UART_NUM_0; p--) {
+  // Highest free high-performance port first; UART0 stays with the logger and the low-power UART of the
+  // C6/P4 has restricted pins and clocks
+  for (int p = HP_UART_COUNT - 1; p > UART_NUM_0; p--) {
     if (!uart_is_driver_installed(static_cast<uart_port_t>(p))) {
       this->uart_port_ = static_cast<uart_port_t>(p);
       break;
@@ -166,13 +181,18 @@ void ModemComponent::setup() {
   // Runs on the UART task: keep one line in a fixed buffer and let loop() publish it
   this->dce_->set_enhanced_urc([this](const DTE::UrcBufferInfo &buffer_info) {
     const DTE::UrcConsumeInfo none{DTE::UrcConsumeResult::CONSUME_NONE, 0};
+    // Taken or dropped, a complete line leaves the buffer; otherwise it fills up with old notifications
+    const DTE::UrcConsumeInfo all{DTE::UrcConsumeResult::CONSUME_ALL, 0};
     // The response parser owns the buffer while a command runs; URCs in that window are best effort
     if (buffer_info.is_command_active) {
       return none;
     }
-    // The chunk is raw UART data; drop the line ends around the URC
+    // The chunk is raw UART data; wait for the line end, then drop the line ends around the URC
     const uint8_t *start = buffer_info.new_data_start;
     size_t len = buffer_info.new_data_size;
+    if (len == 0 || (start[len - 1] != '\r' && start[len - 1] != '\n')) {
+      return none;
+    }
     while (len > 0 && (*start == '\r' || *start == '\n')) {
       start++;
       len--;
@@ -181,11 +201,11 @@ void ModemComponent::setup() {
       len--;
     }
     if (len == 0) {
-      return none;
+      return all;
     }
     if (this->urc_pending_.load(std::memory_order_acquire)) {
       ESP_LOGW(TAG, "URC dropped; the previous one is not published yet");
-      return none;
+      return all;
     }
     len = std::min(len, sizeof(this->urc_line_) - 1);
     memcpy(this->urc_line_, start, len);
@@ -195,7 +215,7 @@ void ModemComponent::setup() {
       this->urc_text_sensor_->publish_state(this->urc_line_);
       this->urc_pending_.store(false, std::memory_order_release);
     });
-    return none;
+    return all;
   });
 #endif
 }
@@ -280,7 +300,10 @@ ModemComponentState ModemComponent::compute_next_state_() {
 
 ModemComponentState ModemComponent::handle_state_enabling_() {
   // Find the baud rate the modem answers at and leave it in command mode, synced
-  this->dce_->set_mode(modem_mode::AUTODETECT);
+  if (!this->dce_->set_mode(modem_mode::AUTODETECT)) {
+    // A failed detection keeps the previous mode, which would skip the baud rate search below
+    this->dce_->set_mode(modem_mode::UNDEF);
+  }
   auto mode = this->dce_->get_mode();
   ESP_LOGD(TAG, "Autodetect mode: %d", static_cast<int>(mode));
 
@@ -307,7 +330,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       App.feed_wdt();
       if (!this->send_at("AT", 100)) {
         ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.", baud);
-        return this->retry_(ModemComponentState::MODEM_ENABLING);
+        return this->retry_(ModemComponentState::MODEM_ENABLING, PROBE_RETRY_DELAY_MS);
       }
       ESP_LOGD(TAG, "Modem responded at baud %d", baud);
       break;
@@ -377,6 +400,12 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     this->pref_.save(&this->restored_baud_);
   }
   this->clear_warning_(WARN_BAUD);  // the modem answers at the rate it will keep
+
+  // The DTE side was set up with the UART; the modem side has to be asked for RTS/CTS as well
+  if (this->rts_pin_ != nullptr && this->dce_->set_flow_control(2, 2) != command_result::OK) {
+    ESP_LOGW(TAG, "Modem refused hardware flow control; UART overruns are possible");
+  }
+  this->modem_synced_ = true;
   return ModemComponentState::MODEM_SYNCED;
 }
 
@@ -404,7 +433,7 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
         // Retrying would burn the remaining PIN attempts; stay off until the user fixes the SIM
         this->status_set_error(LOG_STR("SIM locked"));
         this->target_state_ = ModemComponentState::MODEM_DISABLED;
-        App.scheduler.cancel_timeout(this);
+        this->cancel_connect_timeout_();
         return ModemComponentState::MODEM_DISCONNECTING;
     }
     if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
@@ -441,7 +470,7 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
 
 ModemComponentState ModemComponent::handle_state_wait_ip_() {
   if (this->got_ip_.load(std::memory_order_acquire)) {
-    App.scheduler.cancel_timeout(this);
+    this->cancel_connect_timeout_();
     this->clear_warning_(WARN_TEARDOWN);
     this->status_clear_error();  // a SIM fault fixed outside is over once PPP is up
     this->dump_connect_params_();
@@ -455,6 +484,11 @@ ModemComponentState ModemComponent::handle_state_wait_ip_() {
 }
 
 ModemComponentState ModemComponent::handle_state_disconnecting_() {
+  // Each teardown command blocks the loop for up to 20 s, so a modem that never answered is skipped
+  if (!this->modem_synced_) {
+    return ModemComponentState::MODEM_DISABLED;
+  }
+  this->modem_synced_ = false;
   // COMMAND_MODE stops PPP and leaves CMUX; the manual exit only applies to a warm reboot
   bool clean = true;
   if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
