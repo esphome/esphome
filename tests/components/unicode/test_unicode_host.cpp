@@ -34,6 +34,20 @@ TEST(Unicode, DecodesEachSequenceLength) {
   EXPECT_EQ(decode("\xF0\x9F\x98\x80").length, 4u);
 }
 
+TEST(Unicode, AcceptsTheEdgeOfEachRange) {
+  // The smallest value of each length, both neighbours of the surrogate range and the last code point
+  EXPECT_EQ(decode("\xC2\x80").code_point, 0x80u);
+  EXPECT_EQ(decode("\xC2\x80").length, 2u);
+  EXPECT_EQ(decode("\xE0\xA0\x80").code_point, 0x800u);
+  EXPECT_EQ(decode("\xE0\xA0\x80").length, 3u);
+  EXPECT_EQ(decode("\xED\x9F\xBF").code_point, 0xD7FFu);
+  EXPECT_EQ(decode("\xEE\x80\x80").code_point, 0xE000u);
+  EXPECT_EQ(decode("\xF0\x90\x80\x80").code_point, 0x10000u);
+  EXPECT_EQ(decode("\xF0\x90\x80\x80").length, 4u);
+  EXPECT_EQ(decode("\xF4\x8F\xBF\xBF").code_point, 0x10FFFFu);
+  EXPECT_EQ(decode("\xF4\x8F\xBF\xBF").length, 4u);
+}
+
 TEST(Unicode, EmptyStringGivesNothing) {
   EXPECT_EQ(decode("").code_point, 0u);
   EXPECT_EQ(decode("").length, 0u);
