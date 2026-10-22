@@ -22,6 +22,7 @@ DEPENDENCIES = ["http_request"]
 CODEOWNERS = ["@guillempages", "@clydebarrow"]
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
+CONF_ON_DOWNLOAD_PROGRESS = "on_download_progress"
 CONF_UPDATE = "update"
 
 online_image_ns = cg.esphome_ns.namespace("online_image")
@@ -44,6 +45,7 @@ ONLINE_IMAGE_SCHEMA = (
                 cv.Schema({cv.string: cv.templatable(cv.string)})
             ),
             cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DOWNLOAD_PROGRESS): automation.validate_automation({}),
             cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
         }
     )
@@ -98,6 +100,11 @@ automation.register_apply_action(
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_DOWNLOAD_FINISHED, "add_on_finished_callback", [(bool, "cached")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DOWNLOAD_PROGRESS,
+        "add_on_progress_callback",
+        [(float, "progress"), (cg.size_t, "bytes_read")],
     ),
     automation.CallbackAutomation(CONF_ON_ERROR, "add_on_error_callback"),
 )
