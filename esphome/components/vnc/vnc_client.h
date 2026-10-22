@@ -48,7 +48,7 @@ enum class VncFailure : uint8_t {
 /// RFB (VNC) client that draws the remote framebuffer into a display.
 class VncClient : public Component {
  public:
-  explicit VncClient(display::Display *display) : display_(display) {}
+  explicit VncClient(display::Display *display, bool big_endian = false) : display_(display), big_endian_(big_endian) {}
 
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
@@ -87,7 +87,7 @@ class VncClient : public Component {
   void skip_(uint32_t count, VncStep next);
   bool budget_exhausted_() const;
   bool send_(const uint8_t *data, size_t len);
-  bool send_update_request_(bool incremental);
+  bool send_update_request_(bool incremental, uint32_t now);
   VncParse fail_(VncFailure failure, const LogString *reason);
   VncFailure lost_failure_() const;
   void session_lost_(uint32_t now);
@@ -116,7 +116,6 @@ class VncClient : public Component {
   uint32_t last_rx_ms_{0};
   uint32_t pass_start_ms_{0};
   uint32_t skip_left_{0};
-  uint32_t text_len_{0};
 
   uint16_t rx_pos_{0};
   uint16_t rx_len_{0};
@@ -136,6 +135,7 @@ class VncClient : public Component {
   uint8_t bpp_{2};
   uint8_t minor_{8};
   uint8_t sec_count_{0};
+  uint8_t text_len_{0};  // clamped to MAX_TEXT_LEN
   display::ColorBitness bitness_{display::COLOR_BITNESS_565};
   VncState state_{VncState::VNC_STATE_IDLE};
   VncStep step_{VncStep::VNC_STEP_VERSION};
@@ -150,6 +150,7 @@ class VncClient : public Component {
   bool display_parks_{false};
   bool display_busy_{false};
   bool network_was_up_{false};
+  bool big_endian_;  // the pixel order the display takes
 
   uint8_t rx_[RX_BUFFER_SIZE];
 };

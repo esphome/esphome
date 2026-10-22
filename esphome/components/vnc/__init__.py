@@ -3,8 +3,11 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, socket
-from esphome.components.const import CONF_HOST, CONF_RECONNECT_INTERVAL
-from esphome.config import Config
+from esphome.components.const import (
+    BYTE_ORDER_LITTLE,
+    CONF_HOST,
+    CONF_RECONNECT_INTERVAL,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -16,7 +19,6 @@ from esphome.const import (
     CONF_PORT,
     CONF_ROTATION,
 )
-from esphome.core import ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -33,11 +35,10 @@ vnc_ns = cg.esphome_ns.namespace("vnc")
 VncClient = vnc_ns.class_("VncClient", cg.Component)
 
 # Drivers that cannot take another component's pixels yet.
-UNSUPPORTED_DISPLAYS = {
-    "mipi_dsi": "it is not supported by vnc yet",
-    "mipi_rgb": "it is not supported by vnc yet",
-    "mipi_spi": "it is not supported by vnc yet",
-    "waveshare_epaper": "it draws every colour except pure black as ink; use epaper_spi",
+UNSUPPORTED_DISPLAYS = dict.fromkeys(
+    ("mipi_dsi", "mipi_rgb", "mipi_spi"), "it is not supported by vnc yet"
+) | {
+    "waveshare_epaper": "it draws every colour except pure black as ink; use epaper_spi"
 }
 # Their RGB565 fast path draws in panel coordinates and skips software rotation.
 UNROTATED_DISPLAYS = ("rpi_dpi_rgb", "st7701s")
@@ -74,14 +75,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _config_for_id(full_config: Config, id_: ID) -> ConfigType:
-    return full_config.get_config_for_path(full_config.get_path_for_id(id_)[:-1])
-
-
 def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     disp_id = config[CONF_DISPLAY_ID]
-    disp_conf = _config_for_id(full_config, disp_id)
+    disp_conf = fv.get_declaring_config(disp_id)
 
     if (platform := disp_conf.get(CONF_PLATFORM)) in UNSUPPORTED_DISPLAYS:
         raise cv.Invalid(
@@ -129,7 +126,9 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config: ConfigType) -> None:
     disp = await cg.get_variable(config[CONF_DISPLAY_ID])
-    var = cg.new_Pvariable(config[CONF_ID], disp)
+    # Ask the server for the display's own byte order, so block-copying drivers skip the per-pixel path
+    meta = display.get_display_metadata(config[CONF_DISPLAY_ID])
+    var = cg.new_Pvariable(config[CONF_ID], disp, meta.byte_order != BYTE_ORDER_LITTLE)
     await cg.register_component(var, config)
     socket.require_tcp_client_link()
     cg.add(var.set_host(config[CONF_HOST]))
