@@ -111,6 +111,11 @@ VARIANT = ZephyrVariant(
     },
     soc="nrf5340",
     qualifier="cpuapp",
+    # Under mainline Zephyr, entropy is wired to rng_hci, which needs the network core
+    # (not built here -- see the dual-core note above). NCS instead routes entropy to
+    # the CryptoCell-312, which is on the application core, so NCS doesn't need the
+    # insecure fallback this triggers (see nordic_family.py).
+    rng_needs_second_core=True,
     # No "scratch": nrf5340_cpuapp_partition.dtsi defines no scratch_partition either,
     # same as nRF52's stock layout.
     swap_methods=frozenset({"move", "offset"}),
@@ -135,13 +140,6 @@ def config_schema(config: ConfigType) -> ConfigType:
         "supported yet. Only Wi-Fi (via the onboard nRF7002) and the application "
         "core's own peripherals (GPIO, UART, I2C, SPI, PWM, ADC) are available."
     )
-    _LOGGER.warning(
-        "nRF5340's hardware RNG lives in the network core, which isn't built here -- "
-        "no entropy source is reachable from the application core, so this variant "
-        "falls back to an insecure software PRNG (CONFIG_TEST_RANDOM_GENERATOR). "
-        "WPA2 key derivation and any TLS use on this board are not cryptographically "
-        "secure until a network-core entropy image is wired up."
-    )
     config = dict(config)
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
@@ -150,6 +148,17 @@ def config_schema(config: ConfigType) -> ConfigType:
     _, framework_ver, sdk_name, _ = resolve_framework_version(
         VARIANT, "nrf5340", config, "nRF5340 support"
     )
+    if sdk_name != "ncs":
+        # Under NCS (the default), entropy is routed to the CryptoCell-312, which is
+        # on the application core -- no fallback needed (see nordic_family.py). Only
+        # mainline Zephyr's rng_hci, which needs the un-built network core, hits this.
+        _LOGGER.warning(
+            "Mainline Zephyr has no entropy source reachable from the application "
+            "core on this board -- this variant falls back to an insecure software "
+            "PRNG (CONFIG_TEST_RANDOM_GENERATOR). WPA2 key derivation and any TLS use "
+            "are not cryptographically secure. Use the NCS framework (the default) "
+            "for a real hardware RNG instead."
+        )
     set_core_data(
         VARIANT_NAME,
         config[CONF_BOARD],

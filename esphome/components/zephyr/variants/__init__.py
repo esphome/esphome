@@ -328,6 +328,14 @@ class ZephyrVariant:
     # flash it keeps for itself; checked against the merged devicetree at build time
     # (see partitions.py). None = not checked.
     boot: BootLayout | None = None
+    # True when the application-core image this variant builds has no entropy source
+    # of its own under mainline Zephyr -- the hardware RNG lives behind a second core
+    # (e.g. nRF5340's network core) that isn't built. False (the default) means a real
+    # entropy driver is always reachable, so CONFIG_ENTROPY_GENERATOR alone is enough.
+    # NCS is unaffected either way: it routes `zephyr,entropy` to a peripheral already
+    # on the application core (nRF5340's CryptoCell-312), so this only ever forces the
+    # insecure CONFIG_TEST_RANDOM_GENERATOR fallback under mainline Zephyr.
+    rng_needs_second_core: bool = False
     # Boards whose resident vendor bootloader moves `boot`, keyed by board name without
     # revision or qualifiers.
     board_boot: dict[str, BootLayout] = field(default_factory=dict)
