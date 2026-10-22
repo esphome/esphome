@@ -21,7 +21,7 @@ from google.protobuf import message
 import pytest
 
 from .log_utils import LineWaiter
-from .state_utils import require_entity
+from .state_utils import require_entity, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 ENTITY = "light.kitchen"
@@ -160,7 +160,8 @@ async def test_api_homeassistant_light(
     async with light_entity(
         yaml_config, run_compiled, api_client_connected, "['color_temp', 'rgb']"
     ) as ha:
-        set_force_off = next(s for s in ha.services if s.name == "set_force_off")
+        set_force_off = require_service(ha.services, "set_force_off")
+        retarget_many = require_service(ha.services, "retarget_many")
         # Normal while Home Assistant starts, so no warning
         ha.report(None, "unavailable")
         ha.report(None, "unknown")
@@ -318,6 +319,16 @@ async def test_api_homeassistant_light(
         ha.report("brightness", "255")
         await ha.next_state(lambda s: s.brightness == 1.0)
 
+        # Or a transition to where the one the report was held for was already going
+        ha.command(brightness=0.5, transition_length=1.0)
+        ha.report("brightness", "50")
+        await asyncio.sleep(0.1)
+        ha.command(brightness=0.5, transition_length=1.0)
+        call = await ha.expect_call()
+        assert call.data["brightness"] == "128"
+        ha.report("brightness", "128")
+        await ha.next_state(lambda s: s.brightness == pytest.approx(128 / 255))
+
         # And when it goes back to the state the transition started from
         ha.command(state=False)
         await ha.expect_call("light.turn_off")
@@ -355,6 +366,35 @@ async def test_api_homeassistant_light(
         state = await ha.next_state(lambda s: s.brightness == pytest.approx(77 / 255))
         assert state.state
         assert ha.calls.empty()
+        ha.command(state=False)
+        await ha.expect_call("light.turn_off")
+        await ha.report_off()
+
+        # Calls made in one pass replace a held report however many there are
+        ha.command(state=True, brightness=0.5, transition_length=1.0)
+        ha.report(None, "on")
+        ha.report("brightness", "50")
+        await asyncio.sleep(0.1)
+        await ha.client.execute_service(retarget_many, {})
+        call = await ha.expect_call()
+        assert call.data["brightness"] == "255"
+        ha.report("brightness", "255")
+        await ha.next_state(lambda s: s.state and s.brightness == 1.0)
+        ha.command(state=False)
+        await ha.expect_call("light.turn_off")
+        await ha.report_off()
+
+        # A repeated report is not held, however many calls came since the last changed one
+        ha.report(None, "on")
+        await ha.next_state(lambda s: s.state)
+        await ha.report_off()
+        for _ in range(15):
+            ha.command(state=False)
+        ha.command(state=True, transition_length=1.0)
+        ha.report(None, "off")
+        await ha.expect_call()
+        ha.report(None, "on")
+        await ha.next_state(lambda s: s.state)
         ha.command(state=False)
         await ha.expect_call("light.turn_off")
         await ha.report_off()

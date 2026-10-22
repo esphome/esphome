@@ -283,8 +283,7 @@ async def _build_switch_automations(var, config):
 
 @setup_entity("switch")
 async def setup_switch_core_(var, config):
-    if (inverted := config.get(CONF_INVERTED)) is not None:
-        cg.add(var.set_inverted(inverted))
+    cg.add_optional(var.set_inverted, config.get(CONF_INVERTED))
 
     CORE.add_job(_build_switch_automations, var, config)
 
