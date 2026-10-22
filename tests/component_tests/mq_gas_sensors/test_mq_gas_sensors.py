@@ -6,12 +6,7 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.mq_gas_sensors.coefficients import (
-    MQ_MAX_A,
-    MQ_MAX_B,
-    SENSOR_TYPES,
-    resolve_sensor,
-)
+from esphome.components.mq_gas_sensors.coefficients import SENSOR_TYPES, resolve_sensor
 from esphome.components.mq_gas_sensors.sensor import CONFIG_SCHEMA
 
 
@@ -59,37 +54,11 @@ def test_every_built_in_type_resolves() -> None:
             assert resolved.max_ppm > 0.0
 
 
-def test_every_curve_stays_within_the_firmware_clamp() -> None:
-    """The device clamps `a` / `b`, so no resolved curve may promise more than that."""
-    for type_key, definition in SENSOR_TYPES.items():
-        for gas in definition["gases"]:
-            resolved = resolve_sensor(type_key, gas)
-            assert abs(resolved.a) <= MQ_MAX_A
-            assert abs(resolved.b) <= MQ_MAX_B
-
-
-def test_published_curve_above_the_clamp_resolves_to_the_clamp() -> None:
-    """MQ-3 CH4 publishes a = 2e31, above what the firmware can evaluate."""
-    assert SENSOR_TYPES["MQ3"]["gases"]["CH4"][0] == 2e31
-    assert resolve_sensor("MQ3", "CH4").a == MQ_MAX_A
-    assert resolve_sensor("MQ3", "CH4").built_in_clamped
-    assert not resolve_sensor("MQ8", "H2").built_in_clamped
-
-
-def test_unusable_built_in_curve_is_reported(caplog: pytest.LogCaptureFixture) -> None:
-    """MQ-3 CH4 is the one built-in fit above the firmware clamp, so it is reported."""
-    with caplog.at_level("WARNING"):
-        CONFIG_SCHEMA(
-            {
-                "id": "mq3_ch4",
-                "name": "MQ-3 CH4",
-                "sensor_type": "MQ-3",
-                "gas": "CH4",
-                "voltage": "mq8_adc",
-                "r0": 10.0,
-            }
-        )
-    assert "the built-in fit is outside the range the firmware evaluates" in caplog.text
+def test_mq3_has_no_ch4_curve() -> None:
+    """The collected MQ-3 CH4 fit is unusable, so the combination fails the build."""
+    assert "CH4" not in SENSOR_TYPES["MQ3"]["gases"]
+    with pytest.raises(ValueError, match="MQ-3 has no curve for gas 'CH4'"):
+        resolve_sensor("MQ3", "CH4")
 
 
 def test_mq8_h2_matches_the_reference_curve() -> None:
@@ -124,6 +93,7 @@ def test_unknown_gas_for_type_is_rejected() -> None:
                 "sensor_type": "MQ-8",
                 "gas": "O3",
                 "voltage": "mq8_adc",
+                "r0": 10.0,
             }
         )
 
@@ -139,6 +109,19 @@ def test_r0_and_calibration_are_exclusive() -> None:
                 "voltage": "mq8_adc",
                 "r0": 9.5,
                 "calibration": {"delay": "5s"},
+            }
+        )
+
+
+def test_r0_or_calibration_is_required() -> None:
+    """Without either of them the sensor can never produce a PPM value."""
+    with pytest.raises(cv.Invalid, match="Must contain exactly one of"):
+        CONFIG_SCHEMA(
+            {
+                "id": "mq8",
+                "name": "MQ-8",
+                "sensor_type": "MQ-8",
+                "voltage": "mq8_adc",
             }
         )
 

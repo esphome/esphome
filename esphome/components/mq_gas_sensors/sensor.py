@@ -34,7 +34,7 @@ from . import (
 )
 from .coefficients import (
     SENSOR_TYPES,
-    label_for,
+    ResolvedSensor,
     normalize_gas,
     normalize_type,
     resolve_sensor,
@@ -76,44 +76,28 @@ CALIBRATION_SCHEMA = cv.Schema(
 )
 
 
-def _validate_config(config: ConfigType) -> ConfigType:
-    """Enforce the type/gas combination at compile time.
+def _resolve_sensor(config: ConfigType) -> ResolvedSensor:
+    """Resolve the curve of the entry.
 
-    Also reports a built-in curve the device has to clamp, which is not the curve
-    the source table publishes.
+    The one place that lists the configuration keys the curve is taken from,
+    used by the validator and by the code generation alike, so the two cannot
+    drift apart.
     """
-    type_key = config[CONF_SENSOR_TYPE]
-    label = label_for(type_key)
+    return resolve_sensor(
+        config[CONF_SENSOR_TYPE],
+        config.get(CONF_GAS),
+        ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
+        rl=config.get(CONF_RL),
+        vcc=config.get(CONF_VCC),
+    )
 
+
+def _validate_config(config: ConfigType) -> ConfigType:
+    """Enforce the type/gas combination at compile time."""
     try:
-        resolved = resolve_sensor(
-            type_key,
-            config.get(CONF_GAS),
-            ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
-            rl=config.get(CONF_RL),
-            vcc=config.get(CONF_VCC),
-        )
+        _resolve_sensor(config)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
-
-    if resolved.built_in_clamped:
-        _LOGGER.warning(
-            "%s %s: the built-in fit is outside the range the firmware evaluates and "
-            "is clamped to a=%g, b=%g - the curve is then not the published one and "
-            "reports the top of the range for almost every ratio, there is no usable "
-            "curve for this gas",
-            resolved.label,
-            resolved.gas,
-            resolved.a,
-            resolved.b,
-        )
-
-    if CONF_R0 not in config and CONF_CALIBRATION not in config:
-        _LOGGER.warning(
-            "%s: neither 'r0:' nor 'calibration:' is set - the PPM output stays "
-            "unknown until R0 is known (calibrate the sensor in clean air first)",
-            label,
-        )
 
     return config
 
@@ -145,19 +129,13 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s")),
-    cv.has_at_most_one_key(CONF_R0, CONF_CALIBRATION),
+    cv.has_exactly_one_key(CONF_R0, CONF_CALIBRATION),
     _validate_config,
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    resolved = resolve_sensor(
-        config[CONF_SENSOR_TYPE],
-        config.get(CONF_GAS),
-        ratio_in_clean_air=config.get(CONF_RATIO_IN_CLEAN_AIR),
-        rl=config.get(CONF_RL),
-        vcc=config.get(CONF_VCC),
-    )
+    resolved = _resolve_sensor(config)
 
     var = await sensor.new_sensor(config, await cg.get_variable(config[CONF_VOLTAGE]))
     await cg.register_component(var, config)
