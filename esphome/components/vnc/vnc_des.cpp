@@ -87,8 +87,8 @@ static constexpr uint8_t ROUNDS = 16;
 static constexpr uint32_t HALF_KEY_MASK = 0x0FFFFFFF;
 
 // Kept out of line: inlining it at all six call sites costs about 200 bytes of flash.
-static uint64_t __attribute__((noinline))
-permute(uint64_t in, const uint8_t *table, uint8_t out_bits, uint8_t in_bits) {
+static uint64_t __attribute__((noinline)) permute(uint64_t in, const uint8_t *table, uint8_t out_bits,
+                                                  uint8_t in_bits) {
   uint64_t out = 0;
   for (uint8_t i = 0; i < out_bits; i++) {
     out = (out << 1) | ((in >> (in_bits - progmem_read_byte(table + i))) & 1);
