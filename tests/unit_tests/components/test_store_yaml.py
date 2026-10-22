@@ -344,7 +344,7 @@ def test_redacted_inline_value_becomes_secret_ref(
         pytest.param(
             {"wifi.yaml": "substitutions:\n  prefix_hunter2: x\npassword: hunter2\n"},
             WIFI_PW,
-            "inside a key under substitutions",
+            "inside a mapping key under substitutions",
             id="key_embeds_password",
         ),
         pytest.param(
@@ -937,13 +937,6 @@ def test_gather_emits_every_alias_of_one_file(project: Path, shared: Path) -> No
     ("files", "config", "in_log", "not_in_log"),
     [
         pytest.param(
-            {"wifi.yaml": "password: esp32\nplatform: esp32\n"},
-            {"wifi": [{"password": SensitiveStr("esp32")}]},
-            "also matches the scalar at platform in wifi.yaml",
-            "at password in wifi.yaml",
-            id="unrelated_equal_scalar",
-        ),
-        pytest.param(
             {
                 "wifi.yaml": "substitutions:\n  wifi_password: hunter2\nwifi:\n  password: ${wifi_password}\n"
             },
@@ -958,7 +951,7 @@ def test_gather_emits_every_alias_of_one_file(project: Path, shared: Path) -> No
                 "secrets.yaml": "wifi_ssid: Kitchen\n",
             },
             {"wifi": [{"ssid": SensitiveStr("Kitchen")}]},
-            "appears inside the value at name in wifi.yaml",
+            "not redacted inside name in wifi.yaml",
             "",
             id="secret_sourced_overlap",
         ),
@@ -1118,5 +1111,5 @@ def test_redacted_rejects_a_secrets_file_that_includes_files(project: Path) -> N
     (project / "entry.yaml").write_text("wifi:\n  password: !secret wifi_password\n")
     (project / "secrets.yaml").write_text("<<: !include shared.yaml\n")
     (project / "shared.yaml").write_text("wifi_password: hunter2\n")
-    with pytest.raises(EsphomeError, match="secrets.yaml loads shared.yaml"):
+    with pytest.raises(EsphomeError, match="secrets.yaml uses !include"):
         _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))

@@ -54,7 +54,7 @@ _LOADED_SECRET_NAMES: set[str] = set()
 # Set while a secret_values_registered context is active; the dumper records
 # every emitted `!secret` name into it.
 _EMITTED_SECRET_NAMES: set[str] | None = None
-# Called with every file the YAML loader opens; ``track_yaml_loads`` builds on it.
+# Called with every file the YAML loader opens.
 # Used by device-builder (esphome/device-builder), whose listener filters by
 # thread because the hook is process-global; keep the name and the per-file
 # ``Path`` signature. Not otherwise a supported API: use at your own risk.
@@ -116,25 +116,6 @@ class SensitiveInt(Sensitive, int):
 
 class SensitiveHexInt(core.HexInt, SensitiveInt):
     """Keep hexadecimal formatting and code generation for sensitive integers."""
-
-
-@contextmanager
-def track_yaml_loads() -> Generator[list[Path]]:
-    """Context manager that records every file loaded by the YAML loader.
-
-    Yields a list that is populated with resolved Path objects for every
-    file loaded through ``_load_yaml_internal`` while the context is active.
-    """
-    loaded: list[Path] = []
-
-    def _on_load(fname: Path) -> None:
-        loaded.append(Path(fname).resolve())
-
-    load_listeners.append(_on_load)
-    try:
-        yield loaded
-    finally:
-        load_listeners.remove(_on_load)
 
 
 class ESPHomeDataBase:
@@ -517,7 +498,7 @@ def force_load_include_files(
     Nested ``!include`` returns a deferred ``IncludeFile`` that is only resolved
     later (substitution / packages pass). Callers that need every referenced
     file to actually load — bundle discovery, on-device YAML recovery — invoke
-    this while a :func:`track_yaml_loads` listener is active so the underlying
+    this while a ``load_listeners`` callback is active so the underlying
     loader fires and records every reachable file.
 
     ``IncludeFile`` instances whose path contains unresolved substitution

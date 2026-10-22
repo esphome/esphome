@@ -120,7 +120,6 @@ def _gather_files(
             try:
                 rel_str = alias.relative_to(root, walk_up=True).as_posix()
             except ValueError as err:
-                # No common anchor, e.g. a Windows file on another drive.
                 raise EsphomeError(
                     f"store_yaml: cannot place {alias} in the recovery envelope; "
                     f"it does not share a root with {root}: {err}"
@@ -274,42 +273,28 @@ def _check_sensitive_usage(
     prefixes: dict[str, list[tuple[str, ...]]],
     removed: set[tuple[str, ...]],
 ) -> None:
-    """Fail on a sensitive value used as a key or inside a larger scalar, warn on an
-    unrelated whole-scalar match, and fail on an unverifiable value at a credential
-    location (also under a `!remove`d subtree) or in URL userinfo."""
+    """A sensitive value is a whole scalar (swapped) or fails, except a secret SSID
+    inside a name (warned); unverifiable credential locations and URL userinfo fail."""
     credential_keys = {sp[-1] for sp in sensitive_paths if sp}
 
     def verified(text: str) -> bool:
         return not text or text in sensitive or yaml_util.is_secret(text) is not None
 
-    def references_verified(text: str, scope: _Scope) -> bool:
+    def references_verified(
+        text: str, scope: _Scope, seen: frozenset = frozenset()
+    ) -> bool:
+        """Every reference names definitions that are verified or alias verified ones."""
         names = [m.strip("{}") for m in SUBSTITUTION_VARIABLE_PROG.findall(text)]
         return bool(names) and all(
-            name in scope and all(value_verified(v, scope, {name}) for v in scope[name])
-            for name in names
-        )
-
-    def value_verified(value: object, scope: _Scope, seen: set[str]) -> bool:
-        """A definition is verified itself or is an alias of verified ones."""
-        text = str(value)
-        if verified(text):
-            return True
-        if SUBSTITUTION_VARIABLE_PROG.fullmatch(text) is None:
-            return False
-        name = text.strip("${}")
-        return (
             name in scope
             and name not in seen
-            and all(value_verified(v, scope, seen | {name}) for v in scope[name])
-        )
-
-    def redacted_or_traced(node: object, text: str, scope: _Scope) -> bool:
-        """A lambda holding no literal, or a whole-scalar reference to verified
-        values; an expression cannot be traced."""
-        if isinstance(node, Lambda):
-            return _LITERAL_RE.search(text) is None
-        return SUBSTITUTION_VARIABLE_PROG.fullmatch(text) is not None and (
-            references_verified(text, scope)
+            and all(
+                verified(str(v))
+                or SUBSTITUTION_VARIABLE_PROG.fullmatch(str(v)) is not None
+                and references_verified(str(v), scope, seen | {name})
+                for v in scope[name]
+            )
+            for name in names
         )
 
     def credential_path(path: tuple[str, ...]) -> bool:
@@ -335,53 +320,45 @@ def _check_sensitive_usage(
         )
 
     failures: dict[str, list[str]] = {
-        "are also used as mapping keys, which the redaction swap would corrupt": [],
-        "appear embedded inside larger values, which redaction does not replace": [],
+        "appear embedded inside larger values or as mapping keys, which redaction "
+        "does not replace": [],
         "cannot be confirmed redacted: they sit where credentials go but are not in "
         "the validated config (overridden by a later package, or a git package "
         "password used before validation)": [],
     }
-    key_hits, embedded, unverified = failures.values()
+    embedded, unverified = failures.values()
     for rel, tree in trees.items():
         scope = scopes[rel]
         for path, node, is_key in _iter_nodes(tree):
             text = str(node)
-            place = shown(path) or "the document root"
-            if (info := sensitive.get(text)) is not None:
-                if is_key:
-                    key_hits.append(
-                        f"{info.config_path} (as a mapping key under {place} in {rel})"
-                    )
-                elif not info.is_int and (
-                    not _defines_substitution(path)
-                    and not info.sensitive_keys.intersection(path[-1:])
-                ):
-                    _LOGGER.warning(
-                        "store_yaml: the sensitive value at %s also matches the "
-                        "scalar at %s in %s; the recovered config will reference "
-                        "!secret %s there too",
-                        info.config_path,
-                        shown(path),
-                        rel,
-                        info.secret_name,
-                    )
-                continue
+            where = (
+                f"a mapping key under {shown(path) or 'the document root'}"
+                if is_key
+                else shown(path)
+            )
             if verified(text):
+                # A whole scalar is swapped for its `!secret`; a key never is.
+                if is_key and (info := sensitive.get(text)) is not None:
+                    embedded.append(f"{info.config_path} (as {where} in {rel})")
                 continue
             if not is_key and any(
                 SUBSTITUTION_VARIABLE_PROG.sub("", userinfo) not in ("", ":")
                 or not references_verified(userinfo, scope)
                 for userinfo in URL_USERINFO_RE.findall(text)
             ):
-                unverified.append(f"{shown(path)} in {rel} (a URL with credentials)")
+                unverified.append(f"{where} in {rel} (a URL with credentials)")
             elif (
                 not is_key
                 and any(credential_path(prefix + path) for prefix in prefixes[rel])
-                and not redacted_or_traced(node, text, scope)
+                and not (
+                    _LITERAL_RE.search(text) is None
+                    if isinstance(node, Lambda)
+                    else SUBSTITUTION_VARIABLE_PROG.fullmatch(text) is not None
+                    and references_verified(text, scope)
+                )
             ):
-                unverified.append(f"{shown(path)} in {rel}")
+                unverified.append(f"{where} in {rel}")
                 continue
-            where = f"a key under {place}" if is_key else shown(path)
             for value, other in sensitive.items():
                 # A key the value is sensitive at (`password` for `word`) is structure.
                 if (
@@ -393,11 +370,8 @@ def _check_sensitive_usage(
                 if other.from_secret and other.sensitive_keys <= {CONF_SSID}:
                     # A broadcast SSID inside a name is common; warn without the value.
                     _LOGGER.warning(
-                        "store_yaml: the value of !secret %s (sensitive at %s) "
-                        "appears inside the value at %s in %s; substring "
-                        "occurrences are not redacted",
+                        "store_yaml: !secret %s is not redacted inside %s in %s",
                         other.secret_name,
-                        other.config_path,
                         where,
                         rel,
                     )
@@ -543,7 +517,6 @@ def _generate_redacted_files(
                 return yaml_util.make_data_base(_INT_MARK + info.secret_name)
         elif isinstance(node, yaml_util.IncludeFile):
             vars = _str_keys(node.vars)
-            # A vars mapping loaded through `!secret` keeps every value secret.
             if yaml_util.is_secret(node.vars) is not None:
                 vars = dict.fromkeys(vars, node.vars)
             includes.setdefault(rel, []).append((node, vars, path))
@@ -559,16 +532,10 @@ def _generate_redacted_files(
 
     for rel, path in entries:
         # A secrets file becomes a key skeleton; what it includes would ship verbatim.
-        if rel in secret_rels and (
-            nested := [
-                p.name
-                for p in yaml_util.discover_user_yaml_files(path).files
-                if p != path.resolve()
-            ]
-        ):
+        if rel in secret_rels and "!include" in path.read_text(encoding="utf-8"):
             raise EsphomeError(
-                f"store_yaml: {rel} loads {', '.join(nested)}, which redaction cannot "
-                f"follow. Inline them into {rel}, or set `include_secrets: true`."
+                f"store_yaml: {rel} uses !include, which redaction cannot follow. "
+                f"Inline the files into {rel}, or set `include_secrets: true`."
             )
     captured = {rel: path for rel, path in entries if rel not in secret_rels}
     trees: dict[str, object] = {}
@@ -626,7 +593,6 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
     """EHY1 | u32 count | {u16 path_len, path, u32 content_len, content}..., little-endian."""
     paths = [path for path, _ in files]
     if len(set(paths)) != len(paths):
-        # unpack_envelope would silently keep only the last duplicate.
         raise EsphomeError(f"store_yaml: duplicate envelope path in {paths}")
     return (
         ENVELOPE_MAGIC

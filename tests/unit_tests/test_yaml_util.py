@@ -456,70 +456,6 @@ def test_dump_sort_keys() -> None:
     assert sorted_dump.index("a_key:") < sorted_dump.index("z_key:")
 
 
-# ---------------------------------------------------------------------------
-# track_yaml_loads
-# ---------------------------------------------------------------------------
-
-
-def test_track_yaml_loads_records_files(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """yaml_util_module.track_yaml_loads records every file loaded inside the context."""
-    yaml_file = tmp_path / "test.yaml"
-    yaml_file.write_text("key: value\n")
-
-    with yaml_util_module.track_yaml_loads() as loaded:
-        yaml_util_module.load_yaml(yaml_file)
-
-    assert len(loaded) == 1
-    assert loaded[0] == yaml_file.resolve()
-
-
-def test_track_yaml_loads_records_includes(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """yaml_util_module.track_yaml_loads records nested !include files."""
-    inc = tmp_path / "included.yaml"
-    inc.write_text("included_key: 42\n")
-    main = tmp_path / "main.yaml"
-    main.write_text("child: !include included.yaml\n")
-
-    with yaml_util_module.track_yaml_loads() as loaded:
-        result = yaml_util_module.load_yaml(main)
-        # !include is deferred; resolve it to trigger the nested load
-        result["child"].load()
-
-    resolved = [p.name for p in loaded]
-    assert "main.yaml" in resolved
-    assert "included.yaml" in resolved
-
-
-def test_track_yaml_loads_empty_outside_context(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """Files loaded outside the context are not recorded."""
-    yaml_file = tmp_path / "test.yaml"
-    yaml_file.write_text("key: value\n")
-
-    with yaml_util_module.track_yaml_loads() as loaded:
-        pass  # load nothing inside
-
-    yaml_util_module.load_yaml(yaml_file)
-    assert loaded == []
-
-
-def test_track_yaml_loads_cleanup_on_exception(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """Listener is removed even if the body raises."""
-    before = len(yaml_util_module.load_listeners)
-
-    with pytest.raises(RuntimeError), yaml_util_module.track_yaml_loads():
-        raise RuntimeError("boom")
-
-    assert len(yaml_util_module.load_listeners) == before
-
-
 def test_load_listener_removing_itself_does_not_skip_the_next(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, yaml_util_module: ModuleType
 ) -> None:
@@ -540,15 +476,20 @@ def test_load_listener_removing_itself_does_not_skip_the_next(
     assert listeners == [seen.append]
 
 
-def test_track_yaml_loads_no_duplicate_load_on_top_level_include_failure(
+def test_load_listeners_no_duplicate_load_on_top_level_include_failure(
     tmp_path: Path, yaml_util_module: ModuleType
 ) -> None:
-    """A failed top-level !include must not record any file twice in yaml_util_module.track_yaml_loads."""
+    """A failed top-level !include must not report any file to load_listeners twice."""
     main = tmp_path / "main.yaml"
     main.write_text("!include missing.yaml\n")
 
-    with yaml_util_module.track_yaml_loads() as loaded, pytest.raises(EsphomeError):
-        yaml_util_module.load_yaml(main)
+    loaded: list[Path] = []
+    yaml_util_module.load_listeners.append(loaded.append)
+    try:
+        with pytest.raises(EsphomeError):
+            yaml_util_module.load_yaml(main)
+    finally:
+        yaml_util_module.load_listeners.remove(loaded.append)
 
     assert len(loaded) == len(set(loaded)), (
         f"Files loaded more than once during a failed top-level include: {loaded}"
@@ -1885,19 +1826,6 @@ def test_discover_user_yaml_files_skips_missing_secrets_probe(
     assert discovered.load_errors == []
     assert discovered.secrets == {secrets.resolve()}
     assert all(p.is_file() for p in discovered.files)
-
-
-def test_track_yaml_loads_records_resolved_paths(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
-    """`track_yaml_loads` is the building block - sanity-check it resolves
-    symlinks so callers can dedupe by identity."""
-    target = _write(tmp_path, "actual.yaml", "esphome:\n  name: t\n")
-    link = tmp_path / "alias.yaml"
-    link.symlink_to(target)
-    with yaml_util_module.track_yaml_loads() as loaded:
-        yaml_util_module.load_yaml(link)
-    assert target.resolve() in loaded
 
 
 # ---------------------------------------------------------------------------
