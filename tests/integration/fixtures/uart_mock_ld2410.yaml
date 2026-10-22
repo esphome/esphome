@@ -30,7 +30,6 @@ uart_mock:
     # Detection distance: 300cm
     # Target state: 0x03 (moving + still)
     #
-    #
     # Frame layout (23 bytes):
     #   [0-3]  F4 F3 F2 F1 = data frame header
     #   [4-5]  0D 00       = length 13
