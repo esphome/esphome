@@ -634,7 +634,8 @@ class DiscoveredYamlFiles:
     flagged as secrets). ``files`` is incomplete when ``unresolved`` (templated
     include paths) or ``load_errors`` is non-empty. ``aliases`` maps a resolved
     path to every :func:`named_path` the YAML reached it by; ``links`` maps each
-    directory symlink a path went through to its target.
+    directory symlink a path went through to its target. Neither covers files a
+    templated include matched, nor links on a path through ``..``.
     """
 
     files: list[Path] = field(default_factory=list)
