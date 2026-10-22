@@ -30,18 +30,12 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.has_exactly_one_key(CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID),
+    cv.key_requires(CONF_RECEIVER_FREQUENCY, CONF_REMOTE_RECEIVER_ID),
 )
 
 
 def _final_validate(config: dict[str, Any]) -> None:
     """Validate that transmitters have a proper carrier duty cycle."""
-    # receiver_frequency is only meaningful for receiver configurations
-    if CONF_RECEIVER_FREQUENCY in config and CONF_REMOTE_RECEIVER_ID not in config:
-        raise cv.Invalid(
-            f"'{CONF_RECEIVER_FREQUENCY}' can only be used with '{CONF_REMOTE_RECEIVER_ID}', "
-            "not with a transmitter"
-        )
-
     # Only validate duty cycle if this is an infrared (not RF) configuration with a transmitter
     if config.get(CONF_FREQUENCY, 0) != 0 or CONF_REMOTE_TRANSMITTER_ID not in config:
         return

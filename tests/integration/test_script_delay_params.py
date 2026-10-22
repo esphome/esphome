@@ -20,6 +20,7 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -79,16 +80,11 @@ async def test_script_delay_with_params(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-script-delay-params"
+        await assert_device_name(client, "test-script-delay-params")
 
         # Get services
         _, services = await client.list_entities_services()
-        test_service = next(
-            (s for s in services if s.name == "test_repeat_with_delay"), None
-        )
-        assert test_service is not None, "test_repeat_with_delay service not found"
+        test_service = require_service(services, "test_repeat_with_delay")
 
         # Execute the test
         await client.execute_service(test_service, {})

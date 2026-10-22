@@ -399,7 +399,7 @@ class InfoResponseProtoMessage : public ProtoMessage {
  public:
   StringRef object_id{};
   uint32_t key{0};
-  StringRef name{};
+  ProgmemStringRef name{};
   bool disabled_by_default{false};
 #ifdef USE_ENTITY_ICON
   StringRef icon{nullptr, 0};  // null until set, encode only
@@ -984,7 +984,7 @@ class ListEntitiesFanResponse final : public InfoResponseProtoMessage {
   bool supports_speed{false};
   bool supports_direction{false};
   int32_t supported_speed_count{0};
-  const std::vector<const char *> *supported_preset_modes{};
+  const ConstVector<const char *, true> *supported_preset_modes{};
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
@@ -1777,9 +1777,9 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
   bool supports_action{false};
   const climate::ClimateFanModeMask *supported_fan_modes{};
   const climate::ClimateSwingModeMask *supported_swing_modes{};
-  const std::vector<const char *> *supported_custom_fan_modes{};
+  const ConstVector<const char *, true> *supported_custom_fan_modes{};
   const climate::ClimatePresetMask *supported_presets{};
-  const std::vector<const char *> *supported_custom_presets{};
+  const ConstVector<const char *, true> *supported_custom_presets{};
   float visual_current_temperature_step{0.0f};
   bool supports_current_humidity{false};
   bool supports_target_humidity{false};
