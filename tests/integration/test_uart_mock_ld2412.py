@@ -42,6 +42,7 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import (
     InitialStateHelper,
     SensorStateCollector,
@@ -139,20 +140,7 @@ async def test_uart_mock_ld2412(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2412 data parsing with happy path, garbage, overflow, and recovery."""
-    loop = asyncio.get_running_loop()
-
-    # Track overflow warning in logs
-    overflow_seen = loop.create_future()
-
-    # Track TX data logged by the mock for assertions
-    tx_log_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Max command length exceeded" in line and not overflow_seen.done():
-            overflow_seen.set_result(True)
-        # Capture all TX log lines from uart_mock
-        if _is_tx(line):
-            tx_log_lines.append(line)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -181,7 +169,7 @@ async def test_uart_mock_ld2412(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -213,11 +201,12 @@ async def test_uart_mock_ld2412(
         )
 
         # Verify overflow warning was logged
-        assert overflow_seen.done(), (
+        assert any("Max command length exceeded" in line for line in waiter.lines), (
             "Expected 'Max command length exceeded' warning in logs"
         )
 
         # Verify LD2412 sent setup commands (TX logging)
+        tx_log_lines = [line for line in waiter.lines if _is_tx(line)]
         assert len(tx_log_lines) > 0, "Expected TX log lines from uart_mock"
         tx_data = " ".join(tx_log_lines)
         assert "FD:FC:FB:FA" in tx_data, (
@@ -337,17 +326,7 @@ async def test_uart_mock_ld2412_engineering_truncated(
     (e.g. frame footer bytes 0xF8=248 as gate energy).
     """
 
-    loop = asyncio.get_running_loop()
-
-    # Track the truncated frame warning
-    truncated_warning_seen = loop.create_future()
-
-    def line_callback(line: str) -> None:
-        if (
-            "Engineering mode packet too short" in line
-            and not truncated_warning_seen.done()
-        ):
-            truncated_warning_seen.set_result(True)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -377,7 +356,7 @@ async def test_uart_mock_ld2412_engineering_truncated(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -405,9 +384,9 @@ async def test_uart_mock_ld2412_engineering_truncated(
         )
 
         # Verify the truncated frame warning was logged
-        assert truncated_warning_seen.done(), (
-            "Expected 'Engineering mode packet too short' warning in logs"
-        )
+        assert any(
+            "Engineering mode packet too short" in line for line in waiter.lines
+        ), "Expected 'Engineering mode packet too short' warning in logs"
 
         # Phase 3 recovery: gate_0_move=50, light=42
         assert pytest.approx(50.0) in collector.sensor_states["gate_0_move_energy"]
@@ -516,34 +495,25 @@ async def test_uart_mock_ld2412_truncated_answer(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that a threshold answer merged with the next frame is dropped and the parser recovers."""
-    loop = asyncio.get_running_loop()
-
-    dropped = loop.create_future()
-    warnings: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "[W][ld2412" in line:
-            warnings.append(line)
-        if "Dropping gate threshold answer" in line and not dropped.done():
-            dropped.set_result(True)
+    waiter = LineWaiter()
 
     # Gate bytes of the truncated answer
     merged_values = set(range(0x30, 0x3C))
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
         numbers = _threshold_numbers(entities)
 
         states: dict[int, list[float]] = {}
-        waiter = StateWaiter()
-        gate_0_read = waiter.expect(
+        state_waiter = StateWaiter()
+        gate_0_read = state_waiter.expect(
             _number_state_of(numbers["gate_0_move_threshold"].key),
             label="gate 0 move threshold",
         )
-        gate_5_read = waiter.expect(
+        gate_5_read = state_waiter.expect(
             _number_state_of(numbers["gate_5_move_threshold"].key),
             label="gate 5 move threshold",
         )
@@ -551,7 +521,7 @@ async def test_uart_mock_ld2412_truncated_answer(
         def record(state: EntityState) -> None:
             if isinstance(state, NumberState) and not state.missing_state:
                 states.setdefault(state.key, []).append(state.state)
-            waiter.on_state(state)
+            state_waiter.on_state(state)
 
         initial_state_helper = await _wait_initial(client, entities, record)
 
@@ -561,12 +531,14 @@ async def test_uart_mock_ld2412_truncated_answer(
 
         try:
             _, gate_0_state, gate_5_state = await asyncio.gather(
-                asyncio.wait_for(dropped, timeout=5.0), gate_0_read, gate_5_read
+                waiter.wait_for("Dropping gate threshold answer", timeout=5.0),
+                gate_0_read,
+                gate_5_read,
             )
         except TimeoutError:
             pytest.fail(
                 "Timeout waiting for the threshold answers.\n"
-                f"  ld2412 warnings: {warnings}\n"
+                f"  ld2412 warnings: {[line for line in waiter.lines if '[W][ld2412' in line]}\n"
                 f"  states: {states}"
             )
 

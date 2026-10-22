@@ -18,6 +18,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
     only_on_variant,
+    require_idf_version,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
@@ -160,8 +161,7 @@ def _validate_psram_dma(value: Any) -> bool:
     if not value:
         return value
     return cv.All(
-        cv.only_on_esp32,
-        cv.only_with_framework("esp-idf"),
+        require_idf_version(cv.Version(5, 5, 3), "psram_dma"),
         only_on_variant(
             supported=[
                 VARIANT_ESP32C5,
@@ -172,7 +172,6 @@ def _validate_psram_dma(value: Any) -> bool:
             ],
             msg_prefix="PSRAM DMA",
         ),
-        cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
         cv.requires_component(PSRAM_DOMAIN),
     )(value)
 
