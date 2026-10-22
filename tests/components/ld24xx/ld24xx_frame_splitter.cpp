@@ -33,7 +33,7 @@ std::vector<uint8_t> make_data_frame(uint8_t fill) {
 // A parser like the radar components': data frames are fixed size, command frames carry their count.
 class LD24xxFrameSplitterTest : public ::testing::Test {
  protected:
-  void feed(const std::vector<uint8_t> &bytes) {
+  void feed_(const std::vector<uint8_t> &bytes) {
     for (uint8_t byte : bytes) {
       feed_frame_byte(
           this->buffer_, this->pos_, byte, DATA_FRAME_HEADER,
@@ -43,11 +43,11 @@ class LD24xxFrameSplitterTest : public ::testing::Test {
             }
             return buffer[0] == DATA_FRAME_HEADER[0] ? DATA_FRAME_SIZE : cmd_frame_length(buffer, count);
           },
-          [this](uint8_t frame_len) { return this->handle_frame(frame_len); }, [this]() { this->drops_++; });
+          [this](uint8_t frame_len) { return this->handle_frame_(frame_len); }, [this]() { this->drops_++; });
     }
   }
 
-  bool handle_frame(uint8_t frame_len) {
+  bool handle_frame_(uint8_t frame_len) {
     const uint8_t *footer = this->buffer_[0] == DATA_FRAME_HEADER[0] ? DATA_FRAME_FOOTER : CMD_FRAME_FOOTER;
     if (!validate_header_footer(footer, &this->buffer_[frame_len - HEADER_FOOTER_SIZE])) {
       return false;
@@ -64,7 +64,7 @@ class LD24xxFrameSplitterTest : public ::testing::Test {
 
 TEST_F(LD24xxFrameSplitterTest, FooterBytesInThePayloadDoNotEndTheFrame) {
   auto frame = make_cmd_frame({0x61, 0x01, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01, 0x55});
-  this->feed(frame);
+  this->feed_(frame);
   ASSERT_EQ(this->frames_.size(), 1u);
   EXPECT_EQ(this->frames_[0], frame);
   EXPECT_EQ(this->pos_, 0);
@@ -72,18 +72,18 @@ TEST_F(LD24xxFrameSplitterTest, FooterBytesInThePayloadDoNotEndTheFrame) {
 }
 
 TEST_F(LD24xxFrameSplitterTest, BytesBeforeAHeaderAreNeverBuffered) {
-  this->feed({0x00, 0x11, 0xFC, 0xFB, 0xFA, 0x04});
+  this->feed_({0x00, 0x11, 0xFC, 0xFB, 0xFA, 0x04});
   EXPECT_EQ(this->pos_, 0);
-  this->feed(make_data_frame(0x22));
+  this->feed_(make_data_frame(0x22));
   ASSERT_EQ(this->frames_.size(), 1u);
   EXPECT_EQ(this->frames_[0], make_data_frame(0x22));
 }
 
 TEST_F(LD24xxFrameSplitterTest, AHeaderRestartsWhenItsBytesStopMatching) {
   // The first byte picks the command header, so F3 cannot continue it, and FD after FC starts over
-  this->feed({0xFD, 0xF3, 0xFD, 0xFC, 0xFD, 0xFC, 0xFB, 0xFA, 0x00, 0x00});
+  this->feed_({0xFD, 0xF3, 0xFD, 0xFC, 0xFD, 0xFC, 0xFB, 0xFA, 0x00, 0x00});
   EXPECT_EQ(this->pos_, 6) << "only the header that matched through and its count are buffered";
-  this->feed({0x04, 0x03, 0x02, 0x01});
+  this->feed_({0x04, 0x03, 0x02, 0x01});
   ASSERT_EQ(this->frames_.size(), 1u);
   EXPECT_EQ(this->frames_[0], make_cmd_frame({}));
   EXPECT_EQ(this->drops_, 0);
@@ -91,11 +91,11 @@ TEST_F(LD24xxFrameSplitterTest, AHeaderRestartsWhenItsBytesStopMatching) {
 
 TEST_F(LD24xxFrameSplitterTest, ImpossibleCountsAreDroppedAndTheNextFrameParsed) {
   // 0xFFF6 totals 65536, which must not wrap to 0; 0xFFFF is simply too long for the buffer
-  this->feed({0xFD, 0xFC, 0xFB, 0xFA, 0xF6, 0xFF});
-  this->feed({0xFD, 0xFC, 0xFB, 0xFA, 0xFF, 0xFF});
+  this->feed_({0xFD, 0xFC, 0xFB, 0xFA, 0xF6, 0xFF});
+  this->feed_({0xFD, 0xFC, 0xFB, 0xFA, 0xFF, 0xFF});
   EXPECT_EQ(this->drops_, 2);
   EXPECT_EQ(this->pos_, 0);
-  this->feed(make_data_frame(0x33));
+  this->feed_(make_data_frame(0x33));
   ASSERT_EQ(this->frames_.size(), 1u);
   EXPECT_EQ(this->frames_[0], make_data_frame(0x33));
 }
@@ -105,7 +105,7 @@ TEST_F(LD24xxFrameSplitterTest, AFrameCaughtInsideADroppedFrameIsReplayed) {
   std::vector<uint8_t> bytes = {0xFD, 0xFC, 0xFB, 0xFA, 0x0A, 0x00, 0x61, 0x01};
   auto inner = make_data_frame(0x44);
   bytes.insert(bytes.end(), inner.begin(), inner.end());
-  this->feed(bytes);
+  this->feed_(bytes);
   EXPECT_EQ(this->drops_, 1);
   ASSERT_EQ(this->frames_.size(), 1u);
   EXPECT_EQ(this->frames_[0], inner);
@@ -120,7 +120,7 @@ TEST_F(LD24xxFrameSplitterTest, EveryWholeFrameLeftByADropIsDrained) {
     bytes.insert(bytes.end(), inner.begin(), inner.end());
   }
   bytes.insert(bytes.end(), {0xF4, 0xF3});
-  this->feed(bytes);
+  this->feed_(bytes);
   EXPECT_EQ(this->drops_, 1);
   ASSERT_EQ(this->frames_.size(), 2u);
   EXPECT_EQ(this->frames_[0], make_data_frame(0x55));
@@ -131,18 +131,18 @@ TEST_F(LD24xxFrameSplitterTest, EveryWholeFrameLeftByADropIsDrained) {
 TEST_F(LD24xxFrameSplitterTest, AWrongFooterDropsOnlyThatFrame) {
   auto bad = make_cmd_frame({0x01, 0x02});
   bad[bad.size() - 1] = 0xEE;
-  this->feed(bad);
+  this->feed_(bad);
   EXPECT_EQ(this->drops_, 1);
   EXPECT_TRUE(this->frames_.empty());
-  this->feed(make_cmd_frame({0x03}));
+  this->feed_(make_cmd_frame({0x03}));
   ASSERT_EQ(this->frames_.size(), 1u);
   EXPECT_EQ(this->frames_[0], make_cmd_frame({0x03}));
 }
 
 TEST_F(LD24xxFrameSplitterTest, BackToBackFramesOfBothKinds) {
-  this->feed(make_data_frame(0x01));
-  this->feed(make_cmd_frame({0xA0, 0x01, 0x00, 0x00}));
-  this->feed(make_data_frame(0x02));
+  this->feed_(make_data_frame(0x01));
+  this->feed_(make_cmd_frame({0xA0, 0x01, 0x00, 0x00}));
+  this->feed_(make_data_frame(0x02));
   ASSERT_EQ(this->frames_.size(), 3u);
   EXPECT_EQ(this->frames_[1], make_cmd_frame({0xA0, 0x01, 0x00, 0x00}));
   EXPECT_EQ(this->frames_[2], make_data_frame(0x02));
