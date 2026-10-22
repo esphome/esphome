@@ -316,10 +316,11 @@ void OnlineImage::loop_stream_() {
                  "before it is decoded; increase buffer_size to decode it as it downloads",
                  this->download_buffer_.size());
         // grow() logs a failed allocation
-        if (this->download_buffer_.grow(total))
+        if (this->download_buffer_.grow(total)) {
           this->streaming_ = false;
-        else
+        } else {
           this->fail_download_();
+        }
         return;
       }
       ESP_LOGE(TAG, "Error decoding image: %s", runtime_image::decode_error_to_string(err));
