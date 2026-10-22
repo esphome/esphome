@@ -3,10 +3,11 @@
 import asyncio
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -66,9 +67,7 @@ async def test_scheduler_simultaneous_callbacks(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "sched-simul-callbacks-test"
+        await assert_device_name(client, "sched-simul-callbacks-test")
 
         # List entities and services
         _, services = await asyncio.wait_for(
@@ -76,24 +75,18 @@ async def test_scheduler_simultaneous_callbacks(
         )
 
         # Find our test service
-        run_test_service: UserService | None = None
-        for service in services:
-            if service.name == "run_simultaneous_callbacks_test":
-                run_test_service = service
-                break
-
-        assert run_test_service is not None, (
-            "run_simultaneous_callbacks_test service not found"
-        )
+        run_test_service = require_service(services, "run_simultaneous_callbacks_test")
 
         # Call the service to start the test
         await client.execute_service(run_test_service, {})
 
         # Wait for test to complete
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=30.0)
-        except TimeoutError:
-            pytest.fail(f"Simultaneous callbacks test timed out. Stats: {test_stats}")
+        await wait_or_fail(
+            test_complete_future,
+            30.0,
+            "Simultaneous callbacks test timed out",
+            test_stats=test_stats,
+        )
 
         # Check for any errors
         assert len(test_stats["errors"]) == 0, (

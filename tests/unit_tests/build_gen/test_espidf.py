@@ -480,6 +480,36 @@ def test_get_component_cmakelists_single_link_flag() -> None:
     )
 
 
+def test_get_component_cmakelists_emits_src_cmake_blocks_in_order() -> None:
+    """Blocks registered with add_src_cmake() follow idf_component_register() in order."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+    from esphome.components.esp32 import KEY_SRC_CMAKE, add_src_cmake
+
+    CORE.build_flags = set()
+    CORE.data[KEY_ESP32][KEY_SRC_CMAKE] = []
+    add_src_cmake('ulp_embed_binary(ulp_main "a.c" "main.cpp")')
+    add_src_cmake("target_compile_definitions(${COMPONENT_LIB} PRIVATE SECOND)")
+
+    content = get_component_cmakelists()
+    register = content.index("idf_component_register(")
+    link = content.index("target_link_options(${COMPONENT_LIB}")
+    first = content.index("ulp_embed_binary(ulp_main")
+    second = content.index("PRIVATE SECOND)")
+    assert register < link < first < second
+
+
+def test_get_component_cmakelists_without_src_cmake_blocks() -> None:
+    """No registered blocks leaves nothing between target_link_options and the pch block."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+    from esphome.components.esp32 import KEY_SRC_CMAKE
+
+    CORE.build_flags = set()
+    CORE.data[KEY_ESP32].pop(KEY_SRC_CMAKE, None)
+    content = get_component_cmakelists()
+    assert "ulp_embed_binary" not in content
+    assert content.count("target_link_options(") == 1
+
+
 def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
     """Multiple -Wl, flags are sorted and joined with the four-space indent."""
     CORE.build_flags = {"-Wl,-z,noexecstack", "-Wl,--gc-sections", "-Wl,-Map=out.map"}

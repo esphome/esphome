@@ -2055,3 +2055,28 @@ def test_perform_ota_tcp_send_network_error_unchanged(mock_socket: Mock) -> None
     ]
     with pytest.raises(espota2.OTANetworkError, match="sending frame"):
         espota2.perform_ota(mock_socket, None, io.BytesIO(b"x" * 100), "test.bin")
+
+
+@pytest.mark.parametrize(
+    ("dashboard", "expect_device_hint"), [(False, True), (True, False)]
+)
+def test_run_ota_impl_resolve_failure_hint(
+    mock_resolve_ip: Mock,
+    firmware_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    dashboard: bool,
+    expect_device_hint: bool,
+) -> None:
+    """The --device hint is only useful on the command line, not the dashboard."""
+    from esphome.core import CORE
+
+    monkeypatch.setattr(CORE, "dashboard", dashboard)
+    mock_resolve_ip.side_effect = EsphomeError("no such host")
+
+    with caplog.at_level(logging.ERROR), pytest.raises(espota2.OTAError):
+        espota2.run_ota_impl_("test.local", 3232, None, firmware_file)
+
+    assert "Is it connected to WiFi?" in caplog.text
+    assert ("try --device <IP>" in caplog.text) is expect_device_hint
+    assert "static IP address" in caplog.text
