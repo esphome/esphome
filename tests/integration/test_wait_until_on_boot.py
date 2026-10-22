@@ -19,6 +19,7 @@ import pytest
 
 from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -76,14 +77,13 @@ async def test_wait_until_on_boot(
 
         # If the fix works, wait_until's loop() will check the condition and proceed
         # If the bug exists, wait_until is stuck with disabled loop and will timeout
-        try:
-            await asyncio.wait_for(on_boot_complete_future, timeout=2.0)
-            assert on_boot_completed, (
-                "on_boot wait_until did not complete after flag was set"
-            )
-        except TimeoutError:
-            pytest.fail(
-                "wait_until in on_boot did not complete within 2s after condition became true. "
-                "This indicates the bug where WaitUntilAction::setup() disables the loop "
-                "after play_complex() has already enabled it."
-            )
+        await wait_or_fail(
+            on_boot_complete_future,
+            2.0,
+            "wait_until in on_boot did not complete within 2s after condition became true. "
+            "This indicates the bug where WaitUntilAction::setup() disables the loop "
+            "after play_complex() has already enabled it.",
+        )
+        assert on_boot_completed, (
+            "on_boot wait_until did not complete after flag was set"
+        )

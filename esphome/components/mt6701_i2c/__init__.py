@@ -3,6 +3,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_PWM_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import CONF_DIRECTION, CONF_HYSTERESIS, CONF_ID, CONF_MODE
 from esphome.types import ConfigType
@@ -28,7 +29,6 @@ CONF_Z_PULSE_WIDTH = "z_pulse_width"
 CONF_UVW = "uvw"
 CONF_POLE_PAIRS = "pole_pairs"
 CONF_OUT_PIN = "out_pin"
-CONF_PWM_FREQUENCY = "pwm_frequency"
 CONF_PWM_POLARITY = "pwm_polarity"
 CONF_ANALOG_START = "analog_start"
 CONF_ANALOG_STOP = "analog_stop"
