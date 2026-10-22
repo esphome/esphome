@@ -63,11 +63,11 @@ ESPHOME_LOG_TAG(TAG, "web_server");
 
 using json::linked;
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-// View a state LogString as a ProgmemStr so ArduinoJson serializes it PROGMEM-aware on ESP8266.
+#ifdef USE_ESP8266
+// A LogString is always in flash on ESP8266: view it as a ProgmemStr so ArduinoJson copies it PROGMEM-aware.
 [[maybe_unused]] static ProgmemStr json_state_str(const LogString *s) { return reinterpret_cast<ProgmemStr>(s); }
 #else
-// Without the define a LogString is in RAM and can be linked
+// Elsewhere a LogString is in RAM and can be linked
 [[maybe_unused]] static JsonString json_state_str(const LogString *s) { return linked(LOG_STR_ARG(s)); }
 #endif
 
