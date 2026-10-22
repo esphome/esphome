@@ -1813,7 +1813,7 @@ def test_discover_user_yaml_files_skips_missing_secrets_probe(
     tmp_path: Path,
 ) -> None:
     """A `!secret` in a package first probes a secrets.yaml next to that file;
-    when only the entry directory has one, the missing probe is not tracked."""
+    when only the entry directory has one, the missing probe is not reported."""
     _write(tmp_path, "pkg/common.yaml", "wifi:\n  password: !secret pw\n")
     secrets = _write(tmp_path, "cfg/secrets.yaml", "pw: value\n")
     entry = _write(

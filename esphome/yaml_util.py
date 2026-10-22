@@ -684,14 +684,17 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         finally:
             load_listeners.remove(_capture_secret)
 
-    # Deduplicate while preserving first-seen order.
+    # Deduplicate while preserving first-seen order. The listener also fires for
+    # a secrets.yaml that `!secret` probes next to the including file before
+    # falling back to the entry's directory; a probe that does not exist is not
+    # a file to capture.
     seen: set[Path] = set()
     unique: list[Path] = []
     for path in loaded:
-        if path not in seen:
+        if path not in seen and path.is_file():
             seen.add(path)
             unique.append(path)
-    return DiscoveredYamlFiles(unique, secrets, unresolved, load_errors)
+    return DiscoveredYamlFiles(unique, secrets & seen, unresolved, load_errors)
 
 
 def _add_data_ref(fn):
@@ -1123,12 +1126,10 @@ def load_yaml(
 
 def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
     """Load a YAML file."""
+    for listener in tuple(load_listeners):
+        listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
-            # Only after the open succeeds: `!secret` probes a secrets.yaml next to
-            # the including file before falling back, and that probe may not exist.
-            for listener in tuple(load_listeners):
-                listener(fname)
             res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
