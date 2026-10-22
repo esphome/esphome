@@ -25,7 +25,7 @@
 namespace esphome::ld24xx {
 
 // Helper to find index of value in constexpr array
-template<size_t N> optional<size_t> find_index(const uint32_t (&arr)[N], uint32_t value) {
+template<typename T, size_t N> optional<size_t> find_index(const T (&arr)[N], T value) {
   for (size_t i = 0; i < N; i++) {
     if (arr[i] == value)
       return i;
