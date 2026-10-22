@@ -16,6 +16,7 @@ import asyncio
 from aioesphomeapi import ButtonInfo
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -66,14 +67,7 @@ async def test_uart_mock_pylontech(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test pylontech parsing with happy path, garbage, overflow and recovery."""
-    overflow_lines: list[str] = []
-    rejected_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Line over 199 chars dropped" in line:
-            overflow_lines.append(line)
-        if "malformed lines" in line:
-            rejected_lines.append(line)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=SENSORS, text_sensor_names=TEXT_SENSORS
@@ -88,7 +82,7 @@ async def test_uart_mock_pylontech(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -119,6 +113,11 @@ async def test_uart_mock_pylontech(
             assert collector.text_sensor_states[name] == values, name
 
         # Phase 4 and the phase 5 header both overflow
+        overflow_lines = [
+            line for line in waiter.lines if "Line over 199 chars dropped" in line
+        ]
         assert len(overflow_lines) == 2, overflow_lines
         # The phase 3 cut line is counted and reported once the UART is idle
-        assert rejected_lines, "no rejected-line summary logged"
+        assert any("malformed lines" in line for line in waiter.lines), (
+            "no rejected-line summary logged"
+        )

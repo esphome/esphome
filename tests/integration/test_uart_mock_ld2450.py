@@ -17,11 +17,10 @@ test_uart_mock_ld2450:
 
 from __future__ import annotations
 
-import asyncio
-
 from aioesphomeapi import ButtonInfo
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -34,20 +33,7 @@ async def test_uart_mock_ld2450(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2450 data parsing with happy path, garbage, overflow, and recovery."""
-    loop = asyncio.get_running_loop()
-
-    # Track overflow warning in logs
-    overflow_seen = loop.create_future()
-
-    # Track TX data logged by the mock for assertions
-    tx_log_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Max command length exceeded" in line and not overflow_seen.done():
-            overflow_seen.set_result(True)
-        # Capture all TX log lines from uart_mock
-        if "uart_mock" in line and "TX " in line:
-            tx_log_lines.append(line)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -91,7 +77,7 @@ async def test_uart_mock_ld2450(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -156,11 +142,14 @@ async def test_uart_mock_ld2450(
         )
 
         # Verify overflow warning was logged
-        assert overflow_seen.done(), (
+        assert any("Max command length exceeded" in line for line in waiter.lines), (
             "Expected 'Max command length exceeded' warning in logs"
         )
 
         # Verify LD2450 sent setup commands (TX logging)
+        tx_log_lines = [
+            line for line in waiter.lines if "uart_mock" in line and "TX " in line
+        ]
         assert len(tx_log_lines) > 0, "Expected TX log lines from uart_mock"
         tx_data = " ".join(tx_log_lines)
         # Verify command frame header appears (FD:FC:FB:FA)

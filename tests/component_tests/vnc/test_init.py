@@ -168,6 +168,7 @@ def test_it8951_owned_by_vnc(
     assert "set_reconnect_interval(5000);" in main_cpp
     assert "set_update_delay(200);" in main_cpp
     assert "set_max_update_delay(1000);" in main_cpp
+    assert "set_pixel_format(vnc::VncPixelFormat::VNC_PIXEL_FORMAT_AUTO);" in main_cpp
 
 
 def test_epaper_spi_owned_by_vnc(
@@ -221,6 +222,7 @@ vnc:
     reconnect_interval: 2s
     update_delay: 0ms
     max_update_delay: 3s
+    pixel_format: RGB332
     on_connect:
       - logger.log: up
     on_disconnect:
@@ -234,6 +236,7 @@ vnc:
     assert "set_reconnect_interval(2000);" in main_cpp
     assert "set_update_delay(0);" in main_cpp
     assert "set_max_update_delay(3000);" in main_cpp
+    assert "set_pixel_format(vnc::VncPixelFormat::VNC_PIXEL_FORMAT_RGB332);" in main_cpp
     assert "add_on_connect_callback(" in main_cpp
     assert "add_on_disconnect_callback(" in main_cpp
 
@@ -258,6 +261,28 @@ vnc:
     assert re.search(r"vnc::VncClient\(epd, \w+\);", main_cpp)
     assert re.search(r"vnc::VncClient\(other, \w+\);", main_cpp)
     assert TEST_CARD not in main_cpp
+
+
+def test_action_codegen(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
+) -> None:
+    main_cpp = generate_main(
+        write_yaml(
+            IT8951,
+            """
+vnc:
+  - id: remote
+    host: 192.168.1.20
+
+interval:
+  - interval: 60s
+    then:
+      - vnc.refresh
+""",
+        )
+    )
+
+    assert "remote->refresh();" in main_cpp
 
 
 @pytest.mark.parametrize(
@@ -389,6 +414,9 @@ display:
             id="reconnect",
         ),
         pytest.param("    port: 0\n", "value must be at least 1", id="port"),
+        pytest.param(
+            "    pixel_format: rgb888\n", "Unknown value 'rgb888'", id="format"
+        ),
     ],
 )
 def test_option_rejected(

@@ -2763,3 +2763,37 @@ def test_named_path_collapses_dotdot_lexically_on_windows(
     assert yaml_util.named_path(tmp_path / "link" / ".." / "x.yaml") == (
         tmp_path.resolve() / "x.yaml"
     )
+
+
+def test_discover_user_yaml_files_loads_an_include_with_a_templated_condition(
+    tmp_path: Path,
+) -> None:
+    """A condition that is not static yet is loaded anyway, so its errors still show."""
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        'packages:\n  opt: !include {file: missing.yaml, condition: "${enable}"}\n',
+    )
+    assert discover_user_yaml_files(entry).load_errors
+
+
+def test_discover_user_yaml_files_records_directory_links(tmp_path: Path) -> None:
+    """A file reached through a symlinked directory below the config directory
+    records that link and its target."""
+    shared = tmp_path / "shared"
+    _write(shared, "wifi.yaml", "ssid: x\n")
+    config_dir = tmp_path / "config"
+    entry = _write(config_dir, "entry.yaml", "wifi: !include linked/wifi.yaml\n")
+    (config_dir / "linked").symlink_to(shared)
+    discovered = discover_user_yaml_files(entry)
+    assert discovered.links == {config_dir.resolve() / "linked": shared.resolve()}
+
+
+def test_registered_secret_values_maps_a_loaded_secret_to_its_name(
+    tmp_path: Path,
+) -> None:
+    """Values loaded through `!secret` are listed with the name they came from."""
+    _write(tmp_path, "secrets.yaml", "wifi_password: hunter2\n")
+    entry = _write(tmp_path, "entry.yaml", "wifi:\n  password: !secret wifi_password\n")
+    yaml_util.load_yaml(entry)
+    assert yaml_util.registered_secret_values()["hunter2"] == "wifi_password"

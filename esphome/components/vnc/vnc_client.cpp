@@ -4,10 +4,12 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
+#include <iterator>
 
 namespace esphome::vnc {
 
@@ -32,7 +34,19 @@ static constexpr uint8_t SECURITY_NONE = 1;
 static constexpr uint8_t SECURITY_VNC_AUTH = 2;
 
 static constexpr int32_t ENCODING_RAW = 0;
+static constexpr int32_t ENCODING_HEXTILE = 5;
 static constexpr int32_t ENCODING_RICH_CURSOR = -239;
+// In preference order: TightVNC uses the first real encoding it supports for every rectangle.
+static constexpr int32_t ENCODINGS[] = {ENCODING_HEXTILE, ENCODING_RAW, ENCODING_RICH_CURSOR};
+
+// Indexed by VncPixelFormat
+PROGMEM_STRING_TABLE(PixelFormatStrings, "auto", "RGB565", "RGB332");
+
+static constexpr uint8_t HEXTILE_RAW = 0x01;
+static constexpr uint8_t HEXTILE_BACKGROUND = 0x02;
+static constexpr uint8_t HEXTILE_FOREGROUND = 0x04;
+static constexpr uint8_t HEXTILE_ANY_SUBRECTS = 0x08;
+static constexpr uint8_t HEXTILE_SUBRECTS_COLOURED = 0x10;
 
 static constexpr uint8_t MSG_FRAMEBUFFER_UPDATE = 0;
 static constexpr uint8_t MSG_SET_COLOUR_MAP = 1;
@@ -66,6 +80,32 @@ static int parse_three_digits(const uint8_t *p) {
 void VncClient::setup() {
   this->setup_ms_ = App.get_loop_component_start_time();
   this->link_.begin(TAG);
+  // Sized for the display now; a rotation changed later swaps the sides but keeps the cell count.
+  const uint32_t wanted = static_cast<uint32_t>((this->display_->get_width() + 15) / 16) *
+                          static_cast<uint32_t>((this->display_->get_height() + 15) / 16);
+  const uint32_t cells = std::min<uint32_t>(wanted, UINT16_MAX);
+  if (cells < wanted) {
+    ESP_LOGW(TAG, "Display has %" PRIu32 " tiles, more than the %u the cache holds", wanted, UINT16_MAX);
+  }
+  RAMAllocator<uint32_t> allocator;
+  this->tile_hashes_ = allocator.allocate(cells);
+  if (this->tile_hashes_ == nullptr) {
+    ESP_LOGW(TAG, "Not enough memory to skip unchanged tiles");
+    return;
+  }
+  this->hash_capacity_ = cells;
+  this->clear_tiles_();
+}
+
+void VncClient::refresh() {
+  this->need_full_ = true;
+  this->clear_tiles_();
+}
+
+void VncClient::clear_tiles_() {
+  if (this->tile_hashes_ != nullptr) {
+    std::memset(this->tile_hashes_, 0, sizeof(uint32_t) * this->hash_capacity_);
+  }
 }
 
 void VncClient::dump_config() {
@@ -74,9 +114,13 @@ void VncClient::dump_config() {
                 "  Server: %s:%u\n"
                 "  Reconnect Interval: %" PRIu32 "ms\n"
                 "  Update Delay: %" PRIu32 "ms\n"
-                "  Max Update Delay: %" PRIu32 "ms",
+                "  Max Update Delay: %" PRIu32 "ms\n"
+                "  Pixel Format: %s\n"
+                "  Tile Cache: %u tiles",
                 this->link_.host(), this->link_.port(), this->link_.reconnect_interval(), this->update_delay_ms_,
-                this->max_update_delay_ms_);
+                this->max_update_delay_ms_,
+                LOG_STR_ARG(PixelFormatStrings::get_log_str(static_cast<uint8_t>(this->pixel_format_), 0)),
+                this->hash_capacity_);
 }
 
 void VncClient::on_shutdown() { this->link_.close(); }
@@ -95,11 +139,27 @@ void VncClient::loop() {
   }
   // A display that parks its loop when idle is busy while that loop runs. Displays that never
   // park (no loop, or one that always runs) update synchronously, so they are never busy.
+  const bool was_busy = this->display_busy_;
   if (this->display_->is_idle()) {
     this->display_parks_ = true;
     this->display_busy_ = false;
   } else {
     this->display_busy_ = this->display_parks_;
+  }
+  if (was_busy && !this->display_busy_) {
+    // A refresh the driver gave up on (it sets its warning) leaves the panel behind the buffer: retry it
+    // once and forget the cached tiles, which no longer say what the panel shows
+    if (!this->display_->status_has_warning()) {
+      this->refresh_retried_ = false;
+    } else if (!this->refresh_retried_) {
+      this->refresh_retried_ = true;
+      this->clear_tiles_();
+      if (!this->refresh_pending_) {
+        this->first_change_ms_ = now;
+      }
+      this->last_change_ms_ = now;
+      this->refresh_pending_ = true;
+    }
   }
   // A stuck panel, or another owner of the display's loop, would otherwise freeze the screen silently
   if (!this->display_busy_) {
@@ -147,6 +207,11 @@ void VncClient::loop() {
     this->service_rx_(now);
   }
   if (this->state_ == VncState::VNC_STATE_RUNNING) {
+    // A new session lays the screen out again for the new rotation and redraws all of it.
+    if (static_cast<uint8_t>(this->display_->get_rotation() / 90) != this->hash_rotation_) {
+      this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display rotation changed"));
+      return;
+    }
     // Mid-frame there is nothing to send, so a vanished server would never fail a write.
     if (this->in_update_ && !blocked && !this->rx_pending_ && now - this->last_rx_ms_ >= HEARTBEAT_MS) {
       this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Server stopped sending"));
@@ -183,12 +248,20 @@ void VncClient::connect_step_(uint32_t now) {
 }
 
 void VncClient::reset_session_() {
+  // Pixels drawn but never shown would match the cache when the next session resends them.
+  if (this->refresh_pending_ || this->frame_drawn_) {
+    this->clear_tiles_();
+  }
+  // Hextile colours carry from tile to tile; a new server must not inherit the last one's
+  std::memset(this->hex_bg_, 0, sizeof(this->hex_bg_));
+  std::memset(this->hex_fg_, 0, sizeof(this->hex_fg_));
   this->rx_pos_ = 0;
   this->rx_len_ = 0;
   this->rx_pending_ = false;
   this->in_update_ = false;
   this->request_outstanding_ = false;
   this->refresh_pending_ = false;
+  this->need_full_ = false;
   this->frame_drawn_ = false;
   this->step_ = VncStep::VNC_STEP_VERSION;
   this->reason_failure_ = VncFailure::VNC_FAILURE_TRANSIENT;
@@ -478,6 +551,7 @@ VncParse VncClient::parse_() {
             this->in_update_ = true;
             this->update_start_ms_ = millis();
             this->update_start_bytes_ = this->rx_total_ - (this->rx_len_ - this->rx_pos_);
+            this->drawn_tiles_ = 0;
             this->rect_done_();
             break;
           case MSG_SET_COLOUR_MAP:
@@ -517,7 +591,7 @@ VncParse VncClient::parse_() {
         const auto encoding = static_cast<int32_t>(read_be32(p + 8));
         this->rx_pos_ += 12;
         this->rects_left_--;
-        if (encoding == ENCODING_RAW) {
+        if (encoding == ENCODING_RAW || encoding == ENCODING_HEXTILE) {
           if (static_cast<uint32_t>(this->rect_x_) + this->rect_w_ > this->fb_w_ ||
               static_cast<uint32_t>(this->rect_y_) + this->rect_h_ > this->fb_h_) {
             ESP_LOGW(TAG, "Rectangle %ux%u at %u,%u is outside the %ux%u screen", this->rect_w_, this->rect_h_,
@@ -526,10 +600,15 @@ VncParse VncClient::parse_() {
           }
           if (this->rect_w_ == 0 || this->rect_h_ == 0) {
             this->rect_done_();
-          } else {
+          } else if (encoding == ENCODING_RAW) {
+            this->forget_tiles_(this->rect_x_, this->rect_y_, this->rect_w_, this->rect_h_);
             this->pos_x_ = 0;
             this->pos_y_ = 0;
             this->step_ = VncStep::VNC_STEP_RAW;
+          } else {
+            this->pos_x_ = this->rect_x_;
+            this->pos_y_ = this->rect_y_;
+            this->step_ = VncStep::VNC_STEP_TILE;
           }
         } else if (encoding == ENCODING_RICH_CURSOR) {
           if (this->rect_w_ > MAX_CURSOR_SIDE || this->rect_h_ > MAX_CURSOR_SIDE) {
@@ -570,6 +649,84 @@ VncParse VncClient::parse_() {
         }
         break;
       }
+      case VncStep::VNC_STEP_TILE: {
+        if (this->display_busy_) {
+          return VncParse::VNC_PARSE_PAUSE;
+        }
+        if (avail < 1) {
+          return VncParse::VNC_PARSE_MORE;
+        }
+        if (this->budget_exhausted_()) {
+          return VncParse::VNC_PARSE_PAUSE;
+        }
+        const uint8_t flags = p[0];
+        this->tile_w_ = std::min<uint32_t>(16, static_cast<uint32_t>(this->rect_x_) + this->rect_w_ - this->pos_x_);
+        this->tile_h_ = std::min<uint32_t>(16, static_cast<uint32_t>(this->rect_y_) + this->rect_h_ - this->pos_y_);
+        this->tile_hidden_ = this->pos_x_ >= this->vis_w_ || this->pos_y_ >= this->vis_h_;
+        // With the raw bit set the other bits mean nothing and the pixels follow at once.
+        if (flags & HEXTILE_RAW) {
+          this->rx_pos_ += 1;
+          this->tile_fill_ = 0;
+          this->step_ = VncStep::VNC_STEP_TILE_RAW;
+          break;
+        }
+        const size_t need = 1 + ((flags & HEXTILE_BACKGROUND) ? this->bpp_ : 0) +
+                            ((flags & HEXTILE_FOREGROUND) ? this->bpp_ : 0) + ((flags & HEXTILE_ANY_SUBRECTS) ? 1 : 0);
+        if (avail < need) {
+          return VncParse::VNC_PARSE_MORE;
+        }
+        const uint8_t *q = p + 1;
+        if (flags & HEXTILE_BACKGROUND) {
+          std::memcpy(this->hex_bg_, q, this->bpp_);
+          q += this->bpp_;
+        }
+        if (flags & HEXTILE_FOREGROUND) {
+          std::memcpy(this->hex_fg_, q, this->bpp_);
+          q += this->bpp_;
+        }
+        this->subrects_left_ = (flags & HEXTILE_ANY_SUBRECTS) ? *q : 0;
+        this->subrects_coloured_ = (flags & HEXTILE_SUBRECTS_COLOURED) != 0;
+        this->rx_pos_ += need;
+        this->fill_tile_(0, 0, this->tile_w_, this->tile_h_, this->hex_bg_);
+        this->step_ = VncStep::VNC_STEP_SUBRECTS;
+        break;
+      }
+      case VncStep::VNC_STEP_TILE_RAW: {
+        const size_t total = static_cast<size_t>(this->tile_w_) * this->tile_h_ * this->bpp_;
+        const size_t count = std::min(avail, total - this->tile_fill_);
+        if (count == 0) {
+          return VncParse::VNC_PARSE_MORE;
+        }
+        std::memcpy(this->tile_ + this->tile_fill_, p, count);
+        this->rx_pos_ += count;
+        this->tile_fill_ += count;
+        if (this->tile_fill_ == total) {
+          this->draw_tile_();
+          this->next_tile_();
+        }
+        break;
+      }
+      case VncStep::VNC_STEP_SUBRECTS: {
+        if (this->subrects_left_ == 0) {
+          this->draw_tile_();
+          this->next_tile_();
+          break;
+        }
+        const size_t need = (this->subrects_coloured_ ? this->bpp_ : 0) + 2;
+        if (avail < need) {
+          return VncParse::VNC_PARSE_MORE;
+        }
+        const uint8_t *pixel = this->hex_fg_;
+        const uint8_t *q = p;
+        if (this->subrects_coloured_) {
+          pixel = q;
+          q += this->bpp_;
+        }
+        this->fill_tile_(q[0] >> 4, q[0] & 0x0F, (q[1] >> 4) + 1, (q[1] & 0x0F) + 1, pixel);
+        this->rx_pos_ += need;
+        this->subrects_left_--;
+        break;
+      }
       case VncStep::VNC_STEP_SKIP: {
         const auto count = static_cast<uint32_t>(std::min<size_t>(avail, this->skip_left_));
         this->rx_pos_ += count;
@@ -592,6 +749,20 @@ void VncClient::rect_done_() {
   }
 }
 
+void VncClient::next_tile_() {
+  this->step_ = VncStep::VNC_STEP_TILE;
+  if (static_cast<uint32_t>(this->pos_x_) + 16 < static_cast<uint32_t>(this->rect_x_) + this->rect_w_) {
+    this->pos_x_ += 16;
+    return;
+  }
+  this->pos_x_ = this->rect_x_;
+  if (static_cast<uint32_t>(this->pos_y_) + 16 < static_cast<uint32_t>(this->rect_y_) + this->rect_h_) {
+    this->pos_y_ += 16;
+    return;
+  }
+  this->rect_done_();
+}
+
 void VncClient::frame_done_() {
   this->in_update_ = false;
   this->request_outstanding_ = false;
@@ -604,9 +775,9 @@ void VncClient::frame_done_() {
     }
     this->last_change_ms_ = now;
     this->refresh_pending_ = true;
-    ESP_LOGD(TAG, "Update: %" PRIu32 " bytes in %" PRIu32 "ms",
+    ESP_LOGD(TAG, "Update: %" PRIu32 " bytes in %" PRIu32 "ms, %u hextile tiles drawn",
              this->rx_total_ - (this->rx_len_ - this->rx_pos_) - this->update_start_bytes_,
-             millis() - this->update_start_ms_);
+             millis() - this->update_start_ms_, this->drawn_tiles_);
   }
 }
 
@@ -619,8 +790,96 @@ void VncClient::draw_row_(uint16_t x, uint16_t y, uint16_t count, const uint8_t 
   this->frame_drawn_ = true;
 }
 
+void VncClient::draw_tile_() {
+  if (this->tile_hidden_) {
+    return;
+  }
+  const int w = std::min<int>(this->tile_w_, this->vis_w_ - this->pos_x_);
+  const int h = std::min<int>(this->tile_h_, this->vis_h_ - this->pos_y_);
+  uint32_t *cell = nullptr;
+  uint32_t hash = 0;
+  if (this->hash_cols_ != 0) {
+    if ((this->pos_x_ | this->pos_y_) & 15) {
+      // An off-grid tile spans several cells, and a later write to any of them would make its hash stale.
+      this->forget_tiles_(this->pos_x_, this->pos_y_, w, h);
+    } else {
+      cell = this->tile_hashes_ + (this->pos_y_ / 16) * this->hash_cols_ + this->pos_x_ / 16;
+      hash = this->tile_hash_();
+      if (*cell == hash) {
+        return;
+      }
+    }
+  }
+  this->display_->draw_pixels_at(this->pos_x_, this->pos_y_, w, h, this->tile_, this->bitness_, this->big_endian_, 0, 0,
+                                 this->tile_w_ - w);
+  this->frame_drawn_ = true;
+  this->drawn_tiles_++;
+  if (cell != nullptr) {
+    *cell = hash;
+  }
+}
+
+uint32_t VncClient::tile_hash_() const {
+  // The tile's size, pixel size and pixels; the cell gives its place. Zero means "unknown".
+  uint32_t hash = fnv1a_hash_extend(FNV1_OFFSET_BASIS,
+                                    static_cast<uint32_t>(this->tile_w_) << 16 | this->tile_h_ << 8 | this->bpp_);
+  const size_t len = static_cast<size_t>(this->tile_w_) * this->tile_h_ * this->bpp_;
+  size_t i = 0;
+  for (; i + 4 <= len; i += 4) {
+    uint32_t word;
+    std::memcpy(&word, this->tile_ + i, sizeof(word));  // tile_ is aligned, so this is one load
+    // Byte by byte: XOR-ing whole words lets high-bit changes in two words cancel.
+    hash = fnv1a_hash_extend(hash, word);
+  }
+  for (; i < len; i++) {
+    hash = fnv1a_hash_extend(hash, this->tile_[i]);
+  }
+  return hash == 0 ? 1 : hash;
+}
+
+void VncClient::forget_tiles_(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+  if (this->hash_cols_ == 0 || w == 0 || h == 0) {
+    return;
+  }
+  const uint16_t col_end = std::min<uint16_t>((x + w - 1) / 16, this->hash_cols_ - 1);
+  const uint16_t row_end = std::min<uint16_t>((y + h - 1) / 16, this->hash_rows_ - 1);
+  for (uint16_t row = y / 16; row <= row_end; row++) {
+    for (uint16_t col = x / 16; col <= col_end; col++) {
+      this->tile_hashes_[row * this->hash_cols_ + col] = 0;
+    }
+  }
+}
+
+void VncClient::fill_tile_(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *pixel) {
+  if (this->tile_hidden_ || x >= this->tile_w_ || y >= this->tile_h_) {
+    return;
+  }
+  w = std::min<uint8_t>(w, this->tile_w_ - x);
+  h = std::min<uint8_t>(h, this->tile_h_ - y);
+  const size_t stride = static_cast<size_t>(this->tile_w_) * this->bpp_;
+  const size_t row_len = static_cast<size_t>(w) * this->bpp_;
+  uint8_t *first = this->tile_ + y * stride + x * this->bpp_;
+  if (this->bpp_ == 1) {
+    std::memset(first, pixel[0], w);
+  } else {
+    for (size_t i = 0; i < row_len; i += 2) {
+      first[i] = pixel[0];
+      first[i + 1] = pixel[1];
+    }
+  }
+  for (uint8_t row = 1; row < h; row++) {
+    std::memcpy(first + row * stride, first, row_len);
+  }
+}
+
 bool VncClient::start_session_(uint32_t now) {
-  const bool rgb565 = this->display_->get_display_type() != display::DISPLAY_TYPE_BINARY;
+  VncPixelFormat format = this->pixel_format_;
+  if (format == VncPixelFormat::VNC_PIXEL_FORMAT_AUTO) {
+    format = this->display_->get_display_type() == display::DISPLAY_TYPE_BINARY
+                 ? VncPixelFormat::VNC_PIXEL_FORMAT_RGB332
+                 : VncPixelFormat::VNC_PIXEL_FORMAT_RGB565;
+  }
+  const bool rgb565 = format == VncPixelFormat::VNC_PIXEL_FORMAT_RGB565;
   this->bpp_ = rgb565 ? 2 : 1;
   this->bitness_ = rgb565 ? display::COLOR_BITNESS_565 : display::COLOR_BITNESS_332;
 
@@ -631,6 +890,24 @@ bool VncClient::start_session_(uint32_t now) {
   if (this->fb_w_ != disp_w || this->fb_h_ != disp_h) {
     ESP_LOGW(TAG, "Server screen is %ux%u but the display is %dx%d; showing the top-left %ux%u", this->fb_w_,
              this->fb_h_, disp_w, disp_h, this->vis_w_, this->vis_h_);
+  }
+  const uint16_t cols = (this->vis_w_ + 15) / 16;
+  const uint16_t rows = (this->vis_h_ + 15) / 16;
+  const auto rotation = static_cast<uint8_t>(this->display_->get_rotation() / 90);
+  const bool rotated = rotation != this->hash_rotation_;
+  this->hash_rotation_ = rotation;
+  if (this->tile_hashes_ == nullptr) {
+    this->hash_cols_ = 0;
+    this->hash_rows_ = 0;
+  } else if (static_cast<uint32_t>(cols) * rows > this->hash_capacity_) {
+    ESP_LOGW(TAG, "Screen has %u tiles, more than the %u cached; every tile is drawn", cols * rows,
+             this->hash_capacity_);
+    this->hash_cols_ = 0;
+    this->hash_rows_ = 0;
+  } else if (cols != this->hash_cols_ || rows != this->hash_rows_ || rotated) {
+    this->hash_cols_ = cols;
+    this->hash_rows_ = rows;
+    this->clear_tiles_();
   }
 
   // SetPixelFormat: true colour, in the byte order the display takes
@@ -648,10 +925,12 @@ bool VncClient::start_session_(uint32_t now) {
     return false;
   }
 
-  // SetEncodings: TightVNC uses the first real encoding it supports for every rectangle.
-  uint8_t encodings[12] = {2, 0, 0, 2};
-  write_be32(encodings + 4, ENCODING_RAW);
-  write_be32(encodings + 8, static_cast<uint32_t>(ENCODING_RICH_CURSOR));
+  // SetEncodings
+  uint8_t encodings[4 + 4 * std::size(ENCODINGS)] = {2};
+  write_be16(encodings + 2, std::size(ENCODINGS));
+  for (size_t i = 0; i < std::size(ENCODINGS); i++) {
+    write_be32(encodings + 4 + 4 * i, static_cast<uint32_t>(ENCODINGS[i]));
+  }
   if (!this->send_(encodings, sizeof(encodings)) || !this->send_update_request_(false, now)) {
     return false;
   }
@@ -667,6 +946,12 @@ bool VncClient::start_session_(uint32_t now) {
 
 void VncClient::pace_(uint32_t now) {
   if (this->display_busy_ || this->in_update_ || now - this->last_request_ms_ < MIN_REQUEST_SPACING_MS) {
+    return;
+  }
+  if (this->need_full_) {
+    if (this->send_update_request_(false, now)) {
+      this->need_full_ = false;
+    }
     return;
   }
   // Repeating a parked request costs nothing on the server and detects a dead link.
