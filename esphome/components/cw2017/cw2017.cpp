@@ -21,6 +21,8 @@ static constexpr uint8_t UPDATE_FLAG = 0x80;
 static constexpr uint8_t RESTART_MODES[] PROGMEM = {0xF0, MODE_SLEEP, MODE_NORMAL};
 static constexpr uint8_t RESTART_STEPS = sizeof(RESTART_MODES);
 
+static constexpr float VCELL_VOLTS_PER_LSB = 312.5e-6f;
+
 static constexpr uint32_t STEP_DELAY_MS = 20;
 static constexpr uint32_t READY_POLL_MS = 100;
 static constexpr uint8_t READY_ATTEMPTS = 40;
@@ -29,13 +31,16 @@ static constexpr uint8_t INIT_ATTEMPTS = 3;
 
 static bool version_is_running(uint8_t version) { return (version & 0xFD) == 0x0D; }
 
-bool CW2017::profile_stored_(bool &matches) {
-  for (uint8_t i = 0; matches && i != PROFILE_SIZE; i++) {
+bool CW2017::read_profile_matches_(bool &matches) {
+  matches = false;
+  for (uint8_t i = 0; i != PROFILE_SIZE; i++) {
     uint8_t stored = 0;
     if (!this->read_byte(REG_BATINFO + i, &stored))
       return false;
-    matches = stored == progmem_read_byte(this->profile_ + i);
+    if (stored != progmem_read_byte(this->profile_ + i))
+      return true;
   }
+  matches = true;
   return true;
 }
 
@@ -67,15 +72,19 @@ void CW2017::init_() {
     this->init_failed_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  bool matches = (config & UPDATE_FLAG) != 0;
-  // The gauge runs through deep sleep, so a wake finds it ready; the 80-byte compare is for a fresh chip.
-  if (mode == MODE_NORMAL && version_is_running(version) && matches) {
-    this->ready_ = true;
-    this->update();
+  bool matches = false;
+  if ((config & UPDATE_FLAG) != 0 && !this->read_profile_matches_(matches)) {
+    this->init_failed_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  if (!this->profile_stored_(matches)) {
-    this->init_failed_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+
+  if (!matches) {
+    ESP_LOGI(TAG, "Uploading battery profile");
+    if (!this->upload_profile_()) {
+      this->init_failed_(LOG_STR("Battery profile upload failed"));
+      return;
+    }
+    this->set_timeout(STEP_DELAY_MS, [this]() { this->restart_step_(0); });
     return;
   }
 
@@ -89,22 +98,13 @@ void CW2017::init_() {
     return;
   }
 
-  bool restart = mode != MODE_NORMAL || !version_is_running(version);
-  if (!matches) {
-    ESP_LOGI(TAG, "Uploading battery profile");
-    if (!this->upload_profile_()) {
-      this->init_failed_(LOG_STR("Battery profile upload failed"));
-      return;
-    }
-    restart = true;
-  }
-
-  if (!restart) {
-    this->ready_ = true;
-    this->update();
+  if (mode != MODE_NORMAL || !version_is_running(version)) {
+    this->set_timeout(STEP_DELAY_MS, [this]() { this->restart_step_(0); });
     return;
   }
-  this->set_timeout(STEP_DELAY_MS, [this]() { this->restart_step_(0); });
+
+  this->ready_ = true;
+  this->update();
 }
 
 void CW2017::restart_step_(uint8_t step) {
@@ -155,8 +155,7 @@ void CW2017::update() {
     uint8_t low = 0;
     if (this->read_byte(REG_VCELL_H, &high) && this->read_byte(REG_VCELL_L, &low)) {
       const uint16_t raw = static_cast<uint16_t>((high & 0x3F) << 8) | low;
-      const uint16_t millivolts = (raw * 5 + 8) >> 4;
-      this->battery_voltage_sensor_->publish_state(millivolts / 1000.0f);
+      this->battery_voltage_sensor_->publish_state(raw * VCELL_VOLTS_PER_LSB);
     } else {
       this->status_set_warning();
       return;
