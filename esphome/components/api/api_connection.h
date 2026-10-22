@@ -15,15 +15,6 @@
 #include "subscribe_state.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
-#ifdef USE_ESP32_CRASH_HANDLER
-#include "esphome/components/esp32/crash_handler.h"
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-#include "esphome/components/rp2/crash_handler.h"
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-#include "esphome/components/esp8266/crash_handler.h"
-#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
@@ -223,6 +214,10 @@ class APIConnection final : public APIServerConnectionBase {
   void on_z_wave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
 
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+  void on_sendspin_pairing_token_request();
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
   void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg);
@@ -279,6 +274,12 @@ class APIConnection final : public APIServerConnectionBase {
   void on_ping_request();
   void on_device_info_request();
   void on_device_capabilities_request();
+#ifdef USE_API_WIZARD
+  void on_device_wizard_request();
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+  void on_wizard_input_set_request(const WizardInputSetRequest &msg);
+#endif
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void on_subscribe_states_request() {
     this->flags_.state_subscription = true;
@@ -288,26 +289,16 @@ class APIConnection final : public APIServerConnectionBase {
       this->begin_iterator_(ActiveIterator::INITIAL_STATE);
     }
   }
-  void on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
-    this->flags_.log_subscription = msg.level;
-    if (msg.dump_config)
-      App.schedule_dump_config();
-#ifdef USE_ESP32_CRASH_HANDLER
-    esp32::crash_handler_log();
-    esp32::crash_handler_clear();
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-    rp2::crash_handler_log();
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-    esp8266::crash_handler_log();
-#endif
-  }
+  void on_subscribe_logs_request(const SubscribeLogsRequest &msg);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void on_subscribe_homeassistant_services_request() { this->flags_.service_call_subscription = true; }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
   void on_subscribe_home_assistant_states_request();
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  /// Tell this client about the subscriptions whose entity id is stored in the given buffer, as the buffer changed
+  void resend_state_subscriptions(const char *entity_id);
+#endif
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   void on_execute_service_request(const ExecuteServiceRequest &msg);
@@ -351,7 +342,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_no_setup_connection();
 
   // Function pointer type for type-erased message encoding
-  using MessageEncodeFn = uint8_t *(*) (const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM);
+  using MessageEncodeFn = ProtoEncodeFn;
   // Function pointer type for type-erased size calculation
   using CalculateSizeFn = uint32_t (*)(const void *);
 
@@ -422,6 +413,9 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_VOICE_ASSISTANT
   bool send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg);
 #endif
+#if defined(USE_SENDSPIN) && defined(USE_ESP_IDF)
+  bool send_sendspin_pairing_token_response_();
+#endif
 
 #ifdef USE_CAMERA
   void try_send_camera_image_();
@@ -478,15 +472,15 @@ class APIConnection final : public APIServerConnectionBase {
 
   // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                StringRef &device_class_field, CalculateSizeFn size_fn,
-                                                                MessageEncodeFn encode_fn, APIConnection *conn,
-                                                                uint32_t remaining_size);
+                                                                ProgmemStringRef &device_class_field,
+                                                                CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
+                                                                APIConnection *conn, uint32_t remaining_size);
 
   // Thin template wrapper
   template<typename T>
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
-                                                                StringRef &device_class_field, APIConnection *conn,
-                                                                uint32_t remaining_size) {
+                                                                ProgmemStringRef &device_class_field,
+                                                                APIConnection *conn, uint32_t remaining_size) {
     return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &T::calc_size_msg,
                                                          &T::encode_msg, conn, remaining_size);
   }
@@ -757,6 +751,9 @@ class APIConnection final : public APIServerConnectionBase {
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
     uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+    uint8_t home_assistant_states : 1;  // Client subscribed to Home Assistant states
+#endif
 #ifdef USE_API_OUTGOING_CONNECTION
     uint8_t outgoing_connection_target : 1;  // Client declared itself a dial-back target in its hello
 #endif

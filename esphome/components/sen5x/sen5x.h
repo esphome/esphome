@@ -8,15 +8,6 @@
 
 namespace esphome::sen5x {
 
-enum ERRORCODE : uint8_t {
-  COMMUNICATION_FAILED,
-  SERIAL_NUMBER_IDENTIFICATION_FAILED,
-  MEASUREMENT_INIT_FAILED,
-  PRODUCT_NAME_FAILED,
-  FIRMWARE_FAILED,
-  UNKNOWN
-};
-
 enum RhtAccelerationMode : uint16_t {
   LOW_ACCELERATION = 0,
   MEDIUM_ACCELERATION = 1,
@@ -107,7 +98,6 @@ class SEN5XComponent final : public PollingComponent, public sensirion_common::S
   uint32_t voc_baseline_time_{0};
   uint16_t firmware_version_{0};
   Sen5xType type_{Sen5xType::UNKNOWN};
-  ERRORCODE error_code_{ERRORCODE::UNKNOWN};
   bool initialized_{false};
   bool store_baseline_{false};
 

@@ -5,6 +5,7 @@ from esphome.types import ConfigType
 
 from .. import (
     HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA,
+    final_validate_entity_id,
     homeassistant_ns,
     setup_home_assistant_entity,
     validate_entity_domain,
@@ -29,9 +30,12 @@ CONFIG_SCHEMA = cv.All(
     validate_entity_domain("text", SUPPORTED_DOMAINS),
 )
 
+FINAL_VALIDATE_SCHEMA = final_validate_entity_id
+
 
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     var = await text.new_text(config)
     await cg.register_component(var, config)
-    setup_home_assistant_entity(var, config)
+    # 1 state + min/max/mode fetches in HomeassistantText::setup()
+    setup_home_assistant_entity(var, config, state_subscription_count=4)

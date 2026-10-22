@@ -15,11 +15,10 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj, TemplateArguments
 
-from ..const import CONF_LOOP
+from ..const import CONF_LOOP, CONF_ON_STOP
 from .defines import (
     CONF_AUTO_START,
     CONF_LVGL_ID,
-    CONF_ON_STOP,
     CONF_WIDGETS,
     LValidator,
     add_define,

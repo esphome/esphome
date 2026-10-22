@@ -10,8 +10,9 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
 )
+from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_WIFI
+from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -37,15 +38,8 @@ CsiCapturePolicy = sdk_ns.enum("CsiCapturePolicy", is_class=True)
 TrafficGeneratorMode = sdk_ns.enum("TrafficGeneratorMode", is_class=True)
 WifiBandPolicy = sdk_ns.enum("WifiBandPolicy", is_class=True)
 
-DETECTION_ALGORITHMS = {
-    "lightweight": DetectionAlgorithm.LIGHTWEIGHT,
-    "high_accuracy": DetectionAlgorithm.HIGH_ACCURACY,
-}
-CSI_CAPTURE_PROFILES = {
-    "auto": CsiCapturePolicy.AUTO,
-    "lltf": CsiCapturePolicy.LLTF,
-    "ht_vht": CsiCapturePolicy.HT_VHT,
-}
+DETECTION_ALGORITHMS = DetectionAlgorithm.options("lightweight", "high_accuracy")
+CSI_CAPTURE_PROFILES = CsiCapturePolicy.options("auto", "lltf", "ht_vht")
 TRAFFIC_GENERATOR_MODES = {
     "ping": TrafficGeneratorMode.PING,
     "dns": TrafficGeneratorMode.DNS,
@@ -157,12 +151,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_traffic_generator_target_ip(target_ip))
     if (group := config.get(CONF_CSI_TRAFFIC_MULTICAST_GROUP)) is not None:
         cg.add(var.set_csi_traffic_multicast_group(group))
-    if (on_hits := config.get(CONF_MOTION_ON_HITS)) is not None:
-        cg.add(var.set_motion_on_hits(on_hits))
-    if (off_hits := config.get(CONF_MOTION_OFF_HITS)) is not None:
-        cg.add(var.set_motion_off_hits(off_hits))
+    cg.add_optional(var.set_motion_on_hits, config.get(CONF_MOTION_ON_HITS))
+    cg.add_optional(var.set_motion_off_hits, config.get(CONF_MOTION_OFF_HITS))
     if esp32.get_esp32_variant() == VARIANT_ESP32C5:
-        band = CORE.config[CONF_WIFI].get(wifi.CONF_BAND_MODE, "AUTO")
+        band = CORE.config[WIFI_DOMAIN].get(wifi.CONF_BAND_MODE, "AUTO")
         cg.add(
             var.set_wifi_band_policy(
                 {

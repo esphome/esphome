@@ -5,7 +5,7 @@
 
 namespace esphome::veml7700 {
 
-static const char *const TAG = "veml7700";
+ESPHOME_LOG_TAG(TAG, "veml7700");
 static const size_t VEML_REG_SIZE = 2;
 
 static float reduce_to_zero(float a, float b) { return (a > b) ? (a - b) : 0; }
@@ -80,8 +80,7 @@ static const char *get_gain_str(Gain gain) {
 void VEML7700Component::setup() {
   auto err = this->configure_();
   if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Sensor configuration failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Sensor configuration failed"));
   } else {
     this->state_ = State::INITIAL_SETUP_COMPLETED;
   }
@@ -109,10 +108,6 @@ void VEML7700Component::dump_config() {
   LOG_SENSOR("  ", "FAKE_IR channel lux", this->fake_infrared_sensor_);
   LOG_SENSOR("  ", "Actual gain", this->actual_gain_sensor_);
   LOG_SENSOR("  ", "Actual integration time", this->actual_integration_time_sensor_);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void VEML7700Component::update() {

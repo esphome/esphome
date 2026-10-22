@@ -3,7 +3,7 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.fan";
+ESPHOME_LOG_TAG(TAG, "tuya.fan");
 
 void TuyaFan::setup() {
   auto speed_id = this->speed_id_;

@@ -17,7 +17,8 @@ from esphome.core.entity_helpers import (
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@dhoeben"]
+CODEOWNERS = ["@esphome/core"]
+DOMAIN = "water_heater"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -29,15 +30,16 @@ WaterHeaterTraits = water_heater_ns.class_("WaterHeaterTraits")
 CONF_TARGET_TEMPERATURE_STEP = "target_temperature_step"
 
 WaterHeaterMode = water_heater_ns.enum("WaterHeaterMode")
-WATER_HEATER_MODES = {
-    "OFF": WaterHeaterMode.WATER_HEATER_MODE_OFF,
-    "ECO": WaterHeaterMode.WATER_HEATER_MODE_ECO,
-    "ELECTRIC": WaterHeaterMode.WATER_HEATER_MODE_ELECTRIC,
-    "PERFORMANCE": WaterHeaterMode.WATER_HEATER_MODE_PERFORMANCE,
-    "HIGH_DEMAND": WaterHeaterMode.WATER_HEATER_MODE_HIGH_DEMAND,
-    "HEAT_PUMP": WaterHeaterMode.WATER_HEATER_MODE_HEAT_PUMP,
-    "GAS": WaterHeaterMode.WATER_HEATER_MODE_GAS,
-}
+WATER_HEATER_MODES = WaterHeaterMode.options(
+    "OFF",
+    "ECO",
+    "ELECTRIC",
+    "PERFORMANCE",
+    "HIGH_DEMAND",
+    "HEAT_PUMP",
+    "GAS",
+    prefix="WATER_HEATER_MODE_",
+)
 validate_water_heater_mode = cv.enum(WATER_HEATER_MODES, upper=True)
 
 _WATER_HEATER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(

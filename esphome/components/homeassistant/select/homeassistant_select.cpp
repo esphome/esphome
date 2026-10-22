@@ -2,127 +2,18 @@
 
 #include <cstring>
 
+#include "../homeassistant.h"
+
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.select";
-
-namespace {
-
-/// Emit the UTF-8 encoding of a code point. Rejects NUL, which would end the option early.
-template<typename C> bool emit_utf8(uint32_t code_point, C &on_char) {
-  if (code_point == 0 || code_point > 0x10FFFF)
-    return false;
-  if (code_point < 0x80) {
-    on_char(static_cast<char>(code_point));
-  } else if (code_point < 0x800) {
-    on_char(static_cast<char>(0xC0 | (code_point >> 6)));
-    on_char(static_cast<char>(0x80 | (code_point & 0x3F)));
-  } else if (code_point < 0x10000) {
-    on_char(static_cast<char>(0xE0 | (code_point >> 12)));
-    on_char(static_cast<char>(0x80 | ((code_point >> 6) & 0x3F)));
-    on_char(static_cast<char>(0x80 | (code_point & 0x3F)));
-  } else {
-    on_char(static_cast<char>(0xF0 | (code_point >> 18)));
-    on_char(static_cast<char>(0x80 | ((code_point >> 12) & 0x3F)));
-    on_char(static_cast<char>(0x80 | ((code_point >> 6) & 0x3F)));
-    on_char(static_cast<char>(0x80 | (code_point & 0x3F)));
-  }
-  return true;
-}
-
-/** Walk a list attribute as Home Assistant sends it: the Python repr of a list of strings, such as
- * `['Low', "It's high", 'caf\xe9']`.
- *
- * Calls on_char for each decoded byte of an option and on_option at the end of each option. Returns false
- * on malformed input; the callbacks may already have run by then.
- */
-template<typename C, typename O> bool parse_option_list(StringRef src, C &&on_char, O &&on_option) {
-  const char *pos = src.c_str();
-  const char *const end = pos + src.size();
-  auto skip_spaces = [&]() {
-    while (pos < end && *pos == ' ')
-      pos++;
-  };
-
-  skip_spaces();
-  if (pos == end || *pos != '[')
-    return false;
-  pos++;
-  skip_spaces();
-  if (pos < end && *pos == ']') {
-    pos++;
-  } else {
-    while (true) {
-      skip_spaces();
-      if (pos == end || (*pos != '\'' && *pos != '"'))
-        return false;
-      const char quote = *pos++;
-      while (true) {
-        if (pos == end)
-          return false;
-        const char c = *pos++;
-        if (c == quote)
-          break;
-        if (c != '\\') {
-          on_char(c);
-          continue;
-        }
-        if (pos == end)
-          return false;
-        const char escape = *pos++;
-        switch (escape) {
-          case '\\':
-          case '\'':
-          case '"':
-            on_char(escape);
-            break;
-          case 'n':
-            on_char('\n');
-            break;
-          case 'r':
-            on_char('\r');
-            break;
-          case 't':
-            on_char('\t');
-            break;
-          case 'x':
-          case 'u':
-          case 'U': {
-            const size_t digits = escape == 'x' ? 2 : (escape == 'u' ? 4 : 8);
-            if (static_cast<size_t>(end - pos) < digits)
-              return false;
-            auto code_point = parse_hex<uint32_t>(pos, digits);
-            if (!code_point.has_value() || !emit_utf8(*code_point, on_char))
-              return false;
-            pos += digits;
-            break;
-          }
-          default:
-            return false;
-        }
-      }
-      on_option();
-      skip_spaces();
-      if (pos == end)
-        return false;
-      const char separator = *pos++;
-      if (separator == ']')
-        break;
-      if (separator != ',')
-        return false;
-    }
-  }
-  skip_spaces();
-  return pos == end;
-}
-
-}  // namespace
+ESPHOME_LOG_TAG(TAG, "homeassistant.select");
 
 void HomeassistantSelect::setup() {
   this->options_buffer_ = std::make_unique<char[]>(this->options_buffer_size_);
@@ -145,7 +36,7 @@ void HomeassistantSelect::options_changed_(StringRef options) {
   size_t match_len = 0;
   bool matching = active != nullptr;
   optional<size_t> new_active;
-  bool valid = parse_option_list(
+  bool valid = parse_python_list(
       options,
       [&](char c) {
         bytes++;
@@ -182,7 +73,7 @@ void HomeassistantSelect::options_changed_(StringRef options) {
   size_t offset = 0;
   size_t option_start = 0;
   size_t index = 0;
-  parse_option_list(
+  parse_python_list(
       options, [&](char c) { buffer[offset++] = c; },
       [&]() {
         buffer[offset++] = '\0';
@@ -230,27 +121,33 @@ void HomeassistantSelect::control(size_t index) {
     return;
   }
 
-  static constexpr auto SERVICE_SELECT = StringRef::from_lit("select.select_option");
-  static constexpr auto SERVICE_INPUT_SELECT = StringRef::from_lit("input_select.select_option");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr auto OPTION_KEY = StringRef::from_lit("option");
-  static constexpr char INPUT_PREFIX[] = "input_";
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  if (this->entity_id_[0] == '\0') {
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(this->get_log_name()));
+    return;
+  }
+#endif
+
+  // In flash on the ESP8266 and encoded from there
+  static const char SERVICE_SELECT[] PROGMEM = "select.select_option";
+  static const char SERVICE_INPUT_SELECT[] PROGMEM = "input_select.select_option";
+  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
+  static const char OPTION_KEY[] PROGMEM = "option";
 
   api::HomeassistantActionRequest resp;
-  if (strncmp(this->entity_id_, INPUT_PREFIX, sizeof(INPUT_PREFIX) - 1) == 0) {
-    resp.service = SERVICE_INPUT_SELECT;
-  } else {
-    resp.service = SERVICE_SELECT;
-  }
+  // An input helper entity id starts with the "input_" its action name starts with
+  const bool input_helper = ESPHOME_strncmp_P(this->entity_id_, SERVICE_INPUT_SELECT, sizeof("input_") - 1) == 0;
+  resp.service =
+      input_helper ? ProgmemStringRef::from_lit(SERVICE_INPUT_SELECT) : ProgmemStringRef::from_lit(SERVICE_SELECT);
 
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.key = ENTITY_ID_KEY;
-  entity_id.value = StringRef(this->entity_id_);
+  entity_id.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
+  entity_id.value = ProgmemStringRef(StringRef(this->entity_id_));
 
   auto &option = resp.data.emplace_back();
-  option.key = OPTION_KEY;
-  option.value = StringRef(this->option_at(index));
+  option.key = ProgmemStringRef::from_lit(OPTION_KEY);
+  option.value = ProgmemStringRef(StringRef(this->option_at(index)));
 
   api::global_api_server->send_homeassistant_action(resp);
 }

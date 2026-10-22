@@ -18,9 +18,13 @@
 #include "esphome/components/usb_uart/usb_uart.h"
 #endif
 
+#ifdef USE_SERIAL_PROXY_HOST_UART
+#include "esphome/components/uart/uart_component_host.h"
+#endif
+
 namespace esphome::serial_proxy {
 
-static const char *const TAG = "serial_proxy";
+ESPHOME_LOG_TAG(TAG, "serial_proxy");
 
 uint32_t SerialProxy::stall_loop_time = 0;
 uint32_t SerialProxy::stall_spent_ms = 0;
@@ -277,9 +281,15 @@ SerialProxyResult SerialProxy::set_mode_from_client(api::APIConnection *api_conn
   ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
            mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? LOG_STR_LITERAL("PROTOCOL") : LOG_STR_LITERAL("RAW"));
 #ifdef USE_SERIAL_PROXY_TAP
+  const bool entering_protocol_mode =
+      this->mode_ != api::enums::SERIAL_PROXY_MODE_PROTOCOL && mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL;
   const bool leaving_protocol_mode =
       this->mode_ != api::enums::SERIAL_PROXY_MODE_RAW && mode == api::enums::SERIAL_PROXY_MODE_RAW;
   this->mode_ = mode;
+
+  if (entering_protocol_mode && this->tap_ != nullptr) {
+    this->tap_->on_protocol_enabled();
+  }
 
   // Only for an explicit client request, not for reset_mode_() at the end of a session:
   // an ordinary disconnect says nothing about the device, whereas a client deliberately
@@ -373,6 +383,19 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   const bool dtr = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_DTR) != 0;
   ESP_LOGV(TAG, "Setting modem pins [%" PRIu32 "]: RTS=%s, DTR=%s", this->instance_index_, ONOFF(rts), ONOFF(dtr));
 
+  // The UART goes first, so a failure leaves every line as it was. A line with a GPIO pin keeps
+  // the UART's current state; with both on GPIO there is nothing to send
+  bool applied = true;
+  if (this->rts_pin_ == nullptr || this->dtr_pin_ == nullptr) {
+    this->with_modem_uart_([this, dtr, rts, &applied](auto *uart) {
+      applied = uart->set_modem_control(this->dtr_pin_ != nullptr ? uart->get_dtr() : dtr,
+                                        this->rts_pin_ != nullptr ? uart->get_rts() : rts);
+    });
+  }
+  if (!applied) {
+    ESP_LOGW(TAG, "Modem pins did not reach the UART on serial proxy [%" PRIu32 "]", this->instance_index_);
+    return SerialProxyResult::SERIAL_PROXY_RESULT_ERROR;
+  }
   if (this->rts_pin_ != nullptr) {
     this->rts_state_ = rts;
     this->rts_pin_->digital_write(rts);
@@ -412,6 +435,8 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
     msg.usb.product_id = scratch.product_id;
     msg.usb.bcd_device = scratch.bcd_device;
     msg.usb.interface_number = this->usb_channel_->get_interface_number();
+    msg.usb.interface_class = this->usb_channel_->get_interface_class();
+    msg.usb.port_number = this->usb_channel_->get_port_number();
     msg.manufacturer = StringRef(scratch.manufacturer);
     msg.product = StringRef(scratch.product);
     msg.serial_number = StringRef(scratch.serial_number);
@@ -426,6 +451,14 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
 void SerialProxy::on_usb_connection_changed_(bool connected) {
   ESP_LOGD(TAG, "USB device %s serial proxy [%" PRIu32 "]",
            connected ? LOG_STR_LITERAL("attached to") : LOG_STR_LITERAL("removed from"), this->instance_index_);
+#ifdef USE_SERIAL_PROXY_TAP
+  // Before telling clients, so a tap never acknowledges a frame from the old device after
+  // a client has been told it is gone. The subscriber and the mode stay: both belong to
+  // the client's session, and only the client knows whether that session is over.
+  if (!connected && this->tap_ != nullptr) {
+    this->tap_->on_device_disconnected();
+  }
+#endif
 #ifdef USE_API
   if (api::global_api_server == nullptr) {
     return;
@@ -439,8 +472,16 @@ void SerialProxy::on_usb_connection_changed_(bool connected) {
 #endif
 
 uint32_t SerialProxy::get_modem_pins() const {
-  return (this->rts_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
-         (this->dtr_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
+  bool rts = this->rts_state_;
+  bool dtr = this->dtr_state_;
+  this->with_modem_uart_([this, &rts, &dtr](auto *uart) {
+    if (this->rts_pin_ == nullptr)
+      rts = uart->get_rts();
+    if (this->dtr_pin_ == nullptr)
+      dtr = uart->get_dtr();
+  });
+  return (rts ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+         (dtr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
 }
 
 SerialProxyResult SerialProxy::flush_port(api::APIConnection *api_connection) {

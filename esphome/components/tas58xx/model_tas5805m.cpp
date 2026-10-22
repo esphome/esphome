@@ -15,9 +15,12 @@ static const uint8_t STARTUP_SEQUENCE[][2] PROGMEM = {
     {0x60, 0x01},  // ADR_PIN_CTRL: output
     {0x7D, 0x11},
     {0x7E, 0xFF},
-    {0x00, 0x01},
+    {0x00, 0x01},  // Page 1
     {0x51, 0x05},
-    {0x00, 0x00},
+    {0x00, 0x00},  // Page 0
+
+    // Additional register configuration
+    {0x53, 0x60},  // ANA_CTRL: for high audio performance use 175kHz bandwidth with Fsw=768kHz
 };
 
 static const LogString *model_name() { return LOG_STR("TAS5805M"); }

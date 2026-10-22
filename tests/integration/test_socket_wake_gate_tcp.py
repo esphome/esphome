@@ -17,7 +17,9 @@ import time
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -42,18 +44,14 @@ async def test_socket_wake_gate_tcp(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "socket-wake-gate-tcp"
+        await assert_device_name(client, "socket-wake-gate-tcp")
 
-        try:
-            await asyncio.wait_for(boot_done, timeout=15.0)
-        except TimeoutError:
-            pytest.fail("BOOT_DONE never appeared — device did not complete boot")
+        await wait_or_fail(
+            boot_done, 15.0, "BOOT_DONE never appeared — device did not complete boot"
+        )
 
         _, services = await client.list_entities_services()
-        ping_service = next((s for s in services if s.name == "ping"), None)
-        assert ping_service is not None, "ping service not found"
+        ping_service = require_service(services, "ping")
 
         # Execute the service and time how long until PONG appears in logs.
         # The request bytes arrive on an accept_loop_monitored() TCP socket,
@@ -61,10 +59,7 @@ async def test_socket_wake_gate_tcp(
         t_send = time.monotonic()
         await client.execute_service(ping_service, {})
 
-        try:
-            await asyncio.wait_for(pong, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("PONG never appeared — service did not execute")
+        await wait_or_fail(pong, 5.0, "PONG never appeared — service did not execute")
 
         elapsed_ms = (time.monotonic() - t_send) * 1000
         # Without the fix the gate stays closed for up to loop_interval_=2000ms.

@@ -1,11 +1,12 @@
 #include "online_image.h"
 #include "esphome/components/runtime_image/image_decoder.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cstdio>
 
-static const char *const TAG = "online_image";
+ESPHOME_LOG_TAG(TAG, "online_image");
 static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
 static const char *const ETAG_HEADER_NAME = "etag";
 static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
@@ -47,6 +48,13 @@ void OnlineImage::update() {
 
   if (!this->validate_url_(this->url_)) {
     ESP_LOGE(TAG, "Invalid URL: %s", this->url_.c_str());
+    this->download_error_callback_.call();
+    return;
+  }
+
+  // A failed allocation at boot, or while growing the buffer for a JPEG, leaves no download buffer
+  if (this->download_buffer_.size() == 0 && this->download_buffer_.resize(this->download_buffer_initial_size_) == 0) {
+    // resize() logged the failed allocation
     this->download_error_callback_.call();
     return;
   }
@@ -133,12 +141,17 @@ void OnlineImage::update() {
   }
 
   // JPEG requires the complete image in the download buffer before decoding
-  if (format == runtime_image::JPEG && total_size > this->download_buffer_.size()) {
-    this->download_buffer_.resize(total_size);
+  if (format == runtime_image::JPEG && total_size > this->download_buffer_.size() &&
+      this->download_buffer_.resize(total_size) == 0) {
+    // resize() logged the failed allocation; the next update() allocates the configured buffer again
+    this->end_connection_();
+    this->download_error_callback_.call();
+    return;
   }
 
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
   this->start_time_ = millis();
+  this->last_data_time_ = this->start_time_;
   this->enable_loop();
 }
 
@@ -161,18 +174,7 @@ void OnlineImage::loop() {
   if (this->is_decode_finished() || (this->downloader_->content_length > 0 &&
                                      this->downloader_->get_bytes_read() >= this->downloader_->content_length &&
                                      this->download_buffer_.unread() == 0)) {
-    // Finalize decoding
-    this->end_decode();
-
-    ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 " ms", this->downloader_->get_bytes_read(),
-             millis() - this->start_time_);
-
-    // Save caching headers
-    this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
-    this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
-
-    this->download_finished_callback_.call(false);
-    this->end_connection_();
+    this->finish_download_();
     return;
   }
 
@@ -184,6 +186,7 @@ void OnlineImage::loop() {
     auto len = this->downloader_->read(this->download_buffer_.append(), available);
 
     if (len > 0) {
+      this->last_data_time_ = App.get_loop_component_start_time();
       this->download_buffer_.write(len);
 
       // Feed data to decoder
@@ -204,23 +207,74 @@ void OnlineImage::loop() {
       this->end_connection_();
       this->download_error_callback_.call();
       return;
+    } else if (this->downloader_->is_read_complete()) {
+      // The response has ended, so data left in the buffer can never be completed
+      size_t unread = this->download_buffer_.unread();
+      if (unread == 0 && this->downloader_->get_bytes_read() > 0) {
+        // A decoder that counts pixels knows the image was cut off; PNG cannot tell, so it passes
+        if (this->is_decode_finished() || !this->decoder_knows_end()) {
+          this->finish_download_();
+          return;
+        }
+        ESP_LOGE(TAG, "Download ended before the image was complete");
+      } else if (unread == 0) {
+        ESP_LOGE(TAG, "Server sent an empty response");
+      } else {
+        ESP_LOGE(TAG, "Download ended with %zu bytes the decoder could not use", unread);
+      }
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
+    } else if (App.get_loop_component_start_time() - this->last_data_time_ >= this->parent_->get_timeout()) {
+      // ESP-IDF keeps returning 0 after the server closes the connection early
+      ESP_LOGE(TAG, "No data received for %" PRIu32 " ms", this->parent_->get_timeout());
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
     }
   } else {
     // Buffer is full, need to decode some data first
     auto consumed = this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread());
     if (consumed > 0) {
+      this->last_data_time_ = App.get_loop_component_start_time();
       this->download_buffer_.read(consumed);
     } else if (consumed < 0) {
       ESP_LOGE(TAG, "Decode error with full buffer: %d", consumed);
       this->end_connection_();
       this->download_error_callback_.call();
       return;
-    } else {
-      // Decoder can't process more data, might need complete image
-      // This is normal for JPEG which needs complete data
-      ESP_LOGV(TAG, "Decoder waiting for more data");
+    } else if (App.get_loop_component_start_time() - this->last_data_time_ >= this->parent_->get_timeout()) {
+      // The decoder needs more data than the buffer can hold, so it can never make progress. The
+      // no-data timeout gives a decoder that only had to wait the chance to show otherwise.
+      ESP_LOGE(TAG, "Image does not fit in the %zu byte download buffer; increase buffer_size",
+               this->download_buffer_.size());
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
     }
   }
+}
+
+void OnlineImage::finish_download_() {
+  // Must be read before end_decode() ends the decoding session
+  bool decoder_finished = this->is_decode_finished();
+  this->end_decode();
+
+  ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 " ms", this->downloader_->get_bytes_read(),
+           millis() - this->start_time_);
+
+  // Only cache an image the decoder confirmed as complete; otherwise a cut-off image would be kept by 304 responses
+  if (decoder_finished) {
+    this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
+    this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
+  } else {
+    ESP_LOGW(TAG, "Decoder could not confirm the image is complete; not caching it");
+    this->etag_.clear();
+    this->last_modified_.clear();
+  }
+
+  this->download_finished_callback_.call(false);
+  this->end_connection_();
 }
 
 void OnlineImage::end_connection_() {

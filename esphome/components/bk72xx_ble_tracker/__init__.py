@@ -44,6 +44,7 @@ CONF_BK72XX_BLE_ID = "bk72xx_ble_id"
 DEPENDENCIES = ["bk72xx"]
 AUTO_LOAD = ["ble_device_base", "bk72xx_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "bk72xx_ble_tracker"
 
 ble_device_base.register_hub_provider("bk72xx_ble_tracker")
 
@@ -143,8 +144,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    parent = await cg.get_variable(config[CONF_BK72XX_BLE_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_BK72XX_BLE_ID])
     # The tracker registers itself as a controller scan listener in setup();
     # request the codegen-sized StaticVector slot for it.
     bk72xx_ble.request_scan_listener_slot()

@@ -50,7 +50,12 @@ static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 static const UBaseType_t MEDIA_PIPELINE_TASK_PRIORITY = 1;
 static const UBaseType_t ANNOUNCEMENT_PIPELINE_TASK_PRIORITY = 1;
 
-static const char *const TAG = "speaker_media_player";
+ESPHOME_LOG_TAG(TAG, "speaker_media_player");
+
+static constexpr uint32_t UNPAUSE_MEDIA_INTERVAL_ID = 0;
+static constexpr uint32_t NEXT_ANNOUNCEMENT_TIMEOUT_ID = 1;
+static constexpr uint32_t NEXT_MEDIA_TIMEOUT_ID = 2;
+static constexpr uint32_t UNPAUSE_ANNOUNCEMENT_INTERVAL_ID = 3;
 
 void SpeakerMediaPlayer::setup() {
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
@@ -112,13 +117,13 @@ void SpeakerMediaPlayer::set_playlist_delay_ms(AudioPipelineType pipeline_type, 
 void SpeakerMediaPlayer::stop_and_unpause_media_() {
   this->media_pipeline_->stop();
   this->unpause_media_remaining_ = 3;
-  this->set_interval("unpause_med", 50, [this]() {
+  this->set_interval(UNPAUSE_MEDIA_INTERVAL_ID, 50, [this]() {
     if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
-      this->cancel_interval("unpause_med");
+      this->cancel_interval(UNPAUSE_MEDIA_INTERVAL_ID);
       this->media_pipeline_->set_pause_state(false);
       this->is_paused_ = false;
     } else if (--this->unpause_media_remaining_ == 0) {
-      this->cancel_interval("unpause_med");
+      this->cancel_interval(UNPAUSE_MEDIA_INTERVAL_ID);
     }
   });
 }
@@ -148,11 +153,17 @@ void SpeakerMediaPlayer::watch_media_commands_() {
       if (media_command.file.has_value()) {
         playlist_item.file = media_command.file;
       }
+      playlist_item.is_announcement = media_command.is_announcement;
 
       if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
         if (!enqueue) {
+          // Enqueued items switch the volume in loop() when they start
+          this->announcement_volume_.item_started(media_command.is_announcement,
+                                                  this->media_pipeline_state_ == AudioPipelineState::PLAYING ||
+                                                      this->announcement_pipeline_state_ != AudioPipelineState::STOPPED,
+                                                  this->volume, this->speaker_volume_applier_());
           // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
-          this->cancel_timeout("next_ann");
+          this->cancel_timeout(NEXT_ANNOUNCEMENT_TIMEOUT_ID);
           this->announcement_playlist_.clear();
           this->announcement_item_failed_ = false;
           if (media_command.file.has_value()) {
@@ -166,7 +177,7 @@ void SpeakerMediaPlayer::watch_media_commands_() {
       } else {
         if (!enqueue) {
           // Ensure the loaded next item doesn't start playing, clear the queue, start the file, and unpause
-          this->cancel_timeout("next_media");
+          this->cancel_timeout(NEXT_MEDIA_TIMEOUT_ID);
           this->media_playlist_.clear();
           this->media_item_failed_ = false;
           if (this->is_paused_) {
@@ -236,23 +247,23 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
 #endif
             if (this->announcement_pipeline_ != nullptr) {
-              this->cancel_timeout("next_ann");
+              this->cancel_timeout(NEXT_ANNOUNCEMENT_TIMEOUT_ID);
               this->announcement_playlist_.clear();
               this->announcement_item_failed_ = false;
               this->announcement_pipeline_->stop();
               this->unpause_announcement_remaining_ = 3;
-              this->set_interval("unpause_ann", 50, [this]() {
+              this->set_interval(UNPAUSE_ANNOUNCEMENT_INTERVAL_ID, 50, [this]() {
                 if (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED) {
-                  this->cancel_interval("unpause_ann");
+                  this->cancel_interval(UNPAUSE_ANNOUNCEMENT_INTERVAL_ID);
                   this->announcement_pipeline_->set_pause_state(false);
                 } else if (--this->unpause_announcement_remaining_ == 0) {
-                  this->cancel_interval("unpause_ann");
+                  this->cancel_interval(UNPAUSE_ANNOUNCEMENT_INTERVAL_ID);
                 }
               });
             }
           } else {
             if (this->media_pipeline_ != nullptr) {
-              this->cancel_timeout("next_media");
+              this->cancel_timeout(NEXT_MEDIA_TIMEOUT_ID);
               this->media_playlist_.clear();
               this->media_item_failed_ = false;
               this->stop_and_unpause_media_();
@@ -397,6 +408,9 @@ void SpeakerMediaPlayer::loop() {
       if (!this->announcement_playlist_.empty()) {
         // Start the next announcement file
         PlaylistItem playlist_item = this->announcement_playlist_.front();
+        this->announcement_volume_.item_started(playlist_item.is_announcement,
+                                                this->media_pipeline_state_ == AudioPipelineState::PLAYING,
+                                                this->volume, this->speaker_volume_applier_());
         if (playlist_item.url.has_value()) {
           this->announcement_pipeline_->start_url(playlist_item.url.value());
         } else if (playlist_item.file.has_value()) {
@@ -408,7 +422,8 @@ void SpeakerMediaPlayer::loop() {
           this->announcement_pipeline_->set_pause_state(true);
           // Internally unpause the pipeline after the delay between playlist items. Announcements do not follow the
           // media player's pause state.
-          this->set_timeout("next_ann", timeout_ms, [this]() { this->announcement_pipeline_->set_pause_state(false); });
+          this->set_timeout(NEXT_ANNOUNCEMENT_TIMEOUT_ID, timeout_ms,
+                            [this]() { this->announcement_pipeline_->set_pause_state(false); });
         }
       }
     } else {
@@ -454,7 +469,7 @@ void SpeakerMediaPlayer::loop() {
               this->media_pipeline_->set_pause_state(true);
               // Internally unpause the pipeline after the delay between playlist items, if the media player state is
               // not paused.
-              this->set_timeout("next_media", timeout_ms,
+              this->set_timeout(NEXT_MEDIA_TIMEOUT_ID, timeout_ms,
                                 [this]() { this->media_pipeline_->set_pause_state(this->is_paused_); });
             }
           }
@@ -471,6 +486,12 @@ void SpeakerMediaPlayer::loop() {
         }
       }
     }
+  }
+
+  if (this->announcement_pipeline_state_ == AudioPipelineState::STOPPED && this->announcement_playlist_.empty()) {
+    this->announcement_volume_.playlist_finished(this->volume, this->speaker_volume_applier_());
+  } else if (this->media_pipeline_state_ == AudioPipelineState::PLAYING) {
+    this->announcement_volume_.end(this->volume, this->speaker_volume_applier_());
   }
 
   if (this->state != old_state) {
@@ -502,6 +523,7 @@ void SpeakerMediaPlayer::play_file(const audio::AudioFile *media_file, bool anno
   MediaCallCommand media_command;
 
   media_command.file = media_file;
+  media_command.is_announcement = announcement;
   if (this->single_pipeline_() || announcement) {
     media_command.announce = true;
   } else {
@@ -520,7 +542,8 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   MediaCallCommand media_command;
 
   auto ann = call.get_announcement();
-  if (this->single_pipeline_() || (ann.has_value() && *ann)) {
+  media_command.is_announcement = ann.has_value() && *ann;
+  if (this->single_pipeline_() || media_command.is_announcement) {
     media_command.announce = true;
   } else {
     media_command.announce = false;
@@ -617,6 +640,19 @@ void SpeakerMediaPlayer::set_mute_state_(bool mute_state) {
 }
 
 void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
+  // A volume change made while an announcement uses the announcement volume applies right away
+  this->announcement_volume_.cancel();
+  this->apply_speaker_volume_(volume);
+
+  if (publish) {
+    this->volume = volume;
+    this->save_volume_restore_state_();
+  }
+
+  this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
+}
+
+void SpeakerMediaPlayer::apply_speaker_volume_(float volume) {
   // Remap the volume to fit within the configured limits. An effectively zero volume is passed through as zero so
   // the speaker silences it, otherwise volume_min would make it audible.
   float bounded_volume = (volume < SILENT_VOLUME_THRESHOLD)
@@ -630,13 +666,10 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
   if (this->announcement_speaker_ != nullptr) {
     this->announcement_speaker_->set_volume(bounded_volume);
   }
+}
 
-  if (publish) {
-    this->volume = volume;
-    this->save_volume_restore_state_();
-  }
-
-  this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
+void SpeakerMediaPlayer::set_announcement_volume(float announcement_volume) {
+  this->announcement_volume_.set_volume(announcement_volume, this->speaker_volume_applier_());
 }
 
 }  // namespace esphome::speaker
