@@ -3,7 +3,7 @@
 
 namespace esphome::seeed_multi_channel_relay {
 
-static const char *const TAG = "switch.seeed_multi_channel_relay";
+ESPHOME_LOG_TAG(TAG, "switch.seeed_multi_channel_relay");
 
 #ifdef USE_SWITCH_INTERLOCK
 static constexpr uint32_t INTERLOCK_TIMEOUT_ID = 0;

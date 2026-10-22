@@ -3,7 +3,7 @@
 
 namespace esphome::seeed_multi_channel_relay {
 
-static const char *const TAG = "seeed_multi_channel_relay";
+ESPHOME_LOG_TAG(TAG, "seeed_multi_channel_relay");
 
 void SeeedMultiChannelRelay::channel_ctrl_(uint8_t state) {
   this->channel_state_ = state;
@@ -28,11 +28,8 @@ void SeeedMultiChannelRelay::dump_config() {
 /*! @brief Read a certain length of data to the specified register address. */
 uint8_t SeeedMultiChannelRelay::read1_byte_(uint8_t register_address) {
   uint8_t data;
-  if (!this->read_byte(register_address, &data)) {
-    ESP_LOGW(TAG, "Read from relay failed!");
-    this->status_set_warning();
-    return uint8_t(0);
-  }
+  if (!this->status_comm_result(this->read_byte(register_address, &data), LOG_STR("Read from relay failed")))
+    return 0;
   return data;
 }
 
@@ -69,11 +66,7 @@ uint8_t SeeedMultiChannelRelay::get_firmware_version() {
 
 /*! @brief Write a certain length of data to the specified register address. */
 void SeeedMultiChannelRelay::write1_byte_(uint8_t register_address, uint8_t data) {
-  if (!this->write_byte(register_address, data)) {
-    ESP_LOGW(TAG, "Write to relay failed!");
-    this->status_set_warning();
-    return;
-  }
+  this->status_comm_result(this->write_byte(register_address, data), LOG_STR("Write to relay failed"));
 }
 
 }  // namespace esphome::seeed_multi_channel_relay
