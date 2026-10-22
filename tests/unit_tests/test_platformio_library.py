@@ -1601,6 +1601,37 @@ def test_owner_qualified_string_dependency_is_fetched_and_wired(
     assert asked == [("esphome", "A"), ("o", "B")]
 
 
+def test_versionless_url_dependency_is_wired_to_its_source(
+    tmp_path, monkeypatch
+) -> None:
+    """A dependency written as a git or ``file://`` URL goes by the key its
+    source gave it: the requester is wired to it and it is built."""
+    asked = _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [
+                    "https://github.com/vendor/B.git",
+                    (tmp_path / "local" / "C").as_uri(),
+                ],
+            },
+            "vendor/B": {"name": "B"},
+            "C": {"name": "C"},
+        },
+    )
+    emitted: dict[str, ConvertedLibrary] = {}
+    top = convert_libraries(
+        [Library("esphome/A", None, None)],
+        _backend(emit=lambda c: emitted.__setitem__(c.name, c)),
+    )
+    assert [d.name for d in top[0].dependencies] == ["C", "vendor/B"]
+    assert isinstance(emitted["vendor/B"].source, GitSource)
+    assert isinstance(emitted["C"].source, LocalSource)
+    assert asked == [("esphome", "A")]
+
+
 def test_empty_version_is_settled_like_a_missing_one(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:

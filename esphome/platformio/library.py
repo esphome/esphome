@@ -1520,6 +1520,11 @@ def convert_libraries(
                 name, owner, requester, nodes, explicit
             ) or _satisfying_key(name, owner, requester, nodes, by_name)
             if found is None:
+                # A dependency written as a URL goes by the key its source gave it
+                key = fetched.get((name.lower(), (owner or "").lower()))
+                if key in components and key != requester:
+                    found = (key, False)
+            if found is None:
                 if not backend_provides(name, owner):
                     unresolved[(requester, name)] = None
                 continue
