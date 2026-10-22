@@ -5,14 +5,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-#include <esp_system.h>
-#endif
-#ifdef USE_ESP8266
-#include <Esp.h>
-extern "C" {
-#include <user_interface.h>
-}
+#ifdef USE_DEEP_SLEEP
+#include "esphome/components/deep_sleep/deep_sleep_component.h"
 #endif
 
 namespace esphome::cw2017 {
@@ -45,11 +39,8 @@ static bool version_is_running(uint8_t version) { return (version & 0xFD) == 0x0
 
 // The configured profile only changes with new firmware, and flashing never ends in a deep-sleep wake.
 static bool woke_from_deep_sleep() {
-#if defined(USE_ESP32)
-  return esp_reset_reason() == ESP_RST_DEEPSLEEP;
-#elif defined(USE_ESP8266)
-  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-  return ESP.getResetInfoPtr()->reason == REASON_DEEP_SLEEP_AWAKE;
+#ifdef USE_DEEP_SLEEP
+  return deep_sleep::get_wakeup_cause() != deep_sleep::WAKEUP_CAUSE_NONE;
 #else
   return false;
 #endif
