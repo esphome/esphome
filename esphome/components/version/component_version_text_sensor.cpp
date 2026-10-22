@@ -4,7 +4,7 @@
 
 namespace esphome::version {
 
-static const char *const TAG = "version.text_sensor";
+ESPHOME_LOG_TAG(TAG, "version.text_sensor");
 
 std::string ComponentVersionTextSensor::version_string_() const {
 #ifdef USE_ESP8266
