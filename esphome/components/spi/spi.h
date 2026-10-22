@@ -183,6 +183,7 @@ class SPIDelegateDummy;
 // a thin wrapper over SPIClass.
 class SPIDelegate {
   friend class SPIClient;
+  friend class SPIComponent;  // hands out NULL_DELEGATE for a failed bus
 
  public:
   SPIDelegate() = default;
