@@ -24,6 +24,7 @@ from aioesphomeapi import (
 import pytest
 
 from .host_prefs import clear_host_prefs
+from .log_utils import LineWaiter
 from .state_utils import (
     InitialStateHelper,
     require_entity,
@@ -45,15 +46,10 @@ async def test_template_climate_publish_all_fields(
     clear_host_prefs(DEVICE_NAME)
 
     state_updates: list[aioesphomeapi.ClimateState] = []
-    on_control_count = 0
-
-    def on_log_line(line: str) -> None:
-        nonlocal on_control_count
-        if "on_control fired" in line:
-            on_control_count += 1
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
 
@@ -91,6 +87,6 @@ async def test_template_climate_publish_all_fields(
         assert len(state_updates) == 1, (
             f"Expected exactly one ClimateState update, got {len(state_updates)}"
         )
-        assert on_control_count == 0, (
+        assert not any("on_control fired" in line for line in waiter.lines), (
             "climate.template.publish must not trigger on_control"
         )

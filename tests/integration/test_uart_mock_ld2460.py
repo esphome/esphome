@@ -14,11 +14,10 @@ test_uart_mock_ld2460:
 
 from __future__ import annotations
 
-import asyncio
-
 from aioesphomeapi import ButtonInfo
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -31,15 +30,7 @@ async def test_uart_mock_ld2460(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2460 frame parsing with the datasheet frames, garbage and overflow."""
-    loop = asyncio.get_running_loop()
-    overflow_seen = loop.create_future()
-    tx_log_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Max frame length exceeded" in line and not overflow_seen.done():
-            overflow_seen.set_result(True)
-        if "uart_mock" in line and "TX " in line:
-            tx_log_lines.append(line)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -75,7 +66,7 @@ async def test_uart_mock_ld2460(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -121,7 +112,9 @@ async def test_uart_mock_ld2460(
             "Timeout waiting for the recovery frame",
             sensor_states=collector.sensor_states,
         )
-        assert overflow_seen.done(), "Expected 'Max frame length exceeded' in the log"
+        assert any("Max frame length exceeded" in line for line in waiter.lines), (
+            "Expected 'Max frame length exceeded' in the log"
+        )
         assert (
             pytest.approx(3.606, abs=0.01)
             in collector.sensor_states["target_1_distance"]
@@ -140,7 +133,9 @@ async def test_uart_mock_ld2460(
         )
 
         # The hub sent the installation-mode query from the datasheet (table 11)
-        tx_data = " ".join(tx_log_lines)
+        tx_data = " ".join(
+            line for line in waiter.lines if "uart_mock" in line and "TX " in line
+        )
         assert "FD:FC:FB:FA:0A:0C:00:01:04:03:02:01" in tx_data, (
             f"Expected the installation-mode query in the TX log, got: {tx_data}"
         )

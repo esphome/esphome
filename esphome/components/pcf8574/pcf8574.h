@@ -33,7 +33,7 @@ class PCF8574Component final : public Component,
   void dump_config() override;
 
  protected:
-  static void IRAM_ATTR gpio_intr(PCF8574Component *arg);
+  static void gpio_intr(PCF8574Component *arg);
 
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;

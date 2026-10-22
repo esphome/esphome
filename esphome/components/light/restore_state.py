@@ -11,18 +11,20 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_COLOR_MODE, CONF_STATE
 from esphome.core import Lambda
+from esphome.core.entity_helpers import (
+    RESTORE_STATE_INITIAL,
+    RESTORE_STATE_INVERT,
+    RESTORE_STATE_KEEP,
+    RESTORE_STATE_NONE,
+    restore_state_keyword,
+    restore_state_schema,
+)
 from esphome.cpp_generator import call_lambda
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .automation import LIGHT_STATE_FIELDS, validate_light_state
 from .types import ColorMode, LightStateRTCState
-
-RESTORE_STATE_KEEP = "KEEP"
-RESTORE_STATE_INVERT = "INVERT"
-RESTORE_STATE_INITIAL = "INITIAL"
-RESTORE_STATE_ALL = "ALL"
-RESTORE_STATE_NONE = "NONE"
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,11 @@ _STATE_STRUCT_FIELDS: tuple[tuple[str, str], ...] = tuple(
 )
 # Canonical struct-member order, used only to make generated code deterministic --
 # these are independent field assignments, so the actual order never affects behavior.
-_MEMBER_ORDER: tuple[str, ...] = tuple(member for _, member in _ALL_STATE_FIELDS)
+_MEMBER_ORDER: tuple[str, ...] = (
+    *(member for _, member in _ALL_STATE_FIELDS),
+    # Not a LightStateField: its value is a name looked up in this light's effects: list
+    "effect",
+)
 
 # A pending `s.<member> = <value>;` statement, tagged with the member it writes.
 StateStatement = tuple[str, str]
@@ -170,12 +176,13 @@ async def _process_value(value: Any, member: str) -> str:
 
 
 async def _initial_state_statements(
-    initial_state_config: ConfigType | None,
+    initial_state_config: ConfigType | None, effect_index: int = 0
 ) -> list[StateStatement]:
     """
     Create assignments for every field the user set in `initial_state:`, in canonical
     struct-member order. A field given as `!lambda` is resolved and called immediately,
-    the same way `light.control`'s own field lambdas are.
+    the same way `light.control`'s own field lambdas are. `effect_index` is the resolved
+    `initial_state: effect`; 0 (no effect) is the struct default and emits nothing.
     """
     if not initial_state_config:
         return []
@@ -188,6 +195,8 @@ async def _initial_state_statements(
         )
     if (inferred := _inferred_color_mode(initial_state_config)) is not None:
         statements.append(("color_mode", f"s.color_mode = {inferred};"))
+    if effect_index:
+        statements.append(("effect", f"s.effect = {effect_index};"))
     return statements
 
 
@@ -290,10 +299,12 @@ def _keep_or(validator: Callable[[Any], Any]) -> Callable[[Any], Any]:
             except cv.Invalid:
                 inner = ()
             return (RESTORE_STATE_KEEP, RESTORE_STATE_INITIAL, *inner)
-        if isinstance(value, str):
-            upper = value.strip().upper()
-            if upper in (RESTORE_STATE_KEEP, RESTORE_STATE_INITIAL):
-                return upper
+        if (
+            keyword := restore_state_keyword(
+                value, (RESTORE_STATE_KEEP, RESTORE_STATE_INITIAL)
+            )
+        ) is not None:
+            return keyword
         return validator(value)
 
     return validate
@@ -308,10 +319,12 @@ def _validate_restore_state_state(value: Any) -> str | bool:
             RESTORE_STATE_INITIAL,
             *validate_light_state(SCHEMA_EXTRACT),
         )
-    if isinstance(value, str):
-        upper = value.strip().upper()
-        if upper in (RESTORE_STATE_KEEP, RESTORE_STATE_INVERT, RESTORE_STATE_INITIAL):
-            return upper
+    if (
+        keyword := restore_state_keyword(
+            value, (RESTORE_STATE_KEEP, RESTORE_STATE_INVERT, RESTORE_STATE_INITIAL)
+        )
+    ) is not None:
+        return keyword
     return validate_light_state(value)
 
 
@@ -327,19 +340,7 @@ _RESTORE_STATE_FIELDS_SCHEMA = cv.Schema(
 )
 
 
-@schema_extractor("schema")
-def RESTORE_STATE_SCHEMA(value: Any) -> ConfigType | str:
-    """
-    The restore_state: config key can be a mapping of per-field overrides, `all`, or `none`.
-    """
-    if value == SCHEMA_EXTRACT:
-        # The `all`/`none` string shorthands have no representation in the extracted
-        # docs schema; only the per-field mapping form is walked here.
-        return _RESTORE_STATE_FIELDS_SCHEMA
-    if isinstance(value, str):
-        upper = value.strip().upper()
-        if upper == RESTORE_STATE_ALL:
-            value = {}
-        elif upper == RESTORE_STATE_NONE:
-            return RESTORE_STATE_NONE
-    return _RESTORE_STATE_FIELDS_SCHEMA(value)
+# A mapping of per-field overrides, `all`, or `none`, which stays the keyword for to_code
+RESTORE_STATE_SCHEMA = restore_state_schema(
+    _RESTORE_STATE_FIELDS_SCHEMA, RESTORE_STATE_NONE
+)

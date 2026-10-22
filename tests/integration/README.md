@@ -239,11 +239,10 @@ await initial_state_helper.wait_for_initial_states()
 # Now perform your test actions - on_state will only receive new changes
 # ... trigger state changes ...
 
-# Wait for expected state
-try:
-    result = await asyncio.wait_for(state_future, timeout=5.0)
-except asyncio.TimeoutError:
-    pytest.fail(f"Expected state not received. Got: {list(states.values())}")
+# Wait for expected state; on timeout the test fails and shows the states received
+result = await wait_or_fail(
+    state_future, 5.0, "Expected state not received", states=states
+)
 ```
 
 **Legacy: Manual State Tracking**
@@ -268,10 +267,9 @@ def on_state(state: EntityState) -> None:
 client.subscribe_states(on_state)
 
 # Wait for state with timeout
-try:
-    result = await asyncio.wait_for(state_future, timeout=5.0)
-except asyncio.TimeoutError:
-    pytest.fail(f"Expected state not received. Got: {list(states.values())}")
+result = await wait_or_fail(
+    state_future, 5.0, "Expected state not received", states=states
+)
 ```
 
 ##### Service Execution Pattern
@@ -351,6 +349,7 @@ esphome:
     - id: my_device
       name: "Test Device"
       area_id: living_room
+      relation: via
 
 # API services
 api:
