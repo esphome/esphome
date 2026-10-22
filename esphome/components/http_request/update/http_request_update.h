@@ -21,11 +21,11 @@ class HttpRequestUpdate;
 
 // One manifest check: handed from update() to the task and back to the main loop.
 struct TaskResult {
-  HttpRequestUpdate *update;
-  const char *source_url;  // the URL this check reads, fixed before it starts
+  HttpRequestUpdate *update{nullptr};
+  const char *source_url{nullptr};  // the URL this check reads, fixed before it starts
   update::UpdateInfo info;
   const LogString *error_str{nullptr};  // set on failure, nullptr on success
-  bool owns_source_url;                 // the check holds the buffer until it ends, see begin_check_()
+  bool owns_source_url{false};          // the check holds the buffer until it ends, see begin_check_()
 };
 
 class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
@@ -67,9 +67,7 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   uint8_t initial_check_remaining_{0};
 
  private:
-#ifdef USE_HOST
   friend class testing::HttpRequestUpdateTest;
-#endif
   void release_source_url_();
   // A check reads the URL it started with until it ends, on the update task or inline through an
   // automation it triggers. Ownership of that buffer moves to the check, so a set_source_url in the
