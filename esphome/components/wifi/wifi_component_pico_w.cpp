@@ -166,8 +166,9 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
       return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
     case CYW43_LINK_NONET:
       return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
+    default:
+      return WiFiSTAConnectStatus::IDLE;
   }
-  return WiFiSTAConnectStatus::IDLE;
 }
 
 int WiFiComponent::s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result) {
