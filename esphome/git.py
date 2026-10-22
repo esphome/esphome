@@ -145,7 +145,7 @@ class GitRepositoryError(GitException):
     """Exception raised when a git repository is in an invalid state."""
 
 
-def _redact_url_credentials(text: str) -> str:
+def redact_url_credentials(text: str) -> str:
     """Mask userinfo in any URLs embedded in ``text``.
 
     Users can put credentials directly in a git URL, and log output is
@@ -211,7 +211,7 @@ def run_git_command(
             delay = 2**attempt
             _LOGGER.warning(
                 "Git command failed: %s. Retrying in %d seconds... (attempt %d/%d)",
-                _redact_url_credentials(str(err)),
+                redact_url_credentials(str(err)),
                 delay,
                 attempt,
                 attempts,
@@ -254,7 +254,7 @@ def _run_git_command_once(
 
     _LOGGER.debug(
         "Running git command: %s (cwd=%s, isolated=%s)",
-        _redact_url_credentials(" ".join(cmd)),
+        redact_url_credentials(" ".join(cmd)),
         cwd,
         git_dir is not None,
     )
@@ -288,7 +288,7 @@ def _run_git_command_once(
         # never retried.
         raise GitCommandError(
             f"git exited with code {ret.returncode}: "
-            f"{_redact_url_credentials(' '.join(cmd))}"
+            f"{redact_url_credentials(' '.join(cmd))}"
         )
 
     return ret.stdout.decode("utf-8").strip()
@@ -412,7 +412,7 @@ def _repo_cache_lock(
     # Lazy import: keeps filelock off the CLI startup import path.
     from filelock import FileLock
 
-    safe_key = _redact_url_credentials(key)
+    safe_key = redact_url_credentials(key)
     # acquire() creates the lock file's directory itself; git clone later
     # creates the hash directory next to it. fallback_to_soft would silently
     # downgrade ENOSYS to a SoftFileLock, whose stale existence marker from
@@ -527,7 +527,7 @@ def update_submodules(repo_dir: Path, key: str) -> None:
     """
     if not (repo_dir / ".gitmodules").is_file():
         return
-    _LOGGER.info("Updating submodules for %s", _redact_url_credentials(key))
+    _LOGGER.info("Updating submodules for %s", redact_url_credentials(key))
     run_git_command(
         ["git", "submodule", "update", "--init", "--recursive", "--depth=1"],
         cwd=repo_dir,
@@ -699,7 +699,7 @@ def _clone_or_update_locked(
     key = _cache_key(url, ref)
     # The user may have embedded credentials in the URL itself; log this
     # instead of key.
-    safe_key = _redact_url_credentials(key)
+    safe_key = redact_url_credentials(key)
 
     # Keep the caller's URL for the recovery re-clone below: rewriting the
     # rewritten URL would double the userinfo, and the recursive call must
@@ -849,7 +849,7 @@ def _clone_or_update_locked(
                         "Could not refresh %s (%s); using the existing clone "
                         "at %s (last updated %s ago)",
                         safe_key,
-                        _redact_url_credentials(str(err)),
+                        redact_url_credentials(str(err)),
                         old_sha,
                         # age_seconds is inf when neither FETCH_HEAD nor HEAD
                         # could be stat'ed; format_duration would overflow
@@ -893,7 +893,7 @@ def _clone_or_update_locked(
                 _LOGGER.warning(
                     "Repository %s has issues (%s), attempting recovery",
                     safe_key,
-                    _redact_url_credentials(str(err)),
+                    redact_url_credentials(str(err)),
                 )
                 _LOGGER.info("Removing broken repository at %s", repo_dir)
                 _remove_repo_dir(repo_dir)

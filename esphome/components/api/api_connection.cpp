@@ -1242,6 +1242,9 @@ void APIConnection::on_get_yaml_request() {
 }
 
 void APIConnection::try_send_store_yaml_() {
+  // The blob stays in flash; each chunk is framed through the shared send buffer like any other
+  // message, sized to a batch packet so the buffer never grows past what a state batch needs, and a
+  // partial socket write parks the rest in the connection's overflow buffer.
   // Advance only after a successful send, so a full TX buffer retries the same chunk from loop()
   while (this->helper_->can_write_without_blocking()) {
     const size_t to_send = std::min(STORE_YAML_DATA_SIZE - this->store_yaml_pos_, MAX_BATCH_PACKET_SIZE);

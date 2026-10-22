@@ -638,13 +638,17 @@ class DiscoveredYamlFiles:
     *un-resolved* filename matched :data:`esphome.const.SECRETS_FILES` (so
     a ``secrets.yaml`` symlinked to a differently-named target is still
     flagged as secrets). ``files`` is incomplete when ``unresolved`` (templated
-    include paths) or ``load_errors`` is non-empty.
+    include paths) or ``load_errors`` is non-empty. ``aliases`` maps a resolved
+    path to the path the YAML referenced it by (lexically normalized, symlinks
+    kept), so a file included through a symlink can be laid out under the name
+    the config uses.
     """
 
     files: list[Path] = field(default_factory=list)
     secrets: set[Path] = field(default_factory=set)
     unresolved: list[str] = field(default_factory=list)
     load_errors: list[str] = field(default_factory=list)
+    aliases: dict[Path, Path] = field(default_factory=dict)
 
 
 def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
@@ -664,10 +668,14 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
     from esphome.const import SECRETS_FILES
 
     secrets: set[Path] = set()
+    aliases: dict[Path, Path] = {}
 
     def _capture_secret(fname: Path) -> None:
+        resolved = Path(fname).resolve()
         if Path(fname).name in SECRETS_FILES:
-            secrets.add(Path(fname).resolve())
+            secrets.add(resolved)
+        # First reference wins, so a file reached through a symlink keeps that name.
+        aliases.setdefault(resolved, Path(os.path.normpath(Path(fname).absolute())))
 
     with track_yaml_loads() as loaded:
         load_listeners.append(_capture_secret)
@@ -694,7 +702,8 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         if path not in seen and path.is_file():
             seen.add(path)
             unique.append(path)
-    return DiscoveredYamlFiles(unique, secrets & seen, unresolved, load_errors)
+    aliases = {path: alias for path, alias in aliases.items() if path in seen}
+    return DiscoveredYamlFiles(unique, secrets & seen, unresolved, load_errors, aliases)
 
 
 def _add_data_ref(fn):
@@ -1106,7 +1115,11 @@ for _loader in (ESPHomeLoader, ESPHomePurePythonLoader):
 
 
 def load_yaml(
-    fname: Path, clear_secrets: bool = True, *, track_document_range: bool = True
+    fname: Path,
+    clear_secrets: bool = True,
+    *,
+    track_document_range: bool = True,
+    resolve_document_include: bool = True,
 ) -> Any:
     """Load a YAML file.
 
@@ -1116,21 +1129,39 @@ def load_yaml(
     generated code; callers that neither validate nor generate code (the
     upload/logs fast path re-reading the validated config cache) can skip
     it, roughly halving parse time.
+
+    resolve_document_include=False returns a document that is a single
+    ``!include`` as the deferred IncludeFile, keeping its ``vars`` and
+    ``condition`` for callers that write the file back out.
     """
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
         _LOADED_SECRET_NAMES.clear()
-    return _load_yaml_internal(fname, track_document_range=track_document_range)
+    return _load_yaml_internal(
+        fname,
+        track_document_range=track_document_range,
+        resolve_document_include=resolve_document_include,
+    )
 
 
-def _load_yaml_internal(fname: Path, *, track_document_range: bool = True) -> Any:
+def _load_yaml_internal(
+    fname: Path,
+    *,
+    track_document_range: bool = True,
+    resolve_document_include: bool = True,
+) -> Any:
     """Load a YAML file."""
     for listener in tuple(load_listeners):
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
-            res = parse_yaml(fname, f_handle, track_document_range=track_document_range)
+            res = parse_yaml(
+                fname,
+                f_handle,
+                track_document_range=track_document_range,
+                resolve_document_include=resolve_document_include,
+            )
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
     return res
@@ -1153,6 +1184,7 @@ def parse_yaml(
     yaml_loader=None,
     *,
     track_document_range: bool = True,
+    resolve_document_include: bool = True,
 ) -> Any:
     """Parse a YAML file."""
     if yaml_loader is None:
@@ -1184,7 +1216,7 @@ def parse_yaml(
             track_document_range=track_document_range,
         )
     # Resolved after the fallback so a failed first parse never loads the include twice
-    return _resolve_include(res)
+    return _resolve_include(res) if resolve_document_include else res
 
 
 def _load_yaml_internal_with_type(
@@ -1565,6 +1597,22 @@ class ESPHomeDumper(yaml.SafeDumper):
         if is_secret(value.value):
             return self.represent_secret(value.value)
         return self.represent_scalar(tag="!lambda", value=value.value, style="|")
+
+    def represent_data(self, data):
+        # The multi-representer lookup walks the MRO, where str, dict and list
+        # come before the ESPLiteralValue mixin, so the tag is checked first.
+        if isinstance(data, ESPLiteralValue):
+            return self.represent_literal(data)
+        return super().represent_data(data)
+
+    def represent_literal(self, value: ESPLiteralValue) -> yaml.Node:
+        if isinstance(value, dict):
+            return self.represent_mapping("!literal", value)
+        if isinstance(value, list):
+            return self.represent_sequence("!literal", value)
+        if is_secret(value):
+            return self._represent_tagged_secret("!literal", value)
+        return self.represent_scalar(tag="!literal", value=str(value))
 
     def _represent_tagged_secret(self, tag: str, value: Any) -> yaml.ScalarNode:
         # Writing the secret beats leaking the value, but the tag is lost, so

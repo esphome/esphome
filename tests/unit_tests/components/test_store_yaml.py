@@ -6,6 +6,7 @@ from pathlib import Path
 import struct
 
 import pytest
+import yaml
 
 from esphome import yaml_util
 from esphome.components import packages
@@ -14,6 +15,7 @@ from esphome.components.store_yaml import (
     ENVELOPE_MAGIC,
     SECRETS_SKELETON_HEADER,
     UNCAPTURED_NOTE_PATH,
+    _build_secrets_skeleton,
     _final_validate,
     _gather_files,
     _generate_redacted_files,
@@ -31,6 +33,7 @@ from esphome.yaml_util import (
     SensitiveHexInt,
     SensitiveInt,
     SensitiveStr,
+    discover_user_yaml_files,
 )
 
 
@@ -177,7 +180,7 @@ def test_redacted_secrets_file_becomes_skeleton(project: Path) -> None:
     files = _gather_redacted(discovered)
     skeleton = files["secrets.yaml"].decode()
     assert skeleton.startswith(SECRETS_SKELETON_HEADER)
-    assert 'api_key: ""' in skeleton
+    assert "api_key: ''" in skeleton
     assert b"SUPER_SECRET" not in files["secrets.yaml"]
     assert "key: !secret 'api_key'" in files["entry.yaml"].decode()
 
@@ -195,7 +198,7 @@ def test_redacted_symlinked_secrets_outside_root(project: Path, tmp_path: Path) 
     files = _gather_redacted(
         DiscoveredYamlFiles([project / "entry.yaml", resolved], {resolved})
     )
-    assert 'api_key: ""' in files["secrets.yaml"].decode()
+    assert "api_key: ''" in files["secrets.yaml"].decode()
     assert b"SUPER_SECRET" not in b"".join(files.values())
 
 
@@ -217,7 +220,7 @@ def test_redacted_inline_value_becomes_secret_ref(
     CORE.config = {"wifi": [{"password": SensitiveStr(value)}]}
     files = _gather_redacted(_sources(project, "wifi.yaml"))
     assert files["wifi.yaml"] == b"password: !secret 'wifi_password'\n"
-    assert 'wifi_password: ""' in files["secrets.yaml"].decode()
+    assert "wifi_password: ''" in files["secrets.yaml"].decode()
 
 
 @pytest.mark.parametrize(
@@ -241,14 +244,14 @@ def test_redacted_inline_int_value_becomes_secret_ref(
     assert files["thread.yaml"] == (
         b"network_key: !secret 'openthread_network_key'\nname: node 12345\n"
     )
-    assert 'openthread_network_key: ""' in files["secrets.yaml"].decode()
+    assert "openthread_network_key: ''" in files["secrets.yaml"].decode()
 
 
 def test_redacted_quoted_int_value_fails_build(project: Path) -> None:
     """A sensitive integer written as a string is not matched, so the build fails."""
     (project / "thread.yaml").write_text('network_key: "0x1234"\n')
     CORE.config = {"openthread": {"network_key": SensitiveHexInt(0x1234)}}
-    with pytest.raises(EsphomeError, match="openthread.network_key"):
+    with pytest.raises(EsphomeError, match="network_key in thread.yaml"):
         _gather_redacted(_sources(project, "thread.yaml"))
 
 
@@ -277,6 +280,7 @@ def test_redacted_reuses_existing_secret_name_for_duplicated_value(
 
 def test_redacted_raises_when_value_not_locatable(project: Path) -> None:
     """A value not found as a whole scalar fails the build without echoing it."""
+    (project / "wifi.yaml").write_text("ssid: my_ssid\n")
     CORE.config = {"wifi": [{"password": SensitiveStr("not_in_any_file")}]}
     with pytest.raises(EsphomeError, match="wifi.password") as err:
         _gather_redacted(_sources(project, "wifi.yaml"))
@@ -291,7 +295,7 @@ def test_redacted_accepts_secret_only_values(project: Path) -> None:
         project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",)
     )
     files = _gather_redacted(discovered)
-    assert 'api_key: ""' in files["secrets.yaml"].decode()
+    assert "api_key: ''" in files["secrets.yaml"].decode()
 
 
 def test_redacted_skips_empty_sensitive_values(project: Path) -> None:
@@ -318,17 +322,19 @@ def test_redacted_generates_unique_names_on_collision(project: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("files", "sources"),
+    ("files", "sources", "reason"),
     [
         (
             {"wifi.yaml": "password: my_password\nurl: http://user:my_password@host\n"},
             ("wifi.yaml",),
+            "URL with credentials",
         ),
         (
             {
                 "wifi.yaml": "password: my_password\nx: !lambda 'return \"my_password\";'\n"
             },
             ("wifi.yaml",),
+            "embedded",
         ),
         (
             {
@@ -336,19 +342,113 @@ def test_redacted_generates_unique_names_on_collision(project: Path) -> None:
                 "pkg: !include {file: wifi.yaml, vars: {url: 'http://user:my_password@host'}}\n"
             },
             ("entry.yaml", "wifi.yaml"),
+            "URL with credentials",
+        ),
+        (
+            {
+                "entry.yaml": "password: my_password\n"
+                "pkg: !include {file: wifi.yaml, condition: \"${ x == 'my_password' }\"}\n"
+            },
+            ("entry.yaml", "wifi.yaml"),
+            "embedded",
         ),
     ],
-    ids=["url", "lambda", "include_vars"],
+    ids=["url", "lambda", "include_vars", "include_condition"],
 )
 def test_redacted_embedded_sensitive_value_fails_build(
-    project: Path, files: dict[str, str], sources: tuple[str, ...]
+    project: Path, files: dict[str, str], sources: tuple[str, ...], reason: str
 ) -> None:
     """A sensitive value inside a larger scalar fails the build."""
     for name, text in files.items():
         (project / name).write_text(text)
     CORE.config = {"wifi": [{"password": SensitiveStr("my_password")}]}
-    with pytest.raises(EsphomeError, match="embedded"):
+    with pytest.raises(EsphomeError, match=reason):
         _gather_redacted(_sources(project, *sources))
+
+
+def test_redacted_private_package_password_fails_build(project: Path) -> None:
+    """A git package password never reaches the validated config, so it fails closed."""
+    (project / "entry.yaml").write_text(
+        "packages:\n  - url: https://host/repo\n    password: hunter2\n"
+    )
+    CORE.config = {}
+    with pytest.raises(EsphomeError, match="packages.password in entry.yaml"):
+        _gather_redacted(_sources(project, "entry.yaml"))
+
+
+def test_redacted_overridden_package_password_fails_build(project: Path) -> None:
+    """A password a later package overrides is not in the validated config, so it fails closed."""
+    (project / "pkg").mkdir()
+    (project / "pkg" / "common.yaml").write_text("wifi:\n  password: old_pw\n")
+    (project / "entry.yaml").write_text(
+        "packages:\n  common: !include pkg/common.yaml\nwifi:\n  password: new_pw\n"
+    )
+    CORE.config = {"wifi": {"password": SensitiveStr("new_pw")}}
+    with pytest.raises(EsphomeError, match="wifi.password in pkg/common.yaml"):
+        _gather_redacted(_sources(project, "entry.yaml", "pkg/common.yaml"))
+
+
+def test_redacted_secret_url_round_trips(project: Path) -> None:
+    """A package URL loaded through `!secret` is written back as the reference."""
+    (project / "entry.yaml").write_text("packages:\n  - url: !secret pkg_url\n")
+    (project / "secrets.yaml").write_text("pkg_url: https://user:pw@host/repo\n")
+    CORE.config = {}
+    files = _gather_redacted(
+        _sources(project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",))
+    )
+    assert "url: !secret 'pkg_url'" in files["entry.yaml"].decode()
+    assert b"user:pw" not in b"".join(files.values())
+
+
+def test_redacted_dir_include_rebases_nested_include(project: Path) -> None:
+    """An `!include` inside a directory-included file is rebased to the file it is dumped in."""
+    (project / "packages").mkdir()
+    (project / "packages" / "base.yaml").write_text("wifi: !include ../wifi.yaml\n")
+    (project / "entry.yaml").write_text("packages: !include_dir_named packages\n")
+    CORE.config = {}
+    files = _gather_redacted(
+        _sources(project, "entry.yaml", "packages/base.yaml", "wifi.yaml")
+    )
+    assert "wifi: !include 'wifi.yaml'" in files["entry.yaml"].decode()
+    assert "wifi: !include '../wifi.yaml'" in files["packages/base.yaml"].decode()
+
+
+def test_redacted_document_include_keeps_vars(project: Path) -> None:
+    """A file that is a single `!include` with vars keeps the directive."""
+    (project / "entry.yaml").write_text(
+        "!include\n  file: base.yaml\n  vars:\n    name: kitchen\n"
+    )
+    (project / "base.yaml").write_text("esphome:\n  name: ${name}\n")
+    CORE.config = {}
+    files = _gather_redacted(_sources(project, "entry.yaml", "base.yaml"))
+    assert files["entry.yaml"] == b"!include\nfile: base.yaml\nvars:\n  name: kitchen\n"
+
+
+def test_redacted_literal_round_trips(project: Path) -> None:
+    """`!literal` survives the re-dump, so the recovered config is not substituted."""
+    (project / "wifi.yaml").write_text("ssid: !literal '${ssid}'\n")
+    CORE.config = {}
+    files = _gather_redacted(_sources(project, "wifi.yaml"))
+    assert files["wifi.yaml"] == b"ssid: !literal '${ssid}'\n"
+
+
+def test_gather_places_symlinked_include_under_its_alias(
+    project: Path, tmp_path: Path
+) -> None:
+    """A file included through a symlink is laid out under the name the YAML uses."""
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "network.yaml").write_text("ssid: my_ssid\n")
+    (project / "wifi.yaml").unlink()
+    (project / "wifi.yaml").symlink_to(shared / "network.yaml")
+    (project / "entry.yaml").write_text("wifi: !include wifi.yaml\n")
+    CORE.config_path = project / "entry.yaml"
+    CORE.config = {}
+    discovered = discover_user_yaml_files(project / "entry.yaml")
+    entries, _ = _gather_files(discovered)
+    assert [rel for rel, _ in entries] == ["entry.yaml", "wifi.yaml"]
+    files = dict(_read_files_verbatim(entries))
+    assert files["wifi.yaml"] == b"ssid: my_ssid\n"
 
 
 def test_redacted_warns_on_value_collision(
@@ -445,6 +545,32 @@ def test_remote_package_descriptions_read_packages_record() -> None:
 
 def test_remote_package_descriptions_empty_without_packages() -> None:
     assert _remote_package_descriptions() == []
+
+
+def test_remote_package_descriptions_hide_credentials() -> None:
+    """URL userinfo is masked, and a `!secret` URL is named, not printed."""
+    data = packages._get_data()
+    data.remote_sources[
+        packages.RemotePackageSource("https://user:pw@host/repo", "main")
+    ] = None
+    data.remote_sources[
+        packages.RemotePackageSource("https://user:pw@host/private", None)
+    ] = None
+    yaml_util._SECRET_VALUES["https://user:pw@host/private"] = "pkg_url"
+    assert _remote_package_descriptions() == [
+        "https://***@host/repo@main",
+        "!secret pkg_url",
+    ]
+
+
+def test_secrets_skeleton_quotes_awkward_keys() -> None:
+    """Keys that YAML would read as other types load back as the same strings."""
+    keys = {"true", "123", "a: b", "api_key"}
+    skeleton = _build_secrets_skeleton(keys).decode()
+    assert skeleton.startswith(SECRETS_SKELETON_HEADER)
+    assert "'true': ''" in skeleton
+    assert yaml.safe_load(skeleton) == dict.fromkeys(keys, "")
+    assert _build_secrets_skeleton(set()) == SECRETS_SKELETON_HEADER.encode()
 
 
 def test_pack_envelope_roundtrip() -> None:

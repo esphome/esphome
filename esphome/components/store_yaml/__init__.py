@@ -3,8 +3,12 @@ from __future__ import annotations
 from collections.abc import Generator
 from dataclasses import dataclass
 import logging
+import os
 from pathlib import Path
+import re
 import struct
+
+import yaml
 
 from esphome import yaml_util
 import esphome.codegen as cg
@@ -12,9 +16,11 @@ from esphome.components import packages
 from esphome.components.api import CONF_ENCRYPTION
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
-from esphome.const import CONF_API, CONF_KEY
+from esphome.const import CONF_API, CONF_KEY, CONF_PACKAGES, CONF_PASSWORD
 from esphome.core import CORE, EsphomeError, Lambda
+from esphome.expression import has_substitution_or_expression
 import esphome.final_validate as fv
+from esphome.git import redact_url_credentials
 from esphome.helpers import ensure_unique_string, zstd_module
 from esphome.types import ConfigType
 
@@ -40,6 +46,8 @@ SECRETS_SKELETON_HEADER = (
 )
 # Envelope path of the note recording content that could not be captured.
 UNCAPTURED_NOTE_PATH = "store_yaml_uncaptured.yaml"
+# A URL carrying credentials in its userinfo part.
+_URL_USERINFO_RE = re.compile(r"://[^/@\s]+@")
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -85,6 +93,7 @@ def _gather_files(
 
     Returns (relative_path, source_path) pairs and the relative paths of secrets
     files (matched on the unresolved name, so a symlinked secrets.yaml counts).
+    A file reached through a symlink is placed under the name the YAML used.
     """
     if not discovered.files:
         raise EsphomeError(
@@ -110,13 +119,18 @@ def _gather_files(
 
     # Resolved to match discovery's resolved paths; CORE.config_dir is only absolute.
     root = CORE.config_path.resolve().parent
+    # Aliases are lexical, so they are placed against the lexical root.
+    alias_root = Path(os.path.normpath(CORE.config_path.absolute())).parent
 
     entries: list[tuple[str, Path]] = []
     secret_rels: set[str] = set()
     for path in discovered.files:
         # Keep ".." for files outside the root so same-named files don't collide.
         try:
-            rel_str = path.relative_to(root, walk_up=True).as_posix()
+            if (alias := discovered.aliases.get(path)) is not None:
+                rel_str = alias.relative_to(alias_root, walk_up=True).as_posix()
+            else:
+                rel_str = path.relative_to(root, walk_up=True).as_posix()
         except ValueError as err:
             # No common anchor, e.g. a Windows file on another drive.
             raise EsphomeError(
@@ -163,6 +177,8 @@ def _iter_nodes(
         yield path, node.value, False
     elif isinstance(node, yaml_util.IncludeFile):
         yield path, str(node.file), False
+        if isinstance(node.condition, str):
+            yield path, node.condition, False
         if node.vars:
             yield from _iter_nodes(node.vars, path)
     elif isinstance(node, (str, int, float)) and not isinstance(node, bool):
@@ -188,11 +204,18 @@ def _check_sensitive_usage(
 
     Mapping key: fail. Inside a larger scalar: fail if inline, warn if `!secret`.
     Whole scalar elsewhere: warn, it is recovered as the `!secret` reference.
+
+    A value the validated config never saw cannot be known to be redacted, so
+    one under a credential path (the same key path as a sensitive value, or a
+    git package password, which the packages pass strips before validation) or
+    a URL carrying credentials fails unless it comes from `!secret`.
     """
-    if not sensitive:
-        return
+    sensitive_paths = {
+        tuple(info.config_path.split(".")) for info in sensitive.values()
+    }
     key_hits: list[str] = []
     embedded: list[str] = []
+    unverified: list[str] = []
     for rel, tree in trees.items():
         for path, node, is_key in _iter_nodes(tree):
             text = str(node)
@@ -215,8 +238,21 @@ def _check_sensitive_usage(
                         info.secret_name,
                     )
                 continue
-            if is_key:
+            if is_key or not text or yaml_util.is_secret(text) is not None:
                 continue
+            # A substitution reference is checked at its substituted value
+            if not has_substitution_or_expression(text):
+                if _URL_USERINFO_RE.search(text):
+                    unverified.append(
+                        f"{'.'.join(path)} in {rel} (a URL with credentials)"
+                    )
+                    continue
+                if path and (
+                    (path[0] == CONF_PACKAGES and path[-1] == CONF_PASSWORD)
+                    or any(sp[-len(path) :] == path for sp in sensitive_paths)
+                ):
+                    unverified.append(f"{'.'.join(path)} in {rel}")
+                    continue
             for value, other in sensitive.items():
                 if other.is_int or value not in text:
                     continue
@@ -250,6 +286,15 @@ def _check_sensitive_usage(
             "scalars, so these would ship unredacted. Move the value into a "
             "`!secret` referenced on its own, or set `include_secrets: true` "
             "to embed secrets deliberately."
+        )
+    if unverified:
+        raise EsphomeError(
+            "store_yaml: cannot confirm that these values are redacted: "
+            f"{', '.join(unverified)}. They sit where credentials go but are "
+            "not in the validated config (overridden by a later package, or a "
+            "git package password that is used before validation). Reference "
+            "them with `!secret`, or set `include_secrets: true` to embed "
+            "secrets deliberately."
         )
 
 
@@ -302,18 +347,54 @@ def _uncaptured_note(
     return (UNCAPTURED_NOTE_PATH, "".join(parts).encode("utf-8"))
 
 
+def _describe_url(url: str) -> str:
+    """A URL for notes and logs: its secret name, or the URL with userinfo masked."""
+    if (name := yaml_util.is_secret(url)) is not None:
+        return f"!secret {name}"
+    return redact_url_credentials(url)
+
+
 def _remote_package_descriptions() -> list[str]:
     """Describe every remote source packages were fetched from; their files cannot be embedded."""
     return [
-        f"{source.url}@{source.ref}" if source.ref else source.url
+        f"{_describe_url(source.url)}@{source.ref}"
+        if source.ref
+        else _describe_url(source.url)
         for source in packages.get_remote_package_sources()
     ]
 
 
 def _build_secrets_skeleton(keys: set[str]) -> bytes:
-    parts = [SECRETS_SKELETON_HEADER]
-    parts.extend(f'{key}: ""\n' for key in sorted(keys))
-    return "".join(parts).encode("utf-8")
+    # Plain PyYAML, so a key such as "true" or "123" is quoted and loads back as
+    # the same string, and no secret substitution touches the output.
+    body = yaml.safe_dump(dict.fromkeys(sorted(keys), ""), sort_keys=False)
+    return (SECRETS_SKELETON_HEADER + (body if keys else "")).encode("utf-8")
+
+
+def _rebase_includes(node: object, source: Path) -> object:
+    """Point `!include`s that a directory include pulled into `source` back at their files.
+
+    Directory includes are expanded at load time, so an `!include` inside one of
+    their files is dumped as part of `source` and must be relative to it.
+    """
+    if isinstance(node, dict):
+        for key, value in node.items():
+            node[key] = _rebase_includes(value, source)
+    elif isinstance(node, list):
+        for i, item in enumerate(node):
+            node[i] = _rebase_includes(item, source)
+    elif isinstance(node, yaml_util.IncludeFile):
+        origin = node.parent_file.resolve()
+        if origin != source and not node.has_unresolved_file():
+            target = origin.parent / node.file
+            return yaml_util.IncludeFile(
+                source,
+                Path(os.path.relpath(target, source.parent)).as_posix(),
+                node.yaml_loader,
+                vars=node.vars,
+                condition=node.condition,
+            )
+    return node
 
 
 def _generate_redacted_files(
@@ -325,8 +406,14 @@ def _generate_redacted_files(
     """
     sensitive = _collect_sensitive_values()
 
+    # A document that is one `!include` keeps its vars and condition.
     trees = {
-        rel: yaml_util.load_yaml(path, clear_secrets=False)
+        rel: _rebase_includes(
+            yaml_util.load_yaml(
+                path, clear_secrets=False, resolve_document_include=False
+            ),
+            path.resolve(),
+        )
         for rel, path in entries
         if rel not in secret_rels
     }

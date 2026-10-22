@@ -1,6 +1,7 @@
 from collections.abc import Callable, Generator
 import importlib.util
 import io
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -736,6 +737,29 @@ def test_represent_include_file_with_condition() -> None:
         yaml_util.dump({"key": include})
         == "key: !include\n  file: path/to/file.yaml\n  condition: 'true'\n"
     )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("${x}", "key: !literal '${x}'\n"),
+        ({"a": "${x}"}, "key: !literal\n  a: ${x}\n"),
+        (["${x}"], "key: !literal\n  - ${x}\n"),
+    ],
+    ids=["scalar", "mapping", "sequence"],
+)
+def test_represent_literal(value: object, expected: str) -> None:
+    """`!literal` values keep their tag when dumped."""
+    assert yaml_util.dump({"key": make_literal(value)}) == expected
+
+
+def test_represent_literal_secret() -> None:
+    """A literal equal to a registered secret is written as the secret."""
+    yaml_util._SECRET_VALUES["hunter2"] = "pw"
+    try:
+        assert yaml_util.dump({"key": make_literal("hunter2")}) == "key: !secret 'pw'\n"
+    finally:
+        yaml_util._SECRET_VALUES.pop("hunter2", None)
 
 
 def test_represent_include_file_with_data_base_mixin() -> None:
@@ -1807,6 +1831,31 @@ def test_discover_user_yaml_files_tolerates_templated_top_level_include(
         _write_entry_including(tmp_path, "wrapper.yaml")
     )
     assert (tmp_path / "wrapper.yaml").resolve() in discovered.files
+
+
+def test_discover_user_yaml_files_records_symlink_alias(tmp_path: Path) -> None:
+    """A file reached through a symlink is listed by its target and aliased to the link."""
+    target = _write(tmp_path, "shared/network.yaml", "ssid: x\n")
+    link = tmp_path / "wifi.yaml"
+    link.symlink_to(target)
+    discovered = discover_user_yaml_files(_write_entry_including(tmp_path, "wifi.yaml"))
+    assert target.resolve() in discovered.files
+    assert discovered.aliases[target.resolve()] == Path(
+        os.path.normpath(link.absolute())
+    )
+
+
+def test_load_yaml_can_keep_a_document_include(tmp_path: Path) -> None:
+    """resolve_document_include=False returns the deferred include with its vars."""
+    _write(tmp_path, "base.yaml", "esphome:\n  name: ${name}\n")
+    entry = _write(
+        tmp_path, "entry.yaml", "!include\n  file: base.yaml\n  vars:\n    name: k\n"
+    )
+    loaded = yaml_util.load_yaml(entry, resolve_document_include=False)
+    assert isinstance(loaded, yaml_util.IncludeFile)
+    assert loaded.file == "base.yaml"
+    assert loaded.vars == {"name": "k"}
+    assert yaml_util.load_yaml(entry) == {"esphome": {"name": "${name}"}}
 
 
 def test_discover_user_yaml_files_skips_missing_secrets_probe(
