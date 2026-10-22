@@ -25,6 +25,8 @@ void HelloRequest::decode_field(void *self, uint32_t tag, const uint8_t *data, p
       msg.outgoing_connection_target = value.as_bool();
       break;
 #endif
+    default:
+      break;
   }
 }
 uint8_t *HelloResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
@@ -50,6 +52,8 @@ void DisconnectRequest::decode_field(void *self, uint32_t tag, const uint8_t *da
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_VARINT):
       msg.reason = static_cast<enums::DisconnectReason>(value.as_varint());
+      break;
+    default:
       break;
   }
 }
@@ -396,6 +400,8 @@ void WizardInputSetRequest::decode_field(void *self, uint32_t tag, const uint8_t
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
       msg.entity_id = StringRef(value.data(), value.size());
       break;
+    default:
+      break;
   }
 }
 #endif
@@ -559,6 +565,8 @@ void CoverCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *
     case proto_tag(10, WIRE_TYPE_VARINT):
       msg.stop_tilt = value.as_bool();
       break;
+    default:
+      break;
   }
 }
 #endif
@@ -679,6 +687,8 @@ void FanCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *da
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -885,6 +895,8 @@ void LightCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -1028,6 +1040,8 @@ void SwitchCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t 
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -1098,6 +1112,8 @@ void SubscribeLogsRequest::decode_field(void *self, uint32_t tag, const uint8_t 
     case proto_tag(2, WIRE_TYPE_VARINT):
       msg.dump_config = value.as_bool();
       break;
+    default:
+      break;
   }
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
@@ -1126,6 +1142,8 @@ void NoiseEncryptionSetKeyRequest::decode_field(void *self, uint32_t tag, const 
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
       msg.key = value.data();
       msg.key_len = value.size();
+      break;
+    default:
       break;
   }
 }
@@ -1233,6 +1251,8 @@ void HomeassistantActionResponse::decode_field(void *self, uint32_t tag, const u
       msg.response_data_len = value.size();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -1267,6 +1287,8 @@ void HomeAssistantStateResponse::decode_field(void *self, uint32_t tag, const ui
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
       msg.attribute = StringRef(value.data(), value.size());
       break;
+    default:
+      break;
   }
 }
 #endif
@@ -1292,6 +1314,8 @@ void DSTRule::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_
     case proto_tag(6, WIRE_TYPE_VARINT):
       msg.day_of_week = value.as_varint();
       break;
+    default:
+      break;
   }
 }
 void ParsedTimezone::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -1310,6 +1334,8 @@ void ParsedTimezone::decode_field(void *self, uint32_t tag, const uint8_t *data,
     case proto_tag(4, WIRE_TYPE_LENGTH_DELIMITED):
       value.decode_to_message(msg.dst_end);
       break;
+    default:
+      break;
   }
 }
 void GetTimeResponse::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -1322,6 +1348,8 @@ void GetTimeResponse::decode_field(void *self, uint32_t tag, const uint8_t *data
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
       value.decode_to_message(msg.parsed_timezone);
       msg.has_parsed_timezone = true;
+      break;
+    default:
       break;
   }
 }
@@ -1413,6 +1441,8 @@ void ExecuteServiceArgument::decode_field(void *self, uint32_t tag, const uint8_
     case proto_tag(9, WIRE_TYPE_LENGTH_DELIMITED):
       msg.string_array.push_back(value.as_string());
       break;
+    default:
+      break;
   }
 }
 void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
@@ -1447,6 +1477,8 @@ void ExecuteServiceRequest::decode_field(void *self, uint32_t tag, const uint8_t
       msg.return_response = value.as_bool();
       break;
 #endif
+    default:
+      break;
   }
 }
 void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
@@ -1540,6 +1572,8 @@ void CameraImageRequest::decode_field(void *self, uint32_t tag, const uint8_t *d
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       msg.stream = value.as_bool();
+      break;
+    default:
       break;
   }
 }
@@ -1777,6 +1811,8 @@ void ClimateCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -1905,6 +1941,8 @@ void WaterHeaterCommandRequest::decode_field(void *self, uint32_t tag, const uin
     case proto_tag(8, WIRE_TYPE_FIXED32):
       msg.target_temperature_high = value.as_float();
       break;
+    default:
+      break;
   }
 }
 #endif
@@ -1996,6 +2034,8 @@ void NumberCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t 
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -2075,6 +2115,8 @@ void SelectCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t 
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -2177,6 +2219,8 @@ void SirenCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -2260,6 +2304,8 @@ void LockCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *d
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -2309,6 +2355,8 @@ void ButtonCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t 
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -2436,6 +2484,8 @@ void MediaPlayerCommandRequest::decode_field(void *self, uint32_t tag, const uin
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -2447,6 +2497,8 @@ void SubscribeBluetoothLEAdvertisementsRequest::decode_field(void *self, uint32_
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_VARINT):
       msg.flags = value.as_varint();
+      break;
+    default:
       break;
   }
 }
@@ -2506,6 +2558,8 @@ void BluetoothDeviceRequest::decode_field(void *self, uint32_t tag, const uint8_
     case proto_tag(4, WIRE_TYPE_VARINT):
       msg.address_type = value.as_varint();
       break;
+    default:
+      break;
   }
 }
 uint8_t *BluetoothDeviceConnectionResponse::encode_msg(const void *self,
@@ -2533,6 +2587,8 @@ void BluetoothGATTGetServicesRequest::decode_field(void *self, uint32_t tag, con
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_VARINT):
       msg.address = value.as_varint();
+      break;
+    default:
       break;
   }
 }
@@ -2660,6 +2716,8 @@ void BluetoothGATTReadRequest::decode_field(void *self, uint32_t tag, const uint
     case proto_tag(2, WIRE_TYPE_VARINT):
       msg.handle = value.as_varint();
       break;
+    default:
+      break;
   }
 }
 uint8_t *BluetoothGATTReadResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
@@ -2695,6 +2753,8 @@ void BluetoothGATTWriteRequest::decode_field(void *self, uint32_t tag, const uin
       msg.data = value.data();
       msg.data_len = value.size();
       break;
+    default:
+      break;
   }
 }
 void BluetoothGATTReadDescriptorRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
@@ -2707,6 +2767,8 @@ void BluetoothGATTReadDescriptorRequest::decode_field(void *self, uint32_t tag, 
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       msg.handle = value.as_varint();
+      break;
+    default:
       break;
   }
 }
@@ -2725,6 +2787,8 @@ void BluetoothGATTWriteDescriptorRequest::decode_field(void *self, uint32_t tag,
       msg.data = value.data();
       msg.data_len = value.size();
       break;
+    default:
+      break;
   }
 }
 void BluetoothGATTNotifyRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
@@ -2740,6 +2804,8 @@ void BluetoothGATTNotifyRequest::decode_field(void *self, uint32_t tag, const ui
       break;
     case proto_tag(3, WIRE_TYPE_VARINT):
       msg.enable = value.as_bool();
+      break;
+    default:
       break;
   }
 }
@@ -2898,6 +2964,8 @@ void BluetoothScannerSetModeRequest::decode_field(void *self, uint32_t tag, cons
     case proto_tag(1, WIRE_TYPE_VARINT):
       msg.mode = static_cast<enums::BluetoothScannerMode>(value.as_varint());
       break;
+    default:
+      break;
   }
 }
 #endif
@@ -2912,6 +2980,8 @@ void SubscribeVoiceAssistantRequest::decode_field(void *self, uint32_t tag, cons
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       msg.flags = value.as_varint();
+      break;
+    default:
       break;
   }
 }
@@ -2961,6 +3031,8 @@ void VoiceAssistantResponse::decode_field(void *self, uint32_t tag, const uint8_
     case proto_tag(2, WIRE_TYPE_VARINT):
       msg.error = value.as_bool();
       break;
+    default:
+      break;
   }
 }
 void VoiceAssistantEventData::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -2972,6 +3044,8 @@ void VoiceAssistantEventData::decode_field(void *self, uint32_t tag, const uint8
       break;
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
       msg.value = StringRef(value.data(), value.size());
+      break;
+    default:
       break;
   }
 }
@@ -2986,6 +3060,8 @@ void VoiceAssistantEventResponse::decode_field(void *self, uint32_t tag, const u
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
       msg.data.emplace_back();
       value.decode_to_message(msg.data.back());
+      break;
+    default:
       break;
   }
 }
@@ -3003,6 +3079,8 @@ void VoiceAssistantAudio::decode_field(void *self, uint32_t tag, const uint8_t *
     case proto_tag(3, WIRE_TYPE_LENGTH_DELIMITED):
       msg.data2 = value.data();
       msg.data2_len = value.size();
+      break;
+    default:
       break;
   }
 }
@@ -3044,6 +3122,8 @@ void VoiceAssistantTimerEventResponse::decode_field(void *self, uint32_t tag, co
     case proto_tag(6, WIRE_TYPE_VARINT):
       msg.is_active = value.as_bool();
       break;
+    default:
+      break;
   }
 }
 void VoiceAssistantAnnounceRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
@@ -3062,6 +3142,8 @@ void VoiceAssistantAnnounceRequest::decode_field(void *self, uint32_t tag, const
       break;
     case proto_tag(4, WIRE_TYPE_VARINT):
       msg.start_conversation = value.as_bool();
+      break;
+    default:
       break;
   }
 }
@@ -3124,6 +3206,8 @@ void VoiceAssistantExternalWakeWord::decode_field(void *self, uint32_t tag, cons
     case proto_tag(7, WIRE_TYPE_LENGTH_DELIMITED):
       msg.url = StringRef(value.data(), value.size());
       break;
+    default:
+      break;
   }
 }
 void VoiceAssistantConfigurationRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
@@ -3134,6 +3218,8 @@ void VoiceAssistantConfigurationRequest::decode_field(void *self, uint32_t tag, 
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
       msg.external_wake_words.emplace_back();
       value.decode_to_message(msg.external_wake_words.back());
+      break;
+    default:
       break;
   }
 }
@@ -3172,6 +3258,8 @@ void VoiceAssistantSetConfiguration::decode_field(void *self, uint32_t tag, cons
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
       msg.active_wake_words.push_back(value.as_string());
+      break;
+    default:
       break;
   }
 }
@@ -3254,6 +3342,8 @@ void AlarmControlPanelCommandRequest::decode_field(void *self, uint32_t tag, con
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -3333,6 +3423,8 @@ void TextCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *d
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -3414,6 +3506,8 @@ void DateCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *d
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -3495,6 +3589,8 @@ void TimeCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *d
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -3644,6 +3740,8 @@ void ValveCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -3718,6 +3816,8 @@ void DateTimeCommandRequest::decode_field(void *self, uint32_t tag, const uint8_
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -3807,6 +3907,8 @@ void UpdateCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t 
       msg.device_id = value.as_varint();
       break;
 #endif
+    default:
+      break;
   }
 }
 #endif
@@ -3818,6 +3920,8 @@ void ZWaveProxyFrame::decode_field(void *self, uint32_t tag, const uint8_t *data
     case proto_tag(1, WIRE_TYPE_LENGTH_DELIMITED):
       msg.data = value.data();
       msg.data_len = value.size();
+      break;
+    default:
       break;
   }
 }
@@ -3844,6 +3948,8 @@ void ZWaveProxyRequest::decode_field(void *self, uint32_t tag, const uint8_t *da
     case proto_tag(2, WIRE_TYPE_LENGTH_DELIMITED):
       msg.data = value.data();
       msg.data_len = value.size();
+      break;
+    default:
       break;
   }
 }
@@ -3939,6 +4045,8 @@ void InfraredRFTransmitRawTimingsRequest::decode_field(void *self, uint32_t tag,
       break;
     case proto_tag(6, WIRE_TYPE_VARINT):
       msg.modulation = value.as_varint();
+      break;
+    default:
       break;
   }
 }
@@ -4056,6 +4164,8 @@ void SerialProxyConfigureRequest::decode_field(void *self, uint32_t tag, const u
     case proto_tag(6, WIRE_TYPE_VARINT):
       msg.data_size = value.as_varint();
       break;
+    default:
+      break;
   }
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
@@ -4084,6 +4194,8 @@ void SerialProxyWriteRequest::decode_field(void *self, uint32_t tag, const uint8
       msg.data = value.data();
       msg.data_len = value.size();
       break;
+    default:
+      break;
   }
 }
 void SerialProxySetModemPinsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
@@ -4097,6 +4209,8 @@ void SerialProxySetModemPinsRequest::decode_field(void *self, uint32_t tag, cons
     case proto_tag(2, WIRE_TYPE_VARINT):
       msg.line_states = value.as_varint();
       break;
+    default:
+      break;
   }
 }
 void SerialProxyGetModemPinsRequest::decode_field(void *self, uint32_t tag, const uint8_t *data,
@@ -4106,6 +4220,8 @@ void SerialProxyGetModemPinsRequest::decode_field(void *self, uint32_t tag, cons
   switch (tag) {
     case proto_tag(1, WIRE_TYPE_VARINT):
       msg.instance = value.as_varint();
+      break;
+    default:
       break;
   }
 }
@@ -4134,6 +4250,8 @@ void SerialProxyRequest::decode_field(void *self, uint32_t tag, const uint8_t *d
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       msg.type = static_cast<enums::SerialProxyRequestType>(value.as_varint());
+      break;
+    default:
       break;
   }
 }
@@ -4164,6 +4282,8 @@ void SerialProxySetModeRequest::decode_field(void *self, uint32_t tag, const uin
       break;
     case proto_tag(2, WIRE_TYPE_VARINT):
       msg.mode = static_cast<enums::SerialProxyMode>(value.as_varint());
+      break;
+    default:
       break;
   }
 }
@@ -4232,6 +4352,8 @@ void BluetoothSetConnectionParamsRequest::decode_field(void *self, uint32_t tag,
       break;
     case proto_tag(5, WIRE_TYPE_VARINT):
       msg.timeout = value.as_varint();
+      break;
+    default:
       break;
   }
 }
