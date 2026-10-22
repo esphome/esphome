@@ -216,12 +216,8 @@ void M5PM1Component::set_gpio_interrupt_enabled(uint8_t pin, bool enabled) {
   if (!this->valid_pin_(pin)) {
     return;
   }
-  const uint8_t mask = 1 << pin;
-  if (enabled) {
-    this->irq_masks_.gpio &= ~mask;
-  } else {
-    this->irq_masks_.gpio |= mask;
-  }
+  // A set mask bit disables the interrupt
+  assign_bits(this->irq_masks_.gpio, 1 << pin, !enabled);
 }
 
 void M5PM1Component::set_power_interrupt_enabled(uint8_t mask) { this->irq_masks_.power &= ~(mask & 0x3F); }
@@ -229,19 +225,11 @@ void M5PM1Component::set_power_interrupt_enabled(uint8_t mask) { this->irq_masks
 void M5PM1Component::set_system_interrupt_enabled(uint8_t mask) { this->irq_masks_.system &= ~(mask & 0x07); }
 
 void M5PM1Component::set_single_click_interrupt_enabled(bool enabled) {
-  if (enabled) {
-    this->irq_masks_.system &= ~M5PM1_IRQ_SYSTEM_SINGLE_CLICK;
-  } else {
-    this->irq_masks_.system |= M5PM1_IRQ_SYSTEM_SINGLE_CLICK;
-  }
+  assign_bits(this->irq_masks_.system, M5PM1_IRQ_SYSTEM_SINGLE_CLICK, !enabled);
 }
 
 void M5PM1Component::set_double_click_interrupt_enabled(bool enabled) {
-  if (enabled) {
-    this->irq_masks_.system &= ~M5PM1_IRQ_SYSTEM_DOUBLE_CLICK;
-  } else {
-    this->irq_masks_.system |= M5PM1_IRQ_SYSTEM_DOUBLE_CLICK;
-  }
+  assign_bits(this->irq_masks_.system, M5PM1_IRQ_SYSTEM_DOUBLE_CLICK, !enabled);
 }
 
 bool M5PM1Component::read_initial_state_() {
@@ -312,11 +300,7 @@ void M5PM1Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   bool success = this->set_pin_function(pin, M5PM1PinFunction::M5PM1_PIN_FUNCTION_GPIO);
   const bool output = (flags & gpio::FLAG_OUTPUT) != 0;
   const uint8_t pin_mask = 1 << pin;
-  if (output) {
-    this->mode_mask_ |= pin_mask;
-  } else {
-    this->mode_mask_ &= ~pin_mask;
-  }
+  assign_bits(this->mode_mask_, pin_mask, output);
   success &= this->write_byte(REG_GPIO_MODE, this->mode_mask_);
 
   M5PM1PullMode pull = M5PM1PullMode::M5PM1_PULL_MODE_NONE;
@@ -328,11 +312,7 @@ void M5PM1Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   success &= this->write_pin_field_(pin, REG_GPIO_PU_PD_0, REG_GPIO_PU_PD_1, static_cast<uint8_t>(pull));
 
   if (output) {
-    if (flags & gpio::FLAG_OPEN_DRAIN) {
-      this->drive_mask_ |= pin_mask;
-    } else {
-      this->drive_mask_ &= ~pin_mask;
-    }
+    assign_bits(this->drive_mask_, pin_mask, (flags & gpio::FLAG_OPEN_DRAIN) != 0);
     success &= this->write_byte(REG_GPIO_DRV, this->drive_mask_);
   }
   if (!success) {
