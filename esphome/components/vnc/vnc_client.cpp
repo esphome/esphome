@@ -576,7 +576,7 @@ void VncClient::draw_row_(uint16_t x, uint16_t y, uint16_t count, const uint8_t 
     return;
   }
   const int visible = std::min<int>(count, this->vis_w_ - x);
-  this->display_->draw_pixels_at(x, y, visible, 1, pixels, display::COLOR_ORDER_RGB, this->bitness_, false);
+  this->display_->draw_pixels_at(x, y, visible, 1, pixels, this->bitness_, false);
   this->frame_drawn_ = true;
 }
 
