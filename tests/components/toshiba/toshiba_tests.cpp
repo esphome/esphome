@@ -989,10 +989,11 @@ TEST(ToshibaWhTa15pe, RejectsOnlyUnverifiedSilentPresetCombinationsWithoutChangi
         set_preset(f.climate, "NONE");
         f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_LOW);
         f.climate.set_power_selection(0);
-        if (silent_first)
+        if (silent_first) {
           f.climate.set_power_selection(silent);
-        else
+        } else {
           set_preset(f.climate, state.preset);
+        }
         const auto transmissions = f.transmitter.frames.size();
         const auto preset = f.climate.preset;
         const auto custom_preset = f.climate.get_custom_preset();
