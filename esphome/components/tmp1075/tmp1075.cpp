@@ -51,8 +51,8 @@ void TMP1075Sensor::dump_config() {
                 "  polarity   : %d\n"
                 "  alert_mode : %d\n"
                 "  shutdown   : %d",
-                alert_limit_low_, alert_limit_high_, config_.fields.oneshot, config_.fields.rate, config_.fields.faults,
-                config_.fields.polarity, config_.fields.alert_mode, config_.fields.shutdown);
+                alert_limit_low_, alert_limit_high_, config_.oneshot, config_.rate, config_.faults, config_.polarity,
+                config_.alert_mode, config_.shutdown);
 }
 
 void TMP1075Sensor::set_fault_count(const int faults) {
@@ -64,7 +64,7 @@ void TMP1075Sensor::set_fault_count(const int faults) {
     ESP_LOGE(TAG, "'%s' - fault_count too high: %d", LOG_STR_ARG(this->get_log_name()), faults);
     return;
   }
-  config_.fields.faults = faults - 1;
+  config_.faults = faults - 1;
 }
 
 void TMP1075Sensor::log_config_() {
@@ -75,8 +75,7 @@ void TMP1075Sensor::log_config_() {
            "  polarity  : %d\n"
            "  alert_mode: %d\n"
            "  shutdown  : %d",
-           config_.fields.oneshot, config_.fields.rate, config_.fields.faults, config_.fields.polarity,
-           config_.fields.alert_mode, config_.fields.shutdown);
+           config_.oneshot, config_.rate, config_.faults, config_.polarity, config_.alert_mode, config_.shutdown);
 }
 
 void TMP1075Sensor::write_config() {
@@ -86,9 +85,9 @@ void TMP1075Sensor::write_config() {
 }
 
 void TMP1075Sensor::send_config_() {
-  ESP_LOGV(TAG, "'%s' - sending configuration %02x", LOG_STR_ARG(this->get_log_name()), config_.regvalue);
+  ESP_LOGV(TAG, "'%s' - sending configuration %02x", LOG_STR_ARG(this->get_log_name()), config_.to_byte());
   log_config_();
-  if (!this->write_byte(REG_CFGR, config_.regvalue)) {
+  if (!this->write_byte(REG_CFGR, config_.to_byte())) {
     ESP_LOGW(TAG, "'%s' - unable to write configuration register", LOG_STR_ARG(this->get_log_name()));
     return;
   }
