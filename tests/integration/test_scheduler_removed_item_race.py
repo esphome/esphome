@@ -7,6 +7,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -82,10 +83,9 @@ async def test_scheduler_removed_item_race(
         await client.execute_service(run_test_service, {})
 
         # Wait for test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Test did not complete within timeout")
+        await wait_or_fail(
+            test_complete_future, 5.0, "Test did not complete within timeout"
+        )
 
         # Verify results
         assert test_passed, (

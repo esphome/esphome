@@ -7,8 +7,10 @@ from typing import Any
 
 import pytest
 
+from esphome import final_validate as fv
 import esphome.codegen as cg
 from esphome.components import button, number, select, switch
+from esphome.config import Config
 from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -28,6 +30,7 @@ from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     finalize_entity_strings,
     get_base_entity_object_id,
+    inherit_property_from,
     register_device_class,
     register_icon,
     register_unit_of_measurement,
@@ -40,11 +43,8 @@ from esphome.helpers import fnv1_hash, sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting names from configure_entity_/set_name calls
-# Matches: .configure_entity_("name", ...) or .set_name("name", ...)
-ENTITY_NAME_PATTERN = re.compile(
-    r'\.(?:configure_entity_|set_name)\(["\']([^"\']*)["\']'
-)
+# Extracts the name from .configure_entity_(ESPHOME_PSTR("name"), ...)
+ENTITY_NAME_PATTERN = re.compile(r'\.configure_entity_\(ESPHOME_PSTR\("([^"]*)"')
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -1078,6 +1078,8 @@ async def test_finalize_no_flags(setup_test_environment: list[str]) -> None:
     packed = _extract_packed_value(added_expressions)
     assert packed == 0
     assert "//" not in added_expressions[0]
+    # Names go through ESPHOME_PSTR so they stay in flash on ESP8266
+    assert 'ESPHOME_PSTR("Test")' in added_expressions[0]
 
 
 @pytest.mark.asyncio
@@ -1608,3 +1610,59 @@ async def test_sub_entities_create_from_whole_config(
     assert str(var) == "rf_sw"
     assert calls == [("rf_sw", "<esphome__rf_sw__fn>")]
     assert setup_test_environment == ["hub->set_rf_switch(rf_sw)"]
+
+
+def test_entity_duplicate_validator_without_name() -> None:
+    """A config with no name is returned untouched and not tracked."""
+    validator = entity_duplicate_validator("sensor")
+    config = {CONF_ID: "no_name"}
+
+    assert validator(config) is config
+    assert not CORE.unique_ids
+
+
+def test_entity_duplicate_validator_testing_mode_allows_duplicates() -> None:
+    validator = entity_duplicate_validator("sensor")
+    config = {CONF_NAME: "Temperature"}
+    validator(dict(config))
+    CORE.testing_mode = True
+    try:
+        assert validator(dict(config)) == config
+    finally:
+        CORE.testing_mode = False
+
+
+def _inherit_config() -> tuple[Config, ID, dict[str, Any]]:
+    parent_id = ID("parent", is_declaration=True)
+    child_id = ID("child", is_declaration=True)
+    parent = {CONF_ID: parent_id, CONF_ICON: "mdi:parent"}
+    child = {CONF_ID: child_id, "source": ID("parent"), "inner": {"x": 1}}
+    config = Config()
+    config["sensor"] = [parent, child]
+    config.declare_ids.append((parent_id, ["sensor", 0, CONF_ID]))
+    config.declare_ids.append((child_id, ["sensor", 1, CONF_ID]))
+    return config, child_id, child
+
+
+def test_inherit_property_from_path_inherits_value() -> None:
+    config, child_id, child = _inherit_config()
+    validator = inherit_property_from(["inner", CONF_ICON], "source")
+    token = fv.full_config.set(config)
+    try:
+        assert validator(child) is child
+    finally:
+        fv.full_config.reset(token)
+
+    assert config["sensor"][1]["inner"][CONF_ICON] == "mdi:parent"
+
+
+def test_inherit_property_from_path_missing_is_ignored() -> None:
+    config, _, child = _inherit_config()
+    validator = inherit_property_from(["absent", CONF_ICON], "source")
+    token = fv.full_config.set(config)
+    try:
+        assert validator(child) is child
+    finally:
+        fv.full_config.reset(token)
+
+    assert "absent" not in config["sensor"][1]
