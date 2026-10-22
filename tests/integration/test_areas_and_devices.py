@@ -69,6 +69,11 @@ async def test_areas_and_devices(
             "Smart Switch should be in Kitchen"
         )
 
+        # TODO: once aioesphomeapi with SubDeviceInfo.relation is pinned
+        # (esphome/aioesphomeapi#1955), assert the relations: Light Controller
+        # and Temperature Sensor VIA, Motion Detector and Smart Switch
+        # CHILD. The fixture mixes them so the per-device field path is built.
+
         # Verify suggested_area is set to the top-level area name
         assert device_info.suggested_area == "Living Room", (
             f"Expected suggested_area to be 'Living Room', got '{device_info.suggested_area}'"
