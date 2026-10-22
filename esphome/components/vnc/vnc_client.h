@@ -120,6 +120,7 @@ class VncClient : public Component {
   LazyCallbackManager<void()> disconnect_callback_;
   HighFrequencyLoopRequester high_freq_;
   // Fingerprint of the tile last drawn at each 16x16 cell, so tiles the server resends unchanged are skipped.
+  // A 32-bit FNV-1a collision keeps a stale tile until it changes again or vnc.refresh runs; accepted.
   uint32_t *tile_hashes_{nullptr};
 
   uint32_t update_delay_ms_{200};
