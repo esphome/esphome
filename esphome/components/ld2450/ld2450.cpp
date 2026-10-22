@@ -186,6 +186,9 @@ static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
 // Length of the frame that opens the buffer: periodic frames are fixed size, command frames carry their
 // payload length after the header. Returns 0 while the length field has not arrived yet.
 static inline uint16_t frame_length(const uint8_t *buffer, uint8_t len) {
+  if (len < HEADER_FOOTER_SIZE) {
+    return 0;
+  }
   if (validate_header_footer(DATA_FRAME_HEADER, buffer)) {
     return PERIODIC_FRAME_SIZE;
   }
@@ -688,6 +691,9 @@ void LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_VERSION: {
+      if (this->buffer_pos_ < 12 + sizeof(this->version_)) {
+        break;  // too short to hold a version
+      }
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
       char version_s[20];
       ld24xx::format_version_str(this->version_, version_s);
@@ -749,6 +755,9 @@ void LD2450Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_TARGET_MODE:
+      if (this->buffer_pos_ < 11) {
+        break;  // too short to hold the mode
+      }
       ESP_LOGV(TAG, "Query target tracking mode");
 #ifdef USE_SWITCH
       if (this->multi_target_switch_ != nullptr) {
@@ -790,7 +799,6 @@ void LD2450Component::handle_ack_data_() {
     default:
       break;
   }
-  return;
 }
 
 // Read LD2450 buffer data
@@ -798,11 +806,14 @@ void LD2450Component::readline_(int readch) {
   if (readch < 0) {
     return;  // No data available
   }
-  // Only a frame header opens the buffer; other bytes are dropped until one starts
-  if (this->buffer_pos_ < HEADER_FOOTER_SIZE && readch != DATA_FRAME_HEADER[this->buffer_pos_] &&
-      readch != CMD_FRAME_HEADER[this->buffer_pos_]) {
-    this->buffer_pos_ = 0;
-    if (readch != DATA_FRAME_HEADER[0] && readch != CMD_FRAME_HEADER[0]) {
+  // Only a frame header opens the buffer; other bytes are dropped until one starts. The first byte
+  // picks the header, so the two headers cannot mix.
+  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
+    const uint8_t *header = this->buffer_data_[0] == DATA_FRAME_HEADER[0] ? DATA_FRAME_HEADER : CMD_FRAME_HEADER;
+    if (this->buffer_pos_ > 0 && readch != header[this->buffer_pos_]) {
+      this->buffer_pos_ = 0;
+    }
+    if (this->buffer_pos_ == 0 && readch != DATA_FRAME_HEADER[0] && readch != CMD_FRAME_HEADER[0]) {
       return;
     }
   }
