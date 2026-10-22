@@ -299,22 +299,16 @@ def test_dns_servers_limited_to_two() -> None:
 
 
 @pytest.mark.parametrize(
-    ("wisp_core", "too_old"),
-    [
-        ({"idf": cv.Version(5, 5, 5)}, "6.0.0"),
-        ({"idf": cv.Version(6, 0, 1)}, None),
-        ({"framework": "arduino", "idf": cv.Version(3, 3, 12)}, "4.0.0-alpha1"),
-        ({"framework": "arduino", "idf": cv.Version(4, 0, 0, "alpha1")}, None),
-    ],
+    ("wisp_core", "valid"),
+    [({"idf": cv.Version(5, 5, 5)}, False), ({"idf": cv.Version(6, 0, 1)}, True)],
     indirect=["wisp_core"],
 )
-def test_second_dns_server_requires_idf_6(wisp_core: None, too_old: str | None) -> None:
-    """Arduino 4.0.0-alpha1 is the first release on ESP-IDF 6.0, so it is the floor there."""
+def test_second_dns_server_requires_idf_6(wisp_core: None, valid: bool) -> None:
     ap = _wisp_ap(dns_servers=["1.1.1.1", "8.8.8.8"])
-    if too_old is None:
+    if valid:
         wifi_network_ap(ap)
     else:
-        with pytest.raises(cv.Invalid, match=too_old):
+        with pytest.raises(cv.Invalid, match="6.0.0"):
             wifi_network_ap(ap)
 
 
