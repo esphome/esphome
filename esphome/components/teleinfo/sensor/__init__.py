@@ -70,8 +70,6 @@ _POWER = _preset(UNIT_WATT, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT)
 _DURATION_MIN = _preset(UNIT_MINUTE, DEVICE_CLASS_DURATION, STATE_CLASS_MEASUREMENT)
 # Numeric values without a physical unit (indexes, bit fields, versions)
 _NO_UNIT: dict[str, str] = {}
-# Text values, which a sensor cannot publish; a text_sensor should be used instead
-_TEXT: dict[str, str] = {}
 
 # Legacy defaults, kept for tags without a known preset
 _LEGACY_DEFAULT = {**_ENERGY, CONF_ICON: ICON_FLASH}
@@ -108,17 +106,6 @@ TIC_TAG_CONFIGS = {
     "NTARF": _NO_UNIT,
     "NJOURF": _NO_UNIT,
     "RELAIS": _NO_UNIT,
-    "ADSC": _TEXT,
-    "DATE": _TEXT,
-    "NGTF": _TEXT,
-    "LTARF": _TEXT,
-    "STGE": _TEXT,
-    "DPM": _TEXT,
-    "FPM": _TEXT,
-    "MSG": _TEXT,
-    "PRM": _TEXT,
-    "PJOURF": _TEXT,
-    "PPOINTE": _TEXT,
     # Historical mode
     "BASE": _ENERGY,
     "HCH": _ENERGY,
@@ -132,14 +119,32 @@ TIC_TAG_CONFIGS = {
     "PAPP": _APPARENT_POWER_VA,
     "PMAX": _APPARENT_POWER_VA,
     "PEJP": _DURATION_MIN,
-    "PPOT": _NO_UNIT,
-    "ADCO": _TEXT,
-    "OPTARIF": _TEXT,
-    "PTEC": _TEXT,
-    "DEMAIN": _TEXT,
-    "HHPHC": _TEXT,
-    "MOTDETAT": _TEXT,
 }
+
+# Prefixes of text tags, which a sensor cannot publish; a text_sensor should be used
+# instead. They get no preset, and no prefix here is a prefix of a preset one either.
+TIC_TEXT_TAGS = (
+    # Standard mode
+    "ADSC",
+    "DATE",
+    "NGTF",
+    "LTARF",
+    "STGE",
+    "DPM",
+    "FPM",
+    "MSG",
+    "PRM",
+    "PJOURF",
+    "PPOINTE",
+    # Historical mode
+    "ADCO",
+    "OPTARIF",
+    "PTEC",
+    "DEMAIN",
+    "HHPHC",
+    "MOTDETAT",
+    "PPOT",
+)
 
 
 def apply_tag_config(config: ConfigType) -> ConfigType:
@@ -155,15 +160,16 @@ def apply_tag_config(config: ConfigType) -> ConfigType:
 
     # Runs before cv.string, so the raw value may not be a string yet
     tag_name = str(config[CONF_TAG_NAME])
+    if tag_name.startswith(TIC_TEXT_TAGS):
+        _LOGGER.warning(
+            "TeleInfo tag '%s' holds a text value, use a text_sensor instead", tag_name
+        )
+        return config
+
     preset = next(
         (p for prefix, p in TIC_TAG_CONFIGS.items() if tag_name.startswith(prefix)),
         None,
     )
-
-    if preset is _TEXT:
-        _LOGGER.warning(
-            "TeleInfo tag '%s' holds a text value, use a text_sensor instead", tag_name
-        )
 
     config = dict(config)
     if preset is None:

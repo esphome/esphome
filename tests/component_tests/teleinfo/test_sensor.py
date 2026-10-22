@@ -5,7 +5,11 @@ import logging
 import pytest
 
 from esphome.components.teleinfo import CONF_TAG_NAME
-from esphome.components.teleinfo.sensor import TIC_TAG_CONFIGS, apply_tag_config
+from esphome.components.teleinfo.sensor import (
+    TIC_TAG_CONFIGS,
+    TIC_TEXT_TAGS,
+    apply_tag_config,
+)
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ICON,
@@ -84,12 +88,14 @@ def test_known_tag_preset(
 
 
 def test_no_prefix_is_prefix_of_another() -> None:
-    for prefix in TIC_TAG_CONFIGS:
-        for other in TIC_TAG_CONFIGS:
+    prefixes = [*TIC_TAG_CONFIGS, *TIC_TEXT_TAGS]
+    assert len(prefixes) == len(set(prefixes))
+    for prefix in prefixes:
+        for other in prefixes:
             assert prefix == other or not other.startswith(prefix)
 
 
-@pytest.mark.parametrize("tag", ["NTARF", "NJOURF", "NJOURF+1", "RELAIS", "PPOT"])
+@pytest.mark.parametrize("tag", ["NTARF", "NJOURF", "NJOURF+1", "RELAIS", "VTIC"])
 def test_unitless_tag_gets_no_unit(tag: str, caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         config = apply_tag_config({CONF_TAG_NAME: tag})
@@ -97,7 +103,7 @@ def test_unitless_tag_gets_no_unit(tag: str, caplog: pytest.LogCaptureFixture) -
     assert not caplog.records
 
 
-@pytest.mark.parametrize("tag", ["LTARF", "NGTF", "PTEC", "OPTARIF", "MSG1"])
+@pytest.mark.parametrize("tag", ["LTARF", "NGTF", "PTEC", "OPTARIF", "MSG1", "PPOT"])
 def test_text_tag_gets_no_unit_and_warns(
     tag: str, caplog: pytest.LogCaptureFixture
 ) -> None:
