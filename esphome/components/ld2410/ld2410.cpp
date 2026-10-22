@@ -15,22 +15,6 @@ namespace esphome::ld2410 {
 
 ESPHOME_LOG_TAG(TAG, "ld2410");
 
-enum BaudRate : uint8_t {
-  BAUD_RATE_9600 = 1,
-  BAUD_RATE_19200 = 2,
-  BAUD_RATE_38400 = 3,
-  BAUD_RATE_57600 = 4,
-  BAUD_RATE_115200 = 5,
-  BAUD_RATE_230400 = 6,
-  BAUD_RATE_256000 = 7,
-  BAUD_RATE_460800 = 8,
-};
-
-enum DistanceResolution : uint8_t {
-  DISTANCE_RESOLUTION_0_2 = 0x01,
-  DISTANCE_RESOLUTION_0_75 = 0x00,
-};
-
 enum LightFunction : uint8_t {
   LIGHT_FUNCTION_OFF = 0x00,
   LIGHT_FUNCTION_BELOW = 0x01,
@@ -72,12 +56,15 @@ enum AckData : uint8_t {
 
 // Index + 1 is the BaudRate value; the select options use the same order
 PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200", "230400", "256000", "460800");
-// Names and values in the same order; the select options use it too
+static_assert(BAUD_RATE_9600 == 1 && BAUD_RATE_460800 == BaudRateStrings::COUNT, "BaudRate is index + 1");
+// Same order as DISTANCE_RESOLUTIONS
 PROGMEM_STRING_TABLE(DistanceResolutionStrings, "0.2m", "0.75m");
-static constexpr uint8_t DISTANCE_RESOLUTIONS[] PROGMEM = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_75};
 // Index is the enum value; the select options use the same order
 PROGMEM_STRING_TABLE(LightFunctionStrings, "off", "below", "above");
+static_assert(LIGHT_FUNCTION_OFF == 0 && LIGHT_FUNCTION_BELOW == 1 && LIGHT_FUNCTION_ABOVE == 2,
+              "LightFunction is the table index");
 PROGMEM_STRING_TABLE(OutPinLevelStrings, "low", "high");
+static_assert(OUT_PIN_LEVEL_LOW == 0 && OUT_PIN_LEVEL_HIGH == 1, "OutPinLevel is the table index");
 
 static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
 
@@ -587,22 +574,28 @@ void LD2410Component::set_bluetooth(bool enable) {
 
 void LD2410Component::set_distance_resolution(const char *state) {
   const int16_t index = progmem_string_table_find<DistanceResolutionStrings>(state, strlen(state));
-  if (index < 0) {
-    return;
+  if (index >= 0) {
+    this->set_distance_resolution(static_cast<DistanceResolution>(progmem_read_byte(&DISTANCE_RESOLUTIONS[index])));
   }
+}
+
+void LD2410Component::set_distance_resolution(DistanceResolution resolution) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {progmem_read_byte(&DISTANCE_RESOLUTIONS[index]), 0x00};
+  const uint8_t cmd_value[2] = {resolution, 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
 void LD2410Component::set_baud_rate(const char *state) {
   const int16_t index = progmem_string_table_find<BaudRateStrings>(state, strlen(state));
-  if (index < 0) {
-    return;
+  if (index >= 0) {
+    this->set_baud_rate(static_cast<BaudRate>(index + 1));
   }
+}
+
+void LD2410Component::set_baud_rate(BaudRate rate) {
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {static_cast<uint8_t>(index + 1), 0x00};
+  const uint8_t cmd_value[2] = {rate, 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_(); });
 }
