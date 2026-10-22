@@ -222,11 +222,7 @@ WIFI_AP_MODE_WISP = "WISP"
 
 
 def _validate_ap_mode(value: str) -> str:
-    value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
-    if value == WIFI_AP_MODE_WISP:
-        # WISP mode routes through NAT, which only ESP-IDF provides
-        cv.only_with_framework(Framework.ESP_IDF)(value)
-    return value
+    return cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
 
 
 def _validate_dns_servers(value: list) -> list:
