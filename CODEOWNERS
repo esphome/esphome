@@ -696,10 +696,12 @@ esphome/components/usb_uart/* @clydebarrow
 esphome/components/valve/* @esphome/core
 esphome/components/vbus/* @ssieb
 esphome/components/veml3235/* @kbx81
+esphome/components/veml6040/* @aalaei
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/vevor_dtx/* @Bofr5555
 esphome/components/vl53l1x/* @will-tm
+esphome/components/vnc/* @MindFreeze
 esphome/components/voice_assistant/* @jesserockz @kahrendt
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
