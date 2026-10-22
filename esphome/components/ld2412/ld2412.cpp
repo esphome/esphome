@@ -190,6 +190,9 @@ using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
 using ld24xx::HEADER_FOOTER_SIZE;
 using ld24xx::validate_header_footer;
+// Smallest frames whose values can all be read: the last value, data footer and check, then the frame footer
+static constexpr uint8_t PERIODIC_FRAME_MIN = STILL_ENERGY + 3 + HEADER_FOOTER_SIZE;
+static constexpr uint8_t ENGINEERING_FRAME_MIN = LIGHT_SENSOR + 3 + HEADER_FOOTER_SIZE;
 // Data Header & Footer
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
@@ -364,6 +367,9 @@ void LD2412Component::handle_periodic_data_() {
     0x02: Normal mode
   */
   bool engineering_mode = this->buffer_data_[DATA_TYPES] == 0x01;
+  if (!engineering_mode && this->buffer_pos_ < PERIODIC_FRAME_MIN) {
+    return;  // too short to hold the values
+  }
 #ifdef USE_SWITCH
   if (this->engineering_mode_switch_ != nullptr) {
     this->engineering_mode_switch_->publish_state(engineering_mode);
@@ -414,8 +420,7 @@ void LD2412Component::handle_periodic_data_() {
     this->detection_distance_sensor_.publish_state_if_not_dup(new_detect_distance);
   }
   if (engineering_mode) {
-    // Engineering mode needs at least LIGHT_SENSOR + 1 bytes
-    if (this->buffer_pos_ < LIGHT_SENSOR + 1) {
+    if (this->buffer_pos_ < ENGINEERING_FRAME_MIN) {
       ESP_LOGW(TAG, "Engineering mode packet too short: %u", this->buffer_pos_);
     } else {
       /*
