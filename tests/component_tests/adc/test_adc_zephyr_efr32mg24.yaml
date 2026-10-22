@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+zephyr:
+  variant: EFR32MG24
+
+sensor:
+  - platform: adc
+    pin: 16
+    name: PB0
+  - platform: adc
+    pin: 17
+    name: PB1
