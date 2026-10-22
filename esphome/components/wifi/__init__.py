@@ -874,8 +874,6 @@ async def to_code(config):
 
     if (dpp := config.get(CONF_DPP)) is not None:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)
-        # esp_hosted 2.x and 3.x name the host DPP feature differently
-        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_DPP", True)
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_DPP", True)
         if (key := dpp.get(CONF_PRIVATE_KEY)) is not None:
             cg.add(var.set_dpp_key(key))
