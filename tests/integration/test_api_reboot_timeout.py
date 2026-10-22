@@ -6,6 +6,7 @@ import re
 import pytest
 
 from .types import RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -27,9 +28,8 @@ async def test_api_reboot_timeout(
     async with run_compiled(yaml_config, line_callback=check_output):
         # Wait for reboot with timeout
         # (0.5s reboot timeout + some margin for processing)
-        try:
-            await asyncio.wait_for(reboot_future, timeout=2.0)
-        except TimeoutError:
-            pytest.fail("Device did not reboot within expected timeout")
+        await wait_or_fail(
+            reboot_future, 2.0, "Device did not reboot within expected timeout"
+        )
 
     # Test passes if we get here - reboot was detected

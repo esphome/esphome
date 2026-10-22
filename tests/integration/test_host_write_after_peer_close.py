@@ -12,6 +12,7 @@ from collections.abc import Callable
 import pytest
 
 from .log_utils import LineWaiter
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -39,7 +40,7 @@ async def test_host_write_after_peer_close(
         ):
             peer = await asyncio.wait_for(peers.get(), 15.0)
             _, services = await client.list_entities_services()
-            action = next(s for s in services if s.name == "write_after_close")
+            action = require_service(services, "write_after_close")
 
             await client.execute_service(action, {"port": port})
             # The action opens a second connection and blocks the loop until it gets a byte.

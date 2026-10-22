@@ -48,8 +48,7 @@ AS3935_SCHEMA = cv.Schema(
 async def setup_as3935(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
-    irq_pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
-    cg.add(var.set_irq_pin(irq_pin))
+    await cg.add_pin(var.set_irq_pin, config[CONF_IRQ_PIN])
     cg.add(var.set_indoor(config[CONF_INDOOR]))
     cg.add(var.set_noise_level(config[CONF_NOISE_LEVEL]))
     cg.add(var.set_watchdog_threshold(config[CONF_WATCHDOG_THRESHOLD]))
