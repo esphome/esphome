@@ -520,7 +520,9 @@ VncParse VncClient::parse_() {
         }
         uint8_t *challenge = this->rx_ + this->rx_pos_;
         vnc_auth_response(this->auth_key_, challenge);
-        this->send_(challenge, 16);
+        if (!this->send_(challenge, 16)) {
+          return this->fail_send_();
+        }
         this->rx_pos_ += 16;
         this->step_ = VncStep::VNC_STEP_SECURITY_RESULT;
         break;
