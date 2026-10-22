@@ -160,6 +160,10 @@ void ModemComponent::publish_status_() {
     this->status_set_warning(LOG_STR("Modem not responding"));
   } else if (warnings & WARN_BAUD) {
     this->status_set_warning(LOG_STR("Configured baud rate failed"));
+  } else if (warnings & WARN_SIM) {
+    this->status_set_warning(LOG_STR("SIM not ready"));
+  } else if (warnings & WARN_SETUP) {
+    this->status_set_warning(LOG_STR("APN or radio setup failed"));
   } else if (warnings & WARN_NOT_ATTACHED) {
     this->status_set_warning(LOG_STR("No network attachment"));
   } else if (warnings & WARN_PPP) {
@@ -207,9 +211,16 @@ void ModemComponent::loop() {
     ESP_LOGW(TAG, "Failed to save the baud rate");
   }
   // Written through at once: a power cycle before the periodic flush would send the PIN again
-  if ((pending & PENDING_SAVE_PIN) &&
-      !(this->pin_pref_.save(&this->rejected_pin_hash_) && global_preferences->sync())) {
-    ESP_LOGW(TAG, "Failed to save the rejected PIN");
+  if (pending & PENDING_SAVE_PIN) {
+    if (this->pin_pref_.save(&this->rejected_pin_hash_) && global_preferences->sync()) {
+      this->pin_save_retries_ = 0;
+    } else if (this->pin_save_retries_ < PIN_SAVE_RETRIES) {
+      this->pin_save_retries_++;
+      ESP_LOGW(TAG, "Failed to save the rejected PIN; retrying");
+      this->set_timeout(PIN_SAVE_RETRY_MS, [this]() { this->hand_over_(PENDING_SAVE_PIN); });
+    } else {
+      ESP_LOGE(TAG, "Failed to save the rejected PIN; a reboot may send it again");
+    }
   }
 #ifdef USE_MODEM_URC
   if (this->urc_pending_.load(std::memory_order_acquire)) {
@@ -586,6 +597,7 @@ ModemState ModemComponent::handle_state_enabling_() {
     } else {
       // The modem still answers at the probed rate, so a rejected rate is not worth a retry loop
       ESP_LOGW(TAG, "Modem rejected baud rate %d. Staying at %d.", this->baud_rate_, this->current_baud_rate_);
+      this->set_warning_(WARN_BAUD);
     }
   }
 
@@ -593,7 +605,10 @@ ModemState ModemComponent::handle_state_enabling_() {
     this->restored_baud_ = this->current_baud_rate_;
     this->hand_over_(PENDING_SAVE_BAUD);
   }
-  this->clear_warning_(WARN_BAUD | WARN_NO_RESPONSE);  // the modem answers at the rate it will keep
+  if (this->baud_rate_ == 0 || this->baud_rate_ == this->current_baud_rate_) {
+    this->clear_warning_(WARN_BAUD);  // the rate in use is the configured one, or the default
+  }
+  this->clear_warning_(WARN_NO_RESPONSE);
 
   // The DTE side was set up with the UART; the modem side has to be asked for RTS/CTS as well
   if (this->rts_pin_ != nullptr && this->dce_->set_flow_control(2, 2) != command_result::OK) {
@@ -615,12 +630,15 @@ ModemState ModemComponent::handle_state_connecting_() {
     esp_modem::PdpContext pdp(this->apn_);
     if (this->dce_->set_pdp_context(pdp) != command_result::OK) {
       ESP_LOGW(TAG, "Failed to set the APN");
+      this->set_warning_(WARN_SETUP);
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
     }
     if (this->dce_->set_radio_state(1) != command_result::OK) {
       ESP_LOGW(TAG, "Failed to turn the radio on");
+      this->set_warning_(WARN_SETUP);
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
     }
+    this->clear_warning_(WARN_SETUP);
     this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;
     this->attach_polls_ = 0;
   }
@@ -803,6 +821,7 @@ SimResult ModemComponent::prepare_sim_() {
   std::string output;
   if (this->dce_->at("AT+CPIN?", output, COMMAND_TIMEOUT_MS) != command_result::OK) {
     ESP_LOGW(TAG, "Failed to check pin: %s", output.c_str());
+    this->set_warning_(WARN_SIM);
     return SimResult::SIM_RESULT_RETRY;
   }
   const char *status = output.c_str();
@@ -813,6 +832,7 @@ SimResult ModemComponent::prepare_sim_() {
 
   // A whole-token match: "NOT READY" also contains READY
   if (strncmp(status, "READY", 5) == 0) {
+    this->clear_warning_(WARN_SIM);
     this->pin_sent_ = false;  // proven correct, so a modem self-reset may send it again
     return SimResult::SIM_RESULT_READY;
   }
@@ -827,8 +847,10 @@ SimResult ModemComponent::prepare_sim_() {
       return SimResult::SIM_RESULT_FATAL;
     }
     ESP_LOGW(TAG, "SIM not ready: %s", status);  // e.g. NOT READY or NOT INSERTED
+    this->set_warning_(WARN_SIM);
     return SimResult::SIM_RESULT_RETRY;
   }
+  this->clear_warning_(WARN_SIM);  // a SIM that asks for its PIN is present and readable
   if (this->pin_code_ == nullptr) {
     ESP_LOGE(TAG, "SIM requires a PIN but pin_code is not set");
     return SimResult::SIM_RESULT_FATAL;
@@ -851,9 +873,20 @@ SimResult ModemComponent::prepare_sim_() {
   this->pin_sent_ = true;
   this->pin_sent_at_ = millis();
   ESP_LOGD(TAG, "Unlocking SIM with PIN...");
+  // dce_->at() drops every line that contains ERROR, so the reply is read raw to keep the +CME ERROR code
   char cmd[AT_COMMAND_SIZE];
-  snprintf(cmd, sizeof(cmd), "AT+CPIN=\"%s\"", this->pin_code_);
-  const command_result result = this->dce_->at(cmd, output, PIN_TIMEOUT_MS);
+  snprintf(cmd, sizeof(cmd), "AT+CPIN=\"%s\"\r", this->pin_code_);
+  const command_result result = this->dte_->command(
+      cmd,
+      [&output](uint8_t *data, size_t len) {
+        output.assign(reinterpret_cast<char *>(data), len);
+        if (output.find("OK") != std::string::npos)
+          return command_result::OK;
+        if (output.find("ERROR") != std::string::npos)
+          return command_result::FAIL;
+        return command_result::TIMEOUT;
+      },
+      PIN_TIMEOUT_MS);
   if (result == command_result::OK) {
     return SimResult::SIM_RESULT_RETRY;  // AT+CPIN? confirms READY on the next pass
   }

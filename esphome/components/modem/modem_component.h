@@ -113,6 +113,9 @@ class ModemComponent : public Component {
   // AT+CPIN= can take a few seconds; the SIM may need longer still before AT+CPIN? says READY
   static constexpr uint32_t PIN_TIMEOUT_MS = 5000;
   static constexpr uint32_t PIN_UNLOCK_WAIT_MS = 10000;
+  // A rejected PIN that could not be written to flash is retried a few times
+  static constexpr uint32_t PIN_SAVE_RETRY_MS = 5000;
+  static constexpr uint8_t PIN_SAVE_RETRIES = 3;
   static constexpr size_t URC_LINE_SIZE = 128;
   static constexpr size_t AT_COMMAND_SIZE = 128;
   // State changes the task made since loop() last ran; a burst is a handful of quick steps
@@ -140,7 +143,9 @@ class ModemComponent : public Component {
     WARN_TEARDOWN = 1 << 2,
     WARN_NO_RESPONSE = 1 << 3,
     WARN_NOT_ATTACHED = 1 << 4,
-    WARN_PPP = 1 << 5,  // PPP did not start or gave no address
+    WARN_PPP = 1 << 5,    // PPP did not start or gave no address
+    WARN_SIM = 1 << 6,    // no SIM, or its state cannot be read
+    WARN_SETUP = 1 << 7,  // the APN or the radio was refused
   };
   // What the task left for loop() to publish
   enum Pending : uint32_t {
@@ -218,6 +223,7 @@ class ModemComponent : public Component {
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
+  uint8_t pin_save_retries_{0};
   // One PIN attempt per connection attempt: a second wrong PIN could PUK-lock the SIM
   bool pin_sent_{false};
   bool connect_timeout_armed_{false};
