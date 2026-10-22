@@ -5,13 +5,13 @@
 namespace esphome::toptronic {
 ESPHOME_LOG_TAG(TAG, "toptronic");
 
-static const uint8_t RESPONSE = 0x42;
+static constexpr uint8_t RESPONSE = 0x42;
 // 0x56 = extended-format RESPONSE (larger value payload, e.g. cleaning /
 // maintenance counters). Same layout as 0x42 but 2 extra bytes (0x80 0x00)
 // between the datapoint and the value.
-static const uint8_t RESPONSE_EXT = 0x56;
-static const uint8_t GET_REQ = 0x40;
-static const uint8_t SET_REQ = 0x46;
+static constexpr uint8_t RESPONSE_EXT = 0x56;
+static constexpr uint8_t GET_REQ = 0x40;
+static constexpr uint8_t SET_REQ = 0x46;
 
 // Multi-frame protocol constants: a standard CAN frame holds 8 bytes, the first
 // frame spends 2 on headers (6 payload bytes), continuation frames 1 (7 payload
@@ -237,60 +237,13 @@ void TopTronic::register_sensor_callbacks() {
     }
   }
 }
-static uint32_t reflect(uint32_t val, uint8_t width) {
-  uint32_t out = 0;
-  for (uint8_t i = 0; i < width; ++i) {
-    out = (out << 1) | (val & 1);
-    val >>= 1;
-  }
-  return out;
-}
-// CRC-16 used by the TopTronic multi-frame protocol.
-// Parameters identified by brute-force search against captured bus traffic:
-//   poly=0x1021  init=0xB006  refin=true  refout=true  xorout=0x0000
-// This matches the CRC-16/ARC family with a non-standard init value.
-//
-// Lookup-table form: the bit-wise algorithm reflects each input byte, runs an
-// MSB-first (left-shifting) poly 0x1021 loop, then reflects the final CRC. The
-// table is therefore MSB-first over PRE-REFLECTED bytes:
-//   crc = (crc << 8) ^ table[((crc >> 8) ^ reflect(byte)) & 0xFF]
-// Equivalent to the bit-wise loop (validated against captured samples).
-//
-// Thread-safety: the lazy one-time init below is intentionally not atomic.
-// ESPHome routes all component calls ({parse_frame, loop, update}) through the
-// single main-loop task, so no two tasks can race on `initialized` in practice.
-// Keep this function on the main loop task; do not call it from other FreeRTOS
-// tasks without first adding a mutex or moving the init to setup().
-static const uint16_t *crc16_table() {
-  static uint16_t table[256];
-  static bool initialized = false;
-  if (!initialized) {
-    for (int i = 0; i < 256; ++i) {
-      uint16_t v = static_cast<uint16_t>(i << 8);
-      for (int b = 0; b < 8; ++b) {
-        v = (v & 0x8000) ? static_cast<uint16_t>((v << 1) ^ 0x1021) : static_cast<uint16_t>(v << 1);
-      }
-      table[i] = v;
-    }
-    initialized = true;
-  }
-  return table;
-}
-static uint16_t compute_crc16(const uint8_t *data, size_t len) {
-  const uint16_t *const table = crc16_table();
-  uint16_t crc = 0xB006;  // init
-  for (size_t i = 0; i < len; ++i) {
-    uint8_t byte = static_cast<uint8_t>(reflect(data[i], 8));
-    crc = static_cast<uint16_t>((crc << 8) ^ table[((crc >> 8) ^ byte) & 0xFF]);
-  }
-  return static_cast<uint16_t>(reflect(crc, 16));  // refout=true, xorout=0x0000
-}
 // Send a SET request over CAN, transparently splitting into multiple frames when needed.
 //
 // A standard CAN frame holds at most 8 bytes. The TopTronic multi-frame protocol works as:
 //   First frame  (msg_id = 0x1F): [frame_count<<3|flags, msg_header, payload[0..5]]
 //   Cont. frames (msg_id != 0x1F): [msg_header, payload[6..12], ...]
-//   Last 2 bytes of the reassembled payload are the CRC-16 checksum (poly=0x1021, init=0xB006).
+//   Last 2 bytes of the reassembled payload are the CRC-16 checksum (poly=0x1021,
+//   init=0xB006, refin/refout — via crc16(…, 0x600D, 0x8408)).
 //
 // The continuation CAN ID clears bits 28-22 (sets the top-priority field to 0) so that
 // parse_frame() on the receiver treats those frames as continuations, not new messages.
@@ -308,7 +261,7 @@ static void send_can_frames(canbus::Canbus *canbus, uint32_t can_id, const std::
 
   // Build the full message payload, then append the 2-byte CRC (big-endian).
   std::vector<uint8_t> msg(data.begin() + 1, data.end());
-  uint16_t crc = compute_crc16(msg.data(), msg.size());
+  uint16_t crc = crc16(msg.data(), msg.size(), 0x600D, 0x8408);
   msg.push_back(static_cast<uint8_t>(crc >> 8));    // CRC high byte
   msg.push_back(static_cast<uint8_t>(crc & 0xFF));  // CRC low byte
 
@@ -389,47 +342,34 @@ void TopTronic::link_inputs_() {
     }
   }
 }
-void TopTronic::configure_hub() {
-  // All functional wiring runs from the CONFIG phase (emitted by __init__.py
-  // right after the add_sensor/add_input calls) instead of setup(). Reason:
-  // ESPHome sizes components_ (StaticVector) from ESPHOME_COMPONENT_COUNT,
-  // which is computed at CORE codegen priority - BEFORE this component
-  // registers its preset-generated entity IDs in CORE.component_ids. The
-  // under-count silently drops every registration past the StaticVector
-  // capacity, so a hub can be missing from components_ entirely and its
-  // setup() never invoked. Config-phase statements always run for every hub.
+void TopTronic::setup() {
+  // Wire the callbacks here, after every platform's add_sensor()/add_input() has run.
   this->link_inputs_();
   this->register_sensor_callbacks();
   this->register_input_callbacks();
-}
 
-void TopTronic::setup() {
   size_t sensors = 0, inputs = 0;
   for (const auto &d : this->devices_) {
     sensors += d.second->get_sensors().size();
     inputs += d.second->get_inputs().size();
   }
   ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors, %zu inputs)", (unsigned) this->get_device_id(), sensors, inputs);
-}
-void TopTronic::loop() {
-  const uint32_t now = millis();
 
   // Periodically evict stale multi-frame reassembly buffers so a lost fragment (or a
   // device going offline mid-message) cannot pin an entry forever. The map is tiny
-  // (capped at max_pending_messages_), so the sweep is throttled to avoid per-loop work.
-  if (now - this->last_cleanup_ms_ < this->cleanup_interval_ms_)
-    return;
-  this->last_cleanup_ms_ = now;
-
-  for (auto it = this->pending_messages_.begin(); it != this->pending_messages_.end();) {
-    if (now - it->second.last_update_ms > this->max_pending_age_ms_) {
-      ESP_LOGD(TAG, "Expiring stale pending message 0x%08X (%zu bytes, %u frames remaining)", (unsigned int) it->first,
-               it->second.data.size(), it->second.remaining_frames);
-      it = this->pending_messages_.erase(it);
-    } else {
-      ++it;
+  // (capped at max_pending_messages_), so the sweep runs on this coarse interval.
+  this->set_interval(this->cleanup_interval_ms_, [this]() {
+    const uint32_t now = millis();
+    for (auto it = this->pending_messages_.begin(); it != this->pending_messages_.end();) {
+      if (now - it->second.last_update_ms > this->max_pending_age_ms_) {
+        ESP_LOGD(TAG, "Expiring stale pending message 0x%08X (%zu bytes, %u frames remaining)",
+                 (unsigned int) it->first, it->second.data.size(), it->second.remaining_frames);
+        it = this->pending_messages_.erase(it);
+      } else {
+        ++it;
+      }
     }
-  }
+  });
 }
 void TopTronic::dump_config() { ESP_LOGCONFIG(TAG, "TopTronic device 0x%04X", (unsigned) this->get_device_id()); }
 // Called for every CAN frame whose sender node id this hub owns. Reassembles
@@ -484,7 +424,7 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
       }
       const uint8_t *msg = pending.data.data();
       uint16_t received_crc = (msg[msg_len - 2] << 8) | msg[msg_len - 1];
-      if (received_crc != compute_crc16(msg, msg_len - 2)) {
+      if (received_crc != crc16(msg, msg_len - 2, 0x600D, 0x8408)) {
         ESP_LOGW(TAG, "CRC check failed");
         this->pending_messages_.erase(it);
         return;
@@ -523,7 +463,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
 #ifdef USE_SENSOR
   if (sensor_base->type() == SENSOR) {
     auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
-    sensor->publish_state(sensor->parse_value(data + value_off, value_len));
+    sensor->publish_state(sensor->parse_value(data + value_off, required_value_len));
   }
 #endif
 #ifdef USE_TEXT_SENSOR

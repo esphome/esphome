@@ -14,3 +14,12 @@ toptronic:
     max_pending_messages: 24
     max_pending_age: 6s
     cleanup_interval: 9s
+
+sensor:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Hand-written test sensor
+    function_group: 50
+    function_number: 0
+    datapoint: 40652
+    type: U16
