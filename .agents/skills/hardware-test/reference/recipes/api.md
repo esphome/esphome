@@ -40,3 +40,18 @@ length delimited strings and `int[]` as repeated sint32 (field 7); `ALLOW_MISSIN
 defaults) and `templates/api-actions-strings-dut.yaml` (required strings) log what arrived. String arguments are
 `StringRef`s that are not null terminated: copy them with `snprintf("%.*s", size, c_str())` into a buffer before
 logging, and do not pass `%.*s` to `logger.log`, whose validator counts it as one pattern.
+
+## store_yaml recovery over the native API (#16445)
+
+`scripts/api/syrecover.py HOST KEY OUTDIR [ORIGDIR]` (KEY `-` for plaintext) builds the client library's
+`APINoiseFrameHelper` around a stub `APIConnection` subclass (the compiled helper type checks the connection, and
+`ConnectionParams` needs every field), sends Hello, Authentication (never answered without a password) and
+`DeviceCapabilitiesRequest`, then `GetYamlRequest` (161), collects `GetYamlResponse` (162) frames by field number
+(1 data, 2 done, 3 total_size, 4 encoding) until done, requests again, decompresses with `compression.zstd` and
+unpacks the envelope with the tree's `unpack_envelope` (run with `PYTHONPATH` on that tree). Configs in
+`templates/store_yaml/`: a package one directory above the entry file with `!secret` and an inline OTA password,
+so the redaction and the `..` paths are exercised. Repetitive YAML compresses into one chunk even at 22 KB; a 6 KB
+include of random base64 lines with `include_secrets: true` gives four chunks (1390 byte packets). Rough edge at
+0bd3738430: `include_secrets: true` fails the build when a package in another directory uses `!secret` and has no
+`secrets.yaml` beside it; a copy next to the package works around it.
+Results: https://github.com/esphome/esphome/pull/16445#issuecomment-6335435397

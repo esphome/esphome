@@ -4,14 +4,17 @@ Each flow names the pull requests it was used on, so their result tables show wh
 
 One file per component, named after it:
 
-- [`api.md`](api.md): noise handshake and OTA encryption on the ESP8266, outgoing connection wake timing on deep sleep and after a Wi-Fi drop, user defined action listing and execution with a raw plaintext client
+- [`api.md`](api.md): noise handshake and OTA encryption on the ESP8266, outgoing connection wake timing on deep sleep and after a Wi-Fi drop, user defined actions and store_yaml recovery with raw clients, user defined action listing and execution with a raw plaintext client
+- [`ble_midi.md`](ble_midi.md): BLE MIDI client against a fake ESP32 instrument, every packet shape and the send actions
 - [`captive_portal.md`](captive_portal.md): fallback AP and /wifisave hammer
 - [`cse7766.md`](cse7766.md): Sonoff S31 parser check over the API
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
 - [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback, ESP8266 loopback harness without a radar
+- [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check
 - [`ld2412.md`](ld2412.md): output pin level through the basic configuration command, held back writes
 - [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx crash report on the next boot
+- [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check
 - [`nrf52.md`](nrf52.md): dongle board support
 - [`online_image.md`](online_image.md): stalled and malformed downloads
