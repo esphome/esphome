@@ -150,9 +150,19 @@ void MQGasSensor::dump_config() {
 
 float MQGasSensor::sample_voltage_() {
   float sum = 0.0f;
-  for (uint8_t i = 0; i < this->samples_; i++)
-    sum += this->source_->sample();
-  return (sum / static_cast<float>(this->samples_)) * this->voltage_multiplier_;
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < this->samples_; i++) {
+    const float sample = this->source_->sample();
+    // A conversion the sampler could not complete is not a measurement: drop it
+    // instead of letting one NaN poison the average of the whole window.
+    if (!std::isfinite(sample))
+      continue;
+    sum += sample;
+    count++;
+  }
+  if (count == 0)
+    return NAN;
+  return (sum / static_cast<float>(count)) * this->voltage_multiplier_;
 }
 
 float MQGasSensor::current_rs_() const { return mqmath::rs_from_voltage(this->sensor_voltage_, this->vcc_, this->rl_); }
@@ -206,6 +216,21 @@ void MQGasSensor::update() {
   }
 
   this->sensor_voltage_ = this->sample_voltage_();
+  if (!std::isfinite(this->sensor_voltage_)) {
+    // The sampler itself could not produce a conversion: this is not the same
+    // fault as a wiring that reads 0 V, and pointing at the AO wiring would hide
+    // a failed ADC or I2C device.
+    if (!this->warned_sampler_failure_) {
+      this->warned_sampler_failure_ = true;
+      this->wiring_warning_ = true;
+      this->log_message_(LOG_SEVERITY_WARN,
+                         LOG_STR("the voltage sampler returned no reading - check the sampler (I2C bus, ADC)"));
+    }
+    this->status_set_warning(LOG_STR("the voltage sampler returned no reading"));
+    this->publish_fault_diagnostics_();
+    this->publish_state(NAN);
+    return;
+  }
   if (!this->voltage_usable_(this->sensor_voltage_)) {
     if (!this->warned_low_voltage_) {
       this->warned_low_voltage_ = true;
@@ -249,6 +274,7 @@ void MQGasSensor::update() {
   // status warning raised for them goes away with them. A warning raised for the
   // ratio (below) or by a failed calibration is not this component's to clear
   // here, so only a wiring warning is cleared.
+  this->warned_sampler_failure_ = false;
   this->warned_low_voltage_ = false;
   this->warned_high_voltage_ = false;
   if (this->wiring_warning_) {
@@ -377,6 +403,7 @@ void MQGasSensor::begin_calibration_() {
   this->calibration_rejected_nonfinite_ = 0;
   this->calibration_rejected_rs_ = 0;
   this->calibration_sum_ = 0.0f;
+  this->calibration_rejection_logged_ = false;
   this->enable_loop();
 
   this->log_message_(
@@ -389,12 +416,16 @@ void MQGasSensor::process_calibration_() {
   this->calibration_attempts_++;
 
   const float voltage = this->sample_voltage_();
+  bool rejected = false;
   if (!std::isfinite(voltage)) {
     this->calibration_rejected_nonfinite_++;
+    rejected = true;
   } else if (!this->voltage_usable_(voltage)) {
     this->calibration_rejected_low_++;
+    rejected = true;
   } else if (voltage >= this->vcc_) {
     this->calibration_rejected_high_++;
+    rejected = true;
   } else {
     this->sensor_voltage_ = voltage;
     this->rs_ = this->current_rs_();
@@ -404,7 +435,16 @@ void MQGasSensor::process_calibration_() {
       this->calibration_count_++;
     } else {
       this->calibration_rejected_rs_++;
+      rejected = true;
     }
+  }
+
+  if (rejected && !this->calibration_rejection_logged_) {
+    // The final message names the causes; this line keeps the actual value of the
+    // first rejected sample available for a wiring check without repeating it for
+    // every sample.
+    this->calibration_rejection_logged_ = true;
+    this->log_message_(LOG_SEVERITY_DEBUG, LOG_STR("first rejected calibration sample reads %.4f V"), voltage);
   }
 
   if (this->calibration_attempts_ >= this->calibration_samples_)
