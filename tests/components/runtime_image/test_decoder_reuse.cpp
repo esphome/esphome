@@ -449,12 +449,39 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
   }
 }
 
+// The generic draw() path gets JPEGDEC's half size RGB8888 output, so it too averages each 2x2 block of pixels
+TEST(RuntimeImageDecoder, JpegDecodesToScaledRgb) {
+  TestableRuntimeImage full(JPEG, image::IMAGE_TYPE_RGB, false, 8, 8);
+  TestableRuntimeImage half(JPEG, image::IMAGE_TYPE_RGB, false, 4, 4);
+  ASSERT_TRUE(decode_all(full, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_TRUE(decode_all(half, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_EQ(static_cast<JpegDecoder *>(half.decoder())->get_scale(), 2);
+
+  for (int row = 0; row < 4; row++) {
+    for (int col = 0; col < 4; col++) {
+      int red = 0;
+      int green = 0;
+      int blue = 0;
+      for (int dy = 0; dy < 2; dy++) {
+        for (int dx = 0; dx < 2; dx++) {
+          const Color pixel = full.get_pixel(col * 2 + dx, row * 2 + dy);
+          red += pixel.r;
+          green += pixel.g;
+          blue += pixel.b;
+        }
+      }
+      const Color pixel = half.get_pixel(col, row);
+      EXPECT_NEAR(pixel.r, (red + 2) / 4, 8) << "pixel " << col << "," << row << " red";
+      EXPECT_NEAR(pixel.g, (green + 2) / 4, 8) << "pixel " << col << "," << row << " green";
+      EXPECT_NEAR(pixel.b, (blue + 2) / 4, 8) << "pixel " << col << "," << row << " blue";
+    }
+  }
+}
+
 // Target pixel index each source pixel paints when `source` pixels map onto `target`, the way
 // prepare_draw_ rounds: source n covers targets ceil(n * target / source) up to the next start
 static uint16_t scaled_boundary(int n, int source, int target) { return (n * target + source - 1) / source; }
 
-// Every scaled direct decode must equal the unscaled one sampled through the boundary table,
-// for shrinking, growing and a ratio that is not a whole number
 // JPEGDEC decodes at the smallest of full, 1/2, 1/4 and 1/8 size that still covers the buffer
 TEST(RuntimeImageDecoder, JpegDecodesAtTheSmallestSizeThatCoversTheBuffer) {
   for (auto [size, scale] :
@@ -466,6 +493,8 @@ TEST(RuntimeImageDecoder, JpegDecodesAtTheSmallestSizeThatCoversTheBuffer) {
   }
 }
 
+// Every scaled direct decode must equal the unscaled one sampled through the boundary table,
+// for shrinking, growing and a ratio that is not a whole number
 TEST(RuntimeImageDecoder, JpegDirectRgb565ScalesBySourcePixelSpans) {
   TestableRuntimeImage full(JPEG, image::IMAGE_TYPE_RGB565, false, 8, 8);
   ASSERT_TRUE(decode_all(full, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
