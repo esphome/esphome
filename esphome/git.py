@@ -145,13 +145,17 @@ class GitRepositoryError(GitException):
     """Exception raised when a git repository is in an invalid state."""
 
 
+# The userinfo part of a URL, which can carry credentials.
+URL_USERINFO_RE = re.compile(r"://([^/@\s]+)@")
+
+
 def _redact_url_credentials(text: str) -> str:
     """Mask userinfo in any URLs embedded in ``text``.
 
     Users can put credentials directly in a git URL, and log output is
     routinely pasted into public issues.
     """
-    return re.sub(r"://[^/@\s]+@", "://***@", text)
+    return URL_USERINFO_RE.sub("://***@", text)
 
 
 def _is_transient_git_error(stderr: str) -> bool:
