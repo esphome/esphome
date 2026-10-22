@@ -296,6 +296,14 @@ void HomeassistantLight::update_state(LightState *state) {
   if (!state->is_transitioning()) {
     this->report_held_ = false;
     this->report_in_transition_ = false;
+    return;
+  }
+  // A call that replaces the transition a report was held for retargets it and is newer than the
+  // report. Judged here, which every pass of a transition reaches, including the one that ends it;
+  // write_state() sees the transition only in the passes before that one, and a transition that
+  // ends in its first pass has none
+  if (this->report_held_ && state_hash(state->remote_values) != this->held_hash_) {
+    this->report_held_ = false;
   }
 }
 
@@ -338,11 +346,7 @@ void HomeassistantLight::write_state(LightState *state) {
     return;
   }
   if (state->is_transitioning()) {
-    // A transition or flash runs here alone; Home Assistant gets the state it ends at. A call that
-    // replaces the transition a report was held for retargets it and is newer than the report
-    if (this->report_held_ && state_hash(state->remote_values) != this->held_hash_) {
-      this->report_held_ = false;
-    }
+    // A transition or flash runs here alone; Home Assistant gets the state it ends at
     this->transitioned_ = true;
     return;
   }

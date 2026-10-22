@@ -1,0 +1,30 @@
+esphome:
+  name: ha-light-slow-loop
+
+host:
+
+api:
+  actions:
+    # Issued from the scheduler, between loop passes, unlike a light command from the API, and
+    # with the loop interval longer than the transition, so the light's first loop pass after
+    # the action already sees the transition finished. Raised only here, so the API handshake
+    # and the subscriptions before it run at the normal pace
+    - action: replace_transition
+      then:
+        - lambda: App.set_loop_interval(1500);
+        - delay: 10ms
+        - light.turn_on:
+            id: ha_light
+            color_temperature: 250 mireds
+            transition_length: 1s
+
+logger:
+  level: DEBUG
+
+light:
+  - platform: homeassistant
+    name: HA Light
+    id: ha_light
+    entity_id: light.kitchen
+    internal: false
+    report_timeout: 2s
