@@ -119,7 +119,9 @@ class ImageDecoder {
   /**
    * @brief Start decoding from a source the decoder reads itself. Call after prepare(), in place of decode().
    *
-   * The source must hold expected_size bytes, and stay valid until the session ends.
+   * The image headers (everything before the image data) must be readable from the source when this is called;
+   * only decode_step() can wait for more to arrive. The source must hold expected_size bytes in the end, and stay
+   * valid until the session ends.
    * @return int 0 on success, or a {@see DecodeError} value.
    */
   virtual int begin_source(DecodeSource *source) { return DECODE_ERROR_UNSUPPORTED_FORMAT; }
@@ -163,6 +165,9 @@ class ImageDecoder {
    * This should be overridden by decoders that can detect completion
    * based on format-specific markers rather than byte counts.
    */
+  /// Bytes of the image the decoder has used so far
+  size_t get_decoded_bytes() const { return this->decoded_bytes_; }
+
   virtual bool is_finished() const {
     if (this->expected_size_ > 0) {
       return this->decoded_bytes_ >= this->expected_size_;

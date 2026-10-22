@@ -252,7 +252,10 @@ int RuntimeImage::decode_step() {
     ESP_LOGE(TAG, "No decoder initialized");
     return DECODE_ERROR_INVALID_TYPE;
   }
-  return this->decoder_->decode_step();
+  const int result = this->decoder_->decode_step();
+  if (result == DECODE_STEP_DONE)
+    this->decoded_bytes_ = this->decoder_->get_decoded_bytes();
+  return result;
 }
 
 bool RuntimeImage::end_decode() {
