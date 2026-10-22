@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 from typing import Any, NoReturn
 
 import pytest
@@ -14,6 +15,7 @@ from esphome.components.zephyr.const import KEY_ZEPHYR
 from esphome.components.zephyr.dts_lookup import (
     _find_board_dir,
     _find_board_yaml,
+    _find_cpp,
     _find_dts_file,
     _find_revision_overlay,
     _find_shield_dir,
@@ -1369,6 +1371,63 @@ def test_validate_board_revision_returns_none_for_board_without_revisions(
     )
     CORE.data[KEY_ZEPHYR] = empty_zephyr_data(dts_base_path=str(tmp_path))
     assert validate_board_revision("my_board@1.0.0") is None
+
+
+# ---------------------------------------------------------------------------
+# _find_cpp -- picks a preprocessor candidate that actually works, not just the
+# first one on PATH (macOS aliases cpp/gcc/cc to the same clang driver, whose
+# 'cpp' personality fails this exact invocation)
+# ---------------------------------------------------------------------------
+
+
+def test_find_cpp_skips_broken_candidate_picks_working_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dts_lookup.shutil,
+        "which",
+        {"cpp": "/usr/bin/cpp", "gcc": "/usr/bin/gcc"}.get,
+    )
+    monkeypatch.setattr(
+        dts_lookup.subprocess,
+        "run",
+        lambda cmd, **kwargs: SimpleNamespace(returncode=1 if "cpp" in cmd[0] else 0),
+    )
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+
+    assert _find_cpp() == "/usr/bin/gcc"
+
+
+def test_find_cpp_returns_none_when_every_candidate_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dts_lookup.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        dts_lookup.subprocess,
+        "run",
+        lambda cmd, **kwargs: SimpleNamespace(returncode=1),
+    )
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+
+    assert _find_cpp() is None
+
+
+def test_find_cpp_caches_first_working_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def _fake_run(cmd: list[str], **kwargs: Any) -> SimpleNamespace:
+        calls.append(cmd[0])
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(dts_lookup.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(dts_lookup.subprocess, "run", _fake_run)
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+
+    assert _find_cpp() == "/usr/bin/cpp"
+    assert _find_cpp() == "/usr/bin/cpp"
+    assert calls == ["/usr/bin/cpp"]
 
 
 # ---------------------------------------------------------------------------
