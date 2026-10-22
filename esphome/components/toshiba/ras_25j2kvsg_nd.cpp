@@ -278,12 +278,13 @@ void ToshibaClimate::transmit_ras_25j2kvsg_nd_() {
   message[length - 1] = xor_bytes(message + 4, length - 5);
   auto transmit = this->transmitter_->transmit();
   this->encode_(transmit.get_data(), message, length, 1);
-  if (this->swing_mode != this->last_swing_mode_) {
+  const bool swing = this->swing_mode != this->last_swing_mode_;
+  if (swing) {
     const uint8_t motion[] = {0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25};
     this->encode_(transmit.get_data(), motion, sizeof(motion), 1);
     this->last_swing_mode_ = this->swing_mode;
   }
-  transmit.perform();
+  this->perform_ras_25j2kvsg_nd_(transmit, swing);
 }
 
 void ToshibaClimate::transmit_ras_25j2kvsg_nd_motion_(uint8_t command, uint8_t repeat) {
@@ -291,14 +292,33 @@ void ToshibaClimate::transmit_ras_25j2kvsg_nd_motion_(uint8_t command, uint8_t r
   auto transmit = this->transmitter_->transmit();
   this->encode_(transmit.get_data(), message, sizeof(message), repeat);
   this->last_swing_mode_ = this->swing_mode;
-  transmit.perform();
+  this->perform_ras_25j2kvsg_nd_(transmit, command == 0x04);
 }
 
-bool ToshibaClimate::receive_ras_25j2kvsg_nd_(const uint8_t *message, uint8_t length) {
+void ToshibaClimate::perform_ras_25j2kvsg_nd_(remote_base::RemoteTransmitterBase::TransmitCall &transmit, bool swing) {
+  if (swing) {
+    uint32_t duration_us = 0;
+    for (const int32_t pulse : transmit.get_data()->get_data())
+      duration_us += static_cast<uint32_t>(std::abs(pulse));
+    this->swing_echo_duration_ = (duration_us + 999) / 1000 + SWING_REPEAT_MS;
+    this->last_swing_transmitted_ = millis();
+  }
+  transmit.perform();
+  // perform() may wait for an earlier send before queuing this one, or block until this send finishes.
+  if (swing)
+    this->last_swing_transmitted_ = millis();
+}
+
+bool ToshibaClimate::receive_ras_25j2kvsg_nd_frame_(const uint8_t *message, uint8_t length) {
   if (length == 7) {
     if (message[4] != 0x21 || (message[5] != 0x00 && message[5] != 0x04))
       return false;
     if (message[5] == 0x04) {
+      if (this->swing_echo_duration_ != 0) {
+        if (millis() - this->last_swing_transmitted_ < this->swing_echo_duration_)
+          return true;
+        this->swing_echo_duration_ = 0;
+      }
       const uint32_t now = App.get_loop_component_start_time();
       if (this->swing_received_ && now - this->last_swing_received_ < SWING_REPEAT_MS)
         return true;

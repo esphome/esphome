@@ -1,4 +1,5 @@
 #include "toshiba.h"
+#include <cmath>
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -454,6 +455,13 @@ void ToshibaClimate::setup() {
         roundf(clamp<float>(this->current_temperature, this->minimum_temperature_, this->maximum_temperature_));
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
     this->swing_mode = climate::CLIMATE_SWING_OFF;
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+    if (this->model_ == MODEL_RAS_25J2KVSG_ND) {
+      this->target_temperature =
+          std::isfinite(this->target_temperature) ? clamp(this->target_temperature, 17.0f, 30.0f) : 24.0f;
+      this->normal_target_temperature_ = this->target_temperature;
+    }
+#endif
   }
   // Set supported modes & temperatures based on model
   this->minimum_temperature_ = this->temperature_min_();
@@ -1166,8 +1174,12 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 }
 
 bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+  if (this->model_ == MODEL_RAS_25J2KVSG_ND)
+    return this->receive_ras_25j2kvsg_nd_(data);
+#endif
   // Try modern ToshibaAcProtocol decoder first (handles RAS-2819T and potentially others)
-  if (this->model_ != MODEL_SEIYA && this->model_ != MODEL_RAS_25J2KVSG_ND) {
+  if (this->model_ != MODEL_SEIYA) {
     remote_base::ToshibaAcProtocol toshiba_protocol;
     auto decode_result = toshiba_protocol.decode(data);
 
@@ -1193,10 +1205,6 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!this->decode_(&data, message, message_length)) {
     return false;
   }
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-  if (this->model_ == MODEL_RAS_25J2KVSG_ND && (message[0] != 0xF2 || message[1] != 0x0D))
-    return false;
-#endif
   // Determine incoming message protocol version and/or length
   if (this->is_valid_rac_pt1411hwru_header_(message)) {
     // We already received four bytes
@@ -1206,9 +1214,8 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   } else {
     // First checksum was valid so continue receiving the remaining bits
-    // Only the WH-TA15PE model handles the seven-byte motion commands.
-    const uint8_t minimum_length = this->model_ == MODEL_RAS_25J2KVSG_ND ? 1 : 3;
-    if (message[2] < minimum_length || message[2] > sizeof(message) - TOSHIBA_HEADER_LENGTH - 2) {
+    // The shortest frame is 9 bytes (length byte 3); longer ones must still fit the buffer.
+    if (message[2] < 3 || message[2] > sizeof(message) - TOSHIBA_HEADER_LENGTH - 2) {
       return false;
     }
     message_length = message[2] + 2;
@@ -1361,13 +1368,6 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
       if (checksum != message[message_length - 1]) {
         return false;
       }
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-      if (this->model_ == MODEL_RAS_25J2KVSG_ND) {
-        if (!data.expect_mark(timings.bit_mark))
-          return false;
-        return this->receive_ras_25j2kvsg_nd_(message, message_length);
-      }
-#endif
       // Check if this is a short swing/fix message
       if (message[4] & TOSHIBA_COMMAND_MOTION) {
         // Not supported yet
@@ -1384,6 +1384,27 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->publish_state();
   return true;
 }
+
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+bool ToshibaClimate::receive_ras_25j2kvsg_nd_(remote_base::RemoteReceiveData data) {
+  const ToshibaTimings timings = timings_for(this->model_);
+  bool received = false;
+  do {
+    uint8_t message[12]{};
+    if (!data.expect_item(timings.header_mark, timings.header_space) ||
+        !this->decode_(&data, message, TOSHIBA_HEADER_LENGTH) || message[0] != 0xF2 || message[1] != 0x0D ||
+        (message[2] ^ message[3]) != 0xFF || message[2] < 1 || message[2] > 6 || message[2] == 2)
+      return received;
+    const uint8_t length = message[2] + 6;
+    if (!this->decode_(&data, message + TOSHIBA_HEADER_LENGTH, length - TOSHIBA_HEADER_LENGTH) ||
+        !data.expect_mark(timings.bit_mark) || xor_bytes(message + 4, length - 5) != message[length - 1] ||
+        !this->receive_ras_25j2kvsg_nd_frame_(message, length))
+      return received;
+    received = true;
+  } while (data.expect_space(timings.gap_space) && data.is_valid());
+  return received;
+}
+#endif
 
 void ToshibaClimate::fix() {
 #ifdef USE_TOSHIBA_RAS_25J2KVSG_ND

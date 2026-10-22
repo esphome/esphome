@@ -5,6 +5,7 @@
 
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
 #if defined(USE_TOSHIBA_RAS_25J2KVSG_ND) && defined(USE_SELECT)
 #include "esphome/components/select/select.h"
@@ -71,7 +72,9 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   void restore_ras_25j2kvsg_nd_(climate::ClimateDeviceRestoreState &restore);
   void transmit_ras_25j2kvsg_nd_();
   void transmit_ras_25j2kvsg_nd_motion_(uint8_t command, uint8_t repeat);
-  bool receive_ras_25j2kvsg_nd_(const uint8_t *message, uint8_t length);
+  void perform_ras_25j2kvsg_nd_(remote_base::RemoteTransmitterBase::TransmitCall &transmit, bool swing);
+  bool receive_ras_25j2kvsg_nd_(remote_base::RemoteReceiveData data);
+  bool receive_ras_25j2kvsg_nd_frame_(const uint8_t *message, uint8_t length);
   ToshibaPreset ras_25j2kvsg_nd_preset_() const;
   void set_ras_25j2kvsg_nd_preset_(ToshibaPreset preset);
   uint8_t ras_25j2kvsg_nd_fan_() const;
@@ -80,6 +83,8 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
 
   float normal_target_temperature_{24.0f};
   uint32_t last_swing_received_{0};
+  uint32_t last_swing_transmitted_{0};
+  uint32_t swing_echo_duration_{0};
   uint8_t power_selection_{0};
   uint8_t sleep_fan_{0};
   bool swing_received_{false};

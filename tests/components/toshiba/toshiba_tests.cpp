@@ -7,8 +7,12 @@
 #include <vector>
 
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/toshiba/toshiba.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 
 namespace esphome::toshiba::testing {
 
@@ -49,9 +53,12 @@ class CapturingTransmitter : public remote_base::RemoteTransmitterBase {
  public:
   CapturingTransmitter() : RemoteTransmitterBase(nullptr) {}
   std::vector<remote_base::RawTimings> frames;
+  uint32_t send_delay_ms{0};
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override {
+    if (this->send_delay_ms != 0)
+      delay(this->send_delay_ms);
     this->frames.push_back(this->temp_.get_data());
   }
 };
@@ -428,6 +435,183 @@ TEST(ToshibaWhTa15pe, SendsOnlyMotionForSwingAndFix) {
   call.set_swing_mode(climate::CLIMATE_SWING_OFF);
   call.perform();
   expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC), 7);
+}
+
+static uint32_t frame_duration_ms(const remote_base::RawTimings &raw) {
+  uint32_t duration_us = 0;
+  for (const int32_t pulse : raw)
+    duration_us += static_cast<uint32_t>(std::abs(pulse));
+  return (duration_us + 999) / 1000;
+}
+
+TEST(ToshibaWhTa15pe, SwingEchoesDoNotReverseStateOrPreventStopping) {
+  for (const bool state_command : {false, true}) {
+    Fixture f(MODEL_RAS_25J2KVSG_ND);
+    f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF);
+    auto swing = f.climate.make_call();
+    swing.set_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+    if (state_command)
+      swing.set_target_temperature(23);
+    swing.perform();
+    const auto echo = f.last_frame();
+    const auto transmissions = f.transmitter.frames.size();
+    {
+      LoopBlockingGuard guard{nullptr, nullptr, 1000};
+      remote_base::RemoteReceiveData data(echo, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+      ASSERT_TRUE(static_cast<remote_base::RemoteReceiverListener &>(f.climate).on_receive(data));
+      EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+    }
+    // Copies can also be delivered in separate receiver buffers.
+    for (const uint32_t now : {1100u, 1200u}) {
+      LoopBlockingGuard guard{nullptr, nullptr, now};
+      ASSERT_TRUE(receive(f.climate, {0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC));
+      EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+    }
+    EXPECT_EQ(f.transmitter.frames.size(), transmissions);
+    auto off = f.climate.make_call();
+    off.set_swing_mode(climate::CLIMATE_SWING_OFF);
+    off.perform();
+    ASSERT_EQ(f.transmitter.frames.size(), transmissions + 1);
+    expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC), 7);
+    EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_OFF);
+  }
+}
+
+TEST(ToshibaWhTa15pe, SwingEchoWindowCoversTimeSpentWaitingForTheTransmitter) {
+  for (const bool state_command : {false, true}) {
+    Fixture f(MODEL_RAS_25J2KVSG_ND);
+    f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF);
+    auto expected = waveform({0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC);
+    if (state_command) {
+      const auto state = waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x60, 0x03, 0x00, 0x62}, GENERIC);
+      expected.insert(expected.begin(), state.begin(), state.end());
+    }
+    f.transmitter.send_delay_ms = frame_duration_ms(expected) + 220;
+    auto swing = f.climate.make_call();
+    swing.set_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+    if (state_command)
+      swing.set_target_temperature(23);
+    swing.perform();
+    expect_frame(f.last_frame(), expected, state_command ? 9 : 7);
+    {
+      LoopBlockingGuard guard{nullptr, nullptr, 1000};
+      remote_base::RemoteReceiveData data(f.last_frame(), 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+      ASSERT_TRUE(static_cast<remote_base::RemoteReceiverListener &>(f.climate).on_receive(data));
+    }
+    EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+  }
+}
+
+TEST(ToshibaWhTa15pe, HandheldSwingWorksAgainAfterTheEchoWindow) {
+  for (const bool state_command : {false, true}) {
+    Fixture f(MODEL_RAS_25J2KVSG_ND);
+    f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF);
+    auto swing = f.climate.make_call();
+    swing.set_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+    if (state_command)
+      swing.set_target_temperature(23);
+    swing.perform();
+    const auto transmissions = f.transmitter.frames.size();
+    delay(frame_duration_ms(f.last_frame()) + 220);
+    {
+      LoopBlockingGuard guard{nullptr, nullptr, 2000};
+      ASSERT_TRUE(receive(f.climate, {0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC));
+      EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_OFF);
+    }
+    {
+      LoopBlockingGuard guard{nullptr, nullptr, 3000};
+      ASSERT_TRUE(receive(f.climate, {0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC));
+      EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+    }
+    EXPECT_EQ(f.transmitter.frames.size(), transmissions);
+  }
+}
+
+TEST(ToshibaWhTa15pe, ReceivesEveryCommandInACompleteStateAndMotionBurst) {
+  for (const bool final_space : {true, false}) {
+    global_preferences->reset();
+    Fixture tx(MODEL_RAS_25J2KVSG_ND);
+    tx.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_AUTO, climate::CLIMATE_SWING_OFF);
+    auto call = tx.climate.make_call();
+    call.set_target_temperature(23);
+    call.set_swing_mode(climate::CLIMATE_SWING_VERTICAL);
+    call.perform();
+    auto burst = tx.last_frame();
+    if (!final_space)
+      burst.pop_back();
+    global_preferences->reset();
+    Fixture rx(MODEL_RAS_25J2KVSG_ND);
+    ASSERT_EQ(rx.climate.swing_mode, climate::CLIMATE_SWING_OFF);
+    remote_base::RemoteReceiveData data(burst, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+    ASSERT_TRUE(static_cast<remote_base::RemoteReceiverListener &>(rx.climate).on_receive(data));
+    EXPECT_FLOAT_EQ(rx.climate.target_temperature, 23);
+    EXPECT_EQ(rx.climate.mode, climate::CLIMATE_MODE_HEAT);
+    EXPECT_EQ(rx.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+    EXPECT_TRUE(rx.transmitter.frames.empty());
+  }
+}
+
+TEST(ToshibaWhTa15pe, DoesNotApplyAnInvalidFrameAfterAValidFrame) {
+  auto burst = waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x60, 0x03, 0x00, 0x62}, GENERIC, 1);
+  auto invalid = waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x50, 0x03, 0x00, 0xFF}, GENERIC, 1);
+  burst.insert(burst.end(), invalid.begin(), invalid.end());
+  Fixture f(MODEL_RAS_25J2KVSG_ND);
+  remote_base::RemoteReceiveData data(burst, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+  ASSERT_TRUE(static_cast<remote_base::RemoteReceiverListener &>(f.climate).on_receive(data));
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 23);
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_HEAT);
+  EXPECT_TRUE(f.transmitter.frames.empty());
+}
+
+TEST(ToshibaWhTa15pe, ReceivesDifferentStateFramesInTheSameBuffer) {
+  auto burst = waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x60, 0x03, 0x00, 0x62}, GENERIC);
+  const auto update = waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x50, 0x61, 0x00, 0x30}, GENERIC);
+  burst.insert(burst.end(), update.begin(), update.end());
+  Fixture f(MODEL_RAS_25J2KVSG_ND);
+  remote_base::RemoteReceiveData data(burst, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+  ASSERT_TRUE(static_cast<remote_base::RemoteReceiverListener &>(f.climate).on_receive(data));
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 22);
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_EQ(f.climate.get_custom_fan_mode(), "Low+");
+  EXPECT_TRUE(f.transmitter.frames.empty());
+}
+
+TEST(ToshibaWhTa15pe, FreshNormalTargetIsValidEvenWithAColdSensor) {
+  for (const float temperature : {4.0f, 10.0f, 16.0f, 17.0f, 22.0f, 35.0f, NAN}) {
+    global_preferences->reset();
+    sensor::Sensor sensor;
+    sensor.publish_state(temperature);
+    CapturingTransmitter transmitter;
+    ToshibaClimate climate;
+    climate.set_model(MODEL_RAS_25J2KVSG_ND);
+    climate.set_transmitter(&transmitter);
+    climate.set_sensor(&sensor);
+    climate.setup();
+    const float expected = std::isnan(temperature) ? 24 : clamp(temperature, 17.0f, 30.0f);
+    EXPECT_FLOAT_EQ(climate.target_temperature, expected);
+    EXPECT_EQ(climate.preset, climate::CLIMATE_PRESET_NONE);
+    EXPECT_FLOAT_EQ(climate.get_traits().get_visual_min_temperature(), 5);
+    EXPECT_TRUE(transmitter.frames.empty());
+
+    // FAN ONLY must also use the normal target initialized at startup.
+    ASSERT_TRUE(receive(climate, {0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x50, 0x64, 0x00, 0x35}, GENERIC));
+    EXPECT_FLOAT_EQ(climate.target_temperature, expected);
+    climate.set_power_selection(1);
+    std::vector<uint8_t> bytes{
+        0xF2, 0x0D, 0x03, 0xFC, 0x01, static_cast<uint8_t>((static_cast<uint8_t>(expected) - 17) << 4), 0x64, 0x40, 0};
+    bytes.back() = xor_bytes(bytes.data() + 4, bytes.size() - 5);
+    expect_frame(transmitter.frames.back(), waveform(bytes, GENERIC), 9);
+    auto heat = climate.make_call();
+    heat.set_mode(climate::CLIMATE_MODE_HEAT);
+    heat.perform();
+    EXPECT_EQ(climate.mode, climate::CLIMATE_MODE_HEAT);
+    EXPECT_EQ(transmitter.frames.size(), 2u);
+    auto off = climate.make_call();
+    off.set_mode(climate::CLIMATE_MODE_OFF);
+    off.perform();
+    EXPECT_EQ(climate.mode, climate::CLIMATE_MODE_OFF);
+    EXPECT_EQ(transmitter.frames.size(), 3u);
+  }
 }
 
 TEST(ToshibaWhTa15pe, OrdinaryFramesPreserveSwingAndDoNotEchoReceivedCommands) {
