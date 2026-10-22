@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.uc8179_g4";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.uc8179_g4");
 
 // DTM plane bits by 2-bit gray level, per Waveshare's EPD_7in5_V2 4-gray
 // sample: level 3 (white) -> (1,1), level 0 (black) -> (0,0).

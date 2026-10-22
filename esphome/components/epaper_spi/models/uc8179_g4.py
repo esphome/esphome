@@ -35,7 +35,10 @@ _LUT_WK = _lut(0x40, 0x0C, 0x01, 0x00, 0x00, 0x01)
 class UC8179G4(EpaperModel):
     """EpaperModel for UC8179 panels driven in 4-gray + hybrid-partial mode."""
 
+    source_files = ("epaper_spi_uc8179_g4.cpp",)
+
     def __init__(self, name, **defaults):
+        defaults.setdefault("partial_update", True)
         super().__init__(name, "EPaperUC8179G4", **defaults)
 
     def get_init_sequence(self, config):
