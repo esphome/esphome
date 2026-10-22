@@ -5,7 +5,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -18,7 +20,6 @@ async def test_scheduler_numeric_id_test(
     # Track counts
     timeout_count = 0
     interval_count = 0
-    retry_count = 0
     defer_count = 0
 
     # Events for each test completion
@@ -32,8 +33,6 @@ async def test_scheduler_numeric_id_test(
     component_interval_fired = asyncio.Event()
     zero_id_timeout_fired = asyncio.Event()
     max_id_timeout_fired = asyncio.Event()
-    numeric_retry_done = asyncio.Event()
-    numeric_retry_cancelled = asyncio.Event()
     numeric_defer_7001_fired = asyncio.Event()
     numeric_defer_7002_fired = asyncio.Event()
     numeric_defer_cancelled = asyncio.Event()
@@ -41,11 +40,10 @@ async def test_scheduler_numeric_id_test(
 
     # Track interval counts
     numeric_interval_count = 0
-    numeric_retry_count = 0
 
     def on_log_line(line: str) -> None:
-        nonlocal timeout_count, interval_count, retry_count, defer_count
-        nonlocal numeric_interval_count, numeric_retry_count
+        nonlocal timeout_count, interval_count, defer_count
+        nonlocal numeric_interval_count
 
         # Strip ANSI color codes
         clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
@@ -97,18 +95,6 @@ async def test_scheduler_numeric_id_test(
             max_id_timeout_fired.set()
             timeout_count += 1
 
-        # Check for numeric retry tests
-        elif "Numeric retry 6001 attempt" in clean_line:
-            match = re.search(r"attempt (\d+)", clean_line)
-            if match:
-                numeric_retry_count = int(match.group(1))
-
-        elif "Numeric retry 6001 done" in clean_line:
-            numeric_retry_done.set()
-
-        elif "Cancelled numeric retry 6002" in clean_line:
-            numeric_retry_cancelled.set()
-
         # Check for numeric defer tests
         elif "Component numeric defer 7001 fired" in clean_line:
             numeric_defer_7001_fired.set()
@@ -122,14 +108,13 @@ async def test_scheduler_numeric_id_test(
         # Check for final results
         elif "Final results" in clean_line:
             match = re.search(
-                r"Timeouts: (\d+), Intervals: (\d+), Retries: (\d+), Defers: (\d+)",
+                r"Timeouts: (\d+), Intervals: (\d+), Defers: (\d+)",
                 clean_line,
             )
             if match:
                 timeout_count = int(match.group(1))
                 interval_count = int(match.group(2))
-                retry_count = int(match.group(3))
-                defer_count = int(match.group(4))
+                defer_count = int(match.group(3))
                 final_results_logged.set()
 
     async with (
@@ -137,30 +122,32 @@ async def test_scheduler_numeric_id_test(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-numeric-id-test"
+        await assert_device_name(client, "scheduler-numeric-id-test")
 
         # Wait for numeric timeout tests
-        try:
-            await asyncio.wait_for(numeric_timeout_1001_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric timeout 1001 did not fire within 0.5 seconds")
+        await wait_or_fail(
+            numeric_timeout_1001_fired,
+            0.5,
+            "Numeric timeout 1001 did not fire within 0.5 seconds",
+        )
 
-        try:
-            await asyncio.wait_for(numeric_timeout_1002_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric timeout 1002 did not fire within 0.5 seconds")
+        await wait_or_fail(
+            numeric_timeout_1002_fired,
+            0.5,
+            "Numeric timeout 1002 did not fire within 0.5 seconds",
+        )
 
-        try:
-            await asyncio.wait_for(numeric_interval_2001_fired.wait(), timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Numeric interval 2001 did not fire within 1 second")
+        await wait_or_fail(
+            numeric_interval_2001_fired,
+            1.0,
+            "Numeric interval 2001 did not fire within 1 second",
+        )
 
-        try:
-            await asyncio.wait_for(numeric_interval_cancelled.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail("Numeric interval 2001 was not cancelled within 2 seconds")
+        await wait_or_fail(
+            numeric_interval_cancelled,
+            2.0,
+            "Numeric interval 2001 was not cancelled within 2 seconds",
+        )
 
         # Verify numeric interval ran at least twice
         assert numeric_interval_count >= 2, (
@@ -173,79 +160,64 @@ async def test_scheduler_numeric_id_test(
         )
 
         # Wait for duplicate timeout (only last one should fire)
-        try:
-            await asyncio.wait_for(duplicate_timeout_fired.wait(), timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Duplicate numeric timeout did not fire within 1 second")
-
-        # Wait for component method tests
-        try:
-            await asyncio.wait_for(component_timeout_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Component numeric timeout did not fire within 0.5 seconds")
-
-        try:
-            await asyncio.wait_for(component_interval_fired.wait(), timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Component numeric interval did not fire within 1 second")
-
-        # Wait for edge case tests
-        try:
-            await asyncio.wait_for(zero_id_timeout_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Zero ID timeout did not fire within 0.5 seconds")
-
-        try:
-            await asyncio.wait_for(max_id_timeout_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Max ID timeout did not fire within 0.5 seconds")
-
-        # Wait for numeric retry tests
-        try:
-            await asyncio.wait_for(numeric_retry_done.wait(), timeout=1.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Numeric retry 6001 did not complete. Count: {numeric_retry_count}"
-            )
-
-        assert numeric_retry_count >= 2, (
-            f"Expected at least 2 numeric retry attempts, got {numeric_retry_count}"
+        await wait_or_fail(
+            duplicate_timeout_fired,
+            1.0,
+            "Duplicate numeric timeout did not fire within 1 second",
         )
 
-        # Verify numeric retry was cancelled
-        assert numeric_retry_cancelled.is_set(), (
-            "Numeric retry 6002 should have been cancelled"
+        # Wait for component method tests
+        await wait_or_fail(
+            component_timeout_fired,
+            0.5,
+            "Component numeric timeout did not fire within 0.5 seconds",
+        )
+
+        await wait_or_fail(
+            component_interval_fired,
+            1.0,
+            "Component numeric interval did not fire within 1 second",
+        )
+
+        # Wait for edge case tests
+        await wait_or_fail(
+            zero_id_timeout_fired,
+            0.5,
+            "Zero ID timeout did not fire within 0.5 seconds",
+        )
+
+        await wait_or_fail(
+            max_id_timeout_fired, 0.5, "Max ID timeout did not fire within 0.5 seconds"
         )
 
         # Wait for numeric defer tests
-        try:
-            await asyncio.wait_for(numeric_defer_7001_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric defer 7001 did not fire within 0.5 seconds")
+        await wait_or_fail(
+            numeric_defer_7001_fired,
+            0.5,
+            "Numeric defer 7001 did not fire within 0.5 seconds",
+        )
 
-        try:
-            await asyncio.wait_for(numeric_defer_7002_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric defer 7002 did not fire within 0.5 seconds")
+        await wait_or_fail(
+            numeric_defer_7002_fired,
+            0.5,
+            "Numeric defer 7002 did not fire within 0.5 seconds",
+        )
 
         # Verify numeric defer was cancelled
-        try:
-            await asyncio.wait_for(numeric_defer_cancelled.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric defer 8001 cancel confirmation not received")
+        await wait_or_fail(
+            numeric_defer_cancelled,
+            0.5,
+            "Numeric defer 8001 cancel confirmation not received",
+        )
 
         # Wait for final results
-        try:
-            await asyncio.wait_for(final_results_logged.wait(), timeout=3.0)
-        except TimeoutError:
-            pytest.fail("Final results were not logged within 3 seconds")
+        await wait_or_fail(
+            final_results_logged, 3.0, "Final results were not logged within 3 seconds"
+        )
 
         # Verify results
         assert timeout_count >= 6, f"Expected at least 6 timeouts, got {timeout_count}"
         assert interval_count >= 3, (
             f"Expected at least 3 interval fires, got {interval_count}"
-        )
-        assert retry_count >= 2, (
-            f"Expected at least 2 retry attempts, got {retry_count}"
         )
         assert defer_count >= 2, f"Expected at least 2 defer fires, got {defer_count}"

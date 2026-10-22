@@ -14,7 +14,9 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -49,14 +51,12 @@ async def test_script_array_params(
         api_client_connected() as client,
     ):
         _, services = await client.list_entities_services()
-        service = next((s for s in services if s.name == "run_array_script"), None)
-        assert service is not None, "run_array_script service not found"
+        service = require_service(services, "run_array_script")
         await client.execute_service(service, {})
 
-        try:
-            await asyncio.wait_for(done, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Did not receive all expected log lines. Saw: {seen}")
+        await wait_or_fail(
+            done, 5.0, "Did not receive all expected log lines", seen=seen
+        )
 
         assert (m := patterns["ints"].search(seen["ints"]))
         assert m.group(1) == "2" and m.group(2) == "42" and m.group(3) == "100"

@@ -1,15 +1,16 @@
 #pragma once
 
 #include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::tca9555 {
 
-class TCA9555Component : public Component,
-                         public i2c::I2CDevice,
-                         public gpio_expander::CachedGpioExpander<uint8_t, 16> {
+class TCA9555Component final : public Component,
+                               public i2c::I2CDevice,
+                               public gpio_expander::CachedGpioExpander<uint8_t, 16> {
  public:
   TCA9555Component() = default;
 
@@ -46,25 +47,8 @@ class TCA9555Component : public Component,
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-/// Helper class to expose a TCA9555 pin as an internal input GPIO pin.
-class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
+using TCA9555GPIOPin = gpio_expander::ExpanderGPIOPin<TCA9555Component>;
 
 }  // namespace esphome::tca9555
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::tca9555::TCA9555Component);

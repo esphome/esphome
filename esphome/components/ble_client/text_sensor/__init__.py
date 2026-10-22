@@ -9,13 +9,16 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 
-from .. import ble_client_ns
+from .. import (
+    CONF_DESCRIPTOR_UUID,
+    CONF_ON_NOTIFY,
+    ble_client_ns,
+    notify_from_on_notify,
+    validate_descriptor_not_notify,
+)
 
 DEPENDENCIES = ["ble_client"]
 
-CONF_DESCRIPTOR_UUID = "descriptor_uuid"
-
-CONF_ON_NOTIFY = "on_notify"
 
 adv_data_t = cg.std_vector.template(cg.uint8)
 adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
@@ -48,7 +51,9 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(ble_client.BLE_CLIENT_SCHEMA)
+    .extend(ble_client.BLE_CLIENT_SCHEMA),
+    validate_descriptor_not_notify,
+    notify_from_on_notify,
 )
 
 

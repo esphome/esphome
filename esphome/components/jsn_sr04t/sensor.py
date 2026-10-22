@@ -7,6 +7,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Mafus1"]
 DEPENDENCIES = ["uart"]
@@ -16,10 +17,7 @@ Jsnsr04tComponent = jsn_sr04t_ns.class_(
     "Jsnsr04tComponent", sensor.Sensor, cg.PollingComponent, uart.UARTDevice
 )
 Model = jsn_sr04t_ns.enum("Model")
-MODEL = {
-    "jsn_sr04t": Model.JSN_SR04T,
-    "aj_sr04m": Model.AJ_SR04M,
-}
+MODEL = Model.options("jsn_sr04t", "aj_sr04m")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -49,7 +47,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

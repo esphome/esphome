@@ -5,23 +5,28 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import logging
 import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.build_helpers.tools_cache import TOOLS_CACHE_SPECS
 from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
-from esphome.core import EsphomeError
+from esphome.core import DocumentLocation, EsphomeError, line_directive
+from esphome.cpp_generator import LambdaExpression
+from esphome.helpers import indent
 from esphome.storage_json import StorageJSON
 from esphome.writer import (
     CPP_AUTO_GENERATE_BEGIN,
@@ -29,6 +34,7 @@ from esphome.writer import (
     CPP_INCLUDE_BEGIN,
     CPP_INCLUDE_END,
     GITIGNORE_CONTENT,
+    check_build_tree_not_tracked,
     clean_all,
     clean_build,
     clean_cmake_cache,
@@ -67,15 +73,35 @@ def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
     want to verify the PIO-cleanup branch (e.g. test_clean_all,
     test_clean_all_partial_exists) install their own inner patch which
     stacks on top of this one and wins for the duration of their block.
+
+    Also pin every ``TOOLS_CACHE_SPECS`` env override to a nonexistent tmp
+    dir, and patch ``platformdirs.user_cache_dir``, for the same reason: ``clean_all`` removes the machine-global toolchain installs
+    and their default cache root, which otherwise resolve to the real
+    ``~/.cache/esphome``.
     """
     pio_root = tmp_path_factory.mktemp("isolated_pio") / "nonexistent"
+    cache_root = tmp_path_factory.mktemp("isolated_cache") / "nonexistent"
     mock_cfg = MagicMock()
     mock_cfg.get.side_effect = lambda section, option: (
         str(pio_root / option) if section == "platformio" else ""
     )
-    with patch(
-        "platformio.project.config.ProjectConfig.get_instance",
-        return_value=mock_cfg,
+    with (
+        patch(
+            "platformio.project.config.ProjectConfig.get_instance",
+            return_value=mock_cfg,
+        ),
+        patch.dict(
+            "os.environ",
+            {
+                # Derived from the registry so a new backend's cache can
+                # never drift out of the sandbox and hit a real toolchain
+                env_var: str(
+                    tmp_path_factory.mktemp(f"isolated_{subdir}") / "nonexistent"
+                )
+                for env_var, subdir in TOOLS_CACHE_SPECS
+            },
+        ),
+        patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
     ):
         yield
 
@@ -319,7 +345,7 @@ def test_storage_should_not_update_cmake_cache_when_nothing_changes(
 
 @pytest.mark.parametrize(
     "core_platform",
-    [PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_BK72XX, PLATFORM_RTL87XX],
+    [PLATFORM_ESP8266, PLATFORM_RP2, PLATFORM_BK72XX, PLATFORM_RTL87XX],
 )
 def test_storage_should_not_update_cmake_cache_for_non_esp32(
     create_storage: Callable[..., StorageJSON],
@@ -495,10 +521,13 @@ def test_clean_build(
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
-    # idedata cache lives under the data dir, not the build path.
+    # idedata caches live under the data dir, not the build path; the
+    # .arduino.json variant is the native esp8266 toolchain's.
     idedata_cache = tmp_path / "idedata" / "test.json"
     idedata_cache.parent.mkdir()
     idedata_cache.write_text("{}")
+    arduino_idedata_cache = tmp_path / "idedata" / "test.arduino.json"
+    arduino_idedata_cache.write_text("{}")
 
     # Native ESP-IDF toolchain artifacts.
     idf_build_dir = tmp_path / "build"
@@ -559,6 +588,7 @@ def test_clean_build(
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
     assert not idedata_cache.exists()
+    assert not arduino_idedata_cache.exists()
     assert not idf_build_dir.exists()
     assert not managed_components_dir.exists()
     assert not pio_components_dir.exists()
@@ -650,6 +680,35 @@ def test_clean_build_partial_exists(
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" not in caplog.text
     assert "dependencies.lock" not in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_partial_removes_pch_artifacts(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The PlatformIO pch sidecars live at the project root and must go in
+    a partial clean, like the native backend's under .pioenvs."""
+    from esphome.build_helpers.pch import (
+        PCH_ARTIFACT_DIRS as dirs,
+        PCH_ARTIFACT_NAMES as names,
+    )
+
+    assert "esphome_pch.h.gch" in names
+    for name in names:
+        (tmp_path / name).write_text("x")
+    for name in dirs:
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "cc1plus").write_text("x")
+    mock_core.relative_pioenvs_path.return_value = tmp_path / ".pioenvs"
+    mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
+
+    clean_build()
+
+    for name in (*names, *dirs):
+        assert not (tmp_path / name).exists()
 
 
 @patch("esphome.writer.CORE")
@@ -818,6 +877,244 @@ def test_write_gitignore_skips_existing_file(
     assert gitignore_path.read_text() == existing_content
 
 
+@patch("esphome.writer.subprocess.run")
+def test_check_build_tree_not_tracked_silent_in_ci(
+    mock_run: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CI builds fixture configs, not a user's repo -- skip the git spawn entirely."""
+    monkeypatch.setenv("CI", "true")
+
+    check_build_tree_not_tracked()
+
+    mock_run.assert_not_called()
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_warns_when_tracked(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked warns when the build dir is tracked by git."""
+    monkeypatch.delenv("CI", raising=False)
+    data_dir = tmp_path / ".esphome"
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = data_dir
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout=b".esphome/build/node/main.cpp\0.esphome/node.json\0",
+        stderr=b"",
+    )
+
+    with (
+        patch.dict(os.environ, {"GIT_DIR": "/somewhere/else/.git"}),
+        caplog.at_level("WARNING"),
+    ):
+        check_build_tree_not_tracked()
+
+    assert "is tracked by git" in caplog.text
+    assert "2 files" in caplog.text
+    assert "secrets" in caplog.text
+    assert ".gitkeep" in caplog.text
+    # The remediation command must use the absolute path so it also works
+    # when pasted from the repository root of a nested config layout.
+    assert f"git rm -r --cached {data_dir}" in caplog.text
+
+    mock_run.assert_called_once()
+    args, kwargs = mock_run.call_args
+    assert args[0] == ["git", "ls-files", "-z", "--", ".esphome"]
+    assert kwargs["cwd"] == tmp_path
+    assert kwargs["capture_output"] is True
+    assert kwargs["check"] is False
+    assert kwargs["timeout"] == 5
+    # Repo-scoping env vars must be stripped so a hook/CI wrapper can't
+    # redirect this read-only query to a different repository.
+    assert "GIT_DIR" not in kwargs["env"]
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_gitkeep_present(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked is skipped when .gitkeep opts in."""
+    monkeypatch.delenv("CI", raising=False)
+    data_dir = tmp_path / ".esphome"
+    data_dir.mkdir()
+    (data_dir / ".gitkeep").touch()
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = data_dir
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    mock_run.assert_not_called()
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_untracked(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked stays silent when nothing is tracked."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_outside_git_repo(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked stays silent when not inside a git repo."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(
+        returncode=128, stdout=b"", stderr=b"fatal: not a git repository\n"
+    )
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_on_failure_without_stderr(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-zero exit with no stderr must not raise trying to log the reason."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(returncode=1, stdout=b"", stderr=b"")
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_git_missing(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked stays silent when git isn't installed."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.side_effect = FileNotFoundError()
+
+    with caplog.at_level("DEBUG"):
+        check_build_tree_not_tracked()
+
+    assert caplog.text == ""
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_on_other_os_error(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-executable git on PATH (PermissionError) must not abort the build."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.side_effect = PermissionError("git is not executable")
+
+    with caplog.at_level("DEBUG"):
+        check_build_tree_not_tracked()
+
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert "Could not check whether" in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_on_timeout(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hung git process must not block the build indefinitely."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
+
+    with caplog.at_level("DEBUG"):
+        check_build_tree_not_tracked()
+
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert "Could not check whether" in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_data_dir_outside_config_dir(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked skips the check for an external data dir.
+
+    Covers the Home Assistant add-on (/data) and ESPHOME_DATA_DIR cases, where
+    the build directory can't be part of the config's git repository.
+    """
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path / "config"
+    mock_core.data_dir = tmp_path / "data"
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    mock_run.assert_not_called()
+    assert "tracked by git" not in caplog.text
+
+
 @patch("esphome.writer.write_file_if_changed")  # Mock to capture output
 @patch("esphome.writer.copy_src_tree")  # Keep this mock as it's complex
 @patch("esphome.writer.CORE")
@@ -912,6 +1209,32 @@ def test_write_cpp_creates_new_file(
 
 
 @pytest.mark.usefixtures("mock_copy_src_tree")
+@patch("esphome.writer.write_file_if_changed")
+@patch("esphome.writer.CORE")
+def test_write_cpp_resets_line_after_lambda(
+    mock_core: MagicMock,
+    mock_write_file: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The code after a YAML lambda is reported against main.cpp again."""
+    main_cpp = tmp_path / "main.cpp"
+    mock_core.relative_src_path.return_value = main_cpp
+    mock_core.cpp_global_section = ""
+    lambda_ = LambdaExpression(
+        ("foo();",), (), source=DocumentLocation("test.yaml", 4, 0)
+    )
+
+    write_cpp(indent(f"bar({lambda_});\nbaz();") + "\n")
+
+    lines = mock_write_file.call_args[0][1].split("\n")
+    closing = lines.index("  });")
+    assert lines[closing - 3].strip() == '#line 5 "test.yaml"'
+    # The directive names the line after it, which is closing + 1 (1-based)
+    assert lines[closing - 1].strip() == line_directive(str(main_cpp), closing + 1)
+    assert lines[closing + 1] == "  baz();"
+
+
+@pytest.mark.usefixtures("mock_copy_src_tree")
 @patch("esphome.writer.CORE")
 def test_write_cpp_with_missing_end_marker(
     mock_core: MagicMock,
@@ -988,6 +1311,123 @@ def test_clean_all_with_yaml_file(
     # Verify logging mentions the build dir
     assert "Cleaning" in caplog.text
     assert str(build_dir) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_global_idf_install(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the machine-global native ESP-IDF install dir."""
+    idf_install = tmp_path / "idf_install"
+    (idf_install / "frameworks").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_ESP_IDF_PREFIX", str(idf_install))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not idf_install.exists()
+    assert str(idf_install.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_global_sdk_nrf_install(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the machine-global native sdk-nrf install dir."""
+    sdk_nrf_install = tmp_path / "sdk_nrf_install"
+    (sdk_nrf_install / "frameworks").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", str(sdk_nrf_install))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not sdk_nrf_install.exists()
+    assert str(sdk_nrf_install.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_global_arduino8266_install(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the machine-global native arduino8266 install dir."""
+    arduino8266_install = tmp_path / "arduino8266_install"
+    (arduino8266_install / "frameworks").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_ARDUINO8266_PREFIX", str(arduino8266_install))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not arduino8266_install.exists()
+    assert str(arduino8266_install.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_platformio_ccache(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the PlatformIO ccache dir the containers relocate."""
+    ccache_dir = tmp_path / "platformio-ccache"
+    (ccache_dir / "0").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_PLATFORMIO_CCACHE_DIR", str(ccache_dir))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not ccache_dir.exists()
+    assert str(ccache_dir.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_default_cache_root(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the default cache root (stale/orphaned installs)."""
+    cache_root = tmp_path / "cache_root"
+    (cache_root / "some-old-toolchain").mkdir(parents=True)
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    from esphome.writer import clean_all
+
+    with (
+        patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
+        caplog.at_level("INFO"),
+    ):
+        clean_all([str(config_dir)])
+
+    assert not cache_root.exists()
+    assert str(cache_root.resolve()) in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -1174,6 +1614,7 @@ def test_clean_all(
     build_dir2.mkdir()
     (build_dir1 / "dummy.txt").write_text("x")
     (build_dir2 / "dummy.txt").write_text("x")
+    (build_dir1 / ".gitkeep").touch()
 
     # Create PlatformIO directories
     pio_cache = tmp_path / "pio_cache"
@@ -1216,6 +1657,10 @@ def test_clean_all(
     # Verify that files in .esphome were removed
     assert not (build_dir1 / "dummy.txt").exists()
     assert not (build_dir2 / "dummy.txt").exists()
+
+    # .gitkeep is the opt-out check_build_tree_not_tracked() advertises; it
+    # must survive clean-all or the warning comes right back on next compile.
+    assert (build_dir1 / ".gitkeep").exists()
     assert not pio_cache.exists()
     assert not pio_packages.exists()
     assert not pio_platforms.exists()
@@ -1745,6 +2190,7 @@ def test_generate_build_info_data_h_format() -> None:
 
     assert "#pragma once" in result
     assert "extern const uint32_t ESPHOME_CONFIG_HASH;" in result
+    assert "extern const uint32_t ESPHOME_CONFIG_VERSION_HASH;" in result
     assert "extern const time_t ESPHOME_BUILD_TIME;" in result
     assert "extern const size_t ESPHOME_COMMENT_SIZE;" in result
     assert "extern const char ESPHOME_BUILD_TIME_STR[]" in result
@@ -1759,6 +2205,13 @@ def test_generate_build_info_data_h_esp8266_progmem() -> None:
     assert "#ifdef USE_ESP8266" in result
     assert "#include <pgmspace.h>" in result
     assert "PROGMEM" in result
+
+
+def test_generate_build_info_data_cpp_config_version_hash() -> None:
+    """The config version hash is folded from the config hash and ESPHOME_VERSION."""
+    result = generate_build_info_data_cpp(0x12345678, 1700000000, "", "")
+    assert "fnv1a_hash_extend(0x12345678U, ESPHOME_VERSION);" in result
+    assert "ESPHOME_CONFIG_VERSION_HASH = CONFIG_VERSION_HASH;" in result
 
 
 def test_generate_build_info_data_cpp_format() -> None:
@@ -1949,6 +2402,38 @@ def test_copy_src_tree_writes_build_info_files(
     assert build_info_json["esphome_version"] == "2025.1.0-dev"
 
 
+def _setup_build_info_mocks(
+    mock_core: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_walk_files: MagicMock,
+    tmp_path: Path,
+) -> Path:
+    """Point CORE at tmp_path and return the build_info.json path."""
+    src_path = tmp_path / "src"
+    (src_path / "esphome" / "core").mkdir(parents=True)
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = ""
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    mock_iter_components.return_value = []
+    mock_walk_files.return_value = []
+    return build_path / "build_info.json"
+
+
+def _run_copy_src_tree(version: str = "2025.1.0-dev") -> None:
+    with (
+        patch("esphome.writer.__version__", version),
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+
 @patch("esphome.writer.CORE")
 @patch("esphome.writer.iter_components")
 @patch("esphome.writer.walk_files")
@@ -1958,59 +2443,17 @@ def test_copy_src_tree_detects_config_hash_change(
     mock_core: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Test copy_src_tree detects when config_hash changes."""
-    # Setup directory structure
-    src_path = tmp_path / "src"
-    src_path.mkdir()
-    esphome_core_path = src_path / "esphome" / "core"
-    esphome_core_path.mkdir(parents=True)
-    build_path = tmp_path / "build"
-    build_path.mkdir()
-
-    # Create existing build_info.json with different config_hash
-    build_info_json_path = build_path / "build_info.json"
-    build_info_json_path.write_text(
-        json.dumps(
-            {
-                "config_hash": 0x12345678,  # Different from current
-                "build_time": 1700000000,
-                "build_time_str": "2023-11-14 22:13:20 +0000",
-                "esphome_version": "2025.1.0-dev",
-            }
-        )
+    """A changed config_hash regenerates build_info after a steady-state run."""
+    build_info_json_path = _setup_build_info_mocks(
+        mock_core, mock_iter_components, mock_walk_files, tmp_path
     )
+    _run_copy_src_tree()
+    assert json.loads(build_info_json_path.read_text())["config_hash"] == 0xDEADBEEF
 
-    # Create existing build_info_data.h
-    build_info_h_path = esphome_core_path / "build_info_data.h"
-    build_info_h_path.write_text("// old build_info_data.h")
-
-    # Setup mocks
-    mock_core.relative_src_path.side_effect = src_path.joinpath
-    mock_core.relative_build_path.side_effect = build_path.joinpath
-    mock_core.defines = []
-    mock_core.config_hash = 0xDEADBEEF  # Different from existing
-    mock_core.comment = ""
-    mock_core.target_platform = "test_platform"
-    mock_core.config = {}
-    mock_iter_components.return_value = []
-    mock_walk_files.return_value = []
-
-    with (
-        patch("esphome.writer.__version__", "2025.1.0-dev"),
-        patch("esphome.writer.importlib.import_module") as mock_import,
-    ):
-        mock_import.side_effect = AttributeError
-        copy_src_tree()
-
-    # Verify build_info files were updated due to config_hash change
-    assert build_info_h_path.exists()
-    build_info_cpp_path = esphome_core_path / "build_info_data.cpp"
-    assert build_info_cpp_path.exists()
-    new_content = build_info_cpp_path.read_text()
-    assert "0xdeadbeef" in new_content.lower()
-
-    new_json = json.loads(build_info_json_path.read_text())
-    assert new_json["config_hash"] == 0xDEADBEEF
+    # Second run only regenerates if the hash comparison detects the change
+    mock_core.config_hash = 0xC0FFEE
+    _run_copy_src_tree()
+    assert json.loads(build_info_json_path.read_text())["config_hash"] == 0xC0FFEE
 
 
 @patch("esphome.writer.CORE")
@@ -2022,104 +2465,93 @@ def test_copy_src_tree_detects_version_change(
     mock_core: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Test copy_src_tree detects when esphome_version changes."""
-    # Setup directory structure
-    src_path = tmp_path / "src"
-    src_path.mkdir()
-    esphome_core_path = src_path / "esphome" / "core"
-    esphome_core_path.mkdir(parents=True)
-    build_path = tmp_path / "build"
-    build_path.mkdir()
-
-    # Create existing build_info.json with different version
-    build_info_json_path = build_path / "build_info.json"
-    build_info_json_path.write_text(
-        json.dumps(
-            {
-                "config_hash": 0xDEADBEEF,
-                "build_time": 1700000000,
-                "build_time_str": "2023-11-14 22:13:20 +0000",
-                "esphome_version": "2024.12.0",  # Old version
-            }
-        )
+    """A changed esphome_version regenerates build_info after a steady-state run."""
+    build_info_json_path = _setup_build_info_mocks(
+        mock_core, mock_iter_components, mock_walk_files, tmp_path
     )
-
-    # Create existing build_info_data.h
-    build_info_h_path = esphome_core_path / "build_info_data.h"
-    build_info_h_path.write_text("// old build_info_data.h")
-
-    # Setup mocks
-    mock_core.relative_src_path.side_effect = src_path.joinpath
-    mock_core.relative_build_path.side_effect = build_path.joinpath
-    mock_core.defines = []
-    mock_core.config_hash = 0xDEADBEEF
-    mock_core.comment = ""
-    mock_core.target_platform = "test_platform"
-    mock_core.config = {}
-    mock_iter_components.return_value = []
-    mock_walk_files.return_value = []
-
-    with (
-        patch("esphome.writer.__version__", "2025.1.0-dev"),  # New version
-        patch("esphome.writer.importlib.import_module") as mock_import,
-    ):
-        mock_import.side_effect = AttributeError
-        copy_src_tree()
-
-    # Verify build_info files were updated due to version change
-    assert build_info_h_path.exists()
+    # Pin version.h so only the build_info comparison can see the bump
+    with patch("esphome.writer.generate_version_h", return_value="// version.h\n"):
+        _run_copy_src_tree(version="2024.12.0")
+        _run_copy_src_tree(version="2025.1.0-dev")
     new_json = json.loads(build_info_json_path.read_text())
     assert new_json["esphome_version"] == "2025.1.0-dev"
+
+
+@pytest.mark.parametrize(
+    "damage",
+    (b"invalid json {{{", b"[]", b'\xff{"config_hash": 1}'),
+    ids=("invalid-json", "non-object", "non-utf8"),
+)
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_regenerates_damaged_build_info(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+    damage: bytes,
+) -> None:
+    """A damaged build_info.json reads as stale and is regenerated, not left in place."""
+    build_info_json_path = _setup_build_info_mocks(
+        mock_core, mock_iter_components, mock_walk_files, tmp_path
+    )
+    _run_copy_src_tree()
+    build_info_json_path.write_bytes(damage)
+    # Second run only rewrites the file if the damage branch fires
+    _run_copy_src_tree()
+    new_json = json.loads(build_info_json_path.read_text())
+    assert new_json["config_hash"] == 0xDEADBEEF
 
 
 @patch("esphome.writer.CORE")
 @patch("esphome.writer.iter_components")
 @patch("esphome.writer.walk_files")
-def test_copy_src_tree_handles_invalid_build_info_json(
+def test_copy_src_tree_missing_build_info_rebuilds_quietly(
     mock_walk_files: MagicMock,
     mock_iter_components: MagicMock,
     mock_core: MagicMock,
     tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test copy_src_tree handles invalid build_info.json gracefully."""
-    # Setup directory structure
-    src_path = tmp_path / "src"
-    src_path.mkdir()
-    esphome_core_path = src_path / "esphome" / "core"
-    esphome_core_path.mkdir(parents=True)
-    build_path = tmp_path / "build"
-    build_path.mkdir()
+    """An absent build_info.json regenerates without claiming damage."""
+    build_info_json_path = _setup_build_info_mocks(
+        mock_core, mock_iter_components, mock_walk_files, tmp_path
+    )
+    _run_copy_src_tree()
+    build_info_json_path.unlink()
+    _run_copy_src_tree()
+    assert json.loads(build_info_json_path.read_text())["config_hash"] == 0xDEADBEEF
+    assert "unreadable" not in caplog.text
 
-    # Create invalid build_info.json
-    build_info_json_path = build_path / "build_info.json"
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_unremovable_damaged_build_info_is_logged(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed unlink of the damaged file names the real cause."""
+    build_info_json_path = _setup_build_info_mocks(
+        mock_core, mock_iter_components, mock_walk_files, tmp_path
+    )
+    _run_copy_src_tree()
     build_info_json_path.write_text("invalid json {{{")
+    real_unlink = Path.unlink
 
-    # Create existing build_info_data.h
-    build_info_h_path = esphome_core_path / "build_info_data.h"
-    build_info_h_path.write_text("// old build_info_data.h")
+    def fail_on_build_info(self: Path, missing_ok: bool = False) -> None:
+        if self.name == "build_info.json":
+            raise OSError("simulated EACCES")
+        real_unlink(self, missing_ok=missing_ok)
 
-    # Setup mocks
-    mock_core.relative_src_path.side_effect = src_path.joinpath
-    mock_core.relative_build_path.side_effect = build_path.joinpath
-    mock_core.defines = []
-    mock_core.config_hash = 0xDEADBEEF
-    mock_core.comment = ""
-    mock_core.target_platform = "test_platform"
-    mock_core.config = {}
-    mock_iter_components.return_value = []
-    mock_walk_files.return_value = []
-
-    with (
-        patch("esphome.writer.__version__", "2025.1.0-dev"),
-        patch("esphome.writer.importlib.import_module") as mock_import,
-    ):
-        mock_import.side_effect = AttributeError
-        copy_src_tree()
-
-    # Verify build_info files were created despite invalid JSON
-    assert build_info_h_path.exists()
-    new_json = json.loads(build_info_json_path.read_text())
-    assert new_json["config_hash"] == 0xDEADBEEF
+    with patch.object(Path, "unlink", fail_on_build_info):
+        _run_copy_src_tree()
+    assert "Could not remove unreadable build_info.json" in caplog.text
+    assert json.loads(build_info_json_path.read_text())["config_hash"] == 0xDEADBEEF
 
 
 @patch("esphome.writer.CORE")
@@ -2370,3 +2802,39 @@ def test_copy_src_tree_ignores_removed_generated_file(
     # file was removed and regenerated, not that it triggered sources_changed.
     new_json = json.loads(build_info_json_path.read_text())
     assert new_json["config_hash"] == 0xDEADBEEF
+
+
+@pytest.mark.parametrize(
+    ("case", "content", "expected"),
+    [
+        ("files missing", None, True),
+        ("json missing", "ABSENT", True),
+        ("json unreadable", "not json", True),
+        # Valid JSON that is not an object is stale, not an AttributeError
+        ("json not an object", "[]", True),
+        ("hash mismatch", {"config_hash": 2, "esphome_version": "CURRENT"}, True),
+        ("version mismatch", {"config_hash": 1, "esphome_version": "0.0.0"}, True),
+        ("matching record", {"config_hash": 1, "esphome_version": "CURRENT"}, False),
+    ],
+)
+def test_build_info_stale_branches(
+    tmp_path: Path, case: str, content, expected: bool
+) -> None:
+    """Missing files, an unreadable JSON, a hash or version mismatch each
+    regenerate; a matching record does not."""
+    from esphome.const import __version__
+    from esphome.writer import _build_info_stale
+
+    h = tmp_path / "build_info_data.h"
+    cpp = tmp_path / "build_info_data.cpp"
+    info = tmp_path / "build_info.json"
+    if content is not None:
+        h.write_text("")
+        cpp.write_text("")
+    if isinstance(content, dict):
+        if content.get("esphome_version") == "CURRENT":
+            content["esphome_version"] = __version__
+        info.write_text(json.dumps(content))
+    elif isinstance(content, str) and content != "ABSENT":
+        info.write_text(content)
+    assert _build_info_stale(h, cpp, info, 1) is expected, case

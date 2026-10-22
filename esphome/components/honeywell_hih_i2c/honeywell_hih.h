@@ -7,7 +7,7 @@
 
 namespace esphome::honeywell_hih_i2c {
 
-class HoneywellHIComponent : public PollingComponent, public i2c::I2CDevice {
+class HoneywellHIComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
   void loop() override;

@@ -3,7 +3,7 @@
 
 namespace esphome::internal_temperature {
 
-static const char *const TAG = "internal_temperature";
+ESPHOME_LOG_TAG(TAG, "internal_temperature");
 
 void InternalTemperatureSensor::dump_config() { LOG_SENSOR("", "Internal Temperature Sensor", this); }
 

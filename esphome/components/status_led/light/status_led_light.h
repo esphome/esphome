@@ -7,7 +7,7 @@
 
 namespace esphome::status_led {
 
-class StatusLEDLightOutput : public light::LightOutput, public Component {
+class StatusLEDLightOutput final : public light::LightOutput, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void set_output(output::BinaryOutput *output) { output_ = output; }

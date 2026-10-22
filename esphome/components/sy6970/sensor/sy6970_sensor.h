@@ -34,7 +34,7 @@ using SY6970SystemVoltageSensor = VoltageSensor<SY6970_REG_VINDPM_STATUS, 0x7F, 
 using SY6970ChargeCurrentSensor = CurrentSensor<SY6970_REG_CHARGE_CURRENT_MONITOR, 0x7F, 0, CHG_CURRENT_STEP_MA>;
 
 // Precharge current sensor needs special handling (bit shift)
-class SY6970PrechargeCurrentSensor : public SY6970Listener, public sensor::Sensor {
+class SY6970PrechargeCurrentSensor final : public SY6970Listener, public sensor::Sensor {
  public:
   void on_data(const SY6970Data &data) override {
     uint8_t iprechg = (data.registers[SY6970_REG_PRECHARGE_CURRENT] >> 4) & 0x0F;

@@ -1,0 +1,21 @@
+esphome:
+  name: mt6701-modes-uvw-pwm-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+i2c:
+  - id: i2c_bus
+    sda: GPIO21
+    scl: GPIO22
+
+mt6701_i2c:
+  id: encoder_hub
+  i2c_id: i2c_bus
+  output_mode: UVW
+  uvw:
+    pole_pairs: 7
+  out_pin:
+    mode: PWM

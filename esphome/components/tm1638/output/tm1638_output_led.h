@@ -6,7 +6,7 @@
 
 namespace esphome::tm1638 {
 
-class TM1638OutputLed : public output::BinaryOutput, public Component {
+class TM1638OutputLed final : public output::BinaryOutput, public Component {
  public:
   void dump_config() override;
 

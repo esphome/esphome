@@ -266,7 +266,7 @@ class WeikaiComponent : public Component {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Helper class to expose a WeiKai family IO pin as an internal GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
-class WeikaiGPIOPin : public GPIOPin {
+class WeikaiGPIOPin final : public GPIOPin {
  public:
   void set_parent(WeikaiComponent *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
@@ -293,7 +293,7 @@ class WeikaiGPIOPin : public GPIOPin {
 /// uart::UARTComponent virtual class. This class is common to the different members of the Weikai
 /// components family and therefore avoid code duplication.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-class WeikaiChannel : public uart::UARTComponent {
+class WeikaiChannel final : public uart::UARTComponent {
  public:
   /// @brief We belongs to this WeikaiComponent
   /// @param parent pointer to the component we belongs to
@@ -315,10 +315,10 @@ class WeikaiChannel : public uart::UARTComponent {
   const char *get_channel_name() { return this->name_.c_str(); }
 
   /// @brief Setup the channel
-  void virtual setup_channel();
+  void setup_channel();
 
   /// @brief dump channel information
-  void virtual dump_channel();
+  void dump_channel();
 
   /// @brief Factory method to create a WeikaiRegister proxy object
   /// @param reg address of the register
@@ -381,6 +381,15 @@ class WeikaiChannel : public uart::UARTComponent {
   /// we wait until all bytes are gone with a timeout of 100 ms
   uart::UARTFlushResult flush() override;
 
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  /// @brief Re-apply the current line settings (baud, parity, etc) to the channel.
+  void load_settings(bool dump_config) override {
+    this->set_line_param_();
+    this->set_baudrate_();
+  }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+#endif
+
  protected:
   friend class WeikaiComponent;
 
@@ -414,7 +423,7 @@ class WeikaiChannel : public uart::UARTComponent {
 
   /// @brief check if channel is alive
   /// @return true if OK
-  bool virtual check_channel_down();
+  bool check_channel_down_();
 
 #ifdef TEST_COMPONENT
   /// @ingroup test_

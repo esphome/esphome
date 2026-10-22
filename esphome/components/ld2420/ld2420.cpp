@@ -60,7 +60,7 @@ Gate 0 low thresh = 20 00 uint16_t 0x0020, Threshold value = 60 EA 00 00 uint32_
 
 namespace esphome::ld2420 {
 
-static const char *const TAG = "ld2420";
+ESPHOME_LOG_TAG(TAG, "ld2420");
 
 // Local const's
 static constexpr uint16_t REFRESH_RATE_MS = 1000;
@@ -161,13 +161,8 @@ template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::
   return 0xFF;  // Not found
 }
 
-static uint8_t calc_checksum(void *data, size_t size) {
-  uint8_t checksum = 0;
-  uint8_t *data_bytes = (uint8_t *) data;
-  for (size_t i = 0; i < size; i++) {
-    checksum ^= data_bytes[i];  // XOR operation
-  }
-  return checksum;
+static uint8_t calc_checksum(const void *data, size_t size) {
+  return xor_bytes(static_cast<const uint8_t *>(data), size);
 }
 
 static int32_t get_firmware_int(const char *version_string) {
@@ -183,8 +178,6 @@ static int32_t get_firmware_int(const char *version_string) {
   }
   return result;
 }
-
-float LD2420Component::get_setup_priority() const { return setup_priority::BUS; }
 
 void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -690,6 +683,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       this->handle_cmd_error(this->cmd_reply_.error);
     }
   }
+  this->cmd_active_ = false;  // Resend and give-up are done; let loop() read the UART again
   return error;
 }
 
@@ -703,7 +697,8 @@ uint8_t LD2420Component::set_config_mode(bool enable) {
     cmd_frame.data_length += sizeof(CMD_PROTOCOL_VER);
   }
   cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
+  ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? LOG_STR_LITERAL("enable") : LOG_STR_LITERAL("disable"),
+           cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
 }
 
@@ -746,7 +741,14 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
   this->send_cmd_from_array(cmd_frame);
 }
 
-void LD2420Component::handle_cmd_error(uint8_t error) { ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]); }
+void LD2420Component::handle_cmd_error(uint16_t error) {
+  if (error < std::size(ERR_MESSAGE)) {
+    ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]);
+  } else {
+    // The error word comes from the device reply frame; unknown codes must not index ERR_MESSAGE
+    ESP_LOGE(TAG, "Command failed: error 0x%04X", error);
+  }
+}
 
 int LD2420Component::get_gate_threshold_(uint8_t gate) {
   uint8_t error;
@@ -912,6 +914,17 @@ void LD2420Component::init_gate_config_numbers() {
       this->gate_move_threshold_numbers_[gate]->publish_state(
           static_cast<uint16_t>(this->current_config.move_thresh[gate]));
     }
+  }
+}
+
+void LD2420Component::set_gate_threshold_value(number::Number *n, float value) {
+  for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
+    const bool move = this->gate_move_threshold_numbers_[gate] == n;
+    if (!move && this->gate_still_threshold_numbers_[gate] != n)
+      continue;
+    const uint8_t target = this->is_gate_select() ? this->get_gate_select_value() : gate;
+    (move ? this->new_config.move_thresh : this->new_config.still_thresh)[target] = value;
+    return;
   }
 }
 

@@ -7,6 +7,8 @@ from typing import Any
 
 import pytest
 
+import esphome.codegen as cg
+from esphome.components import button, number, select, switch
 from esphome.config_validation import Invalid
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -33,16 +35,13 @@ from esphome.core.entity_helpers import (
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj
-from esphome.helpers import sanitize, snake_case
+from esphome.cpp_generator import MockObj, MockObjClass, RawExpression
+from esphome.helpers import fnv1_hash, sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting names from configure_entity_/set_name calls
-# Matches: .configure_entity_("name", ...) or .set_name("name", ...)
-ENTITY_NAME_PATTERN = re.compile(
-    r'\.(?:configure_entity_|set_name)\(["\']([^"\']*)["\']'
-)
+# Extracts the name from .configure_entity_(ESPHOME_PSTR("name"), ...)
+ENTITY_NAME_PATTERN = re.compile(r'\.configure_entity_\(ESPHOME_PSTR\("([^"]*)"')
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -515,9 +514,9 @@ def test_entity_duplicate_validator() -> None:
     config1 = {CONF_NAME: "Temperature"}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("", "sensor", "temperature") in CORE.unique_ids
+    assert ("", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
     # Check metadata was stored
-    metadata = CORE.unique_ids[("", "sensor", "temperature")]
+    metadata = CORE.unique_ids[("", "sensor", fnv1_hash("temperature"))]
     assert metadata["name"] == "Temperature"
     assert metadata["platform"] == "sensor"
 
@@ -525,8 +524,8 @@ def test_entity_duplicate_validator() -> None:
     config2 = {CONF_NAME: "Humidity"}
     validated2 = validator(config2)
     assert validated2 == config2
-    assert ("", "sensor", "humidity") in CORE.unique_ids
-    metadata2 = CORE.unique_ids[("", "sensor", "humidity")]
+    assert ("", "sensor", fnv1_hash("humidity")) in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("", "sensor", fnv1_hash("humidity"))]
     assert metadata2["name"] == "Humidity"
 
     # Duplicate entity should fail
@@ -535,6 +534,34 @@ def test_entity_duplicate_validator() -> None:
         Invalid, match=r"Duplicate sensor entity with name 'Temperature' found"
     ):
         validator(config3)
+
+
+def test_entity_duplicate_validator_hash_collision() -> None:
+    """Test that two different object_ids with the same FNV-1 hash are rejected."""
+    # Brute-forced FNV-1 32-bit collision pair; both object_ids hash to 0xe95747e4
+    name_a = "Sensor aooxzi"
+    name_b = "Sensor baraia"
+    object_id_a = sanitize(snake_case(name_a))
+    object_id_b = sanitize(snake_case(name_b))
+    assert object_id_a != object_id_b
+    assert fnv1_hash(object_id_a) == fnv1_hash(object_id_b)
+
+    validator = entity_duplicate_validator("sensor")
+
+    config1 = {CONF_NAME: name_a}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    config2 = {CONF_NAME: name_b}
+    with pytest.raises(
+        Invalid,
+        match=re.compile(
+            r"Duplicate sensor entity with name 'Sensor baraia' found.*"
+            r"produce the same entity key hash \(0xe95747e4\)",
+            re.DOTALL,
+        ),
+    ):
+        validator(config2)
 
 
 def test_entity_duplicate_validator_with_devices() -> None:
@@ -550,15 +577,15 @@ def test_entity_duplicate_validator_with_devices() -> None:
     config1 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("device1", "sensor", "temperature") in CORE.unique_ids
-    metadata1 = CORE.unique_ids[("device1", "sensor", "temperature")]
+    assert ("device1", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
+    metadata1 = CORE.unique_ids[("device1", "sensor", fnv1_hash("temperature"))]
     assert metadata1["device_id"] == "device1"
 
     config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device2}
     validated2 = validator(config2)
     assert validated2 == config2
-    assert ("device2", "sensor", "temperature") in CORE.unique_ids
-    metadata2 = CORE.unique_ids[("device2", "sensor", "temperature")]
+    assert ("device2", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("device2", "sensor", fnv1_hash("temperature"))]
     assert metadata2["device_id"] == "device2"
 
     # Duplicate on same device should fail
@@ -668,7 +695,7 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     validated1 = validator(config1)
     assert validated1 == config1
     # New format includes device_id (empty string for main device)
-    assert ("", "sensor", "temperature") in CORE.unique_ids
+    assert ("", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
 
     # Internal entity with same name should pass (not added to unique_ids)
     config2 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
@@ -676,7 +703,9 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     assert validated2 == config2
     # Internal entity should not be added to unique_ids
     # Count how many times the key appears (should still be 1)
-    count = sum(1 for k in CORE.unique_ids if k == ("", "sensor", "temperature"))
+    count = sum(
+        1 for k in CORE.unique_ids if k == ("", "sensor", fnv1_hash("temperature"))
+    )
     assert count == 1
 
     # Another internal entity with same name should also pass
@@ -684,7 +713,9 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     validated3 = validator(config3)
     assert validated3 == config3
     # Still only one entry in unique_ids (from the non-internal entity)
-    count = sum(1 for k in CORE.unique_ids if k == ("", "sensor", "temperature"))
+    count = sum(
+        1 for k in CORE.unique_ids if k == ("", "sensor", fnv1_hash("temperature"))
+    )
     assert count == 1
 
     # Non-internal entity with same name should fail
@@ -1044,6 +1075,8 @@ async def test_finalize_no_flags(setup_test_environment: list[str]) -> None:
     packed = _extract_packed_value(added_expressions)
     assert packed == 0
     assert "//" not in added_expressions[0]
+    # Names go through ESPHOME_PSTR so they stay in flash on ESP8266
+    assert 'ESPHOME_PSTR("Test")' in added_expressions[0]
 
 
 @pytest.mark.asyncio
@@ -1204,3 +1237,373 @@ async def test_finalize_comment_sanitization(
     # Newline must be replaced to prevent breaking out of comment
     assert "\n" not in comment_line
     assert "INJECTED_CODE" in comment_line  # still visible but safe in comment
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_creates_and_sets(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """A configured key creates the entity, sets the parent before the setter and returns it."""
+    calls: list[tuple[Any, ...]] = []
+    created = MockObj("child")
+
+    async def new_entity(conf: dict[str, Any], *args: Any, **kwargs: Any) -> MockObj:
+        calls.append((conf, args, kwargs))
+        return created
+
+    async def fake_register_parented(var: MockObj, parent: MockObj) -> None:
+        setup_test_environment.append(f"parent {var} {parent}")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fake_register_parented)
+    hub = MockObj("hub", "->")
+    conf = {CONF_ID: ID("child")}
+    sub = entity_helpers.SubEntities(new_entity, {"child": conf}, parent=hub)
+
+    assert await sub("child", hub.set_child, 1, step=2) is created
+    assert calls == [(conf, (1,), {"step": 2})]
+    assert setup_test_environment == ["parent child hub", "hub->set_child(child)"]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_missing_key(setup_test_environment: list[str]) -> None:
+    """A missing key creates nothing and emits no code."""
+
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
+        raise AssertionError("must not be called")
+
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {})
+
+    assert await sub("child", hub.set_child) is None
+    assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_without_parent(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """Without a bound parent, register_parented is not called."""
+
+    async def fail_register_parented(var: MockObj, parent: MockObj) -> None:
+        raise AssertionError("must not be called")
+
+    async def new_entity(conf: dict[str, Any]) -> MockObj:
+        return MockObj("child")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail_register_parented)
+    hub = MockObj("hub", "->")
+    sub = entity_helpers.SubEntities(new_entity, {"child": {CONF_ID: "child"}})
+
+    assert await sub("child", hub.set_child) is not None
+    assert setup_test_environment == ["hub->set_child(child)"]
+
+
+@pytest.fixture
+def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str]]:
+    """Record every generated apply function as (name, parameters, body)."""
+    emitted: list[tuple[str, str, str]] = []
+
+    def fake_static_function(
+        name: str, return_type: Any, parameters: list[tuple[Any, str]], body: list[str]
+    ) -> RawExpression:
+        assert str(return_type) == "void"
+        params = ", ".join(f"{type_} {arg}" for type_, arg in parameters)
+        emitted.append((name, params, "\n".join(body)))
+        return RawExpression(name)
+
+    monkeypatch.setattr(entity_helpers.cg, "static_function", fake_static_function)
+    CORE.data.pop(entity_helpers._APPLY_DOMAIN, None)
+    return emitted
+
+
+_HUB = MockObj("hub", "->")
+_APPLY_SWITCH_CLS = cg.esphome_ns.namespace("switch_").class_("ApplySwitch")
+_SWITCH_APPLY = entity_helpers.ApplyEntity(
+    _APPLY_SWITCH_CLS,
+    ((RawExpression("switch_::Switch *"), "entity"), (RawExpression("bool"), "state")),
+    "entity->publish_state(state);",
+)
+_BUTTON_APPLY = entity_helpers.ApplyEntity(
+    cg.esphome_ns.namespace("button").class_("ApplyButton"),
+    ((RawExpression("button::Button *"), "entity"),),
+)
+
+
+def _apply_conf(name: str, type_: MockObjClass = _APPLY_SWITCH_CLS) -> dict[str, ID]:
+    return {CONF_ID: ID(name, type=type_)}
+
+
+def _apply_sub(
+    calls: list[tuple[Any, ...]],
+    config: dict[str, Any],
+    apply_entity: entity_helpers.ApplyEntity = _SWITCH_APPLY,
+    parent: MockObj | ID | None = _HUB,
+) -> entity_helpers.SubEntities:
+    async def new_entity(conf: dict[str, Any], *args: Any, **kwargs: Any) -> MockObj:
+        calls.append((conf[CONF_ID].id, *(str(a) for a in args)))
+        return MockObj(conf[CONF_ID].id)
+
+    return entity_helpers.SubEntities(new_entity, config, parent, apply_entity)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("publish", "body"),
+    [
+        (None, "::hub->set_bluetooth(state);"),
+        (
+            "before",
+            "entity->publish_state(state);\n::hub->set_bluetooth(state);",
+        ),
+        ("after", "::hub->set_bluetooth(state);\nentity->publish_state(state);"),
+    ],
+)
+async def test_sub_entities_apply_generates_function(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    publish: str | None,
+    body: str,
+) -> None:
+    """With apply the entity is templated on a generated function and stores no parent."""
+
+    async def fail_register_parented(var: MockObj, parent: MockObj) -> None:
+        raise AssertionError("must not be called")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail_register_parented)
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"bt": _apply_conf("bt_sw")})
+
+    var = await sub(
+        "bt", _HUB.set_bt_switch, apply="set_bluetooth(state)", publish=publish
+    )
+    assert str(var) == "bt_sw"
+    assert calls == [("bt_sw", "<esphome__bt_sw__fn>")]
+    assert apply_functions == [
+        ("esphome__bt_sw__fn", "switch_::Switch * entity, bool state", body)
+    ]
+    assert setup_test_environment == ["hub->set_bt_switch(bt_sw)"]
+
+
+_SELECT_APPLY = entity_helpers.ApplyEntity(
+    cg.esphome_ns.namespace("select").class_("ApplySelect"),
+    ((RawExpression("select::Select *"), "entity"), (RawExpression("size_t"), "index")),
+    "entity->publish_state(index);",
+    (("option", "const char *option = entity->option_at(index);"),),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("apply", "publish", "body"),
+    [
+        (
+            "set_mode(option)",
+            "after",
+            (
+                "const char *option = entity->option_at(index);\n"
+                "::hub->set_mode(option);\nentity->publish_state(index);"
+            ),
+        ),
+        (
+            "set_mode(option)",
+            "before",
+            (
+                "entity->publish_state(index);\n"
+                "const char *option = entity->option_at(index);\n"
+                "::hub->set_mode(option);"
+            ),
+        ),
+        (
+            "set_mode(index, options_)",
+            "after",
+            "::hub->set_mode(index, options_);\nentity->publish_state(index);",
+        ),
+    ],
+)
+async def test_sub_entities_apply_locals(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    apply: str,
+    publish: str,
+    body: str,
+) -> None:
+    """A local is declared before its first use, and only when named as a whole identifier."""
+    conf = _apply_conf("m_sel", _SELECT_APPLY.cls)
+    sub = _apply_sub([], {"m": conf}, _SELECT_APPLY)
+    await sub("m", None, apply=apply, publish=publish)
+    assert apply_functions == [
+        ("esphome__m_sel__fn", "select::Select * entity, size_t index", body)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_shares_equal_functions(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """Entities with the same statement share one function, so one class instantiation."""
+    calls: list[tuple[Any, ...]] = []
+    config = {
+        "a": _apply_conf("a_sw"),
+        "b": _apply_conf("b_sw"),
+        "c": _apply_conf("c_sw"),
+    }
+    sub = _apply_sub(calls, config)
+    await sub("a", _HUB.set_a, apply="refresh()", publish="before")
+    await sub("b", _HUB.set_b, apply="refresh()", publish="before")
+    await sub("c", _HUB.set_c, apply="refresh()")
+    assert calls == [
+        ("a_sw", "<esphome__a_sw__fn>"),
+        ("b_sw", "<esphome__a_sw__fn>"),
+        ("c_sw", "<esphome__c_sw__fn>"),
+    ]
+    assert [name for name, _, _ in apply_functions] == [
+        "esphome__a_sw__fn",
+        "esphome__c_sw__fn",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_parent_id(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+) -> None:
+    """A parent given as an ID is looked up once and named from global scope."""
+
+    async def fake_get_variable(id_: ID) -> MockObj:
+        assert id_ == ID("my_hub")
+        return MockObj("my_hub", "->")
+
+    monkeypatch.setattr(entity_helpers, "get_variable", fake_get_variable)
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"r": _apply_conf("r_sw")}, parent=ID("my_hub"))
+    await sub("r", MockObj("my_hub", "->").set_r, apply="restart()")
+    assert apply_functions[0][2] == "::my_hub->restart();"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("apply_entity", "conf", "kwargs", "match"),
+    [
+        (_SWITCH_APPLY, _apply_conf("k_id"), {}, "needs apply="),
+        (
+            _SWITCH_APPLY,
+            _apply_conf("k_id", cg.esphome_ns.namespace("x").class_("MySwitch")),
+            {"apply": "x()"},
+            "needs the domain's Apply class",
+        ),
+        (
+            _BUTTON_APPLY,
+            _apply_conf(
+                "k_id", cg.esphome_ns.namespace("button").class_("ApplyButton")
+            ),
+            {"apply": "restart()", "publish": "before"},
+            "publish= needs",
+        ),
+        (
+            _SWITCH_APPLY,
+            _apply_conf("k_id", cg.esphome_ns.namespace("x").class_("MySwitch")),
+            {"publish": "before"},
+            "publish= needs",
+        ),
+        (
+            _SWITCH_APPLY,
+            _apply_conf("k_id"),
+            {"apply": "x()", "publish": "Before"},
+            "must be",
+        ),
+    ],
+)
+async def test_sub_entities_apply_errors(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    apply_entity: entity_helpers.ApplyEntity,
+    conf: dict[str, ID],
+    kwargs: dict[str, str],
+    match: str,
+) -> None:
+    """A mismatch between the declared class and apply= fails in Python, not in C++."""
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"k": conf}, apply_entity)
+    with pytest.raises(ValueError, match=match):
+        await sub("k", MockObj("hub", "->").set_k, **kwargs)
+    assert calls == []
+    assert apply_functions == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_needs_parent(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"k": _apply_conf("k_id")}, parent=None)
+    with pytest.raises(ValueError, match="needs a parent"):
+        await sub("k", None, apply="x()")
+
+
+@pytest.mark.parametrize(
+    ("sub_fn", "cls", "params", "publish"),
+    [
+        (button.sub_buttons, button.ApplyButton, "button::Button * entity", None),
+        (
+            switch.sub_switches,
+            switch.ApplySwitch,
+            "switch_::Switch * entity, bool state",
+            "entity->publish_state(state);",
+        ),
+        (
+            number.sub_numbers,
+            number.ApplyNumber,
+            "number::Number * entity, float value",
+            "entity->publish_state(value);",
+        ),
+        (
+            select.sub_selects,
+            select.ApplySelect,
+            "select::Select * entity, size_t index",
+            "entity->publish_state(index);",
+        ),
+    ],
+)
+def test_domain_apply_entities(
+    sub_fn: Callable[..., entity_helpers.SubEntities],
+    cls: MockObjClass,
+    params: str,
+    publish: str | None,
+) -> None:
+    """Each domain's sub helper declares its Apply class and the function it calls."""
+    apply_entity = sub_fn({}).apply_entity
+    assert apply_entity.cls is cls
+    assert ", ".join(f"{type_} {arg}" for type_, arg in apply_entity.params) == params
+    assert apply_entity.publish == publish
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_without_setter(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """A hub that does not keep the entity passes no setter; nothing else is emitted."""
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {"vent": _apply_conf("vent_sw")})
+    assert await sub("vent", None, apply="vent_door()") is not None
+    assert calls == [("vent_sw", "<esphome__vent_sw__fn>")]
+    assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_create_from_whole_config(
+    setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
+) -> None:
+    """create() builds the entity from a config that is the entity itself."""
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {})
+    var = await sub.create(
+        _apply_conf("rf_sw"),
+        _HUB.set_rf_switch,
+        apply="set_rf_mode(state)",
+        publish="before",
+    )
+    assert str(var) == "rf_sw"
+    assert calls == [("rf_sw", "<esphome__rf_sw__fn>")]
+    assert setup_test_environment == ["hub->set_rf_switch(rf_sw)"]

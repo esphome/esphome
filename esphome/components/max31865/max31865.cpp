@@ -6,7 +6,9 @@
 
 namespace esphome::max31865 {
 
-static const char *const TAG = "max31865";
+ESPHOME_LOG_TAG(TAG, "max31865");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 void MAX31865Sensor::update() {
   // Check new faults since last measurement
@@ -59,7 +61,7 @@ void MAX31865Sensor::update() {
   this->write_config_(0b11100000, 0b10100000);
 
   // Datasheet max conversion time is 55ms for 60Hz / 66ms for 50Hz
-  this->set_timeout("value", filter_ == FILTER_60HZ ? 55 : 66, [this]() { this->read_data_(); });
+  this->set_timeout(READ_TIMEOUT_ID, filter_ == FILTER_60HZ ? 55 : 66, [this]() { this->read_data_(); });
 }
 
 void MAX31865Sensor::setup() {
@@ -80,12 +82,14 @@ void MAX31865Sensor::dump_config() {
   LOG_SENSOR("", "MAX31865", this);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG,
-                "  Reference Resistance: %.2fΩ\n"
-                "  RTD: %u-wire %.2fΩ\n"
-                "  Mains Filter: %s",
-                reference_resistance_, rtd_wires_, rtd_nominal_resistance_,
-                (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
+  ESP_LOGCONFIG(
+      TAG,
+      "  Reference Resistance: %.2fΩ\n"
+      "  RTD: %u-wire %.2fΩ\n"
+      "  Mains Filter: %s",
+      reference_resistance_, rtd_wires_, rtd_nominal_resistance_,
+      (filter_ == FILTER_60HZ ? LOG_STR_LITERAL("60 Hz")
+                              : (filter_ == FILTER_50HZ ? LOG_STR_LITERAL("50 Hz") : LOG_STR_LITERAL("Unknown!"))));
 }
 
 void MAX31865Sensor::read_data_() {

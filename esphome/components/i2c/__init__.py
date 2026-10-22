@@ -1,6 +1,8 @@
+from collections.abc import Coroutine
 import logging
 import re
 import sys
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -13,14 +15,18 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     get_esp32_variant,
 )
 from esphome.components.esp32.gpio_esp32_c5 import esp32_c5_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_c6 import esp32_c6_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_p4 import esp32_p4_validate_lp_i2c
+from esphome.components.esp32.gpio_esp32_s31 import esp32_s31_validate_lp_i2c
 from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
@@ -33,7 +39,6 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_DEVICE,
     CONF_FREQUENCY,
-    CONF_I2C,
     CONF_I2C_ID,
     CONF_ID,
     CONF_LOW_POWER_MODE,
@@ -45,13 +50,15 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_HOST,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
+DOMAIN = "i2c"
 LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@esphome/core"]
 i2c_ns = cg.esphome_ns.namespace("i2c")
@@ -72,14 +79,18 @@ ESP32_I2C_CAPABILITIES = {
     VARIANT_ESP32C6: {"NUM": 2, "HP": 1, "LP": 1},
     VARIANT_ESP32C61: {"NUM": 1, "HP": 1},
     VARIANT_ESP32H2: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32H4: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32H21: {"NUM": 2, "HP": 2},
     VARIANT_ESP32P4: {"NUM": 3, "HP": 2, "LP": 1},
     VARIANT_ESP32S2: {"NUM": 2, "HP": 2},
     VARIANT_ESP32S3: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32S31: {"NUM": 3, "HP": 2, "LP": 1},
 }
 VALIDATE_LP_I2C = {
     VARIANT_ESP32C5: esp32_c5_validate_lp_i2c,
     VARIANT_ESP32C6: esp32_c6_validate_lp_i2c,
     VARIANT_ESP32P4: esp32_p4_validate_lp_i2c,
+    VARIANT_ESP32S31: esp32_s31_validate_lp_i2c,
 }
 LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
 
@@ -88,13 +99,13 @@ CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
 MULTI_CONF = True
 
 
-def validate_device(value):
+def validate_device(value: str) -> str:
     if not re.match(r"^/(?:[^/]+/)*[^/]+$", value):
         raise cv.Invalid("Device must be an absolute device path (e.g., /dev/i2c-0)")
     return value
 
 
-def _bus_declare_type(value):
+def _bus_declare_type(value: Any) -> ID:
     if CORE.is_esp32:
         return cv.declare_id(IDFI2CBus)(value)
     if CORE.using_arduino:
@@ -106,7 +117,7 @@ def _bus_declare_type(value):
     raise NotImplementedError
 
 
-def _rp2040_i2c_controller(pin):
+def _rp2040_i2c_controller(pin: int) -> int:
     """Return the I2C controller number (0 or 1) for a given RP2040/RP2350 GPIO pin.
 
     See RP2040 datasheet Table 2 (section 1.4.3, "GPIO Functions"):
@@ -117,12 +128,12 @@ def _rp2040_i2c_controller(pin):
     return (pin // 2) % 2
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)
         )(config)
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         sda_controller = _rp2040_i2c_controller(config[CONF_SDA])
         scl_controller = _rp2040_i2c_controller(config[CONF_SCL])
         if sda_controller != scl_controller:
@@ -134,10 +145,15 @@ def validate_config(config):
     return config
 
 
-def validate_host_config(config):
+def _host_is_linux() -> bool:
+    """The host I2C bus needs Linux i2c-dev."""
+    return sys.platform.lower().startswith("linux")
+
+
+def validate_host_config(config: ConfigType) -> ConfigType:
     if CORE.is_host:
         # Host I2C is currently only supported on Linux
-        if not sys.platform.lower().startswith("linux"):
+        if not _host_is_linux():
             raise cv.Invalid(
                 "I2C is only supported on Linux for the host platform. "
                 f"Current platform: {sys.platform}"
@@ -163,7 +179,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SDA,
                 esp32="SDA",
                 esp8266="SDA",
-                rp2040="SDA",
+                rp2="SDA",
                 nrf52="SDA",
             ): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
@@ -173,7 +189,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SCL,
                 esp32="SCL",
                 esp8266="SCL",
-                rp2040="SCL",
+                rp2="SCL",
                 nrf52="SCL",
             ): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32=True): cv.All(
@@ -183,7 +199,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_FREQUENCY,
                 esp32="50kHz",
                 esp8266="50kHz",
-                rp2040="50kHz",
+                rp2="50kHz",
                 nrf52="100kHz",
                 host="50kHz",
             ): cv.All(
@@ -211,7 +227,7 @@ CONFIG_SCHEMA = cv.All(
         [
             PLATFORM_ESP32,
             PLATFORM_ESP8266,
-            PLATFORM_RP2040,
+            PLATFORM_RP2,
             PLATFORM_NRF52,
             PLATFORM_HOST,
         ]
@@ -221,11 +237,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
-    full_config = fv.full_config.get()[CONF_I2C]
+def _final_validate(config: ConfigType) -> None:
+    full_config = fv.full_config.get()[DOMAIN]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         if len(full_config) > 2:
             raise cv.Invalid(
                 "The maximum number of I2C interfaces for RP2040/RP2350 is 2"
@@ -273,9 +289,14 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.BUS)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(i2c_ns.using)
     cg.add_define("USE_I2C")
+    if CORE.is_esp32:
+        from esphome.components.esp32 import include_builtin_idf_component
+
+        # Re-enable the I2C driver (excluded by default to save compile time)
+        include_builtin_idf_component("esp_driver_i2c")
     if CORE.is_host:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
@@ -312,11 +333,9 @@ async def to_code(config):
         await cg.register_component(var, config)
 
         cg.add(var.set_sda_pin(config[CONF_SDA]))
-        if CONF_SDA_PULLUP_ENABLED in config:
-            cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+        cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
         cg.add(var.set_scl_pin(config[CONF_SCL]))
-        if CONF_SCL_PULLUP_ENABLED in config:
-            cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+        cg.add_optional(var.set_scl_pullup_enabled, config.get(CONF_SCL_PULLUP_ENABLED))
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
@@ -329,11 +348,9 @@ async def to_code(config):
         await cg.register_component(var, config)
 
         cg.add(var.set_sda_pin(config[CONF_SDA]))
-        if CONF_SDA_PULLUP_ENABLED in config:
-            cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+        cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
         cg.add(var.set_scl_pin(config[CONF_SCL]))
-        if CONF_SCL_PULLUP_ENABLED in config:
-            cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+        cg.add_optional(var.set_scl_pullup_enabled, config.get(CONF_SCL_PULLUP_ENABLED))
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
@@ -345,7 +362,7 @@ async def to_code(config):
             cg.add(var.set_lp_mode(bool(config[CONF_LOW_POWER_MODE])))
 
 
-def i2c_device_schema(default_address):
+def i2c_device_schema(default_address: int | None) -> cv.Schema:
     """Create a schema for a i2c device.
 
     :param default_address: The default address of the i2c device, can be None to represent
@@ -362,26 +379,35 @@ def i2c_device_schema(default_address):
     return cv.Schema(schema)
 
 
-async def register_i2c_device(var, config):
+async def register_i2c_device(var: MockObj, config: ConfigType) -> None:
     """Register an i2c device with the given config.
 
     Sets the i2c bus to use and the i2c address.
 
     This is a coroutine, you need to await it with an 'await' expression!
     """
-    parent = await cg.get_variable(config[CONF_I2C_ID])
-    cg.add(var.set_i2c_bus(parent))
+    await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
+
+
+def new_i2c_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Create a component on an i2c bus: construct, register, attach to the bus.
+
+    Extra args go to the constructor.
+    """
+    return cg.new_bus_component(register_i2c_device, config, *args)
 
 
 def final_validate_device_schema(
     name: str,
     *,
-    min_frequency: cv.frequency = None,
-    max_frequency: cv.frequency = None,
-    min_timeout: cv.time_period = None,
-    max_timeout: cv.time_period = None,
-):
+    min_frequency: Any = None,
+    max_frequency: Any = None,
+    min_timeout: Any = None,
+    max_timeout: Any = None,
+) -> cv.Schema:
     hub_schema = {}
     if (min_frequency is not None) and (max_frequency is not None):
         hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
@@ -431,11 +457,11 @@ def final_validate_device_schema(
     )
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "i2c_bus_arduino.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
@@ -448,3 +474,15 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "i2c_bus_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    excluded = _platform_filter()
+    # An empty list means the target isn't known yet. Otherwise the host bus is
+    # only kept for the host platform, and it needs Linux i2c-dev
+    # (validate_host_config rejects host I2C elsewhere). Leaving it out lets host
+    # builds without a bus, like the C++ unit tests with their fake bus, build on
+    # macOS too.
+    if excluded and "i2c_bus_host.cpp" not in excluded and not _host_is_linux():
+        excluded.append("i2c_bus_host.cpp")
+    return excluded

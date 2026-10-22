@@ -13,11 +13,14 @@ namespace esphome::ld2450::testing {
 class MockUARTComponent : public uart::UARTComponent {
  public:
   void write_array(const uint8_t *data, size_t len) override {}
-  MOCK_METHOD(bool, read_array, (uint8_t * data, size_t len), (override));
-  MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
+  MOCK_METHOD(bool, read_array, (uint8_t *data, size_t len), (override));
+  MOCK_METHOD(bool, peek_byte, (uint8_t *data), (override));
   MOCK_METHOD(size_t, available, (), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  void load_settings(bool dump_config) override {}
+#endif  // USE_ESP8266 || USE_ESP32
 };
 
 // Expose protected members for testing.
@@ -26,6 +29,7 @@ class TestableLD2450 : public LD2450Component {
   using LD2450Component::buffer_data_;
   using LD2450Component::buffer_pos_;
   using LD2450Component::readline_;
+  using LD2450Component::zone_config_;
 
   void feed(const std::vector<uint8_t> &data) {
     for (uint8_t byte : data) {

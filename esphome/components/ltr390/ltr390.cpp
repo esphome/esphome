@@ -5,7 +5,7 @@
 
 namespace esphome::ltr390 {
 
-static const char *const TAG = "ltr390";
+ESPHOME_LOG_TAG(TAG, "ltr390");
 
 static const uint8_t LTR390_WAKEUP_TIME = 10;
 static const uint8_t LTR390_SETTLE_TIME = 5;
@@ -75,7 +75,7 @@ void LTR390Component::read_als_() {
   uint32_t als = *val;
 
   if (this->light_sensor_ != nullptr) {
-    float lux = ((0.6 * als) / (GAINVALUES[this->gain_als_] * RESOLUTIONVALUE[this->res_als_])) * this->wfac_;
+    float lux = ((0.6f * als) / (GAINVALUES[this->gain_als_] * RESOLUTIONVALUE[this->res_als_])) * this->wfac_;
     this->light_sensor_->publish_state(lux);
   }
 

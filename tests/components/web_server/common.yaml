@@ -4,6 +4,17 @@ wifi:
 
 binary_sensor:
 cover:
+  - platform: template
+    name: "Template Cover Assumed"
+    # assumed_state must be reflected in the web_server JSON (detail=all)
+    assumed_state: true
+    lambda: 'return COVER_OPEN;'
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
 fan:
 light:
 sensor:

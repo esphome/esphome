@@ -1,0 +1,25 @@
+# Legacy top-level `image:` type-grouped form (deprecated; migrates to
+# `platform: file`). Config-only test exercising the deprecation/migration path.
+display:
+  - platform: sdl
+    id: image_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+image:
+  binary:
+    - id: legacy_grouped_binary
+      file: ../../pnglogo.png
+  rgb:
+    alpha_channel:
+      - id: legacy_grouped_rgba
+        file: ../../pnglogo.png
+    opaque:
+      - id: legacy_grouped_rgb
+        file: ../../pnglogo.png
+  rgb565:
+    - id: legacy_grouped_rgb565
+      file: ../../pnglogo.png
+      transparency: chroma_key
