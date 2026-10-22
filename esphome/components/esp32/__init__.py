@@ -2851,9 +2851,9 @@ async def _reconcile_network_sdkconfig() -> None:
     # Software coexistence: enable when requested (the schema only allows it
     # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
     if net.software_coexistence:
-        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", True)
+        set_idf_sdkconfig_default("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", True)
     elif wifi_disabled:
-        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", False)
+        set_idf_sdkconfig_default("CONFIG_ESP_COEX_SW_COEXIST_ENABLE", False)
 
     # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
     if not is_arduino and net.wifi and not net.wifi_ap:

@@ -1417,7 +1417,7 @@ def test_flash_mode_unset_leaves_defaults(
             {},
             {
                 "CONFIG_ESP_WIFI_ENABLED": False,
-                "CONFIG_SW_COEXIST_ENABLE": False,
+                "CONFIG_ESP_COEX_SW_COEXIST_ENABLE": False,
             },
             id="idf_ethernet_only",
         ),
@@ -1429,7 +1429,7 @@ def test_flash_mode_unset_leaves_defaults(
                 "CONFIG_BT_ENABLED": True,
                 "CONFIG_BT_BLE_42_FEATURES_SUPPORTED": True,
                 "CONFIG_BT_BLE_50_FEATURES_SUPPORTED": False,
-                "CONFIG_SW_COEXIST_ENABLE": True,
+                "CONFIG_ESP_COEX_SW_COEXIST_ENABLE": True,
                 "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
                 "CONFIG_LWIP_DHCPS": False,
             },
@@ -1481,7 +1481,7 @@ def test_flash_mode_unset_leaves_defaults(
             {},
             {
                 "CONFIG_ESP_WIFI_ENABLED": False,
-                "CONFIG_SW_COEXIST_ENABLE": False,
+                "CONFIG_ESP_COEX_SW_COEXIST_ENABLE": False,
             },
             id="arduino_ethernet_only_disables_wifi",
         ),
@@ -1492,7 +1492,7 @@ def test_flash_mode_unset_leaves_defaults(
             {},
             {
                 "CONFIG_ESP_WIFI_ENABLED": False,
-                "CONFIG_SW_COEXIST_ENABLE": False,
+                "CONFIG_ESP_COEX_SW_COEXIST_ENABLE": False,
             },
             id="arduino_ethernet_dhcps_exclusion",
         ),
@@ -1704,7 +1704,7 @@ def test_network_ethernet_only_reconciles_end_to_end(
     generate_main(component_config_path("network_ethernet_only.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESP_WIFI_ENABLED") is False
-    assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is False
+    assert sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is False
     # The whole radio stack stays out of the build set as well.
     excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
     assert {"esp_wifi", "wpa_supplicant", "esp_phy", "esp_coex", "bt"} <= excluded
@@ -1724,7 +1724,7 @@ def test_network_wifi_ble_coexistence_reconciles_end_to_end(
     assert sdkconfig.get("CONFIG_BT_ENABLED") is True
     assert sdkconfig.get("CONFIG_BT_BLE_42_FEATURES_SUPPORTED") is True
     assert sdkconfig.get("CONFIG_BT_BLE_50_FEATURES_SUPPORTED") is False
-    assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is True
+    assert sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is True
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
     # WiFi present alongside BT -> WiFi stack must stay enabled.
@@ -1742,7 +1742,7 @@ def test_network_wifi_ethernet_priority_keeps_wifi_enabled(
     generate_main(component_config_path("network_wifi_ethernet_priority.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
-    assert "CONFIG_SW_COEXIST_ENABLE" not in sdkconfig
+    assert "CONFIG_ESP_COEX_SW_COEXIST_ENABLE" not in sdkconfig
     # WiFi has no AP here, so SoftAP/DHCP server are still dropped.
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
