@@ -1296,7 +1296,7 @@ async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
         }
     ),
 )
-async def rh_correction_filter_to_code(config, filter_id):
+async def rh_correction_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
     sensor = await cg.get_variable(config[CONF_SENSOR_ID])
     offset = await cg.templatable(config[CONF_TEMPERATURE_OFFSET], [], cg.float_)
     return cg.new_Pvariable(filter_id, offset, sensor, config[CONF_USE_FAHRENHEIT])
