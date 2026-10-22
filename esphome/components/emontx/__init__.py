@@ -23,10 +23,18 @@ DEPENDENCIES = ["uart"]
 
 emontx_ns = cg.esphome_ns.namespace("emontx")
 EmonTx = emontx_ns.class_("EmonTx", cg.Component, uart.UARTDevice)
+LockOnReboot = emontx_ns.enum("LockOnReboot", is_class=True)
 
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
+CONF_LOCK_ON_REBOOT = "lock_on_reboot"
+LOCK_ON_REBOOT_AUTO = "auto"
+LOCK_ON_REBOOT_MODES = {
+    LOCK_ON_REBOOT_AUTO: LockOnReboot.LOCK_ON_REBOOT_AUTO,
+    True: LockOnReboot.LOCK_ON_REBOOT_ALWAYS,
+    False: LockOnReboot.LOCK_ON_REBOOT_NEVER,
+}
 
 DOMAIN = "emontx"
 
@@ -44,20 +52,11 @@ def _get_data() -> EmonTxData:
     return CORE.data[DOMAIN]
 
 
-def _synchronous_automation(value: ConfigType) -> ConfigType:
-    """Reject deferring actions: the received line and parsed JSON are only valid while the
-    automation runs, and DelayAction and friends keep the trigger arguments for later."""
-    if automation.has_non_synchronous_actions(value):
-        raise cv.Invalid(
-            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in on_json and "
-            "on_data: the received data is only valid while the automation runs. Copy what you need "
-            "into globals first, then defer in a separate script or automation."
-        )
-    return value
-
-
 def _synchronous_automation_schema() -> cv.All:
-    return cv.All(automation.validate_automation({}), _synchronous_automation)
+    # The received line and the parsed JSON document only live while the callbacks run.
+    return automation.validate_synchronous_automation(
+        "on_json and on_data", "the received data"
+    )
 
 
 # Main configuration schema
@@ -67,6 +66,9 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(EmonTx),
             cv.Optional(CONF_ON_JSON): _synchronous_automation_schema(),
             cv.Optional(CONF_ON_DATA): _synchronous_automation_schema(),
+            cv.Optional(CONF_LOCK_ON_REBOOT, default=LOCK_ON_REBOOT_AUTO): cv.Any(
+                cv.boolean, cv.one_of(LOCK_ON_REBOOT_AUTO, lower=True)
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -130,6 +132,7 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add_define("USE_LINE_READER")
 
     # Initialize sensor storage with count from final_validate before any
     # await, so platform to_code() calls always see it initialized
@@ -141,6 +144,12 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+
+    lock = config[CONF_LOCK_ON_REBOOT]
+    cg.add(var.set_lock_on_reboot(LOCK_ON_REBOOT_MODES[lock]))
+    if lock == LOCK_ON_REBOOT_AUTO:
+        # Locking depends on the firmware version the emonTx reports
+        cg.add_define("USE_EMONTX_VERSION")
 
 
 # Action: emontx.send_command
@@ -166,3 +175,16 @@ automation.register_apply_action(
         CONF_COMMAND, "send_command", cg.std_string, const_fn=_plain_literal
     ),
 )
+
+
+# Let another component (e.g. serial_proxy) take exclusive ownership of the UART.
+
+EMONTX_ID_SCHEMA = automation.maybe_simple_id({cv.GenerateID(): cv.use_id(EmonTx)})
+
+automation.register_apply_action(
+    "emontx.pause", EMONTX_ID_SCHEMA, automation.ApplyCall("set_paused(true)")
+)
+automation.register_apply_action(
+    "emontx.resume", EMONTX_ID_SCHEMA, automation.ApplyCall("set_paused(false)")
+)
+automation.register_apply_condition("emontx.is_paused", EMONTX_ID_SCHEMA, "is_paused()")

@@ -282,20 +282,11 @@ async def power_channel(config: ConfigType) -> MockObj:
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
-    if irq0_pin := config.get(CONF_IRQ0_PIN):
-        pin = await cg.gpio_pin_expression(irq0_pin)
-        cg.add(var.set_irq0_pin(pin))
-
-    pin = await cg.gpio_pin_expression(config[CONF_IRQ1_PIN])
-    cg.add(var.set_irq1_pin(pin))
-
-    if reset_pin := config.get(CONF_RESET_PIN):
-        pin = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(pin))
+    await cg.add_pin(var.set_irq0_pin, config.get(CONF_IRQ0_PIN))
+    await cg.add_pin(var.set_irq1_pin, config[CONF_IRQ1_PIN])
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     if frequency := config.get(CONF_FREQUENCY):
         cg.add(var.set_frequency(frequency))
