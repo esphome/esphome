@@ -407,7 +407,7 @@ void LD2410Component::handle_periodic_data_() {
 }
 
 #ifdef USE_NUMBER
-std::function<void(void)> set_number_value(number::Number *n, float value) {
+std::function<void()> set_number_value(number::Number *n, float value) {
   if (n != nullptr && (!n->has_state() || n->state != value)) {
     n->state = value;
     return [n, value]() { n->publish_state(value); };
@@ -560,7 +560,7 @@ bool LD2410Component::handle_ack_data_() {
         Moving distance range: 13th byte
         Still distance range: 14th byte
       */
-      std::vector<std::function<void(void)>> updates;
+      std::vector<std::function<void()>> updates;
       updates.push_back(set_number_value(this->max_move_distance_gate_number_, this->buffer_data_[12]));
       updates.push_back(set_number_value(this->max_still_distance_gate_number_, this->buffer_data_[13]));
       /*
