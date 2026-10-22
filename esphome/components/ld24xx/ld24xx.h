@@ -117,14 +117,16 @@ void feed_frame_byte(uint8_t (&buffer)[N], uint8_t &pos, uint8_t byte, const uin
       return;
     }
     const uint8_t total = pos;
+    // Whatever follows a handled frame must itself begin with a header before the next pass reads it. A
+    // frame whose footer is not where the count says means the stream lost bytes: drop it and keep the
+    // bytes from the next header on
+    uint8_t from = 1;
     if (frame_len <= N && handle_frame(static_cast<uint8_t>(frame_len))) {
-      pos = drop_to_next_header(buffer, total, frame_len, data_header);
+      from = frame_len;
     } else {
-      // The footer is not where the count says, so the stream lost bytes: drop this frame and keep the
-      // bytes from the next header on
       on_drop();
-      pos = drop_to_next_header(buffer, total, 1, data_header);
     }
+    pos = drop_to_next_header(buffer, total, from, data_header);
     if (pos == 0) {
       return;
     }
