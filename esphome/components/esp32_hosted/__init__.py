@@ -263,6 +263,12 @@ def _configure_sdio_2x(config: ConfigType) -> None:
             f"CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D3_4BIT_BUS_SLOT_{slot}",
             config[CONF_D3_PIN],
         )
+    else:
+        # D1 carries the card interrupt on a 1-bit bus too
+        esp32.add_idf_sdkconfig_option(
+            f"CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D1_1BIT_BUS_SLOT_{slot}",
+            config[CONF_D1_PIN],
+        )
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_CUSTOM_SDIO_PINS", True)
     esp32.add_idf_sdkconfig_option(
         "CONFIG_ESP_HOSTED_SDIO_CLOCK_FREQ_KHZ",
