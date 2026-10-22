@@ -175,6 +175,8 @@ void EzoPMP::read_command_result_() {
           third_parameter_buffer[position_in_parameter_buffer] = current_char;
           third_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
           break;
+        default:
+          break;
       }
       position_in_parameter_buffer++;
     }
