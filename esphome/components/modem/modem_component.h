@@ -194,35 +194,36 @@ class ModemComponent : public Component {
   // Hash of the pin_code the SIM rejected, kept across reboots so a wrong PIN is never sent twice; 0 = none
   uint32_t rejected_pin_hash_{0};
   uint32_t at_timeout_{COMMAND_TIMEOUT_MS};
+  std::atomic<uint32_t> pending_{0};
   uint16_t tx_buffer_size_{1024};
   uint16_t rx_buffer_size_{1024};
   uint16_t dte_buffer_size_{1024};
   // The task owns component_state_; the main loop sets target_state_ and reads both
   std::atomic<ModemComponentState> component_state_{ModemComponentState::MODEM_DISABLED};
   std::atomic<ModemComponentState> target_state_{ModemComponentState::MODEM_DISABLED};
+  std::atomic<SimFault> sim_fault_{SimFault::SIM_FAULT_NONE};
+  // Written by the task only; loop() picks the published message from it
+  std::atomic<uint8_t> warnings_{0};
+  // std::atomic<uint8_t> flags: GCC on Xtensa calls out of line for std::atomic<bool>
+  // Set by send_at() on the main loop once at_command_ is written, cleared by the task after sending it
+  std::atomic<uint8_t> at_pending_{0};
+  // Written by the IP event task, read by the modem task
+  std::atomic<uint8_t> got_ip_{0};
+  ConnectStep connect_step_{ConnectStep::CONNECT_STEP_START};
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
-  // Written by the task only; loop() picks the published message from it
-  std::atomic<uint8_t> warnings_{0};
-  std::atomic<uint32_t> pending_{0};
-  ConnectStep connect_step_{ConnectStep::CONNECT_STEP_START};
   // One PIN attempt per connection attempt: a second wrong PIN could PUK-lock the SIM
   bool pin_sent_{false};
   bool connect_timeout_armed_{false};
-  std::atomic<SimFault> sim_fault_{SimFault::SIM_FAULT_NONE};
-  // Set by send_at() on the main loop once at_command_ is written, cleared by the task after sending it
-  std::atomic<bool> at_pending_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
-  // Written by the IP event task, read by the modem task
-  std::atomic<bool> got_ip_{false};
   char at_command_[AT_COMMAND_SIZE];
 #ifdef USE_MODEM_URC
   // The UART task assembles a line in urc_buf_ and hands it to loop() by setting urc_pending_; until loop()
   // has published it, new lines are dropped
-  std::atomic<bool> urc_pending_{false};
-  bool urc_discard_{false};  // drop the rest of the current line
+  std::atomic<uint8_t> urc_pending_{0};
   uint8_t urc_len_{0};
+  bool urc_discard_{false};  // drop the rest of the current line
   char urc_buf_[URC_LINE_SIZE];
 #endif
 

@@ -192,7 +192,7 @@ void ModemComponent::loop() {
 #ifdef USE_MODEM_URC
   if (this->urc_pending_.load(std::memory_order_acquire)) {
     this->urc_text_sensor_->publish_state(this->urc_buf_);
-    this->urc_pending_.store(false, std::memory_order_release);
+    this->urc_pending_.store(0, std::memory_order_release);
   }
 #endif
   // A hand-over after these checks re-enables the loop through enable_loop_soon_any_context()
@@ -254,7 +254,7 @@ void ModemComponent::setup() {
     if (event_id < NETIF_PP_PHASE_OFFSET && event_id != NETIF_PPP_ERRORNONE) {
       ESP_LOGD(TAG, "PPP error event %d", static_cast<int>(event_id));
       auto *self = static_cast<ModemComponent *>(arg);
-      self->got_ip_.store(false, std::memory_order_release);
+      self->got_ip_.store(0, std::memory_order_release);
       self->wake_task_();
     }
   };
@@ -327,7 +327,7 @@ void ModemComponent::setup() {
       if (c == '\r' || c == '\n') {
         if (!this->urc_discard_ && this->urc_len_ != 0) {
           this->urc_buf_[this->urc_len_] = '\0';
-          this->urc_pending_.store(true, std::memory_order_release);
+          this->urc_pending_.store(1, std::memory_order_release);
           this->enable_loop_soon_any_context();
         }
         this->urc_len_ = 0;
@@ -381,7 +381,7 @@ void ModemComponent::run_task_() {
     // A command from send_at() goes out between state steps, never in the middle of a sequence
     if (this->at_pending_.load(std::memory_order_acquire)) {
       this->at_(this->at_command_, this->at_timeout_);
-      this->at_pending_.store(false, std::memory_order_release);
+      this->at_pending_.store(0, std::memory_order_release);
     }
     this->step_delay_ms_ = 0;
     this->transition_to_(this->compute_next_state_());
@@ -707,7 +707,7 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
   }
   if (next_state == ModemComponentState::MODEM_DISCONNECTING) {
     // The lost IP event can lag by minutes; a quick re-enable must wait for a fresh address
-    this->got_ip_.store(false, std::memory_order_release);
+    this->got_ip_.store(0, std::memory_order_release);
     this->step_delay_ms_ = COMMAND_TIMEOUT_MS;  // let the link settle before the first pass
     if (lost) {
       this->hand_over_(PENDING_CONNECT_TIMEOUT);  // A lost connection starts the reconnect watchdog again
@@ -735,7 +735,7 @@ bool ModemComponent::send_at(const std::string &cmd, uint32_t timeout) {
   }
   memcpy(this->at_command_, cmd.c_str(), cmd.size() + 1);
   this->at_timeout_ = timeout;
-  this->at_pending_.store(true, std::memory_order_release);
+  this->at_pending_.store(1, std::memory_order_release);
   this->wake_task_();
   return true;
 }
