@@ -917,8 +917,12 @@ SimResult ModemComponent::prepare_sim_() {
     ESP_LOGE(TAG, "SIM is PUK locked; unlock it in a phone");
     return SimResult::SIM_RESULT_FATAL;
   }
+  // The raw reply starts with the echoed command, so only the error code is logged, never the PIN
+  const size_t code = output.find("+CME ERROR");
   ESP_LOGW(TAG, "PIN not accepted yet (%s); AT+CPIN? decides",
-           result == command_result::TIMEOUT ? LOG_STR_LITERAL("no answer") : output.c_str());
+           result == command_result::TIMEOUT ? LOG_STR_LITERAL("no answer")
+           : code != std::string::npos       ? output.c_str() + code
+                                             : LOG_STR_LITERAL("ERROR"));
   return SimResult::SIM_RESULT_RETRY;
 }
 
