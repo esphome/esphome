@@ -40,7 +40,7 @@ static bool version_is_running(uint8_t version) { return (version & 0xFD) == 0x0
 // The configured profile only changes with new firmware, and flashing never ends in a deep-sleep wake.
 static bool woke_from_deep_sleep() {
 #ifdef USE_DEEP_SLEEP
-  return deep_sleep::get_wakeup_cause() != deep_sleep::WAKEUP_CAUSE_NONE;
+  return deep_sleep::woke_from_deep_sleep();
 #else
   return false;
 #endif
