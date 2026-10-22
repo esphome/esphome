@@ -4,6 +4,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.const import (
+    CONF_BITRATE,
     CONF_CRC_ENABLE,
     CONF_MODULATION,
     CONF_ON_PACKET,
@@ -24,7 +25,6 @@ CONF_SX127X_ID = "sx127x_id"
 
 CONF_AUTO_CAL = "auto_cal"
 CONF_BANDWIDTH = "bandwidth"
-CONF_BITRATE = "bitrate"
 CONF_BITSYNC = "bitsync"
 CONF_CODING_RATE = "coding_rate"
 CONF_DEVIATION = "deviation"

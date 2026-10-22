@@ -123,6 +123,15 @@ void VncClient::loop() {
   }
   const uint32_t now = App.get_loop_component_start_time();
   this->pass_start_ms_ = millis();
+  if (this->display_->is_failed()) {
+    if (this->state_ != VncState::VNC_STATE_IDLE) {
+      this->link_.close();
+      this->session_end_(now, VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display failed"));
+    }
+    this->status_set_error(LOG_STR("Display failed"));
+    this->disable_loop();
+    return;
+  }
   // A display that parks its loop when idle is busy while that loop runs. Displays that never
   // park (no loop, or one that always runs) update synchronously, so they are never busy.
   if (this->display_->is_idle()) {
@@ -813,7 +822,7 @@ void VncClient::draw_row_(uint16_t x, uint16_t y, uint16_t count, const uint8_t 
   }
   const int visible = std::min<int>(count, this->vis_w_ - x);
   this->forget_tiles_(x, y, visible, 1);
-  this->display_->draw_pixels_at(x, y, visible, 1, pixels, display::COLOR_ORDER_RGB, this->bitness_, false);
+  this->display_->draw_pixels_at(x, y, visible, 1, pixels, this->bitness_, false);
   this->frame_drawn_ = true;
 }
 
@@ -837,8 +846,8 @@ void VncClient::draw_tile_() {
       }
     }
   }
-  this->display_->draw_pixels_at(this->pos_x_, this->pos_y_, w, h, this->tile_, display::COLOR_ORDER_RGB,
-                                 this->bitness_, false, 0, 0, this->tile_w_ - w);
+  this->display_->draw_pixels_at(this->pos_x_, this->pos_y_, w, h, this->tile_, this->bitness_, false, 0, 0,
+                                 this->tile_w_ - w);
   this->frame_drawn_ = true;
   this->drawn_tiles_++;
   if (cell != nullptr) {

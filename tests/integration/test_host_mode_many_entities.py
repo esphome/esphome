@@ -20,6 +20,7 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .state_utils import require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -120,10 +121,7 @@ async def test_host_mode_many_entities(
 
         # Get entity info to verify climate entity details
         entities = await client.list_entities_services()
-        climate_infos = [e for e in entities[0] if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) >= 1, "Expected at least 1 climate entity"
-
-        climate_info = climate_infos[0]
+        climate_info = require_only_entity(entities[0], ClimateInfo)
 
         # Verify feature flags set as expected
         assert climate_info.feature_flags == (
@@ -177,27 +175,18 @@ async def test_host_mode_many_entities(
         assert "AWAY" in preset_names, f"Expected 'AWAY' preset, got {preset_names}"
         assert "SLEEP" in preset_names, f"Expected 'SLEEP' preset, got {preset_names}"
 
-        # Verify datetime entities exist
-        date_infos = [e for e in entities[0] if isinstance(e, DateInfo)]
-        time_infos = [e for e in entities[0] if isinstance(e, TimeInfo)]
-        datetime_infos = [e for e in entities[0] if isinstance(e, DateTimeInfo)]
-
-        assert len(date_infos) >= 1, "Expected at least 1 date entity"
-        assert len(time_infos) >= 1, "Expected at least 1 time entity"
-        assert len(datetime_infos) >= 1, "Expected at least 1 datetime entity"
-
-        # Verify the entity names
-        date_info = date_infos[0]
+        # Verify the datetime entities and their names
+        date_info = require_only_entity(entities[0], DateInfo)
         assert date_info.name == "Test Date", (
             f"Expected date entity name 'Test Date', got {date_info.name}"
         )
 
-        time_info = time_infos[0]
+        time_info = require_only_entity(entities[0], TimeInfo)
         assert time_info.name == "Test Time", (
             f"Expected time entity name 'Test Time', got {time_info.name}"
         )
 
-        datetime_info = datetime_infos[0]
+        datetime_info = require_only_entity(entities[0], DateTimeInfo)
         assert datetime_info.name == "Test DateTime", (
             f"Expected datetime entity name 'Test DateTime', got {datetime_info.name}"
         )

@@ -21,7 +21,7 @@ float ADS1118Sensor::sample() {
 void ADS1118Sensor::update() {
   float v = this->sample();
   if (!std::isnan(v)) {
-    ESP_LOGD(TAG, "'%s': Got Voltage=%fV", this->get_name().c_str(), v);
+    ESP_LOGD(TAG, "'%s': Got Voltage=%fV", LOG_STR_ARG(this->get_log_name()), v);
     this->publish_state(v);
   }
 }
