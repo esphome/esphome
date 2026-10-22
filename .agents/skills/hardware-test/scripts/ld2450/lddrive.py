@@ -1,7 +1,7 @@
-"""Drive an LD2450 harness over the API: press buttons, set selects, print LD2450 state updates, save the log.
+"""Drive an LD24xx harness over the API: press buttons, set selects and numbers, print state updates, save the log.
 
 usage: lddrive.py HOST KEY LOGFILE OP [OP ...]   (KEY of - means a plaintext API)
-  OP: list | press:NAME | sel:NAME=OPTION | wait:SECONDS
+  OP: list | press:NAME | sel:NAME=OPTION | set:NAME=VALUE | wait:SECONDS
 Steps are 2 s apart: the API log stream drops lines while the hub blocks in send_command_.
 """
 
@@ -12,8 +12,10 @@ import time
 
 from aioesphomeapi import (
     APIClient,
+    BinarySensorState,
     ButtonInfo,
     LogLevel,
+    NumberInfo,
     NumberState,
     SelectInfo,
     SelectState,
@@ -42,6 +44,7 @@ async def run(c: APIClient, log) -> None:
     by_key = {e.key: e for e in ents}
     buttons = {e.name: e for e in ents if isinstance(e, ButtonInfo)}
     selects = {e.name: e for e in ents if isinstance(e, SelectInfo)}
+    numbers = {e.name: e for e in ents if isinstance(e, NumberInfo)}
 
     def on_state(s) -> None:
         e = by_key.get(s.key)
@@ -50,6 +53,8 @@ async def run(c: APIClient, log) -> None:
         missing = " (missing)" if getattr(s, "missing_state", False) else ""
         if isinstance(s, TextSensorState):
             print(f"{stamp()} TXT {e.name} = {s.state!r}{missing}", flush=True)
+        elif isinstance(s, BinarySensorState):
+            print(f"{stamp()} BIN {e.name} = {s.state}{missing}", flush=True)
         elif isinstance(s, NumberState):
             print(f"{stamp()} NUM {e.name} = {s.state:.0f}{missing}", flush=True)
         elif isinstance(s, SelectState):
@@ -87,6 +92,13 @@ async def run(c: APIClient, log) -> None:
             print(f"{stamp()} >>> press {rest}", flush=True)
             log.write(f"{stamp()} >>> press {rest}\n")
             c.button_command(buttons[rest].key)
+        elif kind == "set":
+            name, _, value = rest.partition("=")
+            if name not in numbers:
+                sys.exit(f"no number named {name!r}; have {sorted(numbers)}")
+            print(f"{stamp()} >>> set {name} = {value}", flush=True)
+            log.write(f"{stamp()} >>> set {name} = {value}\n")
+            c.number_command(numbers[name].key, float(value))
         elif kind == "sel":
             name, _, value = rest.partition("=")
             if name not in selects:
