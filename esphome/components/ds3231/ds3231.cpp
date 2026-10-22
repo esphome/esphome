@@ -17,9 +17,6 @@ static constexpr uint8_t DS3231_REG_STATUS = 0x0F;
 static constexpr uint8_t DS3231_REG_AGING_OFFSET = 0x10;
 static constexpr uint8_t DS3231_REG_TEMPERATURE = 0x11;
 
-static constexpr uint8_t HOUR_12H = 0x40;
-static constexpr uint8_t HOUR_PM = 0x20;
-static constexpr uint8_t MONTH_CENTURY = 0x80;
 static constexpr uint8_t ALARM_MASK_BIT = 0x80;     // AxMy: this register is ignored when matching
 static constexpr uint8_t ALARM_DAY_OF_WEEK = 0x40;  // DY/DT: match day of week instead of date
 
@@ -64,8 +61,7 @@ void DS3231Component::setup() {
   }
   if (this->battery_backed_square_wave_ >= 0) {
     mask |= CONTROL_BBSQW;
-    if (this->battery_backed_square_wave_ != 0)
-      value |= CONTROL_BBSQW;
+    assign_bits(value, CONTROL_BBSQW, this->battery_backed_square_wave_ != 0);
   }
   if (!this->update_control_(mask, value)) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
@@ -73,11 +69,7 @@ void DS3231Component::setup() {
   }
 
   if (this->output_32khz_ >= 0) {
-    if (this->output_32khz_ != 0) {
-      this->status_reg_ |= STATUS_EN32KHZ;
-    } else {
-      this->status_reg_ &= ~STATUS_EN32KHZ;
-    }
+    assign_bits(this->status_reg_, STATUS_EN32KHZ, this->output_32khz_ != 0);
     if (!this->write_status_(0)) {
       this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
@@ -160,9 +152,8 @@ void DS3231Component::dump_config() {
 // Clock
 // ---------------------------------------------------------------------------------------------
 
-bool DS3231Component::read_time(ESPTime &out) {
-  uint8_t raw[7];
-  if (this->is_failed() || !this->status_comm_result(this->read_bytes(DS3231_REG_SECONDS, raw, sizeof(raw))))
+bool DS3231Component::read_calendar(uint8_t *raw) {
+  if (this->is_failed() || !this->status_comm_result(this->read_bytes(DS3231_REG_SECONDS, raw, CALENDAR_LEN)))
     return false;
   // Without a valid status the oscillator-stop flag is unknown, so the time can't be trusted.
   if (!this->read_control_status_())
@@ -172,58 +163,12 @@ bool DS3231Component::read_time(ESPTime &out) {
     ESP_LOGW(TAG, "Oscillator stop flag set, the RTC time is invalid. Write a valid time first.");
     return false;
   }
-
-  uint8_t hour;
-  if ((raw[2] & HOUR_12H) != 0) {
-    // 12-hour mode, e.g. set by another library: 12 AM is 0, 12 PM is 12.
-    hour = bcd_to_uint8(raw[2] & 0x1F) % 12;
-    if ((raw[2] & HOUR_PM) != 0)
-      hour += 12;
-  } else {
-    hour = bcd_to_uint8(raw[2] & 0x3F);
-  }
-
-  out = ESPTime{
-      .second = bcd_to_uint8(raw[0] & 0x7F),
-      .minute = bcd_to_uint8(raw[1] & 0x7F),
-      .hour = hour,
-      .day_of_week = static_cast<uint8_t>(raw[3] & 0x07),
-      .day_of_month = bcd_to_uint8(raw[4] & 0x3F),
-      .month = bcd_to_uint8(raw[5] & 0x1F),
-      .year = static_cast<uint16_t>(2000 + bcd_to_uint8(raw[6]) + ((raw[5] & MONTH_CENTURY) != 0 ? 100 : 0)),
-  };
-  out.recalc_timestamp_utc(false);
-  ESP_LOGD(TAG, "Read UTC time: %04u-%02u-%02u %02u:%02u:%02u (day of week %u)", out.year, out.month, out.day_of_month,
-           out.hour, out.minute, out.second, out.day_of_week);
-  // The day of week is a free-running counter on the DS3231 and may have been set with a different
-  // numbering by other software, so it is not used to validate the time.
-  if (!out.is_valid(/*check_day_of_week=*/false, /*check_day_of_year=*/false)) {
-    ESP_LOGE(TAG, "Invalid RTC time.");
-    return false;
-  }
   return true;
 }
 
-bool DS3231Component::write_time(const ESPTime &time) {
-  if (this->is_failed())
+bool DS3231Component::write_calendar(const uint8_t *raw) {
+  if (this->is_failed() || !this->status_comm_result(this->write_bytes(DS3231_REG_SECONDS, raw, CALENDAR_LEN)))
     return false;
-  if (time.year < 2000 || time.year > 2199) {
-    ESP_LOGE(TAG, "Year %u is out of the DS3231 range (2000-2199).", time.year);
-    return false;
-  }
-  const uint16_t year = time.year - 2000;
-  uint8_t raw[7];
-  raw[0] = uint8_to_bcd(time.second);
-  raw[1] = uint8_to_bcd(time.minute);
-  raw[2] = uint8_to_bcd(time.hour);  // 24-hour mode
-  raw[3] = time.day_of_week;         // 1 = Sunday, as in ESPTime
-  raw[4] = uint8_to_bcd(time.day_of_month);
-  raw[5] = uint8_to_bcd(time.month) | (year >= 100 ? MONTH_CENTURY : 0);
-  raw[6] = uint8_to_bcd(year % 100);
-  if (!this->status_comm_result(this->write_bytes(DS3231_REG_SECONDS, raw, sizeof(raw))))
-    return false;
-  ESP_LOGD(TAG, "Wrote UTC time: %04u-%02u-%02u %02u:%02u:%02u", time.year, time.month, time.day_of_month, time.hour,
-           time.minute, time.second);
 
   // The time is valid again: clear the oscillator stop flag. If that fails, the RTC would keep
   // reporting its time as invalid, so the write is not reported as successful.
@@ -488,11 +433,7 @@ void DS3231Component::disable_square_wave() {
 void DS3231Component::set_output_32khz(bool enabled) {
   if (this->is_failed() || !this->read_control_status_())
     return;
-  if (enabled) {
-    this->status_reg_ |= STATUS_EN32KHZ;
-  } else {
-    this->status_reg_ &= ~STATUS_EN32KHZ;
-  }
+  assign_bits(this->status_reg_, STATUS_EN32KHZ, enabled);
   if (this->write_status_(0)) {
     ESP_LOGD(TAG, "32 kHz output %s.", ONOFF(enabled));
   }

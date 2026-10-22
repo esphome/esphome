@@ -4,7 +4,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/time.h"
 #include "esphome/components/i2c/i2c.h"
 
 #ifdef USE_BINARY_SENSOR
@@ -35,6 +34,9 @@ enum SquareWaveFrequency : uint8_t {
 /// chip through this class.
 class DS3231Component final : public Component, public i2c::I2CDevice {
  public:
+  /// Seconds through year, the 7-byte BCD calendar the time platform decodes with time::DS_BCD_CALENDAR.
+  static constexpr size_t CALENDAR_LEN = 7;
+
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -67,10 +69,10 @@ class DS3231Component final : public Component, public i2c::I2CDevice {
 #endif
 
   // ---- Clock registers (used by the time platform) ----
-  /// Read the calendar registers (UTC). Fails if the oscillator was stopped since the time was last set.
-  bool read_time(ESPTime &out);
-  /// Write @p time (UTC) to the calendar registers and clear the oscillator-stop flag.
-  bool write_time(const ESPTime &time);
+  /// Read the calendar registers into @p raw. Fails if the oscillator was stopped since the time was last set.
+  bool read_calendar(uint8_t *raw);
+  /// Write the calendar registers from @p raw and clear the oscillator-stop flag.
+  bool write_calendar(const uint8_t *raw);
 
   // ---- Temperature ----
   bool read_temperature(float &out);
