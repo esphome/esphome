@@ -378,6 +378,26 @@ def test_redacted_inline_value_becomes_secret_ref(
         ),
         pytest.param(
             {
+                "base.yaml": "wifi:\n  ssid: Old\n  password: old_password123\n",
+                "entry.yaml": "<<: !include base.yaml\nwifi:\n  ssid: OpenNetwork\n",
+            },
+            {"wifi": {"networks": [{"ssid": SensitiveStr("OpenNetwork")}]}},
+            "wifi.password in base.yaml",
+            id="credential_shadowed_by_a_merge",
+        ),
+        pytest.param(
+            {
+                "pkg.yaml": "packet_transport:\n  encryption: old_key_123\n",
+                "entry.yaml": "packages:\n  p: !include pkg.yaml\n"
+                "packet_transport:\n  encryption: !secret new_key\n",
+                "secrets.yaml": "new_key: new_key_456\n",
+            },
+            {"packet_transport": {"encryption": {"key": SensitiveStr("new_key_456")}}},
+            "packet_transport.encryption in pkg.yaml",
+            id="overridden_shorthand_key",
+        ),
+        pytest.param(
+            {
                 "scripts.yaml": "script:\n  - id: old_script\n    then:\n"
                 "      - wifi.configure:\n          ssid: x\n          password: hunter2\n",
                 "entry.yaml": "packages:\n  s: !include scripts.yaml\n"
@@ -1234,7 +1254,9 @@ def test_credential_words_cover_every_sensitive_key() -> None:
         )
     }
     assert {"password", "tlv", "static_pairing_code"} <= keys
-    # A broadcast SSID is not secret; store_yaml treats it the same way elsewhere.
+    # A broadcast SSID is not secret, and a bare `key` also names keypad keys.
+    missing = keys - {"ssid", "key"} - store_yaml._SENSITIVE_KEYS
+    assert not missing, f"add {sorted(missing)} to _SENSITIVE_KEYS"
     unnamed = {
         k
         for k in keys - {"ssid"}

@@ -20,7 +20,6 @@ from esphome.const import (
     CONF_DEFAULTS,
     CONF_ID,
     CONF_PACKAGES,
-    CONF_PASSWORD,
     CONF_SSID,
     CONF_SUBSTITUTIONS,
 )
@@ -61,6 +60,17 @@ _Include = tuple[yaml_util.IncludeFile, dict[str, object], tuple[str, ...]]
 _INT_MARK = "\x00"
 # A removed branch is never validated, so its credentials are known only by name.
 _CREDENTIAL_WORDS = ("password", "key", "secret", "token", "psk", "tlv", "pairing_code")
+# Every key validated with cv.sensitive (a test keeps this complete) and the
+# packet_transport `encryption: <key>` shorthand: credentials wherever they appear,
+# also when a merge or override drops them before validation. SSIDs are broadcast,
+# and a bare `key` also names keypad keys; both are checked where validation kept them.
+_SENSITIVE_KEYS = frozenset(
+    {"password", "new_password", "private_key", "peer_preshared_key"}
+    | {"client_certificate_key", "network_key", "old_key", "pskc", "tlv"}
+    | {"static_pairing_code", "encryption"}
+)
+# Keys under these name declared arguments, not values (`variables: {password: string}`).
+_DECLARATIONS = frozenset({"variables", "parameters"})
 # A quoted string or a number: a lambda without one cannot spell a credential.
 _LITERAL_RE = re.compile(r"""["']|(?<![\w.])\d""")
 
@@ -305,8 +315,8 @@ def _check_sensitive_usage(
         if not path:
             return False
         merged = _merged(path)
-        if path[0] == CONF_PACKAGES and (CONF_PASSWORD,) in merged:
-            return True  # a remote package's own git password
+        if path[-1] in _SENSITIVE_KEYS and not _DECLARATIONS.intersection(path[-2:-1]):
+            return True
         if any(p and any(list_starts_with(p, r) for r in removed) for p in merged):
             return path[-1] in credential_keys or any(
                 word in path[-1] for word in _CREDENTIAL_WORDS
