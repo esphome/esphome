@@ -180,6 +180,11 @@ void VncClient::loop() {
     this->service_rx_(now);
   }
   if (this->state_ == VncState::VNC_STATE_RUNNING) {
+    // A new session lays the screen out again for the new rotation and redraws all of it.
+    if (static_cast<uint16_t>(this->display_->get_rotation()) != this->hash_rotation_) {
+      this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display rotation changed"));
+      return;
+    }
     // Mid-frame there is nothing to send, so a vanished server would never fail a write.
     if (this->in_update_ && !blocked && !this->rx_pending_ && now - this->last_rx_ms_ >= HEARTBEAT_MS) {
       this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Server stopped sending"));
@@ -848,13 +853,14 @@ bool VncClient::start_session_(uint32_t now) {
   const uint16_t cols = (this->vis_w_ + 15) / 16;
   const uint16_t rows = (this->vis_h_ + 15) / 16;
   const auto rotation = static_cast<uint16_t>(this->display_->get_rotation());
+  const bool rotated = rotation != this->hash_rotation_;
+  this->hash_rotation_ = rotation;
   if (static_cast<uint32_t>(cols) * rows > this->hash_capacity_) {
     this->hash_cols_ = 0;
     this->hash_rows_ = 0;
-  } else if (cols != this->hash_cols_ || rows != this->hash_rows_ || rotation != this->hash_rotation_) {
+  } else if (cols != this->hash_cols_ || rows != this->hash_rows_ || rotated) {
     this->hash_cols_ = cols;
     this->hash_rows_ = rows;
-    this->hash_rotation_ = rotation;
     this->clear_tiles_();
   }
 
