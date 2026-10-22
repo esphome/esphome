@@ -15,7 +15,8 @@ namespace esphome::switch_ {
   void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
 
 // bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled.
-// bit4: restore from flash. bit5: restore from RTC memory (neither: platform default)
+// bit4: restore from flash. bit5: restore from RTC memory (neither: platform default).
+// Code generation ors the storage bit into the restore mode passed to set_restore_mode().
 constexpr int RESTORE_MODE_ON_MASK = 0x01;
 constexpr int RESTORE_MODE_PERSISTENT_MASK = 0x02;
 constexpr int RESTORE_MODE_INVERTED_MASK = 0x04;
@@ -129,17 +130,6 @@ class Switch : public EntityBase {
   bool is_inverted() const { return this->inverted_; }
 
   void set_restore_mode(SwitchRestoreMode restore_mode) { this->restore_mode = restore_mode; }
-
-#ifdef USE_SWITCH_STORAGE
-  /// Keep the restored state in flash (survives power loss) or RTC memory (survives only soft resets).
-  /// Not calling this keeps the platform default (on ESP8266, the `restore_from_flash` setting).
-  /// Call after set_restore_mode(), which replaces these bits.
-  void set_restore_in_flash(bool in_flash) {
-    this->restore_mode =
-        static_cast<SwitchRestoreMode>((this->restore_mode & ~RESTORE_MODE_STORAGE_MASK) |
-                                       (in_flash ? RESTORE_MODE_STORAGE_FLASH_MASK : RESTORE_MODE_STORAGE_RTC_MASK));
-  }
-#endif
 
  protected:
   /** Write the given state to hardware. You should implement this

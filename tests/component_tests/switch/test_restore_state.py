@@ -30,8 +30,6 @@ def _defines() -> set[str]:
 @pytest.mark.parametrize(
     ("switch_id", "mode"),
     [
-        ("keep_rtc", "SWITCH_RESTORE_DEFAULT_ON"),
-        ("keep_flash", "SWITCH_RESTORE_DEFAULT_OFF"),
         ("keep_short", "SWITCH_RESTORE_DEFAULT_OFF"),
         ("all_short", "SWITCH_RESTORE_DEFAULT_OFF"),
         ("invert_on", "SWITCH_RESTORE_INVERTED_DEFAULT_ON"),
@@ -60,9 +58,17 @@ def test_storage_is_passed_only_when_set(
 ) -> None:
     main_cpp = generate_main(component_config_path("restore_state_esp32.yaml"))
 
-    assert "keep_rtc->set_restore_in_flash(false);" in main_cpp
-    assert "keep_flash->set_restore_in_flash(true);" in main_cpp
-    assert "keep_short->set_restore_in_flash(" not in main_cpp
+    assert (
+        "keep_rtc->set_restore_mode(static_cast<switch_::SwitchRestoreMode>("
+        "switch_::SWITCH_RESTORE_DEFAULT_ON | switch_::RESTORE_MODE_STORAGE_RTC_MASK));"
+    ) in main_cpp
+    assert (
+        "keep_flash->set_restore_mode(static_cast<switch_::SwitchRestoreMode>("
+        "switch_::SWITCH_RESTORE_DEFAULT_OFF | switch_::RESTORE_MODE_STORAGE_FLASH_MASK));"
+    ) in main_cpp
+    assert (
+        "keep_short->set_restore_mode(switch_::SWITCH_RESTORE_DEFAULT_OFF);" in main_cpp
+    )
     assert GATE in _defines()
     assert ESP32_RTC in _defines()
 
@@ -74,7 +80,7 @@ def test_nothing_new_emitted_without_restore_state(
     """Configs using only restore_mode generate exactly what they did before."""
     main_cpp = generate_main(component_config_path("restore_state_absent_esp32.yaml"))
 
-    assert "set_restore_in_flash(" not in main_cpp
+    assert "RESTORE_MODE_STORAGE_" not in main_cpp
     assert GATE not in _defines()
     assert ESP32_RTC not in _defines()
 
@@ -85,7 +91,10 @@ def test_rtc_applies_per_switch_on_esp8266_with_restore_from_flash(
 ) -> None:
     main_cpp = generate_main(component_config_path("restore_state_esp8266.yaml"))
 
-    assert "keep_rtc->set_restore_in_flash(false);" in main_cpp
+    assert (
+        "keep_rtc->set_restore_mode(static_cast<switch_::SwitchRestoreMode>("
+        "switch_::SWITCH_RESTORE_DEFAULT_ON | switch_::RESTORE_MODE_STORAGE_RTC_MASK));"
+    ) in main_cpp
     assert ESP32_RTC not in _defines()
 
 
@@ -136,17 +145,6 @@ def test_restore_state_on_off_explains_what_to_use(state: object) -> None:
         cv.Invalid, match="initial_state: ON' \\(or OFF\\) with 'restore_state: none'"
     ):
         _validate({"restore_state": {"state": state}})
-
-
-@pytest.mark.usefixtures("esp8266")
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [(True, True), (False, False), ({"state": True}, True), ({"state": "OFF"}, False)],
-)
-def test_initial_state_accepts_lights_mapping_form(
-    value: object, expected: bool
-) -> None:
-    assert _validate({"initial_state": value})["initial_state"] is expected
 
 
 @pytest.mark.parametrize(

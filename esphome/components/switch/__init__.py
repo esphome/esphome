@@ -56,6 +56,8 @@ SwitchPtr = Switch.operator("ptr")
 ApplySwitch = switch_ns.class_("ApplySwitch", Switch)
 
 SwitchRestoreMode = switch_ns.enum("SwitchRestoreMode")
+RESTORE_MODE_STORAGE_FLASH_MASK = switch_ns.namespace("RESTORE_MODE_STORAGE_FLASH_MASK")
+RESTORE_MODE_STORAGE_RTC_MASK = switch_ns.namespace("RESTORE_MODE_STORAGE_RTC_MASK")
 
 RESTORE_MODES = {
     "RESTORE_DEFAULT_OFF": SwitchRestoreMode.SWITCH_RESTORE_DEFAULT_OFF,
@@ -69,13 +71,7 @@ RESTORE_MODES = {
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
-
-
-_RESTORE_STATE_STATES = (
-    RESTORE_STATE_KEEP,
-    RESTORE_STATE_INVERT,
-    RESTORE_STATE_INITIAL,
-)
+validate_restore_mode = cv.enum(RESTORE_MODES, upper=True, space="_")
 
 
 def _validate_restore_state_storage(config: ConfigType) -> ConfigType:
@@ -97,7 +93,9 @@ def _validate_restore_state_state(value: object) -> str:
             "a switch can't restore and then force ON or OFF; to always start in a fixed state, "
             "use 'initial_state: ON' (or OFF) with 'restore_state: none'"
         )
-    return cv.one_of(*_RESTORE_STATE_STATES, upper=True)(value)
+    return cv.one_of(
+        RESTORE_STATE_KEEP, RESTORE_STATE_INVERT, RESTORE_STATE_INITIAL, upper=True
+    )(value)
 
 
 _RESTORE_STATE_FIELDS_SCHEMA = cv.Schema(
@@ -149,7 +147,7 @@ def _apply_default_restore_mode(
     # cv.Exclusive has no default, so apply it here when no restore option is configured.
     # With only initial_state set, a restoring default keeps restoring and initial_state
     # supplies the state used when nothing is saved.
-    default = cv.enum(RESTORE_MODES, upper=True, space="_")(default_restore_mode)
+    default = validate_restore_mode(default_restore_mode)
     state = _STATE_FOR_RESTORE_MODE.get(str(default), RESTORE_STATE_INITIAL)
 
     def validator(config: ConfigType) -> ConfigType:
@@ -165,13 +163,23 @@ def _apply_default_restore_mode(
 
 
 def _resolve_restore_mode(config: ConfigType) -> MockObj | str:
-    """Translate `initial_state` / `restore_state` into one of the RESTORE_MODES."""
+    """Translate `initial_state` / `restore_state` into one of the RESTORE_MODES, with the storage bit."""
     if (restore_mode := config.get(CONF_RESTORE_MODE)) is not None:
         return restore_mode
-    state = config.get(CONF_RESTORE_STATE, {}).get(CONF_STATE, RESTORE_STATE_INITIAL)
-    return RESTORE_MODES[
+    restore_state = config.get(CONF_RESTORE_STATE, {})
+    state = restore_state.get(CONF_STATE, RESTORE_STATE_INITIAL)
+    mode = RESTORE_MODES[
         _RESTORE_MODE_FOR_STATE[state, config.get(CONF_INITIAL_STATE, False)]
     ]
+    if (storage := restore_state.get(CONF_STORAGE)) is None:
+        return mode
+    cg.add_define("USE_SWITCH_STORAGE")
+    mask = (
+        RESTORE_MODE_STORAGE_FLASH_MASK
+        if preferences.is_in_flash(storage)
+        else RESTORE_MODE_STORAGE_RTC_MASK
+    )
+    return cg.RawExpression(f"static_cast<{SwitchRestoreMode}>({mode} | {mask})")
 
 
 _SWITCH_SCHEMA = (
@@ -182,17 +190,9 @@ _SWITCH_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
             cv.Optional(CONF_INVERTED): cv.boolean,
-            cv.Exclusive(CONF_RESTORE_MODE, "restore"): cv.enum(
-                RESTORE_MODES, upper=True, space="_"
-            ),
+            cv.Exclusive(CONF_RESTORE_MODE, "restore"): validate_restore_mode,
             cv.Exclusive(CONF_RESTORE_STATE, "restore"): RESTORE_STATE_SCHEMA,
-            # ON/OFF, or light's mapping form {state: ON}; either way a boolean afterwards
-            cv.Optional(CONF_INITIAL_STATE): cv.All(
-                cv.maybe_simple_value(
-                    {cv.Required(CONF_STATE): cv.boolean}, key=CONF_STATE
-                ),
-                lambda value: value[CONF_STATE],
-            ),
+            cv.Optional(CONF_INITIAL_STATE): cv.boolean,
             cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_ON): automation.validate_automation({}),
             cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation({}),
@@ -282,9 +282,6 @@ async def setup_switch_core_(var, config):
     setup_device_class(config)
 
     cg.add(var.set_restore_mode(_resolve_restore_mode(config)))
-    if (storage := config.get(CONF_RESTORE_STATE, {}).get(CONF_STORAGE)) is not None:
-        cg.add_define("USE_SWITCH_STORAGE")
-        cg.add(var.set_restore_in_flash(preferences.is_in_flash(storage)))
     await zigbee.setup_switch(var, config)
 
 

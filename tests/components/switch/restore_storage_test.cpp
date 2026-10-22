@@ -39,30 +39,27 @@ class SwitchRestoreStorageTest : public ::testing::Test {
   fs::path temp_dir_;
 };
 
-// Host ignores flash vs RTC, so this checks that a switch with a storage choice still binds, saves and
-// restores its preference; which memory it lands in is checked by the ESP32/ESP8266 compile tests.
+// Host ignores flash vs RTC, so this checks that a switch with a storage bit in its restore mode still binds,
+// saves and restores its preference; which memory it lands in is checked by the ESP32/ESP8266 compile tests.
 TEST_F(SwitchRestoreStorageTest, SwitchWithAStorageChoiceStillRestoresItsState) {
-  for (const bool in_flash : {false, true}) {
-    const uint32_t id = in_flash ? 0x5001 : 0x5002;
-    {
-      TestSwitch sw;
-      sw.set_test_id(id);
-      sw.set_restore_mode(SWITCH_RESTORE_DEFAULT_OFF);
-      sw.set_restore_in_flash(in_flash);
-      auto first = sw.get_initial_state_with_restore_mode();
-      ASSERT_TRUE(first.has_value());
-      EXPECT_FALSE(first.value()) << "nothing stored yet, so RESTORE_DEFAULT_OFF gives OFF";
-      sw.publish_state(true);
-      global_preferences->sync();
-    }
-    TestSwitch sw2;
-    sw2.set_test_id(id);
-    sw2.set_restore_mode(SWITCH_RESTORE_DEFAULT_OFF);
-    sw2.set_restore_in_flash(in_flash);
-    auto restored = sw2.get_initial_state_with_restore_mode();
-    ASSERT_TRUE(restored.has_value());
-    EXPECT_TRUE(restored.value()) << "state saved with in_flash=" << in_flash << " was not restored";
+  static constexpr uint32_t ID = 0x5001;
+  const auto mode = static_cast<SwitchRestoreMode>(SWITCH_RESTORE_DEFAULT_OFF | RESTORE_MODE_STORAGE_RTC_MASK);
+  {
+    TestSwitch sw;
+    sw.set_test_id(ID);
+    sw.set_restore_mode(mode);
+    auto first = sw.get_initial_state_with_restore_mode();
+    ASSERT_TRUE(first.has_value());
+    EXPECT_FALSE(first.value()) << "nothing stored yet, so RESTORE_DEFAULT_OFF gives OFF";
+    sw.publish_state(true);
+    global_preferences->sync();
   }
+  TestSwitch sw2;
+  sw2.set_test_id(ID);
+  sw2.set_restore_mode(mode);
+  auto restored = sw2.get_initial_state_with_restore_mode();
+  ASSERT_TRUE(restored.has_value());
+  EXPECT_TRUE(restored.value()) << "the saved state was not restored";
 }
 
 }  // namespace esphome::switch_::testing

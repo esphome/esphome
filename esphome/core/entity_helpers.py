@@ -788,8 +788,8 @@ def restore_state_schema(fields_schema: cv.Schema, none: Any) -> Callable[[Any],
     """The validator for a domain's `restore_state:` key.
 
     A mapping is validated with `fields_schema`. The shorthand `all` is the empty mapping,
-    so every field keeps its saved value, and `none` becomes `none`: a mapping is validated
-    like one the user wrote, anything else is returned as it is.
+    so every field keeps its saved value, and `none` is returned as it is, so it must already
+    be a valid result.
     """
 
     @schema_extractor("schema")
@@ -797,21 +797,16 @@ def restore_state_schema(fields_schema: cv.Schema, none: Any) -> Callable[[Any],
         if value == SCHEMA_EXTRACT:
             # The shorthands have no representation in the extracted schema
             return fields_schema
-        if isinstance(value, str):
-            keyword = restore_state_keyword(
-                value, (RESTORE_STATE_ALL, RESTORE_STATE_NONE)
+        keyword = restore_state_keyword(value, (RESTORE_STATE_ALL, RESTORE_STATE_NONE))
+        if keyword == RESTORE_STATE_ALL:
+            value = {}
+        elif keyword == RESTORE_STATE_NONE:
+            return none
+        elif isinstance(value, str):
+            raise cv.Invalid(
+                f"Unknown restore_state '{value}'; expected 'all', 'none' or a mapping, "
+                "for example '{state: INVERT}'"
             )
-            if keyword == RESTORE_STATE_ALL:
-                value = {}
-            elif keyword == RESTORE_STATE_NONE:
-                if not isinstance(none, dict):
-                    return none
-                value = dict(none)
-            else:
-                raise cv.Invalid(
-                    f"Unknown restore_state '{value}'; expected 'all', 'none' or a mapping, "
-                    "for example '{state: INVERT}'"
-                )
         return fields_schema(value)
 
     return validate
