@@ -178,10 +178,10 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
-// Drop the frame at the start of the buffer, keeping bytes from the next frame header (or a partial
-// header at the end). Returns the new buffer length.
-static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
-  for (uint8_t start = 1; start < len; start++) {
+// Drop the first `start` bytes of the buffer and anything after them that does not begin a frame header
+// (a partial header at the end is kept). Returns the new buffer length.
+static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len, uint8_t start) {
+  for (; start < len; start++) {
     const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, len - start);
     if (std::memcmp(&buffer[start], CMD_FRAME_HEADER, n) == 0 ||
         std::memcmp(&buffer[start], DATA_FRAME_HEADER, n) == 0) {
@@ -622,37 +622,47 @@ void LD2410Component::readline_(int readch) {
     }
   }
   this->buffer_data_[this->buffer_pos_++] = readch;
-  const uint32_t frame_len = ld2410::frame_length(this->buffer_data_, this->buffer_pos_);
-  if (frame_len == 0 || (frame_len <= MAX_LINE_LENGTH && this->buffer_pos_ < frame_len)) {
-    return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
-  }
-  if (frame_len <= MAX_LINE_LENGTH) {
-    const uint8_t *tail = &this->buffer_data_[this->buffer_pos_ - HEADER_FOOTER_SIZE];
-    if (ld2410::validate_header_footer(DATA_FRAME_HEADER, this->buffer_data_)) {
-      if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, tail)) {
-        ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
-        this->handle_periodic_data_();
-        this->buffer_pos_ = 0;
-        return;
-      }
-    } else if (ld2410::validate_header_footer(CMD_FRAME_FOOTER, tail)) {
-      ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
-      this->handle_ack_data_();
-      this->buffer_pos_ = 0;
+  // A dropped frame can leave whole frames behind it in the buffer, so keep going until the buffer is
+  // empty or holds only the start of a frame
+  while (true) {
+    const uint32_t frame_len = ld2410::frame_length(this->buffer_data_, this->buffer_pos_);
+    if (frame_len == 0 || (frame_len <= MAX_LINE_LENGTH && this->buffer_pos_ < frame_len)) {
+      return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
+    }
+    const uint8_t total = this->buffer_pos_;
+    if (frame_len <= MAX_LINE_LENGTH && this->handle_frame_(frame_len)) {
+      // Whatever follows the frame must itself begin with a header before the next pass reads it
+      this->buffer_pos_ = ld2410::drop_to_next_header(this->buffer_data_, total, frame_len);
+    } else {
+      // The footer is not where the count says, so the stream lost bytes: drop this frame and keep the
+      // bytes from the next header on
+      ESP_LOGW(TAG, "Invalid length");
+      this->buffer_pos_ = ld2410::drop_to_next_header(this->buffer_data_, total, 1);
+    }
+    if (this->buffer_pos_ == 0) {
       return;
     }
   }
-  // The footer is not where the count says, so the stream lost bytes: drop this frame and replay what
-  // follows it, so frames already inside the buffer are dispatched. Each replay is shorter than the
-  // buffer it came from, so the recursion is bounded.
-  ESP_LOGW(TAG, "Invalid length");
-  uint8_t pending[MAX_LINE_LENGTH];
-  const uint8_t pending_len = ld2410::drop_to_next_header(this->buffer_data_, this->buffer_pos_);
-  std::memcpy(pending, this->buffer_data_, pending_len);
-  this->buffer_pos_ = 0;
-  for (uint8_t i = 0; i < pending_len; i++) {
-    this->readline_(pending[i]);  // NOLINT(misc-no-recursion)
+}
+
+// Dispatches the frame of frame_len bytes at the start of the buffer when its footer is in place
+bool LD2410Component::handle_frame_(uint8_t frame_len) {
+  this->buffer_pos_ = frame_len;  // the handlers take the frame length from here
+  const uint8_t *tail = &this->buffer_data_[frame_len - HEADER_FOOTER_SIZE];
+  if (this->buffer_data_[0] == DATA_FRAME_HEADER[0]) {
+    if (!ld2410::validate_header_footer(DATA_FRAME_FOOTER, tail)) {
+      return false;
+    }
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
+    this->handle_periodic_data_();
+    return true;
   }
+  if (!ld2410::validate_header_footer(CMD_FRAME_FOOTER, tail)) {
+    return false;
+  }
+  ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+  this->handle_ack_data_();
+  return true;
 }
 
 void LD2410Component::set_config_mode_(bool enable) {
