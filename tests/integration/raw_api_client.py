@@ -10,12 +10,12 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 import socket
+import struct
 from typing import Self
 
 from aioesphomeapi import api_pb2
 import aioesphomeapi.core as api_core
 from google.protobuf import message
-from google.protobuf.unknown_fields import UnknownFieldSet
 
 from .const import LOCALHOST
 
@@ -51,12 +51,33 @@ def decode_varint(buf: bytearray, pos: int) -> tuple[int, int] | None:
     return None
 
 
+WIRE_VARINT, WIRE_LENGTH, WIRE_FIXED32 = 0, 2, 5
+
+
+def tag(field: int, wire_type: int) -> bytes:
+    return encode_varint((field << 3) | wire_type)
+
+
 def decode_fields(payload: bytes) -> dict[int, list[int | bytes]]:
-    """Field values by number, for messages the installed aioesphomeapi does not know yet."""
+    """Split a protobuf payload into field number -> raw values; a test reads fields the client lacks."""
     fields: dict[int, list[int | bytes]] = {}
-    # A message without declared fields keeps every field as unknown.
-    for field in UnknownFieldSet(api_pb2.ListEntitiesRequest.FromString(payload)):
-        fields.setdefault(field.field_number, []).append(field.data)
+    buf = bytearray(payload)
+    pos = 0
+    while pos < len(buf):
+        key, pos = decode_varint(buf, pos)
+        field, wire_type = key >> 3, key & 0x07
+        if wire_type == WIRE_VARINT:
+            value, pos = decode_varint(buf, pos)
+        elif wire_type == WIRE_LENGTH:
+            length, pos = decode_varint(buf, pos)
+            value = bytes(buf[pos : pos + length])
+            pos += length
+        elif wire_type == WIRE_FIXED32:
+            value = struct.unpack_from("<I", buf, pos)[0]
+            pos += 4
+        else:
+            raise AssertionError(f"unexpected wire type {wire_type} for field {field}")
+        fields.setdefault(field, []).append(value)
     return fields
 
 
