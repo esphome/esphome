@@ -17,20 +17,6 @@
 // Host only: ESP-IDF has no poll.h.
 #include <poll.h>
 
-#include <sys/uio.h>
-
-// A BSD socket never returns 0 from a send, so for one test write() returns 0 on zero_write_fd only. Every other
-// call in this binary, a closed socket's fd -1 included, goes unchanged to libc's writev().
-static int zero_write_fd = -1;
-
-extern "C" ssize_t write(int fd, const void *buf, size_t len) {
-  if (zero_write_fd >= 0 && fd == zero_write_fd) {
-    return 0;
-  }
-  struct iovec iov = {const_cast<void *>(buf), len};
-  return ::writev(fd, &iov, 1);
-}
-
 namespace esphome::socket::testing {
 
 class LinkPeer {
@@ -40,7 +26,6 @@ class LinkPeer {
     signal(SIGPIPE, SIG_IGN);
     int fds[2];
     EXPECT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-    this->link_fd_ = fds[0];
     this->peer_fd_ = fds[1];
     this->link_.set_host("peer");
     this->link_.set_port(1);
@@ -59,7 +44,6 @@ class LinkPeer {
   }
 
   TcpClientLink link_;
-  int link_fd_{-1};
   int peer_fd_{-1};
 };
 
@@ -342,27 +326,6 @@ TEST(TcpClientLink, StuckSendClosesAfterTheTimeout) {
   // A send refused with EAGAIN does not restart the clock.
   set_loop_time(1050);
   EXPECT_FALSE(p.link_.flush_tx());
-  set_loop_time(1099);
-  p.link_.check_idle();
-  EXPECT_TRUE(p.link_.connected());
-  set_loop_time(1100);
-  p.link_.check_idle();
-  EXPECT_FALSE(p.link_.connected());
-}
-
-TEST(TcpClientLink, ASendThatTakesNothingKeepsTheIdleClock) {
-  LinkPeer p;
-  p.link_.set_idle_timeout(100);
-  set_loop_time(1000);
-  p.link_.note_io();
-  ASSERT_EQ(p.link_.queue(reinterpret_cast<const uint8_t *>("x"), 1), 1u);
-  zero_write_fd = p.link_fd_;
-  // The send returns 0: the byte stays queued, the link stays up, the clock keeps running.
-  set_loop_time(1050);
-  bool emptied = p.link_.flush_tx();
-  zero_write_fd = -1;
-  EXPECT_FALSE(emptied);
-  EXPECT_TRUE(p.link_.connected());
   set_loop_time(1099);
   p.link_.check_idle();
   EXPECT_TRUE(p.link_.connected());

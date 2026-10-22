@@ -128,12 +128,11 @@ ssize_t TcpClientLink::write_(const uint8_t *buf, size_t len) {
     return 0;
   }
   ssize_t sent = this->sock_->write(buf, len);
-  if (sent > 0) {
-    this->note_io();
+  if (sent >= 0) {
+    if (sent > 0) {
+      this->note_io();
+    }
     return sent;
-  }
-  if (sent == 0) {
-    return 0;
   }
   if (errno == EAGAIN || errno == EWOULDBLOCK) {
     return 0;
