@@ -71,16 +71,6 @@ using json::linked;
 [[maybe_unused]] static JsonString json_state_str(const LogString *s) { return linked(LOG_STR_ARG(s)); }
 #endif
 
-// get_icon_to() and get_device_class_to() return a table pointer, except on ESP8266 where they
-// copy out of PROGMEM into the caller's buffer
-[[maybe_unused]] static JsonString json_table_str(const char *s) {
-#ifdef USE_ESP8266
-  return JsonString(s);
-#else
-  return linked(s);
-#endif
-}
-
 // One action of a POST /{domain}/{entity}/{action} request, kept in PROGMEM with the name inline so the
 // table needs no RAM on ESP8266.
 template<typename Call> struct ActionEntry {
@@ -675,8 +665,7 @@ static void set_json_id(JsonObject root, EntityBase *obj, const char *prefix, Js
     }
 #endif
 #ifdef USE_ENTITY_ICON
-    char icon_buf[MAX_ICON_LENGTH];
-    root[ESPHOME_F("icon")] = json_table_str(obj->get_icon_to(icon_buf));
+    root[ESPHOME_F("icon")] = linked(obj->get_icon_progmem());
 #endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
@@ -2216,8 +2205,7 @@ void WebServer::event_json_(event::Event *obj, StringRef event_type, JsonDetail 
     for (const char *event_type : obj->get_event_types()) {
       event_types.add(linked(event_type));
     }
-    char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-    root[ESPHOME_F("device_class")] = json_table_str(obj->get_device_class_to(dc_buf));
+    root[ESPHOME_F("device_class")] = linked(obj->get_device_class_progmem());
     this->add_sorting_info_(root, obj);
   }
 }
