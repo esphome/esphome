@@ -720,6 +720,14 @@ async def test_uart_mock_ld2412_selects(
         # The mock bus runs at 256000, which the select reports at boot
         assert initial_state_helper.initial_states[baud_rate.key].state == "256000"
 
+        # An unknown name writes nothing, not even the configuration mode frames around a command.
+        # This runs before any select write, so no restart timer from a write can send a frame meanwhile.
+        before = len(events.lines)
+        done = events.next_line_with(bogus_done)
+        client.button_command(require_entity(entities, "bogus_names", ButtonInfo).key)
+        await wait_or_fail(done, 5.0, "Timeout waiting for the bogus names lambda")
+        assert [line for line in events.lines[before:] if _is_tx(line)] == []
+
         resolution_written = events.next_line_with(expected_resolution)
         client.select_command(resolution.key, "0.2m")
         await wait_or_fail(
@@ -742,13 +750,6 @@ async def test_uart_mock_ld2412_selects(
         # The payload line follows the length and command line directly
         start = events.index_after(-1, SET_BAUD_RATE)
         assert expected_baud_rate in events.lines[start + 1]
-
-        # An unknown name writes nothing, not even the configuration mode frames around a command
-        before = len(events.lines)
-        done = events.next_line_with(bogus_done)
-        client.button_command(require_entity(entities, "bogus_names", ButtonInfo).key)
-        await wait_or_fail(done, 5.0, "Timeout waiting for the bogus names lambda")
-        assert [line for line in events.lines[before:] if _is_tx(line)] == []
 
         # A known name maps to the same device code as the select
         named_resolution_written = events.next_line_with(named_resolution)
