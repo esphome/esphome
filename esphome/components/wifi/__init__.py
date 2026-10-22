@@ -232,7 +232,6 @@ def _validate_ap_mode(value: str) -> str:
 def _validate_dns_servers(value: list) -> list:
     if any(ip.is_unspecified for ip in value):
         raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
-    # Elsewhere the WISP checks reject the option, and there is no ESP-IDF version to read
     if len(value) > 1 and CORE.is_esp32 and idf_version() < cv.Version(6, 0, 0):
         raise cv.Invalid("The access point offers a second DNS server from ESP-IDF 6.0")
     return value
