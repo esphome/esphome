@@ -921,7 +921,7 @@ static void set_find_can_id_flag(bool enabled) {
 // drop the TCP connection to Home Assistant. Frames skipped by the limiter are
 // counted and reported with the next emitted line, so a capture is never silently
 // incomplete. Both the receive and the transmit path go through here.
-static void log_candump_line_(uint32_t can_id, const std::vector<uint8_t> &data) {
+static void log_candump_line(uint32_t can_id, const std::vector<uint8_t> &data) {
   const uint32_t now = millis();
   if (now - s_last_candump_log_ms < CANDUMP_MIN_LOG_GAP_MS) {
     s_candump_dropped++;
@@ -950,7 +950,7 @@ static void debug_log_frame(const std::vector<uint8_t> &data, uint32_t can_id) {
     if (now - s_candump_start_ms > CANDUMP_AUTO_OFF_MS) {
       set_candump_flag(false);
     } else {
-      log_candump_line_(can_id, data);
+      log_candump_line(can_id, data);
     }
   }
 
@@ -990,7 +990,7 @@ static void debug_log_tx_frame(const std::vector<uint8_t> &data, uint32_t can_id
     set_candump_flag(false);
     return;
   }
-  log_candump_line_(can_id, data);
+  log_candump_line(can_id, data);
 }
 
 void TopTronic::set_candump_enabled(bool enabled) { set_candump_flag(enabled); }
@@ -1042,7 +1042,8 @@ void TopTronicDebugSwitch::write_state(bool state) {
 
 void TopTronicDebugSwitch::dump_config() {
   LOG_SWITCH("", "TopTronic Debug Switch", this);
-  ESP_LOGCONFIG(TAG, "  Debug mode: %s", this->mode_ == DebugMode::CANDUMP ? "candump" : "find_can_id");
+  ESP_LOGCONFIG(TAG, "  Debug mode: %s",
+                this->mode_ == DebugMode::CANDUMP ? LOG_STR_LITERAL("candump") : LOG_STR_LITERAL("find_can_id"));
 }
 #endif
 
