@@ -880,15 +880,14 @@ def test_redacted_symlinked_dir_include_rebases_where_the_loader_reads(
     (project / "pkgs").symlink_to(shared / "pkgs")
     (project / "entry.yaml").write_text("packages: !include_dir_named pkgs\n")
     files = _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))
-    base = files["../shared/pkgs/base.yaml"].decode()
+    # The file itself is captured at its real location, so its own include stays put.
+    assert "!include '../wifi.yaml'" in files["../shared/pkgs/base.yaml"].decode()
     if sys.platform == "win32":
         assert "wifi: !include 'wifi.yaml'" in files["entry.yaml"].decode()
         assert files["wifi.yaml"] == b"ssid: project\n"
-        assert "!include '../../project/wifi.yaml'" in base
     else:
         assert "wifi: !include '../shared/wifi.yaml'" in files["entry.yaml"].decode()
         assert files["../shared/wifi.yaml"] == b"ssid: shared\n"
-        assert "!include '../wifi.yaml'" in base
 
 
 def test_include_through_a_directory_symlink(
