@@ -132,8 +132,8 @@ UDP_FLAG_COMMITTED = 0x80
 UDP_MSG_ACK = 0x40
 UDP_HEADER_SIZE = 9
 UDP_ACK_HEADER_SIZE = 12
-# Stream bytes per datagram, within one Ethernet frame
-UDP_MAX_PAYLOAD = 1400
+# Fits Thread's 1280-byte IPv6 MTU
+UDP_MAX_PAYLOAD = 1223
 # Messages the device queues unconsumed (UDP_WINDOW in ota_esphome.h); as many
 # as TCP's window holds, so UDP costs the device no more memory than TCP
 UDP_WINDOW = 4
