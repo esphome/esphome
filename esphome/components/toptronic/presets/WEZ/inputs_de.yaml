@@ -5,7 +5,6 @@ number:
     function_group: 1
     function_number: 0
     datapoint: 3051
-    id: WEZ_1_0_3051_set
     type: S16
     min_value: 100
     max_value: 300
@@ -20,7 +19,6 @@ number:
     function_group: 1
     function_number: 0
     datapoint: 3053
-    id: WEZ_1_0_3053_set
     type: S16
     min_value: 50
     max_value: 200
@@ -35,7 +33,6 @@ number:
     function_group: 1
     function_number: 1
     datapoint: 3051
-    id: WEZ_1_1_3051_set
     type: S16
     min_value: 100
     max_value: 300
@@ -50,7 +47,6 @@ number:
     function_group: 1
     function_number: 1
     datapoint: 3053
-    id: WEZ_1_1_3053_set
     type: S16
     min_value: 50
     max_value: 200
@@ -65,7 +61,6 @@ number:
     function_group: 1
     function_number: 2
     datapoint: 3051
-    id: WEZ_1_2_3051_set
     type: S16
     min_value: 100
     max_value: 300
@@ -80,7 +75,6 @@ number:
     function_group: 1
     function_number: 2
     datapoint: 3053
-    id: WEZ_1_2_3053_set
     type: S16
     min_value: 50
     max_value: 200
@@ -95,7 +89,6 @@ number:
     function_group: 2
     function_number: 0
     datapoint: 5051
-    id: WEZ_2_0_5051_set
     type: S16
     min_value: 100
     max_value: 700
@@ -110,7 +103,6 @@ number:
     function_group: 2
     function_number: 0
     datapoint: 5086
-    id: WEZ_2_0_5086_set
     type: U8
     min_value: 10
     max_value: 70
@@ -125,7 +117,6 @@ number:
     function_group: 2
     function_number: 0
     datapoint: 5077
-    id: WEZ_2_0_5077_set
     type: S16
     min_value: 0
     max_value: 800
@@ -140,7 +131,6 @@ number:
     function_group: 1
     function_number: 0
     datapoint: 7031
-    id: WEZ_1_0_7031_set
     type: S16
     min_value: 0
     max_value: 120
@@ -155,7 +145,6 @@ number:
     function_group: 1
     function_number: 1
     datapoint: 7031
-    id: WEZ_1_1_7031_set
     type: S16
     min_value: 0
     max_value: 120
@@ -170,7 +159,6 @@ number:
     function_group: 1
     function_number: 2
     datapoint: 7031
-    id: WEZ_1_2_7031_set
     type: S16
     min_value: 0
     max_value: 120
@@ -185,7 +173,6 @@ number:
     function_group: 1
     function_number: 0
     datapoint: 7046
-    id: WEZ_1_0_7046_set
     type: S16
     min_value: -600
     max_value: 0
@@ -200,7 +187,6 @@ number:
     function_group: 1
     function_number: 1
     datapoint: 7046
-    id: WEZ_1_1_7046_set
     type: S16
     min_value: -600
     max_value: 0
@@ -216,7 +202,6 @@ select:
     function_group: 1
     function_number: 0
     datapoint: 3050
-    id: WEZ_1_0_3050_set
     options:
       - Standby
       - Woche 1
@@ -239,7 +224,6 @@ select:
     function_group: 1
     function_number: 1
     datapoint: 3050
-    id: WEZ_1_1_3050_set
     options:
       - Standby
       - Woche 1
@@ -262,7 +246,6 @@ select:
     function_group: 1
     function_number: 2
     datapoint: 3050
-    id: WEZ_1_2_3050_set
     options:
       - Standby
       - Woche 1
@@ -285,7 +268,6 @@ select:
     function_group: 2
     function_number: 0
     datapoint: 5050
-    id: WEZ_2_0_5050_set
     options:
       - Standby
       - Woche 1
@@ -304,7 +286,6 @@ select:
     function_group: 10
     function_number: 1
     datapoint: 9075
-    id: WEZ_10_1_9075_set
     options:
       - Deakt.
       - Automatik
@@ -321,7 +302,6 @@ select:
     function_group: 0
     function_number: 0
     datapoint: 38012
-    id: WEZ_0_0_38012_set
     options:
       - Normal
       - Vorzugbetrieb
@@ -338,7 +318,6 @@ select:
     function_group: 0
     function_number: 0
     datapoint: 38013
-    id: WEZ_0_0_38013_set
     options:
       - Aus
       - Eingangskontakte

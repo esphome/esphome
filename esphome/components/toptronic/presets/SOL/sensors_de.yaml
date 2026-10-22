@@ -5,7 +5,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 14
-    id: SOL_22_0_14
     type: S16
     accuracy_decimals: 1
     filters:
@@ -20,7 +19,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 14
-    id: SOL_22_1_14
     type: S16
     accuracy_decimals: 1
     filters:
@@ -35,7 +33,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 2034
-    id: SOL_22_1_2034
     type: S32
     unit_of_measurement: kWh
     icon: mdi:flash
@@ -47,7 +44,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 2030
-    id: SOL_22_1_2030
     type: S16
     accuracy_decimals: 1
     filters:
@@ -62,7 +58,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 2032
-    id: SOL_22_0_2032
     type: U16
   - platform: toptronic
     name: Betriebsstunden PS Pumpe Solar (2)
@@ -70,7 +65,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 2032
-    id: SOL_22_1_2032
     type: U16
   - platform: toptronic
     name: Gesamtertrag Kollektor (1)
@@ -78,7 +72,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 2034
-    id: SOL_22_0_2034
     type: S32
     unit_of_measurement: kWh
     icon: mdi:flash
@@ -90,7 +83,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 2030
-    id: SOL_22_0_2030
     type: S16
     accuracy_decimals: 1
     filters:
@@ -105,7 +97,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 2056
-    id: SOL_22_0_2056
     type: U8
   - platform: toptronic
     name: Status Solarregelung (2)
@@ -113,7 +104,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 2056
-    id: SOL_22_1_2056
     type: U8
   - platform: toptronic
     name: TU Speicher unten Temp. (1)
@@ -121,7 +111,6 @@ sensor:
     function_group: 23
     function_number: 0
     datapoint: 16
-    id: SOL_23_0_16
     type: S16
     accuracy_decimals: 1
     filters:
@@ -136,7 +125,6 @@ sensor:
     function_group: 23
     function_number: 0
     datapoint: 15
-    id: SOL_23_0_15
     type: S16
     accuracy_decimals: 1
     filters:
@@ -151,7 +139,6 @@ sensor:
     function_group: 23
     function_number: 1
     datapoint: 16
-    id: SOL_23_1_16
     type: S16
     accuracy_decimals: 1
     filters:
@@ -166,7 +153,6 @@ sensor:
     function_group: 23
     function_number: 1
     datapoint: 15
-    id: SOL_23_1_15
     type: S16
     accuracy_decimals: 1
     filters:
@@ -181,7 +167,6 @@ sensor:
     function_group: 23
     function_number: 2
     datapoint: 16
-    id: SOL_23_2_16
     type: S16
     accuracy_decimals: 1
     filters:
@@ -196,7 +181,6 @@ sensor:
     function_group: 23
     function_number: 2
     datapoint: 15
-    id: SOL_23_2_15
     type: S16
     accuracy_decimals: 1
     filters:
@@ -211,7 +195,6 @@ sensor:
     function_group: 23
     function_number: 3
     datapoint: 16
-    id: SOL_23_3_16
     type: S16
     accuracy_decimals: 1
     filters:
@@ -226,7 +209,6 @@ sensor:
     function_group: 23
     function_number: 3
     datapoint: 15
-    id: SOL_23_3_15
     type: S16
     accuracy_decimals: 1
     filters:
@@ -241,7 +223,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 62
-    id: SOL_22_0_62
     type: S16
     accuracy_decimals: 2
     filters:
@@ -256,7 +237,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 60
-    id: SOL_22_0_60
     type: S16
     accuracy_decimals: 1
     filters:
@@ -271,7 +251,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 61
-    id: SOL_22_0_61
     type: S16
     accuracy_decimals: 1
     filters:
@@ -286,7 +265,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 1050
-    id: SOL_22_0_1050
     type: U8
     unit_of_measurement: '%'
     icon: mdi:percent
@@ -298,7 +276,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 62
-    id: SOL_22_1_62
     type: S16
     accuracy_decimals: 2
     filters:
@@ -313,7 +290,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 60
-    id: SOL_22_1_60
     type: S16
     accuracy_decimals: 1
     filters:
@@ -328,7 +304,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 61
-    id: SOL_22_1_61
     type: S16
     accuracy_decimals: 1
     filters:
@@ -343,7 +318,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 1050
-    id: SOL_22_1_1050
     type: U8
     unit_of_measurement: '%'
     icon: mdi:percent
@@ -355,7 +329,6 @@ sensor:
     function_group: 23
     function_number: 0
     datapoint: 8056
-    id: SOL_23_0_8056
     type: U8
     internal: true
   - platform: toptronic
@@ -364,7 +337,6 @@ sensor:
     function_group: 23
     function_number: 1
     datapoint: 8056
-    id: SOL_23_1_8056
     type: U8
     internal: true
   - platform: toptronic
@@ -373,7 +345,6 @@ sensor:
     function_group: 23
     function_number: 2
     datapoint: 8056
-    id: SOL_23_2_8056
     type: U8
     internal: true
   - platform: toptronic
@@ -382,7 +353,6 @@ sensor:
     function_group: 23
     function_number: 3
     datapoint: 8056
-    id: SOL_23_3_8056
     type: U8
     internal: true
   - platform: toptronic
@@ -391,7 +361,6 @@ sensor:
     function_group: 23
     function_number: 0
     datapoint: 8059
-    id: SOL_23_0_8059
     type: S16
     accuracy_decimals: 1
     filters:
@@ -407,7 +376,6 @@ sensor:
     function_group: 23
     function_number: 1
     datapoint: 8059
-    id: SOL_23_1_8059
     type: S16
     accuracy_decimals: 1
     filters:
@@ -423,7 +391,6 @@ sensor:
     function_group: 23
     function_number: 2
     datapoint: 8059
-    id: SOL_23_2_8059
     type: S16
     accuracy_decimals: 1
     filters:
@@ -439,7 +406,6 @@ sensor:
     function_group: 23
     function_number: 3
     datapoint: 8059
-    id: SOL_23_3_8059
     type: S16
     accuracy_decimals: 1
     filters:
@@ -455,7 +421,6 @@ sensor:
     function_group: 23
     function_number: 0
     datapoint: 8060
-    id: SOL_23_0_8060
     type: S16
     accuracy_decimals: 1
     filters:
@@ -471,7 +436,6 @@ sensor:
     function_group: 23
     function_number: 1
     datapoint: 8060
-    id: SOL_23_1_8060
     type: S16
     accuracy_decimals: 1
     filters:
@@ -487,7 +451,6 @@ sensor:
     function_group: 23
     function_number: 2
     datapoint: 8060
-    id: SOL_23_2_8060
     type: S16
     accuracy_decimals: 1
     filters:
@@ -503,7 +466,6 @@ sensor:
     function_group: 23
     function_number: 3
     datapoint: 8060
-    id: SOL_23_3_8060
     type: S16
     accuracy_decimals: 1
     filters:
@@ -519,7 +481,6 @@ sensor:
     function_group: 23
     function_number: 0
     datapoint: 8062
-    id: SOL_23_0_8062
     type: S16
     accuracy_decimals: 1
     filters:
@@ -535,7 +496,6 @@ sensor:
     function_group: 23
     function_number: 1
     datapoint: 8062
-    id: SOL_23_1_8062
     type: S16
     accuracy_decimals: 1
     filters:
@@ -551,7 +511,6 @@ sensor:
     function_group: 23
     function_number: 2
     datapoint: 8062
-    id: SOL_23_2_8062
     type: S16
     accuracy_decimals: 1
     filters:
@@ -567,7 +526,6 @@ sensor:
     function_group: 23
     function_number: 3
     datapoint: 8062
-    id: SOL_23_3_8062
     type: S16
     accuracy_decimals: 1
     filters:
@@ -583,7 +541,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 1014
-    id: SOL_22_0_1014
     type: S16
     accuracy_decimals: 1
     filters:
@@ -598,7 +555,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 1014
-    id: SOL_22_1_1014
     type: S16
     accuracy_decimals: 1
     filters:
@@ -613,7 +569,6 @@ sensor:
     function_group: 23
     function_number: 0
     datapoint: 1052
-    id: SOL_23_0_1052
     type: U8
   - platform: toptronic
     name: UVP akt. Zustand Umschaltventil (2)
@@ -621,7 +576,6 @@ sensor:
     function_group: 23
     function_number: 1
     datapoint: 1052
-    id: SOL_23_1_1052
     type: U8
   - platform: toptronic
     name: UVP akt. Zustand Umschaltventil (3)
@@ -629,7 +583,6 @@ sensor:
     function_group: 23
     function_number: 2
     datapoint: 1052
-    id: SOL_23_2_1052
     type: U8
   - platform: toptronic
     name: Teilertrag Kollektor (1)
@@ -637,7 +590,6 @@ sensor:
     function_group: 22
     function_number: 0
     datapoint: 2031
-    id: SOL_22_0_2031
     type: U16
     unit_of_measurement: kWh
     icon: mdi:flash
@@ -649,7 +601,6 @@ sensor:
     function_group: 22
     function_number: 1
     datapoint: 2031
-    id: SOL_22_1_2031
     type: U16
     unit_of_measurement: kWh
     icon: mdi:flash

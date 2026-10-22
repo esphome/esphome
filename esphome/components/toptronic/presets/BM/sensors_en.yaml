@@ -6,7 +6,6 @@ sensor:
     function_group: 83
     function_number: 0
     datapoint: 0
-    id: BM_83_0_0
     type: S16
     accuracy_decimals: 1
     filters:

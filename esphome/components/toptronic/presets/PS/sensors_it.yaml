@@ -5,7 +5,6 @@ sensor:
     function_group: 21
     function_number: 0
     datapoint: 23082
-    id: PS_21_0_23082
     type: U8
   - platform: toptronic
     name: Accumulo-nominale
@@ -13,7 +12,6 @@ sensor:
     function_group: 21
     function_number: 0
     datapoint: 1015
-    id: PS_21_0_1015
     type: S16
     accuracy_decimals: 1
     filters:
@@ -28,7 +26,6 @@ sensor:
     function_group: 21
     function_number: 0
     datapoint: 15
-    id: PS_21_0_15
     type: S16
     accuracy_decimals: 1
     filters:
@@ -43,7 +40,6 @@ sensor:
     function_group: 21
     function_number: 0
     datapoint: 17
-    id: PS_21_0_17
     type: S16
     accuracy_decimals: 1
     filters:
@@ -58,7 +54,6 @@ sensor:
     function_group: 21
     function_number: 0
     datapoint: 6050
-    id: PS_21_0_6050
     type: S16
     accuracy_decimals: 1
     filters:
@@ -74,7 +69,6 @@ sensor:
     function_group: 21
     function_number: 0
     datapoint: 6051
-    id: PS_21_0_6051
     type: S16
     accuracy_decimals: 1
     filters:

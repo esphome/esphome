@@ -5,7 +5,6 @@ sensor:
     function_group: 0
     function_number: 0
     datapoint: 0
-    id: HKW_0_0_0
     type: S16
     accuracy_decimals: 1
     filters:
@@ -20,7 +19,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 3051
-    id: HKW_1_0_3051
     type: S16
     accuracy_decimals: 1
     filters:
@@ -36,7 +34,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 3053
-    id: HKW_1_0_3053
     type: S16
     accuracy_decimals: 1
     filters:
@@ -52,7 +49,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 3051
-    id: HKW_1_1_3051
     type: S16
     accuracy_decimals: 1
     filters:
@@ -68,7 +64,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 3053
-    id: HKW_1_1_3053
     type: S16
     accuracy_decimals: 1
     filters:
@@ -84,7 +79,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 3051
-    id: HKW_1_2_3051
     type: S16
     accuracy_decimals: 1
     filters:
@@ -100,7 +94,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 3053
-    id: HKW_1_2_3053
     type: S16
     accuracy_decimals: 1
     filters:
@@ -116,7 +109,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 1001
-    id: HKW_1_0_1001
     type: S16
     accuracy_decimals: 1
     filters:
@@ -131,7 +123,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 1001
-    id: HKW_1_1_1001
     type: S16
     accuracy_decimals: 1
     filters:
@@ -146,7 +137,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 1001
-    id: HKW_1_2_1001
     type: S16
     accuracy_decimals: 1
     filters:
@@ -161,7 +151,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 7009
-    id: HKW_1_0_7009
     type: S16
     accuracy_decimals: 1
     filters:
@@ -177,7 +166,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 7009
-    id: HKW_1_1_7009
     type: S16
     accuracy_decimals: 1
     filters:
@@ -193,7 +181,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 7009
-    id: HKW_1_2_7009
     type: S16
     accuracy_decimals: 1
     filters:
@@ -209,7 +196,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 7036
-    id: HKW_1_0_7036
     type: S16
     accuracy_decimals: 1
     filters:
@@ -225,7 +211,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 7036
-    id: HKW_1_1_7036
     type: S16
     accuracy_decimals: 1
     filters:
@@ -241,7 +226,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 7036
-    id: HKW_1_2_7036
     type: S16
     accuracy_decimals: 1
     filters:
@@ -257,7 +241,6 @@ sensor:
     function_group: 2
     function_number: 0
     datapoint: 5051
-    id: HKW_2_0_5051
     type: S16
     accuracy_decimals: 1
     filters:
@@ -273,7 +256,6 @@ sensor:
     function_group: 2
     function_number: 0
     datapoint: 5086
-    id: HKW_2_0_5086
     type: U8
     unit_of_measurement: "\xB0C"
     icon: mdi:temperature-celsius
@@ -286,7 +268,6 @@ sensor:
     function_group: 2
     function_number: 0
     datapoint: 1004
-    id: HKW_2_0_1004
     type: S16
     accuracy_decimals: 1
     filters:
@@ -301,7 +282,6 @@ sensor:
     function_group: 2
     function_number: 0
     datapoint: 4
-    id: HKW_2_0_4
     type: S16
     accuracy_decimals: 1
     filters:
@@ -316,7 +296,6 @@ sensor:
     function_group: 2
     function_number: 0
     datapoint: 1066
-    id: HKW_2_0_1066
     type: U8
   - platform: toptronic
     name: AF2 - sensore esterno 2
@@ -324,7 +303,6 @@ sensor:
     function_group: 0
     function_number: 0
     datapoint: 21100
-    id: HKW_0_0_21100
     type: S16
     accuracy_decimals: 1
     filters:
@@ -339,7 +317,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 1
-    id: HKW_1_0_1
     type: S16
     accuracy_decimals: 1
     filters:
@@ -355,7 +332,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 1
-    id: HKW_1_1_1
     type: S16
     accuracy_decimals: 1
     filters:
@@ -371,7 +347,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 1
-    id: HKW_1_2_1
     type: S16
     accuracy_decimals: 1
     filters:
@@ -387,7 +362,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 2
-    id: HKW_1_0_2
     type: S16
     accuracy_decimals: 1
     filters:
@@ -402,7 +376,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 2
-    id: HKW_1_1_2
     type: S16
     accuracy_decimals: 1
     filters:
@@ -417,7 +390,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 2
-    id: HKW_1_2_2
     type: S16
     accuracy_decimals: 1
     filters:
@@ -432,7 +404,6 @@ sensor:
     function_group: 0
     function_number: 0
     datapoint: 22021
-    id: HKW_0_0_22021
     type: S16
     accuracy_decimals: 1
     filters:
@@ -447,7 +418,6 @@ sensor:
     function_group: 0
     function_number: 0
     datapoint: 21059
-    id: HKW_0_0_21059
     type: S16
     accuracy_decimals: 1
     filters:
@@ -462,7 +432,6 @@ sensor:
     function_group: 0
     function_number: 0
     datapoint: 22055
-    id: HKW_0_0_22055
     type: U8
   - platform: toptronic
     name: YAV miscelatrice
@@ -470,7 +439,6 @@ sensor:
     function_group: 0
     function_number: 0
     datapoint: 22056
-    id: HKW_0_0_22056
     type: S8
     unit_of_measurement: '%'
     icon: mdi:percent
@@ -482,7 +450,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 3
-    id: HKW_1_0_3
     type: S16
     accuracy_decimals: 1
     filters:
@@ -497,7 +464,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 3
-    id: HKW_1_1_3
     type: S16
     accuracy_decimals: 1
     filters:
@@ -512,7 +478,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 3
-    id: HKW_1_2_3
     type: S16
     accuracy_decimals: 1
     filters:
@@ -527,7 +492,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 1021
-    id: HKW_1_0_1021
     type: S8
     unit_of_measurement: '%'
     icon: mdi:percent
@@ -539,7 +503,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 1021
-    id: HKW_1_1_1021
     type: S8
     unit_of_measurement: '%'
     icon: mdi:percent
@@ -551,7 +514,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 1021
-    id: HKW_1_2_1021
     type: S8
     unit_of_measurement: '%'
     icon: mdi:percent
@@ -563,7 +525,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 1020
-    id: HKW_1_0_1020
     type: U8
   - platform: toptronic
     name: Pompa (2)
@@ -571,7 +532,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 1020
-    id: HKW_1_1_1020
     type: U8
   - platform: toptronic
     name: Pompa (3)
@@ -579,7 +539,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 1020
-    id: HKW_1_2_1020
     type: U8
   - platform: toptronic
     name: Temperatura circuito di circolazione
@@ -587,7 +546,6 @@ sensor:
     function_group: 2
     function_number: 0
     datapoint: 118
-    id: HKW_2_0_118
     type: U16
     accuracy_decimals: 1
     filters:
@@ -602,7 +560,6 @@ sensor:
     function_group: 2
     function_number: 0
     datapoint: 1065
-    id: HKW_2_0_1065
     type: U8
   - platform: toptronic
     name: Mandata-nominale (1)
@@ -610,7 +567,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 1002
-    id: HKW_1_0_1002
     type: S16
     accuracy_decimals: 1
     filters:
@@ -625,7 +581,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 1002
-    id: HKW_1_1_1002
     type: S16
     accuracy_decimals: 1
     filters:
@@ -640,7 +595,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 1002
-    id: HKW_1_2_1002
     type: S16
     accuracy_decimals: 1
     filters:
@@ -655,7 +609,6 @@ sensor:
     function_group: 1
     function_number: 0
     datapoint: 7047
-    id: HKW_1_0_7047
     type: S16
     accuracy_decimals: 1
     filters:
@@ -671,7 +624,6 @@ sensor:
     function_group: 1
     function_number: 1
     datapoint: 7047
-    id: HKW_1_1_7047
     type: S16
     accuracy_decimals: 1
     filters:
@@ -687,7 +639,6 @@ sensor:
     function_group: 1
     function_number: 2
     datapoint: 7047
-    id: HKW_1_2_7047
     type: S16
     accuracy_decimals: 1
     filters:
@@ -704,7 +655,6 @@ text_sensor:
     function_group: 1
     function_number: 0
     datapoint: 3050
-    id: HKW_1_0_3050
     options:
       - Stand-by
       - Settimana 1
@@ -727,7 +677,6 @@ text_sensor:
     function_group: 1
     function_number: 1
     datapoint: 3050
-    id: HKW_1_1_3050
     options:
       - Stand-by
       - Settimana 1
@@ -750,7 +699,6 @@ text_sensor:
     function_group: 1
     function_number: 2
     datapoint: 3050
-    id: HKW_1_2_3050
     options:
       - Stand-by
       - Settimana 1
@@ -773,7 +721,6 @@ text_sensor:
     function_group: 2
     function_number: 0
     datapoint: 5050
-    id: HKW_2_0_5050
     options:
       - Stand-by
       - Settimana 1
@@ -792,7 +739,6 @@ text_sensor:
     function_group: 1
     function_number: 0
     datapoint: 2051
-    id: HKW_1_0_2051
     options:
       - 'Off'
       - Heating normal
@@ -833,7 +779,6 @@ text_sensor:
     function_group: 1
     function_number: 1
     datapoint: 2051
-    id: HKW_1_1_2051
     options:
       - 'Off'
       - Heating normal
@@ -874,7 +819,6 @@ text_sensor:
     function_group: 1
     function_number: 2
     datapoint: 2051
-    id: HKW_1_2_2051
     options:
       - 'Off'
       - Heating normal
@@ -915,7 +859,6 @@ text_sensor:
     function_group: 2
     function_number: 0
     datapoint: 2052
-    id: HKW_2_0_2052
     options:
       - 'Off'
       - Charging normal

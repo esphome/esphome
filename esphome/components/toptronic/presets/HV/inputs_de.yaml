@@ -6,7 +6,6 @@ number:
     function_group: 50
     function_number: 0
     datapoint: 40651
-    id: HV_50_0_40651_set
     type: U8
     min_value: 15
     max_value: 100
@@ -22,7 +21,6 @@ number:
     function_group: 50
     function_number: 0
     datapoint: 40686
-    id: HV_50_0_40686_set
     type: U8
     min_value: 15
     max_value: 100
@@ -38,7 +36,6 @@ number:
     function_group: 50
     function_number: 0
     datapoint: 40687
-    id: HV_50_0_40687_set
     type: U8
     min_value: 30
     max_value: 65
@@ -55,7 +52,6 @@ select:
     function_group: 50
     function_number: 0
     datapoint: 40650
-    id: HV_50_0_40650_set
     options:
       - Standby
       - Woche 1
@@ -75,7 +71,6 @@ select:
     function_group: 50
     function_number: 0
     datapoint: 2010                  # 0x07DA duration register
-    id: HV_party_mode_set
     type: U16
     icon: mdi:party-popper
     options:
