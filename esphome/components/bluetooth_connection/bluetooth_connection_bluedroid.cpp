@@ -269,6 +269,8 @@ int BluedroidGattClient::discover_services() {
       return 0;  // One completion is already owed to this claimant.
     case SearchState::NONE:
       break;
+    default:
+      break;
   }
   int err = this->check_and_log_error_("esp_ble_gattc_search_service",
                                        esp_ble_gattc_search_service(this->gattc_if_, this->conn_id_, nullptr));

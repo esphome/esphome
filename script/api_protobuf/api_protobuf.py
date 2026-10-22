@@ -2711,6 +2711,8 @@ def build_message_type(
         o += "  const ProtoFieldValue value(data, scalar);\n"
         o += "  switch (tag) {\n"
         o += indent("\n".join(decode), "    ").replace("this->", "msg.") + "\n"
+        o += "    default:\n"
+        o += "      break;\n"
         o += "  }\n"
         o += "}\n"
         cpp += o

@@ -178,6 +178,8 @@ bool BMI160Component::setup_stage_(int stage) {
       }
 
       this->setup_complete_ = true;
+    default:
+      break;
   }
   return true;
 }
