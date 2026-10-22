@@ -47,7 +47,7 @@ logging, and do not pass `%.*s` to `logger.log`, whose validator counts it as on
 `APINoiseFrameHelper` around a stub `APIConnection` subclass (the compiled helper type checks the connection, and
 `ConnectionParams` needs every field), sends Hello, Authentication (never answered without a password) and
 `DeviceCapabilitiesRequest`, then `GetYamlRequest` (161), collects `GetYamlResponse` (162) frames by field number
-(1 data, 2 done, 3 total_size, 4 encoding) until done, requests again, decompresses with `compression.zstd` and
+(1 data, 2 done, 3 total_size, 4 encoding) until done, requests again, decompresses with `compression.zstd` (Python 3.14, or the `zstandard` package) and
 unpacks the envelope with the tree's `unpack_envelope` (run with `PYTHONPATH` on that tree). Configs in
 `templates/store_yaml/`: entry files in `boards/`, a package one directory above them with `!secret` and an inline
 OTA password,

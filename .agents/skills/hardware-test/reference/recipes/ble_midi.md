@@ -8,8 +8,8 @@ advertised, the MIDI characteristic with read, write, write without response and
 the bytes, buttons that notify hand built packets (channel messages, two messages in one packet, running status,
 SysEx in one packet, split over two, oversize, cut short, clock, aftertouch, orphan data bytes, a 50 packet burst)
 and a restart button for the disconnect test. `midicli.yaml` is the component test config on a classic devkit with
-`wifi:`, `api:`, the peripheral's BLE address in `PERI_MAC` (the base MAC plus 2, printed by `esp32_ble` in
-`dump_config`), `on_sysex` and `on_message` lambdas that print the bytes, debug sensors and out of range send
+`wifi:`, `api:`, the peripheral's BLE address in the `peri_mac` substitution, given on the command line with
+`-s peri_mac <mac>` (the base MAC plus 2, printed by `esp32_ble` in `dump_config`), `on_sysex` and `on_message` lambdas that print the bytes, debug sensors and out of range send
 buttons. Drive both over the plaintext API with `scripts/modem/mdrive.py HOST LOGFILE press:NAME wait:S` 3 s
 apart and compare the peripheral's `TX` and `RX` lines with the client's decoded lines. Gotcha:
 `ble_server.characteristic.set_value` latches the value of its first play and re-applies it before every notify,

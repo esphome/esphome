@@ -3,7 +3,8 @@
 usage: syrecover.py HOST KEY OUTDIR [ORIGDIR]   (KEY of - means a plaintext API)
 Prints the capability flag, chunk count, advertised and received sizes, encoding, the envelope's files, and
 when ORIGDIR is given compares each recovered file with ORIGDIR/<path>.
-Run with PYTHONPATH pointing at the esphome tree that has store_yaml (for unpack_envelope).
+Run with PYTHONPATH pointing at the esphome tree that has store_yaml (for unpack_envelope). Needs Python 3.14
+(compression.zstd) or the zstandard package.
 """
 
 import asyncio
@@ -16,9 +17,16 @@ from aioesphomeapi._frame_helper.noise import APINoiseFrameHelper
 from aioesphomeapi._frame_helper.plain_text import APIPlaintextFrameHelper
 from aioesphomeapi.connection import APIConnection, ConnectionParams
 from aioesphomeapi.zeroconf import ZeroconfManager
-from compression import zstd
 
 from esphome.components.store_yaml import unpack_envelope
+
+try:
+    from compression import zstd
+except ImportError:
+    try:
+        import zstandard as zstd
+    except ImportError:
+        sys.exit("needs Python 3.14 (compression.zstd) or the zstandard package")
 
 HOST, KEY, OUT = sys.argv[1], sys.argv[2], Path(sys.argv[3])
 ORIG = Path(sys.argv[4]) if len(sys.argv) > 4 else None

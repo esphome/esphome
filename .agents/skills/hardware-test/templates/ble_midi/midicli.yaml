@@ -1,5 +1,6 @@
 substitutions:
-  peri_mac: "${PERI_MAC}"
+  # the fake instrument's BLE address; pass it with `-s peri_mac AA:BB:CC:DD:EE:FF`
+  peri_mac: "00:00:00:00:00:00"
 
 esphome:
   name: midicli
