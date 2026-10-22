@@ -2,10 +2,10 @@
 #include "esphome/core/log.h"
 namespace esphome::toptronic {
 ESPHOME_LOG_TAG(TAG, "toptronic");
-static const uint8_t RESPONSE = 0x42;
-static const uint8_t RESPONSE_EXT = 0x56;  // same layout + 2 header bytes before value
-static const uint8_t GET_REQ = 0x40;
-static const uint8_t SET_REQ = 0x46;
+static constexpr uint8_t RESPONSE = 0x42;
+static constexpr uint8_t RESPONSE_EXT = 0x56;  // same layout + 2 header bytes before value
+static constexpr uint8_t GET_REQ = 0x40;
+static constexpr uint8_t SET_REQ = 0x46;
 static constexpr size_t MAX_CONT_FRAME_PAYLOAD = 7;
 static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 static constexpr size_t MIN_MESSAGE_LEN = 5;  // cmd | fg | fn | dp_hi | dp_lo
@@ -112,57 +112,25 @@ void TopTronic::register_sensor_callbacks() {
     }
   }
 }
-static uint32_t reflect(uint32_t val, uint8_t width) {
-  uint32_t out = 0;
-  for (uint8_t i = 0; i < width; ++i) {
-    out = (out << 1) | (val & 1);
-    val >>= 1;
-  }
-  return out;
-}
-// CRC-16/poly 0x1021, init 0xB006, refin/refout, no xorout (from bus captures).
-static const uint16_t *crc16_table() {
-  static uint16_t table[256];
-  static bool initialized = false;
-  if (!initialized) {
-    for (int i = 0; i < 256; ++i) {
-      uint16_t v = static_cast<uint16_t>(i << 8);
-      for (int b = 0; b < 8; ++b)
-        v = (v & 0x8000) ? static_cast<uint16_t>((v << 1) ^ 0x1021) : static_cast<uint16_t>(v << 1);
-      table[i] = v;
-    }
-    initialized = true;
-  }
-  return table;
-}
-static uint16_t compute_crc16(const uint8_t *data, size_t len) {
-  const uint16_t *const table = crc16_table();
-  uint16_t crc = 0xB006;
-  for (size_t i = 0; i < len; ++i) {
-    uint8_t byte = static_cast<uint8_t>(reflect(data[i], 8));
-    crc = static_cast<uint16_t>((crc << 8) ^ table[((crc >> 8) ^ byte) & 0xFF]);
-  }
-  return static_cast<uint16_t>(reflect(crc, 16));
-}
-void TopTronic::configure_hub() { this->register_sensor_callbacks(); }
 void TopTronic::setup() {
+  // Wire the GET callbacks here, after every platform's add_sensor() has run.
+  this->register_sensor_callbacks();
+
   size_t sensors = 0;
   for (const auto &d : this->devices_)
     sensors += d.second->get_sensors().size();
   ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors)", (unsigned) this->get_device_id(), sensors);
-}
-void TopTronic::loop() {
-  const uint32_t now = millis();
-  if (now - this->last_cleanup_ms_ < CLEANUP_INTERVAL_MS)
-    return;
-  this->last_cleanup_ms_ = now;
-  for (auto it = this->pending_messages_.begin(); it != this->pending_messages_.end();) {
-    if (now - it->second.last_update_ms > MAX_PENDING_AGE_MS) {
-      it = this->pending_messages_.erase(it);
-    } else {
-      ++it;
+
+  this->set_interval(CLEANUP_INTERVAL_MS, [this]() {
+    const uint32_t now = millis();
+    for (auto it = this->pending_messages_.begin(); it != this->pending_messages_.end();) {
+      if (now - it->second.last_update_ms > MAX_PENDING_AGE_MS) {
+        it = this->pending_messages_.erase(it);
+      } else {
+        ++it;
+      }
     }
-  }
+  });
 }
 void TopTronic::dump_config() { ESP_LOGCONFIG(TAG, "TopTronic device 0x%04X", (unsigned) this->get_device_id()); }
 void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, bool remote_transmission_request) {
@@ -213,7 +181,7 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
       }
       const uint8_t *msg = pending.data.data();
       uint16_t received_crc = (msg[msg_len - 2] << 8) | msg[msg_len - 1];
-      if (received_crc != compute_crc16(msg, msg_len - 2)) {
+      if (received_crc != crc16(msg, msg_len - 2, 0x600D, 0x8408)) {
         ESP_LOGW(TAG, "CRC check failed");
         this->pending_messages_.erase(it);
         return;
@@ -252,7 +220,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
 #ifdef USE_SENSOR
   if (sensor_base->type() == SENSOR) {
     auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
-    sensor->publish_state(sensor->parse_value(data + value_off, value_len));
+    sensor->publish_state(sensor->parse_value(data + value_off, required_value_len));
   }
 #endif
 }

@@ -66,12 +66,10 @@ class TopTronic : public Component {
   void add_sensor(TopTronicBase *sensor);
   void parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, bool remote_transmission_request);
   void register_sensor_callbacks();
-  void configure_hub();  // config-phase wiring (see __init__.py) instead of setup()
   void set_device_type(uint16_t device_type) { this->device_type_ = device_type; }
   void set_device_addr(uint8_t device_addr) { this->device_addr_ = device_addr; }
   uint16_t get_device_id() { return this->device_type_ | this->device_addr_; }
   void setup() override;
-  void loop() override;
   void dump_config() override;
 
  protected:
@@ -88,7 +86,6 @@ class TopTronic : public Component {
   std::unordered_map<uint32_t, PendingMessage> pending_messages_;
   uint16_t device_type_;
   uint8_t device_addr_;
-  uint32_t last_cleanup_ms_{0};
 };
 }  // namespace esphome::toptronic
 #endif  // USE_ESP32
