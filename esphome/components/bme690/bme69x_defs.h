@@ -622,7 +622,7 @@
 #define BME69X_GET_BITS(reg_data, bitname) (((reg_data) & (bitname##_MSK)) >> (bitname##_POS))
 
 /* Macro to set bits starting from position 0 */
-#define BME69X_SET_BITS_POS_0(reg_data, bitname, data) (((reg_data) & ~(bitname##_MSK)) | ((data) &bitname##_MSK))
+#define BME69X_SET_BITS_POS_0(reg_data, bitname, data) (((reg_data) & ~(bitname##_MSK)) | ((data) & bitname##_MSK))
 
 /* Macro to get bits starting from position 0 */
 #define BME69X_GET_BITS_POS_0(reg_data, bitname) ((reg_data) & (bitname##_MSK))

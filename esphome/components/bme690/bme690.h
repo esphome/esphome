@@ -109,9 +109,9 @@ class BME690Component : public Component, public i2c::I2CDevice {
   text_sensor::TextSensor *iaq_accuracy_text_sensor_{nullptr};
 #endif
 
-  struct bme69x_dev dev_ {};
-  struct bme69x_conf conf_ {};
-  struct bme69x_heatr_conf heatr_conf_ {};
+  struct bme69x_dev dev_{};
+  struct bme69x_conf conf_{};
+  struct bme69x_heatr_conf heatr_conf_{};
   std::unique_ptr<uint8_t[]> bsec_instance_;
   std::array<uint8_t, BSEC_MAX_WORKBUFFER_SIZE> bsec_work_buffer_{};
   const uint8_t *bsec_configuration_{nullptr};
