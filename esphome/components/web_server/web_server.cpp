@@ -1095,9 +1095,8 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
     auto call = obj->make_call();
 
     static constexpr ActionEntry<cover::CoverCall> ACTIONS[] PROGMEM = {
-        {"open", &cover::CoverCall::set_command_open},
-        {"close", &cover::CoverCall::set_command_close},
-        {"stop", &cover::CoverCall::set_command_stop},
+        {"open", &cover::CoverCall::set_command_open},     {"close", &cover::CoverCall::set_command_close},
+        {"stop", &cover::CoverCall::set_command_stop},     {"stop_tilt", &cover::CoverCall::set_command_stop_tilt},
         {"toggle", &cover::CoverCall::set_command_toggle},
     };
 
