@@ -1,0 +1,1 @@
+DOMAIN = "oxt_dimmer"
