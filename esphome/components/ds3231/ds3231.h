@@ -122,7 +122,7 @@ class DS3231Component final : public Component, public i2c::I2CDevice {
   /// Scheduler ids: one pulse timer per alarm (id + alarm - 1).
   static constexpr uint32_t ALARM_PULSE_TIMEOUT_ID = 0;
 
-  static void IRAM_ATTR interrupt_handler(DS3231Component *arg);
+  static void interrupt_handler(DS3231Component *arg);
 
   /// Read the control and status registers into the cached copies. Sets the warning flag on failure.
   bool read_control_status_();
