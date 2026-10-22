@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from esphome import config_validation as cv, core
+from esphome import config_validation as cv, core, final_validate as fv
 import esphome.codegen as cg
 from esphome.components.safe_mode import to_code as safe_mode_to_code
 from esphome.const import (
@@ -17,15 +17,20 @@ from esphome.const import (
     CONF_BUILD_PATH,
     CONF_DEVICES,
     CONF_ESPHOME,
+    CONF_INCLUDES,
+    CONF_INCLUDES_C,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    PLATFORM_ZEPHYR,
     Toolchain,
 )
 from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
+    CONF_LOOP_INTERVAL,
     CONF_SUSPEND_LOOP,
     Area,
     make_app_name_cpp,
@@ -34,9 +39,10 @@ from esphome.core.config import (
     valid_project_name,
     validate_area_config,
     validate_hostname,
+    validate_loop_interval,
 )
 
-from .common import load_config_from_fixture
+from .common import load_config_from_fixture, load_config_from_yaml
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "config"
 
@@ -142,6 +148,26 @@ def test_multiple_areas_and_devices(yaml_file: Callable[[str], str]) -> None:
         "device2": "area1",
         "device3": "area2",
     }
+
+
+@pytest.mark.parametrize(
+    ("watchdog_timeout", "warns"),
+    [(cv.TimePeriod(seconds=0), False), (cv.TimePeriod(seconds=10), True)],
+)
+def test_loop_interval_zephyr_watchdog(
+    caplog: pytest.LogCaptureFixture, watchdog_timeout: cv.TimePeriod, warns: bool
+) -> None:
+    """With the Zephyr watchdog disabled the loop sleep is not capped."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    token = fv.full_config.set(
+        {PLATFORM_ZEPHYR: {CONF_WATCHDOG_TIMEOUT: watchdog_timeout}}
+    )
+    try:
+        validate_loop_interval({CONF_LOOP_INTERVAL: cv.TimePeriod(seconds=7)})
+    finally:
+        fv.full_config.reset(token)
+
+    assert ("maximum sleep" in caplog.text) is warns
 
 
 @pytest.mark.asyncio
@@ -687,6 +713,32 @@ def test_valid_include_invalid_extension(tmp_path: Path) -> None:
 
     with pytest.raises(cv.Invalid, match="Include has invalid file extension"):
         valid_include(str(invalid_file))
+
+
+def test_includes_in_a_package_resolve_next_to_the_package(
+    tmp_path: Path, yaml_file: Callable[[str], Path]
+) -> None:
+    """A package's includes resolve next to the package file (issue #14583)."""
+    package_dir = tmp_path / "packages" / "helper"
+    package_dir.mkdir(parents=True)
+    (package_dir / "my_helper.h").write_text("#pragma once\n")
+    (package_dir / "my_c_helper.h").write_text("#pragma once\n")
+    (package_dir / "helper.yaml").write_text(
+        "esphome:\n  includes:\n    - my_helper.h\n  includes_c:\n    - my_c_helper.h\n"
+    )
+
+    result = load_config_from_yaml(
+        yaml_file,
+        "esphome:\n"
+        "  name: test\n"
+        "host:\n"
+        "packages:\n"
+        "  - !include packages/helper/helper.yaml\n",
+    )
+
+    assert result is not None
+    assert result[CONF_ESPHOME][CONF_INCLUDES] == [str(package_dir / "my_helper.h")]
+    assert result[CONF_ESPHOME][CONF_INCLUDES_C] == [str(package_dir / "my_c_helper.h")]
 
 
 def test_valid_project_name_valid() -> None:

@@ -97,6 +97,7 @@ ZEPHYR_VARIANT_NRF54L15 = "NRF54L15"
 ZEPHYR_VARIANT_NRF54LM20A = "NRF54LM20A"
 ZEPHYR_VARIANT_EFR32MG24 = "EFR32MG24"
 ZEPHYR_VARIANT_SIMG301 = "SIMG301"
+ZEPHYR_VARIANT_EFR32BG27 = "EFR32BG27"
 ZEPHYR_VARIANT_STM32L4 = "STM32L4"
 ZEPHYR_VARIANT_STM32F4 = "STM32F4"
 ZEPHYR_VARIANT_STM32WB55 = "STM32WB55"
@@ -117,3 +118,6 @@ ZephyrUartWriteTarget = zephyr_ns.class_("ZephyrUartWriteTarget")
 ZephyrUartEmulator = zephyr_ns.class_(
     "ZephyrUartEmulator", cg.Component, ZephyrUartWriteTarget
 )
+
+# Devicetree compatible of Zephyr's SEGGER RTT UART driver
+SEGGER_RTT_UART = "segger,rtt-uart"

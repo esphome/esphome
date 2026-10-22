@@ -5,6 +5,7 @@ from collections.abc import Callable
 import logging
 from pathlib import Path
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -12,11 +13,15 @@ from esphome.const import CONF_ADVANCED
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
-from ..const import zephyr_ns
+from ..const import SEGGER_RTT_UART, zephyr_ns
 from ..usb_baud_rate import CONF_USB_BAUD_RATE, UsbBaudRate, declare_component_id
 from . import mcuboot_or_none
 
 _LOGGER = logging.getLogger(__name__)
+
+# Software UART drivers (devicetree compatible strings) that work on this family,
+# on top of its hardware UARTs.
+UART_DRIVERS: frozenset[str] = frozenset({SEGGER_RTT_UART})
 
 BootselTouch = zephyr_ns.class_("BootselTouch", cg.Component)
 CONF_BOOTSEL_TOUCH = "bootsel_touch"
@@ -250,8 +255,13 @@ def touch_1200_baud_reboot(port: str, timeout: float = 10.0) -> bool:
         candidates = [p for p in ports if (p.vid, p.pid) == (target.vid, target.pid)]
     else:
         candidates = ports
-    same_kind = {os.path.realpath(p.device) for p in candidates}
-    same_kind.add(os.path.realpath(port))
+
+    # Count boards, not ports: a board with several CDC ACM ports lists each with one serial number
+    def board_key(p: Any) -> str:
+        return p.serial_number or os.path.realpath(p.device)
+
+    same_kind = {board_key(p) for p in candidates}
+    same_kind.add(board_key(target) if target is not None else os.path.realpath(port))
     if len(same_kind) > 1:
         _LOGGER.error(
             "More than one RP2040/RP2350-capable device is connected. Disconnect all "

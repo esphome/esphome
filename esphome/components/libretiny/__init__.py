@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 
 import esphome.codegen as cg
-from esphome.components import network
 from esphome.components.const import CONF_LIBRETINY
 import esphome.config_validation as cv
 from esphome.const import (
@@ -306,6 +305,15 @@ FRAMEWORK_SCHEMA = cv.All(
 
 CONFIG_SCHEMA = cv.All(_notify_old_style, cv.require_platformio_toolchain("LibreTiny"))
 
+
+def _require_ipv4(config: dict) -> dict:
+    """Declares that LibreTiny builds need IPv4."""
+    # Imported here: logger imports this module, so a module level import would load network for every config
+    from esphome.components import network
+
+    return network.require_ipv4(CONF_LIBRETINY)(config)
+
+
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
@@ -320,7 +328,7 @@ BASE_SCHEMA = cv.Schema(
 BASE_SCHEMA.add_extra(_detect_variant)
 BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
 BASE_SCHEMA.add_extra(_update_core_data)
-BASE_SCHEMA.add_extra(network.require_ipv4(CONF_LIBRETINY))
+BASE_SCHEMA.add_extra(_require_ipv4)
 
 
 def _configure_lwip(config: dict) -> None:

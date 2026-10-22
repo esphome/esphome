@@ -142,6 +142,8 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 }
 #endif  // USE_ESP8266
 
+uint8_t Logger::get_log_level(const char *tag) { return this->level_for(tag); }
+
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   // Skip the lookup when no per-tag levels are set
@@ -242,9 +244,11 @@ void Logger::dump_config() {
 #endif
 #ifdef USE_ZEPHYR
   dump_crash_();
+#ifndef USE_LOGGER_CONSOLE  // a console backend has no UART device
   if (!device_is_ready(this->uart_dev_)) {
     ESP_LOGE(TAG, "  %s is not ready.", LOG_STR_ARG(get_uart_selection_()));
   }
+#endif
 #endif
   // Warn users that VERBOSE/VERY_VERBOSE logging impacts performance.
   // Only the compiled log level matters — all log calls up to this level

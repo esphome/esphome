@@ -13,8 +13,10 @@ from esphome.components.zephyr.variants.rpi_pico_family import touch_1200_baud_r
 _TARGET = "/dev/ttyACM0"
 
 
-def _port(device: str, vid: int | None, pid: int | None) -> SimpleNamespace:
-    return SimpleNamespace(device=device, vid=vid, pid=pid)
+def _port(
+    device: str, vid: int | None, pid: int | None, serial_number: str | None = None
+) -> SimpleNamespace:
+    return SimpleNamespace(device=device, vid=vid, pid=pid, serial_number=serial_number)
 
 
 def _run_touch(
@@ -67,6 +69,29 @@ def test_touch_ignores_unrelated_usb_serial_adapters() -> None:
 def test_touch_refuses_second_device_with_same_vid_pid() -> None:
     result, serial_mock = _run_touch(
         [_port(_TARGET, 0x2FE3, 0x0001), _port("/dev/ttyACM1", 0x2FE3, 0x0001)]
+    )
+    assert result is False
+    serial_mock.assert_not_called()
+
+
+def test_touch_allows_second_port_of_same_board() -> None:
+    """A board with usb_cdc_acm has two ports with one USB serial number."""
+    result, serial_mock = _run_touch(
+        [
+            _port(_TARGET, 0x2FE3, 0x0004, "FA6418C89B639729"),
+            _port("/dev/ttyACM1", 0x2FE3, 0x0004, "FA6418C89B639729"),
+        ]
+    )
+    assert result is True
+    serial_mock.assert_called_once_with(_TARGET, baudrate=1200)
+
+
+def test_touch_refuses_second_board_with_other_serial_number() -> None:
+    result, serial_mock = _run_touch(
+        [
+            _port(_TARGET, 0x2FE3, 0x0004, "FA6418C89B639729"),
+            _port("/dev/ttyACM1", 0x2FE3, 0x0004, "0123456789ABCDEF"),
+        ]
     )
     assert result is False
     serial_mock.assert_not_called()

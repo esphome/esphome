@@ -5,10 +5,14 @@ from collections.abc import Callable
 
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT
+from ..const import BOOTLOADER_MCUBOOT, SEGGER_RTT_UART
 
 # Devicetree property silabs pinctrl groups pack all their signal macros into.
 PROPERTY_NAME = "pins"
+
+# Software UART drivers (devicetree compatible strings) that work on this family,
+# on top of its hardware UARTs.
+UART_DRIVERS: frozenset[str] = frozenset({SEGGER_RTT_UART})
 
 
 def to_code(config: ConfigType) -> None:

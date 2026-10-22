@@ -529,6 +529,7 @@ def set_core_data(
         sysbuild_conf=sysbuild_conf if sysbuild_conf is not None else {},
         overlay=overlay if overlay is not None else {"": ""},
         overlay_builder=overlay_builder if overlay_builder is not None else [],
+        cdc_acm_users={},
         extra_build_files=extra_build_files if extra_build_files is not None else {},
         pm_static=pm_static if pm_static is not None else [],
         partition_requirements=[],
@@ -554,6 +555,7 @@ def set_core_data(
         blobs=[],
         runner=runner,
         sysbuild=False,
+        rtt_channels={},
     )
 
 
@@ -624,6 +626,7 @@ _VARIANT_MODULES = [
     "nrf54lm20a",
     "efr32mg24",
     "simg301",
+    "efr32bg27",
     "stm32l4",
     "stm32f4",
     "stm32wb55",

@@ -33,9 +33,10 @@ from esphome.components.libretiny.const import (
 from esphome.components.zephyr import (
     KEY_BOARD,
     VARIANTS,
-    zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_cdc_acm_label,
+    zephyr_claim_cdc_acm,
     zephyr_data,
     zephyr_variant,
     zephyr_variant_family,
@@ -47,6 +48,14 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_ESP32_H2,
     ZEPHYR_VARIANT_ESP32_S3,
     ZEPHYR_VARIANT_NATIVE_SIM,
+)
+from esphome.components.zephyr.rtt import (
+    RTT_PORTS,
+    claim_rtt_channel,
+    enable_rtt_node,
+    rtt_channel,
+    rtt_label_channel,
+    validate_rtt_port,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -118,6 +127,10 @@ UART0_SWAP = "UART0_SWAP"
 USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
 USB_CDC = "USB_CDC"
 DEFAULT = "DEFAULT"
+# RAM and SEMIHOST: platform: zephyr logger outputs that a debugger reads; RTT channels
+# are in zephyr/rtt.py. Each enables the <name>_CONSOLE Kconfig option, fed by printk().
+SEMIHOST = "SEMIHOST"
+CONSOLE_BACKENDS = ("RAM", SEMIHOST)
 
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
@@ -156,6 +169,7 @@ UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
 
 UART_SELECTION_HOST_ZEPHYR = [UART0, UART1, UART2]
+ZEPHYR_UART_RE = re.compile(r"UART[0-9]+")
 # esp32_h2 and esp32_c6 both expose a native USB-Serial/JTAG peripheral as a Zephyr UART
 # device (see the USB_SERIAL_JTAG codegen branch below) -- shared list for both.
 UART_SELECTION_ZEPHYR_ESP32_JTAG = [UART0, UART1, USB_SERIAL_JTAG]
@@ -219,6 +233,13 @@ def uart_selection(value: Any) -> str:
             and (override := validate_uart_label_override(value)) is not None
         ):
             return override
+        # Any UARTn; resolve_uart_node_label() maps it to the board's real node.
+        if isinstance(value, str) and ZEPHYR_UART_RE.fullmatch(value.upper()):
+            return value.upper()
+        if isinstance(value, str) and value.upper() in RTT_PORTS:
+            return validate_rtt_port(value.upper())
+        if isinstance(value, str) and value.upper() in CONSOLE_BACKENDS:
+            return _console_backend(value.upper())
         if zephyr_variant() in (
             ZEPHYR_VARIANT_ESP32_H2,
             ZEPHYR_VARIANT_ESP32_C6,
@@ -232,6 +253,18 @@ def uart_selection(value: Any) -> str:
             return cv.one_of(*UART_SELECTION_ZEPHYR_USB_CDC, upper=True)(value)
         return cv.one_of(*UART_SELECTION_HOST_ZEPHYR, upper=True)(value)
     raise NotImplementedError
+
+
+def _console_backend(value: str) -> str:
+    if zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM:
+        # write_msg_() writes only to stdout there
+        raise cv.Invalid(f"{value} is not available on native_sim")
+    if value == SEMIHOST:
+        _LOGGER.warning(
+            "logger: SEMIHOST stops the device at every log line, and crashes it "
+            "when no debugger is attached. Use it only while a debugger is connected"
+        )
+    return value
 
 
 def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
@@ -430,6 +463,19 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate(config: ConfigType) -> None:
+    # Serial logging over USB CDC writes to CDC ACM port 0 with uart_poll_out()
+    if (
+        CORE.using_zephyr
+        and config[CONF_BAUD_RATE] != 0
+        and config.get(CONF_HARDWARE_UART) == USB_CDC
+    ):
+        zephyr_claim_cdc_acm(0, "logger", write_only=True)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 @coroutine_with_priority(CoroPriority.EARLY_INIT)
 async def to_code(config: ConfigType) -> None:
     baud_rate: int = config[CONF_BAUD_RATE]
@@ -460,18 +506,18 @@ async def to_code(config: ConfigType) -> None:
     # uart_ is UART0 in C++ except on LibreTiny where it is DEFAULT; skip the
     # setter when the config matches it.
     cpp_default_uart = DEFAULT if CORE.is_libretiny else UART0
-    if (
-        hardware_uart := config.get(CONF_HARDWARE_UART)
-    ) is not None and hardware_uart != cpp_default_uart:
-        # An explicit "&<label>" override is always a plain hardware UART -- on Zephyr,
-        # UART_SELECTION_UART0/UART1 both resolve identically via LOGGER_UART_NODE_LABEL
-        # (see logger_zephyr.cpp), so either works as the runtime discriminator.
-        selected_uart = (
-            logger_ns.UART_SELECTION_UART0
-            if hardware_uart.startswith("&")
-            else HARDWARE_UART_TO_UART_SELECTION[hardware_uart]
-        )
-        cg.add(log.set_uart_selection(selected_uart))
+    hardware_uart = config.get(CONF_HARDWARE_UART)
+    # An explicit "&<label>" override is always a plain hardware UART -- on Zephyr,
+    # UART_SELECTION_UART0/UART1 both resolve identically via LOGGER_UART_NODE_LABEL
+    # (see logger_zephyr.cpp), so either works as the runtime discriminator. The same
+    # goes for UART2 and up, which have no UART_SELECTION_* of their own on Zephyr.
+    if hardware_uart is not None and (
+        hardware_uart.startswith("&")
+        or (CORE.is_zephyr and hardware_uart not in (UART1, USB_CDC, USB_SERIAL_JTAG))
+    ):
+        hardware_uart = UART0
+    if hardware_uart is not None and hardware_uart != cpp_default_uart:
+        cg.add(log.set_uart_selection(HARDWARE_UART_TO_UART_SELECTION[hardware_uart]))
     # pre_setup() sets global_logger and must run before any other code
     # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
@@ -602,8 +648,6 @@ async def _late_logger_init(config: ConfigType) -> None:
             if config[CONF_HARDWARE_UART] == USB_CDC:
                 cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
-                label = zephyr_add_cdc_acm(config, 0)
-                cg.add_define("LOGGER_CDC_ACM_UART_LABEL", cg.RawExpression(label))
     if CORE.is_zephyr and has_serial_logging:
         zephyr_add_prj_conf("SERIAL", True)
         hw_uart = config.get(CONF_HARDWARE_UART, UART0)
@@ -614,7 +658,7 @@ async def _late_logger_init(config: ConfigType) -> None:
         # instances (uart20/uart30) instead of nRF52/ESP32's uart0/uart1 -- and some
         # variants (e.g. stm32l4) declare no portable mapping at all, resolved per board
         # from DTS instead. See resolve_uart_node_label()'s own docstring.
-        if hw_uart.startswith("&") or hw_uart in (UART0, UART1, UART2):
+        if hw_uart.startswith("&") or ZEPHYR_UART_RE.fullmatch(hw_uart):
             if hw_uart.startswith("&"):
                 from esphome.components.zephyr.dts_lookup import (
                     validate_dts_label_exists,
@@ -624,6 +668,8 @@ async def _late_logger_init(config: ConfigType) -> None:
                 node_known = validate_dts_label_exists(
                     "uart", zephyr_data()[KEY_BOARD], node
                 )
+                if (label_channel := rtt_label_channel(node)) is not None:
+                    claim_rtt_channel(label_channel, "logger")
             else:
                 from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
 
@@ -645,6 +691,25 @@ async def _late_logger_init(config: ConfigType) -> None:
             # uart20/uart30) would otherwise resolve to a nonexistent "uart0"/"uart1"
             # node, silently leaving uart_dev_ null and dropping every log line.
             cg.add_define("LOGGER_UART_NODE_LABEL", cg.RawExpression(node))
+        elif (channel := rtt_channel(hw_uart)) is not None:
+            node = enable_rtt_node(channel, "logger")
+            zephyr_add_overlay(
+                f"""/ {{ chosen {{ zephyr,console = &{node}; zephyr,shell-uart = &{node}; }}; }};"""
+            )
+            cg.add_define("LOGGER_UART_NODE_LABEL", cg.RawExpression(node))
+        elif hw_uart in CONSOLE_BACKENDS:
+            # No UART device: write_msg_() sends every line through printk()
+            cg.add_define("USE_LOGGER_CONSOLE")
+            cg.add_define("LOGGER_CONSOLE_NAME", hw_uart)
+            zephyr_add_prj_conf("CONSOLE", True)
+            zephyr_add_prj_conf("PRINTK", True)
+            if hw_uart == SEMIHOST:
+                # SEMIHOST_CONSOLE depends on it rather than selecting it
+                zephyr_add_prj_conf("SEMIHOST", True)
+            zephyr_add_prj_conf(f"{hw_uart}_CONSOLE", True)
+            # Off by default; guards against a board defconfig turning it on, as it
+            # would take the printk() hook from the chosen backend.
+            zephyr_add_prj_conf("RTT_CONSOLE", False, required=False)
         elif hw_uart == USB_SERIAL_JTAG:
             # A standard Zephyr UART device, not a USB CDC-ACM stack like nrf52's
             # USB_CDC option -- CONFIG_SERIAL_ESP32_USB auto-selects once the DTS
@@ -659,7 +724,7 @@ async def _late_logger_init(config: ConfigType) -> None:
             # like esp32_h2/c6's USB_SERIAL_JTAG above.
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
             zephyr_add_prj_conf("UART_LINE_CTRL", True)
-            cdc_label = zephyr_add_cdc_acm(config, 0)
+            cdc_label = zephyr_cdc_acm_label(0)
             # logger_zephyr.cpp's DEVICE_DT_GET_OR_NULL(DT_NODELABEL(...)) needs the
             # actual node label as a bare token at compile time -- it can't be reused
             # from the `chosen` overlay below, since that's a devicetree property, not
@@ -675,6 +740,9 @@ async def _late_logger_init(config: ConfigType) -> None:
         # that would contend with Logger's own write_msg_() for the same UART. Disable
         # it -- logger_zephyr_log_backend.cpp forwards native logs through Logger instead.
         zephyr_add_prj_conf("LOG_BACKEND_UART", False, required=False)
+        # Same for RTT: once USE_SEGGER_RTT is on, Zephyr's own RTT backend would write
+        # native lines to RTT channel 0 as well, alongside Logger's own output.
+        zephyr_add_prj_conf("LOG_BACKEND_RTT", False, required=False)
 
         # LOG_PRINTK redirects printk() through the LOG subsystem, which write_msg_()'s own
         # printk() call (for RTT/pyocd) would then re-enter -- an infinite feedback loop.

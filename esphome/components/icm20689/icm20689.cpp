@@ -38,8 +38,7 @@ void ICM20689Component::setup() {
   this->spi_setup();
 
   if (!this->spi_is_ready()) {
-    ESP_LOGE(TAG, "SPI device is not ready");
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("SPI device is not ready"));
     return;
   }
 
@@ -61,7 +60,7 @@ void ICM20689Component::setup() {
 
   if (who_am_i != ICM20689_WHO_AM_I_VALUE) {
     ESP_LOGE(TAG, "Unexpected WHO_AM_I 0x%02X (expected 0x%02X) -- check wiring/CS", who_am_i, ICM20689_WHO_AM_I_VALUE);
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->mark_failed(LOG_STR("Wrong chip ID"));
     return;
   }
 
@@ -77,10 +76,8 @@ void ICM20689Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ICM20689 IMU:");
   LOG_PIN("  CS Pin: ", this->cs_);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  " ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "  Accel range: ±%dg", 2 << static_cast<uint8_t>(this->accel_range_));
   ESP_LOGCONFIG(TAG, "  Gyro range: ±%d°/s", 250 << static_cast<uint8_t>(this->gyro_range_));
@@ -104,19 +101,19 @@ bool ICM20689Component::update_data(motion::MotionData &data) {
 
   const float accel_factor = accel_scale(accel_range);
 
-  data.acceleration[motion::X_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[0], raw_data[1])) * accel_factor;
-  data.acceleration[motion::Y_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[2], raw_data[3])) * accel_factor;
-  data.acceleration[motion::Z_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[4], raw_data[5])) * accel_factor;
+  data.acceleration[motion::X_AXIS] = encode_value<int16_t>(raw_data) * accel_factor;
+  data.acceleration[motion::Y_AXIS] = encode_value<int16_t>(&raw_data[2]) * accel_factor;
+  data.acceleration[motion::Z_AXIS] = encode_value<int16_t>(&raw_data[4]) * accel_factor;
 
   const float gyro_factor = gyro_scale(gyro_range);
 
-  data.angular_rate[motion::X_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[8], raw_data[9])) * gyro_factor;
-  data.angular_rate[motion::Y_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[10], raw_data[11])) * gyro_factor;
-  data.angular_rate[motion::Z_AXIS] = static_cast<int16_t>(encode_uint16(raw_data[12], raw_data[13])) * gyro_factor;
+  data.angular_rate[motion::X_AXIS] = encode_value<int16_t>(&raw_data[8]) * gyro_factor;
+  data.angular_rate[motion::Y_AXIS] = encode_value<int16_t>(&raw_data[10]) * gyro_factor;
+  data.angular_rate[motion::Z_AXIS] = encode_value<int16_t>(&raw_data[12]) * gyro_factor;
 
   if (!this->temperature_callback_.empty()) {
     // Datasheet formula: temperature (°C) = raw / 326.8 + 25.
-    const float temperature = static_cast<int16_t>(encode_uint16(raw_data[6], raw_data[7])) / 326.8f + 25.0f;
+    const float temperature = encode_value<int16_t>(&raw_data[6]) / 326.8f + 25.0f;
     this->temperature_callback_.call(temperature);
   }
 

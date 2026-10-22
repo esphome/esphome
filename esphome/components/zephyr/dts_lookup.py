@@ -764,9 +764,17 @@ def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
                     doc = yaml.safe_load(board_yml.read_text())
                 except (OSError, yaml.YAMLError):
                     continue
-                if (
-                    isinstance(doc, dict)
-                    and doc.get("board", {}).get("name") == board_dirname
+                if not isinstance(doc, dict):
+                    continue
+                # Two board.yml schemas coexist upstream: the older singular "board:"
+                # (one board per file, e.g. efr32mg24's xg24_ek2703a) and newer HWMv2
+                # "boards:" (a list, even when it only declares one entry, e.g.
+                # efr32bg27's xg27_dk2602a) -- check both rather than assuming the file
+                # only ever uses one.
+                entries = [doc["board"]] if "board" in doc else doc.get("boards", [])
+                if any(
+                    isinstance(entry, dict) and entry.get("name") == board_dirname
+                    for entry in entries
                 ):
                     result = board_yml.parent
                     break

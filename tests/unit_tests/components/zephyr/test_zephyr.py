@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, call, patch
 
 import pytest
 
@@ -12,11 +13,14 @@ from esphome.components.ota import reject_swap_method_off_zephyr
 from esphome.components.zephyr import (
     _MODULE_SCHEMA,
     ZephyrData,
+    _cdc_acm_add_ports,
+    _remove_stale_image_files,
     _resolve_board_source,
     _resolve_shield_source,
     _resolve_snippet_source,
     _restore_upload_data,
     _variant_config_schema,
+    _watchdog_to_code,
     add_extra_build_file,
     add_extra_script,
     request_zephyr_module,
@@ -28,7 +32,8 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_add_sysbuild_conf,
     zephyr_add_user,
-    zephyr_dts_board_id,
+    zephyr_cdc_acm_label,
+    zephyr_claim_cdc_acm,
     zephyr_only_on_variant,
     zephyr_set_module_override,
     zephyr_setup_i2c_pinctrl,
@@ -67,6 +72,7 @@ from esphome.components.zephyr.variants.silabs_family import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FRAMEWORK,
+    CONF_ID,
     CONF_NAME,
     CONF_PATH,
     CONF_REFRESH,
@@ -77,6 +83,7 @@ from esphome.const import (
     CONF_VERSION,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_NRF52,
@@ -84,7 +91,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, ID, EsphomeError
 from tests.unit_tests.components.zephyr.zephyr_state import empty_zephyr_data
 
 
@@ -1563,39 +1570,6 @@ def test_zephyr_setup_spi_pinctrl_silabs_partial_override_preserves_other_signal
 
 
 # ---------------------------------------------------------------------------
-# zephyr_dts_board_id
-# ---------------------------------------------------------------------------
-
-
-def test_zephyr_dts_board_id_returns_input_unchanged_for_non_nrf52() -> None:
-    _set_non_nrf52_target_platform()
-    assert zephyr_dts_board_id("esp32h2_devkitm/esp32h2") == "esp32h2_devkitm/esp32h2"
-
-
-def test_zephyr_dts_board_id_falls_back_to_input_when_no_west_board_override() -> None:
-    # No BOARDS_ZEPHYR entry currently sets "west_board" (the HWMv2 translation
-    # this function documents is dormant, not yet needed by any real board) --
-    # confirms the .get(..., esphome_board) fallback path, not a hardcoded value.
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "nrf52"}
-    assert (
-        zephyr_dts_board_id("adafruit_itsybitsy_nrf52840")
-        == "adafruit_itsybitsy_nrf52840"
-    )
-
-
-def test_zephyr_dts_board_id_uses_west_board_override_when_present(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from esphome.components.nrf52.boards import BOARDS_ZEPHYR
-
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "nrf52"}
-    monkeypatch.setitem(
-        BOARDS_ZEPHYR, "some_board", {"west_board": "some_board/nrf52840"}
-    )
-    assert zephyr_dts_board_id("some_board") == "some_board/nrf52840"
-
-
-# ---------------------------------------------------------------------------
 # zephyr_add_sysbuild_conf -- mirrors zephyr_add_prj_conf's conflict semantics
 # ---------------------------------------------------------------------------
 
@@ -1709,6 +1683,92 @@ def test_variant_config_schema_defaults_watchdog_timeout_for_real_hardware() -> 
     assert config["watchdog_timeout"] == cv.TimePeriod(seconds=10)
 
 
+@pytest.mark.parametrize("watchdog_timeout", [0, "0s"])
+def test_variant_config_schema_accepts_watchdog_timeout_zero(
+    watchdog_timeout: object,
+) -> None:
+    _init_variant_schema_core()
+    config = _variant_config_schema(
+        {"variant": "ESP32H2", "watchdog_timeout": watchdog_timeout}
+    )
+    assert config["watchdog_timeout"].total_milliseconds == 0
+
+
+@pytest.mark.parametrize("name", ["WATCHDOG", "CONFIG_WATCHDOG"])
+@pytest.mark.parametrize("value", [True, "y"])
+def test_variant_config_schema_rejects_kconfig_watchdog_with_timeout_zero(
+    name: str, value: object
+) -> None:
+    _init_variant_schema_core()
+    with pytest.raises(cv.Invalid, match="conflicts with 'watchdog_timeout: 0'"):
+        _variant_config_schema(
+            {
+                "variant": "ESP32H2",
+                "watchdog_timeout": "0s",
+                "kconfig_options": {name: value},
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "kconfig_options",
+    [{"WATCHDOG": False}, {"WATCHDOG": {"mcuboot": True}}],
+)
+def test_variant_config_schema_allows_kconfig_watchdog_off_or_other_image(
+    kconfig_options: dict,
+) -> None:
+    _init_variant_schema_core()
+    _variant_config_schema(
+        {
+            "variant": "ESP32H2",
+            "watchdog_timeout": "0s",
+            "kconfig_options": kconfig_options,
+        }
+    )
+
+
+def test_variant_config_schema_allows_kconfig_watchdog_with_timeout() -> None:
+    _init_variant_schema_core()
+    _variant_config_schema(
+        {
+            "variant": "ESP32H2",
+            "watchdog_timeout": "10s",
+            "kconfig_options": {"WATCHDOG": True},
+        }
+    )
+
+
+def _defined(name: str) -> bool:
+    return any(define.name == name for define in CORE.defines)
+
+
+def test_watchdog_to_code_zero_forces_watchdog_off() -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF54L15")
+    _watchdog_to_code({"watchdog_timeout": cv.TimePeriod(seconds=0)})
+    assert CORE.data[KEY_ZEPHYR]["prj_conf"][""]["CONFIG_WATCHDOG"] == (False, True)
+    assert not _defined("USE_WATCHDOG")
+    assert not _defined("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS")
+
+
+def test_watchdog_to_code_timeout_arms_watchdog() -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF54L15")
+    with patch(
+        "esphome.components.zephyr.dts_lookup.get_watchdog_node_label",
+        return_value=("wdt31", True),
+    ):
+        _watchdog_to_code({"watchdog_timeout": cv.TimePeriod(seconds=10)})
+    assert CORE.data[KEY_ZEPHYR]["prj_conf"][""]["CONFIG_WATCHDOG"] == (True, True)
+    assert _defined("USE_WATCHDOG")
+    assert _defined("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS")
+
+
+def test_watchdog_to_code_skips_native_sim() -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NATIVESIM")
+    _watchdog_to_code({})
+    assert "CONFIG_WATCHDOG" not in CORE.data[KEY_ZEPHYR]["prj_conf"].get("", {})
+    assert not _defined("USE_WATCHDOG")
+
+
 def _nrf52_advanced(**advanced: object) -> dict:
     _init_variant_schema_core()
     config = _variant_config_schema({"variant": "NRF52", "advanced": advanced})
@@ -1739,8 +1799,37 @@ def test_nrf52_dfu_config_validates_again() -> None:
 
 
 def test_nrf52_dfu_rejects_mcuboot() -> None:
-    with pytest.raises(cv.Invalid, match="needs an Adafruit bootloader"):
+    with pytest.raises(cv.Invalid, match="needs a serial DFU bootloader"):
         _nrf52_advanced(bootloader="mcuboot", dfu=True)
+
+
+def _dongle_config(**advanced: object) -> dict:
+    from esphome.config import path_context
+
+    _init_variant_schema_core()
+    # The reset pin schema reports its errors against the config path
+    token = path_context.set(["zephyr"])
+    try:
+        return _variant_config_schema(
+            {"variant": "NRF52", "board": "nrf52840dongle", "advanced": advanced}
+        )
+    finally:
+        path_context.reset(token)
+
+
+@pytest.mark.parametrize("dfu", [None, True, {}])
+def test_nrf52_dongle_dfu_defaults_to_the_reset_pin(dfu: object) -> None:
+    """The Open DFU bootloader ignores GPREGRET, so DFU resets through P0.19."""
+    advanced = (
+        {"bootloader": "nrf"} if dfu is None else {"bootloader": "nrf", "dfu": dfu}
+    )
+    reset_pin = _dongle_config(**advanced)["advanced"]["dfu"]["reset_pin"]
+    assert reset_pin["number"] == 19
+    assert reset_pin["inverted"] is True
+
+
+def test_nrf52_dongle_dfu_off_has_no_reset_pin() -> None:
+    assert _dongle_config(bootloader="nrf", dfu=False)["advanced"]["dfu"] is None
 
 
 def test_variant_config_schema_raises_for_unregistered_variant(
@@ -2328,3 +2417,159 @@ def test_reject_swap_method_off_zephyr_allows_zephyr() -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
     conf = {"swap_method": "move"}
     assert reject_swap_method_off_zephyr(conf) == conf
+
+
+# ---------------------------------------------------------------------------
+# CDC ACM ports on platform: zephyr
+# ---------------------------------------------------------------------------
+
+
+def _zephyr_cdc_core(board_label: str | None) -> object:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="NRF52")
+    return patch(
+        "esphome.components.zephyr.dts_lookup.get_existing_cdc_acm_uart_label",
+        return_value=board_label,
+    )
+
+
+@pytest.mark.parametrize(
+    ("board_label", "port", "expected"),
+    [
+        ("board_cdc_acm_uart", 0, "board_cdc_acm_uart"),
+        ("board_cdc_acm_uart", 1, "cdc_acm_uart1"),
+        (None, 0, "cdc_acm_uart0"),
+    ],
+)
+def test_zephyr_cdc_acm_label(
+    board_label: str | None, port: int, expected: str
+) -> None:
+    with _zephyr_cdc_core(board_label):
+        assert zephyr_cdc_acm_label(port) == expected
+
+
+def test_zephyr_cdc_acm_ports_reuse_board_node() -> None:
+    """Port 0 is the board's node; only port 1 is merged into the devicetree."""
+    with _zephyr_cdc_core("board_cdc_acm_uart"):
+        zephyr_claim_cdc_acm(0, "logger", write_only=True)
+        zephyr_claim_cdc_acm(1, "zephyr_mcumgr", allow_write_only=True)
+        _cdc_acm_add_ports()
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "cdc_acm_uart1: cdc_acm_uart1" in overlay
+    assert "cdc_acm_uart0" not in overlay
+    assert "board_cdc_acm_uart:" not in overlay
+    prj_conf = CORE.data[KEY_ZEPHYR]["prj_conf"][""]
+    assert prj_conf["CONFIG_USB_DEVICE_STACK_NEXT"][0] is True
+    assert "CONFIG_USB_DEVICE_STACK" not in prj_conf
+
+
+@pytest.mark.parametrize(("ports", "multi"), [((0,), False), ((0, 1), True)])
+def test_zephyr_cdc_acm_second_port_uses_own_usb_device(
+    ports: tuple[int, ...], multi: bool
+) -> None:
+    """Zephyr's boot-time setup registers only port 0, so a second port switches to usb_device.cpp."""
+    with _zephyr_cdc_core(None), patch("esphome.codegen.add_define") as mock_define:
+        for port in ports:
+            zephyr_claim_cdc_acm(port, f"user{port}")
+        _cdc_acm_add_ports()
+    prj_conf = CORE.data[KEY_ZEPHYR]["prj_conf"][""]
+    assert prj_conf["CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT"][0] is not multi
+    assert (call("USE_ZEPHYR_USB_DEVICE") in mock_define.call_args_list) is multi
+
+
+def test_zephyr_cdc_acm_ports_board_node_only_adds_no_overlay() -> None:
+    with _zephyr_cdc_core("board_cdc_acm_uart"):
+        zephyr_claim_cdc_acm(0, "logger", write_only=True)
+        _cdc_acm_add_ports()
+    assert "zephyr_udc0" not in CORE.data[KEY_ZEPHYR]["overlay"][""]
+
+
+def test_zephyr_cdc_acm_no_claims_adds_nothing() -> None:
+    with _zephyr_cdc_core(None):
+        _cdc_acm_add_ports()
+    assert "CONFIG_USB_DEVICE_STACK_NEXT" not in CORE.data[KEY_ZEPHYR]["prj_conf"].get(
+        "", {}
+    )
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        ("logger", {"write_only": True}),
+        ("zephyr_mcumgr", {"allow_write_only": True}),
+    ],
+)
+def test_zephyr_usb_baud_rate_shares_port_0(other: tuple[str, dict]) -> None:
+    with _zephyr_cdc_core(None):
+        zephyr_claim_cdc_acm(0, other[0], **other[1])
+        zephyr_claim_cdc_acm(0, "usb_baud_rate", write_only=True, allow_write_only=True)
+    assert len(CORE.data[KEY_ZEPHYR]["cdc_acm_users"][0]) == 2
+
+
+@pytest.mark.parametrize(("variant", "ok"), [("RP2040", True), ("ESP32H2", False)])
+def test_usb_cdc_acm_only_on_zephyr_usb(variant: str, ok: bool) -> None:
+    from esphome.components.usb_cdc_acm import _only_on_zephyr_usb
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant=variant)
+    if ok:
+        assert _only_on_zephyr_usb({}) == {}
+    else:
+        with pytest.raises(cv.Invalid, match="variants with USB"):
+            _only_on_zephyr_usb({})
+
+
+@pytest.mark.parametrize(
+    ("board_label", "port", "label"),
+    [("board_cdc_acm_uart", 0, "board_cdc_acm_uart"), (None, 1, "cdc_acm_uart1")],
+)
+def test_usb_cdc_acm_zephyr_interface_uses_port_label(
+    board_label: str | None, port: int, label: str
+) -> None:
+    """The device and the TX FIFO size come from the node the port actually uses."""
+    from esphome.components.usb_cdc_acm import to_code
+
+    interfaces = [{CONF_ID: ID(f"itf{i}", is_declaration=True)} for i in range(2)]
+    interfaces[1 - port]["disabled"] = True
+    config = {
+        CONF_ID: ID("usb", is_declaration=True),
+        "interfaces": interfaces,
+        "rx_buffer_size": 256,
+        "tx_buffer_size": 256,
+    }
+    patch_board = _zephyr_cdc_core(board_label)
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "zephyr"
+    with (
+        patch_board,
+        patch("esphome.codegen.new_Pvariable") as new_var,
+        patch("esphome.codegen.register_component", new=AsyncMock()),
+        patch("esphome.codegen.register_parented", new=AsyncMock()),
+        patch("esphome.codegen.add"),
+    ):
+        asyncio.run(to_code(config))
+    args = [str(a) for a in new_var.call_args_list[1].args[1:]]
+    assert args == [
+        f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({label}))",
+        f"DT_PROP(DT_NODELABEL({label}), tx_fifo_size)",
+    ]
+    prj_conf = CORE.data[KEY_ZEPHYR]["prj_conf"][""]
+    assert "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" not in prj_conf
+
+
+def test_remove_stale_image_files_keeps_only_written_files(tmp_path: Path) -> None:
+    CORE.build_path = tmp_path
+    sysbuild = tmp_path / "zephyr" / "sysbuild"
+    sysbuild.mkdir(parents=True)
+    app_overlay = tmp_path / "zephyr" / "app.overlay"
+    kept = sysbuild / "mcuboot.conf"
+    stale_overlay = sysbuild / "mcuboot.overlay"
+    cmake = sysbuild / "CMakeLists.txt"
+    for path in (app_overlay, kept, stale_overlay, cmake):
+        path.write_text("x")
+
+    assert _remove_stale_image_files({kept})
+    assert not app_overlay.exists()
+    assert not stale_overlay.exists()
+    assert kept.exists()
+    assert cmake.exists()
+    assert not _remove_stale_image_files({kept})

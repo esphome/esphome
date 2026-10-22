@@ -15,15 +15,6 @@
 #include "subscribe_state.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
-#ifdef USE_ESP32_CRASH_HANDLER
-#include "esphome/components/esp32/crash_handler.h"
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-#include "esphome/components/rp2/crash_handler.h"
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-#include "esphome/components/esp8266/crash_handler.h"
-#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
@@ -298,21 +289,7 @@ class APIConnection final : public APIServerConnectionBase {
       this->begin_iterator_(ActiveIterator::INITIAL_STATE);
     }
   }
-  void on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
-    this->flags_.log_subscription = msg.level;
-    if (msg.dump_config)
-      App.schedule_dump_config();
-#ifdef USE_ESP32_CRASH_HANDLER
-    esp32::crash_handler_log();
-    esp32::crash_handler_clear();
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-    rp2::crash_handler_log();
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-    esp8266::crash_handler_log();
-#endif
-  }
+  void on_subscribe_logs_request(const SubscribeLogsRequest &msg);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void on_subscribe_homeassistant_services_request() { this->flags_.service_call_subscription = true; }
 #endif

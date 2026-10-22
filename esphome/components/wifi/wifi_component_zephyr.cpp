@@ -30,6 +30,10 @@ struct ZephyrWiFiEvent {
     DISCONNECT_RESULT,
     AP_ENABLE_RESULT,
     AP_DISABLE_RESULT,
+#ifdef USE_WIFI_AP
+    AP_STA_CONNECTED,
+    AP_STA_DISCONNECTED,
+#endif
     SCAN_RESULT,
     SCAN_DONE,
     IPV4_ADDR_ADD,
@@ -110,6 +114,14 @@ void wifi_event_handler(net_mgmt_event_callback *cb, uint64_t mgmt_event, net_if
       push_event(ZephyrWiFiEvent::Type::AP_DISABLE_RESULT, status != nullptr ? status->status : -1);
       break;
     }
+#ifdef USE_WIFI_AP
+    case NET_EVENT_WIFI_AP_STA_CONNECTED:
+      push_event(ZephyrWiFiEvent::Type::AP_STA_CONNECTED);
+      break;
+    case NET_EVENT_WIFI_AP_STA_DISCONNECTED:
+      push_event(ZephyrWiFiEvent::Type::AP_STA_DISCONNECTED);
+      break;
+#endif
     case NET_EVENT_WIFI_SCAN_RESULT: {
       const auto *result = static_cast<const wifi_scan_result *>(cb->info);
       ESP_LOGV(TAG, "Scan result: ssid='%.*s' rssi=%d min=%d", result->ssid_length,
@@ -201,10 +213,14 @@ void WiFiComponent::wifi_pre_setup_() {
   g_min_scan_rssi = this->min_scan_rssi_;
   sta_iface = net_if_get_wifi_sta();
   ap_iface = net_if_get_wifi_sap();
-  net_mgmt_init_event_callback(&wifi_event_cb, wifi_event_handler,
-                               NET_EVENT_WIFI_CONNECT_RESULT | NET_EVENT_WIFI_DISCONNECT_RESULT |
-                                   NET_EVENT_WIFI_AP_ENABLE_RESULT | NET_EVENT_WIFI_AP_DISABLE_RESULT |
-                                   NET_EVENT_WIFI_SCAN_RESULT | NET_EVENT_WIFI_SCAN_DONE);
+  uint64_t wifi_events = NET_EVENT_WIFI_CONNECT_RESULT | NET_EVENT_WIFI_DISCONNECT_RESULT |
+                         NET_EVENT_WIFI_AP_ENABLE_RESULT | NET_EVENT_WIFI_AP_DISABLE_RESULT |
+                         NET_EVENT_WIFI_SCAN_RESULT | NET_EVENT_WIFI_SCAN_DONE;
+#ifdef USE_WIFI_AP
+  // Stations on the AP hold the reboot timeout and keep an exclusive AP from pausing
+  wifi_events |= NET_EVENT_WIFI_AP_STA_CONNECTED | NET_EVENT_WIFI_AP_STA_DISCONNECTED;
+#endif
+  net_mgmt_init_event_callback(&wifi_event_cb, wifi_event_handler, wifi_events);
   net_mgmt_add_event_callback(&wifi_event_cb);
   net_mgmt_init_event_callback(&ipv4_event_cb, ipv4_event_handler, NET_EVENT_IPV4_ADDR_ADD);
   net_mgmt_add_event_callback(&ipv4_event_cb);
@@ -700,6 +716,17 @@ bool WiFiComponent::wifi_loop_() {
           g_ap_enabled = true;
         }
         break;
+#ifdef USE_WIFI_AP
+      case ZephyrWiFiEvent::Type::AP_STA_CONNECTED:
+        this->ap_clients_++;
+        ESP_LOGV(TAG, "AP client connected");
+        break;
+      case ZephyrWiFiEvent::Type::AP_STA_DISCONNECTED:
+        if (this->ap_clients_ > 0)
+          this->ap_clients_--;
+        ESP_LOGV(TAG, "AP client disconnected");
+        break;
+#endif
       case ZephyrWiFiEvent::Type::SCAN_RESULT: {
         const wifi_scan_result &result = event->scan_result;
         char ssid_buf[SSID_BUFFER_SIZE];

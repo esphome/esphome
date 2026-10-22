@@ -2,6 +2,10 @@ deep_sleep:
   id: deep_sleep_1
   run_duration: 10s
   sleep_duration: 50s
+  wakeup_pin:
+    number: P0.11
+    inverted: true
+  wakeup_pin_mode: KEEP_AWAKE
 
 packages:
   deep_sleep: !include common.yaml

@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+zephyr:
+  variant: NRF52
+  board: adafruit_feather_nrf52840
+
+debug:
+  enable_rtt_console: true
+
+logger:
+
+uart:
+  - id: rtt_bus
+    port: RTT1
+    baud_rate: 115200

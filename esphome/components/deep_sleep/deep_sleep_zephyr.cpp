@@ -14,7 +14,12 @@ ESPHOME_LOG_TAG(TAG, "deep_sleep");
 // WDT_OPT_PAUSE_IN_SLEEP only pauses it during true hardware sleep — not while a
 // radio thread (e.g. the Zigbee stack) keeps the CPU busy in k_sem_take(). Feed
 // it at least this often while waiting so it does not reset the device.
-static const uint32_t WDT_FEED_INTERVAL_MS = 1000;
+#if defined(USE_NRF52) || defined(USE_WATCHDOG)
+static constexpr uint32_t WDT_FEED_INTERVAL_MS = 1000;
+#else
+// No watchdog (watchdog_timeout: 0): one wait for the whole duration
+static constexpr uint32_t WDT_FEED_INTERVAL_MS = UINT32_MAX;
+#endif
 
 static bool wakeable_delay_feed_wdt(uint32_t ms) {
   while (ms > 0) {
@@ -35,10 +40,42 @@ optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->
 
 void DeepSleepComponent::dump_config_platform_() {}
 
-bool DeepSleepComponent::prepare_to_sleep_() { return true; }
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+static void wakeup_pin_isr(void * /*arg*/) { esphome::wake_loop_threadsafe(); }
+
+bool DeepSleepComponent::wakeup_level_() const {
+  bool level = !this->wakeup_pin_->is_inverted();
+  if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
+    level = !level;
+  }
+  return level;
+}
+#endif
+
+bool DeepSleepComponent::prepare_to_sleep_() {
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+  if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_KEEP_AWAKE && this->wakeup_pin_->digital_read()) {
+    // Defer deep sleep until inactive
+    if (!this->next_enter_deep_sleep_) {
+      this->status_set_warning();
+      ESP_LOGW(TAG, "Waiting for wakeup pin state change");
+    }
+    this->defer_sleep_();
+    return false;
+  }
+#endif
+  return true;
+}
 
 void DeepSleepComponent::deep_sleep_() {
   bool woke = false;
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+  const bool level = this->wakeup_level_();
+  // Ends a timed wait early; the edge is the logical one, the pin applies its own inversion
+  this->wakeup_pin_->attach_interrupt(
+      wakeup_pin_isr, static_cast<void *>(nullptr),
+      level != this->wakeup_pin_->is_inverted() ? gpio::INTERRUPT_RISING_EDGE : gpio::INTERRUPT_FALLING_EDGE);
+#endif
   if (this->sleep_duration_.has_value()) {
     woke = wakeable_delay_feed_wdt(static_cast<uint32_t>(*this->sleep_duration_ / 1000));
   } else {
@@ -51,11 +88,20 @@ void DeepSleepComponent::deep_sleep_() {
     // - A reset.
     //
     // The system is reset when it wakes up from System OFF mode.
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+    this->wakeup_pin_->detach_interrupt();
+    if (const int err = this->wakeup_pin_->arm_wakeup(level); err != 0) {
+      ESP_LOGE(TAG, "Wakeup pin cannot wake the chip: %d", err);
+    }
+#endif
     sys_poweroff();
 #else
     woke = wakeable_delay_feed_wdt(UINT32_MAX);
 #endif
   }
+#ifdef USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN
+  this->wakeup_pin_->detach_interrupt();
+#endif
   if (woke) {
     ESP_LOGD(TAG, "Woken up by another thread");
   } else {

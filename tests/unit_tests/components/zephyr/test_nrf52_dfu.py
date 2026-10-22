@@ -37,7 +37,8 @@ def _nrf52_state(tmp_path: Path, bootloader: str = V6) -> None:
 
 
 @pytest.mark.parametrize(
-    ("bootloader", "expected"), [(V6, True), (V7, True), ("mcuboot", False)]
+    ("bootloader", "expected"),
+    [(V6, True), (V7, True), ("nrf", True), ("mcuboot", False)],
 )
 def test_uses_serial_dfu(tmp_path: Path, bootloader: str, expected: bool) -> None:
     _nrf52_state(tmp_path, bootloader)
@@ -303,17 +304,27 @@ async def test_zephyr_add_usb_baud_rate_creates_the_declared_component() -> None
 
     config = {"usb_baud_rate": "declared_id"}
     with (
-        patch("esphome.components.zephyr.zephyr_add_cdc_acm") as mock_cdc,
+        patch("esphome.components.zephyr.zephyr_claim_cdc_acm") as mock_claim,
         patch("esphome.components.zephyr.zephyr_add_prj_conf") as mock_conf,
+        patch(
+            "esphome.components.zephyr.zephyr_cdc_acm_label",
+            return_value="board_cdc_acm_uart",
+        ),
         patch("esphome.codegen.add_define") as mock_define,
         patch("esphome.codegen.new_Pvariable", return_value="var") as mock_new,
         patch("esphome.codegen.register_component", new=AsyncMock()) as mock_register,
     ):
         assert await zephyr_add_usb_baud_rate(config) == "var"
     mock_define.assert_called_once_with("USE_ZEPHYR_USB_BAUD_RATE")
-    mock_cdc.assert_called_once_with(config, 0)
+    mock_claim.assert_called_once_with(
+        0, "usb_baud_rate", write_only=True, allow_write_only=True
+    )
     mock_conf.assert_called_once_with("UART_LINE_CTRL", True)
-    mock_new.assert_called_once_with("declared_id")
+    mock_new.assert_called_once()
+    declared_id, port = mock_new.call_args.args
+    assert declared_id == "declared_id"
+    # Only port 0 (the logger's) may reboot the board on a 1200 baud touch
+    assert str(port) == "DEVICE_DT_GET(DT_NODELABEL(board_cdc_acm_uart))"
     mock_register.assert_awaited_once()
 
 
@@ -328,7 +339,11 @@ async def _run_dfu_to_code(dfu_config: dict) -> MagicMock:
         patch("esphome.codegen.add_define") as mock_define,
         patch("esphome.codegen.new_Pvariable", return_value=var) as mock_new,
         patch("esphome.codegen.add"),
-        patch("esphome.codegen.gpio_pin_expression", new=AsyncMock(return_value="pin")),
+        patch(
+            "esphome.cpp_helpers.gpio_pin_expression",
+            new=AsyncMock(side_effect=lambda conf: None if conf is None else "pin"),
+        ),
+        patch("esphome.cpp_helpers.add"),
         patch("esphome.codegen.register_component", new=AsyncMock()),
     ):
         await nrf52._dfu_to_code(dfu_config)
@@ -366,3 +381,64 @@ async def test_bootsel_touch_to_code_subscribes_to_the_usb_component() -> None:
     mock_usb.assert_awaited_once_with(advanced)
     mock_new.assert_called_once_with("touch_id", "usb")
     mock_register.assert_awaited_once()
+
+
+def _hex_file() -> Path:
+    hex_file = (
+        CORE.relative_build_path(".west_build") / "zephyr" / "zephyr" / "zephyr.hex"
+    )
+    hex_file.parent.mkdir(parents=True)
+    hex_file.write_text("")
+    return hex_file
+
+
+def test_build_dfu_package_open_dfu_uses_nordic_nrfutil(tmp_path: Path) -> None:
+    """The factory Open DFU bootloader takes Nordic's Secure DFU package, not adafruit-nrfutil's."""
+    _nrf52_state(tmp_path, "nrf")
+    hex_file = _hex_file()
+    with (
+        patch(
+            "esphome.components.nrf52.framework.ensure_nordic_nrfutil",
+            return_value="nrfutil",
+        ),
+        patch.object(nrf52, "_ensure_nrfutil") as mock_adafruit,
+        patch.object(nrf52, "run_command_ok", return_value=True) as mock_run,
+    ):
+        nrf52.build_dfu_package(Path("python"), {})
+    mock_adafruit.assert_not_called()
+    cmd = mock_run.call_args[0][0]
+    assert cmd[:4] == ["nrfutil", "nrf5sdk-tools", "pkg", "generate"]
+    assert cmd[cmd.index("--sd-req") + 1] == "0x00"
+    assert cmd[cmd.index("--application") + 1] == str(hex_file)
+    assert cmd[-1] == str(CORE.relative_build_path("firmware.zip"))
+
+
+def test_upload_serial_dfu_open_dfu_sends_to_the_bootloader_port(
+    tmp_path: Path,
+) -> None:
+    _nrf52_state(tmp_path, "nrf")
+    package = CORE.relative_build_path("firmware.zip")
+    package.parent.mkdir(parents=True)
+    package.write_text("")
+    patches = _upload_patches()
+    with (
+        patches[0],
+        patches[1],
+        patches[2] as mock_serial,
+        patches[3],
+        patch(
+            "esphome.components.nrf52.framework.ensure_nordic_nrfutil",
+            return_value="nrfutil",
+        ),
+        patch(
+            "esphome.components.nrf52._enter_open_dfu", return_value="/dev/ttyACM1"
+        ) as mock_enter,
+        patch.object(nrf52, "run_command_ok", return_value=True) as mock_run,
+    ):
+        assert nrf52.upload_serial_dfu("/dev/ttyACM0") is True
+    mock_enter.assert_called_once_with("/dev/ttyACM0")
+    mock_serial.assert_not_called()
+    cmd = mock_run.call_args[0][0]
+    assert cmd[:4] == ["nrfutil", "nrf5sdk-tools", "dfu", "usb-serial"]
+    assert cmd[cmd.index("-pkg") + 1] == str(package)
+    assert cmd[cmd.index("-p") + 1] == "/dev/ttyACM1"

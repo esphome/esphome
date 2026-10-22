@@ -128,12 +128,8 @@ int ZephyrPreferences::load_setting(const char *name, size_t len, settings_read_
   }
   std::vector<uint8_t> data(len);
   ssize_t read_len = read_cb(cb_arg, data.data(), len);
-  if (read_len < 0) {
-    ESP_LOGE(TAG, "Cannot read setting %s, err %d", name, static_cast<int>(read_len));
-    return 0;
-  }
   if (read_len != static_cast<ssize_t>(len)) {
-    ESP_LOGE(TAG, "Setting %s truncated, read %zd of %zu bytes", name, read_len, len);
+    ESP_LOGE(TAG, "Cannot read setting %s, got %d of %zu", name, static_cast<int>(read_len), len);
     return 0;
   }
 
