@@ -96,7 +96,7 @@ class TopTronicBase : public PollingComponent {
 
   // Human-readable entity name (the YAML name). TopTronicBase has no Entity
   // base, so each concrete entity type forwards this to its ESPHome Entity.
-  virtual const StringRef &get_name() const = 0;
+  virtual const LogString *get_log_name() const = 0;
 
  protected:
   uint8_t function_group_;
@@ -124,7 +124,7 @@ class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
   // are decoded and before the cold-cache write guard is unlocked.
   size_t value_width() const;
   SensorType type() override { return SENSOR; }
-  const StringRef &get_name() const override { return this->sensor::Sensor::get_name(); }
+  const LogString *get_log_name() const override { return this->sensor::Sensor::get_log_name(); }
 
  protected:
   TypeName type_;
@@ -144,7 +144,7 @@ class TopTronicNumber : public number::Number, public TopTronicBase {
   void set_multiplier(float multiplier) { this->multiplier_ = multiplier; }
   float get_multiplier() { return this->multiplier_; }
   SensorType type() override { return SENSOR; }
-  const StringRef &get_name() const override { return this->number::Number::get_name(); }
+  const LogString *get_log_name() const override { return this->number::Number::get_log_name(); }
   // Called by ESPHome when the user sets a new value from Home Assistant.
   void control(float value) override;
 
@@ -163,7 +163,7 @@ class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicBase
   // data/len point into the reassembly buffer or the received CAN frame — no copy.
   std::string parse_value(const uint8_t *data, size_t len);
   SensorType type() override { return TEXTSENSOR; }
-  const StringRef &get_name() const override { return this->text_sensor::TextSensor::get_name(); }
+  const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
 
   // Register a value↔text mapping (called from generated YAML code at startup).
   void add_option(uint8_t value, const std::string &text) {
@@ -189,7 +189,7 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
   TopTronicSelect() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
   SensorType type() override { return TEXTSENSOR; }
-  const StringRef &get_name() const override { return this->select::Select::get_name(); }
+  const LogString *get_log_name() const override { return this->select::Select::get_log_name(); }
   TypeName get_value_type() { return this->type_; }
 
   // Register a value↔text mapping (called from generated YAML code at startup).
@@ -219,7 +219,7 @@ class TopTronicButton : public button::Button, public TopTronicBase {
   void set_type(TypeName type) { this->type_ = type; }
   void set_value(float value) { this->value_ = value; }
   SensorType type() override { return BUTTON; }
-  const StringRef &get_name() const override { return this->button::Button::get_name(); }
+  const LogString *get_log_name() const override { return this->button::Button::get_log_name(); }
 
  protected:
   TypeName type_;
