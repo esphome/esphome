@@ -582,6 +582,33 @@ TEST_F(OnlineImageDownloadEnd, JpegProgressiveReportsError) {
   EXPECT_EQ(this->finished_, 0);
 }
 
+// on_download_started fires once the server has accepted the request, before the first progress report, and not
+// for a response that has no image to download
+TEST_F(OnlineImageDownloadEnd, StartedFiresOnlyWhenTheDownloadBegins) {
+  auto image = this->make_image_(runtime_image::JPEG, 1024);
+  std::vector<std::string> events;
+  image->add_on_download_started_callback([&events]() { events.push_back("started"); });
+  image->add_on_progress_callback([&events](float, size_t) { events.push_back("progress"); });
+  this->start_(*image,
+               std::make_shared<FakeContainer>(std::vector<uint8_t>(JPEG_48X40, JPEG_48X40 + sizeof(JPEG_48X40)),
+                                               sizeof(JPEG_48X40), false));
+  ASSERT_GE(events.size(), 2u);
+  EXPECT_EQ(events[0], "started");
+  EXPECT_EQ(events[1], "progress");
+  for (int i = 0; i < 100 && this->finished_ + this->errors_ == 0; i++)
+    image->loop();
+  EXPECT_EQ(std::count(events.begin(), events.end(), std::string("started")), 1);
+
+  for (int status : {304, 404}) {
+    events.clear();
+    auto container = std::make_shared<FakeContainer>(std::vector<uint8_t>{}, 0, false);
+    container->status_code = status;
+    this->http_.next = container;
+    image->update();
+    EXPECT_TRUE(events.empty()) << "HTTP " << status;
+  }
+}
+
 // Progress starts at 0, is reported at most every 100 ms, and always reaches 100%
 TEST_F(OnlineImageDownloadEnd, ProgressIsReportedAsTheImageDownloads) {
   auto image = this->make_image_(runtime_image::JPEG, 1024);
