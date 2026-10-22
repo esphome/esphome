@@ -106,11 +106,13 @@ uart_mock:
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
 
-    # Phase 6 (t=800ms): Values that spell the command footer 04 03 02 01
+    # Phase 6 (t=3200ms): Values that spell the command footer 04 03 02 01
     # Moving distance 772 (0x0304), moving energy 2, still distance 1: bytes 9 to 12 are the
     # command frame footer, which must not end the frame early.
-    # Still energy 5, detection_distance = 772 (moving target distance, since MOVE_BITMASK set)
-    - delay: 100ms
+    # Still energy 5, detection_distance = 772 (moving target distance, since MOVE_BITMASK set).
+    # The sensors hold and throttle values for a second, so the gap lets the phase 5 states
+    # reach the test before these replace them.
+    - delay: 2500ms
       inject_rx:
         [
           0xF4, 0xF3, 0xF2, 0xF1,
@@ -122,6 +124,28 @@ uart_mock:
           0x01, 0x00,
           0x05,
           0x04, 0x03,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 7 (t=5700ms): Truncated frame merged with a complete one
+    # The eight header bytes announce a 23 byte frame, so its window takes in the first 15 bytes of
+    # the valid frame that follows. The merged frame has no footer where the count says, so it is
+    # dropped and the bytes after its header are replayed, which recovers the valid frame.
+    # Moving distance 400, moving energy 7, still distance 200, still energy 9, detection_distance = 400
+    - delay: 2500ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1, 0x0D, 0x00, 0x02, 0xAA,
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x0D, 0x00,
+          0x02, 0xAA,
+          0x03,
+          0x90, 0x01,
+          0x07,
+          0xC8, 0x00,
+          0x09,
+          0x90, 0x01,
           0x55, 0x00,
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
