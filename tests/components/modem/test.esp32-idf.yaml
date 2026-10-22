@@ -18,4 +18,4 @@ modem:
     logger.log: "modem synced - ready for AT commands"
 
 packages:
-  - !include common.yaml
+  modem: !include common.yaml

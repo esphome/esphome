@@ -124,7 +124,7 @@ void ModemComponent::setup() {
 }
 
 void ModemComponent::loop() {
-  if ((millis() < this->next_loop_millis_)) {
+  if (App.get_loop_component_start_time() < this->next_loop_millis_) {
     // Some commands require a delay.
     delay(10);
     return;
@@ -406,28 +406,28 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
 void ModemComponent::on_enter_state_(ModemComponentState state) {
   // State invariants (entry establishes these):
   // - MODEM_WAIT_IP: waiting for PPP got IP, retry counter initialized.
-  // - MODEM_CONNECTED: got_ip expected, modem_timeout cancelled, params dumped.
+  // - MODEM_CONNECTED: got_ip expected, connect timeout cancelled, params dumped.
   // - DISABLED: no modem timeouts active, no retries pending.
   switch (state) {
     case ModemComponentState::MODEM_ENABLING:
-      set_timeout("modem_timeout", this->timeout_,
-                  [this]() { this->abort_("Modem was not able to connect (timeout)"); });
+      this->set_timeout(CONNECT_TIMEOUT_ID, this->timeout_,
+                        [this]() { this->abort_("Modem was not able to connect (timeout)"); });
       break;
     case ModemComponentState::MODEM_WAIT_IP:
       this->wait_ip_retry_ = 10;
       break;
     case ModemComponentState::MODEM_CONNECTED:
-      cancel_timeout("modem_timeout");
+      this->cancel_timeout(CONNECT_TIMEOUT_ID);
       this->status_clear_warning();
       this->dump_connect_params_();
       break;
     case ModemComponentState::MODEM_DISCONNECTING:
       ESP_LOGI(TAG, "Disconnecting modem");
-      cancel_timeout("modem_timeout");
+      this->cancel_timeout(CONNECT_TIMEOUT_ID);
       this->loop_delay_(this->modem_handler->command_delay);
       break;
     case ModemComponentState::MODEM_DISABLED:
-      cancel_timeout("modem_timeout");
+      this->cancel_timeout(CONNECT_TIMEOUT_ID);
       this->wait_ip_retry_ = 0;
       break;
     default:
@@ -435,13 +435,15 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
   }
 }
 
-void ModemComponent::abort_(const std::string &message) {
-  ESP_LOGE(TAG, "Aborting: %s.", message.c_str());
+void ModemComponent::abort_(const char *message) {
+  ESP_LOGE(TAG, "Aborting: %s.", message);
   this->pref_.save(&this->modem_restore_state_);
   App.reboot();
 }
 
-void ModemComponent::loop_delay_(uint32_t delay_ms) { this->next_loop_millis_ = millis() + delay_ms; }
+void ModemComponent::loop_delay_(uint32_t delay_ms) {
+  this->next_loop_millis_ = App.get_loop_component_start_time() + delay_ms;
+}
 
 void ModemComponent::dump_connect_params_() {
   char buffer[network::IP_ADDRESS_BUFFER_SIZE];

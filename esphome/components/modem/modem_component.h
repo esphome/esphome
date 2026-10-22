@@ -10,8 +10,9 @@
 #ifdef USE_MODEM_URC
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
-#include <unordered_map>
 #include <memory>
+#include <unordered_map>
+#include <utility>
 
 #include "modem_handler.h"
 namespace esphome::modem {
@@ -75,8 +76,8 @@ class ModemComponent : public Component {
 
   void dump_config() override { this->dump_connect_params_(); }
   float get_setup_priority() const override { return setup_priority::WIFI + 1; }  // Just before Wi-Fi
-  void add_on_state_callback(std::function<void(ModemComponentState)> &&callback) {
-    this->on_state_callback_.add(std::move(callback));
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->on_state_callback_.add(std::forward<F>(callback));
   }
   std::unique_ptr<ModemHandler> modem_handler{nullptr};
 
@@ -98,9 +99,12 @@ class ModemComponent : public Component {
   bool is_going_up_() const { return target_state_ == ModemComponentState::MODEM_CONNECTED; }
   bool is_going_down_() const { return target_state_ == ModemComponentState::MODEM_DISABLED; }
 
-  void abort_(const std::string &message);
+  void abort_(const char *message);
   void loop_delay_(uint32_t delay_ms);
   void dump_connect_params_();
+
+  // Scheduler id of the connect timeout armed while enabling
+  static constexpr uint32_t CONNECT_TIMEOUT_ID = 0;
 
   // Attributes from YAML config
   uint32_t timeout_;
