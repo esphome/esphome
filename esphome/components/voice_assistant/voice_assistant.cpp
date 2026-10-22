@@ -667,19 +667,20 @@ void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t por
   }
 
   memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
+  switch (this->dest_addr_.ss_family) {
 #if USE_NETWORK_IPV4
-  if (this->dest_addr_.ss_family == AF_INET) {
-    ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
-  } else
+    case AF_INET:
+      ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
+      break;
 #endif
 #if LWIP_IPV6
-      if (this->dest_addr_.ss_family == AF_INET6) {
-    ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
-  } else
+    case AF_INET6:
+      ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
+      break;
 #endif
-  {
-    ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
-    return;
+    default:
+      ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
+      return;
   }
 
   // Only primary microphone channel over UDP
