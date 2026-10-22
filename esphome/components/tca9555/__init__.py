@@ -1,18 +1,13 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import gpio_expander, i2c
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_INPUT,
-    CONF_INTERRUPT_PIN,
-    CONF_INVERTED,
-    CONF_MODE,
-    CONF_NUMBER,
-    CONF_OUTPUT,
-)
+from esphome.const import CONF_ID, CONF_INPUT, CONF_INTERRUPT_PIN, CONF_OUTPUT
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mobrembski"]
+DOMAIN = "tca9555"
 
 AUTO_LOAD = ["gpio_expander"]
 DEPENDENCIES = ["i2c"]
@@ -28,7 +23,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(TCA9555Component),
-            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -36,41 +31,24 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
-
-
-def validate_mode(value):
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
-    return value
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
 TCA9555_PIN_SCHEMA = pins.gpio_base_schema(
     TCA9555GPIOPin,
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT],
-    mode_validator=validate_mode,
+    mode_validator=pins.gpio_validate_input_xor_output,
     invertible=True,
 ).extend(
     {
-        cv.Required(CONF_TCA9555): cv.use_id(TCA9555Component),
+        cv.Required(CONF_TCA9555): pins.use_id_or_address(TCA9555Component),
     }
 )
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_TCA9555, TCA9555_PIN_SCHEMA)
-async def tca9555_pin_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_parented(var, config[CONF_TCA9555])
-
-    cg.add(var.set_pin(config[CONF_NUMBER]))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+async def tca9555_pin_to_code(config: ConfigType) -> MockObj:
+    return await pins.new_parented_pin(config, CONF_TCA9555)

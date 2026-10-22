@@ -14,8 +14,7 @@ static constexpr float COVER_OPEN = 1.0f;
 static constexpr float COVER_CLOSED = 0.0f;
 
 #define LOG_COVER(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
@@ -50,7 +49,7 @@ class CoverCall {
   void perform();
 
   const optional<float> &get_position() const;
-  bool get_stop() const;
+  bool get_stop() const { return this->stop_; }
   const optional<float> &get_tilt() const;
   const optional<bool> &get_toggle() const;
 
@@ -123,7 +122,7 @@ class Cover : public EntityBase {
   float tilt{COVER_OPEN};
 
   /// Construct a new cover call used to control the cover.
-  CoverCall make_call();
+  CoverCall make_call() { return {this}; }
 
   template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
@@ -139,9 +138,9 @@ class Cover : public EntityBase {
   virtual CoverTraits get_traits() = 0;
 
   /// Helper method to check if the cover is fully open. Equivalent to comparing .position against 1.0
-  bool is_fully_open() const;
+  bool is_fully_open() const { return this->position == COVER_OPEN; }
   /// Helper method to check if the cover is fully closed. Equivalent to comparing .position against 0.0
-  bool is_fully_closed() const;
+  bool is_fully_closed() const { return this->position == COVER_CLOSED; }
 
  protected:
   friend CoverCall;

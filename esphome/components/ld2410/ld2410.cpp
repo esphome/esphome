@@ -8,10 +8,11 @@
 #endif
 
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::ld2410 {
 
-static const char *const TAG = "ld2410";
+ESPHOME_LOG_TAG(TAG, "ld2410");
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -178,7 +179,7 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
 }
 
 void LD2410Component::dump_config() {
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   char version_s[20];
   const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
   ld24xx::format_version_str(this->version_, version_s);
@@ -511,7 +512,7 @@ bool LD2410Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      char mac_s[18];
+      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
@@ -548,6 +549,10 @@ bool LD2410Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY: {  // Query parameters response
+      // Config values can contain the footer bytes, so wait for the whole 38 byte frame
+      if (this->buffer_pos_ < 38) {
+        return false;
+      }
       if (this->buffer_data_[10] != HEADER)
         return true;  // value head=0xAA
 #ifdef USE_NUMBER
@@ -606,17 +611,11 @@ void LD2410Component::readline_(int readch) {
     return;  // Not enough data to process yet
   }
   if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
     this->handle_periodic_data_();
     this->buffer_pos_ = 0;  // Reset position index for next message
   } else if (ld2410::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
-    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
-#endif
+    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
     if (this->handle_ack_data_()) {
       this->buffer_pos_ = 0;  // Reset position index for next message
     } else {

@@ -5,7 +5,7 @@
 
 namespace esphome::fingerprint_grow {
 
-static const char *const TAG = "fingerprint_grow";
+ESPHOME_LOG_TAG(TAG, "fingerprint_grow");
 
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit-Fingerprint-Sensor-Library
 
@@ -362,8 +362,7 @@ void FingerprintGrowComponent::aura_led_control(uint8_t state, uint8_t speed, ui
 }
 
 uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> &data_buffer) {
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write((uint8_t) (START_CODE >> 8));
   this->write((uint8_t) (START_CODE & 0xFF));
   this->write(this->address_[0]);
@@ -547,8 +546,8 @@ void FingerprintGrowComponent::dump_config() {
                 "  System Identifier Code: 0x%.4X\n"
                 "  Touch Sensing Pin: %s\n"
                 "  Sensor Power Pin: %s",
-                this->system_identifier_code_, this->has_sensing_pin_ ? sensing_pin_buf : "None",
-                this->has_power_pin_ ? power_pin_buf : "None");
+                this->system_identifier_code_, this->has_sensing_pin_ ? sensing_pin_buf : LOG_STR_LITERAL("None"),
+                this->has_power_pin_ ? power_pin_buf : LOG_STR_LITERAL("None"));
   if (this->idle_period_to_sleep_ms_ < UINT32_MAX) {
     ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: %" PRIu32 " ms", this->idle_period_to_sleep_ms_);
   } else {

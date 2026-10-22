@@ -1,13 +1,16 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
-from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
+from esphome.components.const import (
+    CONF_HUMIDITY_SOURCE,
+    CONF_NOX_INDEX,
+    CONF_VOC_INDEX,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ALGORITHM_TUNING,
     CONF_COMPENSATION,
     CONF_GAIN_FACTOR,
     CONF_GATING_MAX_DURATION_MINUTES,
-    CONF_ID,
     CONF_INDEX_OFFSET,
     CONF_LEARNING_TIME_GAIN_HOURS,
     CONF_LEARNING_TIME_OFFSET_HOURS,
@@ -19,6 +22,7 @@ from esphome.const import (
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
@@ -32,10 +36,8 @@ SGP4xComponent = sgp4x_ns.class_(
     sensirion_common.SensirionI2CDevice,
 )
 
-CONF_HUMIDITY_SOURCE = "humidity_source"
 
-
-def validate_sensors(config):
+def validate_sensors(config: ConfigType) -> ConfigType:
     if CONF_VOC_INDEX not in config and CONF_NOX_INDEX not in config:
         raise cv.Invalid(
             f"At least one sensor is required. Define {CONF_VOC_INDEX} and/or {CONF_NOX_INDEX}"
@@ -43,7 +45,7 @@ def validate_sensors(config):
     return config
 
 
-def _gas_sensor_schema(index_offset_default: int):
+def _gas_sensor_schema(index_offset_default: int) -> cv.Schema:
     return cv.Schema(
         {
             cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(
@@ -96,17 +98,17 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]
-        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY_SOURCE])
-        cg.add(var.set_humidity_sensor(sens))
-        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE_SOURCE])
-        cg.add(var.set_temperature_sensor(sens))
+        await cg.add_variable(
+            var.set_humidity_sensor, compensation_config[CONF_HUMIDITY_SOURCE]
+        )
+        await cg.add_variable(
+            var.set_temperature_sensor, compensation_config[CONF_TEMPERATURE_SOURCE]
+        )
 
     cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
 

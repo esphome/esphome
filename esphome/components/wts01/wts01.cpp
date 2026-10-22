@@ -9,16 +9,10 @@ constexpr uint8_t HEADER_2 = 0x01;
 constexpr uint8_t HEADER_3 = 0x01;
 constexpr uint8_t HEADER_4 = 0x04;
 
-static const char *const TAG = "wts01";
+ESPHOME_LOG_TAG(TAG, "wts01");
 
 void WTS01Sensor::loop() {
-  // Process all available data at once
-  while (this->available()) {
-    uint8_t c;
-    if (this->read_byte(&c)) {
-      this->handle_char_(c);
-    }
-  }
+  this->read_available([this](uint8_t c) { this->handle_char_(c); });
 }
 
 void WTS01Sensor::dump_config() { LOG_SENSOR("", "WTS01 Sensor", this); }
@@ -58,10 +52,7 @@ void WTS01Sensor::process_packet_() {
   // Based on Tasmota implementation
   // Format: 55 01 01 04 01 11 16 12 95
   // header            T  Td Ck  - T = Temperature, Td = Temperature decimal, Ck = Checksum
-  uint8_t calculated_checksum = 0;
-  for (uint8_t i = 0; i < PACKET_SIZE - 1; i++) {
-    calculated_checksum += this->buffer_[i];
-  }
+  const uint8_t calculated_checksum = sum_bytes(this->buffer_, PACKET_SIZE - 1);
 
   uint8_t received_checksum = this->buffer_[PACKET_SIZE - 1];
   if (calculated_checksum != received_checksum) {

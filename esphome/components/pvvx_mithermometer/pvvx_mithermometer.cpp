@@ -1,11 +1,10 @@
 #include "pvvx_mithermometer.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#ifdef USE_ESP32
 
 namespace esphome::pvvx_mithermometer {
 
-static const char *const TAG = "pvvx_mithermometer";
+ESPHOME_LOG_TAG(TAG, "pvvx_mithermometer");
 
 void PVVXMiThermometer::dump_config() {
   ESP_LOGCONFIG(TAG, "PVVX MiThermometer");
@@ -15,7 +14,7 @@ void PVVXMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
 }
 
-bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool PVVXMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -52,7 +51,7 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   return success;
 }
 
-optional<ParseResult> PVVXMiThermometer::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> PVVXMiThermometer::parse_header_(const ble_device_base::ServiceData &service_data) {
   ParseResult result;
   if (!service_data.uuid.contains(0x1A, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
@@ -98,15 +97,15 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   }
 
   // int16_t     temperature;    // x 0.01 degree     [6,7]
-  const int16_t temperature = int16_t(data[6]) | (int16_t(data[7]) << 8);
+  const int16_t temperature = encode_value_le<int16_t>(&data[6]);
   result.temperature = temperature / 1.0e2f;
 
   // uint16_t    humidity;       // x 0.01 %          [8,9]
-  const int16_t humidity = uint16_t(data[8]) | (uint16_t(data[9]) << 8);
+  const int16_t humidity = encode_value_le<int16_t>(&data[8]);
   result.humidity = humidity / 1.0e2f;
 
   // uint16_t    battery_mv;     // mV                [10,11]
-  const int16_t battery_voltage = uint16_t(data[10]) | (uint16_t(data[11]) << 8);
+  const int16_t battery_voltage = encode_value_le<int16_t>(&data[10]);
   result.battery_voltage = battery_voltage / 1.0e3f;
 
   // uint8_t     battery_level;  // 0..100 %          [12]
@@ -140,5 +139,3 @@ bool PVVXMiThermometer::report_results_(const optional<ParseResult> &result, con
 }
 
 }  // namespace esphome::pvvx_mithermometer
-
-#endif

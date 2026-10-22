@@ -3,19 +3,15 @@ from __future__ import annotations
 from io import StringIO
 import json
 from pathlib import Path
+import sys
+import traceback
 from typing import Any
 
-from esphome.config import Config, _format_vol_invalid, validate_config
+from esphome.config import _format_vol_invalid, get_invalid_range, validate_config
 import esphome.config_validation as cv
 from esphome.const import __version__ as ESPHOME_VERSION
-from esphome.core import CORE, DocumentRange
+from esphome.core import CORE, DocumentRange, EsphomeError
 from esphome.yaml_util import parse_yaml
-
-
-def _get_invalid_range(res: Config, invalid: cv.Invalid) -> DocumentRange | None:
-    return res.get_deepest_document_range_for_path(
-        invalid.path, invalid.error_message == "extra keys not allowed"
-    )
 
 
 def _dump_range(range: DocumentRange | None) -> dict | None:
@@ -97,6 +93,16 @@ def _ace_loader(fname: Path) -> dict[str, Any]:
     return parse_yaml(fname, raw_yaml_stream)
 
 
+def _format_unexpected_error(err: Exception) -> str:
+    """Describe a crash inside validation with the frame it came from."""
+    message = f"Unexpected error while validating: {type(err).__name__}: {err}"
+    frames = traceback.extract_tb(err.__traceback__)
+    if not frames:
+        return message
+    frame = frames[-1]
+    return f"{message} ({frame.filename}:{frame.lineno} in {frame.name})"
+
+
 def _print_version():
     """Print ESPHome version."""
     print(
@@ -134,13 +140,18 @@ def read_config(args):
         try:
             config = loader(file_name)
             res = validate_config(config, command_line_substitutions)
-        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+        except (EsphomeError, cv.Invalid) as err:
             vs.add_yaml_error(str(err))
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+            # stdout carries the JSON protocol; the full chain goes to stderr.
+            traceback.print_exc(file=sys.stderr)
+            vs.add_yaml_error(_format_unexpected_error(err))
         else:
             for err in res.errors:
                 try:
-                    range_ = _get_invalid_range(res, err)
+                    range_ = get_invalid_range(res, err)
                     vs.add_validation_error(range_, _format_vol_invalid(err, res))
                 except Exception:  # noqa: BLE001  # pylint: disable=broad-except
-                    continue
+                    # Report the error without a range rather than drop it
+                    vs.add_validation_error(None, str(err))
         print(vs.dump())

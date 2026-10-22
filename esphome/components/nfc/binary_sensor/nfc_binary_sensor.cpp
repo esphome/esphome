@@ -5,22 +5,15 @@
 
 namespace esphome::nfc {
 
-static const char *const TAG = "nfc.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "nfc.binary_sensor");
 
-void NfcTagBinarySensor::setup() {
-  this->parent_->register_listener(this);
-  this->publish_initial_state(false);
-}
+void NfcTagBinarySensor::setup() { this->publish_initial_state(false); }
 
 void NfcTagBinarySensor::dump_config() {
-  std::string match_str = "name";
-
   LOG_BINARY_SENSOR("", "NFC Tag Binary Sensor", this);
   if (!this->match_string_.empty()) {
-    if (!this->match_tag_name_) {
-      match_str = "contains";
-    }
-    ESP_LOGCONFIG(TAG, "  Tag %s: %s", match_str.c_str(), this->match_string_.c_str());
+    ESP_LOGCONFIG(TAG, "  Tag %s: %s", this->match_tag_name_ ? LOG_STR_LITERAL("name") : LOG_STR_LITERAL("contains"),
+                  this->match_string_.c_str());
     return;
   }
   if (!this->uid_.empty()) {
@@ -29,13 +22,13 @@ void NfcTagBinarySensor::dump_config() {
   }
 }
 
-void NfcTagBinarySensor::set_ndef_match_string(const std::string &str) {
-  this->match_string_ = str;
+void NfcTagBinarySensor::set_ndef_match_string(const char *str) {
+  this->match_string_ = StringRef(str);
   this->match_tag_name_ = false;
 }
 
-void NfcTagBinarySensor::set_tag_name(const std::string &str) {
-  this->match_string_ = str;
+void NfcTagBinarySensor::set_tag_name(const char *str) {
+  this->match_string_ = StringRef(str);
   this->match_tag_name_ = true;
 }
 
@@ -43,7 +36,7 @@ void NfcTagBinarySensor::set_uid(const NfcTagUid &uid) { this->uid_ = uid; }
 
 bool NfcTagBinarySensor::tag_match_ndef_string(const std::shared_ptr<NdefMessage> &msg) {
   for (const auto &record : msg->get_records()) {
-    if (record->get_payload().find(this->match_string_) != std::string::npos) {
+    if (record->get_payload().find(this->match_string_.c_str(), 0, this->match_string_.size()) != std::string::npos) {
       return true;
     }
   }
@@ -54,7 +47,7 @@ bool NfcTagBinarySensor::tag_match_tag_name(const std::shared_ptr<NdefMessage> &
   for (const auto &record : msg->get_records()) {
     if (record->get_payload().find(HA_TAG_ID_PREFIX) != std::string::npos) {
       auto rec_substr = record->get_payload().substr(sizeof(HA_TAG_ID_PREFIX) - 1);
-      if (rec_substr.find(this->match_string_) != std::string::npos) {
+      if (rec_substr.find(this->match_string_.c_str(), 0, this->match_string_.size()) != std::string::npos) {
         return true;
       }
     }

@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["sensor"]
 
@@ -35,12 +36,9 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    temperature_sensor = await cg.get_variable(config[CONF_TEMPERATURE])
-    cg.add(var.set_temperature_sensor(temperature_sensor))
-
-    humidity_sensor = await cg.get_variable(config[CONF_HUMIDITY])
-    cg.add(var.set_humidity_sensor(humidity_sensor))
+    await cg.add_variable(var.set_temperature_sensor, config[CONF_TEMPERATURE])
+    await cg.add_variable(var.set_humidity_sensor, config[CONF_HUMIDITY])

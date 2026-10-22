@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+from esphome.types import ConfigType
 
 from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
@@ -60,28 +61,19 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
-    mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
-    if custompresenceofdetection_config := config.get(
-        CONF_CUSTOM_PRESENCE_OF_DETECTION
-    ):
-        sens = await sensor.new_sensor(custompresenceofdetection_config)
-        cg.add(mr24hpc1_component.set_custom_presence_of_detection_sensor(sens))
-    if movementsigns_config := config.get(CONF_MOVEMENT_SIGNS):
-        sens = await sensor.new_sensor(movementsigns_config)
-        cg.add(mr24hpc1_component.set_movement_signs_sensor(sens))
-    if custommotiondistance_config := config.get(CONF_CUSTOM_MOTION_DISTANCE):
-        sens = await sensor.new_sensor(custommotiondistance_config)
-        cg.add(mr24hpc1_component.set_custom_motion_distance_sensor(sens))
-    if customspatialstaticvalue_config := config.get(CONF_CUSTOM_SPATIAL_STATIC_VALUE):
-        sens = await sensor.new_sensor(customspatialstaticvalue_config)
-        cg.add(mr24hpc1_component.set_custom_spatial_static_value_sensor(sens))
-    if customspatialmotionvalue_config := config.get(CONF_CUSTOM_SPATIAL_MOTION_VALUE):
-        sens = await sensor.new_sensor(customspatialmotionvalue_config)
-        cg.add(mr24hpc1_component.set_custom_spatial_motion_value_sensor(sens))
-    if custommotionspeed_config := config.get(CONF_CUSTOM_MOTION_SPEED):
-        sens = await sensor.new_sensor(custommotionspeed_config)
-        cg.add(mr24hpc1_component.set_custom_motion_speed_sensor(sens))
-    if custommodenum_config := config.get(CONF_CUSTOM_MODE_NUM):
-        sens = await sensor.new_sensor(custommodenum_config)
-        cg.add(mr24hpc1_component.set_custom_mode_num_sensor(sens))
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_MR24HPC1_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(
+        CONF_CUSTOM_PRESENCE_OF_DETECTION, hub.set_custom_presence_of_detection_sensor
+    )
+    await sensors(CONF_MOVEMENT_SIGNS, hub.set_movement_signs_sensor)
+    await sensors(CONF_CUSTOM_MOTION_DISTANCE, hub.set_custom_motion_distance_sensor)
+    await sensors(
+        CONF_CUSTOM_SPATIAL_STATIC_VALUE, hub.set_custom_spatial_static_value_sensor
+    )
+    await sensors(
+        CONF_CUSTOM_SPATIAL_MOTION_VALUE, hub.set_custom_spatial_motion_value_sensor
+    )
+    await sensors(CONF_CUSTOM_MOTION_SPEED, hub.set_custom_motion_speed_sensor)
+    await sensors(CONF_CUSTOM_MODE_NUM, hub.set_custom_mode_num_sensor)

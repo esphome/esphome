@@ -2,24 +2,71 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #ifdef USE_NETWORK
 
 namespace esphome::network {
+
+#if defined(USE_ESP32) && USE_NETWORK_IPV6
+ESPHOME_LOG_TAG(TAG, "network");
+
+void fill_ip6_addresses(esp_netif_t *netif, IPAddresses &addresses) {
+  esp_ip6_addr_t ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+  size_t count = esp_netif_get_all_ip6(netif, ip6s);
+  // Slot 0 holds the IPv4 address
+  if (count > addresses.size() - 1) {
+    // Warn once per interface
+    static esp_netif_t *warned[3]{};
+    for (auto &slot : warned) {
+      if (slot == netif) {
+        break;
+      }
+      if (slot == nullptr) {
+        slot = netif;
+        ESP_LOGW(TAG, "%s has %zu IPv6 addresses, only %zu are reported", esp_netif_get_desc(netif), count,
+                 addresses.size() - 1);
+        break;
+      }
+    }
+    count = addresses.size() - 1;
+  }
+  for (size_t i = 0; i < count; i++) {
+    addresses[i + 1] = IPAddress(&ip6s[i]);
+  }
+}
+#endif
 
 // The order of the components is important: WiFi should come after any possible main interfaces (it may be used as
 // an AP that uses a previous interface for NAT).
 
 bool is_disabled() {
+  // The network is disabled only when every configured interface with a
+  // disable() lifecycle is disabled; one enabled interface means traffic can flow.
+  bool disabled = false;
 #ifdef USE_MODEM
-  if (modem::global_modem_component != nullptr)
-    return modem::global_modem_component->is_disabled();
+  if (modem::global_modem_component != nullptr) {
+    if (!modem::global_modem_component->is_disabled())
+      return false;
+    disabled = true;
+  }
 #endif
 
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    return wifi::global_wifi_component->is_disabled();
+  if (wifi::global_wifi_component != nullptr) {
+    if (!wifi::global_wifi_component->is_disabled())
+      return false;
+    disabled = true;
+  }
 #endif
-  return false;
+
+#ifdef USE_ETHERNET
+  if (ethernet::global_eth_component != nullptr) {
+    if (!ethernet::global_eth_component->is_disabled())
+      return false;
+    disabled = true;
+  }
+#endif
+  return disabled;
 }
 
 const char *get_use_address_to(std::span<char, USE_ADDRESS_BUFFER_SIZE> buf) {

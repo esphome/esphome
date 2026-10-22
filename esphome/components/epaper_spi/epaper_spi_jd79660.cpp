@@ -4,7 +4,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.jd79660";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.jd79660");
 
 /** Pixel color as 2bpp. Must match IC LUT values. */
 enum JD79660Color : uint8_t {
