@@ -113,6 +113,8 @@ class ModemComponent : public Component {
   // AT+CPIN= can take a few seconds; the SIM may need longer still before AT+CPIN? says READY
   static constexpr uint32_t PIN_TIMEOUT_MS = 5000;
   static constexpr uint32_t PIN_UNLOCK_WAIT_MS = 10000;
+  // Sends of one pin_code the SIM never confirmed, across reboots, before it is not sent again
+  static constexpr uint8_t PIN_MAX_UNCONFIRMED_SENDS = 2;
   // A rejected PIN that could not be written to flash is retried a few times
   static constexpr uint32_t PIN_SAVE_RETRY_MS = 5000;
   static constexpr uint8_t PIN_SAVE_RETRIES = 3;
@@ -203,8 +205,12 @@ class ModemComponent : public Component {
   uint32_t wait_ip_start_{0};
   uint32_t synced_at_{0};
   uint32_t pin_sent_at_{0};
-  // Hash of the pin_code the SIM rejected, kept across reboots so a wrong PIN is never sent twice; 0 = none
-  uint32_t rejected_pin_hash_{0};
+  // What happened to the configured pin_code, kept in flash so a reboot cannot spend another SIM attempt
+  struct PinRecord {
+    uint32_t hash;  // pin_code the record is about
+    uint8_t sends;  // AT+CPIN= sent without the SIM reporting READY since
+    bool rejected;  // the SIM refused it
+  } pin_record_{};
   uint32_t at_timeout_{COMMAND_TIMEOUT_MS};
   std::atomic<uint32_t> pending_{0};
   uint16_t tx_buffer_size_{1024};
@@ -221,6 +227,7 @@ class ModemComponent : public Component {
   std::atomic<uint8_t> at_pending_{0};
   // Written by the IP event task, read by the modem task
   std::atomic<uint8_t> got_ip_{0};
+  std::atomic<uint8_t> ppp_error_{0};  // last NETIF_PPP_STATUS error code, 0 = none
   ConnectStep connect_step_{ConnectStep::CONNECT_STEP_START};
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};

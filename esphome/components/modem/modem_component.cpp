@@ -213,7 +213,7 @@ void ModemComponent::loop() {
   }
   // Written through at once: a power cycle before the periodic flush would send the PIN again
   if (pending & PENDING_SAVE_PIN) {
-    if (this->pin_pref_.save(&this->rejected_pin_hash_) && global_preferences->sync()) {
+    if (this->pin_pref_.save(&this->pin_record_) && global_preferences->sync()) {
       this->pin_save_retries_ = 0;
     } else if (this->pin_save_retries_ < PIN_SAVE_RETRIES) {
       this->pin_save_retries_++;
@@ -239,14 +239,14 @@ void ModemComponent::loop() {
 void ModemComponent::setup() {
   this->pref_ = global_preferences->make_preference<int>(BAUD_PREF_HASH);
   this->pref_.load(&this->restored_baud_);
-  this->pin_pref_ = global_preferences->make_preference<uint32_t>(PIN_PREF_HASH);
-  this->pin_pref_.load(&this->rejected_pin_hash_);
-  // A changed pin_code may be tried again
-  if (this->rejected_pin_hash_ != 0 &&
-      (this->pin_code_ == nullptr || this->rejected_pin_hash_ != fnv1_hash(this->pin_code_))) {
-    this->rejected_pin_hash_ = 0;
-    if (!this->pin_pref_.save(&this->rejected_pin_hash_)) {
-      ESP_LOGW(TAG, "Failed to clear the rejected PIN");
+  this->pin_pref_ = global_preferences->make_preference<PinRecord>(PIN_PREF_HASH);
+  this->pin_pref_.load(&this->pin_record_);
+  // A changed pin_code starts with a clean record and may be tried again
+  const uint32_t pin_hash = this->pin_code_ != nullptr ? fnv1_hash(this->pin_code_) : 0;
+  if (this->pin_record_.hash != pin_hash) {
+    this->pin_record_ = PinRecord{pin_hash, 0, false};
+    if (!this->pin_pref_.save(&this->pin_record_)) {
+      ESP_LOGW(TAG, "Failed to clear the PIN record");
     }
   }
 
@@ -288,8 +288,9 @@ void ModemComponent::setup() {
   // error events itself when it attaches the netif
   auto ppp_status = [](void *arg, esp_event_base_t, int32_t event_id, void *) {
     if (event_id < NETIF_PP_PHASE_OFFSET && event_id != NETIF_PPP_ERRORNONE) {
-      ESP_LOGD(TAG, "PPP error event %d", static_cast<int>(event_id));
+      ESP_LOGW(TAG, "PPP error %d", static_cast<int>(event_id));
       auto *self = static_cast<ModemComponent *>(arg);
+      self->ppp_error_.store(static_cast<uint8_t>(event_id), std::memory_order_release);
       self->got_ip_.store(0, std::memory_order_release);
       self->wake_task_();
     }
@@ -696,7 +697,9 @@ ModemState ModemComponent::handle_state_connecting_() {
   this->clear_warning_(WARN_NOT_ATTACHED);
 
   ESP_LOGI(TAG, "Modem initialized and ready, starting PPP");
-  this->got_ip_.store(0, std::memory_order_release);  // a late event from the last session must not count
+  // A late event from the last session must not count
+  this->got_ip_.store(0, std::memory_order_release);
+  this->ppp_error_.store(0, std::memory_order_release);
   if (!this->dce_->set_mode(modem_mode::CMUX_MODE)) {
     ESP_LOGE(TAG, "Failed to enter PPP. Resetting modem.");
     this->set_warning_(WARN_PPP);
@@ -711,6 +714,12 @@ ModemState ModemComponent::handle_state_wait_ip_() {
     this->clear_warning_(WARN_TEARDOWN | WARN_PPP);
     this->set_sim_fault_(SimFault::SIM_FAULT_NONE);  // a SIM fault fixed outside is over once PPP is up
     return ModemState::MODEM_STATE_CONNECTED;
+  }
+  // A PPP failure (wrong APN, authentication, dead peer) ends the wait at once; the event logged the code
+  if (this->ppp_error_.load(std::memory_order_acquire) != 0) {
+    this->ppp_error_.store(0, std::memory_order_release);
+    this->set_warning_(WARN_PPP);
+    return ModemState::MODEM_STATE_DISCONNECTING;
   }
   const uint32_t elapsed = millis() - this->wait_ip_start_;
   if (elapsed < WAIT_IP_TIMEOUT_MS) {
@@ -902,6 +911,10 @@ SimResult ModemComponent::prepare_sim_() {
   if (strncmp(status, "READY", 5) == 0) {
     this->clear_warning_(WARN_SIM);
     this->pin_sent_ = false;  // proven correct, so a modem self-reset may send it again
+    if (this->pin_record_.sends != 0) {
+      this->pin_record_.sends = 0;
+      this->hand_over_(PENDING_SAVE_PIN);
+    }
     return SimResult::SIM_RESULT_READY;
   }
   if (strstr(status, "PUK") != nullptr) {
@@ -923,8 +936,7 @@ SimResult ModemComponent::prepare_sim_() {
     ESP_LOGE(TAG, "SIM requires a PIN but pin_code is not set");
     return SimResult::SIM_RESULT_FATAL;
   }
-  const uint32_t pin_hash = fnv1_hash(this->pin_code_);
-  if (this->rejected_pin_hash_ == pin_hash) {
+  if (this->pin_record_.rejected) {
     ESP_LOGE(TAG, "The SIM rejected this pin_code before; not sending it again");
     return SimResult::SIM_RESULT_PIN_REJECTED;
   }
@@ -938,6 +950,15 @@ SimResult ModemComponent::prepare_sim_() {
     ESP_LOGE(TAG, "SIM still locked after sending the PIN; check the SIM");
     return SimResult::SIM_RESULT_PIN_UNCONFIRMED;
   }
+  // Each send is counted in flash first, so reboots cannot keep spending the SIM's attempts on a PIN it never
+  // confirmed; READY clears the count
+  if (this->pin_record_.sends >= PIN_MAX_UNCONFIRMED_SENDS) {
+    ESP_LOGE(TAG, "The PIN went out %u times without the SIM confirming it; not sending it again",
+             this->pin_record_.sends);
+    return SimResult::SIM_RESULT_PIN_UNCONFIRMED;
+  }
+  this->pin_record_.sends++;
+  this->hand_over_(PENDING_SAVE_PIN);
   this->pin_sent_ = true;
   this->pin_sent_at_ = millis();
   ESP_LOGD(TAG, "Unlocking SIM with PIN...");
@@ -953,7 +974,7 @@ SimResult ModemComponent::prepare_sim_() {
       (output.find("+CME ERROR: 16") != std::string::npos || output.find("incorrect password") != std::string::npos ||
        (!this->cme_numeric_ && output.find("+CME ERROR") == std::string::npos))) {
     ESP_LOGE(TAG, "The SIM rejected the PIN; check pin_code");
-    this->rejected_pin_hash_ = pin_hash;
+    this->pin_record_.rejected = true;
     this->hand_over_(PENDING_SAVE_PIN);
     return SimResult::SIM_RESULT_PIN_REJECTED;
   }
