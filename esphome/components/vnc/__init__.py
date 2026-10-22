@@ -56,12 +56,7 @@ UNSUPPORTED_DISPLAYS = dict.fromkeys(
 }
 
 
-def validate_password(value: object) -> str:
-    value = cv.string_strict(value)
-    if not value:
-        raise cv.Invalid(
-            "The password must not be empty; leave it out for a server without one"
-        )
+def _warn_long_password(value: str) -> str:
     if len(value.encode("utf-8")) > VNC_PASSWORD_MAX_BYTES:
         _LOGGER.warning(
             "VNC passwords are limited to %d bytes; only the first %d are used",
@@ -69,6 +64,16 @@ def validate_password(value: object) -> str:
             VNC_PASSWORD_MAX_BYTES,
         )
     return value
+
+
+validate_password = cv.All(
+    cv.string_strict,
+    cv.Length(
+        min=1,
+        msg="The password must not be empty; leave it out for a server without one",
+    ),
+    _warn_long_password,
+)
 
 
 def vnc_auth_key(password: str) -> list[int]:

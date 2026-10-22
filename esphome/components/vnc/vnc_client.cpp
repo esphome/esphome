@@ -128,10 +128,6 @@ void VncClient::dump_config() {
 void VncClient::on_shutdown() { this->link_.close(); }
 
 void VncClient::loop() {
-  if (this->state_ == VncState::VNC_STATE_STOPPED || this->state_ == VncState::VNC_STATE_AUTH_FAILED) {
-    this->disable_loop();
-    return;
-  }
   const uint32_t now = App.get_loop_component_start_time();
   this->pass_start_ms_ = millis();
   if (this->display_->is_failed()) {
@@ -223,7 +219,7 @@ void VncClient::connect() {
   }
   this->backoff_ms_ = 0;
   this->hold_ms_ = 0;
-  this->auth_ambiguous_ = 0;
+  this->auth_retried_ = false;
   this->status_clear_error();
   this->status_clear_warning();
   this->state_ = VncState::VNC_STATE_IDLE;
@@ -338,7 +334,8 @@ void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *
   }
   switch (failure) {
     case VncFailure::VNC_FAILURE_AUTH_AMBIGUOUS:
-      if (++this->auth_ambiguous_ < 2) {
+      if (!this->auth_retried_) {
+        this->auth_retried_ = true;
         this->hold_ms_ = AUTH_AMBIGUOUS_HOLD_MS;
         ESP_LOGW(TAG, "%s before the password was accepted; retrying in %" PRIu32 "s", LOG_STR_ARG(reason),
                  this->hold_ms_ / 1000);
@@ -420,6 +417,22 @@ bool VncClient::send_client_init_() {
   return this->send_(&shared, 1);
 }
 
+bool VncClient::select_security_(uint8_t type) {
+  this->sec_type_ = type;
+#ifdef USE_VNC_AUTH
+  if (type == SECURITY_VNC_AUTH) {
+    this->step_ = VncStep::VNC_STEP_CHALLENGE;
+    return true;
+  }
+#endif
+  if (this->minor_ == 8) {
+    this->step_ = VncStep::VNC_STEP_SECURITY_RESULT;
+    return true;
+  }
+  this->step_ = VncStep::VNC_STEP_SERVER_INIT;
+  return this->send_client_init_();
+}
+
 VncParse VncClient::parse_() {
   for (;;) {
     const uint8_t *p = this->rx_ + this->rx_pos_;
@@ -465,10 +478,7 @@ VncParse VncClient::parse_() {
         if (avail < this->sec_count_) {
           return VncParse::VNC_PARSE_MORE;
         }
-        bool has_key = false;
-#ifdef USE_VNC_AUTH
-        has_key = this->auth_key_ != nullptr;
-#endif
+        const bool has_key = this->has_auth_key_();
         uint8_t chosen = 0;
         bool wants_password = false;
         for (uint8_t i = 0; i < this->sec_count_; i++) {
@@ -483,19 +493,8 @@ VncParse VncClient::parse_() {
           return this->fail_(VncFailure::VNC_FAILURE_CONFIG, wants_password ? LOG_STR("The server requires a password")
                                                                             : LOG_STR("No supported security type"));
         }
-        this->sec_type_ = chosen;
-        if (!this->send_(&chosen, 1)) {
+        if (!this->send_(&chosen, 1) || !this->select_security_(chosen)) {
           return this->fail_send_();
-        }
-        if (chosen == SECURITY_VNC_AUTH) {
-          this->step_ = VncStep::VNC_STEP_CHALLENGE;
-        } else if (this->minor_ == 8) {
-          this->step_ = VncStep::VNC_STEP_SECURITY_RESULT;
-        } else {
-          if (!this->send_client_init_()) {
-            return this->fail_send_();
-          }
-          this->step_ = VncStep::VNC_STEP_SERVER_INIT;
         }
         break;
       }
@@ -505,21 +504,12 @@ VncParse VncClient::parse_() {
         }
         const uint32_t type = read_be32(p);
         this->rx_pos_ += 4;
-        bool has_key = false;
-#ifdef USE_VNC_AUTH
-        has_key = this->auth_key_ != nullptr;
-#endif
         if (type == 0) {
           this->step_ = VncStep::VNC_STEP_REASON_LENGTH;
-        } else if (type == SECURITY_NONE) {
-          this->sec_type_ = SECURITY_NONE;
-          if (!this->send_client_init_()) {
+        } else if (type == SECURITY_NONE || (type == SECURITY_VNC_AUTH && this->has_auth_key_())) {
+          if (!this->select_security_(type)) {
             return this->fail_send_();
           }
-          this->step_ = VncStep::VNC_STEP_SERVER_INIT;
-        } else if (type == SECURITY_VNC_AUTH && has_key) {
-          this->sec_type_ = SECURITY_VNC_AUTH;
-          this->step_ = VncStep::VNC_STEP_CHALLENGE;
         } else {
           return this->fail_(VncFailure::VNC_FAILURE_CONFIG, type == SECURITY_VNC_AUTH
                                                                  ? LOG_STR("The server requires a password")
@@ -527,8 +517,8 @@ VncParse VncClient::parse_() {
         }
         break;
       }
-      case VncStep::VNC_STEP_CHALLENGE: {
 #ifdef USE_VNC_AUTH
+      case VncStep::VNC_STEP_CHALLENGE: {
         if (avail < 16) {
           return VncParse::VNC_PARSE_MORE;
         }
@@ -540,10 +530,8 @@ VncParse VncClient::parse_() {
         this->rx_pos_ += 16;
         this->step_ = VncStep::VNC_STEP_SECURITY_RESULT;
         break;
-#else
-        return this->fail_(VncFailure::VNC_FAILURE_CONFIG, LOG_STR("The server requires a password"));
-#endif
       }
+#endif
       case VncStep::VNC_STEP_SECURITY_RESULT: {
         if (avail < 4) {
           return VncParse::VNC_PARSE_MORE;
@@ -551,7 +539,7 @@ VncParse VncClient::parse_() {
         const uint32_t result = read_be32(p);
         this->rx_pos_ += 4;
         if (result == 0) {
-          this->auth_ambiguous_ = 0;
+          this->auth_retried_ = false;
           if (!this->send_client_init_()) {
             return this->fail_send_();
           }

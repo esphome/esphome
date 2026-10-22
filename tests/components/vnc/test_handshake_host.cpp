@@ -406,12 +406,12 @@ TEST(VncHandshake, SuccessClearsTheAmbiguousCount) {
   s.deliver(Rfb().version().security_list({2}).challenge());
   s.close_peer();
   s.loop(2);
-  ASSERT_EQ(s.client.auth_ambiguous(), 1);
+  ASSERT_TRUE(s.client.auth_retried());
 
   s.attach();
   s.deliver(Rfb().version().security_list({2}).challenge().security_result(0).server_init(64, 48));
   ASSERT_TRUE(s.client.is_connected());
-  EXPECT_EQ(s.client.auth_ambiguous(), 0);
+  EXPECT_FALSE(s.client.auth_retried());
 }
 
 TEST(VncHandshake, StallAfterResponseIsAmbiguous) {
@@ -481,7 +481,7 @@ TEST(VncHandshake, StaleSecurityTypeDoesNotMakeADropAmbiguous) {
   s.close_peer();
   s.loop(2);
   EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
-  EXPECT_EQ(s.client.auth_ambiguous(), 0);
+  EXPECT_FALSE(s.client.auth_retried());
   EXPECT_NE(s.client.hold_ms(), 60000u);
 }
 

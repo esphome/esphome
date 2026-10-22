@@ -29,7 +29,9 @@ enum class VncStep : uint8_t {
   VNC_STEP_SECURITY_COUNT,
   VNC_STEP_SECURITY_LIST,
   VNC_STEP_SECURITY_TYPE_33,
+#ifdef USE_VNC_AUTH
   VNC_STEP_CHALLENGE,
+#endif
   VNC_STEP_SECURITY_RESULT,
   VNC_STEP_REASON_LENGTH,
   VNC_STEP_REASON,
@@ -107,6 +109,14 @@ class VncClient : public Component {
   void pace_(uint32_t now);
   bool start_session_(uint32_t now);
   bool send_client_init_();
+  bool select_security_(uint8_t type);
+  bool has_auth_key_() const {
+#ifdef USE_VNC_AUTH
+    return this->auth_key_ != nullptr;
+#else
+    return false;
+#endif
+  }
   void frame_done_();
   void rect_done_();
   void next_tile_();
@@ -184,7 +194,6 @@ class VncClient : public Component {
   uint8_t minor_{8};
   uint8_t sec_type_{0};
   uint8_t sec_count_{0};
-  uint8_t auth_ambiguous_{0};
   uint8_t text_len_{0};  // clamped to MAX_TEXT_LEN
   // The display rotation the cached tiles were drawn at, in quarter turns.
   uint8_t hash_rotation_{0};
@@ -198,6 +207,7 @@ class VncClient : public Component {
   VncFailure reason_failure_{VncFailure::VNC_FAILURE_TRANSIENT};
 
   bool rx_pending_{false};
+  bool auth_retried_{false};  // the one retry after a drop left the password's fate unknown
   bool in_update_{false};
   bool request_outstanding_{false};
   bool refresh_pending_{false};

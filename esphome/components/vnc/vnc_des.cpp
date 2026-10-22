@@ -1,8 +1,10 @@
 #include "vnc_des.h"
 
 #include <cstddef>
+#include <cstring>
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::vnc {
 
@@ -96,21 +98,6 @@ static uint64_t __attribute__((noinline)) permute(uint64_t in, const uint8_t *ta
   return out;
 }
 
-static uint64_t load_block(const uint8_t *bytes) {
-  uint64_t value = 0;
-  for (uint8_t i = 0; i < 8; i++) {
-    value = (value << 8) | bytes[i];
-  }
-  return value;
-}
-
-static void store_block(uint64_t value, uint8_t *bytes) {
-  for (int8_t i = 7; i >= 0; i--) {
-    bytes[i] = static_cast<uint8_t>(value);
-    value >>= 8;
-  }
-}
-
 static void wipe(void *data, size_t len) {
   volatile auto *p = static_cast<volatile uint8_t *>(data);
   for (size_t i = 0; i < len; i++) {
@@ -119,7 +106,7 @@ static void wipe(void *data, size_t len) {
 }
 
 static void key_schedule(const uint8_t key[8], uint64_t subkeys[ROUNDS]) {
-  uint64_t halves = permute(load_block(key), PERMUTED_CHOICE_1, 56, 64);
+  uint64_t halves = permute(encode_value<uint64_t>(key), PERMUTED_CHOICE_1, 56, 64);
   uint32_t c = static_cast<uint32_t>(halves >> 28);
   uint32_t d = static_cast<uint32_t>(halves) & HALF_KEY_MASK;
   for (uint8_t round = 0; round < ROUNDS; round++) {
@@ -144,7 +131,7 @@ static uint32_t feistel(uint32_t right, uint64_t subkey) {
 }
 
 static void encrypt_block(const uint64_t subkeys[ROUNDS], uint8_t block[8]) {
-  uint64_t state = permute(load_block(block), INITIAL_PERMUTATION, 64, 64);
+  uint64_t state = permute(encode_value<uint64_t>(block), INITIAL_PERMUTATION, 64, 64);
   uint32_t left = static_cast<uint32_t>(state >> 32);
   uint32_t right = static_cast<uint32_t>(state);
   for (uint8_t round = 0; round < ROUNDS; round++) {
@@ -152,7 +139,8 @@ static void encrypt_block(const uint64_t subkeys[ROUNDS], uint8_t block[8]) {
     left = right;
     right = next;
   }
-  store_block(permute((static_cast<uint64_t>(right) << 32) | left, FINAL_PERMUTATION, 64, 64), block);
+  const auto out = decode_value(permute((static_cast<uint64_t>(right) << 32) | left, FINAL_PERMUTATION, 64, 64));
+  std::memcpy(block, out.data(), out.size());
 }
 
 void des_encrypt_block(const uint8_t key[8], uint8_t block[8]) {
