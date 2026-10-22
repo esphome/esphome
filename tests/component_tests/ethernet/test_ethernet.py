@@ -37,19 +37,24 @@ _WIFI_AP_CONFIG = {CONF_AP: {"ssid": "espap", "password": "mypassword"}}
 
 
 @pytest.mark.parametrize(
-    ("wifi", "priority", "match"),
+    ("wifi", "priority", "extra", "match"),
     [
-        (_WIFI_STA_CONFIG, None, "missing: ethernet, wifi"),
-        (_WIFI_STA_CONFIG, ["ethernet"], "missing: wifi"),
-        (_WIFI_STA_CONFIG, ["wifi", "ethernet"], None),
-        (_WIFI_AP_CONFIG, None, None),
+        (_WIFI_STA_CONFIG, None, {}, "missing: ethernet, wifi"),
+        (_WIFI_STA_CONFIG, ["ethernet"], {}, "missing: wifi"),
+        (_WIFI_STA_CONFIG, ["wifi", "ethernet"], {}, None),
+        (_WIFI_AP_CONFIG, None, {}, None),
+        # A station can still appear at run time: DPP or a provisioner saves credentials
+        ({"dpp": {}}, None, {}, "missing: ethernet, wifi"),
+        ({"dpp": {}, **_WIFI_AP_CONFIG}, None, {}, "missing: ethernet, wifi"),
+        (_WIFI_AP_CONFIG, None, {"captive_portal": {}}, "missing: ethernet, wifi"),
+        (_WIFI_AP_CONFIG, None, {"improv_serial": {}}, "missing: ethernet, wifi"),
     ],
 )
 def test_wifi_station_needs_a_full_priority_list_but_an_access_point_does_not(
-    wifi: dict, priority: list[str] | None, match: str | None
+    wifi: dict, priority: list[str] | None, extra: dict, match: str | None
 ) -> None:
-    """A station competes with ethernet for the primary interface; an access point does not."""
-    full = {"wifi": wifi, "ethernet": {}}
+    """A station, configured or provisioned later, competes with ethernet; an access point does not."""
+    full = {"wifi": wifi, "ethernet": {}, **extra}
     if priority:
         full["network"] = {CONF_PRIORITY: _validate_priority_list(priority)}
     fv.full_config.set(full)

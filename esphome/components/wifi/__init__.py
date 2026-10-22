@@ -437,6 +437,19 @@ def wifi_has_sta(config: ConfigType) -> bool:
     return bool(config.get(CONF_NETWORKS))
 
 
+# Components that save station credentials at run time
+_PROVISIONERS = ("captive_portal", "improv_ble", "improv_serial")
+
+
+def wifi_stays_ap_only(config: ConfigType, full_config: ConfigType) -> bool:
+    """Whether no station can appear at run time: no networks, no DPP, no provisioner."""
+    return not (
+        wifi_has_sta(config)
+        or CONF_DPP in config
+        or any(c in full_config for c in _PROVISIONERS)
+    )
+
+
 def final_validate(config):
     has_sta = wifi_has_sta(config)
     has_ap = CONF_AP in config

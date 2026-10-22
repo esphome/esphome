@@ -569,9 +569,9 @@ def _final_validate_wifi(config: ConfigType) -> None:
     if (wifi_config := full_config.get(CONF_WIFI)) is None:
         return
 
-    from esphome.components.wifi import wifi_has_sta
+    from esphome.components.wifi import wifi_stays_ap_only
 
-    if not wifi_has_sta(wifi_config):
+    if wifi_stays_ap_only(wifi_config, full_config):
         return  # an access point does not claim the primary interface
 
     priority_ifaces = get_priority_interfaces_from_full_config(full_config)
