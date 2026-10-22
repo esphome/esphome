@@ -7,7 +7,11 @@
 
 namespace esphome::spi {
 
+class ZephyrSPIDelegate;
+
 class ZephyrSPIBus : public SPIBus {
+  friend class ZephyrSPIDelegate;
+
  public:
   explicit ZephyrSPIBus(const device *dev) : dev_(dev) {}
 
@@ -18,11 +22,15 @@ class ZephyrSPIBus : public SPIBus {
 
  protected:
   const device *dev_;
+  // Delegate whose mode and frequency the driver last applied
+  const ZephyrSPIDelegate *active_{nullptr};
 };
 
 class ZephyrSPIDelegate : public SPIDelegate {
  public:
-  ZephyrSPIDelegate(const device *dev, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin);
+  ZephyrSPIDelegate(ZephyrSPIBus *bus, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin);
+
+  void begin_transaction() override;
 
   uint8_t transfer(uint8_t data) override;
   void transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) override;
@@ -34,7 +42,7 @@ class ZephyrSPIDelegate : public SPIDelegate {
   /// One spi_transceive; rx (if given) is zeroed when the transfer fails
   void transceive_(const uint8_t *tx, uint8_t *rx, size_t length);
 
-  const device *dev_;
+  ZephyrSPIBus *bus_;
   // CS is driven by ESPHome via SPIDelegate::cs_pin_; cfg_.cs stays unset so
   // the Zephyr driver never touches a devicetree cs-gpios pin itself.
   spi_config cfg_{};

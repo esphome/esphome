@@ -108,14 +108,10 @@ def _frequency_validator(value: Any) -> float:
     if value < 1000:
         raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
     if platform == PLATFORM_NRF52:
-        # The SPIM driver runs at the highest step not above the request
-        actual = max(
-            (rate for rate in PLATFORM_NRF52_SPI_RATES if rate <= value),
-            default=PLATFORM_NRF52_SPI_RATES[0],
-        )
-    else:
-        divisor = round(frequency / value)
-        actual = frequency / divisor
+        # The step check needs the device's bus, which is only known in final validation
+        return value
+    divisor = round(frequency / value)
+    actual = frequency / divisor
     error = abs(actual - value) / value
     if error > MAX_DATA_RATE_ERROR:
         raise cv.Invalid(
@@ -489,6 +485,7 @@ def _add_nrf52_spi2_overlay(spi: ConfigType) -> None:
                 pinctrl-0 = <&spi2_default>;
                 pinctrl-1 = <&spi2_sleep>;
                 pinctrl-names = "default", "sleep";
+                overrun-character = <0>;
             }};
         """
     )
@@ -616,20 +613,45 @@ def _walk_config(value: Any, path: tuple[Any, ...] = ()):
             yield from _walk_config(child, (*path, index))
 
 
+def _validate_nrf52_hw_data_rate(value: float) -> None:
+    lowest = PLATFORM_NRF52_SPI_RATES[0]
+    if value < lowest:
+        raise cv.Invalid(
+            f"The configured SPI data rate ({_render_hz(value)}) is below {_render_hz(lowest)}, "
+            "the lowest rate of the nRF52 hardware SPI interface"
+        )
+    # The SPIM driver runs at the highest step not above the request
+    actual = max(rate for rate in PLATFORM_NRF52_SPI_RATES if rate <= value)
+    if abs(actual - value) / value > MAX_DATA_RATE_ERROR:
+        raise cv.Invalid(
+            f"The configured SPI data rate ({_render_hz(value)}) is not available for this chip - closest is {_render_hz(actual)}"
+        )
+
+
 def _final_validate(config: Any) -> Any:
     buses = config if isinstance(config, list) else [config]
     software_bus_ids = {
         bus[CONF_ID] for bus in buses if CONF_INTERFACE_INDEX not in bus
     }
-    if not software_bus_ids:
+    nrf52_hw_bus_ids = (
+        {bus[CONF_ID] for bus in buses if CONF_INTERFACE_INDEX in bus}
+        if get_target_platform() == PLATFORM_NRF52
+        else set()
+    )
+    if not software_bus_ids and not nrf52_hw_bus_ids:
         return config
     for candidate, path in _walk_config(fv.full_config.get()):
-        if (
-            candidate.get(CONF_PSRAM_DMA)
-            and candidate.get(CONF_SPI_ID) in software_bus_ids
-        ):
+        if (spi_id := candidate.get(CONF_SPI_ID)) is None:
+            continue
+        if candidate.get(CONF_PSRAM_DMA) and spi_id in software_bus_ids:
             with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path, CONF_PSRAM_DMA]):
                 raise cv.Invalid("psram_dma requires a hardware SPI interface")
+        if (
+            spi_id in nrf52_hw_bus_ids
+            and (data_rate := candidate.get(CONF_DATA_RATE)) is not None
+        ):
+            with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path, CONF_DATA_RATE]):
+                _validate_nrf52_hw_data_rate(data_rate)
     return config
 
 

@@ -28,14 +28,28 @@ static spi_operation_t build_operation(SPIBitOrder bit_order, SPIMode mode) {
 // and a null rx buffer already skips the receive DMA
 SPIDelegate *ZephyrSPIBus::get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
                                         bool release_device, bool write_only) {
-  return new ZephyrSPIDelegate(this->dev_, data_rate, bit_order, mode, cs_pin);  // NOLINT
+  return new ZephyrSPIDelegate(this, data_rate, bit_order, mode, cs_pin);  // NOLINT
 }
 
-ZephyrSPIDelegate::ZephyrSPIDelegate(const device *dev, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode,
+ZephyrSPIDelegate::ZephyrSPIDelegate(ZephyrSPIBus *bus, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode,
                                      GPIOPin *cs_pin)
-    : SPIDelegate(data_rate, bit_order, mode, cs_pin), dev_(dev) {
+    : SPIDelegate(data_rate, bit_order, mode, cs_pin), bus_(bus) {
   this->cfg_.frequency = data_rate;
   this->cfg_.operation = build_operation(bit_order, mode);
+}
+
+// The driver applies cfg_ (and the SCK idle level for CPOL) at the start of each transfer, so switch
+// it over with an empty transfer before CS goes low; otherwise SCK changes level while CS is active.
+void ZephyrSPIDelegate::begin_transaction() {
+  if (this->bus_->active_ != this) {
+    const int err = spi_transceive(this->bus_->dev_, &this->cfg_, nullptr, nullptr);
+    if (err == 0) {
+      this->bus_->active_ = this;
+    } else {
+      ESP_LOGE(TAG, "spi_transceive failed: %d", err);
+    }
+  }
+  SPIDelegate::begin_transaction();
 }
 
 // Buffers EasyDMA cannot reach (flash tables, for one) are copied by the nrfx SPIM driver itself,
@@ -47,8 +61,8 @@ void ZephyrSPIDelegate::transceive_(const uint8_t *tx, uint8_t *rx, size_t lengt
   const spi_buf rx_buf{rx, length};
   const spi_buf_set tx_set{&tx_buf, 1};
   const spi_buf_set rx_set{&rx_buf, 1};
-  const int err =
-      spi_transceive(this->dev_, &this->cfg_, tx != nullptr ? &tx_set : nullptr, rx != nullptr ? &rx_set : nullptr);
+  const int err = spi_transceive(this->bus_->dev_, &this->cfg_, tx != nullptr ? &tx_set : nullptr,
+                                 rx != nullptr ? &rx_set : nullptr);
   if (err != 0) {
     ESP_LOGE(TAG, "spi_transceive failed: %d", err);
     if (rx != nullptr)
