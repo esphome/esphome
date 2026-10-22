@@ -242,8 +242,12 @@ void TopTronic::link_inputs_() {
     for (const auto &i : d.second->get_inputs()) {
       auto *input_base = i.second;
       auto *sensor_base = this->get_sensor_(this->get_device_id(), input_base->get_id());
-      if (sensor_base == nullptr)
+      if (sensor_base == nullptr) {
+        // A write-only input (for example a select with no readback) is valid, so this
+        // stays at debug level rather than warning on every boot.
+        ESP_LOGD(TAG, "Input 0x%08X has no matching read entity — state sync skipped", (unsigned) input_base->get_id());
         continue;
+      }
       if (sensor_base->type() == SENSOR) {
 #if defined(USE_SENSOR) && defined(USE_NUMBER)
         auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
