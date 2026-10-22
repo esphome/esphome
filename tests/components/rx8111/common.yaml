@@ -14,13 +14,13 @@ esphome:
           day: 15
       - rx8111.schedule_alarm_in:
           id: rtc
-          minutes: 2
+          duration: 2min
       - rx8111.set_alarm:
           id: rtc
           minute: !lambda return uint16_t{15};
       - rx8111.schedule_alarm_in:
           id: rtc
-          seconds: !lambda return uint32_t{60};
+          duration: !lambda return uint32_t{60};
       - rx8111.clear_alarm_flag: rtc
       - rx8111.clear_timer_flag: rtc
       - rx8111.stop_timer: rtc

@@ -1,10 +1,14 @@
 #include "rx8111.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::rx8111 {
 
 ESPHOME_LOG_TAG(TAG, "rx8111");
+
+// Indexed by the TSEL value stored in timer_clock_
+PROGMEM_STRING_TABLE(TimerClockNames, "4096 Hz", "64 Hz", "1 Hz", "1/60 Hz");
 
 static constexpr uint8_t RX8111_REG_SEC = 0x10;
 static constexpr uint8_t RX8111_REG_MIN_ALARM = 0x17;
@@ -159,7 +163,8 @@ void RX8111Component::dump_config() {
                 "  Wake-up timer: %s",
                 ONOFF(this->alarm_enabled_), ONOFF(this->timer_enabled_));
   if (this->timer_enabled_) {
-    ESP_LOGCONFIG(TAG, "    Count: %" PRIu32 ", clock: %u", this->timer_count_, this->timer_clock_);
+    ESP_LOGCONFIG(TAG, "    Count: %" PRIu32 ", clock: %s", this->timer_count_,
+                  LOG_STR_ARG(TimerClockNames::get_log_str(this->timer_clock_, TimerClockNames::LAST_INDEX)));
   }
   RealTimeClock::dump_config();
 }
@@ -341,9 +346,9 @@ bool RX8111Component::unset_alarm() {
   }
   this->alarm_armed_ = false;
   // Minute, hour and day alarm registers are contiguous
-  static constexpr uint8_t DISABLED[3] = {RX8111_ALARM_DISABLED, RX8111_ALARM_DISABLED, RX8111_ALARM_DISABLED};
+  static constexpr uint8_t DISABLED_FIELDS[3] = {RX8111_ALARM_DISABLED, RX8111_ALARM_DISABLED, RX8111_ALARM_DISABLED};
   if (!this->write_byte(RX8111_REG_SEC_ALARM, RX8111_ALARM_DISABLED) ||
-      !this->write_bytes(RX8111_REG_MIN_ALARM, DISABLED, sizeof(DISABLED))) {
+      !this->write_bytes(RX8111_REG_MIN_ALARM, DISABLED_FIELDS, sizeof(DISABLED_FIELDS))) {
     this->set_warning_(WARN_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }

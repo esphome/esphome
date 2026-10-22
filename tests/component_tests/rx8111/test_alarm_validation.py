@@ -3,26 +3,23 @@
 import pytest
 
 from esphome.components.rx8111.time import (
+    _ALARM_DURATION,
     ALARM_FIELD_UNSET,
     CONF_ALARM_DAY,
     CONF_ALARM_ENABLED,
     CONF_ALARM_WEEKDAY,
     CONF_DAY,
-    CONF_DAYS,
     CONF_ON_ALARM,
     CONF_ON_TIMER,
     CONF_SECOND,
-    CONF_SECONDS,
     CONF_TIMER_COUNT,
     CONF_TIMER_ENABLED,
     CONF_WEEKDAY,
     _validate_alarm_config,
-    _validate_alarm_duration,
     _validate_alarm_options,
     _validate_set_alarm,
 )
 import esphome.config_validation as cv
-from esphome.core import Lambda
 
 
 @pytest.mark.parametrize(
@@ -45,15 +42,14 @@ def test_fixed_alarm_rejects_day_and_weekday() -> None:
         _validate_alarm_options({CONF_ALARM_DAY: 1, CONF_ALARM_WEEKDAY: 2})
 
 
-@pytest.mark.parametrize("duration", [0, 28 * 86400, 29 * 86400])
-def test_relative_alarm_rejects_out_of_range_duration(duration: int) -> None:
+@pytest.mark.parametrize("duration", ["0s", "28d", "29d"])
+def test_relative_alarm_rejects_out_of_range_duration(duration: str) -> None:
     with pytest.raises(cv.Invalid):
-        _validate_alarm_duration({CONF_SECONDS: duration})
+        _ALARM_DURATION(duration)
 
 
-def test_relative_alarm_combines_units() -> None:
-    config = _validate_alarm_duration({CONF_DAYS: 1, CONF_SECONDS: 60})
-    assert config[CONF_SECONDS] == 86460
+def test_relative_alarm_accepts_mixed_units() -> None:
+    assert _ALARM_DURATION({"days": 1, "minutes": 1}).total_seconds == 86460
 
 
 @pytest.mark.parametrize(
@@ -78,10 +74,3 @@ def test_on_alarm_requires_enabled_alarm() -> None:
     with pytest.raises(cv.Invalid, match="on_alarm"):
         _validate_alarm_config({CONF_ON_ALARM: [{}]})
     assert _validate_alarm_config({CONF_ON_ALARM: [{}], CONF_ALARM_ENABLED: True})
-
-
-def test_templated_relative_seconds_require_no_other_units() -> None:
-    duration = Lambda("return 30;")
-    assert _validate_alarm_duration({CONF_SECONDS: duration})[CONF_SECONDS] is duration
-    with pytest.raises(cv.Invalid, match="templated seconds"):
-        _validate_alarm_duration({CONF_SECONDS: duration, CONF_DAYS: 1})

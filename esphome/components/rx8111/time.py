@@ -6,15 +6,12 @@ from esphome.components import i2c, time
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DAY,
+    CONF_DURATION,
     CONF_HOUR,
-    CONF_HOURS,
     CONF_ID,
     CONF_MINUTE,
-    CONF_MINUTES,
     CONF_SECOND,
-    CONF_SECONDS,
 )
-from esphome.core import Lambda
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@techdregs"]
@@ -38,7 +35,6 @@ CONF_TIMER_CLOCK = "timer_clock"
 CONF_TIMER_ENABLED = "timer_enabled"
 CONF_ON_TIMER = "on_timer"
 CONF_WEEKDAY = "weekday"
-CONF_DAYS = "days"
 CONF_EVENT_POLL_INTERVAL = "event_poll_interval"
 
 _ALARM_FIELDS = (
@@ -164,42 +160,23 @@ automation.register_apply_action(
 )
 
 
-def _validate_alarm_duration(config: ConfigType) -> ConfigType:
-    if isinstance(config.get(CONF_SECONDS), Lambda):
-        if any(field in config for field in (CONF_MINUTES, CONF_HOURS, CONF_DAYS)):
-            raise cv.Invalid(
-                "templated seconds cannot be combined with other duration fields"
-            )
-        return config
-    duration = (
-        config.get(CONF_SECONDS, 0)
-        + 60 * config.get(CONF_MINUTES, 0)
-        + 3600 * config.get(CONF_HOURS, 0)
-        + 86400 * config.get(CONF_DAYS, 0)
-    )
-    if not 1 <= duration < 28 * 86400:
-        raise cv.Invalid("schedule_alarm_in requires 1 second to less than 28 days")
-    config[CONF_SECONDS] = duration
-    return config
-
+# The alarm registers hold a day of month, so the target must stay inside the current month cycle
+_ALARM_DURATION = cv.All(
+    cv.positive_time_period_seconds,
+    cv.Range(
+        min=cv.TimePeriod(seconds=1), max=cv.TimePeriod(days=28), max_included=False
+    ),
+)
 
 automation.register_apply_action(
     "rx8111.schedule_alarm_in",
-    cv.All(
-        cv.Schema(
-            {
-                cv.Required(CONF_ID): cv.use_id(RX8111Component),
-                cv.Optional(CONF_SECONDS): cv.templatable(
-                    cv.int_range(min=0, max=2419200)
-                ),
-                cv.Optional(CONF_MINUTES): cv.int_range(min=0, max=40320),
-                cv.Optional(CONF_HOURS): cv.int_range(min=0, max=672),
-                cv.Optional(CONF_DAYS): cv.int_range(min=0, max=28),
-            }
-        ),
-        _validate_alarm_duration,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(RX8111Component),
+            cv.Required(CONF_DURATION): cv.templatable(_ALARM_DURATION),
+        }
     ),
-    automation.ApplyCall("schedule_alarm_in({})", ((CONF_SECONDS, cg.uint32),)),
+    automation.ApplyField(CONF_DURATION, "schedule_alarm_in", cg.uint32),
 )
 
 
