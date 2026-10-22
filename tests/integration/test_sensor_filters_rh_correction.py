@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
-
-from aioesphomeapi import ButtonInfo, EntityState, SensorState
+from aioesphomeapi import ButtonInfo
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping
+from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 # 40 % at 25 °C, measured 7.3 °C warmer, in single precision Magnus arithmetic
 CORRECTED = pytest.approx(61.13, abs=0.05)
@@ -22,41 +21,35 @@ async def test_sensor_filters_rh_correction(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    loop = asyncio.get_running_loop()
-    values: dict[str, list[float]] = {"rh_celsius": [], "rh_fahrenheit": []}
-    done = loop.create_future()
-
-    def on_state(state: EntityState) -> None:
-        if not isinstance(state, SensorState) or state.missing_state:
-            return
-        name = key_to_sensor.get(state.key)
-        if name not in values:
-            return
-        values[name].append(state.state)
-        if all(len(v) == len(EXPECTED) for v in values.values()) and not done.done():
-            done.set_result(True)
+    collector = SensorStateCollector(sensor_names=["rh_celsius", "rh_fahrenheit"])
 
     async with (
         run_compiled(yaml_config),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        key_to_sensor = build_key_to_entity_mapping(entities, list(values))
+        collector.build_key_mapping(entities)
         initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        client.subscribe_states(
+            initial_state_helper.on_state_wrapper(collector.on_state)
+        )
         await initial_state_helper.wait_for_initial_states()
 
-        button = next(
-            e.key
-            for e in entities
-            if isinstance(e, ButtonInfo) and e.name == "Test RH Correction"
+        done = collector.add_waiter(
+            lambda: all(
+                len(values) == len(EXPECTED)
+                for values in collector.sensor_states.values()
+            )
         )
-        client.button_command(button)
-        try:
-            await asyncio.wait_for(done, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Timed out. Values: {values}")
+        button = require_entity(entities, "test_rh_correction", ButtonInfo, exact=True)
+        client.button_command(button.key)
+        await wait_or_fail(
+            done,
+            2.0,
+            "Timed out waiting for the corrected humidity values",
+            values=collector.sensor_states,
+        )
 
-        assert values["rh_celsius"] == EXPECTED
+        assert collector.sensor_states["rh_celsius"] == EXPECTED
         # The same readings in °F give the same corrected humidity
-        assert values["rh_fahrenheit"] == EXPECTED
+        assert collector.sensor_states["rh_fahrenheit"] == EXPECTED
