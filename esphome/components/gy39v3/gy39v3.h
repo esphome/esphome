@@ -7,7 +7,7 @@
 
 namespace esphome::gy39v3 {
 
-class GY39v3 final : public i2c::I2CDevice, public sensor::Sensor, public PollingComponent {
+class GY39v3 final : public i2c::I2CDevice, public PollingComponent {
  public:
   static const char TAG[];
   SUB_SENSOR(illuminance)
