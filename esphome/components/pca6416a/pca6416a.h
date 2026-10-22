@@ -27,7 +27,7 @@ class PCA6416AComponent final : public Component,
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(PCA6416AComponent *arg);
+  static void gpio_intr(PCA6416AComponent *arg);
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;

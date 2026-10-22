@@ -25,7 +25,7 @@ class PI4IOE5V6408Component final : public Component,
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(PI4IOE5V6408Component *arg);
+  static void gpio_intr(PI4IOE5V6408Component *arg);
 
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;

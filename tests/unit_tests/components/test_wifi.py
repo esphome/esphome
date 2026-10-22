@@ -327,10 +327,14 @@ def test_wisp_requires_idf_5_1(wisp_core: None) -> None:
 
 
 @pytest.mark.usefixtures("wisp_core")
-def test_wisp_requires_sta_network() -> None:
-    """WISP has nothing to share without an upstream network."""
-    with pytest.raises(cv.Invalid, match="at least one STA network"):
-        _final_validate({CONF_NETWORKS: [], CONF_AP: _wisp_ap()})
+def test_wisp_requires_sta_network_or_ethernet() -> None:
+    """WISP has nothing to share without an upstream network; ethernet is one too."""
+    ap_only = {CONF_NETWORKS: [], CONF_AP: _wisp_ap()}
+    with pytest.raises(cv.Invalid, match="ethernet as the upstream"):
+        _final_validate(ap_only)
+    _final_validate(ap_only, {"ethernet": {}})
+    with pytest.raises(cv.Invalid, match="ethernet manual_ip needs dns1"):
+        _final_validate(ap_only, {"ethernet": {CONF_MANUAL_IP: _manual_ip("0.0.0.0")}})
 
 
 @pytest.mark.usefixtures("wisp_core")
