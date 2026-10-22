@@ -254,6 +254,20 @@ target_link_libraries(${COMPONENT_LIB} INTERFACE
     )
 
 
+def test_generate_cmakelists_txt_optimisation_flags_are_private(
+    tmp_component: IDFComponent,
+) -> None:
+    # A library built with -O2 must not change how the components that use it are compiled
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {"build": {"flags": ["-O2", "-DTEST"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert 'target_compile_options(${COMPONENT_LIB} PUBLIC\n  "-DTEST"\n)' in content
+    assert 'target_compile_options(${COMPONENT_LIB} PRIVATE\n  "-O2"\n)' in content
+
+
 def test_generate_cmakelists_txt_uses_forward_slashes_on_windows(
     tmp_component, monkeypatch: pytest.MonkeyPatch
 ) -> None:

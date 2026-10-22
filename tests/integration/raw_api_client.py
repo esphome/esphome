@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 import socket
+import struct
 from typing import Self
 
 from aioesphomeapi import api_pb2
@@ -47,6 +48,36 @@ def decode_varint(buf: bytearray, pos: int) -> tuple[int, int] | None:
             return value, pos
         shift += 7
     return None
+
+
+WIRE_VARINT, WIRE_LENGTH, WIRE_FIXED32 = 0, 2, 5
+
+
+def tag(field: int, wire_type: int) -> bytes:
+    return encode_varint((field << 3) | wire_type)
+
+
+def decode_fields(payload: bytes) -> dict[int, list[int | bytes]]:
+    """Split a protobuf payload into field number -> raw values; a test reads fields the client lacks."""
+    fields: dict[int, list[int | bytes]] = {}
+    buf = bytearray(payload)
+    pos = 0
+    while pos < len(buf):
+        key, pos = decode_varint(buf, pos)
+        field, wire_type = key >> 3, key & 0x07
+        if wire_type == WIRE_VARINT:
+            value, pos = decode_varint(buf, pos)
+        elif wire_type == WIRE_LENGTH:
+            length, pos = decode_varint(buf, pos)
+            value = bytes(buf[pos : pos + length])
+            pos += length
+        elif wire_type == WIRE_FIXED32:
+            value = struct.unpack_from("<I", buf, pos)[0]
+            pos += 4
+        else:
+            raise AssertionError(f"unexpected wire type {wire_type} for field {field}")
+        fields.setdefault(field, []).append(value)
+    return fields
 
 
 def encode_frame(msg_type: int, payload: bytes) -> bytes:

@@ -222,10 +222,13 @@ void ESPHomeOTAComponent::udp_open_(UdpLink &link) {
   if (!random_bytes(token, sizeof(token)))
     return;
 #ifdef ESPHOME_OTA_UDP_LWIP
+#if USE_NETWORK_IPV4
   uint32_t ipv4;
   if (socket::sockaddr_to_ipv4(reinterpret_cast<const struct sockaddr *>(&peer), &ipv4)) {
     ip_addr_set_ip4_u32(&link.peer_ip, ipv4);
-  } else {
+  } else
+#endif
+  {
 #if USE_NETWORK_IPV6 && LWIP_IPV6
     inet6_addr_to_ip6addr(ip_2_ip6(&link.peer_ip), &reinterpret_cast<const sockaddr_in6 *>(&peer)->sin6_addr);
     IP_SET_TYPE_VAL(link.peer_ip, IPADDR_TYPE_V6);
