@@ -31,8 +31,8 @@ bool JpegDecoder::prepare_rgb565_scaling_(int width, int height) {
   const uint32_t target_width = this->image_->get_buffer_width();
   const uint32_t target_height = this->image_->get_buffer_height();
   // Boundary n is the first target pixel source pixel n covers, rounded up. When shrinking, the source
-  // pixel whose span lands on a target pixel paints it, so an 8 to 4 scale keeps columns 0, 2, 4 and 6;
-  // the generic draw() path rounds down and keeps the odd ones instead
+  // pixel whose span lands on a target pixel paints it, so an 8 to 4 scale keeps columns 0, 2, 4 and 6,
+  // as the generic draw() path does
   for (uint32_t x = 0; x <= static_cast<uint32_t>(width); x++) {
     this->x_boundaries_.push_back(static_cast<uint16_t>((x * target_width + width - 1) / width));
   }
