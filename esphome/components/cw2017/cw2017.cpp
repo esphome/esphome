@@ -1,5 +1,7 @@
 #include "cw2017.h"
 
+#include <cstring>
+
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -54,24 +56,20 @@ static bool woke_from_deep_sleep() {
 }
 
 bool CW2017::read_profile_matches_(bool &matches) {
-  matches = false;
-  for (uint8_t i = 0; i != PROFILE_SIZE; i++) {
-    uint8_t stored = 0;
-    if (!this->read_byte(REG_BATINFO + i, &stored))
-      return false;
-    if (stored != progmem_read_byte(this->profile_ + i))
-      return true;
-  }
-  matches = true;
+  uint8_t stored[PROFILE_SIZE];
+  uint8_t expected[PROFILE_SIZE];
+  if (!this->read_bytes(REG_BATINFO, stored, PROFILE_SIZE))
+    return false;
+  progmem_memcpy(expected, this->profile_, PROFILE_SIZE);
+  matches = std::memcmp(stored, expected, PROFILE_SIZE) == 0;
   return true;
 }
 
 bool CW2017::upload_profile_() {
-  for (uint8_t i = 0; i != PROFILE_SIZE; i++) {
-    if (!this->write_byte(REG_BATINFO + i, progmem_read_byte(this->profile_ + i)))
-      return false;
-  }
-  return this->write_byte(REG_SOC_ALERT, UPDATE_FLAG);
+  // Built here with the register first, so the bus layer does not heap-allocate a buffer this size.
+  uint8_t buffer[1 + PROFILE_SIZE] = {REG_BATINFO};
+  progmem_memcpy(buffer + 1, this->profile_, PROFILE_SIZE);
+  return this->write(buffer, sizeof(buffer)) == i2c::ERROR_OK && this->write_byte(REG_SOC_ALERT, UPDATE_FLAG);
 }
 
 void CW2017::setup() { this->init_(); }
