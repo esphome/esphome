@@ -15,7 +15,7 @@ from aioesphomeapi import (
 )
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_entity, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -79,23 +79,13 @@ async def test_alarm_control_panel_state_transitions(
     ):
         entities, _ = await client.list_entities_services()
 
-        # Find entities
-        alarm_info: AlarmControlPanelInfo | None = None
-        door_switch_info: SwitchInfo | None = None
-        chime_switch_info: SwitchInfo | None = None
-
-        for entity in entities:
-            if isinstance(entity, AlarmControlPanelInfo):
-                alarm_info = entity
-            elif isinstance(entity, SwitchInfo):
-                if entity.name == "Door Sensor Switch":
-                    door_switch_info = entity
-                elif entity.name == "Chime Sensor Switch":
-                    chime_switch_info = entity
-
-        assert alarm_info is not None, "Alarm control panel not found"
-        assert door_switch_info is not None, "Door sensor switch not found"
-        assert chime_switch_info is not None, "Chime sensor switch not found"
+        alarm_info = require_only_entity(entities, AlarmControlPanelInfo)
+        door_switch_info = require_entity(
+            entities, "door_sensor_switch", SwitchInfo, exact=True
+        )
+        chime_switch_info = require_entity(
+            entities, "chime_sensor_switch", SwitchInfo, exact=True
+        )
 
         # Track state changes
         states_received: list[AlarmControlPanelState] = []
