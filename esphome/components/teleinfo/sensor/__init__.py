@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -9,6 +11,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_REACTIVE_ENERGY,
@@ -17,12 +20,15 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
+    UNIT_HOUR,
     UNIT_KILOVOLT_AMPS,
     UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
     UNIT_KILOWATT,
     UNIT_KILOWATT_HOURS,
     UNIT_MILLIAMP,
     UNIT_MILLIVOLT,
+    UNIT_MINUTE,
+    UNIT_SECOND,
     UNIT_VOLT,
     UNIT_VOLT_AMPS,
     UNIT_VOLT_AMPS_REACTIVE_HOURS,
@@ -32,6 +38,8 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from .. import CONF_TAG_NAME, CONF_TELEINFO_ID, TELEINFO_LISTENER_SCHEMA, teleinfo_ns
+
+_LOGGER = logging.getLogger(__name__)
 
 TeleInfoSensor = teleinfo_ns.class_("TeleInfoSensor", sensor.Sensor, cg.Component)
 
@@ -59,6 +67,11 @@ _APPARENT_POWER_KVA = _preset(
     UNIT_KILOVOLT_AMPS, DEVICE_CLASS_APPARENT_POWER, STATE_CLASS_MEASUREMENT
 )
 _POWER = _preset(UNIT_WATT, DEVICE_CLASS_POWER, STATE_CLASS_MEASUREMENT)
+_DURATION_MIN = _preset(UNIT_MINUTE, DEVICE_CLASS_DURATION, STATE_CLASS_MEASUREMENT)
+# Numeric values without a physical unit (indexes, bit fields, versions)
+_NO_UNIT: dict[str, str] = {}
+# Text values, which a sensor cannot publish; a text_sensor should be used instead
+_TEXT: dict[str, str] = {}
 
 # Legacy defaults, kept for tags without a known preset
 _LEGACY_DEFAULT = {**_ENERGY, CONF_ICON: ICON_FLASH}
@@ -75,6 +88,7 @@ _COMPATIBLE_UNITS = {
     DEVICE_CLASS_VOLTAGE: {UNIT_VOLT, UNIT_MILLIVOLT},
     DEVICE_CLASS_APPARENT_POWER: {UNIT_VOLT_AMPS, UNIT_KILOVOLT_AMPS},
     DEVICE_CLASS_POWER: {UNIT_WATT, UNIT_KILOWATT},
+    DEVICE_CLASS_DURATION: {UNIT_SECOND, UNIT_MINUTE, UNIT_HOUR},
 }
 
 # Presets by tag prefix. No prefix is a prefix of another, so order is irrelevant.
@@ -90,6 +104,21 @@ TIC_TAG_CONFIGS = {
     "CC": _POWER,
     "PREF": _APPARENT_POWER_KVA,
     "PCOUP": _APPARENT_POWER_KVA,
+    "VTIC": _NO_UNIT,
+    "NTARF": _NO_UNIT,
+    "NJOURF": _NO_UNIT,
+    "RELAIS": _NO_UNIT,
+    "ADSC": _TEXT,
+    "DATE": _TEXT,
+    "NGTF": _TEXT,
+    "LTARF": _TEXT,
+    "STGE": _TEXT,
+    "DPM": _TEXT,
+    "FPM": _TEXT,
+    "MSG": _TEXT,
+    "PRM": _TEXT,
+    "PJOURF": _TEXT,
+    "PPOINTE": _TEXT,
     # Historical mode
     "BASE": _ENERGY,
     "HCH": _ENERGY,
@@ -101,7 +130,15 @@ TIC_TAG_CONFIGS = {
     "ADPS": _CURRENT,
     "ADIR": _CURRENT,
     "PAPP": _APPARENT_POWER_VA,
-    "PMAX": _POWER,
+    "PMAX": _APPARENT_POWER_VA,
+    "PEJP": _DURATION_MIN,
+    "PPOT": _NO_UNIT,
+    "ADCO": _TEXT,
+    "OPTARIF": _TEXT,
+    "PTEC": _TEXT,
+    "DEMAIN": _TEXT,
+    "HHPHC": _TEXT,
+    "MOTDETAT": _TEXT,
 }
 
 
@@ -110,6 +147,7 @@ def apply_tag_config(config: ConfigType) -> ConfigType:
 
     Only keys not set by the user are filled in. For known tags, a preset unit or
     device class is dropped if it is incompatible with the one set by the user.
+    Known text tags get no preset and log a warning, as a sensor cannot publish them.
     Unknown tags get the legacy defaults, merged key by key as before.
     """
     if CONF_TAG_NAME not in config:
@@ -122,14 +160,19 @@ def apply_tag_config(config: ConfigType) -> ConfigType:
         None,
     )
 
+    if preset is _TEXT:
+        _LOGGER.warning(
+            "TeleInfo tag '%s' holds a text value, use a text_sensor instead", tag_name
+        )
+
     config = dict(config)
     if preset is None:
         for key, value in _LEGACY_DEFAULT.items():
             config.setdefault(key, value)
         return config
 
-    unit = config.get(CONF_UNIT_OF_MEASUREMENT, preset[CONF_UNIT_OF_MEASUREMENT])
-    device_class = config.get(CONF_DEVICE_CLASS, preset[CONF_DEVICE_CLASS])
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT, preset.get(CONF_UNIT_OF_MEASUREMENT))
+    device_class = config.get(CONF_DEVICE_CLASS, preset.get(CONF_DEVICE_CLASS))
     compatible = unit in _COMPATIBLE_UNITS.get(device_class, ())
 
     for key, value in preset.items():
