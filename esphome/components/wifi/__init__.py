@@ -224,10 +224,8 @@ WIFI_AP_MODE_WISP = "WISP"
 def _validate_ap_mode(value: str) -> str:
     value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
     if value == WIFI_AP_MODE_WISP:
-        # esp_netif_napt_enable() exists from ESP-IDF 5.1
-        cv.require_framework_version(
-            esp_idf=cv.Version(5, 1, 0), extra_message="WISP mode routes through NAT"
-        )(value)
+        # WISP mode routes through NAT, which only ESP-IDF provides
+        cv.only_with_framework(Framework.ESP_IDF)(value)
     return value
 
 
@@ -874,7 +872,7 @@ async def to_code(config):
 
     if (dpp := config.get(CONF_DPP)) is not None:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_DPP", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_DPP", True)
         if (key := dpp.get(CONF_PRIVATE_KEY)) is not None:
             cg.add(var.set_dpp_key(key))
         if (info := dpp.get(CONF_DEVICE_INFO)) is not None:
