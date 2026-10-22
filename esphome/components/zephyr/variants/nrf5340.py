@@ -35,31 +35,18 @@ _LOGGER = logging.getLogger(__name__)
 
 _DEFAULT_BOARD = "nrf7002dk/nrf5340/cpuapp"
 
-# nRF5340 is dual-core (Cortex-M33 application core + a separate Cortex-M33 network
-# core for BLE/802.15.4, connected over IPC). Only the application core is built and
-# flashed here -- the network core image (and anything that needs it: BLE, 802.15.4,
-# OpenThread, Zigbee) is not wired up yet, so those transports are deliberately absent
-# below. Wi-Fi (via the onboard nRF7002, QSPI-attached) runs entirely on the
-# application core and needs no network-core image.
+# Only the application core is built. BLE, 802.15.4, OpenThread and Zigbee need the
+# network core image, which isn't built yet; Wi-Fi (nRF7002 over QSPI) doesn't.
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
     {
-        # The board's own devicetree partition map (nrf5340_cpuapp_partition.dtsi)
-        # unconditionally links the app against slot0_partition at 0x10000, with
-        # MCUboot occupying 0x0-0x10000 -- there's no "no bootloader" layout to fall
-        # back to, unlike rp2040/rp2350/nrf54l15. So, unlike those variants, only
-        # BOOTLOADER_MCUBOOT is offered here.
+        # The board DTS always links the app into slot0, so only MCUboot is offered.
         cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_MCUBOOT): cv.one_of(
             BOOTLOADER_MCUBOOT, lower=True
         ),
     }
 )
 
-# GPIO -> nRF5340 SAADC analog-input name (fixed silicon fact, nRF5340 Product
-# Specification). AIN0-AIN5 confirmed directly against this board's own arduino_adc
-# node comments (nrf5340_cpuapp_common.dtsi: "A0 = P0.4 = AIN0" ... "A5 = P0.26 =
-# AIN5"); AIN6/AIN7 follow the same contiguous P0.27/P0.28 block per the official
-# pin-assignment table (P0.04..P0.07 = AIN0..AIN3, P0.25..P0.28 = AIN4..AIN7) -- a
-# different GPIO layout from the nRF52840 (see variants/nrf52.py's own _ADC_AIN_MAP).
+# SAADC inputs: P0.04-P0.07 = AIN0-AIN3, P0.25-P0.28 = AIN4-AIN7 (not nRF52's layout).
 _ADC_AIN_MAP = {
     4: "AIN0",
     5: "AIN1",
@@ -71,57 +58,32 @@ _ADC_AIN_MAP = {
     28: "AIN7",
 }
 
-# nrf5340_cpuapp_peripherals.dtsi: gpio0 (32 pins, flat 0-31) + gpio1 (ngpios=<16>,
-# flat 32-47). Free-mux via NRF_PSEL, same as nRF52 -- no fixed-function subset to
-# exclude, shared by every free-mux GPIO signal (UART, SPI).
+# gpio0 (0-31) + gpio1 (32-47), any pin for any UART/SPI signal (NRF_PSEL).
 _GPIO_MATRIX_PINS = frozenset(range(48))
 
 VARIANT_NAME = ZEPHYR_VARIANT_NRF5340
 VARIANT = ZephyrVariant(
-    # MCUboot is mandatory (see _ADVANCED_SCHEMA above) and always starts at 0x0.
     boot=BootLayout(0x0),
-    # NCS (nRF Connect SDK) is the default, same reasoning as every other Nordic
-    # variant here: it's where real hardware support/testing effort for this chip
-    # concentrates. Mainline Zephyr stays available as an alternate.
     sdk=NCS,
     sdk_name="ncs",
     alt_sdks={"zephyr": MAINLINE},
     family="nordic",
     valid_toolchains=(Toolchain.SDK_ZEPHYR,),
     toolchain="arm-zephyr-eabi",
-    # Wi-Fi only -- see the dual-core note on _ADVANCED_SCHEMA above for why BLE/
-    # 802.15.4/OpenThread/Zigbee (all of which need the network-core image) aren't
-    # offered yet.
     transports=frozenset({"wifi"}),
-    # "WIFI_NRF70" is the nRF70-series Wi-Fi driver's top-level Kconfig symbol
-    # (drivers/wifi/nrf_wifi/Kconfig.nrfwifi); it already defaults to y once the
-    # board's nRF7002 QSPI devicetree node is enabled (nrf70_common.dtsi, status
-    # "okay" on this board already), so enabling it here is just explicit intent,
-    # matching every other transport_drivers entry. "wlan0" is the actual Wi-Fi
-    # network-interface child node (compatible "nordic,wlan") the chosen
-    # `zephyr,wifi` property points at -- not the nRF7002 QSPI device node itself.
+    # wlan0 is the nordic,wlan interface node, not the nRF7002 QSPI device.
     transport_drivers={"wifi": ("WIFI_NRF70", "wlan0")},
-    # The nRF70 driver needs a firmware patch blob loaded over QSPI at runtime.
-    # "nrf_wifi" is the west module (modules/lib/nrf_wifi); its module.yml lists one
-    # blob per operating mode (default/scan_only/radio_test/system_with_raw/
-    # offloaded_raw_tx) -- "default" is the one the driver's own CMakeLists.txt
-    # selects for normal STA/AP system mode (the only mode this variant uses).
+    # Firmware patch for the driver's normal (STA/AP) mode.
     transport_blobs={
         "wifi": ("nrf_wifi", ".*default/nrf70\\.bin", ".blobs_nrf_wifi_ready")
     },
     soc="nrf5340",
     qualifier="cpuapp",
-    # Under mainline Zephyr, entropy is wired to rng_hci, which needs the network core
-    # (not built here -- see the dual-core note above). NCS instead routes entropy to
-    # the CryptoCell-312, which is on the application core, so NCS doesn't need the
-    # insecure fallback this triggers (see nordic_family.py).
+    # Mainline's rng_hci needs the network core; NCS uses the CryptoCell-312.
     rng_needs_second_core=True,
-    # No "scratch": nrf5340_cpuapp_partition.dtsi defines no scratch_partition either,
-    # same as nRF52's stock layout.
+    # No scratch partition in the board's flash layout.
     swap_methods=frozenset({"move", "offset"}),
     adc_ain_map=_ADC_AIN_MAP,
-    # Dynamic discovery (see nrf52.py/siwx917.py) -- boards built on this SoC vary
-    # which UARTs they expose, so no static fallback is assumed.
     uart_node_labels={},
     pwm_node_labels=["pwm0", "pwm1", "pwm2", "pwm3"],
     uart_valid_pins={"tx": _GPIO_MATRIX_PINS, "rx": _GPIO_MATRIX_PINS},
@@ -176,28 +138,8 @@ async def to_code(config: ConfigType) -> None:
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_prj_conf("HWINFO", True)
-    # west build always runs with --sysbuild (build_zephyr.py); mcuboot is the only
-    # bootloader this variant offers (see _ADVANCED_SCHEMA above), so it's unconditional.
     zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
     zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)
-    networking_configured = CORE.config.get(CONF_WIFI) is not None
-    if zephyr_framework_type() == "ncs":
-        if networking_configured:
-            # NCS's own sysbuild layer (nrf/sysbuild/CMakeLists.txt) gates the app
-            # image's CONFIG_WIFI_NRF70 on this sysbuild-level symbol: without it,
-            # sysbuild force-sets CONFIG_WIFI_NRF70=n on the app image regardless of
-            # what wifi/__init__.py already requested via the per-image prj.conf
-            # (transport_drivers above). Mainline Zephyr has no such sysbuild gate,
-            # hence the framework-type check.
-            zephyr_add_sysbuild_conf("WIFI_NRF70", True)
-    elif networking_configured:
-        # Only relevant once networking actually links in the TCP/IP stack
-        # (sys_rand_get() is what pulls this in -- see nordic_family.py); nothing to
-        # warn about on a build with no networking configured at all.
-        _LOGGER.warning(
-            "Mainline Zephyr has no entropy source reachable from the application "
-            "core on this board -- this variant falls back to an insecure software "
-            "PRNG (CONFIG_TEST_RANDOM_GENERATOR). WPA2 key derivation and any TLS use "
-            "are not cryptographically secure. Use the NCS framework (the default) "
-            "for a real hardware RNG instead."
-        )
+    if zephyr_framework_type() == "ncs" and CORE.config.get(CONF_WIFI) is not None:
+        # NCS sysbuild forces the image's CONFIG_WIFI_NRF70 off unless this is set.
+        zephyr_add_sysbuild_conf("WIFI_NRF70", True)

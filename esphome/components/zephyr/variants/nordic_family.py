@@ -2,10 +2,13 @@
 pinctrl overlay generation in zephyr/__init__.py."""
 
 from collections.abc import Callable
+import logging
 
 from esphome.types import ConfigType
 
 from ..const import BOOTLOADER_MCUBOOT, CONF_BOOTLOADER, SEGGER_RTT_UART
+
+_LOGGER = logging.getLogger(__name__)
 
 # Devicetree property nordic pinctrl groups pack all their signal macros into.
 PROPERTY_NAME = "psels"
@@ -20,6 +23,7 @@ def to_code(config: ConfigType) -> None:
     to MINIMAL_LIBCPP, which has no STL and breaks ESPHome's C++ headers."""
     import esphome.codegen as cg  # noqa: PLC0415
     from esphome.const import CONF_LOG_LEVEL  # noqa: PLC0415
+    from esphome.core import CORE  # noqa: PLC0415
 
     from .. import zephyr_add_prj_conf, zephyr_framework_type, zephyr_variant  # noqa: PLC0415 -- avoids circular import at module load
     from . import VARIANTS  # noqa: PLC0415
@@ -31,12 +35,15 @@ def to_code(config: ConfigType) -> None:
         VARIANTS[zephyr_variant()].rng_needs_second_core
         and zephyr_framework_type() != "ncs"
     ):
-        # No entropy driver is reachable from this core under mainline Zephyr (see
-        # ZephyrVariant.rng_needs_second_core), so ENTROPY_GENERATOR has nothing to
-        # back sys_rand_get() and the link fails. Same insecure software-PRNG fallback
-        # as rp2040/rp2350 until a second-core entropy image is wired up; not fit for
-        # WPA/TLS use. NCS isn't affected -- it has its own entropy source instead.
+        # Insecure software PRNG, as on rp2040/rp2350; ENTROPY_GENERATOR would fail to link.
         zephyr_add_prj_conf("TEST_RANDOM_GENERATOR", True)
+        if "network" in CORE.config:
+            _LOGGER.warning(
+                "Mainline Zephyr has no hardware random number source on this "
+                "board's application core, so an insecure software one is used "
+                "(CONFIG_TEST_RANDOM_GENERATOR). WPA2 and TLS keys are not secure. "
+                "Use the NCS framework (the default) for a hardware source."
+            )
     else:
         # random_bytes() uses sys_rand_get(), which requires the entropy subsystem.
         zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
