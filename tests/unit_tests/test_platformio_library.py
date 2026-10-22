@@ -1565,6 +1565,30 @@ def test_registry_miss_resolves_again_as_a_git_source(tmp_path, monkeypatch) -> 
     assert [d.name for d in emitted["C"].dependencies] == ["o/B"]
 
 
+def test_bundled_name_is_satisfied_by_a_replacement_pulled_in_later(
+    tmp_path, monkeypatch
+) -> None:
+    """A name the framework bundles is still wired to an explicit replacement
+    of the same manifest name that a later round pulls in, as it would be had
+    the replacement been listed up front."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "Ethernet"}]},
+            "esphome/X": {"name": "X", "dependencies": [{"name": "C"}]},
+            "C": {"name": "C", "dependencies": {"vendor/Ethernet": "1.0.0"}},
+            "vendor/Ethernet": {"name": "Ethernet"},
+        },
+    )
+    backend = _backend(provides=lambda name: name == "Ethernet")
+    top = convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/X", None, None)],
+        backend,
+    )
+    assert [d.name for d in top[0].dependencies] == ["vendor/Ethernet"]
+
+
 def test_missed_name_is_satisfied_by_a_library_pulled_in_later(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:

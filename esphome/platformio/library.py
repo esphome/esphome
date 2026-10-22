@@ -1270,8 +1270,8 @@ def convert_libraries(
 
     def settle_versionless() -> list[str]:
         """Fetch by name the deferred dependencies nothing in the graph or the
-        framework satisfies yet; return the new keys to walk. Entries that need
-        no wiring later are dropped."""
+        framework satisfies yet; return the new keys to walk. Only a dependency
+        on the requester itself or with a bad name needs no wiring later."""
         new_keys: list[str] = []
         for requester, dependencies in pending_versionless.items():
             kept: list[dict] = []
@@ -1283,12 +1283,9 @@ def convert_libraries(
                     _LOGGER.debug("Dependency %s of %s names itself", name, requester)
                     continue
                 # A library in the graph beats a bundled copy, as on the Arduino backend
-                if _satisfying_key(name, owner, requester, nodes, components) is None:
-                    if backend_provides(name, owner):
-                        _LOGGER.debug(
-                            "Skip backend-provided dependency %s of %s", name, requester
-                        )
-                        continue
+                if _satisfying_key(
+                    name, owner, requester, nodes, components
+                ) is None and not backend_provides(name, owner):
                     spelling = (name.lower(), (owner or "").lower())
                     if spelling not in fetched:
                         try:
@@ -1498,7 +1495,7 @@ def convert_libraries(
 
     # Every version-less request resolves to the explicit library that goes by
     # its name if the final graph has one, else to the node fetched by name for
-    # that package, else to nothing
+    # that package, else to the framework's bundled copy, else to nothing
     explicit = {k: c for k, c in components.items() if not fetched_by_name(k)}
     by_name = {k: c for k, c in components.items() if fetched_by_name(k)}
     unresolved: dict[tuple[str, str], None] = {}
@@ -1509,7 +1506,8 @@ def convert_libraries(
                 name, owner, requester, nodes, explicit
             ) or _satisfying_key(name, owner, requester, nodes, by_name)
             if found is None:
-                unresolved[(requester, name)] = None
+                if not backend_provides(name, owner):
+                    unresolved[(requester, name)] = None
                 continue
             key, by_manifest_name = found
             if by_manifest_name:
