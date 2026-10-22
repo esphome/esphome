@@ -193,7 +193,8 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
-  // Set the flow control used in UART communication.
+  // Set the line handshaking (RTS/CTS or XON/XOFF) used in UART communication. Unrelated to
+  // flow_control_pin, the RS485 driver enable; backends without handshaking ignore it.
   // @param flow_control Flow control option.
   void set_flow_control(UARTFlowControl flow_control) { this->flow_control_ = flow_control; }
 
