@@ -234,12 +234,10 @@ float MQGasSensor::compute_correction_() {
     return 1.0f;
   }
 
-  // A source that has no state yet, has failed, or holds a non-finite value cannot
-  // contribute; the last good value must not silently keep the correction alive.
-  const bool temperature_ok = this->temperature_source_->has_state() && !this->temperature_source_->is_failed() &&
-                              std::isfinite(this->temperature_source_->state);
-  const bool humidity_ok = this->humidity_source_->has_state() && !this->humidity_source_->is_failed() &&
-                           std::isfinite(this->humidity_source_->state);
+  // A source that has no state yet or holds a non-finite value cannot contribute;
+  // the last good value must not silently keep the correction alive.
+  const bool temperature_ok = this->temperature_source_->has_state() && std::isfinite(this->temperature_source_->state);
+  const bool humidity_ok = this->humidity_source_->has_state() && std::isfinite(this->humidity_source_->state);
   if (!temperature_ok || !humidity_ok) {
     this->correction_degraded_ = true;
     if (!this->warned_correction_) {
