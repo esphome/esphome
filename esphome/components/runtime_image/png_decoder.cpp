@@ -6,9 +6,15 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+
 ESPHOME_LOG_TAG(TAG, "image_decoder.png");
 
 namespace esphome::runtime_image {
+
+// Compressed bytes handed to pngle at a time, and the longest one decode() call keeps feeding it
+static constexpr size_t FEED_PIECE_SIZE = 256;
+static constexpr uint32_t FEED_TIME_LIMIT_MS = 10;
 
 /**
  * @brief Callback method that will be called by the PNGLE engine when the basic
@@ -93,16 +99,25 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
     ESP_LOGD(TAG, "Waiting for more data");
     return 0;
   }
-  auto fed = pngle_feed(this->pngle_, buffer, size);
-  if (fed < 0) {
-    ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(this->pngle_));
-    return DECODE_ERROR_INTERNAL_DECODER_ERROR;
-  } else if (!this->size_valid_) {
-    return DECODE_ERROR_OUT_OF_MEMORY;
-  } else {
+  // A few compressed bytes can hold many rows of pixels, so feed small pieces and stop once the call has run for
+  // FEED_TIME_LIMIT_MS; the caller passes the rest again later
+  const uint32_t start = millis();
+  size_t total = 0;
+  while (total < size) {
+    const size_t piece = std::min(FEED_PIECE_SIZE, size - total);
+    const int fed = pngle_feed(this->pngle_, buffer + total, piece);
+    if (fed < 0) {
+      ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(this->pngle_));
+      return DECODE_ERROR_INTERNAL_DECODER_ERROR;
+    }
+    if (!this->size_valid_)
+      return DECODE_ERROR_OUT_OF_MEMORY;
     this->decoded_bytes_ += fed;
+    total += fed;
+    if (static_cast<size_t>(fed) < piece || millis() - start >= FEED_TIME_LIMIT_MS)
+      break;
   }
-  return fed;
+  return total;
 }
 
 }  // namespace esphome::runtime_image
