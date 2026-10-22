@@ -147,7 +147,7 @@ def _validate_psram_dma(value: Any) -> bool:
     value = cv.boolean(value)
     if not value:
         return value
-    # SPI_TRANS_DMA_USE_PSRAM; the underlying ESP-IDF version counts, whichever framework builds it
+    # SPI_TRANS_DMA_USE_PSRAM
     if idf_version() < cv.Version(5, 5, 3):
         raise cv.Invalid("psram_dma requires ESP-IDF 5.5.3 or newer")
     return cv.All(
