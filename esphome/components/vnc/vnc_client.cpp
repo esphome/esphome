@@ -25,6 +25,8 @@ static constexpr uint32_t CONFIG_RETRY_MS = 300000;
 static constexpr uint32_t AUTH_AMBIGUOUS_HOLD_MS = 60000;
 static constexpr uint32_t HEARTBEAT_MS = 60000;
 static constexpr uint32_t MIN_REQUEST_SPACING_MS = 50;
+// The longest the first refresh waits for a display with a loop to park once after boot.
+static constexpr uint32_t DISPLAY_START_MS = 5000;
 static constexpr uint16_t MAX_CURSOR_SIDE = 1024;
 static constexpr uint32_t MAX_TEXT_LEN = 63;
 
@@ -71,6 +73,7 @@ static int parse_three_digits(const uint8_t *p) {
 }
 
 void VncClient::setup() {
+  this->setup_ms_ = App.get_loop_component_start_time();
   this->link_.begin(TAG);
   // Sized for the display now; a rotation changed later swaps the sides but keeps the cell count.
   const uint32_t cells = static_cast<uint32_t>((this->display_->get_width() + 15) / 16) *
@@ -157,8 +160,11 @@ void VncClient::loop() {
   }
 
   const bool blocked = this->in_update_ && this->display_busy_;
+  // A display still starting up (it8951) can go from its start-up straight into a refresh without parking.
+  const bool display_starting =
+      !this->display_parks_ && this->display_->has_overridden_loop() && now - this->setup_ms_ < DISPLAY_START_MS;
   // Wait until the screen stops changing, so an animation becomes one refresh showing where it ended.
-  if (this->refresh_pending_ && !this->in_update_ && !this->display_busy_ &&
+  if (this->refresh_pending_ && !this->in_update_ && !this->display_busy_ && !display_starting &&
       (now - this->last_change_ms_ >= this->update_delay_ms_ ||
        now - this->first_change_ms_ >= this->max_update_delay_ms_)) {
     // Synchronous displays flush inside update(), so this pass does nothing else.

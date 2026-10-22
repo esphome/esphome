@@ -4,7 +4,7 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import display, socket
+from esphome.components import display, network, socket
 from esphome.components.const import (
     BYTE_ORDER_LITTLE,
     CONF_HOST,
@@ -21,7 +21,6 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_PLATFORM,
     CONF_PORT,
-    CONF_ROTATION,
 )
 from esphome.core import ID
 import esphome.final_validate as fv
@@ -55,8 +54,6 @@ UNSUPPORTED_DISPLAYS = dict.fromkeys(
 ) | {
     "waveshare_epaper": "it draws every colour except pure black as ink; use epaper_spi"
 }
-# Their RGB565 fast path draws in panel coordinates and skips software rotation.
-UNROTATED_DISPLAYS = ("rpi_dpi_rgb", "st7701s")
 
 
 def validate_password(value: object) -> str:
@@ -114,6 +111,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     _register_writer,
     socket.consume_sockets(1, DOMAIN),
+    network.require_ipv4(DOMAIN),
 )
 
 
@@ -126,12 +124,6 @@ def _final_validate(config: ConfigType) -> None:
         raise cv.Invalid(
             f"Display '{disp_id}' uses the {platform} platform: "
             f"{UNSUPPORTED_DISPLAYS[platform]}",
-            path=[CONF_DISPLAY_ID],
-        )
-    if platform in UNROTATED_DISPLAYS and disp_conf.get(CONF_ROTATION, 0):
-        raise cv.Invalid(
-            f"Display '{disp_id}' uses the {platform} platform, which ignores rotation "
-            "for pixels drawn by vnc; remove rotation from it",
             path=[CONF_DISPLAY_ID],
         )
     if (
