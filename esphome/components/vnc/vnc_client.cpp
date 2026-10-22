@@ -420,7 +420,6 @@ VncParse VncClient::parse_() {
         this->rx_pos_ += 1;
         if (this->sec_count_ == 0) {
           // A refusal before authentication, such as a lockout caused by another client.
-          this->reason_failure_ = VncFailure::VNC_FAILURE_TRANSIENT;
           this->step_ = VncStep::VNC_STEP_REASON_LENGTH;
         } else {
           this->step_ = VncStep::VNC_STEP_SECURITY_LIST;
@@ -472,7 +471,6 @@ VncParse VncClient::parse_() {
         has_key = this->auth_key_ != nullptr;
 #endif
         if (type == 0) {
-          this->reason_failure_ = VncFailure::VNC_FAILURE_TRANSIENT;
           this->step_ = VncStep::VNC_STEP_REASON_LENGTH;
         } else if (type == SECURITY_NONE) {
           this->sec_type_ = SECURITY_NONE;
@@ -528,7 +526,7 @@ VncParse VncClient::parse_() {
         if (avail < 4) {
           return VncParse::VNC_PARSE_MORE;
         }
-        this->text_len_ = std::min(read_be32(p), MAX_TEXT_LEN);
+        this->text_len_ = static_cast<uint8_t>(std::min(read_be32(p), MAX_TEXT_LEN));
         this->rx_pos_ += 4;
         this->step_ = VncStep::VNC_STEP_REASON;
         break;
@@ -552,7 +550,7 @@ VncParse VncClient::parse_() {
         if (this->fb_w_ == 0 || this->fb_h_ == 0) {
           return this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("The server screen is empty"));
         }
-        this->text_len_ = std::min(this->skip_left_, MAX_TEXT_LEN);
+        this->text_len_ = static_cast<uint8_t>(std::min(this->skip_left_, MAX_TEXT_LEN));
         this->step_ = VncStep::VNC_STEP_SERVER_NAME;
         break;
       }
@@ -585,11 +583,7 @@ VncParse VncClient::parse_() {
             this->update_start_ms_ = millis();
             this->update_start_bytes_ = this->rx_total_ - (this->rx_len_ - this->rx_pos_);
             this->drawn_tiles_ = 0;
-            if (this->rects_left_ == 0) {
-              this->frame_done_();
-            } else {
-              this->step_ = VncStep::VNC_STEP_RECT;
-            }
+            this->rect_done_();
             break;
           case MSG_SET_COLOUR_MAP:
             if (avail < 6) {
@@ -822,7 +816,7 @@ void VncClient::draw_row_(uint16_t x, uint16_t y, uint16_t count, const uint8_t 
   }
   const int visible = std::min<int>(count, this->vis_w_ - x);
   this->forget_tiles_(x, y, visible, 1);
-  this->display_->draw_pixels_at(x, y, visible, 1, pixels, this->bitness_, false);
+  this->display_->draw_pixels_at(x, y, visible, 1, pixels, this->bitness_, this->big_endian_);
   this->frame_drawn_ = true;
 }
 
@@ -930,17 +924,17 @@ void VncClient::start_session_(uint32_t now) {
     this->clear_tiles_();
   }
 
-  // SetPixelFormat: true colour, little-endian.
+  // SetPixelFormat: true colour, in the byte order the display takes
   uint8_t pixel_format[20] = {};
   pixel_format[4] = rgb565 ? 16 : 8;
   pixel_format[5] = rgb565 ? 16 : 8;
+  pixel_format[6] = this->big_endian_;
   pixel_format[7] = 1;
   write_be16(pixel_format + 8, rgb565 ? 31 : 7);
   write_be16(pixel_format + 10, rgb565 ? 63 : 7);
   write_be16(pixel_format + 12, rgb565 ? 31 : 3);
   pixel_format[14] = rgb565 ? 11 : 5;
   pixel_format[15] = rgb565 ? 5 : 2;
-  pixel_format[16] = 0;
   this->send_(pixel_format, sizeof(pixel_format));
 
   // SetEncodings: TightVNC uses the first real encoding it supports for every rectangle.
@@ -950,9 +944,7 @@ void VncClient::start_session_(uint32_t now) {
   write_be32(encodings + 12, static_cast<uint32_t>(ENCODING_RICH_CURSOR));
   this->send_(encodings, sizeof(encodings));
 
-  this->send_update_request_(false);
-  this->request_outstanding_ = true;
-  this->last_request_ms_ = now;
+  this->send_update_request_(false, now);
   this->state_ = VncState::VNC_STATE_RUNNING;
   this->session_start_ms_ = now;
   this->status_clear_warning();
@@ -961,24 +953,19 @@ void VncClient::start_session_(uint32_t now) {
 }
 
 void VncClient::pace_(uint32_t now) {
-  if (this->display_busy_ || this->in_update_) {
+  if (this->display_busy_ || this->in_update_ || now - this->last_request_ms_ < MIN_REQUEST_SPACING_MS) {
     return;
   }
-  if (now - this->last_request_ms_ < MIN_REQUEST_SPACING_MS) {
-    return;
-  }
-  if (this->need_full_ || !this->request_outstanding_) {
-    if (this->send_update_request_(!this->need_full_)) {
+  if (this->need_full_) {
+    if (this->send_update_request_(false, now)) {
       this->need_full_ = false;
-      this->request_outstanding_ = true;
-      this->last_request_ms_ = now;
     }
     return;
   }
   // Repeating a parked request costs nothing on the server and detects a dead link.
-  if (now - this->last_rx_ms_ >= HEARTBEAT_MS && now - this->last_request_ms_ >= HEARTBEAT_MS &&
-      this->send_update_request_(true)) {
-    this->last_request_ms_ = now;
+  if (!this->request_outstanding_ ||
+      (now - this->last_rx_ms_ >= HEARTBEAT_MS && now - this->last_request_ms_ >= HEARTBEAT_MS)) {
+    this->send_update_request_(true, now);
   }
 }
 
@@ -993,11 +980,16 @@ bool VncClient::send_(const uint8_t *data, size_t len) {
   return true;
 }
 
-bool VncClient::send_update_request_(bool incremental) {
+bool VncClient::send_update_request_(bool incremental, uint32_t now) {
   uint8_t msg[10] = {3, static_cast<uint8_t>(incremental ? 1 : 0)};
   write_be16(msg + 6, this->vis_w_);
   write_be16(msg + 8, this->vis_h_);
-  return this->send_(msg, sizeof(msg));
+  if (!this->send_(msg, sizeof(msg))) {
+    return false;
+  }
+  this->request_outstanding_ = true;
+  this->last_request_ms_ = now;
+  return true;
 }
 
 }  // namespace esphome::vnc

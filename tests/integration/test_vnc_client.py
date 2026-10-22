@@ -29,6 +29,7 @@ from .bmp_utils import Bmp, wait_for_bmp
 from .rfb_fake_server import (
     HOSTILE_CHUNK,
     RGB,
+    RGB565_BE,
     RGB565_LE,
     FakeRfbServer,
     Message,
@@ -318,7 +319,8 @@ async def test_vnc_client(
 
             # Render: the session setup is exact and the first frame is pixel-exact.
             pixel_format = await server.wait_for("set_pixel_format", timeout=15.0)
-            assert pixel_format == {"type": "set_pixel_format", **asdict(RGB565_LE)}
+            # The snapshot display declares no byte order, so the client asks for big-endian pixels
+            assert pixel_format == {"type": "set_pixel_format", **asdict(RGB565_BE)}
             encodings = await server.wait_for("set_encodings")
             assert encodings["encodings"] == [5, 0, -239]
             request, _ = await next_request(server)
