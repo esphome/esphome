@@ -17,10 +17,11 @@ void SeeedMultiChannelRelay::setup() {
   }
 #ifdef USE_SWITCH
   // channels_ owns all 8 relays and the board has no read-back: after an ESP-only reboot the board keeps its
-  // relays, so the first write sets every channel from the cache; a power cycle starts with all off
+  // relays, so the first write sets every channel from the cache; a power cycle starts with all off. A switch
+  // with restore_mode DISABLED is therefore driven off too, so its state matches what the next write does
   for (switch_::Switch *sw : this->switches_) {
     if (sw != nullptr)
-      sw->restore();
+      sw->restore(sw->is_inverted());
   }
 #endif
 }
