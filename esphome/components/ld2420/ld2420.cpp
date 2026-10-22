@@ -103,16 +103,14 @@ static constexpr uint8_t LD2420_ERROR_UNKNOWN = 0x01;
 static constexpr uint16_t CMD_MIN_GATE_REG = 0x0000;
 static constexpr uint16_t CMD_MAX_GATE_REG = 0x0001;
 static constexpr uint16_t CMD_TIMEOUT_REG = 0x0004;
-static constexpr uint16_t CMD_GATE_MOVE_THRESH[TOTAL_GATES] = {0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0015,
-                                                               0x0016, 0x0017, 0x0018, 0x0019, 0x001A, 0x001B,
-                                                               0x001C, 0x001D, 0x001E, 0x001F};
-static constexpr uint16_t CMD_GATE_STILL_THRESH[TOTAL_GATES] = {0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025,
-                                                                0x0026, 0x0027, 0x0028, 0x0029, 0x002A, 0x002B,
-                                                                0x002C, 0x002D, 0x002E, 0x002F};
-static constexpr uint32_t FACTORY_MOVE_THRESH[TOTAL_GATES] = {60000, 30000, 400, 250, 250, 250, 250, 250,
-                                                              250,   250,   250, 250, 250, 250, 250, 250};
-static constexpr uint32_t FACTORY_STILL_THRESH[TOTAL_GATES] = {40000, 20000, 200, 200, 200, 200, 200, 150,
-                                                               150,   100,   100, 100, 100, 100, 100, 100};
+// Gate n uses the base register plus n
+static constexpr uint16_t CMD_GATE_MOVE_THRESH_REG = 0x0010;
+static constexpr uint16_t CMD_GATE_STILL_THRESH_REG = 0x0020;
+// In flash on ESP8266; indexed directly since each entry is an aligned 32 bit read
+static constexpr uint32_t FACTORY_MOVE_THRESH[TOTAL_GATES] PROGMEM = {60000, 30000, 400, 250, 250, 250, 250, 250,
+                                                                      250,   250,   250, 250, 250, 250, 250, 250};
+static constexpr uint32_t FACTORY_STILL_THRESH[TOTAL_GATES] PROGMEM = {40000, 20000, 200, 200, 200, 200, 200, 150,
+                                                                       150,   100,   100, 100, 100, 100, 100, 100};
 static constexpr uint16_t FACTORY_TIMEOUT = 120;
 static constexpr uint16_t FACTORY_MIN_GATE = 1;
 static constexpr uint16_t FACTORY_MAX_GATE = 12;
@@ -724,9 +722,11 @@ int LD2420Component::get_gate_threshold_(uint8_t gate) {
   cmd_frame.data_length = 0;
   cmd_frame.header = CMD_FRAME_HEADER;
   cmd_frame.command = CMD_READ_ABD_PARAM;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_GATE_MOVE_THRESH[gate], sizeof(CMD_GATE_MOVE_THRESH[gate]));
+  const uint16_t move_reg = CMD_GATE_MOVE_THRESH_REG + gate;
+  const uint16_t still_reg = CMD_GATE_STILL_THRESH_REG + gate;
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &move_reg, sizeof(move_reg));
   cmd_frame.data_length += 2;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_GATE_STILL_THRESH[gate], sizeof(CMD_GATE_STILL_THRESH[gate]));
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &still_reg, sizeof(still_reg));
   cmd_frame.data_length += 2;
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGV(TAG, "Sending read gate %d high/low threshold command: %2X", gate, cmd_frame.command);
@@ -832,8 +832,8 @@ void LD2420Component::set_gate_threshold(uint8_t gate) {
   // HH HH HH HH LL LL CC CC RR RR VV VV VV VV RR RR VV VV VV VV FF FF FF FF
   // FD FC FB FA 14 00 07 00 10 00 00 FF 00 00 00 01 00 0F 00 00 04 03 02 01
 
-  uint16_t move_threshold_gate = CMD_GATE_MOVE_THRESH[gate];
-  uint16_t still_threshold_gate = CMD_GATE_STILL_THRESH[gate];
+  const uint16_t move_threshold_gate = CMD_GATE_MOVE_THRESH_REG + gate;
+  const uint16_t still_threshold_gate = CMD_GATE_STILL_THRESH_REG + gate;
   CmdFrameT cmd_frame;
   cmd_frame.data_length = 0;
   cmd_frame.header = CMD_FRAME_HEADER;
