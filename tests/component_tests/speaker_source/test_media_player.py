@@ -39,7 +39,7 @@ def test_announcement_volume_needs_both_pipelines(pipeline: str) -> None:
         _validate_announcement_volume({CONF_ANNOUNCEMENT_VOLUME: 0.6, pipeline: {}})
 
 
-@pytest.mark.parametrize("bitrate", [8, 48, 320])
+@pytest.mark.parametrize("bitrate", [8, 48, 144, 320])
 def test_pipeline_accepts_mp3_bitrates(bitrate: int) -> None:
     config = PIPELINE_SCHEMA({**PIPELINE, CONF_FORMAT: "MP3", CONF_BITRATE: bitrate})
     assert config[CONF_BITRATE] == bitrate
