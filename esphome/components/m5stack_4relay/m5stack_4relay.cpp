@@ -30,11 +30,7 @@ uint8_t M5Stack4Relay::read1_byte_(uint8_t register_address) {
     @param state OFF = 0, ON = 1 . */
 void M5Stack4Relay::relay_write(uint8_t number, bool state) {
   uint8_t state_from_device = this->read1_byte_(UNIT_4RELAY_RELAY_REG);
-  if (state == 0) {
-    state_from_device &= ~(0x01 << number);
-  } else {
-    state_from_device |= (0x01 << number);
-  }
+  assign_bits(state_from_device, 0x01 << number, state);
   this->write1_byte_(UNIT_4RELAY_RELAY_REG, state_from_device);
 }
 
