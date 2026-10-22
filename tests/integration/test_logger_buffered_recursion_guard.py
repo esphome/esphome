@@ -29,7 +29,7 @@ import re
 from aioesphomeapi import LogLevel
 import pytest
 
-from .state_utils import assert_device_name
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -73,9 +73,8 @@ async def test_logger_buffered_recursion_guard(
         client.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_VERY_VERBOSE)
 
         entities, _ = await client.list_entities_services()
-        buttons = [e for e in entities if e.name == "Start Race Test"]
-        assert buttons, "Could not find Start Race Test button"
-        client.button_command(buttons[0].key)
+        button = require_entity(entities, "start_race_test", exact=True)
+        client.button_command(button.key)
 
         # Wait until every buffered thread message has been delivered over the API.
         try:
