@@ -122,17 +122,24 @@ void ModemComponent::hand_over_(uint32_t pending) {
 }
 
 void ModemComponent::set_warning_(uint8_t bit) {
-  if ((this->warnings_.fetch_or(bit, std::memory_order_relaxed) & bit) == 0)
+  // The task is the only writer, so a load and a store do; a byte-sized read-modify-write is a library call on Xtensa
+  const uint8_t warnings = this->warnings_.load(std::memory_order_relaxed);
+  this->warnings_.store(warnings | bit, std::memory_order_relaxed);
+  if ((warnings & bit) == 0)
     this->hand_over_(PENDING_STATUS);
 }
 
 void ModemComponent::clear_warning_(uint8_t bit) {
-  if ((this->warnings_.fetch_and(static_cast<uint8_t>(~bit), std::memory_order_relaxed) & bit) != 0)
+  const uint8_t warnings = this->warnings_.load(std::memory_order_relaxed);
+  this->warnings_.store(warnings & static_cast<uint8_t>(~bit), std::memory_order_relaxed);
+  if ((warnings & bit) != 0)
     this->hand_over_(PENDING_STATUS);
 }
 
 void ModemComponent::set_sim_fault_(SimFault fault) {
-  if (this->sim_fault_.exchange(fault, std::memory_order_relaxed) != fault)
+  const SimFault previous = this->sim_fault_.load(std::memory_order_relaxed);
+  this->sim_fault_.store(fault, std::memory_order_relaxed);
+  if (previous != fault)
     this->hand_over_(PENDING_STATUS);
 }
 
