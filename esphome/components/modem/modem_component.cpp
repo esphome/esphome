@@ -153,6 +153,8 @@ void ModemComponent::publish_status_() {
     this->status_set_warning(LOG_STR("Configured baud rate failed"));
   } else if (warnings & WARN_NOT_ATTACHED) {
     this->status_set_warning(LOG_STR("No network attachment"));
+  } else if (warnings & WARN_PPP) {
+    this->status_set_warning(LOG_STR("PPP link failed"));
   } else if (warnings & WARN_TEARDOWN) {
     this->status_set_warning(LOG_STR("Modem teardown failed"));
   } else {
@@ -161,6 +163,8 @@ void ModemComponent::publish_status_() {
   const SimFault fault = this->sim_fault_.load(std::memory_order_relaxed);
   if (fault == SimFault::SIM_FAULT_PIN_REJECTED) {
     this->status_set_error(LOG_STR("SIM PIN rejected; change pin_code"));
+  } else if (fault == SimFault::SIM_FAULT_PIN_UNCONFIRMED) {
+    this->status_set_error(LOG_STR("SIM still locked after PIN; check SIM"));
   } else if (fault == SimFault::SIM_FAULT_LOCKED) {
     this->status_set_error(LOG_STR("SIM locked"));
   } else {
@@ -220,7 +224,9 @@ void ModemComponent::setup() {
   if (this->rejected_pin_hash_ != 0 &&
       (this->pin_code_ == nullptr || this->rejected_pin_hash_ != fnv1_hash(this->pin_code_))) {
     this->rejected_pin_hash_ = 0;
-    this->pin_pref_.save(&this->rejected_pin_hash_);
+    if (!this->pin_pref_.save(&this->rejected_pin_hash_)) {
+      ESP_LOGW(TAG, "Failed to clear the rejected PIN");
+    }
   }
 
   // Highest free high-performance port first; UART0 stays with the logger and the low-power UART of the
@@ -493,6 +499,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
         }
         if (uart_set_baudrate(static_cast<uart_port_t>(this->uart_port_), baud) != ESP_OK) {
           ESP_LOGW(TAG, "UART rejected baud rate %d", baud);
+          this->set_warning_(WARN_BAUD);
           continue;
         }
         this->current_baud_rate_ = baud;
@@ -615,9 +622,11 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
         return this->retry_(ModemComponentState::MODEM_CONNECTING);
       case SimResult::SIM_RESULT_FATAL:
       case SimResult::SIM_RESULT_PIN_REJECTED:
+      case SimResult::SIM_RESULT_PIN_UNCONFIRMED:
         // Retrying would burn the remaining PIN attempts; stay off until the user fixes the SIM
-        this->set_sim_fault_(result == SimResult::SIM_RESULT_FATAL ? SimFault::SIM_FAULT_LOCKED
-                                                                   : SimFault::SIM_FAULT_PIN_REJECTED);
+        this->set_sim_fault_(result == SimResult::SIM_RESULT_FATAL          ? SimFault::SIM_FAULT_LOCKED
+                             : result == SimResult::SIM_RESULT_PIN_REJECTED ? SimFault::SIM_FAULT_PIN_REJECTED
+                                                                            : SimFault::SIM_FAULT_PIN_UNCONFIRMED);
         this->target_state_.store(ModemComponentState::MODEM_DISABLED);
         this->hand_over_(PENDING_CONNECT_TIMEOUT);
         return ModemComponentState::MODEM_DISCONNECTING;
@@ -652,6 +661,7 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
   ESP_LOGI(TAG, "Modem initialized and ready, starting PPP");
   if (!this->dce_->set_mode(modem_mode::CMUX_MODE)) {
     ESP_LOGE(TAG, "Failed to enter PPP. Resetting modem.");
+    this->set_warning_(WARN_PPP);
     return ModemComponentState::MODEM_DISCONNECTING;
   }
   this->wait_ip_start_ = millis();
@@ -660,7 +670,7 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
 
 ModemComponentState ModemComponent::handle_state_wait_ip_() {
   if (this->got_ip_.load(std::memory_order_acquire)) {
-    this->clear_warning_(WARN_TEARDOWN);
+    this->clear_warning_(WARN_TEARDOWN | WARN_PPP);
     this->set_sim_fault_(SimFault::SIM_FAULT_NONE);  // a SIM fault fixed outside is over once PPP is up
     return ModemComponentState::MODEM_CONNECTED;
   }
@@ -670,6 +680,7 @@ ModemComponentState ModemComponent::handle_state_wait_ip_() {
     return this->retry_(ModemComponentState::MODEM_WAIT_IP, WAIT_IP_TIMEOUT_MS - elapsed);
   }
   ESP_LOGE(TAG, "Unable to get IP address");
+  this->set_warning_(WARN_PPP);
   return ModemComponentState::MODEM_DISCONNECTING;
 }
 
@@ -813,8 +824,8 @@ SimResult ModemComponent::prepare_sim_() {
   if (this->pin_sent_) {
     // The modem never said the PIN was wrong (it timed out or the SIM is slow), so nothing is remembered; this
     // attempt stops here rather than sending the PIN blind a second time
-    ESP_LOGE(TAG, "SIM still locked after sending the PIN; check pin_code");
-    return SimResult::SIM_RESULT_PIN_REJECTED;
+    ESP_LOGE(TAG, "SIM still locked after sending the PIN; check the SIM");
+    return SimResult::SIM_RESULT_PIN_UNCONFIRMED;
   }
   this->pin_sent_ = true;
   ESP_LOGD(TAG, "Unlocking SIM with PIN...");

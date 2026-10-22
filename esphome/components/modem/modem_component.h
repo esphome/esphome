@@ -42,15 +42,17 @@ enum class ConnectStep : uint8_t {
 
 enum class SimResult : uint8_t {
   SIM_RESULT_READY,
-  SIM_RESULT_RETRY,         // status not readable yet, or the PIN was just sent
-  SIM_RESULT_FATAL,         // locked with no usable PIN, or PUK locked
-  SIM_RESULT_PIN_REJECTED,  // pin_code was refused, now or on an earlier boot
+  SIM_RESULT_RETRY,            // status not readable yet, or the PIN was just sent
+  SIM_RESULT_FATAL,            // locked with no usable PIN, or PUK locked
+  SIM_RESULT_PIN_REJECTED,     // pin_code was refused, now or on an earlier boot
+  SIM_RESULT_PIN_UNCONFIRMED,  // the PIN went out but the SIM stayed locked; nothing said it was wrong
 };
 
 enum class SimFault : uint8_t {
   SIM_FAULT_NONE,
   SIM_FAULT_LOCKED,
   SIM_FAULT_PIN_REJECTED,
+  SIM_FAULT_PIN_UNCONFIRMED,
 };
 
 // Every esp_modem factory shares this signature, so codegen picks the one for the model
@@ -141,6 +143,7 @@ class ModemComponent : public Component {
     WARN_TEARDOWN = 1 << 2,
     WARN_NO_RESPONSE = 1 << 3,
     WARN_NOT_ATTACHED = 1 << 4,
+    WARN_PPP = 1 << 5,  // PPP did not start or gave no address
   };
   // What the task left for loop() to publish
   enum Pending : uint32_t {
