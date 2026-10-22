@@ -6,7 +6,7 @@
 
 namespace esphome::usb_hid_keyboard {
 
-static const char *const TAG = "usb_hid_keyboard";
+ESPHOME_LOG_TAG(TAG, "usb_hid_keyboard");
 
 // Standard 8-byte boot-keyboard HID report descriptor (no report ID).
 // Byte 0: modifier bitmask, byte 1: reserved, bytes 2-7: up to 6 key codes.

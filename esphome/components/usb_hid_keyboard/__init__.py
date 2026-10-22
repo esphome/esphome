@@ -10,6 +10,7 @@ from esphome.core import CORE
 CONF_KEYCODE = "keycode"
 
 CODEOWNERS = ["@tomaszduda23"]
+DOMAIN = "usb_hid_keyboard"
 
 usb_hid_keyboard_ns = cg.esphome_ns.namespace("usb_hid_keyboard")
 USBHIDKeyboard = usb_hid_keyboard_ns.class_("USBHIDKeyboard", cg.Component)
