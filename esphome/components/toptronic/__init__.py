@@ -4,11 +4,11 @@ import esphome.codegen as cg
 from esphome.components.canbus import CanbusComponent
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["canbus"]
 DOMAIN = "toptronic"
-AUTO_LOAD = ["sensor", "number", "select", "text_sensor"]
 MULTI_CONF = True
 
 CONF_CANBUS_ID = "canbus_id"
@@ -32,28 +32,26 @@ class DeviceType(Enum):
     GW = 1153  # EN: Gateway (Modbus/KNX) / FR: Passerelle (Modbus/KNX) / DE: Gateway
 
 
-_device_types = {t.name: t.value for t in DeviceType}
+_device_types = {name: t.value for name, t in DeviceType.__members__.items()}
 
 
 def get_device_type(t: str) -> int:
     if t not in _device_types:
         raise ValueError(f'device type "{t}" not found')
-    return _device_types.get(t)
+    return _device_types[t]
 
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(TopTronicComponent),
         cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-        cv.Required("device_type"): cv.one_of(
-            *[t.name for t in DeviceType], upper=True
-        ),
+        cv.Required("device_type"): cv.one_of(*DeviceType.__members__, upper=True),
         cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cbus = await cg.get_variable(config[CONF_CANBUS_ID])
     var = cg.new_Pvariable(config[CONF_ID], cbus)
     await cg.register_component(var, config)
