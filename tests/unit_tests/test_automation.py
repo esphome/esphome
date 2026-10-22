@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 from esphome.automation import (
+    ACTION_REGISTRY,
     CONF_CHOICE_ID,
     CONF_CHOOSE,
     ApplyAction,
@@ -15,15 +16,22 @@ from esphome.automation import (
     ApplyCondition,
     ApplyField,
     CallbackAutomation,
+    ForCondition,
     LambdaAction,
+    LambdaCondition,
+    NotCondition,
     RepeatAction,
+    ResumeComponentAction,
+    StatelessLambdaCondition,
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
+    WaitUntilAction,
     _shadow_iteration,
     build_action,
     build_callback_automation,
     build_callback_automations,
+    build_condition,
     build_parent_callback_automation,
     build_trigger_automations,
     build_trigger_callback,
@@ -32,8 +40,10 @@ from esphome.automation import (
     if_action_to_code,
     literal_with_length,
     maybe_simple_id,
+    new_lambda_pvariable,
     parent_ref,
     progmem_bytes,
+    register_action,
     register_apply_action,
     register_apply_condition,
     register_bare_action,
@@ -45,7 +55,9 @@ from esphome.automation import (
     string_ref_literal,
     templatable_bytes,
     validate_action,
+    validate_automation,
     validate_no_deferring_actions,
+    validate_potentially_or_condition,
     validate_synchronous_automation,
 )
 import esphome.codegen as cg
@@ -59,10 +71,14 @@ from esphome.const import (
     CONF_ELSE,
     CONF_ID,
     CONF_THEN,
+    CONF_TIME,
+    CONF_TIMEOUT,
     CONF_TYPE_ID,
+    CONF_UPDATE_INTERVAL,
 )
 from esphome.core import CORE, ID, KEY_CORE, KEY_TARGET_PLATFORM, EsphomeError, Lambda
-from esphome.cpp_generator import MockObj, RawExpression
+from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
+from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType
 from esphome.util import Registry, RegistryEntry
 
@@ -769,8 +785,9 @@ class MockCodegen(NamedTuple):
     new_pvariable: MagicMock
     register_parented: AsyncMock
     add_global: MagicMock
+    add_global_after_includes: MagicMock
     add: MagicMock
-    calls: MagicMock  # new_pvariable and add_global attached, to check their order
+    calls: MagicMock  # the global emitters and new_pvariable attached, to check their order
 
 
 @pytest.fixture
@@ -832,6 +849,9 @@ def mock_cg() -> Generator[MockCodegen]:
             "esphome.codegen.register_parented", new_callable=AsyncMock
         ) as register_parented,
         patch("esphome.cpp_generator.add_global") as add_global,
+        patch(
+            "esphome.cpp_generator.add_global_after_includes"
+        ) as add_global_after_includes,
         patch("esphome.codegen.add") as add,
     ):
         get_variable.return_value = PARENT_OBJ
@@ -839,8 +859,15 @@ def mock_cg() -> Generator[MockCodegen]:
         calls = MagicMock()
         calls.attach_mock(new_pvariable, "new_pvariable")
         calls.attach_mock(add_global, "add_global")
+        calls.attach_mock(add_global_after_includes, "add_global_after_includes")
         yield MockCodegen(
-            get_variable, new_pvariable, register_parented, add_global, add, calls
+            get_variable,
+            new_pvariable,
+            register_parented,
+            add_global,
+            add_global_after_includes,
+            add,
+            calls,
         )
 
 
@@ -968,7 +995,7 @@ async def _run_apply_condition(
 
 
 def _apply_definition(mock_cg: MockCodegen) -> str:
-    return str(mock_cg.add_global.call_args.args[0])
+    return str(mock_cg.add_global_after_includes.call_args.args[0])
 
 
 @pytest.mark.asyncio
@@ -982,8 +1009,16 @@ async def test_register_apply_action_entry(
     action_id, template_arg = mock_cg.new_pvariable.call_args.args
     assert action_id == ID("obj_1")
     assert str(template_arg) == "<esphome__obj_1__fn, int32_t>"
-    # The definition must precede the storage line that names the function.
-    assert [c[0] for c in mock_cg.calls.mock_calls] == ["add_global", "new_pvariable"]
+    # The declaration must precede the storage line that names the function; the body
+    # goes after the user includes.
+    assert [c[0] for c in mock_cg.calls.mock_calls] == [
+        "add_global",
+        "add_global_after_includes",
+        "new_pvariable",
+    ]
+    assert str(mock_cg.add_global.call_args.args[0]) == (
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x);"
+    )
     assert _apply_definition(mock_cg).startswith(
         "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
     )
@@ -1830,3 +1865,148 @@ async def test_nested_repeat_lambda_parameters_are_distinct() -> None:
         in text
     )
     assert "uint32_t iteration, uint32_t iteration)" not in text
+
+
+def test_maybe_simple_id_schema_extract() -> None:
+    validator = maybe_simple_id({cv.Required(CONF_ID): cv.string})
+    _, key = validator(SCHEMA_EXTRACT)
+    assert key == CONF_ID
+
+
+def test_register_action_without_synchronous_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with patch.dict(ACTION_REGISTRY):
+        register_action("test.unspecified_sync", LambdaAction, cv.Schema({}))(
+            MagicMock()
+        )
+        entry = ACTION_REGISTRY["test.unspecified_sync"]
+    assert entry.synchronous is False
+    assert "test.unspecified_sync" in caplog.text
+    assert "missing the synchronous= parameter" in caplog.text
+
+
+@pytest.mark.parametrize("capture", ["", "="])
+@pytest.mark.parametrize("with_template_arg", [True, False])
+def test_new_lambda_pvariable(capture: str, with_template_arg: bool) -> None:
+    lambda_expr = LambdaExpression(["return true;"], [], capture)
+    id_obj = ID("lam", is_declaration=True, type=LambdaCondition)
+    new_lambda_pvariable(
+        id_obj,
+        lambda_expr,
+        StatelessLambdaCondition,
+        TEMPLATE_ARG if with_template_arg else None,
+    )
+    text = CORE.cpp_main_section
+    expected_class = "StatelessLambdaCondition" if capture == "" else "LambdaCondition"
+    assert f"new(lam) {expected_class}" in text
+    assert ("<>(" in text) == with_template_arg
+    # The caller's id is left alone
+    assert id_obj.type is LambdaCondition
+
+
+def test_validate_potentially_or_condition_single() -> None:
+    result = validate_potentially_or_condition({"lambda": Lambda("return true;")})
+    assert "lambda" in result
+
+
+def test_validate_potentially_or_condition_list() -> None:
+    result = validate_potentially_or_condition([{"lambda": Lambda("return true;")}])
+    assert "or" in result
+
+
+def test_validate_automation_list_of_invalid_actions_reports_both() -> None:
+    with pytest.raises(cv.MultipleInvalid) as exc_info:
+        validate_automation()([1])
+    messages = [str(err) for err in exc_info.value.errors]
+    assert any("Action must consist of key-value mapping" in m for m in messages)
+    assert any("expected a dictionary" in m for m in messages)
+
+
+def test_validate_automation_list_unknown_action_reports_automation_error() -> None:
+    with pytest.raises(cv.Invalid, match="no_such_action"):
+        validate_automation()([{CONF_THEN: [{"no_such_action": {}}]}])
+
+
+def test_validate_automation_non_list_non_dict() -> None:
+    with pytest.raises(cv.Invalid):
+        validate_automation()("not an automation")
+
+
+def test_validate_automation_schema_extract() -> None:
+    schema = validate_automation({cv.Optional("extra"): cv.string})(SCHEMA_EXTRACT)
+    assert "extra" in [str(key) for key in schema.schema]
+
+
+def test_validate_automation_single_rejects_multiple() -> None:
+    with pytest.raises(cv.Invalid, match="only a single automation"):
+        validate_automation(single=True)(
+            [{CONF_THEN: [{"delay": "1s"}]}, {CONF_THEN: [{"delay": "2s"}]}]
+        )
+
+
+def _lambda_condition(id_: str) -> ConfigType:
+    return {
+        "lambda": Lambda("return true;"),
+        CONF_TYPE_ID: ID(id_, is_declaration=True, type=LambdaCondition),
+    }
+
+
+@pytest.mark.asyncio
+async def test_not_condition_wraps_inner_condition() -> None:
+    CORE.config = {}
+    config: ConfigType = {
+        "not": _lambda_condition("inner"),
+        CONF_TYPE_ID: ID("outer", is_declaration=True, type=NotCondition),
+    }
+    await build_condition(config, TEMPLATE_ARG, [])
+    assert "new(outer) NotCondition<>(inner);" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+async def test_for_condition_sets_time() -> None:
+    CORE.config = {}
+    CORE.component_ids.add("for_cond")
+    config: ConfigType = {
+        "for": {
+            CONF_TIME: 1000,
+            CONF_CONDITION: _lambda_condition("inner"),
+        },
+        CONF_TYPE_ID: ID("for_cond", is_declaration=True, type=ForCondition),
+    }
+    await build_condition(config, TEMPLATE_ARG, [])
+    assert "for_cond->set_time(" in CORE.cpp_main_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("with_timeout", [True, False])
+async def test_wait_until_action_timeout_is_optional(with_timeout: bool) -> None:
+    CORE.config = {}
+    CORE.component_ids.add("wait")
+    body: ConfigType = {CONF_CONDITION: _lambda_condition("inner")}
+    if with_timeout:
+        body[CONF_TIMEOUT] = 500
+    config: ConfigType = {
+        "wait_until": body,
+        CONF_TYPE_ID: ID("wait", is_declaration=True, type=WaitUntilAction),
+    }
+    await build_action(config, TEMPLATE_ARG, [])
+    assert ("wait->set_timeout_value(" in CORE.cpp_main_section) == with_timeout
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("with_interval", [True, False])
+async def test_component_resume_action_update_interval_is_optional(
+    with_interval: bool,
+) -> None:
+    CORE.config = {}
+    cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.PollingComponent))
+    body: ConfigType = {CONF_ID: ID("comp", type=cg.PollingComponent)}
+    if with_interval:
+        body[CONF_UPDATE_INTERVAL] = 250
+    config: ConfigType = {
+        "component.resume": body,
+        CONF_TYPE_ID: ID("resume", is_declaration=True, type=ResumeComponentAction),
+    }
+    await build_action(config, TEMPLATE_ARG, [])
+    assert ("resume->set_update_interval(" in CORE.cpp_main_section) == with_interval

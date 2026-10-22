@@ -13,6 +13,7 @@ import re
 
 import pytest
 
+from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -51,8 +52,7 @@ async def test_multi_click_trigger(
     ):
         _entities, services = await client.list_entities_services()
 
-        test_service = next((s for s in services if s.name == "run_all_tests"), None)
-        assert test_service is not None, "run_all_tests service not found"
+        test_service = require_service(services, "run_all_tests")
 
         # Kick off the entire test sequence (runs in YAML with delays)
         await client.execute_service(test_service, {})

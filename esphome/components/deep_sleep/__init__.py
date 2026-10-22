@@ -164,10 +164,6 @@ _WAKEUP_PIN_MODE_BOTH_LEVELS = (
 def validate_config(config: ConfigType) -> ConfigType:
     wakeup_pins = config.get(CONF_WAKEUP_PIN)
     has_pin_mode = CONF_WAKEUP_PIN_MODE in config
-    if has_pin_mode and wakeup_pins is None:
-        raise cv.Invalid(
-            "'wakeup_pin_mode' requires 'wakeup_pin'", path=[CONF_WAKEUP_PIN_MODE]
-        )
     multiple_pins = wakeup_pins is not None and len(wakeup_pins) > 1
     # wakeup_pin is limited to ESP32 and BK72XX, and only BK72XX accepts a list
     if not CORE.is_bk72xx:
@@ -356,6 +352,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_NRF52]),
+    cv.key_requires(CONF_WAKEUP_PIN_MODE, CONF_WAKEUP_PIN),
     validate_config,
 )
 

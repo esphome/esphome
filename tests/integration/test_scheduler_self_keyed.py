@@ -12,7 +12,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -61,14 +63,13 @@ async def test_scheduler_self_keyed(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-self-keyed-test"
+        await assert_device_name(client, "scheduler-self-keyed-test")
 
-        try:
-            await asyncio.wait_for(all_tests_complete.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Not all self-keyed tests completed within 5 seconds")
+        await wait_or_fail(
+            all_tests_complete,
+            5.0,
+            "Not all self-keyed tests completed within 5 seconds",
+        )
 
         # Test 1: self-keyed timeout fires
         assert self_a_fired.is_set(), "Self timeout A should have fired"

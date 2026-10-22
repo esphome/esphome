@@ -213,9 +213,15 @@ def require_tcp_listener() -> None:
 
 
 def consume_role_sockets(component: str) -> Callable[[ConfigType], ConfigType]:
-    """Socket accounting for a role keyed client or server schema."""
+    """Socket accounting for a role keyed client or server schema.
+
+    Also requires IPv4, since the TCP link and listener helpers are IPv4 only.
+    """
 
     def validator(config: ConfigType) -> ConfigType:
+        from esphome.components import network
+
+        network.require_ipv4(component)(config)
         if config[CONF_ROLE] == "server":
             consume_sockets(1, component, SocketType.TCP_LISTEN)(config)
         return consume_sockets(1, component)(config)
