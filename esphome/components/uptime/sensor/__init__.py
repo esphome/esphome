@@ -61,8 +61,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     if time_id_config := config.get(CONF_TIME_ID):
-        time_id = await cg.get_variable(time_id_config)
-        cg.add(var.set_time(time_id))
+        await cg.add_variable(var.set_time, time_id_config)
         cg.add_define("USE_UPTIME_TIMESTAMP")
 
 

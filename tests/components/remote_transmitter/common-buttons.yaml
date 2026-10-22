@@ -93,6 +93,14 @@ button:
           rc_code_1: 0xB24DBF4050AF
           rc_code_2: 0xD5660001003C
   - platform: template
+    name: IRA211
+    on_press:
+      - remote_transmitter.transmit_ira211:
+          command: sync
+          temperature: 22.5
+          mode: timer
+          fan_mode: high
+  - platform: template
     name: Sony
     on_press:
       remote_transmitter.transmit_sony:
@@ -378,6 +386,17 @@ button:
         suffix: 0x00
         suffix_bits: 8
   - platform: template
+    name: KeeLoq TDEF group
+    on_press:
+      remote_transmitter.transmit_keeloq:
+        address: 0x1234500
+        command: 0x8
+        code: 0xF94A09F2
+        group: 0x0F
+        repeat:
+          times: 2
+          wait_time: 0ms
+  - platform: template
     name: KeeLoq lambda with repeat
     on_press:
       remote_transmitter.transmit_keeloq:
@@ -387,6 +406,23 @@ button:
         repeat:
           times: 3
           wait_time: 10ms
+  - platform: template
+    name: A-OK
+    on_press:
+      remote_transmitter.transmit_aok:
+        remote_id: 0x123456
+        channels: 0x00A1
+        command: 0x0B
+  - platform: template
+    name: A-OK lambda with repeat
+    on_press:
+      remote_transmitter.transmit_aok:
+        remote_id: 0x123456
+        channels: !lambda return 0x1000;
+        command: 0x43
+        repeat:
+          times: 8
+          wait_time: 5ms
   - platform: template
     name: Toto with repeat
     on_press:
@@ -523,3 +559,8 @@ button:
           repeat:
             times: 3
             wait_time: 30ms
+  - platform: template
+    name: PD Pioneer
+    on_press:
+      - remote_transmitter.transmit_pd_pioneer:
+          code: [0x23, 0xCB, 0x26, 0x01, 0x00, 0x24, 0x03, 0x0B, 0x05, 0x00, 0x00, 0x00, 0x80]

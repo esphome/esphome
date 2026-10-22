@@ -116,7 +116,7 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     SubEntities,
@@ -425,16 +425,30 @@ async def multiply_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, template_)
 
 
+TemplatableFloat = cg.esphome_ns.class_("TemplatableFn").template(cg.float_)
+
+
+async def _value_list_table(values: list[Any]) -> MockObj:
+    """PROGMEM value table, ended by an empty entry so filters store no count."""
+    fns = [await cg.templatable(x, [], cg.float_) for x in values]
+    # Identical lambdas (e.g. a YAML anchor) may keep static state, so only constants share.
+    return cg.shared_progmem_array(
+        "sensor_value_list",
+        TemplatableFloat,
+        [*fns, TemplatableFloat()],
+        share=not any(isinstance(v, Lambda) for v in values),
+    )
+
+
 @FILTER_REGISTRY.register(
     "filter_out",
     FilterOutValueFilter,
     cv.Any(cv.templatable(cv.float_), [cv.templatable(cv.float_)]),
 )
-async def filter_out_filter_to_code(config, filter_id):
+async def filter_out_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     if not isinstance(config, list):
         config = [config]
-    template_ = [await cg.templatable(x, [], cg.float_) for x in config]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(template_)), template_)
+    return cg.new_Pvariable(filter_id, await _value_list_table(config))
 
 
 QUANTILE_SCHEMA = cv.All(
@@ -708,7 +722,9 @@ def _is_nan_only(values: Any) -> bool:
     ThrottleWithPriorityFilter,
     THROTTLE_WITH_PRIORITY_SCHEMA,
 )
-async def throttle_with_priority_filter_to_code(config, filter_id):
+async def throttle_with_priority_filter_to_code(
+    config: ConfigType, filter_id: ID
+) -> MockObj:
     values = config[CONF_VALUE]
     if not isinstance(values, list):
         values = [values]
@@ -720,10 +736,8 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
         filter_id = filter_id.copy()
         filter_id.type = ThrottleWithPriorityNanFilter
         return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
-    template_ = [await cg.templatable(x, [], cg.float_) for x in values]
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(template_)), config[CONF_TIMEOUT], template_
-    )
+    table = await _value_list_table(values)
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], table)
 
 
 HEARTBEAT_SCHEMA = cv.Schema(
@@ -810,6 +824,9 @@ def validate_calibrate_linear(config):
     return config
 
 
+LINEAR_SEGMENT = cg.std_ns.class_("array").template(cg.float_, 3)
+
+
 @FILTER_REGISTRY.register(
     "calibrate_linear",
     CalibrateLinearFilter,
@@ -836,9 +853,11 @@ async def calibrate_linear_filter_to_code(config, filter_id):
         linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(linear_functions)), linear_functions
+    # The last segment always has a NaN boundary, so the filter needs no count.
+    table = cg.shared_progmem_array(
+        "sensor_calibrate_linear", LINEAR_SEGMENT, linear_functions
     )
+    return cg.new_Pvariable(filter_id, table)
 
 
 CONF_DEGREE = "degree"
@@ -876,7 +895,11 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(res)), res)
+    # The first entry holds the coefficient count, so the filter needs no count field.
+    table = cg.shared_progmem_array(
+        "sensor_calibrate_polynomial", cg.float_, [float(len(res)), *res]
+    )
+    return cg.new_Pvariable(filter_id, table)
 
 
 def validate_clamp(config):
@@ -1027,10 +1050,8 @@ async def _build_sensor_automations(var, config):
 async def setup_sensor_core_(var, config):
     setup_device_class(config)
     setup_unit_of_measurement(config)
-    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
-        cg.add(var.set_state_class(state_class))
-    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
-        cg.add(var.set_accuracy_decimals(accuracy_decimals))
+    cg.add_optional(var.set_state_class, config.get(CONF_STATE_CLASS))
+    cg.add_optional(var.set_accuracy_decimals, config.get(CONF_ACCURACY_DECIMALS))
     # Only set force_update if True (default is False)
     if config[CONF_FORCE_UPDATE]:
         cg.add(var.set_force_update(True))
@@ -1098,10 +1119,8 @@ async def sensor_in_range_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
 
-    if (above := config.get(CONF_ABOVE)) is not None:
-        cg.add(var.set_min(above))
-    if (below := config.get(CONF_BELOW)) is not None:
-        cg.add(var.set_max(below))
+    cg.add_optional(var.set_min, config.get(CONF_ABOVE))
+    cg.add_optional(var.set_max, config.get(CONF_BELOW))
 
     return var
 

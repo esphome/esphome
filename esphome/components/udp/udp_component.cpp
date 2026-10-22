@@ -8,44 +8,95 @@
 namespace esphome::udp {
 
 ESPHOME_LOG_TAG(TAG, "udp");
-static constexpr uint32_t JOIN_POLL_ID = 0;
-static constexpr uint32_t JOIN_POLL_INTERVAL_MS = 1000;
+static constexpr uint32_t NETWORK_POLL_ID = 0;
+static constexpr uint32_t NETWORK_POLL_INTERVAL_MS = 1000;
 
 void UDPComponent::setup() {
+  size_t address_count = 0;
+  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++)
+    address_count++;
+  this->sockaddrs_.init(address_count);
   for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
     const char *address = *it;
-    struct sockaddr saddr {};
-    if (socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_) == 0) {
+    SockaddrEntry entry{};
+    if (socket::set_sockaddr(&entry.sa, sizeof(entry), address, this->broadcast_port_) == 0) {
       ESP_LOGW(TAG, "Invalid address %s", address);
       // A dropped address silently receives nothing; surface the misconfiguration
       this->status_set_warning(LOG_STR("invalid address"));
       continue;
     }
-    this->sockaddrs_.push_back(saddr);
+    this->sockaddrs_.push_back(entry);
   }
   // set up broadcast socket
   if (this->should_broadcast_) {
-    this->broadcast_socket_ = socket::socket_udp_send(AF_INET, IPPROTO_IP);
-    if (this->broadcast_socket_ == nullptr) {
-      this->status_set_error(LOG_STR("Could not create socket"));
-      this->mark_failed();
-      return;
+#ifdef USE_UDP_IPV6_SEND
+    if (this->ipv4_send_)
+#endif
+    {
+      this->broadcast_socket_ = socket::socket_udp_send(AF_INET, IPPROTO_IP);
+      if (this->broadcast_socket_ == nullptr) {
+        this->status_set_error(LOG_STR("Could not create socket"));
+        this->mark_failed();
+        return;
+      }
+      int enable = 1;
+      auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+      if (err != 0) {
+        this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
+        // we can still continue
+      }
+      err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
+      if (err != 0) {
+        this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
+      }
     }
-    int enable = 1;
-    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
-      // we can still continue
+#ifdef USE_UDP_IPV6_SEND
+    if (this->ipv6_send_) {
+      this->send_socket_v6_ = socket::socket_udp_send(AF_INET6, IPPROTO_IP);
+      if (this->send_socket_v6_ == nullptr) {
+        this->status_set_error(LOG_STR("Could not create IPv6 socket"));
+        this->mark_failed();
+        return;
+      }
+      // Unicast needs no egress interface; multicast does
+      if (this->ipv6_multicast_)
+        this->poll_pending_ |= POLL_MCAST_IF;
     }
-    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
-    if (err != 0) {
-      this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
-    }
+#endif
   }
   // create listening socket if we either want to subscribe to providers, or need to listen
   // for ping key broadcasts.
   if (this->should_listen_) {
-    this->listen_socket_ = socket::socket_udp_loop_monitored(AF_INET, IPPROTO_IP);
+    struct sockaddr_storage server{};
+    socklen_t server_len;
+    if (this->listen_address_ != nullptr) {
+      server_len =
+          socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), this->listen_address_, this->listen_port_);
+      // A multicast join needs a socket of the group's address family
+      this->listen_socket_ = socket::socket_udp_loop_monitored(server.ss_family, IPPROTO_IP);
+      this->poll_pending_ |= POLL_JOIN;
+#ifdef USE_SOCKET_IPV6
+      // An IPv6 group binds after the join, which supplies the scope id link-local groups need
+      if (server.ss_family == AF_INET6)
+        this->poll_pending_ |= POLL_BIND;
+#endif
+    } else {
+#ifdef USE_SOCKET_IPV6
+      server_len = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->listen_port_);
+      this->listen_socket_ = socket::socket_udp_loop_monitored(AF_INET6, IPPROTO_IP);
+      // Clear IPV6_V6ONLY so IPv4 datagrams also arrive, as mapped addresses
+      int v6only = 0;
+      if (this->listen_socket_ != nullptr &&
+          this->listen_socket_->setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only)) != 0) {
+        ESP_LOGW(TAG, "Failed to clear IPV6_V6ONLY: errno %d", errno);
+        this->status_set_warning(LOG_STR("IPv4 datagrams may not be received"));
+      }
+#else
+      // Must stay IPv4: raw lwIP can have USE_NETWORK_IPV6 without IPv6 sockets
+      server_len = socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), "0.0.0.0", this->listen_port_);
+      this->listen_socket_ = socket::socket_udp_loop_monitored(AF_INET, IPPROTO_IP);
+#endif
+    }
     if (this->listen_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
@@ -64,51 +115,93 @@ void UDPComponent::setup() {
       this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
       // we can still continue
     }
-    struct sockaddr_in server {};
 
-    server.sin_family = AF_INET;
-    server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-    server.sin_port = htons(this->listen_port_);
-
-    if (this->listen_address_ != nullptr) {
-      inet_aton(this->listen_address_, &server.sin_addr);
-      // Joined once the network is up; RP2040 has no interface to join before then
-      this->set_interval(JOIN_POLL_ID, JOIN_POLL_INTERVAL_MS, [this]() {
-        if (network::is_connected() && this->join_multicast_())
-          this->cancel_interval(JOIN_POLL_ID);
-      });
+    if ((this->poll_pending_ & POLL_BIND) == 0) {
+      err = this->listen_socket_->bind((struct sockaddr *) &server, server_len);
+      if (err != 0) {
+        ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+        this->status_set_error(LOG_STR("Unable to bind socket"));
+        this->mark_failed();
+        return;
+      }
     }
-
-    err = this->listen_socket_->bind((struct sockaddr *) &server, sizeof(server));
-    if (err != 0) {
-      ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
-      this->status_set_error(LOG_STR("Unable to bind socket"));
-      this->mark_failed();
-      return;
-    }
+  }
+  if (this->poll_pending_ != 0) {
+    // Joins and the IPv6 egress interface need the network up; RP2040 has no interface before then
+    this->set_interval(NETWORK_POLL_ID, NETWORK_POLL_INTERVAL_MS, [this]() {
+      if (network::is_connected() && this->network_poll_())
+        this->cancel_interval(NETWORK_POLL_ID);
+    });
   }
 }
 
-bool UDPComponent::join_multicast_() {
-  if (socket::join_multicast_group(this->listen_socket_.get(), this->listen_address_)) {
-    ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
-    if (this->join_warning_) {
-      this->join_warning_ = false;
-      this->status_clear_warning();
-    }
-    return true;
-  }
-  // Log the first failure only; the poll keeps retrying every second
-  if (!this->join_failed_) {
-    this->join_failed_ = true;
-    ESP_LOGW(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
-    // One warning bit: only a warning raised here is cleared on success, one from setup() stays
-    if (!this->status_has_warning()) {
-      this->status_set_warning(LOG_STR("Failed to set IP_ADD_MEMBERSHIP"));
-      this->join_warning_ = true;
+bool UDPComponent::network_poll_() {
+  bool ok = true;
+  if (this->poll_pending_ & POLL_JOIN) {
+#ifdef USE_SOCKET_IPV6
+    uint32_t *if_index = &this->mcast_ifindex_;
+#else
+    uint32_t *if_index = nullptr;
+#endif
+    if (socket::join_multicast_group(this->listen_socket_.get(), this->listen_address_, if_index)) {
+      ESP_LOGD(TAG, "Joined multicast %s", this->listen_address_);
+      this->poll_pending_ &= ~POLL_JOIN;
+      this->poll_failed_ &= ~POLL_JOIN;
+    } else {
+      this->set_poll_warning_(POLL_JOIN, LOG_STR("Failed to join multicast group"));
+      ok = false;
     }
   }
-  return false;
+#ifdef USE_SOCKET_IPV6
+  if (ok && (this->poll_pending_ & POLL_BIND)) {
+    struct sockaddr_storage server{};
+    socklen_t server_len =
+        socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), this->listen_address_, this->listen_port_);
+    // POSIX bind() on a link-local group needs it; lwIP ignores it
+    reinterpret_cast<sockaddr_in6 *>(&server)->sin6_scope_id = this->mcast_ifindex_;
+    if (this->listen_socket_->bind((struct sockaddr *) &server, server_len) == 0) {
+      this->poll_pending_ &= ~POLL_BIND;
+      this->poll_failed_ &= ~POLL_BIND;
+    } else {
+      this->set_poll_warning_(POLL_BIND, LOG_STR("Unable to bind socket"));
+      ok = false;
+    }
+  }
+#endif
+#ifdef USE_UDP_IPV6_SEND
+  // Only an IPv6 group's join supplies the index, so a failing IPv4 join must not hold back sends
+  const bool index_pending = (this->poll_pending_ & (POLL_JOIN | POLL_BIND)) == (POLL_JOIN | POLL_BIND);
+  if ((this->poll_pending_ & POLL_MCAST_IF) && !index_pending) {
+    // Index 0 picks the first eligible interface
+    if (socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), this->mcast_ifindex_)) {
+      this->poll_pending_ &= ~POLL_MCAST_IF;
+      this->poll_failed_ &= ~POLL_MCAST_IF;
+    } else {
+      this->set_poll_warning_(POLL_MCAST_IF, LOG_STR("Failed to set IPv6 multicast interface"));
+      ok = false;
+    }
+  }
+#endif
+  if (!ok)
+    return false;
+  if (this->poll_warning_) {
+    this->poll_warning_ = false;
+    this->status_clear_warning();
+  }
+  return true;
+}
+
+void UDPComponent::set_poll_warning_(PollStep step, const LogString *what) {
+  // Log the first failure of each step only; the poll keeps retrying every second
+  if (this->poll_failed_ & step)
+    return;
+  this->poll_failed_ |= step;
+  ESP_LOGW(TAG, "%s. Error %d", LOG_STR_ARG(what), errno);
+  // One warning bit: only a warning raised here is cleared on success, one from setup() stays
+  if (!this->status_has_warning()) {
+    this->status_set_warning(what);
+    this->poll_warning_ = true;
+  }
 }
 
 void UDPComponent::loop() {
@@ -147,8 +240,23 @@ void UDPComponent::dump_config() {
 }
 
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
-  for (const auto &saddr : this->sockaddrs_) {
-    auto result = this->broadcast_socket_->sendto(data, size, 0, &saddr, sizeof(saddr));
+  if (this->is_failed())
+    return;  // a send socket may be missing
+  for (const auto &entry : this->sockaddrs_) {
+#ifdef USE_UDP_IPV6_SEND
+    const bool v6 = entry.sa.sa_family == AF_INET6;
+    // Until the egress interface is set, a multicast packet would leave on the wrong one
+    if (v6 && (this->poll_pending_ & POLL_MCAST_IF) && entry.in6.sin6_addr.s6_addr[0] == 0xff) {
+      ESP_LOGV(TAG, "Egress interface not set yet, multicast packet dropped");
+      continue;
+    }
+    socket::UDPSendSocket *sock = v6 ? this->send_socket_v6_.get() : this->broadcast_socket_.get();
+    socklen_t sockaddr_size = v6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in);
+#else
+    socket::UDPSendSocket *sock = this->broadcast_socket_.get();
+    socklen_t sockaddr_size = sizeof(sockaddr_in);
+#endif
+    auto result = sock->sendto(data, size, 0, &entry.sa, sockaddr_size);
     if (result < 0) {
       ESP_LOGW(TAG, "sendto() error %d", errno);
     }

@@ -5,6 +5,7 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_REMOTE_ID
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -13,6 +14,7 @@ from esphome.const import (
     CONF_BUTTON,
     CONF_CARRIER_FREQUENCY,
     CONF_CHANNEL,
+    CONF_CHANNELS,
     CONF_CHECK,
     CONF_CODE,
     CONF_COMMAND,
@@ -21,6 +23,7 @@ from esphome.const import (
     CONF_DELTA,
     CONF_DEVICE,
     CONF_FAMILY,
+    CONF_FAN_MODE,
     CONF_FORCE_UPDATE,
     CONF_GROUP,
     CONF_HUMIDITY,
@@ -30,6 +33,7 @@ from esphome.const import (
     CONF_KEY,
     CONF_LEVEL,
     CONF_MAGNITUDE,
+    CONF_MODE,
     CONF_NBITS,
     CONF_ONE,
     CONF_PROTOCOL,
@@ -150,8 +154,7 @@ async def attach_receiver(
 
 
 async def register_transmittable(var, config, key: str = CONF_TRANSMITTER_ID):
-    transmitter_ = await cg.get_variable(config[key])
-    cg.add(var.set_transmitter(transmitter_))
+    await cg.add_variable(var.set_transmitter, config[key])
 
 
 # Registry names that share a protocol source file
@@ -1040,6 +1043,21 @@ KEELOQ_SCHEMA = cv.Schema(
 )
 
 
+def _keeloq_group_alone(config: ConfigType) -> ConfigType:
+    # The group bits take the places of level and the suffix.
+    if CONF_GROUP not in config:
+        return config
+    if CONF_SUFFIX in config or CONF_SUFFIX_BITS in config:
+        raise cv.Invalid(
+            "group cannot be combined with suffix or suffix_bits", [CONF_GROUP]
+        )
+    if config[CONF_LEVEL] is not False:
+        raise cv.Invalid(
+            "group sets the bit that level sends; remove level", [CONF_LEVEL]
+        )
+    return config
+
+
 def _keeloq_suffix_fits(config: ConfigType) -> ConfigType:
     # A lambda is only known on the device. A plain value has to fit the width.
     suffix = config.get(CONF_SUFFIX, 0)
@@ -1056,6 +1074,7 @@ KEELOQ_ACTION_SCHEMA = KEELOQ_SCHEMA.extend(
         # No defaults: an absent key leaves the data at 0 and emits nothing.
         cv.Optional(CONF_SUFFIX): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
         cv.Optional(CONF_SUFFIX_BITS): cv.int_range(min=0, max=16),
+        cv.Optional(CONF_GROUP): cv.hex_uint8_t,
     }
 )
 
@@ -1093,7 +1112,8 @@ register_protocol_action(
     (CONF_LEVEL, "vlow", cg.bool_),
     (CONF_SUFFIX, "suffix", cg.uint16),
     (CONF_SUFFIX_BITS, "suffix_bits", cg.uint8),
-    validate=_keeloq_suffix_fits,
+    automation.ApplyField(CONF_GROUP, "data.set_group", cg.uint8),
+    validate=cv.All(_keeloq_group_alone, _keeloq_suffix_fits),
 )
 
 
@@ -2407,6 +2427,62 @@ register_protocol_action(
 )
 
 
+# PD Pioneer
+(
+    PDPioneerData,
+    PDPioneerBinarySensor,
+    PDPioneerTrigger,
+    _,
+    PDPioneerDumper,
+) = declare_protocol("PDPioneer")
+
+
+def _validate_pd_pioneer_burst(code: list[int]) -> list[int]:
+    """Byte 3 tells the odd (0x02) and even (0x01) bursts apart; decode() drops anything else."""
+    if code[3] not in (0x01, 0x02):
+        raise cv.Invalid("Byte 3 of a pd_pioneer code must be 0x01 or 0x02")
+    return code
+
+
+PDPIONEER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All(
+            [cv.hex_uint8_t], cv.Length(min=13, max=14), _validate_pd_pioneer_burst
+        ),
+    }
+)
+
+
+def _pd_pioneer_finalized(code: list[int]) -> list[int]:
+    """Fill in the checksum: the sum of the first 13 bytes, plus 15 for an odd burst."""
+    checksum = sum(code[:13], 15 if code[3] == 0x02 else 0) & 0xFF
+    return [*code[:13], checksum]
+
+
+@register_binary_sensor("pd_pioneer", PDPioneerBinarySensor, PDPIONEER_SCHEMA)
+def pd_pioneer_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(var.set_data(_pd_pioneer_finalized(config[CONF_CODE])))
+
+
+@register_trigger("pd_pioneer", PDPioneerTrigger, PDPioneerData)
+def pd_pioneer_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("pd_pioneer", PDPioneerDumper)
+def pd_pioneer_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "pd_pioneer",
+    "PDPioneer",
+    PDPIONEER_SCHEMA,
+    _bytes_field(CONF_CODE, f"data = {PDPioneerData}({{}})"),
+    automation.ApplyCall("data.finalize()"),
+)
+
+
 # Midea
 MideaData, MideaBinarySensor, MideaTrigger, _, MideaDumper = declare_protocol("Midea")
 MIDEA_SCHEMA = cv.Schema(
@@ -2507,15 +2583,16 @@ register_protocol_action(
 ) = declare_protocol("Hob2Hood")
 
 Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
-HOB2HOOD_COMMAND_OPTIONS = {
-    "light_off": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_OFF,
-    "light_on": Hob2HoodCommand.HOB2HOOD_COMMAND_LIGHT_ON,
-    "fan_off": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_OFF,
-    "fan_low": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_LOW,
-    "fan_medium": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MEDIUM,
-    "fan_high": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_HIGH,
-    "fan_max": Hob2HoodCommand.HOB2HOOD_COMMAND_FAN_MAX,
-}
+HOB2HOOD_COMMAND_OPTIONS = Hob2HoodCommand.options(
+    "light_off",
+    "light_on",
+    "fan_off",
+    "fan_low",
+    "fan_medium",
+    "fan_high",
+    "fan_max",
+    prefix="HOB2HOOD_COMMAND_",
+)
 
 HOB2HOOD_SCHEMA = cv.Schema(
     {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS, lower=True)}
@@ -2632,10 +2709,8 @@ def abbwelcome_binary_sensor(var, config):
     cg.add(var.set_retransmission(config[CONF_RETRANSMISSION]))
     cg.add(var.set_message_type(config[CONF_MESSAGE_TYPE]))
     cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
-    if CONF_MESSAGE_ID in config:
-        cg.add(var.set_message_id(config[CONF_MESSAGE_ID]))
-    if CONF_DATA in config:
-        cg.add(var.set_data(config[CONF_DATA]))
+    cg.add_optional(var.set_message_id, config.get(CONF_MESSAGE_ID))
+    cg.add_optional(var.set_data, config.get(CONF_DATA))
     cg.add(var.finalize())
 
 
@@ -2770,4 +2845,137 @@ register_protocol_action(
     (CONF_RC_CODE_2, "rc_code_2", cg.uint8),
     (CONF_COMMAND, "command", cg.uint8),
     validate=_toto_default_repeat,
+)
+
+
+# IRA211
+(
+    IRA211Data,
+    IRA211BinarySensor,
+    IRA211Trigger,
+    _,
+    IRA211Dumper,
+) = declare_protocol("IRA211")
+
+IRA211CommandEnum = ns.enum("IRA211Command", is_class=True)
+IRA211_COMMANDS = IRA211CommandEnum.options(
+    "TEMP_UP", "TEMP_DOWN", "MODE", "FAN", "POWER", "SYNC", prefix="IRA211_COMMAND_"
+)
+
+IRA211ModeEnum = ns.enum("IRA211Mode", is_class=True)
+IRA211_MODES = IRA211ModeEnum.options(
+    "PROTECTION", "TIMER", "COMFORT", prefix="IRA211_MODE_"
+)
+
+IRA211FanEnum = ns.enum("IRA211Fan", is_class=True)
+IRA211_FAN_SPEEDS = IRA211FanEnum.options(
+    "AUTO", "LOW", "MEDIUM", "HIGH", prefix="IRA211_FAN_"
+)
+
+
+def _half_degree_step(value: float) -> float:
+    if value * 2 != int(value * 2):
+        raise cv.Invalid("Temperature must be a multiple of 0.5")
+    return value
+
+
+IRA211_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_COMMAND): cv.enum(IRA211_COMMANDS, upper=True),
+        cv.Optional(CONF_TEMPERATURE, default=20): cv.All(
+            cv.float_range(min=5, max=35), _half_degree_step
+        ),
+        cv.Optional(CONF_MODE, default="COMFORT"): cv.enum(IRA211_MODES, upper=True),
+        cv.Optional(CONF_FAN_MODE, default="AUTO"): cv.enum(
+            IRA211_FAN_SPEEDS, upper=True
+        ),
+    }
+)
+
+
+@register_binary_sensor("ira211", IRA211BinarySensor, IRA211_SCHEMA)
+def ira211_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                IRA211Data,
+                ("command", config[CONF_COMMAND]),
+                ("half_degrees", int(config[CONF_TEMPERATURE] * 2)),
+                ("mode", config[CONF_MODE]),
+                ("fan", config[CONF_FAN_MODE]),
+            )
+        )
+    )
+
+
+@register_trigger("ira211", IRA211Trigger, IRA211Data)
+def ira211_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("ira211", IRA211Dumper)
+def ira211_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "ira211",
+    "IRA211",
+    IRA211_SCHEMA,
+    (CONF_COMMAND, "command", IRA211CommandEnum),
+    automation.ApplyField(CONF_TEMPERATURE, "data.set_temperature({})", cg.float_),
+    (CONF_MODE, "mode", IRA211ModeEnum),
+    (CONF_FAN_MODE, "fan", IRA211FanEnum),
+)
+
+
+# A-OK
+(
+    AOKData,
+    AOKBinarySensor,
+    AOKTrigger,
+    _,
+    AOKDumper,
+) = declare_protocol("AOK")
+
+AOK_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_REMOTE_ID): cv.hex_int_range(0, 0xFFFFFF),
+        cv.Required(CONF_CHANNELS): cv.hex_uint16_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("aok", AOKBinarySensor, AOK_SCHEMA)
+def aok_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                AOKData,
+                ("remote_id", config[CONF_REMOTE_ID]),
+                ("channels", config[CONF_CHANNELS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("aok", AOKTrigger, AOKData)
+def aok_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("aok", AOKDumper)
+def aok_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "aok",
+    "AOK",
+    AOK_SCHEMA,
+    (CONF_REMOTE_ID, "remote_id", cg.uint32),
+    (CONF_CHANNELS, "channels", cg.uint16),
+    (CONF_COMMAND, "command", cg.uint8),
 )

@@ -71,8 +71,8 @@ on_jvc:
 on_keeloq:
   then:
     - logger.log:
-        format: "on_keeloq: %lu %lu %u %u %u"
-        args: ["long(x.encrypted)", "long(x.address)", "x.command", "x.suffix", "x.suffix_bits"]
+        format: "on_keeloq: %lu %lu %u %u %u %u"
+        args: ["long(x.encrypted)", "long(x.address)", "x.command", "x.suffix", "x.suffix_bits", "x.suffix_bits == 6 ? x.group() : 0"]
 on_haier:
   then:
     - logger.log:
@@ -187,8 +187,23 @@ on_toto:
     - logger.log:
         format: "on_toto: %u %u %u"
         args: ["x.rc_code_1", "x.rc_code_2", "x.command"]
+on_aok:
+  then:
+    - logger.log:
+        format: "on_aok: %u %u %u"
+        args: ["x.remote_id", "x.channels", "x.command"]
 on_hob2hood:
   then:
     - logger.log:
         format: "on_hob2hood: %u"
         args: ["x.command"]
+on_pd_pioneer:
+  then:
+    - logger.log:
+        format: "on_pd_pioneer: burst %u power %u"
+        args: ["x[3]", "x[5]"]
+on_ira211:
+  then:
+    - logger.log:
+        format: "on_ira211: %u %.1f"
+        args: ["static_cast<uint8_t>(x.command)", "x.get_temperature()"]
