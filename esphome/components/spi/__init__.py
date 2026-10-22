@@ -17,6 +17,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
+    idf_version,
     only_on_variant,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
@@ -146,6 +147,9 @@ def _validate_psram_dma(value: Any) -> bool:
     value = cv.boolean(value)
     if not value:
         return value
+    # SPI_TRANS_DMA_USE_PSRAM; the underlying ESP-IDF version counts, whichever framework builds it
+    if idf_version() < cv.Version(5, 5, 3):
+        raise cv.Invalid("psram_dma requires ESP-IDF 5.5.3 or newer")
     return cv.All(
         cv.only_on_esp32,
         only_on_variant(
@@ -157,10 +161,6 @@ def _validate_psram_dma(value: Any) -> bool:
                 VARIANT_ESP32S3,
             ],
             msg_prefix="PSRAM DMA",
-        ),
-        # SPI_TRANS_DMA_USE_PSRAM; Arduino 3.3.7 is the first release on ESP-IDF 5.5.3
-        cv.require_framework_version(
-            esp_idf=cv.Version(5, 5, 3), esp32_arduino=cv.Version(3, 3, 7)
         ),
         cv.requires_component(PSRAM_DOMAIN),
     )(value)
