@@ -2,7 +2,6 @@
 #include "modem_component.h"
 #include "soc/soc_caps.h"
 #include <driver/uart.h>
-#include <esp_task_wdt.h>
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -19,27 +18,6 @@
 namespace esphome::modem {
 
 ESPHOME_LOG_TAG(TAG, "modem");
-
-// esp_modem's calls block until the modem answers or their own timeouts run out, up to a minute for a
-// mode change. The loop task leaves the task watchdog for one state step so such a call cannot trip it.
-class WatchdogPause {
- public:
-  WatchdogPause() : subscribed_(esp_task_wdt_status(nullptr) == ESP_OK) {
-    if (this->subscribed_) {
-      esp_task_wdt_delete(nullptr);
-    }
-  }
-  ~WatchdogPause() {
-    if (this->subscribed_) {
-      esp_task_wdt_add(nullptr);
-    }
-  }
-  WatchdogPause(const WatchdogPause &) = delete;
-  WatchdogPause &operator=(const WatchdogPause &) = delete;
-
- protected:
-  bool subscribed_;
-};
 
 #ifdef SOC_UART_HP_NUM
 static constexpr int HP_UART_COUNT = SOC_UART_HP_NUM;
@@ -59,28 +37,33 @@ ModemComponent::ModemComponent() { global_modem_component = this; }
 
 void ModemComponent::enable() {
   ESP_LOGI(TAG, "Setting modem target state to CONNECTED");
-  this->target_state_ = ModemComponentState::MODEM_CONNECTED;
-  this->pin_sent_ = false;
+  this->target_state_.store(ModemComponentState::MODEM_CONNECTED);
   // A link that is already up has nothing to wait for; a lost one re-arms the timer itself
-  if (this->component_state_ != ModemComponentState::MODEM_CONNECTED) {
+  if (this->component_state_.load() != ModemComponentState::MODEM_CONNECTED) {
     this->arm_connect_timeout_();
   }
-  this->enable_loop();
+  this->wake_task_();
 }
 
 void ModemComponent::disable() {
   ESP_LOGI(TAG, "Setting modem target state to DISABLED");
-  this->target_state_ = ModemComponentState::MODEM_DISABLED;
+  this->target_state_.store(ModemComponentState::MODEM_DISABLED);
   this->cancel_connect_timeout_();
+  this->wake_task_();
+}
+
+void ModemComponent::wake_task_() {
+  if (this->task_handle_ != nullptr) {
+    xTaskNotifyGive(this->task_handle_);
+  }
 }
 
 // Self-keyed so it still fires after a failed setup, where the component's own timers are skipped
 void ModemComponent::arm_connect_timeout_() {
   // Measures time without a connection, like wifi: neither retry cycles nor a repeated enable() restart it
-  if (this->timeout_ == 0 || this->connect_timeout_armed_) {
+  if (this->timeout_ == 0 || this->connect_timeout_armed_.exchange(true)) {
     return;
   }
-  this->connect_timeout_armed_ = true;
   App.scheduler.set_timeout(this, this->timeout_, []() {
     ESP_LOGE(TAG, "Modem was not able to connect (timeout), rebooting");
     App.reboot();
@@ -88,7 +71,7 @@ void ModemComponent::arm_connect_timeout_() {
 }
 
 void ModemComponent::cancel_connect_timeout_() {
-  this->connect_timeout_armed_ = false;
+  this->connect_timeout_armed_.store(false);
   App.scheduler.cancel_timeout(this);
 }
 
@@ -106,14 +89,15 @@ network::IPAddresses ModemComponent::get_ip_addresses() {
 
 void ModemComponent::fail_setup_(const LogString *reason) {
   this->mark_failed(reason);
-  if (this->target_state_ == ModemComponentState::MODEM_CONNECTED) {
+  if (this->target_state_.load() == ModemComponentState::MODEM_CONNECTED) {
     this->arm_connect_timeout_();
   }
 }
 
+// The status flags belong to the main loop, so the task hands them over through the scheduler
 void ModemComponent::set_warning_(uint8_t bit, const LogString *message) {
   this->warnings_ |= bit;
-  this->status_set_warning(message);
+  this->defer([this, message]() { this->status_set_warning(message); });
 }
 
 void ModemComponent::clear_warning_(uint8_t bit) {
@@ -121,7 +105,7 @@ void ModemComponent::clear_warning_(uint8_t bit) {
     return;
   this->warnings_ &= ~bit;
   if (this->warnings_ == 0)
-    this->status_clear_warning();
+    this->defer([this]() { this->status_clear_warning(); });
 }
 
 void ModemComponent::setup() {
@@ -154,9 +138,11 @@ void ModemComponent::setup() {
       auto *event = static_cast<ip_event_got_ip_t *>(event_data);
       ESP_LOGD(TAG, "PPP IP event: Got IP " IPSTR, IP2STR(&event->ip_info.ip));
       self->got_ip_.store(true, std::memory_order_release);
+      self->wake_task_();
     } else if (event_id == IP_EVENT_PPP_LOST_IP) {
       ESP_LOGD(TAG, "PPP IP event: Lost IP");
       self->got_ip_.store(false, std::memory_order_release);
+      self->wake_task_();
     }
   };
   // A dead peer or an LCP failure is reported here, not as a lost IP event; esp_modem enables these
@@ -164,7 +150,9 @@ void ModemComponent::setup() {
   auto ppp_status = [](void *arg, esp_event_base_t, int32_t event_id, void *) {
     if (event_id < NETIF_PP_PHASE_OFFSET && event_id != NETIF_PPP_ERRORNONE) {
       ESP_LOGD(TAG, "PPP error event %d", static_cast<int>(event_id));
-      static_cast<ModemComponent *>(arg)->got_ip_.store(false, std::memory_order_release);
+      auto *self = static_cast<ModemComponent *>(arg);
+      self->got_ip_.store(false, std::memory_order_release);
+      self->wake_task_();
     }
   };
   if (esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, ip_event, this) != ESP_OK ||
@@ -263,6 +251,9 @@ void ModemComponent::setup() {
     return DTE::UrcConsumeInfo{DTE::UrcConsumeResult::CONSUME_ALL, 0};
   });
 #endif
+  if (xTaskCreate(ModemComponent::task_entry_, "modem", TASK_STACK_SIZE, this, 1, &this->task_handle_) != pdPASS) {
+    this->fail_setup_(LOG_STR("Task creation failed"));
+  }
 }
 
 void ModemComponent::dump_config() {
@@ -287,34 +278,37 @@ void ModemComponent::dump_config() {
   this->dump_connect_params_();
 }
 
-void ModemComponent::loop() {
-  // Some modem steps need a pause; the early return alone defers the work
-  if (App.get_loop_component_start_time() - this->delay_start_ < this->delay_ms_) {
-    return;
+void ModemComponent::task_entry_(void *arg) { static_cast<ModemComponent *>(arg)->run_task_(); }
+
+void ModemComponent::run_task_() {
+  while (true) {
+    this->step_delay_ms_ = 0;
+    this->transition_to_(this->compute_next_state_());
+    // Nothing to do while disabled or connected: enable(), disable() and the PPP events wake the task
+    const bool parked = this->component_state_.load() == this->target_state_.load();
+    ulTaskNotifyTake(pdTRUE, parked ? portMAX_DELAY : pdMS_TO_TICKS(this->step_delay_ms_));
   }
-  WatchdogPause pause;
-  this->transition_to_(this->compute_next_state_());
 }
 
 ModemComponentState ModemComponent::retry_(ModemComponentState state, uint32_t delay_ms) {
-  this->delay_start_ = App.get_loop_component_start_time();
-  this->delay_ms_ = delay_ms;
+  this->step_delay_ms_ = delay_ms;
   return state;
 }
 
 ModemComponentState ModemComponent::compute_next_state_() {
-  if (this->target_state_ == ModemComponentState::MODEM_DISABLED) {
-    if (this->component_state_ == ModemComponentState::MODEM_DISABLED) {
-      this->disable_loop();  // Parked until enable() turns the loop back on
+  const ModemComponentState state = this->component_state_.load();
+  if (this->target_state_.load() == ModemComponentState::MODEM_DISABLED) {
+    if (state == ModemComponentState::MODEM_DISABLED) {
       return ModemComponentState::MODEM_DISABLED;
     }
-    if (this->component_state_ != ModemComponentState::MODEM_DISCONNECTING) {
+    if (state != ModemComponentState::MODEM_DISCONNECTING) {
       return ModemComponentState::MODEM_DISCONNECTING;
     }
   }
 
-  switch (this->component_state_) {
+  switch (state) {
     case ModemComponentState::MODEM_DISABLED:
+      this->pin_sent_ = false;  // a new attempt may send the PIN once
       return ModemComponentState::MODEM_ENABLING;
     case ModemComponentState::MODEM_ENABLING:
       return this->handle_state_enabling_();
@@ -340,7 +334,7 @@ ModemComponentState ModemComponent::compute_next_state_() {
     case ModemComponentState::MODEM_DISCONNECTING:
       return this->handle_state_disconnecting_();
   }
-  return this->component_state_;
+  return state;
 }
 
 ModemComponentState ModemComponent::handle_state_enabling_() {
@@ -498,8 +492,8 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
         return this->retry_(ModemComponentState::MODEM_CONNECTING);
       case SimResult::SIM_RESULT_FATAL:
         // Retrying would burn the remaining PIN attempts; stay off until the user fixes the SIM
-        this->status_set_error(LOG_STR("SIM locked"));
-        this->target_state_ = ModemComponentState::MODEM_DISABLED;
+        this->defer([this]() { this->status_set_error(LOG_STR("SIM locked")); });
+        this->target_state_.store(ModemComponentState::MODEM_DISABLED);
         this->cancel_connect_timeout_();
         return ModemComponentState::MODEM_DISCONNECTING;
     }
@@ -533,7 +527,7 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
     ESP_LOGE(TAG, "Failed to enter PPP. Resetting modem.");
     return ModemComponentState::MODEM_DISCONNECTING;
   }
-  this->wait_ip_start_ = App.get_loop_component_start_time();
+  this->wait_ip_start_ = millis();
   return ModemComponentState::MODEM_WAIT_IP;
 }
 
@@ -541,19 +535,20 @@ ModemComponentState ModemComponent::handle_state_wait_ip_() {
   if (this->got_ip_.load(std::memory_order_acquire)) {
     this->cancel_connect_timeout_();
     this->clear_warning_(WARN_TEARDOWN);
-    this->status_clear_error();  // a SIM fault fixed outside is over once PPP is up
+    // a SIM fault fixed outside is over once PPP is up
+    this->defer([this]() { this->status_clear_error(); });
     this->dump_connect_params_();
     return ModemComponentState::MODEM_CONNECTED;
   }
-  if (App.get_loop_component_start_time() - this->wait_ip_start_ < WAIT_IP_TIMEOUT_MS) {
-    return ModemComponentState::MODEM_WAIT_IP;
+  if (millis() - this->wait_ip_start_ < WAIT_IP_TIMEOUT_MS) {
+    return this->retry_(ModemComponentState::MODEM_WAIT_IP);  // the IP event wakes the task sooner
   }
   ESP_LOGE(TAG, "Unable to get IP address");
   return ModemComponentState::MODEM_DISCONNECTING;
 }
 
 ModemComponentState ModemComponent::handle_state_disconnecting_() {
-  // Each teardown command blocks the loop for up to 20 s, so a modem that never answered is skipped
+  // Each teardown command holds the task for up to 20 s, so a modem that never answered is skipped
   if (!this->modem_synced_) {
     return ModemComponentState::MODEM_DISABLED;
   }
@@ -579,22 +574,24 @@ ModemComponentState ModemComponent::handle_state_disconnecting_() {
 }
 
 void ModemComponent::transition_to_(ModemComponentState next_state) {
-  if (next_state == this->component_state_) {
+  const ModemComponentState state = this->component_state_.load();
+  if (next_state == state) {
     return;
   }
-  const bool lost = next_state == ModemComponentState::MODEM_DISCONNECTING &&
-                    this->component_state_ == ModemComponentState::MODEM_CONNECTED;
-  ESP_LOGD(TAG, "State change: %d -> %d", static_cast<int>(this->component_state_), static_cast<int>(next_state));
-  this->component_state_ = next_state;
-  // on_disconnect pairs with on_connect, so a failed attempt that never connected does not fire it
+  const bool lost =
+      next_state == ModemComponentState::MODEM_DISCONNECTING && state == ModemComponentState::MODEM_CONNECTED;
+  ESP_LOGD(TAG, "State change: %d -> %d", static_cast<int>(state), static_cast<int>(next_state));
+  this->component_state_.store(next_state);
+  // on_disconnect pairs with on_connect, so a failed attempt that never connected does not fire it; the
+  // automations run on the main loop
   if (next_state != ModemComponentState::MODEM_DISCONNECTING || lost) {
-    this->on_state_callback_.call(next_state);
+    this->defer([this, next_state]() { this->on_state_callback_.call(next_state); });
   }
   if (next_state == ModemComponentState::MODEM_DISCONNECTING) {
     // The lost IP event can lag by minutes; a quick re-enable must wait for a fresh address
     this->got_ip_.store(false, std::memory_order_release);
     this->retry_(next_state, COMMAND_TIMEOUT_MS);  // let the link settle before the first pass
-    if (lost && this->target_state_ == ModemComponentState::MODEM_CONNECTED) {
+    if (lost && this->target_state_.load() == ModemComponentState::MODEM_CONNECTED) {
       this->arm_connect_timeout_();  // A lost connection starts the reconnect watchdog again
     }
   }

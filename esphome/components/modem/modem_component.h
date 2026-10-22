@@ -11,6 +11,8 @@
 
 #include <cxx_include/esp_modem_api.hpp>
 #include <esp_modem_config.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <atomic>
 #include <memory>
@@ -44,7 +46,6 @@ class ModemComponent : public Component {
  public:
   ModemComponent();
   void setup() override;
-  void loop() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::WIFI + 1; }  // Just before Wi-Fi
 
@@ -75,15 +76,16 @@ class ModemComponent : public Component {
     this->on_state_callback_.add(std::forward<F>(callback));
   }
 
-  bool is_connected() { return this->component_state_ == ModemComponentState::MODEM_CONNECTED; }
+  bool is_connected() { return this->component_state_.load() == ModemComponentState::MODEM_CONNECTED; }
   bool is_disabled() {
-    return this->component_state_ == ModemComponentState::MODEM_DISABLED &&
-           this->target_state_ == ModemComponentState::MODEM_DISABLED;
+    return this->component_state_.load() == ModemComponentState::MODEM_DISABLED &&
+           this->target_state_.load() == ModemComponentState::MODEM_DISABLED;
   }
   bool is_enabled() { return !this->is_disabled(); }
   void enable();
   void disable();
-  /// Send an AT command; with verbose the command, result and response are logged.
+  /// Send an AT command; with verbose the command, result and response are logged. Blocks the caller for up
+  /// to the timeout, and waits for a command the modem task has in flight.
   bool send_at(const std::string &cmd, uint32_t timeout = 0, bool verbose = false);
 
   network::IPAddresses get_ip_addresses();
@@ -91,16 +93,23 @@ class ModemComponent : public Component {
 
  protected:
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
-  // Each probe of a silent modem blocks the loop for about a second, so they are spaced out
+  // A silent modem is not going to answer the next second, so its probes are spaced out
   static constexpr uint32_t PROBE_RETRY_DELAY_MS = 5000;
   static constexpr size_t URC_LINE_SIZE = 128;
+  // esp_modem's command strings and the log lines are built on this stack
+  static constexpr uint32_t TASK_STACK_SIZE = 5120;
 
+  // esp_modem's calls block until the modem answers or their own timeouts run out, up to a minute for a
+  // mode change, so the state machine runs on its own task and leaves the main loop alone
+  static void task_entry_(void *arg);
+  void run_task_();
+  void wake_task_();
   ModemComponentState compute_next_state_();
   ModemComponentState handle_state_enabling_();
   ModemComponentState handle_state_connecting_();
   ModemComponentState handle_state_wait_ip_();
   ModemComponentState handle_state_disconnecting_();
-  /// Pause the state machine before the next pass, then go to state
+  /// Pause the task before the next pass, then go to state
   ModemComponentState retry_(ModemComponentState state, uint32_t delay_ms = RETRY_DELAY_MS);
   void transition_to_(ModemComponentState next_state);
   // One bit per fault source, so a recovery in one path cannot hide another path's fault
@@ -141,23 +150,24 @@ class ModemComponent : public Component {
   int baud_rate_{0};  // 0 = use the esp_modem default
   int current_baud_rate_{0};
   int restored_baud_{0};
+  TaskHandle_t task_handle_{nullptr};
   uint32_t timeout_{0};
-  uint32_t delay_start_{0};
-  uint32_t delay_ms_{0};
+  uint32_t step_delay_ms_{0};
   uint32_t wait_ip_start_{0};
   uint16_t tx_buffer_size_{512};
   uint16_t rx_buffer_size_{512};
   uint16_t dte_buffer_size_{512};
-  ModemComponentState component_state_{ModemComponentState::MODEM_DISABLED};
-  ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};
+  // The task owns component_state_; the main loop sets target_state_ and reads both
+  std::atomic<ModemComponentState> component_state_{ModemComponentState::MODEM_DISABLED};
+  std::atomic<ModemComponentState> target_state_{ModemComponentState::MODEM_DISABLED};
   uint8_t init_at_count_{0};
   uint8_t baud_index_{0};
   uint8_t warnings_{0};
   // CONNECTING runs its long commands once: 0 nothing sent, 1 radio on, 2 attach requested
   uint8_t connect_step_{0};
-  // One PIN attempt per enable(): a second wrong PIN could PUK-lock the SIM
+  // One PIN attempt per connection attempt: a second wrong PIN could PUK-lock the SIM
   bool pin_sent_{false};
-  bool connect_timeout_armed_{false};
+  std::atomic<bool> connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
   // Written last by the IP event task, read by loop()
   std::atomic<bool> got_ip_{false};
