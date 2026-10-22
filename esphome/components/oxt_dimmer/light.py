@@ -48,9 +48,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config):
-    ctrl = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(ctrl, config)
-    await uart.register_uart_device(ctrl, config)
+    ctrl = await uart.new_uart_component(config)
 
     for index, channel_cfg in enumerate(config[CONF_CHANNELS]):
         channel = cg.new_Pvariable(channel_cfg[CONF_OUTPUT_ID])

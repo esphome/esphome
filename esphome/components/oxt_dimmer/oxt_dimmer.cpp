@@ -13,10 +13,9 @@
 \*********************************************************************************************/
 #include "oxt_dimmer.h"
 
-namespace esphome {
-namespace oxt_dimmer {
+namespace esphome::oxt_dimmer {
 
-static const char *const TAG = "oxt_dimmer";
+ESPHOME_LOG_TAG(TAG, "oxt_dimmer");
 
 void OxtController::send_to_mcu_(const OxtDimmerChannel *updated_channel) {
   struct {
@@ -84,5 +83,4 @@ void OxtDimmerChannel::dump_config() {
 
 void OxtController::dump_config() { ESP_LOGCONFIG(TAG, "Oxt dimmer"); }
 
-}  // namespace oxt_dimmer
-}  // namespace esphome
+}  // namespace esphome::oxt_dimmer

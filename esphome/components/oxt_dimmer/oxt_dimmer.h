@@ -12,8 +12,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace oxt_dimmer {
+namespace esphome::oxt_dimmer {
 
 class OxtController;
 
@@ -74,5 +73,4 @@ class OxtController : public uart::UARTDevice, public Component {
   OxtDimmerChannel *channels_[MAX_CHANNELS]{nullptr};
 };
 
-}  // namespace oxt_dimmer
-}  // namespace esphome
+}  // namespace esphome::oxt_dimmer
