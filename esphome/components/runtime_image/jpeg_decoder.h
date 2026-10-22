@@ -40,9 +40,9 @@ class JpegDecoder : public ImageDecoder {
   /// The DecodeError for JPEGDEC's last error, closing the image
   int fail_();
 
-  static int32_t source_read_(JPEGFILE *file, uint8_t *buf, int32_t len);
-  static int32_t source_seek_(JPEGFILE *file, int32_t position);
-  static void source_close_(void *handle) {}
+  static int32_t source_read(JPEGFILE *file, uint8_t *buf, int32_t len);
+  static int32_t source_seek(JPEGFILE *file, int32_t position);
+  static void source_close(void *handle) {}
 
   JPEGDEC jpeg_{};
   FixedVector<uint16_t> x_boundaries_{};
