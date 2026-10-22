@@ -181,9 +181,12 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_rejected_nonfinite_{0};
   uint32_t calibration_rejected_rs_{0};
   float calibration_sum_{0.0f};
+  /// The first rejected calibration sample was logged (debug only).
+  bool calibration_rejection_logged_{false};
   bool warned_no_r0_{false};
   /// One flag per fault kind, so each is reported once - and again when the
   /// fault changes.
+  bool warned_sampler_failure_{false};
   bool warned_low_voltage_{false};
   bool warned_high_voltage_{false};
   /// A reading the curve cannot evaluate while the wiring itself is fine.
