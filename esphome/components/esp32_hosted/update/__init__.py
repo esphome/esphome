@@ -136,16 +136,20 @@ def _validate_firmware(config: ConfigType) -> None:
         candidate = Path(temporary) / "firmware.bin"
         data = external_files.download_content(url, candidate, allow_stale=False)
         _check_firmware_hash(data, expected, url)
-        try:
-            candidate.replace(target)
-        except OSError as err:
-            # Windows refuses to replace a file another build is putting there at the same moment; the
-            # file is named after its digest, so a verified copy left by that build is the same image
-            for _ in range(CACHE_RACE_RETRIES):
+        for attempt in range(CACHE_RACE_RETRIES + 1):
+            try:
+                candidate.replace(target)
+                return
+            except OSError as err:
+                # Windows refuses to replace a file another build holds at that moment; retry, or
+                # take that build's copy: named after its digest, a verified one is the same image
                 if _cached_image_digest(target) == expected:
                     return
+                if attempt == CACHE_RACE_RETRIES:
+                    raise cv.Invalid(
+                        f"Could not cache the firmware from {url}: {err}"
+                    ) from err
                 time.sleep(CACHE_RACE_RETRY_S)
-            raise cv.Invalid(f"Could not cache the firmware from {url}: {err}") from err
 
 
 FINAL_VALIDATE_SCHEMA = _validate_firmware

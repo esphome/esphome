@@ -279,6 +279,26 @@ def test_replace_refused_image_arrives_during_the_retries(
     assert not checks
 
 
+def test_replace_retried_once_the_lock_is_released(
+    downloader: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rename refused while the target is held succeeds on a later attempt."""
+    downloader.return_value = FIRMWARE
+    real_replace = Path.replace
+    refusals = [PermissionError(5, "Access is denied")] * 2
+
+    def replace_after_refusals(self: Path, target: Path) -> Path:
+        if refusals:
+            raise refusals.pop()
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace_after_refusals)
+    monkeypatch.setattr(hosted_update, "CACHE_RACE_RETRY_S", 0)
+    hosted_update.FINAL_VALIDATE_SCHEMA(remote_config())
+    assert not refusals
+    assert cache_file().read_bytes() == FIRMWARE
+
+
 def test_replace_refused_without_a_verified_image_is_an_error(
     downloader: Mock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
