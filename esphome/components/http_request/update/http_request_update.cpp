@@ -24,15 +24,6 @@ namespace esphome::http_request {
 
 ESPHOME_LOG_TAG(TAG, "http_request.update");
 
-// Wraps UpdateInfo + error for the task→main-loop handoff.
-struct TaskResult {
-  HttpRequestUpdate *update;
-  const char *source_url;  // the URL this check reads, fixed before the task starts
-  update::UpdateInfo info;
-  const LogString *error_str{nullptr};
-  bool source_url_retired{false};  // source_url was replaced while the check ran; freed when it ends
-};
-
 static const size_t MAX_READ_SIZE = 256;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
@@ -82,24 +73,24 @@ void HttpRequestUpdate::set_source_url(const char *source_url, size_t len) {
 }
 
 void HttpRequestUpdate::release_source_url_() {
-  if (!this->source_url_owned_)
-    return;
+  if (this->source_url_owned_)
+    delete[] this->source_url_;
   this->source_url_owned_ = false;
-#ifdef USE_ESP32
-  // A running check still reads the buffer it started with; the completion handler frees it.
-  if (this->task_result_ != nullptr && this->source_url_ == this->task_result_->source_url) {
-    this->task_result_->source_url_retired = true;
-    return;
+}
+
+void HttpRequestUpdate::begin_check_(TaskResult *result) {
+  result->update = this;
+  result->source_url = this->source_url_;
+  result->owns_source_url = this->source_url_owned_;
+  this->source_url_owned_ = false;
+}
+
+void HttpRequestUpdate::end_check_(TaskResult *result) {
+  if (this->source_url_ == result->source_url) {
+    this->source_url_owned_ = result->owns_source_url;
+  } else if (result->owns_source_url) {
+    delete[] result->source_url;  // replaced while the check ran
   }
-#else
-  // An automation run from inside the inline check (logger on_message, for example) may replace the
-  // URL the check is still reading, so free it on the next loop instead.
-  if (this->check_running_) {
-    this->defer([url = this->source_url_]() { delete[] url; });
-    return;
-  }
-#endif
-  delete[] this->source_url_;
 }
 
 void HttpRequestUpdate::update() {
@@ -109,35 +100,30 @@ void HttpRequestUpdate::update() {
   }
   this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
-  const bool check_running = this->task_result_ != nullptr;
-#else
-  const bool check_running = this->check_running_;
-#endif
-  if (check_running) {
+  if (this->task_result_ != nullptr) {
     ESP_LOGW(TAG, "Update check already in progress");
     return;
   }
+#endif
   // Allocated once per check; every path in the task returns via its single defer, which frees it.
   auto *result = new TaskResult();
-  result->update = this;
-  result->source_url = this->source_url_;
+  this->begin_check_(result);
 #ifdef USE_ESP32
   this->task_result_ = result;
   if (xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, result, 1, nullptr) != pdPASS) {
     this->task_result_ = nullptr;
+    this->end_check_(result);
     delete result;
   }
 #else
-  this->check_running_ = true;
   this->update_task(result);
-  this->check_running_ = false;
+  this->end_check_(result);
 #endif
 }
 
 void HttpRequestUpdate::update_task(void *params) {
   auto *result = static_cast<TaskResult *>(params);
   HttpRequestUpdate *this_update = result->update;
-  // On failure, error_str is set; on success it is nullptr.
   auto *info = &result->info;
   const char *source_url = result->source_url;
 
@@ -264,8 +250,7 @@ defer:
   this_update->defer([this_update, result]() {
 #ifdef USE_ESP32
     this_update->task_result_ = nullptr;
-    if (result->source_url_retired)
-      delete[] result->source_url;
+    this_update->end_check_(result);
 #endif
     if (result->error_str != nullptr) {
       this_update->status_set_error(result->error_str);
