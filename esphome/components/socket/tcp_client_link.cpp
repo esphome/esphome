@@ -178,14 +178,12 @@ void TcpClientLink::drop_(const LogString *what, int err) {
   this->note_attempt();
 }
 
-void TcpClientLink::check_idle_slow_() {
+void TcpClientLink::idle_close_() {
   uint32_t idle = App.get_loop_component_start_time() - this->last_io_ms_;
-  if (idle >= this->idle_timeout_ms_) {
-    // A configured close, not a failure.
-    ESP_LOGI(this->tag_, "Idle for %" PRIu32 "ms, closing", idle);
-    this->close();
-    this->note_attempt();
-  }
+  // A configured close, not a failure.
+  ESP_LOGI(this->tag_, "Idle for %" PRIu32 "ms, closing", idle);
+  this->close();
+  this->note_attempt();
 }
 
 }  // namespace esphome::socket

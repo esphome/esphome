@@ -66,10 +66,11 @@ class TcpClientLink {
   /// Restart the idle clock. A consumer that cannot take more bytes calls this,
   /// so a full buffer is not treated as a quiet peer.
   void note_io() { this->last_io_ms_ = App.get_loop_component_start_time(); }
-  /// Close when no byte has moved for idle_timeout(). Inline no-op at a zero timeout or while down.
+  /// Close when no byte has moved for idle_timeout(). Inline: the close runs only once that time has passed.
   void check_idle() {
-    if (this->idle_timeout_ms_ != 0 && this->connected_) {
-      this->check_idle_slow_();
+    if (this->idle_timeout_ms_ != 0 && this->connected_ &&
+        App.get_loop_component_start_time() - this->last_io_ms_ >= this->idle_timeout_ms_) {
+      this->idle_close_();
     }
   }
 
@@ -93,7 +94,8 @@ class TcpClientLink {
   void try_connect_();
   /// Close after a failure, log what and errno, schedule the next attempt.
   void drop_(const LogString *what, int err);
-  void check_idle_slow_();
+  /// Log and close after check_idle() saw the timeout pass; schedules the next attempt like a failure.
+  void idle_close_();
 
   StringRef host_;
   std::unique_ptr<Socket> sock_;
