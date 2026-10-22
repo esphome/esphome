@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "esphome/components/runtime_image/image_decoder.h"
+#include "esphome/components/runtime_image/jpeg_decoder.h"
 #include "esphome/components/runtime_image/runtime_image.h"
 
 #ifdef USE_RUNTIME_IMAGE_JPEG
@@ -178,6 +179,7 @@ class SourceImage : public RuntimeImage {
   explicit SourceImage(image::ImageType type = image::IMAGE_TYPE_RGB, int width = 0, int height = 0)
       : RuntimeImage(JPEG, type, image::TRANSPARENCY_OPAQUE, nullptr, false, width, height) {}
   size_t decoded_bytes() const { return this->decoded_bytes_; }
+  int scale() const { return static_cast<const JpegDecoder *>(this->decoder_.get())->get_scale(); }
 };
 
 /// The file in memory; fails reads once fail_at bytes have been read
@@ -289,6 +291,23 @@ TEST(JpegSourceDecode, SteppedDirectRgb565MatchesFedDecode) {
   int steps;
   ASSERT_EQ(decode_stepped(stepped, source, steps), DECODE_STEP_DONE);
   EXPECT_EQ(pixels(stepped), pixels(fed));
+}
+
+// decodeBegin() is given the same reduced scale as decode(), and decodeRows() keeps it for every step
+TEST(JpegSourceDecode, SteppedScaledDecodeMatchesFedDecode) {
+  for (auto type : {image::IMAGE_TYPE_RGB565, image::IMAGE_TYPE_RGB}) {
+    // 24x20 is half of 48x40, so JPEGDEC decodes at 1/2 size
+    SourceImage fed(type, 24, 20);
+    ASSERT_TRUE(decode_fed(fed));
+    ASSERT_EQ(fed.scale(), 2);
+
+    SourceImage stepped(type, 24, 20);
+    MemorySource source(JPEG_ROWS, sizeof(JPEG_ROWS));
+    int steps;
+    ASSERT_EQ(decode_stepped(stepped, source, steps), DECODE_STEP_DONE);
+    ASSERT_EQ(stepped.scale(), 2);
+    EXPECT_EQ(pixels(stepped), pixels(fed)) << "image type " << type;
+  }
 }
 
 TEST(JpegSourceDecode, WaitsForDataThatHasNotArrived) {
