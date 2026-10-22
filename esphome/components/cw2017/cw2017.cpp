@@ -3,6 +3,16 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP32
+#include <esp_system.h>
+#endif
+#ifdef USE_ESP8266
+#include <Esp.h>
+extern "C" {
+#include <user_interface.h>
+}
+#endif
+
 namespace esphome::cw2017 {
 
 ESPHOME_LOG_TAG(TAG, "cw2017");
@@ -30,6 +40,18 @@ static constexpr uint32_t INIT_RETRY_MS = 1000;
 static constexpr uint8_t INIT_ATTEMPTS = 3;
 
 static bool version_is_running(uint8_t version) { return (version & 0xFD) == 0x0D; }
+
+// The configured profile only changes with new firmware, and flashing never ends in a deep-sleep wake.
+static bool woke_from_deep_sleep() {
+#if defined(USE_ESP32)
+  return esp_reset_reason() == ESP_RST_DEEPSLEEP;
+#elif defined(USE_ESP8266)
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+  return ESP.getResetInfoPtr()->reason == REASON_DEEP_SLEEP_AWAKE;
+#else
+  return false;
+#endif
+}
 
 bool CW2017::read_profile_matches_(bool &matches) {
   matches = false;
@@ -72,8 +94,9 @@ void CW2017::init_() {
     this->init_failed_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  bool matches = false;
-  if ((config & UPDATE_FLAG) != 0 && !this->read_profile_matches_(matches)) {
+  const bool has_profile = (config & UPDATE_FLAG) != 0;
+  bool matches = has_profile && woke_from_deep_sleep();
+  if (has_profile && !matches && !this->read_profile_matches_(matches)) {
     this->init_failed_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
