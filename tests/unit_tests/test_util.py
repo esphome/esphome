@@ -1299,7 +1299,6 @@ def test_ordered_dict_repr_is_plain_dict() -> None:
 @pytest.mark.parametrize("platform", ["linux", "darwin"])
 def test_get_serial_ports(platform: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Ports are filtered by VID:PID; by-id platform devices are added on Linux."""
-    monkeypatch.setattr(sys, "platform", platform)
     comports = [
         ("", "empty", "VID:PID=1:2"),
         ("/dev/ttyUSB1", "usb", "VID:PID=1:2"),
@@ -1320,6 +1319,9 @@ def test_get_serial_ports(platform: str, monkeypatch: pytest.MonkeyPatch) -> Non
         patch("serial.tools.list_ports_linux.SysFS", side_effect=make_device),
         patch.object(util, "Path", return_value=fake_path),
     ):
+        # Only after patch() has imported pyserial: it picks its backend from
+        # sys.platform at import time, and the macOS one fails on other hosts
+        monkeypatch.setattr(sys, "platform", platform)
         ports = util.get_serial_ports()
 
     paths = [p.path for p in ports]
