@@ -367,6 +367,37 @@ template<typename D> static void runs_frames_without_deadlock() {
 }
 
 TEST(VncPacingDisplays, PlainDisplay) { runs_frames_without_deadlock<FakeDisplay>(); }
+TEST(VncPacingStart, FirstRefreshWaitsForAStartingDisplayToPark) {
+  FakeStartingDisplay d;
+  Session s(&d);
+  s.start(64, 48);
+  set_now(1100);
+  s.deliver(frame());
+  s.at(1300);
+  EXPECT_EQ(d.updates(), 0);
+  d.finish_start();
+  s.tick(10);
+  ASSERT_EQ(d.updates(), 1);
+  // Known to park now, so nothing is drawn until this refresh is over.
+  s.deliver(frame(10));
+  EXPECT_EQ(d.draws_while_busy(), 0);
+  d.finish();
+  s.tick(10);
+  EXPECT_EQ(d.pixel(10, 0), expect_px(0x1234, 2));
+}
+
+TEST(VncPacingStart, LoopingDisplayRefreshesAfterTheStartWindow) {
+  FakeLoopingDisplay d;
+  Session s(&d);
+  s.start(64, 48);
+  set_now(1100);
+  s.deliver(frame());
+  s.at(1000 + 4999);
+  EXPECT_EQ(d.updates(), 0);
+  s.at(1000 + 5000);
+  EXPECT_EQ(d.updates(), 1);
+}
+
 TEST(VncPacingDisplays, FreeRunningDisplay) { runs_frames_without_deadlock<FakeFreeRunDisplay>(); }
 TEST(VncPacingDisplays, SynchronousParkedDisplay) { runs_frames_without_deadlock<FakeSyncParkedDisplay>(); }
 

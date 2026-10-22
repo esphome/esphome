@@ -93,6 +93,38 @@ display:
 """
 
 
+OPENTHREAD_BASE = """
+esphome:
+  name: vnc-test
+
+esp32:
+  variant: esp32c6
+  framework:
+    type: esp-idf
+
+openthread:
+  tlv: 0e080000000000010000000300001035060004001fffe00208e227ac6a7f24052f0708fdb753eb517cb4d3051062b2442a928d9ea3b947a1618fc4085a030f4f70656e5468726561642d393837330102987304105330d857354330133c05e1fd7ae81a910c0402a0f7f8
+
+spi:
+  clk_pin: GPIO6
+  mosi_pin: GPIO7
+"""
+
+C6_EPAPER = """
+display:
+  - platform: epaper_spi
+    id: epd
+    model: ssd1677
+    dimensions:
+      width: 200
+      height: 200
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    busy_pin: GPIO3
+    reset_pin: GPIO2
+"""
+
+
 @pytest.fixture(autouse=True)
 def _clear_toolchain() -> None:
     # A host build earlier in the same session leaves the host toolchain selected.
@@ -331,16 +363,27 @@ display:
     assert "Display 'epd' uses the mipi_spi platform" in out
 
 
-def test_rotated_rpi_dpi_rgb_rejected(config_error: Callable[..., str]) -> None:
-    out = config_error(RPI_DPI_RGB, "    rotation: 90\n", VNC, base=S3_BASE)
-
-    assert "Display 'rgb' uses the rpi_dpi_rgb platform, which ignores rotation" in out
-
-
-def test_unrotated_rpi_dpi_rgb_accepted(write_yaml: Callable[..., Path]) -> None:
-    CORE.config_path = write_yaml(RPI_DPI_RGB, VNC, base=S3_BASE)
+def test_rotated_rpi_dpi_rgb_accepted(write_yaml: Callable[..., Path]) -> None:
+    CORE.config_path = write_yaml(RPI_DPI_RGB, "    rotation: 90\n", VNC, base=S3_BASE)
 
     assert read_config({}) is not None
+
+
+def test_ipv4_kept_on_with_openthread(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
+) -> None:
+    generate_main(write_yaml(C6_EPAPER, VNC, base=OPENTHREAD_BASE))
+
+    define = next(d for d in CORE.defines if d.name == "USE_NETWORK_IPV4")
+    assert str(define.value) == "true"
+
+
+def test_ipv4_disabled_rejected(config_error: Callable[..., str]) -> None:
+    out = config_error(
+        "network:\n  enable_ipv4: false\n", C6_EPAPER, VNC, base=OPENTHREAD_BASE
+    )
+
+    assert "IPv4 is required by vnc" in out
 
 
 def test_waveshare_epaper_rejected(config_error: Callable[..., str]) -> None:
