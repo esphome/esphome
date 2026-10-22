@@ -7,15 +7,19 @@ from . import CONF_TOPTRONIC_ID, TopTronicComponent, toptronic
 
 CONF_DEBUG_MODE = "debug_mode"
 
+# Generated as a C++ `enum class DebugMode`, so the YAML keys and the C++
+# enumerators are checked against each other at code-generation time.
+DebugMode = toptronic.enum("DebugMode", is_class=True)
+
 DEBUG_MODES = {
-    "CANDUMP": 1,  # log every CAN frame (tag "candump")
-    "FIND_CAN_ID": 2,  # log only 0x42/0x40 frames at WARN (tag "toptronic")
+    "CANDUMP": DebugMode.CANDUMP,  # log every CAN frame (tag "candump")
+    "FIND_CAN_ID": DebugMode.FIND_CAN_ID,  # log only 0x42/0x40 frames at WARN
 }
 
-# A debug-mode switch mirrors the build-wide s_debug_mode. write_state() forwards
-# to TopTronic::set_debug_mode(), and a callback from the hub keeps every instance
-# in sync with the actual logging mode — so the two debug switches are mutually
-# exclusive with no YAML cross-turn-off automation required.
+# A debug-mode switch controls exactly one build-wide debug flag. write_state()
+# forwards to the hub, and a callback from the hub keeps every switch instance in
+# sync with the actual logging state, so the YAML needs no cross-turn-off
+# automation.
 TopTronicDebugSwitch = toptronic.class_(
     "TopTronicDebugSwitch", switch.Switch, cg.Component
 )

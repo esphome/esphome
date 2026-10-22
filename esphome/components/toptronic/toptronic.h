@@ -21,6 +21,9 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include <deque>
 #include <map>
@@ -205,6 +208,11 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
 #endif
 
 #ifdef USE_SWITCH
+// Which debug feature a debug switch controls. Generated from Python
+// (switch.py debug_mode), so the YAML values and the C++ enumerators cannot
+// drift apart.
+enum class DebugMode : uint8_t { CANDUMP, FIND_CAN_ID };
+
 // Debug switches, one per independent debug feature. Each switch controls its
 // own build-wide boolean flag (s_candump_enabled / s_find_can_id_enabled) and
 // registers on its own per-feature callback manager, so the two switches are
@@ -215,10 +223,9 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
 class TopTronicDebugSwitch : public switch_::Switch, public Component {
  public:
   void set_parent(TopTronic *parent) { this->parent_ = parent; }
-  // The debug feature this switch controls (1 = candump, 2 = find can_id).
   // This is only a discriminator — the actual enable/disable path uses the
   // dedicated set_candump_enabled() / set_find_can_id_enabled() setters.
-  void set_debug_mode(uint8_t mode) { this->mode_ = mode; }
+  void set_debug_mode(DebugMode mode) { this->mode_ = mode; }
 
   void setup() override;
   void dump_config() override;
@@ -237,7 +244,7 @@ class TopTronicDebugSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 
   TopTronic *parent_{nullptr};
-  uint8_t mode_{0};
+  DebugMode mode_{DebugMode::CANDUMP};
 };
 #endif
 
@@ -262,7 +269,12 @@ class TopTronicDevice {
 // Root component: owns all TopTronicDevice instances and is the entry point
 // for every incoming CAN frame (parse_frame is called from the internal
 // canbus callback registered in setup()).
-class TopTronic : public Component {
+class TopTronic : public Component
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                  public ota::OTAGlobalStateListener
+#endif
+{
  public:
   // Registers this hub in the build-wide registry immediately, so refresh_all()
   // always covers every hub even if setup() has not run yet (e.g. during a slow
@@ -294,28 +306,9 @@ class TopTronic : public Component {
   void refresh_all();
 
   // Process the throttled refresh burst (send/retry/drop, completion log, stall
-  // watchdog, state heartbeat, deferred run). Called from pump() on every pass;
-  // the burst re-schedules itself through the ESPHome scheduler so pacing is
-  // honoured even without new commands.
+  // watchdog, state heartbeat, deferred run). Driven by a scheduler interval
+  // installed in setup().
   void drain_refresh_burst();
-
-  // Scheduler-driven work pump: drains the cross-task command queue and the
-  // refresh burst, fires the one-shot boot refresh. Runs on a set_interval()
-  // timer installed in setup().
-  void pump();
-
-  // Thread-safe requests callable from any FreeRTOS task. They only enqueue a
-  // command; the main loop task drains the queue and does the real work, so all
-  // component state stays single-threaded. Non-blocking (not ISR-safe).
-  void request_refresh();
-  void request_pause();
-  void request_resume();
-
-  // Fan out Pause/Resume to EVERY registered hub via the build-wide registry,
-  // so OTA pause/resume lambdas can target any single hub id and still cover
-  // all hubs (HV, BM, WEZ …). Thread-safe request variants.
-  void request_pause_all();
-  void request_resume_all();
 
   void set_device_type(uint16_t device_type) { this->device_type_ = device_type; }
   void set_device_addr(uint8_t device_addr) { this->device_addr_ = device_addr; }
@@ -385,8 +378,13 @@ class TopTronic : public Component {
   bool is_paused() { return this->paused_; }
 
   void setup() override;
-  void on_shutdown() override;
   void dump_config() override;
+
+#ifdef USE_OTA_STATE_LISTENER
+  // Pause CAN processing while an OTA update runs so the update connection is
+  // not starved, and resume on completion/abort/error.
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
+#endif
 
  protected:
   // State of an in-progress multi-frame message being reassembled.
@@ -413,6 +411,10 @@ class TopTronic : public Component {
   // not a single hardcoded address.
   bool owns_device_(uint32_t device_id) const { return this->devices_.contains(device_id); }
 
+  // Send a SET request, splitting into multiple frames when needed. Returns the
+  // bus result so the caller only records a successful write.
+  canbus::Error send_can_frames_(uint32_t can_id, const std::vector<uint8_t> &data);
+
   canbus::Canbus *canbus_;
 
   // Devices are owned here — unique_ptr guarantees cleanup when TopTronic is destroyed.
@@ -428,13 +430,6 @@ class TopTronic : public Component {
   // CAN address of this gateway node (used when building outgoing CAN IDs).
   uint16_t device_type_{0};
   uint8_t device_addr_{0};
-
-  // Commands marshalled from other tasks into the main loop task.
-  // Enumerator names are UPPER_SNAKE_CASE per §5.3; values stay 0/1/2.
-  enum class Command : uint8_t { REFRESH, PAUSE, RESUME };
-  // Producer/consumer bridge: other tasks enqueue here, pump() drains on the
-  // main loop task. Created in setup(); nullptr until then.
-  QueueHandle_t cmd_queue_{nullptr};
 
   // Delay (ms) for the one-shot post-boot refresh; 0 disables it.
   uint32_t boot_refresh_delay_ms_{30000};
@@ -483,9 +478,9 @@ class TopTronic : public Component {
   std::deque<RefreshEntry> pending_refresh_;
 
   // Coalesced refresh request: set by update_all() when a refresh is asked for
-  // while a burst is still draining. pump() starts one fresh burst once the
-  // current one empties, so a "Refresh all" press during a burst is deferred
-  // and honored rather than silently dropped.
+  // while a burst is still draining. drain_refresh_burst() starts one fresh burst
+  // once the current one empties, so a "Refresh all" press during a burst is
+  // deferred and honored rather than silently dropped.
   bool refresh_pending_{false};
 
   // Refresh-burst observability + stall watchdog. burst_in_progress_ is true
@@ -502,6 +497,9 @@ class TopTronic : public Component {
   // Write safety state.
   // Last SET timestamp per datapoint (keyed by get_id()) for the rate limit.
   std::unordered_map<uint32_t, uint32_t> last_write_ms_;
+  // Reassembly key for outgoing multi-frame messages: per hub, so two hubs never
+  // reuse the same header at the same time.
+  uint8_t msg_counter_{0};
   // Datapoints (get_id()) that have published at least one value since boot.
   std::unordered_set<uint32_t> read_ok_ids_;
   // Minimum ms between two SETs of the same datapoint (0 = no limit).
