@@ -107,12 +107,13 @@ void MQGasSensor::log_reading_(float ppm) {
 void MQGasSensor::setup() {
   // The wiring hash is folded into the key so that the stored R0 of a different
   // supply, scaling or load resistor is never read back.
-  this->r0_pref_ = this->make_entity_preference<float>(R0_PREFERENCE_VERSION ^ this->preference_key_);
+  this->r0_pref_ = this->make_entity_preference<float>(R0_PREFERENCE_VERSION ^ this->preference_key_,
+                                                       /*in_flash=*/true);
 
   if (this->r0_configured_) {
     this->log_message_(LOG_SEVERITY_INFO, LOG_STR("using the R0 from the configuration (%.4f kOhm)"), this->r0_);
   } else if (this->persist_ && this->load_r0_()) {
-    this->log_message_(LOG_SEVERITY_INFO, LOG_STR("restored R0 from flash (%.4f kOhm)"), this->r0_);
+    this->log_message_(LOG_SEVERITY_INFO, LOG_STR("restored R0 from preferences (%.4f kOhm)"), this->r0_);
   }
   this->publish_r0_();
 
@@ -142,7 +143,7 @@ void MQGasSensor::setup() {
     // No R0 will ever appear in this configuration, so the component is degraded for
     // its whole life: keep the status warning up, not only the log line.
     this->r0_warning_ = LOG_STR("no R0 available - set 'r0:' or 'calibration:' in the configuration");
-    this->status_set_warning(this->r0_warning_);
+    this->update_status_();
     this->log_message_(
         LOG_SEVERITY_WARN,
         LOG_STR("no R0 available, set 'r0:' or 'calibration:' - the PPM value stays unknown until then"));
@@ -195,9 +196,19 @@ void MQGasSensor::dump_config() {
 
 float MQGasSensor::sample_voltage_() {
   float sum = 0.0f;
-  for (uint8_t i = 0; i < this->samples_; i++)
-    sum += this->source_->sample();
-  return (sum / static_cast<float>(this->samples_)) * this->voltage_multiplier_;
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < this->samples_; i++) {
+    const float sample = this->source_->sample();
+    // A conversion the sampler could not complete is not a measurement: drop it
+    // instead of letting one NaN poison the average of the whole window.
+    if (!std::isfinite(sample))
+      continue;
+    sum += sample;
+    count++;
+  }
+  if (count == 0)
+    return NAN;
+  return (sum / static_cast<float>(count)) * this->voltage_multiplier_;
 }
 
 float MQGasSensor::current_rs_() const { return mqmath::rs_from_voltage(this->sensor_voltage_, this->vcc_, this->rl_); }
@@ -212,31 +223,43 @@ float MQGasSensor::compute_correction_() {
     return 1.0f;
 
   if (this->temperature_source_ == nullptr || this->humidity_source_ == nullptr) {
+    this->correction_degraded_ = true;
     if (!this->warned_correction_) {
       this->warned_correction_ = true;
       this->log_message_(LOG_SEVERITY_WARN,
                          LOG_STR("temperature/humidity correction is enabled but a source is missing - "
                                  "publishing the uncorrected value"));
     }
+    this->update_status_();
     return 1.0f;
   }
 
-  // Sensor::state is NAN until the first valid publication, so a source that is
-  // still booting (or has failed) simply leaves the reading uncorrected.
-  const float temperature = this->temperature_source_->state;
-  const float humidity = this->humidity_source_->state;
-  if (!std::isfinite(temperature) || !std::isfinite(humidity)) {
+  // A source that has no state yet, has failed, or holds a non-finite value cannot
+  // contribute; the last good value must not silently keep the correction alive.
+  const bool temperature_ok = this->temperature_source_->has_state() && !this->temperature_source_->is_failed() &&
+                              std::isfinite(this->temperature_source_->state);
+  const bool humidity_ok = this->humidity_source_->has_state() && !this->humidity_source_->is_failed() &&
+                           std::isfinite(this->humidity_source_->state);
+  if (!temperature_ok || !humidity_ok) {
+    this->correction_degraded_ = true;
     if (!this->warned_correction_) {
       this->warned_correction_ = true;
       this->log_message_(LOG_SEVERITY_WARN,
                          LOG_STR("no valid temperature/humidity reading yet (T=%.1f, RH=%.1f) - "
                                  "publishing the uncorrected value"),
-                         temperature, humidity);
+                         this->temperature_source_->state, this->humidity_source_->state);
     }
+    this->update_status_();
     return 1.0f;
   }
 
+  const float temperature = this->temperature_source_->state;
+  const float humidity = this->humidity_source_->state;
   this->warned_correction_ = false;
+  if (this->correction_degraded_) {
+    this->correction_degraded_ = false;
+    this->update_status_();
+  }
   return mqmath::correction_coefficient(humidity, temperature, this->tc_);
 #else
   // No configuration in this build enables a correction model, so the ratio is
@@ -246,7 +269,9 @@ float MQGasSensor::compute_correction_() {
 }
 
 float MQGasSensor::read_ppm_() {
-  const float ratio = mqmath::apply_correction(this->ratio_, this->correction_);
+  const float ratio = this->ratio_mode_ == mqmath::RATIO_R0_RS
+                          ? mqmath::apply_correction_inverse(this->ratio_, this->correction_)
+                          : mqmath::apply_correction(this->ratio_, this->correction_);
   const float ppm = mqmath::ppm_from_ratio(this->a_, this->b_, ratio, this->regression_method_);
   if (!std::isfinite(ppm))
     return NAN;
@@ -283,6 +308,21 @@ void MQGasSensor::update() {
     return;
 
   this->sensor_voltage_ = this->sample_voltage_();
+  if (!std::isfinite(this->sensor_voltage_)) {
+    // The sampler itself could not produce a conversion: this is not the same
+    // fault as a wiring that reads 0 V, and pointing at the AO wiring would hide
+    // a failed ADC or I2C device.
+    if (!this->warned_sampler_failure_) {
+      this->warned_sampler_failure_ = true;
+      this->log_message_(LOG_SEVERITY_WARN,
+                         LOG_STR("the voltage sampler returned no reading - check the sampler (I2C bus, ADC)"));
+    }
+    this->wiring_warning_ = LOG_STR("the voltage sampler returned no reading");
+    this->update_status_();
+    this->publish_fault_diagnostics_();
+    this->publish_state(NAN);
+    return;
+  }
   if (!this->voltage_usable_(this->sensor_voltage_)) {
     if (!this->warned_low_voltage_) {
       this->warned_low_voltage_ = true;
@@ -290,11 +330,11 @@ void MQGasSensor::update() {
                          LOG_STR("analog output reads %.4f V - open circuit, missing supply or bad "
                                  "divider? check the AO wiring (RS would be invalid)"),
                          this->sensor_voltage_);
-      this->wiring_warning_ = true;
     }
     // Raised on every update while the fault lasts, not only when it appears: any
     // other warning that cleared the status must not hide it.
-    this->status_set_warning(LOG_STR("analog output reads at or below 0.01 V - check the AO wiring"));
+    this->wiring_warning_ = LOG_STR("analog output reads at or below 0.01 V - check the AO wiring");
+    this->update_status_();
     this->publish_fault_diagnostics_();
     this->publish_state(NAN);
     return;
@@ -313,10 +353,10 @@ void MQGasSensor::update() {
                            LOG_STR("analog output reads %.4f V, above the configured vcc (%.2f V) by more than "
                                    "%.0f %% - check 'vcc:' and the divider"),
                            this->sensor_voltage_, this->vcc_, SATURATION_TOLERANCE * 100.0f);
-        this->wiring_warning_ = true;
       }
       // See the low-voltage branch: the status warning is a state, not an event.
-      this->status_set_warning(LOG_STR("analog output is far above vcc - check 'vcc:' and the divider"));
+      this->wiring_warning_ = LOG_STR("analog output is far above vcc - check 'vcc:' and the divider");
+      this->update_status_();
       this->publish_fault_diagnostics_();
       this->publish_state(NAN);
       return;
@@ -325,11 +365,12 @@ void MQGasSensor::update() {
   // The wiring reads as expected again, so both faults are over and the status
   // warning raised for them goes away with them. A calibration warning is not
   // this component's to clear, so only a wiring warning is cleared here.
+  this->warned_sampler_failure_ = false;
   this->warned_low_voltage_ = false;
   this->warned_high_voltage_ = false;
-  if (this->wiring_warning_) {
-    this->wiring_warning_ = false;
-    this->refresh_status_warning_();
+  if (this->wiring_warning_ != nullptr) {
+    this->wiring_warning_ = nullptr;
+    this->update_status_();
   }
 
   // These states publish no measurement, but the wiring checks above still ran:
@@ -345,8 +386,14 @@ void MQGasSensor::update() {
   }
 
   if (this->calibration_pending_) {
-    this->publish_state(NAN);
-    return;
+    if (!this->has_r0()) {
+      // There is no reference to publish with: wait for the calibration.
+      this->publish_state(NAN);
+      return;
+    }
+    // A retry is pending, but the R0 of this boot (or from preferences) is still
+    // a valid reference: keep publishing instead of blanking the sensor until the
+    // retry runs.
   }
 
   if (this->in_warmup_()) {
@@ -377,18 +424,22 @@ void MQGasSensor::update() {
 
   if (saturated) {
     // RS has collapsed to 0, so the ratio is 0 and the curve reports the top of its
-    // range: a real high concentration must not look like a broken sensor.
+    // range: a real high concentration must not look like a broken sensor. Go
+    // through the same clamp as a normal reading so `correction_clamp: scaled`
+    // moves the ceiling the same way in both paths.
     this->rs_ = 0.0f;
     this->ratio_ = 0.0f;
     this->correction_ = this->compute_correction_();
+    const float ppm = mqmath::clamp_ppm_corrected(FLT_MAX, this->min_ppm_, this->max_ppm_, this->correction_,
+                                                  this->correction_clamp_);
     // A ratio fault from an earlier update is over: this is a valid reading.
     this->clear_ratio_warning_();
-    this->log_reading_(this->max_ppm_);
+    this->log_reading_(ppm);
     this->log_message_(LOG_SEVERITY_DEBUG,
                        LOG_STR("V=%.4f V is at the supply - the sensor is saturated, reporting the top of the range"),
                        this->sensor_voltage_);
     this->publish_diagnostics_();
-    this->publish_state(this->max_ppm_);
+    this->publish_state(ppm);
     return;
   }
 
@@ -411,8 +462,7 @@ void MQGasSensor::update() {
     // Raised on every update, not only the first one: every reading is unknown for
     // as long as the ratio stays unusable, and nothing else may report the
     // component as healthy while that is the case.
-    this->status_set_warning(
-        LOG_STR("the ratio is not a measurement - check 'correction_factor:' and the coefficients"));
+    this->update_status_();
     this->publish_diagnostics_();
     this->publish_state(NAN);
     return;
@@ -427,11 +477,18 @@ void MQGasSensor::update() {
   this->publish_state(ppm);
 }
 
-void MQGasSensor::refresh_status_warning_() {
-  // The status slot holds one warning: when a fault that raised it ends, a warning
-  // that is still current has to be restated.
-  if (this->r0_warning_ != nullptr) {
+void MQGasSensor::update_status_() {
+  // The status slot holds one warning. Restate the most important one still
+  // current so that clearing a fault never hides another active fault.
+  if (this->wiring_warning_ != nullptr) {
+    this->status_set_warning(this->wiring_warning_);
+  } else if (this->r0_warning_ != nullptr) {
     this->status_set_warning(this->r0_warning_);
+  } else if (this->warned_unusable_ratio_) {
+    this->status_set_warning(
+        LOG_STR("the ratio is not a measurement - check 'correction_factor:' and the coefficients"));
+  } else if (this->correction_degraded_) {
+    this->status_set_warning(LOG_STR("T/RH compensation degraded - using the uncorrected reading"));
   } else {
     this->status_clear_warning();
   }
@@ -444,7 +501,7 @@ void MQGasSensor::clear_ratio_warning_() {
   if (!this->warned_unusable_ratio_)
     return;
   this->warned_unusable_ratio_ = false;
-  this->refresh_status_warning_();
+  this->update_status_();
 }
 
 void MQGasSensor::set_calibration(bool enabled, float ratio_in_clean_air, uint32_t delay, uint32_t duration,
@@ -458,9 +515,15 @@ void MQGasSensor::set_calibration(bool enabled, float ratio_in_clean_air, uint32
 }
 
 void MQGasSensor::start_calibration() {
-  if (this->calibrating_ || this->calibration_pending_) {
+  if (this->calibrating_) {
     this->log_message_(LOG_SEVERITY_WARN, LOG_STR("a calibration is already running"));
     return;
+  }
+  if (this->calibration_pending_) {
+    // A retry is waiting for its timer: this request replaces it.  The sampling
+    // window itself is the only state a new request may not interrupt.
+    this->cancel_timeout(CALIBRATION_START_ID);
+    this->calibration_pending_ = false;
   }
   if (this->ratio_in_clean_air_ <= 0.0f) {
     this->log_message_(LOG_SEVERITY_ERROR,
@@ -508,6 +571,7 @@ void MQGasSensor::begin_calibration_() {
   this->calibration_sum_ = 0.0f;
   this->calibration_min_ = 0.0f;
   this->calibration_max_ = 0.0f;
+  this->calibration_rejection_logged_ = false;
   this->enable_loop();
 
   this->log_message_(
@@ -520,12 +584,16 @@ void MQGasSensor::process_calibration_() {
   this->calibration_attempts_++;
 
   const float voltage = this->sample_voltage_();
+  bool rejected = false;
   if (!std::isfinite(voltage)) {
     this->calibration_rejected_nonfinite_++;
+    rejected = true;
   } else if (!this->voltage_usable_(voltage)) {
     this->calibration_rejected_low_++;
+    rejected = true;
   } else if (voltage >= this->vcc_) {
     this->calibration_rejected_high_++;
+    rejected = true;
   } else {
     this->sensor_voltage_ = voltage;
     this->rs_ = this->current_rs_();
@@ -542,7 +610,16 @@ void MQGasSensor::process_calibration_() {
       this->calibration_count_++;
     } else {
       this->calibration_rejected_rs_++;
+      rejected = true;
     }
+  }
+
+  if (rejected && !this->calibration_rejection_logged_) {
+    // The final message names the causes; this line keeps the actual value of the
+    // first rejected sample available for a wiring check without repeating it for
+    // every sample.
+    this->calibration_rejection_logged_ = true;
+    this->log_message_(LOG_SEVERITY_DEBUG, LOG_STR("first rejected calibration sample reads %.4f V"), voltage);
   }
 
   const bool samples_done = this->calibration_attempts_ >= this->calibration_samples_;
@@ -569,7 +646,14 @@ void MQGasSensor::finish_calibration_() {
                 " at/above vcc, %" PRIu32 " non-finite, %" PRIu32 " bad RS - check AO wiring and supply"),
         valid, attempts, this->calibration_rejected_low_, MIN_VALID_VOLTAGE, this->calibration_rejected_high_,
         this->calibration_rejected_nonfinite_, this->calibration_rejected_rs_);
-    this->schedule_calibration_retry_();
+    if (!this->has_r0()) {
+      this->schedule_calibration_retry_();
+    } else {
+      // A manual run failed but the R0 of this boot is still a usable reference:
+      // keep publishing with it and do not retry forever.
+      this->r0_warning_ = LOG_STR("clean-air calibration failed - keeping the current R0");
+      this->update_status_();
+    }
     return;
   }
 
@@ -584,7 +668,12 @@ void MQGasSensor::finish_calibration_() {
                        LOG_STR("clean-air samples spread %.4f kOhm around %.4f kOhm - the sensor was not settled in "
                                "clean air"),
                        this->calibration_max_ - this->calibration_min_, r0);
-    this->schedule_calibration_retry_();
+    if (!this->has_r0()) {
+      this->schedule_calibration_retry_();
+    } else {
+      this->r0_warning_ = LOG_STR("clean-air samples were unstable - keeping the current R0");
+      this->update_status_();
+    }
     return;
   }
 
@@ -596,16 +685,14 @@ void MQGasSensor::finish_calibration_() {
   if (this->persist_ && !stored) {
     // The reading stays usable, but the next boot calibrates again: keep the
     // failure visible instead of clearing the warning of the failed attempts.
-    this->r0_warning_ = LOG_STR("could not store R0 in flash");
-    this->status_set_warning(this->r0_warning_);
-  } else {
-    this->status_clear_warning();
+    this->r0_warning_ = LOG_STR("could not store R0");
   }
+  this->update_status_();
 
   this->log_message_(LOG_SEVERITY_INFO, LOG_STR("R0 = %.4f kOhm (%" PRIu32 "/%" PRIu32 " samples valid)%s"), this->r0_,
                      valid, attempts,
-                     stored           ? LOG_STR_LITERAL(", stored in flash")
-                     : this->persist_ ? LOG_STR_LITERAL(", not stored in flash")
+                     stored           ? LOG_STR_LITERAL(", stored persistently")
+                     : this->persist_ ? LOG_STR_LITERAL(", not stored")
                                       : LOG_STR_LITERAL(", kept until reboot"));
   if (!this->persist_) {
     this->log_message_(LOG_SEVERITY_INFO, LOG_STR("hard-code 'r0: %.4f' in the YAML to skip the calibration at boot"),
@@ -615,7 +702,7 @@ void MQGasSensor::finish_calibration_() {
 
 void MQGasSensor::schedule_calibration_retry_() {
   this->r0_warning_ = LOG_STR("clean-air calibration failed - retrying");
-  this->status_set_warning(this->r0_warning_);
+  this->update_status_();
   this->calibration_pending_ = true;
   // A delay of zero restarts the run straight away and logs the same failure again
   // about five times per second, so anything below the floor is raised to it.
@@ -637,11 +724,12 @@ bool MQGasSensor::in_warmup_() {
 
 bool MQGasSensor::save_r0_() {
   if (!this->r0_pref_.save(&this->r0_)) {
-    this->log_message_(LOG_SEVERITY_WARN, LOG_STR("could not store R0 in flash"));
+    this->log_message_(LOG_SEVERITY_WARN, LOG_STR("could not store R0"));
     return false;
   }
   if (!global_preferences->sync()) {
-    this->log_message_(LOG_SEVERITY_WARN, LOG_STR("R0 stored but the flash sync failed (will be written later)"));
+    this->log_message_(LOG_SEVERITY_WARN, LOG_STR("R0 stored but the preference sync failed (will be written later)"));
+    return false;
   }
   this->log_message_(LOG_SEVERITY_DEBUG, LOG_STR("R0 %.4f kOhm saved"), this->r0_);
   return true;
