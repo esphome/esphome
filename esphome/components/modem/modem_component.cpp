@@ -191,11 +191,12 @@ void ModemComponent::loop() {
   uint8_t tail = this->state_tail_.load(std::memory_order_relaxed);
   while (tail != this->state_head_.load(std::memory_order_acquire)) {
     const ModemState state = this->state_queue_[tail % STATE_QUEUE_SIZE];
-    this->state_tail_.store(++tail, std::memory_order_release);
     if (state == ModemState::MODEM_STATE_CONNECTED) {
       this->dump_connect_params_();
     }
     this->on_state_callback_.call(state);
+    // Freed after the automations ran, so the task's SYNCED gate sees on_sync finished, not just started
+    this->state_tail_.store(++tail, std::memory_order_release);
   }
   if (pending & PENDING_STATUS) {
     this->publish_status_();
