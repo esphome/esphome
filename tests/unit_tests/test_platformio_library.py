@@ -1462,6 +1462,42 @@ def test_by_name_node_pinned_later_reports_a_requirement_conflict(
         convert_libraries([Library("esphome/A", None, None)], _backend())
 
 
+def test_missed_name_is_satisfied_by_a_library_pulled_in_later(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bare name the registry does not know is wired to a library a later
+    round pulls in under another package name but the same manifest name."""
+    from platformio.package.exception import UnknownPackageError
+
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
+            "esphome/X": {"name": "X", "dependencies": [{"name": "C"}]},
+            # Fetched by name in the same round as the miss; pins the fork
+            "C": {"name": "C", "dependencies": {"owner/B-fork": "1.0.0"}},
+            "owner/B-fork": {"name": "B"},
+        },
+    )
+    asked: list[tuple[str | None, str]] = []
+
+    def resolve(owner, pkgname, requirements):
+        asked.append((owner, pkgname))
+        if pkgname == "B":
+            raise UnknownPackageError("B")
+        return _resolution(owner, pkgname)
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
+    top = convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/X", None, None)],
+        _backend(),
+    )
+    assert [d.name for d in top[0].dependencies] == ["owner/B-fork"]
+    assert asked.count((None, "B")) == 1
+    assert "Dependency B of esphome/A is not in the registry" in caplog.text
+
+
 def test_by_name_request_does_not_make_an_existing_node_optional(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -1526,6 +1526,19 @@ def convert_libraries(
                 canonical,
             )
 
+    # A name the registry did not know may be satisfied by a library a later
+    # round pulled in; match those against the finished graph, with no refetch
+    for key in components:
+        node = nodes[key]
+        for missing in [k for k in node.edges if k not in components]:
+            if not fetched_by_name(missing):
+                continue
+            match = _satisfying_key(
+                nodes[missing].pkgname, nodes[missing].owner, key, nodes, components
+            )
+            if match is not None:
+                node.edges.add(match)
+
     # Wire each component's dependencies to the single resolved instances, then
     # emit build files.
     for key, component in components.items():
