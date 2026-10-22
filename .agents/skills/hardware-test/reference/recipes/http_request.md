@@ -9,7 +9,8 @@ after DELAY s) with both chip families and logs every request. `templates/http_r
 `Check Then Swap` (ESP32 task path: check the slow manifest and replace the URL in the same lambda), `Arm Swap In
 Check` plus a `logger: on_message` lambda that replaces the URL from inside the inline check (ESP8266; the log line
 from inside `on_message` is swallowed, judge by the next check's result), and a `Heap` button. `upd-base-common.yaml`
-keeps only the shapes that compile on a tree with the bare pointer setter; `boards/upd8266.yaml` and `boards/upd32.yaml` are the
+keeps only the shapes that compile on a tree with the bare pointer setter (for the base build, copy a board file
+and point its `common` include at `../upd-base-common.yaml` with a different `name:`); `boards/upd8266.yaml` and `boards/upd32.yaml` are the
 per-board files, one directory below the package their `../` include points at. Drive with `scripts/http_request/updrive.py HOST KEY LOGFILE press:NAME wait:S`, which prints every
 update state (latest version, summary). The ESP8266 Arduino client gets `Error reading manifest: -1` on roughly a
 quarter of the fetches from this Python server on every build, so count checks against the base before blaming a

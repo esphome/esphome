@@ -31,6 +31,8 @@ except ImportError:
 HOST, KEY, OUT = sys.argv[1], sys.argv[2], Path(sys.argv[3])
 ORIG = Path(sys.argv[4]) if len(sys.argv) > 4 else None
 HELLO, HELLO_RESP, CONNECT, CONNECT_RESP = 1, 2, 3, 4
+DISCONNECT_REQ = 5
+FATAL = -1  # queued by report_fatal_error so a waiting expect() stops at once
 CAPS_REQ, CAPS_RESP = 149, 150
 GET_YAML_REQ, GET_YAML_RESP = 161, 162
 
@@ -80,6 +82,7 @@ async def main() -> None:
 
         def report_fatal_error(self, err: Exception) -> None:
             errors.append(err)
+            queue.put_nowait((FATAL, b""))
 
     params = ConnectionParams(
         addresses=[HOST],
@@ -109,7 +112,10 @@ async def main() -> None:
             log_name=HOST,
         )
     await loop.create_connection(lambda: helper, HOST, 6053)
-    await asyncio.wait_for(helper.ready_future, 10)
+    try:
+        await asyncio.wait_for(helper.ready_future, 10)
+    except Exception as exc:  # noqa: BLE001
+        sys.exit(f"handshake failed: {exc!r} {errors}")
     print(f"transport {'plaintext' if KEY == '-' else 'noise'}: handshake done")
 
     async def expect(msg_type: int, timeout: float = 10) -> bytes:
@@ -117,6 +123,15 @@ async def main() -> None:
             t, d = await asyncio.wait_for(queue.get(), timeout)
             if t == msg_type:
                 return d
+            if t == FATAL:
+                sys.exit(
+                    f"transport error while waiting for message {msg_type}: {errors}"
+                )
+            if t == DISCONNECT_REQ:
+                sys.exit(
+                    f"device closed the connection while waiting for message {msg_type}"
+                )
+            print(f"skipping message type {t} while waiting for {msg_type}")
 
     hello = api_pb2.HelloRequest(
         client_info="syrecover", api_version_major=1, api_version_minor=10
@@ -167,7 +182,7 @@ async def main() -> None:
     print(f"second request: {again} bytes")
     helper.close()
     if errors:
-        print("transport errors:", errors)
+        sys.exit(f"transport errors: {errors}")
     envelope = zstd.decompress(compressed)
     files = unpack_envelope(envelope)
     print(
