@@ -21,7 +21,18 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   void perform(bool force) override;
   void check() override { this->update(); }
 
-  void set_source_url(const char *source_url) { this->source_url_ = source_url; }
+  ~HttpRequestUpdate() override { this->release_source_url_(); }
+
+  /// Codegen only: the config literal lives in flash for the life of the program, so it is kept by pointer.
+  void set_source_url_static(const char *source_url) {
+    this->release_source_url_();
+    this->source_url_ = source_url;
+  }
+  /// Set the manifest URL at run time; the string is copied, so any storage may be passed.
+  void set_source_url(const char *source_url) { this->set_source_url(source_url, strlen(source_url)); }
+  void set_source_url(const std::string &source_url) { this->set_source_url(source_url.data(), source_url.size()); }
+  void set_source_url(const char *source_url, size_t len);
+  const char *get_source_url() const { return this->source_url_; }
 
   void set_request_parent(HttpRequestComponent *request_parent) { this->request_parent_ = request_parent; }
   void set_ota_parent(OtaHttpRequestComponent *ota_parent) { this->ota_parent_ = ota_parent; }
@@ -41,7 +52,17 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   uint8_t initial_check_remaining_{0};
 
  private:
-  const char *source_url_{nullptr};  // literal from codegen
+  void release_source_url_();
+
+  // The two flags sit in the padding after initial_check_remaining_.
+  bool source_url_owned_{false};  // source_url_ was copied by a run-time setter
+#ifdef USE_ESP32
+  bool task_source_url_retired_{false};  // task_source_url_ was replaced while the check ran; freed when it ends
+#endif
+  const char *source_url_{nullptr};
+#ifdef USE_ESP32
+  const char *task_source_url_{nullptr};  // the URL the running update task reads, fixed before it starts
+#endif
 };
 
 }  // namespace esphome::http_request
