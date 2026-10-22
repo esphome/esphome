@@ -127,6 +127,9 @@ void CoverCall::validate_() {
     if (!traits.get_supports_toggle()) {
       ESP_LOGW(TAG, "'%s': toggle unsupported", name);
       this->toggle_.reset();
+    } else if (this->stop_) {
+      ESP_LOGW(TAG, "'%s': stop overrides toggle", name);
+      this->toggle_.reset();
     }
   }
   if (this->stop_tilt_) {
