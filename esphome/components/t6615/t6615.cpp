@@ -44,17 +44,14 @@ void T6615Component::loop() {
   this->read_array(response_buffer, 5);
 
   // Read header
-  if (response_buffer[0] != T6615_MAGIC || response_buffer[1] != T6615_ADDR_HOST) {
+  if (!this->status_comm_result(response_buffer[0] == T6615_MAGIC && response_buffer[1] == T6615_ADDR_HOST)) {
     ESP_LOGW(TAG, "Got bad data from T6615! Magic was %02X and address was %02X", response_buffer[0],
              response_buffer[1]);
     this->discard_available();
     /* try again to read the sensor */
     this->send_ppm_command_();
-    this->status_set_warning();
     return;
   }
-
-  this->status_clear_warning();
 
   switch (this->command_) {
     case T6615Command::GET_PPM: {

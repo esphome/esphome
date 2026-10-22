@@ -289,18 +289,15 @@ void NAU7802Sensor::loop() {
 }
 
 void NAU7802Sensor::update() {
-  if (!this->is_data_ready_()) {
+  if (!this->status_comm_result(this->is_data_ready_(), nullptr)) {
     ESP_LOGW(TAG, "No measurements ready!");
-    this->status_set_warning();
     return;
   }
-
-  this->status_clear_warning();
 
   // Get the most recent sample to publish
   int32_t result = this->read_value_(ADCO_B2_REG, 3);
 
-  ESP_LOGD(TAG, "'%s': Got value %" PRId32, this->name_.c_str(), result);
+  ESP_LOGD(TAG, "'%s': Got value %" PRId32, LOG_STR_ARG(this->get_log_name()), result);
   this->publish_state(result);
 }
 

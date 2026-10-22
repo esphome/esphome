@@ -97,8 +97,7 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_mode_lambda(template_))
 
-    if CONF_SUPPORTED_MODES in config:
-        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
 
     if CONF_AWAY in config:
         template_ = await cg.process_lambda(

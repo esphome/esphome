@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import socket
+from esphome.components import network, socket
 from esphome.components.light.effects import register_addressable_effect
 from esphome.components.light.types import AddressableLightEffect
 import esphome.config_validation as cv
@@ -38,6 +38,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    network.require_ipv4("e131"),
     socket.consume_sockets(1, "e131", socket.SocketType.UDP),
 )
 

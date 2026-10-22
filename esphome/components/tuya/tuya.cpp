@@ -94,7 +94,9 @@ void Tuya::dump_config() {
                   this->reset_pin_reported_);
   }
   LOG_PIN("  Status Pin: ", this->status_pin_);
-  ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
+  ESP_LOGCONFIG(TAG, "  Product: '%s'",
+                this->product_invalid_ ? LOG_STR_LITERAL(R"({"p":"INVALID"})")
+                                       : (this->product_ ? this->product_.get() : LOG_STR_LITERAL("")));
 #ifdef USE_TIME
   if (this->time_id_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Force time sync: %s", YESNO(this->force_time_sync_));
@@ -200,10 +202,12 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         }
       }
       if (valid) {
-        this->product_ = std::string(reinterpret_cast<const char *>(buffer), len);
+        this->product_ = std::make_unique<char[]>(len + 1);
+        memcpy(this->product_.get(), buffer, len);
       } else {
-        this->product_ = R"({"p":"INVALID"})";
+        this->product_.reset();
       }
+      this->product_invalid_ = !valid;
       if (this->init_state_ == TuyaInitState::INIT_PRODUCT) {
         this->init_state_ = TuyaInitState::INIT_CONF;
         this->send_empty_command_(TuyaCommandType::CONF_QUERY);

@@ -104,7 +104,10 @@ void LD2410SComponent::loop() {
 #ifdef USE_LD2410S_PARAMETERS
     } else if (this->parameters_dirty_) {
       this->parameters_dirty_ = false;
-      this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, this->next_send_at_);
+      // Keep the pause after the last acknowledgement; a start time further ahead than that is long past,
+      // and after 2^31 ms the run_sequence_() check would read it as the future
+      const bool in_gap = this->next_send_at_ - now <= COMMAND_GAP_MS;
+      this->start_sequence_(WRITE_SEQUENCE, WRITE_SEQUENCE_LENGTH, in_gap ? this->next_send_at_ : now);
 #endif
     }
   }

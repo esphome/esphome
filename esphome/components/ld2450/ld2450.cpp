@@ -944,7 +944,13 @@ void LD2450Component::set_direction_text_sensor(uint8_t target, text_sensor::Tex
 
 // Send Zone coordinates data to LD2450
 #ifdef USE_NUMBER
-void LD2450Component::set_zone_coordinate(uint8_t zone) {
+void LD2450Component::set_zone_coordinate(number::Number *n) {
+  uint8_t zone = 0;
+  while (zone < MAX_ZONES && this->zone_numbers_[zone].x1 != n && this->zone_numbers_[zone].y1 != n &&
+         this->zone_numbers_[zone].x2 != n && this->zone_numbers_[zone].y2 != n)
+    zone++;
+  if (zone == MAX_ZONES)
+    return;
   number::Number *x1sens = this->zone_numbers_[zone].x1;
   number::Number *y1sens = this->zone_numbers_[zone].y1;
   number::Number *x2sens = this->zone_numbers_[zone].x2;

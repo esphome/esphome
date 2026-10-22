@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <map>
 #include <utility>
@@ -189,7 +190,7 @@ class SPIDelegate {
     this->cs_pin_->digital_write(true);
   }
 
-  virtual ~SPIDelegate(){};
+  virtual ~SPIDelegate() {};
 
   // enable CS if configured.
   virtual void begin_transaction() { this->cs_pin_->digital_write(false); }
@@ -224,8 +225,7 @@ class SPIDelegate {
   // write 16 bits
   virtual void write16(uint16_t data) {
     if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
-      uint16_t buffer;
-      buffer = (data >> 8) | (data << 8);
+      uint16_t buffer = byteswap(data);
       this->write_array(reinterpret_cast<const uint8_t *>(&buffer), 2);
     } else {
       this->write_array(reinterpret_cast<const uint8_t *>(&data), 2);
@@ -277,7 +277,7 @@ class SPIDelegateDummy : public SPIDelegate {
   SPIDelegateDummy() = default;
 
   uint8_t transfer(uint8_t data) override { return 0; }
-  void end_transaction() override{};
+  void end_transaction() override {};
 
   void begin_transaction() override;
 };

@@ -671,6 +671,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       this->handle_cmd_error(this->cmd_reply_.error);
     }
   }
+  this->cmd_active_ = false;  // Resend and give-up are done; let loop() read the UART again
   return error;
 }
 
@@ -901,6 +902,17 @@ void LD2420Component::init_gate_config_numbers() {
       this->gate_move_threshold_numbers_[gate]->publish_state(
           static_cast<uint16_t>(this->current_config.move_thresh[gate]));
     }
+  }
+}
+
+void LD2420Component::set_gate_threshold_value(number::Number *n, float value) {
+  for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
+    const bool move = this->gate_move_threshold_numbers_[gate] == n;
+    if (!move && this->gate_still_threshold_numbers_[gate] != n)
+      continue;
+    const uint8_t target = this->is_gate_select() ? this->get_gate_select_value() : gate;
+    (move ? this->new_config.move_thresh : this->new_config.still_thresh)[target] = value;
+    return;
   }
 }
 

@@ -238,6 +238,8 @@ void DFPlayer::loop() {
                 ESP_LOGE(TAG, "Entered into sleep mode");
                 this->is_playing_ = false;
                 break;
+              default:
+                break;
             }
             break;
           case 0x41:
