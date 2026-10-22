@@ -811,18 +811,58 @@ bool ModemComponent::send_at(const char *cmd, uint32_t timeout) {
   return true;
 }
 
+static bool line_is(const char *line, size_t len, const char *word) {
+  const size_t n = strlen(word);
+  return len == n && memcmp(line, word, n) == 0;
+}
+
+static bool line_starts_with(const char *line, size_t len, const char *prefix) {
+  const size_t n = strlen(prefix);
+  return len >= n && memcmp(line, prefix, n) == 0;
+}
+
+// A final result line of a reply: "OK", "ERROR", "+CME ERROR: n" or "+CMS ERROR: n", on a complete line of
+// its own. An echoed command or a payload line that happens to contain OK is not one.
+static command_result classify_reply(const std::string &reply) {
+  size_t start = 0;
+  while (start < reply.size()) {
+    const size_t end = reply.find('\n', start);
+    if (end == std::string::npos) {
+      break;  // the last line is still incomplete
+    }
+    size_t stop = end;
+    while (stop > start && (reply[stop - 1] == '\r' || reply[stop - 1] == '\n')) {
+      stop--;
+    }
+    const char *line = reply.data() + start;
+    const size_t len = stop - start;
+    if (line_is(line, len, "OK")) {
+      return command_result::OK;
+    }
+    if (line_is(line, len, "ERROR") || line_starts_with(line, len, "+CME ERROR") ||
+        line_starts_with(line, len, "+CMS ERROR")) {
+      return command_result::FAIL;
+    }
+    start = end + 1;
+  }
+  return command_result::TIMEOUT;
+}
+
 command_result ModemComponent::command_raw_(const char *cmd, std::string &output, uint32_t timeout) {
   char line[AT_COMMAND_SIZE + 1];
   snprintf(line, sizeof(line), "%s\r", cmd);
+  output.clear();
   const command_result result = this->dte_->command(
       line,
       [&output](uint8_t *data, size_t len) {
-        output.assign(reinterpret_cast<char *>(data), len);
-        if (output.find("OK") != std::string::npos)
-          return command_result::OK;
-        if (output.find("ERROR") != std::string::npos)
-          return command_result::FAIL;
-        return command_result::TIMEOUT;
+        // The UART terminal hands over the whole reply so far; a CMUX terminal hands over each frame on its own
+        const char *chunk = reinterpret_cast<char *>(data);
+        if (len >= output.size() && memcmp(chunk, output.data(), output.size()) == 0) {
+          output.assign(chunk, len);
+        } else {
+          output.append(chunk, len);
+        }
+        return classify_reply(output);
       },
       timeout);
   // Trailing line ends only; a reply that spans lines is logged as it came

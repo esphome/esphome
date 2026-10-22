@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_RTS_PIN
@@ -81,6 +83,15 @@ _CALLBACK_AUTOMATIONS = (
 # AT_COMMAND_SIZE - 1 in modem_component.h; the buffer keeps one byte for the terminator
 MAX_AT_COMMAND_LENGTH = 127
 
+
+def _validate_pin_code(value: Any) -> str:
+    """A SIM PIN is 4 to 8 digits; anything else would spend one of the SIM's attempts."""
+    value = cv.string_strict(value)
+    if not value.isdigit() or not 4 <= len(value) <= 8:
+        raise cv.Invalid("pin_code must be 4 to 8 digits")
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -92,7 +103,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BAUD_RATE): cv.positive_int,
             cv.Required(CONF_MODEL): cv.one_of(*MODEM_MODELS, upper=True),
             cv.Required(CONF_APN): cv.string,
-            cv.Optional(CONF_PIN_CODE): cv.sensitive(cv.string_strict),
+            cv.Optional(CONF_PIN_CODE): cv.sensitive(_validate_pin_code),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             # The command count is stored in a byte
             cv.Optional(CONF_INIT_AT): cv.All(
