@@ -74,12 +74,12 @@ enum AckData : uint8_t {
 PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200", "230400", "256000", "460800");
 // Names and values in the same order; the select options use it too
 PROGMEM_STRING_TABLE(DistanceResolutionStrings, "0.2m", "0.75m");
-constexpr uint8_t DISTANCE_RESOLUTIONS[] = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_75};
+static constexpr uint8_t DISTANCE_RESOLUTIONS[] PROGMEM = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_75};
 // Index is the enum value; the select options use the same order
 PROGMEM_STRING_TABLE(LightFunctionStrings, "off", "below", "above");
 PROGMEM_STRING_TABLE(OutPinLevelStrings, "low", "high");
 
-constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
+static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
 
 // Commands
 static constexpr uint8_t CMD_ENABLE_CONF = 0xFF;
@@ -591,7 +591,7 @@ void LD2410Component::set_distance_resolution(const char *state) {
     return;
   }
   this->set_config_mode_(true);
-  const uint8_t cmd_value[2] = {DISTANCE_RESOLUTIONS[index], 0x00};
+  const uint8_t cmd_value[2] = {progmem_read_byte(&DISTANCE_RESOLUTIONS[index]), 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
@@ -725,11 +725,15 @@ void LD2410Component::set_light_out_control() {
   }
 #endif
 #ifdef USE_SELECT
-  if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = *this->light_function_select_->active_index();
+  if (this->light_function_select_ != nullptr) {
+    if (const auto index = this->light_function_select_->active_index()) {
+      this->light_function_ = *index;
+    }
   }
-  if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->has_state()) {
-    this->out_pin_level_ = *this->out_pin_level_select_->active_index();
+  if (this->out_pin_level_select_ != nullptr) {
+    if (const auto index = this->out_pin_level_select_->active_index()) {
+      this->out_pin_level_ = *index;
+    }
   }
 #endif
   this->set_config_mode_(true);
