@@ -17,10 +17,10 @@ class FendtCaravanHubBase : public PollingComponent {
     return variable != nullptr;
   }
   void add_variable(IVariable *variable) { this->variables_.push_back(variable); }
-  void setup() override{};
-  void loop() override{};
+  void setup() override {};
+  void loop() override {};
   void dump_config() override = 0;
-  void update() override{};
+  void update() override {};
 
   IVariable *get_variable(const std::string &name) {
     for (auto *variable : this->variables_) {
