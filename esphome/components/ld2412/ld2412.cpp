@@ -202,15 +202,14 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
-// Drop the first `start` bytes of the buffer and anything after them that does not begin a frame header
-// (a partial header at the end is kept). Returns the new buffer length.
-static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len, uint8_t start) {
-  for (; start < len; start++) {
-    const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, len - start);
-    if (std::memcmp(&buffer[start], CMD_FRAME_HEADER, n) == 0 ||
-        std::memcmp(&buffer[start], DATA_FRAME_HEADER, n) == 0) {
-      std::memmove(buffer, &buffer[start], len - start);
-      return len - start;
+// Drop the first `from` bytes of the buffer and anything after them that does not begin a frame header
+// (a partial header at the end is kept). Returns how many of the `count` bytes remain.
+static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t count, uint8_t from) {
+  for (; from < count; from++) {
+    const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, count - from);
+    if (std::memcmp(&buffer[from], CMD_FRAME_HEADER, n) == 0 || std::memcmp(&buffer[from], DATA_FRAME_HEADER, n) == 0) {
+      std::memmove(buffer, &buffer[from], count - from);
+      return count - from;
     }
   }
   return 0;
