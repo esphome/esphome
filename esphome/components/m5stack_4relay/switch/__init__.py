@@ -43,7 +43,8 @@ FINAL_VALIDATE_SCHEMA = _validate_unique_channel
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_M5STACK_4RELAY_ID])
     channel = config[CONF_CHANNEL] - 1
-    var = await switch.sub_switches(config, parent=hub).create(
-        config, None, apply=f"set_relay({channel}, state)"
+    await switch.sub_switches(config, parent=hub).create(
+        config,
+        lambda sw: hub.register_switch(channel, sw),
+        apply=f"set_relay({channel}, state)",
     )
-    cg.add(hub.register_switch(channel, var))
