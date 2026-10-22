@@ -161,7 +161,10 @@ class ModemComponent : public Component {
   std::atomic<bool> got_ip_{false};
 #ifdef USE_MODEM_URC
   std::atomic<bool> urc_pending_{false};
-  char urc_line_[URC_LINE_SIZE];
+  char urc_line_[URC_LINE_SIZE];  // the complete line loop() publishes
+  char urc_buf_[URC_LINE_SIZE];   // the line the UART task is assembling
+  uint8_t urc_len_{0};
+  bool urc_overflow_{false};
 #endif
 
  private:

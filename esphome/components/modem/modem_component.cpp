@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 #include "modem_component.h"
 #include "soc/soc_caps.h"
+#include <driver/uart.h>
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -177,50 +178,63 @@ void ModemComponent::setup() {
     this->fail_setup_(LOG_STR("Modem DTE/DCE creation failed"));
     return;
   }
+  // The pin schema's inverted flag is applied to the UART signals, as the uart component does
+  uint32_t invert = 0;
+  if (this->tx_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_TXD_INV;
+  }
+  if (this->rx_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_RXD_INV;
+  }
+  if (this->rts_pin_ != nullptr) {
+    if (this->rts_pin_->is_inverted()) {
+      invert |= UART_SIGNAL_RTS_INV;
+    }
+    if (this->cts_pin_->is_inverted()) {
+      invert |= UART_SIGNAL_CTS_INV;
+    }
+  }
+  if (invert != 0) {
+    uart_set_line_inverse(this->uart_port_, invert);
+  }
 #ifdef USE_MODEM_URC
-  // Runs on the UART task: keep one line in a fixed buffer and let loop() publish it
+  // Runs on the UART task. CMUX hands each frame over on its own, so lines are assembled here; every
+  // chunk is consumed and a complete line is handed to loop() through urc_line_.
   this->dce_->set_enhanced_urc([this](const DTE::UrcBufferInfo &buffer_info) {
-    const DTE::UrcConsumeInfo none{DTE::UrcConsumeResult::CONSUME_NONE, 0};
-    // Taken or dropped, a complete line leaves the buffer; otherwise it fills up with old notifications
-    const DTE::UrcConsumeInfo all{DTE::UrcConsumeResult::CONSUME_ALL, 0};
     // The response parser owns the buffer while a command runs; URCs in that window are best effort
     if (buffer_info.is_command_active) {
-      return none;
+      return DTE::UrcConsumeInfo{DTE::UrcConsumeResult::CONSUME_NONE, 0};
     }
-    // The chunk is raw UART data; wait for the line end, then drop the line ends around the URC.
-    // An unconsumed chunk is offered again in full with the next read, so a split line is seen whole.
-    const uint8_t *start = buffer_info.new_data_start;
-    size_t len = buffer_info.new_data_size;
-    if (len == 0 || (start[len - 1] != '\r' && start[len - 1] != '\n')) {
-      return none;
+    for (size_t i = 0; i < buffer_info.new_data_size; i++) {
+      const char c = static_cast<char>(buffer_info.new_data_start[i]);
+      if (c != '\r' && c != '\n') {
+        if (this->urc_len_ < sizeof(this->urc_buf_) - 1) {
+          this->urc_buf_[this->urc_len_++] = c;
+        } else {
+          this->urc_overflow_ = true;  // the rest of the line is dropped with it
+        }
+        continue;
+      }
+      if (this->urc_len_ == 0) {
+        continue;  // the second byte of a line end, or an empty line
+      }
+      if (this->urc_overflow_) {
+        ESP_LOGW(TAG, "URC longer than %u bytes dropped", static_cast<unsigned>(sizeof(this->urc_buf_) - 1));
+      } else if (this->urc_pending_.load(std::memory_order_acquire)) {
+        ESP_LOGW(TAG, "URC dropped; the previous one is not published yet");
+      } else {
+        memcpy(this->urc_line_, this->urc_buf_, this->urc_len_);
+        this->urc_line_[this->urc_len_] = '\0';
+        this->urc_pending_.store(true, std::memory_order_release);
+        this->defer([this]() {
+          this->urc_text_sensor_->publish_state(this->urc_line_);
+          this->urc_pending_.store(false, std::memory_order_release);
+        });
+      }
+      this->urc_len_ = 0;
+      this->urc_overflow_ = false;
     }
-    while (len > 0 && (*start == '\r' || *start == '\n')) {
-      start++;
-      len--;
-    }
-    while (len > 0 && (start[len - 1] == '\r' || start[len - 1] == '\n')) {
-      len--;
-    }
-    if (len == 0) {
-      return all;
-    }
-    if (this->urc_pending_.load(std::memory_order_acquire)) {
-      ESP_LOGW(TAG, "URC dropped; the previous one is not published yet");
-      return all;
-    }
-    if (len >= sizeof(this->urc_line_)) {
-      ESP_LOGW(TAG, "URC of %u bytes cut to %u", static_cast<unsigned>(len),
-               static_cast<unsigned>(sizeof(this->urc_line_) - 1));
-      len = sizeof(this->urc_line_) - 1;
-    }
-    memcpy(this->urc_line_, start, len);
-    this->urc_line_[len] = '\0';
-    this->urc_pending_.store(true, std::memory_order_release);
-    this->defer([this]() {
-      this->urc_text_sensor_->publish_state(this->urc_line_);
-      this->urc_pending_.store(false, std::memory_order_release);
-    });
-    return all;
+    return DTE::UrcConsumeInfo{DTE::UrcConsumeResult::CONSUME_ALL, 0};
   });
 #endif
 }
@@ -314,7 +328,15 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
 
   switch (mode) {
     case modem_mode::CMUX_MANUAL_MODE:
-      ESP_LOGD(TAG, "Modem warm reboot. Exiting CMUX");
+      // The detection resumed a data session that survived the ESP reboot; PPP has to stop before the
+      // CMUX exit, or esp_modem skips starting it again on the next connect. Without a session this
+      // waits up to 30 s for a PPP exit that never comes, which the watchdog floor covers.
+      ESP_LOGD(TAG, "Modem warm reboot. Leaving the data session and CMUX");
+      App.feed_wdt();
+      if (!this->dce_->set_mode(modem_mode::CMUX_MANUAL_COMMAND)) {
+        ESP_LOGW(TAG, "Failed to stop the previous data session");
+      }
+      App.feed_wdt();
       if (!this->dce_->set_mode(modem_mode::CMUX_MANUAL_EXIT)) {
         ESP_LOGW(TAG, "Failed to exit CMUX");
       }
