@@ -210,7 +210,7 @@ bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
   const uint8_t onehot = buf[3];
   valid = valid && onehot != 0 && onehot <= 0x40 && (onehot & (onehot - 1)) == 0;
   if (valid) {
-    rtc_time = time::decode_bcd_calendar(buf);
+    rtc_time = time::decode_bcd_calendar<time::EPSON_BCD_CALENDAR>(buf);
     valid = rtc_time.is_valid(true, false) && rtc_time.second < 60 &&
             ESPTime::from_epoch_utc(rtc_time.timestamp).day_of_week == rtc_time.day_of_week;
   }
@@ -235,7 +235,7 @@ void RX8111Component::write_time() {
   }
 
   uint8_t buf[7];
-  time::encode_bcd_calendar(now, buf);
+  time::encode_bcd_calendar<time::EPSON_BCD_CALENDAR>(now, buf);
   const bool written = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
   // Always try to restart the counter, even after a failed calendar write.
   const bool restarted = this->set_stop_bit_(false);
