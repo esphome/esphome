@@ -650,9 +650,10 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Framework-Specific:** `cv.only_with_framework(...)`, `cv.only_with_arduino`. On the ESP32, Arduino is
         built as a component of ESP-IDF, so an ESP-IDF API, sdkconfig option or version floor is there on both
         frameworks: gate on the platform and on `esp32.idf_version()` (the ESP-IDF under either framework), as
-        `spi`'s `psram_dma` and `wifi`'s `ap_mode: wisp` do. Reserve `cv.only_with_framework("esp-idf")` for code
-        the component does not compile for Arduino at all (`sendspin` needs noise-c as an ESP-IDF component),
-        and say why in a comment next to it.
+        `spi`'s `psram_dma` and `wifi`'s `ap_mode: wisp` do. Reserve `cv.only_with_framework("esp-idf")` for a
+        build that has been tried on Arduino and fails there, and write the actual failure next to it (`sendspin`:
+        arduino-esp32 below ESP-IDF 6.0 bundles a second libsodium, and from 6.0 sendspin-cpp's enumerators
+        collide with `Arduino.h` macros such as `DISPLAY`).
     *   **Schema Extensions:**
         ```python
         CONFIG_SCHEMA = cv.Schema({ ... })
