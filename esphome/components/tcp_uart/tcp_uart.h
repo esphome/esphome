@@ -54,13 +54,16 @@ class TcpUart : public uart::UARTComponent, public Component {
   void hold_turn() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->held_ = true;
+    this->rest_ = false;
 #endif
   }
   /// Ends the turn as soon as the bytes already read from its connection are consumed and no hold is left.
+  /// A consumer that takes them without a new hold_turn() gets the rest of its request until turn_timeout of quiet.
   void release_turn() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
     this->held_ = false;
     this->release_ = true;
+    this->rest_ = this->available() != 0;
 #endif
   }
 
@@ -148,6 +151,8 @@ class TcpUart : public uart::UARTComponent, public Component {
   uint8_t pending_mask_{0};
   bool held_{false};
   bool release_{false};
+  // release_turn() left bytes to consume and no hold_turn() came since; a request may start in them.
+  bool rest_{false};
 #endif
   // rx_[rx_start_, rx_end_) holds unread bytes; read_socket_() compacts to the front.
   uint16_t rx_start_{0};

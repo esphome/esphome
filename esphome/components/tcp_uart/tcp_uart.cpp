@@ -204,12 +204,13 @@ void TcpUart::loop_pool_(bool waiting) {
     this->accept_slot_(now);
   }
   if (this->holder_ != NO_SLOT) {
-    // After release_turn() only the bytes already read are left to consume.
-    if (!this->release_ && (this->rx_pending_ || this->slot_(this->holder_).ready())) {
+    // After release_turn() only the bytes already read are left to consume, and the rest of a request started in them.
+    const bool rest = this->rest_ && !this->held_ && this->available() == 0;
+    if ((!this->release_ || rest) && (this->rx_pending_ || this->slot_(this->holder_).ready())) {
       this->read_holder_(now);
     }
     if (this->available() == 0 && !this->held_ &&
-        (this->release_ || now - this->last_traffic_ms_ >= this->turn_timeout_ms_)) {
+        ((this->release_ && !this->rest_) || now - this->last_traffic_ms_ >= this->turn_timeout_ms_)) {
       this->end_turn_();
     }
   }
@@ -301,6 +302,7 @@ void TcpUart::pick_holder_(uint32_t now) {
     this->turn_++;
     this->held_ = false;
     this->release_ = false;
+    this->rest_ = false;
     this->rx_start_ = this->rx_end_ = 0;
     this->rx_pending_ = (this->pending_mask_ & bit) != 0;
     this->pending_mask_ &= ~bit;
@@ -327,6 +329,7 @@ void TcpUart::end_turn_() {
   this->holder_ = NO_SLOT;
   this->held_ = false;
   this->release_ = false;
+  this->rest_ = false;
 }
 #endif
 
