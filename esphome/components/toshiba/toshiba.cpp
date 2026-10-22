@@ -416,7 +416,7 @@ void ToshibaClimate::setup() {
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
-      if (this->model_ != MODEL_RAS_25J2KVSG_ND)
+      if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F)
         this->transmit_rac_pt1411hwru_temp_();
       // current temperature changed, publish state
       this->publish_state();
@@ -448,8 +448,10 @@ void ToshibaClimate::setup() {
 #ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
     if (this->model_ == MODEL_RAS_25J2KVSG_ND) {
       this->target_temperature =
-          std::isfinite(this->target_temperature) ? clamp(this->target_temperature, 17.0f, 30.0f) : 24.0f;
-      this->normal_target_temperature_ = this->target_temperature;
+          std::isfinite(this->target_temperature)
+              ? clamp(this->target_temperature, TOSHIBA_GENERIC_TEMP_C_MIN, TOSHIBA_GENERIC_TEMP_C_MAX)
+              : 24.0f;
+      this->normal_target_temperature_ = static_cast<uint8_t>(this->target_temperature);
     }
 #endif
   }
@@ -490,7 +492,7 @@ void ToshibaClimate::setup() {
 void ToshibaClimate::transmit_state() {
 #ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
   if (this->model_ == MODEL_RAS_25J2KVSG_ND) {
-    this->transmit_ras_25j2kvsg_nd_();
+    this->transmit_ras_25j2kvsg_nd_(this->ras_25j2kvsg_nd_preset_());
     return;
   }
 #endif
@@ -507,16 +509,6 @@ void ToshibaClimate::transmit_generic_() {
   const bool seiya = this->model_ == MODEL_SEIYA;
   uint8_t message[16] = {0};
   const uint8_t message_length = seiya ? SEIYA_MESSAGE_LENGTH : 9;
-
-  // Header
-  message[0] = 0xf2;
-  message[1] = 0x0d;
-
-  // Message length
-  message[2] = message_length - 6;
-
-  // First checksum
-  message[3] = message[0] ^ message[1] ^ message[2];
 
   // Command
   message[4] = TOSHIBA_COMMAND_DEFAULT;
@@ -546,8 +538,7 @@ void ToshibaClimate::transmit_generic_() {
     }
   }
 
-  // The last byte is the xor of all bytes from [4]
-  message[message_length - 1] = xor_bytes(message + 4, message_length - 5);
+  finalize_frame(message, message_length);
 
   // Transmit
   auto transmit = this->transmitter_->transmit();
@@ -1343,9 +1334,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
       // Add back the length of the header (we pruned it above)
       message_length += TOSHIBA_HEADER_LENGTH;
       // Validate the second checksum before trusting any more of the message
-      const uint8_t checksum = xor_bytes(message + TOSHIBA_HEADER_LENGTH, message_length - 1 - TOSHIBA_HEADER_LENGTH);
-      // Did our computed checksum and the provided checksum match?
-      if (checksum != message[message_length - 1]) {
+      if (!frame_checksum_valid(message, message_length)) {
         return false;
       }
       // Check if this is a short swing/fix message
@@ -1378,7 +1367,7 @@ bool ToshibaClimate::receive_ras_25j2kvsg_nd_(remote_base::RemoteReceiveData dat
       return received;
     const uint8_t length = message[2] + 6;
     if (!this->decode_(&data, message + TOSHIBA_HEADER_LENGTH, length - TOSHIBA_HEADER_LENGTH) ||
-        !data.expect_mark(timings.bit_mark) || xor_bytes(message + 4, length - 5) != message[length - 1] ||
+        !data.expect_mark(timings.bit_mark) || !frame_checksum_valid(message, length) ||
         !this->receive_ras_25j2kvsg_nd_frame_(message, length))
       return received;
     received = true;
@@ -1396,6 +1385,14 @@ void ToshibaClimate::fix() {
   }
 #endif
   ESP_LOGW(TAG, "FIX is unavailable for this model or preset");
+}
+
+void ToshibaClimate::finalize_frame(uint8_t *message, uint8_t length) {
+  message[0] = TOSHIBA_HEADER_BYTE_0;
+  message[1] = TOSHIBA_HEADER_BYTE_1;
+  message[2] = length - 6;
+  message[3] = ~message[2];
+  message[length - 1] = xor_bytes(message + 4, length - 5);
 }
 
 void ToshibaClimate::encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, const uint8_t nbytes,

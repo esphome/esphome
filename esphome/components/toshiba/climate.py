@@ -1,10 +1,8 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate_ir, remote_base
-from esphome.config import iter_ids
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODEL
-import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["climate_ir"]
@@ -32,20 +30,6 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(ToshibaClimate).exten
         cv.Optional(CONF_MODEL, default="generic"): cv.enum(MODELS, upper=True),
     }
 )
-
-
-def _validate_fix_model(config: ConfigType) -> ConfigType:
-    if config[CONF_MODEL] != MODEL_RAS_25J2KVSG_ND:
-        for id_, path in iter_ids(fv.full_config.get()):
-            if id_ == config[CONF_ID] and path[-2:] == ["toshiba.fix", CONF_ID]:
-                with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path]):
-                    raise cv.Invalid(
-                        f"toshiba.fix requires model {MODEL_RAS_25J2KVSG_ND}"
-                    )
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _validate_fix_model
 
 
 async def to_code(config: ConfigType) -> None:

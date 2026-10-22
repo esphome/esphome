@@ -3,9 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "esphome/components/climate/climate.h"
 #include "esphome/components/climate_ir/climate_ir.h"
-#include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
 #ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
 #include "esphome/core/preferences.h"
@@ -53,6 +51,8 @@ const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN = 60.0;
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MAX = 86.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MIN = 18.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MAX = 30.0;
+static constexpr float TOSHIBA_RAS_25J2KVSG_ND_FROST_TEMP_C_MIN = 5.0f;
+static constexpr float TOSHIBA_RAS_25J2KVSG_ND_FROST_TEMP_C_MAX = 13.0f;
 
 class ToshibaClimate final : public climate_ir::ClimateIR {
  public:
@@ -87,15 +87,28 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
     TOSHIBA_PRESET_SLEEP_5H,
     TOSHIBA_PRESET_SLEEP_9H,
   };
+  static bool is_heating_preset(ToshibaPreset preset) {
+    return preset >= ToshibaPreset::TOSHIBA_PRESET_FIREPLACE_1 &&
+           preset <= ToshibaPreset::TOSHIBA_PRESET_FROST_PROTECTION;
+  }
+  static bool is_sleep_preset(ToshibaPreset preset) { return preset >= ToshibaPreset::TOSHIBA_PRESET_SLEEP_1H; }
+  static ToshibaPreset custom_preset_at(size_t index) {
+    return static_cast<ToshibaPreset>(index + static_cast<uint8_t>(ToshibaPreset::TOSHIBA_PRESET_FIREPLACE_1));
+  }
+  static ToshibaPreset preset_from_custom(const char *custom_preset);
+  // Validates a 9 to 12 byte state frame and reads its preset and power selection.
+  static bool parse_ras_25j2kvsg_nd_state(const uint8_t *message, uint8_t length, ToshibaPreset &preset,
+                                          uint8_t &power);
   void control(const climate::ClimateCall &call) override;
   void setup_ras_25j2kvsg_nd_();
   void restore_ras_25j2kvsg_nd_(climate::ClimateDeviceRestoreState &restore);
-  void transmit_ras_25j2kvsg_nd_();
+  void transmit_ras_25j2kvsg_nd_(ToshibaPreset preset);
   void transmit_ras_25j2kvsg_nd_motion_(uint8_t command, uint8_t repeat);
   void encode_ras_25j2kvsg_nd_motion_(remote_base::RemoteTransmitData *data, uint8_t command, uint8_t repeat);
   void perform_ras_25j2kvsg_nd_(remote_base::RemoteTransmitterBase::TransmitCall &transmit, bool swing);
   bool receive_ras_25j2kvsg_nd_(remote_base::RemoteReceiveData data);
   bool receive_ras_25j2kvsg_nd_frame_(const uint8_t *message, uint8_t length);
+  bool receive_ras_25j2kvsg_nd_motion_(uint8_t command);
   ToshibaPreset ras_25j2kvsg_nd_preset_() const;
   void set_ras_25j2kvsg_nd_preset_(ToshibaPreset preset);
   uint8_t ras_25j2kvsg_nd_fan_() const;
@@ -105,13 +118,12 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   bool validate_ras_25j2kvsg_nd_power_preset_(size_t power, ToshibaPreset preset) const;
 
   ESPPreferenceObject power_selection_pref_;
-  float normal_target_temperature_{24.0f};
   uint32_t last_swing_received_{0};
   uint32_t last_swing_transmitted_{0};
-  uint32_t swing_echo_duration_{0};
+  uint16_t swing_echo_duration_{0};
+  uint8_t normal_target_temperature_{24};
   uint8_t power_selection_{0};
   uint8_t sleep_fan_{0};
-  bool swing_received_{false};
 #endif
   void transmit_state() override;
   void transmit_generic_();
@@ -136,8 +148,10 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   float last_target_temperature_{24.0f};
 
   float temperature_min_() {
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
     if (this->model_ == MODEL_RAS_25J2KVSG_ND)
-      return 5.0f;  // Frost protection; control() enforces the separate normal range.
+      return TOSHIBA_RAS_25J2KVSG_ND_FROST_TEMP_C_MIN;  // control() enforces the separate normal range.
+#endif
     if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F)
       return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
     if (this->model_ == MODEL_RAS_2819T)
@@ -163,6 +177,11 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   }
   void encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);
   bool decode_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes);
+  // Writes the F2 0D header, the length byte and its inverse, and the trailing XOR of an F2 0D frame.
+  static void finalize_frame(uint8_t *message, uint8_t length);
+  static bool frame_checksum_valid(const uint8_t *message, uint8_t length) {
+    return xor_bytes(message + 4, length - 5) == message[length - 1];
+  }
 
   // Shared by every model that uses the F2 0D frame
   uint8_t encode_mode_fan_() const;
