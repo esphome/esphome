@@ -112,6 +112,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   void set_config_mode_(bool enable);
   void handle_periodic_data_();
   void handle_ack_data_();
+  bool handle_frame_(uint8_t frame_len);
   void readline_(int readch);
   void query_parameters_();
   void get_version_();
