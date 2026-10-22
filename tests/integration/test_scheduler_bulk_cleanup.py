@@ -1,13 +1,13 @@
 """Test that triggers the bulk cleanup path when to_remove_ > MAX_LOGICALLY_DELETED_ITEMS."""
 
 import asyncio
-from pathlib import Path
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -17,16 +17,6 @@ async def test_scheduler_bulk_cleanup(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that bulk cleanup path is triggered when many items are cancelled."""
-
-    # Get the absolute path to the external components directory
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-
-    # Replace the placeholder in the YAML config with the actual path
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
     # Create a future to signal test completion
     loop = asyncio.get_event_loop()
@@ -77,9 +67,7 @@ async def test_scheduler_bulk_cleanup(
         api_client_connected() as client,
     ):
         # Verify we can connect
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-bulk-cleanup"
+        await assert_device_name(client, "scheduler-bulk-cleanup")
 
         # List entities and services
         _, services = await asyncio.wait_for(
@@ -87,24 +75,13 @@ async def test_scheduler_bulk_cleanup(
         )
 
         # Find our test service
-        trigger_bulk_cleanup_service: UserService | None = None
-        for service in services:
-            if service.name == "trigger_bulk_cleanup":
-                trigger_bulk_cleanup_service = service
-                break
-
-        assert trigger_bulk_cleanup_service is not None, (
-            "trigger_bulk_cleanup service not found"
-        )
+        trigger_bulk_cleanup_service = require_service(services, "trigger_bulk_cleanup")
 
         # Execute the test
         await client.execute_service(trigger_bulk_cleanup_service, {})
 
         # Wait for test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except TimeoutError:
-            pytest.fail("Bulk cleanup test timed out")
+        await wait_or_fail(test_complete_future, 10.0, "Bulk cleanup test timed out")
 
         # Verify bulk cleanup was triggered
         assert bulk_cleanup_triggered, (

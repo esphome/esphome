@@ -17,7 +17,9 @@ import asyncio
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -44,24 +46,22 @@ async def test_scheduler_interval_zero_coerced(
         # The API-client connection itself is evidence that the main loop
         # is not starved — if set_interval(0) were spinning we could not
         # get here at all.
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "sched-interval-zero"
+        await assert_device_name(client, "sched-interval-zero")
 
         # Coerce warning must fire at registration
-        try:
-            await asyncio.wait_for(coerce_warning, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Expected coerce warning 'would spin main loop' not seen")
+        await wait_or_fail(
+            coerce_warning,
+            5.0,
+            "Expected coerce warning 'would spin main loop' not seen",
+        )
 
         # The coerced 1ms interval should fire 50 times quickly — this
         # confirms the callback actually runs (not just registered) and the
         # scheduler yields back to the main loop each time.
-        try:
-            await asyncio.wait_for(reached_50, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Coerced interval=0→1ms did not reach 50 fires within 5s, "
-                "which would indicate either the coercion failed or the "
-                "main loop is still being starved."
-            )
+        await wait_or_fail(
+            reached_50,
+            5.0,
+            "Coerced interval=0→1ms did not reach 50 fires within 5s, "
+            "which would indicate either the coercion failed or the "
+            "main loop is still being starved.",
+        )

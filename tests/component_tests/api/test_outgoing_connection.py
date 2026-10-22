@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from esphome.components import network
 from esphome.components.api import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 import esphome.config_validation as cv
@@ -134,22 +135,20 @@ def test_outgoing_connection_folds_v4_mapped_host(
     assert FINAL_VALIDATE_SCHEMA(config) is not None
 
 
-def test_outgoing_connection_ipv6_host_requires_ipv6(
-    set_core_config: SetCoreConfigCallable,
+@pytest.mark.parametrize(
+    ("host", "required", "other"),
+    [
+        ("192.168.1.2", "require_ipv4", "require_ipv6"),
+        ("::ffff:192.168.1.2", "require_ipv4", "require_ipv6"),
+        ("fd00::1", "require_ipv6", "require_ipv4"),
+    ],
+)
+def test_outgoing_connection_host_requires_its_address_family(
+    set_core_config: SetCoreConfigCallable, host: str, required: str, other: str
 ) -> None:
+    """The host's family is registered with network, which resolves enable_ipv4/6 later."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    config = CONFIG_SCHEMA(_api_config({"host": "fd00::1"}))
-    with pytest.raises(cv.Invalid, match="IPv6 is not"):
-        FINAL_VALIDATE_SCHEMA(config)
-
-
-def test_outgoing_connection_ipv6_host_passes_with_ipv6_enabled(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data=ESP32_PLATFORM_DATA,
-        full_config={"network": {"enable_ipv6": True}},
-    )
-    config = CONFIG_SCHEMA(_api_config({"host": "fd00::1"}))
-    assert FINAL_VALIDATE_SCHEMA(config) is not None
+    CONFIG_SCHEMA(_api_config({"host": host}))
+    data = network._get_data()
+    assert "api.outgoing_connection" in getattr(data, required)
+    assert "api.outgoing_connection" not in getattr(data, other)

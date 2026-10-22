@@ -51,7 +51,6 @@ void MQTTValveComponent::setup() {
 }
 
 void MQTTValveComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT valve '%s':", this->valve_->get_name().c_str());
   auto traits = this->valve_->get_traits();
   bool has_command_topic = traits.get_supports_position();
   LOG_MQTT_COMPONENT(true, has_command_topic);

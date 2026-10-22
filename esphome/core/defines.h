@@ -114,6 +114,7 @@
 #define USE_LIGHT
 #define USE_LIGHT_FLASH_TRANSITION_LENGTH
 #define USE_LIGHT_GAMMA_LUT
+#define USE_LIGHT_POWER_ESTIMATION
 #define USE_LIGHT_RESUME_EFFECT
 #define USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
 #define USE_LINE_READER
@@ -161,6 +162,7 @@
 #define USE_LVGL_TOUCHSCREEN
 #define USE_MDNS
 #define USE_MDNS_STORE_SERVICES
+#define GPS_LISTENER_COUNT 1
 #define HDMI_CEC_MESSAGE_CALLBACK_COUNT 2
 #define I2C_PORT_FREQUENCY_COUNT 1
 #define MDNS_SERVICE_COUNT 3
@@ -240,6 +242,13 @@
 #define NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT 1
 #define USE_NETWORK
 #define USE_NETWORK_DEFAULT_ROUTE
+#define USE_NETWORK_IPV4 true
+// lwIP is built without IPv6 on ESP8266, RP2 and LibreTiny
+#if defined(USE_ESP32) || defined(USE_HOST)
+#define USE_NETWORK_IPV6 true
+#else
+#define USE_NETWORK_IPV6 false
+#endif
 #define USE_NETWORK_PRIMARY_INTERFACE_WIFI
 #define USE_NEXTION_COMMAND_SPACING
 #define USE_NEXTION_CONF_START_UP_PAGE
@@ -257,6 +266,7 @@
 #define USE_OTA_STATE_LISTENER
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
+#define USE_PCA9554_PCAL
 #define USE_POWER_SUPPLY
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
@@ -425,6 +435,9 @@
 #define USE_ESP32_CRASH_HANDLER
 #define USE_ESP32_VASPRINTF_STUB
 #define USE_MQTT_IDF_ENQUEUE
+#define USE_MQTT_TLS
+#define USE_MQTT_CERT_BUNDLE
+#define USE_MQTT_TLS_INSECURE
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_OTA_ROLLBACK
@@ -432,10 +445,7 @@
 #define USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
 // Stub values for tooling; a real build's codegen emits these from verification_keys.
 #define OTA_TRUSTED_KEY_COUNT 1
-#define OTA_TRUSTED_KEY_DIGESTS \
-  { \
-    { 0 } \
-  }
+#define OTA_TRUSTED_KEY_DIGESTS {{0}}
 #define USE_OTA_DOWNGRADE_PROTECTION
 #define USE_ESP32_MIN_CHIP_REVISION_SET
 #define USE_ESP32_RTC_PREFERENCES
@@ -542,6 +552,10 @@
 #define USE_WIFI_RUNTIME_ROAMING_SUPPRESSION
 #define USB_HOST_MAX_REQUESTS 16
 #define USB_HOST_MAX_PACKET_SIZE 64
+#define USE_USB_HOST_FIFO_CONFIG
+#define USB_HOST_FIFO_RX_LINES 93
+#define USB_HOST_FIFO_NPTX_LINES 16
+#define USB_HOST_FIFO_PTX_LINES 91
 #define USB_UART_OUTPUT_CHUNK_COUNT 5
 #define USE_USB_UART_CH34X
 #define USE_USB_UART_CP210X
@@ -552,6 +566,11 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #define USE_SERIAL_PROXY_USB_IDENTITY
+#endif
+// usb_host_uac supports only these variants
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
+#define USE_USB_AUDIO
 #endif
 
 #ifdef USE_ARDUINO
@@ -736,8 +755,7 @@
 #endif
 
 #ifdef USE_HOST
-#define USE_ESPHOME_HOST_MAC_ADDRESS \
-  { 0x98, 0x35, 0x69, 0xab, 0xf6, 0x79 }
+#define USE_ESPHOME_HOST_MAC_ADDRESS {0x98, 0x35, 0x69, 0xab, 0xf6, 0x79}
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_SERIAL_PROXY_HOST_UART
 // Host only: the uart arm would shadow the native logger UART arms in other envs
