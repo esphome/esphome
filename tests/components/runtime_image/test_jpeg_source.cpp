@@ -326,6 +326,19 @@ TEST(JpegSourceDecode, FailedFirstReadIsAReadError) {
   EXPECT_EQ(img.begin_source(&failing), DECODE_ERROR_READ);
 }
 
+TEST(JpegSourceDecode, FailedSeekToTheStartIsAReadError) {
+  class NoSeekSource : public MemorySource {
+   public:
+    using MemorySource::MemorySource;
+    bool seek(uint32_t position) override { return false; }
+  };
+  SourceImage img;
+  NoSeekSource source(JPEG_ROWS, sizeof(JPEG_ROWS));
+  ASSERT_TRUE(img.begin_decode(sizeof(JPEG_ROWS)));
+  EXPECT_EQ(img.begin_source(&source), DECODE_ERROR_READ);
+  EXPECT_EQ(img.decode_step(), DECODE_ERROR_INVALID_TYPE);
+}
+
 TEST(JpegSourceDecode, SourceIsReadAsTheDecodeNeedsIt) {
   SourceImage img;
   MemorySource source(JPEG_ROWS, sizeof(JPEG_ROWS));
