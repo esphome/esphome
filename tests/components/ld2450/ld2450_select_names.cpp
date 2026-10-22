@@ -17,13 +17,12 @@ constexpr uint8_t SET_BAUD_RATE_PREFIX[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 
 // Header, length 28, command 0xC2 (set zone): the zone type byte and a zero follow.
 constexpr uint8_t SET_ZONE_PREFIX[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x1C, 0x00, 0xC2, 0x00};
 
-// The two payload bytes after the first frame with this prefix, or none when it was not written.
-template<size_t N>
-optional<std::pair<uint8_t, uint8_t>> payload_after(const std::vector<uint8_t> &w, const uint8_t (&prefix)[N]) {
+// The two payload bytes after the first frame with this prefix, or -1 when it was not written.
+template<size_t N> std::pair<int, int> payload_after(const std::vector<uint8_t> &w, const uint8_t (&prefix)[N]) {
   auto it = std::search(w.begin(), w.end(), std::begin(prefix), std::end(prefix));
   if (it == w.end() || static_cast<size_t>(w.end() - it) < N + 2)
-    return {};
-  return std::make_pair(*(it + N), *(it + N + 1));
+    return {-1, -1};
+  return {*(it + N), *(it + N + 1)};
 }
 }  // namespace
 
@@ -41,17 +40,14 @@ TEST_F(LD2450SelectNamesTest, BaudRateNamesSendTheirDeviceValue) {
     this->uart_.written.clear();
     this->ld2450_.set_baud_rate(NAMES[i]);
     const auto payload = payload_after(this->uart_.written, SET_BAUD_RATE_PREFIX);
-    ASSERT_TRUE(payload.has_value()) << NAMES[i];
-    EXPECT_EQ(payload->first, i + 1) << NAMES[i];
-    EXPECT_EQ(payload->second, 0) << NAMES[i];
+    EXPECT_EQ(payload.first, i + 1) << NAMES[i];
+    EXPECT_EQ(payload.second, 0) << NAMES[i];
   }
 }
 
 TEST_F(LD2450SelectNamesTest, BaudRateEnumMatchesTheSelectOrder) {
   this->ld2450_.set_baud_rate(BAUD_RATE_256000);
-  const auto payload = payload_after(this->uart_.written, SET_BAUD_RATE_PREFIX);
-  ASSERT_TRUE(payload.has_value());
-  EXPECT_EQ(payload->first, 7);
+  EXPECT_EQ(payload_after(this->uart_.written, SET_BAUD_RATE_PREFIX).first, 7);
 }
 
 TEST_F(LD2450SelectNamesTest, UnknownBaudRateNameWritesNothing) {
@@ -66,9 +62,8 @@ TEST_F(LD2450SelectNamesTest, ZoneTypeNamesSetTheTypeAndSendIt) {
     this->ld2450_.set_zone_type(NAMES[i]);
     EXPECT_EQ(this->ld2450_.zone_type_, i) << NAMES[i];
     const auto payload = payload_after(this->uart_.written, SET_ZONE_PREFIX);
-    ASSERT_TRUE(payload.has_value()) << NAMES[i];
-    EXPECT_EQ(payload->first, i) << NAMES[i];
-    EXPECT_EQ(payload->second, 0) << NAMES[i];
+    EXPECT_EQ(payload.first, i) << NAMES[i];
+    EXPECT_EQ(payload.second, 0) << NAMES[i];
   }
 }
 
