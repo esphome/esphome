@@ -1322,13 +1322,18 @@ async def test_apply_string_ref_literal_stays_in_flash_on_esp8266(
 async def test_apply_bytes_lambda_is_a_vector_in_a_block(
     registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
 ) -> None:
-    """A lambda payload is called once into a scoped vector and passed as data and size."""
+    """A lambda payload is called once into a scoped vector and passed as data and size;
+    it takes the trigger args by their own types, so it may modify them."""
     fields = (ApplyBytes("data", "send({})"),)
-    config = {"data": Lambda("return {0x01, x};")}
+    config = {"data": Lambda("x *= 2;\nreturn {0x01, x};")}
     await _run_apply_action(
         registries, fields, config, args=[(cg.uint8, "x")], platform=platform
     )
     text = _apply_definition(mock_cg)
+    assert text.startswith(
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<uint8_t> & x) {"
+    )
+    assert "[](uint8_t x) -> std::vector<uint8_t> {" in text
     # Parenthesized so a reduced `return a, b;` stays one initializer
     assert "const std::vector<uint8_t> esphome__bytes = (" in text
     assert "-> std::vector<uint8_t>" in text

@@ -578,7 +578,7 @@ def apply_action_builder(
             if isinstance(spec, ApplyBytes):
                 statements.extend(
                     await _render_bytes(
-                        spec, config, receiver, parent, lambda_args, table_name
+                        spec, config, receiver, parent, args, table_name
                     )
                 )
                 continue
@@ -608,10 +608,14 @@ async def _render_bytes(
     config: ConfigType,
     receiver: str,
     parent: str,
-    lambda_args: TemplateArgsType,
+    args: TemplateArgsType,
     table_name: str,
 ) -> list[str]:
-    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined."""
+    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined.
+
+    The payload lambda keeps the automation's own argument types, as ``TemplatableBytes``
+    gave it, so a body that modifies an argument still compiles.
+    """
     value = _config_lookup(config, spec.conf_key)
     if value is None:
         return []
@@ -622,7 +626,7 @@ async def _render_bytes(
 
     if isinstance(value, Lambda):
         inner = await cg.process_lambda(
-            value, lambda_args, return_type=cg.std_vector.template(cg.uint8)
+            value, args, return_type=cg.std_vector.template(cg.uint8)
         )
         return [
             "{",
