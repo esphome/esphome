@@ -1077,6 +1077,9 @@ template<typename T> ESPHOME_ALWAYS_INLINE constexpr void assign_bits(T &value, 
   }
 }
 
+/// Whether bit \p bit (0 is the LSB) of \p value is set; the read side of assign_bits().
+template<typename T> ESPHOME_ALWAYS_INLINE constexpr bool bit_at(T value, unsigned bit) { return (value >> bit) & 1; }
+
 /// Reverse the order of 8 bits.
 inline uint8_t reverse_bits(uint8_t x) {
   x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
