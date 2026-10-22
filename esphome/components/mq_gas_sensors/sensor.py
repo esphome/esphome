@@ -487,10 +487,7 @@ def _final_validate_voltage_source(config: ConfigType) -> ConfigType:
 
     from esphome.components.adc import sensor as adc_sensor
 
-    fconf = fv.full_config.get()
-    sampler = fconf.get_config_for_path(
-        fconf.get_path_for_id(config[CONF_VOLTAGE])[:-1]
-    )
+    sampler = fv.get_declaring_config(config[CONF_VOLTAGE])
     if sampler.get(CONF_PLATFORM) != ADC_DOMAIN:
         # A declared range is what `_validate_config` checked the divider against;
         # without one, nothing here says what an external sampler measures.
