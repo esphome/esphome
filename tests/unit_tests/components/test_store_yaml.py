@@ -754,6 +754,17 @@ def test_redacted_fails_closed(
         ),
         pytest.param(
             {
+                "entry.yaml": "packages:\n  base: !include base.yaml\n",
+                "base.yaml": "packages:\n  loop: !include {file: base.yaml, condition: false}\n"
+                "wifi:\n  password: !secret wifi_password\n",
+                "secrets.yaml": _WIFI_SECRET,
+            },
+            WIFI_PW,
+            {"base.yaml": "password: !secret 'wifi_password'"},
+            id="disabled_self_include_is_skipped",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": "packages:\n  base:\n    substitutions:\n"
                 "      pw: !secret wifi_password\nwifi:\n  password: ${pw}\n",
                 "secrets.yaml": _WIFI_SECRET,

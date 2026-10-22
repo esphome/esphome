@@ -229,7 +229,7 @@ def _include_scopes(
     edges: dict[str, list[tuple[str, dict[str, object], tuple[str, ...]]]] = {}
     for src, items in includes.items():
         for include, vars, site in items:
-            if include.has_unresolved_file():
+            if include.has_unresolved_file() or not yaml_util.include_enabled(include):
                 continue
             target = (include.parent_file.parent / include.file).resolve()
             edges.setdefault(src, []).extend(
@@ -239,15 +239,16 @@ def _include_scopes(
     # the include-site prefix; a caller's chain flows into nested includes.
     targeted = {rel for targets in edges.values() for rel, _, _ in targets}
     invocations: dict[str, list[tuple[dict[str, object], tuple[str, ...]]]] = {}
-    pending = [(rel, defaults[rel], ()) for rel in trees if rel not in targeted]
+    pending = [(rel, defaults[rel], (), ()) for rel in trees if rel not in targeted]
     while pending:
-        rel, chain, prefix = pending.pop()
+        rel, chain, prefix, lineage = pending.pop()
         if (chain, prefix) in invocations.setdefault(rel, []):
             continue
         invocations[rel].append((chain, prefix))
         pending.extend(
-            (dst, {**chain, **defaults[dst], **vars}, prefix + site)
+            (dst, {**chain, **defaults[dst], **vars}, prefix + site, (*lineage, rel))
             for dst, vars, site in edges.get(rel, ())
+            if dst not in lineage  # an include cycle never ends otherwise
         )
     scopes: dict[str, _Scope] = {}
     prefixes: dict[str, list[tuple[str, ...]]] = {}

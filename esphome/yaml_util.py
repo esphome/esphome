@@ -539,6 +539,17 @@ def force_load_include_files(
     return result
 
 
+def include_enabled(include: IncludeFile) -> bool:
+    """False only for a statically false condition; an unresolved or malformed one
+    still loads."""
+    from voluptuous import Invalid
+
+    try:
+        return include.should_load()
+    except Invalid:
+        return True
+
+
 def _force_load_include_files(
     obj: Any,
     *,
@@ -579,11 +590,8 @@ def _force_load_include_files(
                 result=_result,
             )
             return
-        try:
-            if not obj.should_load():
-                return
-        except Invalid:
-            pass  # An unresolved or malformed condition: load it anyway.
+        if not include_enabled(obj):
+            return
         try:
             loaded = obj.load()
         except (EsphomeError, Invalid) as err:
