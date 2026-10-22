@@ -204,6 +204,31 @@ static inline bool validate_header_footer(const uint8_t *header_footer, const ui
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
+// Drop the frame at the start of the buffer, keeping bytes from the next frame header (or a partial
+// header at the end). Returns the new buffer length.
+static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
+  for (uint8_t start = 1; start < len; start++) {
+    const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, len - start);
+    if (std::memcmp(&buffer[start], CMD_FRAME_HEADER, n) == 0 ||
+        std::memcmp(&buffer[start], DATA_FRAME_HEADER, n) == 0) {
+      std::memmove(buffer, &buffer[start], len - start);
+      return len - start;
+    }
+  }
+  return 0;
+}
+
+// Length of the frame that opens the buffer, from the count after its header. A periodic frame has a check
+// byte after the counted bytes, a command frame only the footer. Returns 0 while the count is missing.
+static inline uint16_t frame_length(const uint8_t *buffer, uint8_t len) {
+  if (len < FRAME_LENGTH + 2) {
+    return 0;
+  }
+  const uint16_t declared = encode_uint16(buffer[FRAME_LENGTH + 1], buffer[FRAME_LENGTH]);
+  const uint8_t check = validate_header_footer(DATA_FRAME_HEADER, buffer) ? 1 : 0;
+  return FRAME_LENGTH + 2 + declared + check + HEADER_FOOTER_SIZE;
+}
+
 void LD2412Component::dump_config() {
   char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   char version_s[20];
@@ -477,24 +502,15 @@ static constexpr uint32_t GATE_QUERY_TIMEOUT_ID = 0;
 static constexpr uint32_t GATE_QUERY_TIMEOUT_MS = 2000;
 #endif
 
-bool LD2412Component::handle_ack_data_() {
+void LD2412Component::handle_ack_data_() {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", this->buffer_data_[COMMAND]);
-  if (this->buffer_pos_ < 10) {
-    ESP_LOGW(TAG, "Invalid length");
-    return true;
-  }
-  if (!ld2412::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
-    char hex_buf[format_hex_pretty_size(HEADER_FOOTER_SIZE)];
-    ESP_LOGW(TAG, "Invalid header: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, HEADER_FOOTER_SIZE));
-    return true;
-  }
   if (this->buffer_data_[COMMAND_STATUS] != 0x01) {
     ESP_LOGW(TAG, "Invalid status");
-    return true;
+    return;
   }
   if (this->buffer_data_[8] || this->buffer_data_[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
-    return true;
+    return;
   }
 
   switch (this->buffer_data_[COMMAND]) {
@@ -518,7 +534,7 @@ bool LD2412Component::handle_ack_data_() {
 
     case CMD_QUERY_VERSION: {
       if (this->buffer_pos_ < 12 + sizeof(this->version_)) {
-        return false;
+        break;  // too short to hold a version
       }
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
       char version_s[20];
@@ -562,7 +578,7 @@ bool LD2412Component::handle_ack_data_() {
 
     case CMD_QUERY_MAC_ADDRESS: {
       if (this->buffer_pos_ < 20) {
-        return false;
+        break;  // too short to hold a MAC address
       }
 
       this->bluetooth_on_ = std::memcmp(&this->buffer_data_[10], NO_MAC, sizeof(NO_MAC)) != 0;
@@ -613,14 +629,10 @@ bool LD2412Component::handle_ack_data_() {
     case CMD_QUERY_MOTION_GATE_SENS:
     case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
-      const uint16_t declared = encode_uint16(this->buffer_data_[FRAME_LENGTH + 1], this->buffer_data_[FRAME_LENGTH]);
-      if (declared != GATE_SENS_ACK_LENGTH || this->buffer_pos_ > GATE_SENS_ACK_SIZE) {
-        // A truncated answer merged with the next frame, or a length this driver does not know
+      if (this->buffer_pos_ != GATE_SENS_ACK_SIZE) {
+        // A length this driver does not know
         ESP_LOGW(TAG, "Dropping gate threshold answer of %u bytes", this->buffer_pos_);
-        return true;
-      }
-      if (this->buffer_pos_ < GATE_SENS_ACK_SIZE) {
-        return false;  // the footer pattern appeared inside the payload, keep reading
+        return;
       }
       const bool motion = this->buffer_data_[COMMAND] == CMD_QUERY_MOTION_GATE_SENS;
       GateThresholds &group = this->gate_thresholds_(motion);
@@ -647,7 +659,7 @@ bool LD2412Component::handle_ack_data_() {
     {
 #ifdef USE_NUMBER
       if (this->buffer_pos_ < 15) {
-        return false;
+        break;  // too short to hold the configuration
       }
       /*
         Moving distance range: 9th byte
@@ -678,40 +690,52 @@ bool LD2412Component::handle_ack_data_() {
       break;
   }
 
-  return true;
+  return;
 }
 
 void LD2412Component::readline_(int readch) {
   if (readch < 0) {
     return;  // No data available
   }
+  // Only a frame header opens the buffer; other bytes are dropped until one starts
   if (this->buffer_pos_ < HEADER_FOOTER_SIZE && readch != DATA_FRAME_HEADER[this->buffer_pos_] &&
       readch != CMD_FRAME_HEADER[this->buffer_pos_]) {
     this->buffer_pos_ = 0;
-    return;
-  }
-  if (this->buffer_pos_ < MAX_LINE_LENGTH - 1) {
-    this->buffer_data_[this->buffer_pos_++] = readch;
-    this->buffer_data_[this->buffer_pos_] = 0;
-  } else {
-    // We should never get here, but just in case...
-    ESP_LOGW(TAG, "Max command length exceeded; ignoring");
-    this->buffer_pos_ = 0;
-  }
-  if (this->buffer_pos_ < 4) {
-    return;  // Not enough data to process yet
-  }
-  if (ld2412::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
-    this->handle_periodic_data_();
-    this->buffer_pos_ = 0;  // Reset position index for next message
-  } else if (ld2412::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-    ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
-    if (this->handle_ack_data_()) {
-      this->buffer_pos_ = 0;  // Reset position index for next message
-    } else {
-      ESP_LOGV(TAG, "Ack Data incomplete");
+    if (readch != DATA_FRAME_HEADER[0] && readch != CMD_FRAME_HEADER[0]) {
+      return;
     }
+  }
+  this->buffer_data_[this->buffer_pos_++] = readch;
+  const uint16_t frame_len = ld2412::frame_length(this->buffer_data_, this->buffer_pos_);
+  if (frame_len == 0 || (frame_len <= MAX_LINE_LENGTH && this->buffer_pos_ < frame_len)) {
+    return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
+  }
+  if (frame_len <= MAX_LINE_LENGTH) {
+    const uint8_t *footer = &this->buffer_data_[this->buffer_pos_ - HEADER_FOOTER_SIZE];
+    if (ld2412::validate_header_footer(DATA_FRAME_HEADER, this->buffer_data_)) {
+      if (ld2412::validate_header_footer(DATA_FRAME_FOOTER, footer)) {
+        ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
+        this->handle_periodic_data_();
+        this->buffer_pos_ = 0;
+        return;
+      }
+    } else if (ld2412::validate_header_footer(CMD_FRAME_FOOTER, footer)) {
+      ESP_LOGV_HEX(TAG, this->buffer_data_, this->buffer_pos_, MAX_LINE_LENGTH, "Handling Ack Data: %s");
+      this->handle_ack_data_();
+      this->buffer_pos_ = 0;
+      return;
+    }
+  }
+  // The footer is not where the count says, so the stream lost bytes: drop this frame and replay what
+  // follows it, so frames already inside the buffer are dispatched. Each replay is shorter than the
+  // buffer it came from, so the recursion is bounded.
+  ESP_LOGW(TAG, "Invalid length");
+  uint8_t pending[MAX_LINE_LENGTH];
+  const uint8_t pending_len = ld2412::drop_to_next_header(this->buffer_data_, this->buffer_pos_);
+  std::memcpy(pending, this->buffer_data_, pending_len);
+  this->buffer_pos_ = 0;
+  for (uint8_t i = 0; i < pending_len; i++) {
+    this->readline_(pending[i]);  // NOLINT(misc-no-recursion)
   }
 }
 
