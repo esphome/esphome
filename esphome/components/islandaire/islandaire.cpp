@@ -48,6 +48,8 @@ static constexpr uint16_t BIT_MARK = 560;
 static constexpr uint16_t ONE_SPACE = 1208;
 static constexpr uint16_t ZERO_SPACE = 408;
 static constexpr uint32_t CARRIER_FREQUENCY = 38000;
+static constexpr remote_base::BitTimings BIT_TIMINGS{
+    .bit_mark = BIT_MARK, .one_space = ONE_SPACE, .zero_space = ZERO_SPACE};
 
 void IslandaireClimate::setup() {
   ClimateIR::setup();
@@ -119,10 +121,7 @@ void IslandaireClimate::transmit_state() {
 
   data->reserve(2 + STATE_LENGTH * 16 + 1);
   data->item(HEADER_MARK, HEADER_SPACE);
-  for (uint8_t byte : remote_state) {
-    for (uint8_t bit = 0; bit < 8; bit++)
-      data->item(BIT_MARK, byte & (1 << bit) ? ONE_SPACE : ZERO_SPACE);
-  }
+  data->item_bytes<BIT_TIMINGS>(remote_state, STATE_LENGTH);
   data->mark(BIT_MARK);
 
   transmit.perform();
@@ -134,16 +133,10 @@ bool IslandaireClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t remote_state[STATE_LENGTH] = {0};
-  for (uint8_t byte = 0; byte < STATE_LENGTH; byte++) {
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(BIT_MARK, ONE_SPACE)) {
-        remote_state[byte] |= 1 << bit;
-      } else if (!data.expect_item(BIT_MARK, ZERO_SPACE)) {
-        ESP_LOGVV(TAG, "Byte %d bit %d fail", byte, bit);
-        return false;
-      }
-    }
+  uint8_t remote_state[STATE_LENGTH];
+  if (!data.expect_bytes<BIT_TIMINGS>(remote_state, STATE_LENGTH)) {
+    ESP_LOGVV(TAG, "Data fail");
+    return false;
   }
   if (!data.expect_mark(BIT_MARK)) {
     ESP_LOGVV(TAG, "Footer fail");
