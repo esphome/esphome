@@ -154,6 +154,16 @@ template<> const char *proto_enum_to_string<enums::DisconnectReason>(enums::Disc
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::DeviceRelation>(enums::DeviceRelation value) {
+  switch (value) {
+    case enums::DEVICE_RELATION_VIA:
+      return ESPHOME_PSTR("DEVICE_RELATION_VIA");
+    case enums::DEVICE_RELATION_CHILD:
+      return ESPHOME_PSTR("DEVICE_RELATION_CHILD");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::SerialProxyPortType value) {
   switch (value) {
     case enums::SERIAL_PROXY_PORT_TYPE_TTL:
@@ -1005,6 +1015,7 @@ const char *DeviceInfo::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("area_id"), this->area_id);
+  dump_field(out, ESPHOME_PSTR("relation"), static_cast<enums::DeviceRelation>(this->relation));
   return out.c_str();
 }
 #endif

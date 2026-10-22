@@ -24,6 +24,7 @@
 #endif
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/device.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -2055,6 +2056,7 @@ bool APIConnection::send_device_info_response_() {
     device_info.device_id = device->get_device_id();
     device_info.name = StringRef(device->get_name());
     device_info.area_id = device->get_area_id();
+    device_info.relation = static_cast<enums::DeviceRelation>(device->get_relation());
   }
 #endif
 #ifdef USE_AREAS

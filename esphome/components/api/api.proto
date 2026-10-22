@@ -227,11 +227,17 @@ message AreaInfo {
   string name = 2 [(max_data_length) = 120, (force) = true];
 }
 
+enum DeviceRelation {
+  DEVICE_RELATION_VIA = 0;
+  DEVICE_RELATION_CHILD = 1;
+}
+
 message DeviceInfo {
   uint32 device_id = 1;
   // max_data_length matches core/config.FRIENDLY_NAME_MAX_LEN via DEVICE_SCHEMA
   string name = 2 [(max_data_length) = 120, (force) = true];
   uint32 area_id = 3;
+  DeviceRelation relation = 4;
 }
 
 enum SerialProxyPortType {

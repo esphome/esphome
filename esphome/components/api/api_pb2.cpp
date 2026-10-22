@@ -85,6 +85,7 @@ uint8_t *DeviceInfo::encode_msg(const void *self, uint8_t *__restrict__ pos PROT
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.device_id);
   pos = ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, msg.name);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.area_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(msg.relation));
   return pos;
 }
 uint32_t DeviceInfo::calc_size_msg(const void *self) {
@@ -93,6 +94,7 @@ uint32_t DeviceInfo::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.device_id);
   size += 2 + msg.name.size();
   size += ProtoSize::calc_uint32(1, msg.area_id);
+  size += msg.relation ? 2 : 0;
   return size;
 }
 #endif
