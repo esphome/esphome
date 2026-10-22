@@ -18,24 +18,14 @@ MODELS = Model.options(
 )
 
 HorizontalDirections = gree_ns.enum("HorizontalDirections")
-HORIZONTAL_DIRECTIONS = {
-    "auto": HorizontalDirections.HORIZONTAL_DIRECTION_AUTO,
-    "left": HorizontalDirections.HORIZONTAL_DIRECTION_LEFT,
-    "mleft": HorizontalDirections.HORIZONTAL_DIRECTION_MLEFT,
-    "middle": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE,
-    "mright": HorizontalDirections.HORIZONTAL_DIRECTION_MRIGHT,
-    "right": HorizontalDirections.HORIZONTAL_DIRECTION_RIGHT,
-}
+HORIZONTAL_DIRECTIONS = HorizontalDirections.options(
+    "auto", "left", "mleft", "middle", "mright", "right", prefix="HORIZONTAL_DIRECTION_"
+)
 
 VerticalDirections = gree_ns.enum("VerticalDirections")
-VERTICAL_DIRECTIONS = {
-    "auto": VerticalDirections.VERTICAL_DIRECTION_AUTO,
-    "up": VerticalDirections.VERTICAL_DIRECTION_UP,
-    "mup": VerticalDirections.VERTICAL_DIRECTION_MUP,
-    "middle": VerticalDirections.VERTICAL_DIRECTION_MIDDLE,
-    "mdown": VerticalDirections.VERTICAL_DIRECTION_MDOWN,
-    "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
-}
+VERTICAL_DIRECTIONS = VerticalDirections.options(
+    "auto", "up", "mup", "middle", "mdown", "down", prefix="VERTICAL_DIRECTION_"
+)
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
     {
