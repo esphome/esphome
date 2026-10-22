@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace m5stack_4relay {
+namespace esphome::m5stack_4relay {
 
 static constexpr uint8_t UNIT_4RELAY_REG = 0X10;
 static constexpr uint8_t UNIT_4RELAY_RELAY_REG = 0X11;
@@ -26,5 +25,4 @@ class M5Stack4Relay : public Component, public i2c::I2CDevice {
   void setup() override;
 };
 
-}  // namespace m5stack_4relay
-}  // namespace esphome
+}  // namespace esphome::m5stack_4relay

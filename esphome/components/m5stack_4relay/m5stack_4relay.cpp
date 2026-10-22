@@ -1,10 +1,9 @@
 #include "m5stack_4relay.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace m5stack_4relay {
+namespace esphome::m5stack_4relay {
 
-static const char *const TAG = "m5stack_4_relay";
+ESPHOME_LOG_TAG(TAG, "m5stack_4_relay");
 
 void M5Stack4Relay::dump_config() {
   ESP_LOGCONFIG(TAG, "M5Stack 4 Relays:");
@@ -21,11 +20,8 @@ void M5Stack4Relay::init_(bool mode) {
 /*! @brief Read a certain length of data to the specified register address. */
 uint8_t M5Stack4Relay::read1_byte_(uint8_t register_address) {
   uint8_t data;
-  if (!this->read_byte(register_address, &data)) {
-    ESP_LOGW(TAG, "Read from relay failed!");
-    this->status_set_warning();
-    return uint8_t(0);
-  }
+  if (!this->status_comm_result(this->read_byte(register_address, &data), LOG_STR("Read from relay failed")))
+    return 0;
   return data;
 }
 
@@ -54,12 +50,7 @@ void M5Stack4Relay::set_switch_mode(bool mode) { this->write1_byte_(UNIT_4RELAY_
 
 /*! @brief Write a certain length of data to the specified register address. */
 void M5Stack4Relay::write1_byte_(uint8_t register_address, uint8_t data) {
-  if (!this->write_byte(register_address, data)) {
-    ESP_LOGW(TAG, "Write to relay failed!");
-    this->status_set_warning();
-    return;
-  }
+  this->status_comm_result(this->write_byte(register_address, data), LOG_STR("Write to relay failed"));
 }
 
-}  // namespace m5stack_4relay
-}  // namespace esphome
+}  // namespace esphome::m5stack_4relay

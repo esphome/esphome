@@ -1,10 +1,9 @@
 #include "esphome/core/log.h"
 #include "m5stack_4relay_switch.h"
 
-namespace esphome {
-namespace m5stack_4relay {
+namespace esphome::m5stack_4relay {
 
-static const char *const TAG = "switch.M5Stack_4_Relay";
+ESPHOME_LOG_TAG(TAG, "switch.M5Stack_4_Relay");
 
 float M5Stack4RelaySwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
@@ -72,5 +71,4 @@ void M5Stack4RelaySwitch::write_state(bool state) {
 
 void M5Stack4RelaySwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
 
-}  // namespace m5stack_4relay
-}  // namespace esphome
+}  // namespace esphome::m5stack_4relay

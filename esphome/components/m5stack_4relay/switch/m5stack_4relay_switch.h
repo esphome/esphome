@@ -5,8 +5,7 @@
 
 #include "esphome/components/m5stack_4relay/m5stack_4relay.h"
 
-namespace esphome {
-namespace m5stack_4relay {
+namespace esphome::m5stack_4relay {
 
 class M5Stack4RelaySwitch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
  public:
@@ -27,5 +26,4 @@ class M5Stack4RelaySwitch : public Component, public switch_::Switch, public Par
   uint32_t interlock_wait_time_{0};
 };
 
-}  // namespace m5stack_4relay
-}  // namespace esphome
+}  // namespace esphome::m5stack_4relay
