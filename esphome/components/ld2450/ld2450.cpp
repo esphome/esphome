@@ -253,6 +253,14 @@ void LD2450Component::dump_config() {
   for (text_sensor::TextSensor *s : this->direction_text_sensors_) {
     LOG_TEXT_SENSOR("  ", "Direction", s);
   }
+#ifdef USE_LD2450_TARGET_XY
+  for (const TargetXY &xy : this->target_xy_) {
+    if (xy.sensor != nullptr) {
+      LOG_TEXT_SENSOR("  ", "TargetXY", xy.sensor);
+      ESP_LOGCONFIG(TAG, "    Throttle: %" PRIu32 "ms", xy.throttle_ms);
+    }
+  }
+#endif
 #endif
 #ifdef USE_NUMBER
   ESP_LOGCONFIG(TAG, "Numbers:");
@@ -302,6 +310,16 @@ void LD2450Component::loop() {
       this->readline_(buf[i]);
     }
   }
+
+#ifdef USE_LD2450_TARGET_XY
+  // Publish the latest position of a target that stopped moving while its update was held back
+  const uint32_t now = App.get_loop_component_start_time();
+  for (TargetXY &xy : this->target_xy_) {
+    if (xy.pending && now - xy.last_publish_ms >= xy.throttle_ms) {
+      this->publish_target_xy_(xy, now);
+    }
+  }
+#endif
 }
 
 // Count targets in zone (single pass for both still and moving)
@@ -549,6 +567,10 @@ void LD2450Component::handle_periodic_data_() {
         tsd->publish_state(find_str(ld2450::DIRECTION_BY_UINT, direction));
       }
     }
+#endif
+#ifdef USE_LD2450_TARGET_XY
+    // Untracked targets are (0, 0), so repeated "no target" frames are not seen as changes
+    this->update_target_xy_(index, td > 0, (td > 0) ? tx : 0, (td > 0) ? ty : 0);
 #endif
 
     // Store target info for zone target count. Zero out untracked targets (td==0)
@@ -952,6 +974,46 @@ void LD2450Component::set_zone_moving_target_count_sensor(uint8_t zone, sensor::
 #ifdef USE_TEXT_SENSOR
 void LD2450Component::set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s) {
   this->direction_text_sensors_[target] = s;
+}
+#endif
+#ifdef USE_LD2450_TARGET_XY
+void LD2450Component::set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s, uint32_t throttle_ms) {
+  this->target_xy_[target].sensor = s;
+  this->target_xy_[target].throttle_ms = throttle_ms;
+}
+
+// Handle the position of a target in one radar frame. Like the X and Y sensors' default filters, "no target"
+// is published at once, while a position waits until `throttle_ms` has passed since the last published one.
+void LD2450Component::update_target_xy_(uint8_t target, bool tracked, int16_t x, int16_t y) {
+  TargetXY &xy = this->target_xy_[target];
+  if (xy.sensor == nullptr)
+    return;
+  if (xy.has_input && xy.tracked == tracked && xy.x == x && xy.y == y)
+    return;
+  xy.has_input = true;
+  xy.tracked = tracked;
+  xy.x = x;
+  xy.y = y;
+  const uint32_t now = App.get_loop_component_start_time();
+  if (tracked && xy.published && now - xy.last_publish_ms < xy.throttle_ms) {
+    xy.pending = true;
+    return;
+  }
+  this->publish_target_xy_(xy, now);
+}
+
+void LD2450Component::publish_target_xy_(TargetXY &xy, uint32_t now) {
+  xy.pending = false;
+  xy.published = true;
+  xy.last_publish_ms = now;
+  if (!xy.tracked) {
+    xy.sensor->publish_state("NA");
+    return;
+  }
+  // Longest is "-32767,-32767"
+  char text[16];
+  const int len = snprintf(text, sizeof(text), "%d,%d", xy.x, xy.y);
+  xy.sensor->publish_state(text, len);
 }
 #endif
 
