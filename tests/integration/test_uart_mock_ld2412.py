@@ -24,6 +24,9 @@ test_uart_mock_ld2412_engineering_truncated (truncated engineering mode):
 The gate threshold tests (footer_in_payload, truncated_answer, requery_after_giveup) cover
 answers that hold the frame footer or are truncated, writes that fill the gates without a
 number from the module's values, and writes held back until the module reports them.
+
+test_uart_mock_ld2412_out_pin_level checks that the output pin level select sends the basic
+configuration command with the gates and timeout the module reported when no number is configured.
 """
 
 from __future__ import annotations
@@ -39,6 +42,7 @@ from aioesphomeapi import (
     EntityState,
     NumberInfo,
     NumberState,
+    SelectInfo,
 )
 import pytest
 
@@ -57,6 +61,7 @@ STILL_COMMAND = "10:00:04:00"
 MOTION_QUERY = "02:00:13:00"
 STILL_QUERY = "02:00:14:00"
 CONFIG_MODE_LEFT = "02:00:FE:00"
+BASIC_CONFIG = "07:00:02:00"
 FACTORY_RESET = "02:00:A2:00"
 # Logged in place of the motion command when the write is held back or given up
 MOTION_HELD_BACK = "Command 03 held back"
@@ -681,3 +686,37 @@ async def test_uart_mock_ld2412_requery_after_giveup(
         assert gate_0_state.state == pytest.approx(25.0)
         assert gate_5_values
         assert all(value == pytest.approx(30.0) for value in gate_5_values)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_out_pin_level(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that the output pin level select resends the module's own gates and timeout."""
+    # Gates 3 to 9 and the 10 second timeout as the module reported them, with the pin level set to high
+    expected_payload = "03:09:0A:00:00"
+    events = _LogEvents()
+
+    async with (
+        run_compiled(yaml_config, line_callback=events.on_line),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        initial_state_helper = await _wait_initial(client, entities)
+        select = require_entity(entities, "out_pin_level", SelectInfo)
+        assert initial_state_helper.initial_states[select.key].state == "low"
+
+        written = events.next_line_with(expected_payload)
+        client.select_command(select.key, "high")
+        await wait_or_fail(
+            written,
+            5.0,
+            "Timeout waiting for the basic configuration command",
+            expected_payload=expected_payload,
+            logged=events.lines,
+        )
+        # Exactly one basic configuration write, and not one built from the defaults
+        assert events.count(BASIC_CONFIG) == 1
+        assert events.count("01:0E:05:00") == 0

@@ -154,7 +154,6 @@ template<size_t N> const char *find_str(const Uint8ToString (&arr)[N], uint8_t v
   return "";  // Not found
 }
 
-static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Default used when number component is not defined
 // Commands
 static constexpr uint8_t CMD_ENABLE_CONF = 0xFF;
 static constexpr uint8_t CMD_DISABLE_CONF = 0xFE;
@@ -643,37 +642,29 @@ bool LD2412Component::handle_ack_data_() {
       break;
     }
 
-    case CMD_QUERY_BASIC_CONF:  // Query parameters response
-    {
-#ifdef USE_NUMBER
+    case CMD_QUERY_BASIC_CONF: {  // Query parameters response
       if (this->buffer_pos_ < 15) {
         return false;
       }
-      /*
-        Moving distance range: 9th byte
-        Still distance range: 10th byte
-      */
-      set_number_value(this->min_distance_gate_number_, this->buffer_data_[10]);
-      set_number_value(this->max_distance_gate_number_, this->buffer_data_[11] - 1);
-      ESP_LOGV(TAG, "min_distance_gate_number_: %u, max_distance_gate_number_ %u", this->buffer_data_[10],
-               this->buffer_data_[11]);
-      /*
-        None Duration: 11~12th bytes
-      */
-      set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[13], this->buffer_data_[12]));
-      ESP_LOGV(TAG, "timeout_number_: %u", encode_uint16(this->buffer_data_[13], this->buffer_data_[12]));
-      /*
-        Output pin configuration: 13th bytes
-      */
+      // Min gate: 9th byte, max gate: 10th byte, timeout: 11~12th bytes, output pin level: 13th byte
+      this->min_gate_ = this->buffer_data_[10];
+      this->max_gate_ = this->buffer_data_[11];
+      this->timeout_ = encode_uint16(this->buffer_data_[13], this->buffer_data_[12]);
       this->out_pin_level_ = this->buffer_data_[14];
+      ESP_LOGV(TAG, "min_distance_gate_number_: %u, max_distance_gate_number_ %u", this->min_gate_, this->max_gate_);
+      ESP_LOGV(TAG, "timeout_number_: %u", this->timeout_);
+#ifdef USE_NUMBER
+      set_number_value(this->min_distance_gate_number_, this->min_gate_);
+      set_number_value(this->max_distance_gate_number_, this->max_gate_ - 1);
+      set_number_value(this->timeout_number_, this->timeout_);
+#endif
 #ifdef USE_SELECT
-      const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
       if (this->out_pin_level_select_ != nullptr) {
-        this->out_pin_level_select_->publish_state(out_pin_level_str);
+        this->out_pin_level_select_->publish_state(find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_));
       }
 #endif
-#endif
-    } break;
+      break;
+    }
     default:
       break;
   }
@@ -795,10 +786,11 @@ void LD2412Component::get_distance_resolution_() { this->send_command_(CMD_QUERY
 void LD2412Component::query_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
 
 void LD2412Component::set_basic_config() {
-  uint8_t min_gate = 1;
-  uint8_t max_gate = TOTAL_GATES;
-  uint16_t timeout = DEFAULT_PRESENCE_TIMEOUT;
-  uint8_t out_pin_level = 0x01;
+  // Entities that are not configured keep what the module last reported
+  uint8_t min_gate = this->min_gate_;
+  uint8_t max_gate = this->max_gate_;
+  uint16_t timeout = this->timeout_;
+  uint8_t out_pin_level = this->out_pin_level_;
 
 #ifdef USE_NUMBER
   if (this->min_distance_gate_number_ != nullptr) {
