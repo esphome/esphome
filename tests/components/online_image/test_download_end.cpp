@@ -587,8 +587,8 @@ TEST_F(OnlineImageDownloadEnd, JpegProgressiveReportsError) {
 TEST_F(OnlineImageDownloadEnd, StartedFiresOnlyWhenTheDownloadBegins) {
   auto image = this->make_image_(runtime_image::JPEG, 1024);
   std::vector<std::string> events;
-  image->add_on_download_started_callback([&events]() { events.push_back("started"); });
-  image->add_on_progress_callback([&events](float, size_t) { events.push_back("progress"); });
+  image->add_on_download_started_callback([&events]() { events.emplace_back("started"); });
+  image->add_on_progress_callback([&events](float, size_t) { events.emplace_back("progress"); });
   this->start_(*image,
                std::make_shared<FakeContainer>(std::vector<uint8_t>(JPEG_48X40, JPEG_48X40 + sizeof(JPEG_48X40)),
                                                sizeof(JPEG_48X40), false));
