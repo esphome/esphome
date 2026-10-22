@@ -241,7 +241,8 @@ int JpegDecoder::begin_source(DecodeSource *source) {
   this->source_ = source;
   this->source_failed_ = false;
   if (!this->jpeg_.open(this, this->expected_size_, source_close, source_read, source_seek, draw_callback)) {
-    ESP_LOGE(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
+    // The caller may recover, for example by reading the whole image first, so it reports the failure
+    ESP_LOGD(TAG, "Could not open image for decoding: %d", this->jpeg_.getLastError());
     this->source_ = nullptr;
     return this->source_failed_ ? DECODE_ERROR_READ : DECODE_ERROR_INVALID_TYPE;
   }
