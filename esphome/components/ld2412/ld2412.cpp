@@ -220,7 +220,8 @@ static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t len) {
 
 // Length of the frame that opens the buffer: the header, the two byte count, the counted bytes (for a
 // periodic frame up to and including its check byte) and the footer. Returns 0 while the count is missing.
-static inline uint16_t frame_length(const uint8_t *buffer, uint8_t len) {
+// 32 bits wide so the largest count cannot wrap the total back to 0.
+static inline uint32_t frame_length(const uint8_t *buffer, uint8_t len) {
   if (len < HEADER_FOOTER_SIZE + 2) {
     return 0;
   }
@@ -705,7 +706,7 @@ void LD2412Component::readline_(int readch) {
     }
   }
   this->buffer_data_[this->buffer_pos_++] = readch;
-  const uint16_t frame_len = ld2412::frame_length(this->buffer_data_, this->buffer_pos_);
+  const uint32_t frame_len = ld2412::frame_length(this->buffer_data_, this->buffer_pos_);
   if (frame_len == 0 || (frame_len <= MAX_LINE_LENGTH && this->buffer_pos_ < frame_len)) {
     return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
   }
