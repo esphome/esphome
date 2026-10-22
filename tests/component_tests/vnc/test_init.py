@@ -130,7 +130,7 @@ def test_it8951_owned_by_vnc(
 
     assert TEST_CARD not in main_cpp
     assert f"epd->{UPDATE_NEVER}" in main_cpp
-    assert re.search(r"new\(\w+\) vnc::VncClient\(epd\);", main_cpp)
+    assert re.search(r"new\(\w+\) vnc::VncClient\(epd, \w+\);", main_cpp)
     assert 'set_host("192.168.1.20");' in main_cpp
     assert "set_port(5900);" in main_cpp
     assert "set_reconnect_interval(5000);" in main_cpp
@@ -148,7 +148,7 @@ def test_epaper_spi_owned_by_vnc(
 
     assert TEST_CARD not in main_cpp
     assert f"other->{UPDATE_NEVER}" in main_cpp
-    assert re.search(r"new\(\w+\) vnc::VncClient\(other\);", main_cpp)
+    assert re.search(r"new\(\w+\) vnc::VncClient\(other, \w+\);", main_cpp)
 
 
 def test_display_with_generated_id(
@@ -226,8 +226,8 @@ vnc:
         )
     )
 
-    assert re.search(r"vnc::VncClient\(epd\);", main_cpp)
-    assert re.search(r"vnc::VncClient\(other\);", main_cpp)
+    assert re.search(r"vnc::VncClient\(epd, \w+\);", main_cpp)
+    assert re.search(r"vnc::VncClient\(other, \w+\);", main_cpp)
     assert TEST_CARD not in main_cpp
 
 

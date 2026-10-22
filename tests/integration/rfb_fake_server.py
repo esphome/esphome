@@ -104,6 +104,7 @@ class PixelFormat:
 
 #: TightVNC's native format at ``-depth 16`` on a little-endian host.
 RGB565_LE = PixelFormat(16, 16, False, True, 31, 63, 31, 11, 5, 0)
+RGB565_BE = PixelFormat(16, 16, True, True, 31, 63, 31, 11, 5, 0)
 RGB332 = PixelFormat(8, 8, False, True, 7, 7, 3, 5, 2, 0)
 
 
