@@ -14,6 +14,7 @@ from esphome.automation import (
     IN_RANGE_CHECK,
     IN_RANGE_DEFAULTS,
     ApplyAction,
+    ApplyBytes,
     ApplyCall,
     ApplyCondition,
     ApplyField,
@@ -787,8 +788,9 @@ class MockCodegen(NamedTuple):
     new_pvariable: MagicMock
     register_parented: AsyncMock
     add_global: MagicMock
+    add_global_after_includes: MagicMock
     add: MagicMock
-    calls: MagicMock  # new_pvariable and add_global attached, to check their order
+    calls: MagicMock  # the global emitters and new_pvariable attached, to check their order
 
 
 @pytest.fixture
@@ -850,6 +852,9 @@ def mock_cg() -> Generator[MockCodegen]:
             "esphome.codegen.register_parented", new_callable=AsyncMock
         ) as register_parented,
         patch("esphome.cpp_generator.add_global") as add_global,
+        patch(
+            "esphome.cpp_generator.add_global_after_includes"
+        ) as add_global_after_includes,
         patch("esphome.codegen.add") as add,
     ):
         get_variable.return_value = PARENT_OBJ
@@ -857,8 +862,15 @@ def mock_cg() -> Generator[MockCodegen]:
         calls = MagicMock()
         calls.attach_mock(new_pvariable, "new_pvariable")
         calls.attach_mock(add_global, "add_global")
+        calls.attach_mock(add_global_after_includes, "add_global_after_includes")
         yield MockCodegen(
-            get_variable, new_pvariable, register_parented, add_global, add, calls
+            get_variable,
+            new_pvariable,
+            register_parented,
+            add_global,
+            add_global_after_includes,
+            add,
+            calls,
         )
 
 
@@ -987,7 +999,7 @@ async def _run_apply_condition(
 
 
 def _apply_definition(mock_cg: MockCodegen) -> str:
-    return str(mock_cg.add_global.call_args.args[0])
+    return str(mock_cg.add_global_after_includes.call_args.args[0])
 
 
 @pytest.mark.asyncio
@@ -1001,8 +1013,16 @@ async def test_register_apply_action_entry(
     action_id, template_arg = mock_cg.new_pvariable.call_args.args
     assert action_id == ID("obj_1")
     assert str(template_arg) == "<esphome__obj_1__fn, int32_t>"
-    # The definition must precede the storage line that names the function.
-    assert [c[0] for c in mock_cg.calls.mock_calls] == ["add_global", "new_pvariable"]
+    # The declaration must precede the storage line that names the function; the body
+    # goes after the user includes.
+    assert [c[0] for c in mock_cg.calls.mock_calls] == [
+        "add_global",
+        "add_global_after_includes",
+        "new_pvariable",
+    ]
+    assert str(mock_cg.add_global.call_args.args[0]) == (
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x);"
+    )
     assert _apply_definition(mock_cg).startswith(
         "static void esphome__obj_1__fn(const std::remove_cvref_t<int32_t> & x) {"
     )
@@ -1298,6 +1318,145 @@ async def test_apply_string_ref_literal_stays_in_flash_on_esp8266(
     )
     await _run_apply_action(registries, fields, {"payload": "ON"}, platform=platform)
     assert f"::{PARENT_OBJ}->set_payload({rendered});" in _apply_definition(mock_cg)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("platform", ["esp32", "esp8266"])
+async def test_apply_bytes_lambda_is_a_vector_in_a_block(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
+) -> None:
+    """A lambda payload is called once into a scoped vector and passed as data and size."""
+    fields = (ApplyBytes("data", "send({})"),)
+    config = {"data": Lambda("return {0x01, x};")}
+    await _run_apply_action(
+        registries, fields, config, args=[(cg.uint8, "x")], platform=platform
+    )
+    text = _apply_definition(mock_cg)
+    # Parenthesized so a reduced `return a, b;` stays one initializer
+    assert "const std::vector<uint8_t> esphome__bytes = (" in text
+    assert "-> std::vector<uint8_t>" in text
+    assert (
+        f"::{PARENT_OBJ}->send(esphome__bytes.data(), esphome__bytes.size());" in text
+    )
+    assert "progmem_memcpy" not in text
+
+
+@pytest.mark.asyncio
+async def test_apply_bytes_constant_is_a_shared_table(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A constant payload is the shared PROGMEM table and its length, named after the action."""
+    CORE.config = {}
+    fields = (ApplyBytes("data", "send({})"),)
+    await _run_apply_action(registries, fields, {"data": [0xA1, 0x02]})
+    assert f"::{PARENT_OBJ}->send(::esphome__my_apply__bytes, 2);" in _apply_definition(
+        mock_cg
+    )
+
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(registries, fields, {"data": b""})
+    assert f"::{PARENT_OBJ}->send(nullptr, 0);" in _apply_definition(mock_cg)
+
+    mock_cg.new_pvariable.reset_mock()
+    await _run_apply_action(registries, fields, {})
+    assert "send(" not in _apply_definition(mock_cg)
+
+    with pytest.raises(EsphomeError, match="maximum is 65535"):
+        await _run_apply_action(registries, fields, {"data": bytes(0x10000)})
+
+
+@pytest.mark.asyncio
+async def test_apply_bytes_constant_is_copied_out_of_flash_on_esp8266(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """On ESP8266 a constant goes through a stack buffer, or straight to a flash-aware target."""
+    CORE.config = {}
+    fields = (ApplyBytes("data", "send({})", stack=128),)
+    await _run_apply_action(
+        registries, fields, {"data": [0xA1, 0x02]}, platform="esp8266"
+    )
+    text = _apply_definition(mock_cg)
+    lines = [
+        "uint8_t esphome__bytes[2];",
+        "esphome::progmem_memcpy(esphome__bytes, ::esphome__my_apply__bytes, 2);",
+        f"::{PARENT_OBJ}->send(esphome__bytes, 2);",
+    ]
+    positions = [text.index(line) for line in lines]
+    assert positions == sorted(positions)
+
+    # Past the stack budget the copy goes to the heap
+    mock_cg.new_pvariable.reset_mock()
+    fields = (ApplyBytes("data", "send({})", stack=1),)
+    await _run_apply_action(
+        registries, fields, {"data": [0xA1, 0x02]}, platform="esp8266"
+    )
+    text = _apply_definition(mock_cg)
+    assert "auto esphome__bytes = std::make_unique<uint8_t[]>(2);" in text
+    assert (
+        "esphome::progmem_memcpy(esphome__bytes.get(), ::esphome__my_apply__bytes, 2);"
+        in text
+    )
+    assert f"::{PARENT_OBJ}->send(esphome__bytes.get(), 2);" in text
+
+    mock_cg.new_pvariable.reset_mock()
+    fields = (ApplyBytes("data", "send({})", progmem_target="send_progmem({})"),)
+    await _run_apply_action(
+        registries, fields, {"data": [0xA1, 0x02]}, platform="esp8266"
+    )
+    text = _apply_definition(mock_cg)
+    assert f"::{PARENT_OBJ}->send_progmem(::esphome__my_apply__bytes, 2);" in text
+    assert "progmem_memcpy" not in text
+
+    # An empty payload never touches flash but still passes a non-null buffer
+    mock_cg.new_pvariable.reset_mock()
+    fields = (ApplyBytes("data", "send({})"),)
+    await _run_apply_action(registries, fields, {"data": []}, platform="esp8266")
+    text = _apply_definition(mock_cg)
+    assert "uint8_t esphome__bytes[1];" in text
+    assert f"::{PARENT_OBJ}->send(esphome__bytes, 0);" in text
+    assert "progmem_memcpy" not in text
+
+
+@pytest.mark.asyncio
+async def test_apply_bytes_beside_other_fields_and_call_object(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    CORE.config = {}
+    fields = (
+        ApplyField("channel", "set_channel", cg.uint8),
+        ApplyBytes("data", "write({})"),
+    )
+    await _run_apply_action(
+        registries, fields, {"channel": 3, "data": [1]}, call="make_call"
+    )
+    text = _apply_definition(mock_cg)
+    lines = [
+        f"auto apply_call = ::{PARENT_OBJ}->make_call();",
+        "apply_call.set_channel(3);",
+        "apply_call.write(::esphome__my_apply__bytes, 1);",
+        "apply_call.perform();",
+    ]
+    positions = [text.index(line) for line in lines]
+    assert positions == sorted(positions)
+
+
+def test_apply_bytes_checks_its_shape(registries: tuple[Registry, Registry]) -> None:
+    # Escaped braces are not placeholders
+    assert ApplyBytes("data", "send({{}}, {})").target == "send({{}}, {})"
+    with pytest.raises(ValueError, match="needs one {}"):
+        ApplyBytes("data", "send({{}})")
+    with pytest.raises(ValueError, match="needs one {}"):
+        ApplyBytes("data", "send()")
+    with pytest.raises(ValueError, match="needs one {}"):
+        ApplyBytes("data", "send({})", progmem_target="send_progmem({}, {})")
+    with pytest.raises(ValueError, match="'dat' is not in the schema"):
+        register_apply_action(
+            "my.bad",
+            cv.Schema(
+                {cv.Required(CONF_ID): cv.string, cv.Required("data"): cv.string}
+            ),
+            ApplyBytes("dat", "send({})"),
+        )
 
 
 @pytest.mark.asyncio
