@@ -500,7 +500,10 @@ static bool rh_correction_temp_in_band(float t) { return t >= -40.0f && t <= 50.
 
 optional<float> RHCorrectionFilter::new_value(float value) {
   if (!this->temperature_sensor_->has_state()) {
-    ESP_LOGVV(TAG, "RHCorrectionFilter(%p): no temp available.", this);
+    if (!this->warned_) {
+      ESP_LOGW(TAG, "RHCorrectionFilter(%p): no temperature yet, passing humidity through uncorrected", this);
+      this->warned_ = true;
+    }
     return value;
   }
   float offset = this->temperature_offset_.value();
@@ -511,8 +514,13 @@ optional<float> RHCorrectionFilter::new_value(float value) {
   }
   const float tnc = tc - offset;
   // A NaN temperature or offset is a faulted input: keep the last corrected value
-  if (std::isnan(tnc))
+  if (std::isnan(tnc)) {
+    if (!this->warned_) {
+      ESP_LOGW(TAG, "RHCorrectionFilter(%p): temperature or offset is NaN, dropping humidity updates", this);
+      this->warned_ = true;
+    }
     return {};
+  }
   if (!rh_correction_temp_in_band(tc) || !rh_correction_temp_in_band(tnc)) {
     if (!this->warned_) {
       ESP_LOGW(TAG, "RHCorrectionFilter(%p): Temperature out of range -40..50 °C. Tc=%f Tnc=%f", this, tc, tnc);
