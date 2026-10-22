@@ -15,15 +15,6 @@
 #include "subscribe_state.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
-#ifdef USE_ESP32_CRASH_HANDLER
-#include "esphome/components/esp32/crash_handler.h"
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-#include "esphome/components/rp2/crash_handler.h"
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-#include "esphome/components/esp8266/crash_handler.h"
-#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
@@ -301,21 +292,7 @@ class APIConnection final : public APIServerConnectionBase {
       this->begin_iterator_(ActiveIterator::INITIAL_STATE);
     }
   }
-  void on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
-    this->flags_.log_subscription = msg.level;
-    if (msg.dump_config)
-      App.schedule_dump_config();
-#ifdef USE_ESP32_CRASH_HANDLER
-    esp32::crash_handler_log();
-    esp32::crash_handler_clear();
-#endif
-#ifdef USE_RP2_CRASH_HANDLER
-    rp2::crash_handler_log();
-#endif
-#ifdef USE_ESP8266_CRASH_HANDLER
-    esp8266::crash_handler_log();
-#endif
-  }
+  void on_subscribe_logs_request(const SubscribeLogsRequest &msg);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void on_subscribe_homeassistant_services_request() { this->flags_.service_call_subscription = true; }
 #endif
@@ -505,15 +482,15 @@ class APIConnection final : public APIServerConnectionBase {
 
   // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                StringRef &device_class_field, CalculateSizeFn size_fn,
-                                                                MessageEncodeFn encode_fn, APIConnection *conn,
-                                                                uint32_t remaining_size);
+                                                                ProgmemStringRef &device_class_field,
+                                                                CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
+                                                                APIConnection *conn, uint32_t remaining_size);
 
   // Thin template wrapper
   template<typename T>
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
-                                                                StringRef &device_class_field, APIConnection *conn,
-                                                                uint32_t remaining_size) {
+                                                                ProgmemStringRef &device_class_field,
+                                                                APIConnection *conn, uint32_t remaining_size) {
     return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &T::calc_size_msg,
                                                          &T::encode_msg, conn, remaining_size);
   }

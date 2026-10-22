@@ -697,10 +697,12 @@ _UNUSED_IDF_TOOLS: tuple[str, ...] = (
 # tools.json also lists riscv32-esp-elf as supported on the xtensa chips
 # because the S2/S3 ULP coprocessor is a RISC-V core, so installing for an
 # S2/S3 target pulls in the whole riscv compiler (~290MB download, 2GB disk)
-# just for ULP programs — which ESPHome never builds (the IDF ``ulp``
-# component is excluded by default; a user who re-enables it via
+# just for ULP programs. The IDF ``ulp`` component is excluded by default;
+# the ``esp32_ulp`` component re-enables it and requests the RISC-V tools
+# through ``esp32.add_idf_install_target``, so only configs that build a ULP
+# program pay for that download. A user who re-enables ``ulp`` by hand via
 # ``include_builtin_idf_components: [ulp]`` on an S2/S3 and hits a missing
-# riscv compiler can set ESPHOME_IDF_DEFAULT_TARGETS=all to install it).
+# riscv compiler can set ESPHOME_IDF_DEFAULT_TARGETS=all to install it.
 # Removing the xtensa chips from its supported targets keeps it out of
 # xtensa-only installs; building a RISC-V variant still installs it. Add any
 # future Xtensa chip here; a missing entry only costs the download, while a

@@ -142,6 +142,8 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
 }
 #endif  // USE_ESP8266
 
+uint8_t Logger::get_log_level(const char *tag) { return this->level_for(tag); }
+
 inline uint8_t Logger::level_for(const char *tag) {
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   // Skip the lookup when no per-tag levels are set
