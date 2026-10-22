@@ -19,6 +19,7 @@ from aioesphomeapi import api_pb2
 import pytest
 
 from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 SERVICES_RESPONSE = MESSAGE_TYPE_OF[api_pb2.ListEntitiesServicesResponse]
@@ -92,8 +93,9 @@ async def test_api_list_entities_backpressure(
 
             # Other clients must still be served while the first is blocked
             async with api_client_connected(timeout=20) as client:
-                device_info = await asyncio.wait_for(client.device_info(), 20)
-                assert device_info.name == "api-backpressure-test"
+                await asyncio.wait_for(
+                    assert_device_name(client, "api-backpressure-test"), 20
+                )
                 _, services = await asyncio.wait_for(
                     client.list_entities_services(), 30
                 )

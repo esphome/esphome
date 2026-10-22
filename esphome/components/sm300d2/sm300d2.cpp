@@ -83,13 +83,7 @@ void SM300D2Sensor::update() {
     this->humidity_sensor_->publish_state(humidity);
 }
 
-uint16_t SM300D2Sensor::sm300d2_checksum_(uint8_t *ptr) {
-  uint8_t sum = 0;
-  for (int i = 0; i < (SM300D2_RESPONSE_LENGTH - 1); i++) {
-    sum += *ptr++;
-  }
-  return sum;
-}
+uint16_t SM300D2Sensor::sm300d2_checksum_(uint8_t *ptr) { return sum_bytes(ptr, SM300D2_RESPONSE_LENGTH - 1); }
 
 void SM300D2Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "SM300D2:");

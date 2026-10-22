@@ -51,6 +51,7 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92,
   OTA_RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93,
   OTA_RESPONSE_ERROR_ENCRYPTION_REQUIRED = 0x94,
+  OTA_RESPONSE_ERROR_UPDATE_BUSY = 0x95,
   OTA_RESPONSE_ERROR_UNKNOWN = 0xFF,
 };
 
@@ -95,11 +96,35 @@ enum OTAType : uint8_t {
   OTA_TYPE_UPDATE_BOOTLOADER = 0x02,
 };
 
+/// Serializes flash updates. Taken in begin(), released when the backend is destroyed, or kept until
+/// reboot after a successful end(). Also for components writing the update partition outside OTA.
+class UpdateLock {
+ public:
+  UpdateLock() = default;
+  ~UpdateLock() { this->release(); }
+  UpdateLock(const UpdateLock &) = delete;
+  UpdateLock &operator=(const UpdateLock &) = delete;
+
+  /// Returns false if held elsewhere.
+  bool try_acquire();
+  void release();
+  bool is_held() const { return this->held_; }
+  /// Keep the lock set until reboot; is_held() becomes false.
+  void hold_until_reboot() { this->held_ = false; }
+
+ protected:
+  /// Tests only.
+  static void force_release();
+
+  bool held_{false};
+};
+
 // The OTA backend method surface. Exactly one backend exists per build,
 // selected in ota_backend_factory.h where this concept is asserted on
 // make_ota_backend()'s return type. Semantics beyond the signatures:
-// - begin: prepare for an image of the given size; ota_type defaults to an
-//   app update, so both call forms must be accepted.
+// - begin: prepare for an image of the given size; 0 means the size is unknown
+//   (web_server upload) and the backend allows the largest image it can take.
+//   ota_type defaults to an app update, so both call forms must be accepted.
 // - set_update_md5: expected digest of the incoming image, hex string.
 // - write: consume the next chunk; end: finalize and mark bootable.
 // - abort: safe to call in any state, including after end().
