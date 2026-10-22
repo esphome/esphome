@@ -92,7 +92,8 @@ inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t count, uint8_t from,
 // payload cannot end it early. `handle_frame(len)` dispatches a complete frame that fits the buffer and
 // returns false when its footer is not where the count says; that frame, or one too long for the buffer,
 // is dropped after `on_drop()`. After a frame only the bytes from the next header start on are kept, so
-// the buffer always begins with a header.
+// the buffer always begins with a header. `handle_frame` may overwrite `pos` (the handlers read the frame
+// length from it); the splitter works from the count it saved before the call.
 template<size_t N, typename LengthFn, typename HandleFn, typename DropFn>
 void feed_frame_byte(uint8_t (&buffer)[N], uint8_t &pos, uint8_t byte, const uint8_t *data_header,
                      LengthFn frame_length, HandleFn handle_frame, DropFn on_drop) {
