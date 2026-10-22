@@ -1,52 +1,62 @@
 #include "m5stack_4relay.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::m5stack_4relay {
 
-ESPHOME_LOG_TAG(TAG, "m5stack_4_relay");
+ESPHOME_LOG_TAG(TAG, "m5stack_4relay");
+
+static constexpr uint8_t REG_MODE = 0x10;
+static constexpr uint8_t REG_RELAY = 0x11;
+static constexpr uint8_t MODE_SYNC = 1;
+
+void M5Stack4Relay::setup() {
+  if (!this->write_byte(REG_MODE, MODE_SYNC) || !this->read_byte(REG_RELAY, &this->relays_)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+#ifdef USE_SWITCH
+  // The chip keeps the relays across an ESP reboot, so a switch with restore mode DISABLED shows what the chip has.
+  bool restored = false;
+  for (uint8_t channel = 0; channel < this->switches_.size(); channel++) {
+    switch_::Switch *sw = this->switches_[channel];
+    if (sw == nullptr)
+      continue;
+    auto initial = sw->get_initial_state_with_restore_mode();
+    if (initial.has_value()) {
+      assign_bits(this->relays_, 1 << channel, *initial);
+      restored = true;
+    }
+  }
+  if (restored && !this->write_byte(REG_RELAY, this->relays_)) {
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+  for (uint8_t channel = 0; channel < this->switches_.size(); channel++) {
+    if (this->switches_[channel] != nullptr)
+      this->switches_[channel]->publish_state((this->relays_ >> channel) & 1);
+  }
+#endif
+}
 
 void M5Stack4Relay::dump_config() {
-  ESP_LOGCONFIG(TAG, "M5Stack 4 Relays:");
+  ESP_LOGCONFIG(TAG, "M5Stack 4 Relay:");
   LOG_I2C_DEVICE(this);
 }
 
-/*! @brief Setting the mode of the device, and turn off all relays, restore the switches with restore mode.
- *  @param mode Async = 0, Sync = 1. */
-void M5Stack4Relay::init_(bool mode) {
-  this->write1_byte_(UNIT_4RELAY_REG, mode);
-  this->write1_byte_(UNIT_4RELAY_RELAY_REG, 0);
-}
-
-/*! @brief Read a certain length of data to the specified register address. */
-uint8_t M5Stack4Relay::read1_byte_(uint8_t register_address) {
-  uint8_t data;
-  if (!this->status_comm_result(this->read_byte(register_address, &data), LOG_STR("Read from relay failed")))
-    return 0;
-  return data;
-}
-
-/*! @brief Control the on/off of the specified relay.
- *  @param number Bit number of relay (0~3).
-    @param state OFF = 0, ON = 1 . */
-void M5Stack4Relay::relay_write(uint8_t number, bool state) {
-  uint8_t state_from_device = this->read1_byte_(UNIT_4RELAY_RELAY_REG);
-  assign_bits(state_from_device, 0x01 << number, state);
-  this->write1_byte_(UNIT_4RELAY_RELAY_REG, state_from_device);
-}
-
-void M5Stack4Relay::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up M5Stack_4_Relays...");
-  uint8_t setupmode = 1;
-  this->init_(setupmode);
-}
-
-/*! @brief Setting the mode of the device.
- *  @param mode Async = 0, Sync = 1. */
-void M5Stack4Relay::set_switch_mode(bool mode) { this->write1_byte_(UNIT_4RELAY_REG, mode); }
-
-/*! @brief Write a certain length of data to the specified register address. */
-void M5Stack4Relay::write1_byte_(uint8_t register_address, uint8_t data) {
-  this->status_comm_result(this->write_byte(register_address, data), LOG_STR("Write to relay failed"));
+bool M5Stack4Relay::set_relay(uint8_t channel, bool on) {
+  if (this->is_failed())
+    return false;
+  uint8_t value = this->relays_;
+  assign_bits(value, 1 << channel, on);
+  if (!this->status_comm_result(this->write_byte(REG_RELAY, value)))
+    return false;
+  this->relays_ = value;
+#ifdef USE_SWITCH
+  if (this->switches_[channel] != nullptr)
+    this->switches_[channel]->publish_state(on);
+#endif
+  return true;
 }
 
 }  // namespace esphome::m5stack_4relay
