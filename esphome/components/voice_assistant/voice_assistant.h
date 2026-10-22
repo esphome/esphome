@@ -238,6 +238,8 @@ class VoiceAssistant final : public Component {
 
   void set_state_(State state);
   void set_state_(State state, State desired_state);
+  /// Move to state, or only make it the desired state while the microphone is still stopping
+  void set_state_after_mic_stop_(State state);
   bool start_udp_socket_();
   void signal_stop_();
   void start_playback_timeout_();

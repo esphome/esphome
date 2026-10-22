@@ -626,6 +626,16 @@ void VoiceAssistant::set_state_(State state, State desired_state) {
   ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(desired_state)));
 }
 
+void VoiceAssistant::set_state_after_mic_stop_(State state) {
+  if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
+    // loop() moves to the desired state once the microphone has stopped
+    this->desired_state_ = state;
+    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(state)));
+  } else if (state != this->state_) {
+    this->set_state_(state, state);
+  }
+}
+
 void VoiceAssistant::failed_to_start() {
   ESP_LOGE(TAG, "Failed to start server. See Home Assistant logs for more details.");
   this->error_trigger_.trigger("failed-to-start", "Failed to start server. See Home Assistant logs for more details.");
@@ -720,7 +730,7 @@ void VoiceAssistant::request_stop() {
       break;
     case State::STOP_MICROPHONE:
     case State::STOPPING_MICROPHONE:
-      this->desired_state_ = State::IDLE;
+      this->set_state_after_mic_stop_(State::IDLE);
       break;
     case State::AWAITING_RESPONSE:
       this->signal_stop_();
@@ -837,12 +847,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 
             tts_url_for_trigger = this->tts_response_url_;
             this->tts_response_url_.clear();  // Reset streaming URL
-            if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
-              // The microphone may still be stopping; loop() moves to the desired state once it has
-              this->desired_state_ = State::STREAMING_RESPONSE;
-            } else {
-              this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
-            }
+            this->set_state_after_mic_stop_(State::STREAMING_RESPONSE);
           }
         }
       }
@@ -912,15 +917,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 #endif
         this->tts_end_trigger_.trigger(url);
       });
-      State new_state = this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE;
-      if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
-        // The microphone may still be stopping; loop() moves to the desired state once it has
-        this->desired_state_ = new_state;
-      } else if (new_state != this->state_) {
-        // Don't needlessly change the state. The intent progress stage may have already changed the state to
-        // streaming response.
-        this->set_state_(new_state, new_state);
-      }
+      // The intent progress stage may already have moved to streaming response
+      this->set_state_after_mic_stop_(this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE);
       break;
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
