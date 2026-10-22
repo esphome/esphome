@@ -21,11 +21,8 @@ class EPaperGoodDisplay3C : public EPaperWeAct3C {
 
   // With EPaperWeAct3C's power-on (0x22 0xF8) first, this panel's refresh ends almost at once and the image
   // does not change.
-  void power_on() override {}
-  void refresh_screen(bool partial) override {
-    EPaperWeAct3C::refresh_screen(partial);
-    this->next_delay_ = REFRESH_START_MS;
-  }
+  void power_on() override;
+  void refresh_screen(bool partial) override;
 };
 
 }  // namespace esphome::epaper_spi

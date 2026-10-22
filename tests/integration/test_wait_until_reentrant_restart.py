@@ -15,7 +15,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -49,27 +51,18 @@ async def test_wait_until_reentrant_restart(
         run_compiled(yaml_config, line_callback=check_output),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "wait-until-reentrant-restart"
+        await assert_device_name(client, "wait-until-reentrant-restart")
 
         _, services = await client.list_entities_services()
-        self_restart_service = next(
-            (s for s in services if s.name == "start_self_restart"), None
-        )
-        assert self_restart_service is not None, "start_self_restart not found"
-        stop_service = next(
-            (s for s in services if s.name == "start_stop_during_wait"), None
-        )
-        assert stop_service is not None, "start_stop_during_wait not found"
+        self_restart_service = require_service(services, "start_self_restart")
+        stop_service = require_service(services, "start_stop_during_wait")
 
         # Scenario 1: the wait_until timeout continuation restarts its own
         # script five times, re-entering the same wait_until each time.
         await client.execute_service(self_restart_service, {})
-        try:
-            await asyncio.wait_for(retry_complete.wait(), timeout=10.0)
-        except TimeoutError:
-            pytest.fail(f"Self-restart retry did not finish. Attempts: {attempts}")
+        await wait_or_fail(
+            retry_complete, 10.0, "Self-restart retry did not finish", attempts=attempts
+        )
         assert attempts == [1, 2, 3, 4, 5], attempts
 
         # Scenario 2: the first waiter through the gate stops the script while
@@ -77,10 +70,12 @@ async def test_wait_until_reentrant_restart(
         # not-yet-checked waiters (2, 3) and the already-checked still-waiting
         # blocker (0) must be cancelled, not fired.
         await client.execute_service(stop_service, {})
-        try:
-            await asyncio.wait_for(stop_complete.wait(), timeout=10.0)
-        except TimeoutError:
-            pytest.fail(f"Stop-during-wait did not finish. Gate passed: {gate_passed}")
+        await wait_or_fail(
+            stop_complete,
+            10.0,
+            "Stop-during-wait did not finish",
+            gate_passed=gate_passed,
+        )
         assert gate_passed == [1], gate_passed
 
         # If the cancelled blocker had been kept, its 1s wait_until timeout
