@@ -596,14 +596,14 @@ void USBUartComponent::start_config_(ConfigMode mode) {
   this->cfg_step_ = 0;
   this->cfg_ok_ = true;
   this->cfg_in_flight_ = false;
-  this->cfg_done_.store(false);
+  this->cfg_done_.store(0);
   this->cfg_active_ = true;
   this->enable_loop();
 }
 
 void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
                                         const std::vector<uint8_t> &data, uint8_t *dest) {
-  this->cfg_done_.store(false);
+  this->cfg_done_.store(0);
   // Members, not captures: a lambda holding more than `this` outgrows std::function's inline
   // storage and would allocate on every step
   this->cfg_read_dest_ = dest;
@@ -631,7 +631,7 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
           }
         }
         // Release: publishes cfg_ok_ and the reply before the loop observes cfg_done_.
-        this->cfg_done_.store(true, std::memory_order_release);
+        this->cfg_done_.store(1, std::memory_order_release);
         this->enable_loop_soon_any_context();
         App.wake_loop_threadsafe();
       },
@@ -641,7 +641,7 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
     // a failed completion here so the state machine advances/aborts instead of hanging.
     ESP_LOGW(TAG, "Config control transfer submit failed");
     this->cfg_ok_ = false;
-    this->cfg_done_.store(true, std::memory_order_release);
+    this->cfg_done_.store(1, std::memory_order_release);
   }
 }
 
@@ -654,7 +654,7 @@ bool USBUartComponent::run_config_machine_() {
     if (!this->cfg_done_.load(std::memory_order_acquire))
       return false;  // still waiting; the callback will re-wake the loop (no busy spin)
     this->cfg_in_flight_ = false;
-    this->cfg_done_.store(false);
+    this->cfg_done_.store(0);
     this->cfg_step_++;
   }
 
