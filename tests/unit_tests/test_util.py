@@ -467,6 +467,25 @@ def test_redirect_text_keeps_output_after_an_exotic_break_character(
     assert buf.getvalue() == f"first{break_char}second\nthird\n"
 
 
+def test_redirect_text_keeps_the_color_codes_of_a_filtered_line() -> None:
+    """A dropped line still delivers its color codes.
+
+    With ``CLICOLOR_FORCE`` cmake prints a warning in yellow and puts the
+    reset on a line of its own after a blank line. The IDF build filters
+    blank lines, matched without ANSI codes, so the reset used to be dropped
+    and the output after the warning stayed yellow.
+    """
+    redirect, buf = _make_redirect(filter_lines=[r"\s*$"])
+
+    redirect.write(
+        "\x1b[33mCMake Warning at a.cmake:3 (message):\n  w\n\n\x1b[0m\n-- b\n"
+    )
+
+    assert buf.getvalue() == (
+        "\x1b[33mCMake Warning at a.cmake:3 (message):\n  w\n\x1b[0m-- b\n"
+    )
+
+
 def test_redirect_text_treats_crlf_as_one_terminator() -> None:
     r"""``\r\n``, a lone ``\r`` and a lone ``\n`` each end exactly one line."""
     redirect, buf = _make_redirect(filter_lines=["ignore me"])
