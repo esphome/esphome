@@ -161,16 +161,13 @@ CONFIG_SCHEMA = cv.typed_schema(
 _PINNED_MAJOR = re.compile(r"^(?:==|\^|~=|~)?(\d+)(?:\.(?:\d+|\*))*$")
 
 
-def _full_config() -> ConfigType:
-    try:
-        return fv.full_config.get()
-    except LookupError:
-        return CORE.config
-
-
 def user_esp_hosted_major() -> int | None:
     """Major version of a user-pinned esp_hosted, or None without a pin."""
-    esp32_config = _full_config().get(KEY_ESP32) or {}
+    try:
+        full_config = fv.full_config.get()
+    except LookupError:
+        full_config = CORE.config
+    esp32_config = full_config.get(KEY_ESP32) or {}
     for component in esp32_config.get(CONF_FRAMEWORK, {}).get(CONF_COMPONENTS, []):
         if component.get(CONF_NAME) != ESP_HOSTED_COMPONENT:
             continue
@@ -184,18 +181,8 @@ def user_esp_hosted_major() -> int | None:
 
 
 def uses_esp_hosted_3x() -> bool:
-    """Whether the build takes the esp_hosted 3.x line.
-
-    A user pin decides. Without one, 3.x is the default; the build stays on 2.x
-    when ESP-IDF is older than 5.5 or the reset line is 'active_high: false',
-    which 3.x cannot express (it always parks the pin high with a low pulse).
-    """
-    if (major := user_esp_hosted_major()) is not None:
-        return major >= 3
-    return (
-        esp32.idf_version() >= cv.Version(5, 5, 0)
-        and _full_config()[DOMAIN][CONF_ACTIVE_HIGH]
-    )
+    """Whether the build takes the esp_hosted 3.x line: always, unless the user pins 2.x."""
+    return (major := user_esp_hosted_major()) is None or major >= 3
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -208,20 +195,21 @@ def _final_validate(config: ConfigType) -> None:
             "Remove the framework version from your configuration to use the "
             "recommended version, or pin a version at or above 5.3."
         )
-    if (major := user_esp_hosted_major()) is None or major < 3:
+    if not uses_esp_hosted_3x():
         return
     if idf_ver < cv.Version(5, 5, 0):
         raise cv.Invalid(
             f"esp_hosted 3.x requires ESP-IDF 5.5 or newer, got {idf_ver}. "
-            f"Remove the {ESP_HOSTED_COMPONENT} pin from esp32.framework."
-            "components to stay on the 2.x line, or use ESP-IDF 5.5 or newer."
+            "Use ESP-IDF 5.5 or newer, or pin "
+            f"{ESP_HOSTED_COMPONENT}==2.12.13 under esp32.framework.components "
+            "to stay on the 2.x line."
         )
     if not config[CONF_ACTIVE_HIGH]:
         raise cv.Invalid(
             "esp_hosted 3.x always parks the reset line high with a low pulse, so "
-            "'active_high: false' cannot be expressed on it. Remove the "
-            f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
-            "on the 2.x line."
+            "'active_high: false' cannot be expressed on it. Pin "
+            f"{ESP_HOSTED_COMPONENT}==2.12.13 under esp32.framework.components "
+            "to stay on the 2.x line."
         )
 
 
@@ -501,9 +489,7 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.5")
     esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
     esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-    esp32.add_idf_component(
-        name=ESP_HOSTED_COMPONENT, ref="3.0.10" if use_3x else "2.12.13"
-    )
+    esp32.add_idf_component(name=ESP_HOSTED_COMPONENT, ref="3.0.10")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",

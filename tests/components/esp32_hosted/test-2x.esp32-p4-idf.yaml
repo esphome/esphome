@@ -1,7 +1,7 @@
-# The esp_hosted 2.x line, which builds on ESP-IDF 5.3/5.4 and builds with
-# `active_high: false` still take; selected here by pinning the component under
-# esp32.framework.components. Covers the 2.x Kconfig set, the ESP-NOW shim on
-# the 2.x peer-data API and the esp32_ble path over the 2.x hosted HCI.
+# The esp_hosted 2.x line, reached only by pinning the component under
+# esp32.framework.components (needed on ESP-IDF 5.3/5.4 or with
+# `active_high: false`). Covers the 2.x Kconfig set, the ESP-NOW shim on the
+# 2.x peer-data API and the esp32_ble path over the 2.x hosted HCI.
 esp32:
   framework:
     components:

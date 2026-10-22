@@ -23,51 +23,79 @@ from ..types import SetCoreConfigCallable
 
 
 @pytest.mark.parametrize(
-    ("idf", "active_high", "pin", "expected"),
+    ("pin", "expected"),
     [
-        ("5.5.6", True, None, True),
-        ("5.4.2", True, None, False),
-        ("5.5.6", False, None, False),
-        (
-            "5.5.6",
-            True,
-            {CONF_NAME: ESP_HOSTED_COMPONENT, CONF_REF: "==2.12.13"},
-            False,
-        ),
-        ("5.5.6", False, {CONF_NAME: ESP_HOSTED_COMPONENT, CONF_REF: "==3.0.10"}, True),
-        ("5.5.6", True, {CONF_NAME: ESP_HOSTED_COMPONENT, CONF_REF: ">=2.12"}, True),
-        ("5.5.6", True, {CONF_NAME: ESP_HOSTED_COMPONENT}, False),
+        (None, True),
+        ({CONF_NAME: ESP_HOSTED_COMPONENT, CONF_REF: "==2.12.13"}, False),
+        ({CONF_NAME: ESP_HOSTED_COMPONENT, CONF_REF: "==3.0.10"}, True),
+        ({CONF_NAME: ESP_HOSTED_COMPONENT, CONF_REF: ">=2.12"}, True),
+        ({CONF_NAME: ESP_HOSTED_COMPONENT}, False),
     ],
 )
 def test_uses_esp_hosted_3x(
-    set_core_config: SetCoreConfigCallable,
-    idf: str,
-    active_high: bool,
-    pin: ConfigType | None,
-    expected: bool,
+    set_core_config: SetCoreConfigCallable, pin: ConfigType | None, expected: bool
 ) -> None:
-    """3.x by default on ESP-IDF 5.5 with active_high; a user pin always wins."""
+    """3.x unless the user pins a 2.x version."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_IDF_VERSION: cv.Version.parse(idf)},
         full_config={
-            "esp32": {CONF_FRAMEWORK: {CONF_COMPONENTS: [pin] if pin else []}},
-            "esp32_hosted": {CONF_ACTIVE_HIGH: active_high},
+            "esp32": {CONF_FRAMEWORK: {CONF_COMPONENTS: [pin] if pin else []}}
         },
     )
     assert uses_esp_hosted_3x() is expected
 
 
-@pytest.mark.parametrize("idf", ["5.3.0", "5.4.2", "5.5.5"])
-def test_final_validate_accepts_supported_idf(
-    set_core_config: SetCoreConfigCallable, idf: str
+@pytest.mark.parametrize(
+    ("idf", "active_high", "match"),
+    [
+        ("5.4.2", True, "requires ESP-IDF 5.5"),
+        ("5.5.6", False, "active_high: false"),
+    ],
+)
+def test_final_validate_rejects_what_3x_cannot_build(
+    set_core_config: SetCoreConfigCallable, idf: str, active_high: bool, match: str
 ) -> None:
-    """ESP-IDF 5.3 and newer passes validation unchanged."""
+    """Without a 2.x pin, 3.x is used and its limits are errors, not fallbacks."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_IDF_VERSION: cv.Version.parse(idf)},
+        full_config={"esp32": {CONF_FRAMEWORK: {CONF_COMPONENTS: []}}},
     )
-    _final_validate({})
+    with pytest.raises(cv.Invalid, match=match):
+        _final_validate({CONF_ACTIVE_HIGH: active_high})
+
+
+def test_final_validate_accepts_2x_pin_on_old_idf(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A 2.x pin keeps ESP-IDF 5.4 and active_high: false building."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_IDF_VERSION: cv.Version.parse("5.4.2")},
+        full_config={
+            "esp32": {
+                CONF_FRAMEWORK: {
+                    CONF_COMPONENTS: [
+                        {CONF_NAME: ESP_HOSTED_COMPONENT, CONF_REF: "==2.12.13"}
+                    ]
+                }
+            }
+        },
+    )
+    _final_validate({CONF_ACTIVE_HIGH: False})
+
+
+@pytest.mark.parametrize("idf", ["5.5.5", "5.5.6"])
+def test_final_validate_accepts_supported_idf(
+    set_core_config: SetCoreConfigCallable, idf: str
+) -> None:
+    """ESP-IDF 5.5 and newer passes validation unchanged on the 3.x default."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_IDF_VERSION: cv.Version.parse(idf)},
+        full_config={"esp32": {CONF_FRAMEWORK: {CONF_COMPONENTS: []}}},
+    )
+    _final_validate({CONF_ACTIVE_HIGH: True})
 
 
 @pytest.mark.parametrize("idf", ["5.0.0", "5.2.2"])
