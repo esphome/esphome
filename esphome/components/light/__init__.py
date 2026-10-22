@@ -32,11 +32,19 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_RESTORE_STATE,
     CONF_RGB_ORDER,
+    CONF_STATE,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    EsphomeError,
+    HexInt,
+    coroutine_with_priority,
+)
 from esphome.core.entity_helpers import (
     RESTORE_STATE_NONE,
     entity_duplicate_validator,
@@ -327,9 +335,12 @@ def _final_validate(config: ConfigType) -> None:
     platform entries across the file, not a single light's own config.
     """
     for light_config in config:
+        initial_state = light_config.get(CONF_INITIAL_STATE) or {}
+        cold_boot_state = initial_state.get(CONF_STATE, False)
         restore_mode = light_config.get(CONF_RESTORE_MODE)
         if restore_mode is not None:
             legacy = LEGACY_RESTORE_MODES[restore_mode]
+            cold_boot_state = legacy.cold_boot_state
             if _initial_state_overridden_by_legacy_mode(
                 legacy, light_config.get(CONF_INITIAL_STATE)
             ):
@@ -341,6 +352,19 @@ def _final_validate(config: ConfigType) -> None:
                     restore_mode,
                     "ON" if legacy.cold_boot_state else "OFF",
                 )
+        effect_name = initial_state.get(CONF_EFFECT, "none")
+        if (
+            effect_name.lower() != "none"
+            and not cold_boot_state
+            and not light_config.get(CONF_RESUME_EFFECT)
+        ):
+            _LOGGER.warning(
+                "[%s] 'initial_state: effect: %s' does not start at boot because the "
+                "light boots OFF; add 'resume_effect: true' to start it at the first "
+                "turn-on",
+                light_config.get(CONF_NAME) or light_config[CONF_ID],
+                effect_name,
+            )
 
     data = _get_data()
     if not data.effect_refs and not data.effect_cycle_refs:
@@ -455,6 +479,19 @@ def _validate_initial_state_effect(config: ConfigType) -> ConfigType:
 
 
 LIGHT_SCHEMA.add_extra(_validate_initial_state_effect)
+
+
+def _initial_effect_index(config: ConfigType) -> int:
+    """Resolve `initial_state: effect` to its effect index, 0 when not set."""
+    effect_name = (config.get(CONF_INITIAL_STATE) or {}).get(CONF_EFFECT, "none")
+    effects = config.get(CONF_EFFECTS, [])
+    if (index := find_effect_index(effects, effect_name)) is not None:
+        return index
+    # Safety net for a light whose schema skipped _validate_initial_state_effect
+    raise EsphomeError(
+        effect_not_found_message(effect_name, effects, f"light '{config[CONF_ID]}'")
+    )
+
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
     {
@@ -592,11 +629,7 @@ async def setup_light_core_(light_var, config, output_var):
     # runtime actually understands.
     initial_state_config = config.get(CONF_INITIAL_STATE)
     initial_statements = await _initial_state_statements(
-        initial_state_config,
-        find_effect_index(
-            config.get(CONF_EFFECTS, []),
-            (initial_state_config or {}).get(CONF_EFFECT, "none"),
-        ),
+        initial_state_config, _initial_effect_index(config)
     )
     if config[CONF_RESUME_EFFECT]:
         cg.add_define("USE_LIGHT_RESUME_EFFECT")
