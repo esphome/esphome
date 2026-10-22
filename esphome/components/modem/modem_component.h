@@ -44,6 +44,7 @@ enum class SimResult : uint8_t {
   SIM_RESULT_FATAL,            // locked with no usable PIN, or PUK locked
   SIM_RESULT_PIN_REJECTED,     // pin_code was refused, now or on an earlier boot
   SIM_RESULT_PIN_UNCONFIRMED,  // the PIN went out but the SIM stayed locked; nothing said it was wrong
+  SIM_RESULT_PIN_GIVEN_UP,     // unconfirmed too often across reboots, or the attempt could not be recorded
 };
 
 enum class SimFault : uint8_t {
@@ -115,6 +116,8 @@ class ModemComponent : public Component {
   static constexpr uint32_t PIN_UNLOCK_WAIT_MS = 10000;
   // Sends of one pin_code the SIM never confirmed, across reboots, before it is not sent again
   static constexpr uint8_t PIN_MAX_UNCONFIRMED_SENDS = 2;
+  // A reply is kept whole for its result line, but never beyond this many bytes
+  static constexpr size_t RAW_REPLY_MAX = 512;
   // A rejected PIN that could not be written to flash is retried a few times
   static constexpr uint32_t PIN_SAVE_RETRY_MS = 5000;
   static constexpr uint8_t PIN_SAVE_RETRIES = 3;
@@ -228,6 +231,8 @@ class ModemComponent : public Component {
   // Written by the IP event task, read by the modem task
   std::atomic<uint8_t> got_ip_{0};
   std::atomic<uint8_t> ppp_error_{0};  // last NETIF_PPP_STATUS error code, 0 = none
+  // Set by loop() after it tried to write pin_record_: 1 saved, 2 given up; the task sends the PIN only after 1
+  std::atomic<uint8_t> pin_save_state_{0};
   ConnectStep connect_step_{ConnectStep::CONNECT_STEP_START};
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
@@ -236,8 +241,9 @@ class ModemComponent : public Component {
   // One PIN attempt per connection attempt: a second wrong PIN could PUK-lock the SIM
   bool pin_sent_{false};
   bool connect_timeout_armed_{false};
-  bool modem_synced_{false};  // a modem that never answered has nothing to tear down
-  bool cme_numeric_{false};   // AT+CMEE=1 accepted, so a wrong PIN answers +CME ERROR: 16
+  bool modem_synced_{false};    // a modem that never answered has nothing to tear down
+  bool pin_send_armed_{false};  // the send is counted and waits for the record to reach flash
+  bool cme_numeric_{false};     // AT+CMEE=1 accepted, so a wrong PIN answers +CME ERROR: 16
   char at_command_[AT_COMMAND_SIZE];
 #ifdef USE_MODEM_URC
   // The UART task assembles a line in urc_buf_ and hands it to loop() by setting urc_pending_; until loop()
