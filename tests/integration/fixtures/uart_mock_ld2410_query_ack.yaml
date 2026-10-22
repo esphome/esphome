@@ -59,6 +59,25 @@ uart_mock:
           0x04, 0x03, 0x02, 0x01,
         ]
 
+    # A version answer cut after two version bytes: the footer sits where the version would be,
+    # so the version must not be read from it
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x08, 0x00, 0xA0, 0x01, 0x00, 0x00,
+          0x00, 0x01, 0x07, 0x02,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # A whole version answer: firmware type 1, version 2.07.22062416
+    - delay: 100ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x0C, 0x00, 0xA0, 0x01, 0x00, 0x00,
+          0x00, 0x01, 0x07, 0x02, 0x16, 0x24, 0x06, 0x22,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
     # Move thresholds of gates 0 to 3 are the footer bytes 04 03 02 01
     # Max gates 6/5, move 4 3 2 1 60 45 46 47 48, still 20 to 28, timeout 300
     - delay: 100ms
@@ -114,6 +133,12 @@ number:
         name: "G8 Move Threshold"
       still_threshold:
         name: "G8 Still Threshold"
+
+text_sensor:
+  - platform: ld2410
+    ld2410_id: ld2410_dev
+    version:
+      name: "Version"
 
 button:
   - platform: template
