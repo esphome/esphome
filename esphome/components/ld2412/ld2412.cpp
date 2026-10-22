@@ -87,14 +87,15 @@ enum AckData : uint8_t {
 PROGMEM_STRING_TABLE(BaudRateStrings, "9600", "19200", "38400", "57600", "115200", "230400", "256000", "460800");
 // Names and values in the same order; the select options use it too
 PROGMEM_STRING_TABLE(DistanceResolutionStrings, "0.2m", "0.5m", "0.75m");
-constexpr uint8_t DISTANCE_RESOLUTIONS[] = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_5, DISTANCE_RESOLUTION_0_75};
+static constexpr uint8_t DISTANCE_RESOLUTIONS[] PROGMEM = {DISTANCE_RESOLUTION_0_2, DISTANCE_RESOLUTION_0_5,
+                                                           DISTANCE_RESOLUTION_0_75};
 // Index is the LightFunction value; the select options use the same order
 PROGMEM_STRING_TABLE(LightFunctionStrings, "off", "below", "above");
 // Names and values in the same order; the select options use it too
 PROGMEM_STRING_TABLE(OutPinLevelStrings, "low", "high");
-constexpr uint8_t OUT_PIN_LEVELS[] = {OUT_PIN_LEVEL_LOW, OUT_PIN_LEVEL_HIGH};
+static constexpr uint8_t OUT_PIN_LEVELS[] PROGMEM = {OUT_PIN_LEVEL_LOW, OUT_PIN_LEVEL_HIGH};
 
-constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
+static constexpr uint32_t BAUD_RATES[] PROGMEM = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
 
 static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Default used when number component is not defined
 // Commands
@@ -682,7 +683,7 @@ void LD2412Component::set_distance_resolution(const char *state) {
     return;
   }
   this->set_config_mode_(true);
-  const uint8_t cmd_value[6] = {DISTANCE_RESOLUTIONS[index], 0x00, 0x00, 0x00, 0x00, 0x00};
+  const uint8_t cmd_value[6] = {progmem_read_byte(&DISTANCE_RESOLUTIONS[index]), 0x00, 0x00, 0x00, 0x00, 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
@@ -775,9 +776,10 @@ void LD2412Component::set_basic_config() {
 #endif
 #ifdef USE_SELECT
   if (this->out_pin_level_select_ != nullptr) {
-    if (!this->out_pin_level_select_->has_state())
+    const auto index = this->out_pin_level_select_->active_index();
+    if (!index)
       return;
-    out_pin_level = OUT_PIN_LEVELS[*this->out_pin_level_select_->active_index()];
+    out_pin_level = progmem_read_byte(&OUT_PIN_LEVELS[*index]);
   }
 #endif
 
@@ -849,8 +851,10 @@ void LD2412Component::set_light_out_control() {
   }
 #endif
 #ifdef USE_SELECT
-  if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = *this->light_function_select_->active_index();
+  if (this->light_function_select_ != nullptr) {
+    if (const auto index = this->light_function_select_->active_index()) {
+      this->light_function_ = *index;
+    }
   }
 #endif
   uint8_t value[2] = {this->light_function_, this->light_threshold_};
