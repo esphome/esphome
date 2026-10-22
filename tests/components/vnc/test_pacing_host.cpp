@@ -360,9 +360,24 @@ TEST_F(VncPacingParked, DisplayBusyTooLongSetsAWarningUntilItParks) {
   d_.external_update();
   s().run_for(120000, 1000);
   EXPECT_TRUE(s().client.status_has_warning());
+  // A new session does not hide the stuck display
+  s().start(64, 48);
+  EXPECT_TRUE(s().client.status_has_warning());
   d_.finish();
   s().tick(10);
   EXPECT_FALSE(s().client.status_has_warning());
+}
+
+TEST_F(VncPacingParked, DisplayParkingKeepsAConnectionWarning) {
+  d_.external_update();
+  s().run_for(120000, 1000);
+  s().close_peer();
+  s().tick(10);
+  ASSERT_EQ(s().client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_TRUE(s().client.status_has_warning());
+  d_.finish();
+  s().tick(10);
+  EXPECT_TRUE(s().client.status_has_warning());
 }
 
 }  // namespace esphome::vnc::testing
