@@ -3,6 +3,7 @@ from typing import Any
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import gpio_expander, i2c
+from esphome.components.const import CONF_PWM_FREQUENCY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
@@ -33,7 +34,6 @@ MULTI_CONF = True
 
 CONF_M5PM1_ID = "m5pm1_id"
 CONF_INTERRUPT_GPIO = "interrupt_gpio"
-CONF_PWM_FREQUENCY = "pwm_frequency"
 CONF_WAKEUP = "wakeup"
 CONF_WAKEUP_EDGE = "wakeup_edge"
 CONF_POWER_BUTTON = "power_button"
