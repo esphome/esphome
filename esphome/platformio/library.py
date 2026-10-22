@@ -773,6 +773,20 @@ def dependency_is_usable(
     return True
 
 
+def _split_owner(entry: dict) -> dict:
+    """``owner/Name`` written as one name becomes owner and name, as in the dict form,
+    so the name matches the package the registry resolves it to."""
+    name, owner = entry.get("name"), entry.get("owner")
+    if isinstance(name, str) and owner is None and "://" not in name:
+        head, sep, tail = name.partition("/")
+        # A registry owner is a plain identifier; anything else is left to the
+        # backend's own checks
+        if sep and head.replace("-", "").replace("_", "").isalnum() and tail:
+            if "/" not in tail:
+                return {**entry, "owner": head, "name": tail}
+    return entry
+
+
 def _valid_dependency_entry(entry: dict, manifest_name: str) -> bool:
     """Whether a normalized entry carries a usable name (non-empty string),
     version (string, if present), and owner (string, if present); invalid
@@ -806,7 +820,7 @@ def normalize_dependencies(
     if dependencies is None:
         return []
     if isinstance(dependencies, str):
-        return parse_properties_depends(dependencies)
+        return [_split_owner(entry) for entry in parse_properties_depends(dependencies)]
     if isinstance(dependencies, dict):
         normalized = []
         for raw_name, spec in dependencies.items():
@@ -833,10 +847,10 @@ def normalize_dependencies(
     for entry in dependencies:
         if isinstance(entry, dict):
             if _valid_dependency_entry(entry, manifest_name):
-                normalized.append(entry)
+                normalized.append(_split_owner(entry))
         elif isinstance(entry, str) and entry:
             # PIO also accepts a bare list of names ("dependencies": ["Wire"])
-            normalized.append({"name": entry})
+            normalized.append(_split_owner({"name": entry}))
         else:
             _LOGGER.warning(
                 "Ignoring unrecognized dependency entry %r of %s",

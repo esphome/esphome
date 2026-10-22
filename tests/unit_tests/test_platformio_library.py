@@ -1565,6 +1565,42 @@ def test_registry_miss_resolves_again_as_a_git_source(tmp_path, monkeypatch) -> 
     assert [d.name for d in emitted["C"].dependencies] == ["o/B"]
 
 
+def test_normalize_dependencies_splits_an_embedded_owner() -> None:
+    """``owner/Name`` as one string, in a list or a dict entry, normalizes like
+    the dict form; a URL or a deeper path is left alone."""
+    assert lib.normalize_dependencies(
+        ["o/B", {"name": "o/C", "version": "1.0"}, "x://y", "a/b/c", "../escape"],
+        "libx",
+    ) == [
+        {"name": "B", "owner": "o"},
+        {"name": "C", "owner": "o", "version": "1.0"},
+        {"name": "x://y"},
+        {"name": "a/b/c"},
+        {"name": "../escape"},
+    ]
+    assert lib.normalize_dependencies("o/B, D", "libx") == [
+        {"name": "B", "owner": "o"},
+        {"name": "D"},
+    ]
+
+
+def test_owner_qualified_string_dependency_is_fetched_and_wired(
+    tmp_path, monkeypatch
+) -> None:
+    """``"dependencies": ["o/B"]`` fetches ``o/B`` and wires the requester to it."""
+    asked = _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": ["o/B"]},
+            "o/B": {"name": "B"},
+        },
+    )
+    top = convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert [d.name for d in top[0].dependencies] == ["o/B"]
+    assert asked == [("esphome", "A"), ("o", "B")]
+
+
 def test_empty_version_is_settled_like_a_missing_one(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
