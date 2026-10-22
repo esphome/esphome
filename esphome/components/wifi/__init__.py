@@ -221,10 +221,6 @@ WIFI_AP_MODE_FALLBACK = "FALLBACK"
 WIFI_AP_MODE_WISP = "WISP"
 
 
-def _validate_ap_mode(value: str) -> str:
-    return cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
-
-
 def _validate_dns_servers(value: list) -> list:
     if any(ip.is_unspecified for ip in value):
         raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
@@ -353,7 +349,9 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
         cv.Optional(
             CONF_AP_TIMEOUT, default=DEFAULT_AP_TIMEOUT
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_AP_MODE, default=WIFI_AP_MODE_FALLBACK): _validate_ap_mode,
+        cv.Optional(CONF_AP_MODE, default=WIFI_AP_MODE_FALLBACK): cv.one_of(
+            WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True
+        ),
         cv.Optional(CONF_DNS_SERVERS): cv.All(
             cv.ensure_list(cv.ipv4address),
             cv.Length(min=1, max=2),

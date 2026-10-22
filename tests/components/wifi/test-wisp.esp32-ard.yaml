@@ -1,8 +1,0 @@
-wifi:
-  ap:
-    ssid: WISP AP
-    password: wisp12345678
-    ap_mode: wisp
-
-packages:
-  wifi: !include common.yaml
