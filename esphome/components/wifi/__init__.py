@@ -468,16 +468,25 @@ def final_validate(config):
         if CONF_DNS_SERVERS not in config[CONF_AP]:
             # The access point passes the upstream's resolvers on, which a static address has to name
             upstreams = [
-                ("", config),
-                *(("", network) for network in config.get(CONF_NETWORKS, [])),
-                ("ethernet ", full_config.get(CONF_ETHERNET, {})),
+                ([], config),
+                *(
+                    ([CONF_NETWORKS, i], network)
+                    for i, network in enumerate(config.get(CONF_NETWORKS, []))
+                ),
+                (None, full_config.get(CONF_ETHERNET, {})),
             ]
-            for label, network in upstreams:
+            for path, network in upstreams:
                 static = network.get(CONF_MANUAL_IP)
-                if static and static[CONF_DNS1].is_unspecified:
+                if not static or not static[CONF_DNS1].is_unspecified:
+                    continue
+                if path is None:
                     raise cv.Invalid(
-                        f"{label}manual_ip needs dns1 in WISP mode unless ap.dns_servers is set"
+                        "ethernet manual_ip needs dns1 in WISP mode unless ap.dns_servers is set"
                     )
+                raise cv.Invalid(
+                    "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
+                    path=[*path, CONF_MANUAL_IP, CONF_DNS1],
+                )
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(
