@@ -4,7 +4,8 @@ Tests:
 1. Every published position is the x and y of one radar frame, as "x,y" text
 2. With a throttle, positions are held back, in order, and the final position of a target that stops is published
 3. Without a throttle, every change is published
-4. A target leaving is published at once as "NA"
+4. A target leaving is published at once as "NA", even while the throttle is active, and a position that was
+   held back is not published afterwards
 """
 
 from __future__ import annotations
@@ -21,6 +22,10 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 # The positions of each target in the fixture, one per radar frame
 TARGET_1 = [f"{-600 + 100 * i},{1000 + 50 * i}" for i in range(12)]
 TARGET_2 = [f"{200 + 80 * i},{2000 + 30 * i}" for i in range(12)]
+# Target 3 moves for 3 frames (300 ms) and leaves, with a 500 ms throttle
+TARGET_3 = [f"{-300 + 50 * i},{3000 + 50 * i}" for i in range(3)]
+# Frames are 100 ms apart: "NA" must come well before the 500 ms throttle ends
+TARGET_3_LEAVES_WITHIN_S = 0.45
 
 
 @pytest.mark.asyncio
@@ -37,14 +42,26 @@ async def test_uart_mock_ld2450_target_xy(
         entities, _ = await client.list_entities_services()
         target_1 = require_entity(entities, "target_1_xy", TextSensorInfo)
         target_2 = require_entity(entities, "target_2_xy", TextSensorInfo)
-        history: dict[int, list[str]] = {target_1.key: [], target_2.key: []}
-        both_left = asyncio.get_running_loop().create_future()
+        target_3 = require_entity(entities, "target_3_xy", TextSensorInfo)
+        history: dict[int, list[str]] = {
+            target_1.key: [],
+            target_2.key: [],
+            target_3.key: [],
+        }
+        times: dict[int, list[float]] = {key: [] for key in history}
+        loop = asyncio.get_running_loop()
+        both_left = loop.create_future()
 
         def on_state(state: EntityState) -> None:
             if not isinstance(state, TextSensorState) or state.key not in history:
                 return
             history[state.key].append(state.state)
-            left = all(values and values[-1] == "NA" for values in history.values())
+            times[state.key].append(loop.time())
+            # Target 3 left long before, so only targets 1 and 2 end the scenario
+            left = all(
+                history[key] and history[key][-1] == "NA"
+                for key in (target_1.key, target_2.key)
+            )
             if left and not both_left.done():
                 both_left.set_result(None)
 
@@ -74,3 +91,10 @@ async def test_uart_mock_ld2450_target_xy(
 
         # Not throttled: every change is published
         assert history[target_2.key] == [*TARGET_2, "NA"]
+
+        # A target leaving is published at once, bypassing the throttle, and clears the position held back for
+        # it: nothing is published after "NA", although the scenario goes on well past the throttle deadline
+        assert history[target_3.key] == [TARGET_3[0], "NA"]
+        assert (
+            times[target_3.key][1] - times[target_3.key][0] < TARGET_3_LEAVES_WITHIN_S
+        )
