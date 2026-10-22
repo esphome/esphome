@@ -15,6 +15,7 @@ from esphome.components.store_yaml import unpack_envelope
 from esphome.helpers import zstd_module
 from esphome.yaml_util import find_secret_references
 
+from .log_utils import LineWaiter
 from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient, decode_fields
 from .types import RunCompiledFunction
 
@@ -84,10 +85,13 @@ async def test_store_yaml_recovery_backpressure(
         "# GENERATED_SUBSTITUTIONS",
         "\n".join(f"  {name}: {value}" for name, value in values.items()),
     )
+    log = LineWaiter()
     async with (
-        run_compiled(config),
+        run_compiled(config, line_callback=log.callback),
         RawApiClient(unused_tcp_port, recv_buffer_size=RECV_BUFFER_SIZE) as client,
     ):
+        # Without the pin the kernel buffers could swallow the stall
+        await log.wait_for("SO_SNDBUF pinned to", timeout=10.0)
         await client.connect("store_yaml backpressure test")
         await client.send_raw(GET_YAML_REQUEST, b"")
         # Stop reading so the device fills both buffers and has to resume later
