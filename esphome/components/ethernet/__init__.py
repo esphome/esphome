@@ -61,7 +61,6 @@ from esphome.core import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CONFLICTS_WITH = ["captive_portal"]
 AUTO_LOAD = ["network"]
 DOMAIN = "ethernet"
 
@@ -565,12 +564,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate_wifi(config: ConfigType) -> None:
-    """Validate how ethernet coexists with the wifi component.
-
-    A wifi access point does not compete for the primary network interface, so it
-    can always be used next to ethernet. A wifi station does compete, so both
-    interfaces must then be listed under 'network: priority:'.
-    """
+    """A wifi station competes with ethernet for the primary interface, so both must be in network: priority:."""
     full_config = fv.full_config.get()
     if (wifi_config := full_config.get(CONF_WIFI)) is None:
         return
@@ -578,21 +572,13 @@ def _final_validate_wifi(config: ConfigType) -> None:
     from esphome.components.wifi import wifi_has_sta
 
     if not wifi_has_sta(wifi_config):
-        # AP-only wifi: no primary interface to arbitrate.
-        return
+        return  # an access point does not claim the primary interface
 
     priority_ifaces = get_priority_interfaces_from_full_config(full_config)
-    missing = [i for i in ("ethernet", "wifi") if i not in priority_ifaces]
-    if missing and priority_ifaces:
-        # A priority list exists but is incomplete: point at what to add.
+    if missing := [i for i in (DOMAIN, CONF_WIFI) if i not in priority_ifaces]:
         raise cv.Invalid(
-            "When ethernet and wifi are used together, 'network: priority:' must "
-            f"list both interfaces; missing: {', '.join(missing)}"
-        )
-    if missing:
-        raise cv.Invalid(
-            "Component ethernet cannot be used together with a wifi station "
-            "unless both interfaces are listed under 'network: priority:'"
+            "When ethernet and a wifi station are used together, 'network: priority:' "
+            f"must list both interfaces; missing: {', '.join(missing)}"
         )
 
 

@@ -129,7 +129,11 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.ip_got_ip6, event_data, sizeof(ip_event_got_ip6_t));
 #endif
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {  // NOLINT(bugprone-branch-clone)
-    // no data
+                                                                            // no data
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+  } else if (event_base == IP_EVENT && event_id == IP_EVENT_ETH_GOT_IP) {  // NOLINT(bugprone-branch-clone)
+    // no data: the bridge rereads the resolvers an ethernet upstream just received
+#endif
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_SCAN_DONE) {
     memcpy(&event.data.sta_scan_done, event_data, sizeof(wifi_event_sta_scan_done_t));
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_START) {  // NOLINT(bugprone-branch-clone)
@@ -1123,6 +1127,10 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     this->notify_disconnect_state_listeners_();
 #endif
 
+#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+  } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_ETH_GOT_IP) {
+    this->apply_ap_dns_();
+#endif
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
     ESP_LOGV(TAG, "static_ip=" IPSTR " gateway=" IPSTR, IP2STR(&it.ip_info.ip), IP2STR(&it.ip_info.gw));
@@ -1681,7 +1689,7 @@ bool WiFiComponent::write_ap_dns_() {
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
 void WiFiComponent::apply_ap_dns_() {
   if (!this->ap_setup_)
-    return;  // loop() brings the bridge up once the station has a resolver, and its setup writes them
+    return;  // loop() brings the bridge up once the upstream has a resolver, and its setup writes them
   // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
   // next lease. A resolver the station lost stays offered: set_dns_info rejects an empty address.
   bool changed = false;

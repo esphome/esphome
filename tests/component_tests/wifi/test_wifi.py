@@ -1,5 +1,8 @@
 """Config-validation tests for the wifi component."""
 
+from collections.abc import Callable
+from typing import Any
+
 import pytest
 from voluptuous import Invalid
 
@@ -26,7 +29,6 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     PlatformFramework,
 )
-import esphome.final_validate as fv
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -69,10 +71,11 @@ def test_hidden_without_ssid_rejected(set_core_config: SetCoreConfigCallable) ->
         CONFIG_SCHEMA({CONF_HIDDEN: True})
 
 
-def test_wisp_bridge_needs_a_station_or_a_wired_upstream(
+def test_wisp_bridge_needs_a_station_or_ethernet(
     set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
 ) -> None:
-    """An AP-only WISP bridge routes through ethernet or modem; without one it has no way out."""
+    """An AP-only WISP bridge routes through ethernet; without it the clients have no way out."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 1)},
@@ -92,7 +95,7 @@ def test_wisp_bridge_needs_a_station_or_a_wired_upstream(
             },
         }
     )
-    with pytest.raises(Invalid, match="ethernet or modem as the upstream"):
+    with pytest.raises(Invalid, match="ethernet as the upstream"):
         final_validate(config)
-    fv.full_config.get()["ethernet"] = {}
+    set_component_config("ethernet", {})
     final_validate(config)

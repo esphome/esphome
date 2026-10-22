@@ -39,6 +39,7 @@ from esphome.const import (
     CONF_ENABLE_BTM,
     CONF_ENABLE_ON_BOOT,
     CONF_ENABLE_RRM,
+    CONF_ETHERNET,
     CONF_FAST_CONNECT,
     CONF_GATEWAY,
     CONF_HIDDEN,
@@ -432,6 +433,7 @@ def _apply_min_auth_mode_default(config):
 
 
 def wifi_has_sta(config: ConfigType) -> bool:
+    """Whether the validated config has at least one station network."""
     return bool(config.get(CONF_NETWORKS))
 
 
@@ -451,12 +453,11 @@ def final_validate(config):
 
     ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
     if ap_is_wisp:
-        # The clients are routed through the station, or through a wired or cellular upstream
-        ethernet_config = full_config.get("ethernet")
-        if not has_sta and ethernet_config is None and "modem" not in full_config:
+        # The clients are routed through the station, or through ethernet
+        if not has_sta and CONF_ETHERNET not in full_config:
             raise cv.Invalid(
                 "WISP mode needs a station network (wifi.ssid or wifi.networks), "
-                "or ethernet or modem as the upstream interface"
+                "or ethernet as the upstream interface"
             )
         if has_captive_portal:
             raise cv.Invalid(
@@ -466,18 +467,17 @@ def final_validate(config):
         require_high_performance_wifi()
         if CONF_DNS_SERVERS not in config[CONF_AP]:
             # The access point passes the upstream's resolvers on, which a static address has to name
-            for network in [config, *config.get(CONF_NETWORKS, [])]:
+            upstreams = [
+                ("", config),
+                *(("", network) for network in config.get(CONF_NETWORKS, [])),
+                ("ethernet ", full_config.get(CONF_ETHERNET, {})),
+            ]
+            for label, network in upstreams:
                 static = network.get(CONF_MANUAL_IP)
                 if static and static[CONF_DNS1].is_unspecified:
                     raise cv.Invalid(
-                        "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
-                        path=[CONF_MANUAL_IP, CONF_DNS1],
+                        f"{label}manual_ip needs dns1 in WISP mode unless ap.dns_servers is set"
                     )
-            static = (ethernet_config or {}).get(CONF_MANUAL_IP)
-            if static and static[CONF_DNS1].is_unspecified:
-                raise cv.Invalid(
-                    "ethernet manual_ip needs dns1 in WISP mode unless ap.dns_servers is set"
-                )
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(
@@ -577,7 +577,7 @@ def _report_provisioning_credentials(config):
     """
     from esphome.components import provisioning
 
-    if config.get(CONF_NETWORKS):
+    if wifi_has_sta(config):
         provisioning.report_hardcoded_credentials("wifi")
     elif CONF_AP in config:
         # An access point with no station credentials: the AP shuts down when the

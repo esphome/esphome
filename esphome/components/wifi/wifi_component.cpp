@@ -783,12 +783,9 @@ void WiFiComponent::start() {
     // Without fast_connect: go straight to scanning (or hidden mode if all networks are hidden)
     this->start_initial_connection_();
 #endif
-#if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_WISP)  // a bridge waits in loop() for the upstream's resolver
-  } else if (this->has_ap()) {
+#if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_WISP)
+  } else if (this->has_ap()) {  // a bridge waits in loop() for the upstream's resolver
     this->setup_ap_config_();
-    if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
-      ESP_LOGV(TAG, "Setting Output Power Option failed");
-    }
 #ifdef USE_CAPTIVE_PORTAL
     // Where the radio scans alongside the AP, the portal can list networks.
     if (captive_portal::global_captive_portal != nullptr && !WIFI_AP_EXCLUSIVE) {
@@ -797,7 +794,7 @@ void WiFiComponent::start() {
     }
 #endif
     this->start_ap_portal_();
-#endif  // USE_WIFI_AP
+#endif  // USE_WIFI_AP && !USE_WIFI_AP_WISP
   }
 #ifdef USE_WIFI_DPP
   // Without networks there is nothing to try first, so listen for a configurator right away
@@ -967,7 +964,7 @@ void WiFiComponent::loop() {
         this->start_ap_portal_();
       }
     }
-#endif  // USE_WIFI_AP
+#endif  // USE_WIFI_AP && !USE_WIFI_AP_WISP
 
 #ifdef USE_IMPROV_BLE
     if (improv_ble::global_improv_component != nullptr && !improv_ble::global_improv_component->is_active() &&
@@ -1006,17 +1003,12 @@ void WiFiComponent::loop() {
   }
 
 #ifdef USE_WIFI_AP_WISP
-  // The bridge comes up once it has a resolver to offer, from the station or from a wired or cellular upstream;
-  // a start that failed is tried again after ap_timeout
-  if (this->state_ != WIFI_COMPONENT_STATE_DISABLED && !this->ap_setup_ && this->ap_dns_known_() &&
+  // The bridge comes up once it has a resolver to offer; a start that failed is tried again after ap_timeout
+  if (!this->ap_setup_ && this->state_ != WIFI_COMPONENT_STATE_DISABLED && this->ap_dns_known_() &&
       (this->ap_changed_ == 0 || now - this->ap_changed_ > this->ap_timeout_)) {
     ESP_LOGI(TAG, "Starting AP");
     this->ap_changed_ = now;
     this->setup_ap_config_();
-    // The station path applied the output power in start(); without one the radio only exists now
-    if (!this->has_sta() && !std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
-      ESP_LOGV(TAG, "Setting Output Power Option failed");
-    }
   }
 #endif
 
@@ -1105,6 +1097,11 @@ void WiFiComponent::setup_ap_config_() {
   // Reset before the AP exists: afterwards only the platform's event path writes the counter
   this->ap_clients_ = 0;
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
+  // The station path applied it in start(); without a station the radio only exists from here
+  if (this->ap_setup_ && !this->has_sta() && !std::isnan(this->output_power_) &&
+      !this->wifi_apply_output_power_(this->output_power_)) {
+    ESP_LOGV(TAG, "Setting Output Power Option failed");
+  }
 #if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
   // A failed start must not leave the radio in AP mode: on an exclusive radio it would refuse
   // the STA attempts until the next try, and a bridge would take clients it cannot serve.

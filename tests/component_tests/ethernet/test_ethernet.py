@@ -36,42 +36,28 @@ _WIFI_STA_CONFIG = {CONF_NETWORKS: [{"ssid": "MySSID", "password": "password1"}]
 _WIFI_AP_CONFIG = {CONF_AP: {"ssid": "espap", "password": "mypassword"}}
 
 
-def test_rejects_wifi_station_and_ethernet_without_priority() -> None:
-    """A Wi-Fi station + ethernet without a network: priority: list is rejected."""
-    fv.full_config.set({"wifi": _WIFI_STA_CONFIG, "ethernet": {}})
-    with pytest.raises(Invalid, match="cannot be used together with a wifi station"):
+@pytest.mark.parametrize(
+    ("wifi", "priority", "match"),
+    [
+        (_WIFI_STA_CONFIG, None, "missing: ethernet, wifi"),
+        (_WIFI_STA_CONFIG, ["ethernet"], "missing: wifi"),
+        (_WIFI_STA_CONFIG, ["wifi", "ethernet"], None),
+        (_WIFI_AP_CONFIG, None, None),
+    ],
+)
+def test_wifi_station_needs_a_full_priority_list_but_an_access_point_does_not(
+    wifi: dict, priority: list[str] | None, match: str | None
+) -> None:
+    """A station competes with ethernet for the primary interface; an access point does not."""
+    full = {"wifi": wifi, "ethernet": {}}
+    if priority:
+        full["network"] = {CONF_PRIORITY: _validate_priority_list(priority)}
+    fv.full_config.set(full)
+    if match is None:
         _final_validate_wifi({})
-
-
-def test_rejects_wifi_station_and_ethernet_with_incomplete_priority() -> None:
-    """A priority list missing an interface is rejected and names what's missing."""
-    fv.full_config.set(
-        {
-            "wifi": _WIFI_STA_CONFIG,
-            "ethernet": {},
-            "network": {CONF_PRIORITY: _validate_priority_list(["ethernet"])},
-        }
-    )
-    with pytest.raises(Invalid, match=r"must.*list both interfaces; missing: wifi"):
-        _final_validate_wifi({})
-
-
-def test_accepts_wifi_station_and_ethernet_with_full_priority() -> None:
-    """Both interfaces listed under network: priority: is the supported dual-stack."""
-    fv.full_config.set(
-        {
-            "wifi": _WIFI_STA_CONFIG,
-            "ethernet": {},
-            "network": {CONF_PRIORITY: _validate_priority_list(["wifi", "ethernet"])},
-        }
-    )
-    _final_validate_wifi({})
-
-
-def test_accepts_wifi_access_point_and_ethernet() -> None:
-    """An access point does not claim the primary interface, so no priority is needed."""
-    fv.full_config.set({"wifi": _WIFI_AP_CONFIG, "ethernet": {}})
-    _final_validate_wifi({})
+    else:
+        with pytest.raises(Invalid, match=match):
+            _final_validate_wifi({})
 
 
 @pytest.mark.parametrize("clock_speed", ["26.67MHz", "72MHz"])
