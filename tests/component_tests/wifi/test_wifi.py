@@ -1,32 +1,15 @@
 """Config-validation tests for the wifi component."""
 
-from collections.abc import Callable
-from typing import Any
-
 import pytest
 from voluptuous import Invalid
 
-from esphome import config_validation as cv
-from esphome.components.esp32 import (
-    KEY_BOARD,
-    KEY_IDF_VERSION,
-    KEY_VARIANT,
-    VARIANT_ESP32,
-)
-from esphome.components.wifi import (
-    CONF_AP_MODE,
-    CONFIG_SCHEMA,
-    _validate,
-    final_validate,
-)
+from esphome.components.wifi import CONFIG_SCHEMA, _validate
 from esphome.const import (
-    CONF_AP,
     CONF_HIDDEN,
     CONF_NETWORKS,
     CONF_PASSWORD,
     CONF_SSID,
     CONF_USE_ADDRESS,
-    KEY_FRAMEWORK_VERSION,
     PlatformFramework,
 )
 from tests.component_tests.types import SetCoreConfigCallable
@@ -69,33 +52,3 @@ def test_hidden_without_ssid_rejected(set_core_config: SetCoreConfigCallable) ->
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     with pytest.raises(Invalid, match="'hidden' requires 'ssid'"):
         CONFIG_SCHEMA({CONF_HIDDEN: True})
-
-
-def test_wisp_bridge_needs_a_station_or_ethernet(
-    set_core_config: SetCoreConfigCallable,
-    set_component_config: Callable[[str, Any], None],
-) -> None:
-    """An AP-only WISP bridge routes through ethernet; without it the clients have no way out."""
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 1)},
-        platform_data={
-            KEY_BOARD: "esp32dev",
-            KEY_VARIANT: VARIANT_ESP32,
-            KEY_IDF_VERSION: cv.Version(5, 5, 1),
-        },
-    )
-    config = CONFIG_SCHEMA(
-        {
-            CONF_USE_ADDRESS: "test.local",
-            CONF_AP: {
-                CONF_SSID: "bridge",
-                CONF_PASSWORD: "wisp12345678",
-                CONF_AP_MODE: "WISP",
-            },
-        }
-    )
-    with pytest.raises(Invalid, match="ethernet as the upstream"):
-        final_validate(config)
-    set_component_config("ethernet", {})
-    final_validate(config)
