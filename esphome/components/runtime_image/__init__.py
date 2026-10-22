@@ -17,6 +17,7 @@ from esphome.core import CORE
 
 AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages", "@clydebarrow", "@kahrendt"]
+DOMAIN = "runtime_image"
 
 CONF_PLACEHOLDER = "placeholder"
 CONF_TRANSPARENCY = "transparency"
@@ -28,6 +29,7 @@ ImageDecoder = runtime_image_ns.class_("ImageDecoder")
 BmpDecoder = runtime_image_ns.class_("BmpDecoder", ImageDecoder)
 JpegDecoder = runtime_image_ns.class_("JpegDecoder", ImageDecoder)
 PngDecoder = runtime_image_ns.class_("PngDecoder", ImageDecoder)
+QoiDecoder = runtime_image_ns.class_("QoiDecoder", ImageDecoder)
 
 # Runtime image class
 RuntimeImage = runtime_image_ns.class_(
@@ -37,9 +39,10 @@ RuntimeImage = runtime_image_ns.class_(
 # Image format enum
 ImageFormat = runtime_image_ns.enum("ImageFormat")
 IMAGE_FORMAT_AUTO = ImageFormat.AUTO
+IMAGE_FORMAT_BMP = ImageFormat.BMP
 IMAGE_FORMAT_JPEG = ImageFormat.JPEG
 IMAGE_FORMAT_PNG = ImageFormat.PNG
-IMAGE_FORMAT_BMP = ImageFormat.BMP
+IMAGE_FORMAT_QOI = ImageFormat.QOI
 
 # Export enum for decode errors
 DecodeError = runtime_image_ns.enum("DecodeError")
@@ -89,7 +92,17 @@ class JPEGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
-        cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
+        # 1.8.4 plus decodeBegin()/decodeRows(), so an image can be decoded a few rows at a time and
+        # can wait for input that has not arrived yet, and fixes for: input that arrives in short
+        # reads, garbled RGB8888 output of grayscale images, and two ARM NEON faults seen on arm64 hosts
+        # (swapped red and blue in the 4:2:0 RGB8888 path, writes past the row on clipped MCUs). It also
+        # uses the ESP32-S3 SIMD colour conversion in ESP-IDF builds, not only Arduino ones, and is built
+        # with -O2.
+        cg.add_library(
+            "JPEGDEC",
+            "1.8.4",
+            "https://github.com/esphome-libs/JPEGDEC#1.8.4-esphome.3",
+        )
         if CORE.is_host:
             # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
             # predefines the lowercase __linux__; without this a Linux host
@@ -112,17 +125,30 @@ class PNGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_PNG")
-        cg.add_library("pngle", "1.1.0")
+        cg.add_library("kikuchan98/pngle", "1.1.0")
+
+
+class QOIFormat(Format):
+    """QOI format decoder configuration."""
+
+    def __init__(self):
+        super().__init__("QOI", QoiDecoder)
+
+    def actions(self) -> None:
+        cg.add_define("USE_RUNTIME_IMAGE_QOI")
 
 
 # Decodable formats only; platforms that support runtime detection accept
 # "AUTO" in their own schema and get_format() resolves it
 _JPEG_FORMAT = JPEGFormat()
+
+# Registry of available formats
 IMAGE_FORMATS = {
     "BMP": BMPFormat(),
     "JPEG": _JPEG_FORMAT,
     "JPG": _JPEG_FORMAT,  # Alias for JPEG
     "PNG": PNGFormat(),
+    "QOI": QOIFormat(),
 }
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(

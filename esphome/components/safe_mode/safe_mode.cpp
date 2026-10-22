@@ -21,7 +21,7 @@
 
 namespace esphome::safe_mode {
 
-static const char *const TAG = "safe_mode";
+ESPHOME_LOG_TAG(TAG, "safe_mode");
 
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK) && !defined(USE_OTA_PARTITIONS)
 // Find a non-running app partition. If verify is true, only returns a partition
@@ -174,6 +174,14 @@ bool SafeModeComponent::get_safe_mode_pending() {
   return this->read_rtc_() == SafeModeComponent::ENTER_SAFE_MODE_MAGIC;
 }
 
+void SafeModeComponent::restart_in_safe_mode() {
+  ESP_LOGI(TAG, "Restarting in safe mode");
+  this->set_safe_mode_pending(true);
+  // Let MQTT settle a bit
+  delay(100);  // NOLINT
+  App.safe_reboot();
+}
+
 bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after,
                                                bool in_flash) {
   this->safe_mode_start_time_ = millis();
@@ -255,12 +263,17 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 }
 
 void SafeModeComponent::write_rtc_(uint32_t val) {
-  this->rtc_.save(&val);
-  global_preferences->sync();
+  if (!this->rtc_.save(&val)) {
+    ESP_LOGE(TAG, "Failed to set rtc value (%" PRIu32 ")", val);
+    return;
+  }
+  if (!global_preferences->sync()) {
+    ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
+  }
 }
 
 uint32_t SafeModeComponent::read_rtc_() {
-  uint32_t val;
+  uint32_t val = 0;
   if (!this->rtc_.load(&val))
     return 0;
   return val;
@@ -272,7 +285,9 @@ void SafeModeComponent::clean_rtc() {
   // before sync, the boot wasn't really successful anyway and the counter should
   // remain incremented.
   uint32_t val = 0;
-  this->rtc_.save(&val);
+  if (!this->rtc_.save(&val)) {
+    ESP_LOGE(TAG, "Failed to clear boot loop counter");
+  }
 }
 
 void SafeModeComponent::on_safe_shutdown() {

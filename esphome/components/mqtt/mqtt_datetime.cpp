@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.datetime.datetime";
+ESPHOME_LOG_TAG(TAG, "mqtt.datetime.datetime");
 
 using namespace esphome::datetime;
 
@@ -45,10 +45,7 @@ void MQTTDateTimeComponent::setup() {
   });
 }
 
-void MQTTDateTimeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT DateTime '%s':", this->datetime_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTDateTimeComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTDateTimeComponent, "datetime")
 const EntityBase *MQTTDateTimeComponent::get_entity() const { return this->datetime_; }

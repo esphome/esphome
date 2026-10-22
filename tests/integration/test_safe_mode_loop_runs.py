@@ -23,20 +23,13 @@ This test uses ``run_binary`` directly to skip the port wait.
 
 from __future__ import annotations
 
-import asyncio
-import re
-import struct
-
 import pytest
 
 from .conftest import run_binary
-from .host_prefs import clear_host_prefs, write_host_pref
+from .host_prefs import clear_host_prefs, force_safe_mode
+from .log_utils import LineWaiter
 from .types import CompileFunction, ConfigWriter
-
-# Must match esphome::safe_mode::RTC_KEY in safe_mode.h
-SAFE_MODE_RTC_KEY = 233825507
-# Must match esphome::safe_mode::SafeModeComponent::ENTER_SAFE_MODE_MAGIC
-ENTER_SAFE_MODE_MAGIC = 0x5AFE5AFE
+from .wait_utils import wait_or_fail
 
 DEVICE_NAME = "safe-mode-loop-runs"
 THREAD_LOG_MARKER = "looping component ran in safe mode"
@@ -56,39 +49,24 @@ async def test_safe_mode_loop_runs(
 
     # Compile finished successfully; pre-populate prefs so the *next* run
     # enters safe mode immediately.
-    write_host_pref(
-        DEVICE_NAME, SAFE_MODE_RTC_KEY, struct.pack("<I", ENTER_SAFE_MODE_MAGIC)
-    )
+    force_safe_mode(DEVICE_NAME)
 
     try:
-        loop = asyncio.get_running_loop()
-        safe_mode_active = loop.create_future()
-        thread_log_seen = loop.create_future()
-        safe_mode_pattern = re.compile(r"SAFE MODE IS ACTIVE")
-        thread_log_pattern = re.compile(re.escape(THREAD_LOG_MARKER))
-
-        def on_log(line: str) -> None:
-            if not safe_mode_active.done() and safe_mode_pattern.search(line):
-                safe_mode_active.set_result(True)
-            if not thread_log_seen.done() and thread_log_pattern.search(line):
-                thread_log_seen.set_result(True)
-
-        async with run_binary(binary_path, line_callback=on_log):
-            try:
-                await asyncio.wait_for(safe_mode_active, timeout=15.0)
-            except TimeoutError:
-                pytest.fail(
-                    "Did not observe 'SAFE MODE IS ACTIVE' -- safe mode "
-                    "didn't trigger, so this test isn't exercising the bug."
-                )
-            try:
-                await asyncio.wait_for(thread_log_seen, timeout=10.0)
-            except TimeoutError:
-                pytest.fail(
-                    f"Did not observe thread-logged marker {THREAD_LOG_MARKER!r} "
-                    "within timeout. Logger::loop() never drained the task "
-                    "log buffer, meaning App.looping_components_ was never "
-                    "sized -- this is the regression #16269 fixed."
-                )
+        waiter = LineWaiter()
+        async with run_binary(binary_path, line_callback=waiter.callback):
+            await wait_or_fail(
+                waiter.wait_for("SAFE MODE IS ACTIVE", timeout=15.0),
+                15.0,
+                "Did not observe 'SAFE MODE IS ACTIVE' -- safe mode "
+                "didn't trigger, so this test isn't exercising the bug.",
+            )
+            await wait_or_fail(
+                waiter.wait_for(THREAD_LOG_MARKER),
+                10.0,
+                f"Did not observe thread-logged marker {THREAD_LOG_MARKER!r} "
+                "within timeout. Logger::loop() never drained the task "
+                "log buffer, meaning App.looping_components_ was never "
+                "sized -- this is the regression #16269 fixed.",
+            )
     finally:
         clear_host_prefs(DEVICE_NAME)

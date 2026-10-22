@@ -20,6 +20,13 @@ enum class MQTTClientDisconnectReason : int8_t {
   DNS_RESOLVE_ERROR = 8
 };
 
+/// Transport for the broker connection; only the ESP-IDF backend supports WebSocket.
+enum class MQTTTransport : uint8_t {
+  MQTT_TRANSPORT_TCP = 0,
+  MQTT_TRANSPORT_WS = 1,
+  MQTT_TRANSPORT_WSS = 2,
+};
+
 /// internal struct for MQTT messages.
 struct MQTTMessage {
   std::string topic;

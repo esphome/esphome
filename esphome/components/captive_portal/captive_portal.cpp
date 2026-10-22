@@ -10,7 +10,7 @@
 
 namespace esphome::captive_portal {
 
-static const char *const TAG = "captive_portal";
+ESPHOME_LOG_TAG(TAG, "captive_portal");
 
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
@@ -58,8 +58,8 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   request->send(stream);
 }
 void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
-  const auto &ssid = request->arg("ssid");
-  const auto &psk = request->arg("psk");
+  const auto &ssid = request->arg(ESPHOME_F("ssid"));
+  const auto &psk = request->arg(ESPHOME_F("psk"));
   ESP_LOGI(TAG,
            "Requested WiFi Settings Change:\n"
            "  SSID='%s'\n"
@@ -80,22 +80,15 @@ void CaptivePortal::setup() {
   this->disable_loop();
 }
 void CaptivePortal::start() {
+  // Each start takes a web server reference that end() returns once
+  if (this->active_)
+    return;
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler_without_auth(this);
   }
 
-  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-
-#if defined(USE_ESP32)
-  // Create DNS server instance for ESP-IDF
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->start(ip);
-#elif defined(USE_ARDUINO)
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  this->dns_server_->start(53, ESPHOME_F("*"), ip);
-#endif
+  this->dns_.start(wifi::global_wifi_component->wifi_soft_ap_ip());
 
   this->initialized_ = true;
   this->active_ = true;
@@ -124,11 +117,7 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   // All other requests get the captive portal page
   // This includes OS captive portal detection endpoints which will trigger
   // the captive portal when they don't receive their expected responses
-#ifndef USE_ESP8266
   auto *response = req->beginResponse(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
-#else
-  auto *response = req->beginResponse_P(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
-#endif
 #ifdef USE_CAPTIVE_PORTAL_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
 #else

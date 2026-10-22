@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Generate a token
         id: generate-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
@@ -47,7 +47,7 @@ jobs:
         # setup-python interpreter so subsequent ``prek`` /
         # ``script/run-in-env.py`` steps find the deps without a
         # ``uv run`` prefix.
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -85,7 +85,7 @@ jobs:
       - name: Verify prek clean
         # Second pass: re-run all hooks against the now-fixed tree.
         # Auto-fixers exit 0 (nothing to change); any remaining failure
-        # from a check-only hook (flake8 / yamllint / ci-custom) is a
+        # from a check-only hook (yamllint / ci-custom) is a
         # real issue and fails the workflow loudly. Same PREK_SKIP list as
         # above for the same reasons.
         env:

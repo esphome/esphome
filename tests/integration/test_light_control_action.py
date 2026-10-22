@@ -1,4 +1,4 @@
-"""Integration test for LightControlAction.
+"""Integration test for the light control apply actions.
 
 Tests that light.turn_on, light.turn_off, and light.control automation actions
 work correctly with the compact per-field union storage. Exercises both constant
@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -19,7 +20,7 @@ async def test_light_control_action(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test LightControlAction with constants and lambdas."""
+    """Test light.turn_on, light.turn_off and light.control with constants and lambdas."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         state_futures: dict[int, asyncio.Future[Any]] = {}
 
@@ -31,7 +32,7 @@ async def test_light_control_action(
 
         # Get entities
         entities = await client.list_entities_services()
-        light = next(e for e in entities[0] if e.object_id == "test_light")
+        light = require_entity(entities[0], "test_light", exact=True)
         buttons = {e.name: e for e in entities[0] if hasattr(e, "name")}
 
         async def wait_for_state(key: int, timeout: float = 5.0) -> Any:

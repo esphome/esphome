@@ -714,6 +714,25 @@ def test_run_git_command_without_git_dir_raises_error(
         git.run_git_command(["git", "clone", "https://invalid.url/repo.git"])
 
 
+def test_has_complete_clone(tmp_path: Path) -> None:
+    """The lock-free probe tracks the completion marker, subpath included."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    subpath = Path("lib")
+    assert not git.has_complete_clone(url, "v1", "test_domain", subpath)
+
+    repo_dir = _compute_repo_dir(url, "v1", "test_domain") / subpath
+    (repo_dir / ".git").mkdir(parents=True)
+    # A directory without the marker is an incomplete clone
+    assert not git.has_complete_clone(url, "v1", "test_domain", subpath)
+
+    _mark_clone_complete(repo_dir)
+    assert git.has_complete_clone(url, "v1", "test_domain", subpath)
+    # The ref is part of the cache key
+    assert not git.has_complete_clone(url, "v2", "test_domain", subpath)
+
+
 def test_clone_or_update_with_never_refresh(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
@@ -3214,3 +3233,72 @@ def test_resolve_symlink_stub_returns_none_when_read_bytes_raises(
         result = git.resolve_symlink_stub(repo_dir, stub)
 
     assert result is None
+
+
+def test_git_file_git_url() -> None:
+    gf = git.GitFile("github.com", "esphome", "repo", "file.yaml")
+
+    assert gf.git_url == "https://github.com/esphome/repo.git"
+
+
+@pytest.mark.parametrize(
+    ("domain", "expected"),
+    [
+        (
+            "codeberg.org",
+            "https://codeberg.org/owner/repo/raw/commit/main/dir/file.yaml",
+        ),
+        (
+            "github.com",
+            "https://raw.githubusercontent.com/owner/repo/main/dir/file.yaml",
+        ),
+        ("gitlab.com", "https://gitlab.com/owner/repo/-/raw/main/dir/file.yaml"),
+    ],
+)
+def test_git_file_raw_url(domain: str, expected: str) -> None:
+    gf = git.GitFile(domain, "owner", "repo", "dir/file.yaml", ref="main")
+
+    assert gf.raw_url == expected
+
+
+def test_git_file_raw_url_requires_ref() -> None:
+    gf = git.GitFile("github.com", "owner", "repo", "file.yaml")
+
+    with pytest.raises(ValueError, match="URL has no ref"):
+        _ = gf.raw_url
+
+
+def test_git_file_raw_url_unsupported_domain() -> None:
+    gf = git.GitFile("example.com", "owner", "repo", "file.yaml", ref="main")
+
+    with pytest.raises(NotImplementedError, match="example.com not supported"):
+        _ = gf.raw_url
+
+
+def test_git_file_from_shorthand_full() -> None:
+    gf = git.GitFile.from_shorthand("gitlab://owner/repo/sub/file.yaml@v1.0?query")
+
+    assert gf == git.GitFile(
+        "gitlab.com", "owner", "repo", "sub/file.yaml", ref="v1.0", query="query"
+    )
+
+
+def test_git_file_from_shorthand_without_ref_or_query() -> None:
+    gf = git.GitFile.from_shorthand("codeberg://owner/repo/file.yaml")
+
+    assert gf == git.GitFile("codeberg.org", "owner", "repo", "file.yaml")
+
+
+def test_git_file_from_shorthand_requires_string() -> None:
+    with pytest.raises(ValueError, match="must be a string"):
+        git.GitFile.from_shorthand(123)
+
+
+def test_git_file_from_shorthand_bad_format() -> None:
+    with pytest.raises(ValueError, match="not in expected"):
+        git.GitFile.from_shorthand("not a url")
+
+
+def test_git_file_from_shorthand_unknown_domain() -> None:
+    with pytest.raises(ValueError, match="Unknown git domain bitbucket"):
+        git.GitFile.from_shorthand("bitbucket://owner/repo/file.yaml")

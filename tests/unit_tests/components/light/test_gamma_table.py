@@ -53,9 +53,12 @@ def test_nonzero_indices_are_nonzero(gamma: float) -> None:
         assert table[i] >= 1, f"gamma={gamma}, index {i}: got {table[i]}"
 
 
-@pytest.mark.parametrize("gamma", [1.0, 2.0, 2.2, 2.8, 3.0])
+@pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])
 def test_table_monotonically_nondecreasing(gamma: float) -> None:
-    """The gamma table must be monotonically non-decreasing."""
+    """The gamma table must be monotonically non-decreasing.
+
+    gamma_table_reverse_search()'s binary search depends on this.
+    """
     table = generate_gamma_table(gamma)
     for i in range(1, 256):
         assert table[i] >= table[i - 1], (
@@ -115,3 +118,13 @@ def test_lut_output_monotonically_nondecreasing() -> None:
         result = _simulate_gamma_correct_lut(table, value)
         assert result >= prev, f"value={value}: result {result} < previous {prev}"
         prev = result
+
+
+def test_table_matches_raw_power_curve() -> None:
+    """Check the gamma table against known good values for gamma=2.8."""
+    table = generate_gamma_table(2.8)
+    golden = {1: 1, 5: 1, 15: 24, 27: 122, 28: 135, 100: 4766, 200: 33193, 254: 64818}
+    for i, expected in golden.items():
+        assert table[i] == expected, (
+            f"index {i}: table[{i}]={table[i]} expected {expected}"
+        )

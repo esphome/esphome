@@ -6,7 +6,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.service";
+ESPHOME_LOG_TAG(TAG, "api.service");
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void APIServerConnectionBase::log_send_message_(const LogString *name, const char *dump) {
@@ -628,7 +628,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
     case InfraredRFTransmitRawTimingsRequest::MESSAGE_TYPE: {
       InfraredRFTransmitRawTimingsRequest msg;
       msg.decode(msg_data, msg_size);
@@ -712,6 +712,55 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       this->on_device_capabilities_request();
       break;
     }
+#ifdef USE_SERIAL_PROXY
+    case SerialProxySetModeRequest::MESSAGE_TYPE: {
+      SerialProxySetModeRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_set_mode_request"), msg);
+#endif
+      this->on_serial_proxy_set_mode_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case 154 /* SubscribeSerialProxyIdentityRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_subscribe_serial_proxy_identity_request"));
+#endif
+      this->on_subscribe_serial_proxy_identity_request();
+      break;
+    }
+#endif
+#ifdef USE_API_WIZARD
+    case 156 /* DeviceWizardRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_device_wizard_request"));
+#endif
+      this->on_device_wizard_request();
+      break;
+    }
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+    case WizardInputSetRequest::MESSAGE_TYPE: {
+      WizardInputSetRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_wizard_input_set_request"), msg);
+#endif
+      this->on_wizard_input_set_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SENDSPIN
+    case 159 /* SendspinPairingTokenRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_sendspin_pairing_token_request"));
+#endif
+      this->on_sendspin_pairing_token_request();
+      break;
+    }
+#endif
     default:
       break;
   }

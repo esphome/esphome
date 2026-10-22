@@ -151,9 +151,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
             str((read_path / Path(d)).resolve()) for d in build_include_dirs
         ]
 
-    # Split build_flags list into private and public lists
+    # Split build_flags list into private and public lists. Warnings and the optimisation level only concern the
+    # library's own sources, so a library built with -O2 does not change how its users are compiled.
     private_build_flags, public_build_flags = split_list_by_condition(
-        build_flags, lambda a: a if a.startswith("-W") else None
+        build_flags, lambda a: a if a.startswith(("-W", "-O")) else None
     )
 
     # Generate the component
@@ -287,12 +288,19 @@ def _emit_idf_component(component: IDFComponent) -> None:
     )
 
 
-def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
-    """Resolve and convert a batch of PlatformIO libraries to IDF components."""
+def generate_idf_components(
+    libraries: list[Library], managed: set[str] | None = None
+) -> list[IDFComponent]:
+    """Resolve and convert a batch of PlatformIO libraries to IDF components.
+
+    ``managed`` names registry components already in the project manifest; they
+    are not converted, since IDF rejects the same requirement from two components.
+    Converted components reach them through ``${ESPHOME_PROJECT_MANAGED_COMPONENTS}``.
+    """
     backend = LibraryBackend(
         platform=ESP32_PLATFORM,
         framework=_idf_framework(),
         emit=_emit_idf_component,
         cache_key="idf",
     )
-    return convert_libraries(libraries, backend)
+    return convert_libraries(libraries, backend, provided=managed)

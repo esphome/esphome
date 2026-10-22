@@ -16,7 +16,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.plaintext";
+ESPHOME_LOG_TAG(TAG, "api.plaintext");
 
 // Maximum bytes to log in hex format (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t API_MAX_LOG_BYTES = 168;
@@ -172,7 +172,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
 
   // Reserve space for body (+ null terminator so protobuf StringRef fields
   // can be safely null-terminated in-place after decode)
-  this->rx_buf_.resize(this->rx_header_parsed_len_ + RX_BUF_NULL_TERMINATOR);
+  if (!this->rx_buf_.resize(this->rx_header_parsed_len_ + RX_BUF_NULL_TERMINATOR)) [[unlikely]] {
+    state_ = State::FAILED;
+    return APIError::OUT_OF_MEMORY;
+  }
 
   if (rx_buf_len_ < rx_header_parsed_len_) {
     // more data to read

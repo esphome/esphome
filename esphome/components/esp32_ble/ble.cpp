@@ -5,17 +5,18 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
 #else
 #include "esphome/components/watchdog/watchdog.h"
 #include <cinttypes>
 extern "C" {
 #include <esp_hosted.h>
-#include <esp_hosted_misc.h>
-#include <esp_hosted_bluedroid.h>
 }
+#include <eh_host_bt.h>
+#include <esp_hosted_bt_host_stack.h>
 #endif
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
@@ -23,7 +24,6 @@ extern "C" {
 #include <freertos/FreeRTOS.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
-#include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
 // Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
@@ -33,9 +33,9 @@ extern "C" bool btInUse() { return true; }  // NOLINT(readability-identifier-nam
 
 namespace esphome::esp32_ble {
 
-static const char *const TAG = "esp32_ble";
+ESPHOME_LOG_TAG(TAG, "esp32_ble");
 
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifdef CONFIG_BT_CONTROLLER_DISABLED
 // Bringing up the remote BT controller issues synchronous RPCs to the
 // co-processor with 5 second response timeouts, and the default task watchdog
 // is also 5 seconds. If the co-processor firmware does not answer (for example
@@ -43,8 +43,9 @@ static const char *const TAG = "esp32_ble";
 // device before the RPC could return an error, causing a boot loop. Raise the
 // watchdog for the duration of the bring-up so failures surface as error
 // returns instead. 60 seconds covers the worst case: transport reconnect
-// (up to ~20s), version preflight (1s), controller init/enable (5s each) and
-// the bluedroid host bring-up over the hosted HCI transport.
+// (up to ~20s), version preflight (1s), the controller init retry window
+// (5s of 5s RPCs), controller enable (5s) and the bluedroid host bring-up
+// over the hosted HCI transport.
 static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
 #endif
 
@@ -71,8 +72,9 @@ static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
 
 void ESP32BLE::setup() {
   global_ble = this;
-  if (!ble_pre_setup_()) {
-    ESP_LOGE(TAG, "BLE could not be prepared for configuration");
+  // Preferences opens NVS in app_main(); a zero handle means it could not be opened, even after an erase
+  if (global_preferences->nvs_handle == 0) {
+    ESP_LOGE(TAG, "NVS unavailable");
     this->mark_failed();
     return;
   }
@@ -83,38 +85,60 @@ void ESP32BLE::setup() {
   }
 }
 
-void ESP32BLE::enable() {
-  if (this->state_ != BLE_COMPONENT_STATE_DISABLED)
-    return;
-
-  this->state_ = BLE_COMPONENT_STATE_ENABLE;
-}
-
-void ESP32BLE::disable() {
-  if (this->state_ == BLE_COMPONENT_STATE_DISABLED)
-    return;
-
-  this->state_ = BLE_COMPONENT_STATE_DISABLE;
+// Queue the transition for loop(). A pending transition the other way is
+// cancelled instead, since nothing was torn down or brought up yet; any other
+// state is already there or on its way.
+void ESP32BLE::request_state_(bool enable) {
+  if (enable) {
+    if (this->state_ == BLE_COMPONENT_STATE_DISABLED) {
+      this->state_ = BLE_COMPONENT_STATE_ENABLE;
+    } else if (this->state_ == BLE_COMPONENT_STATE_DISABLE) {
+      this->state_ = BLE_COMPONENT_STATE_ACTIVE;
+    }
+  } else {
+    if (this->state_ == BLE_COMPONENT_STATE_ACTIVE) {
+      this->state_ = BLE_COMPONENT_STATE_DISABLE;
+    } else if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
+      this->state_ = BLE_COMPONENT_STATE_DISABLED;
+    }
+  }
 }
 
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_start() {
   this->advertising_init_();
-  if (!this->is_active())
+  this->advertising_ref_count_++;
+  this->advertising_refresh();
+}
+
+void ESP32BLE::advertising_stop() {
+  if (this->advertising_ref_count_ == 0)
     return;
-  this->advertising_->start();
+  this->advertising_ref_count_--;
+  this->advertising_refresh();
+}
+
+void ESP32BLE::advertising_refresh() {
+  if (this->advertising_ == nullptr || !this->is_active())
+    return;
+  // Advertise while any component still needs it, otherwise stop
+  if (this->advertising_ref_count_ == 0) {
+    this->advertising_->stop();
+  } else {
+    this->advertising_->start();
+  }
 }
 
 void ESP32BLE::advertising_set_service_data(const std::vector<uint8_t> &data) {
   this->advertising_init_();
   this->advertising_->set_service_data(data);
-  this->advertising_start();
+  this->advertising_refresh();
 }
 
 void ESP32BLE::advertising_set_manufacturer_data(const std::vector<uint8_t> &data) {
   this->advertising_init_();
   this->advertising_->set_manufacturer_data(data);
-  this->advertising_start();
+  this->advertising_refresh();
 }
 
 void ESP32BLE::advertising_set_service_data_and_name(std::span<const uint8_t> data, bool include_name) {
@@ -136,7 +160,7 @@ void ESP32BLE::advertising_set_service_data_and_name(std::span<const uint8_t> da
     this->advertising_->set_service_data(data);
   }
 
-  this->advertising_start();
+  this->advertising_refresh();
 }
 
 void ESP32BLE::advertising_register_raw_advertisement_callback(std::function<void(bool)> &&callback) {
@@ -147,24 +171,15 @@ void ESP32BLE::advertising_register_raw_advertisement_callback(std::function<voi
 void ESP32BLE::advertising_add_service_uuid(ESPBTUUID uuid) {
   this->advertising_init_();
   this->advertising_->add_service_uuid(uuid);
-  this->advertising_start();
+  this->advertising_refresh();
 }
 
 void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_init_();
   this->advertising_->remove_service_uuid(uuid);
-  this->advertising_start();
+  this->advertising_refresh();
 }
 #endif
-
-bool ESP32BLE::ble_pre_setup_() {
-  esp_err_t err = nvs_flash_init();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "nvs_flash_init failed: %d", err);
-    return false;
-  }
-  return true;
-}
 
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_init_() {
@@ -180,10 +195,10 @@ void ESP32BLE::advertising_init_() {
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifdef CONFIG_BT_CONTROLLER_DISABLED
   watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
 #endif
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -217,8 +232,7 @@ bool ESP32BLE::ble_setup_() {
   }
 
   // Fast preflight (1 second RPC timeout): verifies the co-processor answers
-  // RPCs at all before the 5 second timeout BT controller RPCs below, and
-  // before hosted_hci_bluedroid_open(), which aborts if the transport is down.
+  // RPCs at all before the 5 second timeout BT controller RPCs below.
   esp_hosted_coprocessor_fwver_t fw_ver{};
   if (esp_hosted_get_coprocessor_fwversion(&fw_ver) != ESP_OK) {
     ESP_LOGE(TAG, "Co-processor not responding; BLE disabled. Update its firmware with the esp32_hosted "
@@ -227,30 +241,28 @@ bool ESP32BLE::ble_setup_() {
   }
   ESP_LOGD(TAG, "Co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32, fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
 
-  if (esp_hosted_bt_controller_init() != ESP_OK) {
+  // Not the library's bring-up: its retry loop can block for minutes on a silent co-processor
+  err = eh_host_bt_controller_init();
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG,
              "BT controller init failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
              " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
              fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
     return false;
   }
-
-  if (esp_hosted_bt_controller_enable() != ESP_OK) {
-    ESP_LOGE(TAG,
-             "BT controller enable failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
-             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
-             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
+  err = eh_host_bt_controller_enable();
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+    ESP_LOGE(TAG, "BT controller enable failed: %s; BLE disabled", esp_err_to_name(err));
     return false;
   }
 
-  hosted_hci_bluedroid_open();
-
-  esp_bluedroid_hci_driver_operations_t operations = {
-      .send = hosted_hci_bluedroid_send,
-      .check_send_available = hosted_hci_bluedroid_check_send_available,
-      .register_host_callback = hosted_hci_bluedroid_register_host_callback,
-  };
-  esp_bluedroid_attach_hci_driver(&operations);
+  esp_hosted_bt_host_stack_cfg_t bt_cfg{};
+  bt_cfg.stack = ESP_HOSTED_BT_HOST_STACK_BLUEDROID;
+  bt_cfg.bring_up_controller = false;
+  if (esp_hosted_bt_host_stack_setup(&bt_cfg) != ESP_OK) {
+    ESP_LOGE(TAG, "BT host stack setup failed; BLE disabled");
+    return false;
+  }
 #endif
 
   err = esp_bluedroid_init();
@@ -309,19 +321,8 @@ bool ESP32BLE::ble_setup_() {
     }
   } else {
     const auto &app_name = App.get_name();
-    size_t name_len = app_name.length();
-    if (name_len > 20) {
-      if (App.is_name_add_mac_suffix_enabled()) {
-        // Keep first 13 chars and last 7 chars (MAC suffix), remove middle
-        memcpy(name_buffer, app_name.c_str(), 13);
-        memcpy(name_buffer + 13, app_name.c_str() + name_len - 7, 7);
-      } else {
-        memcpy(name_buffer, app_name.c_str(), 20);
-      }
-      name_buffer[20] = '\0';
-    } else {
-      memcpy(name_buffer, app_name.c_str(), name_len + 1);  // Include null terminator
-    }
+    truncate_name_to(name_buffer, sizeof(name_buffer), app_name.c_str(), app_name.length(),
+                     App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
     device_name = name_buffer;
   }
 
@@ -371,7 +372,7 @@ bool ESP32BLE::ble_setup_() {
 }
 
 bool ESP32BLE::ble_dismantle_() {
-#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifdef CONFIG_BT_CONTROLLER_DISABLED
   // Same 5 second RPCs as the bring-up path; see HOSTED_BT_WDT_TIMEOUT_MS
   watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
 #endif
@@ -394,7 +395,7 @@ bool ESP32BLE::ble_dismantle_() {
     ESP_LOGD(TAG, "Already deinitialized");
   }
 
-#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
     // stop bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
@@ -419,17 +420,10 @@ bool ESP32BLE::ble_dismantle_() {
     }
   }
 #else
-  if (esp_hosted_bt_controller_disable() != ESP_OK) {
-    ESP_LOGE(TAG, "esp_hosted_bt_controller_disable failed");
+  if (esp_hosted_bt_host_stack_teardown() != ESP_OK) {
+    ESP_LOGE(TAG, "esp_hosted_bt_host_stack_teardown failed");
     return false;
   }
-
-  if (esp_hosted_bt_controller_deinit(false) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_hosted_bt_controller_deinit failed");
-    return false;
-  }
-
-  hosted_hci_bluedroid_close();
 #endif
   return true;
 }
@@ -563,7 +557,11 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
       this->mark_failed();
       return;
     }
-    this->state_ = BLE_COMPONENT_STATE_DISABLED;
+    this->drain_ble_events_();
+    // A status callback may have asked for BLE back; the stack is down now, so
+    // that request becomes a bring-up.
+    this->state_ =
+        this->state_ == BLE_COMPONENT_STATE_ACTIVE ? BLE_COMPONENT_STATE_ENABLE : BLE_COMPONENT_STATE_DISABLED;
   } else if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
     ESP_LOGD(TAG, "Enabling");
     this->state_ = BLE_COMPONENT_STATE_OFF;
@@ -575,6 +573,10 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
     }
 
     this->state_ = BLE_COMPONENT_STATE_ACTIVE;
+#ifdef USE_ESP32_BLE_ADVERTISING
+    // Requests made before the stack was up (or before it was re-enabled) take effect now
+    this->advertising_refresh();
+#endif
   }
 }
 

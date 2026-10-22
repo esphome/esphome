@@ -6,7 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_DISTANCE,
-    CONF_ID,
     CONF_LEVEL,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
@@ -103,9 +102,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
@@ -125,18 +122,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_tank_empty(CONF_SUPPORTED_TANKS_MAP[t][0]))
         cg.add(var.set_tank_full(CONF_SUPPORTED_TANKS_MAP[t][1]))
 
-    if CONF_PROPANE_BUTANE_MIX in config:
-        cg.add(var.set_propane_butane_mix(config[CONF_PROPANE_BUTANE_MIX]))
+    cg.add_optional(var.set_propane_butane_mix, config.get(CONF_PROPANE_BUTANE_MIX))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-    if CONF_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_LEVEL])
-        cg.add(var.set_level(sens))
-    if CONF_DISTANCE in config:
-        sens = await sensor.new_sensor(config[CONF_DISTANCE])
-        cg.add(var.set_distance(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_LEVEL, var.set_level)
+    await sensors(CONF_DISTANCE, var.set_distance)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
