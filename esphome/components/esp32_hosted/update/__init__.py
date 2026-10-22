@@ -126,6 +126,13 @@ def _validate_firmware(config: ConfigType) -> None:
         try:
             candidate.replace(target)
         except OSError as err:
+            # Windows refuses to replace a file another build is putting there at the same moment; the
+            # file is named after its digest, so a verified copy left by that build is the same image
+            if (
+                target.is_file()
+                and hashlib.sha256(target.read_bytes()).hexdigest() == expected
+            ):
+                return
             raise cv.Invalid(f"Could not cache the firmware from {url}: {err}") from err
 
 

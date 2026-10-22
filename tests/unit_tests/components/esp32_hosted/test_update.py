@@ -245,6 +245,34 @@ def test_concurrent_downloads_publish_only_verified_bytes(downloader: Mock) -> N
     assert list(cache_file().parent.iterdir()) == [cache_file()]
 
 
+def test_replace_refused_after_another_build_cached_the_image(
+    downloader: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows denies the rename when a concurrent build has just placed the same verified file."""
+    downloader.return_value = FIRMWARE
+
+    def refuse_replace(self: Path, target: Path) -> None:
+        target.write_bytes(FIRMWARE)
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(Path, "replace", refuse_replace)
+    hosted_update.FINAL_VALIDATE_SCHEMA(remote_config())
+    assert cache_file().read_bytes() == FIRMWARE
+
+
+def test_replace_refused_without_a_verified_image_is_an_error(
+    downloader: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    downloader.return_value = FIRMWARE
+
+    def refuse_replace(self: Path, target: Path) -> None:
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(Path, "replace", refuse_replace)
+    with pytest.raises(cv.Invalid, match="Could not cache the firmware"):
+        hosted_update.FINAL_VALIDATE_SCHEMA(remote_config())
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("source", ["path", "url"])
 async def test_codegen_embeds_verified_bytes_without_runtime_http(
