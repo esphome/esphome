@@ -15,39 +15,36 @@ static constexpr uint8_t ESCAPE_XOR = 0x20;
 static constexpr size_t TX_CHUNK_SIZE = 32;
 
 void UartPacketInterface::loop() {
-  while (this->available()) {
-    uint8_t byte;
-    if (!this->read_byte(&byte)) {
-      ESP_LOGW(TAG, "Failed to read byte from UART");
-      return;
-    }
-    if (byte == FLAG_BYTE) {
-      // A flag that ends a frame also starts the next, so an unfinished frame cannot hide the one after it
-      if (this->rx_started_ && this->rx_length_ != 0)
-        this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_.data(), this->rx_length_), {});
-      this->rx_started_ = true;
-      this->rx_length_ = 0;
-      this->rx_control_ = false;
-      continue;
-    }
-    if (!this->rx_started_)
-      continue;
-    if (byte == CONTROL_BYTE) {
-      this->rx_control_ = true;
-      continue;
-    }
-    if (this->rx_control_) {
-      byte ^= ESCAPE_XOR;
-      this->rx_control_ = false;
-    }
-    if (this->rx_length_ >= this->rx_buffer_.size()) {
-      ESP_LOGD(TAG, "Packet too large, discarding");
-      this->rx_started_ = false;
-      this->rx_length_ = 0;
-      continue;
-    }
-    this->rx_buffer_[this->rx_length_++] = byte;
+  this->read_available([this](uint8_t byte) { this->handle_rx_byte_(byte); });
+}
+
+void UartPacketInterface::handle_rx_byte_(uint8_t byte) {
+  if (byte == FLAG_BYTE) {
+    // A flag that ends a frame also starts the next, so an unfinished frame cannot hide the one after it
+    if (this->rx_started_ && this->rx_length_ != 0)
+      this->on_receive_from_interface_(PacketBuffer(this->rx_buffer_.data(), this->rx_length_), {});
+    this->rx_started_ = true;
+    this->rx_length_ = 0;
+    this->rx_control_ = false;
+    return;
   }
+  if (!this->rx_started_)
+    return;
+  if (byte == CONTROL_BYTE) {
+    this->rx_control_ = true;
+    return;
+  }
+  if (this->rx_control_) {
+    byte ^= ESCAPE_XOR;
+    this->rx_control_ = false;
+  }
+  if (this->rx_length_ >= this->rx_buffer_.size()) {
+    ESP_LOGD(TAG, "Packet too large, discarding");
+    this->rx_started_ = false;
+    this->rx_length_ = 0;
+    return;
+  }
+  this->rx_buffer_[this->rx_length_++] = byte;
 }
 
 bool UartPacketInterface::send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) {

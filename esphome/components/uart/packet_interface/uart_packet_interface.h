@@ -26,6 +26,7 @@ class UartPacketInterface : public packet_interface::PacketInterface, public UAR
                          const packet_interface::PacketMetaData &meta_data) override;
 
  protected:
+  void handle_rx_byte_(uint8_t byte);
   const std::span<uint8_t> rx_buffer_;
   size_t rx_length_{0};
   bool rx_started_{};
