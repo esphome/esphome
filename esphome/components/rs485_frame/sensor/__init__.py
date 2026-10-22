@@ -189,8 +189,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    hub = await cg.get_variable(config[CONF_RS485_FRAME_ID])
-    cg.add(var.set_parent(hub))
+    await cg.register_parented(var, config[CONF_RS485_FRAME_ID])
     if CONF_MONITOR_ID in config:
         cg.add(
             var.set_response_monitor(

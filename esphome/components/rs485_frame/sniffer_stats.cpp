@@ -11,7 +11,7 @@
 
 namespace esphome::rs485_frame {
 
-static const char *const TAG = "rs485_frame.stats";
+ESPHOME_LOG_TAG(TAG, "rs485_frame.stats");
 
 void DelayStats::reset() {
   this->min = UINT32_MAX;

@@ -7,7 +7,7 @@
 
 namespace esphome::rs485_frame {
 
-static const char *const TAG = "rs485_frame";
+ESPHOME_LOG_TAG(TAG, "rs485_frame");
 
 static const char *crc_type_str(CrcType t) {
   switch (t) {
@@ -113,9 +113,7 @@ void RS485FrameHub::loop() {
   if (this->discovery_ != nullptr) {
     // Discovery mode: capture raw bytes for analysis. No framing, no validation, no TX — the
     // whole point is that the framing/CRC are not yet known.
-    uint8_t byte;
-    while (this->available() && this->read_byte(&byte))
-      this->discovery_->feed_byte(byte, now);
+    this->read_available([this, now](uint8_t byte) { this->discovery_->feed_byte(byte, now); });
     this->discovery_->tick(now);
     return;
   }
@@ -290,60 +288,61 @@ void RS485FrameHub::record_discard_(uint32_t now) {
 }
 
 void RS485FrameHub::read_uart_(uint32_t now) {
-  uint8_t byte;
-  while (this->available() && this->read_byte(&byte)) {
-    this->last_rx_time_ = now;
-    this->last_activity_time_ = now;
-    this->has_activity_ = true;
-    if (!this->in_frame_) {
-      if (this->previous_byte_ == this->dle_ && byte == this->stx_) {
-        this->in_frame_ = true;
-        this->after_dle_ = false;
-        this->raw_frame_.clear();
-        this->raw_frame_.push_back(this->dle_);
-        this->raw_frame_.push_back(this->stx_);
-      }
-      this->previous_byte_ = byte;
-      continue;
-    }
+  this->read_available([this, now](uint8_t byte) { this->handle_rx_byte_(byte, now); });
+}
 
-    if (this->raw_frame_.size() >= this->max_frame_length_) {
-      ESP_LOGW(TAG, "Frame exceeded max_frame_length");
-      this->record_discard_(now);
-      this->in_frame_ = false;
+void RS485FrameHub::handle_rx_byte_(uint8_t byte, uint32_t now) {
+  this->last_rx_time_ = now;
+  this->last_activity_time_ = now;
+  this->has_activity_ = true;
+  if (!this->in_frame_) {
+    if (this->previous_byte_ == this->dle_ && byte == this->stx_) {
+      this->in_frame_ = true;
       this->after_dle_ = false;
       this->raw_frame_.clear();
-      this->previous_byte_ = byte;
-      continue;
+      this->raw_frame_.push_back(this->dle_);
+      this->raw_frame_.push_back(this->stx_);
     }
-    this->raw_frame_.push_back(byte);
-
-    // Escape-aware terminator detection. Mid-frame, every DLE is resolved by the byte that
-    // follows it: DLE+ETX ends the frame, DLE+escape_marker is a stuffed literal DLE
-    // (escape_marker_ == DLE in doubling mode, == the escape byte otherwise), and any other
-    // successor is a protocol violation that validate_frame_ rejects. Tracking after_dle_ is
-    // required for doubling mode: peeking only at the previous raw byte miscounts adjacent
-    // DLEs (a DLE DLE literal just before a DLE ETX terminator, or a literal DLE followed by
-    // a literal ETX data byte).
-    if (this->after_dle_) {
-      // The pending DLE is now resolved by this byte; it cannot itself open a new escape
-      // sequence (in doubling mode the marker equals DLE but is consumed here as the partner
-      // of the pending DLE, not as a fresh DLE).
-      this->after_dle_ = false;
-      if (byte == this->etx_) {
-        this->process_raw_frame_(now);
-        this->in_frame_ = false;
-        this->raw_frame_.clear();
-      }
-    } else if (byte == this->dle_) {
-      this->after_dle_ = true;
-    }
-    // Maintain previous_byte_ for every in-frame byte too. Without this, a normal frame
-    // terminator (DLE ETX) leaves previous_byte_ stale at the value seen just before the
-    // frame began (typically DLE), so a bare STX immediately after the terminator would
-    // spuriously start a new frame.
     this->previous_byte_ = byte;
+    return;
   }
+
+  if (this->raw_frame_.size() >= this->max_frame_length_) {
+    ESP_LOGW(TAG, "Frame exceeded max_frame_length");
+    this->record_discard_(now);
+    this->in_frame_ = false;
+    this->after_dle_ = false;
+    this->raw_frame_.clear();
+    this->previous_byte_ = byte;
+    return;
+  }
+  this->raw_frame_.push_back(byte);
+
+  // Escape-aware terminator detection. Mid-frame, every DLE is resolved by the byte that
+  // follows it: DLE+ETX ends the frame, DLE+escape_marker is a stuffed literal DLE
+  // (escape_marker_ == DLE in doubling mode, == the escape byte otherwise), and any other
+  // successor is a protocol violation that validate_frame_ rejects. Tracking after_dle_ is
+  // required for doubling mode: peeking only at the previous raw byte miscounts adjacent
+  // DLEs (a DLE DLE literal just before a DLE ETX terminator, or a literal DLE followed by
+  // a literal ETX data byte).
+  if (this->after_dle_) {
+    // The pending DLE is now resolved by this byte; it cannot itself open a new escape
+    // sequence (in doubling mode the marker equals DLE but is consumed here as the partner
+    // of the pending DLE, not as a fresh DLE).
+    this->after_dle_ = false;
+    if (byte == this->etx_) {
+      this->process_raw_frame_(now);
+      this->in_frame_ = false;
+      this->raw_frame_.clear();
+    }
+  } else if (byte == this->dle_) {
+    this->after_dle_ = true;
+  }
+  // Maintain previous_byte_ for every in-frame byte too. Without this, a normal frame
+  // terminator (DLE ETX) leaves previous_byte_ stale at the value seen just before the
+  // frame began (typically DLE), so a bare STX immediately after the terminator would
+  // spuriously start a new frame.
+  this->previous_byte_ = byte;
 }
 
 void RS485FrameHub::process_raw_frame_(uint32_t now) {

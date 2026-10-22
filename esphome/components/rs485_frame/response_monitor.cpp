@@ -9,7 +9,7 @@
 
 namespace esphome::rs485_frame {
 
-static const char *const TAG = "rs485_frame.response_monitor";
+ESPHOME_LOG_TAG(TAG, "rs485_frame.response_monitor");
 
 void ResponseMonitor::init(size_t field_count, size_t entry_count) {
   this->fields_.init(field_count);

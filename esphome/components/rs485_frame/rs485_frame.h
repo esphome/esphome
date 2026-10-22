@@ -299,6 +299,7 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
 
  protected:
   void read_uart_(uint32_t now);
+  void handle_rx_byte_(uint8_t byte, uint32_t now);
   void process_raw_frame_(uint32_t now);
   // Counts + frame_traces a frame abandoned mid-receive (never reaches validate_frame_()).
   // Called with raw_frame_ still intact; the caller clears it afterwards.

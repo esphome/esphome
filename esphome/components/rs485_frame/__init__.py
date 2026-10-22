@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTOMATION_ID,
@@ -28,6 +29,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@b3nj1"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "rs485_frame"
 MULTI_CONF = True
 
 # rs485_frame is not merged upstream, so these esphome.io URLs 404 until the docs PR lands too.
@@ -110,7 +112,6 @@ CONF_FRAME_TYPE_MASK = "frame_type_mask"
 CONF_TRIGGER = "trigger"
 CONF_BUTTON_ID = "button_id"
 CONF_BUTTON_NAME = "button_name"
-CONF_WINDOW = "window"
 CONF_SIGNATURE = "signature"
 CONF_FIELD = "field"
 CONF_MASK = "mask"
@@ -124,30 +125,23 @@ CONF_FRAME_TRACE = "frame_trace"
 CONF_CAPTURE_BYTES = "capture_bytes"
 CONF_INCLUDE_INVALID = "include_invalid"
 
-CRC_VARIANTS = {
-    "header_inclusive": CrcVariant.CRC_HEADER_INCLUSIVE,
-    "payload_only": CrcVariant.CRC_PAYLOAD_ONLY,
-}
+CRC_VARIANTS = CrcVariant.options("header_inclusive", "payload_only", prefix="CRC_")
 
-CRC_TYPES = {
-    "none": CrcType.CRC_TYPE_NONE,
-    "sum8": CrcType.CRC_TYPE_SUM8,
-    "sum16_big_endian": CrcType.CRC_TYPE_SUM16_BIG_ENDIAN,
-    "sum16_little_endian": CrcType.CRC_TYPE_SUM16_LITTLE_ENDIAN,
-    "xor8": CrcType.CRC_TYPE_XOR8,
-    "crc16_modbus": CrcType.CRC_TYPE_CRC16_MODBUS,
-}
+CRC_TYPES = CrcType.options(
+    "none",
+    "sum8",
+    "sum16_big_endian",
+    "sum16_little_endian",
+    "xor8",
+    "crc16_modbus",
+    prefix="CRC_TYPE_",
+)
 
-QUEUE_POLICIES = {
-    "replace_latest": QueuePolicy.QUEUE_REPLACE_LATEST,
-    "fifo": QueuePolicy.QUEUE_FIFO,
-}
+QUEUE_POLICIES = QueuePolicy.options("replace_latest", "fifo", prefix="QUEUE_")
 
-TX_GATE_MODES = {
-    "frame_trigger": TxGateMode.TX_GATE_FRAME_TRIGGER,
-    "idle_gap": TxGateMode.TX_GATE_IDLE_GAP,
-    "fixed_delay": TxGateMode.TX_GATE_FIXED_DELAY,
-}
+TX_GATE_MODES = TxGateMode.options(
+    "frame_trigger", "idle_gap", "fixed_delay", prefix="TX_GATE_"
+)
 
 # Diagnostic-only sensor decode types. User payload decoding is handled by on_frame:.
 SENSOR_DECODES = {
@@ -1099,9 +1093,7 @@ async def _build_response_monitor_callback(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     framing = config[CONF_FRAMING]
     # escape is absent only on a discovery: hub (validate_hub requires it otherwise). When

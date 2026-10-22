@@ -10,7 +10,7 @@
 
 namespace esphome::rs485_frame {
 
-static const char *const TAG = "rs485_frame.trace";
+ESPHOME_LOG_TAG(TAG, "rs485_frame.trace");
 
 void FrameTrace::init(size_t size, size_t capture_bytes, bool include_invalid) {
   this->entries_.init(size);

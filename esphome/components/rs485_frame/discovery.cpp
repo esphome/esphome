@@ -2,13 +2,14 @@
 
 #ifdef USE_RS485_FRAME_DISCOVERY
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
 
 namespace esphome::rs485_frame {
 
-static const char *const TAG = "rs485_frame.discovery";
+ESPHOME_LOG_TAG(TAG, "rs485_frame.discovery");
 
 // A candidate frame must have at least this many bursts behind it before the report stops
 // saying "collecting" and prints candidates.
@@ -57,18 +58,12 @@ static const char *algo_name(CrcAlgo a, bool big_endian = true) {
   }
 }
 
-static uint32_t disc_sum(const uint8_t *d, size_t n, bool hdr, uint8_t dle, uint8_t stx) {
-  uint32_t s = hdr ? static_cast<uint32_t>(dle) + stx : 0;
-  for (size_t i = 0; i < n; i++)
-    s += d[i];
-  return s;
+static uint16_t disc_sum(const uint8_t *d, size_t n, bool hdr, uint8_t dle, uint8_t stx) {
+  return sum16_bytes(d, n, hdr ? static_cast<uint16_t>(dle + stx) : 0);
 }
 
 static uint8_t disc_xor8(const uint8_t *d, size_t n, bool hdr, uint8_t dle, uint8_t stx) {
-  uint8_t x = hdr ? static_cast<uint8_t>(dle ^ stx) : 0;
-  for (size_t i = 0; i < n; i++)
-    x ^= d[i];
-  return x;
+  return xor_bytes(d, n, hdr ? static_cast<uint8_t>(dle ^ stx) : 0);
 }
 
 static uint16_t disc_modbus(const uint8_t *d, size_t n, bool hdr, uint8_t dle, uint8_t stx) {
