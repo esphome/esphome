@@ -170,6 +170,7 @@ class ModemComponent : public Component {
   void hand_over_(uint32_t pending);
   /// Send an AT command from the task and log the result; blocks for up to the timeout
   bool at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
+  void save_pin_record_();
   /// Send cmd and keep the whole reply in output, ERROR lines included (dce_->at() drops those)
   esp_modem::command_result command_raw_(const char *cmd, std::string &output, uint32_t timeout);
   void publish_status_();
@@ -214,6 +215,7 @@ class ModemComponent : public Component {
     uint8_t sends;  // AT+CPIN= sent without the SIM reporting READY since
     bool rejected;  // the SIM refused it
   } pin_record_{};
+  PinRecord pin_record_to_save_{};  // the copy loop() writes to flash; the task fills it, then hands it over
   uint32_t at_timeout_{COMMAND_TIMEOUT_MS};
   std::atomic<uint32_t> pending_{0};
   uint16_t tx_buffer_size_{1024};

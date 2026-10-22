@@ -213,14 +213,19 @@ void ModemComponent::loop() {
   }
   // Written through at once: a power cycle before the periodic flush would send the PIN again
   if (pending & PENDING_SAVE_PIN) {
-    if (this->pin_pref_.save(&this->pin_record_) && global_preferences->sync()) {
+    // The task leaves pin_record_to_save_ alone until pin_save_state_ reports the outcome
+    if (this->pin_pref_.save(&this->pin_record_to_save_) && global_preferences->sync()) {
       this->pin_save_retries_ = 0;
+      this->pin_save_state_.store(1, std::memory_order_release);
+      this->wake_task_();
     } else if (this->pin_save_retries_ < PIN_SAVE_RETRIES) {
       this->pin_save_retries_++;
-      ESP_LOGW(TAG, "Failed to save the rejected PIN; retrying");
+      ESP_LOGW(TAG, "Failed to save the PIN record; retrying");
       this->set_timeout(PIN_SAVE_RETRY_MS, [this]() { this->hand_over_(PENDING_SAVE_PIN); });
     } else {
-      ESP_LOGE(TAG, "Failed to save the rejected PIN; a reboot may send it again");
+      ESP_LOGE(TAG, "Failed to save the PIN record");
+      this->pin_save_state_.store(2, std::memory_order_release);
+      this->wake_task_();
     }
   }
 #ifdef USE_MODEM_URC
@@ -450,6 +455,7 @@ ModemState ModemComponent::compute_next_state_() {
   switch (state) {
     case ModemState::MODEM_STATE_DISABLED:
       this->pin_sent_ = false;  // a new attempt may send the PIN once
+      this->pin_send_armed_ = false;
       return ModemState::MODEM_STATE_ENABLING;
     case ModemState::MODEM_STATE_ENABLING:
       return this->handle_state_enabling_();
@@ -656,12 +662,14 @@ ModemState ModemComponent::handle_state_connecting_() {
       case SimResult::SIM_RESULT_FATAL:
       case SimResult::SIM_RESULT_PIN_REJECTED:
       case SimResult::SIM_RESULT_PIN_UNCONFIRMED:
+      case SimResult::SIM_RESULT_PIN_GIVEN_UP:
         // Retrying would burn the remaining PIN attempts; stay off until the user fixes the SIM
         this->set_sim_fault_(result == SimResult::SIM_RESULT_FATAL          ? SimFault::SIM_FAULT_LOCKED
                              : result == SimResult::SIM_RESULT_PIN_REJECTED ? SimFault::SIM_FAULT_PIN_REJECTED
                                                                             : SimFault::SIM_FAULT_PIN_UNCONFIRMED);
         this->target_state_.store(ModemState::MODEM_STATE_DISABLED);
-        // An unconfirmed PIN keeps the reboot watchdog: a reboot sends it once more and may get the SIM open
+        // The first unconfirmed send keeps the reboot watchdog, since a reboot sends the PIN once more and may
+        // get the SIM open; once that is used up a reboot would send nothing, so the watchdog is cancelled
         if (result != SimResult::SIM_RESULT_PIN_UNCONFIRMED) {
           this->hand_over_(PENDING_CONNECT_TIMEOUT);
         }
@@ -849,7 +857,8 @@ static command_result classify_reply(const std::string &reply) {
       return command_result::OK;
     }
     if (line_is(line, len, "ERROR") || line_starts_with(line, len, "+CME ERROR") ||
-        line_starts_with(line, len, "+CMS ERROR")) {
+        line_starts_with(line, len, "+CMS ERROR") || line_is(line, len, "NO CARRIER") || line_is(line, len, "BUSY") ||
+        line_is(line, len, "NO DIALTONE") || line_is(line, len, "NO ANSWER")) {
       return command_result::FAIL;
     }
     start = end + 1;
@@ -871,6 +880,9 @@ command_result ModemComponent::command_raw_(const char *cmd, std::string &output
         } else {
           output.append(chunk, len);
         }
+        if (output.size() > RAW_REPLY_MAX) {
+          output.erase(0, output.size() - RAW_REPLY_MAX);  // the result line is at the end
+        }
         return classify_reply(output);
       },
       timeout);
@@ -879,6 +891,13 @@ command_result ModemComponent::command_raw_(const char *cmd, std::string &output
     output.pop_back();
   }
   return result;
+}
+
+// Only the task changes pin_record_; loop() writes the copy, which stays untouched until it reports back
+void ModemComponent::save_pin_record_() {
+  this->pin_record_to_save_ = this->pin_record_;
+  this->pin_save_state_.store(0, std::memory_order_release);
+  this->hand_over_(PENDING_SAVE_PIN);
 }
 
 bool ModemComponent::at_(const char *cmd, uint32_t timeout) {
@@ -913,7 +932,7 @@ SimResult ModemComponent::prepare_sim_() {
     this->pin_sent_ = false;  // proven correct, so a modem self-reset may send it again
     if (this->pin_record_.sends != 0) {
       this->pin_record_.sends = 0;
-      this->hand_over_(PENDING_SAVE_PIN);
+      this->save_pin_record_();
     }
     return SimResult::SIM_RESULT_READY;
   }
@@ -950,15 +969,28 @@ SimResult ModemComponent::prepare_sim_() {
     ESP_LOGE(TAG, "SIM still locked after sending the PIN; check the SIM");
     return SimResult::SIM_RESULT_PIN_UNCONFIRMED;
   }
-  // Each send is counted in flash first, so reboots cannot keep spending the SIM's attempts on a PIN it never
-  // confirmed; READY clears the count
-  if (this->pin_record_.sends >= PIN_MAX_UNCONFIRMED_SENDS) {
-    ESP_LOGE(TAG, "The PIN went out %u times without the SIM confirming it; not sending it again",
-             this->pin_record_.sends);
-    return SimResult::SIM_RESULT_PIN_UNCONFIRMED;
+  // Each send is counted in flash before the PIN goes out, so reboots cannot keep spending the SIM's attempts on a
+  // PIN it never confirmed; READY clears the count. The count is handed to loop(), which writes it and reports back
+  if (!this->pin_send_armed_) {
+    if (this->pin_record_.sends >= PIN_MAX_UNCONFIRMED_SENDS) {
+      ESP_LOGE(TAG, "The PIN went out %u times without the SIM confirming it; not sending it again",
+               this->pin_record_.sends);
+      return SimResult::SIM_RESULT_PIN_GIVEN_UP;
+    }
+    this->pin_record_.sends++;
+    this->pin_send_armed_ = true;
+    this->save_pin_record_();
+    return SimResult::SIM_RESULT_RETRY;  // the save wakes the task
   }
-  this->pin_record_.sends++;
-  this->hand_over_(PENDING_SAVE_PIN);
+  const uint8_t saved = this->pin_save_state_.load(std::memory_order_acquire);
+  if (saved == 0) {
+    return SimResult::SIM_RESULT_RETRY;  // still being written
+  }
+  this->pin_send_armed_ = false;
+  if (saved != 1) {
+    ESP_LOGE(TAG, "The PIN attempt could not be recorded; not sending it");
+    return SimResult::SIM_RESULT_PIN_GIVEN_UP;
+  }
   this->pin_sent_ = true;
   this->pin_sent_at_ = millis();
   ESP_LOGD(TAG, "Unlocking SIM with PIN...");
@@ -975,7 +1007,7 @@ SimResult ModemComponent::prepare_sim_() {
        (!this->cme_numeric_ && output.find("+CME ERROR") == std::string::npos))) {
     ESP_LOGE(TAG, "The SIM rejected the PIN; check pin_code");
     this->pin_record_.rejected = true;
-    this->hand_over_(PENDING_SAVE_PIN);
+    this->save_pin_record_();
     return SimResult::SIM_RESULT_PIN_REJECTED;
   }
   if (output.find("+CME ERROR: 12") != std::string::npos) {

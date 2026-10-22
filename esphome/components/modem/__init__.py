@@ -87,7 +87,7 @@ MAX_AT_COMMAND_LENGTH = 127
 def _validate_pin_code(value: Any) -> str:
     """A SIM PIN is 4 to 8 digits; anything else would spend one of the SIM's attempts."""
     value = cv.string_strict(value)
-    if not value.isdigit() or not 4 <= len(value) <= 8:
+    if not (value.isascii() and value.isdigit()) or not 4 <= len(value) <= 8:
         raise cv.Invalid("pin_code must be 4 to 8 digits")
     return value
 
