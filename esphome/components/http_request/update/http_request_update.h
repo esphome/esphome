@@ -13,6 +13,10 @@
 
 namespace esphome::http_request {
 
+namespace testing {
+class HttpRequestUpdateTest;
+}  // namespace testing
+
 struct TaskResult;
 
 class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
@@ -52,8 +56,14 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   TaskResult *task_result_{nullptr};  // set while a check runs on the update task
 #endif
   uint8_t initial_check_remaining_{0};
+#ifndef USE_ESP32
+  bool check_running_{false};  // set while update_task runs inline; an automation it triggers may change the URL
+#endif
 
  private:
+#ifdef USE_HOST
+  friend class testing::HttpRequestUpdateTest;
+#endif
   void release_source_url_();
 
   bool source_url_owned_{false};  // source_url_ was copied by a run-time setter; sits in the padding above

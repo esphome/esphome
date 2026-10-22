@@ -91,6 +91,13 @@ void HttpRequestUpdate::release_source_url_() {
     this->task_result_->source_url_retired = true;
     return;
   }
+#else
+  // An automation run from inside the inline check (logger on_message, for example) may replace the
+  // URL the check is still reading, so free it on the next loop instead.
+  if (this->check_running_) {
+    this->defer([url = this->source_url_]() { delete[] url; });
+    return;
+  }
 #endif
   delete[] this->source_url_;
 }
@@ -102,11 +109,14 @@ void HttpRequestUpdate::update() {
   }
   this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
-  if (this->task_result_ != nullptr) {
+  const bool check_running = this->task_result_ != nullptr;
+#else
+  const bool check_running = this->check_running_;
+#endif
+  if (check_running) {
     ESP_LOGW(TAG, "Update check already in progress");
     return;
   }
-#endif
   // Allocated once per check; every path in the task returns via its single defer, which frees it.
   auto *result = new TaskResult();
   result->update = this;
@@ -118,7 +128,9 @@ void HttpRequestUpdate::update() {
     delete result;
   }
 #else
+  this->check_running_ = true;
   this->update_task(result);
+  this->check_running_ = false;
 #endif
 }
 

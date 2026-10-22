@@ -3,6 +3,8 @@
 #include <string>
 
 #include "esphome/components/http_request/update/http_request_update.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::http_request::testing {
 
@@ -11,6 +13,13 @@ namespace {
 constexpr char LITERAL[] = "http://example.invalid/manifest.json";
 
 }  // namespace
+
+// Friend of HttpRequestUpdate; the host has no update task, so the check runs inline and
+// check_running_ marks that window.
+class HttpRequestUpdateTest : public ::testing::Test {
+ protected:
+  static void set_check_running(HttpRequestUpdate &update, bool running) { update.check_running_ = running; }
+};
 
 TEST(HttpRequestUpdateSourceUrl, ConfigLiteralIsKeptByPointer) {
   HttpRequestUpdate update;
@@ -41,6 +50,23 @@ TEST(HttpRequestUpdateSourceUrl, PassingTheCurrentUrlBackIsSafe) {
   update.set_source_url("http://example.invalid/current-manifest.json");
   update.set_source_url(update.get_source_url());
   EXPECT_STREQ(update.get_source_url(), "http://example.invalid/current-manifest.json");
+}
+
+// An automation run from inside the inline check (logger on_message) may replace the URL; the buffer
+// the check started with must stay readable until the check is over.
+TEST_F(HttpRequestUpdateTest, ReplacingDuringAnInlineCheckFreesTheOldUrlLater) {
+  HttpRequestUpdate update;
+  update.set_source_url("http://example.invalid/first-manifest.json");
+  const char *in_use = update.get_source_url();
+  set_check_running(update, true);
+  update.set_source_url("http://example.invalid/second-manifest.json");
+  EXPECT_STREQ(in_use, "http://example.invalid/first-manifest.json");
+  EXPECT_STREQ(update.get_source_url(), "http://example.invalid/second-manifest.json");
+  set_check_running(update, false);
+  // The deferred free runs on the next loop; a leak here would fail under the sanitizer.
+  App.scheduler.call(millis());
+  delay(1);
+  App.scheduler.call(millis());
 }
 
 TEST(HttpRequestUpdateSourceUrl, ConfigLiteralAfterRuntimeUrlDropsTheCopy) {
