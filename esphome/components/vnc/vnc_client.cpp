@@ -81,9 +81,12 @@ void VncClient::setup() {
   this->setup_ms_ = App.get_loop_component_start_time();
   this->link_.begin(TAG);
   // Sized for the display now; a rotation changed later swaps the sides but keeps the cell count.
-  const uint32_t cells = std::min<uint32_t>(static_cast<uint32_t>((this->display_->get_width() + 15) / 16) *
-                                                static_cast<uint32_t>((this->display_->get_height() + 15) / 16),
-                                            UINT16_MAX);
+  const uint32_t wanted = static_cast<uint32_t>((this->display_->get_width() + 15) / 16) *
+                          static_cast<uint32_t>((this->display_->get_height() + 15) / 16);
+  const uint32_t cells = std::min<uint32_t>(wanted, UINT16_MAX);
+  if (cells < wanted) {
+    ESP_LOGW(TAG, "Display has %" PRIu32 " tiles, more than the %u the cache holds", wanted, UINT16_MAX);
+  }
   RAMAllocator<uint32_t> allocator;
   this->tile_hashes_ = allocator.allocate(cells);
   if (this->tile_hashes_ == nullptr) {
@@ -134,11 +137,27 @@ void VncClient::loop() {
   }
   // A display that parks its loop when idle is busy while that loop runs. Displays that never
   // park (no loop, or one that always runs) update synchronously, so they are never busy.
+  const bool was_busy = this->display_busy_;
   if (this->display_->is_idle()) {
     this->display_parks_ = true;
     this->display_busy_ = false;
   } else {
     this->display_busy_ = this->display_parks_;
+  }
+  if (was_busy && !this->display_busy_) {
+    // A refresh the driver gave up on (it sets its warning) leaves the panel behind the buffer: retry it
+    // once and forget the cached tiles, which no longer say what the panel shows
+    if (!this->display_->status_has_warning()) {
+      this->refresh_retried_ = false;
+    } else if (!this->refresh_retried_) {
+      this->refresh_retried_ = true;
+      this->clear_tiles_();
+      if (!this->refresh_pending_) {
+        this->first_change_ms_ = now;
+      }
+      this->last_change_ms_ = now;
+      this->refresh_pending_ = true;
+    }
   }
   // A stuck panel, or another owner of the display's loop, would otherwise freeze the screen silently
   if (!this->display_busy_) {
@@ -873,6 +892,8 @@ bool VncClient::start_session_(uint32_t now) {
   const bool rotated = rotation != this->hash_rotation_;
   this->hash_rotation_ = rotation;
   if (static_cast<uint32_t>(cols) * rows > this->hash_capacity_) {
+    ESP_LOGW(TAG, "Screen has %u tiles, more than the %u cached; every tile is drawn", cols * rows,
+             this->hash_capacity_);
     this->hash_cols_ = 0;
     this->hash_rows_ = 0;
   } else if (cols != this->hash_cols_ || rows != this->hash_rows_ || rotated) {

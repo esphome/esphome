@@ -190,6 +190,7 @@ class VncClient : public Component {
   bool display_parks_{false};
   bool display_busy_{false};
   bool busy_warned_{false};
+  bool refresh_retried_{false};  // one retry per refresh the driver abandoned
   bool network_was_up_{false};
   bool big_endian_;  // the pixel order the display takes
 
