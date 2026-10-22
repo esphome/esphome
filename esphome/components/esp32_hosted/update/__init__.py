@@ -1,4 +1,5 @@
 import hashlib
+import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -13,6 +14,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PATH, CONF_SOURCE, CONF_TYPE, CONF_URL
 from esphome.core import CORE, ID, HexInt
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@swoboda1337"]
 AUTO_LOAD = ["sha256", "watchdog", "json"]
@@ -105,7 +108,11 @@ def _read_firmware(config: ConfigType) -> bytes:
             candidate = Path(temporary) / "firmware.bin"
             data = external_files.download_content(url, candidate, allow_stale=False)
             _check_firmware_hash(data, expected, url)
-            candidate.replace(cached)
+            try:
+                candidate.replace(cached)
+            except OSError as err:
+                # The bytes are verified; a cache that cannot be written only costs the next build a download
+                _LOGGER.warning("Could not cache the firmware from %s: %s", url, err)
         return data
 
     path = CORE.relative_config_path(config[CONF_PATH])

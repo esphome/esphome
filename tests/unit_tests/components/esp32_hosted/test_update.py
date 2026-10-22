@@ -130,8 +130,23 @@ def test_firmware_cache_cleanup(
         clean_all([str(CORE.config_path)])
         assert not cache.exists()
     else:
-        clean_build(full=True)
+        # An inherited skip would make clean_build return before touching anything
+        monkeypatch.delenv("ESPHOME_SKIP_CLEAN_BUILD", raising=False)
+        clean_build(clear_pio_cache=False, full=True)
         assert cache.read_bytes() == FIRMWARE
+
+
+def test_unwritable_cache_still_returns_the_verified_bytes(
+    monkeypatch: pytest.MonkeyPatch, downloader: Mock
+) -> None:
+    """A cache that cannot be written costs the next build a download, not this one."""
+
+    def refuse(self: Path, target: Path) -> Path:
+        raise OSError("read-only cache")
+
+    monkeypatch.setattr(Path, "replace", refuse)
+    assert hosted_update._read_firmware(remote_config()) == FIRMWARE
+    assert not cache_file().exists()
 
 
 def test_verified_cache_never_accesses_network(downloader: Mock) -> None:
