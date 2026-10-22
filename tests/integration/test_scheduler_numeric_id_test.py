@@ -7,6 +7,7 @@ import pytest
 
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -124,25 +125,29 @@ async def test_scheduler_numeric_id_test(
         await assert_device_name(client, "scheduler-numeric-id-test")
 
         # Wait for numeric timeout tests
-        try:
-            await asyncio.wait_for(numeric_timeout_1001_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric timeout 1001 did not fire within 0.5 seconds")
+        await wait_or_fail(
+            numeric_timeout_1001_fired,
+            0.5,
+            "Numeric timeout 1001 did not fire within 0.5 seconds",
+        )
 
-        try:
-            await asyncio.wait_for(numeric_timeout_1002_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric timeout 1002 did not fire within 0.5 seconds")
+        await wait_or_fail(
+            numeric_timeout_1002_fired,
+            0.5,
+            "Numeric timeout 1002 did not fire within 0.5 seconds",
+        )
 
-        try:
-            await asyncio.wait_for(numeric_interval_2001_fired.wait(), timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Numeric interval 2001 did not fire within 1 second")
+        await wait_or_fail(
+            numeric_interval_2001_fired,
+            1.0,
+            "Numeric interval 2001 did not fire within 1 second",
+        )
 
-        try:
-            await asyncio.wait_for(numeric_interval_cancelled.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail("Numeric interval 2001 was not cancelled within 2 seconds")
+        await wait_or_fail(
+            numeric_interval_cancelled,
+            2.0,
+            "Numeric interval 2001 was not cancelled within 2 seconds",
+        )
 
         # Verify numeric interval ran at least twice
         assert numeric_interval_count >= 2, (
@@ -155,55 +160,60 @@ async def test_scheduler_numeric_id_test(
         )
 
         # Wait for duplicate timeout (only last one should fire)
-        try:
-            await asyncio.wait_for(duplicate_timeout_fired.wait(), timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Duplicate numeric timeout did not fire within 1 second")
+        await wait_or_fail(
+            duplicate_timeout_fired,
+            1.0,
+            "Duplicate numeric timeout did not fire within 1 second",
+        )
 
         # Wait for component method tests
-        try:
-            await asyncio.wait_for(component_timeout_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Component numeric timeout did not fire within 0.5 seconds")
+        await wait_or_fail(
+            component_timeout_fired,
+            0.5,
+            "Component numeric timeout did not fire within 0.5 seconds",
+        )
 
-        try:
-            await asyncio.wait_for(component_interval_fired.wait(), timeout=1.0)
-        except TimeoutError:
-            pytest.fail("Component numeric interval did not fire within 1 second")
+        await wait_or_fail(
+            component_interval_fired,
+            1.0,
+            "Component numeric interval did not fire within 1 second",
+        )
 
         # Wait for edge case tests
-        try:
-            await asyncio.wait_for(zero_id_timeout_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Zero ID timeout did not fire within 0.5 seconds")
+        await wait_or_fail(
+            zero_id_timeout_fired,
+            0.5,
+            "Zero ID timeout did not fire within 0.5 seconds",
+        )
 
-        try:
-            await asyncio.wait_for(max_id_timeout_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Max ID timeout did not fire within 0.5 seconds")
+        await wait_or_fail(
+            max_id_timeout_fired, 0.5, "Max ID timeout did not fire within 0.5 seconds"
+        )
 
         # Wait for numeric defer tests
-        try:
-            await asyncio.wait_for(numeric_defer_7001_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric defer 7001 did not fire within 0.5 seconds")
+        await wait_or_fail(
+            numeric_defer_7001_fired,
+            0.5,
+            "Numeric defer 7001 did not fire within 0.5 seconds",
+        )
 
-        try:
-            await asyncio.wait_for(numeric_defer_7002_fired.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric defer 7002 did not fire within 0.5 seconds")
+        await wait_or_fail(
+            numeric_defer_7002_fired,
+            0.5,
+            "Numeric defer 7002 did not fire within 0.5 seconds",
+        )
 
         # Verify numeric defer was cancelled
-        try:
-            await asyncio.wait_for(numeric_defer_cancelled.wait(), timeout=0.5)
-        except TimeoutError:
-            pytest.fail("Numeric defer 8001 cancel confirmation not received")
+        await wait_or_fail(
+            numeric_defer_cancelled,
+            0.5,
+            "Numeric defer 8001 cancel confirmation not received",
+        )
 
         # Wait for final results
-        try:
-            await asyncio.wait_for(final_results_logged.wait(), timeout=3.0)
-        except TimeoutError:
-            pytest.fail("Final results were not logged within 3 seconds")
+        await wait_or_fail(
+            final_results_logged, 3.0, "Final results were not logged within 3 seconds"
+        )
 
         # Verify results
         assert timeout_count >= 6, f"Expected at least 6 timeouts, got {timeout_count}"
