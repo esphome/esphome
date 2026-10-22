@@ -190,6 +190,8 @@ class ImageDecoder {
   bool uses_direct_rgb565() const { return this->direct_rgb565_; }
 
  protected:
+  /// Resize the image for a width x height source, without preparing to draw. prepare_draw_() must follow.
+  bool resize_image_(int width, int height);
   /**
    * Draw a source of width x height over the whole buffer from now on. For an opaque RGB565 image this builds the
    * tables of where each source column and row lands. Returns false when they cannot be allocated.

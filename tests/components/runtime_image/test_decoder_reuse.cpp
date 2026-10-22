@@ -644,4 +644,23 @@ TEST(RuntimeImageDecoder, QoiRunsCrossRows) {
   }
 }
 
+/// Reads a decoder's protected boundary tables
+struct BoundaryTables : ImageDecoder {
+  static size_t x_capacity(const ImageDecoder &decoder) {
+    return (decoder.*(&BoundaryTables::x_boundaries_)).capacity();
+  }
+  static size_t y_capacity(const ImageDecoder &decoder) {
+    return (decoder.*(&BoundaryTables::y_boundaries_)).capacity();
+  }
+};
+
+// A JPEG decoded at reduced size builds its tables once, for the decoded size, not first for the full size
+TEST(RuntimeImageDecoder, JpegTablesAreBuiltForTheDecodedSize) {
+  TestableRuntimeImage img(JPEG, image::IMAGE_TYPE_RGB565, false, 1, 1);
+  ASSERT_TRUE(decode_all(img, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_EQ(static_cast<JpegDecoder *>(img.decoder())->get_scale(), 8);
+  EXPECT_EQ(BoundaryTables::x_capacity(*img.decoder()), 2u);
+  EXPECT_EQ(BoundaryTables::y_capacity(*img.decoder()), 2u);
+}
+
 }  // namespace esphome::runtime_image::testing
