@@ -958,6 +958,90 @@ TEST(ToshibaWhTa15pe, RestoresSwingBeforePublishingAndDecidingWhetherToToggle) {
   }
 }
 
+TEST(ToshibaWhTa15pe, RestoreCallbacksChangingTargetDoNotToggleSwing) {
+  for (const auto saved : {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                           climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {
+    SCOPED_TRACE(saved);
+    global_preferences->reset();
+    Fixture f(MODEL_RAS_25J2KVSG_ND);
+    f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_AUTO);
+    // Include saved directions that are no longer supported by this model.
+    f.climate.swing_mode = saved;
+    f.climate.publish_state();
+
+    Fixture restored(MODEL_RAS_25J2KVSG_ND, false);
+    const auto swing = saved == climate::CLIMATE_SWING_VERTICAL ? saved : climate::CLIMATE_SWING_OFF;
+    size_t publications = 0;
+    bool changed = false;
+    bool restoring = true;
+    restored.climate.add_on_state_callback([&](climate::Climate &state) {
+      publications++;
+      if (restoring)
+        EXPECT_EQ(state.swing_mode, swing);
+      if (!changed) {
+        changed = true;
+        auto target = restored.climate.make_call();
+        target.set_target_temperature(23);
+        target.perform();
+      }
+    });
+    restored.climate.setup();
+    restoring = false;
+    EXPECT_EQ(publications, 2u);
+    EXPECT_FLOAT_EQ(restored.climate.target_temperature, 23);
+    ASSERT_EQ(restored.transmitter.frames.size(), 1u);
+    expect_frame(restored.last_frame(), waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x60, 0x03, 0x00, 0x62}, GENERIC), 9);
+
+    auto target = restored.climate.make_call();
+    target.set_target_temperature(22);
+    target.perform();
+    ASSERT_EQ(restored.transmitter.frames.size(), 2u);
+    expect_frame(restored.last_frame(), waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x50, 0x03, 0x00, 0x52}, GENERIC), 9);
+    auto off = restored.climate.make_call();
+    off.set_swing_mode(climate::CLIMATE_SWING_OFF);
+    off.perform();
+    EXPECT_EQ(restored.transmitter.frames.size(), swing == climate::CLIMATE_SWING_VERTICAL ? 3u : 2u);
+    EXPECT_EQ(restored.climate.swing_mode, climate::CLIMATE_SWING_OFF);
+  }
+}
+
+TEST(ToshibaWhTa15pe, RestoreCallbacksCanDeliberatelyChangeSwing) {
+  for (const auto saved : {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {
+    SCOPED_TRACE(saved);
+    global_preferences->reset();
+    Fixture f(MODEL_RAS_25J2KVSG_ND);
+    f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_AUTO, saved);
+    Fixture restored(MODEL_RAS_25J2KVSG_ND, false);
+    const auto swing =
+        saved == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
+    bool changed = false;
+    restored.climate.add_on_state_callback([&](climate::Climate &state) {
+      if (!changed) {
+        changed = true;
+        EXPECT_EQ(state.swing_mode, saved);
+        auto call = restored.climate.make_call();
+        call.set_target_temperature(23);
+        call.set_swing_mode(swing);
+        call.perform();
+      }
+    });
+    restored.climate.setup();
+    ASSERT_TRUE(changed);
+    EXPECT_EQ(restored.climate.swing_mode, swing);
+    auto expected = waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x60, 0x03, 0x00, 0x62}, GENERIC);
+    const auto motion = waveform({0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC);
+    expected.insert(expected.end(), motion.begin(), motion.end());
+    ASSERT_EQ(restored.transmitter.frames.size(), 1u);
+    EXPECT_EQ(restored.last_frame(), expected);
+
+    auto target = restored.climate.make_call();
+    target.set_target_temperature(22);
+    target.perform();
+    ASSERT_EQ(restored.transmitter.frames.size(), 2u);
+    expect_frame(restored.last_frame(), waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x50, 0x03, 0x00, 0x52}, GENERIC), 9);
+  }
+}
+
 TEST(ToshibaWhTa15pe, ClearsRestoredSleepBeforeAnyPublication) {
   for (const char *preset : {"Sleep 1h", "Sleep 3h", "Sleep 5h", "Sleep 9h"}) {
     Fixture f(MODEL_RAS_25J2KVSG_ND);

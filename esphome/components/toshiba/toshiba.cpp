@@ -432,6 +432,10 @@ void ToshibaClimate::setup() {
     if (this->model_ == MODEL_RAS_25J2KVSG_ND)
       this->restore_ras_25j2kvsg_nd_(*restore);
 #endif
+    // apply() publishes synchronously, so on_state automations need the swing cache ready.
+    // OFF also stands for "not yet commanded" on models without a stop command.
+    this->swing_mode = this->last_swing_mode_ =
+        this->swing_modes_.count(restore->swing_mode) ? restore->swing_mode : climate::CLIMATE_SWING_OFF;
     restore->apply(this);
   } else {
     // restore from defaults
@@ -440,7 +444,7 @@ void ToshibaClimate::setup() {
     this->target_temperature =
         roundf(clamp<float>(this->current_temperature, this->minimum_temperature_, this->maximum_temperature_));
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
+    this->swing_mode = this->last_swing_mode_ = climate::CLIMATE_SWING_OFF;
 #ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
     if (this->model_ == MODEL_RAS_25J2KVSG_ND) {
       this->target_temperature =
@@ -449,15 +453,6 @@ void ToshibaClimate::setup() {
     }
 #endif
   }
-  // Ensure swing mode is always initialized to a valid value. OFF also stands for "not yet
-  // commanded" on models that cannot switch the swing off, such as Seiya.
-  if (this->swing_modes_.empty() || !this->swing_modes_.count(this->swing_mode)) {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
-  }
-
-  // A restored swing mode is already in effect, so it must not go out as a fresh swing command
-  this->last_swing_mode_ = this->swing_mode;
-
   // Ensure mode is valid - ESPHome should only use standard climate modes
   if (this->mode != climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_HEAT &&
       this->mode != climate::CLIMATE_MODE_COOL && this->mode != climate::CLIMATE_MODE_HEAT_COOL &&
