@@ -191,7 +191,7 @@ on_aok:
   then:
     - logger.log:
         format: "on_aok: %lu %u %u"
-        args: ["long(x.remote_id)", "x.channels", "x.command"]
+        args: ["(unsigned long) x.remote_id", "x.channels", "x.command"]
 on_hob2hood:
   then:
     - logger.log:
