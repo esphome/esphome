@@ -110,6 +110,9 @@ class ModemComponent : public Component {
   // How long the task waits for the main loop to run on_sync before attaching
   static constexpr uint32_t SYNC_ACK_TIMEOUT_MS = 5000;
   static constexpr uint32_t SYNC_ACK_POLL_MS = 50;
+  // AT+CPIN= can take a few seconds; the SIM may need longer still before AT+CPIN? says READY
+  static constexpr uint32_t PIN_TIMEOUT_MS = 5000;
+  static constexpr uint32_t PIN_UNLOCK_WAIT_MS = 10000;
   static constexpr size_t URC_LINE_SIZE = 128;
   static constexpr size_t AT_COMMAND_SIZE = 128;
   // State changes the task made since loop() last ran; a burst is a handful of quick steps
@@ -192,6 +195,7 @@ class ModemComponent : public Component {
   uint32_t step_delay_ms_{0};
   uint32_t wait_ip_start_{0};
   uint32_t synced_at_{0};
+  uint32_t pin_sent_at_{0};
   // Hash of the pin_code the SIM rejected, kept across reboots so a wrong PIN is never sent twice; 0 = none
   uint32_t rejected_pin_hash_{0};
   uint32_t at_timeout_{COMMAND_TIMEOUT_MS};

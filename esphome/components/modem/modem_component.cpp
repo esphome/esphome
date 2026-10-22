@@ -500,6 +500,7 @@ ModemState ModemComponent::handle_state_enabling_() {
       const int bauds[] = {this->restored_baud_, this->baud_rate_, FALLBACK_BAUD_RATE};
       bool found = false;
       bool probed = false;
+      bool rejected = false;
       for (size_t i = 0; i != std::size(bauds) && !found; i++) {
         const int baud = bauds[i];
         if (baud == 0 || baud == detected || std::find(bauds, bauds + i, baud) != bauds + i) {
@@ -508,6 +509,7 @@ ModemState ModemComponent::handle_state_enabling_() {
         if (uart_set_baudrate(static_cast<uart_port_t>(this->uart_port_), baud) != ESP_OK) {
           ESP_LOGW(TAG, "UART rejected baud rate %d", baud);
           this->set_warning_(WARN_BAUD);
+          rejected = true;
           continue;
         }
         this->current_baud_rate_ = baud;
@@ -519,7 +521,7 @@ ModemState ModemComponent::handle_state_enabling_() {
         }
       }
       if (!found) {
-        if (!probed) {
+        if (!probed && !rejected) {
           this->not_responding_(detected);
         }
         return this->retry_(ModemState::MODEM_STATE_ENABLING, PROBE_RETRY_DELAY_MS);
@@ -550,6 +552,7 @@ ModemState ModemComponent::handle_state_enabling_() {
 
   if (this->dce_->sync() != command_result::OK) {
     ESP_LOGW(TAG, "Waiting SYNC");
+    this->set_warning_(WARN_NO_RESPONSE);
     return this->retry_(ModemState::MODEM_STATE_ENABLING);
   }
 
@@ -596,6 +599,7 @@ ModemState ModemComponent::handle_state_enabling_() {
   if (this->rts_pin_ != nullptr && this->dce_->set_flow_control(2, 2) != command_result::OK) {
     ESP_LOGW(TAG, "Modem refused hardware flow control; UART overruns are possible");
   }
+  this->at_("AT+CMEE=1");  // numeric +CME ERROR codes, so a wrong PIN can be told from other failures
   this->modem_synced_ = true;
   this->synced_at_ = millis();
   return ModemState::MODEM_STATE_SYNCED;
@@ -636,7 +640,10 @@ ModemState ModemComponent::handle_state_connecting_() {
                              : result == SimResult::SIM_RESULT_PIN_REJECTED ? SimFault::SIM_FAULT_PIN_REJECTED
                                                                             : SimFault::SIM_FAULT_PIN_UNCONFIRMED);
         this->target_state_.store(ModemState::MODEM_STATE_DISABLED);
-        this->hand_over_(PENDING_CONNECT_TIMEOUT);
+        // An unconfirmed PIN keeps the reboot watchdog: a reboot sends it once more and may get the SIM open
+        if (result != SimResult::SIM_RESULT_PIN_UNCONFIRMED) {
+          this->hand_over_(PENDING_CONNECT_TIMEOUT);
+        }
         return ModemState::MODEM_STATE_DISCONNECTING;
     }
     if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
@@ -832,23 +839,38 @@ SimResult ModemComponent::prepare_sim_() {
     return SimResult::SIM_RESULT_PIN_REJECTED;
   }
   if (this->pin_sent_) {
-    // The modem never said the PIN was wrong (it timed out or the SIM is slow), so nothing is remembered; this
-    // attempt stops here rather than sending the PIN blind a second time
+    // Some SIMs take seconds to unlock, so AT+CPIN? is asked again for a while
+    if (millis() - this->pin_sent_at_ < PIN_UNLOCK_WAIT_MS) {
+      return SimResult::SIM_RESULT_RETRY;
+    }
+    // The modem never said the PIN was wrong, so nothing is remembered; this attempt stops here rather than
+    // sending the PIN blind a second time, and the reboot watchdog stays armed
     ESP_LOGE(TAG, "SIM still locked after sending the PIN; check the SIM");
     return SimResult::SIM_RESULT_PIN_UNCONFIRMED;
   }
   this->pin_sent_ = true;
+  this->pin_sent_at_ = millis();
   ESP_LOGD(TAG, "Unlocking SIM with PIN...");
-  const command_result result = this->dce_->set_pin(this->pin_code_);
-  if (result == command_result::TIMEOUT) {
-    ESP_LOGW(TAG, "No answer to the PIN; AT+CPIN? decides on the next pass");
-  } else if (result != command_result::OK) {
-    ESP_LOGE(TAG, "The modem rejected the PIN; check pin_code");
+  char cmd[AT_COMMAND_SIZE];
+  snprintf(cmd, sizeof(cmd), "AT+CPIN=\"%s\"", this->pin_code_);
+  const command_result result = this->dce_->at(cmd, output, PIN_TIMEOUT_MS);
+  if (result == command_result::OK) {
+    return SimResult::SIM_RESULT_RETRY;  // AT+CPIN? confirms READY on the next pass
+  }
+  // Only "incorrect password" (+CME ERROR: 16) is a refused PIN; a PUK code or any other error is not remembered
+  if (output.find("+CME ERROR: 16") != std::string::npos) {
+    ESP_LOGE(TAG, "The SIM rejected the PIN; check pin_code");
     this->rejected_pin_hash_ = pin_hash;
     this->hand_over_(PENDING_SAVE_PIN);
     return SimResult::SIM_RESULT_PIN_REJECTED;
   }
-  return SimResult::SIM_RESULT_RETRY;  // AT+CPIN? confirms READY on the next pass
+  if (output.find("+CME ERROR: 12") != std::string::npos) {
+    ESP_LOGE(TAG, "SIM is PUK locked; unlock it in a phone");
+    return SimResult::SIM_RESULT_FATAL;
+  }
+  ESP_LOGW(TAG, "PIN not accepted yet (%s); AT+CPIN? decides",
+           result == command_result::TIMEOUT ? LOG_STR_LITERAL("no answer") : output.c_str());
+  return SimResult::SIM_RESULT_RETRY;
 }
 
 void ModemComponent::dump_connect_params_() {
