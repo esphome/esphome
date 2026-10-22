@@ -256,6 +256,7 @@ _DEFAULT_VALUE_VALIDATORS: dict[str, Callable[[Any], Any]] = {
     "float": cv.float_,
     "string": cv.string,
 }
+assert _DEFAULT_VALUE_VALIDATORS.keys() == _SERVICE_ARG_SCALAR_TYPES.keys()
 
 
 def _validate_variable_optionality(value: ConfigType) -> ConfigType:
@@ -527,11 +528,14 @@ def _action_strings(
                 var_.get(CONF_EXAMPLE) or None,
             ]
         if has_optional:
-            default = var_.get(CONF_DEFAULT)
-            # An empty string default is the same as no default on the wire
-            strings.append(
-                None if default is None else (_default_to_wire(default) or None)
-            )
+            # The default slot doubles as the optional flag: nullptr for a required variable,
+            # "" for an optional one without a default (an empty string default is the same)
+            if not _is_optional_var(var_):
+                strings.append(None)
+            elif (default := var_.get(CONF_DEFAULT)) is None:
+                strings.append("")
+            else:
+                strings.append(_default_to_wire(default))
     return strings
 
 
@@ -540,22 +544,7 @@ def _validate_wizard(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_optional_arg_positions(config: ConfigType) -> ConfigType:
-    # The optional flags travel as a 32-bit mask (user_services.h)
-    for conf in config.get(CONF_ACTIONS, []):
-        for i, var_ in enumerate(conf[CONF_VARIABLES].values()):
-            if i >= 32 and _is_optional_var(var_):
-                raise cv.Invalid(
-                    f"Action '{conf[CONF_ACTION]}': only the first 32 variables "
-                    f"can be optional"
-                )
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = cv.All(
-    _validate_wizard,
-    _validate_optional_arg_positions,
-)
+FINAL_VALIDATE_SCHEMA = _validate_wizard
 
 
 def _add_action_strings(index: int, strings: list[str | None]) -> MockObj:
@@ -668,14 +657,6 @@ async def to_code(config: ConfigType) -> None:
             trigger = cg.new_Pvariable(
                 conf[CONF_TRIGGER_ID], templ, table, fnv1_hash(conf[CONF_ACTION])
             )
-            if has_optional and (
-                optional_mask := sum(
-                    1 << i
-                    for i, var_ in enumerate(conf[CONF_VARIABLES].values())
-                    if _is_optional_var(var_)
-                )
-            ):
-                cg.add(trigger.set_optional_args_mask(optional_mask))
             triggers.append(trigger)
             auto = await automation.build_automation(trigger, func_args, conf)
 

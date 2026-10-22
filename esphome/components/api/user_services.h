@@ -41,7 +41,8 @@ template<typename T> enums::ServiceArgType to_service_arg_type();
 // __init__.py), so each service costs a single pointer of RAM. Layout: the action name, then
 // each argument name; with USE_API_USER_DEFINED_ACTION_METADATA the action description follows
 // the name and every argument is (name, description, example); with
-// USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS every argument ends with its default. Unset is nullptr.
+// USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS every argument ends with its default: nullptr for a
+// required argument, "" for an optional one without a default. Unset is nullptr.
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
 static constexpr size_t USER_ACTION_HEADER_STRINGS = 2;
 static constexpr size_t USER_ACTION_ARG_BASE_STRINGS = 3;
@@ -60,11 +61,6 @@ class UserServiceStatic : public UserServiceDescriptor {
                     enums::SupportsResponseType supports_response = enums::SUPPORTS_RESPONSE_NONE)
       : strings_(strings), key_(key), supports_response_(supports_response) {}
 
-#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
-  // Bit i marks argument i optional (with or without a default)
-  void set_optional_args_mask(uint32_t mask) { this->arg_optional_mask_ = mask; }
-#endif
-
  protected:
   ListEntitiesServicesResponse encode_list_service_response_(std::span<const enums::ServiceArgType> arg_types) const;
   /// Table entry `idx` as it sits in flash; nullptr gives an empty string.
@@ -72,9 +68,6 @@ class UserServiceStatic : public UserServiceDescriptor {
 
   const char *const *strings_;  // PROGMEM pointer table, read with progmem_read_ptr()
   uint32_t key_;
-#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
-  uint32_t arg_optional_mask_{0};
-#endif
   enums::SupportsResponseType supports_response_;
 };
 
