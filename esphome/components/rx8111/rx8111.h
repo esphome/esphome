@@ -81,16 +81,8 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   uint32_t timer_count_{0};
   uint32_t event_poll_interval_{1000};
   uint32_t boot_retry_delay_ms_{BOOT_RETRY_DELAY_MS};
-  uint8_t timer_clock_{2};  // 1 Hz
-  bool timer_enabled_{false};
-  bool timer_configured_{false};
-  bool timer_flag_seen_{false};
-  bool timer_retained_event_pending_{false};
-  bool event_polling_started_{false};
   uint16_t warnings_{0};
-  bool boot_timer_in_progress_{false};
-  bool boot_alarm_event_seen_{false};
-  bool boot_alarm_in_progress_{false};
+  uint8_t timer_clock_{2};  // 1 Hz
   uint8_t boot_alarm_attempts_{0};
   uint8_t boot_timer_attempts_{0};
   uint8_t alarm_second_{0xFF};
@@ -98,6 +90,14 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   uint8_t alarm_hour_{0xFF};
   uint8_t alarm_weekday_{0xFF};
   uint8_t alarm_day_{0xFF};
+  bool timer_enabled_{false};
+  bool timer_configured_{false};
+  bool timer_flag_seen_{false};
+  bool timer_retained_event_pending_{false};
+  bool event_polling_started_{false};
+  bool boot_timer_in_progress_{false};
+  bool boot_alarm_event_seen_{false};
+  bool boot_alarm_in_progress_{false};
   bool alarm_enabled_{false};
   bool alarm_explicitly_configured_{false};
   bool alarm_flag_seen_{false};

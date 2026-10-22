@@ -25,6 +25,7 @@ class RegisterBus final : public i2c::I2CBus {
   std::array<uint8_t, 256> regs{};
   std::vector<uint8_t> writes;
   int fail_read{-1};
+  int fail_read_once{-1};
   int fail_write{-1};
   unsigned flag_reads{0};
   bool latch_event_before_flag_write{false};
@@ -41,6 +42,10 @@ class RegisterBus final : public i2c::I2CBus {
         this->flag_reads++;
       if (reg == this->fail_read)
         return i2c::ERROR_TIMEOUT;
+      if (reg == this->fail_read_once) {
+        this->fail_read_once = -1;
+        return i2c::ERROR_TIMEOUT;
+      }
       for (size_t i = 0; i < in_size; i++)
         in[i] = this->regs[reg + i];
     } else {
@@ -246,6 +251,22 @@ TEST_F(RX8111Test, RuntimeTimerAndFlagClearFailuresRecoverIndependently) {
   EXPECT_TRUE(this->rtc_.status_has_warning());
   ASSERT_TRUE(this->rtc_.clear_alarm_flag());
   EXPECT_FALSE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, TimerFlagClearWarningRecoversOnlyAfterSuccessfulClear) {
+  this->rtc_.write_time();
+  this->bus_.regs[FLAG] = 0x10;
+  this->bus_.fail_write = FLAG;
+  EXPECT_FALSE(this->rtc_.clear_timer_flag());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x10, 0x10);
+
+  this->bus_.fail_write = -1;
+  ASSERT_TRUE(this->rtc_.stop_timer());
+  EXPECT_TRUE(this->rtc_.status_has_warning());
+  ASSERT_TRUE(this->rtc_.clear_timer_flag());
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+  EXPECT_EQ(this->bus_.regs[FLAG] & 0x10, 0);
 }
 
 TEST_F(RX8111Test, FailedBootTimerProgrammingRecoversOnRetry) {
@@ -714,6 +735,37 @@ TEST_F(RX8111Test, StartTimerWithoutCountDoesNotTouchHardware) {
   EXPECT_TRUE(this->bus_.writes.empty());
 }
 
+TEST_F(RX8111Test, InitialTimeSyncAlarmActionOverridesBootAlarm) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  unsigned actions = 0;
+  this->rtc_.add_on_time_sync_callback([this, &actions]() {
+    actions++;
+    EXPECT_TRUE(this->rtc_.set_alarm(12, 34, 6, 0xFF, 0xFF));
+  });
+  this->rtc_.setup();
+  EXPECT_EQ(actions, 1);
+  EXPECT_EQ(this->bus_.regs[SEC_ALARM], 0x12);
+  EXPECT_EQ(this->bus_.regs[MIN_ALARM], 0x34);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0x08);
+}
+
+TEST_F(RX8111Test, InitialTimeSyncUnsetAlarmActionOverridesBootAlarm) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_alarm_second(5);
+  unsigned actions = 0;
+  this->rtc_.add_on_time_sync_callback([this, &actions]() {
+    actions++;
+    EXPECT_TRUE(this->rtc_.unset_alarm());
+  });
+  this->rtc_.setup();
+  EXPECT_EQ(actions, 1);
+  EXPECT_EQ(this->bus_.regs[SEC_ALARM], 0x80);
+  EXPECT_EQ(this->bus_.regs[CONTROL] & 0x08, 0);
+}
+
 TEST_F(RX8111Test, BootAlarmIsPreservedAndLatchedEventIsDelivered) {
   this->bus_.regs[CONTROL] = 0x08;
   this->bus_.regs[FLAG] = 0x08;
@@ -895,6 +947,46 @@ TEST_F(RX8111Test, BootAlarmAndTimerHaveIndependentRetryBudgets) {
   this->advance_retry_();
   EXPECT_EQ(this->bus_.regs[CONTROL] & 0x18, 0x18);
   EXPECT_FALSE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, TimerPollBeforeRetainedAlarmInspectionRetryDeliversWakeFlag) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(true);
+  this->bus_.regs[CONTROL] = 0x08;
+  this->bus_.fail_read_once = CONTROL;
+  this->rtc_.setup();
+  unsigned calls = 0;
+  this->rtc_.add_on_alarm_callback([&calls]() { calls++; });
+  this->bus_.regs[FLAG] = 0x08;
+  this->rtc_.update();  // Timer polling must not consume an alarm that is not armed yet.
+  EXPECT_EQ(calls, 0);
+  this->advance_retry_();
+  this->rtc_.update();
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
+}
+
+TEST_F(RX8111Test, AlarmPollBeforeDisabledTimerStopRetryDeliversRetainedFlag) {
+  this->rtc_.write_time();
+  this->rtc_.set_alarm_enabled(true);
+  this->bus_.regs[CONTROL] = 0x08;
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(false);
+  this->bus_.fail_read_once = EXTENSION;
+  this->rtc_.setup();
+  unsigned calls = 0;
+  this->rtc_.add_on_timer_callback([&calls]() { calls++; });
+  this->bus_.regs[FLAG] = 0x10;
+  this->rtc_.update();  // Alarm polling must not consume an ineligible timer flag.
+  EXPECT_EQ(calls, 0);
+  this->advance_retry_();
+  this->rtc_.update();
+  this->rtc_.update();
+  EXPECT_EQ(calls, 1);
 }
 
 TEST_F(RX8111Test, RetainedAlarmInspectionRetriesAndDeliversWakeFlag) {
