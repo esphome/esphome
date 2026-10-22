@@ -78,6 +78,9 @@ _CALLBACK_AUTOMATIONS = (
     _on_state(CONF_ON_SYNC, "MODEM_STATE_SYNCED"),
 )
 
+# AT_COMMAND_SIZE - 1 in modem_component.h; the buffer keeps one byte for the terminator
+MAX_AT_COMMAND_LENGTH = 127
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -93,7 +96,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             # The command count is stored in a byte
             cv.Optional(CONF_INIT_AT): cv.All(
-                cv.ensure_list(cv.string), cv.Length(max=255)
+                cv.ensure_list(
+                    cv.All(cv.string, cv.ByteLength(max=MAX_AT_COMMAND_LENGTH))
+                ),
+                cv.Length(max=255),
             ),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             # The IDF UART driver needs more than its 128 byte FIFO; the setters take uint16_t
@@ -125,8 +131,6 @@ CONFIG_SCHEMA = cv.All(
 MODEM_ID_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(ModemComponent)}
 )
-# AT_COMMAND_SIZE - 1 in modem_component.h; the buffer keeps one byte for the terminator
-MAX_AT_COMMAND_LENGTH = 127
 SEND_AT_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(ModemComponent),

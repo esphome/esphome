@@ -156,10 +156,10 @@ void ModemComponent::publish_status_() {
   const uint8_t warnings = this->warnings_.load(std::memory_order_relaxed);
   if (warnings == 0) {
     this->status_clear_warning();
+  } else if (warnings & WARN_BAUD) {
+    this->status_set_warning(LOG_STR("Configured baud rate failed"));  // a local cause before a silent modem
   } else if (warnings & WARN_NO_RESPONSE) {
     this->status_set_warning(LOG_STR("Modem not responding"));
-  } else if (warnings & WARN_BAUD) {
-    this->status_set_warning(LOG_STR("Configured baud rate failed"));
   } else if (warnings & WARN_SIM) {
     this->status_set_warning(LOG_STR("SIM not ready"));
   } else if (warnings & WARN_SETUP) {
@@ -533,8 +533,8 @@ ModemState ModemComponent::handle_state_enabling_() {
         }
       }
       if (!found) {
-        if (!probed && !rejected) {
-          this->not_responding_(detected);
+        if (!probed) {
+          this->not_responding_(detected);  // the detection at the current rate already failed
         }
         return this->retry_(ModemState::MODEM_STATE_ENABLING, PROBE_RETRY_DELAY_MS);
       }
@@ -668,6 +668,7 @@ ModemState ModemComponent::handle_state_connecting_() {
     }
     if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
       ESP_LOGW(TAG, "Failed to request network attachment");
+      this->set_warning_(WARN_NOT_ATTACHED);
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
     }
     this->connect_step_ = ConnectStep::CONNECT_STEP_ATTACH_REQUESTED;
@@ -676,6 +677,7 @@ ModemState ModemComponent::handle_state_connecting_() {
   int attached = 0;
   if (this->dce_->get_network_attachment_state(attached) != command_result::OK) {
     ESP_LOGW(TAG, "Failed to read the network attachment state");
+    this->set_warning_(WARN_NOT_ATTACHED);
     this->connect_step_ = ConnectStep::CONNECT_STEP_START;  // start over with a sync on the next pass
     return this->retry_(ModemState::MODEM_STATE_CONNECTING);
   }
@@ -694,6 +696,7 @@ ModemState ModemComponent::handle_state_connecting_() {
   this->clear_warning_(WARN_NOT_ATTACHED);
 
   ESP_LOGI(TAG, "Modem initialized and ready, starting PPP");
+  this->got_ip_.store(0, std::memory_order_release);  // a late event from the last session must not count
   if (!this->dce_->set_mode(modem_mode::CMUX_MODE)) {
     ESP_LOGE(TAG, "Failed to enter PPP. Resetting modem.");
     this->set_warning_(WARN_PPP);
