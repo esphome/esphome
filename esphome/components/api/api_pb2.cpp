@@ -484,6 +484,7 @@ uint8_t *ListEntitiesCoverResponse::encode_msg(const void *self, uint8_t *__rest
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, msg.device_id);
 #endif
   pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 14, msg.supports_stop_tilt);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 15, msg.supports_toggle);
   return pos;
 }
 uint32_t ListEntitiesCoverResponse::calc_size_msg(const void *self) {
@@ -506,6 +507,7 @@ uint32_t ListEntitiesCoverResponse::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.device_id);
 #endif
   size += ProtoSize::calc_bool(1, msg.supports_stop_tilt);
+  size += ProtoSize::calc_bool(1, msg.supports_toggle);
   return size;
 }
 uint8_t *CoverStateResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
@@ -564,6 +566,9 @@ void CoverCommandRequest::decode_field(void *self, uint32_t tag, const uint8_t *
 #endif
     case proto_tag(10, WIRE_TYPE_VARINT):
       msg.stop_tilt = value.as_bool();
+      break;
+    case proto_tag(11, WIRE_TYPE_VARINT):
+      msg.toggle = value.as_bool();
       break;
     default:
       break;
@@ -1365,6 +1370,12 @@ uint8_t *ListEntitiesServicesArgument::encode_msg(const void *self,
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.example);
 #endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.optional);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  pos = ProtoEncode::encode_progmem_string(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.default_value);
+#endif
   return pos;
 }
 uint32_t ListEntitiesServicesArgument::calc_size_msg(const void *self) {
@@ -1377,6 +1388,12 @@ uint32_t ListEntitiesServicesArgument::calc_size_msg(const void *self) {
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   size += ProtoSize::calc_length(1, msg.example.size());
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  size += ProtoSize::calc_bool(1, msg.optional);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  size += ProtoSize::calc_length(1, msg.default_value.size());
 #endif
   return size;
 }
@@ -2368,6 +2385,7 @@ uint8_t *MediaPlayerSupportedFormat::encode_msg(const void *self, uint8_t *__res
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.num_channels);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, static_cast<uint32_t>(msg.purpose));
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.sample_bytes);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.bitrate);
   return pos;
 }
 uint32_t MediaPlayerSupportedFormat::calc_size_msg(const void *self) {
@@ -2378,6 +2396,7 @@ uint32_t MediaPlayerSupportedFormat::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.num_channels);
   size += msg.purpose ? 2 : 0;
   size += ProtoSize::calc_uint32(1, msg.sample_bytes);
+  size += ProtoSize::calc_uint32(1, msg.bitrate);
   return size;
 }
 uint8_t *ListEntitiesMediaPlayerResponse::encode_msg(const void *self,

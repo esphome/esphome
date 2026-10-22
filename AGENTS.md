@@ -205,15 +205,16 @@ file does, and it is the authority when they disagree. The most useful starting 
         for a table of structs copy the whole entry out and return the copy, never a pointer into flash.
         On other platforms they are a plain `memcpy` and dereference, so no `#ifdef` is needed. Declare log tags with
         `ESPHOME_LOG_TAG(TAG, "name")`, pass status text as `LOG_STR`, e.g.
-        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`, and give an action whose payload is a byte array
-        a `TEMPLATABLE_BYTES` field so a static code stays in flash.
+        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`. An action that only forwards a byte payload is
+        registered with `automation.ApplyBytes` (see Actions below), which keeps a constant payload in flash;
+        `TEMPLATABLE_BYTES` is for a `play()` that does more with the bytes.
     *   **Fixed sets of names** (status words, model names): a `PROGMEM_STRING_TABLE` (`esphome/core/progmem.h`),
         logged with `get_log_str` and `LOG_STR_ARG`, copied out with `ESPHOME_strncpy_P` before `publish_state`.
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
     *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
-        `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`); pick the helper's
-        arguments instead of writing a loop. Epson style 7-byte RTC calendars (one-hot weekday) use
-        `time::decode_bcd_calendar`.
+        `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`); pick
+        the helper's arguments instead of writing a loop. 7-byte BCD RTC calendars use `time::decode_bcd_calendar<LAYOUT>`
+        and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`, `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`; I2C has `update_register`, `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id`
         and `read_bytes_16_le`. `if (!this->status_comm_result(ok)) return;` sets or clears the warning.
@@ -445,6 +446,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           switches = switch.sub_switches(config, parent=hub)
           await switches(CONF_BLUETOOTH, None, apply="set_bluetooth(state)", publish="after")
           ```
+          Restore an owned or standalone switch in `setup()` with `sw->restore()`, or `restore(default)`
+          to still drive a state when the restore mode is disabled.
 
         - **Other codegen helpers:** `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`,
           `spi.new_spi_component`, `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`)
@@ -604,7 +607,9 @@ file does, and it is the authority when they disagree. The most useful starting 
         )
         ```
         The `ApplyField`, `ApplyCall` and `register_apply_action` docstrings in `esphome/automation.py` cover
-        the rest; `cover.control` and `cover.template.publish` are in-tree examples. `TEMPLATABLE_VALUE` with
+        the rest; `cover.control` and `cover.template.publish` are in-tree examples. An action whose input is a
+        byte payload passes `automation.ApplyBytes(CONF_DATA, "send({})")` in the same call; a constant payload
+        stays in flash and a lambda's vector is forwarded as data and size. `TEMPLATABLE_VALUE` with
         `cg.templatable` stays for actions whose `play()` has real logic beyond forwarding values.
 
     *   **Conditions:**

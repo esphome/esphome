@@ -38,7 +38,7 @@ async def test_api_action_metadata(
         _, services = await client.list_entities_services()
 
         by_name = {service.name: service for service in services}
-        assert set(by_name) == {"play_buzzer", "plain_action"}
+        assert set(by_name) == {"play_buzzer", "plain_action", "optional_args_action"}
         # Keys are hashed at codegen time and must match what the client expects
         for name, service in by_name.items():
             assert service.key == fnv1_hash(name), name
@@ -56,6 +56,17 @@ async def test_api_action_metadata(
         plain = by_name["plain_action"]
         assert plain.description == ""
         assert plain.args[0].description == ""
+
+        # Optional flags and defaults, as (optional, default) per argument
+        def flags(service) -> dict[str, tuple[bool, str]]:
+            return {arg.name: (arg.optional, arg.default_value) for arg in service.args}
+
+        assert flags(plain) == {"value": (False, "")}
+        assert flags(by_name["optional_args_action"]) == {
+            "song_str": (True, ""),
+            "octave": (True, "5"),
+            "loud": (True, "true"),
+        }
 
         await client.execute_service(
             buzzer, {"song_str": "two_short:d=4,o=5,b=100:16e6,16e6", "volume": 3}
