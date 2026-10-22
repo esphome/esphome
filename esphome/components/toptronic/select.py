@@ -27,7 +27,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_OPTIONS): cv.All(
                 cv.ensure_list(cv.string_strict), cv.Length(min=1)
             ),
-            cv.Required(CONF_VALUES): cv.All(cv.ensure_list(cv.int_), cv.Length(min=1)),
+            cv.Required(CONF_VALUES): cv.All(
+                cv.ensure_list(cv.uint8_t), cv.Length(min=1)
+            ),
             cv.Optional(CONF_TYPE, default="U8"): cv.enum(TT_TYPE_OPTIONS),
         }
     )
