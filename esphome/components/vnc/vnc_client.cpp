@@ -150,7 +150,10 @@ void VncClient::loop() {
     this->busy_since_ms_ = now;
     if (this->busy_warned_) {
       this->busy_warned_ = false;
-      this->status_clear_warning();
+      // The connection path owns the warning while no session runs
+      if (this->state_ == VncState::VNC_STATE_RUNNING) {
+        this->status_clear_warning();
+      }
     }
   } else if (!this->busy_warned_ && now - this->busy_since_ms_ >= DISPLAY_BUSY_TIMEOUT_MS) {
     this->busy_warned_ = true;
@@ -982,7 +985,9 @@ bool VncClient::start_session_(uint32_t now) {
   }
   this->state_ = VncState::VNC_STATE_RUNNING;
   this->session_start_ms_ = now;
-  this->status_clear_warning();
+  if (!this->busy_warned_) {
+    this->status_clear_warning();  // a stuck display keeps its warning through a reconnect
+  }
   this->status_clear_error();
   this->connect_callback_.call();
   return true;
