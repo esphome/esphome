@@ -301,6 +301,10 @@ class TopTronic : public Component {
   // not a single hardcoded address.
   bool owns_device_(uint32_t device_id) const { return this->devices_.contains(device_id); }
 
+  // Send a SET request, splitting into multiple frames when needed. Returns the
+  // bus result so the caller only records a successful write.
+  canbus::Error send_can_frames_(uint32_t can_id, const std::vector<uint8_t> &data);
+
   canbus::Canbus *canbus_;
 
   // Devices are owned here — unique_ptr guarantees cleanup when TopTronic is destroyed.
@@ -329,6 +333,9 @@ class TopTronic : public Component {
   // Write safety state.
   // Last SET timestamp per datapoint (keyed by get_id()) for the rate limit.
   std::unordered_map<uint32_t, uint32_t> last_write_ms_;
+  // Reassembly key for outgoing multi-frame messages: per hub, so two hubs never
+  // reuse the same header at the same time.
+  uint8_t msg_counter_{0};
   // Datapoints (get_id()) that have published at least one value since boot.
   std::unordered_set<uint32_t> read_ok_ids_;
   // Minimum ms between two SETs of the same datapoint (0 = no limit).
