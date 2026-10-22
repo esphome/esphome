@@ -19,10 +19,7 @@ class ESPColorSettable {
   virtual void lighten(uint8_t delta) = 0;
   virtual void darken(uint8_t delta) = 0;
   void set(const ESPHSVColor &color) { this->set_hsv(color); }
-  void set_hsv(const ESPHSVColor &color) {
-    Color rgb = color.to_rgb();
-    this->set_rgb(rgb.r, rgb.g, rgb.b);
-  }
+  void set_hsv(const ESPHSVColor &color) { this->set(color.to_rgb()); }
   void set_rgb(uint8_t red, uint8_t green, uint8_t blue) {
     this->set_red(red);
     this->set_green(green);
@@ -92,8 +89,17 @@ class ESPColorView : public ESPColorSettable {
       return 0;
     return *this->effect_data_;
   }
+  const ESPColorCorrection *get_color_correction() const { return this->color_correction_; }
   void raw_set_color_correction(const ESPColorCorrection *color_correction) {
     this->color_correction_ = color_correction;
+  }
+  /// Store hardware levels as they are, without the correction
+  void set_raw(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) {
+    *this->red_ = red;
+    *this->green_ = green;
+    *this->blue_ = blue;
+    if (this->white_ != nullptr)
+      *this->white_ = white;
   }
 
  protected:

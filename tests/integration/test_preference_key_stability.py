@@ -30,7 +30,7 @@ from esphome.helpers import fnv1_hash, fnv1_hash_name, fnv1_hash_object_id
 
 from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
 from .host_prefs import clear_host_prefs, write_host_prefs
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import InitialStateHelper, assert_device_name, require_entity
 from .types import CompileFunction, ConfigWriter
 
 DEVICE_NAME = "host-pref-key-stability"
@@ -91,8 +91,7 @@ async def test_preference_key_stability(
             run_binary_and_wait_for_port(binary_path, "127.0.0.1", port),
             wait_and_connect_api_client(port=port) as client,
         ):
-            device_info = await client.device_info()
-            assert device_info.name == DEVICE_NAME
+            await assert_device_name(client, DEVICE_NAME)
 
             entities, _ = await client.list_entities_services()
             switch_entity = require_entity(

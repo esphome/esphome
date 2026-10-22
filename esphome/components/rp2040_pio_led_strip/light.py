@@ -18,7 +18,7 @@ from esphome.types import ConfigType
 from esphome.util import _LOGGER
 
 
-def get_nops(timing):
+def get_nops(timing: float) -> list[float | str]:
     """
     Calculate the number of NOP instructions required to wait for a given amount of time.
     """
@@ -39,7 +39,7 @@ def get_nops(timing):
     return nops
 
 
-def generate_assembly_code(id, t0h, t0l, t1h, t1l):
+def generate_assembly_code(id: str, t0h: int, t0l: int, t1h: int, t1l: int) -> str:
     """
     Generate assembly code with the given timing values.
     """
@@ -125,7 +125,7 @@ writezero:
     return assembly_template + const_csdk_code
 
 
-def time_to_cycles(time_us):
+def time_to_cycles(time_us: float) -> int:
     cycles_per_us = 57.5
     return round(float(time_us) * cycles_per_us)
 
@@ -143,12 +143,7 @@ RP2040PIOLEDStripLightOutput = rp2040_pio_led_strip_ns.class_(
 
 Chipset = rp2040_pio_led_strip_ns.enum("Chipset")
 
-CHIPSETS = {
-    "WS2812": Chipset.CHIPSET_WS2812,
-    "WS2812B": Chipset.CHIPSET_WS2812B,
-    "SK6812": Chipset.CHIPSET_SK6812,
-    "SM16703": Chipset.CHIPSET_SM16703,
-}
+CHIPSETS = Chipset.options("WS2812", "WS2812B", "SK6812", "SM16703", prefix="CHIPSET_")
 
 
 @dataclass
@@ -172,7 +167,7 @@ CONF_BIT1_HIGH = "bit1_high"
 CONF_BIT1_LOW = "bit1_low"
 
 
-def _validate_timing(value):
+def _validate_timing(value: str) -> float:
     # if doesn't end with us, raise error
     if not value.endswith("us"):
         raise cv.Invalid("Timing must be in microseconds (us)")

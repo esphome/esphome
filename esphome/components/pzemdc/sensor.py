@@ -27,9 +27,6 @@ AUTO_LOAD = ["modbus"]
 pzemdc_ns = cg.esphome_ns.namespace("pzemdc")
 PZEMDC = pzemdc_ns.class_("PZEMDC", cg.PollingComponent, modbus.ModbusClientDevice)
 
-# Actions
-ResetEnergyAction = pzemdc_ns.class_("ResetEnergyAction", automation.Action)
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -65,19 +62,15 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pzemdc.reset_energy",
-    ResetEnergyAction,
     maybe_simple_id(
         {
             cv.GenerateID(CONF_ID): cv.use_id(PZEMDC),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_energy()"),
 )
-async def reset_energy_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -87,24 +80,11 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await modbus.new_modbus_client_component(config)
 
-    if CONF_VOLTAGE in config:
-        conf = config[CONF_VOLTAGE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        conf = config[CONF_CURRENT]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        conf = config[CONF_POWER]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_power_sensor(sens))
-    if CONF_ENERGY in config:
-        conf = config[CONF_ENERGY]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor)

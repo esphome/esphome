@@ -95,7 +95,7 @@ ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
 }
 
 struct tm ESPTime::to_c_tm() {
-  struct tm c_tm {};
+  struct tm c_tm{};
   c_tm.tm_sec = this->second;
   c_tm.tm_min = this->minute;
   c_tm.tm_hour = this->hour;
@@ -113,8 +113,6 @@ std::string ESPTime::strftime(const char *format) {
   size_t len = this->strftime_to(buf, format);
   return std::string(buf, len);
 }
-
-std::string ESPTime::strftime(const std::string &format) { return this->strftime(format.c_str()); }
 
 // Helper to parse exactly N digits, returns false if not enough digits
 static bool parse_digits(const char *&p, const char *end, int count, uint16_t &value) {

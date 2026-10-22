@@ -16,11 +16,14 @@
 #endif
 #include "esphome/core/string_ref.h"
 
+#include <algorithm>
 #include <atomic>
 #include <limits>
 #include <span>
+#include <memory>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #ifdef USE_LIBRETINY
@@ -39,11 +42,6 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
 
-#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
-extern "C" {
-#include <user_interface.h>
-};
-#endif
 #endif
 
 #ifdef USE_RP2
@@ -54,6 +52,13 @@ extern "C" {
 }
 
 #include <WiFi.h>
+
+#ifdef USE_WIFI_AP
+// The linker routes the driver's firmware events here; wifi/__init__.py adds the wrap flag
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" void __wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif
 #endif
 
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
@@ -89,6 +94,25 @@ struct SavedWifiFastConnectSettings {
   uint8_t channel;
   int8_t ap_index;
 } PACKED;  // NOLINT
+
+#ifdef USE_WIFI_LEASE_CACHE
+// Checked on load; a zeroed record (version 0) means no cached lease.
+static constexpr uint8_t SAVED_WIFI_LEASE_VERSION = 1;
+
+// Cached DHCP lease. IPv4 fields in network byte order, times in seconds.
+struct SavedWifiLeaseSettings {
+  uint8_t version;
+  int8_t ap_index;
+  uint32_t ip;
+  uint32_t netmask;
+  uint32_t gateway;
+  uint32_t dns1;
+  uint32_t dns2;
+  uint32_t lease_secs;
+  uint32_t t1_renew;
+  uint32_t saved_at;  // RTC-domain clock at capture
+} PACKED;             // NOLINT
+#endif
 
 enum WiFiComponentState : uint8_t {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
@@ -182,12 +206,12 @@ struct EAPAuth {
 
 using bssid_t = std::array<uint8_t, 6>;
 
-/// Initial reserve size for filtered scan results (typical: 1-3 matching networks per SSID)
-static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
+// ESP32 with one configured network: the driver filters the scan by its SSID and only this many of
+// its BSSIDs are kept, the strongest ones
+static constexpr size_t WIFI_SCAN_RESULT_BOUND = 12;
 
-// Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
-// Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
-#if defined(USE_RP2) || defined(USE_ESP32)
+// RP2040's callback delivers results one at a time with no count, so it needs a growable vector
+#if defined(USE_RP2)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
@@ -261,38 +285,38 @@ class WiFiAP {
   friend class WiFiScanResult;
 
  public:
-  void set_ssid(const std::string &ssid);
-  void set_ssid(const char *ssid);
+  void set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
+  void set_ssid(const char *ssid) { this->set_ssid(StringRef(ssid)); }
   void set_ssid(StringRef ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
-  void set_bssid(const bssid_t &bssid);
-  void clear_bssid();
-  void set_password(const std::string &password);
-  void set_password(const char *password);
+  void set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
+  void clear_bssid() { this->bssid_ = {}; }
+  void set_password(const std::string &password) { this->password_ = CompactString(password.c_str(), password.size()); }
+  void set_password(const char *password) { this->set_password(StringRef(password)); }
   void set_password(StringRef password) { this->password_ = CompactString(password.c_str(), password.size()); }
 #ifdef USE_WIFI_WPA2_EAP
-  void set_eap(optional<EAPAuth> eap_auth);
+  void set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif  // USE_WIFI_WPA2_EAP
-  void set_channel(uint8_t channel);
-  void clear_channel();
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
+  void clear_channel() { this->channel_ = 0; }
   void set_priority(int8_t priority) { priority_ = priority; }
 #ifdef USE_WIFI_MANUAL_IP
-  void set_manual_ip(optional<ManualIP> manual_ip);
+  void set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 #endif
-  void set_hidden(bool hidden);
+  void set_hidden(bool hidden) { this->hidden_ = hidden; }
   StringRef get_ssid() const { return this->ssid_.ref(); }
   StringRef get_password() const { return this->password_.ref(); }
-  const bssid_t &get_bssid() const;
-  bool has_bssid() const;
+  const bssid_t &get_bssid() const { return this->bssid_; }
+  bool has_bssid() const { return this->bssid_ != bssid_t{}; }
 #ifdef USE_WIFI_WPA2_EAP
-  const optional<EAPAuth> &get_eap() const;
+  const optional<EAPAuth> &get_eap() const { return this->eap_; }
 #endif  // USE_WIFI_WPA2_EAP
   uint8_t get_channel() const { return this->channel_; }
   bool has_channel() const { return this->channel_ != 0; }
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
-  const optional<ManualIP> &get_manual_ip() const;
+  const optional<ManualIP> &get_manual_ip() const { return this->manual_ip_; }
 #endif
-  bool get_hidden() const;
+  bool get_hidden() const { return this->hidden_; }
 
  protected:
   CompactString ssid_;
@@ -307,7 +331,7 @@ class WiFiAP {
   bssid_t bssid_{};     // 6 bytes, all zeros = any/not set
   uint8_t channel_{0};  // 1 byte, 0 = auto/not set
   int8_t priority_{0};  // 1 byte
-  bool hidden_{false};  // 1 byte (+ 3 bytes end padding to 4-byte align)
+  bool hidden_{false};  // 1 byte; WiFiAP is byte aligned unless manual IP or EAP adds a 4 byte aligned member
 };
 
 class WiFiScanResult {
@@ -319,14 +343,15 @@ class WiFiScanResult {
 
   bool matches(const WiFiAP &config) const;
 
-  bool get_matches() const;
-  void set_matches(bool matches);
-  const bssid_t &get_bssid() const;
+  bool get_matches() const { return this->matches_; }
+  void set_matches(bool matches) { this->matches_ = matches; }
+  const bssid_t &get_bssid() const { return this->bssid_; }
   StringRef get_ssid() const { return this->ssid_.ref(); }
-  uint8_t get_channel() const;
-  int8_t get_rssi() const;
-  bool get_with_auth() const;
-  bool get_is_hidden() const;
+  uint8_t get_channel() const { return this->channel_; }
+  int8_t get_rssi() const { return this->rssi_; }
+  bool get_with_auth() const { return this->with_auth_; }
+  bool get_is_hidden() const { return this->is_hidden_; }
+  bool ssid_equals(const WiFiScanResult &other) const { return this->ssid_ == other.ssid_; }
   int8_t get_priority() const { return priority_; }
   void set_priority(int8_t priority) { priority_ = priority; }
 
@@ -432,6 +457,10 @@ class WiFiPowerSaveListener {
   virtual void on_wifi_power_save(WiFiPowerSaveMode mode) = 0;
 };
 
+// Scheduler ids
+static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
+static constexpr uint32_t LEASE_RENEW_TIMEOUT_ID = 1;
+
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent final : public Component {
  public:
@@ -441,6 +470,7 @@ class WiFiComponent final : public Component {
   void set_sta(const WiFiAP &ap);
   // Returns a copy of the currently selected AP configuration
   WiFiAP get_sta() const;
+  // init_sta/add_sta kept out of line: inlining them into the generated setup() grows flash
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
   void clear_sta();
@@ -456,14 +486,26 @@ class WiFiComponent final : public Component {
   void set_ap(const WiFiAP &ap);
   WiFiAP get_ap() { return this->ap_; }
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
-#if defined(USE_ESP32)
-  bool wifi_ap_nat(esp_netif_t *gateway_netif);
-#endif
 #endif  // USE_WIFI_AP
+
+#ifdef USE_WIFI_DPP
+  // Code generation passes string literals that live in flash
+  void set_dpp_key(const char *key) { this->dpp_key_ = key; }
+  void set_dpp_device_info(const char *info) { this->dpp_device_info_ = info; }
+  void set_dpp_channels(const char *channels) { this->dpp_channels_ = channels; }
+  void set_dpp_timeout(uint32_t timeout) { this->dpp_timeout_ = timeout; }
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+  template<typename F> void add_on_dpp_uri_callback(F &&callback) {
+    this->dpp_uri_callback_.add(std::forward<F>(callback));
+  }
+#endif
+  /// The Easy Connect URI to show as a QR code, nullptr until the supplicant has generated it
+  const char *get_dpp_uri() const { return this->dpp_uri_.get(); }
+#endif
 
   void enable();
   void disable();
-  bool is_disabled();
+  bool is_disabled() { return this->state_ == WIFI_COMPONENT_STATE_DISABLED; }
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap);
@@ -474,9 +516,16 @@ class WiFiComponent final : public Component {
 
   void retry_connect();
 
-  void set_reboot_timeout(uint32_t reboot_timeout);
+  void set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 
   bool is_connected() const { return this->connected_; }
+
+  /// True while a post-connect roaming scan holds the radio off-channel.
+  bool is_roaming_scan_active() const { return this->roaming_state_ == RoamingState::SCANNING; }
+
+  /// True while a post-connect roam is in progress (scanning off-channel, reassociating,
+  /// or recovering from a failed roam).
+  bool is_roaming() const { return this->roaming_state_ != RoamingState::IDLE; }
 
 #ifdef USE_ESP32
   /// esp_netif handle of the station interface, used by network for default-route
@@ -494,7 +543,7 @@ class WiFiComponent final : public Component {
   void set_phy_mode(WiFi8266PhyMode phy_mode) { this->phy_mode_ = phy_mode; }
 #endif
 
-  void set_passive_scan(bool passive);
+  void set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
   void save_wifi_sta(const char *ssid, const char *password);
@@ -504,11 +553,14 @@ class WiFiComponent final : public Component {
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
+#ifdef USE_LN882X
+  void on_powerdown() override;
+#endif
   void start();
   void dump_config() override;
   void restart_adapter();
   /// WIFI setup_priority.
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::WIFI; }
   /// Reconnect WiFi if required.
   void loop() override;
 
@@ -517,8 +569,8 @@ class WiFiComponent final : public Component {
   bool is_ap_active() const { return this->ap_started_; }
 
 #ifdef USE_WIFI_11KV_SUPPORT
-  void set_btm(bool btm);
-  void set_rrm(bool rrm);
+  void set_btm(bool btm) { this->btm_ = btm; }
+  void set_rrm(bool rrm) { this->rrm_ = rrm; }
 #endif
 
   network::IPAddress get_dns_address(int num);
@@ -552,9 +604,6 @@ class WiFiComponent final : public Component {
   void set_sta_priority(bssid_t bssid, int8_t priority);
 
   network::IPAddresses wifi_sta_ip_addresses();
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use wifi_ssid_to() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string wifi_ssid();
   /// Write SSID to buffer without heap allocation.
   /// Returns pointer to buffer, or empty string if not connected.
   const char *wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer);
@@ -563,8 +612,17 @@ class WiFiComponent final : public Component {
   int8_t wifi_rssi();
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+#ifdef USE_WIFI_LEASE_CACHE
+  void set_lease_cache_max_age(uint32_t seconds) { this->lease_cache_max_age_ = seconds; }
+#endif
   void set_keep_scan_results(bool keep_scan_results) { this->keep_scan_results_ = keep_scan_results; }
   void set_post_connect_roaming(bool enabled) { this->post_connect_roaming_ = enabled; }
+
+  /** Force an immediate post-connect roaming check, bypassing the periodic interval and the
+   * per-connection attempt limit. Does nothing (besides a debug log) if not connected, if a
+   * roam scan or connect is already in progress, or if roaming is currently suppressed.
+   */
+  void force_roam_check();
 
 #ifdef USE_WIFI_CONNECT_TRIGGER
   Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
@@ -679,7 +737,26 @@ class WiFiComponent final : public Component {
  protected:
 #ifdef USE_WIFI_AP
   void setup_ap_config_();
+  /// End the portals and turn the AP off.
+  void disable_ap_();
+#ifdef USE_WIFI_AP_EXCLUSIVE
+  /// Drop the fallback AP so the networks can be tried; it comes back after ap_timeout.
+  void pause_exclusive_ap_();
+#endif
 #endif  // USE_WIFI_AP
+
+#ifdef USE_WIFI_AP_WISP
+  /// Whether there is an IPv4 resolver to offer AP clients: a configured one, or the station's
+  bool ap_dns_known_();
+  /// Hand the AP DHCP server its resolvers; false when one could not be set
+  bool write_ap_dns_();
+  /// Take the bridge down so loop() runs its setup again after ap_timeout
+  void fail_bridge_();
+#ifndef USE_WIFI_AP_WISP_STATIC_DNS
+  /// Pass the station's resolvers on to AP clients when they changed
+  void apply_ap_dns_();
+#endif
+#endif
 
   void print_connect_params_();
   WiFiAP build_params_for_current_phase_();
@@ -737,16 +814,9 @@ class WiFiComponent final : public Component {
   }
 
   bool all_networks_hidden_() const {
-    if (this->sta_.empty())
-      return false;
-    for (const auto &ap : this->sta_) {
-      if (!ap.get_hidden())
-        return false;
-    }
-    return true;
+    return !this->sta_.empty() &&
+           std::all_of(this->sta_.begin(), this->sta_.end(), [](const WiFiAP &ap) { return ap.get_hidden(); });
   }
-
-  void connect_soon_();
 
   bool wifi_loop_();
 #ifdef USE_ESP8266
@@ -791,12 +861,42 @@ class WiFiComponent final : public Component {
   network::IPAddress wifi_gateway_ip_();
   network::IPAddress wifi_dns_ip_(int num);
 
+#ifdef USE_WIFI_DPP
+  // Starts listening for a DPP configurator; the platform half reports whether the driver accepted
+  void start_dpp_listen_(uint32_t now);
+  void stop_dpp_listen_();
+#endif
+  /// Wait before the next attempt; while a configurator is waited for, the wait is its listen window
+  void start_cooldown_();
+#ifdef USE_WIFI_DPP
+  void wifi_dpp_init_();
+  bool wifi_dpp_start_listen_();
+  void wifi_dpp_stop_listen_();
+#endif
+  bool is_dpp_active_();
+  /// A portal, improv or DPP is waiting for credentials, so the retry machine must not disturb the radio
+  bool is_provisioning_active_();
+  /// The provisioning window has closed, so no new provisioning surface may start
+  bool is_provisioning_closed_();
   bool is_captive_portal_active_();
-  bool is_esp32_improv_active_();
+  /// captive_portal or the web_server AP mode is serving a user on the access point
+  bool is_ap_portal_active_();
+  void start_ap_portal_();
+  void end_ap_portal_();
+  bool is_improv_ble_active_();
 
 #ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_(WiFiAP &params);
   void save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel);
+#endif
+
+#ifdef USE_WIFI_LEASE_CACHE
+  void load_lease_settings_();
+  void save_lease_settings_();
+  void clear_lease_settings_();
+  // Cached lease belongs to the selected network and is still provably valid.
+  bool lease_valid_for_apply_() const;
+  void renew_cached_lease_();
 #endif
 
   // Post-connect roaming methods
@@ -853,6 +953,11 @@ class WiFiComponent final : public Component {
 #ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
+#ifdef USE_WIFI_AP
+  // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+  friend void ::__wrap_cyw43_cb_process_async_event(void *cb_data, const cyw43_async_event_t *ev);
+  // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+#endif
 #endif
 
 #ifdef USE_LIBRETINY
@@ -869,9 +974,6 @@ class WiFiComponent final : public Component {
 #ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
   Mutex scan_result_lock_;
 #endif
-#ifdef USE_WIFI_AP
-  WiFiAP ap_;
-#endif
 #ifdef USE_WIFI_IP_STATE_LISTENERS
   StaticVector<WiFiIPStateListener *, ESPHOME_WIFI_IP_STATE_LISTENERS> ip_state_listeners_;
 #endif
@@ -887,6 +989,13 @@ class WiFiComponent final : public Component {
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+  ESPPreferenceObject lease_cache_pref_;
+  SavedWifiLeaseSettings cached_lease_{};  // version 0 = none
+  // Current IP came from the cache (DHCP not run); suppresses saving until a real lease arrives.
+  bool applied_cached_lease_{false};
+  uint32_t lease_cache_max_age_{0};  // 0 = no cap
 #endif
 #ifdef USE_WIFI_CONNECT_TRIGGER
   Trigger<> connect_trigger_;
@@ -910,15 +1019,39 @@ class WiFiComponent final : public Component {
   // the disconnect is treated as roaming-related and the attempts counter is preserved.
   static constexpr uint32_t ROAMING_SCAN_GRACE_PERIOD = 30 * 1000;  // 30 seconds
 
+  void set_last_connected_(uint32_t now) {
+    this->last_connected_ = now;
+#if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_EXCLUSIVE)
+    this->ap_start_failures_ = 0;
+#endif
+  }
+
   // 4-byte members
   float output_power_{NAN};
   uint32_t action_started_;
   uint32_t last_connected_{0};
-  uint32_t reboot_timeout_{};
+#if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
+  uint32_t ap_changed_{0};  // When the AP was last started or paused
+#endif
+  uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t roaming_last_check_{0};
   uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
 #ifdef USE_WIFI_AP
-  uint32_t ap_timeout_{};
+  uint32_t ap_timeout_{90000};  // Keep in sync with DEFAULT_AP_TIMEOUT in __init__.py
+  // WiFiAP is byte aligned unless manual IP or EAP is enabled; placed before the
+  // 1-byte members so they pack into its trailing bytes instead of padding after it
+  WiFiAP ap_;
+#endif  // USE_WIFI_AP
+#ifdef USE_WIFI_DPP
+  const char *dpp_key_{nullptr};
+  const char *dpp_device_info_{nullptr};
+  const char *dpp_channels_{nullptr};
+  std::unique_ptr<char[]> dpp_uri_;  // written by the event task before the URI event is queued
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+  CallbackManager<void(const char *)> dpp_uri_callback_;
+#endif
+  uint32_t dpp_timeout_{60000};  // Keep in sync with DEFAULT_DPP_TIMEOUT in __init__.py
+  uint32_t dpp_listen_started_{0};
 #endif
 
   // 1-byte enums and integers
@@ -949,11 +1082,25 @@ class WiFiComponent final : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
+#if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
+  bool scan_driver_filtered_{false};
+  bool is_scan_driver_filtered_() const { return this->scan_driver_filtered_; }
+#else
+  constexpr bool is_scan_driver_filtered_() const { return false; }
+#endif
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   // Platform-specific STA state enum, defined in platform cpp file.
   // On ESP8266, written from SDK system context (wifi_event_callback) —
   // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
   uint8_t sta_state_{0};
+#endif
+#ifdef USE_LIBRETINY
+  // First attempt since STA-up (re-armed on every STA off->on); the
+  // pre-attempt teardown is skipped then.
+  bool lt_first_connect_attempt_{true};
+  // A self-inflicted disconnect from that teardown is pending; it must not
+  // consume an ignored-disconnect slot.
+  bool lt_teardown_event_pending_{false};
 #endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
@@ -964,7 +1111,8 @@ class WiFiComponent final : public Component {
 
   // Bools and bitfields
   // Pending listener callbacks deferred from platform callbacks to main loop.
-  struct {
+  // Empty when no listener needs deferring (e.g. ESP32 without connect state listeners)
+  [[no_unique_address]] struct {
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Deferred until state machine reaches STA_CONNECTED so wifi.connected
     // condition returns true in listener automations.
@@ -988,6 +1136,20 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
+#ifdef USE_WIFI_DPP
+  bool dpp_listening_{false};
+#endif
+#ifdef USE_WIFI_AP
+  // Stations joined to the AP; they hold the reboot timeout and keep an exclusive AP from pausing.
+  // Counted on the main loop on ESP32 and LibreTiny (queued events), in the SDK callback on ESP8266 and
+  // in the driver's interrupt context on the Pico W. The main loop only reads the byte while the AP is up
+  // and only writes it (a reset) while the AP is down, so no lock is needed.
+  uint8_t ap_clients_{0};
+#ifndef USE_WIFI_AP_EXCLUSIVE
+  // Fallback AP starts that failed since the last connection; each one waits another ap_timeout
+  uint8_t ap_start_failures_{0};
+#endif
+#endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT

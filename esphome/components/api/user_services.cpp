@@ -1,8 +1,40 @@
 #include "user_services.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::api {
+
+ProgmemStringRef UserServiceStatic::str_(size_t idx) const {
+  const char *s = progmem_read_ptr(&this->strings_[idx]);
+  if (s == nullptr)
+    return {};
+  return ProgmemStringRef(s, ESPHOME_strlen_P(s));
+}
+
+ListEntitiesServicesResponse UserServiceStatic::encode_list_service_response_(
+    std::span<const enums::ServiceArgType> arg_types) const {
+  ListEntitiesServicesResponse msg;
+  msg.name = this->str_(0);
+  msg.key = this->key_;
+  msg.supports_response = this->supports_response_;
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  msg.description = this->str_(1);
+#endif
+  msg.args.init(arg_types.size());
+  for (size_t i = 0; i < arg_types.size(); i++) {
+    size_t base = USER_ACTION_HEADER_STRINGS + i * USER_ACTION_ARG_STRINGS;
+    auto &arg = msg.args.emplace_back();
+    arg.type = arg_types[i];
+    arg.name = this->str_(base);
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+    arg.description = this->str_(base + 1);
+    arg.example = this->str_(base + 2);
+#endif
+  }
+  return msg;
+}
 
 template<> bool get_execute_arg_value<bool>(const ExecuteServiceArgument &arg) { return arg.bool_; }
 template<> int32_t get_execute_arg_value<int32_t>(const ExecuteServiceArgument &arg) {

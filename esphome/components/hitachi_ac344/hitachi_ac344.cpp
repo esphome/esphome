@@ -2,7 +2,7 @@
 
 namespace esphome::hitachi_ac344 {
 
-static const char *const TAG = "climate.hitachi_ac344";
+ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac344");
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)
@@ -260,6 +260,8 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
       case HITACHI_AC344_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
+      default:
+        break;
     }
   } else {
     this->mode = climate::CLIMATE_MODE_OFF;
@@ -293,6 +295,8 @@ bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
       break;
     case HITACHI_AC344_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+    default:
       break;
   }
   return true;

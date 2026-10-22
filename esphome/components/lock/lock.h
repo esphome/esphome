@@ -12,8 +12,7 @@ namespace esphome::lock {
 class Lock;
 
 #define LOG_LOCK(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
     if ((obj)->traits.get_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
@@ -31,9 +30,6 @@ enum LockState : uint8_t {
   LOCK_STATE_OPEN = 7,
 };
 const LogString *lock_state_to_string(LockState state);
-
-/// Maximum length of lock state string (including null terminator): "UNLOCKING" = 10
-static constexpr size_t LOCK_STATE_STR_SIZE = 10;
 
 class LockTraits {
  public:

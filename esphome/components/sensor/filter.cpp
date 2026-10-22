@@ -11,7 +11,18 @@
 
 namespace esphome::sensor {
 
-static const char *const TAG = "sensor.filter";
+ESPHOME_LOG_TAG(TAG, "sensor.filter");
+
+/// Shared pass check for throttle_with_priority (NaN only): passes and stamps `last_input` when the
+/// period has elapsed, on the first value, or for NaN.
+static bool throttle_nan_passes(uint32_t &last_input, uint32_t period, float value) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (last_input == 0 || now - last_input >= period || std::isnan(value)) {
+    last_input = now;
+    return true;
+  }
+  return false;
+}
 
 // Filter
 void Filter::input(float value) {
@@ -164,8 +175,6 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   }
   return {};
 }
-void ExponentialMovingAverageFilter::set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
-void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 
 // ThrottleAverageFilter
 ThrottleAverageFilter::ThrottleAverageFilter(uint32_t time_period) : time_period_(time_period) {}
@@ -217,14 +226,14 @@ MultiplyFilter::MultiplyFilter(TemplatableFn<float> multiplier) : multiplier_(mu
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-// ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
-bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableFn<float> *values, size_t count) {
-  int8_t accuracy = parent->get_accuracy_decimals();
+// ValueListFilter
+bool ValueListFilter::value_matches_any_(float sensor_value) {
+  int8_t accuracy = this->parent_->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 
-  for (size_t i = 0; i < count; i++) {
-    float fv = values[i].value();
+  for (const TemplatableFn<float> *v = this->values_; v->has_value(); v++) {
+    float fv = v->value();
 
     // Handle NaN comparison
     if (std::isnan(fv)) {
@@ -252,13 +261,12 @@ optional<float> ThrottleFilter::new_value(float value) {
   return {};
 }
 
-// ThrottleWithPriorityFilter helper (non-template, keeps App access in .cpp)
-optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableFn<float> *values,
-                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
+// ThrottleWithPriorityFilter
+optional<float> ThrottleWithPriorityFilter::new_value(float value) {
   const uint32_t now = App.get_loop_component_start_time();
-  if (last_input == 0 || now - last_input >= min_time_between_inputs ||
-      value_list_matches_any(parent, value, values, count)) {
-    last_input = now;
+  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ ||
+      this->value_matches_any_(value)) {
+    this->last_input_ = now;
     return value;
   }
   return {};
@@ -268,11 +276,8 @@ optional<float> throttle_with_priority_new_value(Sensor *parent, float value, co
 ThrottleWithPriorityNanFilter::ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs)
     : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ || std::isnan(value)) {
-    this->last_input_ = now;
+  if (throttle_nan_passes(this->last_input_, this->min_time_between_inputs_, value))
     return value;
-  }
   return {};
 }
 
@@ -357,6 +362,23 @@ optional<float> TimeoutFilterConfigured::new_value(float value) {
   return value;
 }
 
+// TimeoutThrottleFilter
+optional<float> TimeoutThrottleFilter::new_value(float value) {
+  TimeoutFilterLast::new_value(value);
+  if (throttle_nan_passes(this->last_input_, this->time_period_, value))
+    return value;
+  return {};
+}
+
+void TimeoutThrottleFilter::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->timeout_start_time_ >= this->time_period_) {
+    if (throttle_nan_passes(this->last_input_, this->time_period_, this->pending_value_))
+      this->output(this->pending_value_);
+    this->disable_loop();
+  }
+}
+
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
   App.scheduler.set_timeout(this, this->time_period_, [this, value]() { this->output(value); });
@@ -392,19 +414,21 @@ void HeartbeatFilter::initialize(Sensor *parent, Filter *next) {
   });
 }
 
-optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value) {
-  for (size_t i = 0; i < count; i++) {
-    if (!std::isfinite(functions[i][2]) || value < functions[i][2])
-      return (value * functions[i][0]) + functions[i][1];
+// The calibration tables hold only floats, so aligned 32-bit loads from PROGMEM are safe on ESP8266.
+optional<float> CalibrateLinearFilter::new_value(float value) {
+  // Always returns: codegen ends the table with a segment whose boundary is NaN.
+  for (const auto *function = this->functions_;; function++) {
+    if (!std::isfinite((*function)[2]) || value < (*function)[2])
+      return (value * (*function)[0]) + (*function)[1];
   }
-  return NAN;
 }
 
-optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value) {
+optional<float> CalibratePolynomialFilter::new_value(float value) {
   float res = 0.0f;
   float x = 1.0f;
-  for (size_t i = 0; i < count; i++) {
-    res += x * coefficients[i];
+  const auto count = static_cast<size_t>(this->coefficients_[0]);
+  for (size_t i = 1; i <= count; i++) {
+    res += x * this->coefficients_[i];
     x *= value;
   }
   return res;
@@ -452,7 +476,7 @@ optional<float> ToNTCResistanceFilter::new_value(float value) {
   }
   double k = 273.15;
   // https://de.wikipedia.org/wiki/Steinhart-Hart-Gleichung#cite_note-stein2_s4-3
-  double t = value + k;
+  double t = static_cast<double>(value) + k;
   double y = (this->a_ - 1 / (t)) / (2 * this->c_);
   double x = sqrt(pow(this->b_ / (3 * this->c_), 3) + y * y);
   double resistance = exp(pow(x - y, 1 / 3.0) - pow(x + y, 1 / 3.0));
@@ -467,6 +491,48 @@ optional<float> ToNTCTemperatureFilter::new_value(float value) {
   double v = this->a_ + this->b_ * lr + this->c_ * lr * lr * lr;
   double temp = float(1.0 / v - 273.15);
   return temp;
+}
+
+// RHCorrectionFilter
+static constexpr float MAGNUS_B = 17.67f, MAGNUS_C = 243.5f;
+
+static bool rh_correction_temp_in_band(float t) { return t >= -40.0f && t <= 50.0f; }
+
+optional<float> RHCorrectionFilter::new_value(float value) {
+  if (!this->temperature_sensor_->has_state()) {
+    if (!this->warned_) {
+      ESP_LOGW(TAG, "RHCorrectionFilter(%p): no temperature yet, passing humidity through uncorrected", this);
+      this->warned_ = true;
+    }
+    return value;
+  }
+  float offset = this->temperature_offset_.value();
+  float tc = this->temperature_sensor_->get_state();
+  if (this->use_fahrenheit_) {
+    tc = fahrenheit_to_celsius(tc);
+    offset /= 1.8f;
+  }
+  const float tnc = tc - offset;
+  // A NaN temperature or offset is a faulted input: keep the last corrected value
+  if (std::isnan(tnc)) {
+    if (!this->warned_) {
+      ESP_LOGW(TAG, "RHCorrectionFilter(%p): temperature or offset is NaN, dropping humidity updates", this);
+      this->warned_ = true;
+    }
+    return {};
+  }
+  if (!rh_correction_temp_in_band(tc) || !rh_correction_temp_in_band(tnc)) {
+    if (!this->warned_) {
+      ESP_LOGW(TAG, "RHCorrectionFilter(%p): Temperature out of range -40..50 °C. Tc=%f Tnc=%f", this, tc, tnc);
+      this->warned_ = true;
+    }
+    return value;
+  }
+  this->warned_ = false;
+  const float rh =
+      clamp(value * std::exp(MAGNUS_B * MAGNUS_C * (tnc - tc) / ((tnc + MAGNUS_C) * (tc + MAGNUS_C))), 0.0f, 100.0f);
+  ESP_LOGVV(TAG, "RHCorrectionFilter(%p)::new_value(%f) -> %f", this, value, rh);
+  return rh;
 }
 
 // StreamingFilter (base class)

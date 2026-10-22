@@ -44,6 +44,7 @@ CONF_BK72XX_BLE_ID = "bk72xx_ble_id"
 DEPENDENCIES = ["bk72xx"]
 AUTO_LOAD = ["ble_device_base", "bk72xx_ble"]
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "bk72xx_ble_tracker"
 
 ble_device_base.register_hub_provider("bk72xx_ble_tracker")
 
@@ -53,7 +54,6 @@ BK72xxBLETracker = bk72xx_ble_tracker_ns.class_(
 )
 
 StartScanAction = bk72xx_ble_tracker_ns.class_("StartScanAction", automation.Action)
-StopScanAction = bk72xx_ble_tracker_ns.class_("StopScanAction", automation.Action)
 
 ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
 BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
@@ -121,9 +121,8 @@ async def start_scan_action_to_code(
     return var
 
 
-@automation.register_action(
+automation.register_apply_action(
     "bk72xx_ble_tracker.stop_scan",
-    StopScanAction,
     automation.maybe_simple_id(
         cv.Schema(
             {
@@ -131,17 +130,8 @@ async def start_scan_action_to_code(
             }
         )
     ),
-    synchronous=True,
+    automation.ApplyCall("stop_scan()"),
 )
-async def stop_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: list,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
 async def to_code(config: ConfigType) -> None:
@@ -154,8 +144,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    parent = await cg.get_variable(config[CONF_BK72XX_BLE_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_BK72XX_BLE_ID])
     # The tracker registers itself as a controller scan listener in setup();
     # request the codegen-sized StaticVector slot for it.
     bk72xx_ble.request_scan_listener_slot()

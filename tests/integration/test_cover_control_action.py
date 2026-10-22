@@ -1,4 +1,4 @@
-"""Integration test for cover ControlAction and CoverPublishAction.
+"""Integration test for the cover.control and cover.template.publish actions.
 
 Tests that cover.control and cover.template.publish automation actions
 work correctly with the single stateless apply lambda/function pointer
@@ -22,7 +22,7 @@ async def test_cover_control_action(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test cover ControlAction/CoverPublishAction with constants and lambdas."""
+    """Test cover.control and cover.template.publish with constants and lambdas."""
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
         cover_state_future: asyncio.Future[CoverState] | None = None
@@ -90,3 +90,13 @@ async def test_cover_control_action(
         state = await press_and_wait("Stop Cover")
         # CoverOperation.IDLE == 0
         assert state.current_operation == 0
+
+        # stop_tilt_action publishes tilt 0.4
+        state = await press_and_wait("Stop Tilt")
+        assert state.tilt == pytest.approx(0.4, abs=0.01)
+
+        state = await press_and_wait("Set Tilt")
+        assert state.tilt == pytest.approx(0.75, abs=0.01)
+
+        state = await press_and_wait("Control Stop Tilt")
+        assert state.tilt == pytest.approx(0.4, abs=0.01)

@@ -10,9 +10,12 @@ from esphome.const import (
     CONF_MODE,
     CONF_NUMBER,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = []
+DOMAIN = "sn74hc165"
 MULTI_CONF = True
 
 sn74hc165_ns = cg.esphome_ns.namespace("sn74hc165")
@@ -38,23 +41,18 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    data_pin = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_data_pin(data_pin))
-    clock_pin = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
-    cg.add(var.set_clock_pin(clock_pin))
-    load_pin = await cg.gpio_pin_expression(config[CONF_LOAD_PIN])
-    cg.add(var.set_load_pin(load_pin))
-    if CONF_CLOCK_INHIBIT_PIN in config:
-        clock_inhibit_pin = await cg.gpio_pin_expression(config[CONF_CLOCK_INHIBIT_PIN])
-        cg.add(var.set_clock_inhibit_pin(clock_inhibit_pin))
+    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
+    await cg.add_pin(var.set_load_pin, config[CONF_LOAD_PIN])
+    await cg.add_pin(var.set_clock_inhibit_pin, config.get(CONF_CLOCK_INHIBIT_PIN))
 
     cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
 
 
-def _validate_input_mode(value):
+def _validate_input_mode(value: bool) -> bool:
     if value is not True:
         raise cv.Invalid("Only input mode is supported")
     return value
@@ -77,7 +75,9 @@ SN74HC165_PIN_SCHEMA = cv.All(
 )
 
 
-def sn74hc165_pin_final_validate(pin_config, parent_config):
+def sn74hc165_pin_final_validate(
+    pin_config: ConfigType, parent_config: ConfigType
+) -> None:
     max_pins = parent_config[CONF_SR_COUNT] * 8
     if pin_config[CONF_NUMBER] >= max_pins:
         raise cv.Invalid(f"Pin number must be less than {max_pins}")
@@ -86,7 +86,7 @@ def sn74hc165_pin_final_validate(pin_config, parent_config):
 @pins.PIN_SCHEMA_REGISTRY.register(
     CONF_SN74HC165, SN74HC165_PIN_SCHEMA, sn74hc165_pin_final_validate
 )
-async def sn74hc165_pin_to_code(config):
+async def sn74hc165_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_SN74HC165])
 

@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DATA,
@@ -11,13 +12,12 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import (
     CONF_ENCRYPTION,
     CONF_PING_PONG_ENABLE,
-    CONF_PROVIDER,
     CONF_PROVIDERS,
-    CONF_REMOTE_ID,
     CONF_TRANSPORT_ID,
     PacketTransport,
     packet_transport_sensor_schema,
@@ -44,7 +44,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _final_validate(config) -> None:
+def _final_validate(config: ConfigType) -> None:
     if config[CONF_TYPE] != CONF_STATUS:
         # Only run this validation if a status sensor is being configured
         return
@@ -65,7 +65,7 @@ def _final_validate(config) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     comp = await cg.get_variable(config[CONF_TRANSPORT_ID])
     if config[CONF_TYPE] == CONF_STATUS:

@@ -13,8 +13,7 @@ const extern float VALVE_OPEN;
 const extern float VALVE_CLOSED;
 
 #define LOG_VALVE(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
@@ -47,7 +46,7 @@ class ValveCall {
   void perform();
 
   const optional<float> &get_position() const;
-  bool get_stop() const;
+  bool get_stop() const { return this->stop_; }
   const optional<bool> &get_toggle() const;
 
  protected:
@@ -114,7 +113,7 @@ class Valve : public EntityBase {
   float position;
 
   /// Construct a new valve call used to control the valve.
-  ValveCall make_call();
+  ValveCall make_call() { return {this}; }
 
   template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
@@ -130,9 +129,9 @@ class Valve : public EntityBase {
   virtual ValveTraits get_traits() = 0;
 
   /// Helper method to check if the valve is fully open. Equivalent to comparing .position against 1.0
-  bool is_fully_open() const;
+  bool is_fully_open() const { return this->position == VALVE_OPEN; }
   /// Helper method to check if the valve is fully closed. Equivalent to comparing .position against 0.0
-  bool is_fully_closed() const;
+  bool is_fully_closed() const { return this->position == VALVE_CLOSED; }
 
  protected:
   friend ValveCall;

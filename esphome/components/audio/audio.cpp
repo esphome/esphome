@@ -23,14 +23,15 @@ AudioStreamInfo::AudioStreamInfo(uint8_t bits_per_sample, uint8_t channels, uint
 }
 
 uint32_t AudioStreamInfo::frames_to_microseconds(uint32_t frames) const {
-  return (frames * 1000000 + (this->sample_rate_ >> 1)) / this->sample_rate_;
+  // In 64 bits: frames * 1000000 overflows 32 bits above 4294 frames, about 90 ms at 48 kHz.
+  return (static_cast<uint64_t>(frames) * 1000000 + (this->sample_rate_ >> 1)) / this->sample_rate_;
 }
 
 uint32_t AudioStreamInfo::frames_to_milliseconds_with_remainder(uint32_t *total_frames) const {
   uint32_t unprocessable_frames = *total_frames % (this->sample_rate_ / this->ms_sample_rate_gcd_);
   uint32_t frames_for_ms_calculation = *total_frames - unprocessable_frames;
 
-  uint32_t playback_ms = (frames_for_ms_calculation * 1000) / this->sample_rate_;
+  uint32_t playback_ms = (static_cast<uint64_t>(frames_for_ms_calculation) * 1000) / this->sample_rate_;
   *total_frames = unprocessable_frames;
   return playback_ms;
 }
@@ -86,7 +87,7 @@ AudioFileType detect_audio_file_type(const char *content_type, const char *url) 
     // Match "audio/ogg" with a codecs parameter containing "opus"
     // Valid forms: audio/ogg;codecs=opus, audio/ogg; codecs="opus", etc.
     // Plain "audio/ogg" without opus is not matched (almost always Ogg Vorbis)
-    if (strncasecmp(content_type, "audio/ogg", 9) == 0 && strcasestr(content_type + 9, "opus") != nullptr) {
+    if (strncasecmp(content_type, "audio/ogg", 9) == 0 && str_contains_ignore_case(content_type + 9, "opus")) {
       return AudioFileType::OPUS;
     }
 #endif

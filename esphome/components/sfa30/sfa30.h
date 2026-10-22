@@ -7,8 +7,6 @@
 namespace esphome::sfa30 {
 
 class SFA30Component final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
-  enum ErrorCode { DEVICE_MARKING_READ_FAILED, MEASUREMENT_INIT_FAILED, UNKNOWN };
-
  public:
   void setup() override;
   void dump_config() override;
@@ -20,8 +18,6 @@ class SFA30Component final : public PollingComponent, public sensirion_common::S
 
  protected:
   char device_marking_[32] = {0};
-
-  ErrorCode error_code_{UNKNOWN};
 
   sensor::Sensor *formaldehyde_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};

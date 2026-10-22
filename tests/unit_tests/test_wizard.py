@@ -1,5 +1,6 @@
 """Tests for the wizard.py file."""
 
+import importlib.util
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -37,7 +38,6 @@ def wizard_answers() -> list[str]:
         "nodemcuv2",  # board
         "SSID",  # ssid
         "psk",  # wifi password
-        "",  # ota password (empty for no password)
     ]
 
 
@@ -99,6 +99,25 @@ def test_config_file_should_include_ota(default_config: dict[str, Any]):
 
     # Then
     assert "ota:" in config
+
+
+def test_config_file_should_use_encryption_when_api_key_set(
+    default_config: dict[str, Any],
+):
+    """
+    With an API encryption key and no OTA password the OTA block reuses the key
+    """
+    # Given
+    default_config["api_encryption_key"] = (
+        "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    )
+
+    # When
+    config = wz.wizard_file(**default_config)
+
+    # Then
+    assert "ota:\n  - platform: esphome\n    encryption:" in config
+    assert "password" not in config.split("ota:")[1].split("wifi:")[0]
 
 
 def test_config_file_should_include_ota_when_password_set(
@@ -630,15 +649,15 @@ def test_wizard_write_protects_existing_config(
     assert config_file.read_text() == original_content
 
 
-def test_wizard_accepts_ota_password(
+def test_wizard_uses_the_api_key_for_ota(
     tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
 ):
     """
-    The wizard should pass ota_password to wizard_write when the user provides one
+    The wizard generates an api key and does not ask for an OTA password;
+    the key secures OTA updates
     """
 
     # Given
-    wizard_answers[5] = "my_ota_password"  # Set OTA password
     config_file = tmp_path / "test.yaml"
     input_mock = MagicMock(side_effect=wizard_answers)
     monkeypatch.setattr("builtins.input", input_mock)
@@ -653,8 +672,9 @@ def test_wizard_accepts_ota_password(
     # Then
     assert retval == 0
     call_kwargs = wizard_write_mock.call_args.kwargs
-    assert "ota_password" in call_kwargs
-    assert call_kwargs["ota_password"] == "my_ota_password"
+    assert "api_encryption_key" in call_kwargs
+    assert "ota_password" not in call_kwargs
+    assert input_mock.call_count == len(wizard_answers)
 
 
 def test_wizard_accepts_rpipico_board(tmp_path: Path, monkeypatch: MonkeyPatch):
@@ -697,3 +717,74 @@ def test_fallback_psk_uses_secrets_choice(
 
     assert 'password: "XXXXXXXXXXXX"' in config
     assert mock_choice.call_count == 12
+
+
+def test_wizard_file_rpipico_has_no_wifi_or_api() -> None:
+    """The rpipico has no WiFi, so the config stops after the logger."""
+    config = wz.wizard_file(name="pico", platform="RP2", board="rpipico")
+
+    assert "logger:" in config
+    assert "api:" not in config
+    assert "wifi:" not in config
+
+
+def test_wizard_file_secret_ssid_is_not_quoted(
+    default_config: dict[str, Any],
+) -> None:
+    default_config["ssid"] = "!secret wifi_ssid"
+    default_config["psk"] = "!secret wifi_password"
+
+    config = wz.wizard_file(**default_config)
+
+    assert "  ssid: !secret wifi_ssid\n" in config
+    assert "  password: !secret wifi_password\n" in config
+
+
+def test_wizard_file_without_ssid_comments_out_credentials(
+    default_config: dict[str, Any],
+) -> None:
+    del default_config["ssid"]
+    del default_config["psk"]
+
+    config = wz.wizard_file(**default_config)
+
+    assert '  # ssid: "My SSID"' in config
+    assert '  # password: "mypassword"' in config
+
+
+def test_wizard_write_rejects_unknown_board(
+    tmp_path: Path, default_config: dict[str, Any], monkeypatch: MonkeyPatch
+) -> None:
+    del default_config["platform"]
+    default_config["board"] = "not_a_real_board"
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
+
+    result = wz.wizard_write(tmp_path / "test.yaml", **default_config)
+
+    assert result is False
+    assert not (tmp_path / "test.yaml").exists()
+
+
+def test_wizard_returns_error_when_write_fails(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+) -> None:
+    monkeypatch.setattr("builtins.input", MagicMock(side_effect=wizard_answers))
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    monkeypatch.setattr(wz, "wizard_write", MagicMock(return_value=False))
+
+    assert wz.wizard(tmp_path / "test.yaml") == 1
+
+
+def test_quickwizard_env_replaces_sleep_with_noop(monkeypatch: MonkeyPatch) -> None:
+    """With ESPHOME_QUICKWIZARD set the module defines a no-op sleep."""
+    monkeypatch.setenv("ESPHOME_QUICKWIZARD", "1")
+    # Load a private copy so the real module is left untouched
+    spec = importlib.util.spec_from_file_location("_quick_wizard", wz.__file__)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.sleep(10) is None
+    assert module.sleep.__module__ == "_quick_wizard"

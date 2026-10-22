@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from pathlib import Path
 import textwrap
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -26,6 +26,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@tomaszduda23"]
+DOMAIN = "zephyr"
 
 
 class HexValue:
@@ -50,14 +51,14 @@ PrjConfValueType = bool | str | int | HexValue
 
 
 class Section:
-    def __init__(self, name, address, size, region):
+    def __init__(self, name: str, address: int, size: int, region: str) -> None:
         self.name = name
         self.address = address
         self.size = size
         self.region = region
         self.end_address = self.address + self.size
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"{self.name}:\n"
             f"  address: 0x{self.address:X}\n"
@@ -65,6 +66,14 @@ class Section:
             f"  region: {self.region}\n"
             f"  size: 0x{self.size:X}"
         )
+
+
+class CdcAcmUser(NamedTuple):
+    name: str
+    # Only writes with uart_poll_out() and never sets the IRQ callback (the logger)
+    write_only: bool
+    # Can share the port with write-only users (protocols that skip unframed text)
+    allow_write_only: bool
 
 
 class ZephyrData(TypedDict):
@@ -77,6 +86,8 @@ class ZephyrData(TypedDict):
     kconfig: str
     sysbuild: bool
     overlay_builder: list[Callable[[], str]]
+    # CDC ACM port number -> components that use it
+    cdc_acm_users: dict[int, list[CdcAcmUser]]
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -88,6 +99,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
             "": "",
         },  # set empty to make sure that overlay is cleared after config change
         overlay_builder=[],
+        cdc_acm_users={},
         extra_build_files={},
         pm_static=[],
         kconfig="",
@@ -176,12 +188,18 @@ def zephyr_to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _cdc_acm_to_code(config: ConfigType) -> None:
-    if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF][""]:
+    # Runs last so these required options override the optional defaults that
+    # platforms (nrf52) set during their own to_code
+    _cdc_acm_add_ports()
+    need_cdc_cb = zephyr_data()[KEY_PRJ_CONF][""].get(
+        "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", (False,)
+    )[0]
+    if need_cdc_cb:
         var = cg.new_Pvariable(config[CONF_CDC_ACM])
         await cg.register_component(var, {})
 
 
-def zephyr_setup_preferences():
+def zephyr_setup_preferences() -> None:
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
     zephyr_add_prj_conf("NVS", True)
@@ -201,23 +219,67 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
-def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
+def zephyr_claim_cdc_acm(
+    id: int,
+    user: str,
+    *,
+    write_only: bool = False,
+    allow_write_only: bool = False,
+) -> None:
+    """Reserve CDC ACM port `id` for `user`. Call from FINAL_VALIDATE_SCHEMA.
+
+    zephyr_to_code() later adds the device tree node and Kconfig options for
+    every claimed port, so components do not set up the port themselves.
+
+    Components on the same port share one device, and the device has only one
+    IRQ callback slot: the component set up last takes all received data from
+    the other. So a port normally has one user. The exception is a `write_only`
+    user (the logger), which never sets the IRQ callback; it may share the port
+    with a user that sets `allow_write_only` because its protocol skips text
+    that is not part of its own frames (mcumgr).
+    """
+    new = CdcAcmUser(user, write_only, allow_write_only)
+    users = zephyr_data()["cdc_acm_users"].setdefault(id, [])
+    for other in users:
+        if other.name == user:
+            return
+        if (new.write_only and other.allow_write_only) or (
+            other.write_only and new.allow_write_only
+        ):
+            continue
+        raise cv.Invalid(
+            f"USB CDC ACM port {id} (cdc_acm_uart{id}) is used by both "
+            f"'{other.name}' and '{user}'. Each port can only be used by one component."
+        )
+    users.append(new)
+
+
+def _cdc_acm_add_ports() -> None:
+    """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
+    users = zephyr_data()["cdc_acm_users"]
+    if not users:
+        return
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
         zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
+    zephyr_add_prj_conf("SERIAL", True)
     # prevent device to go to susspend, without this communication stop working in python
     # there should be a way to solve it
     zephyr_add_prj_conf("USB_DEVICE_REMOTE_WAKEUP", False)
     # prevent logging when buffer is full
     zephyr_add_prj_conf("USB_CDC_ACM_LOG_LEVEL_WRN", True)
-    zephyr_add_overlay(
+    nodes = "".join(
         f"""
-            &zephyr_udc0 {{
                 cdc_acm_uart{id}: cdc_acm_uart{id} {{
                     compatible = "zephyr,cdc-acm-uart";
-                }};
+                }};"""
+        for id in sorted(users)
+    )
+    zephyr_add_overlay(
+        f"""
+            &zephyr_udc0 {{{nodes}
             }};
         """
     )

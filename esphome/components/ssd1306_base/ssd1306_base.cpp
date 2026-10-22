@@ -5,7 +5,7 @@
 
 namespace esphome::ssd1306_base {
 
-static const char *const TAG = "ssd1306";
+ESPHOME_LOG_TAG(TAG, "ssd1306");
 
 static const uint8_t SSD1306_MAX_CONTRAST = 255;
 static const uint8_t SSD1305_MAX_BRIGHTNESS = 255;
