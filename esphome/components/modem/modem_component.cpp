@@ -31,7 +31,10 @@ void ModemComponent::enable() {
   ESP_LOGI(TAG, "Setting modem target state to CONNECTED");
   this->target_state_ = ModemComponentState::MODEM_CONNECTED;
   this->pin_sent_ = false;
-  this->arm_connect_timeout_();
+  // A link that is already up has nothing to wait for; a lost one re-arms the timer itself
+  if (this->component_state_ != ModemComponentState::MODEM_CONNECTED) {
+    this->arm_connect_timeout_();
+  }
   this->enable_loop();
 }
 
@@ -147,7 +150,7 @@ void ModemComponent::setup() {
       return none;
     }
     if (this->urc_pending_.load(std::memory_order_acquire)) {
-      ESP_LOGD(TAG, "URC dropped; the previous one is not published yet");
+      ESP_LOGW(TAG, "URC dropped; the previous one is not published yet");
       return none;
     }
     len = std::min(len, sizeof(this->urc_line_) - 1);
@@ -180,8 +183,8 @@ void ModemComponent::dump_config() {
       "  Reboot timeout: %" PRIu32 " ms\n"
       "  Enabled: %s",
       this->model_, this->apn_, this->pin_code_ == nullptr ? LOG_STR_LITERAL("No") : LOG_STR_LITERAL("Yes (not shown)"),
-      this->tx_pin_->get_pin(), this->rx_pin_->get_pin(), this->uart_port_, this->baud_rate_, this->tx_buffer_size_,
-      this->rx_buffer_size_, this->dte_buffer_size_, this->timeout_, YESNO(this->is_enabled()));
+      this->tx_pin_->get_pin(), this->rx_pin_->get_pin(), this->uart_port_, this->current_baud_rate_,
+      this->tx_buffer_size_, this->rx_buffer_size_, this->dte_buffer_size_, this->timeout_, YESNO(this->is_enabled()));
   this->dump_connect_params_();
 }
 
@@ -216,9 +219,11 @@ ModemComponentState ModemComponent::compute_next_state_() {
     case ModemComponentState::MODEM_ENABLING:
       return this->handle_state_enabling_();
     case ModemComponentState::MODEM_SYNCED:
+      this->init_at_failed_ = false;
       for (const char *cmd : this->init_at_commands_) {
         App.feed_wdt();
         if (!this->send_at(cmd, 0, true)) {
+          this->init_at_failed_ = true;
           this->status_set_warning(LOG_STR("init_at command failed"));
         }
       }
@@ -249,7 +254,9 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
   switch (mode) {
     case modem_mode::CMUX_MANUAL_MODE:
       ESP_LOGD(TAG, "Modem warm reboot. Exiting CMUX");
-      this->dce_->set_mode(modem_mode::CMUX_MANUAL_EXIT);
+      if (!this->dce_->set_mode(modem_mode::CMUX_MANUAL_EXIT)) {
+        ESP_LOGW(TAG, "Failed to exit CMUX");
+      }
       break;
 
     case modem_mode::UNDEF: {
@@ -283,11 +290,14 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
 
     default:
       ESP_LOGW(TAG, "Modem in unexpected mode %d. Switching to COMMAND mode.", static_cast<int>(mode));
-      this->dce_->set_mode(modem_mode::COMMAND_MODE);
+      if (!this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
+        ESP_LOGW(TAG, "Failed to switch to command mode");
+      }
       this->dce_->set_mode(modem_mode::UNDEF);
       break;
   }
 
+  App.feed_wdt();  // a mode switch can take up to 20 s; the watchdog floor covers one long call
   if (this->dce_->sync() != command_result::OK) {
     ESP_LOGW(TAG, "Waiting SYNC");
     return this->retry_(ModemComponentState::MODEM_ENABLING);
@@ -368,7 +378,7 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
     return this->retry_(ModemComponentState::MODEM_CONNECTING);
   }
   if (!attached) {
-    int rssi = 99, ber = 99, registration = 0, mode = 0;
+    int rssi = 99, ber = 99, registration = -1, mode = -1;  // -1 stays when the query fails
     this->dce_->get_network_registration_state(registration);
     this->dce_->get_signal_quality(rssi, ber);
     this->dce_->get_network_system_mode(mode);
@@ -389,7 +399,9 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
 ModemComponentState ModemComponent::handle_state_wait_ip_() {
   if (this->got_ip_.load(std::memory_order_acquire)) {
     this->cancel_timeout(CONNECT_TIMEOUT_ID);
-    this->status_clear_warning();
+    if (!this->init_at_failed_) {
+      this->status_clear_warning();
+    }
     this->status_clear_error();  // a SIM fault fixed outside is over once PPP is up
     this->dump_connect_params_();
     return ModemComponentState::MODEM_CONNECTED;
@@ -406,6 +418,7 @@ ModemComponentState ModemComponent::handle_state_disconnecting_() {
   if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
     ESP_LOGE(TAG, "Failed to leave data mode");
   }
+  App.feed_wdt();
   // Turn the radio off; waiting for the lost IP event could take up to 2 min
   const bool off = this->dce_->set_radio_state(0) == command_result::OK;
   ESP_LOGI(TAG, "Radio off: %s", off ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("FAILED"));
@@ -483,7 +496,10 @@ SimResult ModemComponent::prepare_sim_() {
   }
   this->pin_sent_ = true;
   ESP_LOGD(TAG, "Unlocking SIM with PIN...");
-  if (this->dce_->set_pin(this->pin_code_) != command_result::OK) {
+  const command_result result = this->dce_->set_pin(this->pin_code_);
+  if (result == command_result::TIMEOUT) {
+    ESP_LOGW(TAG, "No answer to the PIN; AT+CPIN? decides on the next pass");
+  } else if (result != command_result::OK) {
     ESP_LOGE(TAG, "The modem rejected the PIN; check pin_code");
     return SimResult::SIM_RESULT_FATAL;
   }

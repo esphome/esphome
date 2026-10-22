@@ -766,10 +766,11 @@ class EsphomeCore:
             raise ValueError("Config has not been loaded yet")
 
         # Same order as network::get_use_address_to(); a wifi-first priority list lifts wifi
-        priority = self.config.get("network", {}).get(CONF_PRIORITY) or [{}]
-        wifi_first = priority[0].get("interface") == CONF_WIFI
-        order = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
-        for network_type in (*order, CONF_ETHERNET, CONF_OPENTHREAD):
+        order = ["modem", CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD]
+        priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
+        if priority and priority[0]["interface"] == CONF_WIFI:
+            order.insert(0, order.pop(1))
+        for network_type in order:
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 

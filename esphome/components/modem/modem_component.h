@@ -139,6 +139,7 @@ class ModemComponent : public Component {
   uint8_t connect_step_{0};
   // One PIN attempt per enable(): a second wrong PIN could PUK-lock the SIM
   bool pin_sent_{false};
+  bool init_at_failed_{false};  // keeps the warning through a connect
   // Written last by the IP event task, read by loop()
   std::atomic<bool> got_ip_{false};
 #ifdef USE_MODEM_URC
