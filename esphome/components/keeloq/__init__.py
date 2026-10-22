@@ -84,12 +84,16 @@ def _command_code(command: int | str) -> int:
 
 def _channels(value: object) -> int:
     """Channels 1 to 16 as a list, or the 16-bit mask they make (bit 0 is channel 1)."""
-    if not isinstance(value, list):
-        return cv.hex_uint16_t(value)
-    channels = [cv.int_range(min=1, max=16)(channel) for channel in value]
-    if len(set(channels)) != len(channels):
-        raise cv.Invalid("each channel only once")
-    return sum(1 << (channel - 1) for channel in channels)
+    if isinstance(value, list):
+        channels = [cv.int_range(min=1, max=16)(channel) for channel in value]
+        if len(set(channels)) != len(channels):
+            raise cv.Invalid("each channel only once")
+        value = sum(1 << (channel - 1) for channel in channels)
+    mask = cv.hex_uint16_t(value)
+    # No motor acts on a frame without a channel.
+    if mask == 0:
+        raise cv.Invalid("set at least one channel")
+    return mask
 
 
 CONFIG_SCHEMA = cv.Schema(
