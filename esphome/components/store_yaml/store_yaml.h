@@ -12,7 +12,7 @@ namespace esphome::store_yaml {
 /// Published in GetYamlResponse.encoding so clients know how to decompress.
 constexpr const char *ENCODING = "zstd";
 
-/// The YAML envelope as zstd, built by codegen and kept in flash. STORE_YAML_DATA_SIZE bytes long.
+/// The zstd YAML envelope, STORE_YAML_DATA_SIZE bytes in flash.
 extern const uint8_t STORE_YAML_DATA[] PROGMEM;
 
 }  // namespace esphome::store_yaml

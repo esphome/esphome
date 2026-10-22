@@ -652,11 +652,8 @@ class DiscoveredYamlFiles:
 
 
 def named_path(path: Path) -> Path:
-    """``path`` with its directory resolved but its own name kept.
-
-    A symlinked file stays under the name the config uses, while ``..`` after a
-    symlinked directory goes where the OS takes the loader.
-    """
+    """``path`` with its directory resolved but its own name kept: a symlinked file
+    keeps its name, and ``..`` after a symlinked directory goes where the OS does."""
     path = Path(path)
     return path.parent.resolve() / path.name
 
@@ -690,7 +687,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         names = aliases.setdefault(resolved, [])
         if (alias := named_path(fname)) not in names:
             names.append(alias)
-        # The outermost directory symlink on the way; `..` after one is the OS's business.
+        # The outermost directory symlink on the way; `..` after one is the OS's call.
         if ".." not in fname.parts:
             for directory in reversed((fname.parent, *fname.parent.parents)):
                 if directory.is_symlink():
@@ -714,8 +711,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
     finally:
         load_listeners.remove(_on_load)
 
-    # `!secret` probes a secrets.yaml beside the including file first; a probe
-    # that does not exist is reported to listeners but is not a file to capture.
+    # A `!secret` probe beside the including file is reported even when absent.
     files = [path for path in aliases if path.is_file()]
     return DiscoveredYamlFiles(
         files,

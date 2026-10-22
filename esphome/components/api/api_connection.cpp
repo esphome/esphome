@@ -1242,7 +1242,6 @@ void APIConnection::on_get_yaml_request() {
 }
 
 void APIConnection::try_send_store_yaml_() {
-  // Chunks are batch packet sized, so the shared send buffer never grows for them.
   // Advance only after a successful send, so a full TX buffer retries the same chunk from loop()
   while (this->helper_->can_write_without_blocking()) {
     const size_t to_send = std::min(STORE_YAML_DATA_SIZE - this->store_yaml_pos_, MAX_BATCH_PACKET_SIZE);

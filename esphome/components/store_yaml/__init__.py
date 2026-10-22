@@ -90,13 +90,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 def _gather_files(
     discovered: yaml_util.DiscoveredYamlFiles,
 ) -> tuple[list[tuple[str, Path]], set[str]]:
-    """Map each discovered YAML file to its envelope path.
-
-    Returns (relative_path, named_path) pairs, one per name the YAML reached
-    the file by, and the relative paths of secrets files.
-    """
+    """(envelope path, named path) per name a file was reached by, and the envelope
+    paths of secrets files."""
     if discovered.load_errors:
-        # A partial recovery blob defeats the feature.
         raise EsphomeError(
             "store_yaml: could not load all configuration files: "
             + "; ".join(discovered.load_errors)
@@ -145,11 +141,8 @@ def _read_files_verbatim(entries: list[tuple[str, Path]]) -> list[tuple[str, byt
 def _iter_nodes(
     node: object, path: tuple[str, ...] = ()
 ) -> Generator[tuple[tuple[str, ...], object, bool]]:
-    """Yield (config_path, value, is_key) for every key and scalar in a tree.
-
-    Wrappers the dumper writes as text (`!lambda`, `!extend`, `!remove`,
-    `!include` paths, vars and conditions) are unwrapped so they are scanned.
-    """
+    """Yield (config_path, value, is_key) for every key and scalar, unwrapping the
+    tagged wrappers the dumper writes as text."""
     if isinstance(node, dict):
         for key, value in node.items():
             yield path, str(key), True
@@ -176,8 +169,7 @@ class _SensitiveValue:
     secret_name: str
     config_path: str  # dotted path, for messages (never the value itself)
     from_secret: bool  # loaded through a real `!secret`
-    # Last path segments the value is sensitive at, to tell its own
-    # occurrences apart from unrelated collisions.
+    # Keys the value sits at, to tell its own occurrences from collisions.
     sensitive_keys: set[str]
     # Integers skip the substring scan; short PINs would match unrelated text.
     is_int: bool = False
@@ -186,12 +178,8 @@ class _SensitiveValue:
 def _include_scopes(
     includes: list[_Include], trees: dict[str, object], sources: dict[str, Path]
 ) -> dict[str, _Scope]:
-    """Every value a substitution name may take in each file.
-
-    Per `!include` of the file, the loader's precedence: that include's vars,
-    else the caller's variables (its defaults and its own invocation), else the
-    file's `defaults:`, else every top-level `substitutions:` definition.
-    """
+    """Every value a substitution name may take in each file, per include: its
+    vars, else the caller's variables, else `defaults:`, else top-level substitutions."""
 
     def mapping(tree: object, key: str) -> dict[str, object]:
         value = tree.get(key) if isinstance(tree, dict) else None
@@ -212,7 +200,7 @@ def _include_scopes(
         target = (include.parent_file.parent / include.file).resolve()
         for src in rels_by_path.get(holder.resolve(), ()):
             edges[src].extend((rel, vars) for rel in rels_by_path.get(target, ()))
-    # Each file's invocations, the caller's variables flowing into nested includes.
+    # Each file's invocations; a caller's variables flow into nested includes.
     targeted = {rel for targets in edges.values() for rel, _ in targets}
     invocations = {rel: [] if rel in targeted else [{}] for rel in trees}
     pending = [rel for rel in trees if rel not in targeted]
@@ -246,16 +234,9 @@ def _check_sensitive_usage(
     trees: dict[str, object],
     scopes: dict[str, _Scope],
 ) -> None:
-    """Check where sensitive values occur beyond their own scalars.
-
-    Mapping key: fail. Inside a larger scalar or key: fail if inline, warn if
-    `!secret`. Whole scalar elsewhere: warn, it is recovered as the reference.
-    A value at a credential location that validation never saw, or a URL with
-    userinfo, fails unless it (or every definition of the substitution it
-    references) is a `!secret` or a known sensitive value. Under a subtree a
-    `!remove` drops before validation, any key that is a credential elsewhere
-    counts as a credential location.
-    """
+    """Fail on a sensitive value used as a key or inside a larger scalar, warn on an
+    unrelated whole-scalar match, and fail on an unverifiable value at a credential
+    location (also under a `!remove`d subtree) or in URL userinfo."""
     removed = {
         path
         for tree in trees.values()
@@ -278,19 +259,16 @@ def _check_sensitive_usage(
         )
 
     def ends_with(full: tuple[str, ...], part: tuple[str, ...]) -> bool:
-        """`part` ends `full`, allowing segments validation inserted between
-        (`wifi.password` becomes `wifi.networks.password`)."""
+        """`part` ends `full`, skipping segments validation inserted (`wifi.password`
+        to `wifi.networks.password`)."""
         if not part or full[-1] != part[-1]:
             return False
         rest = iter(reversed(full[:-1]))
         return all(seg in rest for seg in reversed(part[:-1]))
 
     def credential_path(path: tuple[str, ...]) -> bool:
-        """Whether `path` lands where the validated config holds a credential.
-
-        A git package password never reaches validation; an inline package
-        merges at the top level, so its `packages[.<name>]` prefix goes.
-        """
+        """Whether `path` lands where the validated config holds a credential; an
+        inline package's `packages[.<name>]` prefix merges away."""
         if not path:
             return False
         if path[-1] in credential_keys and any(path[: len(r)] == r for r in removed):
@@ -305,7 +283,7 @@ def _check_sensitive_usage(
         return any(ends_with(sp, path) for sp in sensitive_paths)
 
     def shown(path: tuple[str, ...]) -> str:
-        """`path` for messages, with a segment that is a credential masked."""
+        """`path` for messages, credential segments masked."""
         return ".".join(
             f"<!secret {sensitive[seg].secret_name}>" if seg in sensitive else seg
             for seg in path
@@ -373,8 +351,7 @@ def _check_sensitive_usage(
                 ):
                     continue
                 if other.from_secret:
-                    # A real !secret overlapping unrelated text (an SSID in a
-                    # name) is common, so warn without the value.
+                    # An SSID inside a name is common; warn without the value.
                     _LOGGER.warning(
                         "store_yaml: the value of !secret %s (sensitive at %s) "
                         "appears inside the value at %s in %s; substring "
@@ -413,12 +390,8 @@ def _check_sensitive_usage(
 def _collect_sensitive_values() -> tuple[
     dict[str, _SensitiveValue], set[tuple[str, ...]]
 ]:
-    """Map each cv.sensitive value to the `!secret` name it is recovered as, and
-    collect every sensitive path (empty values included).
-
-    `!secret` values keep their name; inline values get one from their config
-    path that does not clash with real secrets.
-    """
+    """Map each cv.sensitive value to its `!secret` name (inline values get one from
+    their path) and collect every sensitive path, empty values included."""
     used = yaml_util.registered_secret_names()
     result: dict[str, _SensitiveValue] = {}
     paths: set[tuple[str, ...]] = set()
@@ -483,8 +456,7 @@ def _uncaptured_note(
 
 
 def _remote_package_descriptions() -> list[str]:
-    """Every remote source packages were fetched from, with its secret name or
-    its URL userinfo masked, plus the ref."""
+    """Each remote package source as its secret name or masked URL, plus ref."""
     return [
         (
             f"!secret {name}"
@@ -508,13 +480,8 @@ def _prepare_tree(
     fold_secrets: bool,
     includes: list[_Include],
 ) -> object:
-    """Make a loaded file's tree dump as the source it came from.
-
-    A mapping or list loaded through `!secret` becomes its registered text, which
-    the dumper writes as the reference (a plain str would skip the secret check).
-    Every `!include` is pointed at its target's captured name and added to
-    `includes`.
-    """
+    """Fold container secrets to their registered text (a plain str would skip the
+    secret check), point each `!include` at its target's captured name, collect them."""
     if (
         fold_secrets
         and isinstance(node, (dict, list))
@@ -541,8 +508,7 @@ def _prepare_tree(
         if node.vars:
             node.vars = _prepare_tree(node.vars, source, fold_secrets, includes)
         if not node.has_unresolved_file():
-            # The target's captured name, so a directory symlink or a move by
-            # `!include_dir_*` is followed to where the file lands.
+            # Where the file lands, through directory symlinks and `!include_dir_*` moves.
             origin = yaml_util.named_path(node.parent_file)
             target = yaml_util.named_path(origin.parent / node.file)
             node = node.with_file(
@@ -555,8 +521,8 @@ def _prepare_tree(
 def _generate_redacted_files(
     entries: list[tuple[str, Path]], secret_rels: set[str], remote_packages: list[str]
 ) -> list[tuple[str, bytes]]:
-    """Re-dump captured files with sensitive values as `!secret` and secrets files
-    as a skeleton. Comments and formatting are not preserved."""
+    """Re-dump captured files with sensitive values as `!secret`, secrets files as a
+    skeleton; comments and formatting are lost."""
     sensitive, sensitive_paths = _collect_sensitive_values()
 
     captured = {rel: path for rel, path in entries if rel not in secret_rels}
@@ -608,10 +574,7 @@ def _generate_redacted_files(
 
 
 def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
-    """Pack files into the EHY1 envelope (little-endian).
-
-    magic (4) | u32 count | { u16 path_len | path | u32 content_len | content }...
-    """
+    """EHY1 | u32 count | {u16 path_len, path, u32 content_len, content}..., little-endian."""
     paths = [path for path, _ in files]
     if len(set(paths)) != len(paths):
         # unpack_envelope would silently keep only the last duplicate.
@@ -630,10 +593,7 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
 
 
 def unpack_envelope(blob: bytes) -> dict[str, bytes]:
-    """Reference decoder for the EHY1 envelope.
-
-    Absolute paths are rejected but ``..`` is allowed; callers writing to disk must confine paths.
-    """
+    """Reference decoder; rejects absolute paths, allows `..`, so disk writers confine paths."""
     if blob[:4] != ENVELOPE_MAGIC:
         raise EsphomeError("envelope must start with EHY1 magic")
     files: dict[str, bytes] = {}
@@ -658,7 +618,7 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_STORE_YAML")
 
-    # Re-parse to capture only user files; also refills the secret registry redaction needs.
+    # A fresh parse captures only user files and refills the secret registry.
     discovered = yaml_util.discover_user_yaml_files(CORE.config_path)
     entries, secret_rels = _gather_files(discovered)
     remote_packages = _remote_package_descriptions()
