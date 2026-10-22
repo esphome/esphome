@@ -63,8 +63,8 @@ void RX8111Component::configure_boot_alarm_() {
       uint8_t control;
       success = this->read_byte(RX8111_REG_CONTROL, &control);
       if (success) {
-        this->alarm_configured_ = (control & RX8111_CONTROL_AIE) != 0;
-        if (this->alarm_configured_)
+        this->alarm_armed_ = (control & RX8111_CONTROL_AIE) != 0;
+        if (this->alarm_armed_)
           this->start_event_polling_();
       }
     }
@@ -123,7 +123,7 @@ void RX8111Component::cancel_boot_retry_(bool alarm, bool success) {
 }
 
 void RX8111Component::check_event_flags_() {
-  if (!this->alarm_configured_ && !this->timer_enabled_ && !this->timer_retained_event_pending_)
+  if (!this->alarm_armed_ && !this->timer_enabled_ && !this->timer_retained_event_pending_)
     return;
   if (!this->poll_event_flags_()) {
     this->set_warning_(WARN_EVENT_POLL, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
@@ -300,7 +300,7 @@ bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hou
   // Disable the interrupt during partial programming; keep AF (past events) latched.
   if (!this->set_alarm_interrupt_(false))
     return false;
-  this->alarm_configured_ = false;
+  this->alarm_armed_ = false;
   uint8_t flags;
   if (!this->read_byte(RX8111_REG_FLAG, &flags))
     return false;
@@ -311,7 +311,7 @@ bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hou
     return false;
   if (!this->set_alarm_interrupt_(this->alarm_enabled_))
     return false;
-  this->alarm_configured_ = true;
+  this->alarm_armed_ = true;
   return true;
 }
 
@@ -364,7 +364,7 @@ bool RX8111Component::unset_alarm() {
     this->set_warning_(WARN_RUNTIME_ALARM, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
-  this->alarm_configured_ = false;
+  this->alarm_armed_ = false;
   if (!this->write_byte(RX8111_REG_SEC_ALARM, RX8111_ALARM_DISABLED) ||
       !this->write_byte(RX8111_REG_MIN_ALARM, RX8111_ALARM_DISABLED) ||
       !this->write_byte(RX8111_REG_HOUR_ALARM, RX8111_ALARM_DISABLED) ||
@@ -473,9 +473,9 @@ bool RX8111Component::poll_event_flags_() {
   this->clear_warning_(WARN_EVENT_POLL);
   const bool alarm_active = (flags & RX8111_FLAG_AF) != 0;
   const bool timer_active = (flags & RX8111_FLAG_TF) != 0;
-  if (alarm_active && this->alarm_enabled_ && this->alarm_configured_)
+  if (alarm_active && this->alarm_enabled_ && this->alarm_armed_)
     this->boot_alarm_event_seen_ = true;
-  const bool alarm_rising = alarm_active && !this->alarm_flag_seen_ && this->alarm_enabled_ && this->alarm_configured_;
+  const bool alarm_rising = alarm_active && !this->alarm_flag_seen_ && this->alarm_enabled_ && this->alarm_armed_;
   const bool timer_rising =
       timer_active && !this->timer_flag_seen_ && (this->timer_enabled_ || this->timer_retained_event_pending_);
   const bool deliver_stopped_event = timer_rising && this->timer_retained_event_pending_;
@@ -488,7 +488,7 @@ bool RX8111Component::poll_event_flags_() {
   // An alarm callback may stop the timer before its callback is delivered.
   if (timer_rising && this->timer_flag_seen_ && (this->timer_enabled_ || deliver_stopped_event))
     this->timer_callbacks_.call();
-  if (!this->alarm_configured_ && !this->timer_enabled_ && !this->timer_retained_event_pending_ &&
+  if (!this->alarm_armed_ && !this->timer_enabled_ && !this->timer_retained_event_pending_ &&
       this->event_polling_started_) {
     this->cancel_interval(RX8111_EVENT_INTERVAL_ID);
     this->event_polling_started_ = false;

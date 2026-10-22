@@ -18,7 +18,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void read_time();
   void write_time();
   void set_alarm_enabled(bool enabled) { this->alarm_enabled_ = enabled; }
-  void set_alarm_configured(bool configured) { this->alarm_explicitly_configured_ = configured; }
+  void set_alarm_explicitly_configured(bool configured) { this->alarm_explicitly_configured_ = configured; }
   void set_alarm_second(uint8_t value) { this->alarm_second_ = value; }
   void set_alarm_minute(uint8_t value) { this->alarm_minute_ = value; }
   void set_alarm_hour(uint8_t value) { this->alarm_hour_ = value; }
@@ -101,7 +101,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   bool alarm_enabled_{false};
   bool alarm_explicitly_configured_{false};
   bool alarm_flag_seen_{false};
-  bool alarm_configured_{false};
+  bool alarm_armed_{false};
 };
 
 }  // namespace esphome::rx8111

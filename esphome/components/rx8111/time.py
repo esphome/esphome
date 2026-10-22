@@ -220,7 +220,7 @@ async def to_code(config: ConfigType) -> None:
             config.get(CONF_ALARM_ENABLED, any(f in config for f in _ALARM_FIELDS))
         )
     )
-    cg.add(var.set_alarm_configured(CONF_ALARM_ENABLED in config))
+    cg.add(var.set_alarm_explicitly_configured(CONF_ALARM_ENABLED in config))
     if (count := config.get(CONF_TIMER_COUNT)) is not None:
         cg.add(var.set_timer_count(count))
         cg.add(var.set_timer_clock(config[CONF_TIMER_CLOCK]))

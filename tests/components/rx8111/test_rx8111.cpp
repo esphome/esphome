@@ -479,13 +479,13 @@ TEST_F(RX8111Test, ExplicitDisabledTimerStopsBatteryBackedCounter) {
 TEST_F(RX8111Test, ExplicitDisabledAlarmClearsOnlyAIEAndPreservesAF) {
   this->bus_.regs[CONTROL] = 0x5C;
   this->bus_.regs[FLAG] = 0x08;
-  this->rtc_.set_alarm_configured(true);
+  this->rtc_.set_alarm_explicitly_configured(true);
   this->rtc_.set_alarm_enabled(false);
   this->rtc_.setup();
   EXPECT_EQ(this->bus_.regs[CONTROL], 0x54);
   EXPECT_EQ(this->bus_.regs[FLAG], 0x08);
   this->bus_.regs[CONTROL] = 0x5C;
-  this->rtc_.set_alarm_configured(false);
+  this->rtc_.set_alarm_explicitly_configured(false);
   this->rtc_.setup();
   EXPECT_EQ(this->bus_.regs[CONTROL], 0x5C);
 }
@@ -950,7 +950,7 @@ TEST_F(RX8111Test, BootTimerRetriesPartialWriteAndRetainedFlagOnce) {
 
 TEST_F(RX8111Test, ExplicitBootDisableRetriesAndRuntimeRequestSupersedesRetry) {
   this->rtc_.set_alarm_enabled(false);
-  this->rtc_.set_alarm_configured(true);
+  this->rtc_.set_alarm_explicitly_configured(true);
   this->bus_.regs[CONTROL] = 0x08;
   this->bus_.fail_write = CONTROL;
   this->rtc_.setup();
