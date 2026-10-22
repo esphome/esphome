@@ -3,6 +3,9 @@ esp32:
 
 logger:
 
+# No wifi: a cellular-only node must satisfy the api network dependency
+api:
+
 modem:
   id: atmodem
   rx_pin: GPIO26

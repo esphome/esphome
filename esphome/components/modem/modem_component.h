@@ -90,7 +90,6 @@ class ModemComponent : public Component {
   const char *get_use_address() const { return this->use_address_; };
 
  protected:
-  static constexpr uint32_t CONNECT_TIMEOUT_ID = 0;
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
   static constexpr size_t URC_LINE_SIZE = 128;
 
@@ -102,8 +101,17 @@ class ModemComponent : public Component {
   /// Pause the state machine before the next pass, then go to state
   ModemComponentState retry_(ModemComponentState state, uint32_t delay_ms = RETRY_DELAY_MS);
   void transition_to_(ModemComponentState next_state);
+  // One bit per fault source, so a recovery in one path cannot hide another path's fault
+  enum Warning : uint8_t {
+    WARN_INIT_AT = 1 << 0,
+    WARN_BAUD = 1 << 1,
+    WARN_TEARDOWN = 1 << 2,
+  };
+
   void arm_connect_timeout_();
   void fail_setup_(const LogString *reason);
+  void set_warning_(uint8_t bit, const LogString *message);
+  void clear_warning_(uint8_t bit);
   void dump_connect_params_();
   SimResult prepare_sim_();
 
@@ -139,11 +147,11 @@ class ModemComponent : public Component {
   ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};
   uint8_t init_at_count_{0};
   uint8_t baud_index_{0};
+  uint8_t warnings_{0};
   // CONNECTING runs its long commands once: 0 nothing sent, 1 radio on, 2 attach requested
   uint8_t connect_step_{0};
   // One PIN attempt per enable(): a second wrong PIN could PUK-lock the SIM
   bool pin_sent_{false};
-  bool init_at_failed_{false};  // keeps the warning through a connect
   // Written last by the IP event task, read by loop()
   std::atomic<bool> got_ip_{false};
 #ifdef USE_MODEM_URC

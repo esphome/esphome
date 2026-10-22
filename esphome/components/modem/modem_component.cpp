@@ -41,15 +41,14 @@ void ModemComponent::enable() {
 void ModemComponent::disable() {
   ESP_LOGI(TAG, "Setting modem target state to DISABLED");
   this->target_state_ = ModemComponentState::MODEM_DISABLED;
-  this->cancel_timeout(CONNECT_TIMEOUT_ID);
-  // Also the reboot timer a failed setup armed outside the component
   App.scheduler.cancel_timeout(this);
 }
 
+// Self-keyed so it still fires after a failed setup, where the component's own timers are skipped
 void ModemComponent::arm_connect_timeout_() {
   // Measures time without a connection, like wifi, so retry cycles do not restart it
   if (this->timeout_ != 0) {
-    this->set_timeout(CONNECT_TIMEOUT_ID, this->timeout_, []() {
+    App.scheduler.set_timeout(this, this->timeout_, []() {
       ESP_LOGE(TAG, "Modem was not able to connect (timeout), rebooting");
       App.reboot();
     });
@@ -65,15 +64,24 @@ network::IPAddresses ModemComponent::get_ip_addresses() {
   return addresses;
 }
 
-// A failed component's own timers are skipped, so the reboot watchdog is armed outside it
 void ModemComponent::fail_setup_(const LogString *reason) {
   this->mark_failed(reason);
-  if (this->timeout_ != 0 && this->target_state_ == ModemComponentState::MODEM_CONNECTED) {
-    App.scheduler.set_timeout(this, this->timeout_, []() {
-      ESP_LOGE(TAG, "Modem setup failed, rebooting");
-      App.reboot();
-    });
+  if (this->target_state_ == ModemComponentState::MODEM_CONNECTED) {
+    this->arm_connect_timeout_();
   }
+}
+
+void ModemComponent::set_warning_(uint8_t bit, const LogString *message) {
+  this->warnings_ |= bit;
+  this->status_set_warning(message);
+}
+
+void ModemComponent::clear_warning_(uint8_t bit) {
+  if ((this->warnings_ & bit) == 0)
+    return;
+  this->warnings_ &= ~bit;
+  if (this->warnings_ == 0)
+    this->status_clear_warning();
 }
 
 void ModemComponent::setup() {
@@ -242,12 +250,11 @@ ModemComponentState ModemComponent::compute_next_state_() {
     case ModemComponentState::MODEM_ENABLING:
       return this->handle_state_enabling_();
     case ModemComponentState::MODEM_SYNCED:
-      this->init_at_failed_ = false;
+      this->clear_warning_(WARN_INIT_AT);
       for (uint8_t i = 0; i != this->init_at_count_; i++) {
         App.feed_wdt();
         if (!this->send_at(this->init_at_commands_[i], 0, true)) {
-          this->init_at_failed_ = true;
-          this->status_set_warning(LOG_STR("init_at command failed"));
+          this->set_warning_(WARN_INIT_AT, LOG_STR("init_at command failed"));
         }
       }
       this->connect_step_ = 0;
@@ -346,12 +353,13 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       delay(200);  // NOLINT
       if (uart_set_baudrate(this->uart_port_, this->baud_rate_) != ESP_OK) {
         ESP_LOGE(TAG, "UART rejected baud rate %d", this->baud_rate_);
+        this->set_warning_(WARN_BAUD, LOG_STR("UART rejected the configured baud rate"));
         return ModemComponentState::MODEM_DISCONNECTING;
       }
       this->current_baud_rate_ = this->baud_rate_;
       if (this->dce_->sync() != command_result::OK) {
         ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->baud_rate_);
-        this->status_set_warning(LOG_STR("No answer at the configured baud rate"));
+        this->set_warning_(WARN_BAUD, LOG_STR("No answer at the configured baud rate"));
         return ModemComponentState::MODEM_DISCONNECTING;
       }
       ESP_LOGI(TAG, "Modem synced at baud rate %d.", this->current_baud_rate_);
@@ -365,6 +373,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     this->restored_baud_ = this->current_baud_rate_;
     this->pref_.save(&this->restored_baud_);
   }
+  this->clear_warning_(WARN_BAUD);  // the modem answers at the rate it will keep
   return ModemComponentState::MODEM_SYNCED;
 }
 
@@ -392,7 +401,7 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
         // Retrying would burn the remaining PIN attempts; stay off until the user fixes the SIM
         this->status_set_error(LOG_STR("SIM locked"));
         this->target_state_ = ModemComponentState::MODEM_DISABLED;
-        this->cancel_timeout(CONNECT_TIMEOUT_ID);
+        App.scheduler.cancel_timeout(this);
         return ModemComponentState::MODEM_DISCONNECTING;
     }
     if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
@@ -429,10 +438,8 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
 
 ModemComponentState ModemComponent::handle_state_wait_ip_() {
   if (this->got_ip_.load(std::memory_order_acquire)) {
-    this->cancel_timeout(CONNECT_TIMEOUT_ID);
-    if (!this->init_at_failed_) {
-      this->status_clear_warning();
-    }
+    App.scheduler.cancel_timeout(this);
+    this->clear_warning_(WARN_TEARDOWN);
     this->status_clear_error();  // a SIM fault fixed outside is over once PPP is up
     this->dump_connect_params_();
     return ModemComponentState::MODEM_CONNECTED;
@@ -449,7 +456,7 @@ ModemComponentState ModemComponent::handle_state_disconnecting_() {
   bool clean = true;
   if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
     // The next enable() probes the mode again and retries the exit; the warning keeps this visible
-    this->status_set_warning(LOG_STR("Failed to leave data mode"));
+    this->set_warning_(WARN_TEARDOWN, LOG_STR("Failed to leave data mode"));
     clean = false;
   }
   App.feed_wdt();
@@ -457,11 +464,11 @@ ModemComponentState ModemComponent::handle_state_disconnecting_() {
   if (this->dce_->set_radio_state(0) == command_result::OK) {
     ESP_LOGI(TAG, "Radio off");
   } else {
-    this->status_set_warning(LOG_STR("Radio off failed"));
+    this->set_warning_(WARN_TEARDOWN, LOG_STR("Radio off failed"));
     clean = false;
   }
-  if (clean && !this->init_at_failed_) {
-    this->status_clear_warning();  // a clean teardown ends whatever the warning was about
+  if (clean) {
+    this->clear_warning_(WARN_TEARDOWN);
   }
   return ModemComponentState::MODEM_DISABLED;
 }

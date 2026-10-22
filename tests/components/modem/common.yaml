@@ -1,5 +1,6 @@
 esphome:
   on_boot:
+    priority: -100  # the modem is set up by then, so send_at reaches the DCE
     then:
       - modem.disable
       - modem.enable

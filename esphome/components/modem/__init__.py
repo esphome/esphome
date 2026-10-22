@@ -54,12 +54,9 @@ ModemComponentState = modem_ns.enum("ModemComponentState", is_class=True)
 _CHAR_PTR_CONST = cg.global_ns.namespace("char *const")
 
 
-def AUTO_LOAD(config: ConfigType | None = None) -> list[str]:
-    # The URC text sensor is the only entity the component owns; tooling that
-    # resolves AUTO_LOAD without a config gets the full list
-    if config is None or CONF_URC in config:
-        return ["network", "text_sensor"]
-    return ["network"]
+# Static so `api:` finds network before its dependency check; a config-dependent
+# AUTO_LOAD resolves after that check and fails a cellular-only node
+AUTO_LOAD = ["network", "text_sensor"]
 
 
 def _on_state(conf_key: str, state: str) -> automation.CallbackAutomation:
