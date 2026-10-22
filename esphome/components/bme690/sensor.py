@@ -1,5 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import (
+    CONF_BREATH_VOC_EQUIVALENT,
+    CONF_CO2_EQUIVALENT,
+    CONF_IAQ,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAS_RESISTANCE,
@@ -30,9 +35,6 @@ from . import CONF_BME690_ID, BME690Component
 DEPENDENCIES = ["bme690"]
 
 # Support loading this PR as an external component with ESPHome 2026.6.5.
-CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
-CONF_CO2_EQUIVALENT = "co2_equivalent"
-CONF_IAQ = "iaq"
 CONF_STATIC_IAQ = "static_iaq"
 CONF_TVOC_EQUIVALENT = "tvoc_equivalent"
 CONF_GAS_PERCENTAGE = "gas_percentage"
@@ -131,43 +133,17 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_BME690_ID])
-
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(hub.set_temperature_sensor(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(hub.set_humidity_sensor(sens))
-    if CONF_PRESSURE in config:
-        sens = await sensor.new_sensor(config[CONF_PRESSURE])
-        cg.add(hub.set_pressure_sensor(sens))
-    if CONF_GAS_RESISTANCE in config:
-        sens = await sensor.new_sensor(config[CONF_GAS_RESISTANCE])
-        cg.add(hub.set_gas_resistance_sensor(sens))
-    if CONF_IAQ in config:
-        sens = await sensor.new_sensor(config[CONF_IAQ])
-        cg.add(hub.set_iaq_sensor(sens))
-    if CONF_IAQ_ACCURACY in config:
-        sens = await sensor.new_sensor(config[CONF_IAQ_ACCURACY])
-        cg.add(hub.set_iaq_accuracy_sensor(sens))
-    if CONF_STATIC_IAQ in config:
-        sens = await sensor.new_sensor(config[CONF_STATIC_IAQ])
-        cg.add(hub.set_static_iaq_sensor(sens))
-    if CONF_CO2_EQUIVALENT in config:
-        sens = await sensor.new_sensor(config[CONF_CO2_EQUIVALENT])
-        cg.add(hub.set_co2_equivalent_sensor(sens))
-    if CONF_BREATH_VOC_EQUIVALENT in config:
-        sens = await sensor.new_sensor(config[CONF_BREATH_VOC_EQUIVALENT])
-        cg.add(hub.set_breath_voc_equivalent_sensor(sens))
-    if CONF_TVOC_EQUIVALENT in config:
-        sens = await sensor.new_sensor(config[CONF_TVOC_EQUIVALENT])
-        cg.add(hub.set_tvoc_equivalent_sensor(sens))
-    if CONF_GAS_PERCENTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_GAS_PERCENTAGE])
-        cg.add(hub.set_gas_percentage_sensor(sens))
-    if CONF_COMPENSATED_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_COMPENSATED_TEMPERATURE])
-        cg.add(hub.set_comp_temperature_sensor(sens))
-    if CONF_COMPENSATED_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_COMPENSATED_HUMIDITY])
-        cg.add(hub.set_comp_humidity_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, hub.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, hub.set_humidity_sensor)
+    await sensors(CONF_PRESSURE, hub.set_pressure_sensor)
+    await sensors(CONF_GAS_RESISTANCE, hub.set_gas_resistance_sensor)
+    await sensors(CONF_IAQ, hub.set_iaq_sensor)
+    await sensors(CONF_IAQ_ACCURACY, hub.set_iaq_accuracy_sensor)
+    await sensors(CONF_STATIC_IAQ, hub.set_static_iaq_sensor)
+    await sensors(CONF_CO2_EQUIVALENT, hub.set_co2_equivalent_sensor)
+    await sensors(CONF_BREATH_VOC_EQUIVALENT, hub.set_breath_voc_equivalent_sensor)
+    await sensors(CONF_TVOC_EQUIVALENT, hub.set_tvoc_equivalent_sensor)
+    await sensors(CONF_GAS_PERCENTAGE, hub.set_gas_percentage_sensor)
+    await sensors(CONF_COMPENSATED_TEMPERATURE, hub.set_comp_temperature_sensor)
+    await sensors(CONF_COMPENSATED_HUMIDITY, hub.set_comp_humidity_sensor)

@@ -45,10 +45,7 @@ bme690_ns = cg.esphome_ns.namespace("bme690")
 BME690Component = bme690_ns.class_("BME690Component", cg.Component, i2c.I2CDevice)
 
 SampleRate = bme690_ns.enum("SampleRate")
-SAMPLE_RATE_OPTIONS = {
-    "LP": SampleRate.SAMPLE_RATE_LP,
-    "ULP": SampleRate.SAMPLE_RATE_ULP,
-}
+SAMPLE_RATE_OPTIONS = SampleRate.options("LP", "ULP", prefix="SAMPLE_RATE_")
 
 
 def _compute_local_file_path(url: str, suffix: str) -> Path:
@@ -99,12 +96,6 @@ def _read_bsec_config(path: Path) -> list[int]:
     return list(data)
 
 
-def _validate_bsec_options(config):
-    if CONF_BSEC_CONFIG in config and CONF_BSEC_LIBRARY not in config:
-        raise cv.Invalid(f"{CONF_BSEC_CONFIG} requires {CONF_BSEC_LIBRARY}")
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -129,7 +120,7 @@ CONFIG_SCHEMA = cv.All(
         )
     )
     .extend(i2c.i2c_device_schema(0x76)),
-    _validate_bsec_options,
+    cv.key_requires(CONF_BSEC_CONFIG, CONF_BSEC_LIBRARY),
     cv.only_with_framework(
         frameworks=Framework.ESP_IDF,
         suggestions={
@@ -141,9 +132,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     value = config[CONF_ID].id
     if isinstance(value, str):

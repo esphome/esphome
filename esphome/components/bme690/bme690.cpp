@@ -9,7 +9,7 @@ namespace esphome::bme690 {
 
 // Reference material for the BME69x driver and Bosch BSEC integration examples:
 // https://www.bosch-sensortec.com/en/software-tools/software/bme680-software-bsec
-static const char *const TAG = "bme690";
+ESPHOME_LOG_TAG(TAG, "bme690");
 #if defined(USE_BSEC) && defined(USE_TEXT_SENSOR)
 static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 #endif
@@ -250,15 +250,17 @@ void BME690Component::dump_config() {
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_text_sensor_);
 #endif
-  ESP_LOGCONFIG(TAG, "  Sample Rate: %s", this->sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
+  ESP_LOGCONFIG(TAG, "  Sample Rate: %s",
+                this->sample_rate_ == SAMPLE_RATE_ULP ? LOG_STR_LITERAL("ULP") : LOG_STR_LITERAL("LP"));
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f°C", this->ext_temp_offset_);
   ESP_LOGCONFIG(TAG, "  State Save Interval: %" PRIu32 "ms", this->state_save_interval_ms_);
   ESP_LOGCONFIG(TAG, "  Fallback Update Interval: %.1fs", this->update_interval_ms_ / 1000.0f);
-  ESP_LOGCONFIG(TAG, "  BSEC: %s", this->bsec_enabled_ ? "enabled" : "disabled");
+  ESP_LOGCONFIG(TAG, "  BSEC: %s", this->bsec_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 #ifdef USE_BSEC
   if (this->bsec_enabled_) {
     ESP_LOGCONFIG(TAG, "  BSEC Config: %s (%" PRIu32 " bytes)",
-                  this->bsec_configuration_ != nullptr ? "custom" : "built-in", this->get_bsec_configuration_length_());
+                  this->bsec_configuration_ != nullptr ? LOG_STR_LITERAL("custom") : LOG_STR_LITERAL("built-in"),
+                  this->get_bsec_configuration_length_());
   }
 #endif
 }
