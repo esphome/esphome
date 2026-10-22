@@ -12,10 +12,15 @@ from pathlib import Path
 
 import pytest
 
-from esphome import config_validation as cv
+from esphome import config_validation as cv, final_validate as fv
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 from esphome.components.wifi import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-from esphome.const import KEY_FRAMEWORK_VERSION, Platform, PlatformFramework
+from esphome.const import (
+    CONF_ETHERNET,
+    KEY_FRAMEWORK_VERSION,
+    Platform,
+    PlatformFramework,
+)
 from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
@@ -131,14 +136,14 @@ def test_wisp_stays_on_its_own_path(
             {"networks": [_STA_NETWORK], "ap": {"ssid": "fallback", "coexist": True}},
             "only supported on ESP32",
         ),
-        # Coexistence needs a station for the AP to fall back from.
+        # Coexistence needs an upstream for the AP to fall back from.
         (
             PlatformFramework.ESP32_IDF,
             {
                 "post_connect_roaming": False,
                 "ap": {"ssid": "fallback", "coexist": True},
             },
-            "requires at least one STA network",
+            "needs a station network",
         ),
         # The default post_connect_roaming scan would drop the AP again.
         (
@@ -272,3 +277,18 @@ def test_coexist_without_napt_accepts_idf_5_0(
             "ap": {"ssid": "fallback", "coexist": True},
         }
     )
+
+
+def test_coexist_with_ethernet_upstream(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Ethernet can carry the AP subnet, and nothing can roam without a station."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    fv.full_config.get()[CONF_ETHERNET] = {}
+    # No station network and no post_connect_roaming: with nothing to roam to,
+    # the default scan can never take the AP down.
+    _validate({"ap": {"ssid": "fallback", "coexist": True, "napt": True}})

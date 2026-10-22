@@ -1,0 +1,27 @@
+# An ethernet upstream can carry the coexist AP: no station credentials are
+# needed, and with nothing to roam to the default post_connect_roaming is fine.
+# Config-only: the routed data path itself is built by test-coexist.
+esphome:
+  name: validate-coexist-ethernet
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+ethernet:
+  type: LAN8720
+  mdc_pin: 23
+  mdio_pin: 32
+  clk:
+    pin: 0
+    mode: CLK_EXT_IN
+  phy_addr: 0
+  power_pin: 33
+
+wifi:
+  ap:
+    ssid: Fallback AP
+    password: fallback_password
+    coexist: true
+    napt: true

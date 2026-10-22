@@ -459,8 +459,9 @@ def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
 
     Both need the ESP-IDF driver: ``coexist:`` puts it in WIFI_MODE_APSTA, and
     ``napt:`` adds the lwip forwarding that lets the AP subnet out through the
-    station. ``coexist:`` also needs a station to fall back from, and no
-    post-connect roaming, whose scan would take the AP down again.
+    station. ``coexist:`` also needs an upstream to fall back from (a station,
+    or ethernet), and no post-connect roaming, whose scan would take the AP
+    down again.
 
     ``ap_mode: WISP`` covers this ground on its own, so the two cannot be
     combined.
@@ -485,11 +486,17 @@ def _validate_ap_coexist(ap_config: ConfigType, config: ConfigType) -> None:
                 esp_idf=cv.Version(5, 1, 0),
                 extra_message="NAPT routes through NAT",
             )(napt)
-        if not wifi_has_sta(config):
+        full_config = fv.full_config.get()
+        if not wifi_has_sta(config) and CONF_ETHERNET not in full_config:
             raise cv.Invalid(
-                "AP+STA coexistence (coexist: true) requires at least one STA network configured."
+                "AP+STA coexistence (coexist: true) needs a station network (wifi.ssid or wifi.networks), "
+                "or ethernet as the upstream interface"
             )
-        if config[CONF_POST_CONNECT_ROAMING]:
+        # The scan after a connect would take the AP down again; with no way for a
+        # network to appear at run time there is nothing for it to roam to.
+        if config[CONF_POST_CONNECT_ROAMING] and not wifi_stays_ap_only(
+            config, full_config
+        ):
             raise cv.Invalid(
                 "AP+STA coexistence (coexist: true) is incompatible with post_connect_roaming. "
                 "Please set post_connect_roaming: false in the wifi block."

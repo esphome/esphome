@@ -128,9 +128,9 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_GOT_IP6) {
     memcpy(&event.data.ip_got_ip6, event_data, sizeof(ip_event_got_ip6_t));
 #endif
-#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#if (defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_ETH_GOT_IP) {  // NOLINT(bugprone-branch-clone)
-    // no data: the bridge rereads the resolvers an ethernet upstream just received
+    // no data: the AP rereads the resolvers an ethernet upstream just received
 #endif
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_LOST_IP) {  // NOLINT(bugprone-branch-clone)
     // no data
@@ -1127,7 +1127,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     this->notify_disconnect_state_listeners_();
 #endif
 
-#if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
+#if (defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_ETH_GOT_IP) {
     this->apply_ap_dns_();
 #endif
