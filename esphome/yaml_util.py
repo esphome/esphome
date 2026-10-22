@@ -696,20 +696,17 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
                     links[directory] = directory.resolve()
                     break
 
+    unresolved: list[str] = []
     load_listeners.append(_on_load)
     try:
         try:
             data = load_yaml(config_path)
         except EsphomeError as err:
-            return DiscoveredYamlFiles(
-                list(aliases),
-                secrets,
-                load_errors=[f"{config_path}: {err}"],
-                aliases=aliases,
+            load_errors = [f"{config_path}: {err}"]
+        else:
+            unresolved, load_errors = force_load_include_files(
+                data, warn_on_unresolved=False, warn_on_load_error=False
             )
-        unresolved, load_errors = force_load_include_files(
-            data, warn_on_unresolved=False, warn_on_load_error=False
-        )
     finally:
         load_listeners.remove(_on_load)
 
