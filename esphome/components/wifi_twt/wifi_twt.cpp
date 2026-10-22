@@ -10,7 +10,7 @@
 
 namespace esphome::wifi_twt {
 
-static const char *const TAG = "wifi_twt";
+ESPHOME_LOG_TAG(TAG, "wifi_twt");
 
 // Retry backoff after a rejected/timed-out TWT setup: doubles from 5s, capped at 60s, and
 // never gives up — a request costs nothing while the device just runs at full power.

@@ -14,7 +14,7 @@
 
 namespace esphome::wifi_twt {
 
-static const char *const TAG = "wifi_twt";
+ESPHOME_LOG_TAG(TAG, "wifi_twt");
 
 // Wire format (IEEE 802.11ax): interval_µs = mant × 2^expn. Start at expn=10 (1TU, the
 // minimum useful granularity) and shift up until the mantissa fits in uint16_t.

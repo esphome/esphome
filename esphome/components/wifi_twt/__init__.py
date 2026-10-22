@@ -24,6 +24,7 @@ from .const import (
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@rwrozelle"]
 CONFLICTS_WITH = ["deep_sleep", "espnow"]
+DOMAIN = "wifi_twt"
 
 # Ordinals match wifi_twt_setup_cmds_t in esp_wifi_he_types.h
 SETUP_CMDS = {
