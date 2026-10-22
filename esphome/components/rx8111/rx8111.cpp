@@ -35,9 +35,9 @@ static constexpr uint32_t RX8111_BOOT_TIMER_RETRY_ID = 2;
 static constexpr uint8_t RX8111_BOOT_MAX_ATTEMPTS = 3;
 
 void RX8111Component::setup() {
-  this->read_time();
   this->configure_boot_alarm_();
   this->configure_boot_timer_();
+  this->read_time();
   if (this->alarm_enabled_ || this->timer_enabled_ || this->timer_retained_event_pending_) {
     this->start_event_polling_();
   }
@@ -434,14 +434,12 @@ bool RX8111Component::start_timer() {
 bool RX8111Component::clear_timer_flag() {
   // Write-zero-to-clear without clearing other flags latched concurrently.
   if (!this->write_byte(RX8111_REG_FLAG, static_cast<uint8_t>(~RX8111_FLAG_TF))) {
-    if (!this->boot_timer_in_progress_)
-      this->set_warning_(WARN_TIMER_FLAG_CLEAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    this->set_warning_(WARN_TIMER_FLAG_CLEAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   this->timer_flag_seen_ = false;
   this->timer_retained_event_pending_ = false;
-  if (!this->boot_timer_in_progress_)
-    this->clear_warning_(WARN_TIMER_FLAG_CLEAR);
+  this->clear_warning_(WARN_TIMER_FLAG_CLEAR);
   return true;
 }
 
@@ -479,9 +477,12 @@ bool RX8111Component::poll_event_flags_() {
   const bool timer_rising =
       timer_active && !this->timer_flag_seen_ && (this->timer_enabled_ || this->timer_retained_event_pending_);
   const bool deliver_stopped_event = timer_rising && this->timer_retained_event_pending_;
-  // Callbacks may clear flags synchronously: record both edges first.
-  this->alarm_flag_seen_ = alarm_active;
-  this->timer_flag_seen_ = timer_active;
+  // Record eligible edges before callbacks, which may clear flags synchronously.
+  // Leave flags unseen while boot configuration is still waiting to enable delivery.
+  if (this->alarm_enabled_ && this->alarm_armed_)
+    this->alarm_flag_seen_ = alarm_active;
+  if (this->timer_enabled_ || this->timer_retained_event_pending_)
+    this->timer_flag_seen_ = timer_active;
   this->timer_retained_event_pending_ = false;
   if (alarm_rising)
     this->alarm_callbacks_.call();
