@@ -837,7 +837,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 
             tts_url_for_trigger = this->tts_response_url_;
             this->tts_response_url_.clear();  // Reset streaming URL
-            this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
+            if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
+              // The microphone may still be stopping; loop() moves to the desired state once it has
+              this->desired_state_ = State::STREAMING_RESPONSE;
+            } else {
+              this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
+            }
           }
         }
       }
@@ -908,7 +913,10 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         this->tts_end_trigger_.trigger(url);
       });
       State new_state = this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE;
-      if (new_state != this->state_) {
+      if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
+        // The microphone may still be stopping; loop() moves to the desired state once it has
+        this->desired_state_ = new_state;
+      } else if (new_state != this->state_) {
         // Don't needlessly change the state. The intent progress stage may have already changed the state to
         // streaming response.
         this->set_state_(new_state, new_state);
