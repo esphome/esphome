@@ -1,0 +1,27 @@
+vnc:
+  - id: vnc_client
+    display_id: test_display_screen
+    host: 192.0.2.10
+    port: 5901
+    reconnect_interval: 10s
+    update_delay: 300ms
+    max_update_delay: 2s
+    on_connect:
+      - logger.log: VNC connected
+    on_disconnect:
+      - logger.log: VNC disconnected
+
+interval:
+  - interval: 60s
+    then:
+      - if:
+          condition:
+            vnc.is_connected: vnc_client
+          then:
+            - logger.log: VNC is connected
+      - if:
+          condition:
+            vnc.is_connected:
+              id: vnc_client
+          then:
+            - logger.log: VNC is still connected
