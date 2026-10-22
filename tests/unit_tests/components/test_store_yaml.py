@@ -23,6 +23,7 @@ from esphome.components.store_yaml import (
     _pack_envelope,
     _read_files_verbatim,
     _remote_package_descriptions,
+    _symlink_descriptions,
     _uncaptured_note,
     unpack_envelope,
 )
@@ -384,6 +385,16 @@ _PKG_PW = "packages:\n  common: !include pkg/common.yaml\n"
             id="key_embeds_password",
         ),
         pytest.param(
+            {
+                "legacy.yaml": "mqtt:\n  broker: b\n  password: hunter2\n",
+                "entry.yaml": "packages:\n  legacy: !include legacy.yaml\n"
+                "mqtt: !remove\nwifi:\n  password: pw2\n",
+            },
+            {"wifi": {"networks": [{"password": SensitiveStr("pw2")}]}},
+            "mqtt.password in legacy.yaml",
+            id="removed_component_keeps_credential_keys",
+        ),
+        pytest.param(
             {"wifi.yaml": "wifi:\n  hunter2:\n    child: x\n"},
             {"ota": [{"password": SensitiveStr("hunter2")}]},
             "mapping key under wifi",
@@ -674,6 +685,13 @@ def test_redacted_fails_closed(
             {"wifi.yaml": "ssid: !literal '${ssid}'\n"},
             id="literal",
         ),
+        pytest.param(
+            {"fp.yaml": "password: 0\n"},
+            {"fingerprint_grow": {"password": SensitiveInt(0)}},
+            {},
+            {"fp.yaml": "password: !secret 'fingerprint_grow_password'"},
+            id="zero_credential",
+        ),
     ],
 )
 def test_redacted_hides_credentials(
@@ -719,6 +737,21 @@ def test_redacted_symlinked_dir_include_rebases_where_the_loader_reads(
     assert "wifi: !include '../shared/wifi.yaml'" in files["entry.yaml"].decode()
     assert files["../shared/wifi.yaml"] == b"ssid: shared\n"
     assert "!include '../wifi.yaml'" in files["../shared/pkgs/base.yaml"].decode()
+
+
+def test_include_through_a_directory_symlink(project: Path, tmp_path: Path) -> None:
+    """The include is pointed at the captured file; the note says how to recreate the link."""
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "wifi.yaml").write_text("ssid: shared\n")
+    (project / "linked").symlink_to(shared)
+    (project / "entry.yaml").write_text("wifi: !include linked/wifi.yaml\n")
+    discovered = discover_user_yaml_files(project / "entry.yaml")
+    assert discovered.links == {project / "linked": shared.resolve()}
+    assert _symlink_descriptions(discovered) == ["linked -> ../shared"]
+    files = _gather_redacted(discovered)
+    assert "wifi: !include '../shared/wifi.yaml'" in files["entry.yaml"].decode()
+    assert files["../shared/wifi.yaml"] == b"ssid: shared\n"
 
 
 def test_gather_emits_every_alias_of_one_file(project: Path, tmp_path: Path) -> None:
@@ -787,13 +820,17 @@ def test_redacted_warns_without_failing(
 def test_uncaptured_note_lists_content() -> None:
     """Uncaptured includes and remote packages are listed; nothing gives no note."""
     rel, content = _uncaptured_note(
-        ["${board}.yaml"], ["https://github.com/org/repo@main"]
+        ["${board}.yaml"], ["https://github.com/org/repo@main"], ["linked -> ../shared"]
     )
     assert rel == UNCAPTURED_NOTE_PATH
     text = content.decode()
     assert text.startswith("# store_yaml:")
-    assert "#   ${board}.yaml" in text
-    assert "#   https://github.com/org/repo@main" in text
+    for line in (
+        "${board}.yaml",
+        "https://github.com/org/repo@main",
+        "linked -> ../shared",
+    ):
+        assert f"#   {line}" in text
     assert _uncaptured_note([], []) is None
 
 

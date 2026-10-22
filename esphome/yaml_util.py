@@ -639,7 +639,8 @@ class DiscoveredYamlFiles:
     a ``secrets.yaml`` symlinked to a differently-named target is still
     flagged as secrets). ``files`` is incomplete when ``unresolved`` (templated
     include paths) or ``load_errors`` is non-empty. ``aliases`` maps a resolved
-    path to every :func:`named_path` the YAML reached it by.
+    path to every :func:`named_path` the YAML reached it by; ``links`` maps each
+    directory symlink a path went through to its target.
     """
 
     files: list[Path] = field(default_factory=list)
@@ -647,6 +648,7 @@ class DiscoveredYamlFiles:
     unresolved: list[str] = field(default_factory=list)
     load_errors: list[str] = field(default_factory=list)
     aliases: dict[Path, list[Path]] = field(default_factory=dict)
+    links: dict[Path, Path] = field(default_factory=dict)
 
 
 def named_path(path: Path) -> Path:
@@ -678,15 +680,22 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
     secrets: set[Path] = set()
     # Insertion ordered, so its keys are the loaded files in first-seen order.
     aliases: dict[Path, list[Path]] = {}
+    links: dict[Path, Path] = {}
 
     def _on_load(fname: Path) -> None:
-        fname = Path(fname)
+        fname = Path(fname).absolute()
         resolved = fname.resolve()
         if fname.name in SECRETS_FILES:
             secrets.add(resolved)
         names = aliases.setdefault(resolved, [])
         if (alias := named_path(fname)) not in names:
             names.append(alias)
+        # The outermost directory symlink on the way; `..` after one is the OS's business.
+        if ".." not in fname.parts:
+            for directory in reversed((fname.parent, *fname.parent.parents)):
+                if directory.is_symlink():
+                    links[directory] = directory.resolve()
+                    break
 
     load_listeners.append(_on_load)
     try:
@@ -714,6 +723,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         unresolved,
         load_errors,
         {path: aliases[path] for path in files},
+        links,
     )
 
 

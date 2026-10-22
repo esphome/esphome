@@ -155,7 +155,9 @@ def _iter_nodes(
     elif isinstance(node, (list, tuple)):
         for item in node:
             yield from _iter_nodes(item, path)
-    elif isinstance(node, (Lambda, Extend, Remove)):
+    elif isinstance(node, Remove):
+        yield path, node, False
+    elif isinstance(node, (Lambda, Extend)):
         yield path, node.value, False
     elif isinstance(node, yaml_util.IncludeFile):
         yield path, str(node.file), False
@@ -239,8 +241,17 @@ def _check_sensitive_usage(
     `!secret`. Whole scalar elsewhere: warn, it is recovered as the reference.
     A value at a credential location that validation never saw, or a URL with
     userinfo, fails unless it (or every definition of the substitution it
-    references) is a `!secret` or a known sensitive value.
+    references) is a `!secret` or a known sensitive value. Under a subtree a
+    `!remove` drops before validation, any key that is a credential elsewhere
+    counts as a credential location.
     """
+    removed = {
+        path
+        for tree in trees.values()
+        for path, node, _ in _iter_nodes(tree)
+        if isinstance(node, Remove)
+    }
+    credential_keys = {sp[-1] for sp in sensitive_paths if sp}
 
     def verified(text: str) -> bool:
         return not text or text in sensitive or yaml_util.is_secret(text) is not None
@@ -271,6 +282,8 @@ def _check_sensitive_usage(
         """
         if not path:
             return False
+        if path[-1] in credential_keys and any(path[: len(r)] == r for r in removed):
+            return True
         if path[0] == CONF_PACKAGES:
             if path[-1] == CONF_PASSWORD:
                 return True
@@ -293,6 +306,8 @@ def _check_sensitive_usage(
     for rel, tree in trees.items():
         scope = scopes[rel]
         for path, node, is_key in _iter_nodes(tree):
+            if isinstance(node, Remove):
+                continue
             text = str(node)
             if (info := sensitive.get(text)) is not None:
                 if is_key:
@@ -400,7 +415,7 @@ def _collect_sensitive_values() -> tuple[
         if is_key or not isinstance(node, yaml_util.Sensitive):
             continue
         paths.add(path)
-        if not node:
+        if isinstance(node, str) and not node:
             continue
         # Decimal for ints, to match the raw tree's parsed scalars, not HexInt's hex.
         value = str(int(node)) if isinstance(node, int) else str(node)
@@ -419,8 +434,18 @@ def _collect_sensitive_values() -> tuple[
     return result, paths
 
 
+def _symlink_descriptions(discovered: yaml_util.DiscoveredYamlFiles) -> list[str]:
+    """Each directory symlink the config went through, as `link -> target`."""
+    root = yaml_util.named_path(CORE.config_path).parent
+    return [
+        f"{link.relative_to(root, walk_up=True).as_posix()} -> "
+        f"{Path(os.path.relpath(target, link.parent)).as_posix()}"
+        for link, target in discovered.links.items()
+    ]
+
+
 def _uncaptured_note(
-    unresolved: list[str], remote_packages: list[str]
+    unresolved: list[str], remote_packages: list[str], symlinks: list[str] = ()
 ) -> tuple[str, bytes] | None:
     """A comment-only entry listing uncaptured content, or None if there is none."""
     sections = (
@@ -432,6 +457,7 @@ def _uncaptured_note(
             "These packages come from remote sources; re-fetch them to complete this config:",
             remote_packages,
         ),
+        ("These directories were symlinks; recreate them as link -> target:", symlinks),
     )
     body = "".join(
         f"# {title}\n" + "".join(f"#   {item}\n" for item in items)
@@ -474,8 +500,8 @@ def _prepare_tree(
 
     A mapping or list loaded through `!secret` becomes its registered text, which
     the dumper writes as the reference (a plain str would skip the secret check).
-    An `!include` pulled in by `!include_dir_*` is rebased onto `source`; every
-    `!include` seen is added to `includes`.
+    Every `!include` is pointed at its target's captured name and added to
+    `includes`.
     """
     if (
         fold_secrets
@@ -493,9 +519,11 @@ def _prepare_tree(
         if node.vars:
             node.vars = _prepare_tree(node.vars, source, fold_secrets, includes)
         includes.append(node)
-        origin = yaml_util.named_path(node.parent_file)
-        if origin != source and not node.has_unresolved_file():
-            target = origin.parent / node.file
+        if not node.has_unresolved_file():
+            # The target's captured name, so a directory symlink or a move by
+            # `!include_dir_*` is followed to where the file lands.
+            origin = yaml_util.named_path(node.parent_file)
+            target = yaml_util.named_path(origin.parent / node.file)
             node = node.with_file(
                 Path(os.path.relpath(target, source.parent)).as_posix()
             )
@@ -622,7 +650,10 @@ async def to_code(config: ConfigType) -> None:
             "store_yaml: remote packages are not embedded, only recorded: %s",
             ", ".join(remote_packages),
         )
-    if (note := _uncaptured_note(discovered.unresolved, remote_packages)) is not None:
+    note = _uncaptured_note(
+        discovered.unresolved, remote_packages, _symlink_descriptions(discovered)
+    )
+    if note is not None:
         files.append(note)
     envelope = _pack_envelope(files)
     compressed = zstd_module().compress(envelope, level=ZSTD_LEVEL)
