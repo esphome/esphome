@@ -14,8 +14,11 @@ from esphome.components.ln882x_spi_led_strip.light import (
 from esphome.const import CONF_CHIPSET, CONF_NUM_LEDS, CONF_PLATFORM, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
-# Datasheets allow +-150 ns on the high times; APA106 bit 1 is 160 ns short (1200 vs 1360 ns).
-HIGH_TOLERANCE_NS = 160
+# Datasheets allow +-150 ns on the high times.
+HIGH_TOLERANCE_NS = 150
+# APA106 bit 1 is 160 ns short (1200 vs 1360 ns): 7 high bits would leave its low time at the edge of its
+# own window, and the chip samples near the middle of the bit, so 6 is the better choice.
+APA106_BIT1_TOLERANCE_NS = 160
 # Every low time stays at least this long, and the bit period well below the reset time.
 MIN_LOW_NS = 400
 MAX_BIT_PERIOD_NS = 5000
@@ -38,7 +41,8 @@ def test_spi_encoding_meets_chipset_timings(chipset: str) -> None:
     high1, low1 = _pulses(encoding, encoding.bit1_high_bits)
 
     assert abs(high0 - timings.bit0_high) <= HIGH_TOLERANCE_NS
-    assert abs(high1 - timings.bit1_high) <= HIGH_TOLERANCE_NS
+    tolerance1 = APA106_BIT1_TOLERANCE_NS if chipset == "APA106" else HIGH_TOLERANCE_NS
+    assert abs(high1 - timings.bit1_high) <= tolerance1
     assert high1 > high0
     assert min(low0, low1) >= MIN_LOW_NS
     assert high0 + low0 <= MAX_BIT_PERIOD_NS

@@ -193,12 +193,15 @@ void LN882xSPILEDStripLightOutput::write_state(light::LightState *state) {
 
 light::ESPColorView LN882xSPILEDStripLightOutput::get_view_internal(int32_t index) const {
   const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->color_data_ + (index * colors.bytes_per_led());
+  // After a failed setup() effects and partitions still write pixels, so they get a scratch pixel.
+  static uint8_t scratch[5];
+  const bool ready = this->color_data_ != nullptr;
+  uint8_t *led = ready ? this->color_data_ + (index * colors.bytes_per_led()) : scratch;
   return {led + colors.r,
           led + colors.g,
           led + colors.b,
           colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
+          ready ? &this->effect_data_[index] : scratch + 4,
           &this->correction_};
 }
 

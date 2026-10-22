@@ -24,8 +24,7 @@ class LN882xSPILEDStripLightOutput final : public light::AddressableLight {
   float get_setup_priority() const override;
 
   light::LightTraits get_traits() override;
-  // Zero until setup() has allocated the buffers, so nothing iterates missing ones.
-  int32_t size() const override { return this->color_data_ == nullptr ? 0 : this->num_leds_; }
+  int32_t size() const override { return this->num_leds_; }
   void clear_effect_data() override;
   void write_state(light::LightState *state) override;
 
