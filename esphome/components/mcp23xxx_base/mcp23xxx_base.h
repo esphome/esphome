@@ -10,7 +10,7 @@ enum MCP23XXXInterruptMode : uint8_t { MCP23XXX_NO_INTERRUPT = 0, MCP23XXX_CHANG
 
 // Not a template member: GCC 10 (ESP8266) ignores section attributes on template instantiations, leaving the
 // ISR in flash.
-void IRAM_ATTR mcp23xxx_gpio_intr(Component *arg);
+void mcp23xxx_gpio_intr(Component *arg);
 
 template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander::CachedGpioExpander<uint8_t, N> {
  public:
