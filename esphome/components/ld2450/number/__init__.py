@@ -25,7 +25,6 @@ ICON_ARROW_TOP_LEFT_BOLD_BOX_OUTLINE = "mdi:arrow-top-left-bold-box-outline"
 MAX_ZONES = 3
 
 PresenceTimeoutNumber = ld2450_ns.class_("PresenceTimeoutNumber", number.Number)
-ZoneCoordinateNumber = ld2450_ns.class_("ZoneCoordinateNumber", number.Number)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -45,28 +44,28 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
         cv.Optional(f"zone_{n + 1}"): cv.Schema(
             {
                 cv.Required(CONF_X1): number.number_schema(
-                    ZoneCoordinateNumber,
+                    number.ApplyNumber,
                     device_class=DEVICE_CLASS_DISTANCE,
                     unit_of_measurement=UNIT_MILLIMETER,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_ARROW_TOP_LEFT_BOLD_BOX_OUTLINE,
                 ),
                 cv.Required(CONF_Y1): number.number_schema(
-                    ZoneCoordinateNumber,
+                    number.ApplyNumber,
                     device_class=DEVICE_CLASS_DISTANCE,
                     unit_of_measurement=UNIT_MILLIMETER,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_ARROW_TOP_LEFT,
                 ),
                 cv.Required(CONF_X2): number.number_schema(
-                    ZoneCoordinateNumber,
+                    number.ApplyNumber,
                     device_class=DEVICE_CLASS_DISTANCE,
                     unit_of_measurement=UNIT_MILLIMETER,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon=ICON_ARROW_BOTTOM_RIGHT_BOLD_BOX_OUTLINE,
                 ),
                 cv.Required(CONF_Y2): number.number_schema(
-                    ZoneCoordinateNumber,
+                    number.ApplyNumber,
                     device_class=DEVICE_CLASS_DISTANCE,
                     unit_of_measurement=UNIT_MILLIMETER,
                     entity_category=ENTITY_CATEGORY_CONFIG,
@@ -80,44 +79,32 @@ CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    ld2450_component = await cg.get_variable(config[CONF_LD2450_ID])
-    if presence_timeout_config := config.get(CONF_PRESENCE_TIMEOUT):
-        n = await number.new_number(
-            presence_timeout_config,
-            min_value=0,
-            max_value=3600,
-            step=1,
-        )
-        await cg.register_parented(n, config[CONF_LD2450_ID])
-        cg.add(ld2450_component.set_presence_timeout_number(n))
+    hub = await cg.get_variable(config[CONF_LD2450_ID])
+    numbers = number.sub_numbers(config, parent=hub)
+    await numbers(
+        CONF_PRESENCE_TIMEOUT,
+        hub.set_presence_timeout_number,
+        min_value=0,
+        max_value=3600,
+        step=1,
+    )
     for zone_num in range(MAX_ZONES):
         if zone_conf := config.get(f"zone_{zone_num + 1}"):
-            zone_x1_config = zone_conf.get(CONF_X1)
-            x1 = cg.new_Pvariable(zone_x1_config[CONF_ID], zone_num)
-            await number.register_number(
-                x1, zone_x1_config, min_value=-4860, max_value=4860, step=1
-            )
-            await cg.register_parented(x1, config[CONF_LD2450_ID])
-
-            zone_y1_config = zone_conf.get(CONF_Y1)
-            y1 = cg.new_Pvariable(zone_y1_config[CONF_ID], zone_num)
-            await number.register_number(
-                y1, zone_y1_config, min_value=0, max_value=7560, step=1
-            )
-            await cg.register_parented(y1, config[CONF_LD2450_ID])
-
-            zone_x2_config = zone_conf.get(CONF_X2)
-            x2 = cg.new_Pvariable(zone_x2_config[CONF_ID], zone_num)
-            await number.register_number(
-                x2, zone_x2_config, min_value=-4860, max_value=4860, step=1
-            )
-            await cg.register_parented(x2, config[CONF_LD2450_ID])
-
-            zone_y2_config = zone_conf.get(CONF_Y2)
-            y2 = cg.new_Pvariable(zone_y2_config[CONF_ID], zone_num)
-            await number.register_number(
-                y2, zone_y2_config, min_value=0, max_value=7560, step=1
-            )
-            await cg.register_parented(y2, config[CONF_LD2450_ID])
-
-            cg.add(ld2450_component.set_zone_numbers(zone_num, x1, y1, x2, y2))
+            x1, y1, x2, y2 = [
+                await numbers.create(
+                    zone_conf[key],
+                    None,
+                    min_value=lo,
+                    max_value=hi,
+                    step=1,
+                    apply="set_zone_coordinate(entity)",
+                    publish="before",
+                )
+                for key, lo, hi in (
+                    (CONF_X1, -4860, 4860),
+                    (CONF_Y1, 0, 7560),
+                    (CONF_X2, -4860, 4860),
+                    (CONF_Y2, 0, 7560),
+                )
+            ]
+            cg.add(hub.set_zone_numbers(zone_num, x1, y1, x2, y2))

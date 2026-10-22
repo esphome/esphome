@@ -4,7 +4,6 @@ import json
 import logging
 from pathlib import Path
 
-from bleak import BleakScanner
 from bleak.exc import BleakDBusError, BleakDeviceNotFoundError
 from smp.exceptions import SMPBadStartDelimiter
 from smpclient import SMPClient
@@ -23,9 +22,8 @@ from smpclient.transport.serial import SMPSerialTransport
 from esphome.core import EsphomeError
 from esphome.espota2 import ProgressBar
 
-from .ble_logger import is_mac_address
+from .ble_logger import find_device_by_name, is_ble_address
 
-SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
 BLE_SCAN_TIMEOUT = 10.0  # seconds
 RESET_DELAY = 2.0  # seconds to wait before reset, allows on_end action to execute
 
@@ -45,12 +43,12 @@ def _json_state(o: object) -> object:
 
 async def smpmgr_scan(name: str) -> str:
     _LOGGER.info("Scanning bluetooth for %s...", name)
-    for device in await BleakScanner.discover(
-        timeout=BLE_SCAN_TIMEOUT, service_uuids=[SMP_SERVICE_UUID]
-    ):
-        if device.name == name:
-            return device.address
-    raise EsphomeError(f"BLE device {name} with OTA service not found")
+    # No service filter: the SMP UUID only fits in the scan response, which macOS does not filter on.
+    # The SMP service is checked on connect.
+    device = await find_device_by_name(name, timeout=BLE_SCAN_TIMEOUT)
+    if device is None:
+        raise EsphomeError(f"BLE device {name} not found")
+    return device.address
 
 
 async def smpmgr_upload(device: str, firmware: Path) -> None:
@@ -88,7 +86,7 @@ def _get_image_tlv_sha256(file: Path) -> bytes:
 async def _smpmgr_upload(device: str, firmware: Path) -> None:
     image_tlv_sha256 = _get_image_tlv_sha256(firmware)
 
-    if is_mac_address(device):
+    if is_ble_address(device):
         smp_client = SMPClient(SMPBLETransport(), device)
     else:
         smp_client = SMPClient(SMPSerialTransport(), device)
@@ -105,7 +103,8 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
             ) from exc
         raise EsphomeError(f"BLE error connecting to {device}: {exc}") from exc
     except SMPBLETransportException as exc:
-        raise EsphomeError(f"Connection error with {device}") from exc
+        # Reached when a device with the right name has no SMP service, among other causes
+        raise EsphomeError(f"Connection error with {device}: {exc}") from exc
 
     _LOGGER.info("Connected %s...", device)
     try:

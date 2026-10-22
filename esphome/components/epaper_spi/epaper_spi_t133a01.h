@@ -22,9 +22,7 @@ class EPaperT133A01 : public EPaperBase {
  public:
   EPaperT133A01(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                 size_t init_sequence_length)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR) {
-    this->buffer_length_ = (size_t) width * height / 2;  // 2 pixels per byte at 4bpp
-  }
+      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_COLOR, 4) {}
 
   void set_cs_pins(GPIOPin *cs, GPIOPin *cs1) {
     this->cs_pin_ = cs;
@@ -46,6 +44,7 @@ class EPaperT133A01 : public EPaperBase {
   void deep_sleep() override;
 
   bool transfer_data() override;
+  void abort_transfer() override;
 
   /**
    * Send a command (and optional data) selecting one or both controllers.
