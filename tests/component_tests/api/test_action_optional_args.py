@@ -113,11 +113,18 @@ def test_default_slot_marks_optional_and_keeps_the_type(
     ]
 
 
-def test_default_is_validated_against_type() -> None:
-    assert validate_variable({"type": "int", "default": "5"})["default"] == 5
-    assert validate_variable({"type": "bool", "default": "true"})["default"] is True
-    with pytest.raises(Invalid):
-        validate_variable({"type": "int", "default": "not_a_number"})
+@pytest.mark.parametrize(
+    ("var", "expected"),
+    [
+        ({"type": "int", "default": "5"}, 5),
+        ({"type": "int", "default": -(2**31)}, -(2**31)),
+        ({"type": "int", "default": 2**31 - 1}, 2**31 - 1),
+        ({"type": "bool", "default": "true"}, True),
+        ({"type": "float", "default": "1.5"}, 1.5),
+    ],
+)
+def test_default_is_validated_against_type(var: dict, expected: object) -> None:
+    assert validate_variable(var)["default"] == expected
 
 
 @pytest.mark.parametrize(
@@ -126,6 +133,13 @@ def test_default_is_validated_against_type() -> None:
         {"type": "int[]", "required": False},
         {"type": "string[]", "default": "x"},
         {"type": "int", "default": 5, "required": True},
+        {"type": "int", "default": "not_a_number"},
+        # ExecuteServiceArgument.int_ is a signed 32-bit value
+        {"type": "int", "default": 2**31},
+        {"type": "int", "default": -(2**31) - 1},
+        # A boolean is an int in Python but "true" is not a number on the wire
+        {"type": "int", "default": True},
+        {"type": "float", "default": False},
     ],
 )
 def test_variable_rejects_invalid_optionality(var: dict) -> None:

@@ -250,10 +250,18 @@ def _validate_supports_response(value: Any) -> str:
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
 
+def _not_boolean(value: Any) -> Any:
+    # bool is an int subclass, and "true" cannot be parsed as a number by the client
+    if isinstance(value, bool):
+        raise cv.Invalid("Expected a number, got a boolean")
+    return value
+
+
+# The wire carries the default as text; the client parses it into ExecuteServiceArgument's types
 _DEFAULT_VALUE_VALIDATORS: dict[str, Callable[[Any], Any]] = {
     "bool": cv.boolean,
-    "int": cv.int_,
-    "float": cv.float_,
+    "int": cv.All(_not_boolean, cv.int_range(min=-(2**31), max=2**31 - 1)),
+    "float": cv.All(_not_boolean, cv.float_),
     "string": cv.string,
 }
 assert _DEFAULT_VALUE_VALIDATORS.keys() == _SERVICE_ARG_SCALAR_TYPES.keys()
