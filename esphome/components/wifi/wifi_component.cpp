@@ -91,7 +91,9 @@ CompactString &CompactString::operator=(const CompactString &other) {
 }
 
 CompactString::CompactString(CompactString &&other) noexcept : length_(other.length_), is_heap_(other.is_heap_) {
-  // Copy full storage (includes null terminator for inline, or pointer for heap)
+  // Copy full storage (includes null terminator for inline, or pointer for heap). The bytes past the
+  // terminator are never read, and a fixed-size copy is 8 bytes of flash smaller than a sized one.
+  // NOLINTNEXTLINE(clang-analyzer-unix.cstring.UninitializedRead)
   std::memcpy(this->storage_, other.storage_, INLINE_CAPACITY + 1);
   other.length_ = 0;
   other.is_heap_ = 0;
@@ -800,12 +802,9 @@ void WiFiComponent::start() {
     // Without fast_connect: go straight to scanning (or hidden mode if all networks are hidden)
     this->start_initial_connection_();
 #endif
-#ifdef USE_WIFI_AP
-  } else if (this->has_ap()) {
+#if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_WISP)
+  } else if (this->has_ap()) {  // a bridge waits in loop() for the upstream's resolver
     this->setup_ap_config_();
-    if (!std::isnan(this->output_power_) && !this->wifi_apply_output_power_(this->output_power_)) {
-      ESP_LOGV(TAG, "Setting Output Power Option failed");
-    }
 #ifdef USE_CAPTIVE_PORTAL
     // Where the radio scans alongside the AP, the portal can list networks.
     if (captive_portal::global_captive_portal != nullptr && !WIFI_AP_EXCLUSIVE) {
@@ -814,7 +813,7 @@ void WiFiComponent::start() {
     }
 #endif
     this->start_ap_portal_();
-#endif  // USE_WIFI_AP
+#endif  // USE_WIFI_AP && !USE_WIFI_AP_WISP
   }
 #ifdef USE_WIFI_DPP
   // Without networks there is nothing to try first, so listen for a configurator right away
@@ -954,40 +953,34 @@ void WiFiComponent::loop() {
         return;
     }
 
-#ifdef USE_WIFI_AP_WISP
-    // The bridge comes up once it has a resolver to offer; a start that failed is tried again after ap_timeout
-    if (!this->ap_setup_ && this->ap_dns_known_() &&
-        (this->ap_changed_ == 0 || now - this->ap_changed_ > this->ap_timeout_)) {
-      ESP_LOGI(TAG, "Starting AP");
-      this->ap_changed_ = now;
-      this->setup_ap_config_();
-    }
-#elif defined(USE_WIFI_AP)
-    if (this->has_ap() && !this->ap_setup_) {
+#if defined(USE_WIFI_AP) && !defined(USE_WIFI_AP_WISP)
 #ifdef USE_WIFI_APSTA
-      // A coexist AP is a routed AP for its clients, not a provisioning surface: a closed
-      // provisioning window ends only the portal on it, so it is started and retried like any
-      // other AP. A failed start leaves ap_setup_ false; throttle retries so a failure is not
-      // retried (and logged) on every loop pass. The first attempt is never delayed -
-      // ap_coexist_last_attempt_ is 0 until then.
-      if (this->ap_coexist_last_attempt_ == 0 || now - this->ap_coexist_last_attempt_ >= WIFI_AP_COEXIST_RETRY_MS) {
-        this->ap_coexist_last_attempt_ = now;
-        ESP_LOGI(TAG, "Starting coexist AP");
-        this->setup_ap_config_();
-        if (!this->ap_setup_) {
-          ESP_LOGW(TAG, "Coexist AP start failed; retrying");
-        } else if (!this->is_connected() && !this->is_provisioning_closed_()) {
-          // The portal follows the station: a retry that lands after the station connected, or
-          // after the provisioning window closed, must not reopen the unauthenticated portal on
-          // the AP, which nothing would close again.
-          this->start_ap_portal_();
-        }
+    // A coexist AP is a routed AP for its clients, not a provisioning surface: a closed
+    // provisioning window ends only the portal on it, so it is started and retried like any
+    // other AP. A failed start leaves ap_setup_ false; throttle retries so a failure is not
+    // retried (and logged) on every loop pass. The first attempt is never delayed -
+    // ap_coexist_last_attempt_ is 0 until then.
+    if (this->has_ap() && !this->ap_setup_ &&
+        (this->ap_coexist_last_attempt_ == 0 || now - this->ap_coexist_last_attempt_ >= WIFI_AP_COEXIST_RETRY_MS)) {
+      this->ap_coexist_last_attempt_ = now;
+      ESP_LOGI(TAG, "Starting coexist AP");
+      this->setup_ap_config_();
+      if (!this->ap_setup_) {
+        ESP_LOGW(TAG, "Coexist AP start failed; retrying");
+      } else if (!this->is_connected() && !this->is_provisioning_closed_()) {
+        // The portal follows the station: a retry that lands after the station connected, or
+        // after the provisioning window closed, must not reopen the unauthenticated portal on
+        // the AP, which nothing would close again.
+        this->start_ap_portal_();
       }
+    }
 #else
-      // Once the provisioning window has closed, don't bring up the fallback AP (or the captive
-      // portal on it) - the device must stay unprovisionable until it is power-cycled.
+    // Once the provisioning window has closed, don't bring up the fallback AP (or
+    // the captive portal on it) - the device must stay unprovisionable until it is
+    // power-cycled.
+    if (this->has_ap() && !this->ap_setup_ && !this->is_provisioning_closed_()) {
       const uint32_t since_connected = now - this->last_connected_;
-      if (this->ap_timeout_ != 0 && !this->is_provisioning_closed_() &&
+      if (this->ap_timeout_ != 0 &&
 #ifdef USE_WIFI_AP_EXCLUSIVE
           // After a pause, or a start that failed, the networks get a full ap_timeout before the AP is tried again
           since_connected > this->ap_timeout_ && now - this->ap_changed_ > this->ap_timeout_
@@ -1010,8 +1003,8 @@ void WiFiComponent::loop() {
 #endif
         this->start_ap_portal_();
       }
-#endif  // USE_WIFI_APSTA
     }
+#endif  // USE_WIFI_APSTA
 #if defined(USE_WIFI_APSTA) && (defined(USE_CAPTIVE_PORTAL) || defined(USE_WEBSERVER_CAPTIVE))
     // A coexist AP stays up for the whole uptime, so the portal is the one thing
     // that follows the station: it is ended when the station connects (see
@@ -1025,7 +1018,7 @@ void WiFiComponent::loop() {
       this->start_ap_portal_();
     }
 #endif  // USE_WIFI_APSTA && (USE_CAPTIVE_PORTAL || USE_WEBSERVER_CAPTIVE)
-#endif  // USE_WIFI_AP
+#endif  // USE_WIFI_AP && !USE_WIFI_AP_WISP
 
 #ifdef USE_IMPROV_BLE
     if (improv_ble::global_improv_component != nullptr && !improv_ble::global_improv_component->is_active() &&
@@ -1062,6 +1055,16 @@ void WiFiComponent::loop() {
       }
     }
   }
+
+#ifdef USE_WIFI_AP_WISP
+  // The bridge comes up once it has a resolver to offer; a start that failed is tried again after ap_timeout
+  if (!this->ap_setup_ && this->state_ != WIFI_COMPONENT_STATE_DISABLED && this->ap_dns_known_() &&
+      (this->ap_changed_ == 0 || now - this->ap_changed_ > this->ap_timeout_)) {
+    ESP_LOGI(TAG, "Starting AP");
+    this->ap_changed_ = now;
+    this->setup_ap_config_();
+  }
+#endif
 
 #ifdef USE_WIFI_DPP
   // Without networks no cooldown starts the listen, so a failed or abandoned enrollment is listened for again
@@ -1148,6 +1151,11 @@ void WiFiComponent::setup_ap_config_() {
   // Reset before the AP exists: afterwards only the platform's event path writes the counter
   this->ap_clients_ = 0;
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
+  // The station path applied it in start(); without a station the radio only exists from here
+  if (this->ap_setup_ && !this->has_sta() && !std::isnan(this->output_power_) &&
+      !this->wifi_apply_output_power_(this->output_power_)) {
+    ESP_LOGV(TAG, "Setting Output Power Option failed");
+  }
 #if defined(USE_WIFI_AP_EXCLUSIVE) || defined(USE_WIFI_AP_WISP)
   // A failed start must not leave the radio in AP mode: on an exclusive radio it would refuse
   // the STA attempts until the next try, and a bridge would take clients it cannot serve.
