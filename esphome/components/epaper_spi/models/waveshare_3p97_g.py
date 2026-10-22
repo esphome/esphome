@@ -5,6 +5,8 @@ from . import EpaperModel
 
 
 class Waveshare3P97InG(EpaperModel):
+    source_files = ("epaper_waveshare_3p97_g.cpp",)
+
     def option(self, name, fallback=cv.UNDEFINED) -> cv.Optional | cv.Required:
         if name == CONF_BUSY_PIN:
             return cv.Required(name)
