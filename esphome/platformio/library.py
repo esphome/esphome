@@ -801,16 +801,13 @@ def normalize_dependencies(
     so callers see a uniform list. ``manifest_name`` names the manifest in the
     warning for entries that cannot be normalized.
 
-    Bare-name spellings carry no version; the dependency walk later drops
-    version-less entries at DEBUG, since they are usually names of bundled
+    Bare-name spellings carry no version; the walk settles them once the graph is known.
     framework libraries (Wire, SPI) that need no registry install.
     """
     if dependencies is None:
         return []
     if isinstance(dependencies, str):
-        # A plain string is one or more comma-separated names; iterating it
-        # as a list would shred it into one-character "libraries"
-        return [{"name": n.strip()} for n in dependencies.split(",") if n.strip()]
+        return parse_properties_depends(dependencies)
     if isinstance(dependencies, dict):
         normalized = []
         for raw_name, spec in dependencies.items():
@@ -988,10 +985,10 @@ def _satisfying_key(
     requester: str,
     nodes: dict[str, _LibNode],
     components: dict[str, ConvertedLibrary],
-) -> str | None:
-    """The key of a resolved library a version-less dependency names: by registry
-    package name (with the owner, when the dependency gives one) first, then by
-    manifest name; never the requester itself."""
+) -> tuple[str, bool] | None:
+    """The key of a resolved library a version-less dependency names, and whether
+    only its manifest name matched: the registry package name (with the owner,
+    when the dependency gives one) is checked first; never the requester itself."""
     wanted = name.lower()
 
     def owner_of(key: str, component: ConvertedLibrary) -> str:
@@ -1007,20 +1004,13 @@ def _satisfying_key(
     ]
     for key, _ in candidates:
         if (nodes[key].pkgname or key).lower() == wanted:
-            return key
+            return key, False
     if owner:
         return None
     for key, component in candidates:
         manifest_name = component.data.get("name")
         if isinstance(manifest_name, str) and manifest_name.lower() == wanted:
-            # Visible, so a chance name collision can be pinned to the right package
-            _LOGGER.info(
-                "Dependency %s of %s satisfied by %s through its manifest name",
-                name,
-                requester,
-                key,
-            )
-            return key
+            return key, True
     return None
 
 
@@ -1190,8 +1180,6 @@ def convert_libraries(
     )
 
     resolved_requirements: dict[str, frozenset[str]] = {}
-    # Keys fetched by name that the registry did not know
-    missed: set[str] = set()
 
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
         key, kind, locator = _node_key(name, version, repository)
@@ -1201,7 +1189,6 @@ def convert_libraries(
             # A registry node (perhaps one the registry did not know) becomes a
             # git or local source: resolve it again from that source
             resolved_requirements.pop(key, None)
-            missed.discard(key)
         # The same key requested from two different kinds of source (or two
         # different local paths) is a config mistake: one silently wins. Warn so
         # it isn't a surprise. (git-vs-registry is reported separately below.)
@@ -1257,11 +1244,10 @@ def convert_libraries(
 
     def fetched_by_name(key: str) -> bool:
         """A registry node only version-less manifest dependencies asked for: a
-        miss skips it, and it folds into a node that names the same package."""
+        miss skips it, and an explicit library of the same name replaces it."""
         node = nodes[key]
         return (
             key not in top_level_keys
-            and node.is_registry
             and not (node.is_git or node.is_local)
             and not node.requirements
         )
@@ -1276,18 +1262,19 @@ def convert_libraries(
             return True
         return False
 
-    # Version-less dependencies per requester key, settled once the graph is
-    # known, so a library already in it satisfies the name before the registry
-    # is asked; a re-walked requester replaces its entries
+    # Version-less dependencies per requester key, kept for the whole walk and
+    # wired once the graph is final; a re-walked requester replaces its entries
     pending_versionless: dict[str, list[dict]] = {}
+    # Names fetched by name so far, whatever their case: each is asked for once
+    fetched: dict[tuple[str, str], str] = {}
 
     def settle_versionless() -> list[str]:
-        """Wire each deferred dependency to the library that satisfies it, or
-        fetch it by name; return the new keys to walk."""
+        """Fetch by name the deferred dependencies nothing in the graph or the
+        framework satisfies yet; return the new keys to walk. Entries that need
+        no wiring later are dropped."""
         new_keys: list[str] = []
-        # One node per name this round, however the requesters spell it
-        added: dict[tuple[str, str], str] = {}
         for requester, dependencies in pending_versionless.items():
+            kept: list[dict] = []
             for dependency in dependencies:
                 name, owner = dependency["name"], dependency.get("owner")
                 if _owner_pkgname_to_name(owner, name).lower() in _own_names(
@@ -1296,34 +1283,27 @@ def convert_libraries(
                     _LOGGER.debug("Dependency %s of %s names itself", name, requester)
                     continue
                 # A library in the graph beats a bundled copy, as on the Arduino backend
-                if (
-                    match := _satisfying_key(name, owner, requester, nodes, components)
-                ) is not None:
-                    _LOGGER.debug(
-                        "Dependency %s of %s satisfied by %s", name, requester, match
-                    )
-                    nodes[requester].edges.add(match)
-                    continue
-                if backend_provides(name, owner):
-                    _LOGGER.debug(
-                        "Skip backend-provided dependency %s of %s", name, requester
-                    )
-                    continue
-                spelling = (name.lower(), (owner or "").lower())
-                if (dep_key := added.get(spelling)) is None:
-                    try:
-                        dep_key = add_spec(
-                            _owner_pkgname_to_name(owner, name), None, None
-                        )
-                    except RuntimeError as e:
-                        _LOGGER.warning(
-                            "Skipping dependency %s of %s: %s", name, requester, e
+                if _satisfying_key(name, owner, requester, nodes, components) is None:
+                    if backend_provides(name, owner):
+                        _LOGGER.debug(
+                            "Skip backend-provided dependency %s of %s", name, requester
                         )
                         continue
-                    added[spelling] = dep_key
-                    new_keys.append(dep_key)
-                nodes[requester].edges.add(dep_key)
-        pending_versionless.clear()
+                    spelling = (name.lower(), (owner or "").lower())
+                    if spelling not in fetched:
+                        try:
+                            dep_key = add_spec(
+                                _owner_pkgname_to_name(owner, name), None, None
+                            )
+                        except RuntimeError as e:
+                            _LOGGER.warning(
+                                "Skipping dependency %s of %s: %s", name, requester, e
+                            )
+                            continue
+                        fetched[spelling] = dep_key
+                        new_keys.append(dep_key)
+                kept.append(dependency)
+            dependencies[:] = kept
         return new_keys
 
     worklist = deque(dict.fromkeys(top_level))
@@ -1357,7 +1337,6 @@ def convert_libraries(
                         raise
                     # Reported per requester once the graph is final
                     _LOGGER.debug("Library %s is not in the registry: %s", key, e)
-                    missed.add(key)
                     continue
                 component = ConvertedLibrary(
                     _owner_pkgname_to_name(owner, name), version, URLSource(url, size)
@@ -1517,74 +1496,53 @@ def convert_libraries(
                 source,
             )
 
-    # A library asked for explicitly beats one fetched by name that goes by the
-    # same name, whichever round brought it in, and one package fetched by name
-    # under two spellings keeps a single node; the settle step applied the first
-    # rule to the names it could match up front
+    # Every version-less request resolves to the explicit library that goes by
+    # its name if the final graph has one, else to the node fetched by name for
+    # that package, else to nothing
     explicit = {k: c for k, c in components.items() if not fetched_by_name(k)}
-    yielded = False
-    for key in [k for k in components if fetched_by_name(k)]:
-        node = nodes[key]
-        match = _satisfying_key(node.pkgname, node.owner, key, nodes, explicit)
-        if match is None:
-            canonical = components[key].get_sanitized_name()
-            match = next(
-                (
-                    k
-                    for k, c in components.items()
-                    if k != key and c.get_sanitized_name() == canonical
-                ),
-                None,
-            )
-        if match is None:
-            continue
-        _LOGGER.debug("Library %s fetched by name yields to %s", key, match)
-        del components[key]
-        yielded = True
-        for other in nodes.values():
-            if key in other.edges:
-                other.edges.remove(key)
-                other.edges.add(match)
-
-    # A name the registry did not know may be satisfied by a library a later
-    # round pulled in; match those against the finished graph, with no refetch
-    late: list[tuple[str, str, str | None]] = []
-    for key in components:
-        node = nodes[key]
-        for missing in node.edges & missed:
-            match = _satisfying_key(
-                nodes[missing].pkgname, nodes[missing].owner, key, nodes, components
-            )
-            if match is not None:
-                node.edges.add(match)
-            late.append((key, missing, match))
-
-    if yielded:
-        # What only the yielded library needed is not built either
-        reachable: set[str] = set()
-        stack = [key for key in top_level if key in components]
-        while stack:
-            if (key := stack.pop()) in reachable:
+    by_name = {k: c for k, c in components.items() if fetched_by_name(k)}
+    unresolved: dict[tuple[str, str], None] = {}
+    for requester, dependencies in pending_versionless.items():
+        for dependency in dependencies:
+            name, owner = dependency["name"], dependency.get("owner")
+            found = _satisfying_key(
+                name, owner, requester, nodes, explicit
+            ) or _satisfying_key(name, owner, requester, nodes, by_name)
+            if found is None:
+                unresolved[(requester, name)] = None
                 continue
-            reachable.add(key)
-            stack.extend(edge for edge in nodes[key].edges if edge in components)
-        for key in [key for key in components if key not in reachable]:
-            del components[key]
+            key, by_manifest_name = found
+            if by_manifest_name:
+                # Visible, so a chance name collision can be pinned to the right package
+                _LOGGER.info(
+                    "Dependency %s of %s satisfied by %s through its manifest name",
+                    name,
+                    requester,
+                    key,
+                )
+            else:
+                _LOGGER.debug(
+                    "Dependency %s of %s satisfied by %s", name, requester, key
+                )
+            nodes[requester].edges.add(key)
 
-    # Reported once the graph is final, for every library that asked and is built
-    for key, missing, match in late:
-        if key not in components:
+    # What no listed library needs any more is not built: a node fetched by name
+    # that an explicit library replaced, and whatever only it pulled in
+    reachable: set[str] = set()
+    stack = [key for key in top_level if key in components]
+    while stack:
+        if (key := stack.pop()) in reachable:
             continue
-        if match is None:
+        reachable.add(key)
+        stack.extend(edge for edge in nodes[key].edges if edge in components)
+    for key in [key for key in components if key not in reachable]:
+        _LOGGER.debug("Library %s is not needed; dropping it", key)
+        del components[key]
+
+    for requester, name in unresolved:
+        if requester in components:
             _LOGGER.warning(
-                "Dependency %s of %s is not in the registry; skipping", missing, key
-            )
-        else:
-            _LOGGER.info(
-                "Dependency %s of %s is not in the registry; satisfied by %s",
-                missing,
-                key,
-                match,
+                "Dependency %s of %s was not resolved; skipping", name, requester
             )
 
     # Two graph nodes that resolve to the same component name (e.g. a package
