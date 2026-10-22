@@ -5,6 +5,7 @@
 
 # peripheral powerdown on variants with TOP_PD
 CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP=y
+CONFIG_PM_LIGHT_SLEEP_CALLBACKS=y
 
 # openthread (only the C6/H2 variants have the 802.15.4 radio)
 CONFIG_IEEE802154_ENABLED=y

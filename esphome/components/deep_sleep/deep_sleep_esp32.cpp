@@ -4,6 +4,7 @@
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
 #include <esp_idf_version.h>
+#include "esp_pm.h"
 
 namespace esphome::deep_sleep {
 
@@ -127,6 +128,10 @@ void DeepSleepComponent::deep_sleep_() {
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
   esp_sleep_disable_ext1_wakeup_io(0);
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_EXT1);
+  // prevent light sleep
+  esp_pm_lock_handle_t sleep_lock;
+  esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "deep_sleep", &sleep_lock);
+  esp_pm_lock_acquire(sleep_lock);
 #endif
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
 #endif

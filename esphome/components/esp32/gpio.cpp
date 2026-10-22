@@ -8,6 +8,7 @@
 #include "esphome/core/log.h"
 #include "driver/gpio.h"
 #include "esp_sleep.h"
+#include "esp_pm.h"
 #include "driver/rtc_io.h"
 #include "hal/gpio_hal.h"
 #include "soc/soc_caps.h"
@@ -68,6 +69,26 @@ static esp_sleep_ext1_wakeup_mode_t get_ext1_type(gpio_int_type_t idf_type) {
     return ESP_EXT1_WAKEUP_ANY_HIGH;
   return ESP_EXT1_WAKEUP_ANY_LOW;
 }
+
+static esp_err_t apply_ext1(gpio_num_t pin, bool level) {
+  if (level) {
+    return esp_sleep_enable_ext1_wakeup_io(1ULL << pin, ESP_EXT1_WAKEUP_ANY_LOW);
+  }
+  return esp_sleep_enable_ext1_wakeup_io(1ULL << pin, ESP_EXT1_WAKEUP_ANY_HIGH);
+}
+
+IRAM_ATTR esp_err_t ESP32InternalGPIOPin::sleep_cb(int64_t sleep_time_us, void *arg) {
+  auto *func_arg = reinterpret_cast<ISRFuncArg *>(arg);
+  gpio_num_t pin = func_arg->pin;
+  bool last = func_arg->level;
+  bool level = gpio_hal_get_level(&GPIO_HAL, pin);
+  if (level == last)
+    return ESP_OK;  // fast path
+  esp_err_t ret = apply_ext1(pin, level);
+  if (ret == ESP_OK)
+    func_arg->level = level;
+  return ret;
+}
 #endif
 
 #ifdef USE_GPIO_HOLD
@@ -122,26 +143,18 @@ static void IRAM_ATTR gpio_intr(void *arg) {
   gpio_num_t pin = func_arg->pin;
   gpio_int_type_t type = func_arg->type;
   if (gpio_hal_get_level(&GPIO_HAL, pin)) {
-#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-    esp_sleep_enable_ext1_wakeup_io(1ULL << pin, ESP_EXT1_WAKEUP_ANY_LOW);
-#else
-#if SOC_RTCIO_WAKE_SUPPORTED
+#if SOC_RTCIO_WAKE_SUPPORTED && !defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
     if (rtc_gpio_is_valid_gpio(pin))
       rtcio_hal_wakeup_enable(pin, GPIO_INTR_LOW_LEVEL);
-#endif
 #endif
     gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_LOW_LEVEL);
     if ((type == GPIO_INTR_POSEDGE) || (type == GPIO_INTR_ANYEDGE)) {
       func_arg->func(func_arg->arg);
     }
   } else {
-#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-    esp_sleep_enable_ext1_wakeup_io(1ULL << pin, ESP_EXT1_WAKEUP_ANY_HIGH);
-#else
-#if SOC_RTCIO_WAKE_SUPPORTED
+#if SOC_RTCIO_WAKE_SUPPORTED && !defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
     if (rtc_gpio_is_valid_gpio(pin))
       rtcio_hal_wakeup_enable(pin, GPIO_INTR_HIGH_LEVEL);
-#endif
 #endif
     gpio_hal_set_intr_type(&GPIO_HAL, pin, GPIO_INTR_HIGH_LEVEL);
     if ((type == GPIO_INTR_NEGEDGE) || (type == GPIO_INTR_ANYEDGE)) {
@@ -182,6 +195,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
   }
 
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  bool level = gpio_get_level(this->get_pin_num());
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
   if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
 #endif
@@ -192,6 +206,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
         func_args = new ISRFuncArg();  // NOLINT(cppcoreguidelines-owning-memory)
       func_args->pin = this->get_pin_num();
       func_args->type = idf_type;
+      func_args->level = level;
       func_args->func = func;
       func_args->arg = arg;
       gpio_isr_handler_add(this->get_pin_num(), gpio_intr, func_args);
@@ -202,8 +217,6 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
   } else {
     gpio_isr_handler_add(this->get_pin_num(), func, arg);
   }
-#endif
-#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
   if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
     // use ext1 wakeup for RTC pins.
     // Some variants could also use gpio wakeup instead.
@@ -212,7 +225,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
       gpio_set_intr_type(this->get_pin_num(), idf_type);
     } else {
       // edge interrupt is not supported, so we need to emulate
-      if (gpio_get_level(this->get_pin_num())) {
+      if (level) {
         esp_sleep_enable_ext1_wakeup_io(1ULL << this->get_pin_num(), ESP_EXT1_WAKEUP_ANY_LOW);
         gpio_set_intr_type(this->get_pin_num(), GPIO_INTR_LOW_LEVEL);
       } else {
@@ -220,6 +233,15 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
         gpio_set_intr_type(this->get_pin_num(), GPIO_INTR_HIGH_LEVEL);
       }
     }
+    esp_pm_sleep_cbs_register_config_t cbs_conf = {
+        .enter_cb = &ESP32InternalGPIOPin::sleep_cb,
+        .exit_cb = nullptr,
+        .enter_cb_user_arg = this->isr_func_arg_,
+        .exit_cb_user_arg = nullptr,
+        .enter_cb_prior = 1,
+        .exit_cb_prior = 0,
+    };
+    esp_pm_light_sleep_register_cbs(&cbs_conf);
   } else {
     // fallback for non-RTC pins
     ESP_LOGW(TAG, "No valid rtc GPIO, might miss wakes");
@@ -232,7 +254,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     gpio_wakeup_enable(this->get_pin_num(), idf_type);
   } else {
     // edge interrupt is not supported, so we need to emulate
-    if (gpio_get_level(this->get_pin_num())) {
+    if (level) {
       gpio_wakeup_enable(this->get_pin_num(), GPIO_INTR_LOW_LEVEL);
     } else {
       gpio_wakeup_enable(this->get_pin_num(), GPIO_INTR_HIGH_LEVEL);
@@ -329,6 +351,15 @@ void ESP32InternalGPIOPin::detach_interrupt() const {
   if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
     esp_sleep_disable_ext1_wakeup_io(1ULL << this->get_pin_num());
   }
+  esp_pm_sleep_cbs_register_config_t cbs_conf = {
+      .enter_cb = &ESP32InternalGPIOPin::sleep_cb,
+      .exit_cb = nullptr,
+      .enter_cb_user_arg = this->isr_func_arg_,
+      .exit_cb_user_arg = nullptr,
+      .enter_cb_prior = 1,
+      .exit_cb_prior = 0,
+  };
+  esp_pm_light_sleep_unregister_cbs(&cbs_conf);
 #else
   gpio_wakeup_disable(this->get_pin_num());
 #endif

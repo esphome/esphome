@@ -15,6 +15,7 @@ static_assert(GPIO_DRIVE_CAP_MAX <= 4, "gpio_drive_cap_t has too many values for
 struct ISRFuncArg {
   gpio_num_t pin;
   gpio_int_type_t type;
+  bool level;
   void (*func)(void *);
   void *arg;
 };
@@ -58,7 +59,7 @@ class ESP32InternalGPIOPin final : public GPIOPin {
 
  protected:
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
-
+  static esp_err_t sleep_cb(int64_t sleep_time_us, void *arg);
   // Memory layout: 8 bytes total on 32-bit systems, 12 bytes if sleep is enabled
   // - 3 (or 7) bytes for members below
   // - 1 byte padding for alignment
