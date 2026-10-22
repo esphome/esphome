@@ -241,10 +241,14 @@ def wisp_core(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -
             KEY_FRAMEWORK_VERSION: params.get("idf", cv.Version(5, 4, 0)),
         },
     )
-    # The ESP-IDF underneath, which an Arduino build maps from its own version
-    monkeypatch.setitem(
-        CORE.data, KEY_ESP32, {KEY_IDF_VERSION: params.get("idf", cv.Version(5, 4, 0))}
-    )
+    # The ESP-IDF underneath, which an Arduino build maps from its own version; only an
+    # ESP32 build has it
+    if params.get("platform", Platform.ESP32) == Platform.ESP32:
+        monkeypatch.setitem(
+            CORE.data,
+            KEY_ESP32,
+            {KEY_IDF_VERSION: params.get("idf", cv.Version(5, 4, 0))},
+        )
 
 
 def _wisp_ap(**overrides: object) -> dict:
@@ -320,6 +324,17 @@ def test_second_dns_server_requires_idf_6(wisp_core: None, valid: bool) -> None:
     else:
         with pytest.raises(cv.Invalid, match="ESP-IDF 6.0"):
             wifi_network_ap(ap)
+
+
+@pytest.mark.parametrize(
+    "wisp_core",
+    [{"platform": Platform.ESP8266, "framework": "arduino"}],
+    indirect=True,
+)
+def test_second_dns_server_elsewhere_is_a_config_error(wisp_core: None) -> None:
+    """No ESP32 state to read a version from; the WISP platform check rejects it instead."""
+    with pytest.raises(cv.Invalid, match="only available on"):
+        wifi_network_ap(_wisp_ap(dns_servers=["1.1.1.1", "8.8.8.8"]))
 
 
 @pytest.mark.parametrize(
