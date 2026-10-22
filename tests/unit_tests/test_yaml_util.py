@@ -2797,3 +2797,14 @@ def test_registered_secret_values_maps_a_loaded_secret_to_its_name(
     entry = _write(tmp_path, "entry.yaml", "wifi:\n  password: !secret wifi_password\n")
     yaml_util.load_yaml(entry)
     assert yaml_util.registered_secret_values()["hunter2"] == "wifi_password"
+
+
+def test_discover_user_yaml_files_lists_only_existing_files_after_a_load_error(
+    tmp_path: Path,
+) -> None:
+    """A failed top-level load still reports only files that exist."""
+    entry = _write(tmp_path, "entry.yaml", "!include missing.yaml\n")
+    discovered = discover_user_yaml_files(entry)
+    assert discovered.load_errors
+    assert discovered.files == [entry.resolve()]
+    assert list(discovered.aliases) == [entry.resolve()]

@@ -74,6 +74,7 @@ from esphome.yaml_util import (
     SensitiveHexInt,
     SensitiveInt,
     SensitiveStr,
+    dump,
     load_yaml,
     make_data_base,
     parse_yaml,
@@ -211,7 +212,9 @@ def test_sensitive__marks_a_lambda_without_changing_its_value() -> None:
 
     assert isinstance(result, Lambda)
     assert isinstance(result, Sensitive)
-    assert result.value == "return id(pw).state;"
+    assert (
+        dump({"password": result}) == "password: !lambda |-\n  return id(pw).state;\n"
+    )
 
 
 @pytest.mark.parametrize(
