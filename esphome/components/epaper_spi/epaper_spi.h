@@ -139,7 +139,7 @@ class EPaperBase : public Display,
   void wait_for_idle_(bool should_wait);
   void abandon_update_();
   bool init_buffer_(size_t buffer_length);
-  // Allocates the copy of the frame last sent; drivers that record what they send call this from setup()
+  // Allocates the copy of the previous frame; only drivers that diff against it (needs_previous_frame) call this
   bool init_sent_frame_(size_t length);
   void record_sent_(size_t index, const uint8_t *data, size_t length) {
     if (this->sent_.is_valid()) {
@@ -147,7 +147,10 @@ class EPaperBase : public Display,
       this->sent_count_ += length;
     }
   }
-  bool frame_unchanged_() const;
+  // Whether the driver reads the previous frame (sent_) for its differential refresh
+  virtual bool needs_previous_frame() const { return false; }
+  // FNV-1a hash of the current frame buffer, to detect an unchanged frame without a full copy
+  uint32_t buffer_hash_() const;
   void reset_bounds_();
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
@@ -210,9 +213,11 @@ class EPaperBase : public Display,
   size_t buffer_length_;
   size_t current_data_index_{};  // used by data transfer to track progress
   split_buffer::SplitBuffer buffer_{};
-  split_buffer::SplitBuffer sent_{};  // the frame last sent to the panel's new-image RAM
+  split_buffer::SplitBuffer sent_{};  // the previous frame, kept only by drivers that diff against it
   bool sent_valid_{};                 // sent_ holds a whole frame
   size_t sent_count_{};               // bytes recorded into sent_ by the update in progress
+  uint32_t shown_hash_{};             // hash of the frame on the panel, to skip an unchanged update
+  bool shown_hash_valid_{};           // shown_hash_ holds the hash of a real frame
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};

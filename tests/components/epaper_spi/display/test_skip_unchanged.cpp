@@ -18,7 +18,6 @@ template<typename Driver> class TestableDriver : public Driver {
     this->set_dc_pin(&this->dc);
     this->set_full_update_every(full_update_every);
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
-    ASSERT_EQ(this->init_sent_frame_(this->buffer_length_), full_update_every > 1);
   }
 
   void set_frame(std::initializer_list<uint8_t> bytes) {
@@ -68,7 +67,7 @@ TEST(EPaperSkipUnchanged, SSD1683SkipsAnUnchangedFrame) {
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
 }
 
-/// With every update a full one there is no comparison frame and nothing is ever skipped.
+/// With every update a full one, nothing is ever skipped: a full refresh always redraws.
 TEST(EPaperSkipUnchanged, NothingSkippedWithoutPartialUpdates) {
   TestableDriver<EPaperSSD1683> display(16, 2);
   RecordingDelegate bus(&display.dc);

@@ -34,8 +34,6 @@ class EPaperUC8179 final : public EPaperUltraChip {
                size_t init_sequence_length)
       : EPaperUltraChip(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY) {}
 
-  void setup() override;
-
  protected:
   bool initialise(bool partial) override;
   bool transfer_data() override;

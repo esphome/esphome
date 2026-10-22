@@ -1,7 +1,6 @@
 #include "epaper_spi.h"
 #include <algorithm>
 #include <cinttypes>
-#include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -48,21 +47,17 @@ bool EPaperBase::init_sent_frame_(size_t length) {
   return false;
 }
 
-bool EPaperBase::frame_unchanged_() const {
-  if (!this->sent_valid_ || this->sent_.size() != this->buffer_.size())
-    return false;
+uint32_t EPaperBase::buffer_hash_() const {
+  uint32_t hash = 2166136261u;  // FNV-1a offset basis
   size_t index = 0;
   while (index != this->buffer_.size()) {
     size_t length;
-    size_t sent_length;
     const uint8_t *data = this->buffer_.get_span(index, length);
-    const uint8_t *sent = this->sent_.get_span(index, sent_length);
-    length = std::min(length, sent_length);
-    if (memcmp(data, sent, length) != 0)
-      return false;
+    for (size_t i = 0; i != length; i++)
+      hash = fnv1a_hash_extend(hash, data[i]);
     index += length;
   }
-  return true;
+  return hash;
 }
 
 void EPaperBase::reset_bounds_() {
@@ -277,11 +272,17 @@ void EPaperBase::process_state_() {
         this->set_state_(EPaperState::IDLE);
         return;
       }
-      if (this->update_count_ != 0 && this->frame_unchanged_()) {
-        ESP_LOGD(TAG, "Frame unchanged, refresh skipped");
-        this->reset_bounds_();
-        this->set_state_(EPaperState::IDLE);
-        return;
+      {
+        // A changed frame updates the stored hash; an unchanged partial update is skipped
+        const uint32_t frame_hash = this->buffer_hash_();
+        if (this->update_count_ != 0 && this->shown_hash_valid_ && frame_hash == this->shown_hash_) {
+          ESP_LOGD(TAG, "Frame unchanged, refresh skipped");
+          this->reset_bounds_();
+          this->set_state_(EPaperState::IDLE);
+          return;
+        }
+        this->shown_hash_ = frame_hash;
+        this->shown_hash_valid_ = true;
       }
       // A full update resets update_count_ to zero, so a non-zero count marks a partial one
       this->partial_ = this->update_count_ != 0;

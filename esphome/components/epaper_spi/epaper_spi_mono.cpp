@@ -9,7 +9,7 @@ ESPHOME_LOG_TAG(TAG, "epaper_spi.mono");
 
 void EPaperMono::setup() {
   EPaperBase::setup();
-  if (!this->is_failed())
+  if (!this->is_failed() && this->needs_previous_frame())
     this->init_sent_frame_(this->sent_frame_length());
 }
 
