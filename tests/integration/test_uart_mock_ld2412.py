@@ -27,6 +27,8 @@ test_uart_mock_ld2412_engineering_truncated (truncated engineering mode):
 The gate threshold tests (footer_in_payload, truncated_answer, requery_after_giveup) cover
 answers that hold the frame footer or are truncated, writes that fill the gates without a
 number from the module's values, and writes held back until the module reports them.
+test_uart_mock_ld2412_short_answers checks that a version or basic configuration answer cut
+short publishes nothing, while the whole answer after it does.
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ from aioesphomeapi import (
     EntityState,
     NumberInfo,
     NumberState,
+    TextSensorState,
 )
 import pytest
 
@@ -719,3 +722,56 @@ async def test_uart_mock_ld2412_requery_after_giveup(
         assert gate_0_state.state == pytest.approx(25.0)
         assert gate_5_values
         assert all(value == pytest.approx(30.0) for value in gate_5_values)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_short_answers(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that answers cut short publish nothing and the whole answers after them do."""
+    loop = asyncio.get_running_loop()
+    # Number object_id: the value from the whole basic configuration answer
+    expected = {"min_distance_gate": 3.0, "max_distance_gate": 8.0, "timeout": 10.0}
+    number_states: dict[str, list[float]] = {name: [] for name in expected}
+    version_states: list[str] = []
+    key_to_name: dict[int, str] = {}
+    all_received = loop.create_future()
+
+    def on_state(state: EntityState) -> None:
+        if isinstance(state, TextSensorState) and not state.missing_state:
+            version_states.append(state.state)
+        elif (
+            isinstance(state, NumberState)
+            and not state.missing_state
+            and (name := key_to_name.get(state.key)) is not None
+        ):
+            number_states[name].append(state.state)
+        if not all_received.done() and version_states and all(number_states.values()):
+            all_received.set_result(True)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        key_to_name.update(
+            {require_entity(entities, name, NumberInfo).key: name for name in expected}
+        )
+        await _wait_initial(client, entities, on_state)
+
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
+        client.button_command(start_btn.key)
+
+        await wait_or_fail(
+            all_received,
+            5.0,
+            "Timeout waiting for the whole answers",
+            number_states=number_states,
+            version_states=version_states,
+        )
+        # Each entity saw exactly one value, the one from the whole answer
+        assert version_states == ["2.07.22062416"]
+        for name, value in expected.items():
+            assert number_states[name] == pytest.approx([value]), name

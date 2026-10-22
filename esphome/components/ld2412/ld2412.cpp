@@ -529,7 +529,7 @@ void LD2412Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_VERSION: {
-      if (this->buffer_pos_ < 12 + sizeof(this->version_)) {
+      if (this->buffer_pos_ < 12 + sizeof(this->version_) + HEADER_FOOTER_SIZE) {
         break;  // too short to hold a version
       }
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
@@ -654,7 +654,7 @@ void LD2412Component::handle_ack_data_() {
     case CMD_QUERY_BASIC_CONF:  // Query parameters response
     {
 #ifdef USE_NUMBER
-      if (this->buffer_pos_ < 15) {
+      if (this->buffer_pos_ < 15 + HEADER_FOOTER_SIZE) {
         break;  // too short to hold the configuration
       }
       /*
