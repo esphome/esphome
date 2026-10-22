@@ -1139,7 +1139,7 @@ class WiFiComponent final : public Component {
   bool ap_setup_{false};
   bool ap_started_{false};
 #ifdef USE_WIFI_APSTA
-  uint32_t ap_coexist_last_attempt_{0};  // 0 = not attempted yet; throttles coexist AP retries
+  uint32_t ap_coexist_last_attempt_{0};  // 0 = not tried yet
 #endif
 #ifdef USE_WIFI_DPP
   bool dpp_listening_{false};
@@ -1156,8 +1156,7 @@ class WiFiComponent final : public Component {
 #endif
 #endif  // USE_WIFI_AP
 #if (defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
-  // The AP DHCP server had no upstream resolver to offer, so clients that joined hold the AP's own address;
-  // apply_ap_dns_() drops them once the upstream has one
+  // AP clients hold the AP's own address; apply_ap_dns_() drops them once the upstream has a resolver
   bool ap_dns_pending_{false};
 #endif
   bool passive_scan_{false};

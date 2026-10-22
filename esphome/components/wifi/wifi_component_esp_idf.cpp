@@ -1260,8 +1260,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // NAPT needs the interface up, so it cannot be part of the setup
     if (esp_err_t err = esp_netif_napt_enable(s_ap_netif); err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to enable NAT: %s", esp_err_to_name(err));
-      // Without it the clients have no way out, so the AP goes down and its setup runs again, which brings it
-      // back up through this event
+      // Without it the clients have no way out: take the AP down so its setup runs again
       this->fail_bridge_();
     }
 #endif
@@ -1470,8 +1469,7 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
 #endif
 
 #if defined(USE_WIFI_AP_WISP) || defined(USE_WIFI_AP_NAPT)
-  // Offer resolvers through DHCP: the configured ones, otherwise the upstream's, and the AP's own address while
-  // it has none to offer. A failure to set them fails the setup, which is then tried again.
+  // Offer resolvers through DHCP: the configured ones, otherwise the upstream's, otherwise the AP's own address.
   uint8_t dns_offer = 1;
   err =
       esp_netif_dhcps_option(s_ap_netif, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &dns_offer, sizeof(dns_offer));
@@ -1481,9 +1479,6 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   if (err != ESP_OK || !this->write_ap_dns_())
     return false;
 #ifndef USE_WIFI_AP_WISP_STATIC_DNS
-  // Clients that join while there is no upstream resolver to offer are handed the AP's own address. apply_ap_dns_()
-  // uses the flag to drop them once the upstream has one, so they rejoin and pick it up instead of keeping the dead
-  // one for the whole lease.
   this->ap_dns_pending_ = !this->ap_dns_known_();
 #endif
 #endif
@@ -1665,13 +1660,11 @@ static uint32_t upstream_dns(size_t i) {
 #endif
 }
 
-/// What the DHCP server is told: the upstream's resolver, or while there is none the AP's own address, where
-/// the portal's DNS server answers. Only NAPT gets there, as the WISP bridge starts once it has a resolver to
-/// offer, and a client that joined on the AP's address is dropped once a real one is back (apply_ap_dns_()).
+/// What the DHCP server offers: the upstream's resolver, or the AP's own address while there is none.
 static uint32_t ap_dns_to_offer(size_t i) {
   const uint32_t upstream = upstream_dns(i);
 #ifdef USE_WIFI_AP_NAPT
-  // No resolver at all, so every slot takes the AP's address and a stale upstream entry is replaced as well
+  // No resolver at all: every slot takes the AP's address, replacing a stale upstream entry
   if (upstream_dns(0) == 0) {
     esp_netif_ip_info_t ip{};
     if (s_ap_netif != nullptr && esp_netif_get_ip_info(s_ap_netif, &ip) == ESP_OK)
@@ -1707,9 +1700,8 @@ bool WiFiComponent::write_ap_dns_() {
 void WiFiComponent::apply_ap_dns_() {
   if (!this->ap_setup_)
     return;  // loop() brings the bridge up once the upstream has a resolver, and its setup writes them
-  // The DHCP server holds what it offers, so there is nothing to cache; a failed update is noticed again with the
-  // next lease. A resolver the upstream lost is replaced by the AP's own address, so clients can still reach the
-  // portal with their lookups.
+  // The DHCP server holds what it offers, so there is nothing to cache. A resolver the upstream lost is
+  // replaced by the AP's own address.
   bool changed = false;
   for (size_t i = 0; i < AP_DNS_COUNT && !changed; i++) {
     const uint32_t addr = ap_dns_to_offer(i);
@@ -1720,9 +1712,7 @@ void WiFiComponent::apply_ap_dns_() {
   }
   if (!changed)
     return;
-  // A client that joined before the upstream had a resolver was handed the AP's own address. wifi_ap_ip_config_() below
-  // now offers a real one, so drop the clients to rejoin and pick it up; a resolver that later changes is left to the
-  // next lease, since by then the offered address at least works.
+  // Clients that joined on the AP's address rejoin to pick up the real resolver.
   const bool dns_was_missing = this->ap_dns_pending_;
   // The IP setup programs the DHCP server from scratch without touching the soft AP, so clients stay joined
 #ifdef USE_WIFI_MANUAL_IP

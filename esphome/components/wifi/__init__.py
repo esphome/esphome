@@ -526,12 +526,7 @@ def _validate_upstream_dns(
     mode: str,
     ap_dns_servers: bool,
 ) -> None:
-    """Reject a static upstream whose resolver the AP could not pass on.
-
-    DHCP hands its resolver over with the address; a static ``manual_ip``
-    without ``dns1`` leaves lwIP without one, so AP clients would be handed the
-    AP's own address and could not resolve names.
-    """
+    """Reject a static upstream without dns1, which leaves the AP clients no resolver."""
     if ap_dns_servers and CONF_DNS_SERVERS in config[CONF_AP]:
         return
     suffix = " unless ap.dns_servers is set" if ap_dns_servers else ""
