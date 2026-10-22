@@ -55,7 +55,7 @@ file does, and it is the authority when they disagree. The most useful starting 
 *   https://developers.esphome.io/contributing/code/ - contribution rules, public API and breaking changes.
 
 *   **Formatting:**
-    *   **Python:** Uses `ruff` and `flake8` for linting and formatting. Configuration is in `pyproject.toml`.
+    *   **Python:** Uses `ruff` for linting and formatting. Configuration is in `pyproject.toml`.
     *   **C++:** Uses `clang-format` for formatting. Configuration is in `.clang-format`.
 
 *   **Naming Conventions:**
@@ -67,6 +67,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         - Function-local constants: `lower_snake_case`
         - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
         - Favor descriptive names over abbreviations
+        - Device components are named brand plus model (`siemens_ira211`), without a protocol-family prefix
         - Enumerator names: prefix every value of an `enum class` with the enum name converted to
           `UPPER_SNAKE_CASE` (e.g. `UARTFlushResult::UART_FLUSH_RESULT_SUCCESS`). Never use bare
           names like `SUCCESS`, `FAILURE`, `OK`, or `FAIL`: platform SDK headers define macros with
@@ -79,13 +80,15 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```python
         # Bad - looks up CONF_BLAH twice
         if CONF_BLAH in config:
-            cg.add(var.set_blah(config[CONF_BLAH]))
+            cg.add(var.set_blah_ms(config[CONF_BLAH].total_milliseconds))
 
         # Good - single lookup, value bound inline
         if (blah := config.get(CONF_BLAH)) is not None:
-            cg.add(var.set_blah(blah))
+            cg.add(var.set_blah_ms(blah.total_milliseconds))
         ```
         The same applies to `while` loops and comprehensions where it avoids recomputing a value. Don't contort code to use it — reach for `:=` only when it genuinely cuts repetition or an extra assignment line.
+        When the setter takes the value unchanged, use `cg.add_optional(var.set_blah, config.get(CONF_BLAH))`
+        instead; it is not awaited, and it skips only `None`, so `0` and `False` are still set.
 
 *   **C++ Field Visibility:**
     *   **Prefer `protected`:** Use `protected` for most class fields to enable extensibility and testing. Fields should be `lower_snake_case_with_trailing_underscore_`.
@@ -143,6 +146,9 @@ file does, and it is the authority when they disagree. The most useful starting 
 
 *   **C++ Preprocessor Directives:**
     *   **Avoid `#define` for constants:** Using `#define` for constants is discouraged and should be replaced with `const` variables or enums.
+    *   **A constant with a compile-time initializer is `static constexpr`,** not `static const`, at namespace scope
+        and inside functions; `static const` is only for a value computed at run time. A function-local
+        `static constexpr` table is a static constant to clang-tidy, so it is `UPPER_SNAKE_CASE` too.
     *   **Use `#define` only for:**
         - Conditional compilation (`#ifdef`, `#ifndef`)
         - Compile-time sizes calculated during Python code generation (e.g., configuring `std::array` or `StaticVector` dimensions via `cg.add_define()`)
@@ -177,6 +183,15 @@ file does, and it is the authority when they disagree. The most useful starting 
         Pick the primitive by cadence: under 250 ms use a gated `loop()`; 500 ms and above use
         `set_interval`. Full reasoning, including why `set_interval` costs more below 500 ms:
         https://developers.esphome.io/architecture/components/advanced/#quick-rule-of-thumb
+    *   **Repeating work:** use `set_interval`, never a `set_timeout` that re-arms itself; every re-arm
+        rebuilds the callback and re-queues a scheduler item, and the period drifts.
+    *   **Scheduler ids:** name a timer only when it must be cancelled or replaced, and use a
+        `static constexpr uint32_t` id, never a string. Ids are per component instance and cannot clash with other
+        components, so number them from 0 and keep all of a component's ids together in one place.
+        ```cpp
+        static constexpr uint32_t READ_TIMEOUT_ID = 0;
+        this->set_timeout(READ_TIMEOUT_ID, 50, [this]() { this->read_(); });
+        ```
     *   **Don't override a default with the same value:** if a base class method already returns what you
         want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
         component that wants `DATA` should simply leave it alone.
@@ -184,6 +199,51 @@ file does, and it is the authority when they disagree. The most useful starting 
         // Bad - this is exactly what the base class already does
         float get_setup_priority() const override { return setup_priority::DATA; }
         ```
+    *   **Constant data lives in RAM on ESP8266** unless marked `PROGMEM`: `const` tables, class-scope
+        constant arrays, and in-class `std::array` initializers (a `.rodata` template plus a copy). Mark the
+        table `PROGMEM` and read it with `progmem_memcpy()` or `progmem_read_byte()` (`esphome/core/hal.h`);
+        for a table of structs copy the whole entry out and return the copy, never a pointer into flash.
+        On other platforms they are a plain `memcpy` and dereference, so no `#ifdef` is needed. Declare log tags with
+        `ESPHOME_LOG_TAG(TAG, "name")`, pass status text as `LOG_STR`, e.g.
+        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))`, and give an action whose payload is a byte array
+        a `TEMPLATABLE_BYTES` field so a static code stays in flash.
+    *   **Fixed sets of names** (status words, model names): a `PROGMEM_STRING_TABLE` (`esphome/core/progmem.h`),
+        logged with `get_log_str` and `LOG_STR_ARG`, copied out with `ESPHOME_strncpy_P` before `publish_state`.
+        A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
+    *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
+        `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`); pick the helper's
+        arguments instead of writing a loop. Epson style 7-byte RTC calendars (one-hot weekday) use
+        `time::decode_bcd_calendar`.
+    *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
+        `LineReader<N>`; I2C has `update_register`, `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id`
+        and `read_bytes_16_le`. `if (!this->status_comm_result(ok)) return;` sets or clears the warning.
+        A child sensor that skips repeated values is `SUB_SENSOR_WITH_DEDUP(name, type)`.
+    *   **An unset float is `NAN`**, not `optional<float>`; the optional costs 4 to 8 bytes of padding per member.
+    *   **`PollingComponent` first runs `update()`** after a random share of the interval; call `this->update()` at the
+        end of `setup()` when the entities need a state at boot.
+    *   **A multi-step command sequence** leaves the step pending when the answer is malformed, so the existing
+        resend and give-up logic handles it; never advance on an answer that was only logged.
+    *   **Entities that each watch a register field:** one class taking register, shift, mask and match from a Python
+        tuple table, in typed `StaticVector`s sized by `cg.slot_counter`; not a template per bit, not a virtual
+        listener base (a second vptr per entity).
+    *   **A global feature define** says the code is compiled in, not that this instance uses it: keep the
+        per-instance check (`if (this->aux_device_ == ...)`) inside the `#ifdef`.
+    *   **Model-specific code** sits behind a define the Python side emits only for configs that use that model
+        (`cg.add_define("USE_SELEC_METER_EM4M")`), so the other models' builds leave it out; the runtime model check
+        stays inside the `#ifdef`.
+    *   **Failures after `setup()`:** `mark_failed()` is for `setup()` only. A runtime read or write failure
+        sets `status_set_warning()` and the next success clears it; writes skip work when `is_failed()`.
+    *   **`dump_config()` already prints the failure reason:** for a failed component, core prints
+        `<component> is marked FAILED: <reason>` right after the component's `dump_config()`, using the reason
+        passed to `mark_failed()`. So `dump_config()` never checks `is_failed()` to log a failure, and no
+        `error_code_` member exists only to pick that message. Pass the reason where setup fails instead:
+        `this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL))` for a failed bus transfer, a short specific reason
+        otherwise (`LOG_STR("Wrong chip ID")`). Core also logs it at that moment, so no `ESP_LOGE` repeats it
+        before `mark_failed()`; keep a separate line only when it prints a value read at run time, such as the
+        chip ID that did not match. Only the first reason is kept, so do not call `status_set_error()` before
+        `mark_failed()` and do not mark the component failed again after a helper already did.
+    *   **Fixed platform facts compile to nothing:** gate on `#ifdef USE_ESP8266` and friends, not on a
+        runtime check of something the build already knows.
     *   **Logging string literals:** wrap literals passed as `%s` arguments in `LOG_STR_LITERAL()` so they
         can be stored in flash rather than RAM.
         ```cpp
@@ -230,8 +290,13 @@ file does, and it is the authority when they disagree. The most useful starting 
         ```
 
     *   **Component Metadata:**
+        - `DOMAIN`: Required in every component's `__init__.py`, set to the component's own name as a plain
+          string (e.g. `DOMAIN = "my_component"`). Other code refers to the component through it, e.g.
+          `from esphome.components.my_component import DOMAIN`. Keep it in alphabetical order with the other
+          metadata constants. CI (`lint_component_domain`) fails without it.
         - `DEPENDENCIES`: List of required components
-        - `AUTO_LOAD`: Components to automatically load
+        - `AUTO_LOAD`: Components to automatically load. Not a way to put entities under the component's
+          own key; see "Entities of a hub" below.
         - `CONFLICTS_WITH`: Incompatible components
         - `CODEOWNERS`: GitHub usernames responsible for maintenance
         - `MULTI_CONF`: Whether multiple instances are allowed
@@ -243,6 +308,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         import esphome.config_validation as cv
         from esphome.const import CONF_KEY, CONF_ID
 
+        DOMAIN = "my_component"
         CONF_PARAM = "param"  # A constant that does not yet exist in esphome/const.py
 
         my_component_ns = cg.esphome_ns.namespace("my_component")
@@ -322,6 +388,71 @@ file does, and it is the authority when they disagree. The most useful starting 
               var = await switch.new_switch(config)
           ```
 
+        - **Entities of a hub:** a new component's entities go in platform files (`sensor.py`,
+          `binary_sensor.py`, ...) that take the hub's id, never under the hub's own key with their platforms
+          added to `AUTO_LOAD` to make that work. Auto loading a platform because the C++ uses its type is
+          fine. See https://developers.esphome.io/architecture/components/#exposing-multiple-entities.
+          ```yaml
+          # Bad - entities under the hub's key
+          my_hub:
+            connected:
+              name: Connected
+
+          # Good - the hub, then one platform entry that holds its entities
+          my_hub:
+            id: hub1
+          binary_sensor:
+            - platform: my_hub
+              my_hub_id: hub1  # optional with a single hub
+              connected:
+                name: Connected
+          ```
+
+        - **Optional child entities of a hub:** bind the config once with `sensor.sub_sensors(config)` (or
+          `sub_binary_sensors`, `sub_text_sensors`, `sub_buttons`, `sub_switches`, `sub_numbers`,
+          `sub_selects` in their domains), adding `parent=hub` for entities that derive from `Parented<T>`,
+          then make one call per key, even when there is only one. A call creates the entity only when its key
+          is configured, passes it to the setter and returns it (or `None`); extra arguments such as
+          `min_value` or `options` go on the call. Always name the setter explicitly on the object that owns
+          it, never with `getattr` and an f-string, and keep that variable short (`var` for the component
+          itself, `hub` for one fetched with `cg.get_variable`) so the calls fit on one line. Loops whose
+          setter also takes an index, such as `set_gate_threshold(x, n)`, stay as they are.
+          ```python
+          # my_hub/sensor.py
+          async def to_code(config):
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
+              sensors = sensor.sub_sensors(config)
+              await sensors(CONF_TEMPERATURE, hub.set_temperature_sensor)
+              await sensors(CONF_HUMIDITY, hub.set_humidity_sensor)
+
+
+          # my_hub/button.py
+          async def to_code(config):
+              hub = await cg.get_variable(config[CONF_MY_HUB_ID])
+              buttons = button.sub_buttons(config, parent=hub)
+              await buttons(CONF_RESTART, hub.set_restart_button)
+          ```
+
+        - **Pins and referenced components:** set them with `await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])`
+          and `await cg.add_variable(var.set_bus, config[CONF_BUS_ID])`; both skip a `None` value, so pass
+          `config.get(KEY)` for an optional key, and return what they created. Use `cg.register_parented` for `set_parent`.
+
+        - **Hub forwarding entities need no C++ class:** a button, switch, number or select that only calls its hub
+          uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
+          and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
+          `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the state.
+          ```python
+          switches = switch.sub_switches(config, parent=hub)
+          await switches(CONF_BLUETOOTH, None, apply="set_bluetooth(state)", publish="after")
+          ```
+
+        - **Other codegen helpers:** `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`,
+          `spi.new_spi_component`, `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`)
+          constructs, registers and attaches in one call; `display.add_writer(var, config)` sets the lambda;
+          `MyEnum.options("on", prefix="MY_ENUM_")` builds an enum dict; `button.restart_button_schema(cls)` (and
+          `factory_reset_`, `query_`) are button presets; `fv.get_declaring_config(id)` finds a hub's config in
+          final validation.
+
 *   **Automations (Triggers, Actions, Conditions):**
 
     Automations have three building blocks: **Triggers** (fire when something happens), **Actions** (do something), and **Conditions** (check if something is true).
@@ -364,6 +495,25 @@ file does, and it is the authority when they disagree. The most useful starting 
                     var, "add_on_state_callback", [], conf, forwarder=forwarder
                 )
         ```
+
+        When the callback's parameters differ from the automation's arguments, or the trigger should only
+        fire for some values, pass `params`, `forward` and `when`; the helper then generates a capture-less
+        lambda (stored inline, nothing allocated). Name the parent with `automation.parent_ref(var)` and build
+        `forward` from `MockObj` calls, not f-strings of C++:
+        ```python
+        parent = automation.parent_ref(var)
+        index = cg.RawExpression("index")
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.StringRef, "x"), (cg.size_t, "i")],
+            conf,
+            params=[(cg.size_t, "index")],
+            forward=[cg.StringRef(parent.option_at(index)), index],
+        )
+        ```
+        `build_parent_callback_automation`, `build_trigger_callback`, `build_callback_automations` and
+        `build_trigger_automations` cover the other shapes; see their docstrings in `esphome/automation.py`.
 
         **C++ -- no trigger class needed.** The callback registration method must be templatized to accept both `std::function` and lightweight forwarder structs (which avoid heap allocation):
         ```cpp
@@ -470,9 +620,26 @@ file does, and it is the authority when they disagree. The most useful starting 
         Register with `automation.register_simple_condition("my_component.is_active", MyCondition, schema)`;
         `register_bare_condition`, `register_parented_condition` and the decorator follow the action rules.
 
+        **Conditions that only test their parent need no C++ class either.** Register them with
+        `register_apply_condition`; the expression is applied to the parent, and an `ApplyCall` compares
+        against config values.
+        ```python
+        automation.register_apply_condition("my_component.is_active", schema, "is_active()")
+        automation.register_apply_condition(
+            "my_component.state_is",
+            schema,
+            automation.ApplyCall("state == {}", ((CONF_STATE, cg.bool_),)),
+        )
+        ```
+        `cover.is_open`, `rtttl.is_playing` and `component.is_idle` are in-tree examples.
+
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
+    An intentionally empty body (an unused `register_dumper` builder, for example) gets a one-line docstring, not `pass`.
 
 *   **Configuration Validation:**
+    *   **One schema per model:** when a component's options depend on a `model` key, use `cv.typed_schema({...},
+        key=CONF_MODEL, default_type=...)` with each model's own keys and defaults, not one schema plus a validator
+        that rejects keys and fills defaults afterwards.
     *   **Reuse existing validators:** Before writing a custom validator, check for an existing one in `config_validation.py` and compose it in `cv.All(...)` rather than duplicating logic across components. For example, rename a config key with `cv.rename_key(CONF_OLD, CONF_NEW, removed_in="2026.6.0")`, and reject mutually-exclusive keys with `cv.has_at_most_one_key(...)` / `cv.has_exactly_one_key(...)`. See how `api` composes `cv.has_exactly_one_key` + `cv.rename_key`.
     *   **Common Validators:** `cv.int_`, `cv.float_`, `cv.string`, `cv.boolean`, `cv.int_range(min=0, max=100)`, `cv.positive_int`, `cv.percentage`.
     *   **Complex Validation:** `cv.All(cv.string, cv.Length(min=1, max=50))`, `cv.Any(cv.int_, cv.string)`.
@@ -506,6 +673,18 @@ file does, and it is the authority when they disagree. The most useful starting 
 *   **Testing:**
     *   **Python:** Run unit tests with `pytest`.
     *   **C++:** Use `clang-tidy` for static analysis.
+    *   **C++ unit tests:** gtests in `tests/components/<component>/*.cpp`, run with
+        `script/cpp_unit_test.py <component>`; see `tests/components/README.md`. Set the loop clock in a test
+        with `LoopBlockingGuard{nullptr, nullptr, now_ms}`; the runner resets it before every test.
+    *   **Integration tests:** `tests/integration/` runs real firmware on the host. Serial components prove
+        timeouts and recovery with the `uart_mock` fixture (`tests/integration/test_uart_mock_*.py`). Its
+        `responses` match on content every time they see it; to answer a repeated request differently, use an
+        `on_tx` lambda with a static counter and `inject_to_rx_buffer` (see `uart_mock_ld2412_requery_after_giveup.yaml`).
+    *   **Keep build-test variants few:** one `test.<platform>.yaml` per platform the code actually differs
+        on. A variant per board for platform-identical code only adds CI time.
+    *   **A test that needs a shared component in a particular state** (`esp32_ble` security settings, an option
+        that PSRAM rejects) cannot be grouped: the merged block wins and the whole batch fails. Add the component to
+        `ISOLATED_COMPONENTS` in `script/analyze_component_buses.py`, or move the option to a `test-<variant>` file.
     *   **Component Tests:** YAML-based compilation tests are located in `tests/`. The structure is as follows:
         ```
         tests/
@@ -552,6 +731,7 @@ file does, and it is the authority when they disagree. The most useful starting 
             name: My Sensor
         ```
         Components that define buses directly are flagged as "NEEDS MIGRATION" and cannot be grouped, increasing CI build time.
+        `!extend` and `!remove` in a `test.*.yaml` also make the component ungroupable; add a standalone entity with its own id instead.
 
     *   **Testing All Components Together:** To verify that all components can be tested together without ID conflicts or configuration issues, use:
         ```bash
@@ -724,7 +904,9 @@ file does, and it is the authority when they disagree. The most useful starting 
 
         6. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
 
-        7. **Detection:** Look for these patterns in compiler output:
+        7. **Never use `new (std::nothrow)`:** On ESP-IDF exceptions are disabled, so a failed nothrow allocation aborts instead of returning `nullptr`. Use `RAMAllocator` from `esphome/core/helpers.h`; CI rejects `std::nothrow`.
+
+        8. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
            - `_M_realloc_insert`, `_M_default_append` (vector reallocation)

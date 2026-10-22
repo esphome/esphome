@@ -1,0 +1,26 @@
+button:
+  - platform: template
+    name: Midea Actions
+    on_press:
+      - midea_ac.follow_me:
+          id: midea_unit
+          temperature: 23.0
+          beeper: true
+      - midea_ac.follow_me:
+          id: midea_unit
+          temperature: !lambda return id(midea_unit).target_temperature + 1.0f;
+          use_fahrenheit: !lambda return false;
+      - midea_ac.display_toggle:
+          id: midea_unit
+      - midea_ac.swing_step:
+          id: midea_unit
+      - midea_ac.beeper_on:
+          id: midea_unit
+      - midea_ac.beeper_off:
+          id: midea_unit
+      - midea_ac.power_on:
+          id: midea_unit
+      - midea_ac.power_off:
+          id: midea_unit
+      - midea_ac.power_toggle:
+          id: midea_unit

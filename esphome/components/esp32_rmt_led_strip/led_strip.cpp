@@ -11,7 +11,7 @@
 
 namespace esphome::esp32_rmt_led_strip {
 
-static const char *const TAG = "esp32_rmt_led_strip";
+ESPHOME_LOG_TAG(TAG, "esp32_rmt_led_strip");
 
 static const size_t RMT_SYMBOLS_PER_BYTE = 8;
 
@@ -212,12 +212,9 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
 #else
   error = rmt_transmit(this->channel_, this->encoder_, this->rmt_buf_, len * sizeof(rmt_symbol_word_t), &config);
 #endif
-  if (error != ESP_OK) {
+  if (!this->status_comm_result(error == ESP_OK, nullptr)) {
     ESP_LOGE(TAG, "RMT TX error");
-    this->status_set_warning();
-    return;
   }
-  this->status_clear_warning();
 }
 
 light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {

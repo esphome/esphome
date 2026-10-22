@@ -4,7 +4,7 @@
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus_controller.text_sensor";
+ESPHOME_LOG_TAG(TAG, "modbus_controller.text_sensor");
 
 void ModbusTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Modbus Controller Text Sensor", this); }
 

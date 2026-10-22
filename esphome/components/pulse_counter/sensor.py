@@ -21,28 +21,21 @@ from esphome.const import (
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
 )
-from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 CONF_USE_PCNT = "use_pcnt"
 
 pulse_counter_ns = cg.esphome_ns.namespace("pulse_counter")
 PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
-COUNT_MODES = {
-    "DISABLE": PulseCounterCountMode.PULSE_COUNTER_DISABLE,
-    "INCREMENT": PulseCounterCountMode.PULSE_COUNTER_INCREMENT,
-    "DECREMENT": PulseCounterCountMode.PULSE_COUNTER_DECREMENT,
-}
+COUNT_MODES = PulseCounterCountMode.options(
+    "DISABLE", "INCREMENT", "DECREMENT", prefix="PULSE_COUNTER_"
+)
 
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
 
 PulseCounterSensor = pulse_counter_ns.class_(
     "PulseCounterSensor", sensor.Sensor, cg.PollingComponent
-)
-
-SetTotalPulsesAction = pulse_counter_ns.class_(
-    "SetTotalPulsesAction", automation.Action
 )
 
 
@@ -138,37 +131,23 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config, use_pcnt)
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
     count = config[CONF_COUNT_MODE]
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
 
-    if CONF_TOTAL in config:
-        sens = await sensor.new_sensor(config[CONF_TOTAL])
-        cg.add(var.set_total_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TOTAL, var.set_total_sensor)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pulse_counter.set_total_pulses",
-    SetTotalPulsesAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(PulseCounterSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_VALUE, "set_total_pulses", cg.uint32),
 )
-async def set_total_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint32)
-    cg.add(var.set_total_pulses(template_))
-    return var

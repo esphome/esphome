@@ -47,7 +47,7 @@ class AudioReader {
   /// @param audio_file AudioFile struct containing the file.
   /// @param file_type AudioFileType variable passed-by-reference indicating the type of file being read.
   /// @return ESP_OK
-  esp_err_t start(AudioFile *audio_file, AudioFileType &file_type);
+  esp_err_t start(const AudioFile *audio_file, AudioFileType &file_type);
 
   /// @brief Reads new file data from the source and sends to the ring buffer sink.
   /// @return AudioReaderState
@@ -69,7 +69,7 @@ class AudioReader {
 
   esp_http_client_handle_t client_{nullptr};
 
-  AudioFile *current_audio_file_{nullptr};
+  const AudioFile *current_audio_file_{nullptr};
   AudioFileType audio_file_type_{AudioFileType::NONE};
   const uint8_t *file_current_{nullptr};
 };
