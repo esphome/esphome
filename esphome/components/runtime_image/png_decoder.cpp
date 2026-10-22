@@ -13,7 +13,7 @@ ESPHOME_LOG_TAG(TAG, "image_decoder.png");
 namespace esphome::runtime_image {
 
 // Compressed bytes handed to pngle at a time, and the longest one decode() call keeps feeding it
-static constexpr size_t FEED_PIECE_SIZE = 256;
+static constexpr size_t FEED_PIECE_SIZE = 64;
 static constexpr uint32_t FEED_TIME_LIMIT_MS = 10;
 
 /**
