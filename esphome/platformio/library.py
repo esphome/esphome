@@ -781,9 +781,9 @@ def _split_owner(entry: dict) -> dict:
         head, sep, tail = name.partition("/")
         # A registry owner is a plain identifier; anything else is left to the
         # backend's own checks
-        if sep and head.replace("-", "").replace("_", "").isalnum() and tail:
-            if "/" not in tail:
-                return {**entry, "owner": head, "name": tail}
+        owner_ok = head.replace("-", "").replace("_", "").isalnum()
+        if sep and owner_ok and tail and "/" not in tail:
+            return {**entry, "owner": head, "name": tail}
     return entry
 
 
