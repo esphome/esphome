@@ -74,7 +74,7 @@ class ModemComponent : public Component {
   void setup() override;
   void loop() override;
 
-  void dump_config() override { this->dump_connect_params_(); }
+  void dump_config() override;
   float get_setup_priority() const override { return setup_priority::WIFI + 1; }  // Just before Wi-Fi
   template<typename F> void add_on_state_callback(F &&callback) {
     this->on_state_callback_.add(std::forward<F>(callback));

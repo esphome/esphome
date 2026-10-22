@@ -8,6 +8,8 @@ modem:
   model: SIM7600
   apn: orange
   pin_code: "0000"
+  init_at:
+    - ATI
   enable_on_boot: True
   reboot_timeout: 5min
   on_connect:

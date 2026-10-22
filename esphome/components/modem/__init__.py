@@ -1,6 +1,5 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import uart
 from esphome.components.const import CONF_RTS_PIN
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.text_sensor import new_text_sensor, text_sensor_schema
@@ -22,15 +21,13 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
 )
 from esphome.core import coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@oarcher"]
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["network", "uart", "text_sensor"]
 CONFLICTS_WITH = ["captive_portal", "ethernet"]
 DOMAIN = "modem"
 
-CONF_MODEM = "modem"
-CONF_MODEM_ID = "modem_id"
 CONF_PIN_CODE = "pin_code"
 CONF_APN = "apn"
 CONF_CTS_PIN = "cts_pin"
@@ -50,13 +47,15 @@ MODEM_MODELS = [
     "GENERIC",
 ]
 modem_ns = cg.esphome_ns.namespace("modem")
-ModemComponent = modem_ns.class_("ModemComponent", cg.Component, uart.UARTComponent)
+ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
 
 ModemComponentState = modem_ns.enum("ModemComponentState", is_class=True)
 
-MODEM_COMPONENT_SCHEMA = cv.Schema(
-    {cv.GenerateID(CONF_MODEM_ID): cv.use_id(ModemComponent)}
-)
+
+def AUTO_LOAD(config: ConfigType) -> list[str]:
+    # The URC text sensor is the only entity the component owns
+    return ["network", "text_sensor"] if CONF_URC in config else ["network"]
+
 
 # Each trigger fires on one state, and none while the component is failed
 _NOT_FAILED = "!{parent}->is_failed()"
@@ -106,12 +105,8 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_EMPTY,
             ),
         }
-    )
-    .extend(MODEM_COMPONENT_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA),
-    cv.require_framework_version(
-        esp_idf=cv.Version(4, 0, 0),  # 5.2.0 OK
-    ),
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.has_none_or_all_keys(CONF_RTS_PIN, CONF_CTS_PIN),
 )
 
 
@@ -144,13 +139,8 @@ automation.register_apply_condition("modem.enabled", MODEM_ID_SCHEMA, "is_enable
 
 
 @coroutine_with_priority(60.0)
-async def to_code(config):
-    add_idf_component(
-        name="esp_modem",
-        repo="https://github.com/espressif/esp-protocols.git",
-        ref="modem-v2.0.0",
-        path="components/esp_modem",
-    )
+async def to_code(config: ConfigType) -> None:
+    add_idf_component(name="espressif/esp_modem", ref="2.0.2")
 
     add_idf_sdkconfig_option("CONFIG_PPP", True)
     add_idf_sdkconfig_option("CONFIG_LWIP_PPP_SUPPORT", True)

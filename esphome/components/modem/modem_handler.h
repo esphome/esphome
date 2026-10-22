@@ -8,6 +8,7 @@
 #include <esp_modem_config.h>
 #include <vector>
 #include <cmath>
+#include <atomic>
 
 namespace esphome::modem {
 
@@ -25,7 +26,14 @@ struct NetworkInfos {
   esp_netif_ip_info_t ip_info{};
   esp_netif_dns_info_t dns_main{};
   esp_netif_dns_info_t dns_backup{};
-  bool got_ip{false};
+  // Written last by the IP event task, read by loop()
+  std::atomic<bool> got_ip{false};
+};
+
+enum class SimResult {
+  SIM_RESULT_READY,  // SIM unlocked
+  SIM_RESULT_RETRY,  // status not readable yet, or the PIN was just sent
+  SIM_RESULT_FATAL,  // locked with no usable PIN, or PUK locked
 };
 
 class ModemHandler {
@@ -43,6 +51,8 @@ class ModemHandler {
   std::string apn;
   std::vector<std::string> init_at_commands;
   int baud_rate = 0;
+  // One PIN attempt per enable(): a second wrong PIN could PUK-lock the SIM
+  bool pin_sent{false};
 
   // esp_modem objects
   std::unique_ptr<DCE> dce{nullptr};
@@ -67,7 +77,7 @@ class ModemHandler {
   bool get_signal_quality(float &out_rssi, float &out_ber);
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void modem_log_status();
-  bool prepare_sim();
+  SimResult prepare_sim();
 };
 
 }  // namespace esphome::modem

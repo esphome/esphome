@@ -72,6 +72,11 @@ AtCommandResult ModemHandler::send_at(const std::string &cmd, uint32_t timeout, 
   if (this->dce) {
     at_command_result.esp_modem_command_result = this->dce->at(cmd, at_command_result.output, cmd_timeout);
     at_command_result.success = at_command_result.esp_modem_command_result == command_result::OK;
+    if (verbose) {
+      ESP_LOGI(TAG, "AT '%s' -> %s: %s", cmd.c_str(),
+               at_command_result.success ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("FAILED"),
+               at_command_result.output.c_str());
+    }
   } else {
     ESP_LOGE(TAG, "Modem DCE not ready, cannot send AT command: %s", cmd.c_str());
     at_command_result.esp_modem_command_result = command_result::FAIL;
@@ -132,35 +137,43 @@ void ModemHandler::modem_log_status() {
            (int) network_mode, ber * 100.0f, rssi);
 }
 
-bool ModemHandler::prepare_sim() {
+SimResult ModemHandler::prepare_sim() {
   App.feed_wdt();
   delay(200);  // NOLINT
   AtCommandResult result = this->send_at("AT+CPIN?");
   if (!result.success) {
     ESP_LOGW(TAG, "Failed to check pin: %s", result.c_str());
-    return false;
+    return SimResult::SIM_RESULT_RETRY;
   }
 
   std::string current_sim_status = result.output.starts_with("+CPIN: ") ? result.output.substr(7) : result.output;
   ESP_LOGD(TAG, "SIM: %s", current_sim_status.c_str());
 
   if (current_sim_status.find("READY") != std::string::npos) {
-    return true;
+    return SimResult::SIM_RESULT_READY;
   }
-
+  if (current_sim_status.find("PUK") != std::string::npos) {
+    ESP_LOGE(TAG, "SIM is PUK locked; unlock it in a phone");
+    return SimResult::SIM_RESULT_FATAL;
+  }
+  if (current_sim_status.find("PIN") == std::string::npos) {
+    return SimResult::SIM_RESULT_RETRY;  // e.g. the SIM is still initializing
+  }
   if (this->pin_code.empty()) {
-    ESP_LOGE(TAG, "SIM PIN empty, but SIM locked.");
-    return false;
+    ESP_LOGE(TAG, "SIM requires a PIN but pin_code is not set");
+    return SimResult::SIM_RESULT_FATAL;
   }
-
+  if (this->pin_sent) {
+    ESP_LOGE(TAG, "SIM still locked after sending the PIN; check pin_code");
+    return SimResult::SIM_RESULT_FATAL;
+  }
+  this->pin_sent = true;
   ESP_LOGD(TAG, "Unlocking SIM with PIN...");
-  if (this->dce->set_pin(this->pin_code) == command_result::OK) {
-    ESP_LOGD(TAG, "PIN set. (But not yet checked).");
-    return true;
+  if (this->dce->set_pin(this->pin_code) != command_result::OK) {
+    ESP_LOGE(TAG, "The modem rejected the PIN; check pin_code");
+    return SimResult::SIM_RESULT_FATAL;
   }
-
-  ESP_LOGE(TAG, "Failed to set PIN.");
-  return false;
+  return SimResult::SIM_RESULT_RETRY;  // AT+CPIN? confirms READY on the next pass
 }
 
 void ModemHandler::ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
@@ -173,13 +186,13 @@ void ModemHandler::ip_event_handler(void *arg, esp_event_base_t event_base, int3
       handler->network_infos.ip_info = event->ip_info;
       esp_netif_get_dns_info(event->esp_netif, ESP_NETIF_DNS_MAIN, &handler->network_infos.dns_main);
       esp_netif_get_dns_info(event->esp_netif, ESP_NETIF_DNS_BACKUP, &handler->network_infos.dns_backup);
-      handler->network_infos.got_ip = true;
+      handler->network_infos.got_ip.store(true, std::memory_order_release);
       break;
     }
     case IP_EVENT_PPP_LOST_IP:
-      if (handler->network_infos.got_ip) {
+      if (handler->network_infos.got_ip.load(std::memory_order_acquire)) {
         ESP_LOGD(TAG, "PPP IP event: Lost IP.");
-        handler->network_infos.got_ip = false;
+        handler->network_infos.got_ip.store(false, std::memory_order_release);
       }
       break;
   }
