@@ -216,7 +216,7 @@ class AsyncWebHandler;
 
 class AsyncWebServer {
  public:
-  AsyncWebServer(uint16_t port) : port_(port){};
+  AsyncWebServer(uint16_t port) : port_(port) {};
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -330,6 +330,17 @@ class AsyncEventSourceResponse {
                     size_t sent);
   // Send a state event; JSON too large for the stack buffer is serialized into tail_ instead
   bool send_json_(void *source, message_generator_t *generator);
+  enum class JsonPrepareResult : uint8_t {
+    JSON_PREPARE_RESULT_BUFFER,
+    JSON_PREPARE_RESULT_TAIL,
+    JSON_PREPARE_RESULT_NO_MEMORY,
+    JSON_PREPARE_RESULT_TOO_LARGE,
+  };
+  // Keep the arena out of the caller's frame so it is gone before the state send.
+  // size_out: BUFFER = JSON length, NO_MEMORY = requested tail capacity, TOO_LARGE = available JSON room;
+  // unused for TAIL.
+  JsonPrepareResult __attribute__((noinline)) prepare_json_(void *source, message_generator_t *generator, char *buffer,
+                                                            size_t *size_out);
   // Warn once, and close the session once the stall timeout passes with no memory for the tail
   void tail_alloc_failed_(size_t cap);
   void request_close_();

@@ -6,7 +6,9 @@ import asyncio
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -65,15 +67,12 @@ async def test_crc8_helper(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "crc8-helper-test"
+        await assert_device_name(client, "crc8-helper-test")
 
         # Wait for tests to complete with timeout
-        try:
-            await asyncio.wait_for(test_complete.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail("CRC8 integration test timed out after 5 seconds")
+        await wait_or_fail(
+            test_complete, 5.0, "CRC8 integration test timed out after 5 seconds"
+        )
 
         # Verify all tests passed
         assert test_results["setup_started"], "CRC8 test setup never started"

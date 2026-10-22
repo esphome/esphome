@@ -61,7 +61,7 @@ void RX8111Component::read_time() {
     this->status_set_warning(LOG_STR("Invalid RTC time"));
     return;
   }
-  ESPTime rtc_time = time::decode_bcd_calendar(buf);
+  ESPTime rtc_time = time::decode_bcd_calendar<time::EPSON_BCD_CALENDAR>(buf);
   if (!rtc_time.is_valid(true, false) || rtc_time.second >= 60) {
     ESP_LOGW(TAG, "Invalid RTC time, not syncing to system clock");
     this->status_set_warning(LOG_STR("Invalid RTC time"));
@@ -89,7 +89,7 @@ void RX8111Component::write_time() {
   }
 
   uint8_t buf[7];
-  time::encode_bcd_calendar(now, buf);
+  time::encode_bcd_calendar<time::EPSON_BCD_CALENDAR>(now, buf);
   const bool written = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
   // Always try to restart the counter, even after a failed calendar write.
   const bool restarted = this->set_stop_bit_(false);
