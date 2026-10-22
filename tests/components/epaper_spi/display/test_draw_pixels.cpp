@@ -115,6 +115,45 @@ TEST(EPaperDrawPixels, SameResultAsDrawingPixelByPixel) {
   }
 }
 
+/// On a panel large enough for whole tiles, blocks that start off an 8 pixel boundary, span more than one tile of
+/// rows and more than one chunk of columns, and run off each edge, draw the same as pixel by pixel under every
+/// rotation, mirroring and byte order. The swapped path gathers rows into tiles only on panels this size.
+TEST(EPaperDrawPixels, LargeBlocksMatchDrawingPixelByPixel) {
+  struct Block {
+    int x, y, w, h;
+  };
+  const Block blocks[] = {{5, 3, 270, 150}, {-7, -9, 300, 80}, {13, 100, 100, 230}, {-3, 250, 320, 70}, {2, 2, 64, 64}};
+  const display::DisplayRotation rotations[] = {
+      display::DISPLAY_ROTATION_0_DEGREES, display::DISPLAY_ROTATION_90_DEGREES, display::DISPLAY_ROTATION_180_DEGREES,
+      display::DISPLAY_ROTATION_270_DEGREES};
+  const uint8_t mirrorings[] = {NONE, MIRROR_X, MIRROR_Y, MIRROR_X | MIRROR_Y};
+  uint32_t seed = 101;
+  for (const auto rotation : rotations) {
+    for (const uint8_t mirroring : mirrorings) {
+      for (const bool big_endian : {false, true}) {
+        for (const auto &block : blocks) {
+          TestableDisplay<EPaperSSD1683> fast(200, 300);
+          TestableDisplay<EPaperSSD1683> slow(200, 300);
+          for (auto *display : {&fast, &slow}) {
+            display->set_transform(mirroring);
+            display->set_rotation(rotation);
+          }
+          const auto data = random_bytes((1 + block.w + 2) * (1 + block.h), seed++);
+          fast.draw_pixels_at(block.x, block.y, block.w, block.h, data.data(), display::COLOR_BITNESS_565, big_endian,
+                              1, 1, 2);
+          slow.draw_one_by_one(block.x, block.y, block.w, block.h, data.data(), display::COLOR_BITNESS_565, big_endian,
+                               1, 1, 2);
+          const auto where = ::testing::Message() << "rotation " << rotation << " mirroring " << int(mirroring)
+                                                  << " big endian " << big_endian << " block " << block.x << ","
+                                                  << block.y << " " << block.w << "x" << block.h;
+          EXPECT_EQ(fast.buffer(), slow.buffer()) << where;
+          EXPECT_EQ(fast.bounds(), slow.bounds()) << where;
+        }
+      }
+    }
+  }
+}
+
 /// Every form of draw_pixels_at() can be called through the driver's own type and draws the same result.
 TEST(EPaperDrawPixels, AllFormsAreVisibleThroughTheDriver) {
   const auto data = rgb565(24 * 16, 11);

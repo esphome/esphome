@@ -419,6 +419,9 @@ void HOT write_rgb565_row(uint8_t *byte, uint8_t mask, int step, const uint8_t *
   }
 }
 
+// The tiled swapped path below keeps a 2 KB table in flash and a 2 KB tile on the stack, both of which cost RAM on
+// the ESP8266, where nothing but a user lambda reaches it: there a swapped block is drawn pixel by pixel.
+#ifndef USE_ESP8266
 // Luma rises with the blue field, so each red and green pair has a lowest blue value that comes out white: one
 // compare per pixel instead of three weighted lookups. 32 marks a pair that is never white.
 class MonoThreshold {
@@ -454,8 +457,10 @@ __attribute__((noinline)) void HOT threshold_rgb565_row(uint8_t *dest, size_t st
     if constexpr (BigEndianSource) {
       value = (source[0] << 8) | source[1];
     } else {
-      // LVGL's buffer is 16 bit aligned and the target little endian: one load per pixel.
-      value = *reinterpret_cast<const uint16_t *>(source);
+      // Every caller's data is 16 bit aligned and the target little endian: one load per pixel. A 2 byte memcpy
+      // becomes a call under -Os, so the pixel is read through a type that may alias the bytes.
+      using Pixel __attribute__((may_alias)) = uint16_t;
+      value = *reinterpret_cast<const Pixel *>(source);
     }
     *dest |= static_cast<uint8_t>((value & 0x1F) >= table[value >> 5]) << shift;
   }
@@ -507,6 +512,7 @@ void HOT write_rgb565_tile(uint8_t *first_byte, ptrdiff_t byte_step, const TileR
     }
   }
 }
+#endif
 }  // namespace
 
 // Each source column maps to one buffer coordinate and each source row to the other, each moving by 1 per pixel, so
@@ -546,12 +552,13 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
   const int y_high = y_low + (swap ? columns : rows);
 
   const Rgb565ToMono to_mono;
-  static constexpr MonoThreshold THRESHOLD;
   const size_t line_stride = x_offset + w + x_pad;
   const size_t row_width = this->row_width_;
   const int step = column_mirrored ? -1 : 1;
   auto source_row = [&](int row) { return ptr + ((y_offset + row) * line_stride + x_offset + first_column) * 2; };
+#ifndef USE_ESP8266
   if (swap) {
+    static constexpr MonoThreshold THRESHOLD;
     const ptrdiff_t byte_step = step * static_cast<ptrdiff_t>(row_width);
     for (int row = first_row; row != end_row;) {
       // The buffer bytes this run of rows lands in, taken in the direction the rows move
@@ -577,7 +584,9 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
       }
       row += row_count;
     }
-  } else {
+  } else
+#endif
+  {
     for (int row = first_row; row != end_row; row++) {
       const int x = column_to_buffer(first_column);
       uint8_t *byte = buffer + row_to_buffer(row) * row_width + x / 8;
@@ -600,9 +609,14 @@ void HOT EPaperBase::draw_rgb565_block_(uint8_t *buffer, int x_start, int y_star
 void HOT EPaperBase::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
                                           ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
                                           int x_pad) {
+#ifdef USE_ESP8266
+  const bool swapped = this->effective_transform_ & SWAP_XY;
+#else
+  const bool swapped = false;
+#endif
   size_t contiguous_length;
   uint8_t *contiguous = this->buffer_.get_span(0, contiguous_length);
-  if (!this->buffer_is_mono_() || this->get_clipping().is_set() || bitness != COLOR_BITNESS_565 ||
+  if (swapped || !this->buffer_is_mono_() || this->get_clipping().is_set() || bitness != COLOR_BITNESS_565 ||
       contiguous_length != this->buffer_length_) {
     Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
