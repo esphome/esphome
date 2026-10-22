@@ -319,7 +319,7 @@ class TopTronic : public Component {
 
   void set_device_type(uint16_t device_type) { this->device_type_ = device_type; }
   void set_device_addr(uint8_t device_addr) { this->device_addr_ = device_addr; }
-  uint16_t get_device_id() { return this->device_type_ | this->device_addr_; }
+  uint16_t get_device_id() const { return this->device_type_ | this->device_addr_; }
 
   // Delay before the one-shot post-boot refresh; 0 disables it.
   void set_boot_refresh_delay(uint32_t ms) { this->boot_refresh_delay_ms_ = ms; }
@@ -426,8 +426,8 @@ class TopTronic : public Component {
   std::unordered_map<uint32_t, PendingMessage> pending_messages_;
 
   // CAN address of this gateway node (used when building outgoing CAN IDs).
-  uint16_t device_type_;
-  uint8_t device_addr_;
+  uint16_t device_type_{0};
+  uint8_t device_addr_{0};
 
   // Commands marshalled from other tasks into the main loop task.
   // Enumerator names are UPPER_SNAKE_CASE per §5.3; values stay 0/1/2.
