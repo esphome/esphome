@@ -20,8 +20,7 @@ namespace esphome::cw2017 {
 ESPHOME_LOG_TAG(TAG, "cw2017");
 
 static constexpr uint8_t REG_VERSION = 0x00;
-static constexpr uint8_t REG_VCELL_H = 0x02;
-static constexpr uint8_t REG_VCELL_L = 0x03;
+static constexpr uint8_t REG_VCELL = 0x02;
 static constexpr uint8_t REG_SOC = 0x04;
 static constexpr uint8_t REG_MODE = 0x08;
 static constexpr uint8_t REG_SOC_ALERT = 0x0B;
@@ -33,6 +32,7 @@ static constexpr uint8_t UPDATE_FLAG = 0x80;
 static constexpr uint8_t RESTART_MODES[] PROGMEM = {0xF0, MODE_SLEEP, MODE_NORMAL};
 static constexpr uint8_t RESTART_STEPS = sizeof(RESTART_MODES);
 
+static constexpr uint16_t VCELL_MASK = 0x3FFF;
 static constexpr float VCELL_VOLTS_PER_LSB = 312.5e-6f;
 
 static constexpr uint32_t STEP_DELAY_MS = 20;
@@ -183,11 +183,9 @@ void CW2017::update() {
   }
 
   if (this->battery_voltage_sensor_ != nullptr) {
-    uint8_t high = 0;
-    uint8_t low = 0;
-    if (this->read_byte(REG_VCELL_H, &high) && this->read_byte(REG_VCELL_L, &low)) {
-      const uint16_t raw = static_cast<uint16_t>((high & 0x3F) << 8) | low;
-      this->battery_voltage_sensor_->publish_state(raw * VCELL_VOLTS_PER_LSB);
+    uint16_t raw = 0;
+    if (this->read_byte_16(REG_VCELL, &raw)) {
+      this->battery_voltage_sensor_->publish_state((raw & VCELL_MASK) * VCELL_VOLTS_PER_LSB);
     } else {
       this->status_set_warning();
       return;
