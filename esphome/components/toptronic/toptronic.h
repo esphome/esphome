@@ -283,15 +283,6 @@ class TopTronic : public Component {
   // Wire up write callbacks for inputs so they send SET requests over CAN.
   void register_input_callbacks();
 
-  // One-time functional wiring (link_inputs_, sensor/input callbacks, command
-  // queue, boot-refresh gate, work-pump scheduling). Called from the CONFIG
-  // phase (emitted by __init__.py right after all add_sensor/add_input calls)
-  // instead of setup(): ESPHome sizes components_ from ESPHOME_COMPONENT_COUNT,
-  // which is computed before this component registers its preset-entity IDs, so
-  // a hub can be silently dropped from components_ and its setup() never runs.
-  // Config-phase statements always run for every hub.
-  void configure_hub();
-
   // Trigger a GET refresh for every registered sensor across all devices.
   // Can be called from a template button or automation to force an update.
   void update_all();
@@ -303,15 +294,14 @@ class TopTronic : public Component {
   void refresh_all();
 
   // Process the throttled refresh burst (send/retry/drop, completion log, stall
-  // watchdog, state heartbeat, deferred run). Called from loop() and also
-  // re-scheduled through the ESPHome scheduler, so a hub whose component loop()
-  // is not invoked still drains its burst.
+  // watchdog, state heartbeat, deferred run). Called from pump() on every pass;
+  // the burst re-schedules itself through the ESPHome scheduler so pacing is
+  // honoured even without new commands.
   void drain_refresh_burst();
 
-  // Scheduler-driven work pump (order-independent): all critical work (command
-  // bridge, burst drain, boot refresh, cleanup) is driven from here via
-  // set_interval() in setup(), so a hub works even if ESPHome does not invoke
-  // its component loop() (Phase B). loop() calls pump() as well.
+  // Scheduler-driven work pump: drains the cross-task command queue and the
+  // refresh burst, fires the one-shot boot refresh. Runs on a set_interval()
+  // timer installed in setup().
   void pump();
 
   // Thread-safe requests callable from any FreeRTOS task. They only enqueue a
@@ -395,7 +385,6 @@ class TopTronic : public Component {
   bool is_paused() { return this->paused_; }
 
   void setup() override;
-  void loop() override;
   void on_shutdown() override;
   void dump_config() override;
 
@@ -443,7 +432,7 @@ class TopTronic : public Component {
   // Commands marshalled from other tasks into the main loop task.
   // Enumerator names are UPPER_SNAKE_CASE per §5.3; values stay 0/1/2.
   enum class Command : uint8_t { REFRESH, PAUSE, RESUME };
-  // Producer/consumer bridge: other tasks enqueue here, loop() drains on the
+  // Producer/consumer bridge: other tasks enqueue here, pump() drains on the
   // main loop task. Created in setup(); nullptr until then.
   QueueHandle_t cmd_queue_{nullptr};
 
@@ -454,7 +443,7 @@ class TopTronic : public Component {
   size_t max_pending_messages_{32};
   // A pending message with no continuation frame for this long is considered lost (default 5000 ms).
   uint32_t max_pending_age_ms_{5000};
-  // Throttle interval for the stale-fragment sweep in loop() (default 5000 ms).
+  // Sweep interval for the stale-fragment eviction (set_interval in setup()).
   uint32_t cleanup_interval_ms_{5000};
   // GET burst budget per refresh_gap_ms_ window (default 8). Combined with
   // refresh_gap_ms_ it yields the effective per-GET spacing, so BOTH knobs
@@ -494,7 +483,7 @@ class TopTronic : public Component {
   std::deque<RefreshEntry> pending_refresh_;
 
   // Coalesced refresh request: set by update_all() when a refresh is asked for
-  // while a burst is still draining. loop() starts one fresh burst once the
+  // while a burst is still draining. pump() starts one fresh burst once the
   // current one empties, so a "Refresh all" press during a burst is deferred
   // and honored rather than silently dropped.
   bool refresh_pending_{false};
@@ -502,16 +491,13 @@ class TopTronic : public Component {
   // Refresh-burst observability + stall watchdog. burst_in_progress_ is true
   // while a throttled burst is draining; the counters feed the completion log
   // (queued / answered / dropped) and last_burst_progress_ms_ drives the
-  // loop() stall watchdog, which aborts a burst that stops making progress
+  // stall watchdog, which aborts a burst that stops making progress
   // (no GET sent, no response erased) for 5 s + refresh_retry_interval_ms_.
   bool burst_in_progress_{false};
   size_t burst_queued_{0};
   size_t burst_answered_{0};
   size_t burst_dropped_{0};
   uint32_t last_burst_progress_ms_{0};
-
-  // Timestamp of the last stale-fragment sweep in loop().
-  uint32_t last_cleanup_ms_{0};
 
   // Write safety state.
   // Last SET timestamp per datapoint (keyed by get_id()) for the rate limit.

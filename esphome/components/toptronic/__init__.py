@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from enum import Enum
 import pathlib
 
@@ -9,6 +10,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_OPTIONS
 from esphome.core import CORE, ID
 from esphome.cpp_types import Component
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["canbus"]
@@ -67,43 +69,50 @@ class DeviceType(Enum):
     GW = 1153  # EN: Gateway (Modbus/KNX) / FR: Passerelle (Modbus/KNX) / DE: Gateway
 
 
-_device_types = {t.name: t.value for t in DeviceType}
+_device_types = {name: t.value for name, t in DeviceType.__members__.items()}
 
 PRESETS_DIR = pathlib.Path(__file__).parent / "presets"
+_PRESETS_KEY = "toptronic_used_ids"
 
-_IDS_KEY = "toptronic_used_ids"
+
+@dataclass
+class TopTronicData:
+    """Per-run state shared between final validation and code generation."""
+
+    # Validated preset entity configs per hub ID (built in FINAL_VALIDATE_SCHEMA
+    # so their Component IDs are recorded early enough to count into
+    # ESPHOME_COMPONENT_COUNT).
+    generated_entities: dict[str, list[tuple[str, ConfigType]]] = field(
+        default_factory=dict
+    )
+
+
+def _get_data() -> TopTronicData:
+    """Return this component's per-run state from CORE.data."""
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = TopTronicData()
+    return CORE.data[DOMAIN]
 
 
 def _shared_used_ids():
     """Build-wide set of used IDs, shared across all hub instances."""
-    if _IDS_KEY not in CORE.data:
-        CORE.data[_IDS_KEY] = set()
-    return CORE.data[_IDS_KEY]
+    if _PRESETS_KEY not in CORE.data:
+        # Seed with every ID name in the config tree (post ID pass, reached via
+        # the final-validation context) so generated preset IDs cannot collide
+        # with IDs the user already declared.
+        from esphome import final_validate as fv
+        from esphome.config import iter_ids
+
+        result = fv.full_config.get()
+        used = {id.id for id, _ in iter_ids(result) if id.id is not None}
+        CORE.data[_PRESETS_KEY] = used
+    return CORE.data[_PRESETS_KEY]
 
 
 def get_device_type(t: str) -> int:
     if t not in _device_types:
         raise ValueError(f'device type "{t}" not found')
     return _device_types.get(t)
-
-
-def _validate_preset(config):
-    device_type = config["device_type"]
-    if device_type not in _device_types:
-        raise cv.Invalid(
-            f"Device type '{device_type}' is not a known TopTronic device type"
-        )
-    if not (PRESETS_DIR / device_type).is_dir():
-        available = (
-            sorted(d.name for d in PRESETS_DIR.iterdir() if d.is_dir())
-            if PRESETS_DIR.is_dir()
-            else []
-        )
-        raise cv.Invalid(
-            f"No preset directory found for device type '{device_type}'. "
-            f"Available presets: {', '.join(available)}"
-        )
-    return config
 
 
 def _validate_options_values_lengths(config):
@@ -142,50 +151,49 @@ def config_schema_polling(update_interval: str = "30s"):
     return CONFIG_SCHEMA_BASE.extend(cv.polling_component_schema(update_interval))
 
 
-CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(TopTronicComponent),
-            cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-            cv.Required("device_type"): cv.one_of(
-                *[t.name for t in DeviceType], upper=True
-            ),
-            cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
-            cv.Optional(
-                CONF_BOOT_REFRESH_DELAY, default="30s"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_MAX_PENDING_MESSAGES, default=32): cv.int_range(
-                min=1, max=512
-            ),
-            cv.Optional(
-                CONF_MAX_PENDING_AGE, default="5000ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(
-                CONF_CLEANUP_INTERVAL, default="5000ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_MAX_REFRESH_PER_LOOP, default=8): cv.int_range(
-                min=1, max=255
-            ),
-            cv.Optional(CONF_MAX_FRAMES_PER_MESSAGE, default=8): cv.int_range(
-                min=3, max=31
-            ),
-            cv.Optional(
-                CONF_REFRESH_GAP_MS, default="50ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_MAX_REFRESH_RETRIES, default=1): cv.int_range(
-                min=0, max=10
-            ),
-            cv.Optional(
-                CONF_REFRESH_RETRY_INTERVAL_MS, default="200ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(
-                CONF_WRITE_MIN_INTERVAL, default="2s"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_REJECT_WRITES_BEFORE_READ, default=True): cv.boolean,
-        }
-    ).extend(cv.COMPONENT_SCHEMA),
-    _validate_preset,
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(TopTronicComponent),
+        cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
+        cv.Required("device_type"): cv.one_of(*DeviceType.__members__, upper=True),
+        cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
+        cv.Optional(
+            CONF_BOOT_REFRESH_DELAY, default="30s"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MAX_PENDING_MESSAGES, default=32): cv.int_range(
+            min=1, max=512
+        ),
+        cv.Optional(
+            CONF_MAX_PENDING_AGE, default="5000ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_CLEANUP_INTERVAL, default="5000ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MAX_REFRESH_PER_LOOP, default=8): cv.int_range(min=1, max=255),
+        cv.Optional(CONF_MAX_FRAMES_PER_MESSAGE, default=8): cv.int_range(
+            min=3, max=31
+        ),
+        cv.Optional(
+            CONF_REFRESH_GAP_MS, default="50ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MAX_REFRESH_RETRIES, default=1): cv.int_range(min=0, max=10),
+        cv.Optional(
+            CONF_REFRESH_RETRY_INTERVAL_MS, default="200ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_WRITE_MIN_INTERVAL, default="2s"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_REJECT_WRITES_BEFORE_READ, default=True): cv.boolean,
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+
+def _final_validate(config: ConfigType) -> None:
+    """Generate and validate this hub's preset entities at validation time."""
+    _register_preset_entities(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _load_entities(device_type: str):
@@ -205,15 +213,18 @@ def _resolve_ids(obj, used=None):
     """Resolve auto-generated IDs inside a validated entity config.
 
     Entities synthesized from presets bypass config.py's global ID pass, so
-    nested IDs (e.g. filter IDs) keep id=None. Resolve them now to avoid
-    duplicate empty-ID registrations during code generation, and record
-    Component-derived declarations in CORE.component_ids as config.py would.
+    nested IDs (e.g. filter IDs) keep id=None. Resolve them in final validation
+    (after the ID pass) to avoid duplicate empty-ID registrations during code
+    generation, and record Component-derived declarations in
+    CORE.component_ids exactly as config.py's ID pass would.
     """
     if used is None:
         used = set()
     if isinstance(obj, ID):
         if obj.id is None:
             obj.resolve(used)
+        elif obj.is_declaration and obj.id in used:
+            raise cv.Invalid(f"ID '{obj.id}' is already used by another entity")
         used.add(obj.id)
         if (
             obj.is_declaration
@@ -230,17 +241,30 @@ def _resolve_ids(obj, used=None):
     return used
 
 
-async def _generate_entities(hub, config):
+def _register_preset_entities(config: ConfigType) -> None:
+    """Validate the preset entities and register them at validation time.
+
+    The preset entity configs bypass config.py's global ID pass (they do not
+    live in the config tree), so they are generated and validated here in
+    FINAL_VALIDATE_SCHEMA. Component-derived IDs are recorded in
+    CORE.component_ids now, because ESPHOME_COMPONENT_COUNT is emitted from the
+    core component's to_code() (CoroPriority.CORE), which runs BEFORE any
+    component to_code(): IDs registered later never make it into the define and
+    their App::components_ push_back (StaticVector) is silently dropped, so
+    those sensors would never poll.
+
+    The validated configs are stashed in CORE.data for to_code to generate.
+    """
     from . import number, select, sensor, text_sensor
 
     platforms = {
-        "sensor": (sensor.CONFIG_SCHEMA, sensor.to_code),
-        "text_sensor": (text_sensor.CONFIG_SCHEMA, text_sensor.to_code),
-        "number": (number.CONFIG_SCHEMA, number.to_code),
-        "select": (select.CONFIG_SCHEMA, select.to_code),
+        "sensor": sensor.CONFIG_SCHEMA,
+        "text_sensor": text_sensor.CONFIG_SCHEMA,
+        "number": number.CONFIG_SCHEMA,
+        "select": select.CONFIG_SCHEMA,
     }
-
     used_ids = _shared_used_ids()
+    generated = []
     for platform_name, entity_conf in _load_entities(config["device_type"]):
         if platform_name not in platforms:
             raise cv.Invalid(
@@ -252,11 +276,26 @@ async def _generate_entities(hub, config):
         hub_ref = config[CONF_ID].copy()
         hub_ref.is_declaration = False
         entity_conf[CONF_TOPTRONIC_ID] = hub_ref
-
-        schema, codegen = platforms[platform_name]
-        validated = schema(entity_conf)
+        validated = platforms[platform_name](entity_conf)
         _resolve_ids(validated, used_ids)
-        await codegen(validated)
+        generated.append((platform_name, validated))
+
+    _get_data().generated_entities[str(config[CONF_ID])] = generated
+
+
+async def _generate_entities(hub, config: ConfigType) -> None:
+    """Generate the preset entities validated during final validation."""
+    from . import number, select, sensor, text_sensor
+
+    codegens = {
+        "sensor": sensor.to_code,
+        "text_sensor": text_sensor.to_code,
+        "number": number.to_code,
+        "select": select.to_code,
+    }
+    saved = _get_data().generated_entities.get(str(config[CONF_ID]), [])
+    for platform_name, validated in saved:
+        await codegens[platform_name](validated)
 
 
 async def to_code(config):
@@ -280,10 +319,3 @@ async def to_code(config):
     cg.add(var.set_reject_writes_before_read(config[CONF_REJECT_WRITES_BEFORE_READ]))
 
     await _generate_entities(var, config)
-
-    # Critical wiring (update callbacks, command queue, pump, boot-refresh gate)
-    # must not depend on ESPHome invoking setup(): ESPHOME_COMPONENT_COUNT is
-    # computed from CORE.component_ids before preset entities are registered, so
-    # a hub can be silently dropped from components_ and setup() never runs.
-    # Config-phase statements always run for every hub.
-    cg.add(var.configure_hub())
