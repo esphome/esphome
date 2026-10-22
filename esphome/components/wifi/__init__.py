@@ -66,7 +66,6 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_USERNAME,
     PLACEHOLDER_WIFI_SSID,
-    Framework as Framework,
     Platform,
     PlatformFramework,
 )
