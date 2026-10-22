@@ -16,6 +16,10 @@ using t_http_codes = enum {
   HTTP_CODE_NOT_FOUND = 404,
 };
 
+/// Largest read() while a JPEG decodes as it downloads. A read() blocks until it has every byte it asked for, so
+/// this bounds how long one loop pass waits on a slow link.
+static constexpr size_t STREAM_READ_CHUNK = 1460;
+
 /**
  * @brief Download an image from a given URL, and decode it using the specified decoder.
  * The image will then be stored in a buffer, so that it can be re-displayed without the

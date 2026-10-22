@@ -15,7 +15,7 @@ static const char *const IF_MODIFIED_SINCE_HEADER_NAME = "if-modified-since";
 
 namespace esphome::online_image {
 
-// Time one loop pass may spend decoding a JPEG as it downloads
+// Time one loop pass may spend reading and decoding a JPEG as it downloads
 static constexpr uint32_t STREAM_PASS_BUDGET_MS = 20;
 
 OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format,
@@ -274,8 +274,7 @@ void OnlineImage::loop_stream_() {
     this->source_.compact();
 
   if (this->downloader_->get_bytes_read() < total) {
-    const size_t available = std::min(this->download_buffer_.free_capacity(), this->download_buffer_initial_size_);
-    if (available == 0) {
+    if (this->download_buffer_.free_capacity() == 0) {
       // compact() already ran, so a full buffer means the decoder read nothing in the last pass
       if (now - this->last_data_time_ >= this->parent_->get_timeout()) {
         ESP_LOGE(TAG, "Image does not fit in the %zu byte download buffer; increase buffer_size",
@@ -284,11 +283,17 @@ void OnlineImage::loop_stream_() {
         return;
       }
     } else {
-      const int len = this->downloader_->read(this->download_buffer_.append(), available);
-      if (len > 0) {
+      int len;
+      do {
+        len = this->downloader_->read(this->download_buffer_.append(),
+                                      std::min(this->download_buffer_.free_capacity(), STREAM_READ_CHUNK));
+        if (len <= 0)
+          break;
         this->last_data_time_ = now;
         this->download_buffer_.write(len);
-      } else if (len < 0) {
+      } while (this->downloader_->get_bytes_read() < total && this->download_buffer_.free_capacity() != 0 &&
+               millis() - now < STREAM_PASS_BUDGET_MS);
+      if (len < 0) {
         ESP_LOGE(TAG, "Error downloading image: %d", len);
         this->fail_download_();
         return;
