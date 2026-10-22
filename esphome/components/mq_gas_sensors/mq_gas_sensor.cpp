@@ -21,6 +21,12 @@ static constexpr uint32_t R0_PREFERENCE_VERSION = 0x00000001;
 /// measuring range; above it the reading cannot come from the configured sensor.
 static constexpr float SATURATION_TOLERANCE = 0.05f;
 
+/// A linked temperature/humidity source that has not delivered a state for this
+/// long is treated as missing. The component polls every 60 s by default, so a
+/// source that is alive normally updates several times inside the window; the
+/// floor avoids flagging a slower source during its first interval.
+static constexpr uint32_t SOURCE_STALE_MS = 5 * 60 * 1000;
+
 /// Human readable name of a `mqmath::RegressionMethod` value.
 static const LogString *regression_method_name(mqmath::RegressionMethod method) {
   switch (method) {
@@ -149,6 +155,31 @@ void MQGasSensor::setup() {
         LOG_STR("no R0 available, set 'r0:' or 'calibration:' - the PPM value stays unknown until then"));
   }
 
+  // Track when the correction sources last delivered a finite state. A sensor
+  // keeps `has_state()` after it stops updating, so the timestamp is what tells
+  // a live source from a frozen one.
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->temperature_source_ != nullptr) {
+    this->temperature_source_->add_on_raw_state_callback([this](float value) {
+      this->temperature_last_ms_ = App.get_loop_component_start_time();
+      this->temperature_seen_ = std::isfinite(value);
+    });
+    if (this->temperature_source_->has_state()) {
+      this->temperature_last_ms_ = now;
+      this->temperature_seen_ = std::isfinite(this->temperature_source_->state);
+    }
+  }
+  if (this->humidity_source_ != nullptr) {
+    this->humidity_source_->add_on_raw_state_callback([this](float value) {
+      this->humidity_last_ms_ = App.get_loop_component_start_time();
+      this->humidity_seen_ = std::isfinite(value);
+    });
+    if (this->humidity_source_->has_state()) {
+      this->humidity_last_ms_ = now;
+      this->humidity_seen_ = std::isfinite(this->humidity_source_->state);
+    }
+  }
+
   this->disable_loop();
 }
 
@@ -234,16 +265,22 @@ float MQGasSensor::compute_correction_() {
     return 1.0f;
   }
 
-  // A source that has no state yet or holds a non-finite value cannot contribute;
-  // the last good value must not silently keep the correction alive.
-  const bool temperature_ok = this->temperature_source_->has_state() && std::isfinite(this->temperature_source_->state);
-  const bool humidity_ok = this->humidity_source_->has_state() && std::isfinite(this->humidity_source_->state);
+  // A source that has no state yet, holds a non-finite value, or stopped
+  // updating cannot contribute; the last good value must not silently keep the
+  // correction alive.
+  const uint32_t now = App.get_loop_component_start_time();
+  const uint32_t max_age = std::max(SOURCE_STALE_MS, this->get_update_interval() * 3u);
+  const bool temperature_ok =
+      mqmath::source_is_fresh(this->temperature_seen_, this->temperature_last_ms_, now, max_age) &&
+      std::isfinite(this->temperature_source_->state);
+  const bool humidity_ok = mqmath::source_is_fresh(this->humidity_seen_, this->humidity_last_ms_, now, max_age) &&
+                           std::isfinite(this->humidity_source_->state);
   if (!temperature_ok || !humidity_ok) {
     this->correction_degraded_ = true;
     if (!this->warned_correction_) {
       this->warned_correction_ = true;
       this->log_message_(LOG_SEVERITY_WARN,
-                         LOG_STR("no valid temperature/humidity reading yet (T=%.1f, RH=%.1f) - "
+                         LOG_STR("no recent temperature/humidity reading (T=%.1f, RH=%.1f) - "
                                  "publishing the uncorrected value"),
                          this->temperature_source_->state, this->humidity_source_->state);
     }
@@ -295,9 +332,11 @@ void MQGasSensor::publish_r0_() {
 
 void MQGasSensor::publish_fault_diagnostics_() {
   // The voltage is a real reading even when no resistance can be derived from
-  // it; RS and the ratio are not, and 0 kOhm would look like a measurement.
+  // it; RS, the ratio and the correction are not, and 0 kOhm would look like a
+  // measurement.
   this->rs_ = NAN;
   this->ratio_ = NAN;
+  this->correction_ = NAN;
   this->publish_diagnostics_();
 }
 
@@ -648,7 +687,9 @@ void MQGasSensor::finish_calibration_() {
       this->schedule_calibration_retry_();
     } else {
       // A manual run failed but the R0 of this boot is still a usable reference:
-      // keep publishing with it and do not retry forever.
+      // keep publishing with it and do not retry forever. The warning is left
+      // up on purpose - the user asked for a recalibration and it failed, so
+      // one good reading must not hide it; a later successful run clears it.
       this->r0_warning_ = LOG_STR("clean-air calibration failed - keeping the current R0");
       this->update_status_();
     }
@@ -678,12 +719,10 @@ void MQGasSensor::finish_calibration_() {
   this->r0_ = r0;
   this->publish_r0_();
   const bool stored = this->persist_ && this->save_r0_();
-  // The calibration warning is over; a failed store keeps its own until the next boot.
-  this->r0_warning_ = nullptr;
-  if (this->persist_ && !stored) {
-    // The reading stays usable, but the next boot calibrates again: keep the
-    // failure visible instead of clearing the warning of the failed attempts.
-    this->r0_warning_ = LOG_STR("could not store R0");
+  if (!this->persist_ || stored) {
+    // The calibration warning is over; a failed store keeps its own warning
+    // (set in `save_r0_()`) so it stays visible until the next boot.
+    this->r0_warning_ = nullptr;
   }
   this->update_status_();
 
@@ -722,11 +761,14 @@ bool MQGasSensor::in_warmup_() {
 
 bool MQGasSensor::save_r0_() {
   if (!this->r0_pref_.save(&this->r0_)) {
+    this->r0_warning_ = LOG_STR("could not store R0");
     this->log_message_(LOG_SEVERITY_WARN, LOG_STR("could not store R0"));
     return false;
   }
   if (!global_preferences->sync()) {
-    this->log_message_(LOG_SEVERITY_WARN, LOG_STR("R0 stored but the preference sync failed (will be written later)"));
+    this->r0_warning_ = LOG_STR("R0 saved but the preference sync failed - it may not survive a reboot");
+    this->log_message_(LOG_SEVERITY_WARN,
+                       LOG_STR("R0 saved but the preference sync failed - it may not survive a reboot"));
     return false;
   }
   this->log_message_(LOG_SEVERITY_DEBUG, LOG_STR("R0 %.4f kOhm saved"), this->r0_);
