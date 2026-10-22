@@ -636,11 +636,11 @@ async def _render_bytes(
         ]
     table, size = _static_bytes(table_name, value)
     # Qualified so a trigger argument cannot shadow a reused table; an empty payload is nullptr
-    args = f"::{table}, {size}" if size else f"{table}, {size}"
+    table_args = f"::{table}, {size}" if size else f"{table}, {size}"
     if CORE.is_esp8266 and spec.progmem_target is not None:
-        return [send(spec.progmem_target, args)]
+        return [send(spec.progmem_target, table_args)]
     if not CORE.is_esp8266:
-        return [send(spec.target, args)]
+        return [send(spec.target, table_args)]
     # A PROGMEM table must be read with aligned loads on ESP8266, so copy it out first;
     # the length is known here, so the copy is an exact array, on the heap past ``stack``.
     # An empty payload still gets a one byte array: the raw lwIP socket rejects a null buffer.
@@ -653,7 +653,7 @@ async def _render_bytes(
         )
     statements = ["{", f"  {buffer}"]
     if size:
-        statements.append(f"  esphome::progmem_memcpy({data}, {args});")
+        statements.append(f"  esphome::progmem_memcpy({data}, {table_args});")
     return [*statements, f"  {send(spec.target, f'{data}, {size}')}", "}"]
 
 
