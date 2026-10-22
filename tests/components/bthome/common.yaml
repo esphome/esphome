@@ -12,6 +12,16 @@ sensor:
     type: SIGNAL_STRENGTH
     name: "Remote Signal Strength"
 
+binary_sensor:
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: MOTION_DETECTED
+    name: "Remote Motion"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: DOOR_OPEN
+    name: "Remote Door"
+
 bthome:
   remote_devices:
     - id: bthome_remote_plain
