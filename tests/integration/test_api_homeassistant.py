@@ -23,6 +23,7 @@ from .state_utils import (
     wait_for_state,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -251,173 +252,191 @@ async def test_api_homeassistant(
         await client.execute_service(trigger_service, {})
 
         # Wait for all tests to complete with appropriate timeouts
-        try:
-            # Templated service test - the main bug fix
-            computed_value = await asyncio.wait_for(lambda_computed_future, timeout=5.0)
-            # Verify the computed value is reasonable (75 * 255 / 100 = 191.25 -> 191)
-            assert computed_value in ["191", "192"], (
-                f"Unexpected computed value: {computed_value}"
-            )
+        # Shown when a log line or service call does not arrive
+        ctx = {
+            "logged": log_lines,
+            "calls": lambda: [call.service for call in ha_service_calls],
+        }
+        # Templated service test - the main bug fix
+        computed_value = await wait_or_fail(
+            lambda_computed_future, 5.0, "no templated value", **ctx
+        )
+        # Verify the computed value is reasonable (75 * 255 / 100 = 191.25 -> 191)
+        assert computed_value in ["191", "192"], (
+            f"Unexpected computed value: {computed_value}"
+        )
 
-            # Check state reads - verify we received the mocked values
-            temp_line = await asyncio.wait_for(ha_temp_state_future, timeout=5.0)
-            assert "Current HA Temperature: 22.5" in temp_line
+        # Check state reads - verify we received the mocked values
+        temp_line = await wait_or_fail(
+            ha_temp_state_future, 5.0, "no HA temperature", **ctx
+        )
+        assert "Current HA Temperature: 22.5" in temp_line
 
-            humidity_line = await asyncio.wait_for(
-                ha_humidity_state_future, timeout=5.0
-            )
-            assert "Current HA Humidity: 65.0" in humidity_line
+        humidity_line = await wait_or_fail(
+            ha_humidity_state_future, 5.0, "no HA humidity", **ctx
+        )
+        assert "Current HA Humidity: 65.0" in humidity_line
 
-            motion_line = await asyncio.wait_for(ha_motion_state_future, timeout=5.0)
-            assert "Current HA Motion: ON" in motion_line
+        motion_line = await wait_or_fail(
+            ha_motion_state_future, 5.0, "no HA motion", **ctx
+        )
+        assert "Current HA Motion: ON" in motion_line
 
-            weather_line = await asyncio.wait_for(ha_weather_state_future, timeout=5.0)
-            assert "Current HA Weather: sunny" in weather_line
+        weather_line = await wait_or_fail(
+            ha_weather_state_future, 5.0, "no HA weather", **ctx
+        )
+        assert "Current HA Weather: sunny" in weather_line
 
-            # Number test
-            number_value = await asyncio.wait_for(ha_number_future, timeout=5.0)
-            assert number_value == "42.5", f"Unexpected number value: {number_value}"
+        # Number test
+        number_value = await wait_or_fail(
+            ha_number_future, 5.0, "no HA number value", **ctx
+        )
+        assert number_value == "42.5", f"Unexpected number value: {number_value}"
 
-            # Long attribute test - verify 300 chars weren't truncated to 255
-            long_attr_len = await asyncio.wait_for(long_attr_future, timeout=5.0)
-            assert long_attr_len == 300, (
-                f"Long attribute was truncated! Expected 300 chars, got {long_attr_len}. "
-                "This indicates the 256-byte truncation bug."
-            )
+        # Long attribute test - verify 300 chars weren't truncated to 255
+        long_attr_len = await wait_or_fail(
+            long_attr_future, 5.0, "no long attribute", **ctx
+        )
+        assert long_attr_len == 300, (
+            f"Long attribute was truncated! Expected 300 chars, got {long_attr_len}. "
+            "This indicates the 256-byte truncation bug."
+        )
 
-            # Wait for completion
-            await asyncio.wait_for(tests_complete_future, timeout=5.0)
+        # Wait for completion
+        await wait_or_fail(tests_complete_future, 5.0, "tests did not complete", **ctx)
 
-            # Now verify the protobuf messages
-            # 1. Basic service call
-            basic_call = await asyncio.wait_for(
-                service_call_futures["light.turn_off"], timeout=2.0
-            )
-            assert basic_call.service == "light.turn_off"
-            assert "entity_id" in basic_call.data, (
-                f"entity_id not found in data: {basic_call.data}"
-            )
-            assert basic_call.data["entity_id"] == "light.test_light", (
-                f"Wrong entity_id: {basic_call.data['entity_id']}"
-            )
+        # Now verify the protobuf messages
+        # 1. Basic service call
+        basic_call = await wait_or_fail(
+            service_call_futures["light.turn_off"], 2.0, "no light.turn_off call", **ctx
+        )
+        assert basic_call.service == "light.turn_off"
+        assert "entity_id" in basic_call.data, (
+            f"entity_id not found in data: {basic_call.data}"
+        )
+        assert basic_call.data["entity_id"] == "light.test_light", (
+            f"Wrong entity_id: {basic_call.data['entity_id']}"
+        )
 
-            # 2. Templated service call - verify the temporary string issue is fixed
-            templated_call = await asyncio.wait_for(
-                service_call_futures["light.turn_on"], timeout=2.0
-            )
-            assert templated_call.service == "light.turn_on"
-            # Check the computed brightness value
-            assert "brightness" in templated_call.data
-            assert templated_call.data["brightness"] in ["191", "192"]  # 75 * 255 / 100
-            # Check data_template
-            assert "color_name" in templated_call.data_template
-            assert templated_call.data_template["color_name"] == "test_value"
-            # Check variables
-            assert "transition" in templated_call.variables
-            assert templated_call.variables["transition"] == "2.5"
+        # 2. Templated service call - verify the temporary string issue is fixed
+        templated_call = await wait_or_fail(
+            service_call_futures["light.turn_on"], 2.0, "no light.turn_on call", **ctx
+        )
+        assert templated_call.service == "light.turn_on"
+        # Check the computed brightness value
+        assert "brightness" in templated_call.data
+        assert templated_call.data["brightness"] in ["191", "192"]  # 75 * 255 / 100
+        # Check data_template
+        assert "color_name" in templated_call.data_template
+        assert templated_call.data_template["color_name"] == "test_value"
+        # Check variables
+        assert "transition" in templated_call.variables
+        assert templated_call.variables["transition"] == "2.5"
 
-            # 3. Empty string service call
-            empty_call = await asyncio.wait_for(
-                service_call_futures["notify.test"], timeout=2.0
-            )
-            assert empty_call.service == "notify.test"
-            # Verify empty strings are properly handled
-            assert "title" in empty_call.data and empty_call.data["title"] == ""
-            assert (
-                "target" in empty_call.data_template
-                and empty_call.data_template["target"] == ""
-            )
-            assert (
-                "sound" in empty_call.variables and empty_call.variables["sound"] == ""
-            )
+        # 3. Empty string service call
+        empty_call = await wait_or_fail(
+            service_call_futures["notify.test"], 2.0, "no notify.test call", **ctx
+        )
+        assert empty_call.service == "notify.test"
+        # Verify empty strings are properly handled
+        assert "title" in empty_call.data and empty_call.data["title"] == ""
+        assert (
+            "target" in empty_call.data_template
+            and empty_call.data_template["target"] == ""
+        )
+        assert "sound" in empty_call.variables and empty_call.variables["sound"] == ""
 
-            # 4. Multiple fields service call
-            multi_call = await asyncio.wait_for(
-                service_call_futures["climate.set_temperature"], timeout=2.0
-            )
-            assert multi_call.service == "climate.set_temperature"
-            assert multi_call.data["temperature"] == "22"
-            assert multi_call.data["hvac_mode"] == "heat"
-            assert multi_call.data_template["target_temp_high"] == "24"
-            assert multi_call.variables["preset_mode"] == "comfort"
+        # 4. Multiple fields service call
+        multi_call = await wait_or_fail(
+            service_call_futures["climate.set_temperature"],
+            2.0,
+            "no climate.set_temperature call",
+            **ctx,
+        )
+        assert multi_call.service == "climate.set_temperature"
+        assert multi_call.data["temperature"] == "22"
+        assert multi_call.data["hvac_mode"] == "heat"
+        assert multi_call.data_template["target_temp_high"] == "24"
+        assert multi_call.variables["preset_mode"] == "comfort"
 
-            # 5. Complex lambda service call
-            complex_call = await asyncio.wait_for(
-                service_call_futures["script.test_script"], timeout=2.0
-            )
-            assert complex_call.service == "script.test_script"
-            assert complex_call.data["entity_id"] == "light.living_room"
-            assert complex_call.data["brightness_pct"] == "99"  # 42 * 2.38 ≈ 99
-            # Check message includes sensor value
-            assert "message" in complex_call.data_template
-            assert "Sensor: 42.0" in complex_call.data_template["message"]
+        # 5. Complex lambda service call
+        complex_call = await wait_or_fail(
+            service_call_futures["script.test_script"],
+            2.0,
+            "no script.test_script call",
+            **ctx,
+        )
+        assert complex_call.service == "script.test_script"
+        assert complex_call.data["entity_id"] == "light.living_room"
+        assert complex_call.data["brightness_pct"] == "99"  # 42 * 2.38 ≈ 99
+        # Check message includes sensor value
+        assert "message" in complex_call.data_template
+        assert "Sensor: 42.0" in complex_call.data_template["message"]
 
-            # 6. All empty service call
-            all_empty_call = await asyncio.wait_for(
-                service_call_futures["test.empty"], timeout=2.0
-            )
-            assert all_empty_call.service == "test.empty"
-            # All fields should be empty strings
-            assert all(v == "" for v in all_empty_call.data.values())
-            assert all(v == "" for v in all_empty_call.data_template.values())
-            assert all(v == "" for v in all_empty_call.variables.values())
+        # 6. All empty service call
+        all_empty_call = await wait_or_fail(
+            service_call_futures["test.empty"], 2.0, "no test.empty call", **ctx
+        )
+        assert all_empty_call.service == "test.empty"
+        # All fields should be empty strings
+        assert all(v == "" for v in all_empty_call.data.values())
+        assert all(v == "" for v in all_empty_call.data_template.values())
+        assert all(v == "" for v in all_empty_call.variables.values())
 
-            # 7. HA Number service call
-            number_call = await asyncio.wait_for(
-                service_call_futures["input_number.set_value"], timeout=2.0
-            )
-            assert number_call.service == "input_number.set_value"
-            assert number_call.data["entity_id"] == "input_number.test_number"
-            # The value might be formatted with trailing zeros
-            assert float(number_call.data["value"]) == 42.5
+        # 7. HA Number service call
+        number_call = await wait_or_fail(
+            service_call_futures["input_number.set_value"],
+            2.0,
+            "no input_number.set_value call",
+            **ctx,
+        )
+        assert number_call.service == "input_number.set_value"
+        assert number_call.data["entity_id"] == "input_number.test_number"
+        # The value might be formatted with trailing zeros
+        assert float(number_call.data["value"]) == 42.5
 
-            # 7b. Real homeassistant numbers pick the action from the entity domain
-            real_number_call = await asyncio.wait_for(
-                ha_real_number_futures[("number.set_value", "number.test_real_number")],
-                timeout=2.0,
-            )
-            assert float(real_number_call.data["value"]) == 12.5
+        # 7b. Real homeassistant numbers pick the action from the entity domain
+        real_number_call = await wait_or_fail(
+            ha_real_number_futures[("number.set_value", "number.test_real_number")],
+            2.0,
+            "no number.set_value call",
+            **ctx,
+        )
+        assert float(real_number_call.data["value"]) == 12.5
 
-            real_input_number_call = await asyncio.wait_for(
-                ha_real_number_futures[
-                    ("input_number.set_value", "input_number.test_real_input_number")
-                ],
-                timeout=2.0,
-            )
-            assert float(real_input_number_call.data["value"]) == 7
+        real_input_number_call = await wait_or_fail(
+            ha_real_number_futures[
+                ("input_number.set_value", "input_number.test_real_input_number")
+            ],
+            2.0,
+            "no input_number.set_value call for the real input number",
+            **ctx,
+        )
+        assert float(real_input_number_call.data["value"]) == 7
 
-            # 8. HA Switch service calls
-            switch_on_call = await asyncio.wait_for(
-                service_call_futures["switch.turn_on"], timeout=2.0
-            )
-            assert switch_on_call.service == "switch.turn_on"
-            assert switch_on_call.data["entity_id"] == "switch.test_switch"
+        # 8. HA Switch service calls
+        switch_on_call = await wait_or_fail(
+            service_call_futures["switch.turn_on"], 2.0, "no switch.turn_on call", **ctx
+        )
+        assert switch_on_call.service == "switch.turn_on"
+        assert switch_on_call.data["entity_id"] == "switch.test_switch"
 
-            switch_off_call = await asyncio.wait_for(
-                service_call_futures["switch.turn_off"], timeout=2.0
-            )
-            assert switch_off_call.service == "switch.turn_off"
-            assert switch_off_call.data["entity_id"] == "switch.test_switch"
+        switch_off_call = await wait_or_fail(
+            service_call_futures["switch.turn_off"],
+            2.0,
+            "no switch.turn_off call",
+            **ctx,
+        )
+        assert switch_off_call.service == "switch.turn_off"
+        assert switch_off_call.data["entity_id"] == "switch.test_switch"
 
-            # 9. Action response error test (tests StringRef error message)
-            # The error response is sent automatically in on_service_call callback
-            # Wait for the error to be logged (proves StringRef -> std::string works)
-            error_log_line = await asyncio.wait_for(
-                action_error_received_future, timeout=2.0
-            )
-            test_error_message = "Test error: action not found"
-            assert test_error_message in error_log_line, (
-                f"Expected error message '{test_error_message}' not found in: {error_log_line}"
-            )
-
-        except TimeoutError as e:
-            # Show recent log lines for debugging
-            recent_logs = "\n".join(log_lines[-20:])
-            service_calls_summary = "\n".join(
-                f"- {call.service}" for call in ha_service_calls
-            )
-            pytest.fail(
-                f"Test timed out waiting for expected log pattern or service call. Error: {e}\n\n"
-                f"Recent log lines:\n{recent_logs}\n\n"
-                f"Received service calls:\n{service_calls_summary}"
-            )
+        # 9. Action response error test (tests StringRef error message)
+        # The error response is sent automatically in on_service_call callback
+        # Wait for the error to be logged (proves StringRef -> std::string works)
+        error_log_line = await wait_or_fail(
+            action_error_received_future, 2.0, "no action error logged", **ctx
+        )
+        test_error_message = "Test error: action not found"
+        assert test_error_message in error_log_line, (
+            f"Expected error message '{test_error_message}' not found in: {error_log_line}"
+        )
