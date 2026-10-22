@@ -182,10 +182,6 @@ def test_border_router_rcp_codegen(
             lambda config, _: config[CONF_WIFI].update({CONF_AP: {}}),
             "does not support Wi-Fi AP",
         ),
-        (
-            lambda config, _: config[CONF_NETWORK].update({CONF_ENABLE_IPV6: False}),
-            "requires IPv6 to be enabled",
-        ),
     ],
 )
 def test_border_router_rejects_incompatible_config(

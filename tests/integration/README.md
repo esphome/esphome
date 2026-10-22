@@ -45,7 +45,7 @@ The `InitialStateHelper` class solves a common problem in integration tests: whe
 - Tracks all entities (except stateless ones like buttons)
 - Swallows the first state broadcast for each entity
 - Forwards all subsequent state changes to your test callback
-- Provides `wait_for_initial_states()` to synchronize before test actions
+- Provides `wait_for_initial_states()` to synchronize before test actions; it fails the test on timeout, naming the entities still without a state
 
 **When to use it:**
 - Any test that triggers entity state changes and needs to verify them
@@ -232,11 +232,9 @@ initial_state_helper = InitialStateHelper(entities)
 # Subscribe with the wrapper that filters initial states
 client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
-# Wait for all initial states to be broadcast
-try:
-    await initial_state_helper.wait_for_initial_states()
-except TimeoutError:
-    pytest.fail("Timeout waiting for initial states")
+# Wait for all initial states to be broadcast; on timeout this fails the test
+# and lists the entities that never sent one
+await initial_state_helper.wait_for_initial_states()
 
 # Now perform your test actions - on_state will only receive new changes
 # ... trigger state changes ...

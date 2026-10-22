@@ -11,7 +11,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -74,14 +76,13 @@ async def test_scheduler_internal_id_no_collision(
         run_compiled(yaml_config, line_callback=on_log_line),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-internal-id-test"
+        await assert_device_name(client, "scheduler-internal-id-test")
 
-        try:
-            await asyncio.wait_for(all_tests_complete.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Not all collision tests completed within 5 seconds")
+        await wait_or_fail(
+            all_tests_complete,
+            5.0,
+            "Not all collision tests completed within 5 seconds",
+        )
 
         # Test 1: Both timeout types with same ID 0 must fire
         assert internal_timeout_0_fired.is_set(), (

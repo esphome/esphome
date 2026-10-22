@@ -45,10 +45,7 @@ void MQTTDateTimeComponent::setup() {
   });
 }
 
-void MQTTDateTimeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT DateTime '%s':", this->datetime_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTDateTimeComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTDateTimeComponent, "datetime")
 const EntityBase *MQTTDateTimeComponent::get_entity() const { return this->datetime_; }
