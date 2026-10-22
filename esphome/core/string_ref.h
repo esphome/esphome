@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -188,6 +189,7 @@ inline bool operator==(const __FlashStringHelper *lhs, const StringRef &rhs) { r
 inline bool operator!=(const StringRef &lhs, const __FlashStringHelper *rhs) { return !(lhs == rhs); }
 
 inline bool operator!=(const __FlashStringHelper *lhs, const StringRef &rhs) { return !(rhs == lhs); }
+
 #endif  // USE_ESP8266
 
 inline bool operator<(const StringRef &lhs, const StringRef &rhs) {
@@ -222,6 +224,68 @@ inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
   str.append(rhs.c_str(), rhs.size());
   return str;
 }
+
+/// A string that may live in flash (on ESP8266): pointer and length, with no byte-reading operations.
+/// progmem_ptr() is safe as a "%s" log argument; read the contents with write_to() or equals().
+class ProgmemStringRef {
+ public:
+  constexpr ProgmemStringRef() = default;
+  constexpr ProgmemStringRef(const char *s, size_t len) : ref_(s, len) {}
+  constexpr explicit ProgmemStringRef(const StringRef &s) : ref_(s) {}
+  /// A PROGMEM char array, with its length known at compile time
+  template<size_t N> static constexpr ProgmemStringRef from_lit(const char (&s)[N]) { return {s, N - 1}; }
+
+  constexpr const char *progmem_ptr() const { return this->ref_.c_str(); }
+  constexpr size_t size() const { return this->ref_.size(); }
+  constexpr bool empty() const { return this->ref_.empty(); }
+
+  /// Copy into buf (null terminated, truncated to fit), returns the length copied.
+  size_t write_to(char *buf, size_t buf_size) const {
+    if (buf_size == 0)
+      return 0;
+    size_t len = std::min(this->ref_.size(), buf_size - 1);
+#ifdef USE_ESP8266
+    memcpy_P(buf, this->ref_.c_str(), len);
+#else
+    std::memcpy(buf, this->ref_.c_str(), len);
+#endif
+    buf[len] = '\0';
+    return len;
+  }
+
+  bool equals(const StringRef &other) const {
+#ifdef USE_ESP8266
+    // A StringRef may be {nullptr, 0}, and memcmp_P with a null pointer is undefined even for 0 bytes
+    return other.size() == this->ref_.size() &&
+           (other.empty() || memcmp_P(other.c_str(), this->ref_.c_str(), other.size()) == 0);
+#else
+    return other == this->ref_;
+#endif
+  }
+
+#ifndef USE_ESP8266
+  /// The string is in RAM here, so it can be viewed directly.
+  constexpr const StringRef &ram_ref() const { return this->ref_; }
+#endif
+
+  // Remove before 2027.5.0
+  [[deprecated(
+      "May point to flash; use progmem_ptr() or the owner's accessors. Removed in 2027.5.0")]] constexpr const char *
+  c_str() const {
+    return this->ref_.c_str();
+  }
+
+ private:
+  StringRef ref_;
+};
+
+#ifdef USE_ESP8266
+inline bool operator==(const StringRef &lhs, const ProgmemStringRef &rhs) { return rhs.equals(lhs); }
+inline bool operator!=(const StringRef &lhs, const ProgmemStringRef &rhs) { return !rhs.equals(lhs); }
+inline bool operator==(const std::string &lhs, const ProgmemStringRef &rhs) { return rhs.equals(StringRef(lhs)); }
+inline bool operator!=(const std::string &lhs, const ProgmemStringRef &rhs) { return !rhs.equals(StringRef(lhs)); }
+#endif
+
 // String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
 // Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
 namespace internal {

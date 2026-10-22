@@ -32,11 +32,6 @@ class MMC5603Component final : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *z_sensor_{nullptr};
   sensor::Sensor *heading_sensor_{nullptr};
   bool auto_set_reset_{true};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    ID_REGISTERS,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::mmc5603

@@ -31,6 +31,7 @@ from esphome.components.esp32 import (
     _reconcile_vfs_fatfs_sdkconfig,
     _user_sdkconfig_wants_tls,
     allow_insecure_tls,
+    idf_version,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
@@ -981,6 +982,17 @@ def test_user_sdkconfig_wants_tls(options: dict[str, Any], wants_tls: bool) -> N
     assert _user_sdkconfig_wants_tls(options) is wants_tls
 
 
+def _tls_compiled_out(sdkconfig: dict[str, Any]) -> bool:
+    """IDF 6 compiles TLS out with CONFIG_MBEDTLS_TLS_ENABLED=n; IDF 5 has no
+    prompt for that and uses CONFIG_MBEDTLS_TLS_DISABLED=y instead."""
+    if idf_version() >= cv.Version(6, 0, 0):
+        value = sdkconfig.get("CONFIG_MBEDTLS_TLS_ENABLED")
+        if isinstance(value, RawSdkconfigValue):
+            return value.value == "n"
+        return value is False
+    return sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+
+
 @pytest.mark.parametrize(
     ("config_file", "tls_off", "ecp_off", "esp_tls_excluded"),
     [
@@ -1004,8 +1016,8 @@ def test_user_sdkconfig_wants_tls(options: dict[str, Any], wants_tls: bool) -> N
             "exclusion_reincludes_nextion.yaml", False, False, False, id="nextion"
         ),
         pytest.param("mbedtls_tls_wifi_eap.yaml", False, False, True, id="wifi_eap"),
-        # zigbee requests ECP for the esp-zigbee-lib blobs, without TLS.
-        pytest.param("tls_zigbee_c6.yaml", True, False, True, id="zigbee"),
+        # zigbee needs neither TLS nor ECP
+        pytest.param("tls_zigbee_c6.yaml", True, True, True, id="zigbee"),
         # A raw bundle keeps the TLS role but no longer compiles esp-tls.
         pytest.param(
             "certificate_bundle_sdkconfig.yaml", False, False, True, id="raw_bundle"
@@ -1034,7 +1046,7 @@ def test_tls_disabled_sdkconfig(
     """TLS is compiled out unless a component or a raw sdkconfig option asks for it."""
     generate_main(component_config_path(config_file))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert (sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True) is tls_off
+    assert _tls_compiled_out(sdkconfig) is tls_off
     assert sdkconfig.get("CONFIG_MBEDTLS_ECP_C") is (False if ecp_off else None)
     assert (
         "esp-tls" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
@@ -2168,7 +2180,7 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
     deterministic ECDSA are plain crypto, and OpenThread keeps those two."""
     generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+    assert _tls_compiled_out(sdkconfig)
     # require_mbedtls_ecp() keeps ECP for the SRP host key while TLS is off
     assert "CONFIG_MBEDTLS_ECP_C" not in sdkconfig
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
@@ -2176,19 +2188,21 @@ def test_mbedtls_tls_openthread_keeps_only_what_it_uses(
         assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
 
 
+_CCM_EXTRAS = {"CONFIG_MBEDTLS_CCM_C"}
+
+
 def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     """Nothing in the Zigbee config links TLS, so the stack is compiled out and
-    no role is written; the extras trim still runs and Zigbee keeps CCM and
-    deterministic ECDSA."""
+    no role is written; the extras trim still runs and Zigbee keeps CCM."""
     generate_main(component_config_path("tls_zigbee_c6.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True
+    assert _tls_compiled_out(sdkconfig)
     assert tuple(sdkconfig.get(name) for name in _TLS_SERVER_OPTIONS) == (None, None)
     for name in MBEDTLS_TLS_EXTRA_OPTIONS:
-        assert sdkconfig.get(name) is (None if name in _CCM_ECDSA_EXTRAS else False)
+        assert sdkconfig.get(name) is (None if name in _CCM_EXTRAS else False)
 
 
 def test_mbedtls_tls_opt_out_keeps_stack_and_trims_role(
@@ -2228,9 +2242,10 @@ def test_mbedtls_tls_openthread_requires_server_and_extras(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The OpenThread hooks mark the DTLS server and CCM/deterministic ECDSA as required."""
-    generate_main(component_config_path("mbedtls_tls_openthread.yaml"))
+    """The Border Router needs TLS/DTLS server support and OpenThread crypto extras."""
+    generate_main(component_config_path("mbedtls_tls_openthread_border_router.yaml"))
     mbedtls = CORE.data[KEY_ESP32][KEY_MBEDTLS_SDKCONFIG]
+    assert mbedtls.tls_required is True
     assert mbedtls.tls_server_required is True
     assert mbedtls.tls_extras_required == _CCM_ECDSA_EXTRAS
 
@@ -2239,10 +2254,10 @@ def test_mbedtls_tls_zigbee_requires_extras(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The Zigbee hooks mark the CCM/deterministic ECDSA as required."""
+    """The Zigbee hooks mark the CCM as required."""
     generate_main(component_config_path("tls_zigbee_c6.yaml"))
     mbedtls = CORE.data[KEY_ESP32][KEY_MBEDTLS_SDKCONFIG]
-    assert mbedtls.tls_extras_required == _CCM_ECDSA_EXTRAS
+    assert mbedtls.tls_extras_required == _CCM_EXTRAS
 
 
 _VASPRINTF_STUB_FLAGS = {"-Wl,--wrap=vasprintf", "-Wl,--undefined=__wrap_vasprintf"}

@@ -54,6 +54,8 @@ class PCA9685Output final : public Component, public i2c::I2CDevice {
   void set_phase_balancer(PhaseBalancer balancer) { this->balancer_ = balancer; }
 
  protected:
+  /// Configure the chip; false on an I2C failure.
+  bool setup_registers_();
   friend PCA9685Channel;
 
   void set_channel_value_(uint8_t channel, uint16_t value) {
