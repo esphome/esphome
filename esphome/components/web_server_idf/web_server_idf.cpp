@@ -1006,7 +1006,7 @@ ssize_t AsyncEventSourceResponse::send_(struct iovec *iov, int iovcnt) {
   if (!this->owns_session_(fd)) {
     return 0;
   }
-  struct msghdr msg {};
+  struct msghdr msg{};
   msg.msg_iov = iov;
   msg.msg_iovlen = iovcnt;
   const ssize_t sent = sendmsg(fd, &msg, MSG_DONTWAIT);

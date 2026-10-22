@@ -59,13 +59,15 @@ template<typename T> class PlainAtomic {
   constexpr PlainAtomic(T value) : value_(value) {}
   T load(std::memory_order order = std::memory_order_seq_cst) const {
     T value = value_;
-    if (order != std::memory_order_relaxed)
+    if (order != std::memory_order_relaxed) {
       ESPHOME_LFQ_COMPILER_BARRIER();  // acquire: later reads may not hoist above this load
+    }
     return value;
   }
   void store(T value, std::memory_order order = std::memory_order_seq_cst) {
-    if (order != std::memory_order_relaxed)
+    if (order != std::memory_order_relaxed) {
       ESPHOME_LFQ_COMPILER_BARRIER();  // release: earlier writes may not sink below this store
+    }
     value_ = value;
   }
   T fetch_add(T amount, std::memory_order /*order*/ = std::memory_order_seq_cst) {

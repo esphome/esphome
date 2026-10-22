@@ -7,6 +7,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -80,10 +81,7 @@ async def test_scheduler_bulk_cleanup(
         await client.execute_service(trigger_bulk_cleanup_service, {})
 
         # Wait for test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=10.0)
-        except TimeoutError:
-            pytest.fail("Bulk cleanup test timed out")
+        await wait_or_fail(test_complete_future, 10.0, "Bulk cleanup test timed out")
 
         # Verify bulk cleanup was triggered
         assert bulk_cleanup_triggered, (
