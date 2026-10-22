@@ -4,7 +4,7 @@
 
 namespace esphome::m5pm1 {
 
-static const char *TAG = "m5pm1.output";
+ESPHOME_LOG_TAG(TAG, "m5pm1.output");
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 

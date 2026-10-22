@@ -6,7 +6,7 @@
 
 namespace esphome::m5pm1 {
 
-static const char *const TAG = "m5pm1";
+ESPHOME_LOG_TAG(TAG, "m5pm1");
 
 void M5PM1Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up M5PM1...");

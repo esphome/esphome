@@ -4,7 +4,7 @@
 
 namespace esphome::m5pm1 {
 
-static const char *TAG = "m5pm1.light";
+ESPHOME_LOG_TAG(TAG, "m5pm1.light");
 
 void M5PM1AddressableLight::setup() {
   if (this->pin_ == nullptr) {

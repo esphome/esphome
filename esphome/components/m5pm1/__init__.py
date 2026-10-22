@@ -28,6 +28,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@parker-int64"]
 DEPENDENCIES = ["i2c"]
+DOMAIN = "m5pm1"
 MULTI_CONF = True
 
 CONF_M5PM1_ID = "m5pm1_id"
@@ -58,10 +59,9 @@ M5PM1SystemCommandAction = m5pm1_ns.class_(
 )
 
 M5PM1PWMPolarity = m5pm1_ns.enum("M5PM1PWMPolarity", is_class=True)
-PWM_POLARITIES = {
-    "ACTIVE_HIGH": M5PM1PWMPolarity.M5PM1_PWM_POLARITY_ACTIVE_HIGH,
-    "ACTIVE_LOW": M5PM1PWMPolarity.M5PM1_PWM_POLARITY_ACTIVE_LOW,
-}
+PWM_POLARITIES = M5PM1PWMPolarity.options(
+    "ACTIVE_HIGH", "ACTIVE_LOW", prefix="M5PM1_PWM_POLARITY_"
+)
 
 M5PM1PWMChannel = m5pm1_ns.enum("M5PM1PWMChannel", is_class=True)
 PWM_CHANNELS = {
@@ -76,18 +76,12 @@ ADC_CHANNELS = {
 }
 
 M5PM1TimerAction = m5pm1_ns.enum("M5PM1TimerAction", is_class=True)
-TIMER_ACTIONS = {
-    "SET_WAKEUP_FLAG": M5PM1TimerAction.M5PM1_TIMER_ACTION_SET_WAKEUP_FLAG,
-    "REBOOT": M5PM1TimerAction.M5PM1_TIMER_ACTION_REBOOT,
-    "POWER_ON": M5PM1TimerAction.M5PM1_TIMER_ACTION_POWER_ON,
-    "POWER_OFF": M5PM1TimerAction.M5PM1_TIMER_ACTION_POWER_OFF,
-}
+TIMER_ACTIONS = M5PM1TimerAction.options(
+    "SET_WAKEUP_FLAG", "REBOOT", "POWER_ON", "POWER_OFF", prefix="M5PM1_TIMER_ACTION_"
+)
 
 M5PM1WakeupEdge = m5pm1_ns.enum("M5PM1WakeupEdge", is_class=True)
-WAKEUP_EDGES = {
-    "FALLING": M5PM1WakeupEdge.M5PM1_WAKEUP_EDGE_FALLING,
-    "RISING": M5PM1WakeupEdge.M5PM1_WAKEUP_EDGE_RISING,
-}
+WAKEUP_EDGES = M5PM1WakeupEdge.options("FALLING", "RISING", prefix="M5PM1_WAKEUP_EDGE_")
 
 M5PM1SystemCommand = m5pm1_ns.enum("M5PM1SystemCommand", is_class=True)
 SYSTEM_COMMANDS = {
@@ -206,9 +200,7 @@ M5PM1_GPIO_INPUT_PIN_SCHEMA = pins.gpio_pin_schema({CONF_INPUT: True})
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
         cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))

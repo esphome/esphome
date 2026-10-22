@@ -2,7 +2,7 @@
 
 namespace esphome::m5pm1 {
 
-static const char *const TAG = "m5pm1.switch";
+ESPHOME_LOG_TAG(TAG, "m5pm1.switch");
 
 void AW8737ASwitch::setup() {
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);

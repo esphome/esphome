@@ -21,21 +21,19 @@ AW8737ASwitch = m5pm1_ns.class_("AW8737ASwitch", cg.Component, switch.Switch)
 M5PM1PowerSwitch = m5pm1_ns.class_("M5PM1PowerSwitch", cg.Component, switch.Switch)
 
 AW8737APinMode = m5pm1_ns.enum("AW8737APinMode", is_class=True)
-AW8737A_PIN_MODES = {
-    "PUSH_PULL": AW8737APinMode.PUSH_PULL,
-    "OPEN_DRAIN": AW8737APinMode.OPEN_DRAIN,
-}
+AW8737A_PIN_MODES = AW8737APinMode.options("PUSH_PULL", "OPEN_DRAIN")
 
 M5PM1PowerSwitchType = m5pm1_ns.enum("M5PM1PowerSwitchType", is_class=True)
-POWER_SWITCH_TYPES = {
-    "charger": M5PM1PowerSwitchType.M5PM1_POWER_SWITCH_TYPE_CHARGER,
-    "dcdc_3v3": M5PM1PowerSwitchType.M5PM1_POWER_SWITCH_TYPE_DCDC_3V3,
-    "ldo_3v3": M5PM1PowerSwitchType.M5PM1_POWER_SWITCH_TYPE_LDO_3V3,
-    "boost_5v": M5PM1PowerSwitchType.M5PM1_POWER_SWITCH_TYPE_BOOST_5V,
-    "hold_ldo_3v3": M5PM1PowerSwitchType.M5PM1_POWER_SWITCH_TYPE_HOLD_LDO_3V3,
-    "hold_boost_5v": M5PM1PowerSwitchType.M5PM1_POWER_SWITCH_TYPE_HOLD_BOOST_5V,
-    "hold_gpio": M5PM1PowerSwitchType.M5PM1_POWER_SWITCH_TYPE_HOLD_GPIO,
-}
+POWER_SWITCH_TYPES = M5PM1PowerSwitchType.options(
+    "charger",
+    "dcdc_3v3",
+    "ldo_3v3",
+    "boost_5v",
+    "hold_ldo_3v3",
+    "hold_boost_5v",
+    "hold_gpio",
+    prefix="M5PM1_POWER_SWITCH_TYPE_",
+)
 
 AW8737A_SCHEMA = (
     switch.switch_schema(

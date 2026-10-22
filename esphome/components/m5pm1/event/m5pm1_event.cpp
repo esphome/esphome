@@ -4,7 +4,7 @@
 
 namespace esphome::m5pm1 {
 
-static const char *const TAG = "m5pm1.event";
+ESPHOME_LOG_TAG(TAG, "m5pm1.event");
 
 M5PM1Event::M5PM1Event(M5PM1Component *parent, M5PM1EventType type, uint8_t enabled_mask, uint8_t enabled_wake_mask,
                        bool publish_generic_wakeup)

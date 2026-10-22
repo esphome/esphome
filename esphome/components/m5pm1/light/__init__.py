@@ -55,6 +55,5 @@ async def to_code(config):
     await cg.register_parented(var, config[CONF_M5PM1_ID])
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
     cg.add(var.set_num_led(config[CONF_NUM_LED]))

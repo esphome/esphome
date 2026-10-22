@@ -5,7 +5,7 @@
 
 namespace esphome::m5pm1 {
 
-static const char *const TAG = "m5pm1.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "m5pm1.binary_sensor");
 static constexpr uint32_t BUTTON_POLL_INTERVAL_MS = 50;
 
 void M5PM1PowerButtonBinarySensor::setup() {

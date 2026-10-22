@@ -5,7 +5,7 @@
 
 namespace esphome::m5pm1 {
 
-static const char *const TAG = "m5pm1.sensor";
+ESPHOME_LOG_TAG(TAG, "m5pm1.sensor");
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 PROGMEM_STRING_TABLE(ADCChannelStrings, "ADC Disabled", "ADC 1", "ADC 2");
