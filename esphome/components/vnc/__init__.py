@@ -42,11 +42,9 @@ vnc_ns = cg.esphome_ns.namespace("vnc")
 VncClient = vnc_ns.class_("VncClient", cg.Component)
 VncPixelFormat = vnc_ns.enum("VncPixelFormat", is_class=True)
 
-PIXEL_FORMATS = {
-    "auto": VncPixelFormat.VNC_PIXEL_FORMAT_AUTO,
-    "rgb565": VncPixelFormat.VNC_PIXEL_FORMAT_RGB565,
-    "rgb332": VncPixelFormat.VNC_PIXEL_FORMAT_RGB332,
-}
+PIXEL_FORMATS = VncPixelFormat.options(
+    "auto", "rgb565", "rgb332", prefix="VNC_PIXEL_FORMAT_"
+)
 
 # Drivers that cannot take another component's pixels yet.
 UNSUPPORTED_DISPLAYS = {
