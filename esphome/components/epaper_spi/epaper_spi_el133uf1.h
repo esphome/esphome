@@ -16,8 +16,10 @@ namespace esphome::epaper_spi {
  *
  * The partial path is used when the model enables partial_update and full_update_every is above 1.
  *
- * DC is driven low for every command byte and high for its data. The T133A01 needs that;
- * the Inkplate 13 Spectra ignores DC and takes the first byte after CS as the command.
+ * DC is driven low for every command byte and high for its data, as the T133A01 driver does.
+ * The Inkplate 13 Spectra ignores DC and takes the first byte after CS as the command, but its
+ * DC line is wired to the panel, so the model presets dc_pin and the line is driven rather than
+ * left floating.
  */
 class EPaperEL133UF1 : public EPaper4bpp {
  public:
