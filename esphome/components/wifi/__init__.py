@@ -9,6 +9,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
     get_esp32_variant,
+    idf_version,
     only_on_variant,
     request_wifi,
     require_mbedtls_tls,
@@ -65,7 +66,6 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_USERNAME,
     PLACEHOLDER_WIFI_SSID,
-    Framework,
     Platform,
     PlatformFramework,
 )
@@ -224,21 +224,16 @@ WIFI_AP_MODE_WISP = "WISP"
 def _validate_ap_mode(value: str) -> str:
     value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
     if value == WIFI_AP_MODE_WISP:
-        # esp_netif_napt_enable() exists from ESP-IDF 5.1
-        cv.require_framework_version(
-            esp_idf=cv.Version(5, 1, 0), extra_message="WISP mode routes through NAT"
-        )(value)
+        # The bridge is part of the ESP32 backend, on both of its frameworks
+        cv.only_on_esp32(value)
     return value
 
 
 def _validate_dns_servers(value: list) -> list:
     if any(ip.is_unspecified for ip in value):
         raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
-    if len(value) > 1:
-        cv.require_framework_version(
-            esp_idf=cv.Version(6, 0, 0),
-            extra_message="The access point offers a second DNS server from ESP-IDF 6.0",
-        )(value)
+    if len(value) > 1 and CORE.is_esp32 and idf_version() < cv.Version(6, 0, 0):
+        raise cv.Invalid("The access point offers a second DNS server from ESP-IDF 6.0")
     return value
 
 
@@ -647,7 +642,6 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     value = LEASE_CACHE_SCHEMA(value)
     if value[CONF_ENABLED]:
         cv.only_on_esp32(value)
-        cv.only_with_framework(Framework.ESP_IDF)(value)
         if CONF_STORAGE not in value:
             if not preferences.rtc_supported():
                 raise cv.Invalid(
@@ -874,7 +868,7 @@ async def to_code(config):
 
     if (dpp := config.get(CONF_DPP)) is not None:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_DPP", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_DPP", True)
         if (key := dpp.get(CONF_PRIVATE_KEY)) is not None:
             cg.add(var.set_dpp_key(key))
         if (info := dpp.get(CONF_DEVICE_INFO)) is not None:
