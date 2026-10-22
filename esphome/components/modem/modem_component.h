@@ -21,16 +21,14 @@
 
 namespace esphome::modem {
 
-using namespace esp_modem;
-
-enum class ModemComponentState : uint8_t {
-  MODEM_DISABLED,
-  MODEM_ENABLING,
-  MODEM_SYNCED,
-  MODEM_CONNECTING,
-  MODEM_WAIT_IP,
-  MODEM_CONNECTED,
-  MODEM_DISCONNECTING,
+enum class ModemState : uint8_t {
+  MODEM_STATE_DISABLED,
+  MODEM_STATE_ENABLING,
+  MODEM_STATE_SYNCED,
+  MODEM_STATE_CONNECTING,
+  MODEM_STATE_WAIT_IP,
+  MODEM_STATE_CONNECTED,
+  MODEM_STATE_DISCONNECTING,
 };
 
 // CONNECTING runs its long commands once; the later passes only poll the attachment
@@ -56,11 +54,13 @@ enum class SimFault : uint8_t {
 };
 
 // Every esp_modem factory shares this signature, so codegen picks the one for the model
-using DceFactory = std::unique_ptr<DCE> (*)(const dce_config *, std::shared_ptr<DTE>, esp_netif_t *);
+using DceFactory = std::unique_ptr<esp_modem::DCE> (*)(const esp_modem::dce_config *, std::shared_ptr<esp_modem::DTE>,
+                                                       esp_netif_t *);
 
 class ModemComponent : public Component {
  public:
-  ModemComponent();
+  ModemComponent(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, const char *model, DceFactory factory,
+                 const char *apn);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -68,20 +68,13 @@ class ModemComponent : public Component {
 
   void set_reboot_timeout(uint32_t timeout) { this->timeout_ = timeout; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
-  void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
-  void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
   void set_rts_pin(InternalGPIOPin *rts_pin) { this->rts_pin_ = rts_pin; }
   void set_cts_pin(InternalGPIOPin *cts_pin) { this->cts_pin_ = cts_pin; }
   void set_baud_rate(int baud_rate) { this->baud_rate_ = baud_rate; }
-  void set_model(const char *model, DceFactory factory) {
-    this->model_ = model;
-    this->dce_factory_ = factory;
-  }
   void set_pin_code(const char *pin_code) { this->pin_code_ = pin_code; }
   void set_tx_buffer_size(uint16_t tx_buffer_size) { this->tx_buffer_size_ = tx_buffer_size; }
   void set_rx_buffer_size(uint16_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
   void set_dte_buffer_size(uint16_t dte_buffer_size) { this->dte_buffer_size_ = dte_buffer_size; }
-  void set_apn(const char *apn) { this->apn_ = apn; }
   void set_init_at_commands(const char *const *cmds, uint8_t count) {
     this->init_at_commands_ = cmds;
     this->init_at_count_ = count;
@@ -93,20 +86,21 @@ class ModemComponent : public Component {
     this->on_state_callback_.add(std::forward<F>(callback));
   }
 
-  bool is_connected() { return this->component_state_.load() == ModemComponentState::MODEM_CONNECTED; }
-  bool is_disabled() {
-    return this->component_state_.load() == ModemComponentState::MODEM_DISABLED &&
-           this->target_state_.load() == ModemComponentState::MODEM_DISABLED;
+  bool is_connected() const { return this->component_state_.load() == ModemState::MODEM_STATE_CONNECTED; }
+  bool is_disabled() const {
+    return this->component_state_.load() == ModemState::MODEM_STATE_DISABLED &&
+           this->target_state_.load() == ModemState::MODEM_STATE_DISABLED;
   }
-  bool is_enabled() { return !this->is_disabled(); }
+  bool is_enabled() const { return !this->is_disabled(); }
   void enable();
   void disable();
   /// Queue an AT command for the modem task, which sends it at its next pass and logs the result and response.
   /// Returns false when a command is still queued or the command is too long.
+  bool send_at(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
   bool send_at(const std::string &cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
 
   network::IPAddresses get_ip_addresses();
-  const char *get_use_address() const { return this->use_address_; };
+  const char *get_use_address() const { return this->use_address_; }
 
  protected:
   static constexpr uint32_t COMMAND_TIMEOUT_MS = 1000;
@@ -128,14 +122,14 @@ class ModemComponent : public Component {
   static void task_entry(void *arg);
   void run_task_();
   void wake_task_();
-  ModemComponentState compute_next_state_();
-  ModemComponentState handle_state_enabling_();
-  ModemComponentState handle_state_connecting_();
-  ModemComponentState handle_state_wait_ip_();
-  ModemComponentState handle_state_disconnecting_();
+  ModemState compute_next_state_();
+  ModemState handle_state_enabling_();
+  ModemState handle_state_connecting_();
+  ModemState handle_state_wait_ip_();
+  ModemState handle_state_disconnecting_();
   /// Pause the task before the next pass, then go to state
-  ModemComponentState retry_(ModemComponentState state, uint32_t delay_ms = RETRY_DELAY_MS);
-  void transition_to_(ModemComponentState next_state);
+  ModemState retry_(ModemState state, uint32_t delay_ms = RETRY_DELAY_MS);
+  void transition_to_(ModemState next_state);
   // One bit per fault source, so a recovery in one path cannot hide another path's fault
   enum Warning : uint8_t {
     WARN_INIT_AT = 1 << 0,
@@ -168,26 +162,26 @@ class ModemComponent : public Component {
   void dump_connect_params_();
   SimResult prepare_sim_();
 
-  InternalGPIOPin *tx_pin_{nullptr};
-  InternalGPIOPin *rx_pin_{nullptr};
+  InternalGPIOPin *tx_pin_;
+  InternalGPIOPin *rx_pin_;
   InternalGPIOPin *rts_pin_{nullptr};
   InternalGPIOPin *cts_pin_{nullptr};
-  const char *model_{""};
-  DceFactory dce_factory_{nullptr};
-  const char *apn_{""};
+  const char *model_;
+  DceFactory dce_factory_;
+  const char *apn_;
   const char *pin_code_{nullptr};
   const char *const *init_at_commands_{nullptr};  // static array from code generation
 #ifdef USE_MODEM_URC
   text_sensor::TextSensor *urc_text_sensor_{nullptr};
 #endif
-  std::unique_ptr<DCE> dce_;
-  std::shared_ptr<DTE> dte_;
+  std::unique_ptr<esp_modem::DCE> dce_;
+  std::shared_ptr<esp_modem::DTE> dte_;
   esp_netif_t *ppp_netif_{nullptr};
   ESPPreferenceObject pref_;
   ESPPreferenceObject pin_pref_;
-  LazyCallbackManager<void(ModemComponentState)> on_state_callback_;
+  LazyCallbackManager<void(ModemState)> on_state_callback_;
   // The task writes a slot, then advances the head; loop() owns the tail
-  std::array<ModemComponentState, STATE_QUEUE_SIZE> state_queue_{};
+  std::array<ModemState, STATE_QUEUE_SIZE> state_queue_{};
   std::atomic<uint8_t> state_head_{0};
   std::atomic<uint8_t> state_tail_{0};
   int baud_rate_{0};  // 0 = use the esp_modem default
@@ -206,8 +200,8 @@ class ModemComponent : public Component {
   uint16_t rx_buffer_size_{1024};
   uint16_t dte_buffer_size_{1024};
   // The task owns component_state_; the main loop sets target_state_ and reads both
-  std::atomic<ModemComponentState> component_state_{ModemComponentState::MODEM_DISABLED};
-  std::atomic<ModemComponentState> target_state_{ModemComponentState::MODEM_DISABLED};
+  std::atomic<ModemState> component_state_{ModemState::MODEM_STATE_DISABLED};
+  std::atomic<ModemState> target_state_{ModemState::MODEM_STATE_DISABLED};
   std::atomic<SimFault> sim_fault_{SimFault::SIM_FAULT_NONE};
   // Written by the task only; loop() picks the published message from it
   std::atomic<uint8_t> warnings_{0};

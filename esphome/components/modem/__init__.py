@@ -23,9 +23,12 @@ from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType
 
+# Static so `api:` finds network before its dependency check; a config-dependent
+# AUTO_LOAD resolves after that check and fails a cellular-only node
+AUTO_LOAD = ["network"]
 CODEOWNERS = ["@oarcher"]
-DEPENDENCIES = ["esp32"]
 CONFLICTS_WITH = ["captive_portal", "ethernet"]
+DEPENDENCIES = ["esp32"]
 DOMAIN = "modem"
 
 CONF_PIN_CODE = "pin_code"
@@ -50,21 +53,16 @@ MODEM_MODELS = {
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
 
-ModemComponentState = modem_ns.enum("ModemComponentState", is_class=True)
-
-
-# Static so `api:` finds network before its dependency check; a config-dependent
-# AUTO_LOAD resolves after that check and fails a cellular-only node
-AUTO_LOAD = ["network"]
+ModemState = modem_ns.enum("ModemState", is_class=True)
 
 
 def _on_state(conf_key: str, state: str) -> automation.CallbackAutomation:
     return automation.CallbackAutomation(
         conf_key,
         "add_on_state_callback",
-        params=[(ModemComponentState, "state")],
+        params=[(ModemState, "state")],
         forward=[],
-        when=f"state == modem::ModemComponentState::{state}",
+        when=f"state == modem::ModemState::{state}",
     )
 
 
@@ -75,9 +73,9 @@ def _default_use_address(config: ConfigType) -> ConfigType:
 
 
 _CALLBACK_AUTOMATIONS = (
-    _on_state(CONF_ON_CONNECT, "MODEM_CONNECTED"),
-    _on_state(CONF_ON_DISCONNECT, "MODEM_DISCONNECTING"),
-    _on_state(CONF_ON_SYNC, "MODEM_SYNCED"),
+    _on_state(CONF_ON_CONNECT, "MODEM_STATE_CONNECTED"),
+    _on_state(CONF_ON_DISCONNECT, "MODEM_STATE_DISCONNECTING"),
+    _on_state(CONF_ON_SYNC, "MODEM_STATE_SYNCED"),
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -127,10 +125,14 @@ CONFIG_SCHEMA = cv.All(
 MODEM_ID_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(ModemComponent)}
 )
+# AT_COMMAND_SIZE - 1 in modem_component.h; the buffer keeps one byte for the terminator
+MAX_AT_COMMAND_LENGTH = 127
 SEND_AT_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(ModemComponent),
-        cv.Required(CONF_COMMAND): cv.templatable(cv.string),
+        cv.Required(CONF_COMMAND): cv.templatable(
+            cv.All(cv.string, cv.ByteLength(max=MAX_AT_COMMAND_LENGTH))
+        ),
     },
     key=CONF_COMMAND,
 )
@@ -142,7 +144,8 @@ for _name in ("enable", "disable"):
 automation.register_apply_action(
     "modem.send_at",
     SEND_AT_SCHEMA,
-    automation.ApplyCall("send_at({})", ((CONF_COMMAND, cg.std_string),)),
+    # A constant renders as a literal and takes the const char * overload; a lambda returns std::string
+    automation.ApplyField(CONF_COMMAND, "send_at", cg.std_string),
 )
 automation.register_apply_condition(
     "modem.connected", MODEM_ID_SCHEMA, "is_connected()"
@@ -164,7 +167,11 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_define("USE_MODEM")
 
-    var = cg.new_Pvariable(config[CONF_ID])
+    model = config[CONF_MODEL]
+    factory = cg.RawExpression(f"esp_modem::create_{MODEM_MODELS[model]}_dce")
+    tx = await cg.gpio_pin_expression(config[CONF_TX_PIN])
+    rx = await cg.gpio_pin_expression(config[CONF_RX_PIN])
+    var = cg.new_Pvariable(config[CONF_ID], tx, rx, model, factory, config[CONF_APN])
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     add_use_address(var, config[CONF_USE_ADDRESS])
@@ -180,13 +187,6 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_init_at_commands(arr, len(init_at)))
 
-    model = config[CONF_MODEL]
-    factory = cg.RawExpression(f"esp_modem::create_{MODEM_MODELS[model]}_dce")
-    cg.add(var.set_model(model, factory))
-    cg.add(var.set_apn(config[CONF_APN]))
-
-    await cg.add_pin(var.set_tx_pin, config[CONF_TX_PIN])
-    await cg.add_pin(var.set_rx_pin, config[CONF_RX_PIN])
     await cg.add_pin(var.set_rts_pin, config.get(CONF_RTS_PIN))
     await cg.add_pin(var.set_cts_pin, config.get(CONF_CTS_PIN))
 

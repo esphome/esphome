@@ -768,8 +768,9 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        # Same order as network::get_use_address_to(); a wifi-first priority list lifts wifi,
-        # the rule that emits USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
+        # Matches network::get_use_address_to(), with modem and ethernet never both present
+        # (CONFLICTS_WITH); a wifi-first priority list lifts wifi, the rule that emits
+        # USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
         order = ["modem", CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD]
         priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
         if priority and priority[0]["interface"] == CONF_WIFI:
