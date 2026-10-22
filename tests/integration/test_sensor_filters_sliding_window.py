@@ -116,10 +116,7 @@ async def test_sensor_filters_sliding_window(
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
         # Wait for initial states to be sent before pressing button
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Find the publish button
         publish_button = require_entity(entities, "publish_values_button")
@@ -241,10 +238,7 @@ async def test_sensor_filters_nan_handling(
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
         # Wait for initial states
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Find the publish button
         publish_button = require_entity(entities, "publish_nan_values_button")
@@ -336,10 +330,7 @@ async def test_sensor_filters_ring_buffer_wraparound(
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
 
         # Wait for initial state
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial state")
+        await initial_state_helper.wait_for_initial_states()
 
         # Find the publish button
         publish_button = require_entity(entities, "publish_wraparound_button")

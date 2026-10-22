@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 from datetime import datetime
 import json
@@ -6,7 +8,7 @@ from pathlib import Path
 import ssl
 import tempfile
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import paho.mqtt.client as mqtt
 
@@ -36,12 +38,21 @@ from esphome.types import ConfigType
 from esphome.util import safe_print
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     import threading
+
+    from paho.mqtt.properties import Properties
+    from paho.mqtt.reasoncodes import ReasonCode
+
+    OnMessage = Callable[[mqtt.Client, Any, mqtt.MQTTMessage], None]
+    OnConnect = Callable[
+        [mqtt.Client, Any, mqtt.ConnectFlags, ReasonCode, Properties | None], None
+    ]
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def config_from_env():
+def config_from_env() -> ConfigType:
     return {
         CONF_MQTT: {
             CONF_USERNAME: get_str_env("ESPHOME_DASHBOARD_MQTT_USERNAME"),
@@ -53,8 +64,14 @@ def config_from_env():
 
 
 def initialize(
-    config, subscriptions, on_message, on_connect, username, password, client_id
-):
+    config: ConfigType,
+    subscriptions: list[str],
+    on_message: OnMessage,
+    on_connect: OnConnect | None,
+    username: str | None,
+    password: str | None,
+    client_id: str | None,
+) -> int:
     client = prepare(
         config, subscriptions, on_message, on_connect, username, password, client_id
     )
@@ -64,17 +81,35 @@ def initialize(
 
 
 def prepare(
-    config, subscriptions, on_message, on_connect, username, password, client_id
-):
-    def on_connect_(client, userdata, flags, return_code):
+    config: ConfigType,
+    subscriptions: list[str],
+    on_message: OnMessage,
+    on_connect: OnConnect | None,
+    username: str | None,
+    password: str | None,
+    client_id: str | None,
+) -> mqtt.Client:
+    def on_connect_(
+        client: mqtt.Client,
+        userdata: Any,
+        flags: mqtt.ConnectFlags,
+        reason_code: ReasonCode,
+        properties: Properties | None,
+    ) -> None:
         _LOGGER.info("Connected to MQTT broker!")
         for topic in subscriptions:
             client.subscribe(topic)
         if on_connect is not None:
-            on_connect(client, userdata, flags, return_code)
+            on_connect(client, userdata, flags, reason_code, properties)
 
-    def on_disconnect(client, userdata, result_code):
-        if result_code == 0:
+    def on_disconnect(
+        client: mqtt.Client,
+        userdata: Any,
+        flags: mqtt.DisconnectFlags,
+        reason_code: ReasonCode,
+        properties: Properties | None,
+    ) -> None:
+        if reason_code == 0:
             return
 
         tries = 0
@@ -88,8 +123,9 @@ def prepare(
 
             wait_time = min(2**tries, 300)
             _LOGGER.warning(
-                "Disconnected from MQTT (%s). Trying to reconnect in %s s",
-                result_code,
+                "Disconnected from MQTT (%s, rc=%s). Trying to reconnect in %s s",
+                reason_code,
+                reason_code.value,
                 wait_time,
             )
             time.sleep(wait_time)
@@ -97,17 +133,20 @@ def prepare(
 
     # Match the firmware's transport; imported here to keep component code off the CLI start-up path
     from esphome.components.mqtt import (
+        CONF_TLS,
         CONF_TRANSPORT,
+        CONF_VERIFY_SSL,
         CONF_WS_PATH,
         DEFAULT_WS_PATH,
         MQTT_TRANSPORT_TCP,
-        MQTT_TRANSPORT_WSS,
     )
 
     transport = config[CONF_MQTT].get(CONF_TRANSPORT, MQTT_TRANSPORT_TCP)
     websocket = transport != MQTT_TRANSPORT_TCP
     client = mqtt.Client(
-        client_id or "", transport="websockets" if websocket else "tcp"
+        mqtt.CallbackAPIVersion.VERSION2,
+        client_id or "",
+        transport="websockets" if websocket else "tcp",
     )
     client.on_connect = on_connect_
     client.on_message = on_message
@@ -122,15 +161,21 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    # TLS with the CA, or the system CAs over wss
-    certificate_authority = config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
-    if certificate_authority or transport == MQTT_TRANSPORT_WSS:
-        context = ssl.create_default_context(cadata=certificate_authority)
-        if config[CONF_MQTT].get(CONF_SKIP_CERT_CN_CHECK):
+    mqtt_conf = config[CONF_MQTT]
+    # Validation sets tls whenever a certificate option or the wss transport implies it
+    if mqtt_conf.get(CONF_TLS):
+        if mqtt_conf.get(CONF_VERIFY_SSL) is False:
+            context = ssl.create_default_context()
             context.check_hostname = False
-        if config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE) and config[CONF_MQTT].get(
-            CONF_CLIENT_CERTIFICATE_KEY
-        ):
+            context.verify_mode = ssl.CERT_NONE
+        else:
+            # Without a CA the system trust store stands in for the firmware's bundle
+            context = ssl.create_default_context(
+                cadata=mqtt_conf.get(CONF_CERTIFICATE_AUTHORITY)
+            )
+            if mqtt_conf.get(CONF_SKIP_CERT_CN_CHECK):
+                context.check_hostname = False
+        if mqtt_conf.get(CONF_CLIENT_CERTIFICATE):
             with (
                 tempfile.NamedTemporaryFile(
                     encoding="utf-8", mode="w+", delete=False
@@ -140,8 +185,8 @@ def prepare(
                 ) as key_file,
             ):
                 try:
-                    cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
-                    key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                    cert_file.write(mqtt_conf[CONF_CLIENT_CERTIFICATE])
+                    key_file.write(mqtt_conf[CONF_CLIENT_CERTIFICATE_KEY])
                     cert_file.close()
                     key_file.close()
                     context.load_cert_chain(cert_file.name, key_file.name)
@@ -160,18 +205,29 @@ def prepare(
     return client
 
 
-def show_discover(config, username=None, password=None, client_id=None):
+def show_discover(
+    config: ConfigType,
+    username: str | None = None,
+    password: str | None = None,
+    client_id: str | None = None,
+) -> int:
     topic = "esphome/discover/#"
     _LOGGER.info("Starting log output from %s", topic)
 
-    def on_message(client, userdata, msg):
+    def on_message(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
             safe_print(message)
 
-    def on_connect(client, userdata, flags, return_code):
+    def on_connect(
+        client: mqtt.Client,
+        userdata: Any,
+        flags: mqtt.ConnectFlags,
+        reason_code: ReasonCode,
+        properties: Properties | None,
+    ) -> None:
         _LOGGER.info("Send discover via MQTT broker")
         client.publish("esphome/discover", None, retain=False)
 
@@ -186,7 +242,7 @@ def get_esphome_device_ip(
     password: str | None = None,
     client_id: str | None = None,
     timeout: float = 25,
-    stop_event: "threading.Event | None" = None,
+    stop_event: threading.Event | None = None,
 ) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(
@@ -210,7 +266,7 @@ def get_esphome_device_ip(
     topic = "esphome/discover/" + dev_name
     _LOGGER.info("Starting looking for IP in topic %s", topic)
 
-    def on_message(client, userdata, msg):
+    def on_message(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         nonlocal dev_ip, failed
         time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
@@ -259,7 +315,13 @@ def get_esphome_device_ip(
             failed = False  # a complete answer wins over an earlier empty one
             client.disconnect()
 
-    def on_connect(client, userdata, flags, return_code):
+    def on_connect(
+        client: mqtt.Client,
+        userdata: Any,
+        flags: mqtt.ConnectFlags,
+        reason_code: ReasonCode,
+        properties: Properties | None,
+    ) -> None:
         topic = "esphome/ping/" + dev_name
         _LOGGER.info("Send discover via MQTT broker topic: %s", topic)
         client.publish(topic, None, retain=False)
@@ -268,10 +330,20 @@ def get_esphome_device_ip(
         # Teardown already started; don't open a broker connection at all
         return []
 
-    def on_disconnect(client, userdata, result_code):
+    def on_disconnect(
+        client: mqtt.Client,
+        userdata: Any,
+        flags: mqtt.DisconnectFlags,
+        reason_code: ReasonCode,
+        properties: Properties | None,
+    ) -> None:
         nonlocal failed
-        if result_code != 0:
-            _LOGGER.warning("Disconnected from MQTT broker (%s)", result_code)
+        if reason_code != 0:
+            _LOGGER.warning(
+                "Disconnected from MQTT broker (%s, rc=%s)",
+                reason_code,
+                reason_code.value,
+            )
             failed = True
 
     mqtt_client = prepare(
@@ -315,7 +387,13 @@ def get_esphome_device_ip(
     return dev_ip
 
 
-def show_logs(config, topic=None, username=None, password=None, client_id=None):
+def show_logs(
+    config: ConfigType,
+    topic: str | None = None,
+    username: str | None = None,
+    password: str | None = None,
+    client_id: str | None = None,
+) -> int:
     if topic is not None:
         pass  # already have topic
     elif CONF_MQTT in config:
@@ -346,11 +424,11 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     birth_topic = birth.get(CONF_TOPIC) if birth_payload else None
     ask_on_connect = birth_topic is None or not birth[CONF_RETAIN]
 
-    def request_crash_log(client):
+    def request_crash_log(client: mqtt.Client) -> None:
         _LOGGER.debug("Requesting the crash log via topic: %s", logs_topic)
         client.publish(logs_topic, None, retain=False)
 
-    def on_message(client, userdata, msg):
+    def on_message(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         payload = msg.payload.decode(errors="backslashreplace")
         if msg.topic == birth_topic and payload == birth_payload:
             request_crash_log(client)
@@ -359,7 +437,13 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
             time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
             safe_print(time_ + payload)
 
-    def on_connect(client, userdata, flags, return_code):
+    def on_connect(
+        client: mqtt.Client,
+        userdata: Any,
+        flags: mqtt.ConnectFlags,
+        reason_code: ReasonCode,
+        properties: Properties | None,
+    ) -> None:
         if ask_on_connect:
             request_crash_log(client)
 
@@ -369,7 +453,13 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     )
 
 
-def clear_topic(config, topic, username=None, password=None, client_id=None):
+def clear_topic(
+    config: ConfigType,
+    topic: str | None,
+    username: str | None = None,
+    password: str | None = None,
+    client_id: str | None = None,
+) -> int:
     if topic is None:
         discovery_prefix = config[CONF_MQTT].get(CONF_DISCOVERY_PREFIX, "homeassistant")
         name = config[CONF_ESPHOME][CONF_NAME]
@@ -380,7 +470,7 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
         "MQTT topic has been cleared of retained messages."
     )
 
-    def on_message(client, userdata, msg):
+    def on_message(client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
         if not msg.payload or not msg.retain:
             return
         try:

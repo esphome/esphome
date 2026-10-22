@@ -52,7 +52,9 @@ template<Protocol P> HeatpumpIR *create_heatpump_ir() {
 
 // Codegen calls only the configured protocols, so the linker drops the other classes
 #define HEATPUMPIR_PROTOCOL(protocol, cls) \
-  template<> struct ProtocolClass<protocol> { using type = cls; }; \
+  template<> struct ProtocolClass<protocol> { \
+    using type = cls; \
+  }; \
   template HeatpumpIR *create_heatpump_ir<protocol>();
 
 HEATPUMPIR_PROTOCOL(PROTOCOL_AUX, AUXHeatpumpIR)
