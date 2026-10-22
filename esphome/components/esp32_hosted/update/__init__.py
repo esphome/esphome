@@ -1,4 +1,5 @@
 import hashlib
+import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -13,6 +14,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PATH, CONF_SOURCE, CONF_TYPE, CONF_URL
 from esphome.core import CORE, ID, HexInt
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@swoboda1337"]
 AUTO_LOAD = ["sha256", "watchdog", "json"]
@@ -106,8 +109,14 @@ def _validate_firmware(config: ConfigType) -> None:
         _check_firmware_hash(target.read_bytes(), expected, target)
         return
     # A pinned digest needs no remote freshness check.
-    if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest() == expected:
-        return
+    if target.is_file():
+        actual = hashlib.sha256(target.read_bytes()).hexdigest()
+        if actual == expected:
+            return
+        # Named after its digest, so a mismatch means the file was damaged or edited
+        _LOGGER.warning(
+            "Cached firmware %s hashes to %s, downloading it again", target, actual
+        )
     target.parent.mkdir(parents=True, exist_ok=True)
     # Keep unverified bytes out of the shared cache, even across concurrent builds.
     with TemporaryDirectory(dir=target.parent) as temporary:

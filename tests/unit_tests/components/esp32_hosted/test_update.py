@@ -159,13 +159,17 @@ def test_verified_cache_never_accesses_network(downloader: Mock) -> None:
     downloader.assert_not_called()
 
 
-def test_corrupt_cache_is_replaced_by_verified_download(downloader: Mock) -> None:
+def test_corrupt_cache_is_replaced_by_verified_download(
+    downloader: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
     image = cache_file()
     image.parent.mkdir(parents=True)
     image.write_bytes(b"corrupted")
     hosted_update.FINAL_VALIDATE_SCHEMA(remote_config())
     assert image.read_bytes() == FIRMWARE
     downloader.assert_called_once()
+    # A file named after its digest should never fail the check, so say that it did
+    assert "downloading it again" in caplog.text
 
 
 def test_mismatched_download_is_not_published(downloader: Mock) -> None:
