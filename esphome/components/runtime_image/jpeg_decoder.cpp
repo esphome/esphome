@@ -133,7 +133,8 @@ int JpegDecoder::start_() {
   this->jpeg_.setUserPointer(this);
   const int width = this->jpeg_.getWidth();
   const int height = this->jpeg_.getHeight();
-  if (!this->set_size(width, height)) {
+  // The tables for drawing are only built once the decoded size is known, below
+  if (!this->resize_image_(width, height)) {
     return DECODE_ERROR_OUT_OF_MEMORY;
   }
   // JPEGDEC can decode at 1/2, 1/4 or 1/8 size for much less work. Use the smallest size that still has at least as

@@ -9,9 +9,12 @@ namespace esphome::runtime_image {
 ESPHOME_LOG_TAG(TAG, "image_decoder");
 
 bool ImageDecoder::set_size(int width, int height) {
-  const bool success = this->image_->resize(width, height) > 0 && this->prepare_draw_(width, height);
-  this->size_valid_ = success;
-  return success;
+  return this->resize_image_(width, height) && this->prepare_draw_(width, height);
+}
+
+bool ImageDecoder::resize_image_(int width, int height) {
+  this->size_valid_ = this->image_->resize(width, height) > 0;
+  return this->size_valid_;
 }
 
 bool ImageDecoder::prepare_draw_(int width, int height) {
@@ -23,6 +26,7 @@ bool ImageDecoder::prepare_draw_(int width, int height) {
   if ((this->x_boundaries_.capacity() < static_cast<size_t>(width + 1) && !this->x_boundaries_.try_init(width + 1)) ||
       (this->y_boundaries_.capacity() < static_cast<size_t>(height + 1) && !this->y_boundaries_.try_init(height + 1))) {
     this->direct_rgb565_ = false;
+    this->size_valid_ = false;
     return false;
   }
   this->x_boundaries_.clear();
