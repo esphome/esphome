@@ -478,6 +478,17 @@ _PKG_PW = "packages:\n  common: !include pkg/common.yaml\n"
         ),
         pytest.param(
             {
+                "entry.yaml": "outer: !include {file: outer.yaml, vars: {pw: !secret wifi_password}}\n",
+                "outer.yaml": "inner: !include inner.yaml\n",
+                "inner.yaml": "defaults:\n  pw: realpw\nmqtt:\n  password: ${pw}\n",
+                "secrets.yaml": "wifi_password: hunter2\n",
+            },
+            {"mqtt": {"password": SensitiveStr("other_pw")}},
+            "cannot be confirmed",
+            id="nested_include_callee_default_wins",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": "cfg: !include {file: base.yaml, vars: !secret common_vars}\n",
                 "base.yaml": "password: ${pw}\n",
                 "secrets.yaml": "common_vars:\n  pw: hunter2\n",

@@ -179,7 +179,7 @@ def _include_scopes(
     includes: list[_Include], trees: dict[str, object], sources: dict[str, Path]
 ) -> dict[str, _Scope]:
     """Every value a substitution name may take in each file, per include: its
-    vars, else the caller's variables, else `defaults:`, else top-level substitutions."""
+    vars, else the file's `defaults:`, else the caller's chain, else substitutions."""
 
     def mapping(tree: object, key: str) -> dict[str, object]:
         value = tree.get(key) if isinstance(tree, dict) else None
@@ -200,28 +200,27 @@ def _include_scopes(
         target = (include.parent_file.parent / include.file).resolve()
         for src in rels_by_path.get(holder.resolve(), ()):
             edges[src].extend((rel, vars) for rel in rels_by_path.get(target, ()))
-    # Each file's invocations; a caller's variables flow into nested includes.
+    # Each file's invocations: the chain seen inside it, as the loader builds it
+    # (that include's vars, the file's own defaults, then the caller's chain).
     targeted = {rel for targets in edges.values() for rel, _ in targets}
-    invocations = {rel: [] if rel in targeted else [{}] for rel in trees}
+    invocations = {rel: [] if rel in targeted else [defaults[rel]] for rel in trees}
     pending = [rel for rel in trees if rel not in targeted]
     while pending:
         src = pending.pop()
         for rel, vars in edges[src]:
             for context in invocations[src]:
-                effective = {**defaults[src], **context, **vars}
-                if effective not in invocations[rel]:
-                    invocations[rel].append(effective)
+                chain = {**context, **defaults[rel], **vars}
+                if chain not in invocations[rel]:
+                    invocations[rel].append(chain)
                     pending.append(rel)
     scopes: dict[str, _Scope] = {}
     for rel in trees:
         scope: _Scope = {}
-        for vars in invocations[rel] or [{}]:
-            for name in {*substitutions, *defaults[rel], *vars}:
+        for chain in invocations[rel] or [defaults[rel]]:
+            for name in {*substitutions, *chain}:
                 values = scope.setdefault(name, [])
-                if name in vars:
-                    values.append(vars[name])
-                elif name in defaults[rel]:
-                    values.append(defaults[rel][name])
+                if name in chain:
+                    values.append(chain[name])
                 else:
                     values.extend(substitutions[name])
         scopes[rel] = scope
