@@ -391,6 +391,61 @@ def test_redacted_overridden_package_password_fails_build(project: Path) -> None
         _gather_redacted(_sources(project, "entry.yaml", "pkg/common.yaml"))
 
 
+def test_redacted_shared_password_keeps_every_credential_path(project: Path) -> None:
+    """Two domains sharing one password still mark both paths as credentials."""
+    (project / "pkg").mkdir()
+    (project / "pkg" / "common.yaml").write_text("mqtt:\n  password: old_pw\n")
+    (project / "entry.yaml").write_text(
+        "packages:\n  common: !include pkg/common.yaml\n"
+        "wifi:\n  password: hunter2\nmqtt:\n  password: hunter2\n"
+    )
+    CORE.config = {
+        "wifi": {"networks": [{"password": SensitiveStr("hunter2")}]},
+        "mqtt": {"password": SensitiveStr("hunter2")},
+    }
+    with pytest.raises(EsphomeError, match="mqtt.password in pkg/common.yaml"):
+        _gather_redacted(_sources(project, "entry.yaml", "pkg/common.yaml"))
+
+
+def test_redacted_overridden_by_empty_password_fails_build(project: Path) -> None:
+    """A credential path whose final value is empty is still a credential path."""
+    (project / "pkg").mkdir()
+    (project / "pkg" / "common.yaml").write_text("mqtt:\n  password: old_pw\n")
+    (project / "entry.yaml").write_text(
+        'packages:\n  common: !include pkg/common.yaml\nmqtt:\n  password: ""\n'
+    )
+    CORE.config = {"mqtt": {"password": SensitiveStr("")}}
+    with pytest.raises(EsphomeError, match="mqtt.password in pkg/common.yaml"):
+        _gather_redacted(_sources(project, "entry.yaml", "pkg/common.yaml"))
+
+
+def test_redacted_action_variable_named_key_is_not_a_credential(
+    project: Path,
+) -> None:
+    """A same-domain key under another branch is not treated as the encryption key."""
+    (project / "entry.yaml").write_text(
+        "api:\n  encryption:\n    key: !secret api_key\n"
+        "  actions:\n    - action: press\n      variables:\n        key: string\n"
+    )
+    CORE.config = {"api": {"encryption": {"key": SensitiveStr("SUPER_SECRET")}}}
+    yaml_util._SECRET_VALUES["SUPER_SECRET"] = "api_key"
+    files = _gather_redacted(
+        _sources(project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",))
+    )
+    assert "key: string" in files["entry.yaml"].decode()
+
+
+def test_redacted_key_embedding_a_sensitive_value_fails_build(project: Path) -> None:
+    """A mapping key containing an inline credential fails without echoing it."""
+    (project / "wifi.yaml").write_text(
+        "substitutions:\n  prefix_hunter2: x\npassword: hunter2\n"
+    )
+    CORE.config = {"wifi": {"networks": [{"password": SensitiveStr("hunter2")}]}}
+    with pytest.raises(EsphomeError, match="inside a key under substitutions") as err:
+        _gather_redacted(_sources(project, "wifi.yaml"))
+    assert "hunter2" not in str(err.value)
+
+
 def test_redacted_inline_package_override_fails_build(project: Path) -> None:
     """A credential in an inline package merges at the top level, so its
     `packages.<name>` prefix does not hide it from the credential path check."""
@@ -438,6 +493,19 @@ def test_redacted_inline_package_override_fails_build(project: Path) -> None:
             "password: ${pw}\n",
             True,
             id="var_shadows_literal_substitution",
+        ),
+        pytest.param(
+            "wifi: !include {file: wifi.yaml, vars: {pw: !secret wifi_password}}\n",
+            "defaults:\n  pw: placeholder\npassword: ${pw}\n",
+            True,
+            id="var_shadows_literal_default",
+        ),
+        pytest.param(
+            "wifi: !include {file: wifi.yaml, vars: {pw: !secret wifi_password}}\n"
+            "wifi2: !include wifi.yaml\n",
+            "defaults:\n  pw: placeholder\npassword: ${pw}\n",
+            False,
+            id="second_include_uses_literal_default",
         ),
     ],
 )
@@ -619,6 +687,41 @@ def test_redacted_secret_url_round_trips(project: Path) -> None:
     )
     assert "url: !secret 'pkg_url'" in files["entry.yaml"].decode()
     assert b"user:pw" not in b"".join(files.values())
+
+
+def test_redacted_symlinked_package_loads_relative_to_its_name(
+    project: Path, tmp_path: Path
+) -> None:
+    """A directory include inside a symlinked file resolves beside the link."""
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "pkg.yaml").write_text("sensor: !include_dir_merge_list sensors\n")
+    (project / "pkg.yaml").symlink_to(shared / "pkg.yaml")
+    (project / "sensors").mkdir()
+    (project / "sensors" / "a.yaml").write_text("- platform: template\n  name: a\n")
+    (project / "entry.yaml").write_text("packages:\n  p: !include pkg.yaml\n")
+    CORE.config_path = project / "entry.yaml"
+    CORE.config = {}
+    files = _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))
+    assert "platform: template" in files["pkg.yaml"].decode()
+
+
+def test_redacted_symlinked_dir_include_rebases_where_the_loader_reads(
+    project: Path, tmp_path: Path
+) -> None:
+    """`..` after a symlinked directory follows the link, as the loader does."""
+    shared = tmp_path / "shared"
+    (shared / "pkgs").mkdir(parents=True)
+    (shared / "pkgs" / "base.yaml").write_text("wifi: !include ../wifi.yaml\n")
+    (shared / "wifi.yaml").write_text("ssid: shared\n")
+    (project / "pkgs").symlink_to(shared / "pkgs")
+    (project / "entry.yaml").write_text("packages: !include_dir_named pkgs\n")
+    CORE.config_path = project / "entry.yaml"
+    CORE.config = {}
+    files = _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))
+    assert "wifi: !include '../shared/wifi.yaml'" in files["entry.yaml"].decode()
+    assert files["../shared/wifi.yaml"] == b"ssid: shared\n"
+    assert "!include '../wifi.yaml'" in files["../shared/pkgs/base.yaml"].decode()
 
 
 def test_redacted_dir_include_rebases_nested_include(project: Path) -> None:

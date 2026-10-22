@@ -639,7 +639,7 @@ class DiscoveredYamlFiles:
     a ``secrets.yaml`` symlinked to a differently-named target is still
     flagged as secrets). ``files`` is incomplete when ``unresolved`` (templated
     include paths) or ``load_errors`` is non-empty. ``aliases`` maps a resolved
-    path to every lexical path the YAML reached it by, symlinks kept.
+    path to every :func:`named_path` the YAML reached it by.
     """
 
     files: list[Path] = field(default_factory=list)
@@ -647,6 +647,16 @@ class DiscoveredYamlFiles:
     unresolved: list[str] = field(default_factory=list)
     load_errors: list[str] = field(default_factory=list)
     aliases: dict[Path, list[Path]] = field(default_factory=dict)
+
+
+def named_path(path: Path) -> Path:
+    """``path`` with its directory resolved but its own name kept.
+
+    A symlinked file stays under the name the config uses, while ``..`` after a
+    symlinked directory goes where the OS takes the loader.
+    """
+    path = Path(path)
+    return path.parent.resolve() / path.name
 
 
 def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
@@ -675,7 +685,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         if fname.name in SECRETS_FILES:
             secrets.add(resolved)
         names = aliases.setdefault(resolved, [])
-        if (alias := Path(os.path.normpath(fname.absolute()))) not in names:
+        if (alias := named_path(fname)) not in names:
             names.append(alias)
 
     load_listeners.append(_on_load)

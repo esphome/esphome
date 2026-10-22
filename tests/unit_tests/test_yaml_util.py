@@ -1,7 +1,6 @@
 from collections.abc import Callable, Generator
 import importlib.util
 import io
-import os
 from pathlib import Path
 import shutil
 import sys
@@ -1840,9 +1839,7 @@ def test_discover_user_yaml_files_records_symlink_alias(tmp_path: Path) -> None:
     link.symlink_to(target)
     discovered = discover_user_yaml_files(_write_entry_including(tmp_path, "wifi.yaml"))
     assert target.resolve() in discovered.files
-    assert discovered.aliases[target.resolve()] == [
-        Path(os.path.normpath(link.absolute()))
-    ]
+    assert discovered.aliases[target.resolve()] == [yaml_util.named_path(link)]
 
 
 def test_load_yaml_can_keep_a_document_include(tmp_path: Path) -> None:
