@@ -189,7 +189,10 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
     }
 
     if (in_ep && out_ep) {
-      cdc_devs.push_back(CdcEps{notify_ep, in_ep, out_ep, intf->bInterfaceNumber, intf->bInterfaceNumber});
+      CdcEps eps{notify_ep, in_ep, out_ep, intf->bInterfaceNumber, intf->bInterfaceNumber};
+      eps.bulk_interface_class = intf->bInterfaceClass;
+      eps.interrupt_interface_class = intf->bInterfaceClass;
+      cdc_devs.push_back(eps);
       break;  // PL2303 is single-port
     }
   }
@@ -279,11 +282,17 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
       // Assert DTR + RTS (init only)
       if (reload)
         return false;
-      this->config_transfer_(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, CONTROL_DTR | CONTROL_RTS, iface);
+      this->modem_control_transfer(channel);
       return true;
     default:
       return false;
   }
+}
+
+void USBUartTypePL2303::modem_control_transfer(USBUartChannelBase *channel) {
+  const uint16_t value = (channel->dtr_ ? CONTROL_DTR : 0) | (channel->rts_ ? CONTROL_RTS : 0);
+  ESP_LOGD(TAG, "PL2303: SET_CONTROL_REQUEST DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  this->config_transfer_(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, value, channel->cdc_dev_.bulk_interface_number);
 }
 
 }  // namespace esphome::usb_uart

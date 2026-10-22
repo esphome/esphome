@@ -49,6 +49,7 @@ Options:
 from __future__ import annotations
 
 import argparse
+import ast
 from collections import Counter
 from collections.abc import Callable
 from enum import StrEnum
@@ -58,6 +59,7 @@ import math
 import os
 from pathlib import Path
 import statistics
+import subprocess
 import sys
 from typing import Any
 
@@ -69,6 +71,7 @@ from clang_tidy_hash import (
 )
 from helpers import (
     CPP_FILE_EXTENSIONS,
+    ESPHOME_COMPONENTS_PATH,
     ESPHOME_TESTS_COMPONENTS_PATH,
     INTEGRATION_TESTS_PATH,
     PYTHON_FILE_EXTENSIONS,
@@ -417,7 +420,7 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     """Determine if the pylint job should run based on changed files.
 
     The CI workflow skips pylint unless a Python file or a file in
-    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff, flake8 and pyupgrade run in
+    PYTHON_LINTERS_TRIGGER_FILES has changed. ruff and pyupgrade run in
     lint-format, which this flag does not gate.
 
     Args:
@@ -805,6 +808,9 @@ def determine_cpp_unit_tests(
 # Paths within tests/benchmarks/ that contain component benchmark files
 BENCHMARKS_COMPONENTS_PATH = "tests/benchmarks/components"
 
+# The Python benchmark that imports components; its COMPONENTS tuple says which ones
+PYTHON_IMPORT_BENCHMARK_FILE = "tests/benchmarks/python/test_component_import_bench.py"
+
 # Files that, when changed, should trigger benchmark runs
 BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
     {
@@ -813,6 +819,53 @@ BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
         "script/setup_codspeed_lib.py",
     }
 )
+
+
+def _benchmark_components_tuple(path: Path) -> frozenset[str]:
+    """Return the benchmark file's ``COMPONENTS`` tuple.
+
+    Raises when the file has none, so renaming it fails CI instead of quietly
+    turning the trigger off.
+    """
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "COMPONENTS" for t in node.targets
+        ):
+            return frozenset(ast.literal_eval(node.value))
+    raise RuntimeError(f"{PYTHON_IMPORT_BENCHMARK_FILE} has no COMPONENTS tuple")
+
+
+# Imports the given components and prints every component whose module got loaded
+_IMPORT_PROBE = (
+    "import importlib, sys\n"
+    "for c in sys.argv[1:]: importlib.import_module('esphome.components.' + c)\n"
+    "print(*{n.split('.')[2] for n in sys.modules if n.startswith('esphome.components.')})"
+)
+
+
+def python_import_benchmarked_components() -> frozenset[str] | None:
+    """Return the components loaded by importing the benchmark's ``COMPONENTS``.
+
+    Imported in a fresh interpreter from the checkout, so the set is exactly what
+    the benchmark times. None when the import fails.
+    """
+    path = Path(root_path) / PYTHON_IMPORT_BENCHMARK_FILE
+    if not path.is_file():
+        return frozenset()
+    result = subprocess.run(
+        [sys.executable, "-c", _IMPORT_PROBE, *_benchmark_components_tuple(path)],
+        cwd=root_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            f"Benchmark import probe failed, running benchmarks:\n{result.stderr}",
+            file=sys.stderr,
+        )
+        return None
+    return frozenset(result.stdout.split())
 
 
 def should_run_benchmarks(branch: str | None = None) -> bool:
@@ -831,6 +884,8 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     4. A directly changed component has benchmark files (no dependency expansion)
     5. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
+    6. A Python file changed in a component that importing the Python import
+       benchmark's ``COMPONENTS`` loads, even if it has no C++ benchmark
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
     Changing ``sensor`` does not trigger ``api`` benchmarks just because
@@ -861,6 +916,19 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
         for f in files
     ):
         return True
+
+    # The Python import benchmark times importing its components and what they pull
+    # in, so their Python sources move its numbers even without a C++ benchmark.
+    # A failed import runs the benchmarks rather than risk skipping them.
+    changed_python = {
+        get_component_from_path(f)
+        for f in files
+        if f.startswith(ESPHOME_COMPONENTS_PATH) and f.endswith(PYTHON_FILE_EXTENSIONS)
+    }
+    if changed_python:
+        loaded = python_import_benchmarked_components()
+        if loaded is None or changed_python & loaded:
+            return True
 
     # Check if any directly changed component has benchmarks
     benchmarks_dir = Path(root_path) / BENCHMARKS_COMPONENTS_PATH

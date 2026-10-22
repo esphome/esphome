@@ -2,6 +2,7 @@
 
 #if defined(USE_ETHERNET) && defined(USE_ESP32)
 
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -744,14 +745,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
     addresses[0] = network::IPAddress(&ip.ip);
   }
 #if USE_NETWORK_IPV6
-  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
-  uint8_t count = 0;
-  count = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
-  assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
-  assert(count < addresses.size());
-  for (int i = 0; i < count; i++) {
-    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
-  }
+  network::fill_ip6_addresses(this->eth_netif_, addresses);
 #endif /* USE_NETWORK_IPV6 */
 
   return addresses;

@@ -27,6 +27,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.final_validate import full_config
+from esphome.types import ConfigType
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
@@ -250,9 +251,59 @@ def add_metadata(
     )
 
 
+KEY_EXTERNAL_WRITERS = "external_writers"
+
+
+def _get_external_writer_list() -> list[tuple[ID, str]]:
+    """Get the raw external writer list. Each entry is (display id, owner)."""
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_EXTERNAL_WRITERS, [])
+
+
+def register_external_writer(display_id: ID, owner: str) -> None:
+    """Declare that ``owner`` draws into the display from outside its lambda or pages.
+
+    Call from the owner's CONFIG_SCHEMA. The ID may still be unresolved; the ID pass
+    resolves it in place before final validation.
+    """
+    _get_external_writer_list().append((display_id, owner))
+
+
+def get_external_writers(display_id: ID) -> list[str]:
+    """Get the owners registered for a display. Only valid once IDs are resolved."""
+    return [
+        owner
+        for id_, owner in _get_external_writer_list()
+        if id_.id is not None and id_.id == display_id.id
+    ]
+
+
+def has_external_writer(display_id: ID) -> bool:
+    """Tell a driver's final validation that something else draws into the display.
+
+    LVGL anywhere in the config also counts, as the drivers assumed before.
+    """
+    from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
+
+    return LVGL_DOMAIN in full_config.get() or bool(get_external_writers(display_id))
+
+
 async def register_display(var, config):
     await cg.register_component(var, config)
     await setup_display_core_(var, config)
+
+
+async def add_writer(
+    var: cg.MockObj, config: ConfigType, ref: cg.MockObj = DisplayRef
+) -> None:
+    """Pass the configured lambda, if any, to var.set_writer.
+
+    ref is the type of `it`; drivers with their own drawing class pass theirs.
+    """
+    if (lambda_config := config.get(CONF_LAMBDA)) is not None:
+        lambda_ = await cg.process_lambda(
+            lambda_config, [(ref, "it")], return_type=cg.void
+        )
+        cg.add(var.set_writer(lambda_))
 
 
 @automation.register_action(

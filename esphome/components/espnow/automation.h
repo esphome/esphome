@@ -70,8 +70,7 @@ template<typename... Ts> class SendAction final : public Action<Ts...>, public P
   }
 
  protected:
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override {
     this->sent_.stop();
