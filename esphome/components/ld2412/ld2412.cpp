@@ -516,6 +516,9 @@ void LD2412Component::handle_ack_data_() {
       break;
     }
     case CMD_QUERY_DISTANCE_RESOLUTION: {
+      if (this->buffer_pos_ < 11 + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold the resolution
+      }
       const auto *distance_resolution = find_str(DISTANCE_RESOLUTIONS_BY_UINT, this->buffer_data_[10]);
       ESP_LOGV(TAG, "Distance resolution: %s", distance_resolution);
 #ifdef USE_SELECT
@@ -527,6 +530,9 @@ void LD2412Component::handle_ack_data_() {
     }
 
     case CMD_QUERY_LIGHT_CONTROL: {
+      if (this->buffer_pos_ < 12 + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold the light settings
+      }
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
@@ -575,6 +581,9 @@ void LD2412Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_DYNAMIC_BACKGROUND_CORRECTION: {
+      if (this->buffer_pos_ < 11 + HEADER_FOOTER_SIZE) {
+        break;  // too short to hold the state
+      }
       ESP_LOGV(TAG, "Handled query dynamic background correction");
       bool dynamic_background_correction_active = (this->buffer_data_[10] != 0x00);
 #ifdef USE_BINARY_SENSOR
