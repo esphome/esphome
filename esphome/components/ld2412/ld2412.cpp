@@ -473,8 +473,10 @@ static inline bool has_value(number::Number *n) { return n != nullptr && n->has_
 
 // Timeout ids 0 (still) and 1 (motion) for a write waiting on a re-query
 static constexpr uint32_t GATE_QUERY_TIMEOUT_ID = 0;
-static constexpr uint32_t GATE_QUERY_TIMEOUT_MS = 2000;
 #endif
+// Timeout id for a basic configuration write waiting on a re-query, and how long any such write waits
+static constexpr uint32_t BASIC_CONF_TIMEOUT_ID = 2;
+static constexpr uint32_t QUERY_TIMEOUT_MS = 2000;
 
 bool LD2412Component::handle_ack_data_() {
   ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", this->buffer_data_[COMMAND]);
@@ -646,6 +648,9 @@ bool LD2412Component::handle_ack_data_() {
       if (this->buffer_pos_ < 15) {
         return false;
       }
+      // True only while a held-back write waits for this answer
+      const bool pending = this->cancel_timeout(BASIC_CONF_TIMEOUT_ID);
+      this->basic_conf_read_ = true;
       // Min gate: 9th byte, max gate: 10th byte, timeout: 11~12th bytes, output pin level: 13th byte
       this->min_gate_ = this->buffer_data_[10];
       this->max_gate_ = this->buffer_data_[11];
@@ -653,16 +658,26 @@ bool LD2412Component::handle_ack_data_() {
       this->out_pin_level_ = this->buffer_data_[14];
       ESP_LOGV(TAG, "min_distance_gate_number_: %u, max_distance_gate_number_ %u", this->min_gate_, this->max_gate_);
       ESP_LOGV(TAG, "timeout_number_: %u", this->timeout_);
+      // The pending write's user values must survive the answer
 #ifdef USE_NUMBER
-      set_number_value(this->min_distance_gate_number_, this->min_gate_);
-      set_number_value(this->max_distance_gate_number_, this->max_gate_ - 1);
-      set_number_value(this->timeout_number_, this->timeout_);
+      if (!pending || !has_value(this->min_distance_gate_number_)) {
+        set_number_value(this->min_distance_gate_number_, this->min_gate_);
+      }
+      if (!pending || !has_value(this->max_distance_gate_number_)) {
+        set_number_value(this->max_distance_gate_number_, this->max_gate_ - 1);
+      }
+      if (!pending || !has_value(this->timeout_number_)) {
+        set_number_value(this->timeout_number_, this->timeout_);
+      }
 #endif
 #ifdef USE_SELECT
-      if (this->out_pin_level_select_ != nullptr) {
+      if (this->out_pin_level_select_ != nullptr && !(pending && this->out_pin_level_select_->has_state())) {
         this->out_pin_level_select_->publish_state(find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_));
       }
 #endif
+      if (pending) {
+        this->set_basic_config();
+      }
       break;
     }
     default:
@@ -762,8 +777,9 @@ void LD2412Component::set_engineering_mode(bool enable) {
 void LD2412Component::factory_reset() {
   this->set_config_mode_(true);
   this->send_command_(CMD_FACTORY_RESET, nullptr, 0);
+  // Reset discards the settings; the next write must wait for the re-read
+  this->basic_conf_read_ = false;
 #ifdef USE_NUMBER
-  // Reset discards the thresholds; the next write must wait for the re-read
   this->gate_move_thresholds_.read = false;
   this->gate_still_thresholds_.read = false;
 #endif
@@ -791,6 +807,17 @@ void LD2412Component::set_basic_config() {
   uint8_t max_gate = this->max_gate_;
   uint16_t timeout = this->timeout_;
   uint8_t out_pin_level = this->out_pin_level_;
+  bool from_module = false;
+
+#ifdef USE_NUMBER
+  from_module = this->min_distance_gate_number_ == nullptr || this->max_distance_gate_number_ == nullptr ||
+                this->timeout_number_ == nullptr;
+#else
+  from_module = true;
+#endif
+#ifndef USE_SELECT
+  from_module = true;
+#endif
 
 #ifdef USE_NUMBER
   if (this->min_distance_gate_number_ != nullptr) {
@@ -814,8 +841,19 @@ void LD2412Component::set_basic_config() {
     if (!this->out_pin_level_select_->has_state())
       return;
     out_pin_level = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str());
+  } else {
+    from_module = true;
   }
 #endif
+  if (from_module && !this->basic_conf_read_) {
+    // The module never reported, so the values on hand are the built in defaults
+    ESP_LOGW(TAG, "Command %02X held back until the module reports its settings", CMD_BASIC_CONF);
+    this->query_parameters_();
+    this->set_timeout(BASIC_CONF_TIMEOUT_ID, QUERY_TIMEOUT_MS, [this]() {
+      ESP_LOGE(TAG, "Command %02X not sent, the module did not report its settings", CMD_BASIC_CONF);
+    });
+    return;
+  }
 
   uint8_t value[5] = {
       lowbyte(min_gate), lowbyte(max_gate), lowbyte(timeout), highbyte(timeout), out_pin_level,
@@ -842,9 +880,9 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
   }
   if (configured < TOTAL_GATES && !group.read) {
     // Unread gates would go out as zero, which is maximum sensitivity
-    ESP_LOGW(TAG, "Command %02X held back until the module reports its gate thresholds", command);
+    ESP_LOGW(TAG, "Command %02X held back until the module reports its settings", command);
     this->send_command_(motion ? CMD_QUERY_MOTION_GATE_SENS : CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
-    this->set_timeout(GATE_QUERY_TIMEOUT_ID + motion, GATE_QUERY_TIMEOUT_MS,
+    this->set_timeout(GATE_QUERY_TIMEOUT_ID + motion, QUERY_TIMEOUT_MS,
                       [this, motion]() { this->gate_query_timeout_(motion); });
     return;
   }
@@ -852,7 +890,7 @@ void LD2412Component::send_gate_thresholds_(bool motion) {
 }
 
 void LD2412Component::gate_query_timeout_(bool motion) {
-  ESP_LOGE(TAG, "Command %02X not sent, the module did not report its gate thresholds",
+  ESP_LOGE(TAG, "Command %02X not sent, the module did not report its settings",
            motion ? CMD_MOTION_GATE_SENS : CMD_STATIC_GATE_SENS);
   // The values on hand never reached the module or are stale, so forgetting them loses nothing
   for (number::Number *n : this->gate_thresholds_(motion).numbers) {

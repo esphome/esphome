@@ -27,6 +27,8 @@ number from the module's values, and writes held back until the module reports t
 
 test_uart_mock_ld2412_out_pin_level checks that the output pin level select sends the basic
 configuration command with the gates and timeout the module reported when no number is configured.
+test_uart_mock_ld2412_out_pin_level_held_back checks that the select holds that write back and asks
+again while the module has not reported, then sends it with the reported values.
 """
 
 from __future__ import annotations
@@ -62,6 +64,8 @@ MOTION_QUERY = "02:00:13:00"
 STILL_QUERY = "02:00:14:00"
 CONFIG_MODE_LEFT = "02:00:FE:00"
 BASIC_CONFIG = "07:00:02:00"
+BASIC_CONFIG_QUERY = "02:00:12:00"
+BASIC_CONFIG_HELD_BACK = "Command 02 held back"
 FACTORY_RESET = "02:00:A2:00"
 # Logged in place of the motion command when the write is held back or given up
 MOTION_HELD_BACK = "Command 03 held back"
@@ -719,4 +723,44 @@ async def test_uart_mock_ld2412_out_pin_level(
         )
         # Exactly one basic configuration write, and not one built from the defaults
         assert events.count(BASIC_CONFIG) == 1
+        assert events.count("01:0E:05:00") == 0
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_out_pin_level_held_back(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that the output pin level select waits for the module's settings before it writes."""
+    # Gates 3 to 9 and the 10 second timeout as the module reports them, with the pin level set to high
+    expected_payload = "03:09:0A:00:00"
+    events = _LogEvents(BASIC_CONFIG_HELD_BACK)
+
+    async with (
+        run_compiled(yaml_config, line_callback=events.on_line),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        await _wait_initial(client, entities)
+        select = require_entity(entities, "out_pin_level", SelectInfo)
+        # The boot query went unanswered, so nothing was written and the select has no state yet
+        assert events.count(BASIC_CONFIG) == 0
+
+        held_back = events.next_line_with(BASIC_CONFIG_HELD_BACK)
+        written = events.next_line_with(expected_payload)
+        client.select_command(select.key, "high")
+        await wait_or_fail(
+            asyncio.gather(held_back, written),
+            5.0,
+            "Timeout waiting for the held back basic configuration command",
+            expected_payload=expected_payload,
+            logged=events.lines,
+        )
+        # The write was held back once, asked again, and went out only after the answer
+        assert events.count(BASIC_CONFIG_QUERY) == 2
+        assert events.count(BASIC_CONFIG) == 1
+        assert events.index_after(-1, BASIC_CONFIG_HELD_BACK) < events.index_after(
+            -1, BASIC_CONFIG
+        )
         assert events.count("01:0E:05:00") == 0

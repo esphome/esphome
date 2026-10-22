@@ -138,6 +138,7 @@ class LD2412Component final : public Component, public uart::UARTDevice {
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
   // Basic configuration as last reported by the module; resent for entities that are not configured
+  bool basic_conf_read_{false};  // answered since boot or the last factory reset
   uint16_t timeout_ = DEFAULT_PRESENCE_TIMEOUT;
   uint8_t min_gate_ = 1;
   uint8_t max_gate_ = TOTAL_GATES;
