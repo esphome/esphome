@@ -1391,7 +1391,16 @@ def _resolve_board_source(config: ConfigType, board: str) -> Path:
                 doc = yaml.safe_load(board_yml.read_text())
             except (OSError, yaml.YAMLError):
                 continue
-            if isinstance(doc, dict) and doc.get("board", {}).get("name") == parts.name:
+            if not isinstance(doc, dict):
+                continue
+            # Two board.yml schemas coexist upstream: the older singular "board:" and
+            # newer HWMv2 "boards:" (a list) -- same distinction dts_lookup.py's own
+            # _find_board_dir() fallback scanner handles.
+            entries = [doc["board"]] if "board" in doc else doc.get("boards", [])
+            if any(
+                isinstance(entry, dict) and entry.get("name") == parts.name
+                for entry in entries
+            ):
                 board_yml_matches = [board_yml]
                 break
     if not board_yml_matches:

@@ -56,7 +56,17 @@ def _read_revision_block(board_dir: Path) -> dict | None:
         return None
     if not isinstance(doc, dict):
         return None
-    revision = doc.get("board", {}).get("revision")
+    # Two board.yml schemas coexist upstream: the older singular "board:" and newer
+    # HWMv2 "boards:" (a list) -- see dts_lookup._find_board_dir's fallback scanner for
+    # the same distinction. A single-entry list is unambiguous; multiple entries in one
+    # file (rare) aren't disambiguated here since board_dir alone doesn't say which one
+    # this call is about, so this returns "no revision info" rather than guessing wrong.
+    if "board" in doc:
+        entry = doc["board"]
+    else:
+        boards = doc.get("boards", [])
+        entry = boards[0] if len(boards) == 1 else {}
+    revision = entry.get("revision") if isinstance(entry, dict) else None
     return revision if isinstance(revision, dict) else None
 
 
