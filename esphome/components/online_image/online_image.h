@@ -70,6 +70,10 @@ class OnlineImage final : public PollingComponent,
    */
   void release();
 
+  /// Called when the server has accepted the request and the image starts to download
+  template<typename F> void add_on_download_started_callback(F &&callback) {
+    this->download_started_callback_.add(std::forward<F>(callback));
+  }
   template<typename F> void add_on_finished_callback(F &&callback) {
     this->download_finished_callback_.add(std::forward<F>(callback));
   }
@@ -93,6 +97,7 @@ class OnlineImage final : public PollingComponent,
 
   CallbackManager<void(bool)> download_finished_callback_{};
   CallbackManager<void()> download_error_callback_{};
+  LazyCallbackManager<void()> download_started_callback_{};
   LazyCallbackManager<void(float, size_t)> download_progress_callback_{};
 
   std::shared_ptr<http_request::HttpContainer> downloader_{nullptr};
