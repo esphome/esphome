@@ -1632,6 +1632,39 @@ def test_versionless_url_dependency_is_wired_to_its_source(
     assert asked == [("esphome", "A")]
 
 
+def test_url_dependencies_differing_only_in_case_stay_distinct(
+    tmp_path, monkeypatch
+) -> None:
+    """Two local sources whose paths differ only in case are both fetched and
+    each requester is wired to its own; only registry names fold case."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [(tmp_path / "local" / "Upper").as_uri()],
+            },
+            "esphome/X": {
+                "name": "X",
+                "dependencies": [(tmp_path / "local" / "upper").as_uri()],
+            },
+            "Upper": {"name": "Lib"},
+            "upper": {"name": "Lib"},
+        },
+    )
+    emitted: dict[str, ConvertedLibrary] = {}
+    top = convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/X", None, None)],
+        _backend(emit=lambda c: emitted.__setitem__(c.name, c)),
+    )
+    assert [d.name for d in top[0].dependencies] == ["Upper"]
+    assert [d.name for d in top[1].dependencies] == ["upper"]
+    assert all(
+        isinstance(emitted[key].source, LocalSource) for key in ("Upper", "upper")
+    )
+
+
 def test_empty_version_is_settled_like_a_missing_one(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:

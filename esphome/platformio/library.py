@@ -1278,8 +1278,12 @@ def convert_libraries(
     # Version-less dependencies per requester key, kept for the whole walk and
     # wired once the graph is final; a re-walked requester replaces its entries
     pending_versionless: dict[str, list[dict]] = {}
-    # Names fetched by name so far, whatever their case: each is asked for once
+    # Names fetched by name so far: each is asked for once
     fetched: dict[tuple[str, str], str] = {}
+
+    def spelling_of(name: str, owner: str | None) -> tuple[str, str]:
+        """Registry names fold case; a URL names its source as written."""
+        return (name if "://" in name else name.lower(), (owner or "").lower())
 
     def settle_versionless() -> list[str]:
         """Fetch by name the deferred dependencies nothing in the graph or the
@@ -1299,7 +1303,7 @@ def convert_libraries(
                 if _satisfying_key(
                     name, owner, requester, nodes, components
                 ) is None and not backend_provides(name, owner):
-                    spelling = (name.lower(), (owner or "").lower())
+                    spelling = spelling_of(name, owner)
                     if spelling not in fetched:
                         try:
                             dep_key = add_spec(
@@ -1521,7 +1525,7 @@ def convert_libraries(
             ) or _satisfying_key(name, owner, requester, nodes, by_name)
             if found is None:
                 # A dependency written as a URL goes by the key its source gave it
-                key = fetched.get((name.lower(), (owner or "").lower()))
+                key = fetched.get(spelling_of(name, owner))
                 if key in components and key != requester:
                     found = (key, False)
             if found is None:
