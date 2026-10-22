@@ -83,7 +83,7 @@ SDIO_SCHEMA = BASE_SCHEMA.extend(
         cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Required(CONF_CMD_PIN): pins.internal_gpio_output_pin_number,
         cv.Required(CONF_D0_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_D1_PIN): pins.internal_gpio_output_pin_number,
+        cv.Required(CONF_D1_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_D2_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_D3_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_BUS_WIDTH, default=4): cv.one_of(1, 4, int=True),
@@ -97,7 +97,7 @@ SDIO_SCHEMA = BASE_SCHEMA.extend(
 
 def _validate_sdio(config: ConfigType) -> ConfigType:
     if config[CONF_BUS_WIDTH] == 4:
-        for pin in (CONF_D1_PIN, CONF_D2_PIN, CONF_D3_PIN):
+        for pin in (CONF_D2_PIN, CONF_D3_PIN):
             if pin not in config:
                 raise cv.Invalid(
                     f"{pin} is required when bus_width is 4",
@@ -290,8 +290,9 @@ def _configure_sdio_3x(config: ConfigType) -> None:
         "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D0", config[CONF_D0_PIN]
     )
     # D1 carries the card interrupt on a 1-bit bus too
-    if (d1_pin := config.get(CONF_D1_PIN)) is not None:
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D1", d1_pin)
+    esp32.add_idf_sdkconfig_option(
+        "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D1", config[CONF_D1_PIN]
+    )
     if config[CONF_BUS_WIDTH] == 4:
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D2", config[CONF_D2_PIN]
