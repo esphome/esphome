@@ -150,6 +150,28 @@ uart_mock:
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
 
+    # Phase 8 (t=8200ms): Impossible counts, then a complete frame
+    # A command header counting 0xFFF6 bytes (65536 in total, which must not wrap to 0) and one counting
+    # 0xFFFF are each dropped as soon as the count arrives, and the valid frame after them is parsed.
+    # Moving distance 600, moving energy 11, still distance 300, still energy 13, detection distance 600
+    - delay: 2500ms
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0xF6, 0xFF,
+          0xFD, 0xFC, 0xFB, 0xFA, 0xFF, 0xFF,
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x0D, 0x00,
+          0x02, 0xAA,
+          0x03,
+          0x58, 0x02,
+          0x0B,
+          0x2C, 0x01,
+          0x0D,
+          0x58, 0x02,
+          0x55, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
 ld2412:
   id: ld2412_dev
   uart_id: mock_uart
