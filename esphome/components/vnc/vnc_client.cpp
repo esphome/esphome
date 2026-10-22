@@ -846,7 +846,7 @@ void VncClient::draw_tile_() {
       }
     }
   }
-  this->display_->draw_pixels_at(this->pos_x_, this->pos_y_, w, h, this->tile_, this->bitness_, false, 0, 0,
+  this->display_->draw_pixels_at(this->pos_x_, this->pos_y_, w, h, this->tile_, this->bitness_, this->big_endian_, 0, 0,
                                  this->tile_w_ - w);
   this->frame_drawn_ = true;
   this->drawn_tiles_++;

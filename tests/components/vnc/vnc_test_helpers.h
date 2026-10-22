@@ -447,7 +447,8 @@ class Listener {
 
 class Session {
  public:
-  explicit Session(display::Display *display, uint32_t start_ms = 1000) : client(display) {
+  explicit Session(display::Display *display, uint32_t start_ms = 1000, bool big_endian = false)
+      : client(display, big_endian) {
     signal(SIGPIPE, SIG_IGN);
     set_now(start_ms);
     this->client.set_host("127.0.0.1");
