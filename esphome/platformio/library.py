@@ -992,6 +992,12 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
     )
 
 
+def _short_name(node: _LibNode) -> str:
+    """The package name a node goes by: the registry name, else the last segment
+    of its key (the repository or directory name of a git or local source)."""
+    return node.pkgname or node.key.rpartition("/")[2]
+
+
 def _satisfying_key(
     name: str,
     owner: str | None,
@@ -1016,7 +1022,7 @@ def _satisfying_key(
         and (not owner or owner_of(key, component).lower() == owner.lower())
     ]
     for key, _ in candidates:
-        if (nodes[key].pkgname or key).lower() == wanted:
+        if _short_name(nodes[key]).lower() == wanted:
             return key, False
     if owner:
         return None
@@ -1034,7 +1040,7 @@ def _own_names(
     name a resolved library goes by."""
     names = {
         key.lower(),
-        (nodes[key].pkgname or key).lower(),
+        _short_name(nodes[key]).lower(),
         components[key].name.lower(),
     }
     manifest_name = components[key].data.get("name")

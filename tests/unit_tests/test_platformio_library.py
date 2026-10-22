@@ -1668,6 +1668,33 @@ def test_url_dependencies_differing_only_in_case_stay_distinct(
     )
 
 
+def test_listed_git_source_satisfies_a_bare_dependency_by_repository_name(
+    tmp_path, monkeypatch
+) -> None:
+    """A git source goes by its repository name: a bare ``B`` is satisfied by
+    the listed ``vendor/B`` even when its manifest says otherwise, so the
+    registry is never asked for a second copy."""
+    asked = _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": ["B"]},
+            "vendor/B": {"name": "Other"},
+        },
+    )
+    emitted: list[str] = []
+    top = convert_libraries(
+        [
+            Library("esphome/A", None, None),
+            Library("https://github.com/vendor/B.git", None, None),
+        ],
+        _backend(emit=lambda c: emitted.append(c.name)),
+    )
+    assert [d.name for d in top[0].dependencies] == ["vendor/B"]
+    assert sorted(emitted) == ["esphome/A", "vendor/B"]
+    assert asked == [("esphome", "A")]
+
+
 def test_empty_version_is_settled_like_a_missing_one(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
