@@ -42,6 +42,8 @@ void ModemComponent::disable() {
   ESP_LOGI(TAG, "Setting modem target state to DISABLED");
   this->target_state_ = ModemComponentState::MODEM_DISABLED;
   this->cancel_timeout(CONNECT_TIMEOUT_ID);
+  // Also the reboot timer a failed setup armed outside the component
+  App.scheduler.cancel_timeout(this);
 }
 
 void ModemComponent::arm_connect_timeout_() {
