@@ -15,9 +15,6 @@ modem:
   pin_code: "0000"
   init_at:
     - ATI
-  urc:
-    name: Modem URC
-  enable_on_boot: True
   reboot_timeout: 5min
   on_connect:
     logger.log: "modem connected"
@@ -25,6 +22,11 @@ modem:
     logger.log: "modem disconnected"
   on_sync:
     logger.log: "modem synced - ready for AT commands"
+
+text_sensor:
+  - platform: modem
+    urc:
+      name: Modem URC
 
 packages:
   modem: !include common.yaml
