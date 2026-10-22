@@ -22,29 +22,29 @@ SET_BAUD_RATE = "04:00:A1:00"
 
 
 class _TxLines:
-    """Record the TX lines and resolve a future when an awaited text is logged."""
+    """Record the TX lines and hand out the payload line that follows an awaited command line."""
 
     def __init__(self) -> None:
         self.lines: list[str] = []
-        self._awaited: dict[str, asyncio.Future[None]] = {}
+        # Command text, whether its line was seen, and the future for the line after it
+        self._awaited: list[tuple[str, bool, asyncio.Future[str]]] = []
 
     def on_line(self, line: str) -> None:
         if "uart_mock" not in line or "TX " not in line:
             return
         self.lines.append(line)
-        for text, future in self._awaited.items():
-            if text in line and not future.done():
-                future.set_result(None)
+        for i, (text, seen, future) in enumerate(self._awaited):
+            if seen:
+                if not future.done():
+                    future.set_result(line)
+            elif text in line:
+                self._awaited[i] = (text, True, future)
 
-    def next_line_with(self, text: str) -> asyncio.Future[None]:
-        future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-        self._awaited[text] = future
+    def next_payload_after(self, text: str) -> asyncio.Future[str]:
+        """Resolve with the TX line logged right after the next line holding ``text``."""
+        future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+        self._awaited.append((text, False, future))
         return future
-
-    def payload_after(self, text: str) -> str:
-        """Return the TX line that follows the first line holding ``text``."""
-        index = next(i for i, line in enumerate(self.lines) if text in line)
-        return self.lines[index + 1]
 
 
 @pytest.mark.asyncio
@@ -70,23 +70,23 @@ async def test_uart_mock_ld2410_selects(
         # The mock bus runs at 256000, which the select reports at boot
         assert initial_state_helper.initial_states[baud_rate.key].state == "256000"
 
-        resolution_written = events.next_line_with(SET_RESOLUTION)
+        # Each payload line follows its length and command line directly
+        resolution_payload = events.next_payload_after(SET_RESOLUTION)
         client.select_command(resolution.key, "0.2m")
         await wait_or_fail(
-            resolution_written,
+            resolution_payload,
             5.0,
             "Timeout waiting for the distance resolution command",
             logged=events.lines,
         )
+        assert "TX 2 bytes: 01:00" in resolution_payload.result()
 
-        baud_rate_written = events.next_line_with(SET_BAUD_RATE)
+        baud_rate_payload = events.next_payload_after(SET_BAUD_RATE)
         client.select_command(baud_rate.key, "19200")
         await wait_or_fail(
-            baud_rate_written,
+            baud_rate_payload,
             5.0,
             "Timeout waiting for the baud rate command",
             logged=events.lines,
         )
-        # Each payload line follows its length and command line directly
-        assert "TX 2 bytes: 01:00" in events.payload_after(SET_RESOLUTION)
-        assert "TX 2 bytes: 02:00" in events.payload_after(SET_BAUD_RATE)
+        assert "TX 2 bytes: 02:00" in baud_rate_payload.result()
