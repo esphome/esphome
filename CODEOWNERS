@@ -116,6 +116,7 @@ esphome/components/bridge/* @kbx81
 esphome/components/bthome/* @jpeletier
 esphome/components/bthome/binary_sensor/* @jpeletier
 esphome/components/bthome/sensor/* @jpeletier
+esphome/components/bthome/text_sensor/* @jpeletier
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow

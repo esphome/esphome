@@ -22,6 +22,20 @@ binary_sensor:
     type: DOOR_OPEN
     name: "Remote Door"
 
+text_sensor:
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: TEXT
+    name: "Remote Text"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: RAW
+    name: "Remote Raw"
+    on_raw_data:
+      - lambda: |-
+          ESP_LOGD("bthome_test", "Raw data: %u bytes, first 0x%02X", (unsigned) x.size(),
+                   x.empty() ? 0 : x[0]);
+
 bthome:
   remote_devices:
     - id: bthome_remote_plain
