@@ -35,18 +35,13 @@ CONF_OUTPUT_MODE = "output_mode"
 CONF_OUTPUT_MODE_PIN = "output_mode_pin"
 CONF_PUBLISH_MODE = "publish_mode"
 
-MODES = {
-    "CONTROLLED": DistanceUARTMode.MODE_CONTROLLED,
-    "AUTO": DistanceUARTMode.MODE_AUTO,
-}
-OUTPUT_MODES = {
-    "PROCESSED": DistanceUARTOutputMode.OUTPUT_MODE_PROCESSED,
-    "REALTIME": DistanceUARTOutputMode.OUTPUT_MODE_REALTIME,
-}
-PUBLISH_MODES = {
-    "INTERVAL": DistanceUARTPublishMode.PUBLISH_MODE_INTERVAL,
-    "IMMEDIATE": DistanceUARTPublishMode.PUBLISH_MODE_IMMEDIATE,
-}
+MODES = DistanceUARTMode.options("CONTROLLED", "AUTO", prefix="MODE_")
+OUTPUT_MODES = DistanceUARTOutputMode.options(
+    "PROCESSED", "REALTIME", prefix="OUTPUT_MODE_"
+)
+PUBLISH_MODES = DistanceUARTPublishMode.options(
+    "INTERVAL", "IMMEDIATE", prefix="PUBLISH_MODE_"
+)
 
 # Define a dictionary of known models and their properties.
 # fmt: off
@@ -294,10 +289,8 @@ FINAL_VALIDATE_SCHEMA = final_validate_config
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
+    var = await uart.new_uart_component(config)
     await sensor.register_sensor(var, config)
-    await uart.register_uart_device(var, config)
 
     uart_conf = None
     if CONF_UART_ID in config:
@@ -359,8 +352,7 @@ async def to_code(config):
 
     if final_mode_enum == MODES["CONTROLLED"]:
         if CONF_TRIGGER_PIN in config:
-            trigger_pin_obj = await cg.gpio_pin_expression(config[CONF_TRIGGER_PIN])
-            cg.add(var.set_trigger_pin(trigger_pin_obj))
+            await cg.add_pin(var.set_trigger_pin, config[CONF_TRIGGER_PIN])
         elif uart_conf is None or "tx_pin" not in uart_conf:
             raise EsphomeError(
                 f"distance_uart sensor in CONTROLLED mode has no 'trigger_pin' and the parent uart "

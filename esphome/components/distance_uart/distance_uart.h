@@ -5,8 +5,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace distance_uart {
+namespace esphome::distance_uart {
 
 // Enum to represent the operating mode
 enum DistanceUARTMode {
@@ -59,5 +58,4 @@ class DistanceUARTSensor : public sensor::Sensor, public PollingComponent, publi
   float last_distance_m_{NAN};
 };
 
-}  // namespace distance_uart
-}  // namespace esphome
+}  // namespace esphome::distance_uart

@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include <cmath>  // Required for NAN
 
-namespace esphome {
-namespace distance_uart {
+namespace esphome::distance_uart {
 
-static const char *const TAG = "distance_uart.sensor";
+ESPHOME_LOG_TAG(TAG, "distance_uart.sensor");
 static const uint8_t FRAME_START = 0xFF;
 static const int FRAME_LENGTH = 4;
 
@@ -34,8 +33,11 @@ void DistanceUARTSensor::setup() {
 void DistanceUARTSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Distance UART Sensor:");
   LOG_SENSOR("  ", "Distance", this);
-  ESP_LOGCONFIG(TAG, "  Mode: %s", this->mode_ == MODE_CONTROLLED ? "CONTROLLED" : "AUTO");
-  ESP_LOGCONFIG(TAG, "  Publish Mode: %s", this->publish_mode_ == PUBLISH_MODE_INTERVAL ? "INTERVAL" : "IMMEDIATE");
+  ESP_LOGCONFIG(TAG, "  Mode: %s",
+                this->mode_ == MODE_CONTROLLED ? LOG_STR_LITERAL("CONTROLLED") : LOG_STR_LITERAL("AUTO"));
+  ESP_LOGCONFIG(
+      TAG, "  Publish Mode: %s",
+      this->publish_mode_ == PUBLISH_MODE_INTERVAL ? LOG_STR_LITERAL("INTERVAL") : LOG_STR_LITERAL("IMMEDIATE"));
   if (this->mode_ == MODE_CONTROLLED) {
     if (this->trigger_pin_ != nullptr) {
       LOG_PIN("  Trigger Pin: ", this->trigger_pin_);
@@ -45,7 +47,9 @@ void DistanceUARTSensor::dump_config() {
   }
   if (this->mode_ == MODE_AUTO && this->output_mode_pin_ != nullptr) {
     LOG_PIN("  Output Mode Pin: ", this->output_mode_pin_);
-    ESP_LOGCONFIG(TAG, "  Output Mode: %s", this->output_mode_ == OUTPUT_MODE_PROCESSED ? "PROCESSED" : "REALTIME");
+    ESP_LOGCONFIG(
+        TAG, "  Output Mode: %s",
+        this->output_mode_ == OUTPUT_MODE_PROCESSED ? LOG_STR_LITERAL("PROCESSED") : LOG_STR_LITERAL("REALTIME"));
   }
   ESP_LOGCONFIG(TAG, "  Blind Zone: %.2fm", this->blind_zone_mm_ / 1000.0f);
   if (this->max_range_mm_ > 0) {
@@ -74,10 +78,7 @@ void DistanceUARTSensor::update() {
 }
 
 void DistanceUARTSensor::loop() {
-  while (this->available()) {
-    uint8_t byte;
-    this->read_byte(&byte);
-
+  this->read_available([this](uint8_t byte) {
     if (this->read_pos_ == 0) {
       if (byte == FRAME_START) {
         this->buffer_[this->read_pos_++] = byte;
@@ -89,7 +90,7 @@ void DistanceUARTSensor::loop() {
         this->read_pos_ = 0;
       }
     }
-  }
+  });
 }
 
 void DistanceUARTSensor::process_frame_() {
@@ -134,5 +135,4 @@ void DistanceUARTSensor::process_frame_() {
   }
 }
 
-}  // namespace distance_uart
-}  // namespace esphome
+}  // namespace esphome::distance_uart
