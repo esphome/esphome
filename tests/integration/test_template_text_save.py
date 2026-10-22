@@ -17,6 +17,7 @@ import pytest
 
 from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
 from .host_prefs import clear_host_prefs
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper, assert_device_name, require_entity
 from .types import CompileFunction, ConfigWriter
 
@@ -44,15 +45,11 @@ async def test_template_text_save(
     port_socket.close()
 
     # --- First run: set a value and verify no spurious warnings ---
-    warning_lines: list[str] = []
-
-    def capture_warnings(line: str) -> None:
-        if "too long to save" in line.lower():
-            warning_lines.append(line)
+    waiter = LineWaiter()
 
     async with (
         run_binary_and_wait_for_port(
-            binary_path, "127.0.0.1", port, line_callback=capture_warnings
+            binary_path, "127.0.0.1", port, line_callback=waiter.callback
         ),
         wait_and_connect_api_client(port=port) as client,
     ):
@@ -98,6 +95,9 @@ async def test_template_text_save(
         await asyncio.sleep(0.5)
 
     # No warnings should have appeared
+    warning_lines = [
+        line for line in waiter.lines if "too long to save" in line.lower()
+    ]
     assert warning_lines == [], (
         f"Unexpected 'too long to save' warning(s): {warning_lines}"
     )
