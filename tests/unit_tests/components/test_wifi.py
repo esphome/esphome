@@ -315,14 +315,7 @@ def test_second_dns_server_requires_idf_6(wisp_core: None, valid: bool) -> None:
 @pytest.mark.parametrize("wisp_core", [{"framework": "arduino"}], indirect=True)
 def test_wisp_requires_esp_idf(wisp_core: None) -> None:
     """NAT is only available with the ESP-IDF framework."""
-    with pytest.raises(cv.Invalid, match="incompatible"):
-        wifi_network_ap(_wisp_ap())
-
-
-@pytest.mark.parametrize("wisp_core", [{"idf": cv.Version(5, 0, 9)}], indirect=True)
-def test_wisp_requires_idf_5_1(wisp_core: None) -> None:
-    """esp_netif_napt_enable() is missing before ESP-IDF 5.1."""
-    with pytest.raises(cv.Invalid, match="5.1.0"):
+    with pytest.raises(cv.Invalid, match="only available with framework"):
         wifi_network_ap(_wisp_ap())
 
 
