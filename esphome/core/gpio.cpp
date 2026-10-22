@@ -7,11 +7,8 @@ namespace esphome {
 void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin) {
   if (pin == nullptr)
     return;
-  static constexpr size_t LOG_PIN_PREFIX_MAX_LEN = 32;
-  char prefix_buf[LOG_PIN_PREFIX_MAX_LEN];
-  strncpy_P(prefix_buf, reinterpret_cast<const char *>(prefix), sizeof(prefix_buf) - 1);
-  prefix_buf[sizeof(prefix_buf) - 1] = '\0';
-  log_pin_with_prefix(tag, prefix_buf, pin);
+  // %s reads flash on ESP8266, so the prefix needs no RAM copy
+  log_pin_with_prefix(tag, reinterpret_cast<const char *>(prefix), pin);
 }
 #else
 void log_pin(const char *tag, const char *prefix, GPIOPin *pin) {

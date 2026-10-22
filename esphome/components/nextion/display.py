@@ -53,14 +53,6 @@ def AUTO_LOAD() -> list[str]:
 
 
 def _validate_tft_upload(config):
-    has_tft_url = CONF_TFT_URL in config
-    for conf_key in (
-        CONF_TFT_UPLOAD_HTTP_TIMEOUT,
-        CONF_TFT_UPLOAD_HTTP_RETRIES,
-        CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
-    ):
-        if conf_key in config and not has_tft_url:
-            raise cv.Invalid(f"{conf_key} requires {CONF_TFT_URL} to be set")
     if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config and not CORE.is_esp32:
         raise cv.Invalid(
             f"{CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT} is only available on ESP32"
@@ -140,6 +132,14 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("5s"))
     .extend(uart.UART_DEVICE_SCHEMA),
+    cv.key_requires(
+        (
+            CONF_TFT_UPLOAD_HTTP_TIMEOUT,
+            CONF_TFT_UPLOAD_HTTP_RETRIES,
+            CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
+        ),
+        CONF_TFT_URL,
+    ),
     _validate_tft_upload,
 )
 
@@ -228,8 +228,7 @@ async def to_code(config):
 
     cg.add(var.set_startup_override_ms(config[CONF_STARTUP_OVERRIDE_MS]))
 
-    if CONF_BRIGHTNESS in config:
-        cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
+    cg.add_optional(var.set_brightness, config.get(CONF_BRIGHTNESS))
 
     await display.add_writer(var, config, nextion_ref)
 
@@ -265,11 +264,9 @@ async def to_code(config):
         elif CORE.is_esp8266:
             cg.add_library("ESP8266HTTPClient", None)
 
-    if CONF_TOUCH_SLEEP_TIMEOUT in config:
-        cg.add(var.set_touch_sleep_timeout(config[CONF_TOUCH_SLEEP_TIMEOUT]))
+    cg.add_optional(var.set_touch_sleep_timeout, config.get(CONF_TOUCH_SLEEP_TIMEOUT))
 
-    if CONF_WAKE_UP_PAGE in config:
-        cg.add(var.set_wake_up_page(config[CONF_WAKE_UP_PAGE]))
+    cg.add_optional(var.set_wake_up_page, config.get(CONF_WAKE_UP_PAGE))
 
     if CONF_START_UP_PAGE in config:
         cg.add_define("USE_NEXTION_CONF_START_UP_PAGE")

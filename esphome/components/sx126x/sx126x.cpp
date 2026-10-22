@@ -185,7 +185,7 @@ void SX126x::configure() {
 
   // configure pa
   int8_t pa_power = this->pa_power_;
-  if (this->hw_version_ == "sx1261") {
+  if (this->sx1261_) {
     // the following values were taken from section 13.1.14.1 table 13-21
     // in rev 2.1 of the datasheet
     if (pa_power == 15) {

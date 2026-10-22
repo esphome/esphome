@@ -44,6 +44,13 @@ async def test_light_initial_state(
         assert restore_and_on_state.state is True
         assert restore_and_on_state.brightness == pytest.approx(1.0)
 
+        # initial_state may also name the effect to start with. The light must come up
+        # with that effect already active, without an on_boot automation.
+        effect_light = require_entity(entities, "test_effect_light")
+        effect_state = helper.initial_states[effect_light.key]
+        assert effect_state.state is True
+        assert effect_state.effect == "Test Pulse"
+
         # With neither restore_mode nor restore_state configured, initial_state: must
         # be honored as-is -- unlike every explicit restore_mode: value, omitting both
         # keys entirely must not force the light off.
