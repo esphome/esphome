@@ -356,6 +356,7 @@ esphome/components/lm75b/* @beormund
 esphome/components/ln882h_ble/* @Bl00d-B0b
 esphome/components/ln882h_ble_tracker/* @Bl00d-B0b
 esphome/components/ln882x/* @lamauny
+esphome/components/ln882x_spi_led_strip/* @sebo-b
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/logger/select/* @clydebarrow
