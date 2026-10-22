@@ -260,6 +260,8 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
       case HITACHI_AC344_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
+      default:
+        break;
     }
   } else {
     this->mode = climate::CLIMATE_MODE_OFF;
@@ -293,6 +295,8 @@ bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
       break;
     case HITACHI_AC344_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+    default:
       break;
   }
   return true;
