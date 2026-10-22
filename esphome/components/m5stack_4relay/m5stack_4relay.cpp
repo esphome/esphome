@@ -18,7 +18,7 @@ void M5Stack4Relay::setup() {
 #ifdef USE_SWITCH
   // The chip keeps the relays across an ESP reboot, so a switch with restore mode DISABLED shows what the chip has.
   bool restored = false;
-  for (uint8_t channel = 0; channel < this->switches_.size(); channel++) {
+  for (size_t channel = 0; channel < this->switches_.size(); channel++) {
     switch_::Switch *sw = this->switches_[channel];
     if (sw == nullptr)
       continue;
@@ -32,7 +32,7 @@ void M5Stack4Relay::setup() {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  for (uint8_t channel = 0; channel < this->switches_.size(); channel++) {
+  for (size_t channel = 0; channel < this->switches_.size(); channel++) {
     if (this->switches_[channel] != nullptr)
       this->switches_[channel]->publish_state((this->relays_ >> channel) & 1);
   }
