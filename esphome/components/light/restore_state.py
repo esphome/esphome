@@ -58,7 +58,11 @@ _STATE_STRUCT_FIELDS: tuple[tuple[str, str], ...] = tuple(
 )
 # Canonical struct-member order, used only to make generated code deterministic --
 # these are independent field assignments, so the actual order never affects behavior.
-_MEMBER_ORDER: tuple[str, ...] = tuple(member for _, member in _ALL_STATE_FIELDS)
+_MEMBER_ORDER: tuple[str, ...] = (
+    *(member for _, member in _ALL_STATE_FIELDS),
+    # Not a LightStateField: its value is a name looked up in this light's effects: list
+    "effect",
+)
 
 # A pending `s.<member> = <value>;` statement, tagged with the member it writes.
 StateStatement = tuple[str, str]
@@ -172,12 +176,13 @@ async def _process_value(value: Any, member: str) -> str:
 
 
 async def _initial_state_statements(
-    initial_state_config: ConfigType | None,
+    initial_state_config: ConfigType | None, effect_index: int = 0
 ) -> list[StateStatement]:
     """
     Create assignments for every field the user set in `initial_state:`, in canonical
     struct-member order. A field given as `!lambda` is resolved and called immediately,
-    the same way `light.control`'s own field lambdas are.
+    the same way `light.control`'s own field lambdas are. `effect_index` is the resolved
+    `initial_state: effect`; 0 (no effect) is the struct default and emits nothing.
     """
     if not initial_state_config:
         return []
@@ -190,6 +195,8 @@ async def _initial_state_statements(
         )
     if (inferred := _inferred_color_mode(initial_state_config)) is not None:
         statements.append(("color_mode", f"s.color_mode = {inferred};"))
+    if effect_index:
+        statements.append(("effect", f"s.effect = {effect_index};"))
     return statements
 
 
