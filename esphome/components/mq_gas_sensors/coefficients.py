@@ -151,7 +151,6 @@ class ResolvedSensor:
     heater_note: str = ""
     curve: str = CURVE_STANDARD
     tc: TcCoefficients | None = None
-    built_in_clamped: bool = False
 
 
 def normalize_type(value: str) -> str:
@@ -210,12 +209,6 @@ SENSOR_TYPES: dict[str, dict] = {
         "max_ppm": 10000.0,
         "gases": {  # alcohol
             "LPG": (44771.0, -3.245),
-            # The collected MQ-3 CH4 fit is the only published value above
-            # `MQ_MAX_A`, so it is the only curve the build clamps (to 1e30, 20
-            # times below the published `a`). The curve is unusable either way -
-            # it reports the top of the range for every ratio above ~0.04 - and
-            # is kept here to stay faithful to the source table.
-            "CH4": (2e31, 19.01),
             "CO": (521853.0, -3.821),
             "ALCOHOL": (0.3934, -1.504),
             "BENZENE": (4.8387, -2.68),
@@ -395,17 +388,15 @@ SENSOR_TYPES: dict[str, dict] = {
 }
 
 
-def _clamp_coefficient(value: float, limit: float) -> float:
-    """Clamp a built-in coefficient to the range the firmware can evaluate.
+def _clamp_coefficient(value: float, limit: float, key: str) -> float:
+    """Clamp a user supplied coefficient to the range the firmware evaluates.
 
-    Only the collected MQ-3 CH4 entry is above the limit (see `MQ_MAX_A`), and the
-    clamp changes that curve, so `resolve_sensor()` marks it and
-    ``_validate_config()`` in ``sensor.py`` warns about it. A user supplied
-    coefficient does not pass unreported either: the schema rejects a non-finite
-    value and the same validator warns about a clamped one.
+    ``_validate_config()`` in ``sensor.py`` warns when the returned value differs
+    from ``value``. A non-finite value is rejected instead of being turned into 0,
+    which would silently drop the curve.
     """
     if not math.isfinite(value):
-        return 0.0
+        raise ValueError(f"'{key}' must be a finite number, got {value}")
     return max(-limit, min(limit, value))
 
 
@@ -443,12 +434,6 @@ def resolve_sensor(
     gas_key = normalize_gas(gas) if gas else definition["primary_gas"]
 
     explicit_settings = a is not None or b is not None or method is not None
-    #: A clamp of a built-in value is worth a warning; a user supplied value is
-    #: reported from `sensor.py` (see `_validate_config()`), whether it is clamped
-    #: here or not. Each coefficient is judged on its own: overriding one of them
-    #: must not hide that the other one came from the table and was clamped.
-    built_in_a = a is None
-    built_in_b = b is None
 
     if gases:
         if gas_key not in gases:
@@ -486,18 +471,13 @@ def resolve_sensor(
             )
         a, b, resolved_method = variants[curve]
 
-    clamped_a = _clamp_coefficient(float(a), MQ_MAX_A)
-    clamped_b = _clamp_coefficient(float(b), MQ_MAX_B)
-
     return ResolvedSensor(
         type_key=type_key,
         label=definition["label"],
         gas=gas_key,
         method=resolved_method,
-        a=clamped_a,
-        b=clamped_b,
-        built_in_clamped=(built_in_a and clamped_a != float(a))
-        or (built_in_b and clamped_b != float(b)),
+        a=_clamp_coefficient(float(a), MQ_MAX_A, "coefficient_a"),
+        b=_clamp_coefficient(float(b), MQ_MAX_B, "coefficient_b"),
         ratio_in_clean_air=float(
             definition["ratio_in_clean_air"]
             if ratio_in_clean_air is None

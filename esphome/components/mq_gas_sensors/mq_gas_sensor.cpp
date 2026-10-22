@@ -283,7 +283,7 @@ void MQGasSensor::update() {
     return;
 
   this->sensor_voltage_ = this->sample_voltage_();
-  if (!std::isfinite(this->sensor_voltage_) || this->sensor_voltage_ <= 0.01f) {
+  if (!this->voltage_usable_(this->sensor_voltage_)) {
     if (!this->warned_low_voltage_) {
       this->warned_low_voltage_ = true;
       this->log_message_(LOG_SEVERITY_WARN,
@@ -501,6 +501,10 @@ void MQGasSensor::begin_calibration_() {
   this->calibration_last_sample_ = this->calibration_start_;
   this->calibration_count_ = 0;
   this->calibration_attempts_ = 0;
+  this->calibration_rejected_low_ = 0;
+  this->calibration_rejected_high_ = 0;
+  this->calibration_rejected_nonfinite_ = 0;
+  this->calibration_rejected_rs_ = 0;
   this->calibration_sum_ = 0.0f;
   this->calibration_min_ = 0.0f;
   this->calibration_max_ = 0.0f;
@@ -516,7 +520,13 @@ void MQGasSensor::process_calibration_() {
   this->calibration_attempts_++;
 
   const float voltage = this->sample_voltage_();
-  if (std::isfinite(voltage) && voltage > 0.01f && voltage < this->vcc_) {
+  if (!std::isfinite(voltage)) {
+    this->calibration_rejected_nonfinite_++;
+  } else if (!this->voltage_usable_(voltage)) {
+    this->calibration_rejected_low_++;
+  } else if (voltage >= this->vcc_) {
+    this->calibration_rejected_high_++;
+  } else {
     this->sensor_voltage_ = voltage;
     this->rs_ = this->current_rs_();
     const float r0 = mqmath::r0_from_clean_air(this->rs_, this->ratio_in_clean_air_);
@@ -530,6 +540,8 @@ void MQGasSensor::process_calibration_() {
       }
       this->calibration_sum_ += r0;
       this->calibration_count_++;
+    } else {
+      this->calibration_rejected_rs_++;
     }
   }
 
@@ -549,10 +561,16 @@ void MQGasSensor::finish_calibration_() {
   const uint32_t required = std::min<uint32_t>(std::max<uint32_t>((attempts + 1) / 2, 2), attempts);
 
   if (valid < required) {
+    // Name the reason each rejected sample failed, so a wrong `vcc:` is not
+    // mistaken for a wiring fault just because the generic message says so.
     this->log_message_(LOG_SEVERITY_ERROR,
-                       LOG_STR("calibration failed, %" PRIu32 " of %" PRIu32
-                               " samples produced a valid RS - check the AO wiring and the supply"),
-                       valid, attempts);
+                       LOG_STR("calibration failed, %" PRIu32 " of %" PRIu32 " samples produced a valid RS (%" PRIu32
+                               " below %.2f V, %" PRIu32 " at or above vcc, %" PRIu32 " non-finite, %" PRIu32
+                               " with an unusable RS) - check the AO wiring "
+                               "and the supply"),
+                       valid, attempts, this->calibration_rejected_low_, MIN_VALID_VOLTAGE,
+                       this->calibration_rejected_high_, this->calibration_rejected_nonfinite_,
+                       this->calibration_rejected_rs_);
     this->schedule_calibration_retry_();
     return;
   }

@@ -434,9 +434,8 @@ def _validate_config(config: ConfigType) -> ConfigType:
 
     _validate_coefficients(resolved.label, resolved.method, resolved.a, resolved.b)
 
-    # The device clamps `a` / `b` to what it can evaluate (see `MQ_MAX_A`), and
-    # every clamp is reported: a user supplied coefficient here, the one built-in
-    # fit above the limit below.
+    # The device clamps `a` / `b` to what it can evaluate (see `MQ_MAX_A`), so a
+    # user supplied value outside that range must not be applied silently.
     for key, given, evaluated in (
         (CONF_COEFFICIENT_A, config.get(CONF_COEFFICIENT_A), resolved.a),
         (CONF_COEFFICIENT_B, config.get(CONF_COEFFICIENT_B), resolved.b),
@@ -450,18 +449,6 @@ def _validate_config(config: ConfigType) -> ConfigType:
                 given,
                 evaluated,
             )
-
-    if resolved.built_in_clamped:
-        _LOGGER.warning(
-            "%s %s: a built-in coefficient is outside the range the firmware evaluates and "
-            "is clamped to a=%g, b=%g - the curve is then not the published one and "
-            "reports the top of the range for almost every ratio, set "
-            "'coefficient_a:' and 'coefficient_b:' for a usable curve",
-            resolved.label,
-            resolved.gas,
-            resolved.a,
-            resolved.b,
-        )
 
     # The correction factor moves the measured ratio, so the value clean air is
     # expected to read is the ratio plus the factor. `r0_from_clean_air()` sets

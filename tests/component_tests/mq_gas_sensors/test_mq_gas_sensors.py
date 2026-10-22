@@ -107,44 +107,11 @@ def test_coefficients_the_firmware_clamps_are_resolved_to_the_clamp() -> None:
     assert resolved.b == MQ_MAX_B
 
 
-def test_published_curve_above_the_clamp_resolves_to_the_clamp() -> None:
-    """MQ-3 CH4 publishes a = 2e31, above what the firmware can evaluate."""
-    assert SENSOR_TYPES["MQ3"]["gases"]["CH4"][0] == 2e31
-    assert resolve_sensor("MQ3", "CH4").a == MQ_MAX_A
-    assert resolve_sensor("MQ3", "CH4").built_in_clamped
-    assert not resolve_sensor("MQ8", "H2").built_in_clamped
-
-
-def test_partial_override_still_reports_the_built_in_clamp() -> None:
-    """Overriding one coefficient must not hide the built-in one being clamped."""
-    resolved = resolve_sensor("MQ3", "CH4", b=10.0)
-    assert resolved.a == MQ_MAX_A
-    assert resolved.b == 10.0
-    assert resolved.built_in_clamped
-
-    assert not resolve_sensor("MQ3", "CH4", a=1e10, b=10.0).built_in_clamped
-
-
-def test_unusable_built_in_curve_is_reported(
-    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
-) -> None:
-    """MQ-3 CH4 is the one built-in fit above the firmware clamp, so it is reported."""
-    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    with caplog.at_level("WARNING"):
-        CONFIG_SCHEMA(
-            {
-                "id": "mq3_ch4",
-                "name": "MQ-3 CH4",
-                "sensor_type": "MQ-3",
-                "gas": "CH4",
-                "voltage": "mq8_adc",
-                "r0": 10.0,
-            }
-        )
-    assert (
-        "a built-in coefficient is outside the range the firmware evaluates"
-        in caplog.text
-    )
+def test_mq3_has_no_ch4_curve() -> None:
+    """The collected MQ-3 CH4 fit is unusable, so the combination fails the build."""
+    assert "CH4" not in SENSOR_TYPES["MQ3"]["gases"]
+    with pytest.raises(ValueError, match="MQ-3 has no curve for gas 'CH4'"):
+        resolve_sensor("MQ3", "CH4")
 
 
 def test_clamped_coefficient_is_reported(
@@ -174,7 +141,7 @@ def test_clamped_coefficient_is_reported(
 def test_non_finite_coefficient_is_rejected(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """`clamp_a()` turns a non-finite `a` into 0, which drops the curve."""
+    """A non-finite coefficient is rejected before the device can drop the curve."""
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     base = {
         "id": "mq136",
@@ -719,8 +686,10 @@ def test_diagnostics_and_log_are_owned_entities(
         ("mq8_correction", "MQ-8 T-RH correction"),
         ("mq8_r0", "MQ-8 R0"),
     ):
-        assert f'App.register_sensor({entity_id}, "{name}"' in main_cpp
-    assert 'App.register_text_sensor(mq8_logs, "MQ-8 logs"' in main_cpp
+        assert (
+            f'App.register_sensor({entity_id}, ESPHOME_PSTR("{name}")' in main_cpp
+        )
+    assert 'App.register_text_sensor(mq8_logs, ESPHOME_PSTR("MQ-8 logs")' in main_cpp
     assert "// category:diagnostic" in main_cpp
     assert "template__mq8_ratio" not in main_cpp
 
