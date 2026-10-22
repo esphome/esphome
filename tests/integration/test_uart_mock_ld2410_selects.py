@@ -74,15 +74,25 @@ async def test_uart_mock_ld2410_selects(
         # The mock bus runs at 256000, which the select reports at boot
         assert initial_state_helper.initial_states[baud_rate.key].state == "256000"
 
+        # An unknown name writes nothing, not even the configuration mode frames around a command.
+        # This runs before any select write, so no restart timer from a write can send a frame meanwhile.
+        before = len(events.lines)
+        bogus = events.next_payload_after(bogus_done)
+        client.button_command(require_entity(entities, "bogus_names", ButtonInfo).key)
+
         # Each payload line follows its length and command line directly
         resolution_payload = events.next_payload_after(SET_RESOLUTION)
         client.select_command(resolution.key, "0.2m")
         await wait_or_fail(
-            resolution_payload,
+            asyncio.gather(bogus, resolution_payload),
             5.0,
             "Timeout waiting for the distance resolution command",
             logged=events.lines,
         )
+        marker = next(
+            i for i in range(before, len(events.lines)) if bogus_done in events.lines[i]
+        )
+        assert all("TX " not in line for line in events.lines[before:marker])
         assert "TX 2 bytes: 01:00" in resolution_payload.result()
 
         baud_rate_payload = events.next_payload_after(SET_BAUD_RATE)
@@ -95,9 +105,6 @@ async def test_uart_mock_ld2410_selects(
         )
         assert "TX 2 bytes: 02:00" in baud_rate_payload.result()
 
-        # An unknown name writes nothing, not even the configuration mode frames around a command
-        before = len(events.lines)
-        client.button_command(require_entity(entities, "bogus_names", ButtonInfo).key)
         named_resolution = events.next_payload_after(SET_RESOLUTION)
         named_baud_rate = events.next_payload_after(SET_BAUD_RATE)
         client.button_command(require_entity(entities, "named_values", ButtonInfo).key)
@@ -107,10 +114,6 @@ async def test_uart_mock_ld2410_selects(
             "Timeout waiting for the named setter commands",
             logged=events.lines,
         )
-        marker = next(
-            i for i in range(before, len(events.lines)) if bogus_done in events.lines[i]
-        )
-        assert all("TX " not in line for line in events.lines[before:marker])
         # 0.75m is device code 0x00 and 57600 is the fourth baud rate
         assert "TX 2 bytes: 00:00" in named_resolution.result()
         assert "TX 2 bytes: 04:00" in named_baud_rate.result()
