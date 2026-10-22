@@ -9,7 +9,7 @@ One file per component, named after it:
 - [`cse7766.md`](cse7766.md): Sonoff S31 parser check over the API
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
-- [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback
+- [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback, ESP8266 loopback harness without a radar
 - [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx crash report on the next boot
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check
 - [`nrf52.md`](nrf52.md): dongle board support
