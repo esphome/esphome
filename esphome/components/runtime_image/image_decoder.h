@@ -159,15 +159,15 @@ class ImageDecoder {
    */
   void draw(int x, int y, int w, int h, const Color &color);
 
+  /// Bytes of the image the decoder has used so far
+  size_t get_decoded_bytes() const { return this->decoded_bytes_; }
+
   /**
    * @brief Check if the decoder has finished processing.
    *
    * This should be overridden by decoders that can detect completion
    * based on format-specific markers rather than byte counts.
    */
-  /// Bytes of the image the decoder has used so far
-  size_t get_decoded_bytes() const { return this->decoded_bytes_; }
-
   virtual bool is_finished() const {
     if (this->expected_size_ > 0) {
       return this->decoded_bytes_ >= this->expected_size_;
