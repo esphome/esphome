@@ -175,10 +175,15 @@ int JpegDecoder::start_() {
 }
 
 int JpegDecoder::fail_() {
+  const bool read_failed = this->source_ != nullptr && this->source_failed_;
   const int error = this->jpeg_.getLastError();
-  ESP_LOGE(TAG, "Error while decoding: %d", error);
   this->jpeg_.close();
   this->source_ = nullptr;
+  if (read_failed) {
+    ESP_LOGE(TAG, "Reading the image failed");
+    return DECODE_ERROR_READ;
+  }
+  ESP_LOGE(TAG, "Error while decoding: %d", error);
   switch (error) {
     case JPEG_ERROR_MEMORY:
       return DECODE_ERROR_OUT_OF_MEMORY;
@@ -255,12 +260,9 @@ int HOT JpegDecoder::decode_step() {
   if (this->source_ == nullptr)
     return DECODE_ERROR_INVALID_TYPE;
   const int result = this->jpeg_.decodeRows(1);
-  if (this->source_failed_) {
-    ESP_LOGE(TAG, "Reading the image failed");
-    this->jpeg_.close();
-    this->source_ = nullptr;
-    return DECODE_ERROR_READ;
-  }
+  // JPEGDEC may decode on with the missing data, so check the read before its result
+  if (this->source_failed_)
+    return this->fail_();
   if (result == JPEG_DECODE_MORE)
     return DECODE_STEP_MORE;
   if (result == JPEG_DECODE_NEED_DATA)

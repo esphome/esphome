@@ -177,6 +177,7 @@ class SourceImage : public RuntimeImage {
  public:
   explicit SourceImage(image::ImageType type = image::IMAGE_TYPE_RGB, int width = 0, int height = 0)
       : RuntimeImage(JPEG, type, image::TRANSPARENCY_OPAQUE, nullptr, false, width, height) {}
+  size_t decoded_bytes() const { return this->decoded_bytes_; }
 };
 
 /// The file in memory; fails reads once fail_at bytes have been read
@@ -377,6 +378,19 @@ TEST(JpegSourceDecode, ProgressiveImageIsUnsupported) {
   ASSERT_TRUE(img.begin_decode(sizeof(JPEG_PROGRESSIVE)));
   EXPECT_EQ(img.begin_source(&source), DECODE_ERROR_UNSUPPORTED_FORMAT);
   EXPECT_EQ(img.decode_step(), DECODE_ERROR_INVALID_TYPE);
+}
+
+TEST(JpegSourceDecode, CompletedDecodeCountsTheWholeImage) {
+  SourceImage img;
+  MemorySource source(JPEG_ROWS, sizeof(JPEG_ROWS));
+  ASSERT_TRUE(img.begin_decode(sizeof(JPEG_ROWS)));
+  ASSERT_EQ(img.begin_source(&source), 0);
+  int result;
+  while ((result = img.decode_step()) == DECODE_STEP_MORE) {
+    EXPECT_EQ(img.decoded_bytes(), 0u);
+  }
+  ASSERT_EQ(result, DECODE_STEP_DONE);
+  EXPECT_EQ(img.decoded_bytes(), sizeof(JPEG_ROWS));
 }
 
 TEST(JpegSourceDecode, SourceIsReadAsTheDecodeNeedsIt) {
