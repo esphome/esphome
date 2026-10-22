@@ -86,6 +86,8 @@ class SpeakerMediaPlayer final : public Component,
     this->announcement_format_ = announcement_format;
   }
   void set_media_speaker(Speaker *media_speaker) { this->media_speaker_ = media_speaker; }
+  void set_preconnect_speaker(Speaker *preconnect_speaker) { this->preconnect_speaker_ = preconnect_speaker; }
+  void set_preconnect_timeout(uint32_t timeout_ms) { this->preconnect_timeout_ms_ = timeout_ms; }
   void set_media_format(const media_player::MediaPlayerSupportedFormat &media_format) {
     this->media_format_ = media_format;
   }
@@ -136,6 +138,11 @@ class SpeakerMediaPlayer final : public Component,
   std::unique_ptr<AudioPipeline> media_pipeline_;
   Speaker *media_speaker_{nullptr};
   Speaker *announcement_speaker_{nullptr};
+  Speaker *preconnect_speaker_{nullptr};
+  bool preparing_announcement_{false};
+  bool preconnect_active_{false};
+  uint32_t preparation_started_ms_{0};
+  uint32_t preconnect_timeout_ms_{20000};
 
   optional<media_player::MediaPlayerSupportedFormat> media_format_;
   AudioPipelineState media_pipeline_state_{AudioPipelineState::STOPPED};

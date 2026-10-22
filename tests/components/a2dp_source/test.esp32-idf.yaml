@@ -1,0 +1,28 @@
+esp32_ble:
+  classic_bt: true
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+
+api:
+
+wifi:
+  ap:
+
+speaker:
+  - platform: a2dp_source
+    id: a2dp_output
+    address: "00:11:22:33:44:55"
+    num_channels: 2
+    sample_rate: 44100
+
+media_player:
+  - platform: speaker
+    id: bt_player
+    announcement_pipeline:
+      speaker: a2dp_output
+      format: NONE
+    preconnect_speaker: a2dp_output
+    preconnect_timeout: 30s
+    volume_initial: 20%
