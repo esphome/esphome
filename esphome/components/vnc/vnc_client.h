@@ -102,10 +102,7 @@ class VncClient : public Component {
   void clear_tiles_();
   void forget_tiles_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void draw_row_(uint16_t x, uint16_t y, uint16_t count, const uint8_t *pixels);
-  void fill_tile_(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint16_t pixel);
-  uint16_t read_pixel_(const uint8_t *data) const {
-    return this->bpp_ == 1 ? data[0] : static_cast<uint16_t>(data[0] | (data[1] << 8));
-  }
+  void fill_tile_(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *pixel);
   void skip_(uint32_t count, VncStep next);
   bool budget_exhausted_() const;
   bool send_(const uint8_t *data, size_t len);
@@ -124,7 +121,6 @@ class VncClient : public Component {
   HighFrequencyLoopRequester high_freq_;
   // Fingerprint of the tile last drawn at each 16x16 cell, so tiles the server resends unchanged are skipped.
   uint32_t *tile_hashes_{nullptr};
-  uint32_t hash_capacity_{0};
 
   uint32_t update_delay_ms_{200};
   uint32_t max_update_delay_ms_{1000};
@@ -140,7 +136,6 @@ class VncClient : public Component {
   uint32_t last_change_ms_{0};
   uint32_t rx_total_{0};
   uint32_t update_start_bytes_{0};
-  uint16_t drawn_tiles_{0};
   uint32_t last_request_ms_{0};
   uint32_t last_rx_ms_{0};
   uint32_t pass_start_ms_{0};
@@ -161,11 +156,10 @@ class VncClient : public Component {
   uint16_t pos_x_{0};
   uint16_t pos_y_{0};
   uint16_t tile_fill_{0};
-  uint16_t hex_bg_{0};
-  uint16_t hex_fg_{0};
+  uint16_t drawn_tiles_{0};
+  uint16_t hash_capacity_{0};
   uint16_t hash_cols_{0};
   uint16_t hash_rows_{0};
-  uint16_t hash_rotation_{0};
 
   uint8_t tile_w_{0};
   uint8_t tile_h_{0};
@@ -174,6 +168,10 @@ class VncClient : public Component {
   uint8_t minor_{8};
   uint8_t sec_count_{0};
   uint8_t text_len_{0};  // clamped to MAX_TEXT_LEN
+  // The display rotation the cached tiles were drawn at, in quarter turns.
+  uint8_t hash_rotation_{0};
+  uint8_t hex_bg_[2]{};
+  uint8_t hex_fg_[2]{};
   display::ColorBitness bitness_{display::COLOR_BITNESS_565};
   VncPixelFormat pixel_format_{VncPixelFormat::VNC_PIXEL_FORMAT_AUTO};
   VncState state_{VncState::VNC_STATE_IDLE};
@@ -188,6 +186,7 @@ class VncClient : public Component {
   bool need_full_{false};
   bool frame_drawn_{false};
   bool subrects_coloured_{false};
+  bool tile_hidden_{false};
   bool display_parks_{false};
   bool display_busy_{false};
   bool busy_warned_{false};
