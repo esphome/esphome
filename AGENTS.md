@@ -446,6 +446,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           switches = switch.sub_switches(config, parent=hub)
           await switches(CONF_BLUETOOTH, None, apply="set_bluetooth(state)", publish="after")
           ```
+          Restore an owned or standalone switch in `setup()` with `sw->restore_state()`, or
+          `restore_state(default)` to still drive a state when the restore mode is disabled.
 
         - **Other codegen helpers:** `uart.new_uart_component(config, *ctor_args)` (and `i2c.new_i2c_component`,
           `spi.new_spi_component`, `modbus.new_modbus_client_component`, `ble_client.new_ble_node_component`)
