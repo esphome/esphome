@@ -15,6 +15,7 @@
 extern "C" {
 #include <esp_hosted.h>
 }
+#include <eh_host_bt.h>
 #include <esp_hosted_bt_host_stack.h>
 #endif
 #include <esp_bt_device.h>
@@ -240,15 +241,26 @@ bool ESP32BLE::ble_setup_() {
   }
   ESP_LOGD(TAG, "Co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32, fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
 
-  esp_hosted_bt_host_stack_cfg_t bt_cfg{};
-  bt_cfg.stack = ESP_HOSTED_BT_HOST_STACK_BLUEDROID;
-  bt_cfg.bring_up_controller = true;
-  bt_cfg.controller_ready_timeout_ms = EH_BT_CTRL_DEFAULT_READY_TIMEOUT_MS;
-  if (esp_hosted_bt_host_stack_setup(&bt_cfg) != ESP_OK) {
+  // Not the library's bring-up: its retry loop can block for minutes on a silent co-processor
+  err = eh_host_bt_controller_init();
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG,
-             "BT controller bring-up failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
+             "BT controller init failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
              " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
              fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
+    return false;
+  }
+  err = eh_host_bt_controller_enable();
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+    ESP_LOGE(TAG, "BT controller enable failed: %s; BLE disabled", esp_err_to_name(err));
+    return false;
+  }
+
+  esp_hosted_bt_host_stack_cfg_t bt_cfg{};
+  bt_cfg.stack = ESP_HOSTED_BT_HOST_STACK_BLUEDROID;
+  bt_cfg.bring_up_controller = false;
+  if (esp_hosted_bt_host_stack_setup(&bt_cfg) != ESP_OK) {
+    ESP_LOGE(TAG, "BT host stack setup failed; BLE disabled");
     return false;
   }
 #endif
