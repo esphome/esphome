@@ -1,4 +1,5 @@
 #include "cs5460a.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::cs5460a {
@@ -304,7 +305,7 @@ bool CS5460AComponent::check_status_() {
       voltage_sensor_->publish_state(raw_voltage * voltage_multiplier_);
 
     if (power_sensor_ != nullptr && raw_energy != prev_raw_energy_) {
-      int32_t raw = (int32_t) (raw_energy << 8) >> 8; /* Sign-extend */
+      int32_t raw = sign_extend<24>(raw_energy);
       power_sensor_->publish_state(raw * power_multiplier_);
       prev_raw_energy_ = raw_energy;
     }

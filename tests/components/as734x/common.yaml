@@ -42,6 +42,16 @@ sensor:
         name: AS7341 Clear basic
     saturation_level:
       name: AS7341 Saturation
+    illuminance:
+      name: AS7341 Illuminance
+    irradiance_photopic:
+      name: AS7341 Photopic irradiance
+    irradiance_par:
+      name: AS7341 PAR
+    ppfd:
+      name: AS7341 PPFD
+    color_temperature:
+      name: AS7341 Colour temperature
   - platform: as734x
     as734x_id: as7343_hub
     counts:
@@ -58,6 +68,10 @@ sensor:
         name: AS7343 FY basic
     saturation_level:
       name: AS7343 Saturation
+    illuminance:
+      name: AS7343 Illuminance
+    color_temperature:
+      name: AS7343 Colour temperature
   - platform: as734x
     as734x_id: tcs3448_hub
     counts:
@@ -65,3 +79,9 @@ sensor:
         name: TCS3448 F1
       fy:
         name: TCS3448 FY
+
+text_sensor:
+  - platform: as734x
+    as734x_id: as7343_hub
+    rgb_hex:
+      name: AS7343 RGB

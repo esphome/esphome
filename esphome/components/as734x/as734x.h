@@ -7,6 +7,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_AS734X_RGB
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome::as734x {
 
@@ -47,6 +50,24 @@ static constexpr uint16_t VISIBLE_MAX_NM = 700;
 static constexpr uint16_t WIDEBAND_NM = 0;
 static constexpr uint16_t ABSENT_NM = 0xFFFF;  // band this chip does not have
 
+// Luminous efficacy at 555 nm, for turning photopic irradiance into lux.
+static constexpr float LUMENS_PER_WATT = 683.002f;
+
+// How much one basic count of a band contributes to each integrated quantity. The factors come
+// from the manufacturer's golden-device calibration, convolved for a reconstructed spectrum.
+struct ChannelContribution {
+  float irradiance_photopic;  // weighted by the CIE 1931 V(lambda) curve
+  float irradiance_par;       // 400-700 nm only
+  float ppfd;                 // 400-700 nm only, scaled by 1e3 before publishing
+};
+
+// CIE 1931 tristimulus contribution of one basic count of a band.
+struct ChannelTristimulus {
+  float x;
+  float y;
+  float z;
+};
+
 struct RegValue {
   uint8_t reg;
   uint8_t value;
@@ -55,11 +76,13 @@ struct RegValue {
 /// Per-chip constants, stored in flash. The pointed-to tables are in flash too.
 struct ChipInfo {
   const char *name;
-  const RegValue *init;          // written in order; the bank is selected per register address
-  const uint8_t *smux;           // AS7341: SMUX RAM image per step; AS7343: the three chain images
-  const uint8_t *readout;        // per step, the ADC slot of each band (0xFF: not read in this step)
-  const uint16_t *wavelengths;   // per band, WIDEBAND_NM for clear and ABSENT_NM for a missing band
-  const float *gain_correction;  // GAIN_COUNT entries, or GAIN_COUNT * NUM_BANDS when per band
+  const RegValue *init;                      // written in order; the bank is selected per register address
+  const uint8_t *smux;                       // AS7341: SMUX RAM image per step; AS7343: the three chain images
+  const uint8_t *readout;                    // per step, the ADC slot of each band (0xFF: not read in this step)
+  const uint16_t *wavelengths;               // per band, WIDEBAND_NM for clear and ABSENT_NM for a missing band
+  const float *gain_correction;              // GAIN_COUNT entries, or GAIN_COUNT * NUM_BANDS when per band
+  const ChannelContribution *contributions;  // per band
+  const ChannelTristimulus *tristimulus;     // per band
   uint8_t init_count;
   uint8_t astep_reg;
   uint8_t cfg0_reg;
@@ -117,6 +140,15 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void set_basic_counts_sensor(sensor::Sensor *sensor, uint8_t band) { this->basic_counts_sensors_[band] = sensor; }
 
   SUB_SENSOR(saturation_level)
+  SUB_SENSOR(illuminance)
+  SUB_SENSOR(irradiance_photopic)
+  SUB_SENSOR(irradiance_par)
+  SUB_SENSOR(ppfd)
+  SUB_SENSOR(color_temperature)
+
+#ifdef USE_AS734X_RGB
+  void set_rgb_hex_sensor(text_sensor::TextSensor *sensor) { this->rgb_hex_sensor_ = sensor; }
+#endif
 
  protected:
   bool select_bank_(uint8_t reg);
@@ -126,6 +158,8 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   void read_step_();
   void abort_measurement_(const LogString *reason);
   void calculate_basic_counts_();
+  void publish_light_metrics_();
+  void publish_color_();
   void publish_measurement_();
   void publish_basic_counts_();
   float normalization_divisor_() const;
@@ -157,6 +191,9 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t atime_{0};
   uint8_t step_{0};
   bool bank_low_{true};  // unknown until setup() writes CFG0
+#ifdef USE_AS734X_RGB
+  text_sensor::TextSensor *rgb_hex_sensor_{nullptr};
+#endif
 };
 
 }  // namespace esphome::as734x

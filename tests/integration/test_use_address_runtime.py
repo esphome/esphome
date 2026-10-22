@@ -12,7 +12,9 @@ import asyncio
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 # Host platform default MAC: 98:35:69:ab:f6:79 -> suffix "abf679"
 MAC_SUFFIX = "abf679"
@@ -35,14 +37,11 @@ async def test_use_address_runtime(
         run_compiled(yaml_config, line_callback=check_output),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "use-address-runtime"
+        await assert_device_name(client, "use-address-runtime")
 
-        try:
-            await asyncio.wait_for(address_seen.wait(), timeout=10.0)
-        except TimeoutError:
-            pytest.fail("Did not log 'Address: use-address-runtime.local:'")
+        await wait_or_fail(
+            address_seen, 10.0, "Did not log 'Address: use-address-runtime.local:'"
+        )
 
 
 @pytest.mark.asyncio
@@ -63,11 +62,6 @@ async def test_use_address_runtime_mac_suffix(
         run_compiled(yaml_config, line_callback=check_output),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == f"use-address-mac-{MAC_SUFFIX}"
+        await assert_device_name(client, f"use-address-mac-{MAC_SUFFIX}")
 
-        try:
-            await asyncio.wait_for(address_seen.wait(), timeout=10.0)
-        except TimeoutError:
-            pytest.fail(f"Did not log '{expected}'")
+        await wait_or_fail(address_seen, 10.0, f"Did not log '{expected}'")

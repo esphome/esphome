@@ -24,7 +24,12 @@ from aioesphomeapi import (
 import pytest
 
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, require_entity, wait_for_state
+from .state_utils import (
+    InitialStateHelper,
+    require_entity,
+    require_only_entity,
+    wait_for_state,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "tmpl-clim-publish-all"
@@ -58,24 +63,19 @@ async def test_template_climate_publish_all_fields(
 
         entities, _ = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
+        require_only_entity(entities, ClimateInfo)
 
         publish_button = require_entity(entities, "publish_all", ButtonInfo)
 
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         client.button_command(publish_button.key)
-        try:
-            state = await wait_for_state(
-                client, lambda s: isinstance(s, aioesphomeapi.ClimateState)
-            )
-        except TimeoutError:
-            pytest.fail("Timeout waiting for the published climate state")
+        state = await wait_for_state(
+            client,
+            lambda s: isinstance(s, aioesphomeapi.ClimateState),
+            msg="Timeout waiting for the published climate state",
+        )
 
         assert state.current_temperature == pytest.approx(20.0, abs=0.1)
         assert state.current_humidity == pytest.approx(60.0, abs=0.1)

@@ -5,6 +5,17 @@ esphome:
           condition:
             api.connected:
               state_subscription_only: true
+      - if:
+          condition:
+            api.connected:
+          then:
+            - logger.log: "API client connected"
+      - if:
+          condition:
+            api.connected:
+              state_subscription_only: !lambda "return true;"
+          then:
+            - logger.log: "API client subscribed to states"
       - homeassistant.event:
           event: esphome.button_pressed
           data:
@@ -67,6 +78,7 @@ api:
           type: string
           description: Name to greet
           example: World
+          default: World
       then:
         - logger.log:
             format: Hello World %s!
@@ -165,7 +177,7 @@ api:
               message: "{{ room }} is at {{ level }}"
             variables:
               room: !lambda 'return room.c_str();'
-              level: !lambda 'static char buf[12]; snprintf(buf, sizeof(buf), "%d", level); return buf;'
+              level: !lambda 'static char buf[12]; snprintf(buf, sizeof(buf), "%d", (int) level); return buf;'
         - homeassistant.action:
             action: notify.html5
             data:

@@ -439,8 +439,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
     ptr = dst;
   }
   for (auto *display : this->displays_) {
-    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, display::COLOR_ORDER_RGB, LV_BITNESS,
-                            this->big_endian_);
+    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, LV_BITNESS, this->big_endian_);
   }
 }
 
@@ -680,7 +679,9 @@ void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
 
 #ifdef USE_LVGL_KEYBOARD
 static const char *const KB_SPECIAL_KEYS[] = {
-    "abc", "ABC", "1#",
+    "abc",
+    "ABC",
+    "1#",
     // maybe add other special keys here
 };
 
