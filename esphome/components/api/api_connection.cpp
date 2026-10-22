@@ -490,8 +490,7 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
 
   // Set common EntityBase properties
 #ifdef USE_ENTITY_ICON
-  char icon_buf[MAX_ICON_LENGTH];
-  msg.icon = StringRef(entity->get_icon_to(icon_buf));
+  msg.icon = entity->get_icon_progmem();
 #endif
   msg.disabled_by_default = entity->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
@@ -502,12 +501,11 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                      StringRef &device_class_field,
+                                                                      ProgmemStringRef &device_class_field,
                                                                       CalculateSizeFn size_fn,
                                                                       MessageEncodeFn encode_fn, APIConnection *conn,
                                                                       uint32_t remaining_size) {
-  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-  device_class_field = StringRef(entity->get_device_class_to(dc_buf));
+  device_class_field = entity->get_device_class_progmem();
   return fill_and_encode_entity_info(entity, msg, size_fn, encode_fn, conn, remaining_size);
 }
 
