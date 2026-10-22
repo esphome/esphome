@@ -24,22 +24,13 @@ m5_unit_bldc_ns = cg.esphome_ns.namespace("m5_unit_bldc")
 M5UnitBldc = m5_unit_bldc_ns.class_("M5UnitBldc", i2c.I2CDevice, cg.PollingComponent)
 
 ControlMode = m5_unit_bldc_ns.enum("ControlMode", is_class=True)
-CONTROL_MODES = {
-    "open_loop": ControlMode.CONTROL_MODE_OPEN_LOOP,
-    "closed_loop": ControlMode.CONTROL_MODE_CLOSED_LOOP,
-}
+CONTROL_MODES = ControlMode.options("open_loop", "closed_loop", prefix="CONTROL_MODE_")
 
 Direction = m5_unit_bldc_ns.enum("Direction", is_class=True)
-DIRECTIONS = {
-    "forward": Direction.DIRECTION_FORWARD,
-    "backward": Direction.DIRECTION_BACKWARD,
-}
+DIRECTIONS = Direction.options("forward", "backward", prefix="DIRECTION_")
 
 MotorModel = m5_unit_bldc_ns.enum("MotorModel", is_class=True)
-MOTOR_MODELS = {
-    "low_speed": MotorModel.MOTOR_MODEL_LOW_SPEED,
-    "high_speed": MotorModel.MOTOR_MODEL_HIGH_SPEED,
-}
+MOTOR_MODELS = MotorModel.options("low_speed", "high_speed", prefix="MOTOR_MODEL_")
 
 PID_SCHEMA = cv.Schema(
     {
