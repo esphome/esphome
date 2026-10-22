@@ -2213,7 +2213,9 @@ def idf_version() -> cv.Version:
     return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
 
 
-def require_idf_version(minimum: cv.Version, feature: str = "This feature"):
+def require_idf_version(
+    minimum: cv.Version, feature: str = "This feature"
+) -> Callable[[Any], Any]:
     """Validator for an option that needs the underlying ESP-IDF at ``minimum`` or newer."""
 
     def validator(value: Any) -> Any:
