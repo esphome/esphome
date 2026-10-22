@@ -148,7 +148,6 @@ def _validate_psram_dma(value: Any) -> bool:
         return value
     return cv.All(
         cv.only_on_esp32,
-        cv.only_with_framework("esp-idf"),
         only_on_variant(
             supported=[
                 VARIANT_ESP32C5,
@@ -159,7 +158,10 @@ def _validate_psram_dma(value: Any) -> bool:
             ],
             msg_prefix="PSRAM DMA",
         ),
-        cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
+        # SPI_TRANS_DMA_USE_PSRAM; Arduino 3.3.7 is the first release on ESP-IDF 5.5.3
+        cv.require_framework_version(
+            esp_idf=cv.Version(5, 5, 3), esp32_arduino=cv.Version(3, 3, 7)
+        ),
         cv.requires_component(PSRAM_DOMAIN),
     )(value)
 

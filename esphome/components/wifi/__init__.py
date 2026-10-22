@@ -65,7 +65,7 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_USERNAME,
     PLACEHOLDER_WIFI_SSID,
-    Framework,
+    Framework as Framework,
     Platform,
     PlatformFramework,
 )
@@ -235,6 +235,7 @@ def _validate_dns_servers(value: list) -> list:
     if len(value) > 1:
         cv.require_framework_version(
             esp_idf=cv.Version(6, 0, 0),
+            esp32_arduino=cv.Version(4, 0, 0, "alpha1"),
             extra_message="The access point offers a second DNS server from ESP-IDF 6.0",
         )(value)
     return value
@@ -645,7 +646,6 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     value = LEASE_CACHE_SCHEMA(value)
     if value[CONF_ENABLED]:
         cv.only_on_esp32(value)
-        cv.only_with_framework(Framework.ESP_IDF)(value)
         if CONF_STORAGE not in value:
             if not preferences.rtc_supported():
                 raise cv.Invalid(

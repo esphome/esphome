@@ -74,17 +74,33 @@ def test_psram_dma_accepts_esp32s31(
     assert config[CONF_PSRAM_DMA] is True
 
 
-def test_psram_dma_rejects_arduino(
+def test_psram_dma_accepts_arduino_on_idf_5_5_3(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Arduino 3.3.7 is the first release built on ESP-IDF 5.5.3."""
+    _stage(
+        set_core_config,
+        PlatformFramework.ESP32_ARDUINO,
+        VARIANT_ESP32S3,
+        cv.Version(3, 3, 7),
+    )
+
+    config = _schema()({CONF_PSRAM_DMA: True})
+
+    assert config[CONF_PSRAM_DMA] is True
+
+
+def test_psram_dma_rejects_older_arduino(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     _stage(
         set_core_config,
         PlatformFramework.ESP32_ARDUINO,
         VARIANT_ESP32S3,
-        cv.Version(5, 5, 3),
+        cv.Version(3, 3, 6),
     )
 
-    with pytest.raises(cv.Invalid, match="only available with framework"):
+    with pytest.raises(cv.Invalid, match="requires at least framework version 3.3.7"):
         _schema()({CONF_PSRAM_DMA: True})
 
 
