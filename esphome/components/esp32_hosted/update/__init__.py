@@ -2,6 +2,7 @@ import hashlib
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import time
 from typing import Any
 
 import voluptuous as vol
@@ -83,12 +84,25 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+# The other build's rename finishes within milliseconds; a few short checks cover it
+CACHE_RACE_RETRIES = 5
+CACHE_RACE_RETRY_S = 0.05
+
+
 def _check_firmware_hash(data: bytes, expected: str, source: str | Path) -> None:
     calculated = hashlib.sha256(data).hexdigest()
     if calculated != expected:
         raise cv.Invalid(
             f"SHA256 mismatch for {source}: expected {expected}, got {calculated}"
         )
+
+
+def _cached_image_digest(target: Path) -> str | None:
+    """The SHA256 of the cached image, or None while it is missing or another build still writes it."""
+    try:
+        return hashlib.sha256(target.read_bytes()).hexdigest()
+    except OSError:
+        return None
 
 
 def _firmware_path(config: ConfigType) -> Path:
@@ -109,10 +123,9 @@ def _validate_firmware(config: ConfigType) -> None:
         _check_firmware_hash(target.read_bytes(), expected, target)
         return
     # A pinned digest needs no remote freshness check.
-    if target.is_file():
-        actual = hashlib.sha256(target.read_bytes()).hexdigest()
-        if actual == expected:
-            return
+    if (actual := _cached_image_digest(target)) == expected:
+        return
+    if actual is not None:
         # Named after its digest, so a mismatch means the file was damaged or edited
         _LOGGER.warning(
             "Cached firmware %s hashes to %s, downloading it again", target, actual
@@ -128,11 +141,10 @@ def _validate_firmware(config: ConfigType) -> None:
         except OSError as err:
             # Windows refuses to replace a file another build is putting there at the same moment; the
             # file is named after its digest, so a verified copy left by that build is the same image
-            if (
-                target.is_file()
-                and hashlib.sha256(target.read_bytes()).hexdigest() == expected
-            ):
-                return
+            for _ in range(CACHE_RACE_RETRIES):
+                if _cached_image_digest(target) == expected:
+                    return
+                time.sleep(CACHE_RACE_RETRY_S)
             raise cv.Invalid(f"Could not cache the firmware from {url}: {err}") from err
 
 
