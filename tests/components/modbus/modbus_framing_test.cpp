@@ -12,7 +12,7 @@ namespace {
 // Exposes the timing values setup() derives from the UART framing.
 class FramingProbeHub : public ModbusClientHub {
  public:
-  uint32_t bits_per_char() const { return this->bits_per_char_; }
+  uint32_t bits_per_char() const { return this->parent_->bits_per_char(); }
   uint32_t frame_delay_us() const { return this->frame_delay_us_; }
   uint32_t long_rx_buffer_delay_us() const { return this->long_rx_buffer_delay_us_; }
   uint32_t rx_detect_latency_us() const { return this->rx_detect_latency_us_; }

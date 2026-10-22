@@ -34,10 +34,8 @@ void Modbus::setup() {
     this->flow_control_pin_->setup();
   }
 
-  // RTU specifies 11 bits per character but 8N1 is 10, so take it from the UART's framing.
-  this->bits_per_char_ = this->parent_->bits_per_char();
-
-  // 3.5 characters on the wire (Standard modbus frame delay)
+  // 3.5 characters on the wire (Standard modbus frame delay). RTU specifies 11 bits per character but
+  // 8N1 is 10, so the UART's framing sets the length.
   this->frame_delay_us_ =
       std::max(MODBUS_MIN_FRAME_DELAY_US, this->parent_->wire_time_us(MODBUS_FRAME_DELAY_HALF_CHARS) / 2 + 1);
 
@@ -857,7 +855,7 @@ void ModbusClientHub::dump_config() {
                 "  Bits Per Character: %" PRIu8 "\n"
                 "  Rx Detect Latency: %" PRIu32 " us",
                 this->send_wait_time_us_ / US_PER_MS, this->turnaround_delay_us_ / US_PER_MS, this->frame_delay_us_,
-                this->long_rx_buffer_delay_us_, this->bits_per_char_, this->rx_detect_latency_us_);
+                this->long_rx_buffer_delay_us_, this->parent_->bits_per_char(), this->rx_detect_latency_us_);
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 void ModbusServerHub::dump_config() {
@@ -867,7 +865,7 @@ void ModbusServerHub::dump_config() {
                 "  Long Rx Buffer Delay: %" PRIu32 " us\n"
                 "  Bits Per Character: %" PRIu8 "\n"
                 "  Rx Detect Latency: %" PRIu32 " us",
-                this->frame_delay_us_, this->long_rx_buffer_delay_us_, this->bits_per_char_,
+                this->frame_delay_us_, this->long_rx_buffer_delay_us_, this->parent_->bits_per_char(),
                 this->rx_detect_latency_us_);
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
