@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.waveshare_3p97_g";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.waveshare_3p97_g");
 
 enum class Waveshare3P97GColor : uint8_t {
   BLACK = 0b00,
