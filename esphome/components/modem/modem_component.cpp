@@ -60,6 +60,9 @@ network::IPAddresses ModemComponent::get_ip_addresses() {
   esp_netif_ip_info_t ip;
   if (this->is_connected() && esp_netif_get_ip_info(this->ppp_netif_, &ip) == ESP_OK) {
     addresses[0] = network::IPAddress(&ip.ip);
+#if USE_NETWORK_IPV6
+    network::fill_ip6_addresses(this->ppp_netif_, addresses);
+#endif /* USE_NETWORK_IPV6 */
   }
   return addresses;
 }
