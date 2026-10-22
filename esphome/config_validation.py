@@ -570,8 +570,7 @@ class SensitiveValidator:
     def __call__(self, value: typing.Any) -> typing.Any:
         validated = self.inner(value)
         # Already-tagged values are returned as-is so nested cv.sensitive is
-        # idempotent; bool is an int subclass and must stay bool. Other types
-        # (e.g. lambdas) pass through unmasked.
+        # idempotent; bool is an int subclass and must stay bool.
         if isinstance(validated, (Sensitive, bool)):
             return validated
         if isinstance(validated, str):
@@ -580,6 +579,9 @@ class SensitiveValidator:
             return (SensitiveHexInt if isinstance(validated, HexInt) else SensitiveInt)(
                 validated
             )
+        if isinstance(validated, Lambda):
+            # Marked, not masked: the dumper keeps the lambda representer.
+            return add_class_to_obj(validated, Sensitive)
         return validated
 
     def __repr__(self) -> str:

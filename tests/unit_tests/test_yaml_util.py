@@ -1366,6 +1366,7 @@ class _StubInclude:
         # stubs never glob real files during candidate expansion.
         self.file = file
         self.parent_file = parent_file or Path("/nonexistent/parent.yaml")
+        self.should_load = lambda: True
         self._unresolved = unresolved
         self._load_result = load_result if load_result is not None else {}
         self._raise = raise_on_load
@@ -1850,6 +1851,20 @@ def test_parse_yaml_can_keep_a_document_include(tmp_path: Path) -> None:
     assert loaded.file == "base.yaml"
     assert loaded.vars == {"name": "k"}
     assert yaml_util.load_yaml(entry) == {"esphome": {"name": "${name}"}}
+
+
+@pytest.mark.parametrize("condition", ["false", "true"])
+def test_discover_user_yaml_files_static_include_condition(
+    tmp_path: Path, condition: str
+) -> None:
+    """A missing file behind `condition: false` is not an error; behind `true` it is."""
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        f"packages:\n  opt: !include {{file: missing.yaml, condition: {condition}}}\n",
+    )
+    discovered = discover_user_yaml_files(entry)
+    assert bool(discovered.load_errors) == (condition == "true")
 
 
 def test_discover_user_yaml_files_skips_missing_secrets_probe(

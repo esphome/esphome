@@ -28,8 +28,9 @@ from esphome.components.store_yaml import (
     unpack_envelope,
 )
 import esphome.config_validation as cv
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, EsphomeError, Lambda
 import esphome.final_validate as fv
+from esphome.helpers import add_class_to_obj
 from esphome.yaml_util import (
     DiscoveredYamlFiles,
     SensitiveHexInt,
@@ -363,6 +364,28 @@ def test_redacted_inline_value_becomes_secret_ref(
         ),
         pytest.param(
             {
+                "ld.yaml": "ld2410:\n  bluetooth_password: !lambda 'return \"hunter2\";'\n"
+            },
+            {
+                "ld2410": {
+                    "bluetooth_password": add_class_to_obj(
+                        Lambda('return "hunter2";'), yaml_util.Sensitive
+                    )
+                }
+            },
+            "set by a lambda",
+            id="credential_from_a_lambda",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "substitutions:\n  a: ${b}\n  b: ${a}\nwifi:\n  password: ${a}\n"
+            },
+            WIFI_PW,
+            "cannot be confirmed",
+            id="alias_cycle",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": "packages:\n  base:\n    api:\n      encryption:\n        key: old_key\n"
                 "api:\n  encryption:\n    key: !secret api_key\n"
             },
@@ -693,6 +716,30 @@ def test_redacted_fails_closed(
             },
             id="zero_credential_swapped_only_at_its_key",
         ),
+        pytest.param(
+            {
+                "fp.yaml": "substitutions:\n  fp_password: 12345678\n"
+                "fingerprint_grow:\n  - password: 12345678\n  - password: ${fp_password}\n"
+                "sensor:\n  accuracy_decimals: 0\n"
+            },
+            {"fingerprint_grow": [{"password": SensitiveInt(12345678)}] * 2},
+            {
+                "fp.yaml": "fp_password: !secret 'fingerprint_grow_password'\n"
+                "fingerprint_grow:\n  - password: !secret 'fingerprint_grow_password'\n"
+                "  - password: ${fp_password}\nsensor:\n  accuracy_decimals: 0\n"
+            },
+            id="int_credential_reused_through_a_substitution",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "substitutions:\n  base_pw: !secret wifi_password\n  pw: ${base_pw}\n"
+                "wifi:\n  password: ${pw}\n",
+                "secrets.yaml": _WIFI_SECRET,
+            },
+            WIFI_PW,
+            {"entry.yaml": "base_pw: !secret 'wifi_password'"},
+            id="substitution_alias_of_a_secret",
+        ),
     ],
 )
 def test_redacted_hides_credentials(
@@ -854,14 +901,17 @@ def test_remote_package_descriptions() -> None:
         ("https://github.com/org/other", None),
         ("https://user:pw@host/repo", "main"),
         ("https://user:pw@host/private", None),
+        ("https://github.com/org/x", "v1-secret"),
     ):
         data.remote_sources[packages.RemotePackageSource(url, ref)] = None
     yaml_util._SECRET_VALUES["https://user:pw@host/private"] = "pkg_url"
+    yaml_util._SECRET_VALUES["v1-secret"] = "private_ref"
     assert _remote_package_descriptions() == [
         "https://github.com/org/repo@main",
         "https://github.com/org/other",
         "https://***@host/repo@main",
         "!secret pkg_url",
+        "https://github.com/org/x@!secret private_ref",
     ]
 
 

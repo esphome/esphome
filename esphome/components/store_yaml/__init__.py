@@ -153,7 +153,8 @@ def _iter_nodes(
         for item in node:
             yield from _iter_nodes(item, path)
     elif isinstance(node, (Lambda, Extend, Remove)):
-        yield path, node.value, False
+        # A lambda cv.sensitive marked stays whole so the collector can see it.
+        yield path, node if isinstance(node, yaml_util.Sensitive) else node.value, False
     elif isinstance(node, yaml_util.IncludeFile):
         yield path, str(node.file), False
         if isinstance(node.condition, str):
@@ -272,8 +273,22 @@ def _check_sensitive_usage(
     def references_verified(text: str, scope: _Scope) -> bool:
         names = [m.strip("{}") for m in SUBSTITUTION_VARIABLE_PROG.findall(text)]
         return bool(names) and all(
-            name in scope and all(verified(str(value)) for value in scope[name])
+            name in scope and all(value_verified(v, scope, {name}) for v in scope[name])
             for name in names
+        )
+
+    def value_verified(value: object, scope: _Scope, seen: set[str]) -> bool:
+        """A definition is verified itself or is an alias of verified ones."""
+        text = str(value)
+        if verified(text):
+            return True
+        if SUBSTITUTION_VARIABLE_PROG.fullmatch(text) is None:
+            return False
+        name = text.strip("${}")
+        return (
+            name in scope
+            and name not in seen
+            and all(value_verified(v, scope, seen | {name}) for v in scope[name])
         )
 
     def credential_path(path: tuple[str, ...]) -> bool:
@@ -390,6 +405,11 @@ def _collect_sensitive_values() -> tuple[
         if is_key or not isinstance(node, yaml_util.Sensitive):
             continue
         paths.add(path)
+        if isinstance(node, Lambda):
+            raise EsphomeError(
+                f"store_yaml: the credential at {'.'.join(path)} is set by a lambda, "
+                f"which cannot be redacted. {_FIX}"
+            )
         if isinstance(node, str) and not node:
             continue
         # Decimal for ints, to match the raw tree's parsed scalars, not HexInt's hex.
@@ -445,13 +465,14 @@ def _uncaptured_note(
 
 def _remote_package_descriptions() -> list[str]:
     """Each remote package source as its secret name or masked URL, plus ref."""
+
+    def describe(text: str) -> str:
+        if (name := yaml_util.is_secret(text)) is not None:
+            return f"!secret {name}"
+        return URL_USERINFO_RE.sub("://***@", text)
+
     return [
-        (
-            f"!secret {name}"
-            if (name := yaml_util.is_secret(source.url)) is not None
-            else URL_USERINFO_RE.sub("://***@", source.url)
-        )
-        + (f"@{source.ref}" if source.ref else "")
+        describe(source.url) + (f"@{describe(source.ref)}" if source.ref else "")
         for source in packages.get_remote_package_sources()
     ]
 
@@ -471,7 +492,13 @@ def _generate_redacted_files(
     includes: dict[str, list[_Include]] = {}
     removed: dict[str, set[tuple[str, ...]]] = {}
 
-    def prepare(node: object, source: Path, rel: str, path: tuple[str, ...]) -> object:
+    def prepare(
+        node: object,
+        source: Path,
+        rel: str,
+        path: tuple[str, ...],
+        in_vars: bool = False,
+    ) -> object:
         """Fold container secrets to their registered text (a plain str would skip
         the secret check), swap integer credentials at their own keys, point each
         `!include` at its target's captured name, collect includes and removals."""
@@ -479,15 +506,21 @@ def _generate_redacted_files(
             return yaml_util.make_data_base(str(node))
         if isinstance(node, dict):
             for key, value in node.items():
-                node[key] = prepare(value, source, rel, (*path, str(key)))
+                node[key] = prepare(value, source, rel, (*path, str(key)), in_vars)
         elif isinstance(node, list):
             for i, item in enumerate(node):
-                node[i] = prepare(item, source, rel, path)
+                node[i] = prepare(item, source, rel, path, in_vars)
         elif isinstance(node, Remove):
             removed.setdefault(rel, set()).add(path)
         elif isinstance(node, int) and not isinstance(node, bool):
+            # At its own keys, or as a variable definition a credential may reference.
             info = sensitive.get(str(node))
-            if info and info.is_int and info.sensitive_keys.intersection(path[-1:]):
+            at_key = info is not None and info.sensitive_keys.intersection(path[-1:])
+            definition = in_vars or path[:1] in (
+                (CONF_SUBSTITUTIONS,),
+                (CONF_DEFAULTS,),
+            )
+            if info and info.is_int and (at_key or definition):
                 return yaml_util.make_data_base(_INT_MARK + info.secret_name)
         elif isinstance(node, yaml_util.IncludeFile):
             vars = _str_keys(node.vars)
@@ -496,7 +529,7 @@ def _generate_redacted_files(
                 vars = dict.fromkeys(vars, node.vars)
             includes.setdefault(rel, []).append((node, vars, path))
             if node.vars:
-                node.vars = prepare(node.vars, source, rel, path)
+                node.vars = prepare(node.vars, source, rel, path, in_vars=True)
             if not node.has_unresolved_file():
                 # Where the file lands, through directory symlinks and `!include_dir_*` moves.
                 origin = yaml_util.named_path(node.parent_file)

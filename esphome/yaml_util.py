@@ -580,6 +580,11 @@ def _force_load_include_files(
             )
             return
         try:
+            if not obj.should_load():
+                return
+        except Invalid:
+            pass  # An unresolved or malformed condition: load it anyway.
+        try:
             loaded = obj.load()
         except (EsphomeError, Invalid) as err:
             (_LOGGER.warning if warn_on_load_error else _LOGGER.debug)(
