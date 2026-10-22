@@ -3,6 +3,7 @@
 #ifdef USE_RUNTIME_IMAGE_BMP
 
 #include "esphome/components/display/display.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -142,6 +143,12 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     this->current_index_ = this->data_offset_;
     index = this->data_offset_;
   }
+  // A call that has run for DECODE_TIME_LIMIT_MS stops, and the caller passes the rest again later
+  const uint32_t start = millis();
+  uint32_t steps = 0;
+  auto out_of_time = [start, &steps]() {
+    return ++steps % DECODE_TIME_CHECK_STEPS == 0 && millis() - start >= DECODE_TIME_LIMIT_MS;
+  };
   switch (this->bits_per_pixel_) {
     case 1: {
       size_t width = static_cast<size_t>(this->width_);
@@ -152,7 +159,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         uint8_t pixels_in_byte = std::min<size_t>(remaining_in_row, 8);
         bool end_of_row = remaining_in_row <= 8;
         size_t needed = 1 + (end_of_row ? this->padding_bytes_ : 0);
-        if (index + needed > size) {
+        if (index + needed > size || out_of_time()) {
           this->decoded_bytes_ += index;
           return index;
         }
@@ -179,7 +186,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         size_t x = this->paint_index_ % width;
         size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t needed = 1 + ((x == last_col) ? this->padding_bytes_ : 0);
-        if (index + needed > size) {
+        if (index + needed > size || out_of_time()) {
           this->decoded_bytes_ += index;
           return index;
         }
@@ -212,7 +219,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         size_t x = this->paint_index_ % width;
         size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t needed = 3 + ((x == last_col) ? this->padding_bytes_ : 0);
-        if (index + needed > size) {
+        if (index + needed > size || out_of_time()) {
           this->decoded_bytes_ += index;
           return index;
         }

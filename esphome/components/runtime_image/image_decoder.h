@@ -38,6 +38,11 @@ constexpr const char *decode_error_to_string(int error) {
   }
 }
 
+// The longest one decode() call works before it returns, leaving the rest of the data for the next call
+static constexpr uint32_t DECODE_TIME_LIMIT_MS = 15;
+// Pixel loops read the clock once per this many steps
+static constexpr uint32_t DECODE_TIME_CHECK_STEPS = 64;
+
 class RuntimeImage;
 
 /// Input that a decoder reads itself as it goes, so the whole image never has to be in memory at once
