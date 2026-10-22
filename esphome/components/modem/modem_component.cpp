@@ -186,7 +186,9 @@ void ModemComponent::loop() {
   if ((pending & PENDING_SAVE_BAUD) && !this->pref_.save(&this->restored_baud_)) {
     ESP_LOGW(TAG, "Failed to save the baud rate");
   }
-  if ((pending & PENDING_SAVE_PIN) && !this->pin_pref_.save(&this->rejected_pin_hash_)) {
+  // Written through at once: a power cycle before the periodic flush would send the PIN again
+  if ((pending & PENDING_SAVE_PIN) &&
+      !(this->pin_pref_.save(&this->rejected_pin_hash_) && global_preferences->sync())) {
     ESP_LOGW(TAG, "Failed to save the rejected PIN");
   }
 #ifdef USE_MODEM_URC
@@ -272,8 +274,11 @@ void ModemComponent::setup() {
   dte_config.uart_config.tx_buffer_size = this->tx_buffer_size_;
   dte_config.uart_config.event_queue_size = UART_EVENT_QUEUE_SIZE;
   dte_config.uart_config.port_num = static_cast<uart_port_t>(this->uart_port_);
-  if (this->baud_rate_ != 0) {
-    dte_config.uart_config.baud_rate = this->baud_rate_;
+  // The rate the modem answered at last time comes first: after a baud_rate change the modem may still sit in
+  // CMUX at the old rate, which only that rate can detect; the configured rate is applied once synced
+  const int start_baud = this->restored_baud_ != 0 ? this->restored_baud_ : this->baud_rate_;
+  if (start_baud != 0) {
+    dte_config.uart_config.baud_rate = start_baud;
   }
   if (this->rts_pin_ != nullptr) {
     dte_config.uart_config.rts_io_num = this->rts_pin_->get_pin();
@@ -414,6 +419,13 @@ ModemComponentState ModemComponent::compute_next_state_() {
     case ModemComponentState::MODEM_ENABLING:
       return this->handle_state_enabling_();
     case ModemComponentState::MODEM_SYNCED:
+      // on_sync runs on the main loop and may queue an AT command or disable the modem; it gets a bounded head
+      // start, and a queued command goes out at the top of the next pass before anything attaches
+      if ((this->state_head_.load(std::memory_order_acquire) != this->state_tail_.load(std::memory_order_acquire) ||
+           this->at_pending_.load(std::memory_order_acquire)) &&
+          millis() - this->synced_at_ < SYNC_ACK_TIMEOUT_MS) {
+        return this->retry_(ModemComponentState::MODEM_SYNCED, SYNC_ACK_POLL_MS);
+      }
       this->clear_warning_(WARN_INIT_AT);
       for (uint8_t i = 0; i != this->init_at_count_; i++) {
         if (!this->at_(this->init_at_commands_[i])) {
@@ -563,6 +575,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     ESP_LOGW(TAG, "Modem refused hardware flow control; UART overruns are possible");
   }
   this->modem_synced_ = true;
+  this->synced_at_ = millis();
   return ModemComponentState::MODEM_SYNCED;
 }
 
@@ -791,9 +804,9 @@ SimResult ModemComponent::prepare_sim_() {
     return SimResult::SIM_RESULT_PIN_REJECTED;
   }
   if (this->pin_sent_) {
+    // The modem never said the PIN was wrong (it timed out or the SIM is slow), so nothing is remembered; this
+    // attempt stops here rather than sending the PIN blind a second time
     ESP_LOGE(TAG, "SIM still locked after sending the PIN; check pin_code");
-    this->rejected_pin_hash_ = pin_hash;
-    this->hand_over_(PENDING_SAVE_PIN);
     return SimResult::SIM_RESULT_PIN_REJECTED;
   }
   this->pin_sent_ = true;
