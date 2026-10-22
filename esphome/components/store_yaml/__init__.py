@@ -18,7 +18,6 @@ from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
 from esphome.const import CONF_API, CONF_KEY, CONF_PACKAGES, CONF_PASSWORD
 from esphome.core import CORE, EsphomeError, Lambda
-from esphome.expression import has_substitution_or_expression
 import esphome.final_validate as fv
 from esphome.git import redact_url_credentials
 from esphome.helpers import ensure_unique_string, zstd_module
@@ -47,7 +46,9 @@ SECRETS_SKELETON_HEADER = (
 # Envelope path of the note recording content that could not be captured.
 UNCAPTURED_NOTE_PATH = "store_yaml_uncaptured.yaml"
 # A URL carrying credentials in its userinfo part.
-_URL_USERINFO_RE = re.compile(r"://[^/@\s]+@")
+_URL_USERINFO_RE = re.compile(r"://([^/@\s]+)@")
+# A plain `${name}` or `$name` substitution reference.
+_SUBSTITUTION_REF_RE = re.compile(r"\$\{?\s*([A-Za-z_]\w*)\s*\}?")
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -208,11 +209,43 @@ def _check_sensitive_usage(
     A value the validated config never saw cannot be known to be redacted, so
     one under a credential path (the same key path as a sensitive value, or a
     git package password, which the packages pass strips before validation) or
-    a URL carrying credentials fails unless it comes from `!secret`.
+    a URL carrying credentials fails unless it comes from `!secret`. A
+    substitution reference there is traced to its definition in the captured
+    files, which must itself be verified.
     """
     sensitive_paths = {
         tuple(info.config_path.split(".")) for info in sensitive.values()
     }
+    substitutions: dict[str, object] = {}
+    for tree in trees.values():
+        if isinstance(tree, dict) and isinstance(
+            subs := tree.get("substitutions"), dict
+        ):
+            substitutions.update(subs)
+
+    def verified(text: str) -> bool:
+        """A value redaction writes as a reference, or that is empty."""
+        return not text or text in sensitive or yaml_util.is_secret(text) is not None
+
+    def references_verified(text: str) -> bool:
+        """Every `${name}` in `text` names a captured, verified substitution."""
+        names = _SUBSTITUTION_REF_RE.findall(text)
+        return bool(names) and all(
+            name in substitutions and verified(str(substitutions[name]))
+            for name in names
+        )
+
+    def credential_verified(text: str) -> bool:
+        # Only a whole-scalar reference can be traced; an expression cannot.
+        return verified(text) or (
+            _SUBSTITUTION_REF_RE.fullmatch(text) is not None
+            and references_verified(text)
+        )
+
+    def url_credentials_verified(userinfo: str) -> bool:
+        literal = _SUBSTITUTION_REF_RE.sub("", userinfo)
+        return literal in ("", ":") and references_verified(userinfo)
+
     key_hits: list[str] = []
     embedded: list[str] = []
     unverified: list[str] = []
@@ -240,19 +273,22 @@ def _check_sensitive_usage(
                 continue
             if is_key or not text or yaml_util.is_secret(text) is not None:
                 continue
-            # A substitution reference is checked at its substituted value
-            if not has_substitution_or_expression(text):
-                if _URL_USERINFO_RE.search(text):
+            if (userinfo := _URL_USERINFO_RE.search(text)) is not None:
+                if not url_credentials_verified(userinfo.group(1)):
                     unverified.append(
                         f"{'.'.join(path)} in {rel} (a URL with credentials)"
                     )
-                    continue
-                if path and (
+                continue
+            if (
+                path
+                and (
                     (path[0] == CONF_PACKAGES and path[-1] == CONF_PASSWORD)
                     or any(sp[-len(path) :] == path for sp in sensitive_paths)
-                ):
-                    unverified.append(f"{'.'.join(path)} in {rel}")
-                    continue
+                )
+                and not credential_verified(text)
+            ):
+                unverified.append(f"{'.'.join(path)} in {rel}")
+                continue
             for value, other in sensitive.items():
                 if other.is_int or value not in text:
                     continue
@@ -371,6 +407,24 @@ def _build_secrets_skeleton(keys: set[str]) -> bytes:
     return (SECRETS_SKELETON_HEADER + (body if keys else "")).encode("utf-8")
 
 
+def _fold_secret_containers(node: object) -> object:
+    """Replace a mapping or list loaded through `!secret` with its registered text.
+
+    The loader registers the whole container's string form as the secret value,
+    so that text is dumped as the `!secret` reference instead of the contents.
+    A plain str would hit PyYAML's own representer, which skips the secret check.
+    """
+    if isinstance(node, (dict, list)) and yaml_util.is_secret(node) is not None:
+        return yaml_util.make_data_base(str(node))
+    if isinstance(node, dict):
+        for key, value in node.items():
+            node[key] = _fold_secret_containers(value)
+    elif isinstance(node, list):
+        for i, item in enumerate(node):
+            node[i] = _fold_secret_containers(item)
+    return node
+
+
 def _rebase_includes(node: object, source: Path) -> object:
     """Point `!include`s that a directory include pulled into `source` back at their files.
 
@@ -408,11 +462,13 @@ def _generate_redacted_files(
 
     # A document that is one `!include` keeps its vars and condition.
     trees = {
-        rel: _rebase_includes(
-            yaml_util.load_yaml(
-                path, clear_secrets=False, resolve_document_include=False
-            ),
-            path.resolve(),
+        rel: _fold_secret_containers(
+            _rebase_includes(
+                yaml_util.load_yaml(
+                    path, clear_secrets=False, resolve_document_include=False
+                ),
+                path.resolve(),
+            )
         )
         for rel, path in entries
         if rel not in secret_rels

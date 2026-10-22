@@ -388,6 +388,93 @@ def test_redacted_overridden_package_password_fails_build(project: Path) -> None
         _gather_redacted(_sources(project, "entry.yaml", "pkg/common.yaml"))
 
 
+@pytest.mark.parametrize(
+    ("entry", "secrets", "ok"),
+    [
+        pytest.param(
+            "substitutions:\n  pkg_password: hunter2\n"
+            "packages:\n  private:\n    url: https://host/repo\n    password: ${pkg_password}\n",
+            "",
+            False,
+            id="literal_substitution",
+        ),
+        pytest.param(
+            "substitutions:\n  pkg_password: !secret pw\n"
+            "packages:\n  private:\n    url: https://host/repo\n    password: ${pkg_password}\n",
+            "pw: hunter2\n",
+            True,
+            id="secret_substitution",
+        ),
+        pytest.param(
+            "packages:\n  private:\n    url: https://host/repo\n    password: ${ pkg_password }x\n",
+            "",
+            False,
+            id="expression",
+        ),
+        pytest.param(
+            "substitutions:\n  git_host: host\n"
+            "packages:\n  - url: https://user:hunter2@${git_host}/repo\n",
+            "",
+            False,
+            id="mixed_url",
+        ),
+        pytest.param(
+            "substitutions:\n  user: !secret user\n  pw: !secret pw\n"
+            "packages:\n  - url: https://${user}:${pw}@host/repo\n",
+            "user: bob\npw: hunter2\n",
+            True,
+            id="secret_url_parts",
+        ),
+        pytest.param(
+            "substitutions:\n  user: bob\n  pw: hunter2\n"
+            "packages:\n  - url: https://${user}:${pw}@host/repo\n",
+            "",
+            False,
+            id="literal_url_parts",
+        ),
+    ],
+)
+def test_redacted_traces_substituted_credentials(
+    project: Path, entry: str, secrets: str, ok: bool
+) -> None:
+    """A substitution under a credential path must itself come from `!secret`."""
+    (project / "entry.yaml").write_text(entry)
+    (project / "secrets.yaml").write_text(secrets)
+    CORE.config = {}
+    sources = _sources(project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",))
+    if not ok:
+        with pytest.raises(EsphomeError, match="cannot confirm"):
+            _gather_redacted(sources)
+        return
+    files = _gather_redacted(sources)
+    assert b"hunter2" not in b"".join(files.values())
+
+
+@pytest.mark.parametrize(
+    ("secret", "needle"),
+    [
+        ("headers:\n  Authorization: Bearer tok\n", b"tok"),
+        ("headers:\n  - Bearer tok\n", b"tok"),
+    ],
+    ids=["mapping", "list"],
+)
+def test_redacted_container_secret_stays_a_reference(
+    project: Path, secret: str, needle: bytes
+) -> None:
+    """A mapping or list loaded through `!secret` is written back as the reference."""
+    (project / "entry.yaml").write_text(
+        "http_request:\n  request_headers: !secret headers\n"
+    )
+    (project / "secrets.yaml").write_text(secret)
+    CORE.config = {}
+    files = _gather_redacted(
+        _sources(project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",))
+    )
+    assert "request_headers: !secret 'headers'" in files["entry.yaml"].decode()
+    assert "headers: ''" in files["secrets.yaml"].decode()
+    assert needle not in b"".join(files.values())
+
+
 def test_redacted_secret_url_round_trips(project: Path) -> None:
     """A package URL loaded through `!secret` is written back as the reference."""
     (project / "entry.yaml").write_text("packages:\n  - url: !secret pkg_url\n")
