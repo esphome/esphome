@@ -267,10 +267,9 @@ def on_state(state: EntityState) -> None:
 client.subscribe_states(on_state)
 
 # Wait for state with timeout
-try:
-    result = await asyncio.wait_for(state_future, timeout=5.0)
-except asyncio.TimeoutError:
-    pytest.fail(f"Expected state not received. Got: {list(states.values())}")
+result = await wait_or_fail(
+    state_future, 5.0, "Expected state not received", states=states
+)
 ```
 
 ##### Service Execution Pattern
@@ -350,6 +349,7 @@ esphome:
     - id: my_device
       name: "Test Device"
       area_id: living_room
+      relation: via
 
 # API services
 api:

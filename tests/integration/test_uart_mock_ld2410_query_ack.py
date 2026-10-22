@@ -20,6 +20,7 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -55,16 +56,12 @@ async def test_uart_mock_ld2410_query_ack(
 ) -> None:
     """Test a data frame, then a query ACK with the footer bytes in its values."""
     loop = asyncio.get_running_loop()
-    ack_errors: list[str] = []
-    waited_for_frame_end = loop.create_future()
+    waiter = LineWaiter()
 
-    def line_callback(line: str) -> None:
-        if "[ld2410" not in line:
-            return
-        if "Invalid " in line:
-            ack_errors.append(line)
-        if "Ack Data incomplete" in line and not waited_for_frame_end.done():
-            waited_for_frame_end.set_result(True)
+    def ack_errors() -> list[str]:
+        return [
+            line for line in waiter.lines if "[ld2410" in line and "Invalid " in line
+        ]
 
     number_states: dict[str, list[float]] = {name: [] for name in EXPECTED}
     sensor_states: dict[str, list[float]] = {name: [] for name in SENSOR_EXPECTED}
@@ -93,7 +90,7 @@ async def test_uart_mock_ld2410_query_ack(
             final_received.set_result(True)
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -145,7 +142,7 @@ async def test_uart_mock_ld2410_query_ack(
         # Each number is published once per ACK: the seed value, then the value under test
         for name, (seed, value) in EXPECTED.items():
             assert number_states[name] == pytest.approx([seed, value]), name
-        assert waited_for_frame_end.done(), (
-            "Expected the parser to wait past the footer bytes in the values"
-        )
-        assert not ack_errors, f"Unexpected ACK errors: {ack_errors}"
+        # The parser waits past the footer bytes in the values; the log line
+        # comes over stdout, which can trail the API states
+        await waiter.wait_for("[ld2410", "Ack Data incomplete", timeout=2.0)
+        assert not ack_errors(), f"Unexpected ACK errors: {ack_errors()}"

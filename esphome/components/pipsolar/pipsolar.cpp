@@ -656,6 +656,8 @@ void Pipsolar::handle_qpiws_(const char *message) {
         this->publish_binary_sensor_(enabled, this->warning_battery_equalization_);
         value_warnings_present |= enabled.value_or(false);
         break;
+      default:
+        break;
     }
   }
 
