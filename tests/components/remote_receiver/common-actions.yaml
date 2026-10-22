@@ -131,8 +131,8 @@ on_pronto:
 on_raw:
   then:
     - logger.log:
-        format: "on_raw: %lu"
-        args: ["(unsigned long) x.front()"]
+        format: "on_raw: %ld"
+        args: ["(long) x.front()"]
 on_rc5:
   then:
     - logger.log:
