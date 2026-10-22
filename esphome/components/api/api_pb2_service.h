@@ -258,7 +258,7 @@ class APIServerConnectionBase {
 #endif
 
 #ifdef USE_STORE_YAML
-  void on_get_yaml_request(){};
+  void on_get_yaml_request() {};
 #endif
 };
 
