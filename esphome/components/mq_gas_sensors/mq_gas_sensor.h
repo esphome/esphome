@@ -57,7 +57,7 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   float sample_voltage_();
   /// True when `voltage` is a measurement rather than a missing signal. The one
   /// place `MIN_VALID_VOLTAGE` is applied, shared by `update()` and calibration.
-  static bool voltage_usable_(float voltage) { return std::isfinite(voltage) && voltage > MIN_VALID_VOLTAGE; }
+  bool voltage_usable_(float voltage) const { return std::isfinite(voltage) && voltage > MIN_VALID_VOLTAGE; }
   /// RS in kOhm for `voltage`.
   float current_rs_(float voltage) const;
   /// RS/R0 ratio for `rs`.

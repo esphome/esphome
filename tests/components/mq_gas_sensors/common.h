@@ -16,6 +16,7 @@ using mqmath::rs_from_voltage;
 using mqmath::REGRESSION_EXPONENTIAL;
 using mqmath::REGRESSION_INVERSE;
 using mqmath::REGRESSION_LINEAR;
+using mqmath::RegressionMethod;
 
 // A fixture of the built-in table: independent copies, so a change in
 // `coefficients.py` cannot quietly change what these tests mean (the Python
