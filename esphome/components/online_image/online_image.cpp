@@ -303,8 +303,8 @@ void OnlineImage::loop_stream_() {
     const int err = this->begin_source(&this->source_);
     if (err != 0) {
       ESP_LOGE(TAG, "Error decoding image: %s", runtime_image::decode_error_to_string(err));
-      // The decoder could not parse headers cut short by a full buffer
-      if (!arrived && err == runtime_image::DECODE_ERROR_INVALID_TYPE) {
+      // Headers cut short by a full buffer fail to parse, or make the decoder seek past the buffer
+      if (!arrived && (err == runtime_image::DECODE_ERROR_INVALID_TYPE || err == runtime_image::DECODE_ERROR_READ)) {
         ESP_LOGE(TAG, "The image headers may not fit the %zu byte download buffer; increase buffer_size",
                  this->download_buffer_.size());
       }
