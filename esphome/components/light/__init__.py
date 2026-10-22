@@ -192,9 +192,11 @@ def _get_or_create_gamma_table(gamma_correct: float, table_id: ID) -> cg.RawExpr
 def find_effect_index(effects: list, effect_name: str) -> int | None:
     """Find the 1-based index of an effect by name (case-insensitive).
 
-    Returns the 1-based index if found, or None if not found.
+    Returns 0 for "None" (no effect), the 1-based index if found, or None if not found.
     """
     effect_name_lower = effect_name.lower()
+    if effect_name_lower == "none":
+        return 0
     for i, effect_conf in enumerate(effects):
         key = next(iter(effect_conf))
         if effect_conf[key][CONF_NAME].lower() == effect_name_lower:
@@ -208,6 +210,14 @@ def available_effects_str(effects: list) -> str:
         effect_conf[next(iter(effect_conf))][CONF_NAME] for effect_conf in effects
     ]
     return ", ".join(f"'{name}'" for name in available) if available else "none"
+
+
+def effect_not_found_message(effect_name: str, effects: list, light: str) -> str:
+    """Return the error for an effect name that `light` (e.g. "this light") lacks."""
+    return (
+        f"Effect '{effect_name}' not found for {light}. "
+        f"Available effects: {available_effects_str(effects)}"
+    )
 
 
 # Accepted values of the deprecated `rgb_order` key.
@@ -317,18 +327,6 @@ def _final_validate(config: ConfigType) -> None:
     platform entries across the file, not a single light's own config.
     """
     for light_config in config:
-        # initial_state.effect names an effect on this same light, so unlike the action
-        # references below it needs no cross-component lookup
-        initial_state = light_config.get(CONF_INITIAL_STATE)
-        effect_name = initial_state.get(CONF_EFFECT) if initial_state else None
-        if effect_name is not None and effect_name.lower() != "none":
-            effects = light_config.get(CONF_EFFECTS, [])
-            if find_effect_index(effects, effect_name) is None:
-                raise cv.Invalid(
-                    f"Effect '{effect_name}' is not defined on this light. "
-                    f"Available effects: {available_effects_str(effects)}",
-                    path=[CONF_INITIAL_STATE, CONF_EFFECT],
-                )
         restore_mode = light_config.get(CONF_RESTORE_MODE)
         if restore_mode is not None:
             legacy = LEGACY_RESTORE_MODES[restore_mode]
@@ -368,9 +366,9 @@ def _final_validate(config: ConfigType) -> None:
 
         if find_effect_index(effects, ref.effect_name) is None:
             raise cv.FinalExternalInvalid(
-                f"Effect '{ref.effect_name}' not found for light "
-                f"'{ref.light_id}'. "
-                f"Available effects: {available_effects_str(effects)}",
+                effect_not_found_message(
+                    ref.effect_name, effects, f"light '{ref.light_id}'"
+                ),
                 path=[cv.ROOT_CONFIG_PATH] + ref.component_path,
             )
 
@@ -398,10 +396,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 DEFAULT_FLASH_TRANSITION_LENGTH = "0s"
 CONF_TRANSITION_STATE_PUBLISH_INTERVAL = "transition_state_publish_interval"
 
-# initial_state accepts everything a light state has, plus the effect to start
-# with. `effect` is deliberately not part of LIGHT_STATE_SCHEMA because
-# LIGHT_CONTROL_ACTION_SCHEMA already defines it with different (templatable,
-# transformer-exclusive) semantics.
+# `effect` stays out of LIGHT_STATE_SCHEMA: light.control defines it templatable and transformer-exclusive
 INITIAL_STATE_SCHEMA = LIGHT_STATE_SCHEMA.extend(
     {
         cv.Optional(CONF_EFFECT): cv.string,
@@ -444,6 +439,22 @@ LIGHT_SCHEMA = (
 )
 
 LIGHT_SCHEMA.add_extra(entity_duplicate_validator("light"))
+
+
+def _validate_initial_state_effect(config: ConfigType) -> ConfigType:
+    """Check that `initial_state: effect` names an effect of this light."""
+    initial_state = config.get(CONF_INITIAL_STATE) or {}
+    if (effect_name := initial_state.get(CONF_EFFECT)) is not None:
+        effects = config.get(CONF_EFFECTS, [])
+        if find_effect_index(effects, effect_name) is None:
+            raise cv.Invalid(
+                effect_not_found_message(effect_name, effects, "this light"),
+                path=[CONF_INITIAL_STATE, CONF_EFFECT],
+            )
+    return config
+
+
+LIGHT_SCHEMA.add_extra(_validate_initial_state_effect)
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
     {
@@ -580,15 +591,13 @@ async def setup_light_core_(light_var, config, output_var):
     # ways to build the same state callback and save_enabled flag that LightState's
     # runtime actually understands.
     initial_state_config = config.get(CONF_INITIAL_STATE)
-    initial_statements = await _initial_state_statements(initial_state_config)
-    if (effect_name := (initial_state_config or {}).get(CONF_EFFECT)) is not None:
-        # LightState::setup() starts the effect from the recovered state's index
-        effect_index = (
-            0
-            if effect_name.lower() == "none"
-            else find_effect_index(config.get(CONF_EFFECTS, []), effect_name)
-        )
-        initial_statements.append(("effect", f"s.effect = {effect_index};"))
+    initial_statements = await _initial_state_statements(
+        initial_state_config,
+        find_effect_index(
+            config.get(CONF_EFFECTS, []),
+            (initial_state_config or {}).get(CONF_EFFECT, "none"),
+        ),
+    )
     if config[CONF_RESUME_EFFECT]:
         cg.add_define("USE_LIGHT_RESUME_EFFECT")
         cg.add(light_var.set_resume_effect(True))
