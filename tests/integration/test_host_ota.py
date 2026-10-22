@@ -13,7 +13,9 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 import functools
+import logging
 from pathlib import Path
+import shutil
 import socket
 import zlib
 
@@ -31,7 +33,10 @@ from .const import (
     ZERO_PSK,
 )
 from .host_prefs import force_safe_mode
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, CompileFunction, ConfigWriter
+
+_LOGGER = logging.getLogger(__name__)
 
 DEVICE_NAME = "host-ota-test"
 API_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
@@ -79,6 +84,10 @@ def _udp_mode(
             real_ack(self, data)
 
     with monkeypatch.context() as m:
+        # Loopback answers in about a millisecond; resend lost datagrams
+        # sooner so the loss runs do not dominate the test time
+        m.setattr(espota2, "UDP_RESEND_INITIAL", 0.05)
+        m.setattr(espota2, "UDP_RESEND_MIN", 0.02)
         if force:
             m.setattr(espota2, "UDP_SLOW_EXCHANGE", -1.0)
         if blocked:
@@ -141,7 +150,23 @@ async def _build(
         binary_path = await compile_esphome(config_path)
         api_socket.close()
         ota_socket.close()
-    return api_port, ota_port, binary_path
+    return api_port, ota_port, await _strip_debug(binary_path)
+
+
+async def _strip_debug(binary_path: Path) -> Path:
+    """The fixtures build with -g; every upload sends the image, so drop the
+    debug info (GNU and Apple strip both take -S)."""
+    if (strip := shutil.which("strip")) is None:
+        _LOGGER.warning(
+            "strip not found; uploading the unstripped binary, which is much slower"
+        )
+        return binary_path
+    stripped = binary_path.with_name(f"{binary_path.name}.stripped")
+    proc = await asyncio.create_subprocess_exec(
+        strip, "-S", "-o", str(stripped), str(binary_path)
+    )
+    assert await proc.wait() == 0, "strip failed"
+    return stripped
 
 
 async def _run_ota(
@@ -284,15 +309,13 @@ async def test_host_ota_self_update(
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info_before = await client.device_info()
-            assert info_before.name == DEVICE_NAME
+            info_before = await assert_device_name(client, DEVICE_NAME)
 
         await dev.ota(None, None, "espota2 reported failure")
         assert staged.is_set()
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info_after = await client.device_info()
-            assert info_after.name == info_before.name
+            await assert_device_name(client, info_before.name)
 
         # Second OTA: catches FD_CLOEXEC regressions (EADDRINUSE on rebind).
         await dev.ota(None, None, "second OTA failed -- listener leaked across execv")
@@ -603,5 +626,4 @@ async def test_host_ota_rejects_garbage(
         assert proc.pid == pid_before
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info = await client.device_info()
-            assert info.name == DEVICE_NAME
+            await assert_device_name(client, DEVICE_NAME)

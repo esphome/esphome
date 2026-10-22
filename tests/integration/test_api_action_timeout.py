@@ -10,9 +10,9 @@ import asyncio
 import contextlib
 import re
 
-from aioesphomeapi import UserService
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -79,9 +79,7 @@ async def test_api_action_timeout(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "api-action-timeout-test"
+        await assert_device_name(client, "api-action-timeout-test")
 
         # List services
         _, services = await client.list_entities_services()
@@ -90,21 +88,9 @@ async def test_api_action_timeout(
         assert len(services) == 3, f"Expected 3 services, found {len(services)}"
 
         # Find our services
-        action_immediate: UserService | None = None
-        action_short_delay: UserService | None = None
-        action_long_delay: UserService | None = None
-
-        for service in services:
-            if service.name == "action_immediate":
-                action_immediate = service
-            elif service.name == "action_short_delay":
-                action_short_delay = service
-            elif service.name == "action_long_delay":
-                action_long_delay = service
-
-        assert action_immediate is not None, "action_immediate not found"
-        assert action_short_delay is not None, "action_short_delay not found"
-        assert action_long_delay is not None, "action_long_delay not found"
+        action_immediate = require_service(services, "action_immediate")
+        action_short_delay = require_service(services, "action_short_delay")
+        action_long_delay = require_service(services, "action_long_delay")
 
         # Test 1: Immediate response should work
         response = await client.execute_service(
