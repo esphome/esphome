@@ -1301,8 +1301,11 @@ def test_dependency_naming_the_requester_itself_is_ignored(
         tmp_path,
         {
             "esphome/A": "name=A\ndepends=a, esphome/A\n",
-            # No manifest name: the package name still identifies it
-            "esphome/C": {"dependencies": [{"name": "C"}]},
+            # No manifest name: the requested and resolved package names still
+            # identify it, with or without the owner
+            "esphome/C": {
+                "dependencies": [{"name": "C"}, {"name": "C", "owner": "esphome"}]
+            },
         },
         properties=("esphome/A",),
     )

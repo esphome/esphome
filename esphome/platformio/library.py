@@ -1027,8 +1027,13 @@ def _satisfying_key(
 def _own_names(
     key: str, nodes: dict[str, _LibNode], components: dict[str, ConvertedLibrary]
 ) -> set[str]:
-    """The lower-case key, package and manifest names a resolved library goes by."""
-    names = {key.lower(), (nodes[key].pkgname or key).lower()}
+    """The lower-case key, requested and resolved package names and the manifest
+    name a resolved library goes by."""
+    names = {
+        key.lower(),
+        (nodes[key].pkgname or key).lower(),
+        components[key].name.lower(),
+    }
     manifest_name = components[key].data.get("name")
     if isinstance(manifest_name, str):
         names.add(manifest_name.lower())
@@ -1285,7 +1290,7 @@ def convert_libraries(
         for requester, dependencies in pending_versionless.items():
             for dependency in dependencies:
                 name, owner = dependency["name"], dependency.get("owner")
-                if not owner and name.lower() in _own_names(
+                if _owner_pkgname_to_name(owner, name).lower() in _own_names(
                     requester, nodes, components
                 ):
                     _LOGGER.debug("Dependency %s of %s names itself", name, requester)
