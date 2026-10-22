@@ -354,7 +354,7 @@ inline int count_fburs(const Bytes &tx, bool incremental) {
 /// A loopback port that was free a moment ago, so a connect to it is refused.
 inline uint16_t refused_port() {
   int probe = ::socket(AF_INET, SOCK_STREAM, 0);
-  struct sockaddr_in addr {};
+  struct sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   socklen_t len = sizeof(addr);
@@ -369,7 +369,7 @@ class Listener {
  public:
   Listener() {
     this->fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     socklen_t len = sizeof(addr);
