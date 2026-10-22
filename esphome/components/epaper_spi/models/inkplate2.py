@@ -4,6 +4,8 @@ from . import EpaperModel
 
 
 class Inkplate2Model(EpaperModel):
+    source_files = ("epaper_spi_inkplate2.cpp",)
+
     def __init__(self, name, class_name="EPaperInkplate2", **kwargs):
         super().__init__(name, class_name, **kwargs)
 

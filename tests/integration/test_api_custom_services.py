@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import re
 
-from aioesphomeapi import UserService, UserServiceArgType
+from aioesphomeapi import UserServiceArgType
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -67,9 +68,7 @@ async def test_api_custom_services(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "api-custom-services-test"
+        await assert_device_name(client, "api-custom-services-test")
 
         # List services
         _, services = await client.list_entities_services()
@@ -78,35 +77,14 @@ async def test_api_custom_services(
         assert len(services) == 6, f"Expected 6 services, found {len(services)}"
 
         # Find our services
-        yaml_service: UserService | None = None
-        yaml_args_service: UserService | None = None
-        yaml_many_args_service: UserService | None = None
-        custom_service: UserService | None = None
-        custom_args_service: UserService | None = None
-        custom_arrays_service: UserService | None = None
-
-        for service in services:
-            if service.name == "test_yaml_service":
-                yaml_service = service
-            elif service.name == "test_yaml_service_with_args":
-                yaml_args_service = service
-            elif service.name == "test_yaml_service_many_args":
-                yaml_many_args_service = service
-            elif service.name == "custom_test_service":
-                custom_service = service
-            elif service.name == "custom_service_with_args":
-                custom_args_service = service
-            elif service.name == "custom_service_with_arrays":
-                custom_arrays_service = service
-
-        assert yaml_service is not None, "test_yaml_service not found"
-        assert yaml_args_service is not None, "test_yaml_service_with_args not found"
-        assert yaml_many_args_service is not None, (
-            "test_yaml_service_many_args not found"
+        yaml_service = require_service(services, "test_yaml_service")
+        yaml_args_service = require_service(services, "test_yaml_service_with_args")
+        yaml_many_args_service = require_service(
+            services, "test_yaml_service_many_args"
         )
-        assert custom_service is not None, "custom_test_service not found"
-        assert custom_args_service is not None, "custom_service_with_args not found"
-        assert custom_arrays_service is not None, "custom_service_with_arrays not found"
+        custom_service = require_service(services, "custom_test_service")
+        custom_args_service = require_service(services, "custom_service_with_args")
+        custom_arrays_service = require_service(services, "custom_service_with_arrays")
 
         # Test YAML service
         await client.execute_service(yaml_service, {})

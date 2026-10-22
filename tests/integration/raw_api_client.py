@@ -1,7 +1,7 @@
 """Minimal plaintext native-api client over a raw socket.
 
 Reads only when told to, so tests control when the TCP pipe backs up toward
-the device; payloads are skipped and only message types are counted.
+the device; message types are counted and each frame is kept for inspection.
 """
 
 from __future__ import annotations
@@ -59,15 +59,17 @@ class FrameParser:
 
     def __init__(self) -> None:
         self._buf = bytearray()
+        self.frames: list[tuple[int, bytes]] = []
 
     def feed(self, data: bytes) -> list[int]:
         self._buf.extend(data)
         types: list[int] = []
-        while (msg_type := self._try_parse()) is not None:
-            types.append(msg_type)
+        while (frame := self._try_parse()) is not None:
+            self.frames.append(frame)
+            types.append(frame[0])
         return types
 
-    def _try_parse(self) -> int | None:
+    def _try_parse(self) -> tuple[int, bytes] | None:
         buf = self._buf
         if not buf:
             return None
@@ -80,8 +82,9 @@ class FrameParser:
         msg_type, pos = type_decoded
         if len(buf) - pos < size:
             return None
+        payload = bytes(buf[pos : pos + size])
         del buf[: pos + size]
-        return msg_type
+        return msg_type, payload
 
 
 class RawApiClient:
@@ -144,6 +147,10 @@ class RawApiClient:
                 self.frame_counts.update(self._parser.feed(data))
 
         await asyncio.wait_for(_read_loop(), timeout)
+
+    def frames(self, msg_type: int) -> list[bytes]:
+        """Payloads of every frame of msg_type received so far."""
+        return [payload for kind, payload in self._parser.frames if kind == msg_type]
 
     def close(self) -> None:
         self._sock.close()
