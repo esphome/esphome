@@ -3,6 +3,7 @@
 
 namespace esphome::endstop {
 
+const char EndstopValveTypes::TAG[] PROGMEM = "endstop.valve";
 static const char *const TAG = EndstopValveTypes::TAG;
 
 valve::ValveTraits EndstopValve::get_traits() {

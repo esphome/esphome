@@ -12,7 +12,7 @@ struct EndstopValveTypes {
   static constexpr Operation IDLE = valve::VALVE_OPERATION_IDLE;
   static constexpr Operation OPENING = valve::VALVE_OPERATION_OPENING;
   static constexpr Operation CLOSING = valve::VALVE_OPERATION_CLOSING;
-  static constexpr const char *TAG = "endstop.valve";
+  static const char TAG[];  // PROGMEM, like ESPHOME_LOG_TAG
 };
 
 class EndstopValve final : public EndstopActuator<EndstopValveTypes> {

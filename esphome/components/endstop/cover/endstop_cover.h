@@ -12,7 +12,7 @@ struct EndstopCoverTypes {
   static constexpr Operation IDLE = cover::COVER_OPERATION_IDLE;
   static constexpr Operation OPENING = cover::COVER_OPERATION_OPENING;
   static constexpr Operation CLOSING = cover::COVER_OPERATION_CLOSING;
-  static constexpr const char *TAG = "endstop.cover";
+  static const char TAG[];  // PROGMEM, like ESPHOME_LOG_TAG
 };
 
 class EndstopCover final : public EndstopActuator<EndstopCoverTypes> {

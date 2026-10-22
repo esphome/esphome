@@ -3,6 +3,7 @@
 
 namespace esphome::endstop {
 
+const char EndstopCoverTypes::TAG[] PROGMEM = "endstop.cover";
 static const char *const TAG = EndstopCoverTypes::TAG;
 
 cover::CoverTraits EndstopCover::get_traits() {
