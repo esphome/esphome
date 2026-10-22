@@ -60,28 +60,23 @@ uart_mock:
           0x78, 0x00,
           0x19,
           0x2C, 0x01,
-          0x00,
           0x55, 0x00,
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
 
-    # Phase 2 (t=200ms): Garbage bytes - corrupt the buffer
-    # These random bytes will accumulate in the LD2410's internal buffer.
-    # No footer will be found, so the buffer just grows.
+    # Phase 2 (t=200ms): Garbage bytes
+    # None of them can start a frame header, so the parser drops them all.
     - delay: 100ms
       inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
 
     # Phase 3 (t=300ms): Truncated frame (header + partial data, no footer)
-    # More bytes accumulating in the buffer without a footer match.
+    # The header opens the buffer; the parser waits for the 23 bytes its length announces.
     - delay: 100ms
       inject_rx: [0xF4, 0xF3, 0xF2, 0xF1, 0x0D, 0x00, 0x02, 0xAA]
 
-    # Phase 4 (t=500ms): Overflow - inject 85 bytes of 0xFF (MAX_LINE_LENGTH=50)
-    # Buffer has 15 bytes from phases 2+3.
-    # Overflow math: need 35 bytes to trigger first overflow (pos 15->49),
-    # then 50 more to trigger second overflow (pos 0->49). Total = 85 bytes.
-    # After two overflows, buffer_pos_ = 0 with a completely clean buffer.
-    # The LD2410 logs "Max command length exceeded" at each overflow.
+    # Phase 4 (t=500ms): 85 bytes of 0xFF
+    # The first 15 complete the truncated frame's 23 bytes without its footer, so it is dropped
+    # with an 'Invalid length' warning; the rest cannot start a header and are dropped too.
     - delay: 200ms
       inject_rx:
         [
@@ -96,8 +91,8 @@ uart_mock:
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]
 
-    # Phase 5 (t=600ms): Valid frame after overflow - recovery test
-    # Buffer was reset by overflow. This valid frame should parse correctly.
+    # Phase 5 (t=600ms): Valid frame after the garbage - recovery test
+    # The buffer is empty again, so this valid frame should parse correctly.
     # Moving target: 50cm, energy 100
     # Still target: 75cm, energy 80
     # Detection distance: 127cm
@@ -113,7 +108,6 @@ uart_mock:
           0x4B, 0x00,
           0x50,
           0x7F, 0x00,
-          0x00,
           0x55, 0x00,
           0xF8, 0xF7, 0xF6, 0xF5,
         ]

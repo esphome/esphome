@@ -56,15 +56,12 @@ async def test_uart_mock_ld2410_query_ack(
     """Test a data frame, then a query ACK with the footer bytes in its values."""
     loop = asyncio.get_running_loop()
     ack_errors: list[str] = []
-    waited_for_frame_end = loop.create_future()
 
     def line_callback(line: str) -> None:
         if "[ld2410" not in line:
             return
         if "Invalid " in line:
             ack_errors.append(line)
-        if "Ack Data incomplete" in line and not waited_for_frame_end.done():
-            waited_for_frame_end.set_result(True)
 
     number_states: dict[str, list[float]] = {name: [] for name in EXPECTED}
     sensor_states: dict[str, list[float]] = {name: [] for name in SENSOR_EXPECTED}
@@ -145,10 +142,5 @@ async def test_uart_mock_ld2410_query_ack(
         # Each number is published once per ACK: the seed value, then the value under test
         for name, (seed, value) in EXPECTED.items():
             assert number_states[name] == pytest.approx([seed, value]), name
-        # The log line comes over stdout, which can trail the API states
-        await wait_or_fail(
-            waited_for_frame_end,
-            2.0,
-            "Expected the parser to wait past the footer bytes in the values",
-        )
+        # The footer bytes inside the values never ended the frame early, so nothing was rejected
         assert not ack_errors, f"Unexpected ACK errors: {ack_errors}"
