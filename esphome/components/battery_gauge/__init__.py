@@ -7,6 +7,7 @@ from esphome.helpers import fnv1_hash_object_id
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["sensor"]
+DOMAIN = "battery_gauge"
 MULTI_CONF = True
 
 battery_gauge_ns = cg.esphome_ns.namespace("battery_gauge")

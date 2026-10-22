@@ -6,7 +6,7 @@
 
 namespace esphome::battery_gauge {
 
-static const char *const TAG = "battery_gauge";
+ESPHOME_LOG_TAG(TAG, "battery_gauge");
 
 // Time constant for the current/voltage EMA filters. Hardcoded for now; may become configurable
 // once a real need for tuning shows up.
