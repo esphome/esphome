@@ -186,44 +186,16 @@ static constexpr uint8_t CMD_DURATION_VALUE = 0x02;
 // Bitmasks for target states
 static constexpr uint8_t MOVE_BITMASK = 0x01;
 static constexpr uint8_t STILL_BITMASK = 0x02;
-// Header & Footer size
-static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
-// Command Header & Footer
-static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
+using ld24xx::CMD_FRAME_FOOTER;
+using ld24xx::CMD_FRAME_HEADER;
+using ld24xx::HEADER_FOOTER_SIZE;
+using ld24xx::validate_header_footer;
 // Data Header & Footer
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
-
-static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
-  return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
-}
-
-// Drop the first `from` bytes of the buffer and anything after them that does not begin a frame header
-// (a partial header at the end is kept). Returns how many of the `count` bytes remain.
-static inline uint8_t drop_to_next_header(uint8_t *buffer, uint8_t count, uint8_t from) {
-  for (; from < count; from++) {
-    const size_t n = std::min<size_t>(HEADER_FOOTER_SIZE, count - from);
-    if (std::memcmp(&buffer[from], CMD_FRAME_HEADER, n) == 0 || std::memcmp(&buffer[from], DATA_FRAME_HEADER, n) == 0) {
-      std::memmove(buffer, &buffer[from], count - from);
-      return count - from;
-    }
-  }
-  return 0;
-}
-
-// Length of the frame that opens the buffer: the header, the two byte count, the counted bytes (for a
-// periodic frame up to and including its check byte) and the footer. Returns 0 while the count is missing.
-// 32 bits wide so the largest count cannot wrap the total back to 0.
-static inline uint32_t frame_length(const uint8_t *buffer, uint8_t len) {
-  if (len < HEADER_FOOTER_SIZE + 2) {
-    return 0;
-  }
-  return HEADER_FOOTER_SIZE + 2 + encode_uint16(buffer[FRAME_LENGTH + 1], buffer[FRAME_LENGTH]) + HEADER_FOOTER_SIZE;
-}
 
 void LD2412Component::dump_config() {
   char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -691,39 +663,10 @@ void LD2412Component::readline_(int readch) {
   if (readch < 0) {
     return;  // No data available
   }
-  // Only a frame header opens the buffer; other bytes are dropped until one starts. The first byte
-  // picks the header, so the two headers cannot mix.
-  if (this->buffer_pos_ > 0 && this->buffer_pos_ < HEADER_FOOTER_SIZE) {
-    const uint8_t *header = this->buffer_data_[0] == DATA_FRAME_HEADER[0] ? DATA_FRAME_HEADER : CMD_FRAME_HEADER;
-    if (readch != header[this->buffer_pos_]) {
-      this->buffer_pos_ = 0;
-    }
-  }
-  if (this->buffer_pos_ == 0 && readch != DATA_FRAME_HEADER[0] && readch != CMD_FRAME_HEADER[0]) {
-    return;
-  }
-  this->buffer_data_[this->buffer_pos_++] = readch;
-  // A dropped frame can leave whole frames behind it in the buffer, so keep going until the buffer is
-  // empty or holds only the start of a frame
-  while (true) {
-    const uint32_t frame_len = ld2412::frame_length(this->buffer_data_, this->buffer_pos_);
-    if (frame_len == 0 || (frame_len <= MAX_LINE_LENGTH && this->buffer_pos_ < frame_len)) {
-      return;  // Frame still incomplete; footer bytes inside the payload cannot end it early
-    }
-    const uint8_t total = this->buffer_pos_;
-    if (frame_len <= MAX_LINE_LENGTH && this->handle_frame_(frame_len)) {
-      // Whatever follows the frame must itself begin with a header before the next pass reads it
-      this->buffer_pos_ = ld2412::drop_to_next_header(this->buffer_data_, total, frame_len);
-    } else {
-      // The footer is not where the count says, so the stream lost bytes: drop this frame and keep the
-      // bytes from the next header on
-      ESP_LOGW(TAG, "Invalid length");
-      this->buffer_pos_ = ld2412::drop_to_next_header(this->buffer_data_, total, 1);
-    }
-    if (this->buffer_pos_ == 0) {
-      return;
-    }
-  }
+  // Periodic and command frames both carry their count after the header
+  ld24xx::feed_frame_byte(
+      this->buffer_data_, this->buffer_pos_, readch, DATA_FRAME_HEADER, ld24xx::cmd_frame_length,
+      [this](uint8_t frame_len) { return this->handle_frame_(frame_len); }, []() { ESP_LOGW(TAG, "Invalid length"); });
 }
 
 // Dispatches the frame of frame_len bytes at the start of the buffer when its footer is in place
