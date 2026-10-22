@@ -109,26 +109,31 @@ void ModemComponent::setup() {
 }
 
 void ModemComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Modem:");
-  ESP_LOGCONFIG(TAG, "  Model     : %s", this->modem_handler->model.c_str());
-  ESP_LOGCONFIG(TAG, "  APN       : %s", this->modem_handler->apn.c_str());
-  ESP_LOGCONFIG(TAG, "  PIN code  : %s",
-                (this->modem_handler->pin_code.empty()) ? LOG_STR_LITERAL("No") : LOG_STR_LITERAL("Yes (not shown)"));
-  ESP_LOGCONFIG(TAG, "  Tx Pin    : GPIO%u", this->modem_handler->tx_pin->get_pin());
-  ESP_LOGCONFIG(TAG, "  Rx Pin    : GPIO%u", this->modem_handler->rx_pin->get_pin());
-  ESP_LOGCONFIG(TAG, "  Enabled   : %s", YESNO(this->is_enabled()));
+  ESP_LOGCONFIG(TAG,
+                "Modem:\n"
+                "  Model: %s\n"
+                "  APN: %s\n"
+                "  PIN code: %s\n"
+                "  TX Pin: GPIO%u\n"
+                "  RX Pin: GPIO%u\n"
+                "  UART port: %d\n"
+                "  TX buffer size: %u\n"
+                "  RX buffer size: %u\n"
+                "  DTE buffer size: %u\n"
+                "  Enabled: %s",
+                this->modem_handler->model.c_str(), this->modem_handler->apn.c_str(),
+                this->modem_handler->pin_code.empty() ? LOG_STR_LITERAL("No") : LOG_STR_LITERAL("Yes (not shown)"),
+                this->modem_handler->tx_pin->get_pin(), this->modem_handler->rx_pin->get_pin(),
+                this->modem_handler->uart_port_num, this->modem_handler->tx_buffer_size,
+                this->modem_handler->rx_buffer_size, this->modem_handler->dte_buffer_size, YESNO(this->is_enabled()));
   if (this->modem_handler->baud_rate != 0) {
-    ESP_LOGCONFIG(TAG, "  Baud rate : %d", this->modem_handler->baud_rate);
+    ESP_LOGCONFIG(TAG, "  Baud rate: %d", this->modem_handler->baud_rate);
   }
   if (this->timeout_ == 0) {
     ESP_LOGCONFIG(TAG, "  Reboot timeout: disabled");
   } else {
     ESP_LOGCONFIG(TAG, "  Reboot timeout: %" PRIu32 " s", this->timeout_ / 1000);
   }
-  ESP_LOGCONFIG(TAG, "  UART port : %d", this->modem_handler->uart_port_num);
-  ESP_LOGCONFIG(TAG, "  TX  buffer size     : %d", this->modem_handler->tx_buffer_size);
-  ESP_LOGCONFIG(TAG, "  RX  buffer size     : %d", this->modem_handler->rx_buffer_size);
-  ESP_LOGCONFIG(TAG, "  DTE buffer size     : %d", this->modem_handler->dte_buffer_size);
   this->dump_connect_params_();
 }
 
@@ -477,22 +482,30 @@ void ModemComponent::loop_delay_(uint32_t delay_ms) {
 }
 
 void ModemComponent::dump_connect_params_() {
-  char buffer[network::IP_ADDRESS_BUFFER_SIZE];
   if (this->component_state_ != ModemComponentState::MODEM_CONNECTED) {
-    ESP_LOGCONFIG(TAG, "Modem connection: Not connected.");
+    ESP_LOGCONFIG(TAG, "  Connection: not connected");
     return;
   }
   esp_netif_ip_info_t ip = this->modem_handler->network_infos.ip_info;
   esp_netif_dns_info_t dns_main = this->modem_handler->network_infos.dns_main;
   esp_netif_dns_info_t dns_backup = this->modem_handler->network_infos.dns_backup;
-
-  ESP_LOGCONFIG(TAG, "Modem connection:");
-  ESP_LOGCONFIG(TAG, "  IP Address  : %s", network::IPAddress(&ip.ip).str_to(buffer));
-  ESP_LOGCONFIG(TAG, "  Hostname    : '%s'", App.get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Subnet      : %s", network::IPAddress(&ip.netmask).str_to(buffer));
-  ESP_LOGCONFIG(TAG, "  Gateway     : %s", network::IPAddress(&ip.gw).str_to(buffer));
-  ESP_LOGCONFIG(TAG, "  DNS main    : %s", network::IPAddress(&dns_main.ip.u_addr.ip4).str_to(buffer));
-  ESP_LOGCONFIG(TAG, "  DNS backup  : %s", network::IPAddress(&dns_backup.ip.u_addr.ip4).str_to(buffer));
+  char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char netmask_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char gw_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns_main_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  char dns_backup_buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ESP_LOGCONFIG(TAG,
+                "  Connection:\n"
+                "    IP Address: %s\n"
+                "    Hostname: '%s'\n"
+                "    Subnet: %s\n"
+                "    Gateway: %s\n"
+                "    DNS main: %s\n"
+                "    DNS backup: %s",
+                network::IPAddress(&ip.ip).str_to(ip_buf), App.get_name().c_str(),
+                network::IPAddress(&ip.netmask).str_to(netmask_buf), network::IPAddress(&ip.gw).str_to(gw_buf),
+                network::IPAddress(&dns_main.ip.u_addr.ip4).str_to(dns_main_buf),
+                network::IPAddress(&dns_backup.ip.u_addr.ip4).str_to(dns_backup_buf));
 }
 
 }  // namespace esphome::modem
