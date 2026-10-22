@@ -400,6 +400,7 @@ bool LD2410Component::handle_ack_data_() {
     case CMD_QUERY_DISTANCE_RESOLUTION: {
       const auto index = ld24xx::find_index(DISTANCE_RESOLUTIONS, this->buffer_data_[10]);
       if (!index) {
+        ESP_LOGW(TAG, "Unknown distance resolution %u", this->buffer_data_[10]);
         break;
       }
       ESP_LOGV(TAG, "Distance resolution: %s",
