@@ -1173,10 +1173,19 @@ def convert_libraries(
         else ""
     )
 
+    resolved_requirements: dict[str, frozenset[str]] = {}
+    # Keys fetched by name that the registry did not know
+    missed: set[str] = set()
+
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
         key, kind, locator = _node_key(name, version, repository)
         node = nodes.get(key) or _LibNode(key=key, is_git=kind == "git")
         nodes[key] = node
+        if kind != "registry" and not (node.is_git or node.is_local):
+            # A registry node (perhaps one the registry did not know) becomes a
+            # git or local source: resolve it again from that source
+            resolved_requirements.pop(key, None)
+            missed.discard(key)
         # The same key requested from two different kinds of source (or two
         # different local paths) is a config mistake: one silently wins. Warn so
         # it isn't a surprise. (git-vs-registry is reported separately below.)
@@ -1228,7 +1237,6 @@ def convert_libraries(
     # requirement set has grown since the last time, so every requirement in the
     # graph is accounted for before conversion.
     components: dict[str, ConvertedLibrary] = {}
-    resolved_requirements: dict[str, frozenset[str]] = {}
     top_level_keys = set(top_level)
 
     def fetched_by_name(key: str) -> bool:
@@ -1256,8 +1264,6 @@ def convert_libraries(
     # known, so a library already in it satisfies the name before the registry
     # is asked; a re-walked requester replaces its entries
     pending_versionless: dict[str, list[dict]] = {}
-    # Keys fetched by name that the registry did not know
-    missed: set[str] = set()
 
     def settle_versionless() -> list[str]:
         """Wire each deferred dependency to the library that satisfies it, or
@@ -1500,26 +1506,29 @@ def convert_libraries(
                 source,
             )
 
+    # A library asked for explicitly beats one fetched by name that goes by the
+    # same name, whichever round brought it in; the settle step applied that
+    # rule to the names it could match up front
+    explicit = {k: c for k, c in components.items() if not fetched_by_name(k)}
+    for key in [k for k in components if fetched_by_name(k)]:
+        node = nodes[key]
+        match = _satisfying_key(node.pkgname, node.owner, key, nodes, explicit)
+        if match is None:
+            continue
+        _LOGGER.debug("Library %s fetched by name yields to %s", key, match)
+        del components[key]
+        for other in nodes.values():
+            if key in other.edges:
+                other.edges.remove(key)
+                other.edges.add(match)
+
     # Two graph nodes that resolve to the same component name (e.g. a package
     # referenced both bare and as ``owner/name``) are not deduplicated and can
-    # produce conflicting component definitions. A node fetched by name alone
-    # folds into the other one; otherwise warn so it's not silent.
+    # produce conflicting component definitions. Warn so it's not silent.
     canonical_keys: dict[str, str] = {}
-    for node_key, component in list(components.items()):
+    for node_key, component in components.items():
         canonical = component.get_sanitized_name()
         if canonical_keys.setdefault(canonical, node_key) != node_key:
-            first = canonical_keys[canonical]
-            drop = next((k for k in (node_key, first) if fetched_by_name(k)), None)
-            if drop is not None:
-                keep = first if drop == node_key else node_key
-                _LOGGER.debug("Library %s fetched by name is %s; folding", drop, keep)
-                canonical_keys[canonical] = keep
-                del components[drop]
-                for node in nodes.values():
-                    if drop in node.edges:
-                        node.edges.remove(drop)
-                        node.edges.add(keep)
-                continue
             _LOGGER.warning(
                 "Library %s is referenced under multiple names (%s and %s); these "
                 "are not deduplicated. Reference it consistently as %s.",

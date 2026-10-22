@@ -1462,6 +1462,61 @@ def test_by_name_node_pinned_later_reports_a_requirement_conflict(
         convert_libraries([Library("esphome/A", None, None)], _backend())
 
 
+def test_by_name_fetch_yields_to_a_fork_pulled_in_later(tmp_path, monkeypatch) -> None:
+    """A name fetched from the registry yields to a library another round
+    pins explicitly under the same manifest name, so only the fork is built."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
+            "esphome/X": {"name": "X", "dependencies": [{"name": "C"}]},
+            "B": {"name": "B"},
+            "C": {"name": "C", "dependencies": {"custom/B-fork": "1.0.0"}},
+            "custom/B-fork": {"name": "B"},
+        },
+    )
+    emitted: list[str] = []
+    top = convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/X", None, None)],
+        _backend(emit=lambda c: emitted.append(c.name)),
+    )
+    assert [d.name for d in top[0].dependencies] == ["custom/B-fork"]
+    assert "B" not in emitted
+
+
+def test_registry_miss_resolves_again_as_a_git_source(tmp_path, monkeypatch) -> None:
+    """A key the registry missed is resolved again when a later manifest names
+    the same key as a git source."""
+    from platformio.package.exception import UnknownPackageError
+
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "B", "owner": "o"}]},
+            "esphome/X": {"name": "X", "dependencies": [{"name": "C"}]},
+            "C": {"name": "C", "dependencies": {"B": "https://github.com/o/B.git"}},
+            "o/B": {"name": "B"},
+        },
+    )
+
+    def resolve(owner, pkgname, requirements):
+        if pkgname == "B":
+            raise UnknownPackageError("B")
+        return _resolution(owner, pkgname)
+
+    monkeypatch.setattr(lib, "_resolve_registry_version", resolve)
+    emitted: dict[str, ConvertedLibrary] = {}
+    top = convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/X", None, None)],
+        _backend(emit=lambda c: emitted.__setitem__(c.name, c)),
+    )
+    assert [d.name for d in top[0].dependencies] == ["o/B"]
+    assert isinstance(emitted["o/B"].source, GitSource)
+    assert [d.name for d in emitted["C"].dependencies] == ["o/B"]
+
+
 def test_missed_name_is_satisfied_by_a_library_pulled_in_later(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
