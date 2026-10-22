@@ -639,9 +639,7 @@ class DiscoveredYamlFiles:
     a ``secrets.yaml`` symlinked to a differently-named target is still
     flagged as secrets). ``files`` is incomplete when ``unresolved`` (templated
     include paths) or ``load_errors`` is non-empty. ``aliases`` maps a resolved
-    path to every path the YAML referenced it by (lexically normalized, symlinks
-    kept), so a file included through symlinks can be laid out under each name
-    the config uses.
+    path to every lexical path the YAML reached it by, symlinks kept.
     """
 
     files: list[Path] = field(default_factory=list)
@@ -668,44 +666,45 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
     from esphome.const import SECRETS_FILES
 
     secrets: set[Path] = set()
+    # Insertion ordered, so its keys are the loaded files in first-seen order.
     aliases: dict[Path, list[Path]] = {}
 
-    def _capture_secret(fname: Path) -> None:
-        resolved = Path(fname).resolve()
-        if Path(fname).name in SECRETS_FILES:
+    def _on_load(fname: Path) -> None:
+        fname = Path(fname)
+        resolved = fname.resolve()
+        if fname.name in SECRETS_FILES:
             secrets.add(resolved)
-        # Every name a file is reached by, so each symlink to it can be recreated.
         names = aliases.setdefault(resolved, [])
-        if (alias := Path(os.path.normpath(Path(fname).absolute()))) not in names:
+        if (alias := Path(os.path.normpath(fname.absolute()))) not in names:
             names.append(alias)
 
-    with track_yaml_loads() as loaded:
-        load_listeners.append(_capture_secret)
+    load_listeners.append(_on_load)
+    try:
         try:
-            try:
-                data = load_yaml(config_path)
-            except EsphomeError as err:
-                return DiscoveredYamlFiles(
-                    list(loaded), secrets, load_errors=[f"{config_path}: {err}"]
-                )
-            unresolved, load_errors = force_load_include_files(
-                data, warn_on_unresolved=False, warn_on_load_error=False
+            data = load_yaml(config_path)
+        except EsphomeError as err:
+            return DiscoveredYamlFiles(
+                list(aliases),
+                secrets,
+                load_errors=[f"{config_path}: {err}"],
+                aliases=aliases,
             )
-        finally:
-            load_listeners.remove(_capture_secret)
+        unresolved, load_errors = force_load_include_files(
+            data, warn_on_unresolved=False, warn_on_load_error=False
+        )
+    finally:
+        load_listeners.remove(_on_load)
 
-    # Deduplicate while preserving first-seen order. The listener also fires for
-    # a secrets.yaml that `!secret` probes next to the including file before
-    # falling back to the entry's directory; a probe that does not exist is not
-    # a file to capture.
-    seen: set[Path] = set()
-    unique: list[Path] = []
-    for path in loaded:
-        if path not in seen and path.is_file():
-            seen.add(path)
-            unique.append(path)
-    aliases = {path: alias for path, alias in aliases.items() if path in seen}
-    return DiscoveredYamlFiles(unique, secrets & seen, unresolved, load_errors, aliases)
+    # `!secret` probes a secrets.yaml beside the including file first; a probe
+    # that does not exist is reported to listeners but is not a file to capture.
+    files = [path for path in aliases if path.is_file()]
+    return DiscoveredYamlFiles(
+        files,
+        secrets & set(files),
+        unresolved,
+        load_errors,
+        {path: aliases[path] for path in files},
+    )
 
 
 def _add_data_ref(fn):
@@ -1132,9 +1131,8 @@ def load_yaml(
     upload/logs fast path re-reading the validated config cache) can skip
     it, roughly halving parse time.
 
-    resolve_document_include=False returns a document that is a single
-    ``!include`` as the deferred IncludeFile, keeping its ``vars`` and
-    ``condition`` for callers that write the file back out.
+    resolve_document_include=False keeps a document that is one ``!include``
+    as the deferred IncludeFile, with its ``vars`` and ``condition``.
     """
     if clear_secrets:
         _SECRET_VALUES.clear()
@@ -1264,6 +1262,11 @@ def _load_yaml_internal_with_type(
         raise EsphomeError(exc) from exc
     finally:
         loader.dispose()
+
+
+def has_container_secrets() -> bool:
+    """Whether a mapping or list was loaded through ``!secret``."""
+    return any(value[:1] in "{[" for value in _SECRET_VALUES)
 
 
 def registered_secret_names() -> set[str]:
@@ -1601,8 +1604,7 @@ class ESPHomeDumper(yaml.SafeDumper):
         return self.represent_scalar(tag="!lambda", value=value.value, style="|")
 
     def represent_data(self, data):
-        # The multi-representer lookup walks the MRO, where str, dict and list
-        # come before the ESPLiteralValue mixin, so the tag is checked first.
+        # str, dict and list precede the ESPLiteralValue mixin in the MRO.
         if isinstance(data, ESPLiteralValue):
             return self.represent_literal(data)
         return super().represent_data(data)

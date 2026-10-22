@@ -58,11 +58,13 @@ def _sources(
     load_errors: list[str] | None = None,
 ) -> DiscoveredYamlFiles:
     CORE.config_path = project_dir / "entry.yaml"
+    files = [(project_dir / name).resolve() for name in names]
     return DiscoveredYamlFiles(
-        [project_dir / name for name in names],
+        files,
         {(project_dir / name).resolve() for name in secrets},
         unresolved or [],
         load_errors or [],
+        {path: [path] for path in files},
     )
 
 
@@ -327,7 +329,7 @@ def test_redacted_generates_unique_names_on_collision(project: Path) -> None:
         (
             {"wifi.yaml": "password: my_password\nurl: http://user:my_password@host\n"},
             ("wifi.yaml",),
-            "URL with credentials",
+            "embedded|URL with credentials",
         ),
         (
             {
@@ -342,7 +344,7 @@ def test_redacted_generates_unique_names_on_collision(project: Path) -> None:
                 "pkg: !include {file: wifi.yaml, vars: {url: 'http://user:my_password@host'}}\n"
             },
             ("entry.yaml", "wifi.yaml"),
-            "URL with credentials",
+            "embedded|URL with credentials",
         ),
         (
             {
@@ -377,15 +379,128 @@ def test_redacted_private_package_password_fails_build(project: Path) -> None:
 
 
 def test_redacted_overridden_package_password_fails_build(project: Path) -> None:
-    """A password a later package overrides is not in the validated config, so it fails closed."""
+    """A password a later package overrides is not in the validated config, so it
+    fails closed, although validation regrouped it under `wifi.networks`."""
     (project / "pkg").mkdir()
     (project / "pkg" / "common.yaml").write_text("wifi:\n  password: old_pw\n")
     (project / "entry.yaml").write_text(
         "packages:\n  common: !include pkg/common.yaml\nwifi:\n  password: new_pw\n"
     )
-    CORE.config = {"wifi": {"password": SensitiveStr("new_pw")}}
+    CORE.config = {"wifi": {"networks": [{"password": SensitiveStr("new_pw")}]}}
     with pytest.raises(EsphomeError, match="wifi.password in pkg/common.yaml"):
         _gather_redacted(_sources(project, "entry.yaml", "pkg/common.yaml"))
+
+
+def test_redacted_inline_package_override_fails_build(project: Path) -> None:
+    """A credential in an inline package merges at the top level, so its
+    `packages.<name>` prefix does not hide it from the credential path check."""
+    (project / "entry.yaml").write_text(
+        "packages:\n  base:\n    api:\n      encryption:\n        key: old_key\n"
+        "api:\n  encryption:\n    key: !secret api_key\n"
+    )
+    CORE.config = {"api": {"encryption": {"key": SensitiveStr("SUPER_SECRET")}}}
+    with pytest.raises(EsphomeError, match="packages.base.api.encryption.key"):
+        _gather_redacted(
+            _sources(project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",))
+        )
+
+
+@pytest.mark.parametrize(
+    ("entry", "included", "ok"),
+    [
+        pytest.param(
+            "wifi: !include {file: wifi.yaml, vars: {pw: !secret wifi_password}}\n",
+            "password: ${pw}\n",
+            True,
+            id="secret_var",
+        ),
+        pytest.param(
+            "wifi: !include {file: wifi.yaml, vars: {pw: other_pw}}\n",
+            "password: ${pw}\n",
+            False,
+            id="literal_var",
+        ),
+        pytest.param(
+            "wifi: !include wifi.yaml\n",
+            "defaults:\n  pw: !secret wifi_password\npassword: ${pw}\n",
+            True,
+            id="secret_default",
+        ),
+        pytest.param(
+            "substitutions:\n  pw: !secret wifi_password\nwifi: !include wifi.yaml\n",
+            "password: ${pw}\n",
+            True,
+            id="secret_substitution",
+        ),
+        pytest.param(
+            "substitutions:\n  pw: hunter2\n"
+            "wifi: !include {file: wifi.yaml, vars: {pw: !secret wifi_password}}\n",
+            "password: ${pw}\n",
+            True,
+            id="var_shadows_literal_substitution",
+        ),
+    ],
+)
+def test_redacted_references_resolve_in_include_scope(
+    project: Path, entry: str, included: str, ok: bool
+) -> None:
+    """A `${name}` under a credential path is checked against the vars the
+    include receives, then the file's defaults, then top-level substitutions."""
+    (project / "entry.yaml").write_text(entry)
+    (project / "wifi.yaml").write_text(included)
+    (project / "secrets.yaml").write_text("wifi_password: hunter2\n")
+    CORE.config = {"wifi": {"networks": [{"password": SensitiveStr("hunter2")}]}}
+    yaml_util._SECRET_VALUES["hunter2"] = "wifi_password"
+    sources = _sources(
+        project, "entry.yaml", "wifi.yaml", "secrets.yaml", secrets=("secrets.yaml",)
+    )
+    if not ok:
+        with pytest.raises(EsphomeError, match="cannot confirm"):
+            _gather_redacted(sources)
+        return
+    files = _gather_redacted(sources)
+    assert b"hunter2" not in b"".join(files.values())
+
+
+def test_redacted_substitution_defined_twice_needs_both_verified(
+    project: Path,
+) -> None:
+    """A literal definition in one file is not hidden by a secret one in another."""
+    (project / "pkg").mkdir()
+    (project / "pkg" / "common.yaml").write_text(
+        "substitutions:\n  pkg_pw: !secret pw\n"
+    )
+    (project / "entry.yaml").write_text(
+        "substitutions:\n  pkg_pw: hunter2\n"
+        "packages:\n  common: !include pkg/common.yaml\n"
+        "  private:\n    url: https://host/repo\n    password: ${pkg_pw}\n"
+    )
+    (project / "secrets.yaml").write_text("pw: other\n")
+    CORE.config = {}
+    with pytest.raises(EsphomeError, match="cannot confirm"):
+        _gather_redacted(
+            _sources(
+                project,
+                "entry.yaml",
+                "pkg/common.yaml",
+                "secrets.yaml",
+                secrets=("secrets.yaml",),
+            )
+        )
+
+
+def test_redacted_checks_every_url_in_a_scalar(project: Path) -> None:
+    """A second URL with literal credentials after a verified one still fails."""
+    (project / "entry.yaml").write_text(
+        "substitutions:\n  u: !secret u\n  p: !secret p\n"
+        'x: !lambda \'use("https://${u}:${p}@host", "https://bob:hunter2@other");\'\n'
+    )
+    (project / "secrets.yaml").write_text("u: bob\np: pw\n")
+    CORE.config = {}
+    with pytest.raises(EsphomeError, match="URL with credentials"):
+        _gather_redacted(
+            _sources(project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",))
+        )
 
 
 @pytest.mark.parametrize(
@@ -473,6 +588,25 @@ def test_redacted_container_secret_stays_a_reference(
     assert "request_headers: !secret 'headers'" in files["entry.yaml"].decode()
     assert "headers: ''" in files["secrets.yaml"].decode()
     assert needle not in b"".join(files.values())
+
+
+def test_redacted_container_secret_in_include_vars_stays_a_reference(
+    project: Path,
+) -> None:
+    """A mapping loaded through `!secret` inside include vars is written as the reference."""
+    (project / "entry.yaml").write_text(
+        "http: !include {file: h.yaml, vars: {headers: !secret headers}}\n"
+    )
+    (project / "h.yaml").write_text("request_headers: ${headers}\n")
+    (project / "secrets.yaml").write_text("headers:\n  Authorization: Bearer tok\n")
+    CORE.config = {}
+    files = _gather_redacted(
+        _sources(
+            project, "entry.yaml", "h.yaml", "secrets.yaml", secrets=("secrets.yaml",)
+        )
+    )
+    assert "headers: !secret 'headers'" in files["entry.yaml"].decode()
+    assert b"tok" not in b"".join(files.values())
 
 
 def test_redacted_secret_url_round_trips(project: Path) -> None:

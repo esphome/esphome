@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
-import re
 import struct
 
 import yaml
@@ -16,10 +15,18 @@ from esphome.components import packages
 from esphome.components.api import CONF_ENCRYPTION
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
-from esphome.const import CONF_API, CONF_KEY, CONF_PACKAGES, CONF_PASSWORD
+from esphome.const import (
+    CONF_API,
+    CONF_DEFAULTS,
+    CONF_KEY,
+    CONF_PACKAGES,
+    CONF_PASSWORD,
+    CONF_SUBSTITUTIONS,
+)
 from esphome.core import CORE, EsphomeError, Lambda
+from esphome.expression import SUBSTITUTION_VARIABLE_PROG
 import esphome.final_validate as fv
-from esphome.git import redact_url_credentials
+from esphome.git import URL_USERINFO_RE, redact_url_credentials
 from esphome.helpers import ensure_unique_string, zstd_module
 from esphome.types import ConfigType
 
@@ -45,10 +52,8 @@ SECRETS_SKELETON_HEADER = (
 )
 # Envelope path of the note recording content that could not be captured.
 UNCAPTURED_NOTE_PATH = "store_yaml_uncaptured.yaml"
-# A URL carrying credentials in its userinfo part.
-_URL_USERINFO_RE = re.compile(r"://([^/@\s]+)@")
-# A plain `${name}` or `$name` substitution reference.
-_SUBSTITUTION_REF_RE = re.compile(r"\$\{?\s*([A-Za-z_]\w*)\s*\}?")
+# Substitution names to every value they may take in one file.
+_Scope = dict[str, list[object]]
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -92,9 +97,8 @@ def _gather_files(
 ) -> tuple[list[tuple[str, Path]], set[str]]:
     """Map each discovered YAML file to its envelope path.
 
-    Returns (relative_path, source_path) pairs and the relative paths of secrets
-    files (matched on the unresolved name, so a symlinked secrets.yaml counts).
-    A file reached through symlinks is placed under each name the YAML used.
+    Returns (relative_path, source_path) pairs, one per name the YAML reached
+    the file by, and the relative paths of secrets files.
     """
     if not discovered.files:
         raise EsphomeError(
@@ -118,29 +122,22 @@ def _gather_files(
             ", ".join(discovered.unresolved),
         )
 
-    # Resolved to match discovery's resolved paths; CORE.config_dir is only absolute.
-    root = CORE.config_path.resolve().parent
-    # Aliases are lexical, so they are placed against the lexical root.
-    alias_root = Path(os.path.normpath(CORE.config_path.absolute())).parent
+    # Aliases are lexical paths, so they are placed against the lexical root.
+    root = Path(os.path.normpath(CORE.config_path.absolute())).parent
 
     entries: list[tuple[str, Path]] = []
     secret_rels: set[str] = set()
     for path in discovered.files:
-        aliases = discovered.aliases.get(path) or [None]
-        for alias in aliases:
+        for alias in discovered.aliases.get(path, [path]):
             # Keep ".." for files outside the root so same-named files don't collide.
             try:
-                if alias is not None:
-                    rel_str = alias.relative_to(alias_root, walk_up=True).as_posix()
-                else:
-                    rel_str = path.relative_to(root, walk_up=True).as_posix()
+                rel_str = alias.relative_to(root, walk_up=True).as_posix()
             except ValueError as err:
                 # No common anchor, e.g. a Windows file on another drive.
                 raise EsphomeError(
-                    f"store_yaml: cannot place {path} in the recovery envelope; "
+                    f"store_yaml: cannot place {alias} in the recovery envelope; "
                     f"it does not share a root with {root}: {err}"
                 ) from err
-
             if path in discovered.secrets:
                 secret_rels.add(rel_str)
             entries.append((rel_str, path))
@@ -200,56 +197,110 @@ class _SensitiveValue:
     is_int: bool = False
 
 
+def _iter_includes(node: object) -> Generator[yaml_util.IncludeFile]:
+    """Yield every `!include` in a tree, including those inside include vars."""
+    if isinstance(node, dict):
+        for value in node.values():
+            yield from _iter_includes(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _iter_includes(item)
+    elif isinstance(node, yaml_util.IncludeFile):
+        yield node
+        if node.vars:
+            yield from _iter_includes(node.vars)
+
+
+def _include_scopes(
+    trees: dict[str, object], sources: dict[str, Path]
+) -> dict[str, _Scope]:
+    """Every value a substitution name may take in each file: top-level
+    substitutions, the file's `defaults:` and the vars of every `!include` of it."""
+
+    def mapping(tree: object, key: str) -> dict:
+        value = tree.get(key) if isinstance(tree, dict) else None
+        return value if isinstance(value, dict) else {}
+
+    def add(scope: _Scope, values: dict) -> None:
+        for name, value in values.items():
+            scope.setdefault(str(name), []).append(value)
+
+    rels_by_path: dict[Path, list[str]] = {}
+    for rel, path in sources.items():
+        rels_by_path.setdefault(path, []).append(rel)
+    scopes: dict[str, _Scope] = {rel: {} for rel in trees}
+    for rel, tree in trees.items():
+        for scope in scopes.values():
+            add(scope, mapping(tree, CONF_SUBSTITUTIONS))
+        add(scopes[rel], mapping(tree, CONF_DEFAULTS))
+        for include in _iter_includes(tree):
+            if not include.vars or include.has_unresolved_file():
+                continue
+            target = (include.parent_file.parent / include.file).resolve()
+            for target_rel in rels_by_path.get(target, ()):
+                add(scopes[target_rel], include.vars)
+    return scopes
+
+
+def _reference_names(text: str) -> list[str]:
+    """Substitution names referenced as `$name` or `${name}` in `text`."""
+    return [
+        m[1:-1] if m.startswith("{") else m
+        for m in SUBSTITUTION_VARIABLE_PROG.findall(text)
+    ]
+
+
 def _check_sensitive_usage(
-    sensitive: dict[str, _SensitiveValue], trees: dict[str, object]
+    sensitive: dict[str, _SensitiveValue],
+    trees: dict[str, object],
+    scopes: dict[str, _Scope],
 ) -> None:
     """Check where sensitive values occur beyond their own scalars.
 
     Mapping key: fail. Inside a larger scalar: fail if inline, warn if `!secret`.
     Whole scalar elsewhere: warn, it is recovered as the `!secret` reference.
-
-    A value the validated config never saw cannot be known to be redacted, so
-    one under a credential path (the same key path as a sensitive value, or a
-    git package password, which the packages pass strips before validation) or
-    a URL carrying credentials fails unless it comes from `!secret`. A
-    substitution reference there is traced to its definition in the captured
-    files, which must itself be verified.
+    A value at a credential location that validation never saw, or a URL with
+    userinfo, fails unless it (or every definition of the substitution it
+    references) is a `!secret` or a known sensitive value.
     """
     sensitive_paths = {
         tuple(info.config_path.split(".")) for info in sensitive.values()
     }
-    substitutions: dict[str, object] = {}
-    for tree in trees.values():
-        if isinstance(tree, dict) and isinstance(
-            subs := tree.get("substitutions"), dict
-        ):
-            substitutions.update(subs)
 
     def verified(text: str) -> bool:
-        """A value redaction writes as a reference, or that is empty."""
         return not text or text in sensitive or yaml_util.is_secret(text) is not None
 
-    def references_verified(text: str) -> bool:
-        """Every `${name}` in `text` names a captured, verified substitution."""
-        names = _SUBSTITUTION_REF_RE.findall(text)
+    def references_verified(text: str, scope: _Scope) -> bool:
+        names = _reference_names(text)
         return bool(names) and all(
-            name in substitutions and verified(str(substitutions[name]))
+            name in scope and all(verified(str(value)) for value in scope[name])
             for name in names
         )
 
-    def credential_verified(text: str) -> bool:
-        # Only a whole-scalar reference can be traced; an expression cannot.
-        return verified(text) or (
-            _SUBSTITUTION_REF_RE.fullmatch(text) is not None
-            and references_verified(text)
+    def credential_path(path: tuple[str, ...]) -> bool:
+        """Whether `path` lands where the validated config holds a credential.
+
+        A git package password never reaches validation. An inline package
+        merges at the top level, so its `packages.<name>` prefix goes; an
+        included file's path is a suffix of the validated one; and validation
+        regroups keys within a domain (`wifi.password` to `wifi.networks.password`).
+        """
+        if not path:
+            return False
+        if path[0] == CONF_PACKAGES:
+            if path[-1] == CONF_PASSWORD:
+                return True
+            path = path[1:]
+            if path and path[0] not in packages.REMOTE_PACKAGE_KEYS:
+                path = path[1:]
+        return bool(path) and any(
+            sp[-len(path) :] == path
+            or (len(path) >= 2 and path[0] == sp[0] and path[-1] == sp[-1])
+            for sp in sensitive_paths
         )
 
-    def url_credentials_verified(userinfo: str) -> bool:
-        literal = _SUBSTITUTION_REF_RE.sub("", userinfo)
-        return literal in ("", ":") and references_verified(userinfo)
-
     def shown(path: tuple[str, ...]) -> str:
-        """A config path for messages; a segment that is a credential is masked."""
+        """`path` for messages, with a segment that is a credential masked."""
         return ".".join(
             f"<!secret {sensitive[seg].secret_name}>" if seg in sensitive else seg
             for seg in path
@@ -259,6 +310,7 @@ def _check_sensitive_usage(
     embedded: list[str] = []
     unverified: list[str] = []
     for rel, tree in trees.items():
+        scope = scopes[rel]
         for path, node, is_key in _iter_nodes(tree):
             text = str(node)
             if (info := sensitive.get(text)) is not None:
@@ -268,7 +320,8 @@ def _check_sensitive_usage(
                         f"{shown(path) or 'the document root'} in {rel})"
                     )
                 elif not path or (
-                    path[0] != "substitutions" and path[-1] not in info.sensitive_keys
+                    path[0] != CONF_SUBSTITUTIONS
+                    and path[-1] not in info.sensitive_keys
                 ):
                     _LOGGER.warning(
                         "store_yaml: the sensitive value at %s also matches the "
@@ -280,21 +333,18 @@ def _check_sensitive_usage(
                         info.secret_name,
                     )
                 continue
-            if is_key or not text or yaml_util.is_secret(text) is not None:
+            if is_key or verified(text):
                 continue
-            if (userinfo := _URL_USERINFO_RE.search(text)) is not None:
-                if not url_credentials_verified(userinfo.group(1)):
-                    unverified.append(
-                        f"{shown(path)} in {rel} (a URL with credentials)"
-                    )
-                continue
-            if (
-                path
-                and (
-                    (path[0] == CONF_PACKAGES and path[-1] == CONF_PASSWORD)
-                    or any(sp[-len(path) :] == path for sp in sensitive_paths)
-                )
-                and not credential_verified(text)
+            if any(
+                SUBSTITUTION_VARIABLE_PROG.sub("", userinfo) not in ("", ":")
+                or not references_verified(userinfo, scope)
+                for userinfo in URL_USERINFO_RE.findall(text)
+            ):
+                unverified.append(f"{shown(path)} in {rel} (a URL with credentials)")
+            elif credential_path(path) and not (
+                # Only a whole-scalar reference can be traced; an expression cannot.
+                SUBSTITUTION_VARIABLE_PROG.fullmatch(text) is not None
+                and references_verified(text, scope)
             ):
                 unverified.append(f"{shown(path)} in {rel}")
                 continue
@@ -410,49 +460,40 @@ def _remote_package_descriptions() -> list[str]:
 
 
 def _build_secrets_skeleton(keys: set[str]) -> bytes:
-    # Plain PyYAML, so a key such as "true" or "123" is quoted and loads back as
-    # the same string, and no secret substitution touches the output.
+    # Plain PyYAML quotes a key such as "true" and does no secret substitution.
     body = yaml.safe_dump(dict.fromkeys(sorted(keys), ""), sort_keys=False)
     return (SECRETS_SKELETON_HEADER + (body if keys else "")).encode("utf-8")
 
 
-def _fold_secret_containers(node: object) -> object:
-    """Replace a mapping or list loaded through `!secret` with its registered text.
+def _prepare_tree(node: object, source: Path, fold_secrets: bool) -> object:
+    """Make a loaded file's tree dump as the source it came from.
 
-    The loader registers the whole container's string form as the secret value,
-    so that text is dumped as the `!secret` reference instead of the contents.
-    A plain str would hit PyYAML's own representer, which skips the secret check.
+    A mapping or list loaded through `!secret` becomes its registered text, which
+    the dumper writes as the reference (a plain str would skip the secret check).
+    An `!include` pulled in by `!include_dir_*` is rebased onto `source`.
     """
-    if isinstance(node, (dict, list)) and yaml_util.is_secret(node) is not None:
+    if (
+        fold_secrets
+        and isinstance(node, (dict, list))
+        and yaml_util.is_secret(node) is not None
+    ):
         return yaml_util.make_data_base(str(node))
     if isinstance(node, dict):
         for key, value in node.items():
-            node[key] = _fold_secret_containers(value)
+            node[key] = _prepare_tree(value, source, fold_secrets)
     elif isinstance(node, list):
         for i, item in enumerate(node):
-            node[i] = _fold_secret_containers(item)
-    return node
-
-
-def _rebase_includes(node: object, source: Path) -> object:
-    """Point `!include`s that a directory include pulled into `source` back at their files.
-
-    Directory includes are expanded at load time, so an `!include` inside one of
-    their files is dumped as part of `source` and must be relative to it.
-    """
-    if isinstance(node, dict):
-        for key, value in node.items():
-            node[key] = _rebase_includes(value, source)
-    elif isinstance(node, list):
-        for i, item in enumerate(node):
-            node[i] = _rebase_includes(item, source)
+            node[i] = _prepare_tree(item, source, fold_secrets)
     elif isinstance(node, yaml_util.IncludeFile):
+        if node.vars:
+            node.vars = _prepare_tree(node.vars, source, fold_secrets)
         origin = node.parent_file.resolve()
         if origin != source and not node.has_unresolved_file():
-            target = origin.parent / node.file
             return yaml_util.IncludeFile(
                 source,
-                Path(os.path.relpath(target, source.parent)).as_posix(),
+                Path(
+                    os.path.relpath(origin.parent / node.file, source.parent)
+                ).as_posix(),
                 node.yaml_loader,
                 vars=node.vars,
                 condition=node.condition,
@@ -469,21 +510,20 @@ def _generate_redacted_files(
     """
     sensitive = _collect_sensitive_values()
 
+    captured = {rel: path for rel, path in entries if rel not in secret_rels}
     # A document that is one `!include` keeps its vars and condition.
-    trees = {
-        rel: _fold_secret_containers(
-            _rebase_includes(
-                yaml_util.load_yaml(
-                    path, clear_secrets=False, resolve_document_include=False
-                ),
-                path.resolve(),
-            )
+    loaded = {
+        rel: yaml_util.load_yaml(
+            path, clear_secrets=False, resolve_document_include=False
         )
-        for rel, path in entries
-        if rel not in secret_rels
+        for rel, path in captured.items()
     }
-
-    _check_sensitive_usage(sensitive, trees)
+    fold_secrets = yaml_util.has_container_secrets()
+    trees = {
+        rel: _prepare_tree(tree, captured[rel], fold_secrets)
+        for rel, tree in loaded.items()
+    }
+    _check_sensitive_usage(sensitive, trees, _include_scopes(trees, captured))
 
     registered = {value: info.secret_name for value, info in sensitive.items()}
     with yaml_util.secret_values_registered(registered) as skeleton_keys:
