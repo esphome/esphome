@@ -94,7 +94,7 @@ def _gather_files(
 
     Returns (relative_path, source_path) pairs and the relative paths of secrets
     files (matched on the unresolved name, so a symlinked secrets.yaml counts).
-    A file reached through a symlink is placed under the name the YAML used.
+    A file reached through symlinks is placed under each name the YAML used.
     """
     if not discovered.files:
         raise EsphomeError(
@@ -126,22 +126,24 @@ def _gather_files(
     entries: list[tuple[str, Path]] = []
     secret_rels: set[str] = set()
     for path in discovered.files:
-        # Keep ".." for files outside the root so same-named files don't collide.
-        try:
-            if (alias := discovered.aliases.get(path)) is not None:
-                rel_str = alias.relative_to(alias_root, walk_up=True).as_posix()
-            else:
-                rel_str = path.relative_to(root, walk_up=True).as_posix()
-        except ValueError as err:
-            # No common anchor, e.g. a Windows file on another drive.
-            raise EsphomeError(
-                f"store_yaml: cannot place {path} in the recovery envelope; "
-                f"it does not share a root with {root}: {err}"
-            ) from err
+        aliases = discovered.aliases.get(path) or [None]
+        for alias in aliases:
+            # Keep ".." for files outside the root so same-named files don't collide.
+            try:
+                if alias is not None:
+                    rel_str = alias.relative_to(alias_root, walk_up=True).as_posix()
+                else:
+                    rel_str = path.relative_to(root, walk_up=True).as_posix()
+            except ValueError as err:
+                # No common anchor, e.g. a Windows file on another drive.
+                raise EsphomeError(
+                    f"store_yaml: cannot place {path} in the recovery envelope; "
+                    f"it does not share a root with {root}: {err}"
+                ) from err
 
-        if path in discovered.secrets:
-            secret_rels.add(rel_str)
-        entries.append((rel_str, path))
+            if path in discovered.secrets:
+                secret_rels.add(rel_str)
+            entries.append((rel_str, path))
 
     return entries, secret_rels
 
@@ -246,6 +248,13 @@ def _check_sensitive_usage(
         literal = _SUBSTITUTION_REF_RE.sub("", userinfo)
         return literal in ("", ":") and references_verified(userinfo)
 
+    def shown(path: tuple[str, ...]) -> str:
+        """A config path for messages; a segment that is a credential is masked."""
+        return ".".join(
+            f"<!secret {sensitive[seg].secret_name}>" if seg in sensitive else seg
+            for seg in path
+        )
+
     key_hits: list[str] = []
     embedded: list[str] = []
     unverified: list[str] = []
@@ -255,8 +264,8 @@ def _check_sensitive_usage(
             if (info := sensitive.get(text)) is not None:
                 if is_key:
                     key_hits.append(
-                        f"{info.config_path} (as the mapping key at "
-                        f"{'.'.join((*path, text))} in {rel})"
+                        f"{info.config_path} (as a mapping key under "
+                        f"{shown(path) or 'the document root'} in {rel})"
                     )
                 elif not path or (
                     path[0] != "substitutions" and path[-1] not in info.sensitive_keys
@@ -266,7 +275,7 @@ def _check_sensitive_usage(
                         "scalar at %s in %s; the recovered config will reference "
                         "!secret %s there too",
                         info.config_path,
-                        ".".join(path),
+                        shown(path),
                         rel,
                         info.secret_name,
                     )
@@ -276,7 +285,7 @@ def _check_sensitive_usage(
             if (userinfo := _URL_USERINFO_RE.search(text)) is not None:
                 if not url_credentials_verified(userinfo.group(1)):
                     unverified.append(
-                        f"{'.'.join(path)} in {rel} (a URL with credentials)"
+                        f"{shown(path)} in {rel} (a URL with credentials)"
                     )
                 continue
             if (
@@ -287,7 +296,7 @@ def _check_sensitive_usage(
                 )
                 and not credential_verified(text)
             ):
-                unverified.append(f"{'.'.join(path)} in {rel}")
+                unverified.append(f"{shown(path)} in {rel}")
                 continue
             for value, other in sensitive.items():
                 if other.is_int or value not in text:
@@ -301,12 +310,12 @@ def _check_sensitive_usage(
                         "occurrences are not redacted",
                         other.secret_name,
                         other.config_path,
-                        ".".join(path),
+                        shown(path),
                         rel,
                     )
                 else:
                     embedded.append(
-                        f"{other.config_path} (inside {'.'.join(path)} in {rel})"
+                        f"{other.config_path} (inside {shown(path)} in {rel})"
                     )
     if key_hits:
         raise EsphomeError(

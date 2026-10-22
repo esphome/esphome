@@ -564,12 +564,32 @@ def test_redacted_no_warning_for_substitution_definition(
     assert "also matches" not in caplog.text
 
 
+def test_gather_emits_every_alias_of_one_file(project: Path, tmp_path: Path) -> None:
+    """Two include names linking to one file both appear in the envelope."""
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "sensor.yaml").write_text("platform: template\n")
+    (project / "a.yaml").symlink_to(shared / "sensor.yaml")
+    (project / "b.yaml").symlink_to(shared / "sensor.yaml")
+    (project / "entry.yaml").write_text(
+        "sensor:\n  - !include {file: a.yaml, vars: {n: 1}}\n"
+        "  - !include {file: b.yaml, vars: {n: 2}}\n"
+    )
+    CORE.config_path = project / "entry.yaml"
+    CORE.config = {}
+    entries, _ = _gather_files(discover_user_yaml_files(project / "entry.yaml"))
+    assert [rel for rel, _ in entries] == ["entry.yaml", "a.yaml", "b.yaml"]
+    files = _gather_redacted(discover_user_yaml_files(project / "entry.yaml"))
+    assert files["a.yaml"] == files["b.yaml"] == b"platform: template\n"
+
+
 def test_redacted_sensitive_value_as_mapping_key_fails_build(project: Path) -> None:
-    """A sensitive value used as a mapping key fails the build."""
-    (project / "wifi.yaml").write_text("password: password\n")
-    CORE.config = {"ota": [{"password": SensitiveStr("password")}]}
-    with pytest.raises(EsphomeError, match="mapping key"):
+    """A sensitive value used as a mapping key fails the build without echoing it."""
+    (project / "wifi.yaml").write_text("wifi:\n  hunter2:\n    child: x\n")
+    CORE.config = {"ota": [{"password": SensitiveStr("hunter2")}]}
+    with pytest.raises(EsphomeError, match="mapping key under wifi") as err:
         _gather_redacted(_sources(project, "wifi.yaml"))
+    assert "hunter2" not in str(err.value)
 
 
 def test_redacted_secret_sourced_overlap_warns_not_fails(

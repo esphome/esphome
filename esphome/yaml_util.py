@@ -639,8 +639,8 @@ class DiscoveredYamlFiles:
     a ``secrets.yaml`` symlinked to a differently-named target is still
     flagged as secrets). ``files`` is incomplete when ``unresolved`` (templated
     include paths) or ``load_errors`` is non-empty. ``aliases`` maps a resolved
-    path to the path the YAML referenced it by (lexically normalized, symlinks
-    kept), so a file included through a symlink can be laid out under the name
+    path to every path the YAML referenced it by (lexically normalized, symlinks
+    kept), so a file included through symlinks can be laid out under each name
     the config uses.
     """
 
@@ -648,7 +648,7 @@ class DiscoveredYamlFiles:
     secrets: set[Path] = field(default_factory=set)
     unresolved: list[str] = field(default_factory=list)
     load_errors: list[str] = field(default_factory=list)
-    aliases: dict[Path, Path] = field(default_factory=dict)
+    aliases: dict[Path, list[Path]] = field(default_factory=dict)
 
 
 def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
@@ -668,14 +668,16 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
     from esphome.const import SECRETS_FILES
 
     secrets: set[Path] = set()
-    aliases: dict[Path, Path] = {}
+    aliases: dict[Path, list[Path]] = {}
 
     def _capture_secret(fname: Path) -> None:
         resolved = Path(fname).resolve()
         if Path(fname).name in SECRETS_FILES:
             secrets.add(resolved)
-        # First reference wins, so a file reached through a symlink keeps that name.
-        aliases.setdefault(resolved, Path(os.path.normpath(Path(fname).absolute())))
+        # Every name a file is reached by, so each symlink to it can be recreated.
+        names = aliases.setdefault(resolved, [])
+        if (alias := Path(os.path.normpath(Path(fname).absolute()))) not in names:
+            names.append(alias)
 
     with track_yaml_loads() as loaded:
         load_listeners.append(_capture_secret)
