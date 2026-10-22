@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <cstring>
 #include <tuple>
 #include <utility>
@@ -449,31 +450,23 @@ TEST(RuntimeImageDecoder, JpegDecodesDirectlyToScaledRgb565WithBothByteOrders) {
   }
 }
 
-// The generic draw() path gets JPEGDEC's half size RGB8888 output, so it too averages each 2x2 block of pixels
+// The generic draw() path gets JPEGDEC's half size RGB8888 output. It must match the half size RGB565 decode checked
+// above. A full size RGB8888 decode is no reference: JPEGDEC's x86 SSE code writes it with red and blue swapped.
 TEST(RuntimeImageDecoder, JpegDecodesToScaledRgb) {
-  TestableRuntimeImage full(JPEG, image::IMAGE_TYPE_RGB, false, 8, 8);
-  TestableRuntimeImage half(JPEG, image::IMAGE_TYPE_RGB, false, 4, 4);
-  ASSERT_TRUE(decode_all(full, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
-  ASSERT_TRUE(decode_all(half, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
-  ASSERT_EQ(static_cast<JpegDecoder *>(half.decoder())->get_scale(), 2);
+  TestableRuntimeImage rgb565(JPEG, image::IMAGE_TYPE_RGB565, false, 4, 4);
+  TestableRuntimeImage rgb(JPEG, image::IMAGE_TYPE_RGB, false, 4, 4);
+  ASSERT_TRUE(decode_all(rgb565, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_TRUE(decode_all(rgb, JPEG_GRADIENT, sizeof(JPEG_GRADIENT)));
+  ASSERT_EQ(static_cast<JpegDecoder *>(rgb.decoder())->get_scale(), 2);
 
   for (int row = 0; row < 4; row++) {
     for (int col = 0; col < 4; col++) {
-      int red = 0;
-      int green = 0;
-      int blue = 0;
-      for (int dy = 0; dy < 2; dy++) {
-        for (int dx = 0; dx < 2; dx++) {
-          const Color pixel = full.get_pixel(col * 2 + dx, row * 2 + dy);
-          red += pixel.r;
-          green += pixel.g;
-          blue += pixel.b;
-        }
-      }
-      const Color pixel = half.get_pixel(col, row);
-      EXPECT_NEAR(pixel.r, (red + 2) / 4, 8) << "pixel " << col << "," << row << " red";
-      EXPECT_NEAR(pixel.g, (green + 2) / 4, 8) << "pixel " << col << "," << row << " green";
-      EXPECT_NEAR(pixel.b, (blue + 2) / 4, 8) << "pixel " << col << "," << row << " blue";
+      const uint16_t word = rgb565_word(rgb565, col, row);
+      const Color pixel = rgb.get_pixel(col, row);
+      // RGB565 keeps the top 5 or 6 bits of each channel
+      EXPECT_LE(std::abs(pixel.r - ((word >> 11) << 3)), 8) << "pixel " << col << "," << row << " red";
+      EXPECT_LE(std::abs(pixel.g - (((word >> 5) & 0x3F) << 2)), 4) << "pixel " << col << "," << row << " green";
+      EXPECT_LE(std::abs(pixel.b - ((word & 0x1F) << 3)), 8) << "pixel " << col << "," << row << " blue";
     }
   }
 }
