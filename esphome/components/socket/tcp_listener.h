@@ -46,8 +46,8 @@ class TcpListener {
     return this->listen_->ready();
   }
   /// Accepts a waiting connection that the allow list admits, or returns nullptr.
-  /// A listener error closes the listen socket until clock's backoff has passed.
-  std::unique_ptr<Socket> accept(TcpClientLink &clock);
+  /// A failed accept keeps the listen socket, so the next call tries again.
+  std::unique_ptr<Socket> accept();
   void close() { this->listen_.reset(); }
   /// One config line per allowed network.
   void dump_config() const;
