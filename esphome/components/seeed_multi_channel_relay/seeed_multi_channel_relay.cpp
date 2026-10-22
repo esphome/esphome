@@ -29,6 +29,11 @@ void SeeedMultiChannelRelay::setup() {
 void SeeedMultiChannelRelay::change_address(uint8_t address) {
   if (this->is_failed())
     return;
+  // A lambda bypasses the schema range; a reserved address would strand the board
+  if (address < 0x08 || address > 0x77) {
+    ESP_LOGW(TAG, "I2C address 0x%02X is reserved; not stored", address);
+    return;
+  }
   if (!this->status_comm_result(this->write_byte(CMD_SAVE_I2C_ADDR, address)))
     return;
   this->set_i2c_address(address);

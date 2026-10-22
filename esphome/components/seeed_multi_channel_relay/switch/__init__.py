@@ -9,7 +9,9 @@ from .. import CONF_SEEED_MULTI_CHANNEL_RELAY_ID, DOMAIN, SeeedMultiChannelRelay
 
 DEPENDENCIES = ["seeed_multi_channel_relay"]
 
-CONFIG_SCHEMA = switch.switch_schema(switch.ApplySwitch).extend(
+CONFIG_SCHEMA = switch.switch_schema(
+    switch.ApplySwitch, default_restore_mode="RESTORE_DEFAULT_OFF"
+).extend(
     {
         cv.GenerateID(CONF_SEEED_MULTI_CHANNEL_RELAY_ID): cv.use_id(
             SeeedMultiChannelRelay
