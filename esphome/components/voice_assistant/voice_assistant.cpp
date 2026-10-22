@@ -730,11 +730,14 @@ void VoiceAssistant::request_stop() {
       break;
     case State::STOP_MICROPHONE:
     case State::STOPPING_MICROPHONE:
-      // A response queued behind the microphone shutdown is cancelled like a playing one
+      // A response queued behind the microphone shutdown is cancelled like a playing one and keeps its
+      // state, so it finishes through the same path (playback timeout, stream end) once the microphone
+      // has stopped instead of leaving those behind for the next request
       if (this->desired_state_ == State::STREAMING_RESPONSE) {
         this->cancel_response_();
+      } else {
+        this->set_state_after_mic_stop_(State::IDLE);
       }
-      this->set_state_after_mic_stop_(State::IDLE);
       break;
     case State::AWAITING_RESPONSE:
       this->signal_stop_();
