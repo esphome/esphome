@@ -75,12 +75,13 @@ void ModemComponent::wake_task_() {
 // Self-keyed so it still fires after a failed setup, where the component's own timers are skipped
 void ModemComponent::arm_connect_timeout_() {
   // Measures time without a connection, like wifi: neither retry cycles nor a repeated enable() restart it
-  if (this->timeout_ == 0 || this->connect_timeout_armed_.exchange(true)) {
+  if (this->timeout_ == 0 || this->connect_timeout_armed_) {
     return;
   }
+  this->connect_timeout_armed_ = true;
   App.scheduler.set_timeout(this, this->timeout_, [this]() {
     // The task may have connected between enable() checking the state and arming this timer
-    this->connect_timeout_armed_.store(false);
+    this->connect_timeout_armed_ = false;
     if (this->is_connected()) {
       return;
     }
@@ -90,7 +91,7 @@ void ModemComponent::arm_connect_timeout_() {
 }
 
 void ModemComponent::cancel_connect_timeout_() {
-  this->connect_timeout_armed_.store(false);
+  this->connect_timeout_armed_ = false;
   App.scheduler.cancel_timeout(this);
 }
 
@@ -174,6 +175,13 @@ void ModemComponent::loop() {
   }
   if (pending & PENDING_STATUS) {
     this->publish_status_();
+  }
+  if (pending & PENDING_CONNECT_TIMEOUT) {
+    if (this->target_state_.load() == ModemComponentState::MODEM_CONNECTED && !this->is_connected()) {
+      this->arm_connect_timeout_();
+    } else {
+      this->cancel_connect_timeout_();
+    }
   }
   if ((pending & PENDING_SAVE_BAUD) && !this->pref_.save(&this->restored_baud_)) {
     ESP_LOGW(TAG, "Failed to save the baud rate");
@@ -591,7 +599,7 @@ ModemComponentState ModemComponent::handle_state_connecting_() {
         this->set_sim_fault_(result == SimResult::SIM_RESULT_FATAL ? SimFault::SIM_FAULT_LOCKED
                                                                    : SimFault::SIM_FAULT_PIN_REJECTED);
         this->target_state_.store(ModemComponentState::MODEM_DISABLED);
-        this->cancel_connect_timeout_();
+        this->hand_over_(PENDING_CONNECT_TIMEOUT);
         return ModemComponentState::MODEM_DISCONNECTING;
     }
     if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
@@ -683,8 +691,7 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
   ESP_LOGD(TAG, "State change: %s -> %s", LOG_STR_ARG(state_to_str(state)), LOG_STR_ARG(state_to_str(next_state)));
   this->component_state_.store(next_state);
   if (next_state == ModemComponentState::MODEM_CONNECTED) {
-    // After the store, so an enable() that arms the timer meanwhile sees the connection when it fires
-    this->cancel_connect_timeout_();
+    this->hand_over_(PENDING_CONNECT_TIMEOUT);
   }
   // on_disconnect pairs with on_connect, so a failed attempt that never connected does not fire it; the
   // automations run on the main loop
@@ -702,8 +709,8 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
     // The lost IP event can lag by minutes; a quick re-enable must wait for a fresh address
     this->got_ip_.store(false, std::memory_order_release);
     this->step_delay_ms_ = COMMAND_TIMEOUT_MS;  // let the link settle before the first pass
-    if (lost && this->target_state_.load() == ModemComponentState::MODEM_CONNECTED) {
-      this->arm_connect_timeout_();  // A lost connection starts the reconnect watchdog again
+    if (lost) {
+      this->hand_over_(PENDING_CONNECT_TIMEOUT);  // A lost connection starts the reconnect watchdog again
     }
   }
 }

@@ -144,8 +144,10 @@ class ModemComponent : public Component {
     PENDING_STATUS = 1 << 0,
     PENDING_SAVE_BAUD = 1 << 1,
     PENDING_SAVE_PIN = 1 << 2,
+    PENDING_CONNECT_TIMEOUT = 1 << 3,  // arm or cancel the reboot timer for the current state
   };
 
+  // Main loop only, so arming and cancelling cannot interleave
   void arm_connect_timeout_();
   void cancel_connect_timeout_();
   void fail_setup_(const LogString *reason);
@@ -207,7 +209,7 @@ class ModemComponent : public Component {
   ConnectStep connect_step_{ConnectStep::CONNECT_STEP_START};
   // One PIN attempt per connection attempt: a second wrong PIN could PUK-lock the SIM
   bool pin_sent_{false};
-  std::atomic<bool> connect_timeout_armed_{false};
+  bool connect_timeout_armed_{false};
   std::atomic<SimFault> sim_fault_{SimFault::SIM_FAULT_NONE};
   // Set by send_at() on the main loop once at_command_ is written, cleared by the task after sending it
   std::atomic<bool> at_pending_{false};
