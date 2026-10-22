@@ -686,9 +686,7 @@ def test_diagnostics_and_log_are_owned_entities(
         ("mq8_correction", "MQ-8 T-RH correction"),
         ("mq8_r0", "MQ-8 R0"),
     ):
-        assert (
-            f'App.register_sensor({entity_id}, ESPHOME_PSTR("{name}")' in main_cpp
-        )
+        assert f'App.register_sensor({entity_id}, ESPHOME_PSTR("{name}")' in main_cpp
     assert 'App.register_text_sensor(mq8_logs, ESPHOME_PSTR("MQ-8 logs")' in main_cpp
     assert "// category:diagnostic" in main_cpp
     assert "template__mq8_ratio" not in main_cpp
