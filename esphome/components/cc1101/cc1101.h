@@ -132,13 +132,4 @@ class CC1101Component final : public Component,
   bool enter_tx_();
 };
 
-// Action Wrappers
-template<typename... Ts> class SendPacketAction final : public Action<Ts...>, public Parented<CC1101Component> {
-  TEMPLATABLE_BYTES(data)
-
-  void play(const Ts &...x) override {
-    this->data_.visit([this](const uint8_t *data, size_t len) { this->parent_->transmit_packet(data, len); }, x...);
-  }
-};
-
 }  // namespace esphome::cc1101
