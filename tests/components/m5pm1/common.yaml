@@ -1,0 +1,199 @@
+m5pm1:
+  id: m5pm1_hub
+#   pwm_frequency: 500Hz
+  interrupt_pin: GPIO2
+  interrupt_gpio: 4
+  power_button:
+    long_press_download: false
+
+script:
+  - id: test_m5pm1_timer_actions
+    then:
+      - m5pm1.timer.start:
+          id: m5pm1_hub
+          duration: 10s
+          action: reboot
+          on_success:
+            - lambda: return;
+          on_error:
+            - lambda: return;
+      - m5pm1.timer.start:
+          id: m5pm1_hub
+          duration: !lambda return 30;
+          action: !lambda return m5pm1::M5PM1TimerAction::M5PM1_TIMER_ACTION_SET_WAKEUP_FLAG;
+      - m5pm1.timer.clear:
+          id: m5pm1_hub
+          on_success:
+            - lambda: return;
+          on_error:
+            - lambda: return;
+      - m5pm1.timer.clear: m5pm1_hub
+      - m5pm1.reboot:
+          id: m5pm1_hub
+          on_success:
+            - lambda: return;
+          on_error:
+            - lambda: return;
+      - m5pm1.enter_download_mode: m5pm1_hub
+      - m5pm1.timer.start:
+          id: m5pm1_hub
+          duration: 60s
+          action: power_on
+          on_success:
+            - m5pm1.power_off: m5pm1_hub
+
+event:
+  - platform: m5pm1
+    m5pm1_id: m5pm1_hub
+    type: power
+    name: "M5PM1 Power Event"
+    events:
+      - battery_inserted
+      - battery_removed
+      - vin_inserted
+      - vin_removed
+      - vinout_inserted
+      - vinout_removed
+
+  - platform: m5pm1
+    m5pm1_id: m5pm1_hub
+    type: system
+    name: "M5PM1 System Event"
+    events:
+      - wakeup
+      - timer_wakeup
+      - vin_wakeup
+      - power_button_wakeup
+      - reset_button_wakeup
+      - command_reset_wakeup
+      - gpio_wakeup
+      - vinout_wakeup
+
+  - platform: m5pm1
+    m5pm1_id: m5pm1_hub
+    type: user_button
+    name: "M5PM1 User Button Event"
+    events:
+      - single_click
+      - double_click
+
+# GPIO pins as binary sensor and switch
+binary_sensor:
+  - platform: m5pm1
+    m5pm1_id: m5pm1_hub
+    name: "M5PM1 User Button"
+
+  - platform: gpio
+    name: "M5PM1 Button"
+    pin:
+      m5pm1_id: m5pm1_hub
+      number: 2
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+      interrupt: true
+      wakeup: true
+      wakeup_edge: FALLING
+
+switch:
+
+  # AW8737A amplifier control
+  - platform: m5pm1
+    id: amplifier
+    m5pm1_id: m5pm1_hub
+    pin:
+      m5pm1_id: m5pm1_hub
+      number: 4
+      mode:
+        output: true
+        open_drain: false
+    pulse_num: 2
+    name: "Audio Amplifier"
+
+  - platform: m5pm1
+    type: ldo_3v3
+    name: "3.3V LDO"
+
+  - platform: m5pm1
+    type: dcdc_3v3
+    name: "3.3V DCDC"
+
+  - platform: m5pm1
+    type: boost_5v
+    name: "5V Boost"
+
+  - platform: m5pm1
+    type: charger
+    name: "Battery Charger"
+
+  - platform: m5pm1
+    type: hold_ldo_3v3
+    name: "Hold 3.3V LDO"
+
+  - platform: m5pm1
+    type: hold_boost_5v
+    name: "Hold 5V Boost"
+
+  - platform: m5pm1
+    type: hold_gpio
+    pin: 3
+    name: "Hold GPIO3"
+
+# PWM outputs
+output:
+  - platform: m5pm1
+    id: pwm_ch2
+    m5pm1_id: m5pm1_hub
+    pin:
+      m5pm1_id: m5pm1_hub
+      number: 3
+    pwm_polarity: ACTIVE_HIGH
+
+# PWM-controlled lights
+light:
+  - platform: monochromatic
+    name: "M5PM1 PWM Light 1"
+    output: pwm_ch2
+
+# Addressable RGB LEDs
+  - platform: m5pm1
+    id: rgb_leds
+    m5pm1_id: m5pm1_hub
+    num_led: 10
+    name: "M5PM1 RGB Strip"
+
+# ADC sensors
+sensor:
+  - platform: m5pm1
+    m5pm1_id: m5pm1_hub
+    pin:
+      m5pm1_id: m5pm1_hub
+      number: 1
+      mode: INPUT_PULLUP
+    type: adc
+    update_interval: 10s
+    name: "M5PM1 ADC 1"
+
+  #Internal temperature of device
+  - platform: m5pm1
+    name: "M5PM1 Temerature"
+    type: temperature
+    filters:
+      - delta: 1
+
+  - platform: m5pm1
+    name: "M5PM1 Battery Voltage"
+    type: battery_voltage
+
+  - platform: m5pm1
+    name: "M5PM1 VIN Voltage"
+    type: vin_voltage
+
+  - platform: m5pm1
+    name: "M5PM1 5V Output Voltage"
+    type: 5vout_voltage
+
+  - platform: m5pm1
+    name: "M5PM1 Reference Voltage"
+    type: vref_voltage
