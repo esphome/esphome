@@ -134,7 +134,7 @@ class TopTronic : public Component {
   void update_all();  // GET for every sensor, same path as the polling scheduler
   void set_device_type(uint16_t device_type) { this->device_type_ = device_type; }
   void set_device_addr(uint8_t device_addr) { this->device_addr_ = device_addr; }
-  uint16_t get_device_id() { return this->device_type_ | this->device_addr_; }
+  uint16_t get_device_id() const { return this->device_type_ | this->device_addr_; }
   void setup() override;
   void dump_config() override;
 
@@ -152,8 +152,8 @@ class TopTronic : public Component {
   canbus::Canbus *canbus_;
   std::unordered_map<uint32_t, std::unique_ptr<TopTronicDevice>> devices_;
   std::unordered_map<uint32_t, PendingMessage> pending_messages_;
-  uint16_t device_type_;
-  uint8_t device_addr_;
+  uint16_t device_type_{0};
+  uint8_t device_addr_{0};
 };
 }  // namespace esphome::toptronic
 #endif  // USE_ESP32
