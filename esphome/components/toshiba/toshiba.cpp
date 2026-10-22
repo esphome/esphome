@@ -23,9 +23,6 @@ const uint16_t TOSHIBA_ONE_SPACE = 1620;
 const uint16_t TOSHIBA_CARRIER_FREQUENCY = 38000;
 const uint8_t TOSHIBA_HEADER_LENGTH = 4;
 // Generic Toshiba commands/flags
-const uint8_t TOSHIBA_COMMAND_DEFAULT = 0x01;
-const uint8_t TOSHIBA_COMMAND_TIMER = 0x02;
-const uint8_t TOSHIBA_COMMAND_POWER = 0x08;
 const uint8_t TOSHIBA_COMMAND_MOTION = 0x02;
 
 const uint8_t TOSHIBA_MODE_AUTO = 0x00;
@@ -34,20 +31,6 @@ const uint8_t TOSHIBA_MODE_DRY = 0x02;
 const uint8_t TOSHIBA_MODE_HEAT = 0x03;
 const uint8_t TOSHIBA_MODE_FAN_ONLY = 0x04;
 const uint8_t TOSHIBA_MODE_OFF = 0x07;
-
-const uint8_t TOSHIBA_FAN_SPEED_AUTO = 0x00;
-const uint8_t TOSHIBA_FAN_SPEED_QUIET = 0x20;
-const uint8_t TOSHIBA_FAN_SPEED_1 = 0x40;
-const uint8_t TOSHIBA_FAN_SPEED_2 = 0x60;
-const uint8_t TOSHIBA_FAN_SPEED_3 = 0x80;
-const uint8_t TOSHIBA_FAN_SPEED_4 = 0xa0;
-const uint8_t TOSHIBA_FAN_SPEED_5 = 0xc0;
-
-const uint8_t TOSHIBA_POWER_HIGH = 0x01;
-const uint8_t TOSHIBA_POWER_ECO = 0x03;
-
-const uint8_t TOSHIBA_MOTION_SWING = 0x04;
-const uint8_t TOSHIBA_MOTION_FIX = 0x00;
 
 // RAC-PT1411HWRU temperature code flag bits
 const uint8_t RAC_PT1411HWRU_FLAG_FAH = 0x01;
@@ -423,6 +406,9 @@ static bool is_valid_ras_2819t_command(uint64_t rc_code_1, uint64_t rc_code_2 = 
 }
 
 void ToshibaClimate::setup() {
+  this->minimum_temperature_ = this->temperature_min_();
+  this->maximum_temperature_ = this->temperature_max_();
+  this->swing_modes_ = this->toshiba_swing_modes_();
 #ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
   if (this->model_ == MODEL_RAS_25J2KVSG_ND)
     this->setup_ras_25j2kvsg_nd_();
@@ -463,11 +449,6 @@ void ToshibaClimate::setup() {
     }
 #endif
   }
-  // Set supported modes & temperatures based on model
-  this->minimum_temperature_ = this->temperature_min_();
-  this->maximum_temperature_ = this->temperature_max_();
-  this->swing_modes_ = this->toshiba_swing_modes_();
-
   // Ensure swing mode is always initialized to a valid value. OFF also stands for "not yet
   // commanded" on models that cannot switch the swing off, such as Seiya.
   if (this->swing_modes_.empty() || !this->swing_modes_.count(this->swing_mode)) {
@@ -494,6 +475,10 @@ void ToshibaClimate::setup() {
   // Never send nan to HA
   if (std::isnan(this->target_temperature))
     this->target_temperature = 24;
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+  if (this->model_ == MODEL_RAS_25J2KVSG_ND)
+    this->publish_power_selection_();
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   // Log final state for debugging HA errors
   const char *fan_mode_str = "NONE";
@@ -1214,7 +1199,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   } else {
     // First checksum was valid so continue receiving the remaining bits
-    // The shortest frame is 9 bytes (length byte 3); longer ones must still fit the buffer.
+    // The shortest frame is 9 bytes (length byte 3); longer ones must still fit the buffer
     if (message[2] < 3 || message[2] > sizeof(message) - TOSHIBA_HEADER_LENGTH - 2) {
       return false;
     }
@@ -1392,8 +1377,9 @@ bool ToshibaClimate::receive_ras_25j2kvsg_nd_(remote_base::RemoteReceiveData dat
   do {
     uint8_t message[12]{};
     if (!data.expect_item(timings.header_mark, timings.header_space) ||
-        !this->decode_(&data, message, TOSHIBA_HEADER_LENGTH) || message[0] != 0xF2 || message[1] != 0x0D ||
-        (message[2] ^ message[3]) != 0xFF || message[2] < 1 || message[2] > 6 || message[2] == 2)
+        !this->decode_(&data, message, TOSHIBA_HEADER_LENGTH) || message[0] != TOSHIBA_HEADER_BYTE_0 ||
+        message[1] != TOSHIBA_HEADER_BYTE_1 || (message[2] ^ message[3]) != 0xFF || message[2] < 1 || message[2] > 6 ||
+        message[2] == 2)
       return received;
     const uint8_t length = message[2] + 6;
     if (!this->decode_(&data, message + TOSHIBA_HEADER_LENGTH, length - TOSHIBA_HEADER_LENGTH) ||

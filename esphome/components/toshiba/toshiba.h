@@ -7,11 +7,31 @@
 #include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+#include "esphome/core/preferences.h"
+#endif
 #if defined(USE_TOSHIBA_RAS_25J2KVSG_ND) && defined(USE_SELECT)
 #include "esphome/components/select/select.h"
 #endif
 
 namespace esphome::toshiba {
+
+static constexpr uint8_t TOSHIBA_HEADER_BYTE_0 = 0xF2;
+static constexpr uint8_t TOSHIBA_HEADER_BYTE_1 = 0x0D;
+static constexpr uint8_t TOSHIBA_COMMAND_DEFAULT = 0x01;
+static constexpr uint8_t TOSHIBA_COMMAND_TIMER = 0x02;
+static constexpr uint8_t TOSHIBA_COMMAND_POWER = 0x08;
+static constexpr uint8_t TOSHIBA_FAN_SPEED_AUTO = 0x00;
+static constexpr uint8_t TOSHIBA_FAN_SPEED_QUIET = 0x20;
+static constexpr uint8_t TOSHIBA_FAN_SPEED_1 = 0x40;
+static constexpr uint8_t TOSHIBA_FAN_SPEED_2 = 0x60;
+static constexpr uint8_t TOSHIBA_FAN_SPEED_3 = 0x80;
+static constexpr uint8_t TOSHIBA_FAN_SPEED_4 = 0xA0;
+static constexpr uint8_t TOSHIBA_FAN_SPEED_5 = 0xC0;
+static constexpr uint8_t TOSHIBA_POWER_HIGH = 0x01;
+static constexpr uint8_t TOSHIBA_POWER_ECO = 0x03;
+static constexpr uint8_t TOSHIBA_MOTION_SWING = 0x04;
+static constexpr uint8_t TOSHIBA_MOTION_FIX = 0x00;
 
 // Simple enum to represent models.
 enum Model {
@@ -72,6 +92,7 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   void restore_ras_25j2kvsg_nd_(climate::ClimateDeviceRestoreState &restore);
   void transmit_ras_25j2kvsg_nd_();
   void transmit_ras_25j2kvsg_nd_motion_(uint8_t command, uint8_t repeat);
+  void encode_ras_25j2kvsg_nd_motion_(remote_base::RemoteTransmitData *data, uint8_t command, uint8_t repeat);
   void perform_ras_25j2kvsg_nd_(remote_base::RemoteTransmitterBase::TransmitCall &transmit, bool swing);
   bool receive_ras_25j2kvsg_nd_(remote_base::RemoteReceiveData data);
   bool receive_ras_25j2kvsg_nd_frame_(const uint8_t *message, uint8_t length);
@@ -80,7 +101,10 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   uint8_t ras_25j2kvsg_nd_fan_() const;
   void set_ras_25j2kvsg_nd_fan_(uint8_t code);
   void publish_power_selection_();
+  void set_ras_25j2kvsg_nd_power_(uint8_t power);
+  bool validate_ras_25j2kvsg_nd_power_preset_(size_t power, ToshibaPreset preset) const;
 
+  ESPPreferenceObject power_selection_pref_;
   float normal_target_temperature_{24.0f};
   uint32_t last_swing_received_{0};
   uint32_t last_swing_transmitted_{0};

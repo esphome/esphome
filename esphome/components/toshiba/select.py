@@ -5,7 +5,7 @@ from esphome.const import CONF_MODEL
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .climate import ToshibaClimate
+from .climate import MODEL_RAS_25J2KVSG_ND, ToshibaClimate
 
 DEPENDENCIES = ["climate.toshiba"]
 
@@ -22,8 +22,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 def _validate_model(config: ConfigType) -> ConfigType:
     climate = fv.get_declaring_config(config[CONF_TOSHIBA_ID])
-    if climate[CONF_MODEL] != "RAS-25J2KVSG-ND":
-        raise cv.Invalid("Power selection requires model RAS-25J2KVSG-ND")
+    if climate[CONF_MODEL] != MODEL_RAS_25J2KVSG_ND:
+        raise cv.Invalid(f"Power selection requires model {MODEL_RAS_25J2KVSG_ND}")
     return config
 
 
