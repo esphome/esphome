@@ -367,7 +367,7 @@ void LD2412Component::handle_periodic_data_() {
     0x02: Normal mode
   */
   bool engineering_mode = this->buffer_data_[DATA_TYPES] == 0x01;
-  if (!engineering_mode && this->buffer_pos_ < PERIODIC_FRAME_MIN) {
+  if (this->buffer_pos_ < PERIODIC_FRAME_MIN) {
     return;  // too short to hold the values
   }
 #ifdef USE_SWITCH
