@@ -2,6 +2,7 @@
 #include <gmock/gmock.h>
 #include <vector>
 #include <cstdint>
+#include <cstring>
 #include "esphome/components/uart/packet_interface/uart_packet_interface.h"
 #include "esphome/components/packet_interface/packet_buffer.h"
 #include "esphome/components/uart/uart_component.h"
@@ -42,10 +43,11 @@ class UartPacketInterfaceTest : public ::testing::Test {
 static void feed(MockUARTComponent &uart, UartPacketInterface &interface, const std::vector<uint8_t> &bytes) {
   size_t read_pos = 0;
   EXPECT_CALL(uart, available()).WillRepeatedly(Invoke([&bytes, &read_pos]() { return bytes.size() - read_pos; }));
-  EXPECT_CALL(uart, read_array(_, 1)).WillRepeatedly(Invoke([&bytes, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= bytes.size())
+  EXPECT_CALL(uart, read_array(_, _)).WillRepeatedly(Invoke([&bytes, &read_pos](uint8_t *data, size_t len) {
+    if (len > bytes.size() - read_pos)
       return false;
-    *data = bytes[read_pos++];
+    std::memcpy(data, bytes.data() + read_pos, len);
+    read_pos += len;
     return true;
   }));
   interface.loop();
@@ -111,10 +113,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveSimpleFrame) {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= frame_data.size())
+  EXPECT_CALL(uart_, read_array(_, _)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t len) {
+    if (len > frame_data.size() - read_pos)
       return false;
-    *data = frame_data[read_pos++];
+    std::memcpy(data, frame_data.data() + read_pos, len);
+    read_pos += len;
     return true;
   }));
 
@@ -134,10 +137,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveFrameWithFlagEscape) {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= frame_data.size())
+  EXPECT_CALL(uart_, read_array(_, _)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t len) {
+    if (len > frame_data.size() - read_pos)
       return false;
-    *data = frame_data[read_pos++];
+    std::memcpy(data, frame_data.data() + read_pos, len);
+    read_pos += len;
     return true;
   }));
 
@@ -157,10 +161,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveFrameWithControlEscape) {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= frame_data.size())
+  EXPECT_CALL(uart_, read_array(_, _)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t len) {
+    if (len > frame_data.size() - read_pos)
       return false;
-    *data = frame_data[read_pos++];
+    std::memcpy(data, frame_data.data() + read_pos, len);
+    read_pos += len;
     return true;
   }));
 
@@ -180,10 +185,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveMultipleFrames) {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= frame_data.size())
+  EXPECT_CALL(uart_, read_array(_, _)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t len) {
+    if (len > frame_data.size() - read_pos)
       return false;
-    *data = frame_data[read_pos++];
+    std::memcpy(data, frame_data.data() + read_pos, len);
+    read_pos += len;
     return true;
   }));
 
@@ -207,10 +213,11 @@ TEST_F(UartPacketInterfaceTest, ReceiveEmptyFrame) {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= frame_data.size())
+  EXPECT_CALL(uart_, read_array(_, _)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t len) {
+    if (len > frame_data.size() - read_pos)
       return false;
-    *data = frame_data[read_pos++];
+    std::memcpy(data, frame_data.data() + read_pos, len);
+    read_pos += len;
     return true;
   }));
 
@@ -229,10 +236,11 @@ TEST_F(UartPacketInterfaceTest, IgnoreDataBeforeFirstFlag) {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= frame_data.size())
+  EXPECT_CALL(uart_, read_array(_, _)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t len) {
+    if (len > frame_data.size() - read_pos)
       return false;
-    *data = frame_data[read_pos++];
+    std::memcpy(data, frame_data.data() + read_pos, len);
+    read_pos += len;
     return true;
   }));
 
@@ -281,10 +289,11 @@ TEST_F(UartPacketInterfaceTest, RoundTrip) {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= frame_data.size())
+  EXPECT_CALL(uart_, read_array(_, _)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t len) {
+    if (len > frame_data.size() - read_pos)
       return false;
-    *data = frame_data[read_pos++];
+    std::memcpy(data, frame_data.data() + read_pos, len);
+    read_pos += len;
     return true;
   }));
 
@@ -315,10 +324,11 @@ TEST_F(UartPacketInterfaceTest, AllByteValues) {
     return frame_data.size() - read_pos;
   }));
 
-  EXPECT_CALL(uart_, read_array(_, 1)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t) {
-    if (read_pos >= frame_data.size())
+  EXPECT_CALL(uart_, read_array(_, _)).WillRepeatedly(Invoke([&frame_data, &read_pos](uint8_t *data, size_t len) {
+    if (len > frame_data.size() - read_pos)
       return false;
-    *data = frame_data[read_pos++];
+    std::memcpy(data, frame_data.data() + read_pos, len);
+    read_pos += len;
     return true;
   }));
 
