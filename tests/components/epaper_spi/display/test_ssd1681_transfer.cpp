@@ -34,6 +34,7 @@ class TestableSSD1681 : public EPaperSSD1681 {
   }
 
   using EPaperSSD1681::teardown;
+  void abandon() { this->abandon_update_(); }
   EPaperState state() const { return this->state_; }
   void step() { this->process_state_(); }
   uint8_t update_count() const { return this->update_count_; }
@@ -286,6 +287,24 @@ TEST(EPaperSSD1681, TeardownFinishesTheUpdateAndSendsNothingMore) {
   const size_t n = bus.commands.size();
   EXPECT_TRUE(display.teardown()) << "a second teardown should be a no-op";
   EXPECT_EQ(bus.commands.size(), n);
+}
+
+/// An update abandoned on a busy timeout leaves the panel in an unknown state, so it is not kept.
+TEST(EPaperSSD1681, AbandonedUpdateDoesNotKeepThePanelImage) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update();
+  ASSERT_TRUE(display.panel_holds_image());
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update_state();
+  display.abandon();
+  EXPECT_FALSE(display.panel_holds_image());
 }
 
 /// With every update a full one the panel loses its RAM in deep sleep and there is nothing to keep.

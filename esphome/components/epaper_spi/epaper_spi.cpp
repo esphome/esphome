@@ -5,11 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-#include <esp_system.h>
-#endif
-#ifdef USE_ESP8266
-#include <user_interface.h>
+#ifdef USE_DEEP_SLEEP
+#include "esphome/components/deep_sleep/deep_sleep_component.h"
 #endif
 
 namespace esphome::epaper_spi {
@@ -39,10 +36,8 @@ void EPaperBase::setup() {
 }
 
 bool EPaperBase::woke_from_deep_sleep_() const {
-#if defined(USE_ESP32)
-  return esp_reset_reason() == ESP_RST_DEEPSLEEP;
-#elif defined(USE_ESP8266)
-  return system_get_rst_info()->reason == REASON_DEEP_SLEEP_AWAKE;
+#ifdef USE_DEEP_SLEEP
+  return deep_sleep::woke_from_deep_sleep();
 #else
   return false;
 #endif
@@ -291,6 +286,8 @@ void EPaperBase::abandon_update_() {
   // Leave the panel powered down rather than with its high-voltage drivers enabled
   this->power_off();
   this->full_update_requested_ = true;
+  // The request above does not survive a deep sleep, so the panel must not be trusted after one either
+  this->panel_holds_image_ = false;
   this->current_data_index_ = 0;
   this->set_state_(EPaperState::IDLE);
 }
