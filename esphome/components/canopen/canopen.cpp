@@ -63,7 +63,8 @@ void CANopenComponent::loop() {
     data[4 + i] = request.value >> (8 * i);
   this->active_ = true;
   this->sent_at_ms_ = now;
-  if (this->bus_->send_data(SDO_REQUEST_BASE + request.node, false, false, data.data(), data.size()) != canbus::ERROR_OK)
+  if (this->bus_->send_data(SDO_REQUEST_BASE + request.node, false, false, data.data(), data.size()) !=
+      canbus::ERROR_OK)
     this->finish_(SDOResult::SDO_RESULT_TRANSPORT_ERROR);
 }
 
@@ -71,8 +72,8 @@ void CANopenComponent::on_frame_(uint32_t id, bool extended, bool rtr, const std
   if (!this->active_ || extended || rtr || data.size() != 8)
     return;
   const auto &request = this->requests_[this->head_];
-  if (id != SDO_RESPONSE_BASE + request.node || data[1] != (request.index & 0xFF) ||
-      data[2] != (request.index >> 8) || data[3] != request.subindex)
+  if (id != SDO_RESPONSE_BASE + request.node || data[1] != (request.index & 0xFF) || data[2] != (request.index >> 8) ||
+      data[3] != request.subindex)
     return;
   const uint32_t value = encode_uint32(data[7], data[6], data[5], data[4]);
   if (data[0] == SDO_ABORT) {

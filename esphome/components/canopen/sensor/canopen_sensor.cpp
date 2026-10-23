@@ -31,7 +31,7 @@ void CANopenSensor::on_result_(SDOResult result, uint32_t value, uint8_t size) {
   this->pending_ = false;
   const uint8_t expected = this->type_ <= ValueType::VALUE_TYPE_INT8    ? 1
                            : this->type_ <= ValueType::VALUE_TYPE_INT16 ? 2
-                                                                      : 4;
+                                                                        : 4;
   if (result != SDOResult::SDO_RESULT_SUCCESS || size != expected) {
     this->status_set_warning();
     this->publish_state(NAN);
