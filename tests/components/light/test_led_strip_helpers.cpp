@@ -73,7 +73,7 @@ TEST(LedStripHelpers, ViewFallsBackToScratchBeforeSetup) {
   EXPECT_EQ(strip[0].get_red_raw(), 9);
 }
 
-TEST(LedStripHelpers, RefreshTooSoonHoldsTheFrame) {
+TEST(LedStripHelpers, ThrottleShowHoldsTheFrame) {
   HelperStrip strip;
   LightState state(&strip);
   strip.setup_state(&state);
