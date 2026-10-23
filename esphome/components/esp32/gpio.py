@@ -93,7 +93,7 @@ def _translate_pin(value):
     return _lookup_pin(value)
 
 
-_esp32_validations: dict[str, ESP32PinSpec] = {
+_esp32_pin_specs: dict[str, ESP32PinSpec] = {
     VARIANT_ESP32: ESP32_PIN_SPEC,
     VARIANT_ESP32C2: ESP32_C2_PIN_SPEC,
     VARIANT_ESP32C3: ESP32_C3_PIN_SPEC,
@@ -126,7 +126,7 @@ def gpio_pin_number_validator(value):
         return value
 
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
-    if variant not in _esp32_validations:
+    if variant not in _esp32_pin_specs:
         raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
 
     return value
@@ -134,14 +134,12 @@ def gpio_pin_number_validator(value):
 
 def validate_gpio_pin(pin):
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
-    if variant not in _esp32_validations:
+    if variant not in _esp32_pin_specs:
         raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
 
     ignore_pin_validation_warning = pin[CONF_IGNORE_PIN_VALIDATION_ERROR]
     try:
-        pin[CONF_NUMBER] = _esp32_validations[variant].validate_gpio_pin(
-            pin[CONF_NUMBER]
-        )
+        pin[CONF_NUMBER] = _esp32_pin_specs[variant].validate_gpio_pin(pin[CONF_NUMBER])
     except cv.Invalid as exc:
         if not ignore_pin_validation_warning:
             raise
@@ -153,9 +151,9 @@ def validate_gpio_pin(pin):
         )
     else:
         # `ignore_pin_validation_error` only suppresses an error raised by the
-        # variant's pin_validation above (e.g. SPI flash/PSRAM pins, invalid pin
-        # numbers). If that didn't raise, the option is a no-op -- warn so the
-        # user can clean it up, but don't block the build.
+        # variant's pin_validation above (e.g. SPI flash/PSRAM pins); pin numbers out
+        # of range still fail validate_supports. If nothing raised, the option is a
+        # no-op -- warn so the user can clean it up, but don't block the build.
         if ignore_pin_validation_warning:
             _LOGGER.warning(
                 "GPIO%d has no validation errors to ignore; "
@@ -171,7 +169,7 @@ def validate_supports(value):
     is_output = mode[CONF_OUTPUT]
     is_open_drain = mode[CONF_OPEN_DRAIN]
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
-    if variant not in _esp32_validations:
+    if variant not in _esp32_pin_specs:
         raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
 
     if is_open_drain and not is_output:
@@ -179,7 +177,7 @@ def validate_supports(value):
             "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
         )
 
-    return _esp32_validations[variant].validate_supports(value)
+    return _esp32_pin_specs[variant].validate_supports(value)
 
 
 # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-reference/peripherals/gpio.html#_CPPv416gpio_drive_cap_t

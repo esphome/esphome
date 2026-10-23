@@ -18,7 +18,7 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
 )
-from esphome.components.esp32.gpio import _esp32_validations
+from esphome.components.esp32.gpio import _esp32_pin_specs
 from esphome.components.esp32.gpio_common import (
     ESP32PinSpec,
     spi_psram_errors,
@@ -254,7 +254,7 @@ def test_variant_pin_validation(
     warning: str | None,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    spec = _esp32_validations[variant]
+    spec = _esp32_pin_specs[variant]
     with caplog.at_level("WARNING"):
         if error is None:
             assert spec.validate_gpio_pin(num) == num
@@ -305,7 +305,7 @@ def test_variant_pin_validation(
 )
 def test_variant_supports_errors(variant: str, conf: ConfigType, error: str) -> None:
     with pytest.raises(cv.Invalid) as exc:
-        _esp32_validations[variant].validate_supports(conf)
+        _esp32_pin_specs[variant].validate_supports(conf)
     assert error in exc.value.msg
 
 
@@ -330,7 +330,7 @@ def test_variant_supports_warnings(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level("WARNING"):
-        _esp32_validations[variant].validate_supports(conf)
+        _esp32_pin_specs[variant].validate_supports(conf)
     assert len(caplog.messages) == len(warnings)
     for message, expected in zip(caplog.messages, warnings, strict=True):
         assert message.startswith(expected)
