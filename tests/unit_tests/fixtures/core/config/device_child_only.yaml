@@ -1,0 +1,11 @@
+esphome:
+  name: test-device-child-only
+  devices:
+    - id: zone_1_device
+      name: Zone 1
+      relation: child
+    - id: zone_2_device
+      name: Zone 2
+      relation: child
+
+host:

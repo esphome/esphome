@@ -156,10 +156,8 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_sensor(sens, i))
 
     cg.add(var.set_model(config[CONF_MODEL]))
-    if CONF_RESOLUTION in config:
-        cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+    cg.add_optional(var.set_resolution, config.get(CONF_RESOLUTION))
 
     cg.add(var.set_request_temperature(CONF_TEMPERATURE in config))
 
-    if CONF_DISABLE_LED in config:
-        cg.add(var.set_disable_led(config[CONF_DISABLE_LED]))
+    cg.add_optional(var.set_disable_led, config.get(CONF_DISABLE_LED))
