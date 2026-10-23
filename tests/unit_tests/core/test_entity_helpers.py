@@ -1335,6 +1335,27 @@ def test_integration_class_handles_match_owning_definitions() -> None:
         assert str(owning) == f"zigbee::{class_name}"
 
 
+def test_mqtt_component_class_names_exist() -> None:
+    """Every mqtt_component_class("...") call names a class mqtt declares."""
+    from esphome.components import mqtt
+
+    components = Path(entity_helpers.__file__).parent.parent / "components"
+    names = {
+        name
+        for path in components.glob("*/__init__.py")
+        for name in re.findall(r'mqtt_component_class\("(\w+)"\)', path.read_text())
+    }
+    assert "MQTTSensorComponent" in names
+    for name in names:
+        assert str(mqtt_component_class(name)) == str(getattr(mqtt, name)), name
+
+
+def test_datetime_time_handle_matches_time_component() -> None:
+    from esphome.components import datetime, time
+
+    assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
+
+
 def test_zigbee_entity_schema_cluster_options() -> None:
     """The cluster key only exists for esp32 + zigbee and is limited to the
     platform's options, with the first option as its default."""
