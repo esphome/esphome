@@ -60,11 +60,7 @@ bool PCF8574Component::digital_read_hw(uint8_t pin) {
 bool PCF8574Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 
 void PCF8574Component::digital_write_hw(uint8_t pin, bool value) {
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_mask_, 1 << pin, value);
   this->write_gpio_();
 }
 void PCF8574Component::pin_mode(uint8_t pin, gpio::Flags flags) {

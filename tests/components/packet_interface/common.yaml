@@ -1,0 +1,15 @@
+packet_interface:
+  - platform: uart
+    id: packet_interface_uart
+    max_packet_size: 256
+
+sensor:
+  - platform: template
+    id: packet_interface_sensor
+    lambda: return 1.0;
+
+packet_transport:
+  - platform: packet_interface
+    packet_interface: packet_interface_uart
+    sensors:
+      - packet_interface_sensor

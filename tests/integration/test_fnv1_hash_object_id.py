@@ -10,12 +10,18 @@ to be updated to match the other.
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
+
+ANSI_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
+# Format: "[timestamp][level][FNV1_OID:line]: test_name PASSED"
+RESULT_PATTERN = re.compile(r"\[FNV1_OID:\d+\]:\s+(\w+)\s+(PASSED|FAILED)")
 
 
 @pytest.mark.asyncio
@@ -26,8 +32,7 @@ async def test_fnv1_hash_object_id(
 ) -> None:
     """Test that C++ fnv1_hash_object_id matches Python implementation."""
 
-    test_results: dict[str, str] = {}
-    all_tests_complete = asyncio.Event()
+    waiter = LineWaiter()
     expected_tests = {
         "foo",
         "upper",
@@ -39,37 +44,32 @@ async def test_fnv1_hash_object_id(
         "empty",
     }
 
-    def on_log_line(line: str) -> None:
-        """Capture log lines with test results."""
-        # Strip ANSI escape codes
-        clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
-        # Look for our test result messages
-        # Format: "[timestamp][level][FNV1_OID:line]: test_name PASSED"
-        match = re.search(r"\[FNV1_OID:\d+\]:\s+(\w+)\s+(PASSED|FAILED)", clean_line)
-        if match:
-            test_name = match.group(1)
-            result = match.group(2)
-            test_results[test_name] = result
-            if set(test_results.keys()) >= expected_tests:
-                all_tests_complete.set()
+    def test_results() -> dict[str, str]:
+        return {
+            m.group(1): m.group(2)
+            for line in waiter.lines
+            if (m := RESULT_PATTERN.search(ANSI_PATTERN.sub("", line)))
+        }
+
+    async def wait_all_results() -> None:
+        for name in expected_tests:
+            await waiter.wait_for("[FNV1_OID:", f"]: {name} ")
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "fnv1-hash-object-id-test"
+        await assert_device_name(client, "fnv1-hash-object-id-test")
 
         # Wait for all tests to complete or timeout
-        try:
-            await asyncio.wait_for(all_tests_complete.wait(), timeout=2.0)
-        except TimeoutError:
-            pytest.fail(f"Tests timed out. Got results for: {set(test_results.keys())}")
+        await wait_or_fail(
+            wait_all_results(), 2.0, "Tests timed out", test_results=test_results
+        )
+        results = test_results()
 
         # Verify all tests passed
         for test_name in expected_tests:
-            assert test_name in test_results, f"{test_name} test not found"
-            assert test_results[test_name] == "PASSED", (
+            assert test_name in results, f"{test_name} test not found"
+            assert results[test_name] == "PASSED", (
                 f"{test_name} test failed - C++ and Python hash mismatch"
             )
