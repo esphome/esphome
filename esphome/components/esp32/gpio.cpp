@@ -258,12 +258,15 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
   return;
 #else
   if (!can_wake(this->get_pin_num())) {
-    ESP_LOGW(TAG, "No valid rtc GPIO, might miss wakes");
+    ESP_LOGW(TAG, "GPIO%u is not a RTC pin; interrupts may be missed in light sleep", this->pin_);
     gpio_isr_handler_add(this->get_pin_num(), func, arg);
     gpio_set_intr_type(this->get_pin_num(), idf_type);
     gpio_intr_enable(this->get_pin_num());
     return;
   }
+  // Edge interrupts are not working with wakeup from light sleep. We emulate them with
+  // wakeup + level interrupts. This adds some latency and short pulses might be missed.
+  // Could let components opt-out and hold a sleep lock instead.
 
   ISRFuncArg *&func_args = this->isr_func_arg_;
   gpio_isr_handler_remove(this->get_pin_num());
