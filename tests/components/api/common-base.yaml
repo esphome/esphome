@@ -32,6 +32,10 @@ esphome:
           action: notify.html5
           data:
             message: Button was pressed
+      - homeassistant.service:
+          service: notify.html5
+          data:
+            message: Button was pressed
       - homeassistant.tag_scanned: pulse
       - homeassistant.action:
           action: weather.get_forecasts

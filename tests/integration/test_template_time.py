@@ -7,7 +7,7 @@ import asyncio
 from aioesphomeapi import EntityState, TextSensorState
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping
+from .state_utils import build_key_to_entity_mapping, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -39,9 +39,7 @@ async def test_template_time(
                 if name is not None and state.state == EXPECTED_STATES[name]:
                     events[name].set()
 
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         for name, event in events.items():
             await wait_or_fail(
