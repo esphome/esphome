@@ -7,7 +7,7 @@
 namespace esphome::ens210 {
 
 /// This class implements support for the ENS210 relative humidity and temperature i2c sensor.
-class ENS210Component : public PollingComponent, public i2c::I2CDevice {
+class ENS210Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
   void setup() override;
@@ -22,8 +22,7 @@ class ENS210Component : public PollingComponent, public i2c::I2CDevice {
                               // not yet finished)
     ENS210_STATUS_CRC_ERROR,  // The value was read, but the CRC over the payload (valid and data) does not match
     ENS210_STATUS_I2C_ERROR,  // There was an I2C communication error
-    ENS210_WRONG_CHIP_ID      // The read PART_ID is not the expected part id of the ENS210
-  } error_code_{ENS210_STATUS_OK};
+  };
 
  protected:
   bool set_low_power_(bool enable);

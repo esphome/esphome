@@ -11,8 +11,11 @@
 
 namespace esphome::internal_temperature {
 
-class InternalTemperatureSensor : public sensor::Sensor, public PollingComponent {
+class InternalTemperatureSensor final : public sensor::Sensor, public PollingComponent {
  public:
+  // User provided, not "= default": `new(p) InternalTemperatureSensor()` would zero-fill .bss that is already zero.
+  InternalTemperatureSensor() {}
+
 #if defined(USE_ESP32) || (defined(USE_ZEPHYR) && defined(USE_NRF52))
   void setup() override;
 #endif  // USE_ESP32 || (USE_ZEPHYR && USE_NRF52)

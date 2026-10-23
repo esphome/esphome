@@ -7,3 +7,8 @@ speaker:
   - platform: resampler
     id: resampler_speaker_id
     output_speaker: resampler_i2s_speaker_id
+    bits_per_sample: 16
+  - platform: resampler
+    id: resampler_speaker_2_id
+    output_speaker: resampler_speaker_id
+    bits_per_sample: passthrough

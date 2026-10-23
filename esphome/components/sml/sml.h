@@ -14,10 +14,10 @@ class SmlListener {
   std::string server_id;
   std::string obis_code;
   SmlListener(std::string server_id, std::string obis_code);
-  virtual void publish_val(const ObisInfo &obis_info){};
+  virtual void publish_val(const ObisInfo &obis_info) {};
 };
 
-class Sml : public Component, public uart::UARTDevice {
+class Sml final : public Component, public uart::UARTDevice {
  public:
   void register_sml_listener(SmlListener *listener);
   void loop() override;

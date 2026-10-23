@@ -49,15 +49,16 @@ modbus_controller:
   - address: 1
     id: modbus_controller_ok
     max_cmd_retries: 2
-    update_interval: 1s
+    # Update interval is set to never to prevent automatic polling: the test will trigger requests by pressing the "Start Scenario" button
+    update_interval: never
   - address: 2
     id: modbus_controller_slow
     max_cmd_retries: 0
-    update_interval: 1s
+    update_interval: never
   - address: 3
     id: modbus_controller_offline
     max_cmd_retries: 0
-    update_interval: 1s
+    update_interval: never
 
 sensor:
   - platform: modbus_controller
@@ -91,4 +92,11 @@ button:
     name: "Start Scenario"
     id: start_scenario_btn
     on_press:
-      - lambda: "id(virtual_uart_dev).start_scenario();"
+      - lambda: |-
+          id(virtual_uart_dev).start_scenario();
+          id(modbus_controller_ok).set_update_interval(1000);
+          id(modbus_controller_ok).start_poller();
+          id(modbus_controller_slow).set_update_interval(1000);
+          id(modbus_controller_slow).start_poller();
+          id(modbus_controller_offline).set_update_interval(1000);
+          id(modbus_controller_offline).start_poller();

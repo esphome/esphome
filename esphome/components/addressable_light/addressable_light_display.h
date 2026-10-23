@@ -9,7 +9,7 @@
 
 namespace esphome::addressable_light {
 
-class AddressableLightDisplay : public display::DisplayBuffer {
+class AddressableLightDisplay final : public display::DisplayBuffer {
  public:
   light::AddressableLight *get_light() const { return this->light_; }
 

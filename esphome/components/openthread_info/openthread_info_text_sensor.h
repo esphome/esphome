@@ -17,7 +17,7 @@ class OpenThreadInstancePollingComponent : public PollingComponent {
       return;
     }
 
-    this->update_instance(lock->get_instance());
+    this->update_instance(lock.get_instance());
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
@@ -132,6 +132,24 @@ class ChannelOpenThreadInfo final : public OpenThreadInstancePollingComponent, p
 
  protected:
   uint8_t last_channel_;
+};
+
+class MeshLocalEidOpenThreadInfo final : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    const otIp6Address *addr = otThreadGetMeshLocalEid(instance);
+    if (otIp6IsAddressEqual(addr, &this->last_addr_)) {
+      return;
+    }
+    this->last_addr_ = *addr;
+    char buf[OT_IP6_ADDRESS_STRING_SIZE];
+    otIp6AddressToString(addr, buf, sizeof(buf));
+    this->publish_state(buf);
+  }
+  void dump_config() override;
+
+ protected:
+  otIp6Address last_addr_{};
 };
 
 class DatasetOpenThreadInfo : public OpenThreadInstancePollingComponent {

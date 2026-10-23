@@ -8,6 +8,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 
+#include "esphome/core/main_task.h"
 #include "esphome/core/time_64.h"
 
 // IRAM_ATTR places a function in executable RAM so it is callable from an
@@ -44,6 +45,7 @@
 // it is callable from Thumb code via interworking. The MRS CPSR instruction
 // is ARM-only and user code here may be built in Thumb, so in_isr_context()
 // defers to this port helper on BK72xx instead of reading CPSR inline.
+// NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" uint32_t platform_is_in_interrupt_context(void);
 #endif
 
@@ -59,9 +61,11 @@ extern "C" void delayMicroseconds(unsigned int us);
 // Forward decls from libretiny's <lt_api.h> family for the inline arch_*
 // wrappers below. Pulling the full header would drag in the rest of the
 // LibreTiny C API.
+// NOLINTBEGIN(readability-redundant-declaration)
 extern "C" void lt_wdt_feed(void);
 extern "C" uint32_t lt_cpu_get_cycle_count(void);
 extern "C" uint32_t lt_cpu_get_freq(void);
+// NOLINTEND(readability-redundant-declaration)
 
 namespace esphome::libretiny {}
 
@@ -81,6 +85,10 @@ __attribute__((always_inline)) inline bool in_isr_context() {
 #endif
 }
 
+/// Before setup() stores the handle every task counts as background; the wake is a no-op until then.
+__attribute__((always_inline)) inline bool is_main_loop_thread() {
+  return xTaskGetCurrentTaskHandle() == esphome_main_task_handle;
+}
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }

@@ -5,7 +5,7 @@
 
 namespace esphome::ens160_i2c {
 
-class ENS160I2CComponent : public esphome::ens160_base::ENS160Component, public i2c::I2CDevice {
+class ENS160I2CComponent final : public esphome::ens160_base::ENS160Component, public i2c::I2CDevice {
   void dump_config() override;
 
   bool read_byte(uint8_t a_register, uint8_t *data) override;

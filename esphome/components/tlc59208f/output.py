@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.types import ConfigType
 
 from . import TLC59208FOutput, tlc59208f_ns
 
@@ -19,7 +20,12 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="tlc59208f", hub_key=CONF_TLC59208F_ID
+)
+
+
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_TLC59208F_ID])
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_channel(config[CONF_CHANNEL]))

@@ -1,16 +1,36 @@
 #include "nextion.h"
 
 #include <cinttypes>
+#include <cstring>
+#include <new>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/core/util.h"
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion";
+ESPHOME_LOG_TAG(TAG, "nextion");
+
+// A user entity may be named sleep_wake too; only the internal NO_RESULT command clears the sleeping flag
+static bool is_sleep_wake_command(const NextionComponentBase *component) {
+  return component->get_queue_type() == NextionQueueType::NO_RESULT && component->get_variable_name() == "sleep_wake";
+}
+
+// The display answers a raw "get" with a value instead of 0x01. Its queue entry is named RAW_GET_NAME so that
+// value removes it. An entity with this variable name would clash when it writes its state; none is expected.
+static constexpr const char *RAW_GET_NAME = "raw_get";
+
+static bool is_raw_get_command(const NextionComponentBase *component) {
+  return component->get_queue_type() == NextionQueueType::NO_RESULT && component->get_variable_name() == RAW_GET_NAME;
+}
+
+static const char *raw_command_name(const char *command, const char *name) {
+  return ESPHOME_strncmp_P(command, ESPHOME_PSTR("get "), 4) == 0 ? RAW_GET_NAME : name;
+}
 
 // Nextion command terminator: three consecutive 0xFF bytes (per Nextion Instruction Set v1.1).
 static constexpr uint8_t COMMAND_DELIMITER[3] = {0xFF, 0xFF, 0xFF};
@@ -162,22 +182,26 @@ bool Nextion::check_connect_() {
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 }
 
-void Nextion::reset_(bool reset_nextion) {
-  uint8_t d;
-
-  while (this->available()) {  // Clear receive buffer
-    this->read_byte(&d);
+// NO_RESULT components are owned by their entry; every other component is a user entity. Entry and
+// component storage comes from RAMAllocator, so delete is not valid for either.
+void Nextion::release_queue_entry_(NextionQueue *nb) {
+  if (nb->component != nullptr && nb->component->get_queue_type() == NextionQueueType::NO_RESULT) {
+    nb->component->~NextionComponentBase();
+    RAMAllocator<NextionComponentBase>().deallocate(nb->component, 1);
   }
+  nb->~NextionQueue();
+  RAMAllocator<NextionQueue>().deallocate(nb, 1);
+}
+
+void Nextion::reset_(bool reset_nextion) {
+  this->discard_available();
   for (auto *entry : this->nextion_queue_) {
-    if (entry->component != nullptr && entry->component->get_queue_type() == NextionQueueType::NO_RESULT) {
-      delete entry->component;  // NOLINT(cppcoreguidelines-owning-memory)
-    }
-    delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
+    this->release_queue_entry_(entry);
   }
   this->nextion_queue_.clear();
 #ifdef USE_NEXTION_WAVEFORM
   for (auto *entry : this->waveform_queue_) {
-    delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
+    this->release_queue_entry_(entry);
   }
   this->waveform_queue_.clear();
 #endif  // USE_NEXTION_WAVEFORM
@@ -277,7 +301,7 @@ bool Nextion::send_command(const char *command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
     return false;
 
-  this->add_no_result_to_queue_with_command_("command", command);
+  this->add_no_result_to_queue_with_command_(raw_command_name(command, "command"), command);
   return true;
 }
 
@@ -295,7 +319,7 @@ bool Nextion::send_command_printf(const char *format, ...) {
     return false;
   }
 
-  this->add_no_result_to_queue_with_command_("command_printf", buffer);
+  this->add_no_result_to_queue_with_command_(raw_command_name(buffer, "command_printf"), buffer);
   return true;
 }
 
@@ -352,8 +376,9 @@ void Nextion::loop() {
     this->connection_state_.ignore_is_setup_ = false;
   }
 
-  this->process_serial_();            // Receive serial data
-  this->process_nextion_commands_();  // Process nextion return commands
+  this->process_serial_();             // Receive serial data
+  this->process_nextion_commands_();   // Process nextion return commands
+  this->purge_stale_queue_entries_();  // Drop expired entries even when the display sends no data
 
   if (!this->connection_state_.nextion_reports_is_setup_) {
     if (this->started_ms_ == 0)
@@ -419,6 +444,9 @@ bool Nextion::remove_from_q_(bool report_empty) {
   NextionQueue *nb = this->nextion_queue_.front();
   if (!nb || !nb->component) {
     ESP_LOGE(TAG, "Invalid queue");
+    if (nb != nullptr) {
+      this->release_queue_entry_(nb);
+    }
     this->nextion_queue_.pop_front();
     return false;
   }
@@ -426,15 +454,81 @@ bool Nextion::remove_from_q_(bool report_empty) {
 
   ESP_LOGN(TAG, "Removed: %s", component->get_variable_name().c_str());
 
-  if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
-    if (component->get_variable_name() == "sleep_wake") {
-      this->is_sleeping_ = false;
-    }
-    delete component;  // NOLINT(cppcoreguidelines-owning-memory)
+  if (is_sleep_wake_command(component)) {
+    this->is_sleeping_ = false;
   }
-  delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+  this->release_queue_entry_(nb);
   this->nextion_queue_.pop_front();
   return true;
+}
+
+void Nextion::deliver_queue_response_(const LogString *response_name, const NextionQueueResponse &resp) {
+  auto it = this->nextion_queue_.begin();
+  while (it != this->nextion_queue_.end()) {
+    NextionQueue *nb = *it;
+    if (nb == nullptr || nb->component == nullptr) {
+      ESP_LOGE(TAG, "Invalid queue entry");
+      if (nb != nullptr) {
+        this->release_queue_entry_(nb);
+      }
+      it = this->nextion_queue_.erase(it);
+      continue;
+    }
+    NextionComponentBase *component = nb->component;
+    NextionQueueType qtype = component->get_queue_type();
+    const bool raw_get = is_raw_get_command(component);
+
+    if (!nb->pending_command.empty()) {
+      ESP_LOGV(TAG, "%s: skipping unsent '%s'", LOG_STR_ARG(response_name), component->get_variable_name().c_str());
+      ++it;
+      continue;
+    }
+
+    if (qtype == NextionQueueType::NO_RESULT && !raw_get) {
+      // Leave in queue -- its 0x01 ACK will remove it via remove_from_q_().
+      ESP_LOGV(TAG, "%s: skipping NO_RESULT '%s'", LOG_STR_ARG(response_name), component->get_variable_name().c_str());
+      ++it;
+      continue;
+    }
+
+    // The display answers queries in order, so the response belongs to this query even when the type does
+    // not match. Consume only this entry and never hand the value to a later query.
+    if (raw_get) {
+      // A raw "get" from send_command() has no entity to update
+      ESP_LOGV(TAG, "%s for raw get dropped", LOG_STR_ARG(response_name));
+    } else if (!resp.is_string && (qtype == NextionQueueType::SENSOR || qtype == NextionQueueType::BINARY_SENSOR ||
+                                   qtype == NextionQueueType::SWITCH)) {
+      ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(), qtype,
+               component->get_queue_type_string(), resp.int_value);
+      component->set_state_from_int(resp.int_value, true, false);
+    } else if (resp.is_string && qtype == NextionQueueType::TEXT_SENSOR) {
+      ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", resp.str_value->c_str(),
+               component->get_variable_name().c_str(), component->get_queue_type_string());
+      component->set_state_from_string(*resp.str_value, true, false);
+    } else {
+      ESP_LOGE(TAG, "%s but '%s' invalid type %d", LOG_STR_ARG(response_name), component->get_variable_name().c_str(),
+               qtype);
+    }
+
+    this->release_queue_entry_(nb);
+    this->nextion_queue_.erase(it);
+    return;
+  }
+  ESP_LOGE(TAG, "%s but no sent query in queue", LOG_STR_ARG(response_name));
+}
+
+void Nextion::set_numeric_return_(int value) {
+  NextionQueueResponse resp{};
+  resp.is_string = false;
+  resp.int_value = value;
+  this->deliver_queue_response_(LOG_STR("Numeric return"), resp);
+}
+
+void Nextion::set_string_return_(const std::string &value) {
+  NextionQueueResponse resp{};
+  resp.is_string = true;
+  resp.str_value = &value;
+  this->deliver_queue_response_(LOG_STR("String return"), resp);
 }
 
 void Nextion::process_serial_() {
@@ -542,7 +636,7 @@ void Nextion::process_nextion_commands_() {
           ESP_LOGW(TAG, "Invalid waveform ID %d/ch %d", component->get_component_id(),
                    component->get_wave_channel_id());
           ESP_LOGN(TAG, "Remove waveform ID %d/ch %d", component->get_component_id(), component->get_wave_channel_id());
-          delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+          this->release_queue_entry_(nb);
           this->waveform_queue_.pop();
         }
 #else   // USE_NEXTION_WAVEFORM
@@ -593,7 +687,8 @@ void Nextion::process_nextion_commands_() {
         uint8_t page_id = to_process[0];
         uint8_t component_id = to_process[1];
         uint8_t touch_event = to_process[2];  // 0 -> release, 1 -> press
-        ESP_LOGV(TAG, "Touch %s: page %u comp %u", touch_event ? "PRESS" : "RELEASE", page_id, component_id);
+        ESP_LOGV(TAG, "Touch %s: page %u comp %u", touch_event ? LOG_STR_LITERAL("PRESS") : LOG_STR_LITERAL("RELEASE"),
+                 page_id, component_id);
         for (auto *touch : this->touch_) {
           touch->process_touch(page_id, component_id, touch_event != 0);
         }
@@ -626,7 +721,7 @@ void Nextion::process_nextion_commands_() {
         const uint16_t x = (uint16_t(to_process[0]) << 8) | to_process[1];
         const uint16_t y = (uint16_t(to_process[2]) << 8) | to_process[3];
         const uint8_t touch_event = to_process[4];  // 0 -> release, 1 -> press
-        ESP_LOGV(TAG, "Touch %s at %u,%u", touch_event ? "PRESS" : "RELEASE", x, y);
+        ESP_LOGV(TAG, "Touch %s at %u,%u", touch_event ? LOG_STR_LITERAL("PRESS") : LOG_STR_LITERAL("RELEASE"), x, y);
         break;
       }
 
@@ -641,25 +736,7 @@ void Nextion::process_nextion_commands_() {
           break;
         }
 
-        NextionQueue *nb = this->nextion_queue_.front();
-        if (!nb || !nb->component) {
-          ESP_LOGE(TAG, "Invalid queue entry");
-          this->nextion_queue_.pop_front();
-          return;
-        }
-        NextionComponentBase *component = nb->component;
-
-        if (component->get_queue_type() != NextionQueueType::TEXT_SENSOR) {
-          ESP_LOGE(TAG, "String return but '%s' not text sensor", component->get_variable_name().c_str());
-        } else {
-          ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", to_process.c_str(), component->get_variable_name().c_str(),
-                   component->get_queue_type_string());
-          component->set_state_from_string(to_process, true, false);
-        }
-
-        delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-        this->nextion_queue_.pop_front();
-
+        this->set_string_return_(to_process);
         break;
       }
         //  0x71 0x01 0x02 0x03 0x04 0xFF 0xFF 0xFF
@@ -681,28 +758,7 @@ void Nextion::process_nextion_commands_() {
 
         int value = static_cast<int>(encode_uint32(to_process[3], to_process[2], to_process[1], to_process[0]));
 
-        NextionQueue *nb = this->nextion_queue_.front();
-        if (!nb || !nb->component) {
-          ESP_LOGE(TAG, "Invalid queue");
-          this->nextion_queue_.pop_front();
-          return;
-        }
-        NextionComponentBase *component = nb->component;
-
-        if (component->get_queue_type() != NextionQueueType::SENSOR &&
-            component->get_queue_type() != NextionQueueType::BINARY_SENSOR &&
-            component->get_queue_type() != NextionQueueType::SWITCH) {
-          ESP_LOGE(TAG, "Numeric return but '%s' invalid type %d", component->get_variable_name().c_str(),
-                   component->get_queue_type());
-        } else {
-          ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(),
-                   component->get_queue_type(), component->get_queue_type_string(), value);
-          component->set_state_from_int(value, true, false);
-        }
-
-        delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-        this->nextion_queue_.pop_front();
-
+        this->set_numeric_return_(value);
         break;
       }
 
@@ -887,7 +943,7 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGN(TAG, "Send waveform: component id %d, waveform id %d, size %zu", component->get_component_id(),
                  component->get_wave_channel_id(), buffer_to_send);
         component->clear_wave_buffer(buffer_to_send);
-        delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+        this->release_queue_entry_(nb);
         this->waveform_queue_.pop();
 #else   // USE_NEXTION_WAVEFORM
         ESP_LOGW(TAG, "Waveform transmit ready but waveform not enabled");
@@ -902,6 +958,11 @@ void Nextion::process_nextion_commands_() {
     this->command_data_.erase(0, to_process_length + DELIMITER_SIZE + 1);
   }
 
+  ESP_LOGN(TAG, "Loop end");
+  this->process_serial_();
+}  // Nextion::process_nextion_commands_()
+
+void Nextion::purge_stale_queue_entries_() {
   const uint32_t ms = App.get_loop_component_start_time();
 
   if (this->max_q_age_ms_ > 0 && !this->nextion_queue_.empty() &&
@@ -912,14 +973,10 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGV(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
                  component->get_variable_name().c_str());
 
-        if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
-          if (component->get_variable_name() == "sleep_wake") {
-            this->is_sleeping_ = false;
-          }
-          delete component;  // NOLINT(cppcoreguidelines-owning-memory)
+        if (is_sleep_wake_command(component)) {
+          this->is_sleeping_ = false;
         }
-
-        delete *it;  // NOLINT(cppcoreguidelines-owning-memory)
+        this->release_queue_entry_(*it);
         it = this->nextion_queue_.erase(it);
 
       } else {
@@ -927,10 +984,7 @@ void Nextion::process_nextion_commands_() {
       }
     }
   }
-  ESP_LOGN(TAG, "Loop end");
-  // App.feed_wdt(); Remove before master merge
-  this->process_serial_();
-}  // Nextion::process_nextion_commands_()
+}
 
 void Nextion::set_nextion_sensor_state(int queue_type, const std::string &name, float state) {
   this->set_nextion_sensor_state(static_cast<NextionQueueType>(queue_type), name, state);
@@ -1074,6 +1128,34 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
   return response.length();
 }
 
+// Allocates a queue entry owning a bare NO_RESULT component; nullptr when the queue is full or memory is out
+NextionQueue *Nextion::make_no_result_entry_(const std::string &variable_name) {
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
+    ESP_LOGW(TAG, "Queue full (%zu), drop: %s", this->nextion_queue_.size(), variable_name.c_str());
+    return nullptr;
+  }
+#endif
+
+  auto *nextion_queue = RAMAllocator<nextion::NextionQueue>().allocate(1);
+  if (nextion_queue == nullptr) {
+    ESP_LOGW(TAG, "Queue alloc failed");
+    return nullptr;
+  }
+  new (nextion_queue) nextion::NextionQueue;
+
+  nextion_queue->component = RAMAllocator<nextion::NextionComponentBase>().allocate(1);
+  if (nextion_queue->component == nullptr) {
+    ESP_LOGW(TAG, "Component alloc failed");
+    this->release_queue_entry_(nextion_queue);
+    return nullptr;
+  }
+  new (nextion_queue->component) nextion::NextionComponentBase;
+  nextion_queue->component->set_variable_name(variable_name);
+  nextion_queue->queue_time = App.get_loop_component_start_time();
+  return nextion_queue;
+}
+
 /**
  * @brief Add a command to the Nextion queue that expects no response.
  *
@@ -1085,30 +1167,11 @@ uint16_t Nextion::recv_ret_string_(std::string &response, uint32_t timeout, bool
  * @param variable_name Name of the variable or component associated with the command.
  */
 void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
-#ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
-    ESP_LOGW(TAG, "Queue full (%zu), drop: %s", this->nextion_queue_.size(), variable_name.c_str());
+  auto *nextion_queue = this->make_no_result_entry_(variable_name);
+  if (nextion_queue == nullptr)
     return;
-  }
-#endif
-
-  RAMAllocator<nextion::NextionQueue> allocator;
-  nextion::NextionQueue *nextion_queue = allocator.allocate(1);
-  if (nextion_queue == nullptr) {
-    ESP_LOGW(TAG, "Queue alloc failed");
-    return;
-  }
-  new (nextion_queue) nextion::NextionQueue();
-
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  nextion_queue->component = new nextion::NextionComponentBase;
-  nextion_queue->component->set_variable_name(variable_name);
-
-  nextion_queue->queue_time = App.get_loop_component_start_time();
-
   this->nextion_queue_.push_back(nextion_queue);
-
-  ESP_LOGN(TAG, "Queue NORESULT: %s", nextion_queue->component->get_variable_name().c_str());
+  ESP_LOGN(TAG, "Queue NORESULT: %s", variable_name.c_str());
 }
 
 /**
@@ -1129,6 +1192,8 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || command.empty())
     return;
 
+  ESP_LOGV(TAG, "Queue NORESULT '%s': %s", variable_name.c_str(), command.c_str());
+
   if (this->send_command_(command)) {
     this->add_no_result_to_queue_(variable_name);
 #ifdef USE_NEXTION_COMMAND_SPACING
@@ -1142,26 +1207,10 @@ void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_n
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::add_no_result_to_queue_with_pending_command_(const std::string &variable_name,
                                                            const std::string &command) {
-#ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
-    ESP_LOGW(TAG, "Queue full (%zu), drop: %s", this->nextion_queue_.size(), variable_name.c_str());
+  auto *nextion_queue = this->make_no_result_entry_(variable_name);
+  if (nextion_queue == nullptr)
     return;
-  }
-#endif
-
-  RAMAllocator<nextion::NextionQueue> allocator;
-  nextion::NextionQueue *nextion_queue = allocator.allocate(1);
-  if (nextion_queue == nullptr) {
-    ESP_LOGW(TAG, "Queue alloc failed");
-    return;
-  }
-  new (nextion_queue) nextion::NextionQueue();
-
-  nextion_queue->component = new nextion::NextionComponentBase;
-  nextion_queue->component->set_variable_name(variable_name);
-  nextion_queue->queue_time = App.get_loop_component_start_time();
   nextion_queue->pending_command = command;  // Store command for retry
-
   this->nextion_queue_.push_back(nextion_queue);
   ESP_LOGVV(TAG, "Queue with pending command: %s", variable_name.c_str());
 }
@@ -1295,7 +1344,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
     ESP_LOGW(TAG, "Queue alloc failed");
     return;
   }
-  new (nextion_queue) nextion::NextionQueue();
+  new (nextion_queue) nextion::NextionQueue;
 
   nextion_queue->component = component;
   nextion_queue->queue_time = App.get_loop_component_start_time();
@@ -1317,7 +1366,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   if (this->send_command_(command)) {
     this->nextion_queue_.push_back(nextion_queue);
   } else {
-    delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
+    this->release_queue_entry_(nextion_queue);
   }
 #endif  // USE_NEXTION_COMMAND_SPACING
 }
@@ -1338,14 +1387,14 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
     ESP_LOGW(TAG, "Queue alloc failed");
     return;
   }
-  new (nextion_queue) nextion::NextionQueue();
+  new (nextion_queue) nextion::NextionQueue;
 
   nextion_queue->component = component;
   nextion_queue->queue_time = App.get_loop_component_start_time();
 
   if (!this->waveform_queue_.push(nextion_queue)) {
     ESP_LOGW(TAG, "Waveform queue full, drop");
-    delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
+    this->release_queue_entry_(nextion_queue);
     return;
   }
   if (this->waveform_queue_.size() == 1)

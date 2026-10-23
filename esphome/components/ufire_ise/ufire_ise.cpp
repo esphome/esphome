@@ -5,7 +5,9 @@
 
 namespace esphome::ufire_ise {
 
-static const char *const TAG = "ufire_ise";
+ESPHOME_LOG_TAG(TAG, "ufire_ise");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 void UFireISEComponent::setup() {
   uint8_t version;
@@ -38,7 +40,7 @@ void UFireISEComponent::update() {
   }
 
   // Wait until measurement are taken
-  this->set_timeout("data", wait, [this]() { this->update_internal_(); });
+  this->set_timeout(DATA_TIMEOUT_ID, wait, [this]() { this->update_internal_(); });
 }
 
 void UFireISEComponent::update_internal_() {
@@ -70,19 +72,19 @@ float UFireISEComponent::measure_ph_(float temperature) {
   if (mv == -1)
     return -1;
 
-  ph = fabs(7.0 - (mv / PROBE_MV_TO_PH));
+  ph = fabsf(7.0f - (mv / PROBE_MV_TO_PH));
 
   // Determine the temperature correction
   float distance_from_7 = std::abs(7 - roundf(ph));
   float distance_from_25 = std::floor(std::abs(25 - roundf(temperature)) / 10);
   float temp_multiplier = (distance_from_25 * distance_from_7) * PROBE_TMP_CORRECTION;
-  if ((ph >= 8.0) && (temperature >= 35))
+  if ((ph >= 8.0f) && (temperature >= 35))
     temp_multiplier *= -1;
-  if ((ph <= 6.0) && (temperature <= 15))
+  if ((ph <= 6.0f) && (temperature <= 15))
     temp_multiplier *= -1;
 
   ph += temp_multiplier;
-  if ((ph <= 0.0) || (ph > 14.0))
+  if ((ph <= 0.0f) || (ph > 14.0f))
     ph = -1;
   if (std::isinf(ph))
     ph = -1;

@@ -1,13 +1,29 @@
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
+#include <algorithm>
+#include <iterator>
+
 namespace esphome::usb_uart {
 
 using namespace bytebuffer;
+
+static constexpr uint8_t CH341_REQ_MODEM_CTRL = 0xA4;
+// Modem control bits, sent inverted
+static constexpr uint8_t CH341_BIT_DTR = 1 << 5;
+static constexpr uint8_t CH341_BIT_RTS = 1 << 6;
+
+static constexpr uint8_t CH341_REQ_WRITE_REG = 0x9A;
+static constexpr uint8_t CH341_REG_FLOW_CTL = 0x27;
+static constexpr uint8_t CH341_FLOW_CTL_NONE = 0x00;
+static constexpr uint8_t CH341_FLOW_CTL_RTSCTS = 0x01;
+// The single-port chips, which have the flow control register
+static constexpr uint16_t CH341_PIDS[] = {0x5523, 0x7522, 0x7523};
 
 struct CH34xEntry {
   const char *name;
@@ -49,47 +65,44 @@ static const CH34xEntry CH34X_TABLE[] = {
     {"CH346C_M2", 0x55EC, 1, 0xFF, 0xFF, CHIP_CH346C_M2, 2},
 };
 
-void USBUartTypeCH34X::enable_channels() {
-  usb_host::transfer_cb_t cb = [this](const usb_host::TransferStatus &status) {
-    if (!status.success) {
-      this->defer([this, error_code = status.error_code]() {
-        ESP_LOGE(TAG, "CH34x chip detection failed: %s", esp_err_to_name(error_code));
-        this->apply_line_settings_();
-      });
-      return;
-    }
-    CH34xChipType chiptype = CHIP_UNKNOWN;
-    uint8_t num_ports = 1;
-    for (const auto &e : CH34X_TABLE) {
-      if (e.pid != this->pid_)
-        continue;
-      if (e.match != 0xFF && (status.data[e.byte_idx] & e.mask) != e.match)
-        continue;
-      chiptype = e.chiptype;
-      num_ports = e.num_ports;
+bool USBUartTypeCH34X::config_device_step(uint8_t step, bool ok, const uint8_t *response) {
+  if (step == 0) {
+    // Vendor-specific GET_CHIP_VERSION request (bRequest=0x5F): returns chip ID bytes
+    // used to distinguish CH34x variants sharing the same PID.
+    this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_IN, 0x5F, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0});
+    return true;
+  }
+  // step 1: parse the chip-version response (falling back to "unknown" on failure).
+  if (!ok) {
+    ESP_LOGE(TAG, "CH34x chip detection failed");
+    return false;
+  }
+  CH34xChipType chiptype = CHIP_UNKNOWN;
+  uint8_t num_ports = 1;
+  for (const auto &e : CH34X_TABLE) {
+    if (e.pid != this->pid_)
+      continue;
+    if (e.match != 0xFF && (response[e.byte_idx] & e.mask) != e.match)
+      continue;
+    chiptype = e.chiptype;
+    num_ports = e.num_ports;
+    break;
+  }
+  // CH344L vs CH344L_V2 requires chipver (data[0]) in addition to chiptype (data[1])
+  if (chiptype == CHIP_CH344L && (response[0] & 0xF0) != 0x40)
+    chiptype = CHIP_CH344L_V2;
+  const char *name = "unknown";
+  for (const auto &e : CH34X_TABLE) {
+    if (e.chiptype == chiptype) {
+      name = e.name;
       break;
     }
-    // CH344L vs CH344L_V2 requires chipver (data[0]) in addition to chiptype (data[1])
-    if (chiptype == CHIP_CH344L && (status.data[0] & 0xF0) != 0x40)
-      chiptype = CHIP_CH344L_V2;
-    const char *name = "unknown";
-    for (const auto &e : CH34X_TABLE) {
-      if (e.chiptype == chiptype) {
-        name = e.name;
-        break;
-      }
-    }
-    this->defer([this, chiptype, num_ports, name]() {
-      this->chiptype_ = chiptype;
-      this->chip_name_ = name;
-      this->num_ports_ = num_ports;
-      ESP_LOGD(TAG, "CH34x chip: %s, ports: %u", name, this->num_ports_);
-      this->apply_line_settings_();
-    });
-  };
-  // Vendor-specific GET_CHIP_VERSION request (bRequest=0x5F): returns chip ID bytes
-  // used to distinguish CH34x variants sharing the same PID.
-  this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_IN, 0x5F, 0, 0, cb, {0, 0, 0, 0, 0, 0, 0, 0});
+  }
+  this->chiptype_ = chiptype;
+  this->chip_name_ = name;
+  this->num_ports_ = num_ports;
+  ESP_LOGD(TAG, "CH34x chip: %s, ports: %u", name, this->num_ports_);
+  return false;
 }
 
 void USBUartTypeCH34X::dump_config() {
@@ -97,77 +110,89 @@ void USBUartTypeCH34X::dump_config() {
   ESP_LOGCONFIG(TAG, "  CH34x chip: %s", this->chip_name_);
 }
 
-void USBUartTypeCH34X::apply_line_settings_() {
-  for (auto *channel : this->channels_) {
-    if (!channel->initialised_.load())
-      continue;
-    usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
-      if (!status.success) {
-        ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
-        channel->initialised_.store(false);
+bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
+                                   const uint8_t *response) {
+  // TODO: flow control on the multi-port chips (PIDs 0x55Dx)
+  const bool has_flow_ctl_reg =
+      std::find(std::begin(CH341_PIDS), std::end(CH341_PIDS), this->pid_) != std::end(CH341_PIDS);
+  if (!has_flow_ctl_reg && step >= 1)
+    step++;
+
+  uint8_t cmd = 0xA1 + channel->index_;
+  if (channel->index_ >= 2)
+    cmd += 0xE;
+  switch (step) {
+    case 0: {
+      uint8_t divisor = 7;
+      uint32_t clk = 12000000;
+
+      auto baud_rate = channel->baud_rate_;
+      if (baud_rate < 256000) {
+        if (baud_rate > 6000000 / 255) {
+          divisor = 3;
+          clk = 6000000;
+        } else if (baud_rate > 750000 / 255) {
+          divisor = 2;
+          clk = 750000;
+        } else if (baud_rate > 93750 / 255) {
+          divisor = 1;
+          clk = 93750;
+        } else {
+          divisor = 0;
+          clk = 11719;
+        }
       }
-    };
-
-    uint8_t divisor = 7;
-    uint32_t clk = 12000000;
-
-    auto baud_rate = channel->baud_rate_;
-    if (baud_rate < 256000) {
-      if (baud_rate > 6000000 / 255) {
-        divisor = 3;
-        clk = 6000000;
-      } else if (baud_rate > 750000 / 255) {
-        divisor = 2;
-        clk = 750000;
-      } else if (baud_rate > 93750 / 255) {
-        divisor = 1;
-        clk = 93750;
-      } else {
-        divisor = 0;
-        clk = 11719;
+      ESP_LOGV(TAG, "baud_rate: %" PRIu32 ", divisor: %d, clk: %" PRIu32, baud_rate, divisor, clk);
+      auto factor = static_cast<uint8_t>(clk / baud_rate);
+      if (factor == 0 || factor == 0xFF) {
+        ESP_LOGE(TAG, "Invalid baud rate %" PRIu32, baud_rate);
+        return false;
       }
-    }
-    ESP_LOGV(TAG, "baud_rate: %" PRIu32 ", divisor: %d, clk: %" PRIu32, baud_rate, divisor, clk);
-    auto factor = static_cast<uint8_t>(clk / baud_rate);
-    if (factor == 0 || factor == 0xFF) {
-      ESP_LOGE(TAG, "Invalid baud rate %" PRIu32, baud_rate);
-      channel->initialised_.store(false);
-      continue;
-    }
-    if ((clk / factor - baud_rate) > (baud_rate - clk / (factor + 1)))
-      factor++;
-    factor = 256 - factor;
+      if ((clk / factor - baud_rate) > (baud_rate - clk / (factor + 1)))
+        factor++;
+      factor = 256 - factor;
 
-    uint16_t value = 0xC0;
-    if (channel->stop_bits_ == UART_CONFIG_STOP_BITS_2)
-      value |= 4;
-    switch (channel->parity_) {
-      case UART_CONFIG_PARITY_NONE:
-        break;
-      default:
-        value |= 8 | ((channel->parity_ - 1) << 4);
-        break;
+      uint16_t value = 0xC0;
+      if (channel->line_stop_bits_() == LineStopBits::LINE_STOP_BITS_2)
+        value |= 4;
+      // Parity enable, then 0 = odd, 1 = even, 2 = mark, 3 = space
+      const LineParity parity = channel->line_parity_();
+      if (parity != LineParity::LINE_PARITY_NONE)
+        value |= 8 | ((static_cast<uint8_t>(parity) - 1) << 4);
+      value |= channel->data_bits_ - 5;
+      value <<= 8;
+      value |= 0x8C;
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd, value, (factor << 8) | divisor);
+      return true;
     }
-    value |= channel->data_bits_ - 5;
-    value <<= 8;
-    value |= 0x8C;
-    uint8_t cmd = 0xA1 + channel->index_;
-    if (channel->index_ >= 2)
-      cmd += 0xE;
-    this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd, value, (factor << 8) | divisor, callback);
-    this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd + 3, 0x80, 0, callback);
+    case 1: {
+      // Re-applied on every settings change. The chip has no XON/XOFF.
+      const bool rts_cts = channel->flow_control_ == uart::UART_FLOW_CONTROL_RTS_CTS;
+      const uint8_t flow_ctl = rts_cts ? CH341_FLOW_CTL_RTSCTS : CH341_FLOW_CTL_NONE;
+      ESP_LOGD(TAG, "FLOW_CTL: RTS/CTS=%s", ONOFF(rts_cts));
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, CH341_REQ_WRITE_REG,
+                             (CH341_REG_FLOW_CTL << 8) | CH341_REG_FLOW_CTL, (flow_ctl << 8) | flow_ctl);
+      return true;
+    }
+    case 2:
+      this->modem_control_transfer(channel);
+      return true;
+    default:
+      return false;
   }
-  this->start_channels_();
 }
 
-std::vector<CdcEps> USBUartTypeCH34X::parse_descriptors(usb_device_handle_t dev_hdl) {
-  auto result = USBUartTypeCdcAcm::parse_descriptors(dev_hdl);
-  // ch34x doesn't use the interrupt endpoint, and we don't have endpoints to spare
-  for (auto &cdc_dev : result) {
-    cdc_dev.interrupt_interface_number = 0xFF;
-  }
-  return result;
+void USBUartTypeCH34X::modem_control_transfer(USBUartChannelBase *channel) {
+  uint8_t request = CH341_REQ_MODEM_CTRL + channel->index_;
+  if (channel->index_ >= 2)
+    request += 0xE;
+  const uint8_t control = (channel->dtr_ ? CH341_BIT_DTR : 0) | (channel->rts_ ? CH341_BIT_RTS : 0);
+  ESP_LOGD(TAG, "MODEM_CTRL: DTR=%s RTS=%s", ONOFF(channel->dtr_), ONOFF(channel->rts_));
+  // Integer promotion makes this 16 bits wide, as in Linux: 0xFF9F with both lines on
+  this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, request, static_cast<uint16_t>(~control), 0);
 }
+
 }  // namespace esphome::usb_uart
 
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

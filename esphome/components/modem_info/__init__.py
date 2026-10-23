@@ -1,3 +1,0 @@
-IS_PLATFORM_COMPONENT = True
-
-CODEOWNERS = ["@oarcher"]

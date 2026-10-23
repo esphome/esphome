@@ -1,5 +1,8 @@
 #pragma once
+#include <cstdint>
+
 #include "esphome/core/color.h"
+#include "image_format.h"
 
 namespace esphome::runtime_image {
 
@@ -7,9 +10,48 @@ enum DecodeError : int {
   DECODE_ERROR_INVALID_TYPE = -1,
   DECODE_ERROR_UNSUPPORTED_FORMAT = -2,
   DECODE_ERROR_OUT_OF_MEMORY = -3,
+  DECODE_ERROR_INTERNAL_DECODER_ERROR = -4,
+  DECODE_ERROR_READ = -5,
 };
 
+/// Results of ImageDecoder::decode_step() other than a DecodeError
+enum DecodeStep : int {
+  DECODE_STEP_DONE = 0,
+  DECODE_STEP_MORE = 1,
+  DECODE_STEP_NEED_DATA = 2,  // The source has nothing more yet; call again once more has arrived
+};
+
+constexpr const char *decode_error_to_string(int error) {
+  switch (error) {
+    case DECODE_ERROR_INVALID_TYPE:
+      return "Invalid type";
+    case DECODE_ERROR_UNSUPPORTED_FORMAT:
+      return "Unsupported format";
+    case DECODE_ERROR_OUT_OF_MEMORY:
+      return "Out of memory";
+    case DECODE_ERROR_INTERNAL_DECODER_ERROR:
+      return "Internal decoder error";
+    case DECODE_ERROR_READ:
+      return "Read error";
+    default:
+      return "Unknown error";
+  }
+}
+
 class RuntimeImage;
+
+/// Input that a decoder reads itself as it goes, so the whole image never has to be in memory at once
+class DecodeSource {
+ public:
+  virtual ~DecodeSource() = default;
+  /**
+   * Read up to len bytes at the current position. Returns the number read, which is less than len, even 0, when
+   * no more has arrived yet or at the end of the input, or negative on error.
+   */
+  virtual int32_t read(uint8_t *buf, uint32_t len) = 0;
+  /// Move to a position counted from the start. Returns false on error.
+  virtual bool seek(uint32_t position) = 0;
+};
 
 /**
  * @brief Class to abstract decoding different image formats.
@@ -20,18 +62,41 @@ class ImageDecoder {
    * @brief Construct a new Image Decoder object
    *
    * @param image The RuntimeImage to decode the stream into.
+   * @param format The image format this decoder handles.
    */
-  ImageDecoder(RuntimeImage *image) : image_(image) {}
+  ImageDecoder(RuntimeImage *image, ImageFormat format) : image_(image), format_(format) {}
   virtual ~ImageDecoder() = default;
 
+  /// @brief Get the image format handled by this decoder.
+  ImageFormat get_format() const { return this->format_; }
+
+  /// @brief Check if a decoding session is in progress (prepare() called, reset() not yet).
+  bool is_active() const { return this->active_; }
+
   /**
-   * @brief Initialize the decoder.
+   * @brief Reset the decoder state, ending any decoding session.
+   *        Subclasses should override this method to reset any format-specific state.
+   *        Buffers the next decode can reuse should be kept allocated to avoid heap churn.
+   */
+  virtual void reset() {
+    this->active_ = false;
+    this->expected_size_ = 0;
+    this->decoded_bytes_ = 0;
+    this->size_valid_ = true;
+    this->x_scale_ = 1.0;
+    this->y_scale_ = 1.0;
+  }
+
+  /**
+   * @brief Initialize the decoder, starting a new decoding session.
    *
    * @param expected_size Hint about the expected data size (0 if unknown).
    * @return int          Returns 0 on success, a {@see DecodeError} value in case of an error.
    */
   virtual int prepare(size_t expected_size) {
+    this->reset();
     this->expected_size_ = expected_size;
+    this->active_ = true;
     return 0;
   }
 
@@ -47,6 +112,28 @@ class ImageDecoder {
    *               decode anything, or negative in case of a decoding error.
    */
   virtual int decode(uint8_t *buffer, size_t size) = 0;
+
+  /// Whether this decoder can read a DecodeSource itself, a step at a time, instead of being fed data.
+  virtual bool supports_source() const { return false; }
+
+  /**
+   * @brief Start decoding from a source the decoder reads itself. Call after prepare(), in place of decode().
+   *
+   * The image headers (everything before the image data) must be readable from the source when this is called;
+   * only decode_step() can wait for more to arrive. The source must hold expected_size bytes in the end, and stay
+   * valid until the session ends.
+   * @return int 0 on success, or a {@see DecodeError} value.
+   */
+  virtual int begin_source(DecodeSource *source) { return DECODE_ERROR_UNSUPPORTED_FORMAT; }
+
+  /**
+   * @brief Decode a little more of an image started with begin_source(), keeping each call short.
+   *
+   * @return int DECODE_STEP_MORE while there is more to do, DECODE_STEP_NEED_DATA when the source has not
+   *             delivered enough to go on, DECODE_STEP_DONE when the image is complete, or a {@see DecodeError}
+   *             value.
+   */
+  virtual int decode_step() { return DECODE_ERROR_UNSUPPORTED_FORMAT; }
 
   /**
    * @brief Request the image to be resized once the actual dimensions are known.
@@ -72,6 +159,9 @@ class ImageDecoder {
    */
   void draw(int x, int y, int w, int h, const Color &color);
 
+  /// Bytes of the image the decoder has used so far
+  size_t get_decoded_bytes() const { return this->decoded_bytes_; }
+
   /**
    * @brief Check if the decoder has finished processing.
    *
@@ -86,12 +176,22 @@ class ImageDecoder {
     return false;
   }
 
+  /// Whether is_finished() can tell a complete image from a cut-off one
+  virtual bool knows_end() const { return this->expected_size_ > 0; }
+
  protected:
+  /// The image's pixel buffer, for decoders that write their output straight into it
+  uint8_t *image_buffer_() const;
+  bool image_is_big_endian_() const;
+
+  double x_scale_ = 1.0;
+  double y_scale_ = 1.0;
   RuntimeImage *image_;
   size_t expected_size_ = 0;  // Expected data size (0 if unknown)
   size_t decoded_bytes_ = 0;  // Bytes processed so far
-  double x_scale_ = 1.0;
-  double y_scale_ = 1.0;
+  const ImageFormat format_;
+  bool active_ = false;     // A decoding session is in progress
+  bool size_valid_ = true;  // Last set_size() result; draw() no-ops while false
 };
 
 }  // namespace esphome::runtime_image

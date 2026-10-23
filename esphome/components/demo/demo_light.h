@@ -22,7 +22,7 @@ enum class DemoLightType {
   TYPE_7,
 };
 
-class DemoLight : public light::LightOutput, public Component {
+class DemoLight final : public light::LightOutput, public Component {
  public:
   void set_type(DemoLightType type) { type_ = type; }
   light::LightTraits get_traits() override {

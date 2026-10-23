@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTDateComponent : public mqtt::MQTTComponent {
+class MQTTDateComponent final : public mqtt::MQTTComponent {
  public:
   /** Construct this MQTTDateComponent instance with the provided friendly_name and date
    *

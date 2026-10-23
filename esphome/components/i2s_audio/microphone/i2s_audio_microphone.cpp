@@ -19,7 +19,7 @@ static const uint32_t READ_DURATION_MS = 16;
 static const size_t TASK_STACK_SIZE = 4096;
 static const ssize_t TASK_PRIORITY = 23;
 
-static const char *const TAG = "i2s_audio.microphone";
+ESPHOME_LOG_TAG(TAG, "i2s_audio.microphone");
 
 enum MicrophoneEventGroupBits : uint32_t {
   COMMAND_STOP = (1 << 0),  // stops the microphone task, set and cleared by ``loop``
@@ -45,6 +45,13 @@ void I2SAudioMicrophone::setup() {
     this->mark_failed();
     return;
   }
+
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex() && this->parent_->is_failed()) {
+    this->mark_failed(LOG_STR("Full duplex bus setup failed"));
+    return;
+  }
+#endif
 
   this->configure_stream_settings_();
 }
@@ -94,7 +101,44 @@ void I2SAudioMicrophone::start() {
   xSemaphoreTake(this->active_listeners_semaphore_, 0);
 }
 
+void I2SAudioMicrophone::build_std_config_(i2s_std_config_t &std_cfg) const {
+  i2s_std_slot_config_t std_slot_cfg =
+      I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) this->slot_bit_width_, this->slot_mode_);
+  std_slot_cfg.slot_bit_width = this->slot_bit_width_;
+  std_slot_cfg.slot_mask = this->std_slot_mask_;
+
+  i2s_std_gpio_config_t pin_config = this->parent_->get_pin_config();
+  pin_config.din = this->din_pin_;
+
+  std_cfg = {
+      .clk_cfg =
+          {
+              .sample_rate_hz = this->sample_rate_,
+              .clk_src = this->get_clock_source_(),
+              .mclk_multiple = this->mclk_multiple_,
+          },
+      .slot_cfg = std_slot_cfg,
+      .gpio_cfg = pin_config,
+  };
+}
+
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+void I2SAudioMicrophone::build_full_duplex_config(i2s_std_config_t &std_cfg) { this->build_std_config_(std_cfg); }
+#endif
+
 bool I2SAudioMicrophone::start_driver_() {
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex()) {
+    this->rx_handle_ = this->parent_->acquire_rx_channel();
+    if (this->rx_handle_ == nullptr) {
+      ESP_LOGE(TAG, "Full duplex channel unavailable");
+      return false;
+    }
+    this->configure_stream_settings_();
+    return true;
+  }
+#endif
+
   if (!this->parent_->try_lock()) {
     return false;  // Waiting for another i2s to return lock
   }
@@ -115,20 +159,14 @@ bool I2SAudioMicrophone::start_driver_() {
     return false;
   }
 
-  i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
-#ifdef I2S_CLK_SRC_APLL
-  if (this->use_apll_) {
-    clk_src = I2S_CLK_SRC_APLL;
-  }
-#endif
-  i2s_std_gpio_config_t pin_config = this->parent_->get_pin_config();
 #if SOC_I2S_SUPPORTS_PDM_RX
   if (this->pdm_) {
+    i2s_std_gpio_config_t pin_config = this->parent_->get_pin_config();
     i2s_pdm_rx_clk_config_t clk_cfg = {
         .sample_rate_hz = this->sample_rate_,
-        .clk_src = clk_src,
+        .clk_src = this->get_clock_source_(),
         .mclk_multiple = this->mclk_multiple_,
-        .dn_sample_mode = I2S_PDM_DSR_8S,
+        .dn_sample_mode = this->pdm_dsr_,
     };
 
     i2s_pdm_rx_slot_config_t slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, this->slot_mode_);
@@ -162,23 +200,8 @@ bool I2SAudioMicrophone::start_driver_() {
   } else
 #endif
   {
-    i2s_std_clk_config_t clk_cfg = {
-        .sample_rate_hz = this->sample_rate_,
-        .clk_src = clk_src,
-        .mclk_multiple = this->mclk_multiple_,
-    };
-    i2s_std_slot_config_t std_slot_cfg =
-        I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) this->slot_bit_width_, this->slot_mode_);
-    std_slot_cfg.slot_bit_width = this->slot_bit_width_;
-    std_slot_cfg.slot_mask = this->std_slot_mask_;
-
-    pin_config.din = this->din_pin_;
-
-    i2s_std_config_t std_cfg = {
-        .clk_cfg = clk_cfg,
-        .slot_cfg = std_slot_cfg,
-        .gpio_cfg = pin_config,
-    };
+    i2s_std_config_t std_cfg;
+    this->build_std_config_(std_cfg);
     /* Initialize the channel */
     err = i2s_channel_init_std_mode(this->rx_handle_, &std_cfg);
   }
@@ -209,6 +232,17 @@ void I2SAudioMicrophone::stop() {
 void I2SAudioMicrophone::stop_driver_() {
   // There is no harm continuing to unload the driver if an error is ever returned by the various functions. This
   // ensures that we stop/unload the driver when it only partially starts.
+
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+  if (this->parent_->is_full_duplex()) {
+    // The parent owns the channel pair, so only hand the RX channel back
+    if (this->rx_handle_ != nullptr) {
+      this->parent_->release_rx_channel();
+      this->rx_handle_ = nullptr;
+    }
+    return;
+  }
+#endif
 
   esp_err_t err;
   if (this->rx_handle_ != nullptr) {
@@ -245,7 +279,7 @@ void I2SAudioMicrophone::mic_task(void *params) {
     while (!(xEventGroupGetBits(this_microphone->event_group_) & MicrophoneEventGroupBits::COMMAND_STOP)) {
       if (this_microphone->data_callbacks_.size() > 0) {
         samples.resize(bytes_to_read);
-        size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * pdMS_TO_TICKS(READ_DURATION_MS));
+        size_t bytes_read = this_microphone->read_(samples.data(), bytes_to_read, 2 * READ_DURATION_MS);
         samples.resize(bytes_read);
         if (this_microphone->correct_dc_offset_) {
           this_microphone->fix_dc_offset_(samples);
@@ -318,12 +352,11 @@ void I2SAudioMicrophone::fix_dc_offset_(std::vector<uint8_t> &data) {
   }
 }
 
-size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait) {
+size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, uint32_t timeout_ms) {
   size_t bytes_read = 0;
-  // i2s_channel_read expects the timeout value in ms, not ticks
-  esp_err_t err = i2s_channel_read(this->rx_handle_, buf, len, &bytes_read, pdTICKS_TO_MS(ticks_to_wait));
-  if ((err != ESP_OK) && ((err != ESP_ERR_TIMEOUT) || (ticks_to_wait != 0))) {
-    // Ignore ESP_ERR_TIMEOUT if ticks_to_wait = 0, as it will read the data on the next call
+  esp_err_t err = i2s_channel_read(this->rx_handle_, buf, len, &bytes_read, timeout_ms);
+  if ((err != ESP_OK) && ((err != ESP_ERR_TIMEOUT) || (timeout_ms != 0))) {
+    // Ignore ESP_ERR_TIMEOUT if timeout_ms = 0, as it will read the data on the next call
     if (!this->status_has_warning()) {
       // Avoid spamming the logs with the error message if its repeated
       ESP_LOGW(TAG, "Read error: %s", esp_err_to_name(err));
@@ -331,7 +364,7 @@ size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_w
     this->status_set_warning();
     return 0;
   }
-  if ((bytes_read == 0) && (ticks_to_wait > 0)) {
+  if ((bytes_read == 0) && (timeout_ms > 0)) {
     this->status_set_warning();
     return 0;
   }
@@ -398,7 +431,7 @@ void I2SAudioMicrophone::loop() {
 
       if (!this->start_driver_()) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
-        this->status_momentary_error("driver_fail", 1000);
+        this->status_momentary_error(1000);
         this->stop_driver_();  // Stop/frees whatever possibly started
         break;
       }
@@ -409,7 +442,7 @@ void I2SAudioMicrophone::loop() {
 
         if (this->task_handle_ == nullptr) {
           ESP_LOGE(TAG, "Task failed to start, retrying in 1 second");
-          this->status_momentary_error("task_fail", 1000);
+          this->status_momentary_error(1000);
           this->stop_driver_();  // Stops the driver to return the lock; will be reloaded in next attempt
         }
       }

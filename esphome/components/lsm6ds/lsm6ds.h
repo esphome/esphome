@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/motion/motion_component.h"
 
@@ -8,15 +9,19 @@ namespace esphome::lsm6ds {
 
 // ── Register map (datasheet DocID030071 Rev 3, Table 19) ────────────────────
 static const uint8_t LSM6DS_REG_WHO_AM_I = 0x0F;
-static const uint8_t LSM6DS_REG_CTRL1_XL = 0x10;    // Accel ODR + FS
-static const uint8_t LSM6DS_REG_CTRL2_G = 0x11;     // Gyro ODR + FS
-static const uint8_t LSM6DS_REG_CTRL3_C = 0x12;     // SW_RESET, BDU, IF_INC
-static const uint8_t LSM6DS_REG_CTRL6_C = 0x15;     // Accel HP disable, Gyro LPF1
-static const uint8_t LSM6DS_REG_CTRL7_G = 0x16;     // Gyro HP disable
-static const uint8_t LSM6DS_REG_STATUS = 0x1E;      // XLDA, GDA, TDA
-static const uint8_t LSM6DS_REG_OUT_TEMP_L = 0x20;  // Temperature LSB
-static const uint8_t LSM6DS_REG_OUTX_L_G = 0x22;    // Gyro X LSB  (burst start)
-static const uint8_t LSM6DS_REG_OUTX_L_XL = 0x28;   // Accel X LSB
+// WHO_AM_I values; the LSM6DS3 (DocID026899) and LSM6DSO (DS12140) use the same registers as the TR-C here
+static constexpr uint8_t LSM6DS_WHO_AM_I_LSM6DS3 = 0x69;
+static constexpr uint8_t LSM6DS_WHO_AM_I_LSM6DS3TR_C = 0x6A;
+static constexpr uint8_t LSM6DS_WHO_AM_I_LSM6DSO = 0x6C;  // also the LSM6DSO32, whose accel ranges differ (unsupported)
+static const uint8_t LSM6DS_REG_CTRL1_XL = 0x10;          // Accel ODR + FS
+static const uint8_t LSM6DS_REG_CTRL2_G = 0x11;           // Gyro ODR + FS
+static const uint8_t LSM6DS_REG_CTRL3_C = 0x12;           // SW_RESET, BDU, IF_INC
+static const uint8_t LSM6DS_REG_CTRL6_C = 0x15;           // Accel HP disable, Gyro LPF1
+static const uint8_t LSM6DS_REG_CTRL7_G = 0x16;           // Gyro HP disable
+static const uint8_t LSM6DS_REG_STATUS = 0x1E;            // XLDA, GDA, TDA
+static const uint8_t LSM6DS_REG_OUT_TEMP_L = 0x20;        // Temperature LSB
+static const uint8_t LSM6DS_REG_OUTX_L_G = 0x22;          // Gyro X LSB  (burst start)
+static const uint8_t LSM6DS_REG_OUTX_L_XL = 0x28;         // Accel X LSB
 
 // Burst read from 0x22 to 0x2D inclusive: gyro XYZ (6 bytes) + accel XYZ (6 bytes)
 static const uint8_t LSM6DS_BURST_LEN = 12;
@@ -82,11 +87,15 @@ enum LSM6DSGyroODR : uint8_t {
 };
 
 // ── Main component class ─────────────────────────────────────────────────────
-class LSM6DSComponent : public motion::MotionComponent, public i2c::I2CDevice {
+/// Chip name for a WHO_AM_I value, or nullptr when the chip is not supported.
+const LogString *chip_name_from_who_am_i(uint8_t who_am_i);
+/// Temperature sensitivity in LSB/°C for a supported WHO_AM_I value, from the chip's datasheet.
+uint16_t temperature_sensitivity_from_who_am_i(uint8_t who_am_i);
+
+class LSM6DSComponent final : public motion::MotionComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Configuration setters (called from Python codegen)
   void set_accel_range(LSM6DSAccelRange r) { this->accel_range_ = r; }
@@ -97,13 +106,14 @@ class LSM6DSComponent : public motion::MotionComponent, public i2c::I2CDevice {
   template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
 
  protected:
-  const char *chip_name_{"Unknown"};
+  const LogString *chip_name_{nullptr};
   bool update_data(motion::MotionData &data) override;
 
   LSM6DSAccelRange accel_range_{LSM6DS_ACCEL_RANGE_4G};
   LSM6DSAccelODR accel_odr_{LSM6DS_ACCEL_ODR_104};
   LSM6DSGyroRange gyro_range_{LSM6DS_GYRO_RANGE_2000};
   LSM6DSGyroODR gyro_odr_{LSM6DS_GYRO_ODR_208};
+  uint16_t temperature_sensitivity_{256};  // LSB/°C: 16 on the LSM6DS3, 256 on the others
 
   LazyCallbackManager<void(float)> temperature_callback_{};
 };

@@ -5,9 +5,9 @@
 
 namespace esphome::spa06_spi {
 
-class SPA06SPIComponent : public spa06_base::SPA06Component,
-                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-                                                spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
+class SPA06SPIComponent final : public spa06_base::SPA06Component,
+                                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                      spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
   void setup() override;
   bool spa_read_byte(uint8_t a_register, uint8_t *data) override;
   bool spa_write_byte(uint8_t a_register, uint8_t data) override;

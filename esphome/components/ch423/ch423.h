@@ -1,12 +1,13 @@
 #pragma once
 
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome::ch423 {
 
-class CH423Component : public Component, public i2c::I2CDevice {
+class CH423Component final : public Component, public i2c::I2CDevice {
  public:
   CH423Component() = default;
 
@@ -41,26 +42,8 @@ class CH423Component : public Component, public i2c::I2CDevice {
 };
 
 /// Helper class to expose a CH423 pin as a GPIO pin.
-class CH423GPIOPin : public GPIOPin {
- public:
-  void setup() override{};
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_parent(CH423Component *parent) { parent_ = parent; }
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags);
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  CH423Component *parent_{};
-  uint8_t pin_{};
-  bool inverted_{};
-  gpio::Flags flags_{};
-};
+using CH423GPIOPin = gpio_expander::ExpanderGPIOPin<CH423Component>;
 
 }  // namespace esphome::ch423
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::ch423::CH423Component);

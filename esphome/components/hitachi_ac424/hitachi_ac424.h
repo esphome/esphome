@@ -8,8 +8,8 @@ namespace esphome::hitachi_ac424 {
 const uint16_t HITACHI_AC424_HDR_MARK = 3416;   // ac
 const uint16_t HITACHI_AC424_HDR_SPACE = 1604;  // ac
 const uint16_t HITACHI_AC424_BIT_MARK = 463;
-const uint16_t HITACHI_AC424_ONE_SPACE = 1208;
-const uint16_t HITACHI_AC424_ZERO_SPACE = 372;
+static constexpr remote_base::BitTimings HITACHI_AC424_BIT_TIMINGS{
+    .bit_mark = HITACHI_AC424_BIT_MARK, .one_space = 1208, .zero_space = 372};
 const uint32_t HITACHI_AC424_MIN_GAP = 100000;  // just a guess.
 const uint16_t HITACHI_AC424_FREQ = 38000;      // Hz.
 
@@ -77,7 +77,7 @@ const uint16_t HITACHI_AC424_BITS = HITACHI_AC424_STATE_LENGTH * 8;
 #define HITACHI_AC424_GETBITS8(data, offset, size) \
   (((data) & (((uint8_t) UINT8_MAX >> (8 - (size))) << (offset))) >> (offset))
 
-class HitachiClimate : public climate_ir::ClimateIR {
+class HitachiClimate final : public climate_ir::ClimateIR {
  public:
   HitachiClimate()
       : climate_ir::ClimateIR(HITACHI_AC424_TEMP_MIN, HITACHI_AC424_TEMP_MAX, 1.0F, true, true,

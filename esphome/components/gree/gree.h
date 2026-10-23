@@ -69,17 +69,26 @@ static constexpr uint8_t GREE_HDIR_MRIGHT = 0x05;
 static constexpr uint8_t GREE_HDIR_RIGHT = 0x06;
 
 // Only available on YX1FF
-// Turbo (high) fan mode + sleep preset mode
+// Turbo (high) fan mode
 static constexpr uint8_t GREE_FAN_TURBO = 0x80;
 static constexpr uint8_t GREE_FAN_TURBO_BIT = 0x10;
+
+// Available on YX1FF and YAC1FB9
+// Sleep preset mode
 static constexpr uint8_t GREE_PRESET_NONE = 0x00;
 static constexpr uint8_t GREE_PRESET_SLEEP = 0x01;
 static constexpr uint8_t GREE_PRESET_SLEEP_BIT = 0x80;
 
-// Model codes
-enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
+// Mode bits stored in remote_state[2] bits 4..7 for YAN/YAA/YAC/YAC1FB9.
+static constexpr uint8_t GREE_MODE_BIT_TURBO = 0x10;
+static constexpr uint8_t GREE_MODE_BIT_LIGHT = 0x20;
+static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
+static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 
-class GreeClimate : public climate_ir::ClimateIR {
+// Model codes
+enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
+
+class GreeClimate final : public climate_ir::ClimateIR {
  public:
   GreeClimate()
       : climate_ir::ClimateIR(GREE_TEMP_MIN, GREE_TEMP_MAX, 1.0f, true, true,
@@ -94,7 +103,6 @@ class GreeClimate : public climate_ir::ClimateIR {
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
-  climate::ClimateTraits traits() override;
 
   uint8_t operation_mode_();
   uint8_t fan_speed_();
@@ -104,7 +112,7 @@ class GreeClimate : public climate_ir::ClimateIR {
   uint8_t preset_();
 
   Model model_{};
-  uint8_t mode_bits_{0};  // Combined mode bits for remote_state[2]
+  uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};  // The display light is on until a switch says otherwise
 };
 
 }  // namespace esphome::gree

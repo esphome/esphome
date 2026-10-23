@@ -10,6 +10,7 @@ const {
   detectGitHubActionsChanges,
   detectCodeOwner,
   detectTests,
+  detectApiProto,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
   detectMaintainerAccess,
@@ -53,7 +54,7 @@ module.exports = async ({ github, context }) => {
   });
   const currentLabels = currentLabelsData.map(label => label.name);
   const managedLabels = currentLabels.filter(label =>
-    label.startsWith('component: ') || MANAGED_LABELS.includes(label)
+    label.startsWith('component: ') || label.startsWith('platform: ') || MANAGED_LABELS.includes(label)
   );
 
   // Check for mega-PR early - if present, skip most automatic labeling
@@ -88,7 +89,7 @@ module.exports = async ({ github, context }) => {
 
   // Early exit for release and beta branches only
   if (baseRef === 'release' || baseRef === 'beta') {
-    const branchLabels = await detectMergeBranch(context);
+    const branchLabels = await detectMergeBranch(github, context);
     const finalLabels = Array.from(branchLabels);
 
     console.log('Computed labels (merge branch only):', finalLabels.join(', '));
@@ -114,20 +115,22 @@ module.exports = async ({ github, context }) => {
     actionsLabels,
     codeOwnerLabels,
     testLabels,
+    apiProtoLabels,
     checkboxLabels,
     deprecatedResult,
     maintainerAccess
   ] = await Promise.all([
-    detectMergeBranch(context),
+    detectMergeBranch(github, context),
     detectComponentPlatforms(changedFiles, apiData),
     detectNewComponents(github, context, prFiles),
     detectNewPlatforms(github, context, prFiles, apiData),
     detectCoreChanges(changedFiles),
-    detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD),
+    detectPRSize(prFiles, totalAdditions, totalDeletions, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD),
     detectDashboardChanges(changedFiles),
     detectGitHubActionsChanges(changedFiles),
     detectCodeOwner(github, context, changedFiles),
     detectTests(changedFiles),
+    detectApiProto(changedFiles),
     detectPRTemplateCheckboxes(context),
     detectDeprecatedComponents(github, context, changedFiles),
     detectMaintainerAccess(context)
@@ -156,6 +159,7 @@ module.exports = async ({ github, context }) => {
     ...actionsLabels,
     ...codeOwnerLabels,
     ...testLabels,
+    ...apiProtoLabels,
     ...checkboxLabels,
     ...deprecatedLabels
   ]);

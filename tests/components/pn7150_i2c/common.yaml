@@ -15,6 +15,12 @@ esphome:
       - tag.emulation_on: nfcc_pn7150
       - tag.polling_off: nfcc_pn7150
       - tag.polling_on: nfcc_pn7150
+      - if:
+          condition:
+            pn7150.is_writing:
+              id: nfcc_pn7150
+          then:
+            - logger.log: Writing
 
 pn7150_i2c:
   id: nfcc_pn7150

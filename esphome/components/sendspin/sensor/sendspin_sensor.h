@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
 
 #include "esphome/components/sendspin/sendspin_hub.h"
 #include "esphome/components/sensor/sensor.h"
@@ -11,7 +11,7 @@
 
 namespace esphome::sendspin_ {
 
-class SendspinTrackProgressSensor : public sensor::Sensor, public SendspinPollingChild {
+class SendspinTrackProgressSensor final : public sensor::Sensor, public SendspinPollingChild {
  public:
   void dump_config() override;
   void setup() override;
@@ -24,7 +24,7 @@ enum class SendspinNumericMetadataTypes {
   TRACK,
 };
 
-class SendspinMetadataSensor : public sensor::Sensor, public SendspinChild {
+class SendspinMetadataSensor final : public sensor::Sensor, public SendspinChild {
  public:
   void dump_config() override;
   void setup() override;

@@ -1,14 +1,15 @@
 #pragma once
 
 #include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::pi4ioe5v6408 {
-class PI4IOE5V6408Component : public Component,
-                              public i2c::I2CDevice,
-                              public gpio_expander::CachedGpioExpander<uint8_t, 8> {
+class PI4IOE5V6408Component final : public Component,
+                                    public i2c::I2CDevice,
+                                    public gpio_expander::CachedGpioExpander<uint8_t, 8> {
  public:
   PI4IOE5V6408Component() = default;
 
@@ -24,7 +25,7 @@ class PI4IOE5V6408Component : public Component,
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(PI4IOE5V6408Component *arg);
+  static void gpio_intr(PI4IOE5V6408Component *arg);
 
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
@@ -49,24 +50,8 @@ class PI4IOE5V6408Component : public Component,
   bool read_gpio_outputs_();
 };
 
-class PI4IOE5V6408GPIOPin : public GPIOPin, public Parented<PI4IOE5V6408Component> {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
+using PI4IOE5V6408GPIOPin = gpio_expander::ExpanderGPIOPin<PI4IOE5V6408Component>;
 
 }  // namespace esphome::pi4ioe5v6408
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::pi4ioe5v6408::PI4IOE5V6408Component);

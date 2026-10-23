@@ -34,7 +34,7 @@ enum HMC5883LRange {
   HMC5883L_RANGE_810_UT = 0b111,
 };
 
-class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
+class HMC5883LComponent final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -56,11 +56,6 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *y_sensor_{nullptr};
   sensor::Sensor *z_sensor_{nullptr};
   sensor::Sensor *heading_sensor_{nullptr};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    ID_REGISTERS,
-  } error_code_{NONE};
   HighFrequencyLoopRequester high_freq_;
 };
 

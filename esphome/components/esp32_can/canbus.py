@@ -1,10 +1,13 @@
 import math
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import canbus
 from esphome.components.canbus import CONF_BIT_RATE, CanbusComponent, CanSpeed
 from esphome.components.esp32 import (
+    CONF_MINIMUM_CHIP_REVISION,
+    KEY_ESP32,
     VARIANT_ESP32,
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
@@ -19,6 +22,8 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
+    CONF_FRAMEWORK,
     CONF_ID,
     CONF_MODE,
     CONF_RX_PIN,
@@ -26,6 +31,8 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_TX_QUEUE_LEN,
 )
+import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@Sympatron"]
 DEPENDENCIES = ["esp32"]
@@ -40,6 +47,7 @@ CanMode = esp32_can_ns.enum("CanMode")
 CAN_MODES = {
     "NORMAL": CanMode.CAN_MODE_NORMAL,
     "LISTENONLY": CanMode.CAN_MODE_LISTEN_ONLY,
+    "NO_ACK": CanMode.CAN_MODE_NO_ACK,
 }
 
 # Currently the driver only supports a subset of the bit rates defined in canbus
@@ -47,6 +55,7 @@ CAN_MODES = {
 # See ESP-IDF Programming Guide --> API Reference --> Two-Wire Automotive Interface (TWAI)
 
 CAN_SPEEDS_ESP32 = {
+    "20KBPS": CanSpeed.CAN_20KBPS,
     "25KBPS": CanSpeed.CAN_25KBPS,
     "50KBPS": CanSpeed.CAN_50KBPS,
     "100KBPS": CanSpeed.CAN_100KBPS,
@@ -88,7 +97,7 @@ CAN_SPEEDS = {
 }
 
 
-def validate_bit_rate(value):
+def validate_bit_rate(value: Any) -> str:
     variant = get_esp32_variant()
     if variant not in CAN_SPEEDS:
         raise cv.Invalid(f"{variant} is not supported by component {esp32_can_ns}")
@@ -112,7 +121,23 @@ CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
 )
 
 
-def get_default_tx_enqueue_timeout(bit_rate):
+def _final_validate(config: ConfigType) -> None:
+    if get_esp32_variant() == VARIANT_ESP32 and config[CONF_BIT_RATE] == "20KBPS":
+        esp32_config = fv.full_config.get()[KEY_ESP32]
+        min_revision = esp32_config[CONF_FRAMEWORK][CONF_ADVANCED].get(
+            CONF_MINIMUM_CHIP_REVISION
+        )
+        if min_revision is None or min_revision < "2.0":
+            raise cv.Invalid(
+                "20KBPS on ESP32 requires esp32.framework.advanced.minimum_chip_revision: '2.0' or higher",
+                path=[CONF_BIT_RATE],
+            )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+def get_default_tx_enqueue_timeout(bit_rate: str) -> int:
     bit_rate_numeric = canbus.get_rate(bit_rate)
     bits_per_packet = 140  # ~max CAN message length
     ms_per_packet = bits_per_packet / bit_rate_numeric * 1000
@@ -121,21 +146,19 @@ def get_default_tx_enqueue_timeout(bit_rate):
     )  # ~10 packet lengths, min 1ms, max 1000ms
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Legacy driver component provides driver/twai.h header
     include_builtin_idf_component("driver")
     # Also enable esp_driver_twai for future migration to new API
     include_builtin_idf_component("esp_driver_twai")
     var = cg.new_Pvariable(config[CONF_ID])
-    await canbus.register_canbus(var, config)
+    await canbus.register_canbus(var, config, reports_status=True)
 
     cg.add(var.set_rx(config[CONF_RX_PIN]))
     cg.add(var.set_tx(config[CONF_TX_PIN]))
     cg.add(var.set_mode(config[CONF_MODE]))
-    if (rx_queue_len := config.get(CONF_RX_QUEUE_LEN)) is not None:
-        cg.add(var.set_rx_queue_len(rx_queue_len))
-    if (tx_queue_len := config.get(CONF_TX_QUEUE_LEN)) is not None:
-        cg.add(var.set_tx_queue_len(tx_queue_len))
+    cg.add_optional(var.set_rx_queue_len, config.get(CONF_RX_QUEUE_LEN))
+    cg.add_optional(var.set_tx_queue_len, config.get(CONF_TX_QUEUE_LEN))
 
     if CONF_TX_ENQUEUE_TIMEOUT in config:
         tx_enqueue_timeout_ms = config[CONF_TX_ENQUEUE_TIMEOUT].total_milliseconds

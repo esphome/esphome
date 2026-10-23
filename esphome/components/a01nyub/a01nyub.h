@@ -8,7 +8,7 @@
 
 namespace esphome::a01nyub {
 
-class A01nyubComponent : public sensor::Sensor, public Component, public uart::UARTDevice {
+class A01nyubComponent final : public sensor::Sensor, public Component, public uart::UARTDevice {
  public:
   // Nothing really public.
 

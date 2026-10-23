@@ -17,7 +17,7 @@ enum MCP9600ThermocoupleType : uint8_t {
   MCP9600_THERMOCOUPLE_TYPE_R = 0b111,
 };
 
-class MCP9600Component : public PollingComponent, public i2c::I2CDevice {
+class MCP9600Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -36,12 +36,6 @@ class MCP9600Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *cold_junction_sensor_{nullptr};
 
   MCP9600ThermocoupleType thermocouple_type_{MCP9600_THERMOCOUPLE_TYPE_K};
-
-  enum ErrorCode {
-    NONE,
-    COMMUNICATION_FAILED,
-    FAILED_TO_UPDATE_CONFIGURATION,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::mcp9600

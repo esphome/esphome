@@ -8,7 +8,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.select";
+ESPHOME_LOG_TAG(TAG, "mqtt.select");
 
 using namespace esphome::select;
 
@@ -23,10 +23,7 @@ void MQTTSelectComponent::setup() {
   this->select_->add_on_state_callback([this](size_t index) { this->publish_state(this->select_->option_at(index)); });
 }
 
-void MQTTSelectComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Select '%s':", this->select_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false);
-}
+void MQTTSelectComponent::dump_config() { LOG_MQTT_COMPONENT(true, false); }
 
 MQTT_COMPONENT_TYPE(MQTTSelectComponent, "select")
 const EntityBase *MQTTSelectComponent::get_entity() const { return this->select_; }

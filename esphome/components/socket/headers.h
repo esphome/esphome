@@ -20,6 +20,16 @@
 
 #define IPPROTO_IP 0
 #define IPPROTO_TCP 6
+#define IPPROTO_UDP 17
+
+#define IP_ADD_MEMBERSHIP 3
+#define IP_DROP_MEMBERSHIP 4
+
+// NOLINTNEXTLINE(readability-identifier-naming)
+struct ip_mreq {
+  struct in_addr imr_multiaddr;
+  struct in_addr imr_interface;
+};
 
 #if LWIP_IPV6
 #define AF_INET6 10
@@ -104,7 +114,7 @@ struct iovec {
   size_t iov_len;
 };
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2)
 // arduino-esp8266 declares a global vars called INADDR_NONE/ANY which are invalid with the define
 #ifdef INADDR_ANY
 #undef INADDR_ANY
@@ -158,7 +168,9 @@ using socklen_t = uint32_t;
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#ifndef USE_ZEPHYR
 #include <sys/uio.h>
+#endif
 #include <unistd.h>
 
 #ifdef USE_HOST
@@ -167,6 +179,10 @@ using socklen_t = uint32_t;
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #endif  // USE_HOST
+#ifdef USE_ZEPHYR
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#endif  // USE_ZEPHYR
 
 #ifdef USE_ARDUINO
 // arduino-esp32 declares a global var called INADDR_NONE which is replaced
@@ -188,6 +204,11 @@ using socklen_t = uint32_t;
 
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 
+// Build tests compile socket without network, which normally defines this
+#ifndef USE_NETWORK_IPV4
+#define USE_NETWORK_IPV4 1
+#endif
+
 namespace esphome::socket {
 
 // Maximum length for formatted socket address string (IP address without port)
@@ -198,6 +219,13 @@ static constexpr size_t SOCKADDR_STR_LEN = 46;  // INET6_ADDRSTRLEN
 #else
 static constexpr size_t SOCKADDR_STR_LEN = 16;  // INET_ADDRSTRLEN
 #endif
+
+/// Outcome of polling a non-blocking connect(); see socket::poll_connect().
+enum class ConnectPollResult : uint8_t {
+  CONNECT_POLL_RESULT_PENDING,
+  CONNECT_POLL_RESULT_CONNECTED,
+  CONNECT_POLL_RESULT_ERROR,
+};
 
 }  // namespace esphome::socket
 

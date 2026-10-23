@@ -6,7 +6,7 @@
 
 namespace esphome::lvgl {
 
-class LVLight : public light::LightOutput {
+class LVLight final : public light::LightOutput {
  public:
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();

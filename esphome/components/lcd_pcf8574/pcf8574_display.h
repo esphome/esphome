@@ -11,7 +11,7 @@ class PCF8574LCDDisplay;
 
 using pcf8574_lcd_writer_t = display::DisplayWriter<PCF8574LCDDisplay>;
 
-class PCF8574LCDDisplay : public lcd_base::LCDDisplay, public i2c::I2CDevice {
+class PCF8574LCDDisplay final : public lcd_base::LCDDisplay, public i2c::I2CDevice {
  public:
   void set_writer(pcf8574_lcd_writer_t &&writer) { this->writer_ = std::move(writer); }
   void setup() override;

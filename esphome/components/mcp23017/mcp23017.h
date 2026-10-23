@@ -7,7 +7,7 @@
 
 namespace esphome::mcp23017 {
 
-class MCP23017 : public mcp23x17_base::MCP23X17Base, public i2c::I2CDevice {
+class MCP23017 final : public mcp23x17_base::MCP23X17Base, public i2c::I2CDevice {
  public:
   MCP23017() = default;
 

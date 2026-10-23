@@ -4,6 +4,10 @@
 #ifdef USE_WEBSERVER
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
+namespace esphome::json {
+class JsonBuilder;
+}  // namespace esphome::json
+
 namespace esphome::web_server_idf {
 #ifdef USE_ESP32
 class AsyncEventSource;
@@ -35,9 +39,11 @@ class ListEntitiesIterator final : public ComponentIterator {
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
   // NOLINTEND(bugprone-macro-parentheses)
-  bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
+  // Same type as message_generator_t, which this header cannot include
+  void send_all_(void *source, void (*generator)(WebServer *, void *, json::JsonBuilder &));
+
   const WebServer *web_server_;
 #ifdef USE_ESP32
   esphome::web_server_idf::AsyncEventSource *events_;

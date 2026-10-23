@@ -1,0 +1,12 @@
+button:
+  - platform: template
+    name: HDC302x Actions
+    on_press:
+      - hdc302x.heater_on:
+          id: hdc302x_sensor
+          power: 0x03FF
+          duration: !lambda return 2000;
+      - hdc302x.heater_on:
+          id: hdc302x_sensor
+          power: !lambda return 0x3FFF;
+      - hdc302x.heater_off: hdc302x_sensor
