@@ -13,6 +13,7 @@
 #include "hal/gpio_hal.h"
 #include "soc/soc_caps.h"
 #include "soc/gpio_periph.h"
+#include "freertos/FreeRTOS.h"
 #include <cinttypes>
 
 #if (SOC_RTCIO_PIN_COUNT > 0)
@@ -63,12 +64,32 @@ struct ISRPinArg {
 
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-static esp_sleep_ext1_wakeup_mode_t get_ext1_type(gpio_int_type_t idf_type) {
-  if (idf_type == GPIO_INTR_LOW_LEVEL)
-    return ESP_EXT1_WAKEUP_ANY_LOW;
-  if (idf_type == GPIO_INTR_HIGH_LEVEL)
-    return ESP_EXT1_WAKEUP_ANY_HIGH;
-  return ESP_EXT1_WAKEUP_ANY_LOW;
+static ISRFuncArg *wakeup_args = nullptr;
+static portMUX_TYPE wakeup_args_mux = portMUX_INITIALIZER_UNLOCKED;
+static bool sleep_callback_registered = false;
+
+static void link_wakeup_arg(ISRFuncArg *func_arg) {
+  portENTER_CRITICAL(&wakeup_args_mux);
+  ISRFuncArg **current = &wakeup_args;
+  while (*current != nullptr && *current != func_arg)
+    current = &(*current)->next;
+  if (*current == nullptr) {
+    func_arg->next = wakeup_args;
+    wakeup_args = func_arg;
+  }
+  portEXIT_CRITICAL(&wakeup_args_mux);
+}
+
+static void unlink_wakeup_arg(ISRFuncArg *func_arg) {
+  portENTER_CRITICAL(&wakeup_args_mux);
+  ISRFuncArg **current = &wakeup_args;
+  while (*current != nullptr && *current != func_arg)
+    current = &(*current)->next;
+  if (*current == func_arg) {
+    *current = func_arg->next;
+    func_arg->next = nullptr;
+  }
+  portEXIT_CRITICAL(&wakeup_args_mux);
 }
 
 static esp_err_t apply_ext1(gpio_num_t pin, bool level) {
@@ -78,36 +99,52 @@ static esp_err_t apply_ext1(gpio_num_t pin, bool level) {
   return esp_sleep_enable_ext1_wakeup_io(1ULL << pin, ESP_EXT1_WAKEUP_ANY_HIGH);
 }
 
-IRAM_ATTR esp_err_t ESP32InternalGPIOPin::sleep_cb(int64_t sleep_time_us, void *arg) {
-  auto *func_arg = reinterpret_cast<ISRFuncArg *>(arg);
-  gpio_num_t pin = func_arg->pin;
-  bool last = func_arg->level;
-  bool level = gpio_hal_get_level(&GPIO_HAL, pin);
-  if (level == last)
-    return ESP_OK;  // fast path
-  esp_err_t ret = apply_ext1(pin, level);
-  if (ret == ESP_OK)
+static IRAM_ATTR esp_err_t light_sleep_enter_cb(int64_t, void *) {
+  portENTER_CRITICAL(&wakeup_args_mux);
+  for (ISRFuncArg *func_arg = wakeup_args; func_arg != nullptr; func_arg = func_arg->next) {
+    bool level = gpio_hal_get_level(&GPIO_HAL, func_arg->pin);
+    if (level == func_arg->level)
+      continue;
+    esp_err_t ret = apply_ext1(func_arg->pin, level);
+    if (ret != ESP_OK) {
+      portEXIT_CRITICAL(&wakeup_args_mux);
+      return ret;
+    }
     func_arg->level = level;
-  return ret;
+  }
+  portEXIT_CRITICAL(&wakeup_args_mux);
+  return ESP_OK;
 }
-#endif
+
+static void register_sleep_callback_once() {
+  if (sleep_callback_registered)
+    return;
+  static esp_pm_sleep_cbs_register_config_t cbs_conf = {
+      .enter_cb = &light_sleep_enter_cb,
+      .exit_cb = nullptr,
+      .enter_cb_user_arg = nullptr,
+      .exit_cb_user_arg = nullptr,
+      .enter_cb_prior = 1,
+      .exit_cb_prior = 0,
+  };
+  if (esp_pm_light_sleep_register_cbs(&cbs_conf) == ESP_OK)
+    sleep_callback_registered = true;
+}
 
 static void enable_wakeup(gpio_num_t pin, gpio_int_type_t type) {
-#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-  esp_sleep_enable_ext1_wakeup_io(1ULL << pin, get_ext1_type(type));
-#else
-  gpio_wakeup_enable(pin, type);
-  esp_sleep_enable_gpio_wakeup();
-#endif
+  esp_sleep_enable_ext1_wakeup_io(1ULL << pin,
+                                  type == GPIO_INTR_HIGH_LEVEL ? ESP_EXT1_WAKEUP_ANY_HIGH : ESP_EXT1_WAKEUP_ANY_LOW);
 }
 
-static bool can_wake(gpio_num_t pin) {
-#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-  return esp_sleep_is_valid_wakeup_gpio(pin);
+static bool can_wake(gpio_num_t pin) { return esp_sleep_is_valid_wakeup_gpio(pin); }
 #else
-  return true;
-#endif
+static void enable_wakeup(gpio_num_t pin, gpio_int_type_t type) {
+  gpio_wakeup_enable(pin, type);
+  esp_sleep_enable_gpio_wakeup();
 }
+
+static bool can_wake(gpio_num_t pin) { return true; }
+#endif
 #endif
 
 #ifdef USE_GPIO_HOLD
@@ -228,13 +265,21 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     return;
   }
 
+  ISRFuncArg *&func_args = this->isr_func_arg_;
+  gpio_isr_handler_remove(this->get_pin_num());
+#ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+  if (func_args != nullptr) {
+    unlink_wakeup_arg(func_args);
+    esp_sleep_disable_ext1_wakeup_io(1ULL << this->get_pin_num());
+  }
+#endif
+
   if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
     gpio_isr_handler_add(this->get_pin_num(), func, arg);
     gpio_set_intr_type(this->get_pin_num(), idf_type);
     enable_wakeup(this->get_pin_num(), idf_type);
   } else {
     bool level = gpio_get_level(this->get_pin_num());
-    ISRFuncArg *&func_args = this->isr_func_arg_;
     if (func_args == nullptr)
       func_args = new ISRFuncArg();  // NOLINT(cppcoreguidelines-owning-memory)
     func_args->pin = this->get_pin_num();
@@ -259,15 +304,8 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     gpio_int_type_t opposite = level ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL;
     enable_wakeup(this->get_pin_num(), opposite);
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-    esp_pm_sleep_cbs_register_config_t cbs_conf = {
-        .enter_cb = &ESP32InternalGPIOPin::sleep_cb,
-        .exit_cb = nullptr,
-        .enter_cb_user_arg = func_args,
-        .exit_cb_user_arg = nullptr,
-        .enter_cb_prior = 1,
-        .exit_cb_prior = 0,
-    };
-    esp_pm_light_sleep_register_cbs(&cbs_conf);
+    link_wakeup_arg(func_args);
+    register_sleep_callback_once();
 #endif
   }
   gpio_intr_enable(this->get_pin_num());
@@ -353,19 +391,14 @@ void ESP32InternalGPIOPin::detach_interrupt() const {
   gpio_intr_disable(this->get_pin_num());
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
-  if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num())) {
+  gpio_isr_handler_remove(this->get_pin_num());
+  if (esp_sleep_is_valid_wakeup_gpio(this->get_pin_num()))
     esp_sleep_disable_ext1_wakeup_io(1ULL << this->get_pin_num());
+  if (this->isr_func_arg_ != nullptr) {
+    unlink_wakeup_arg(this->isr_func_arg_);
   }
-  esp_pm_sleep_cbs_register_config_t cbs_conf = {
-      .enter_cb = &ESP32InternalGPIOPin::sleep_cb,
-      .exit_cb = nullptr,
-      .enter_cb_user_arg = this->isr_func_arg_,
-      .exit_cb_user_arg = nullptr,
-      .enter_cb_prior = 1,
-      .exit_cb_prior = 0,
-  };
-  esp_pm_light_sleep_unregister_cbs(&cbs_conf);
 #else
+  gpio_isr_handler_remove(this->get_pin_num());
   gpio_wakeup_disable(this->get_pin_num());
 #endif
 #endif

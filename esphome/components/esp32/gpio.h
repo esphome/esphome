@@ -18,6 +18,7 @@ struct ISRFuncArg {
   gpio_int_type_t type;
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
   bool level;
+  ISRFuncArg *next;
 #endif
   void (*func)(void *);
   void *arg;
@@ -62,9 +63,6 @@ class ESP32InternalGPIOPin final : public GPIOPin {
 
  protected:
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
-#if defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
-  static esp_err_t sleep_cb(int64_t sleep_time_us, void *arg);
-#endif
   // Memory layout: 8 bytes total on 32-bit systems, 12 bytes if sleep is enabled
   // - 3 (or 7) bytes for members below
   // - 1 byte padding for alignment
