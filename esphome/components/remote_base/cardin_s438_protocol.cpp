@@ -132,8 +132,8 @@ optional<CardinS438Data> CardinS438Protocol::decode(RemoteReceiveData src) {
 
     // Reconstruct the 14-bit code in transmission order.
     uint16_t code = 0;
-    for (uint8_t i = 0; i < PINCODE_BITS; ++i) {
-      const uint8_t entry = progmem_read_byte(&PINCODE_MAP[i]);
+    for (const uint8_t &slot : PINCODE_MAP) {
+      const uint8_t entry = progmem_read_byte(&slot);
       code = (code << 1) | (((entry & PIN_Y ? y : x) >> (entry & 0x07)) & 1U);
     }
 
