@@ -568,5 +568,5 @@ button:
     name: Cardin S438
     on_press:
       remote_transmitter.transmit_cardin_s438:
-        code: 01001001110100
+        code: '01001001110100'
         channels: B
