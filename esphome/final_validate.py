@@ -56,12 +56,15 @@ def get_declaring_config(
     return declaring
 
 
-def platform_entries(domain: str, platform: str, **match: Any) -> list[ConfigType]:
+def platform_entries(
+    domain: str, platform: str, match: dict[str, Any] | None = None
+) -> list[ConfigType]:
     """Return the entries of domain set up by platform whose keys equal the match values.
 
     Reads the full config being validated, for example
-    platform_entries("switch", "my_hub", my_hub_id=hub_id, channel=1).
+    platform_entries("switch", "my_hub", {CONF_MY_HUB_ID: hub_id, CONF_CHANNEL: 1}).
     """
+    match = match or {}
     return [
         entry
         for entry in full_config.get().get(domain, [])
@@ -71,24 +74,19 @@ def platform_entries(domain: str, platform: str, **match: Any) -> list[ConfigTyp
 
 
 def unique_platform_key(
-    domain: str,
-    platform: str,
-    *keys: str,
-    message: str,
-    path: ConfigPathType | None = None,
+    domain: str, platform: str, *keys: str, message: str
 ) -> Callable[[ConfigType], ConfigType]:
     """A final-validation function that allows one platform entry per combination of keys.
 
     With no keys it allows one entry of the platform in total. message is formatted with
-    the entry's key values; path defaults to the last key.
+    the entry's key values, by position and by key name; the error points at the last key.
     """
-    if path is None:
-        path = [keys[-1]] if keys else []
+    path = [keys[-1]] if keys else []
 
     def validator(config: ConfigType) -> ConfigType:
         values = {key: config[key] for key in keys}
-        if len(platform_entries(domain, platform, **values)) > 1:
-            raise cv.Invalid(message.format(**values), path=path)
+        if len(platform_entries(domain, platform, values)) > 1:
+            raise cv.Invalid(message.format(*values.values(), **values), path=path)
         return config
 
     return validator
