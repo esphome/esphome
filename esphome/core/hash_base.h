@@ -31,10 +31,12 @@ class HashBase {
   /// Compare the hash against a provided byte-encoded hash
   bool equals_bytes(const uint8_t *expected) { return constant_time_equals(this->digest_, expected, this->get_size()); }
 
-  /// Compare the hash against a provided hex-encoded hash
+  /// Compare the hash against a provided hex-encoded hash of get_size() * 2 characters, which need not be
+  /// null-terminated
   bool equals_hex(const char *expected) {
     uint8_t parsed[32];  // Fixed size for max hash (SHA256 = 32 bytes)
-    if (!parse_hex(expected, parsed, this->get_size())) {
+    const size_t size = this->get_size();
+    if (parse_hex(expected, size * 2, parsed, size) != size * 2) {
       return false;
     }
     return this->equals_bytes(parsed);
