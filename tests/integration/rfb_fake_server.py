@@ -5,7 +5,7 @@ handshake for RFB 3.3, 3.7 and 3.8, the same security lists and failure messages
 connection that closes on any client message type it does not know.
 
 The framebuffer is an RGB888 image the test draws into. Updates are translated into the pixel
-format the client asked for and encoded as Raw or a RichCursor shape. Every client
+format the client asked for and encoded as Raw, Hextile or a RichCursor shape. Every client
 message is recorded, and the test decides when to answer: ``wait_for("fbur")`` then
 ``send_update(...)``.
 """
@@ -13,6 +13,7 @@ message is recorded, and the test decides when to answer: ``wait_for("fbur")`` t
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from collections.abc import Callable, Iterable, Sequence
 import contextlib
 from dataclasses import asdict, dataclass
@@ -28,7 +29,14 @@ SECURITY_NONE = 1
 SECURITY_TIGHT = 16
 
 ENCODING_RAW = 0
+ENCODING_HEXTILE = 5
 ENCODING_RICH_CURSOR = -239
+
+HEXTILE_RAW = 0x01
+HEXTILE_BACKGROUND = 0x02
+HEXTILE_FOREGROUND = 0x04
+HEXTILE_ANY_SUBRECTS = 0x08
+HEXTILE_SUBRECTS_COLOURED = 0x10
 
 #: ``chunk`` value that writes in random 1-7 byte pieces.
 HOSTILE_CHUNK = -1
@@ -38,12 +46,13 @@ MAX_CLIENT_CUT_TEXT = 1 << 20
 
 
 RGB = tuple[int, int, int]
-Encoding = Literal["raw", "rich-cursor"]
+Encoding = Literal["raw", "hextile", "hextile-raw-tiles", "rich-cursor"]
 Rect = tuple[int, int, int, int, Encoding]
 Message = dict[str, Any]
 
 _PIXEL_FORMAT = struct.Struct(">BBBBHHHBBB3x")
 _VERSION_RE = re.compile(rb"RFB (\d{3})\.(\d{3})\n")
+_TILE = 16
 
 
 @dataclass(frozen=True)
@@ -312,17 +321,24 @@ class FakeRfbServer:
         rects: Sequence[Rect],
         *,
         pixel_format: PixelFormat | None = None,
+        always_send_bg: bool = False,
+        raw_tile_flags: int = HEXTILE_RAW,
     ) -> bytes:
         """Encode one FramebufferUpdate from the image.
 
         Each rect is ``(x, y, w, h, encoding)``. For ``rich-cursor`` x and y are the hotspot
-        and the shape is a fixed pattern.
+        and the shape is a fixed pattern. ``hextile-raw-tiles`` sends every tile raw.
 
         Args:
             rects: The rectangles, in order.
             pixel_format: Format to encode in; defaults to the current client's.
+            always_send_bg: Send the Hextile background on every tile, even when unchanged.
+            raw_tile_flags: Subencoding byte of raw Hextile tiles. Bits other than Raw are
+                ignored by decoders, so 0x1F is valid.
         """
         fmt = pixel_format or self.pixel_format
+        if not raw_tile_flags & HEXTILE_RAW:
+            raise ValueError("raw_tile_flags must include the Raw bit")
         out = bytearray(struct.pack(">BxH", 0, len(rects)))
         for x, y, w, h, encoding in rects:
             if encoding == "rich-cursor":
@@ -334,6 +350,15 @@ class FakeRfbServer:
             if encoding == "raw":
                 out += struct.pack(">HHHHi", x, y, w, h, ENCODING_RAW)
                 out += _pixels(fmt, (v for row in values for v in row))
+            elif encoding in ("hextile", "hextile-raw-tiles"):
+                out += struct.pack(">HHHHi", x, y, w, h, ENCODING_HEXTILE)
+                out += _hextile(
+                    fmt,
+                    values,
+                    force_raw=encoding == "hextile-raw-tiles",
+                    always_send_bg=always_send_bg,
+                    raw_tile_flags=raw_tile_flags,
+                )
             else:
                 raise ValueError(f"unknown encoding {encoding!r}")
         return bytes(out)
@@ -343,6 +368,8 @@ class FakeRfbServer:
         rects: Sequence[Rect],
         chunk: int | None = None,
         *,
+        always_send_bg: bool = False,
+        raw_tile_flags: int = HEXTILE_RAW,
         delay: float = 0.0,
     ) -> None:
         """Send one FramebufferUpdate built by ``build_update()``.
@@ -351,10 +378,17 @@ class FakeRfbServer:
             rects: The rectangles, in order.
             chunk: Split the write into pieces of at most this many bytes; ``HOSTILE_CHUNK``
                 uses seeded random 1-7 byte pieces.
+            always_send_bg: See ``build_update()``.
+            raw_tile_flags: See ``build_update()``.
             delay: Sleep between pieces.
         """
         session = self._require_session()
-        data = self.build_update(rects, pixel_format=session.pixel_format)
+        data = self.build_update(
+            rects,
+            pixel_format=session.pixel_format,
+            always_send_bg=always_send_bg,
+            raw_tile_flags=raw_tile_flags,
+        )
         await self._write(session, data, chunk, delay)
 
     async def send_cut_text(
@@ -627,3 +661,95 @@ def _cursor_shape(fmt: PixelFormat, w: int, h: int) -> bytes:
         light if (x + y) % 2 else dark for y in range(h) for x in range(w)
     )
     return pixels + b"\x5a" * (((w + 7) // 8) * h)
+
+
+def _subrects(tile: list[list[int]], bg: int) -> list[tuple[int, int, int, int, int]]:
+    """Cover every non-background pixel with same-coloured rects, greedily."""
+    height, width = len(tile), len(tile[0])
+    done = [[False] * width for _ in range(height)]
+    rects = []
+    for y in range(height):
+        for x in range(width):
+            colour = tile[y][x]
+            if colour == bg or done[y][x]:
+                continue
+            right = x
+            while (
+                right + 1 < width
+                and tile[y][right + 1] == colour
+                and not done[y][right + 1]
+            ):
+                right += 1
+            bottom = y
+            while bottom + 1 < height and all(
+                tile[bottom + 1][i] == colour and not done[bottom + 1][i]
+                for i in range(x, right + 1)
+            ):
+                bottom += 1
+            for line in range(y, bottom + 1):
+                done[line][x : right + 1] = [True] * (right + 1 - x)
+            rects.append((x, y, right + 1 - x, bottom + 1 - y, colour))
+    return rects
+
+
+def _hextile(
+    fmt: PixelFormat,
+    values: list[list[int]],
+    *,
+    force_raw: bool,
+    always_send_bg: bool,
+    raw_tile_flags: int,
+) -> bytes:
+    """Hextile-encode a region given as rows of pixel values.
+
+    Background and foreground carry over between tiles, but never past a raw tile or a
+    coloured-subrect tile, as libvncserver's encoder does.
+    """
+    out = bytearray()
+    height = len(values)
+    width = len(values[0]) if values else 0
+    bg: int | None = None
+    fg: int | None = None
+    for ty in range(0, height, _TILE):
+        for tx in range(0, width, _TILE):
+            tile = [row[tx : tx + _TILE] for row in values[ty : ty + _TILE]]
+            flat = [v for row in tile for v in row]
+            raw_size = len(flat) * fmt.bytes_per_pixel
+            if not force_raw:
+                counts = Counter(flat)
+                tile_bg = counts.most_common(1)[0][0]
+                flags = 0
+                body = bytearray()
+                if tile_bg != bg or always_send_bg:
+                    flags |= HEXTILE_BACKGROUND
+                    body += fmt.to_bytes(tile_bg)
+                if len(counts) == 1:
+                    out.append(flags)
+                    out += body
+                    bg = tile_bg
+                    continue
+                subrects = _subrects(tile, tile_bg)
+                coloured = len(counts) > 2
+                flags |= HEXTILE_ANY_SUBRECTS
+                if coloured:
+                    flags |= HEXTILE_SUBRECTS_COLOURED
+                    tile_fg = None
+                else:
+                    tile_fg = next(c for c in counts if c != tile_bg)
+                    if tile_fg != fg:
+                        flags |= HEXTILE_FOREGROUND
+                        body += fmt.to_bytes(tile_fg)
+                body.append(len(subrects))
+                for x, y, w, h, colour in subrects:
+                    if coloured:
+                        body += fmt.to_bytes(colour)
+                    body += bytes([(x << 4) | y, ((w - 1) << 4) | (h - 1)])
+                if len(body) < raw_size:
+                    out.append(flags)
+                    out += body
+                    bg, fg = tile_bg, tile_fg
+                    continue
+            out.append(raw_tile_flags)
+            out += _pixels(fmt, flat)
+            bg = fg = None
+    return bytes(out)
