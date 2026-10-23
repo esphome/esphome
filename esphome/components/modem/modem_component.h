@@ -150,6 +150,12 @@ class ModemComponent : public Component {
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
   static constexpr size_t URC_LINE_SIZE = 128;
   static constexpr size_t AT_COMMAND_SIZE = 128;
+#ifdef USE_MODEM_POLL
+  static constexpr uint8_t CSQ_UNKNOWN = 99;  // AT+CSQ rssi or ber the modem cannot tell
+  static constexpr uint8_t CSQ_RSSI_MAX = 31;
+  static constexpr uint8_t NETWORK_MODE_NO_SERVICE = 0;
+  static constexpr uint8_t NETWORK_MODE_NONE = 255;  // no AT+CNSMOD answer; past the name table, so Unknown
+#endif
 
   // esp_modem's calls block until the modem answers or their own timeouts run out, up to a minute for a
   // mode change, so the state machine runs on its own task and leaves the main loop alone
@@ -286,9 +292,9 @@ class ModemComponent : public Component {
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
 #ifdef USE_MODEM_POLL
-  uint8_t poll_rssi_{99};  // raw AT+CSQ answers, 99 = unknown
-  uint8_t poll_ber_{99};
-  uint8_t poll_mode_{255};  // raw AT+CNSMOD answer, 255 = no answer
+  uint8_t poll_rssi_{CSQ_UNKNOWN};  // raw AT+CSQ answers
+  uint8_t poll_ber_{CSQ_UNKNOWN};
+  uint8_t poll_mode_{NETWORK_MODE_NONE};  // raw AT+CNSMOD answer
 #endif
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down

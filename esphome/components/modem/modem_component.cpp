@@ -270,7 +270,7 @@ void ModemComponent::loop() {
   if (pending & PENDING_ON_DISCONNECT) {
     // A lost link must not keep showing the last healthy reading, nor one taken before it dropped
     this->poll_unpublished_.store(0, std::memory_order_release);
-    this->publish_readings_(99, 99, 0);
+    this->publish_readings_(CSQ_UNKNOWN, CSQ_UNKNOWN, NETWORK_MODE_NO_SERVICE);
   } else if (this->poll_unpublished_.load(std::memory_order_acquire)) {
     this->publish_readings_(this->poll_rssi_, this->poll_ber_, this->poll_mode_);
     this->poll_unpublished_.store(0, std::memory_order_release);
@@ -1099,15 +1099,15 @@ static constexpr float BER_PERCENT[] = {0.14f, 0.28f, 0.57f, 1.13f, 2.26f, 4.53f
 void ModemComponent::poll_() {
   // The task owns the poll_ answers while poll_unpublished_ is clear
 #ifdef USE_MODEM_SIGNAL
-  int rssi = 99, ber = 99;
+  int rssi = CSQ_UNKNOWN, ber = CSQ_UNKNOWN;
   const bool signal_ok = this->dce_->get_signal_quality(rssi, ber) == command_result::OK;
-  this->poll_rssi_ = static_cast<uint8_t>(signal_ok && rssi >= 0 && rssi < 99 ? rssi : 99);
-  this->poll_ber_ = static_cast<uint8_t>(signal_ok && ber >= 0 && ber < 99 ? ber : 99);
+  this->poll_rssi_ = static_cast<uint8_t>(signal_ok && rssi >= 0 && rssi < CSQ_UNKNOWN ? rssi : CSQ_UNKNOWN);
+  this->poll_ber_ = static_cast<uint8_t>(signal_ok && ber >= 0 && ber < CSQ_UNKNOWN ? ber : CSQ_UNKNOWN);
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
   int mode = -1;
   const bool mode_ok = this->dce_->get_network_system_mode(mode) == command_result::OK;
-  this->poll_mode_ = static_cast<uint8_t>(mode_ok && mode >= 0 && mode < 255 ? mode : 255);
+  this->poll_mode_ = static_cast<uint8_t>(mode_ok && mode >= 0 && mode < NETWORK_MODE_NONE ? mode : NETWORK_MODE_NONE);
 #endif
 }
 
@@ -1117,12 +1117,12 @@ PROGMEM_STRING_TABLE(NetworkModeStrings, "No service", "GSM", "GPRS", "EDGE", "W
                      "Unknown");
 #endif
 
-// Raw AT answers: CSQ rssi and ber (99 = unknown) and the CNSMOD mode (past the table = Unknown)
+// Raw AT answers: CSQ rssi and ber, and the CNSMOD mode (past the table shows as Unknown)
 void ModemComponent::publish_readings_([[maybe_unused]] uint8_t rssi, [[maybe_unused]] uint8_t ber,
                                        [[maybe_unused]] uint8_t mode) {
 #ifdef USE_MODEM_SIGNAL
   if (this->rssi_sensor_ != nullptr) {
-    this->rssi_sensor_->publish_state(rssi <= 31 ? -113.0f + 2.0f * rssi : NAN);
+    this->rssi_sensor_->publish_state(rssi <= CSQ_RSSI_MAX ? -113.0f + 2.0f * rssi : NAN);
   }
   if (this->ber_sensor_ != nullptr) {
     this->ber_sensor_->publish_state(ber < std::size(BER_PERCENT) ? BER_PERCENT[ber] : NAN);
