@@ -68,6 +68,7 @@ static constexpr uint32_t BURST_STALL_TIMEOUT_MS = 5000;  // refresh burst watch
 // Scheduler ids, numbered from 0 and unique within this component.
 static constexpr uint32_t BOOT_REFRESH_TIMEOUT_ID = 0;
 static constexpr uint32_t CLEANUP_INTERVAL_ID = 1;
+static constexpr uint32_t REFRESH_ALL_TIMEOUT_ID = 2;
 // The main loop's nominal period; the effective GET spacing never goes below it.
 static constexpr uint32_t LOOP_INTERVAL_MS = 16;
 
@@ -590,10 +591,9 @@ void TopTronic::refresh_all() {
   uint32_t offset = 0;
   for (TopTronic *hub : s_all_instances) {
     if (offset > 0) {
-      // Stagger: schedule this hub's batch after the previous ones. Keyed by the
-      // hub's stable object address so repeated refreshes reschedule only this
-      // hub's pending batch (device addresses are identical across hubs).
-      hub->set_timeout(reinterpret_cast<uintptr_t>(hub), offset, [hub]() { hub->update_all(); });
+      // Stagger: schedule this hub's batch after the previous ones. Scheduler ids are
+      // per component, so a fixed id reschedules only this hub's pending batch.
+      hub->set_timeout(REFRESH_ALL_TIMEOUT_ID, offset, [hub]() { hub->update_all(); });
     } else {
       hub->update_all();  // first hub runs immediately
     }
