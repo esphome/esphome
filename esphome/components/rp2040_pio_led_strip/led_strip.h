@@ -56,6 +56,8 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
 
   void set_chipset(Chipset chipset) { this->chipset_ = chipset; };
   void clear_effect_data() override {
+    if (this->effect_data_ == nullptr)
+      return;
     for (int i = 0; i < this->size(); i++) {
       this->effect_data_[i] = 0;
     }
