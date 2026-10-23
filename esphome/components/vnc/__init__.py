@@ -29,9 +29,15 @@ MULTI_CONF = True
 
 CONF_MAX_UPDATE_DELAY = "max_update_delay"
 CONF_UPDATE_DELAY = "update_delay"
+CONF_PIXEL_FORMAT = "pixel_format"
 
 vnc_ns = cg.esphome_ns.namespace("vnc")
 VncClient = vnc_ns.class_("VncClient", cg.Component)
+VncPixelFormat = vnc_ns.enum("VncPixelFormat", is_class=True)
+
+PIXEL_FORMATS = VncPixelFormat.options(
+    "auto", "rgb565", "rgb332", prefix="VNC_PIXEL_FORMAT_"
+)
 
 # Drivers that cannot take another component's pixels yet.
 UNSUPPORTED_DISPLAYS = dict.fromkeys(
@@ -63,6 +69,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_MAX_UPDATE_DELAY, default="1s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_PIXEL_FORMAT, default="auto"): cv.enum(
+                PIXEL_FORMATS, lower=True
+            ),
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation({}),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation({}),
         }
@@ -128,11 +137,16 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     cg.add(var.set_update_delay(config[CONF_UPDATE_DELAY]))
     cg.add(var.set_max_update_delay(config[CONF_MAX_UPDATE_DELAY]))
+    cg.add(var.set_pixel_format(config[CONF_PIXEL_FORMAT]))
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 VNC_ID_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(VncClient)},
+)
+
+automation.register_apply_action(
+    "vnc.refresh", VNC_ID_SCHEMA, automation.ApplyCall("refresh()")
 )
 
 automation.register_apply_condition("vnc.is_connected", VNC_ID_SCHEMA, "is_connected()")
