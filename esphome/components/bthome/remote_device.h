@@ -24,7 +24,12 @@ class RemoteDeviceBase {
   uint64_t address_{0};
   // Payloads seen under the current packet ID, as hashes, for duplicate filtering.
   static constexpr size_t SEEN_PAYLOAD_SLOTS = 4;
+  // After this much silence a payload counts as new again, as in Home Assistant's parser.
+  static constexpr uint32_t PACKET_ID_RESET_MS = 4000;
+  // Without a packet ID, only copies this close together are repeats.
+  static constexpr uint32_t NO_PACKET_ID_REPEAT_MS = 1200;
   optional<uint8_t> last_packet_id_{};
+  uint32_t last_frame_ms_{0};
   std::array<uint32_t, SEEN_PAYLOAD_SLOTS> seen_payload_hashes_{};
   uint8_t seen_payload_count_{0};
   uint8_t next_seen_payload_{0};
@@ -32,7 +37,7 @@ class RemoteDeviceBase {
   bool encryption_mismatch_logged_{false};
 
  private:
-  bool is_duplicate_(uint8_t packet_id, const uint8_t *payload, size_t payload_size);
+  bool is_duplicate_(optional<uint8_t> packet_id, const uint8_t *payload, size_t payload_size, uint32_t now);
   bool matches_(const ble_device_base::ESPBTDevice &device, const uint8_t *data, size_t data_size) const;
   size_t process_object_(std::span<BTHomeRemoteObject *> handlers, size_t index, const BTHomeObject &object);
 };
