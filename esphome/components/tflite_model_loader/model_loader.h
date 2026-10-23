@@ -18,8 +18,10 @@ namespace esphome::tflite_model_loader {
 /// @brief Model configuration passed to the loader at load time.
 struct ModelConfig {
   std::string description;
-  std::string output_processing;  // e.g., "softmax", "direct_class", "argmax", "logits"
-  float scale_factor{1.0f};       // Scale factor for class index normalization (for large class counts)
+  /// One of the tflite_output_processor modes: "argmax", "softmax",
+  /// "qat_quantized" or "auto_detect".
+  std::string output_processing;
+  float scale_factor{1.0f};  // Scale factor for class index normalization (for large class counts)
 };
 
 /// @brief Loads a TFLite model into an interpreter with the given tensor arena.

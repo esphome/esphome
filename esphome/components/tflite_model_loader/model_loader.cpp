@@ -5,6 +5,7 @@
 #include <set>
 #include "esphome/core/log.h"
 #include "flatbuffers/verifier.h"
+#include "tensorflow/lite/schema/schema_utils.h"
 
 namespace esphome::tflite_model_loader {
 
@@ -133,24 +134,27 @@ bool ModelLoader::load_with_arena_(const uint8_t *model_data, size_t model_size,
   }
 
   // Collect the operators once: the same set drives registration and the failure diagnostics.
+  // GetBuiltinCode() is used because builtin_code() still reports PLACEHOLDER for models
+  // converted with the newer schema.
   std::set<tflite::BuiltinOperator> required_ops;
   bool has_delegate = false;
   for (uint32_t i = 0; i < operator_codes->size(); i++) {
     const auto *op_code = operator_codes->Get(i);
     if (op_code == nullptr)
       continue;
-    required_ops.insert(op_code->builtin_code());
-    has_delegate = has_delegate || op_code->builtin_code() == tflite::BuiltinOperator_DELEGATE;
+    const tflite::BuiltinOperator builtin_code = tflite::GetBuiltinCode(op_code);
+    required_ops.insert(builtin_code);
+    has_delegate = has_delegate || builtin_code == tflite::BuiltinOperator_DELEGATE;
     if (this->debug_) {
-      ESP_LOGD(TAG, "  Op code [%" PRIu32 "]: %d (%s)", i, op_code->builtin_code(),
-               tflite::EnumNameBuiltinOperator(op_code->builtin_code()));
+      ESP_LOGD(TAG, "  Op code [%" PRIu32 "]: %d (%s)", i, builtin_code, tflite::EnumNameBuiltinOperator(builtin_code));
     }
   }
 
   if (has_delegate) {
-    // TFLite Micro has no delegate support; such a model cannot be registered below.
+    // TFLite Micro has no delegate support, so registration below cannot succeed.
     ESP_LOGE(TAG, "Model contains a DELEGATE operator, which TFLite Micro does not support");
     ESP_LOGE(TAG, "Re-export the model with the XNNPACK delegate disabled");
+    return false;
   }
 
   this->tflite_model_ = model;
@@ -158,7 +162,7 @@ bool ModelLoader::load_with_arena_(const uint8_t *model_data, size_t model_size,
   this->tensor_arena_ = tensor_arena;
   this->tensor_arena_size_ = tensor_arena_size;
 
-  ESP_LOGI(TAG, "Loading model from PROGMEM (%zu bytes, arena %zu bytes)", model_size, tensor_arena_size);
+  ESP_LOGI(TAG, "Loading model (%zu bytes, arena %zu bytes)", model_size, tensor_arena_size);
 
   // Reset and allocate fresh resolver for this load cycle
   this->resolver_ = std::make_unique<tflite::MicroMutableOpResolver<TFLITE_MICRO_MAX_OPERATORS>>();

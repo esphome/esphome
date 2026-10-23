@@ -30,15 +30,12 @@ struct ImageModelConfig {
   bool invert{false};
 };
 
-// Audio-specific model config (streaming models)
-struct AudioModelConfig {
-  uint8_t probability_cutoff{128};  // quantized 0-255 (from 0.0-1.0)
-  size_t sliding_window_size{10};
-  uint8_t features_step_size{20};  // ms between feature slices
-  size_t feature_count{40};        // Mel filterbank bins (e.g., PREPROCESSOR_FEATURE_SIZE)
-};
-
-#ifdef DEBUG_TFLITE_MICRO_HELPER
+// The debug members below are implemented by tflite_model_debug, which emits
+// USE_TFLITE_MODEL_DEBUG from its to_code. Declaring them only when that
+// component is in the build keeps this class from promising methods nothing
+// links: a build without it (this component's own test, for example) simply has
+// no debug API.
+#ifdef USE_TFLITE_MODEL_DEBUG
 struct ConfigTestResult {
   ImageModelConfig config;
   float avg_confidence;
@@ -79,21 +76,21 @@ class ModelHandler {
 
   // Helper methods for input dimensions
   int get_input_width() const {
-    const TfLiteTensor *input = input_tensor();
+    const TfLiteTensor *input = this->input_tensor();
     if (!input || input->dims->size < 4)
       return 0;
     return input->dims->data[2];  // [batch, height, width, channels]
   }
 
   int get_input_height() const {
-    const TfLiteTensor *input = input_tensor();
+    const TfLiteTensor *input = this->input_tensor();
     if (!input || input->dims->size < 4)
       return 0;
     return input->dims->data[1];
   }
 
   int get_input_channels() const {
-    const TfLiteTensor *input = input_tensor();
+    const TfLiteTensor *input = this->input_tensor();
     if (!input || input->dims->size < 4)
       return 0;
     return input->dims->data[3];
@@ -117,10 +114,6 @@ class ModelHandler {
   /// @brief Set the tensor arena size to request from MemoryManager.
   void set_tensor_arena_size(size_t size) { this->loader_.set_tensor_arena_size(size); }
 
-  // Debug helpers
-  void log_input_stats() const;
-  void debug_input_pattern() const;
-
   // CRC32 verification
   static uint32_t calculate_crc32(const uint8_t *data, size_t length) {
     return tflite_model_loader::calculate_crc32(data, length);
@@ -128,7 +121,6 @@ class ModelHandler {
   bool verify_model_crc(const uint8_t *model_data, size_t length, uint32_t expected_crc = 0) {
     return tflite_model_loader::verify_model_crc(model_data, length, expected_crc);
   }
-  void debug_model_architecture() const;
 
   /// @brief Probes the actual required tensor arena size by trial allocation.
   /// Tries the requested size first, then 1.5x, then 2x if it fails.
@@ -139,7 +131,12 @@ class ModelHandler {
     return tflite_memory_handler::probe_arena_size(model_start, initial_size);
   }
 
-#ifdef DEBUG_TFLITE_MICRO_HELPER
+#ifdef USE_TFLITE_MODEL_DEBUG
+  // Debug helpers, implemented in tflite_model_debug.
+  void log_input_stats() const;
+  void debug_input_pattern() const;
+  void debug_model_architecture() const;
+
   // Advanced Debugging
   // Note: debug methods that need tensor access are non-const to avoid const_cast
   void debug_input_quantization_analysis(const uint8_t *input_data, size_t input_size, const std::string &stage);
@@ -161,7 +158,7 @@ class ModelHandler {
   bool invoke_model(const uint8_t *data, size_t len);  // Helper for tests
 
   static void feed_watchdog();
-#endif  // DEBUG_TFLITE_MICRO_HELPER
+#endif  // USE_TFLITE_MODEL_DEBUG
 
   void set_debug(bool debug) {
     this->debug_ = debug;
