@@ -11,7 +11,8 @@ namespace esphome::runtime_image {
  * @brief Image decoder specialization for JPEG images based on libjpeg-turbo.
  *
  * Unlike the JPEGDEC based decoder, this one also supports progressive JPEG
- * images.
+ * images. It cannot read a DecodeSource, so it needs the complete file in
+ * memory before decoding.
  */
 class JpegTurboDecoder : public ImageDecoder {
  public:
