@@ -96,12 +96,23 @@ def _direct_url(url: str | None, commit: str | None) -> str:
             _direct_url("https://user:token@github.com/someone/esphome", "abc"),
             ("https://github.com/someone/esphome", "abc"),
         ),
-        (_direct_url(None, "abc"), None),
-        (_direct_url("https://github.com/esphome/esphome", None), None),
-        (json.dumps({"dir_info": {"editable": True}}), None),
-        (json.dumps([]), None),
+        # Present but not understood: the source is unknown, not the release
+        (_direct_url(None, "abc"), (None, None)),
+        (_direct_url("https://github.com/esphome/esphome", None), (None, None)),
+        (json.dumps({"dir_info": {"editable": True}}), (None, None)),
+        (
+            json.dumps(
+                {
+                    "url": "https://github.com/someone/esphome/archive/fix.tar.gz",
+                    "archive_info": {},
+                }
+            ),
+            (None, None),
+        ),
+        (json.dumps([]), (None, None)),
+        ("not json", (None, None)),
+        # No direct_url.json: installed from a package index
         (None, None),
-        ("not json", None),
     ],
 )
 def test_esphome_vcs(direct_url: str | None, expected: tuple[str, str] | None) -> None:
@@ -457,3 +468,36 @@ def test_esphome_manifest_checkout(
         sbom.write_manifests()
     manifest = _read(build_tree / "src" / "sbom.yml")
     assert {k: manifest[k] for k in ("repository", "purl") if k in manifest} == expected
+
+
+def test_esphome_vcs_unknown_warns_without_url(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unknown install is reported without logging the URL, which may hold a token."""
+    dist = MagicMock()
+    dist.read_text.return_value = json.dumps(
+        {"url": "https://user:secret@example.com/esphome.tar.gz", "archive_info": {}}
+    )
+    with patch("importlib.metadata.distribution", return_value=dist):
+        assert sbom._esphome_vcs() == (None, None)
+    assert "cannot tell where ESPHome was installed from" in caplog.text
+    assert "secret" not in caplog.text
+
+
+def test_write_manifests_never_fails_the_build(
+    build_tree: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with patch.object(sbom, "_write_manifests", side_effect=OSError("disk full")):
+        sbom.write_manifests()
+    assert "could not write sbom.yml manifests: disk full" in caplog.text
+
+
+def test_source_commit_failure_warns(caplog: pytest.LogCaptureFixture) -> None:
+    source = ExternalSource(
+        components_dir=Path("/x"), url="https://github.com/o/r", repo_dir=Path("/x")
+    )
+    with patch.object(
+        sbom, "run_git_command", side_effect=GitCommandError("not a repo")
+    ):
+        assert sbom._source_commit(source) is None
+    assert "cannot read commit in" in caplog.text

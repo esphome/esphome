@@ -123,6 +123,15 @@ def _checkout_vcs(path: Path) -> _Source | None:
     return _Source(strip_url_credentials(url), commit)
 
 
+def _unknown_install(reason: str) -> _Source:
+    _LOGGER.warning(
+        "SBOM: cannot tell where ESPHome was installed from (%s), so its source "
+        "is left out",
+        reason,
+    )
+    return _Source(None, None)
+
+
 def _esphome_vcs() -> _Source | None:
     """Return the repository URL and commit ESPHome was installed from, if known.
 
@@ -136,22 +145,23 @@ def _esphome_vcs() -> _Source | None:
         return None
     if not direct_url:
         return None
+    # Not installed from a package index, so the release version alone may not
+    # describe it. The raw file is never logged: its URL can hold a token.
     try:
         info = json.loads(direct_url)
         commit = info.get("vcs_info", {}).get("commit_id")
         url = info.get("url")
     except (ValueError, AttributeError):
-        _LOGGER.debug("SBOM: unreadable direct_url.json for esphome: %s", direct_url)
-        return None
+        return _unknown_install("unreadable direct_url.json")
     if not isinstance(url, str):
-        return None
+        return _unknown_install("direct_url.json has no URL")
     if commit:
         return _Source(strip_url_credentials(url), commit)
     if "dir_info" in info and url.startswith("file:"):
         # An editable or local install may be a fork or a patched clone. The
         # Docker image's tree has no .git, so it keeps the release description.
         return _checkout_vcs(Path(url2pathname(urlparse(url).path)))
-    return None
+    return _unknown_install("not a git or local folder install")
 
 
 def _project_manifest() -> dict[str, Any] | None:
@@ -168,7 +178,7 @@ def _source_commit(source: ExternalSource) -> str | None:
         return run_git_command(["git", "rev-parse", "HEAD"], git_dir=source.repo_dir)
     except GitException as err:
         # Only SBOM metadata depends on it; never fail the build over it
-        _LOGGER.debug("SBOM: cannot read commit in %s: %s", source.repo_dir, err)
+        _LOGGER.warning("SBOM: cannot read commit in %s: %s", source.repo_dir, err)
         return None
 
 
@@ -253,7 +263,17 @@ def _esphome_manifest() -> dict[str, Any]:
 
 
 def write_manifests() -> None:
-    """Write the project and ``src`` component manifests into the build tree."""
+    """Write the project and ``src`` component manifests into the build tree.
+
+    Runs on every ESP-IDF build, so a failure is logged and never stops it.
+    """
+    try:
+        _write_manifests()
+    except (OSError, ValueError) as err:
+        _LOGGER.warning("SBOM: could not write sbom.yml manifests: %s", err)
+
+
+def _write_manifests() -> None:
     project_path = CORE.relative_build_path(SBOM_FILENAME)
     if (project := _project_manifest()) is not None:
         write_file_if_changed(project_path, yaml_util.dump(project))

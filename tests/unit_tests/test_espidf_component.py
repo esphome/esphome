@@ -1371,6 +1371,20 @@ def test_emit_idf_component_keeps_shipped_sbom_yml(tmp_path, monkeypatch):
     assert (build / "sbom.yml").read_text() == "name: local\n"
 
 
+def test_emit_idf_component_sbom_yml_error_does_not_fail(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+):
+    """A library manifest that cannot be read is logged, not fatal."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "sbom.yml").write_bytes(b"\xff\xfe not utf-8")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    _emit_idf_component(c)
+    assert "could not write sbom.yml for owner/name" in caplog.text
+
+
 def test_build_flags_dangling_flag_does_not_cross_entries(
     tmp_path, caplog: pytest.LogCaptureFixture
 ) -> None:

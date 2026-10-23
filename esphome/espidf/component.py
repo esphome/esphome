@@ -302,7 +302,9 @@ def _write_sbom_yml(component: IDFComponent) -> None:
         return
     if (content := generate_sbom_yml(component)) is not None:
         write_file_if_changed(target, content)
-    elif target.is_file():
+        return
+    _LOGGER.debug("SBOM: library %s has no version for its sbom.yml", component.name)
+    if target.is_file():
         target.unlink()
 
 
@@ -324,7 +326,13 @@ def _emit_idf_component(component: IDFComponent) -> None:
         component.path / "idf_component.yml",
         generate_idf_component_yml(component),
     )
-    _write_sbom_yml(component)
+    try:
+        _write_sbom_yml(component)
+    except (OSError, ValueError) as err:
+        # Only SBOM metadata depends on it; never fail the build over it
+        _LOGGER.warning(
+            "SBOM: could not write sbom.yml for %s: %s", component.name, err
+        )
 
 
 def generate_idf_components(
