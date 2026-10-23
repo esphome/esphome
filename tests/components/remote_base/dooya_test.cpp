@@ -45,6 +45,9 @@ TEST(DooyaProtocolTest, DecodesAFrameWithoutItsLastSpace) {
     timings.pop_back();
     auto decoded = decode(timings);
     ASSERT_TRUE(decoded.has_value()) << int(check);
+    if (!decoded.has_value()) {
+      return;
+    }
     EXPECT_EQ(decoded->id, data.id);
     EXPECT_EQ(decoded->channel, data.channel);
     EXPECT_EQ(decoded->button, data.button);

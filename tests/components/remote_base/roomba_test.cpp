@@ -34,6 +34,9 @@ TEST(RoombaProtocolTest, DecodesAFrameWithoutItsLastSpace) {
     timings.pop_back();
     auto decoded = decode(timings);
     ASSERT_TRUE(decoded.has_value()) << int(value);
+    if (!decoded.has_value()) {
+      return;
+    }
     EXPECT_EQ(decoded->data, value);
   }
 }
