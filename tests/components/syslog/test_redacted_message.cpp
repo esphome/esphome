@@ -31,8 +31,7 @@ TEST(SyslogRedactedMessage, UnterminatedSecretDropsRest) {
 }
 
 TEST(SyslogRedactedMessage, AppendsAtOffsetAndCaps) {
-  char buf[16];
-  memcpy(buf, "pre:", 4);
+  char buf[16] = "pre:";
   size_t pos = append_redacted_message(buf, sizeof(buf), 4, "0123456789abcdef", 16);
   EXPECT_EQ(pos, sizeof(buf) - 1);
   EXPECT_EQ(std::string(buf, pos), "pre:0123456789a");
