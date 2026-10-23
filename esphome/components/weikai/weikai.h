@@ -40,6 +40,12 @@ constexpr size_t FIFO_SIZE = 256;
 /// @brief size of the ring buffer set to size of the FIFO
 constexpr size_t RING_BUFFER_SIZE = FIFO_SIZE;
 
+/// @brief Name of a register for the log messages
+const LogString *reg_to_str(int reg, bool page1);
+
+/// Logs a buffer in hexadecimal, 32 values per line, under @p tag at @p level.
+void print_buffer(const char *tag, const uint8_t *data, size_t length, int level = ESPHOME_LOG_LEVEL_VERY_VERBOSE);
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers that works as a FIFO
 /// @details This ring buffer is used to buffer the bytes received in the FIFO of the Weika device. The best way to read
