@@ -171,8 +171,9 @@ bool USBUartChannelBase::read_array(uint8_t *data, size_t len) {
     return false;
   }
   const size_t got = this->input_buffer_.pop(data, len);
-  if (got < len)
+  if (got < len) {
     ESP_LOGV(TAG, "underflow: requested %zu but returned %zu bytes", len, got);
+  }
   this->parent_->start_input(this);
   return got == len;
 }
