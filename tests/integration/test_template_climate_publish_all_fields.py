@@ -26,9 +26,9 @@ import pytest
 from .host_prefs import clear_host_prefs
 from .log_utils import LineWaiter
 from .state_utils import (
-    InitialStateHelper,
     require_entity,
     require_only_entity,
+    subscribe_after_initial_states,
     wait_for_state,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -58,13 +58,11 @@ async def test_template_climate_publish_all_fields(
                 state_updates.append(state)
 
         entities, _ = await client.list_entities_services()
-        initial_state_helper = InitialStateHelper(entities)
         require_only_entity(entities, ClimateInfo)
 
         publish_button = require_entity(entities, "publish_all", ButtonInfo)
 
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         client.button_command(publish_button.key)
         state = await wait_for_state(
