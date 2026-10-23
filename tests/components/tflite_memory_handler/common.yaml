@@ -1,0 +1,12 @@
+# tflite_memory_handler needs tflite_op_processor (arena probing uses the
+# operator resolver), so both components are configured here.
+tflite_op_processor:
+
+tflite_memory_handler:
+
+esphome:
+  on_boot:
+    - lambda: |-
+        // PSRAM detection drives the arena placement decision.
+        using esphome::tflite_memory_handler::MemoryManager;
+        ESP_LOGI("tflite_memory_handler", "has_psram = %s", MemoryManager::has_psram() ? "yes" : "no");
