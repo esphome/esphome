@@ -14,3 +14,8 @@ esphome:
           then:
             - deep_sleep.enter:
                 sleep_duration: 60min
+      - if:
+          condition:
+            lambda: 'return deep_sleep::woke_from_deep_sleep();'
+          then:
+            - logger.log: Woke from deep sleep

@@ -18,6 +18,7 @@ import asyncio
 from aioesphomeapi import api_pb2
 import pytest
 
+from .log_utils import LineWaiter
 from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
@@ -71,15 +72,10 @@ async def test_api_list_entities_backpressure(
     config = yaml_config.replace("# GENERATED_ACTIONS", _generated_actions())
     config = config.replace("SERVER_SNDBUF", str(SERVER_SNDBUF))
 
-    pin_applied = asyncio.Event()
-
-    def _on_log_line(line: str) -> None:
-        if SNDBUF_PIN_LOG in line:
-            pin_applied.set()
-
-    async with run_compiled(config, line_callback=_on_log_line):
+    waiter = LineWaiter()
+    async with run_compiled(config, line_callback=waiter.callback):
         # Fails loudly if the pin never applied
-        await asyncio.wait_for(pin_applied.wait(), 10)
+        await waiter.wait_for(SNDBUF_PIN_LOG, timeout=10)
 
         async with RawApiClient(
             unused_tcp_port, recv_buffer_size=RECV_BUFFER_SIZE
