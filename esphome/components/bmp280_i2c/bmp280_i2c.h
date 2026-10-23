@@ -16,7 +16,7 @@ class BMP280I2CComponent final : public esphome::bmp280_base::BMP280Component, p
   bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) override {
     return read_bytes(a_register, data, len);
   }
-  bool bmp_read_byte_16(uint8_t a_register, uint16_t *data) override { return read_byte_16(a_register, data); }
+  bool bmp_read_byte_16_le(uint8_t a_register, uint16_t *data) override { return read_byte_16_le(a_register, data); }
   void dump_config() override;
 };
 

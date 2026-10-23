@@ -1,5 +1,6 @@
 #include "bme680.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bme680 {
@@ -92,8 +93,8 @@ bool BME680Component::setup_registers_() {
     return false;
   }
 
-  this->calibration_.t1 = coeff2[9] << 8 | coeff2[8];
-  this->calibration_.t2 = coeff1[2] << 8 | coeff1[1];
+  this->calibration_.t1 = encode_value_le<uint16_t>(&coeff2[8]);
+  this->calibration_.t2 = encode_value_le<int16_t>(&coeff1[1]);
   this->calibration_.t3 = coeff1[3];
 
   this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
@@ -104,19 +105,19 @@ bool BME680Component::setup_registers_() {
   this->calibration_.h6 = coeff2[6];
   this->calibration_.h7 = coeff2[7];
 
-  this->calibration_.p1 = coeff1[6] << 8 | coeff1[5];
-  this->calibration_.p2 = coeff1[8] << 8 | coeff1[7];
+  this->calibration_.p1 = encode_value_le<uint16_t>(&coeff1[5]);
+  this->calibration_.p2 = encode_value_le<int16_t>(&coeff1[7]);
   this->calibration_.p3 = coeff1[9];
-  this->calibration_.p4 = coeff1[12] << 8 | coeff1[11];
-  this->calibration_.p5 = coeff1[14] << 8 | coeff1[13];
+  this->calibration_.p4 = encode_value_le<int16_t>(&coeff1[11]);
+  this->calibration_.p5 = encode_value_le<int16_t>(&coeff1[13]);
   this->calibration_.p6 = coeff1[16];
   this->calibration_.p7 = coeff1[15];
-  this->calibration_.p8 = coeff1[20] << 8 | coeff1[19];
-  this->calibration_.p9 = coeff1[22] << 8 | coeff1[21];
+  this->calibration_.p8 = encode_value_le<int16_t>(&coeff1[19]);
+  this->calibration_.p9 = encode_value_le<int16_t>(&coeff1[21]);
   this->calibration_.p10 = coeff1[23];
 
   this->calibration_.gh1 = coeff2[14];
-  this->calibration_.gh2 = coeff2[12] << 8 | coeff2[13];
+  this->calibration_.gh2 = encode_value<int16_t>(&coeff2[12]);
   this->calibration_.gh3 = coeff2[15];
 
   uint8_t temp_var = 0;
@@ -258,7 +259,7 @@ uint8_t BME680Component::calc_heater_duration_(uint16_t duration) {
 }
 void BME680Component::read_data_() {
   uint8_t data[15];
-  if (!this->read_bytes(BME680_REGISTER_FIELD0, data, 15)) {
+  if (!this->status_comm_result(this->read_bytes(BME680_REGISTER_FIELD0, data, 15))) {
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(NAN);
     if (this->pressure_sensor_ != nullptr)
@@ -268,10 +269,8 @@ void BME680Component::read_data_() {
     if (this->gas_resistance_sensor_ != nullptr)
       this->gas_resistance_sensor_->publish_state(NAN);
     ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
     return;
   }
-  this->status_clear_warning();
 
   uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
   uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);

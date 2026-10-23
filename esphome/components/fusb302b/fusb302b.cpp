@@ -339,16 +339,14 @@ bool FUSB302B::read_message_(PdMsg &msg, bool &is_sop) {
   uint8_t header[2];
   if (!this->read_byte(FUSB_FIFOS, &token) || this->read_register(FUSB_FIFOS, header, 2) != i2c::ERROR_OK)
     return false;
-  msg.set_header(encode_uint16(header[1], header[0]));
+  msg.set_header(encode_value_le<uint16_t>(header));
 
   // Data objects, followed by the CRC32 that the chip already checked
   uint8_t buf[PD_MAX_NUM_DATA_OBJECTS * 4 + 4];
   if (this->read_register(FUSB_FIFOS, buf, msg.num_of_obj * 4 + 4) != i2c::ERROR_OK)
     return false;
-  for (uint8_t i = 0; i < msg.num_of_obj; i++) {
-    const uint8_t *obj = &buf[i * 4];
-    msg.data_objects[i] = encode_uint32(obj[3], obj[2], obj[1], obj[0]);
-  }
+  for (uint8_t i = 0; i < msg.num_of_obj; i++)
+    msg.data_objects[i] = encode_value_le<uint32_t>(&buf[i * 4]);
   is_sop = (token & FUSB_FIFO_RX_TOKEN_BITS) == FUSB_FIFO_RX_SOP;
   return true;
 }
