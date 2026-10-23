@@ -221,6 +221,7 @@ class IT8951Display : public Display,
   int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
   bool pixel_axes_swapped() const override { return this->effective_transform_ & TRANSFORM_SWAP_XY; }
 
+ protected:
   int get_height_internal() override { return this->height_; }
   int get_width_internal() override { return this->width_; }
 
