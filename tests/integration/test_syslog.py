@@ -15,6 +15,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 class ParsedSyslogMessage(TypedDict):
@@ -68,10 +69,6 @@ class SyslogReceiver:
         for pattern, event in self._waiters:
             if pattern.search(msg):
                 event.set()
-
-    async def wait_for_messages(self, timeout: float = 10.0) -> None:
-        """Wait for at least one message to be received."""
-        await asyncio.wait_for(self.message_received.wait(), timeout=timeout)
 
     async def wait_for_pattern(self, pattern: str, timeout: float = 5.0) -> str:
         """Wait for a message matching the pattern."""
@@ -176,10 +173,11 @@ async def test_syslog(
             await assert_device_name(client, "syslog-test")
 
             # Wait for syslog messages (ESPHome logs during startup)
-            try:
-                await receiver.wait_for_messages(timeout=10.0)
-            except TimeoutError:
-                pytest.fail("No syslog messages received within timeout")
+            await wait_or_fail(
+                receiver.message_received,
+                10.0,
+                "No syslog messages received within timeout",
+            )
 
             # Give it a moment to collect more messages
             await asyncio.sleep(0.5)

@@ -1,5 +1,6 @@
 #include "runtime_image.h"
 #include "image_decoder.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cstdint>
@@ -91,11 +92,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       auto on = is_color_on(color);
       if (this->has_transparency() && color.w < 0x80)
         on = false;
-      if (on) {
-        this->buffer_[pos] |= bitno;
-      } else {
-        this->buffer_[pos] &= ~bitno;
-      }
+      assign_bits(this->buffer_[pos], bitno, on);
       break;
     }
     case image::IMAGE_TYPE_RGB111: {
@@ -237,6 +234,25 @@ int RuntimeImage::feed_data(uint8_t *data, size_t len) {
   }
 
   return consumed;
+}
+
+int RuntimeImage::begin_source(DecodeSource *source) {
+  if (!this->decoder_supports_source()) {
+    ESP_LOGE(TAG, "Decoder cannot read a source");
+    return DECODE_ERROR_UNSUPPORTED_FORMAT;
+  }
+  return this->decoder_->begin_source(source);
+}
+
+int RuntimeImage::decode_step() {
+  if (!this->is_decoding()) {
+    ESP_LOGE(TAG, "No decoder initialized");
+    return DECODE_ERROR_INVALID_TYPE;
+  }
+  const int result = this->decoder_->decode_step();
+  if (result == DECODE_STEP_DONE)
+    this->decoded_bytes_ = this->decoder_->get_decoded_bytes();
+  return result;
 }
 
 bool RuntimeImage::end_decode() {

@@ -85,11 +85,9 @@ async def test_socket_tcp_client_link(
             assert echoed and echoed[0] == PAYLOAD, "Echo payload mismatch"
 
             await wait_or_fail(link_down, 15.0, "Link never reported the drop")
-            try:
-                await asyncio.wait_for(reconnected.wait(), timeout=15.0)
-                await asyncio.wait_for(second_link_up.wait(), timeout=15.0)
-            except TimeoutError:
-                pytest.fail("Link did not reconnect after the server dropped it")
+            msg = "Link did not reconnect after the server dropped it"
+            await wait_or_fail(reconnected, 15.0, msg)
+            await wait_or_fail(second_link_up, 15.0, msg)
             assert second_echoed == [SECOND_PAYLOAD], (
                 "Second session echo wrong; stale bytes from the first session?"
             )

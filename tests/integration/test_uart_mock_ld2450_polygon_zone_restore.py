@@ -16,6 +16,7 @@ import pytest
 
 from .conftest import run_binary_and_wait_for_port, wait_and_connect_api_client
 from .host_prefs import clear_host_prefs, read_host_prefs, write_host_prefs
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper, require_entity
 from .types import CompileFunction, ConfigWriter
 
@@ -98,13 +99,10 @@ async def test_uart_mock_ld2450_polygon_zone_restore(
     prefs[keys[0]] = bytes(data)
     write_host_prefs(DEVICE_NAME, prefs)
 
-    warnings: list[str] = []
-
-    def capture_warning(line: str) -> None:
-        if "saved polygon is invalid" in line:
-            warnings.append(line)
-
-    assert await initial_polygon(capture_warning) == ""
-    assert warnings, "expected a warning about the invalid saved polygon"
+    waiter = LineWaiter()
+    assert await initial_polygon(waiter.callback) == ""
+    assert any("saved polygon is invalid" in line for line in waiter.lines), (
+        "expected a warning about the invalid saved polygon"
+    )
 
     clear_host_prefs(DEVICE_NAME)

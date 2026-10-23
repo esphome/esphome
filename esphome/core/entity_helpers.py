@@ -25,7 +25,14 @@ from esphome.core.config import (
     ICON_MAX_LENGTH,
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, RawStatement, add, get_variable
+from esphome.cpp_generator import (
+    MockObj,
+    MockObjClass,
+    RawExpression,
+    RawStatement,
+    add,
+    get_variable,
+)
 from esphome.cpp_types import App
 import esphome.final_validate as fv
 from esphome.helpers import (
@@ -35,6 +42,7 @@ from esphome.helpers import (
     sanitize,
     snake_case,
 )
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
 
 _LOGGER = logging.getLogger(__name__)
@@ -308,7 +316,9 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
     standalone ``var->configure_entity_(name, hash, packed)``.
     """
-    entity_name = config[_KEY_ENTITY_NAME]
+    entity_name = RawExpression(
+        f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
+    )
     object_id_hash = config[_KEY_OBJECT_ID_HASH]
     dc_idx = config.get(_KEY_DC_IDX, 0)
     uom_idx = config.get(_KEY_UOM_IDX, 0)
@@ -524,7 +534,8 @@ class SubEntities:
         """Create the entity from ``conf``; ``setter`` may be None when the hub keeps no pointer.
 
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
-        ``parent->apply``, with ``publish`` ("before"/"after") placing the domain's publish.
+        ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
+        ``publish`` ("before"/"after") placing the domain's publish.
         """
         entity_id: ID = conf[CONF_ID]
         is_apply_class = self.apply_entity is not None and str(entity_id.type) == str(
@@ -536,8 +547,13 @@ class SubEntities:
             raise ValueError(
                 f"{entity_id}: apply= needs the domain's Apply class, not {entity_id.type}"
             )
-        if apply is not None and self.parent is None:
-            raise ValueError(f"{entity_id}: apply= needs a parent")
+        # A parentless statement is a namespaced free function, so a hub platform that forgot
+        # parent= fails here instead of in the generated C++
+        if apply is not None and self.parent is None and "::" not in apply:
+            raise ValueError(
+                f"{entity_id}: apply= without a parent must call a namespaced free function "
+                f"(ns::fn()); bind parent= for a hub method"
+            )
         if publish is not None and (apply is None or self.apply_entity.publish is None):
             raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
         if publish not in (None, "before", "after"):
@@ -562,7 +578,7 @@ class SubEntities:
         if isinstance(parent, ID):
             parent = await get_variable(parent)
         apply_entity = self.apply_entity
-        body = [f"{parent_ref(parent)}->{apply};"]
+        body = [f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"]
         if publish == "before":
             body.insert(0, apply_entity.publish)
         elif publish == "after":
@@ -749,3 +765,50 @@ def entity_duplicate_validator(platform: str) -> Callable[[ConfigType], ConfigTy
         return config
 
     return validator
+
+
+# restore_state: keywords, shared by the entity domains that save their state
+RESTORE_STATE_KEEP = "KEEP"
+RESTORE_STATE_INVERT = "INVERT"
+RESTORE_STATE_INITIAL = "INITIAL"
+RESTORE_STATE_ALL = "ALL"
+RESTORE_STATE_NONE = "NONE"
+
+
+def restore_state_keyword(value: Any, keywords: tuple[str, ...]) -> str | None:
+    """The upper-cased keyword when `value` spells one of `keywords`, else None."""
+    if isinstance(value, str):
+        upper = value.strip().upper()
+        if upper in keywords:
+            return upper
+    return None
+
+
+def restore_state_schema(fields_schema: cv.Schema, none: Any) -> Callable[[Any], Any]:
+    """The validator for a domain's `restore_state:` key.
+
+    A mapping is validated with `fields_schema`. The shorthand `all` is the empty mapping,
+    so every field keeps its saved value, and `none` is returned as it is; a mapping goes through
+    `fields_schema` like one the user wrote, so each config gets its own copy.
+    """
+
+    @schema_extractor("schema")
+    def validate(value: Any) -> Any:
+        if value == SCHEMA_EXTRACT:
+            # The shorthands have no representation in the extracted schema
+            return fields_schema
+        keyword = restore_state_keyword(value, (RESTORE_STATE_ALL, RESTORE_STATE_NONE))
+        if keyword == RESTORE_STATE_ALL:
+            value = {}
+        elif keyword == RESTORE_STATE_NONE:
+            if not isinstance(none, dict):
+                return none
+            value = none
+        elif isinstance(value, str):
+            raise cv.Invalid(
+                f"Unknown restore_state '{value}'; expected 'all', 'none' or a mapping, "
+                "for example '{state: INVERT}'"
+            )
+        return fields_schema(value)
+
+    return validate
