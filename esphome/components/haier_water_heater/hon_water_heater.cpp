@@ -21,14 +21,18 @@ PROGMEM_STRING_TABLE(HonModeLabels, "Unknown", "Normal", "ECO", "BPS");
 
 void HonWaterHeater::setup() {
   this->status_set_warning(LOG_STR("Waiting for a valid appliance status frame"));
-#ifdef USE_BINARY_SENSOR
-  if (this->communication_binary_sensor_ != nullptr)
-    this->communication_binary_sensor_->publish_state(false);
-#endif
+  this->publish_communication_(false);
   this->update_network_status_();
   this->set_interval(NETWORK_STATUS_INTERVAL_ID, NETWORK_STATUS_INTERVAL_MS,
                      [this]() { this->update_network_status_(); });
   this->set_interval(STATUS_POLL_INTERVAL_ID, POLL_INTERVAL_MS, [this]() { this->poll_status_(); });
+}
+
+void HonWaterHeater::publish_communication_(bool connected) {
+#ifdef USE_BINARY_SENSOR
+  if (this->communication_binary_sensor_ != nullptr)
+    this->communication_binary_sensor_->publish_state(connected);
+#endif
 }
 
 void HonWaterHeater::update_network_status_() {
@@ -91,10 +95,7 @@ void HonWaterHeater::check_timeouts_(uint32_t now) {
     this->status_set_warning(LOG_STR("Heater communication timed out"));
     ESP_LOGW(TAG, "Heater communication lost: no valid status for %u ms",
              static_cast<unsigned>(this->communication_timeout_));
-#ifdef USE_BINARY_SENSOR
-    if (this->communication_binary_sensor_ != nullptr)
-      this->communication_binary_sensor_->publish_state(false);
-#endif
+    this->publish_communication_(false);
   }
   const uint32_t waited = now - this->request_sent_;
   switch (this->awaiting_) {
@@ -249,10 +250,7 @@ void HonWaterHeater::process_frame_() {
   // Published last so an automation on the sensor sees fresh heater state and can send a control.
   if (recovered) {
     ESP_LOGI(TAG, "Heater communication established");
-#ifdef USE_BINARY_SENSOR
-    if (this->communication_binary_sensor_ != nullptr)
-      this->communication_binary_sensor_->publish_state(true);
-#endif
+    this->publish_communication_(true);
   }
 }
 

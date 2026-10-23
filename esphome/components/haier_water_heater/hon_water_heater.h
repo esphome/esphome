@@ -4,7 +4,6 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/water_heater/water_heater.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -40,6 +39,7 @@ class HonWaterHeater : public Component, public water_heater::WaterHeater, publi
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(mode)
 #endif
+
  protected:
   static constexpr uint32_t NETWORK_STATUS_INTERVAL_ID = 0;
   static constexpr uint32_t STATUS_POLL_INTERVAL_ID = 1;
@@ -67,6 +67,7 @@ class HonWaterHeater : public Component, public water_heater::WaterHeater, publi
   void read_frames_(uint32_t now);
   void poll_status_();
   void update_network_status_();
+  void publish_communication_(bool connected);
   void send_frame_(water_heater_protocol::FrameType type, const uint8_t *payload = nullptr, size_t size = 0);
   void send_request_(uint32_t now, Awaiting kind, water_heater_protocol::FrameType type, const uint8_t *payload,
                      size_t size, water_heater_protocol::FrameType expected);
