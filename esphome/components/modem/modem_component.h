@@ -172,7 +172,7 @@ class ModemComponent : public Component {
   void clear_config_fault_(ModemFault fault);
   void hand_over_(uint32_t pending);
   /// Send an AT command from the task and log the result; blocks for up to the timeout
-  bool at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
+  esp_modem::command_result at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
   void publish_status_();
   void not_responding_(int baud);
   void dump_connect_params_();

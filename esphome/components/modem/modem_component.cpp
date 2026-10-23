@@ -280,7 +280,9 @@ void ModemComponent::setup() {
     PinRecord record{};
     if (pin_pref.load(&record) && record.hash != 0) {
       record = PinRecord{};
-      pin_pref.save(&record);
+      if (!pin_pref.save(&record)) {
+        ESP_LOGW(TAG, "Failed to clear the PIN record");
+      }
     }
   }
 #endif
@@ -609,10 +611,6 @@ ModemState ModemComponent::handle_state_enabling_() {
     return this->retry_(ModemState::MODEM_STATE_ENABLING);
   }
   this->probe_backoff_.store(0, std::memory_order_relaxed);
-  // The library logs echoed commands at verbose level, which would include the PIN
-  if (this->dce_->set_echo(false) != command_result::OK) {
-    ESP_LOGW(TAG, "Failed to disable command echo");
-  }
 
   int radio_state = 0;
   if (this->dce_->get_radio_state(radio_state) != command_result::OK) {
@@ -641,7 +639,6 @@ ModemState ModemComponent::handle_state_enabling_() {
         return ModemState::MODEM_STATE_DISCONNECTING;
       }
       ESP_LOGI(TAG, "Modem synced at baud rate %d.", this->current_baud_rate_);
-      this->clear_config_fault_(ModemFault::MODEM_FAULT_BAUD);
     } else {
       // The modem still answers at the probed rate, so a rejected rate is not worth a retry loop
       ESP_LOGW(TAG, "Modem rejected baud rate %d. Staying at %d.", this->baud_rate_, this->current_baud_rate_);
@@ -649,6 +646,10 @@ ModemState ModemComponent::handle_state_enabling_() {
     }
   }
 
+  // The rate in use is the wanted one, so a baud fault from this or an earlier attempt no longer applies
+  if (this->baud_rate_ == 0 || this->baud_rate_ == this->current_baud_rate_) {
+    this->clear_config_fault_(ModemFault::MODEM_FAULT_BAUD);
+  }
   if (this->restored_baud_ != this->current_baud_rate_) {
     this->restored_baud_ = this->current_baud_rate_;
     this->hand_over_(PENDING_SAVE_BAUD);
@@ -666,7 +667,7 @@ ModemState ModemComponent::handle_state_synced_() {
   // transition_to_() gave on_sync its head start; a command it queued went out at the top of this pass
   bool failed = false;
   for (uint8_t i = 0; i != this->init_at_count_; i++) {
-    failed |= !this->at_(this->init_at_commands_[i]);  // at_() logs the failure
+    failed |= this->at_(this->init_at_commands_[i]) != command_result::OK;  // at_() logs the failure
   }
   if (failed) {
     this->set_fault_(ModemFault::MODEM_FAULT_INIT_AT);
@@ -872,7 +873,7 @@ bool ModemComponent::send_at(const char *cmd, uint32_t timeout) {
 
 #endif
 
-bool ModemComponent::at_(const char *cmd, uint32_t timeout) {
+command_result ModemComponent::at_(const char *cmd, uint32_t timeout) {
   std::string output;
   const command_result result = this->dce_->at(cmd, output, timeout);
   if (result == command_result::OK) {
@@ -880,7 +881,7 @@ bool ModemComponent::at_(const char *cmd, uint32_t timeout) {
   } else {
     ESP_LOGW(TAG, "AT '%s' -> %s: %s", cmd, LOG_STR_ARG(result_to_str(result)), output.c_str());
   }
-  return result == command_result::OK;
+  return result;
 }
 
 // esp_modem's read_pin() takes NOT READY for READY and SIM PIN2 for the SIM PIN, so the status is read here
@@ -972,15 +973,10 @@ SimResult ModemComponent::send_pin_() {
       }
       this->pin_step_ = PinStep::PIN_STEP_SENT;
       this->state_started_ms_ = millis();
-      ESP_LOGD(TAG, "Unlocking SIM with PIN...");
       std::string cmd = "AT+CPIN=\"";
       cmd += this->pin_code_;
       cmd += '"';
-      std::string output;
-      // The output may hold the echoed command, so only the result is logged, never the PIN
-      const command_result result = this->dce_->at(cmd, output, PIN_TIMEOUT_MS);
-      ESP_LOGD(TAG, "AT+CPIN= -> %s", LOG_STR_ARG(result_to_str(result)));
-      if (result == command_result::FAIL) {
+      if (this->at_(cmd.c_str(), PIN_TIMEOUT_MS) == command_result::FAIL) {
         // A blind resend could PUK-lock the SIM, so a refusal uses up the count until pin_code changes
         ESP_LOGE(TAG, "The SIM refused the PIN; check pin_code");
         this->pin_record_.sends = PIN_MAX_UNCONFIRMED_SENDS;
