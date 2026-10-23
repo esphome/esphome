@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from collections.abc import Callable, Iterable
 
 import voluptuous as vol
 
@@ -27,6 +27,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.cpp_generator import MockObj
+import esphome.final_validate as fv
 from esphome.types import ConfigType, TemplateArgsType
 
 # Static so `api:` finds network before its dependency check; a config-dependent
@@ -47,8 +48,8 @@ CONF_MODEM_ID = "modem_id"
 
 esp_modem_ns = cg.global_ns.namespace("esp_modem")
 
-# Models whose GNSS answers AT+CGNSSINFO, with the command that powers it
-GNSS_MODELS = {"SIM7600": "AT+CGPS", "SIM7670": "AT+CGNSSPWR"}
+# Models that answer AT+CGNSSINFO and report AT+CNSMOD with the SIM7600 table
+SIM7600_FAMILY = ("SIM7600", "SIM7670")
 
 # Model name to the esp_modem factory that drives it
 MODEM_MODELS = {
@@ -209,10 +210,6 @@ async def to_code(config: ConfigType) -> None:
 
     model = config[CONF_MODEL]
     factory = MODEM_MODELS[model]
-    # Read by the platforms, which wait for the variable created below
-    data = _get_data()
-    data.model = model
-    data.update_interval = config[CONF_UPDATE_INTERVAL]
     tx = await cg.gpio_pin_expression(config[CONF_TX_PIN])
     rx = await cg.gpio_pin_expression(config[CONF_RX_PIN])
     var = cg.new_Pvariable(config[CONF_ID], tx, rx, model, factory, config[CONF_APN])
@@ -246,29 +243,30 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
 
-@dataclass
-class ModemData:
-    model: str = ""
-    update_interval: int = 0
-    polling: bool = False
+def require_model(
+    keys: Iterable[str], models: tuple[str, ...]
+) -> Callable[[ConfigType], ConfigType]:
+    """Final validator for a platform config: the keys it sets need the modem to be one of models."""
 
+    def validator(config: ConfigType) -> ConfigType:
+        if not (configured := [key for key in keys if key in config]):
+            return config
 
-def _get_data() -> ModemData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = ModemData()
-    return CORE.data[DOMAIN]
+        def validate_hub(hub: ConfigType) -> ConfigType:
+            if (model := hub[CONF_MODEL]) not in models:
+                raise cv.Invalid(
+                    f"{', '.join(configured)} not supported on {model}; supported models: {', '.join(models)}",
+                    path=[CONF_MODEL],
+                )
+            return hub
 
+        fv.id_declaration_match_schema(validate_hub)(config[CONF_MODEM_ID])
+        return config
 
-def get_model() -> str:
-    """The modem model, for platforms in to_code where the full config is gone."""
-    return _get_data().model
+    return validator
 
 
 def request_polling(hub: MockObj) -> None:
     """Have the modem task query the modem every update_interval for the sensor platforms."""
-    data = _get_data()
-    if data.polling:
-        return
-    data.polling = True
     cg.add_define("USE_MODEM_POLL")
-    cg.add(hub.set_update_interval(data.update_interval))
+    cg.add(hub.set_update_interval(CORE.config[DOMAIN][CONF_UPDATE_INTERVAL]))

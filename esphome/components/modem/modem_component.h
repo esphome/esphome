@@ -12,7 +12,7 @@
 #if defined(USE_MODEM_URC) || defined(USE_MODEM_NETWORK_TYPE)
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
-#ifdef USE_MODEM_SENSOR
+#if defined(USE_MODEM_SIGNAL) || defined(USE_MODEM_GNSS)
 #include "esphome/components/sensor/sensor.h"
 #endif
 #ifdef USE_MODEM_GNSS_SWITCH
@@ -23,6 +23,7 @@
 #include <esp_modem_config.h>
 
 #include <atomic>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <utility>
@@ -85,19 +86,24 @@ enum class PinSave : uint8_t {
 #endif
 
 #ifdef USE_MODEM_POLL
-// What one poll read from the modem; NAN or -1 where it did not answer
+// What one poll read from the modem; the defaults stand where it did not answer
 struct ModemPollResult {
-  float rssi;
-  float ber;
-#ifdef USE_MODEM_GNSS
-  float latitude;
-  float longitude;
-  float altitude;
-  float speed;
-  float course;
-  float accuracy;
+#ifdef USE_MODEM_SIGNAL
+  float rssi{NAN};
+  float ber{NAN};
 #endif
-  int network_mode;
+#ifdef USE_MODEM_GNSS
+  float latitude{NAN};
+  float longitude{NAN};
+  float altitude{NAN};
+  float speed{NAN};
+  float course{NAN};
+  float accuracy{NAN};
+#endif
+#ifdef USE_MODEM_NETWORK_TYPE
+  static constexpr uint8_t NETWORK_MODE_NONE = 255;
+  uint8_t network_mode{NETWORK_MODE_NONE};
+#endif
 };
 #endif
 
@@ -159,13 +165,16 @@ class ModemComponent : public Component {
 #endif
 #ifdef USE_MODEM_GNSS_SWITCH
   void set_gnss_switch(switch_::Switch *gnss_switch) { this->gnss_switch_ = gnss_switch; }
-  void set_gnss_command(const char *gnss_command) { this->gnss_command_ = gnss_command; }
+#endif
+#ifdef USE_MODEM_GNSS_POWER
   /// Queue GNSS power on or off for the modem task; applied again whenever the modem syncs
   void set_gnss(bool state);
 #endif
-#ifdef USE_MODEM_SENSOR
+#ifdef USE_MODEM_SIGNAL
   SUB_SENSOR(rssi)
   SUB_SENSOR(ber)
+#endif
+#ifdef USE_MODEM_GNSS
   SUB_SENSOR(latitude)
   SUB_SENSOR(longitude)
   SUB_SENSOR(altitude)
@@ -222,8 +231,11 @@ class ModemComponent : public Component {
   void poll_();
   void publish_poll_();
 #endif
-#ifdef USE_MODEM_GNSS_SWITCH
-  void apply_gnss_();
+#ifdef USE_MODEM_GNSS_POWER
+  // gnss_request_ bits
+  static constexpr uint8_t GNSS_ON = 1 << 0;
+  static constexpr uint8_t GNSS_DIRTY = 1 << 1;  // not yet taken by the modem
+  void apply_gnss_(bool on);
 #endif
 
   // Main loop only, so arming and cancelling cannot interleave
@@ -291,7 +303,6 @@ class ModemComponent : public Component {
 #endif
 #ifdef USE_MODEM_GNSS_SWITCH
   switch_::Switch *gnss_switch_{nullptr};
-  const char *gnss_command_{nullptr};
 #endif
   uint16_t tx_buffer_size_{1024};
   uint16_t rx_buffer_size_{1024};
@@ -322,10 +333,9 @@ class ModemComponent : public Component {
 #ifdef USE_MODEM_POLL
   std::atomic<PollState> poll_state_{POLL_IDLE};
 #endif
-#ifdef USE_MODEM_GNSS_SWITCH
-  // Set by set_gnss() and by every sync, cleared by the task once the modem took the command
-  std::atomic<uint8_t> gnss_on_{0};
-  std::atomic<uint8_t> gnss_dirty_{0};
+#ifdef USE_MODEM_GNSS_POWER
+  // set_gnss() writes both bits, every sync sets GNSS_DIRTY and the task clears it; on until the switch restores
+  std::atomic<uint8_t> gnss_request_{GNSS_ON};
 #endif
 #ifdef USE_MODEM_PIN_CODE
   std::atomic<PinSave> pin_save_state_{PinSave::PIN_SAVE_DONE};

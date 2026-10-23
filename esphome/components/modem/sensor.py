@@ -10,32 +10,41 @@ from esphome.const import (
     CONF_MODEL,
     CONF_SPEED,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_SPEED,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_MEASUREMENT_ANGLE,
     UNIT_DECIBEL_MILLIWATT,
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
     UNIT_METER,
     UNIT_PERCENT,
 )
-import esphome.final_validate as fv
+from esphome.core import CORE
 from esphome.types import ConfigType
 
-from . import CONF_MODEM_ID, GNSS_MODELS, ModemComponent, request_polling
+from . import (
+    CONF_MODEM_ID,
+    DOMAIN,
+    SIM7600_FAMILY,
+    ModemComponent,
+    request_polling,
+    require_model,
+)
 
 DEPENDENCIES = ["modem"]
 
 CONF_BER = "ber"
 CONF_RSSI = "rssi"
 
-_GNSS_SENSORS = {
-    CONF_LATITUDE: (UNIT_DEGREES, 5, "mdi:latitude"),
-    CONF_LONGITUDE: (UNIT_DEGREES, 5, "mdi:longitude"),
-    CONF_ALTITUDE: (UNIT_METER, 1, "mdi:map-marker-up"),
-    CONF_SPEED: (UNIT_KILOMETER_PER_HOUR, 1, "mdi:speedometer"),
-    CONF_COURSE: (UNIT_DEGREES, 1, "mdi:compass"),
-    CONF_ACCURACY: (UNIT_METER, 1, "mdi:map-marker-radius"),
-}
+_GNSS_SENSORS = (
+    CONF_LATITUDE,
+    CONF_LONGITUDE,
+    CONF_ALTITUDE,
+    CONF_SPEED,
+    CONF_COURSE,
+    CONF_ACCURACY,
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -54,47 +63,72 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
-        **{
-            cv.Optional(key): sensor.sensor_schema(
-                unit_of_measurement=unit,
-                accuracy_decimals=decimals,
-                icon=icon,
-                state_class=STATE_CLASS_MEASUREMENT,
-            )
-            for key, (unit, decimals, icon) in _GNSS_SENSORS.items()
-        },
+        # Same decimals and state classes as the gps component
+        cv.Optional(CONF_LATITUDE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_DEGREES,
+            accuracy_decimals=6,
+            icon="mdi:latitude",
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_LONGITUDE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_DEGREES,
+            accuracy_decimals=6,
+            icon="mdi:longitude",
+            state_class=STATE_CLASS_MEASUREMENT_ANGLE,
+        ),
+        cv.Optional(CONF_ALTITUDE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_METER,
+            accuracy_decimals=1,
+            icon="mdi:map-marker-up",
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_SPEED): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
+            accuracy_decimals=1,
+            icon="mdi:speedometer",
+            device_class=DEVICE_CLASS_SPEED,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_COURSE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_DEGREES,
+            accuracy_decimals=1,
+            icon="mdi:compass",
+            state_class=STATE_CLASS_MEASUREMENT_ANGLE,
+        ),
+        # A rough radius derived from the HDOP
+        cv.Optional(CONF_ACCURACY): sensor.sensor_schema(
+            unit_of_measurement=UNIT_METER,
+            accuracy_decimals=1,
+            icon="mdi:map-marker-radius",
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
     }
 )
 
-
-def _final_validate(config: ConfigType) -> ConfigType:
-    if not any(key in config for key in _GNSS_SENSORS):
-        return config
-    model = fv.get_declaring_config(config[CONF_MODEM_ID])[CONF_MODEL]
-    if model not in GNSS_MODELS:
-        raise cv.Invalid(
-            f"GNSS sensors are not supported on {model}; supported models: {', '.join(GNSS_MODELS)}"
-        )
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = require_model(_GNSS_SENSORS, SIM7600_FAMILY)
 
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_MODEM_ID])
+    signal = CONF_RSSI in config or CONF_BER in config
+    gnss = any(key in config for key in _GNSS_SENSORS)
+    if not (signal or gnss):
+        return
     request_polling(hub)
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_RSSI, hub.set_rssi_sensor)
-    await sensors(CONF_BER, hub.set_ber_sensor)
-    gnss = [
-        await sensors(CONF_LATITUDE, hub.set_latitude_sensor),
-        await sensors(CONF_LONGITUDE, hub.set_longitude_sensor),
-        await sensors(CONF_ALTITUDE, hub.set_altitude_sensor),
-        await sensors(CONF_SPEED, hub.set_speed_sensor),
-        await sensors(CONF_COURSE, hub.set_course_sensor),
-        await sensors(CONF_ACCURACY, hub.set_accuracy_sensor),
-    ]
-    cg.add_define("USE_MODEM_SENSOR")
-    if any(s is not None for s in gnss):
+    if signal:
+        cg.add_define("USE_MODEM_SIGNAL")
+        await sensors(CONF_RSSI, hub.set_rssi_sensor)
+        await sensors(CONF_BER, hub.set_ber_sensor)
+    if gnss:
         cg.add_define("USE_MODEM_GNSS")
+        cg.add_define("USE_MODEM_GNSS_POWER")
+        # The SIM7600 reports ddmm.mmmm positions, the SIM7670 decimal degrees
+        if CORE.config[DOMAIN][CONF_MODEL] == "SIM7600":
+            cg.add_define("USE_MODEM_GNSS_DDMM")
+        await sensors(CONF_LATITUDE, hub.set_latitude_sensor)
+        await sensors(CONF_LONGITUDE, hub.set_longitude_sensor)
+        await sensors(CONF_ALTITUDE, hub.set_altitude_sensor)
+        await sensors(CONF_SPEED, hub.set_speed_sensor)
+        await sensors(CONF_COURSE, hub.set_course_sensor)
+        await sensors(CONF_ACCURACY, hub.set_accuracy_sensor)
