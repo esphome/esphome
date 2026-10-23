@@ -11,4 +11,3 @@ esphome:
         const auto softmax = process_output(raw_output, 3, OutputProcessing::OUTPUT_PROCESSING_SOFTMAX, 1.0f, false);
         ESP_LOGI("tflite_output_processor", "argmax = %d (%.3f), softmax = %d (%.3f)", static_cast<int>(argmax.value),
                  argmax.confidence, static_cast<int>(softmax.value), softmax.confidence);
-
