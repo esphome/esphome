@@ -549,12 +549,34 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     }
   }
 
+  /// Push up to `len` values without overwriting. Returns how many fit.
+  size_t push(const T *data, size_t len) {
+    len = std::min<size_t>(len, this->capacity_ - this->count_);
+    const size_t first = std::min<size_t>(len, this->capacity_ - this->tail_);
+    std::copy_n(data, first, this->data_ + this->tail_);
+    std::copy_n(data + first, len - first, this->data_);
+    this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + len);
+    this->count_ += len;
+    return len;
+  }
+
   /// Remove the oldest element.
   void pop() {
     if (this->count_ > 0) {
       this->head_ = (this->head_ + 1) % this->capacity_;
       --this->count_;
     }
+  }
+
+  /// Move up to `len` of the oldest values into `out`. Returns how many were copied.
+  size_t pop(T *out, size_t len) {
+    len = std::min<size_t>(len, this->count_);
+    const size_t first = std::min<size_t>(len, this->capacity_ - this->head_);
+    std::copy_n(this->data_ + this->head_, first, out);
+    std::copy_n(this->data_, len - first, out + first);
+    this->head_ = this->wrap_(static_cast<size_t>(this->head_) + len);
+    this->count_ -= len;
+    return len;
   }
 
   T &front() { return this->data_[this->head_]; }
@@ -577,14 +599,12 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   ConstIterator end() const { return ConstIterator(this, this->count_); }
 
   /// The element `pos` places after the oldest one; the sum is widened so a small index type cannot truncate it
-  const T &operator[](index_type pos) const {
-    size_t index = static_cast<size_t>(this->head_) + pos;
-    if (index >= this->capacity_)
-      index -= this->capacity_;
-    return this->data_[index];
-  }
+  const T &operator[](index_type pos) const { return this->data_[this->wrap_(static_cast<size_t>(this->head_) + pos)]; }
 
  protected:
+  /// Fold an index below 2 * capacity back into the buffer
+  index_type wrap_(size_t index) const { return index >= this->capacity_ ? index - this->capacity_ : index; }
+
   T *data_{nullptr};
   index_type head_{0};
   index_type tail_{0};
