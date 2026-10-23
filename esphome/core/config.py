@@ -279,13 +279,25 @@ def _sbom_url(value: str) -> str:
 
 
 def _sbom_supplier(value: str) -> str:
-    value = cv.string_strict(value)
-    if "(" in value or ")" in value:
-        raise cv.Invalid("Supplier name must not contain parentheses")
+    value = cv.string_strict(value).strip()
+    if not value:
+        raise cv.Invalid("Supplier name must not be empty")
+    if any(c in value for c in "()\n\r"):
+        raise cv.Invalid("Supplier name must not contain parentheses or line breaks")
+    return value
+
+
+def _sbom_platform(value: ConfigType) -> ConfigType:
+    # Only ESP-IDF builds produce the manifests esp-idf-sbom reads
+    if not CORE.is_esp32:
+        raise cv.Invalid(
+            f"SBOM details are only used on ESP32, not on {CORE.target_platform}"
+        )
     return value
 
 
 SBOM_SCHEMA = cv.All(
+    _sbom_platform,
     cv.Schema(
         {
             cv.Required(CONF_SUPPLIER): _sbom_supplier,

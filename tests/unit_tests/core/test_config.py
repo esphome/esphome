@@ -798,6 +798,12 @@ def test_includes_in_a_package_resolve_next_to_the_package(
     assert result[CONF_ESPHOME][CONF_INCLUDES_C] == [str(package_dir / "my_c_helper.h")]
 
 
+@pytest.fixture(name="esp32_target")
+def fixture_esp32_target() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+
+
+@pytest.mark.usefixtures("esp32_target")
 @pytest.mark.parametrize(
     "value",
     [
@@ -814,10 +820,20 @@ def test_sbom_schema_valid(value: dict[str, str]) -> None:
     assert SBOM_SCHEMA(value) == value
 
 
+@pytest.mark.usefixtures("esp32_target")
+def test_sbom_schema_strips_supplier() -> None:
+    config = SBOM_SCHEMA({"supplier": "  Acme Corp ", "contact": "a@b.c"})
+    assert config["supplier"] == "Acme Corp"
+
+
+@pytest.mark.usefixtures("esp32_target")
 @pytest.mark.parametrize(
     ("value", "match"),
     [
         ({"supplier": "Acme Corp"}, "at least one of contact, url"),
+        ({"supplier": "", "contact": "a@b.c"}, "must not be empty"),
+        ({"supplier": "   ", "contact": "a@b.c"}, "must not be empty"),
+        ({"supplier": "Acme\nCorp", "contact": "a@b.c"}, "line breaks"),
         ({"contact": "psirt@acme.example"}, "required key not provided"),
         ({"supplier": "Acme (EU)", "contact": "a@b.c"}, "parentheses"),
         ({"supplier": "Acme", "contact": "psirt"}, "email address"),
@@ -830,6 +846,14 @@ def test_sbom_schema_invalid(value: dict[str, str], match: str) -> None:
     """Values esp-idf-sbom would abort on are rejected during validation."""
     with pytest.raises(cv.Invalid, match=match):
         SBOM_SCHEMA(value)
+
+
+@pytest.mark.parametrize("platform", ["esp8266", "rp2040", "bk72xx", "host"])
+def test_sbom_schema_rejects_other_platforms(platform: str) -> None:
+    """Only ESP32 builds use it, so elsewhere it must not look like it works."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    with pytest.raises(cv.Invalid, match=f"only used on ESP32, not on {platform}"):
+        SBOM_SCHEMA({"supplier": "Acme Corp", "contact": "a@b.c"})
 
 
 def test_valid_project_name_valid() -> None:
