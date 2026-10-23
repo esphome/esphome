@@ -113,7 +113,8 @@ esphome/components/bq25186/* @Rapsssito
 esphome/components/bq27220/* @rggammon
 esphome/components/bq76972/* @limpkin
 esphome/components/bridge/* @kbx81
-esphome/components/bthome/* @Bascht74
+esphome/components/bthome/* @jpeletier
+esphome/components/bthome/sensor/* @jpeletier
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
 esphome/components/bytebuffer/* @clydebarrow
@@ -701,6 +702,7 @@ esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/vevor_dtx/* @Bofr5555
 esphome/components/vl53l1x/* @will-tm
+esphome/components/vnc/* @MindFreeze
 esphome/components/voice_assistant/* @jesserockz @kahrendt
 esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher

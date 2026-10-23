@@ -261,6 +261,8 @@ void AirtonClimate::parse_state_frame_(const uint8_t *frame) {
     case AIRTON_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
+    default:
+      break;
   }
 
   this->target_temperature = (frame[3] & 0b00001111) + AIRTON_TEMP_MIN;

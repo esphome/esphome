@@ -46,6 +46,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_ADDRESS,
     CONF_VALUE,
+    CONF_WIFI,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     Platform,
@@ -562,6 +563,25 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate_wifi(config: ConfigType) -> None:
+    """A wifi station competes with ethernet for the primary interface, so both must be in network: priority:."""
+    full_config = fv.full_config.get()
+    if (wifi_config := full_config.get(CONF_WIFI)) is None:
+        return
+
+    from esphome.components.wifi import wifi_stays_ap_only
+
+    if wifi_stays_ap_only(wifi_config, full_config):
+        return  # an access point does not claim the primary interface
+
+    priority_ifaces = get_priority_interfaces_from_full_config(full_config)
+    if missing := [i for i in (DOMAIN, CONF_WIFI) if i not in priority_ifaces]:
+        raise cv.Invalid(
+            "When ethernet and a wifi station are used together, 'network: priority:' "
+            f"must list both interfaces; missing: {', '.join(missing)}"
+        )
+
+
 def _final_validate_spi(config: ConfigType) -> None:
     if not CORE.is_esp32:
         return  # SPI interface validation is ESP32-only
@@ -846,22 +866,7 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> None:
     """Final validation for Ethernet component."""
-    # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
-    if "wifi" in fv.full_config.get():
-        priority_ifaces = get_priority_interfaces_from_full_config(fv.full_config.get())
-        missing = [i for i in ("ethernet", "wifi") if i not in priority_ifaces]
-        if missing and priority_ifaces:
-            # A priority list exists but is incomplete: point at what to add.
-            raise cv.Invalid(
-                "When ethernet and wifi are used together, 'network: priority:' must "
-                f"list both interfaces; missing: {', '.join(missing)}"
-            )
-        if missing:
-            raise cv.Invalid(
-                "Component ethernet cannot be used together with component wifi "
-                "unless both are listed under 'network: priority:'"
-            )
-
+    _final_validate_wifi(config)
     _final_validate_spi(config)
     _final_validate_rmii_pins(config)
 

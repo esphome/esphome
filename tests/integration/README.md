@@ -351,6 +351,7 @@ esphome:
     - id: my_device
       name: "Test Device"
       area_id: living_room
+      relation: via
 
 # API services
 api:
