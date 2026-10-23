@@ -92,5 +92,6 @@ async def test_uart_mock_duco(
         await waiter.wait_for("Comfort set to 223")
         await wait_for(lambda: state_of(comfort) == pytest.approx(22.3), "new comfort")
 
-        await waiter.wait_for("Node 3: type 12 (UCCO2)", timeout=40.0)
-        assert any("Node 1: type 17 (BOX)" in line for line in waiter.lines)
+        await waiter.wait_for_each(
+            "Node 1: type 17 (BOX)", "Node 3: type 12 (UCCO2)", timeout=40.0
+        )

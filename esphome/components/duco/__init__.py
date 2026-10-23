@@ -14,9 +14,11 @@ CONF_DUCO_ID = "duco_id"
 
 duco_ns = cg.esphome_ns.namespace("duco")
 Duco = duco_ns.class_("Duco", cg.Component, uart.UARTDevice)
-DucoDiscovery = duco_ns.class_(
-    "DucoDiscovery", cg.PollingComponent, cg.Parented.template(Duco)
+# Base of every class that sends requests through the hub
+DucoDevice = duco_ns.class_(
+    "DucoDevice", cg.PollingComponent, cg.Parented.template(Duco)
 )
+DucoDiscovery = duco_ns.class_("DucoDiscovery", DucoDevice)
 DucoTime = duco_ns.class_("DucoTime", cg.PollingComponent, cg.Parented.template(Duco))
 
 # Entities of the platforms take the hub with this
@@ -55,6 +57,12 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     parity="NONE",
     stop_bits=1,
 )
+
+
+async def register_duco_device(var: cg.MockObj, config: ConfigType) -> None:
+    """Register a polling entity of a platform and attach it to its hub."""
+    await cg.register_component(var, config)
+    await cg.register_parented(var, config[CONF_DUCO_ID])
 
 
 async def to_code(config: ConfigType) -> None:

@@ -1,9 +1,8 @@
-import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import CONF_DUCO_ID, DUCO_COMPONENT_SCHEMA, duco_ns
+from .. import DUCO_COMPONENT_SCHEMA, DucoDevice, duco_ns, register_duco_device
 
 DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
@@ -26,7 +25,7 @@ DUCO_MODE_OPTIONS = [
     "MAN3x3",
 ]
 
-DucoSelect = duco_ns.class_("DucoSelect", cg.PollingComponent, select.Select)
+DucoSelect = duco_ns.class_("DucoSelect", DucoDevice, select.Select)
 
 CONFIG_SCHEMA = (
     select.select_schema(DucoSelect)
@@ -37,5 +36,4 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     var = await select.new_select(config, options=DUCO_MODE_OPTIONS)
-    await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_DUCO_ID])
+    await register_duco_device(var, config)

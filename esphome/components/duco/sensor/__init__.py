@@ -18,7 +18,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_DUCO_ID, DUCO_COMPONENT_SCHEMA, duco_ns
+from .. import CONF_DUCO_ID, DUCO_COMPONENT_SCHEMA, DucoDevice, duco_ns
 
 DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
@@ -34,7 +34,7 @@ CONF_TEMPERATURE_ODA = "temperature_oda"
 CONF_TEMPERATURE_SUP = "temperature_sup"
 CONF_TIME_REMAINING = "time_remaining"
 
-DucoSensor = duco_ns.class_("DucoSensor", cg.PollingComponent, sensor.Sensor)
+DucoSensor = duco_ns.class_("DucoSensor", DucoDevice, sensor.Sensor)
 DucoReading = duco_ns.enum("DucoReading", is_class=True)
 
 BOX_NODE = 1
@@ -141,8 +141,7 @@ CONFIG_SCHEMA = DUCO_COMPONENT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    hub = await cg.get_variable(config[CONF_DUCO_ID])
-    sensors = sensor.sub_sensors(config, parent=hub)
+    sensors = sensor.sub_sensors(config, parent=config[CONF_DUCO_ID])
     for key, (reading, argument, _) in SENSORS.items():
         if (confs := config.get(key)) is None:
             continue

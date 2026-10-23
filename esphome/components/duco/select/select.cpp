@@ -28,8 +28,7 @@ static constexpr uint8_t MODE_CODES[] PROGMEM = {
 void DucoSelect::update() { this->parent_->send(this, FUNCTION_NODE, {0x02, 0x01}); }
 
 void DucoSelect::receive_response(const DucoMessage &message) {
-  // A mode change is answered with a single byte; the next update reads the new mode
-  if (message.size > 1) {
+  if (message.size >= 1) {
     size_t index = 0;  // unknown codes show as AUTO
     for (size_t i = 0; i < sizeof(MODE_CODES); i++) {
       if (progmem_read_byte(&MODE_CODES[i]) == message.data[0]) {
@@ -43,7 +42,8 @@ void DucoSelect::receive_response(const DucoMessage &message) {
 }
 
 void DucoSelect::control(size_t index) {
-  this->parent_->send(this, FUNCTION_NODE, {0x04, 0x01, progmem_read_byte(&MODE_CODES[index])});
+  // The next update reads the new mode back
+  this->parent_->send(nullptr, FUNCTION_NODE, {0x04, 0x01, progmem_read_byte(&MODE_CODES[index])});
 }
 
 }  // namespace esphome::duco

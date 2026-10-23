@@ -81,11 +81,10 @@ void Duco::finalize_message_() {
   }
 
   // The box first acknowledges a request with function + 1, then answers with function + 2
-  const DucoMessage message{raw[1], raw[2], raw + 3, static_cast<uint8_t>(length - 2)};
+  const DucoMessage message{raw[2], raw + 3, static_cast<uint8_t>(length - 2)};
   const uint8_t slot = message.id % PENDING_SLOTS;
   DucoDevice *device = this->pending_device_[slot];
-  if (device == nullptr || this->pending_id_[slot] != message.id ||
-      this->pending_function_[slot] + 2 != message.function)
+  if (device == nullptr || this->pending_id_[slot] != message.id || this->pending_function_[slot] + 2 != raw[1])
     return;
   this->pending_device_[slot] = nullptr;
   device->receive_response(message);
@@ -196,7 +195,7 @@ void DucoTime::update() {
     return;
   }
   const uint32_t ts = now.timestamp;
-  this->parent_->send(this, FUNCTION_PARAMETER,
+  this->parent_->send(nullptr, FUNCTION_PARAMETER,
                       {0x05, static_cast<uint8_t>(ts), static_cast<uint8_t>(ts >> 8), static_cast<uint8_t>(ts >> 16),
                        static_cast<uint8_t>(ts >> 24), 0x00, 0x00, 0x00, 0x00});
 }

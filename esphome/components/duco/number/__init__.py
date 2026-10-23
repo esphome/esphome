@@ -1,16 +1,15 @@
-import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS
 from esphome.types import ConfigType
 
-from .. import CONF_DUCO_ID, DUCO_COMPONENT_SCHEMA, duco_ns
+from .. import DUCO_COMPONENT_SCHEMA, DucoDevice, duco_ns, register_duco_device
 
 DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
 
 DucoComfortTemperature = duco_ns.class_(
-    "DucoComfortTemperature", cg.PollingComponent, number.Number
+    "DucoComfortTemperature", DucoDevice, number.Number
 )
 
 CONFIG_SCHEMA = (
@@ -26,5 +25,4 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     var = await number.new_number(config, min_value=10.0, max_value=25.5, step=0.1)
-    await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_DUCO_ID])
+    await register_duco_device(var, config)

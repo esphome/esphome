@@ -20,7 +20,6 @@ static constexpr uint8_t FUNCTION_PARAMETER = 0x24;  // read or write a box para
 
 /// A received message; data points into the receive buffer and is valid only during the callback.
 struct DucoMessage {
-  uint8_t function;
   uint8_t id;
   const uint8_t *data;
   uint8_t size;
@@ -35,12 +34,13 @@ class Duco : public uart::UARTDevice, public Component {
 
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
 
-  /// Send a request; its answer (function + 2 with the same message id) goes to device.
+  /// Send a request; its answer (function + 2 with the same message id) goes to device, or nowhere if nullptr.
   uint8_t send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
 
  protected:
-  static constexpr size_t MAX_FRAME_SIZE = 64;
-  static constexpr size_t MAX_REQUEST_DATA = 16;
+  // The longest answer to a request sent here is 23 bytes (the serial number), the longest request 9
+  static constexpr size_t MAX_FRAME_SIZE = 32;
+  static constexpr size_t MAX_REQUEST_DATA = 9;
   static constexpr uint8_t PENDING_SLOTS = 8;
 
   bool parse_byte_(uint8_t byte);
@@ -82,11 +82,10 @@ class DucoDiscovery : public DucoDevice {
 };
 
 #ifdef USE_TIME
-class DucoTime : public DucoDevice {
+class DucoTime : public PollingComponent, public Parented<Duco> {
  public:
   explicit DucoTime(time::RealTimeClock *clock) : clock_(clock) {}
   void update() override;
-  void receive_response(const DucoMessage &message) override {}
 
  protected:
   time::RealTimeClock *clock_;

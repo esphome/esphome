@@ -47,7 +47,7 @@ void DucoSensor::update() {
     case FUNCTION_PARAMETER:
       this->parent_->send(this, FUNCTION_PARAMETER, {0x00, this->argument_, 0x09});
       break;
-    default:
+    case FUNCTION_NODE:
       this->parent_->send(this, FUNCTION_NODE, {0x02, this->argument_});
       break;
   }
