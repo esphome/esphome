@@ -197,6 +197,19 @@ TEST(RemoteBaseByteItemsTest, LastMarkReadsAFrameWithoutItsFinalSpace) {
   EXPECT_EQ(last_mark_rx.get_index(), timings.size());
 }
 
+TEST(RemoteBaseByteItemsTest, LastMarkAcceptsAFinalZeroBit) {
+  RemoteTransmitData tx;
+  const uint8_t byte = 0x7F;  // LSB first, so the last bit sent is a zero
+  tx.item_bytes<MARK_TIMINGS>(&byte, 1);
+  RawTimings timings = tx.get_data();
+  timings.pop_back();
+  auto rx = receive(timings);
+  uint8_t out = 0;
+  ASSERT_TRUE(rx.expect_bytes_last_mark<MARK_TIMINGS>(&out, 1));
+  EXPECT_EQ(out, byte);
+  EXPECT_EQ(rx.get_index(), timings.size());
+}
+
 TEST(RemoteBaseByteItemsTest, LastMarkRejectsAFinalMarkOfNeitherLength) {
   RemoteTransmitData tx;
   const uint8_t byte = 0x00;
