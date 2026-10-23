@@ -101,6 +101,7 @@ enum class MediaPlayerResponseState : uint8_t {
   URL_SENT,
   PLAYING,
   FINISHED,
+  ABORTED,
 };
 #endif
 
@@ -241,6 +242,7 @@ class VoiceAssistant final : public Component {
   bool start_udp_socket_();
   void signal_stop_();
   void start_playback_timeout_();
+  void send_announce_finished_(bool success);
 
   // Drains the exposed microphone audio and sends it to Home Assistant over the API in one loop() pass.
   void stream_api_audio_();
