@@ -24,9 +24,9 @@ class RemoteDeviceBase {
   uint64_t address_{0};
   // Payloads seen under the current packet ID, as hashes, for duplicate filtering.
   static constexpr size_t SEEN_PAYLOAD_SLOTS = 4;
-  // After this much silence a payload counts as new again, as in Home Assistant's parser.
+  // After this much silence from a device a seen payload counts as new again.
   static constexpr uint32_t PACKET_ID_RESET_MS = 4000;
-  // Without a packet ID, only copies this close together are repeats.
+  // Without a packet ID, only a copy of the previous frame this close to it is a repeat.
   static constexpr uint32_t NO_PACKET_ID_REPEAT_MS = 1200;
   optional<uint8_t> last_packet_id_{};
   uint32_t last_frame_ms_{0};

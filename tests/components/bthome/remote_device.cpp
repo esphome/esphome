@@ -361,8 +361,8 @@ TEST_F(BTHomeDeviceTest, SamePacketIdAfterAPauseIsProcessed) {
   receive_at(device_, payload, sizeof(payload), 1000);
   // A copy 100 ms later is a repeat.
   receive_at(device_, payload, sizeof(payload), 1100);
-  // A restarted transmitter sends packet ID 7 again, 4 s after the last frame: that is new data.
-  receive_at(device_, payload, sizeof(payload), 5100);
+  // A restarted transmitter sends packet ID 7 again, 5 s after the last copy: that is new data.
+  receive_at(device_, payload, sizeof(payload), 6100);
 
   EXPECT_EQ(handler1_.processed_objects().size(), 2);
 }
@@ -373,8 +373,8 @@ TEST_F(BTHomeDeviceTest, RepeatedFrameWithoutPacketIdIsIgnored) {
   receive_at(device_, payload, sizeof(payload), 1000);
   // A copy 500 ms later is a repeat.
   receive_at(device_, payload, sizeof(payload), 1500);
-  // 1.2 s after the last copy the same frame counts as new.
-  receive_at(device_, payload, sizeof(payload), 2700);
+  // 1.5 s after the last copy the same frame counts as new.
+  receive_at(device_, payload, sizeof(payload), 3000);
 
   EXPECT_EQ(handler1_.processed_objects().size(), 2);
 }
