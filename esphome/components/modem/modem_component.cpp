@@ -267,8 +267,16 @@ void ModemComponent::loop() {
   }
 #endif
 #ifdef USE_MODEM_POLL
-  if (this->poll_unpublished_.load(std::memory_order_acquire)) {
-    this->publish_poll_();
+  if (pending & PENDING_ON_DISCONNECT) {
+    // A lost link must not keep showing the last healthy reading, nor one taken before it dropped
+    this->poll_unpublished_.store(0, std::memory_order_release);
+    ModemPollResult lost{};
+#ifdef USE_MODEM_NETWORK_TYPE
+    lost.network_mode = 0;  // No service
+#endif
+    this->publish_poll_(lost);
+  } else if (this->poll_unpublished_.load(std::memory_order_acquire)) {
+    this->publish_poll_(this->poll_result_);
     this->poll_unpublished_.store(0, std::memory_order_release);
   }
 #endif
@@ -1254,8 +1262,7 @@ static void publish_if(sensor::Sensor *sensor, float value) {
 }
 #endif
 
-void ModemComponent::publish_poll_() {
-  const ModemPollResult &result = this->poll_result_;
+void ModemComponent::publish_poll_(const ModemPollResult &result) {
 #ifdef USE_MODEM_SIGNAL
   publish_if(this->rssi_sensor_, result.rssi);
   publish_if(this->ber_sensor_, result.ber);
@@ -1269,7 +1276,8 @@ void ModemComponent::publish_poll_() {
   publish_if(this->accuracy_sensor_, result.accuracy);
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
-  if (this->network_type_text_sensor_ != nullptr && result.network_mode != ModemPollResult::NETWORK_MODE_NONE) {
+  // A failed read is past the table and shows as Unknown
+  if (this->network_type_text_sensor_ != nullptr) {
     char name[NetworkModeStrings::MAX_LENGTH + 1];
     ESPHOME_strncpy_P(name,
                       reinterpret_cast<ESPHOME_PGM_P>(

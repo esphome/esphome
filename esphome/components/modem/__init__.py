@@ -135,9 +135,11 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REBOOT_TIMEOUT, default="10min"
             ): cv.positive_time_period_milliseconds,
             # How often the sensor and text_sensor platforms query the modem
-            cv.Optional(
-                CONF_UPDATE_INTERVAL, default="60s"
-            ): cv.positive_time_period_milliseconds,
+            # Zero would keep the modem task busy; the top keeps deadlines within a signed 32 bit range
+            cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=cv.TimePeriod(seconds=1), max=cv.TimePeriod(days=24)),
+            ),
             **{
                 cv.Optional(a.conf_key): automation.validate_automation({})
                 for a in _CALLBACK_AUTOMATIONS

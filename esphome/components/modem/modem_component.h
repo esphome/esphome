@@ -221,7 +221,7 @@ class ModemComponent : public Component {
   };
 #ifdef USE_MODEM_POLL
   void poll_();
-  void publish_poll_();
+  void publish_poll_(const ModemPollResult &result);
 #endif
 #ifdef USE_MODEM_GNSS_POWER
   // gnss_request_ bits
