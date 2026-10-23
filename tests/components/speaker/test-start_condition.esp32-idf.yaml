@@ -21,6 +21,7 @@ media_player:
     announcement_pipeline:
       speaker: announcement_speaker
       format: MP3
+      bitrate: 128
       start_condition: !lambda 'return true;'
     media_pipeline:
       speaker: media_speaker
