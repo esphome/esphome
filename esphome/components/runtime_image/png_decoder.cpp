@@ -113,7 +113,8 @@ int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
       return DECODE_ERROR_OUT_OF_MEMORY;
     this->decoded_bytes_ += fed;
     total += fed;
-    if (static_cast<size_t>(fed) < piece || millis() - start >= DECODE_TIME_LIMIT_MS)
+    // pngle takes less than the piece when a chunk header or CRC runs past its end; that is no reason to stop
+    if (fed == 0 || millis() - start >= DECODE_TIME_LIMIT_MS)
       break;
   }
   return total;

@@ -152,10 +152,12 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   auto out_of_time = [start, &steps]() {
     return ++steps % DECODE_TIME_CHECK_STEPS == 0 && millis() - start >= DECODE_TIME_LIMIT_MS;
   };
+  // Bytes after the last pixel are used up without drawing anything
+  const size_t total_pixels = static_cast<size_t>(this->width_) * this->height_;
   switch (this->bits_per_pixel_) {
     case 1: {
       size_t width = static_cast<size_t>(this->width_);
-      while (index < size) {
+      while (index < size && this->paint_index_ < total_pixels) {
         size_t x = this->paint_index_ % width;
         size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t remaining_in_row = width - x;
@@ -185,7 +187,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     case 8: {
       size_t width = static_cast<size_t>(this->width_);
       size_t last_col = width - 1;
-      while (index < size) {
+      while (index < size && this->paint_index_ < total_pixels) {
         size_t x = this->paint_index_ % width;
         size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t needed = 1 + ((x == last_col) ? this->padding_bytes_ : 0);
@@ -218,7 +220,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     case 24: {
       size_t width = static_cast<size_t>(this->width_);
       size_t last_col = width - 1;
-      while (index < size) {
+      while (index < size && this->paint_index_ < total_pixels) {
         size_t x = this->paint_index_ % width;
         size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t needed = 3 + ((x == last_col) ? this->padding_bytes_ : 0);

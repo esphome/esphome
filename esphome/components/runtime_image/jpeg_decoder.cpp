@@ -151,9 +151,7 @@ int JpegDecoder::start_() {
   if (this->scale_ != 1) {
     ESP_LOGD(TAG, "Decoding at 1/%d size, %d x %d", this->scale_, decoded_width, decoded_height);
   }
-  if (!this->prepare_draw_(decoded_width, decoded_height)) {
-    return DECODE_ERROR_OUT_OF_MEMORY;
-  }
+  this->prepare_draw_(decoded_width, decoded_height);
   if (this->direct_rgb565_) {
     // JPEGDEC's RGB565_BIG_ENDIAN output is not byte swapped on every build (the x86 host build
     // returns little-endian words for it), so the byte order is applied in draw_rgb565 instead
