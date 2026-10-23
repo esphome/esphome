@@ -8,6 +8,9 @@
 #include <memory>
 
 #include "esphome/components/camera/camera.h"
+#ifdef USE_RTSP_H264
+#include "esphome/components/camera_video/h264_stream.h"
+#endif
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/string_ref.h"
 
@@ -24,7 +27,7 @@ static constexpr size_t MAX_PACKET_SIZE = INTERLEAVED_HEADER_LEN + RTP_HEADER_LE
 // RFC 2435 stores width and height in units of 8 pixels in one byte each.
 static constexpr uint16_t RTP_JPEG_MAX_DIMENSION = 255 * 8;
 // A frame whose packets make no write progress for this long is dropped, so a stalled client cannot hold
-// the camera image (esp32_camera captures nothing while any copy is held).
+// the source frame indefinitely.
 static constexpr uint32_t FRAME_STALL_MS = 500;
 
 /// The fields of a JPEG frame that an RFC 2435 RTP/JPEG payload needs. Pointers refer into the frame.
@@ -41,7 +44,7 @@ struct JpegInfo {
 bool parse_jpeg_info(const uint8_t *data, size_t len, JpegInfo &out);
 
 /** A single RTSP client: one TCP connection carrying both the RTSP control channel and, once playing,
- *  RTP/JPEG media interleaved on the same socket (RFC 2326 §10.12). No UDP transport is supported.
+ *  RTP media interleaved on the same socket (RFC 2326 §10.12). No UDP transport is supported.
  *  The object is a reusable slot: open() starts a connection, and it closes itself when the connection ends.
  */
 class RTSPSession {
@@ -49,13 +52,27 @@ class RTSPSession {
   bool is_active() const { return this->socket_ != nullptr; }
   bool is_playing() const { return this->state_ == State::PLAYING; }
 
+#ifdef USE_RTSP_H264
+  void open(std::unique_ptr<socket::Socket> socket, uint32_t now, camera_video::H264Stream *h264_stream = nullptr,
+            uint16_t h264_payload_size = 1400);
+#else
   void open(std::unique_ptr<socket::Socket> socket, uint32_t now);
+#endif
   void loop(uint32_t now, uint16_t port);
+
   /// Ignored unless playing with no output pending; packets of the frame being sent point into that frame.
   void on_new_frame(const std::shared_ptr<camera::CameraImage> &image, const JpegInfo &jpeg, uint32_t now);
+#ifdef USE_RTSP_H264
+  void on_new_h264_frame(const camera_video::FrameRef<camera_video::H264Frame> &frame,
+                         const camera_video::H264CodecConfig *codec_config, uint32_t now);
+  void on_h264_discontinuity();
+#endif
 
  protected:
   enum class State : uint8_t { INIT, READY, PLAYING };
+#ifdef USE_RTSP_H264
+  enum class H264Stage : uint8_t { CONFIG_SPS, CONFIG_PPS, FRAME, DONE };
+#endif
 
   void service_(uint32_t now, uint16_t port);
   void close_();
@@ -70,17 +87,44 @@ class RTSPSession {
   void queue_response_(uint16_t code, const char *reason, const char *extra_headers_fmt = nullptr, ...)
       __attribute__((format(printf, 4, 5)));
   void stop_playing_();
+  bool has_frame_() const;
   bool queue_next_packet_();
+  bool queue_next_jpeg_packet_();
+#ifdef USE_RTSP_H264
+  bool prepare_h264_sdp_();
+  bool load_next_h264_nal_();
+  bool queue_next_h264_packet_();
+  void mark_h264_discontinuity_();
+  void clear_h264_frame_();
+#endif
   /// Releases the frame; the frame-backed rest of the current packet is sent as zeros to keep the framing.
   void drop_frame_();
   /// Writes what is queued; true once all of it is written, false while backlogged or after a failure.
   bool flush_(uint32_t now);
 
   std::unique_ptr<socket::Socket> socket_;
-  // Held until its last packet is written; esp32_camera captures nothing new while any copy is held.
+  // Held until its last packet is written; camera sources can reuse their storage after release.
   std::shared_ptr<camera::CameraImage> frame_;
   JpegInfo jpeg_;
   size_t frame_sent_{0};
+
+#ifdef USE_RTSP_H264
+  camera_video::H264Stream *h264_stream_{nullptr};
+  camera_video::FrameRef<camera_video::H264Frame> h264_frame_;
+  camera_video::H264CodecConfig h264_codec_config_;
+  const uint8_t *h264_cursor_{nullptr};
+  const uint8_t *h264_end_{nullptr};
+  const uint8_t *h264_nal_data_{nullptr};
+  size_t h264_nal_length_{0};
+  size_t h264_nal_offset_{0};
+  uint16_t h264_payload_size_{1400};
+  uint64_t h264_timestamp_origin_us_{0};
+  uint32_t h264_timestamp_origin_rtp_{0};
+  H264Stage h264_stage_{H264Stage::DONE};
+  bool h264_nal_last_{false};
+  bool waiting_for_keyframe_{false};
+  std::array<char, 768> sdp_buf_{};
+#endif
 
   uint32_t cseq_{0};
   uint32_t rtp_timestamp_{0};
@@ -95,7 +139,7 @@ class RTSPSession {
   // Zeros still owed for a packet whose frame was dropped part way through.
   uint16_t filler_len_{0};
 
-  // Pending output: a response or one RTP packet. Packets point at the frame's tables and scan data.
+  // Pending output: a response or one RTP packet. Packets can point into retained frame storage.
   std::array<struct iovec, 4> iov_{};
   uint8_t iov_pos_{0};
   uint8_t iov_count_{0};
