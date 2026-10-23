@@ -630,7 +630,9 @@ esphome/components/sun_gtil2/* @Mat931
 esphome/components/switch/* @esphome/core
 esphome/components/switch/binary_sensor/* @ssieb
 esphome/components/sx126x/* @swoboda1337
+esphome/components/sx126x/packet_interface/* @clydebarrow
 esphome/components/sx127x/* @swoboda1337
+esphome/components/sx127x/packet_interface/* @clydebarrow
 esphome/components/sy6970/* @linkedupbits
 esphome/components/syslog/* @clydebarrow
 esphome/components/systa_bus/* @Mat931
