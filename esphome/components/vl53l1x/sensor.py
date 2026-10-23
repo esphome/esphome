@@ -88,7 +88,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     # can be held in reset while the others are re-addressed, and none may stay at 0x29, or a
     # later sibling boots at the same address and the re-address write reaches both chips.
     siblings = fv.platform_entries(
-        sensor.DOMAIN, DOMAIN, **{CONF_I2C_ID: config[CONF_I2C_ID]}
+        sensor.DOMAIN, DOMAIN, {CONF_I2C_ID: config[CONF_I2C_ID]}
     )
     if len(siblings) < 2:
         return config

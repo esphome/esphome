@@ -49,15 +49,13 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 # Two outputs on one channel would fight over its PWM, and the last current would win
-_final_validate = fv.unique_platform_key(
+FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
     output.DOMAIN,
     "lp5562",
     CONF_LP5562_ID,
     CONF_CHANNEL,
-    message="Channel '{channel}' of '{lp5562_id}' is already used by another output",
+    message="Channel '{1}' of '{0}' is already used by another output",
 )
-
-FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

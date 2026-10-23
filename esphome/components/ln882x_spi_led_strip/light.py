@@ -128,11 +128,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 # The strip owns SPI0 and its DMA channel, so only one can exist.
-_final_validate = fv.unique_platform_key(
+FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
     light.DOMAIN, DOMAIN, message=f"Only one {DOMAIN} is supported (it uses SPI0)"
 )
-
-FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
