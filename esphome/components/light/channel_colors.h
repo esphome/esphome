@@ -2,6 +2,9 @@
 
 #include <cstdint>
 
+#include "esp_color_view.h"
+#include "light_traits.h"
+
 namespace esphome::light {
 
 /// Which byte of an addressable LED's data carries each colour.
@@ -35,6 +38,23 @@ struct ChannelColors {
     }
     buf[this->bytes_per_led()] = '\0';
     return buf;
+  }
+
+  /// Colour modes of a strip with this channel order.
+  LightTraits traits() const;
+
+  /// View of LED `index` in `buf`; a scratch pixel while `buf` or `effect_data` is unallocated.
+  ESPColorView view(uint8_t *buf, uint8_t *effect_data, int32_t index, const ESPColorCorrection *correction) const {
+    // After a failed setup() effects and update_state() still write pixels
+    static uint8_t scratch[5];
+    const bool ready = buf != nullptr && effect_data != nullptr;
+    uint8_t *led = ready ? buf + index * this->bytes_per_led() : scratch;
+    return {led + this->r,
+            led + this->g,
+            led + this->b,
+            this->has_white() ? led + this->w : nullptr,
+            ready ? effect_data + index : scratch + 4,
+            correction};
   }
 };
 
