@@ -1,5 +1,6 @@
 """Unit tests for the packet_interface component."""
 
+import hashlib
 from typing import Any
 
 import pytest
@@ -13,6 +14,7 @@ from esphome.components.packet_interface.layers import (
     RELIABILITY,
     STACK_ORDER,
     LayerKind,
+    xxtea_encryption,
 )
 from esphome.components.packet_interface.layers.basic_session import CONF_KEEP_ALIVE
 from esphome.components.packet_interface.layers.hdlc_reliability import (
@@ -196,3 +198,19 @@ def test_auto_load_follows_layers(
 def test_auto_load_without_config() -> None:
     """Tooling that lists dependencies gets everything a layer could load."""
     assert packet_interface.AUTO_LOAD() == ["binary_sensor", "xxtea"]
+
+
+def test_xxtea_key_stretched() -> None:
+    """The key comes from PBKDF2 of the key text, not a single hash a captured packet could check guesses against."""
+    key = xxtea_encryption.derive_key("Johnny Cash")
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        b"Johnny Cash",
+        b"esphome packet_interface xxtea",
+        600_000,
+    )
+    assert key == [int.from_bytes(digest[i : i + 4], "little") for i in range(0, 32, 4)]
+    assert len(key) == 8 and all(0 <= word < 2**32 for word in key)
+    assert key != xxtea_encryption.derive_key("Johnny Cash ")
+    sha = hashlib.sha256(b"Johnny Cash").digest()
+    assert key[0] != int.from_bytes(sha[:4], "little")
