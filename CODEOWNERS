@@ -147,6 +147,7 @@ esphome/components/cst816/* @clydebarrow
 esphome/components/cst9220/* @clydebarrow
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
+esphome/components/cw2017/* @exciton
 esphome/components/d01/* @ch604
 esphome/components/dac7678/* @NickB1
 esphome/components/daikin_arc/* @MagicBear
@@ -325,6 +326,7 @@ esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
 esphome/components/ir_rf_base/* @bdraco @kbx81
 esphome/components/ir_rf_proxy/* @kbx81
+esphome/components/islandaire/* @ipopov
 esphome/components/it8951/* @koosoli @limengdu @Passific
 esphome/components/jsn_sr04t/* @Mafus1
 esphome/components/json/* @esphome/core
@@ -356,6 +358,7 @@ esphome/components/lm75b/* @beormund
 esphome/components/ln882h_ble/* @Bl00d-B0b
 esphome/components/ln882h_ble_tracker/* @Bl00d-B0b
 esphome/components/ln882x/* @lamauny
+esphome/components/ln882x_spi_led_strip/* @sebo-b
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/logger/select/* @clydebarrow
