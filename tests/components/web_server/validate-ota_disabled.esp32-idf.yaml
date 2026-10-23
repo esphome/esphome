@@ -1,11 +1,3 @@
-esphome:
-  name: test-ws-ota-disabled-idf
-
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
-
 packages:
   device_base: !include common.yaml
 

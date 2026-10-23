@@ -31,6 +31,7 @@ from esphome.const import (
     CONF_WEB_SERVER_ID,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_SENSOR,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.config import (
@@ -937,6 +938,7 @@ _ZIGBEE_ENTITY_CLASSES = {
         "ZigbeeBinarySensor",
         ["generic", "device_class"],
     ),
+    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
 }
 
 
@@ -955,6 +957,8 @@ def _zigbee_entity_schema(platform: str) -> cv.Schema:
 
 
 ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
+
+ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
 
 
 def lazy_load_validator(

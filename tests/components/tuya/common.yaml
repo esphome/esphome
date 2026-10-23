@@ -148,8 +148,14 @@ water_heater:
 fan:
   - platform: tuya
     id: tuya_fan
-    switch_datapoint: 1
-    speed_datapoint: 2
-    speed_count: 3
-    direction_datapoint: 4
+    switch_datapoint: 10
+    speed_datapoint: 11
+    oscillation_datapoint: 12
+    direction_datapoint: 13
+    speed_count: 4
     optimistic: true
+
+text_sensor:
+  - platform: tuya
+    id: tuya_text_sensor
+    sensor_datapoint: 7
