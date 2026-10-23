@@ -27,7 +27,8 @@ class LineWaiter:
     also matches lines seen before the call, and only one may be outstanding at a
     time. ``expect`` matches only later lines, and any number may be armed at once;
     each resolves on the next matching line, so two armed for the same text both
-    resolve on its first occurrence. Arm the second after the first, or use ``count``.
+    resolve on its first occurrence. Arm the second after the first, or use
+    ``wait_count`` to wait for the Nth matching line.
     """
 
     def __init__(self) -> None:
@@ -99,6 +100,28 @@ class LineWaiter:
             timeout,
             msg,
             pattern=self._expectations.get(future),
+            lines=self.lines,
+        )
+
+    async def wait_count(
+        self,
+        pattern: LinePattern,
+        n: int,
+        timeout: float = 5.0,
+        msg: str = "log line not repeated",
+    ) -> None:
+        """Wait until ``n`` lines, past or future, match ``pattern``; fail like ``wait``."""
+
+        async def reach() -> None:
+            while self.count(pattern) < n:
+                await self.expect(pattern)
+
+        await wait_or_fail(
+            reach(),
+            timeout,
+            msg,
+            pattern=pattern,
+            seen=lambda: f"{self.count(pattern)} of {n}",
             lines=self.lines,
         )
 

@@ -7,6 +7,7 @@ import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -27,13 +28,6 @@ async def test_scheduler_pool(
     4. The pool grows gradually based on actual usage patterns
     5. Pool operations are logged correctly with debug scheduler enabled
     """
-    # Track log messages to verify pool behavior
-    log_lines: list[str] = []
-    pool_reuse_count = 0
-    pool_recycle_count = 0
-    pool_full_count = 0
-    new_alloc_count = 0
-
     # Patterns to match pool operations
     reuse_pattern = re.compile(r"Reused item from pool \(pool size now: (\d+)\)")
     recycle_pattern = re.compile(r"Recycled item to pool \(pool size now: (\d+)\)")
@@ -41,52 +35,16 @@ async def test_scheduler_pool(
     new_alloc_pattern = re.compile(r"Allocated new item \(pool empty\)")
 
     # Futures to track when test phases complete
-    loop = asyncio.get_running_loop()
-    test_complete_future: asyncio.Future[bool] = loop.create_future()
+    waiter = LineWaiter()
+    test_complete_future = waiter.expect("Pool recycling test complete")
     phase_futures = {
-        1: loop.create_future(),
-        2: loop.create_future(),
-        3: loop.create_future(),
-        4: loop.create_future(),
-        5: loop.create_future(),
-        6: loop.create_future(),
-        7: loop.create_future(),
+        phase_num: waiter.expect(f"Phase {phase_num} complete")
+        for phase_num in range(1, 8)
     }
-
-    def check_output(line: str) -> None:
-        """Check log output for pool operations and phase completion."""
-        nonlocal pool_reuse_count, pool_recycle_count, pool_full_count, new_alloc_count
-        log_lines.append(line)
-
-        # Track pool operations
-        if reuse_pattern.search(line):
-            pool_reuse_count += 1
-
-        elif recycle_pattern.search(line):
-            pool_recycle_count += 1
-
-        elif pool_full_pattern.search(line):
-            pool_full_count += 1
-
-        elif new_alloc_pattern.search(line):
-            new_alloc_count += 1
-
-        # Track phase completion
-        for phase_num in range(1, 8):
-            if (
-                f"Phase {phase_num} complete" in line
-                and phase_num in phase_futures
-                and not phase_futures[phase_num].done()
-            ):
-                phase_futures[phase_num].set_result(True)
-
-        # Check for test completion
-        if "Pool recycling test complete" in line and not test_complete_future.done():
-            test_complete_future.set_result(True)
 
     # Run the test with log monitoring
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify device is running
@@ -122,11 +80,11 @@ async def test_scheduler_pool(
             "phases_completed": lambda: [
                 n for n, fut in phase_futures.items() if fut.done()
             ],
-            "reuse": lambda: pool_reuse_count,
-            "recycle": lambda: pool_recycle_count,
-            "pool_full": lambda: pool_full_count,
-            "new_alloc": lambda: new_alloc_count,
-            "logged": log_lines,
+            "reuse": lambda: waiter.count(reuse_pattern),
+            "recycle": lambda: waiter.count(recycle_pattern),
+            "pool_full": lambda: waiter.count(pool_full_pattern),
+            "new_alloc": lambda: waiter.count(new_alloc_pattern),
+            "logged": waiter.lines,
         }
         # Phase 1: Component lifecycle
         await client.execute_service(phase_services[1], {})
@@ -171,6 +129,11 @@ async def test_scheduler_pool(
     for phase_num in range(1, 8):
         assert phase_futures[phase_num].done(), f"Phase {phase_num} did not complete"
 
+    pool_reuse_count = waiter.count(reuse_pattern)
+    pool_recycle_count = waiter.count(recycle_pattern)
+    pool_full_count = waiter.count(pool_full_pattern)
+    new_alloc_count = waiter.count(new_alloc_pattern)
+
     # Verify pool behavior
     assert pool_recycle_count > 0, "Should have recycled items to pool"
 
@@ -184,7 +147,7 @@ async def test_scheduler_pool(
     # observed peak should comfortably exceed 5. Without this lower-bound check, a
     # silent regression that re-introduced a small cap could pass the test above.
     max_pool_size = 0
-    for line in log_lines:
+    for line in waiter.lines:
         if match := recycle_pattern.search(line):
             max_pool_size = max(max_pool_size, int(match.group(1)))
     assert max_pool_size > 5, (
