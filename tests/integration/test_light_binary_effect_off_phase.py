@@ -23,7 +23,7 @@ import asyncio
 import re
 from typing import Any
 
-from aioesphomeapi import EntityState, LightState
+from aioesphomeapi import LightState
 import pytest
 
 from .state_utils import require_entity, subscribe_after_initial_states
@@ -66,23 +66,15 @@ async def test_light_binary_effect_off_phase(
         entities, _ = await client.list_entities_services()
         light = require_entity(entities, "test_binary_light", exact=True)
 
-        state_futures: dict[int, asyncio.Future[LightState]] = {}
-
-        def on_state(state: EntityState) -> None:
-            if isinstance(state, LightState) and state.key in state_futures:
-                future = state_futures[state.key]
-                if not future.done():
-                    future.set_result(state)
-
         # ESPHome sends the current state of every entity right after connecting; drain
         # that initial burst so it can't be mistaken for the response to a command below.
-        await subscribe_after_initial_states(client, entities, on_state=on_state)
+        sub = await subscribe_after_initial_states(client, entities)
 
-        async def send_and_wait(timeout: float = 5.0, **kwargs: Any) -> LightState:
-            """Send a light command and wait for the matching state response."""
-            state_futures[light.key] = loop.create_future()
+        async def send_and_wait(**kwargs: Any) -> LightState:
+            """Send a light command and return the light's next state."""
+            next_light = sub.waiter.next_state(light.key, LightState)
             client.light_command(key=light.key, **kwargs)
-            return await asyncio.wait_for(state_futures[light.key], timeout=timeout)
+            return await next_light
 
         # A plain turn-on must drive the output on -- brightness defaults to 100% and
         # must not be mistaken for a dark phase.
@@ -163,20 +155,13 @@ async def test_light_binary_zero_brightness_is_recoverable(
         entities, _ = await client.list_entities_services()
         light = require_entity(entities, "test_binary_light", exact=True)
 
-        state_futures: dict[int, asyncio.Future[LightState]] = {}
+        sub = await subscribe_after_initial_states(client, entities)
 
-        def on_state(state: EntityState) -> None:
-            if isinstance(state, LightState) and state.key in state_futures:
-                future = state_futures[state.key]
-                if not future.done():
-                    future.set_result(state)
-
-        await subscribe_after_initial_states(client, entities, on_state=on_state)
-
-        async def send_and_wait(timeout: float = 5.0, **kwargs: Any) -> LightState:
-            state_futures[light.key] = loop.create_future()
+        async def send_and_wait(**kwargs: Any) -> LightState:
+            """Send a light command and return the light's next state."""
+            next_light = sub.waiter.next_state(light.key, LightState)
             client.light_command(key=light.key, **kwargs)
-            return await asyncio.wait_for(state_futures[light.key], timeout=timeout)
+            return await next_light
 
         output = arm_output()
         state = await send_and_wait(state=True)

@@ -6,12 +6,12 @@ DimRelativeAction<HasTransitionLength=true> instantiations.
 
 from __future__ import annotations
 
-import asyncio
+from functools import partial
 
-from aioesphomeapi import ButtonInfo, EntityState, LightInfo, LightState
+from aioesphomeapi import LightInfo, LightState
 import pytest
 
-from .state_utils import require_entity, subscribe_after_initial_states
+from .state_utils import press_and_wait, require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -22,49 +22,29 @@ async def test_light_dim_relative_action(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test light.dim_relative with and without transition_length."""
-    loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
-        light_state_future: asyncio.Future[LightState] | None = None
-
-        def on_state(state: EntityState) -> None:
-            if (
-                isinstance(state, LightState)
-                and light_state_future is not None
-                and not light_state_future.done()
-            ):
-                light_state_future.set_result(state)
-
-        async def wait_for_light_state(timeout: float = 5.0) -> LightState:
-            nonlocal light_state_future
-            light_state_future = loop.create_future()
-            try:
-                return await asyncio.wait_for(light_state_future, timeout)
-            finally:
-                light_state_future = None
-
         entities, _ = await client.list_entities_services()
-        await subscribe_after_initial_states(client, entities, on_state=on_state)
+        sub = await subscribe_after_initial_states(client, entities)
 
         require_entity(entities, "test_light", LightInfo)
 
-        async def press_and_wait(name: str) -> LightState:
-            btn = require_entity(entities, name.lower().replace(" ", "_"), ButtonInfo)
-            client.button_command(btn.key)
-            return await wait_for_light_state()
+        press = partial(
+            press_and_wait, client, entities, sub.waiter, state_type=LightState
+        )
 
         # Setup: turn on at 50%
-        state = await press_and_wait("Setup")
+        state = await press("setup")
         assert state.state is True
         assert state.brightness == pytest.approx(0.5, abs=0.05)
 
         # Test 1: dim_relative without transition_length: 50% + 25% = 75%
-        state = await press_and_wait("Dim Up")
+        state = await press("dim_up")
         assert state.brightness == pytest.approx(0.75, abs=0.05)
 
         # Test 2: dim_relative with transition_length: 75% - 10% = 65%
-        state = await press_and_wait("Dim Down")
+        state = await press("dim_down")
         assert state.brightness == pytest.approx(0.65, abs=0.05)
 
         # Test 3: dim_relative with max_brightness limit: 65% + 50% clamped to 80%
-        state = await press_and_wait("Dim Clamp")
+        state = await press("dim_clamp")
         assert state.brightness == pytest.approx(0.80, abs=0.05)

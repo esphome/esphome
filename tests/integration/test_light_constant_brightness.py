@@ -12,17 +12,15 @@ gamma after the balancing formula instead of before it.
 
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import Any
 
-from aioesphomeapi import EntityState, LightInfo, LightState
+from aioesphomeapi import LightInfo, LightState
 import pytest
 
 from .log_utils import LineWaiter
 from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 CB_CW_RE = re.compile(r"(?<!N)CB_CW_OUTPUT:([\d.]+)")
 CB_WW_RE = re.compile(r"(?<!N)CB_WW_OUTPUT:([\d.]+)")
@@ -46,8 +44,6 @@ async def test_light_constant_brightness(
                 return float(match[1])
         return 0.0
 
-    loop = asyncio.get_running_loop()
-
     async with (
         run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
@@ -56,28 +52,13 @@ async def test_light_constant_brightness(
         cb_light = require_entity(entities, "test_cb_light", LightInfo, exact=True)
         ncb_light = require_entity(entities, "test_ncb_light", LightInfo, exact=True)
 
-        # Track state changes per light key
-        state_futures: dict[int, asyncio.Future[EntityState]] = {}
+        sub = await subscribe_after_initial_states(client, entities)
 
-        def on_state(state: EntityState) -> None:
-            if isinstance(state, LightState) and state.key in state_futures:
-                future = state_futures[state.key]
-                if not future.done():
-                    future.set_result(state)
-
-        await subscribe_after_initial_states(client, entities, on_state=on_state)
-
-        async def send_and_wait(
-            light_key: int, timeout: float = 5.0, **kwargs: Any
-        ) -> LightState:
-            """Send a light command and wait for the state response."""
-            state_futures[light_key] = loop.create_future()
+        async def send_and_wait(light_key: int, **kwargs: Any) -> LightState:
+            """Send a light command and return the light's next state."""
+            next_light = sub.waiter.next_state(light_key, LightState)
             client.light_command(key=light_key, **kwargs)
-            return await wait_or_fail(
-                state_futures[light_key],
-                timeout,
-                f"Timeout waiting for light state after command: {kwargs}",
-            )
+            return await next_light
 
         # --- Test constant_brightness: true ---
 
