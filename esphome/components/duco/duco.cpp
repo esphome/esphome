@@ -16,6 +16,7 @@ static constexpr uint32_t DISCOVERY_START_ID = 0;
 static constexpr uint32_t DISCOVERY_STEP_ID = 1;
 static constexpr uint32_t DISCOVERY_START_MS = 16000;
 static constexpr uint32_t DISCOVERY_STEP_MS = 1600;
+static constexpr uint8_t DISCOVERY_MAX_ATTEMPTS = 3;
 
 void Duco::loop() {
   const uint32_t now = App.get_loop_component_start_time();
@@ -79,13 +80,15 @@ void Duco::finalize_message_() {
     ESP_LOGD(TAG, "CRC check failed, ignored: %04X != %04X", computed_crc, remote_crc);
   }
 
+  // The box first acknowledges a request with function + 1, then answers with function + 2
   const DucoMessage message{raw[1], raw[2], raw + 3, static_cast<uint8_t>(length - 2)};
   const uint8_t slot = message.id % PENDING_SLOTS;
   DucoDevice *device = this->pending_device_[slot];
-  if (device == nullptr || this->pending_id_[slot] != message.id)
+  if (device == nullptr || this->pending_id_[slot] != message.id ||
+      this->pending_function_[slot] + 2 != message.function)
     return;
-  if (device->receive_response(message))
-    this->pending_device_[slot] = nullptr;
+  this->pending_device_[slot] = nullptr;
+  device->receive_response(message);
 }
 
 void Duco::dump_config() {
@@ -117,11 +120,9 @@ uint8_t Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<u
   const uint8_t slot = id % PENDING_SLOTS;
   this->pending_device_[slot] = device;
   this->pending_id_[slot] = id;
+  this->pending_function_[slot] = function;
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex[format_hex_pretty_size(sizeof(frame))];
-  ESP_LOGV(TAG, "Sent %s", format_hex_pretty_to(hex, frame + 2, size + 5, ' '));
-#endif
+  ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
   return id;
 }
 
@@ -154,24 +155,27 @@ void DucoDiscovery::setup() {
 }
 
 void DucoDiscovery::request_next_node_() {
+  if (this->attempts_ == DISCOVERY_MAX_ATTEMPTS) {
+    ESP_LOGW(TAG, "No answer for node %u", this->next_node_);
+    this->next_node_++;
+    this->attempts_ = 0;
+  }
   if (this->next_node_ >= NODE_COUNT) {
     this->cancel_interval(DISCOVERY_STEP_ID);
     return;
   }
   // Without an answer by the next step the same node is asked again
   ESP_LOGD(TAG, "Discovering node %u", this->next_node_);
+  this->attempts_++;
   this->request_id_ = this->parent_->send(this, FUNCTION_NODE, {0x01, this->next_node_});
-  this->waiting_ = true;
 }
 
-bool DucoDiscovery::receive_response(const DucoMessage &message) {
-  if (message.function != FUNCTION_NODE + 2)
-    return false;
-  if (this->waiting_ && message.id == this->request_id_ && message.size >= 1) {
+void DucoDiscovery::receive_response(const DucoMessage &message) {
+  // A late answer to an earlier attempt has a different id; it may belong to another node
+  if (message.id == this->request_id_ && message.size >= 1 && this->next_node_ < NODE_COUNT) {
     this->node_types_[this->next_node_++] = message.data[0];
-    this->waiting_ = false;
+    this->attempts_ = 0;
   }
-  return true;
 }
 
 void DucoDiscovery::update() {

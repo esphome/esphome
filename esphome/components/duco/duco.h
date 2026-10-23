@@ -35,7 +35,7 @@ class Duco : public uart::UARTDevice, public Component {
 
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
 
-  /// Send a request; the answers carrying its message id go to device until it returns true.
+  /// Send a request; its answer (function + 2 with the same message id) goes to device.
   uint8_t send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
 
  protected:
@@ -49,6 +49,7 @@ class Duco : public uart::UARTDevice, public Component {
 
   std::array<DucoDevice *, PENDING_SLOTS> pending_device_{};
   std::array<uint8_t, PENDING_SLOTS> pending_id_{};
+  std::array<uint8_t, PENDING_SLOTS> pending_function_{};
   std::array<uint8_t, MAX_FRAME_SIZE> rx_buffer_{};
   uint32_t last_byte_{0};
   uint8_t rx_size_{0};
@@ -57,17 +58,17 @@ class Duco : public uart::UARTDevice, public Component {
   bool disable_crc_{false};
 };
 
-class DucoDevice : public Parented<Duco> {
+/// Every entity polls the box; deriving from PollingComponent shares its vtable.
+class DucoDevice : public PollingComponent, public Parented<Duco> {
  public:
-  /// Return true once the request is answered, so later messages with the same id are dropped.
-  virtual bool receive_response(const DucoMessage &message) = 0;
+  virtual void receive_response(const DucoMessage &message) = 0;
 };
 
-class DucoDiscovery : public DucoDevice, public PollingComponent {
+class DucoDiscovery : public DucoDevice {
  public:
   void setup() override;
   void update() override;
-  bool receive_response(const DucoMessage &message) override;
+  void receive_response(const DucoMessage &message) override;
 
  protected:
   static constexpr uint8_t NODE_COUNT = 0x45;
@@ -77,15 +78,15 @@ class DucoDiscovery : public DucoDevice, public PollingComponent {
   std::array<uint8_t, NODE_COUNT> node_types_{};  // 0 when no node answered at that address
   uint8_t next_node_{0};
   uint8_t request_id_{0};
-  bool waiting_{false};
+  uint8_t attempts_{0};
 };
 
 #ifdef USE_TIME
-class DucoTime : public DucoDevice, public PollingComponent {
+class DucoTime : public DucoDevice {
  public:
   explicit DucoTime(time::RealTimeClock *clock) : clock_(clock) {}
   void update() override;
-  bool receive_response(const DucoMessage &message) override { return message.function == FUNCTION_PARAMETER + 2; }
+  void receive_response(const DucoMessage &message) override {}
 
  protected:
   time::RealTimeClock *clock_;

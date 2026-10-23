@@ -7,8 +7,6 @@ namespace esphome::duco {
 
 ESPHOME_LOG_TAG(TAG, "duco.select");
 
-static constexpr uint8_t MODE_ACCEPTED = 0x01;
-
 // Box code of each option, in the order of DUCO_MODE_OPTIONS in __init__.py
 static constexpr uint8_t MODE_CODES[] PROGMEM = {
     0x00,  // AUTO
@@ -29,11 +27,9 @@ static constexpr uint8_t MODE_CODES[] PROGMEM = {
 
 void DucoSelect::update() { this->parent_->send(this, FUNCTION_NODE, {0x02, 0x01}); }
 
-bool DucoSelect::receive_response(const DucoMessage &message) {
-  if (message.function != FUNCTION_NODE + 2)
-    return false;
-  // A mode change is answered with MODE_ACCEPTED; the next update reads the new mode
-  if (message.size >= 1 && message.data[0] != MODE_ACCEPTED) {
+void DucoSelect::receive_response(const DucoMessage &message) {
+  // A mode change is answered with a single byte; the next update reads the new mode
+  if (message.size > 1) {
     size_t index = 0;  // unknown codes show as AUTO
     for (size_t i = 0; i < sizeof(MODE_CODES); i++) {
       if (progmem_read_byte(&MODE_CODES[i]) == message.data[0]) {
@@ -44,7 +40,6 @@ bool DucoSelect::receive_response(const DucoMessage &message) {
     ESP_LOGD(TAG, "Current mode: %s", this->option_at(index));
     this->publish_state(index);
   }
-  return true;
 }
 
 void DucoSelect::control(size_t index) {

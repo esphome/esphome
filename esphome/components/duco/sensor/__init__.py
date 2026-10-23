@@ -1,5 +1,3 @@
-from typing import NamedTuple
-
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -36,52 +34,20 @@ CONF_TEMPERATURE_ODA = "temperature_oda"
 CONF_TEMPERATURE_SUP = "temperature_sup"
 CONF_TIME_REMAINING = "time_remaining"
 
-FUNCTION_NODE = 0x0C
-FUNCTION_NODE_DATA = 0x10
-FUNCTION_PARAMETER = 0x24
-
 DucoSensor = duco_ns.class_("DucoSensor", cg.PollingComponent, sensor.Sensor)
-DucoValueFormat = duco_ns.enum("DucoValueFormat", is_class=True)
-UINT8 = DucoValueFormat.DUCO_VALUE_FORMAT_UINT8
-UINT16 = DucoValueFormat.DUCO_VALUE_FORMAT_UINT16
-INT16 = DucoValueFormat.DUCO_VALUE_FORMAT_INT16
+DucoReading = duco_ns.enum("DucoReading", is_class=True)
+
+BOX_NODE = 1
 
 
-class Reading(NamedTuple):
-    """Where a value is in the box's answer; argument None means the configured node address."""
-
-    function: int
-    argument: int | None
-    offset: int
-    value_format: cg.MockObj
-    divisor: int
-    minimum: int
-    maximum: int
-
-
-# The box reports out of range values for sensors that are missing or still starting
-READINGS = {
-    CONF_CO2: Reading(FUNCTION_NODE_DATA, None, 4, UINT16, 1, 300, 10000),
-    CONF_TEMPERATURE: Reading(FUNCTION_NODE_DATA, None, 2, UINT16, 10, 0, 1000),
-    CONF_HUMIDITY: Reading(FUNCTION_NODE_DATA, None, 6, UINT16, 100, 0, 10000),
-    CONF_FILTER_REMAINING: Reading(FUNCTION_PARAMETER, 0x30, 3, UINT8, 1, 0, 255),
-    CONF_FLOW_LEVEL: Reading(FUNCTION_NODE, 0x01, 2, UINT8, 1, 0, 255),
-    CONF_TIME_REMAINING: Reading(FUNCTION_NODE, 0x01, 12, UINT16, 1, 0, 65535),
-    CONF_TEMPERATURE_ODA: Reading(FUNCTION_PARAMETER, 0x00, 3, INT16, 10, -999, 1000),
-    CONF_TEMPERATURE_SUP: Reading(FUNCTION_PARAMETER, 0x01, 3, INT16, 10, -999, 1000),
-    CONF_TEMPERATURE_ETA: Reading(FUNCTION_PARAMETER, 0x02, 3, INT16, 10, -999, 1000),
-    CONF_TEMPERATURE_EHA: Reading(FUNCTION_PARAMETER, 0x03, 3, INT16, 10, -999, 1000),
-    CONF_BYPASS: Reading(FUNCTION_PARAMETER, 0x10, 3, UINT8, 1, 0, 100),
-}
-
-
-def _schema(**kwargs) -> cv.Schema:
+def _schema(update_interval: str = "60s", **kwargs) -> cv.Schema:
     return sensor.sensor_schema(
         DucoSensor, state_class=STATE_CLASS_MEASUREMENT, **kwargs
-    ).extend(cv.polling_component_schema("60s"))
+    ).extend(cv.polling_component_schema(update_interval))
 
 
 def _node_schema(**kwargs) -> cv.All:
+    """A list of sensors, one per node address."""
     return cv.ensure_list(
         _schema(**kwargs).extend({cv.Required(CONF_ADDRESS): cv.int_range(0, 68)})
     )
@@ -93,63 +59,95 @@ _TEMPERATURE = {
     "device_class": DEVICE_CLASS_TEMPERATURE,
 }
 
-CONFIG_SCHEMA = DUCO_COMPONENT_SCHEMA.extend(
-    {
-        cv.Optional(CONF_CO2): _node_schema(
+# key: (what is read, request argument or None for the node address, schema)
+SENSORS = {
+    CONF_CO2: (
+        DucoReading.DUCO_READING_CO2,
+        None,
+        _node_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_CARBON_DIOXIDE,
         ),
-        cv.Optional(CONF_TEMPERATURE): _node_schema(**_TEMPERATURE),
-        cv.Optional(CONF_HUMIDITY): _node_schema(
+    ),
+    CONF_TEMPERATURE: (
+        DucoReading.DUCO_READING_NODE_TEMPERATURE,
+        None,
+        _node_schema(**_TEMPERATURE),
+    ),
+    CONF_HUMIDITY: (
+        DucoReading.DUCO_READING_HUMIDITY,
+        None,
+        _node_schema(
             unit_of_measurement=UNIT_PERCENT,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_HUMIDITY,
         ),
-        cv.Optional(CONF_FILTER_REMAINING): _schema(
+    ),
+    CONF_FILTER_REMAINING: (
+        DucoReading.DUCO_READING_FILTER_REMAINING,
+        0x30,
+        _schema(
+            "1200s",
             unit_of_measurement=UNIT_DAYS,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_DURATION,
-        ).extend(cv.polling_component_schema("1200s")),
-        cv.Optional(CONF_FLOW_LEVEL): _schema(
-            unit_of_measurement=UNIT_PERCENT, accuracy_decimals=0
         ),
-        cv.Optional(CONF_TIME_REMAINING): _schema(
+    ),
+    CONF_FLOW_LEVEL: (
+        DucoReading.DUCO_READING_FLOW_LEVEL,
+        BOX_NODE,
+        _schema(unit_of_measurement=UNIT_PERCENT, accuracy_decimals=0),
+    ),
+    CONF_TIME_REMAINING: (
+        DucoReading.DUCO_READING_TIME_REMAINING,
+        BOX_NODE,
+        _schema(
             unit_of_measurement=UNIT_SECOND,
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_DURATION,
         ),
-        cv.Optional(CONF_TEMPERATURE_ODA): _schema(**_TEMPERATURE),
-        cv.Optional(CONF_TEMPERATURE_SUP): _schema(**_TEMPERATURE),
-        cv.Optional(CONF_TEMPERATURE_ETA): _schema(**_TEMPERATURE),
-        cv.Optional(CONF_TEMPERATURE_EHA): _schema(**_TEMPERATURE),
-        cv.Optional(CONF_BYPASS): _schema(
-            unit_of_measurement=UNIT_PERCENT, accuracy_decimals=0
-        ),
-    }
+    ),
+    CONF_TEMPERATURE_ODA: (
+        DucoReading.DUCO_READING_BOX_TEMPERATURE,
+        0x00,
+        _schema(**_TEMPERATURE),
+    ),
+    CONF_TEMPERATURE_SUP: (
+        DucoReading.DUCO_READING_BOX_TEMPERATURE,
+        0x01,
+        _schema(**_TEMPERATURE),
+    ),
+    CONF_TEMPERATURE_ETA: (
+        DucoReading.DUCO_READING_BOX_TEMPERATURE,
+        0x02,
+        _schema(**_TEMPERATURE),
+    ),
+    CONF_TEMPERATURE_EHA: (
+        DucoReading.DUCO_READING_BOX_TEMPERATURE,
+        0x03,
+        _schema(**_TEMPERATURE),
+    ),
+    CONF_BYPASS: (
+        DucoReading.DUCO_READING_BYPASS,
+        0x10,
+        _schema(unit_of_measurement=UNIT_PERCENT, accuracy_decimals=0),
+    ),
+}
+
+CONFIG_SCHEMA = DUCO_COMPONENT_SCHEMA.extend(
+    {cv.Optional(key): schema for key, (_, _, schema) in SENSORS.items()}
 )
 
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DUCO_ID])
     sensors = sensor.sub_sensors(config, parent=hub)
-    for key, reading in READINGS.items():
+    for key, (reading, argument, _) in SENSORS.items():
         if (confs := config.get(key)) is None:
             continue
-        # Node sensors are lists, one entry per node address
-        for conf in confs if reading.argument is None else [confs]:
-            argument = (
-                conf[CONF_ADDRESS] if reading.argument is None else reading.argument
-            )
+        for conf in confs if isinstance(confs, list) else [confs]:
             var = await sensors.create(
-                conf,
-                None,
-                reading.function,
-                argument,
-                reading.offset,
-                reading.value_format,
-                reading.divisor,
-                reading.minimum,
-                reading.maximum,
+                conf, None, reading, conf.get(CONF_ADDRESS, argument)
             )
             await cg.register_component(var, conf)
