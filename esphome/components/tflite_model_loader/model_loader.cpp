@@ -1,39 +1,45 @@
 #include "model_loader.h"
 
 #ifdef USE_TFLITE_MICRO_HELPER
-#include "esphome/core/log.h"
+#include <cinttypes>
 #include <set>
+#include "esphome/core/log.h"
+#include "flatbuffers/verifier.h"
 
 namespace esphome::tflite_model_loader {
 
 ESPHOME_LOG_TAG(TAG, "tflite_model_loader");
 
-void ModelLoader::unload() {
+void ModelLoader::release_model_() {
   this->interpreter_.reset();
-  this->tensor_arena_allocation_.data.reset();
-  this->tensor_arena_allocation_.actual_size = 0;
-  this->tensor_arena_size_requested_ = 0;
-
-  // Reset state
-  this->config_ = ModelConfig{};
-  this->output_size_ = 0;
+  this->resolver_.reset();
   this->tflite_model_ = nullptr;
   this->model_length_ = 0;
-  this->resolver_.reset();
+  this->tensor_arena_ = nullptr;
+  this->tensor_arena_size_ = 0;
+  this->config_ = ModelConfig{};
+  this->output_size_ = 0;
+}
 
-  ESP_LOGI(TAG, "Model unloaded and memory freed");
+void ModelLoader::unload() {
+  const bool was_loaded = this->interpreter_ != nullptr || this->tensor_arena_allocation_;
+  this->release_model_();
+  this->tensor_arena_allocation_.reset();
+  if (was_loaded) {
+    ESP_LOGI(TAG, "Model unloaded and memory freed");
+  }
 }
 
 bool ModelLoader::load_model(const uint8_t *model_data, size_t model_size, const ModelConfig &config) {
-  this->model_length_ = model_size;
-
-  // Use configured arena size, or fall back to default
+  // Use the configured arena size, or fall back to the default
   if (this->tensor_arena_size_requested_ == 0) {
-    this->tensor_arena_size_requested_ = 100 * 1024;  // Default 100KB
-    ESP_LOGW(TAG, "Using default tensor arena size: 100KB");
+    this->tensor_arena_size_requested_ = DEFAULT_TENSOR_ARENA_SIZE;
+    ESP_LOGW(TAG, "Using default tensor arena size: %zu bytes", DEFAULT_TENSOR_ARENA_SIZE);
   }
 
-  // Allocate tensor arena
+  // Drop the previous model first: its interpreter points into the arena being replaced.
+  this->unload();
+
   this->tensor_arena_allocation_ =
       tflite_memory_handler::MemoryManager::allocate_tensor_arena(this->tensor_arena_size_requested_);
   if (!this->tensor_arena_allocation_) {
@@ -41,189 +47,168 @@ bool ModelLoader::load_model(const uint8_t *model_data, size_t model_size, const
     return false;
   }
 
-  // Load the model using the allocated arena
-  return this->load_model_with_arena(model_data, model_size, this->tensor_arena_allocation_.data.get(),
-                                     this->tensor_arena_allocation_.actual_size, config);
+  if (!this->load_model_with_arena(model_data, model_size, this->tensor_arena_allocation_.data.get(),
+                                   this->tensor_arena_allocation_.actual_size, config)) {
+    this->unload();
+    return false;
+  }
+  return true;
 }
 
 bool ModelLoader::load_model_with_arena(const uint8_t *model_data, size_t model_size, uint8_t *tensor_arena,
                                         size_t tensor_arena_size, const ModelConfig &config,
                                         tflite::MicroResourceVariables *mrv) {
+  if (!this->load_with_arena_(model_data, model_size, tensor_arena, tensor_arena_size, config, mrv)) {
+    // The arena belongs to the caller, so only the model state is dropped here.
+    this->release_model_();
+    return false;
+  }
+  return true;
+}
+
+bool ModelLoader::load_with_arena_(const uint8_t *model_data, size_t model_size, uint8_t *tensor_arena,
+                                   size_t tensor_arena_size, const ModelConfig &config,
+                                   tflite::MicroResourceVariables *mrv) {
+  // A previously loaded model must not keep pointing into an arena that is being replaced.
+  this->release_model_();
+
   if (this->debug_) {
     ESP_LOGD(TAG, "Loading model with config:");
     ESP_LOGD(TAG, "  Description: %s", config.description.c_str());
     ESP_LOGD(TAG, "  Output processing: %s", config.output_processing.c_str());
-    ESP_LOGD(TAG, "Model data validation:");
-    ESP_LOGD(TAG, "  Model data pointer: %p", model_data);
-    ESP_LOGD(TAG, "  Model data size: %zu bytes", model_size);
+    ESP_LOGD(TAG, "  Model data pointer: %p (%zu bytes)", model_data, model_size);
+    ESP_LOGD(TAG, "  Tensor arena: %p (%zu bytes)", tensor_arena, tensor_arena_size);
   }
 
   if (model_data == nullptr) {
     ESP_LOGE(TAG, "Model data pointer is NULL!");
     return false;
   }
-
   if (model_size == 0) {
     ESP_LOGE(TAG, "Model data size is 0!");
     return false;
   }
+  if (tensor_arena == nullptr) {
+    ESP_LOGE(TAG, "Tensor arena pointer is NULL!");
+    return false;
+  }
+  if (tensor_arena_size == 0) {
+    ESP_LOGE(TAG, "Tensor arena size is 0!");
+    return false;
+  }
 
 #ifdef DEBUG_TFLITE_MICRO_HELPER
-  // Check TFLite magic number
-  if (model_size >= 8) {
-    ESP_LOGI(TAG, "First 8 bytes: %02X %02X %02X %02X %02X %02X %02X %02X", model_data[0], model_data[1], model_data[2],
-             model_data[3], model_data[4], model_data[5], model_data[6], model_data[7]);
-
-    // TFLite magic number should be: XX 00 00 00 54 46 4C 33
-    if (model_data[1] == 0x00 && model_data[2] == 0x00 && model_data[3] == 0x00 && model_data[4] == 0x54 &&
-        model_data[5] == 0x46 && model_data[6] == 0x4C && model_data[7] == 0x33) {
-      ESP_LOGI(TAG, "Valid TFLite magic number found (version byte: 0x%02X)", model_data[0]);
-    } else {
-      ESP_LOGE(TAG, "Invalid TFLite magic number");
-      // Don't return false here if we want to try anyway, but legacy returned matches this block
-      return false;
-    }
+  // A .tflite file is a 4-byte offset followed by the "TFL3" file identifier.
+  if (model_size < 8 || model_data[4] != 'T' || model_data[5] != 'F' || model_data[6] != 'L' || model_data[7] != '3') {
+    ESP_LOGE(TAG, "Model does not start with the TFL3 file identifier");
+    return false;
   }
 #endif
 
-  this->config_ = config;
-
-  // For PROGMEM data, we need to handle it specially
-  ESP_LOGI(TAG, "Loading model from PROGMEM (%zu bytes)", model_size);
-
-  this->tflite_model_ = tflite::GetModel(model_data);
-
-  // Note: If GetModel fails with PROGMEM data, the model may need to be
-  // copied to RAM first. This is rare -- most PROGMEM data works with GetModel.
-  // If you encounter issues, ensure the model data is properly aligned.
-
-  if (this->tflite_model_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to parse model - invalid data");
+  // Validate the buffer before anything dereferences it: GetModel() trusts the offset it reads.
+  flatbuffers::Verifier verifier(model_data, model_size);
+  if (!tflite::VerifyModelBuffer(verifier)) {
+    ESP_LOGE(TAG, "Model buffer verification failed (%zu bytes)", model_size);
     return false;
   }
 
-  if (this->tflite_model_->version() != TFLITE_SCHEMA_VERSION) {
-    ESP_LOGE(TAG, "Model schema version mismatch: Model has %d, Expecting %d", this->tflite_model_->version(),
+  const tflite::Model *model = tflite::GetModel(model_data);
+  if (model->version() != TFLITE_SCHEMA_VERSION) {
+    ESP_LOGE(TAG, "Model schema version mismatch: model has %" PRIu32 ", expecting %d", model->version(),
              TFLITE_SCHEMA_VERSION);
-
-    // Diagnostic dump to identify corrupted files
-    if (model_data != nullptr && model_size >= 16) {
-      ESP_LOGE(TAG, "Model Header Dump (First 16 bytes):");
-      ESP_LOGE(TAG, "  %02X %02X %02X %02X %02X %02X %02X %02X  %02X %02X %02X %02X %02X %02X %02X %02X", model_data[0],
-               model_data[1], model_data[2], model_data[3], model_data[4], model_data[5], model_data[6], model_data[7],
-               model_data[8], model_data[9], model_data[10], model_data[11], model_data[12], model_data[13],
-               model_data[14], model_data[15]);
-
-      // Check magic number TFL3 (starts at offset 4)
-      if (model_data[4] == 'T' && model_data[5] == 'F' && model_data[6] == 'L' && model_data[7] == '3') {
-        ESP_LOGW(TAG, "Magic number 'TFL3' is PRESENT. Issue might be alignment or genuine schema mismatch.");
-      } else {
-        ESP_LOGE(TAG, "Magic number 'TFL3' is MISSING! The file is likely corrupted or not a valid TFLite model.");
-      }
-    } else {
-      ESP_LOGE(TAG, "Unable to dump header: Data null or too small (%zu bytes)", model_size);
-    }
     return false;
   }
 
-  // Reset and allocate fresh resolver for this load cycle
-  this->resolver_ = std::make_unique<tflite::MicroMutableOpResolver<TFLITE_MICRO_MAX_OPERATORS>>();
+  // These fields are optional in the schema, so they need a null check before use.
+  const auto *operator_codes = model->operator_codes();
+  const auto *subgraphs = model->subgraphs();
+  if (operator_codes == nullptr || subgraphs == nullptr || subgraphs->size() == 0) {
+    ESP_LOGE(TAG, "Model has no operator codes or subgraphs");
+    return false;
+  }
+  const auto *subgraph = subgraphs->Get(0);
+  if (subgraph == nullptr || subgraph->operators() == nullptr || subgraph->operators()->size() == 0) {
+    ESP_LOGE(TAG, "Model has no operators");
+    return false;
+  }
 
-  if (this->debug_) {
-    ESP_LOGD(TAG, "Operator codes found in model:");
-    for (size_t i = 0; i < this->tflite_model_->operator_codes()->size(); ++i) {
-      const auto *op_code = this->tflite_model_->operator_codes()->Get(i);
-      ESP_LOGD(TAG, "  [%d]: %d (%s)", static_cast<int>(i), op_code->builtin_code(),
+  // Collect the operators once: the same set drives registration and the failure diagnostics.
+  std::set<tflite::BuiltinOperator> required_ops;
+  bool has_delegate = false;
+  for (uint32_t i = 0; i < operator_codes->size(); i++) {
+    const auto *op_code = operator_codes->Get(i);
+    if (op_code == nullptr)
+      continue;
+    required_ops.insert(op_code->builtin_code());
+    has_delegate = has_delegate || op_code->builtin_code() == tflite::BuiltinOperator_DELEGATE;
+    if (this->debug_) {
+      ESP_LOGD(TAG, "  Op code [%" PRIu32 "]: %d (%s)", i, op_code->builtin_code(),
                tflite::EnumNameBuiltinOperator(op_code->builtin_code()));
     }
   }
 
-  std::set<tflite::BuiltinOperator> required_ops;
-
-  for (size_t i = 0; i < this->tflite_model_->operator_codes()->size(); ++i) {
-    const auto *op_code = this->tflite_model_->operator_codes()->Get(i);
-    required_ops.insert(op_code->builtin_code());
+  if (has_delegate) {
+    // TFLite Micro has no delegate support; such a model cannot be registered below.
+    ESP_LOGE(TAG, "Model contains a DELEGATE operator, which TFLite Micro does not support");
+    ESP_LOGE(TAG, "Re-export the model with the XNNPACK delegate disabled");
   }
 
+  this->tflite_model_ = model;
+  this->model_length_ = model_size;
+  this->tensor_arena_ = tensor_arena;
+  this->tensor_arena_size_ = tensor_arena_size;
+
+  ESP_LOGI(TAG, "Loading model from PROGMEM (%zu bytes, arena %zu bytes)", model_size, tensor_arena_size);
+
+  // Reset and allocate fresh resolver for this load cycle
+  this->resolver_ = std::make_unique<tflite::MicroMutableOpResolver<TFLITE_MICRO_MAX_OPERATORS>>();
   if (!tflite_op_processor::OpResolverManager::register_ops<TFLITE_MICRO_MAX_OPERATORS>(*this->resolver_, required_ops,
                                                                                         TAG)) {
-    ESP_LOGE(TAG, "Failed to register operators");
+    ESP_LOGE(TAG, "Failed to register the model operators");
     return false;
   }
 
   // Conditional interpreter construction: with MRV for streaming, without for standard
   if (mrv != nullptr) {
-    this->interpreter_ = std::make_unique<tflite::MicroInterpreter>(this->tflite_model_, *this->resolver_, tensor_arena,
-                                                                    tensor_arena_size, mrv);
+    this->interpreter_ =
+        std::make_unique<tflite::MicroInterpreter>(model, *this->resolver_, tensor_arena, tensor_arena_size, mrv);
   } else {
-    this->interpreter_ = std::make_unique<tflite::MicroInterpreter>(this->tflite_model_, *this->resolver_, tensor_arena,
-                                                                    tensor_arena_size);
+    this->interpreter_ =
+        std::make_unique<tflite::MicroInterpreter>(model, *this->resolver_, tensor_arena, tensor_arena_size);
   }
 
   if (this->interpreter_->AllocateTensors() != kTfLiteOk) {
-    ESP_LOGE(TAG, "Failed to allocate tensors");
-    ESP_LOGE(TAG, "  Tensor arena: %zu bytes (requested: %zu)", tensor_arena_size, this->tensor_arena_size_requested_);
-    ESP_LOGE(TAG, "  Model size: %zu bytes", this->model_length_);
-    ESP_LOGE(TAG, "  Model operators: %zu", this->tflite_model_->subgraphs()->Get(0)->operators()->size());
-    ESP_LOGE(TAG, "  Model operator codes: %zu", this->tflite_model_->operator_codes()->size());
+    ESP_LOGE(TAG, "Failed to allocate tensors: %zu byte arena for a %zu byte model (requested: %zu)", tensor_arena_size,
+             model_size, this->tensor_arena_size_requested_);
+    ESP_LOGE(TAG, "  Operators: %" PRIu32 ", operator codes: %" PRIu32, subgraph->operators()->size(),
+             operator_codes->size());
+#ifdef DEBUG_TFLITE_MICRO_HELPER
+    ESP_LOGE(TAG, "  Arena used before failure: %zu bytes", this->interpreter_->arena_used_bytes());
+#endif
+    return false;
+  }
 
-    // Log all operator codes in the model for debugging
-    for (size_t i = 0; i < this->tflite_model_->operator_codes()->size(); ++i) {
-      const auto *op_code = this->tflite_model_->operator_codes()->Get(i);
-      ESP_LOGE(TAG, "  Op code [%zu]: builtin_code=%d (%s)", i, op_code->builtin_code(),
-               tflite::EnumNameBuiltinOperator(op_code->builtin_code()));
-    }
-
-    // Check for DELEGATE op which is not supported by TFLite Micro
-    for (size_t i = 0; i < this->tflite_model_->operator_codes()->size(); ++i) {
-      const auto *op_code = this->tflite_model_->operator_codes()->Get(i);
-      if (op_code->builtin_code() == tflite::BuiltinOperator_DELEGATE) {
-        ESP_LOGE(TAG, "  *** WARNING: Model contains DELEGATE operator (index %zu)! ***", i);
-        ESP_LOGE(TAG, "  *** TFLite Micro does NOT support delegates. ***");
-        ESP_LOGE(TAG, "  *** The model was likely exported with XNNPACK delegate enabled. ***");
-        ESP_LOGE(TAG, "  *** Re-export the model with --no-xnnpack or disable delegates. ***");
+  if (this->debug_) {
+    const TfLiteTensor *input = this->input_tensor();
+    if (input != nullptr) {
+      for (int i = 0; i < input->dims->size; i++) {
+        ESP_LOGD(TAG, "  Input dim %d: %d", i, input->dims->data[i]);
       }
     }
-
-// Log arena usage info if available
-#ifdef DEBUG_TFLITE_MICRO_HELPER
-    size_t arena_used = this->interpreter_->arena_used_bytes();
-    ESP_LOGE(TAG, "  Arena used before failure: %zu bytes", arena_used);
-#endif
-
-    return false;
   }
 
-  if (this->tflite_model_->subgraphs()->Get(0)->operators()->size() == 0) {
-    ESP_LOGE(TAG, "Model has no operators!");
-    return false;
-  }
-
-  auto *input = this->input_tensor();
-  if (input) {
-    ESP_LOGI(TAG, "Input tensor dimensions:");
-    for (int i = 0; i < input->dims->size; i++) {
-      ESP_LOGI(TAG, "  Dim %d: %d", i, input->dims->data[i]);
-    }
-  }
-
-  // Calculate output size from tensor dimensions
-  TfLiteTensor *output = this->output_tensor();
-  if (output) {
+  // Cache the output element count so process_output() does not recompute it per inference.
+  if (const TfLiteTensor *output = this->output_tensor(); output != nullptr) {
     int size = 1;
-    for (int i = 0; i < output->dims->size; i++) {
+    for (int i = 0; i < output->dims->size; i++)
       size *= output->dims->data[i];
-    }
     this->output_size_ = size;
-
-    // Note: output_processing is always set by __init__.py (defaults to "direct_class"),
-    // so the auto-detection branch (when output_processing is empty) is never reached
-    // at runtime. If load_model_with_arena() is called directly, ensure output_processing
-    // is set explicitly in the ModelConfig before calling.
   }
+
+  // Committed last, so a failed load never leaves a stale config behind.
+  this->config_ = config;
 
   ESP_LOGI(TAG, "Model loaded successfully");
-
   return true;
 }
 

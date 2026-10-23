@@ -26,6 +26,9 @@ struct ModelConfig {
 /// Owns the interpreter and op resolver for the loaded model.
 class ModelLoader {
  public:
+  /// @brief Tensor arena size used when none was requested explicitly.
+  static constexpr size_t DEFAULT_TENSOR_ARENA_SIZE = 100 * 1024;
+
   /// @brief Unloads the model and frees all associated memory.
   void unload();
 
@@ -69,11 +72,14 @@ class ModelLoader {
   /// @brief Get the number of bytes used in the arena after allocation.
   size_t get_arena_used_bytes() const;
 
-  /// @brief Get the actual tensor arena size in use (0 when no model is loaded).
-  size_t get_tensor_arena_size() const { return this->tensor_arena_allocation_.actual_size; }
+  /// @brief Get the tensor arena size in use (0 when no model is loaded).
+  size_t get_tensor_arena_size() const { return this->tensor_arena_size_; }
 
-  /// @brief Get the requested tensor arena size.
+  /// @brief Get the tensor arena size requested from MemoryManager.
   size_t tensor_arena_size_requested() const { return this->tensor_arena_size_requested_; }
+
+  /// @brief Set the tensor arena size to request from MemoryManager.
+  void set_tensor_arena_size(size_t size) { this->tensor_arena_size_requested_ = size; }
 
   /// @brief Get the configuration of the loaded model.
   const ModelConfig &config() const { return this->config_; }
@@ -88,11 +94,23 @@ class ModelLoader {
   void set_debug(bool debug) { this->debug_ = debug; }
 
  protected:
+  /// @brief Load a model into an already allocated tensor arena.
+  /// On failure the model state is only partially cleared; use unload() or
+  /// load_model_with_arena() so the interpreter never keeps a stale arena pointer.
+  bool load_with_arena_(const uint8_t *model_data, size_t model_size, uint8_t *tensor_arena, size_t tensor_arena_size,
+                        const ModelConfig &config, tflite::MicroResourceVariables *mrv);
+
+  /// @brief Tear down the interpreter and forget the model, leaving the owned arena untouched.
+  void release_model_();
+
   const tflite::Model *tflite_model_{nullptr};
   size_t model_length_{0};
   std::unique_ptr<tflite::MicroInterpreter> interpreter_;
   std::unique_ptr<tflite::MicroMutableOpResolver<TFLITE_MICRO_MAX_OPERATORS>> resolver_;
+  /// Arena owned by load_model(); empty when the caller supplies the arena.
   tflite_memory_handler::MemoryManager::AllocationResult tensor_arena_allocation_;
+  uint8_t *tensor_arena_{nullptr};
+  size_t tensor_arena_size_{0};
   size_t tensor_arena_size_requested_{0};
   ModelConfig config_;
   int output_size_{0};

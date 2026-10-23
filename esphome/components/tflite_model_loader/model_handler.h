@@ -12,14 +12,12 @@
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/micro_resource_variable.h"
 #include "esphome/components/tflite_memory_handler/arena_probe.h"
-#include "esphome/components/tflite_memory_handler/memory_manager.h"
 #include "esphome/components/tflite_model_loader/crc32.h"
 #include "esphome/components/tflite_model_loader/model_loader.h"
 #include "esphome/components/tflite_output_processor/output_processor.h"
 
 namespace esphome::tflite_model_loader {
 
-using tflite_memory_handler::MemoryManager;
 using tflite_output_processor::ProcessedOutput;
 
 // Image-specific model config (replaces old combined ModelConfig)
@@ -104,17 +102,20 @@ class ModelHandler {
   ProcessedOutput process_output(const float *output_data) const;
   ProcessedOutput process_output(TfLiteTensor *output_tensor) const;
 
-  const ModelConfig &get_config() const { return this->config_; }
+  const ModelConfig &get_config() const { return this->loader_.config(); }
+
+  int output_size() const { return this->loader_.output_size(); }
 
   const ImageModelConfig &get_image_config() const { return this->image_config_; }
   void set_image_config(const ImageModelConfig &cfg) { this->image_config_ = cfg; }
 
   size_t get_arena_used_bytes() const { return this->loader_.get_arena_used_bytes(); }
 
-  // Memory management helpers
-  size_t get_tensor_arena_size() const { return this->tensor_arena_allocation_.actual_size; }
+  /// @brief Get the tensor arena size in use (0 when no model is loaded).
+  size_t get_tensor_arena_size() const { return this->loader_.get_tensor_arena_size(); }
 
-  void report_memory_status();
+  /// @brief Set the tensor arena size to request from MemoryManager.
+  void set_tensor_arena_size(size_t size) { this->loader_.set_tensor_arena_size(size); }
 
   // Debug helpers
   void log_input_stats() const;
@@ -169,15 +170,7 @@ class ModelHandler {
 
  private:
   tflite_model_loader::ModelLoader loader_;
-  ModelConfig config_;
   ImageModelConfig image_config_;
-  int output_size_{0};
-
-  // Memory management (mirrors the arena owned by the facade or the loader)
-  MemoryManager::AllocationResult tensor_arena_allocation_;
-  size_t tensor_arena_size_requested_{0};
-  size_t model_length_{0};
-
   bool debug_{false};
 };
 

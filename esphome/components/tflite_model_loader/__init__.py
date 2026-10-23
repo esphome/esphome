@@ -9,6 +9,7 @@ verification of model data.
 import esphome.codegen as cg
 from esphome.components import esp32
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = [
@@ -24,7 +25,7 @@ DOMAIN = "tflite_model_loader"
 CONFIG_SCHEMA = cv.Schema({})
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Emit the build flags this component's sources need, so it also works when
     # it is loaded directly instead of through tflite_micro_runtime.
     cg.add_define("USE_TFLITE_MICRO_HELPER")
