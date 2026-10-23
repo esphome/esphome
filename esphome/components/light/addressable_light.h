@@ -134,8 +134,8 @@ class AddressableLight : public LightOutput, public Component {
 #endif
   }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
-  // True, with the frame queued for the next loop, while interval_us has not passed since last_us
-  bool refresh_too_soon_(uint32_t now_us, uint32_t last_us, uint32_t interval_us) {
+  // Queues the frame for the next loop and returns true until interval_us has passed since last_us
+  bool throttle_show_(uint32_t now_us, uint32_t last_us, uint32_t interval_us) {
     if (now_us - last_us >= interval_us)
       return false;
     this->schedule_show();

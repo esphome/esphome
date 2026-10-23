@@ -21,7 +21,7 @@ class HelperStrip : public AddressableLight {
   void clear_effect_data() override {}
   LightTraits get_traits() override { return {}; }
   void write_state(LightState *state) override {}
-  using AddressableLight::refresh_too_soon_;
+  using AddressableLight::throttle_show_;
 
  protected:
   ESPColorView get_view_internal(int32_t index) const override {
@@ -77,12 +77,12 @@ TEST(LedStripHelpers, RefreshTooSoonHoldsTheFrame) {
   HelperStrip strip;
   LightState state(&strip);
   strip.setup_state(&state);
-  EXPECT_FALSE(strip.refresh_too_soon_(1000, 0, 0));
-  EXPECT_TRUE(strip.refresh_too_soon_(1000, 500, 600));
-  EXPECT_FALSE(strip.refresh_too_soon_(1100, 500, 600));
+  EXPECT_FALSE(strip.throttle_show_(1000, 0, 0));
+  EXPECT_TRUE(strip.throttle_show_(1000, 500, 600));
+  EXPECT_FALSE(strip.throttle_show_(1100, 500, 600));
   // micros() wraps
-  EXPECT_TRUE(strip.refresh_too_soon_(100, UINT32_MAX - 99, 300));
-  EXPECT_FALSE(strip.refresh_too_soon_(200, UINT32_MAX - 99, 300));
+  EXPECT_TRUE(strip.throttle_show_(100, UINT32_MAX - 99, 300));
+  EXPECT_FALSE(strip.throttle_show_(200, UINT32_MAX - 99, 300));
 }
 
 }  // namespace esphome::light::testing
