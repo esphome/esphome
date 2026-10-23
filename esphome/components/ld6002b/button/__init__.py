@@ -1,3 +1,4 @@
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import button
 from esphome.components.select import DOMAIN as SELECT_DOMAIN
@@ -9,6 +10,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from esphome.cpp_generator import ParameterListExpression
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -33,53 +35,52 @@ from ..const import (
 
 DEPENDENCIES = ["ld6002b"]
 
-LD6002BButton = ld6002b_ns.class_("LD6002BButton", button.Button)
 ButtonType = ld6002b_ns.enum("ButtonType", is_class=True)
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD6002B_ID): cv.use_id(LD6002BComponent),
         cv.Optional(CONF_APPLY_AREA): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_CONFIG
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_AUTO_INTERFERENCE): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_CONFIG
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_GET_AREAS): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_CLEAR_INTERFERENCE): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_CONFIG
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_RESET_DETECTION_AREA): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_CONFIG
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_GET_DELAY): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_GET_SENSITIVITY): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_GET_TRIGGER_SPEED): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_GET_Z_RANGE): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_GET_INSTALLATION): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_GET_LOW_POWER_MODE): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_GET_LOW_POWER_SLEEP_TIME): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
         cv.Optional(CONF_RESET_UNATTENDED): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_CONFIG
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_CONFIG
         ),
         cv.Optional(CONF_WAKE): button.button_schema(
-            LD6002BButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+            button.ApplyButton, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
     }
 )
@@ -131,8 +132,34 @@ BUTTON_MAP = {
 
 
 async def to_code(config: ConfigType) -> None:
-    for key, button_type in BUTTON_MAP.items():
-        if button_config := config.get(key):
-            b = cg.new_Pvariable(button_config[CONF_ID], button_type)
-            await button.register_button(b, button_config)
-            await cg.register_parented(b, config[CONF_LD6002B_ID])
+    confs = [
+        (button_type, conf)
+        for key, button_type in BUTTON_MAP.items()
+        if (conf := config.get(key)) is not None
+    ]
+    if not confs:
+        return
+    hub = await cg.get_variable(config[CONF_LD6002B_ID])
+    params = button.APPLY_ENTITY.params
+    # One function for all buttons, picking the type by pointer: one class instead of one per button.
+    # Named after the first button so two button blocks on one hub do not clash.
+    fn = f"esphome__{confs[0][1][CONF_ID].id}__button_fn"
+    cg.add_global(
+        cg.RawStatement(f"static void {fn}({ParameterListExpression(*params)});")
+    )
+    template = cg.TemplateArguments(cg.RawExpression(fn))
+    created = [
+        (button_type, await button.new_button(conf, template))
+        for button_type, conf in confs
+    ]
+    *head, (last_type, _) = created
+    chain = "".join(f"entity == {parent_ref(var)} ? {t} : " for t, var in head)
+    cg.static_function(
+        fn,
+        cg.void,
+        list(params),
+        [
+            f"const auto type = {chain}{last_type};",
+            f"{parent_ref(hub)}->press_button(type);",
+        ],
+    )
