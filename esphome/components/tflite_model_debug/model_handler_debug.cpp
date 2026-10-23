@@ -171,17 +171,17 @@ void ModelHandler::debug_output_tensor_details(TfLiteTensor *output) const {
     return;
   ESP_LOGI(TAG, "=== OUTPUT TENSOR DETAILS ===");
   ESP_LOGI(TAG, "Type: %s, Scale: %.6f, ZP: %d, Size: %d", tflite_type_to_string(output->type), output->params.scale,
-           output->params.zero_point, this->output_size_);
+           output->params.zero_point, this->output_size());
 }
 
 void ModelHandler::debug_raw_outputs(TfLiteTensor *output) const {
   ESP_LOGI(TAG, "=== RAW OUTPUTS ===");
   if (output->type == kTfLiteUInt8) {
-    for (int i = 0; i < this->output_size_ && i < 10; i++) {
+    for (int i = 0; i < this->output_size() && i < 10; i++) {
       ESP_LOGI(TAG, "  [%d]: %u", i, output->data.uint8[i]);
     }
   } else if (output->type == kTfLiteFloat32) {
-    for (int i = 0; i < this->output_size_ && i < 10; i++) {
+    for (int i = 0; i < this->output_size() && i < 10; i++) {
       ESP_LOGI(TAG, "  [%d]: %.6f", i, output->data.f[i]);
     }
   }
@@ -255,8 +255,6 @@ void ModelHandler::test_configuration(const ImageModelConfig &config,
   ESP_LOGI(TAG, "Testing Config: Order=%s Size=%dx%d Norm=%d Type=%s", config.input_order.c_str(), config.input_size[0],
            config.input_size[1], config.normalize, config.input_type.c_str());
 
-  ModelConfig original = this->config_;
-
   ConfigTestResult res;
   res.config = config;
 
@@ -286,8 +284,6 @@ void ModelHandler::test_configuration(const ImageModelConfig &config,
   if (success > 0)
     res.avg_confidence = total_conf / success;
   results.push_back(res);
-
-  this->config_ = original;
 }
 
 void ModelHandler::debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
