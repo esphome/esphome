@@ -14,13 +14,17 @@ namespace esphome::haier_water_heater {
 ESPHOME_LOG_TAG(TAG, "haier_water_heater");
 using namespace water_heater_protocol;
 
+#ifdef USE_TEXT_SENSOR
 // Indexed by HonMode, with Unknown as the fallback for out-of-range values.
 PROGMEM_STRING_TABLE(HonModeLabels, "Unknown", "Normal", "ECO", "BPS");
+#endif
 
 void HonWaterHeater::setup() {
   this->status_set_warning(LOG_STR("Waiting for a valid appliance status frame"));
-  if (this->communication_sensor_ != nullptr)
-    this->communication_sensor_->publish_state(false);
+#ifdef USE_BINARY_SENSOR
+  if (this->communication_binary_sensor_ != nullptr)
+    this->communication_binary_sensor_->publish_state(false);
+#endif
   this->update_network_status_();
   this->set_interval(NETWORK_STATUS_INTERVAL_ID, NETWORK_STATUS_INTERVAL_MS,
                      [this]() { this->update_network_status_(); });
@@ -87,8 +91,10 @@ void HonWaterHeater::check_timeouts_(uint32_t now) {
     this->status_set_warning(LOG_STR("Heater communication timed out"));
     ESP_LOGW(TAG, "Heater communication lost: no valid status for %u ms",
              static_cast<unsigned>(this->communication_timeout_));
-    if (this->communication_sensor_ != nullptr)
-      this->communication_sensor_->publish_state(false);
+#ifdef USE_BINARY_SENSOR
+    if (this->communication_binary_sensor_ != nullptr)
+      this->communication_binary_sensor_->publish_state(false);
+#endif
   }
   const uint32_t waited = now - this->request_sent_;
   switch (this->awaiting_) {
@@ -243,8 +249,10 @@ void HonWaterHeater::process_frame_() {
   // Published last so an automation on the sensor sees fresh heater state and can send a control.
   if (recovered) {
     ESP_LOGI(TAG, "Heater communication established");
-    if (this->communication_sensor_ != nullptr)
-      this->communication_sensor_->publish_state(true);
+#ifdef USE_BINARY_SENSOR
+    if (this->communication_binary_sensor_ != nullptr)
+      this->communication_binary_sensor_->publish_state(true);
+#endif
   }
 }
 
@@ -267,33 +275,39 @@ void HonWaterHeater::publish_status_(const Status &status) {
   }
   // The base entity has no Unknown mode; the text sensor preserves the decoded result.
   this->mode_ = status.powered ? this->last_active_mode_ : water_heater::WATER_HEATER_MODE_OFF;
-  if (this->primary_sensor_ != nullptr)
-    this->primary_sensor_->publish_state(status.current_temperature);
-  if (this->secondary_sensor_ != nullptr) {
-    this->secondary_sensor_->publish_state(
+#ifdef USE_SENSOR
+  if (this->primary_temperature_sensor_ != nullptr)
+    this->primary_temperature_sensor_->publish_state(status.current_temperature);
+  if (this->secondary_temperature_sensor_ != nullptr) {
+    this->secondary_temperature_sensor_->publish_state(
         status.secondary_temperature <= MAX_REPORTED_TEMPERATURE ? status.secondary_temperature : NAN);
   }
-  if (this->target_sensor_ != nullptr)
-    this->target_sensor_->publish_state(status.target_temperature);
-  if (this->heating_time_sensor_ != nullptr)
-    this->heating_time_sensor_->publish_state(status.estimated_heating_time);
-  if (this->water_sensor_ != nullptr) {
+  if (this->target_temperature_sensor_ != nullptr)
+    this->target_temperature_sensor_->publish_state(status.target_temperature);
+  if (this->estimated_heating_time_sensor_ != nullptr)
+    this->estimated_heating_time_sensor_->publish_state(status.estimated_heating_time);
+  if (this->available_water_sensor_ != nullptr) {
     // Three segments of available hot water, published as 0, 33, 66 or 100 percent.
     const uint8_t percent = status.available_water * 100 / 3;
-    this->water_sensor_->publish_state(status.available_water <= 3 ? percent : NAN);
+    this->available_water_sensor_->publish_state(status.available_water <= 3 ? percent : NAN);
   }
-  if (this->power_sensor_ != nullptr)
-    this->power_sensor_->publish_state(status.powered);
-  if (this->heating_sensor_ != nullptr)
-    this->heating_sensor_->publish_state(status.heating);
-  if (this->mode_sensor_ != nullptr) {
+#endif
+#ifdef USE_BINARY_SENSOR
+  if (this->power_binary_sensor_ != nullptr)
+    this->power_binary_sensor_->publish_state(status.powered);
+  if (this->heating_binary_sensor_ != nullptr)
+    this->heating_binary_sensor_->publish_state(status.heating);
+#endif
+#ifdef USE_TEXT_SENSOR
+  if (this->mode_text_sensor_ != nullptr) {
     char label[HonModeLabels::MAX_LENGTH + 1];
     ESPHOME_strncpy_P(label,
                       reinterpret_cast<ESPHOME_PGM_P>(HonModeLabels::get_progmem_str(
                           static_cast<uint8_t>(status.mode), static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN))),
                       sizeof(label));
-    this->mode_sensor_->publish_state(label);
+    this->mode_text_sensor_->publish_state(label);
   }
+#endif
   this->publish_state();
 }
 
@@ -303,15 +317,21 @@ void HonWaterHeater::dump_config() {
                 "  Polling interval: %u ms\n"
                 "  Communication timeout: %u ms",
                 static_cast<unsigned>(POLL_INTERVAL_MS), static_cast<unsigned>(this->communication_timeout_));
-  LOG_SENSOR("  ", "Primary temperature", this->primary_sensor_);
-  LOG_SENSOR("  ", "Secondary temperature", this->secondary_sensor_);
-  LOG_SENSOR("  ", "Target temperature", this->target_sensor_);
-  LOG_SENSOR("  ", "Estimated heating time", this->heating_time_sensor_);
-  LOG_SENSOR("  ", "Available water", this->water_sensor_);
-  LOG_BINARY_SENSOR("  ", "Communication", this->communication_sensor_);
-  LOG_BINARY_SENSOR("  ", "Power", this->power_sensor_);
-  LOG_BINARY_SENSOR("  ", "Heating", this->heating_sensor_);
-  LOG_TEXT_SENSOR("  ", "Mode", this->mode_sensor_);
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Primary temperature", this->primary_temperature_sensor_);
+  LOG_SENSOR("  ", "Secondary temperature", this->secondary_temperature_sensor_);
+  LOG_SENSOR("  ", "Target temperature", this->target_temperature_sensor_);
+  LOG_SENSOR("  ", "Estimated heating time", this->estimated_heating_time_sensor_);
+  LOG_SENSOR("  ", "Available water", this->available_water_sensor_);
+#endif
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "Communication", this->communication_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Power", this->power_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Heating", this->heating_binary_sensor_);
+#endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Mode", this->mode_text_sensor_);
+#endif
 }
 
 water_heater::WaterHeaterCallInternal HonWaterHeater::make_call() {
