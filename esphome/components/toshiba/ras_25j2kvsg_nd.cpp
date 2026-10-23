@@ -3,7 +3,6 @@
 #ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
 
 #include <cmath>
-#include <cstring>
 #include <iterator>
 
 #include "esphome/core/hal.h"
@@ -19,8 +18,8 @@ static constexpr const char *const CUSTOM_PRESETS[] PROGMEM = {
     "Fireplace 1", "Fireplace 2", "Frost protection", "HADA Care", "Sleep 1h", "Sleep 3h", "Sleep 5h", "Sleep 9h",
 };
 static constexpr uint8_t SLEEP_HOURS[] PROGMEM = {1, 3, 5, 9};
-// The two copies of a SWING press can arrive in separate receiver buffers.
-static constexpr uint32_t SWING_REPEAT_MS = 200;
+// The two copies of a press can arrive in separate receiver buffers.
+static constexpr uint32_t REPEAT_MS = 200;
 static constexpr uint8_t MAX_FRAME_LENGTH = 12;
 static constexpr uint8_t MOTION_FRAME_LENGTH = 7;
 static constexpr uint8_t SHORT_MOTION_COMMAND = 0x21;
@@ -328,7 +327,7 @@ void ToshibaRas25j2kvsgNdClimate::perform_(remote_base::RemoteTransmitterBase::T
   transmit.perform();
   // perform() may wait for an earlier send before queuing this one, or block until this send finishes.
   if (swing)
-    this->swing_ignore_until_ = millis() + (duration_us + 999) / 1000 + SWING_REPEAT_MS;
+    this->swing_ignore_until_ = millis() + (duration_us + 999) / 1000 + REPEAT_MS;
 }
 
 bool ToshibaRas25j2kvsgNdClimate::receive_motion_(uint8_t command) {
@@ -339,7 +338,6 @@ bool ToshibaRas25j2kvsgNdClimate::receive_motion_(uint8_t command) {
   const uint32_t remaining = this->swing_ignore_until_ - now;
   if (remaining != 0 && remaining <= UINT16_MAX)
     return true;
-  this->swing_ignore_until_ = now + SWING_REPEAT_MS;
   this->swing_mode =
       this->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   this->last_swing_mode_ = this->swing_mode;
@@ -357,6 +355,9 @@ bool ToshibaRas25j2kvsgNdClimate::parse_state(const uint8_t *message, uint8_t le
 
   preset = ToshibaPreset::TOSHIBA_PRESET_NONE;
   power = static_cast<ToshibaPowerSelection>(message[7] >> 6);
+  // Only the 9 byte frame carries the Fireplace feature bits
+  if (length != 9 && feature != 0)
+    return false;
   if (length == 9) {
     if (message[4] != TOSHIBA_COMMAND_DEFAULT)
       return false;
@@ -365,8 +366,6 @@ bool ToshibaRas25j2kvsgNdClimate::parse_state(const uint8_t *message, uint8_t le
     } else if (feature == FIREPLACE_2) {
       preset = ToshibaPreset::TOSHIBA_PRESET_FIREPLACE_2;
     }
-  } else if (feature != 0) {
-    return false;
   } else if (length == 10 && message[4] == (TOSHIBA_COMMAND_DEFAULT | TOSHIBA_COMMAND_POWER)) {
     switch (message[8]) {
       case TOSHIBA_POWER_HIGH:
@@ -412,8 +411,6 @@ bool ToshibaRas25j2kvsgNdClimate::parse_state(const uint8_t *message, uint8_t le
 
 bool ToshibaRas25j2kvsgNdClimate::on_receive(remote_base::RemoteReceiveData data) {
   bool received = false;
-  uint8_t previous[MAX_FRAME_LENGTH];
-  uint8_t previous_length = 0;
   do {
     uint8_t message[MAX_FRAME_LENGTH]{};
     if (!data.expect_item(TOSHIBA_HEADER_MARK, TOSHIBA_HEADER_SPACE) ||
@@ -424,12 +421,16 @@ bool ToshibaRas25j2kvsgNdClimate::on_receive(remote_base::RemoteReceiveData data
     if (!this->decode_(&data, message + TOSHIBA_HEADER_LENGTH, length - TOSHIBA_HEADER_LENGTH) ||
         !data.expect_mark(TOSHIBA_BIT_MARK) || !frame_checksum_valid(message, length))
       return received;
-    // The remote sends every frame twice; apply and publish each press once.
-    if (length != previous_length || memcmp(message, previous, length) != 0) {
+    // The remote sends every frame twice, in one buffer or two; apply and publish each press once.
+    uint32_t hash = fnv1a_hash_extend(FNV1_OFFSET_BASIS, length);
+    for (uint8_t i = 0; i < length; i++)
+      hash = fnv1a_hash_extend(hash, message[i]);
+    const uint32_t now = millis();
+    if (hash != this->last_frame_hash_ || now - this->last_frame_ms_ >= REPEAT_MS) {
       if (!this->receive_frame_(message, length))
         return received;
-      memcpy(previous, message, length);
-      previous_length = length;
+      this->last_frame_hash_ = hash;
+      this->last_frame_ms_ = now;
     }
     received = true;
   } while (data.expect_space(TOSHIBA_GAP_SPACE) && data.is_valid());
@@ -476,10 +477,11 @@ void ToshibaRas25j2kvsgNdClimate::set_power_selection(size_t index) {
   const auto preset = this->toshiba_preset_();
   if (!power_preset_supported(power, preset))
     return;
-  this->store_power_selection_(power);
+  const bool changed = this->store_power_selection_(power);
   this->transmit_frame_(preset);
   // Published after sending, so a preset change from the select's on_value goes out as its own frame.
-  this->publish_power_selection_();
+  if (changed)
+    this->publish_power_selection_();
 }
 
 bool ToshibaRas25j2kvsgNdClimate::power_preset_supported(ToshibaPowerSelection power, ToshibaPreset preset) {

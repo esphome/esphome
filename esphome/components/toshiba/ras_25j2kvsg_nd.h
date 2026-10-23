@@ -98,8 +98,11 @@ class ToshibaRas25j2kvsgNdClimate final : public ToshibaClimate {
   void publish_power_selection_();
 
   ESPPreferenceObject power_selection_pref_;
-  // millis() until which a received SWING is a repeated copy or an echo of our own send
+  // millis() until which a received SWING is an echo of our own send
   uint32_t swing_ignore_until_{0};
+  // FNV-1a hash and millis() of the last applied frame, to skip its repeated copy
+  uint32_t last_frame_hash_{0};
+  uint32_t last_frame_ms_{0};
   // The target to return to when frost protection ends
   uint8_t normal_target_temperature_{24};
   ToshibaPowerSelection power_selection_{ToshibaPowerSelection::TOSHIBA_POWER_SELECTION_100};

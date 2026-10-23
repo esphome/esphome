@@ -401,7 +401,7 @@ TEST(ToshibaWhTa15pe, DecodesCapturedStatesAndPublishesPowerSelection) {
   }
 }
 
-// Just past the 200 ms window in which a received SWING copy is ignored
+// Just past the 200 ms window in which a received copy of a frame is ignored
 static constexpr uint32_t SWING_WINDOW_PASSED_MS = 220;
 
 TEST(ToshibaWhTa15pe, ShortCommandsPreserveStateAndSwingCopiesToggleOnce) {
@@ -574,9 +574,43 @@ TEST(ToshibaWhTa15pe, BothCopiesOfAPressApplyAndPublishOnce) {
   const auto swing = waveform({0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC);
   burst.insert(burst.end(), swing.begin(), swing.end());
   publications = 0;
+  delay(SWING_WINDOW_PASSED_MS);
   ASSERT_TRUE(receive_raw(f.climate, burst));
   EXPECT_EQ(publications, 2u);
   EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+}
+
+TEST(ToshibaWhTa15pe, CopiesInSeparateReceiverBuffersApplyAndPublishOnce) {
+  RasFixture f;
+  size_t publications = 0;
+  f.climate.add_on_state_callback([&](climate::Climate &) { publications++; });
+  const std::vector<uint8_t> state{0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x60, 0x03, 0x00, 0x62};
+  // With a short receiver idle, each copy ends its own buffer.
+  ASSERT_TRUE(receive(f.climate, state, GENERIC));
+  delay(6);
+  ASSERT_TRUE(receive(f.climate, state, GENERIC));
+  EXPECT_EQ(publications, 1u);
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 23);
+  // A motion frame following the state frame is still applied, once.
+  for (int copy = 0; copy < 2; copy++)
+    ASSERT_TRUE(receive(f.climate, {0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC));
+  EXPECT_EQ(publications, 2u);
+  EXPECT_EQ(f.climate.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+}
+
+TEST(ToshibaWhTa15pe, IdenticalPressAfterTheRepeatWindowIsAppliedAgain) {
+  RasFixture f;
+  size_t publications = 0;
+  f.climate.add_on_state_callback([&](climate::Climate &) { publications++; });
+  const std::vector<uint8_t> state{0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x60, 0x03, 0x00, 0x62};
+  ASSERT_TRUE(receive(f.climate, state, GENERIC));
+  EXPECT_EQ(publications, 1u);
+  f.target(25);
+  publications = 0;
+  delay(SWING_WINDOW_PASSED_MS);
+  ASSERT_TRUE(receive(f.climate, state, GENERIC));
+  EXPECT_EQ(publications, 1u);
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 23);
 }
 
 TEST(ToshibaWhTa15pe, ReceivedFramesPublishThePowerSelectionOnlyWhenItChanges) {
@@ -1311,6 +1345,22 @@ TEST(ToshibaWhTa15pe, CancellingPresetPreservesPowerLimitAndPublishesSelection) 
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
   EXPECT_EQ(power_select.active_index(), 2u);
   expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x70, 0x63, 0x80, 0x92}, GENERIC), 9);
+}
+
+TEST(ToshibaWhTa15pe, SelectingTheCurrentPowerSendsButDoesNotPublish) {
+  PowerSelection power;
+  RasFixture f(power);
+  f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_AUTO);
+  size_t publications = 0;
+  power.add_on_state_callback([&](size_t) { publications++; });
+  const auto transmissions = f.transmitter.frames.size();
+  f.climate.set_power_selection(0);
+  EXPECT_EQ(f.transmitter.frames.size(), transmissions + 1);
+  EXPECT_EQ(publications, 0u);
+  f.climate.set_power_selection(1);
+  EXPECT_EQ(f.transmitter.frames.size(), transmissions + 2);
+  EXPECT_EQ(publications, 1u);
+  EXPECT_EQ(power.active_index(), 1u);
 }
 
 TEST(ToshibaWhTa15pe, PowerSelectionCallbacksKeepPresetAndWireInSync) {
