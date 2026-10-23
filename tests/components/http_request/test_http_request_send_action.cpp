@@ -79,14 +79,22 @@ class FakeHttpRequest : public HttpRequestComponent {
   }
 };
 
-// The URL lambda must be stateless, so the stop it makes is set up through these
-Automation<> *stop_target = nullptr;
-int url_calls = 0;
-int stop_at_url_call = 0;
+// The URL lambda must be stateless, so the stop it makes is set up through this
+struct UrlStop {
+  Automation<> *target{nullptr};
+  int calls{0};
+  int stop_at_call{0};
+};
 
-std::string url_that_can_stop() {
-  if (++url_calls == stop_at_url_call)
-    stop_target->stop();
+UrlStop &url_stop() {
+  static UrlStop state;
+  return state;
+}
+
+const char *url_that_can_stop() {
+  UrlStop &state = url_stop();
+  if (++state.calls == state.stop_at_call)
+    state.target->stop();
   return "http://example.invalid/";
 }
 
@@ -106,9 +114,7 @@ class HttpRequestSendActionTest : public ::testing::Test {
     this->action_.set_method([]() -> const char * { return "GET"; });
     this->action_.set_max_response_buffer_size(1024);
     this->automation_.add_actions({&this->action_, &this->next_});
-    stop_target = &this->automation_;
-    url_calls = 0;
-    stop_at_url_call = 0;
+    url_stop() = UrlStop{&this->automation_};
   }
 
   // One pass of the main loop
@@ -380,7 +386,7 @@ TEST_F(HttpRequestSendActionTest, StalledBodyEndsAtTheTimeout) {
 // A url lambda that stops the action while the request is being started
 TEST_F(HttpRequestSendActionTest, StopFromLambdaWhileStartingEndsTheRequest) {
   this->action_.set_url([]() -> std::string { return url_that_can_stop(); });
-  stop_at_url_call = 1;
+  url_stop().stop_at_call = 1;
   this->trigger_.trigger();
   EXPECT_FALSE(this->automation_.is_running());
   ASSERT_EQ(this->http_.begins, 1);
@@ -398,7 +404,7 @@ TEST_F(HttpRequestSendActionTest, StopFromLambdaWhileStartingEndsTheRequest) {
 
 TEST_F(HttpRequestSendActionTest, StopFromLambdaOfAWaitingRequestEndsIt) {
   this->action_.set_url([]() -> std::string { return url_that_can_stop(); });
-  stop_at_url_call = 2;
+  url_stop().stop_at_call = 2;
   this->trigger_.trigger();
   this->trigger_.trigger();
   this->run_until_idle_();
