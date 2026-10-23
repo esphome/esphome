@@ -10,7 +10,7 @@
 
 namespace esphome::it8951 {
 
-static const char *const TAG = "it8951";
+ESPHOME_LOG_TAG(TAG, "it8951");
 
 // Soft cap for time spent in a single XFER_ROWS Op so we yield back to the
 // loop within one tick budget.
@@ -347,6 +347,12 @@ void IT8951Display::setup() {
 void IT8951Display::on_safe_shutdown() {
   // Best-effort synchronous sleep — runs during shutdown so we don't queue.
   this->spi_cmd_(TCON_SLEEP);
+}
+
+void IT8951Display::on_powerdown() {
+  for (auto *pin : this->enable_pins_) {
+    pin->digital_write(false);
+  }
 }
 
 // --- Init op enqueuers -------------------------------------------------------
@@ -948,12 +954,10 @@ static uint8_t color_to_nibble(const Color &color) {
   if (color.raw_32 == 0xFFFFFFFF)
     return 0x0F;  // white
 
-  // Derive luma from RGB using Rec.601 weights (0.299/0.587/0.114, scaled by
-  // 256). Rec.601 is the standard for converting SDR images to grayscale and
-  // spreads saturated colours across the mid-range; Rec.709 instead crams them
-  // against white/black where the 16 panel levels are hard to tell apart.
-  auto luma = static_cast<uint8_t>((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
-  return quantize_8bit_to_nibble(luma);
+  // Rec.601 luma is the standard for converting SDR images to grayscale and spreads saturated colours
+  // across the mid-range; Rec.709 instead crams them against white/black where the 16 panel levels are
+  // hard to tell apart.
+  return quantize_8bit_to_nibble(display::rec601_luma(color));
 }
 
 // Rec.601 luma straight from a 5/6/5 pixel, skipping the expansion to 8-bit
@@ -1039,9 +1043,9 @@ void HOT IT8951BufferedDisplay::write_pixel_native_(uint16_t x, uint16_t y, cons
   }
 }
 
-void HOT IT8951BufferedDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
-                                               ColorOrder order, ColorBitness bitness, bool big_endian, int x_offset,
-                                               int y_offset, int x_pad) {
+void HOT IT8951BufferedDisplay::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                                     ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                                     int x_pad) {
   // A writer (e.g. LVGL) may push pixels before the framebuffer is ready or
   // after an allocation failure; ignore those rather than dereferencing null.
   if (this->buffer_ == nullptr)
@@ -1049,7 +1053,7 @@ void HOT IT8951BufferedDisplay::draw_pixels_at(int x_start, int y_start, int w, 
   // A clipping rectangle would need a per-pixel test; that's rare for the bulk
   // blit callers (LVGL, images), so fall back to the base per-pixel path then.
   if (this->get_clipping().is_set()) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
     return;
   }
 
@@ -1062,16 +1066,12 @@ void HOT IT8951BufferedDisplay::draw_pixels_at(int x_start, int y_start, int w, 
       switch (bitness) {
         case COLOR_BITNESS_565: {
           const size_t i = source_idx * 2;
-          color_value = big_endian ? (static_cast<uint32_t>(ptr[i]) << 8) | ptr[i + 1]
-                                   : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8);
+          color_value = big_endian ? encode_uint16(ptr[i], ptr[i + 1]) : encode_value_le<uint16_t>(&ptr[i]);
           break;
         }
         case COLOR_BITNESS_888: {
           const size_t i = source_idx * 3;
-          color_value =
-              big_endian
-                  ? (static_cast<uint32_t>(ptr[i]) << 16) | (static_cast<uint32_t>(ptr[i + 1]) << 8) | ptr[i + 2]
-                  : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8) | (static_cast<uint32_t>(ptr[i + 2]) << 16);
+          color_value = encode_uint24(ptr[i + 2], ptr[i + 1], ptr[i]);
           break;
         }
         default:
@@ -1084,7 +1084,7 @@ void HOT IT8951BufferedDisplay::draw_pixels_at(int x_start, int y_start, int w, 
       if (nx < 0 || ny < 0 || nx >= this->width_ || ny >= this->height_)
         continue;
       this->write_pixel_native_(static_cast<uint16_t>(nx), static_cast<uint16_t>(ny),
-                                ColorUtil::to_color(color_value, order, bitness));
+                                ColorUtil::to_color(color_value, bitness));
     }
   }
 
@@ -1279,9 +1279,9 @@ void HOT IT8951DirectDisplay::pack_row_(uint16_t x, uint16_t y, uint16_t w, int3
 
   // LVGL is the only writer that reaches this class (anything drawing pixel by
   // pixel routes to the buffered one), and it passes a compile-time-constant
-  // bitness with a fixed colour order and endianness. So for the whole flush the
-  // decode is one known shape: decide it once here rather than per pixel.
-  if (this->grayscale_ && src.bitness == COLOR_BITNESS_565 && src.order == COLOR_ORDER_RGB) {
+  // bitness and endianness. So for the whole flush the decode is one known
+  // shape: decide it once here rather than per pixel.
+  if (this->grayscale_ && src.bitness == COLOR_BITNESS_565) {
     const uint8_t *pixel = src.ptr + first_index * 2;
     const int32_t step = src.column_step * 2;
     for (uint16_t c = 0; c < w; c++, pixel += step) {
@@ -1317,7 +1317,7 @@ void HOT IT8951DirectDisplay::pack_row_(uint16_t x, uint16_t y, uint16_t w, int3
         color_value = src.ptr[index];
         break;
     }
-    const Color color = ColorUtil::to_color(color_value, src.order, src.bitness);
+    const Color color = ColorUtil::to_color(color_value, src.bitness);
     if (this->grayscale_) {
       uint8_t nibble = color_to_nibble(color);
       if (this->invert_colors_)
@@ -1386,9 +1386,9 @@ void IT8951DirectDisplay::write_area_(uint16_t x, uint16_t y, uint16_t w, uint16
   this->spi_cmd_(TCON_LD_IMG_END);
 }
 
-void HOT IT8951DirectDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr,
-                                             ColorOrder order, ColorBitness bitness, bool big_endian, int x_offset,
-                                             int y_offset, int x_pad) {
+void HOT IT8951DirectDisplay::draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr,
+                                                   ColorBitness bitness, bool big_endian, int x_offset, int y_offset,
+                                                   int x_pad) {
   if (this->row_buf_ == nullptr)
     return;
 
@@ -1453,7 +1453,7 @@ void HOT IT8951DirectDisplay::draw_pixels_at(int x_start, int y_start, int w, in
     step_y = -step_y;
   }
   origin += clip_left * step_x + clip_top * step_y;
-  const FlushSource src{ptr, order, bitness, big_endian, origin, step_x, step_y};
+  const FlushSource src{ptr, bitness, big_endian, origin, step_x, step_y};
   this->write_area_(static_cast<uint16_t>(cx), static_cast<uint16_t>(cy), static_cast<uint16_t>(clipped_w),
                     static_cast<uint16_t>(clipped_h), src);
 

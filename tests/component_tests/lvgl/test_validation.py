@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+
 import pytest
 
 from esphome.components.const import BYTE_ORDER_BIG, BYTE_ORDER_LITTLE, CONF_BYTE_ORDER
 from esphome.components.display import add_metadata
 from esphome.components.lvgl import final_validation
+from esphome.components.lvgl.defines import get_lv_images_used
 from esphome.config import Config
 from esphome.config_validation import Invalid
-from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+from esphome.const import (
+    CONF_ID,
+    CONF_TYPE,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE, ID
 from esphome.final_validate import full_config
 
@@ -199,3 +208,46 @@ class TestDrawRoundingMerge:
         configs = [_make_lvgl_config(["my_disp"])]
         final_validation(configs)
         assert configs[0]["draw_rounding"] == 2
+
+
+class TestImageTypeValidation:
+    """Test the image types LVGL accepts."""
+
+    @pytest.mark.parametrize(
+        ("image_type", "expectation"),
+        [
+            pytest.param(
+                "RGB111", pytest.raises(Invalid, match="does not support RGB111")
+            ),
+            pytest.param("RGB565", nullcontext()),
+        ],
+    )
+    def test_image_type(self, image_type: str, expectation) -> None:
+        image_id = ID("my_image", True)
+        fc = full_config.get()
+        fc["image"] = [{CONF_ID: image_id, CONF_TYPE: image_type}]
+        fc.declare_ids.append((image_id, ["image", 0, CONF_ID]))
+        get_lv_images_used().add(image_id)
+
+        with expectation:
+            final_validation([_make_lvgl_config(["my_disp"])])
+
+    @pytest.mark.parametrize(
+        ("image_type", "expectation"),
+        [
+            pytest.param(
+                "RGB111", pytest.raises(Invalid, match="does not support RGB111")
+            ),
+            pytest.param("RGB565", nullcontext()),
+        ],
+    )
+    def test_nested_image_takes_parent_type(self, image_type: str, expectation) -> None:
+        """A sendspin artwork image declares its ID below the slot that holds the type."""
+        image_id = ID("album_art", True)
+        fc = full_config.get()
+        fc["image"] = [{CONF_TYPE: image_type, "current_image": {CONF_ID: image_id}}]
+        fc.declare_ids.append((image_id, ["image", 0, "current_image", CONF_ID]))
+        get_lv_images_used().add(image_id)
+
+        with expectation:
+            final_validation([_make_lvgl_config(["my_disp"])])

@@ -1,13 +1,14 @@
 #include "bl0906.h"
 #include "constants.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bl0906 {
 
-static const char *const TAG = "bl0906";
+ESPHOME_LOG_TAG(TAG, "bl0906");
 
-constexpr uint32_t to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
+constexpr uint32_t to_uint32_t(ube24_t input) { return encode_uint24(input.h, input.m, input.l); }
 
 constexpr int32_t to_int32_t(sbe24_t input) {
   return static_cast<int32_t>(encode_uint32((uint8_t) input.h, input.m, input.l, 0)) >> 8;
@@ -19,8 +20,7 @@ constexpr uint8_t bl0906_checksum(const uint8_t address, const DataPacket *data)
 }
 
 void BL0906::loop() {
-  while (this->available())
-    this->flush();
+  this->discard_available();
 
   if (this->current_stage_ == STAGE_IDLE) {
     // Woken up between cycles to drain the action queue. Go back to sleep.
@@ -91,8 +91,7 @@ void BL0906::advance_stage_() {
 }
 
 void BL0906::setup() {
-  while (this->available())
-    this->flush();
+  this->discard_available();
   this->write_array(USR_WRPROT_WITABLE, sizeof(USR_WRPROT_WITABLE));
   // Calibration (1: register address; 2: value before calibration; 3: value after calibration)
   this->bias_correction_(BL0906_RMSOS_1, 0.01600, 0);  // Calibration current_1
@@ -133,9 +132,7 @@ void BL0906::handle_actions_() {
     }
   }
 
-  while (this->available()) {
-    this->read();
-  }
+  this->discard_available();
 
   this->action_queue_.clear();
 }

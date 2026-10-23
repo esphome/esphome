@@ -4,3 +4,7 @@ packages:
 switch:
   - platform: sendspin
     name: "Sendspin Enabled"
+    type: enabled
+  - platform: sendspin
+    name: "Sendspin Unpaired Access"
+    type: unpaired_access

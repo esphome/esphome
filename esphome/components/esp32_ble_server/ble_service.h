@@ -48,6 +48,7 @@ class BLEService final {
   bool is_created() { return this->state_ == CREATED; }
   bool is_running() { return this->state_ == RUNNING; }
   bool is_starting() { return this->state_ == STARTING; }
+  bool is_stopped() { return this->state_ == STOPPED; }
   bool is_deleted() { return this->state_ == DELETED; }
 
  protected:

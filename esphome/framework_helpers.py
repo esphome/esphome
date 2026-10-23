@@ -461,7 +461,7 @@ def _zip_extract_all(
             report(1)
 
 
-def _rename_with_retry(
+def rename_with_retry(
     src: Path, dst: Path, attempts: int = 5, overwrite: bool = False
 ) -> None:
     """Rename ``src`` to ``dst`` with backoff retries on Windows sharing violations.
@@ -561,7 +561,7 @@ def _7z_extract_all(
                     rmtree(dest)
                 else:
                     dest.unlink()
-            _rename_with_retry(item, dest)
+            rename_with_retry(item, dest)
     finally:
         # staging is created before the try, so it always exists here; the
         # guard is defensive cleanup and its False branch is unreachable.
@@ -1193,7 +1193,7 @@ def download_with_resume(
             # retries fail, keep the verified part so the next attempt (or
             # run) only has to redo the rename, not the download.
             try:
-                _rename_with_retry(part, dest, overwrite=True)
+                rename_with_retry(part, dest, overwrite=True)
             except PermissionError as e:
                 _LOGGER.debug("Could not move %s into place: %s", part, e)
                 last_error = e

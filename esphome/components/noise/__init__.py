@@ -1,11 +1,12 @@
 import base64
 import binascii
+import secrets
 from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ENCRYPTION, CONF_KEY
-from esphome.core import CORE, ID
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -14,12 +15,17 @@ DOMAIN = "noise"
 
 # Keep in sync with platformio.ini and esphome/idf_component.yml.
 # LIBSODIUM_VERSION must match the version noise-c pins in its manifests.
-NOISE_C_VERSION = "0.1.30"
-LIBSODIUM_VERSION = "1.10021.11"
+NOISE_C_VERSION = "0.1.31"
+LIBSODIUM_VERSION = "1.10021.12"
 
 noise_ns = cg.esphome_ns.namespace("noise")
 
 CONFIG_SCHEMA = cv.Schema({})
+
+
+def generate_encryption_key() -> str:
+    """A fresh random key in the base64 form the yaml takes."""
+    return base64.b64encode(secrets.token_bytes(32)).decode()
 
 
 def validate_encryption_key(value: Any) -> str:
@@ -74,18 +80,13 @@ def static_encryption_key(conf: ConfigType) -> str | None:
     return (conf.get(CONF_ENCRYPTION) or {}).get(CONF_KEY) or None
 
 
-def new_psk_progmem(parent_id: ID, key: str) -> MockObj:
+def new_psk_progmem(key: str) -> MockObj:
     """Emit the decoded key as a PROGMEM array; the component keeps a pointer
     so the key never occupies RAM. Components sharing one key (api and ota)
     share the array."""
-    decoded = decode_encryption_key(key)
-    arrays: dict[bytes, MockObj] = CORE.data.setdefault(DOMAIN, {})
-    if (array := arrays.get(decoded)) is None:
-        array = arrays[decoded] = cg.progmem_array(
-            ID(f"{parent_id.id}_psk", is_declaration=True, type=cg.uint8),
-            list(decoded),
-        )
-    return array
+    return cg.shared_progmem_array(
+        "noise_psk", cg.uint8, list(decode_encryption_key(key))
+    )
 
 
 def encryption_schema(config: ConfigType | None) -> ConfigType:

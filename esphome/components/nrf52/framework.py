@@ -10,6 +10,7 @@ import platform
 import shutil
 import sys
 
+from esphome.build_helpers.ccache import ccache_env
 from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 from esphome.components.zephyr.const import KEY_SYSBUILD, KEY_ZEPHYR
 import esphome.config_validation as cv
@@ -18,6 +19,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
     create_venv,
     download_and_extract,
+    download_with_resume,
     get_python_env_executable_path,
     rmdir,
     run_command_ok,
@@ -194,7 +196,14 @@ def get_build_paths() -> dict:
     }
 
 
-def get_build_env() -> dict:
+def get_build_env(ccache: str | None) -> dict:
+    """Build the west/sdk-nrf process environment.
+
+    ``ccache`` is the resolved binary (resolve_ccache_path), or None when
+    ccache is disabled or the caller never compiles; it brings the shared
+    managed-ccache settings and the pch sloppiness, so every caller that
+    may compile gets the same cache.
+    """
     version = _get_version_str()
     venv_bin_dir = get_python_env_executable_path(
         _get_python_env_path(version), "python"
@@ -211,6 +220,25 @@ def get_build_env() -> dict:
     # non-root builds failed to locate the SDK with it, while
     # ZEPHYR_SDK_INSTALL_DIR fixed the same invocation.
     env["ZEPHYR_SDK_INSTALL_DIR"] = str(_get_toolchain_path(_get_toolchain_version()))
+    if ccache is None:
+        # Zephyr wraps compiles with any ccache it finds; unmanaged it
+        # must not cache (a sysbuild image never sees USE_CCACHE=0).
+        env.setdefault("CCACHE_DISABLE", "1")
+    else:
+        env.update(ccache_env(ccache, SDK_NRF_TOOLS_CACHE))
+        # Drop only the per build map entry (posix, CMake's spelling);
+        # its from side covers no compiled sources. A spaced path cannot
+        # survive ccache's space split list, so it stays hashed.
+        source_dir = CORE.relative_build_path("zephyr").as_posix()
+        if any(ch.isspace() for ch in source_dir):
+            _LOGGER.debug(
+                "Whitespace in %s; the per build map stays hashed", source_dir
+            )
+        else:
+            device_map = f"-fmacro-prefix-map={source_dir}=CMAKE_SOURCE_DIR"
+            env["CCACHE_IGNOREOPTIONS"] = (
+                f"{env.get('CCACHE_IGNOREOPTIONS', '')} {device_map}".strip()
+            )
     return env
 
 
@@ -287,21 +315,62 @@ def setup_platformio_python_env() -> None:
     _prepend_env_path("PATH", str(env_python_path.parent))
 
 
+def _patch_framework_file(path: Path, old: str, new: str) -> bool:
+    """Replace ``old`` with ``new`` in a framework script, atomically and
+    keeping the file mode (helpers.write_file would flatten it to 0o644).
+    Returns False when nothing matched."""
+    import tempfile
+
+    content = path.read_text(encoding="utf-8")
+    patched = content.replace(old, new)
+    if patched == content:
+        return False
+    # Unique sibling tmp: the install lock is best effort, so two builds
+    # may patch at once and a shared tmp name could rename a half
+    # written file into place.
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(patched)
+        shutil.copymode(path, tmp)
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    return True
+
+
 def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     # SDK v2.6.1 ships uf2conv.py with '\s+' — an unrecognised escape that
     # Python 3.12+ flags with SyntaxWarning (a future version will reject it).
     uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
-    if not uf2conv.exists():
+    if uf2conv.exists():
+        _patch_framework_file(
+            uf2conv, "re.split('\\s+', line)", "re.split('\\\\s+', line)"
+        )
+
+
+def _patch_gen_defines_dts_path(framework_path: Path) -> None:
+    # The absolute zephyr.dts.pre path in the header's top comment is
+    # its only per device byte and blocks ccache sharing; emit the
+    # basename. Upstream candidate.
+    gen_defines = framework_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
+    if not gen_defines.exists():
         return
-    content = uf2conv.read_text(encoding="utf-8")
-    patched = content.replace("re.split('\\s+', line)", "re.split('\\\\s+', line)")
-    if patched == content:
+    if _patch_framework_file(
+        gen_defines, "  {edt.dts_path}", "  {os.path.basename(edt.dts_path)}"
+    ):
         return
-    # Write atomically so a concurrent build never sees a truncated file
-    tmp = uf2conv.with_suffix(".py.tmp")
-    tmp.write_text(patched, encoding="utf-8")
-    shutil.copymode(uf2conv, tmp)
-    tmp.replace(uf2conv)
+    if "{os.path.basename(edt.dts_path)}" not in gen_defines.read_text(
+        encoding="utf-8"
+    ):
+        # Upstream reformatted the comment; sharing silently degrading
+        # would be invisible, so say it out loud.
+        _LOGGER.warning(
+            "gen_defines.py no longer matches; the devicetree header "
+            "stays per device and ccache sharing between devices degrades"
+        )
 
 
 # West projects every build needs; components add others with include_west_project()
@@ -335,7 +404,7 @@ def bluetooth_west_projects() -> tuple[str, ...]:
     return ("tinycrypt",)
 
 
-def _wanted_west_projects() -> set[str]:
+def wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
     # Zephyr 4.1 moved the Cortex-M core headers to cmsis_6
     if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 1, 0):
@@ -573,7 +642,7 @@ def _check_and_install(version: str) -> None:
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
-    projects = _wanted_west_projects()
+    projects = wanted_west_projects()
     if not sentinel.exists() or not zephyr_reqs.exists():
         _install_framework(env_python_path, framework_path, version, projects)
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -582,6 +651,8 @@ def _check_and_install(version: str) -> None:
         sentinel.touch()
     else:
         _fetch_missing_west_projects(env_python_path, framework_path, version, projects)
+    # Every run: existing installs need it too, and it is a no-op once applied
+    _patch_gen_defines_dts_path(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (
@@ -608,6 +679,98 @@ def _check_and_install(version: str) -> None:
     if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
         with _install_lock(f"toolchain-{toolchain_version}"):
             _install_toolchain()
+
+
+# Nordic's nrfutil launcher, one static binary per host; its commands are installed from Nordic's
+# package index by the launcher itself. The path carries no version, so the file is pinned by the
+# size and digest Nordic's file store reported for launcher 8.2.1 (2026-09-09)
+NORDIC_NRFUTIL_URL = "https://files.nordicsemi.com/artifactory/swtools/external/nrfutil/executables/{triple}/{name}"
+_NRFUTIL_LAUNCHERS: dict[str, tuple[int, str]] = {
+    "x86_64-unknown-linux-gnu": (
+        6725408,
+        "1cf4bd1d3d64f43a6b9602d8d8e8d647bec0d26d517ba72fd154f95546b50260",
+    ),
+    "aarch64-unknown-linux-gnu": (
+        5506040,
+        "e7310f072132766e69b43c833c6a87a53367ea68d5b8a5f7c6fa1a45993ecde4",
+    ),
+    "aarch64-apple-darwin": (
+        5263376,
+        "1b993eece5a6e3e079ce25fa31a134ce4c12fb51735d10114a2ea4a1df048591",
+    ),
+    "x86_64-apple-darwin": (
+        6389488,
+        "a5ffea65325e5d38eae00f612472e18ffe2c036f800240873d9f702c1b53d945",
+    ),
+    "x86_64-pc-windows-msvc": (
+        5939032,
+        "22cb1bd03fc29016670c1fc8408a78bd213286ecc1156c70712485d77b097c75",
+    ),
+}
+_NRFUTIL_OS_SUFFIX = {
+    "linux": "unknown-linux-gnu",
+    "macos": "apple-darwin",
+    "windows": "pc-windows-msvc",
+}
+# The nrf5sdk-tools command gives the launcher the pkg and dfu subcommands; a new version reinstalls
+NRF5SDK_TOOLS_VERSION = "1.1.0"
+
+
+def _nrfutil_target_triple() -> str:
+    sysname, machine, _ = _get_toolchain_platform_info()
+    triple = f"{machine}-{_NRFUTIL_OS_SUFFIX.get(sysname, sysname)}"
+    if triple not in _NRFUTIL_LAUNCHERS:
+        raise EsphomeError(f"Nordic's nrfutil is not available for {sysname} {machine}")
+    return triple
+
+
+def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
+    """Nordic's nrfutil with its nrf5sdk-tools command, downloaded into the tools cache on first use.
+
+    The launcher keeps its installed commands under NRFUTIL_HOME, which is set in ``env`` so that
+    the copy here never touches a user's own ~/.nrfutil. Raises EsphomeError when the download or
+    the command install fails, for instance without network.
+    """
+    # The downloaded file is a bootstrap launcher: on its first run it installs the real core into
+    # NRFUTIL_HOME/bin and runs that, so it must not sit there itself or it runs itself forever
+    root = get_sdk_nrf_tools_path() / "nrfutil"
+    home = root / "home"
+    suffix = ".exe" if os.name == "nt" else ""
+    exe = root / "launcher" / f"nrfutil{suffix}"
+    command = home / "bin" / f"nrfutil-nrf5sdk-tools{suffix}"
+    env["NRFUTIL_HOME"] = str(home)
+    sentinel = root / f".ready-{NRF5SDK_TOOLS_VERSION}"
+
+    # A cache that lost its launcher or command (a partial clean-up) is installed again
+    def installed() -> bool:
+        return sentinel.exists() and exe.is_file() and command.is_file()
+
+    if installed():
+        return str(exe)
+    with _install_lock("nrfutil"):
+        if not installed():
+            exe.parent.mkdir(parents=True, exist_ok=True)
+            _LOGGER.info("Downloading Nordic's nrfutil ...")
+            triple = _nrfutil_target_triple()
+            size, sha256 = _NRFUTIL_LAUNCHERS[triple]
+            download_with_resume(
+                NORDIC_NRFUTIL_URL.format(triple=triple, name=exe.name),
+                exe,
+                sha256=sha256,
+                size=size,
+            )
+            exe.chmod(0o755)
+            _LOGGER.info("Installing nrfutil's nrf5sdk-tools command ...")
+            if (
+                not run_command_ok(
+                    [str(exe), "install", f"nrf5sdk-tools={NRF5SDK_TOOLS_VERSION}"],
+                    env=env,
+                )
+                or not command.is_file()
+            ):
+                raise EsphomeError("Failed to install nrfutil's nrf5sdk-tools command")
+            sentinel.touch()
+    return str(exe)
 
 
 def _install_toolchain() -> None:

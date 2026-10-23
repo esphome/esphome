@@ -7,7 +7,10 @@ from pathlib import Path
 
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AREA,
@@ -40,7 +43,11 @@ from esphome.const import (
     CONF_PROJECT,
     CONF_TRIGGER_ID,
     CONF_VERSION,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
+    PLATFORM_ESP32,
+    PLATFORM_HOST,
+    PLATFORM_RP2,
     PlatformFramework,
     __version__ as ESPHOME_VERSION,
 )
@@ -50,6 +57,7 @@ from esphome.core import (
     CoroPriority,
     coroutine_with_priority,
 )
+import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -59,6 +67,10 @@ from esphome.helpers import (
     walk_files,
 )
 from esphome.types import ConfigType
+
+CONF_LOOP_INTERVAL = "loop_interval"
+CONF_RELATION = "relation"
+CONF_SUSPEND_LOOP = "suspend_loop"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -107,6 +119,17 @@ ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
 Device = cg.esphome_ns.class_("Device")
+DeviceRelation = cg.esphome_ns.enum("DeviceRelation", is_class=True)
+DEVICE_RELATIONS: dict[str, cg.MockObj] = DeviceRelation.options(
+    "via", "child", prefix="DEVICE_RELATION_"
+)
+# Relation the C++ getter and field use when nothing sets one, and the API's default
+DEFAULT_DEVICE_RELATION: str = "via"
+# Define for a relation shared by every device
+SHARED_DEVICE_RELATION_DEFINES: dict[str, str | None] = {
+    DEFAULT_DEVICE_RELATION: None,
+    "child": "USE_DEVICE_RELATION_ALL_CHILD",
+}
 Area = cg.esphome_ns.class_("Area")
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
@@ -183,6 +206,35 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_loop_interval(config: ConfigType) -> ConfigType:
+    if CONF_LOOP_INTERVAL in config and not (CORE.is_host or CORE.is_esp8266):
+        # max_loop interval is calculated from WDT_FEED_INTERVAL_MS. Make sure to align with application.h
+        max_loop = 600  # 2 * 300ms default for other platforms
+        if CORE.is_esp32:
+            max_loop = (
+                2
+                * fv.full_config.get()[PLATFORM_ESP32][
+                    CONF_WATCHDOG_TIMEOUT
+                ].total_milliseconds
+                // 5
+            )
+        elif CORE.is_bk72xx:
+            max_loop = 4000  # 10000ms / 5 * 2 default value
+        if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
+            _LOGGER.warning(
+                "%s of %s exceeds the %sms maximum sleep on this platform; the loop will still "
+                "wake every %sms.%s",
+                CONF_LOOP_INTERVAL,
+                config[CONF_LOOP_INTERVAL],
+                max_loop,
+                max_loop,
+                " Raise esp32.watchdog_timeout to sleep longer."
+                if CORE.is_esp32
+                else "",
+            )
+    return config
+
+
 def valid_include(value: str) -> str:
     # Look for "<...>" includes
     if value.startswith("<") and value.endswith(">"):
@@ -255,12 +307,22 @@ DEVICE_SCHEMA = cv.Schema(
             cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
+        cv.Required(CONF_RELATION): cv.enum(DEVICE_RELATIONS, lower=True),
     }
 )
 
 
 def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:
     return cv.maybe_simple_value(AREA_SCHEMA, key=CONF_NAME)(config)
+
+
+def _validate_suspend_loop(value: bool) -> bool:
+    # host and RP2 platforms have unwakeable delay fallbacks, so suspending the main loop is unsafe
+    if value and CORE.target_platform in [PLATFORM_HOST, PLATFORM_RP2]:
+        raise cv.Invalid(
+            f"Suspend loop is not available on {CORE.target_platform} platform"
+        )
+    return value
 
 
 CONFIG_SCHEMA = cv.All(
@@ -328,6 +390,19 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
             ): cv.boolean,
+            cv.Optional(CONF_LOOP_INTERVAL, visibility=cv.Visibility.YAML_ONLY): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=cv.TimePeriod(milliseconds=1),
+                    max=cv.TimePeriod(milliseconds=65535),
+                ),
+            ),
+            cv.Optional(
+                CONF_SUSPEND_LOOP, default=False, visibility=cv.Visibility.YAML_ONLY
+            ): cv.All(
+                cv.boolean,
+                _validate_suspend_loop,
+            ),
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
@@ -515,7 +590,8 @@ async def add_arduino_global_workaround():
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
-    # Add includes at the very end, so that the included files can access global variables
+    # After the id declarations, so the headers can use id(x); the generated function bodies
+    # and flash tables come later still, so their lambdas can use the headers.
     for include in includes:
         path = CORE.relative_config_path(include)
         if path.is_dir():
@@ -803,6 +879,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_cxx_build_flag("-Wno-volatile")
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
+    if config[CONF_SUSPEND_LOOP]:
+        cg.add_define("ESPHOME_SUSPEND_LOOP")
+    if CONF_LOOP_INTERVAL in config:
+        cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))
 
     if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)
@@ -877,6 +957,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_DEVICES")
     cg.add_define("ESPHOME_DEVICE_COUNT", len(devices))
 
+    # When every device shares one relation the getter returns it as a constant,
+    # so only a mix of relations needs a per-device field
+    relations: set[str] = {dev_conf[CONF_RELATION] for dev_conf in devices}
+    mixed_relations: bool = len(relations) > 1
+    if mixed_relations:
+        cg.add_define("USE_DEVICE_RELATION")
+    elif (shared_define := SHARED_DEVICE_RELATION_DEFINES[relations.pop()]) is not None:
+        cg.add_define(shared_define)
+
     # Process each device
     for dev_conf in devices:
         device_id: core.ID = dev_conf[CONF_ID]
@@ -893,11 +982,18 @@ async def to_code(config: ConfigType) -> None:
             area_id_hash = fnv1a_32bit_hash(area_id.id)
             cg.add(dev.set_area_id(area_id_hash))
 
+        # The field only exists for a mix of relations, and starts as VIA
+        if (
+            mixed_relations
+            and (relation := dev_conf[CONF_RELATION]) != DEFAULT_DEVICE_RELATION
+        ):
+            cg.add(dev.set_relation(relation))
+
         cg.add(cg.App.register_device(dev))
 
 
 # Platform-specific source files for core
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_filter_platform_sources = filter_source_files_from_platform(
     {
         "static_task.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -950,3 +1046,14 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         # as they are only included when needed by the preprocessor
     }
 )
+
+# util.cpp holds only the out-of-line MQTT connectivity helpers; without
+# USE_MQTT the header provides inline stubs and the file must not compile.
+# line_reader.cpp compiles only for components that opt in with USE_LINE_READER.
+_filter_define_sources = filter_source_files_from_defines(
+    {"util.cpp": "USE_MQTT", "line_reader.cpp": "USE_LINE_READER"}
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _filter_platform_sources() + _filter_define_sources()

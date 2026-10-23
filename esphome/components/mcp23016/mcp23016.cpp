@@ -1,10 +1,11 @@
 #include "mcp23016.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstdio>
 
 namespace esphome::mcp23016 {
 
-static const char *const TAG = "mcp23016";
+ESPHOME_LOG_TAG(TAG, "mcp23016");
 
 void MCP23016::setup() {
   uint16_t iocon;
@@ -79,11 +80,7 @@ void MCP23016::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
     this->read_reg_(reg_addr, &reg_value);
   }
 
-  if (pin_value) {
-    reg_value |= 1 << pin;
-  } else {
-    reg_value &= ~(1 << pin);
-  }
+  assign_bits(reg_value, 1 << pin, pin_value);
 
   this->write_reg_(reg_addr, reg_value);
 
@@ -92,12 +89,6 @@ void MCP23016::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   }
 }
 
-void MCP23016GPIOPin::setup() { pin_mode(flags_); }
-void MCP23016GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool MCP23016GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void MCP23016GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-size_t MCP23016GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via MCP23016", this->pin_);
-}
-
 }  // namespace esphome::mcp23016
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::mcp23016::MCP23016, "%u via MCP23016")

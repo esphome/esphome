@@ -21,7 +21,7 @@
 
 namespace esphome::safe_mode {
 
-static const char *const TAG = "safe_mode";
+ESPHOME_LOG_TAG(TAG, "safe_mode");
 
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK) && !defined(USE_OTA_PARTITIONS)
 // Find a non-running app partition. If verify is true, only returns a partition
@@ -172,6 +172,14 @@ void SafeModeComponent::set_safe_mode_pending(const bool &pending) {
 
 bool SafeModeComponent::get_safe_mode_pending() {
   return this->read_rtc_() == SafeModeComponent::ENTER_SAFE_MODE_MAGIC;
+}
+
+void SafeModeComponent::restart_in_safe_mode() {
+  ESP_LOGI(TAG, "Restarting in safe mode");
+  this->set_safe_mode_pending(true);
+  // Let MQTT settle a bit
+  delay(100);  // NOLINT
+  App.safe_reboot();
 }
 
 bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after,

@@ -1,6 +1,6 @@
 """PlatformIO-format RAM/Flash one-liners after a native ESP-IDF build.
 
-The ninja ``size`` target (run after ``all`` in
+The ninja ``size`` target (built together with ``all`` in
 ``toolchain.run_compile``) prints the per-region table inline as part
 of the build. This module adds two summary lines underneath,
 byte-identical to PlatformIO's output:

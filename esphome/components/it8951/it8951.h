@@ -149,6 +149,7 @@ class IT8951Display : public Display,
   void loop() override;
   void dump_config() override;
   void on_safe_shutdown() override;
+  void on_powerdown() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   // --- Config setters (called from generated code) ---
@@ -218,8 +219,8 @@ class IT8951Display : public Display,
   void clear() override { this->fill(Color::WHITE); }
   int get_width() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->height_ : this->width_; }
   int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
+  bool pixel_axes_swapped() const override { return this->effective_transform_ & TRANSFORM_SWAP_XY; }
 
- protected:
   int get_height_internal() override { return this->height_; }
   int get_width_internal() override { return this->width_; }
 
@@ -389,13 +390,13 @@ class IT8951BufferedDisplay : public IT8951Display {
   void dump_config() override;
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
+
+ protected:
   // Bulk pixel blit (used by LVGL and image rendering). Overridden to write
   // straight into the framebuffer, avoiding the base class's per-pixel
   // draw_pixel_at overhead (watchdog feed, clipping test, dirty-box clamps).
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
-
- protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
   bool needs_transfer() const override { return true; }
   const uint8_t *transfer_row_data(uint16_t row) const override;
 
@@ -417,7 +418,6 @@ class IT8951BufferedDisplay : public IT8951Display {
 // the packing loop decide its shape once instead of per pixel.
 struct FlushSource {
   const uint8_t *ptr;
-  ColorOrder order;
   ColorBitness bitness;
   bool big_endian;
   // Source pixel index of the clipped rectangle's top-left native pixel, and how
@@ -448,10 +448,10 @@ class IT8951DirectDisplay : public IT8951Display {
   // Single-pixel drawing cannot be streamed; the config never routes a
   // per-pixel writer to this class (see display.py).
   void draw_pixel_at(int /*x*/, int /*y*/, Color /*color*/) override {}
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
+  void draw_pixels_internal(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorBitness bitness,
+                            bool big_endian, int x_offset, int y_offset, int x_pad) override;
   // Only a whole-screen constant fill needs the streaming transfer phase; a
   // normal update's pixels are already in controller RAM.
   bool needs_transfer() const override { return this->fill_pending_; }

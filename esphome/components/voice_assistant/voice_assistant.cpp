@@ -12,7 +12,12 @@
 
 namespace esphome::voice_assistant {
 
-static const char *const TAG = "voice_assistant";
+ESPHOME_LOG_TAG(TAG, "voice_assistant");
+
+static constexpr uint32_t RESET_CONVERSATION_TIMEOUT_ID = 0;
+static constexpr uint32_t PLAYBACK_TIMEOUT_ID = 1;
+static constexpr uint32_t SPEAKER_IDLE_TIMEOUT_ID = 2;
+static constexpr uint32_t TIMER_TICK_INTERVAL_ID = 3;
 
 #ifdef SAMPLE_RATE_HZ
 #undef SAMPLE_RATE_HZ
@@ -77,7 +82,11 @@ void VoiceAssistant::setup() {
 float VoiceAssistant::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 bool VoiceAssistant::start_udp_socket_() {
+#if USE_NETWORK_IPV4
   this->socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+#else
+  this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+#endif
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Could not create socket");
     this->mark_failed();
@@ -219,11 +228,11 @@ void VoiceAssistant::stream_api_audio_() {
   while (true) {
     // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
     // reports the currently exposed bytes either way.
-    this->audio_source_->fill(0, false);
+    this->audio_source_->fill(0);
     size_t available = this->audio_source_->available();
     size_t available2 = 0;
     if (this->audio_source2_ != nullptr) {
-      this->audio_source2_->fill(0, false);
+      this->audio_source2_->fill(0);
       available2 = this->audio_source2_->available();
     }
 
@@ -352,7 +361,7 @@ void VoiceAssistant::loop() {
       msg.start = true;
       msg.conversation_id = StringRef(this->conversation_id_);
       msg.flags = flags;
-      msg.audio_settings = audio_settings;
+      msg.audio_settings = std::move(audio_settings);
       msg.wake_word_phrase = StringRef(this->wake_word_);
 
       // Reset media player state tracking
@@ -370,7 +379,7 @@ void VoiceAssistant::loop() {
         break;
       }
       this->set_state_(State::STARTING_PIPELINE);
-      this->set_timeout("reset-conversation_id", this->conversation_timeout_,
+      this->set_timeout(RESET_CONVERSATION_TIMEOUT_ID, this->conversation_timeout_,
                         [this]() { this->reset_conversation_id(); });
       break;
     }
@@ -378,14 +387,13 @@ void VoiceAssistant::loop() {
       break;  // State changed when udp server port received
     }
     case State::STREAMING_MICROPHONE: {
-      // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
       if (this->audio_mode_ == AUDIO_MODE_API) {
         this->stream_api_audio_();
       } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
         while (true) {
-          this->audio_source_->fill(0, false);
+          this->audio_source_->fill(0);
           size_t available = this->audio_source_->available();
           if (available == 0) {
             break;
@@ -460,10 +468,10 @@ void VoiceAssistant::loop() {
         if (this->speaker_bytes_received_ > RECEIVE_SIZE * 4 || end_of_stream)
           this->write_speaker_();
         if (this->wait_for_stream_end_) {
-          this->cancel_timeout("playing");
+          this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
           if (end_of_stream) {
             ESP_LOGD(TAG, "End of audio stream received");
-            this->cancel_timeout("speaker-timeout");
+            this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
             this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
           }
           break;  // We dont want to timeout here as the STREAM_END event will take care of that.
@@ -477,7 +485,7 @@ void VoiceAssistant::loop() {
 
         if (this->media_player_response_state_ == MediaPlayerResponseState::FINISHED) {
           this->media_player_response_state_ = MediaPlayerResponseState::IDLE;
-          this->cancel_timeout("playing");
+          this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
           ESP_LOGD(TAG, "Announcement finished playing");
           this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
@@ -507,8 +515,8 @@ void VoiceAssistant::loop() {
         }
         ESP_LOGD(TAG, "Speaker has finished outputting all audio");
         this->speaker_->stop();
-        this->cancel_timeout("speaker-timeout");
-        this->cancel_timeout("playing");
+        this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
+        this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
 
         this->clear_buffers_();
 
@@ -540,7 +548,7 @@ void VoiceAssistant::write_speaker_() {
         memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
         this->speaker_buffer_size_ -= written;
         this->speaker_buffer_index_ -= written;
-        this->set_timeout("speaker-timeout", 5000, [this]() { this->speaker_->stop(); });
+        this->set_timeout(SPEAKER_IDLE_TIMEOUT_ID, 5000, [this]() { this->speaker_->stop(); });
       } else {
         ESP_LOGV(TAG, "Speaker buffer full, trying again next loop");
       }
@@ -659,17 +667,20 @@ void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t por
   }
 
   memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
-  if (this->dest_addr_.ss_family == AF_INET) {
-    ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
-  }
-#if LWIP_IPV6
-  else if (this->dest_addr_.ss_family == AF_INET6) {
-    ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
-  }
+  switch (this->dest_addr_.ss_family) {
+#if USE_NETWORK_IPV4
+    case AF_INET:
+      ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
+      break;
 #endif
-  else {
-    ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
-    return;
+#if LWIP_IPV6
+    case AF_INET6:
+      ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
+      break;
+#endif
+    default:
+      ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
+      return;
   }
 
   // Only primary microphone channel over UDP
@@ -755,8 +766,8 @@ void VoiceAssistant::signal_stop_() {
 }
 
 void VoiceAssistant::start_playback_timeout_() {
-  this->set_timeout("playing", 2000, [this]() {
-    this->cancel_timeout("speaker-timeout");
+  this->set_timeout(PLAYBACK_TIMEOUT_ID, this->tts_playback_start_timeout_, [this]() {
+    this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
     if (this->api_client_ == nullptr)
@@ -1046,10 +1057,10 @@ void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse 
   }
 
   if (this->timers_.empty()) {
-    this->cancel_interval("timer-event");
+    this->cancel_interval(TIMER_TICK_INTERVAL_ID);
     this->timer_tick_running_ = false;
   } else if (!this->timer_tick_running_) {
-    this->set_interval("timer-event", 1000, [this]() { this->timer_tick_(); });
+    this->set_interval(TIMER_TICK_INTERVAL_ID, 1000, [this]() { this->timer_tick_(); });
     this->timer_tick_running_ = true;
   }
 }
