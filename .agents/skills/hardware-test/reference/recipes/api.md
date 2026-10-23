@@ -28,3 +28,15 @@ connected first, and the loop-time maxima. For the loop cost of polling, repeat 
 so after a drop every dial is closed and HA's incoming reconnect wins 11 to 33 s later; the measurable effect is the
 first dial landing in the loop the network flag flips.
 Results: https://github.com/esphome/esphome/pull/21085#issuecomment-6254742791
+
+## User defined action listing and execution without a client library (#18882)
+
+`scripts/api/rawactions.py HOST list` speaks the plaintext native API over a raw socket and decodes every
+`ListEntitiesServicesResponse` by field number (argument fields 1 name, 2 type, 3 description, 4 example, 5 optional,
+6 default_value), so new wire fields show up without waiting for the client library. `rawactions.py HOST exec ACTION
+k=v ...` sends `ExecuteServiceRequest` with `sint32` ints (field 5, not the legacy int32 field 2), fixed32 floats,
+length delimited strings and `int[]` as repeated sint32 (field 7); `ALLOW_MISSING=1` leaves arguments out on purpose
+(the device then drops the call). `templates/api-actions-dut.yaml` (D1 mini, three actions, optional variables with
+defaults) and `templates/api-actions-strings-dut.yaml` (required strings) log what arrived. String arguments are
+`StringRef`s that are not null terminated: copy them with `snprintf("%.*s", size, c_str())` into a buffer before
+logging, and do not pass `%.*s` to `logger.log`, whose validator counts it as one pattern.

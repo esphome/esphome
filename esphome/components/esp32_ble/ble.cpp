@@ -14,14 +14,9 @@
 #include <cinttypes>
 extern "C" {
 #include <esp_hosted.h>
-#ifndef CONFIG_ESP_HOSTED_HOST_FEAT_BT
-#include <esp_hosted_misc.h>
-#include <esp_hosted_bluedroid.h>
-#endif
 }
-#ifdef CONFIG_ESP_HOSTED_HOST_FEAT_BT
+#include <eh_host_bt.h>
 #include <esp_hosted_bt_host_stack.h>
-#endif
 #endif
 #include <esp_bt_device.h>
 #include <esp_bt_main.h>
@@ -246,44 +241,28 @@ bool ESP32BLE::ble_setup_() {
   }
   ESP_LOGD(TAG, "Co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32, fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
 
-#ifdef CONFIG_ESP_HOSTED_HOST_FEAT_BT
-  esp_hosted_bt_host_stack_cfg_t bt_cfg{};
-  bt_cfg.stack = ESP_HOSTED_BT_HOST_STACK_BLUEDROID;
-  bt_cfg.bring_up_controller = true;
-  bt_cfg.controller_ready_timeout_ms = EH_BT_CTRL_DEFAULT_READY_TIMEOUT_MS;
-  if (esp_hosted_bt_host_stack_setup(&bt_cfg) != ESP_OK) {
-    ESP_LOGE(TAG,
-             "BT controller bring-up failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
-             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
-             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
-    return false;
-  }
-#else
-  if (esp_hosted_bt_controller_init() != ESP_OK) {
+  // Not the library's bring-up: its retry loop can block for minutes on a silent co-processor
+  err = eh_host_bt_controller_init();
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
     ESP_LOGE(TAG,
              "BT controller init failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
              " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
              fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
     return false;
   }
-
-  if (esp_hosted_bt_controller_enable() != ESP_OK) {
-    ESP_LOGE(TAG,
-             "BT controller enable failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
-             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
-             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
+  err = eh_host_bt_controller_enable();
+  if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+    ESP_LOGE(TAG, "BT controller enable failed: %s; BLE disabled", esp_err_to_name(err));
     return false;
   }
 
-  hosted_hci_bluedroid_open();
-
-  esp_bluedroid_hci_driver_operations_t operations = {
-      .send = hosted_hci_bluedroid_send,
-      .check_send_available = hosted_hci_bluedroid_check_send_available,
-      .register_host_callback = hosted_hci_bluedroid_register_host_callback,
-  };
-  esp_bluedroid_attach_hci_driver(&operations);
-#endif
+  esp_hosted_bt_host_stack_cfg_t bt_cfg{};
+  bt_cfg.stack = ESP_HOSTED_BT_HOST_STACK_BLUEDROID;
+  bt_cfg.bring_up_controller = false;
+  if (esp_hosted_bt_host_stack_setup(&bt_cfg) != ESP_OK) {
+    ESP_LOGE(TAG, "BT host stack setup failed; BLE disabled");
+    return false;
+  }
 #endif
 
   err = esp_bluedroid_init();
@@ -440,23 +419,11 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
-#elif defined(CONFIG_ESP_HOSTED_HOST_FEAT_BT)
+#else
   if (esp_hosted_bt_host_stack_teardown() != ESP_OK) {
     ESP_LOGE(TAG, "esp_hosted_bt_host_stack_teardown failed");
     return false;
   }
-#else
-  if (esp_hosted_bt_controller_disable() != ESP_OK) {
-    ESP_LOGE(TAG, "esp_hosted_bt_controller_disable failed");
-    return false;
-  }
-
-  if (esp_hosted_bt_controller_deinit(false) != ESP_OK) {
-    ESP_LOGE(TAG, "esp_hosted_bt_controller_deinit failed");
-    return false;
-  }
-
-  hosted_hci_bluedroid_close();
 #endif
   return true;
 }

@@ -6,8 +6,6 @@ device's actual state back, so the actions are the only thing that reacts to a c
 
 from __future__ import annotations
 
-import asyncio
-
 import aioesphomeapi
 from aioesphomeapi import (
     ButtonInfo,
@@ -20,6 +18,7 @@ from aioesphomeapi import (
 import pytest
 
 from .host_prefs import clear_host_prefs
+from .log_utils import LineWaiter
 from .state_utils import (
     InitialStateHelper,
     require_entity,
@@ -40,17 +39,13 @@ async def test_template_climate_set_actions(
     """Every set_*_action fires with the requested value; state waits for a publish."""
     clear_host_prefs(DEVICE_NAME)
 
-    log_lines: list[str] = []
-
-    def on_log_line(line: str) -> None:
-        if "_action " in line or "Unsupported" in line:
-            log_lines.append(line)
+    waiter = LineWaiter()
 
     def logged(fragment: str) -> bool:
-        return any(fragment in line for line in log_lines)
+        return any(fragment in line for line in waiter.lines)
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -65,10 +60,7 @@ async def test_template_climate_set_actions(
         client.subscribe_states(
             initial_state_helper.on_state_wrapper(lambda state: None)
         )
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         # Both traits are derived from the low/high and humidity set actions, not declared.
         assert test_climate.supports_two_point_target_temperature
@@ -85,10 +77,7 @@ async def test_template_climate_set_actions(
         client.climate_command(test_climate.key, preset=ClimatePreset.ECO)
         client.climate_command(test_climate.key, custom_preset="eco_plus")
 
-        for _ in range(50):
-            await asyncio.sleep(0.1)
-            if logged("set_custom_preset_action eco_plus"):
-                break
+        await waiter.wait_for("set_custom_preset_action eco_plus", timeout=5.0)
 
         assert logged("set_mode_action 3")  # CLIMATE_MODE_HEAT
         assert logged("set_target_temperature_low_action 18.0")
@@ -110,8 +99,4 @@ async def test_template_climate_set_actions(
 
         # A publish naming a mode outside supported_modes warns instead of publishing it.
         client.button_command(unsupported_button.key)
-        for _ in range(50):
-            await asyncio.sleep(0.1)
-            if logged("Unsupported mode"):
-                break
-        assert logged("Unsupported mode")
+        await waiter.wait_for("Unsupported mode", timeout=5.0)
