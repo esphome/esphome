@@ -13,14 +13,6 @@ TEST(OutputProcessor, ArgmaxReturnsWinningClassAndItsScore) {
   EXPECT_FLOAT_EQ(result.confidence, 2.5f);
 }
 
-TEST(OutputProcessor, DirectClassMatchesArgmax) {
-  const float output[3] = {0.1f, 2.5f, -0.4f};
-  const ProcessedOutput result =
-      process_output(output, 3, OutputProcessing::OUTPUT_PROCESSING_DIRECT_CLASS, 1.0f, false);
-  EXPECT_FLOAT_EQ(result.value, 1.0f);
-  EXPECT_FLOAT_EQ(result.confidence, 2.5f);
-}
-
 TEST(OutputProcessor, ScaleFactorDividesTheClassIndexInEveryMode) {
   const float output[3] = {0.1f, 2.5f, -0.4f};
   EXPECT_NEAR(process_output(output, 3, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 10.0f, false).value, 0.1f,
@@ -44,38 +36,6 @@ TEST(OutputProcessor, SoftmaxConfidenceIsTheWinningProbability) {
   const ProcessedOutput result = process_output(logits, 3, OutputProcessing::OUTPUT_PROCESSING_SOFTMAX, 1.0f, false);
   EXPECT_FLOAT_EQ(result.value, 2.0f);
   EXPECT_NEAR(result.confidence, 0.6652409558f, TOLERANCE);
-}
-
-TEST(OutputProcessor, LogitsModesUseTheSoftmaxProbability) {
-  const float logits[3] = {1.0f, 2.0f, 3.0f};
-  const OutputProcessing modes[] = {OutputProcessing::OUTPUT_PROCESSING_LOGITS,
-                                    OutputProcessing::OUTPUT_PROCESSING_LOGITS_JOMJOL,
-                                    OutputProcessing::OUTPUT_PROCESSING_SOFTMAX_JOMJOL};
-  for (const OutputProcessing mode : modes) {
-    SCOPED_TRACE(static_cast<int>(mode));
-    const ProcessedOutput result = process_output(logits, 3, mode, 1.0f, false);
-    EXPECT_FLOAT_EQ(result.value, 2.0f);
-    EXPECT_NEAR(result.confidence, 0.6652409558f, TOLERANCE);
-  }
-}
-
-TEST(OutputProcessor, ExperimentalScaleSoftensTheDistribution) {
-  const float logits[3] = {1.0f, 2.0f, 3.0f};
-  const ProcessedOutput result =
-      process_output(logits, 3, OutputProcessing::OUTPUT_PROCESSING_EXPERIMENTAL_SCALE, 1.0f, false);
-  EXPECT_FLOAT_EQ(result.value, 2.0f);
-  // 1 / (expf(-0.2f) + expf(-0.1f) + 1): 0.1f is not exactly 0.1, so the single precision result
-  // differs from the exact 0.3671677.
-  EXPECT_NEAR(result.confidence, 0.3671654f, TOLERANCE);
-}
-
-// Regression: the mode used to shadow scale_factor with its own 0.1f constant and divide the class
-// index by that constant, reporting class 2 as 20 instead of 0.2.
-TEST(OutputProcessor, ExperimentalScaleRespectsTheScaleFactor) {
-  const float logits[3] = {1.0f, 2.0f, 3.0f};
-  const ProcessedOutput result =
-      process_output(logits, 3, OutputProcessing::OUTPUT_PROCESSING_EXPERIMENTAL_SCALE, 10.0f, false);
-  EXPECT_NEAR(result.value, 0.2f, TOLERANCE);
 }
 
 // Regression: the confidence used to be (max - min) / (max - min), which is always 1.0.
@@ -109,12 +69,13 @@ TEST(OutputProcessor, AutoDetectExactOneHotIsTreatedAsProbabilities) {
   EXPECT_FLOAT_EQ(result.confidence, 1.0f);
 }
 
-TEST(OutputProcessor, AutoDetectSingleNonZeroIsOneHot) {
+// Regression: the one-hot branch used to report 1.0 whatever the single non-zero value was.
+TEST(OutputProcessor, AutoDetectSingleNonZeroKeepsItsValueAsTheConfidence) {
   const float one_hot[3] = {0.0f, 0.7f, 0.0f};
   const ProcessedOutput result =
       process_output(one_hot, 3, OutputProcessing::OUTPUT_PROCESSING_AUTO_DETECT, 1.0f, false);
   EXPECT_FLOAT_EQ(result.value, 1.0f);
-  EXPECT_FLOAT_EQ(result.confidence, 1.0f);
+  EXPECT_FLOAT_EQ(result.confidence, 0.7f);
 }
 
 TEST(OutputProcessor, AutoDetectLogits) {

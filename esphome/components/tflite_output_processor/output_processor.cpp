@@ -9,9 +9,6 @@ namespace esphome::tflite_output_processor {
 
 ESPHOME_LOG_TAG(TAG, "output_processor");
 
-/// Multiplies the logits of OUTPUT_PROCESSING_EXPERIMENTAL_SCALE; below 1.0 flattens the distribution.
-static constexpr float EXPERIMENTAL_LOGIT_SCALE = 0.1f;
-
 namespace {
 
 struct OutputStats {
@@ -43,15 +40,11 @@ template<typename ValueAt> OutputStats compute_stats(int num_classes, const Valu
 }
 
 /// Probability of the winning class after softmax. Softmax keeps the argmax, so the winner is
-/// already known and only its probability has to be computed. `logit_scale` multiplies the centred
-/// logits before exp(): 1.0 is a plain softmax, smaller values flatten the distribution.
-template<typename ValueAt>
-float winning_probability(int num_classes, float max_value, float logit_scale, const ValueAt &value_at) {
-  if (!(logit_scale > 0.0f))
-    logit_scale = 1.0f;
+/// already known and only its probability has to be computed.
+template<typename ValueAt> float winning_probability(int num_classes, float max_value, const ValueAt &value_at) {
   float sum = 0.0f;
   for (int i = 0; i < num_classes; i++)
-    sum += expf((value_at(i) - max_value) * logit_scale);
+    sum += expf(value_at(i) - max_value);
   return sum > 0.0f ? 1.0f / sum : 0.0f;
 }
 
@@ -68,20 +61,13 @@ ProcessedOutput process_values(int num_classes, OutputProcessing mode, float sca
   float confidence = 0.0f;
 
   switch (mode) {
-    case OutputProcessing::OUTPUT_PROCESSING_DIRECT_CLASS:
     case OutputProcessing::OUTPUT_PROCESSING_ARGMAX:
       // The tensor already holds scores or probabilities, so the winning entry is the confidence.
       confidence = stats.max_value;
       break;
     case OutputProcessing::OUTPUT_PROCESSING_SOFTMAX:
-    case OutputProcessing::OUTPUT_PROCESSING_LOGITS:
-    case OutputProcessing::OUTPUT_PROCESSING_LOGITS_JOMJOL:
-    case OutputProcessing::OUTPUT_PROCESSING_SOFTMAX_JOMJOL:
       // Logits: softmax does not change the winning class, so only its probability is needed.
-      confidence = winning_probability(num_classes, stats.max_value, 1.0f, value_at);
-      break;
-    case OutputProcessing::OUTPUT_PROCESSING_EXPERIMENTAL_SCALE:
-      confidence = winning_probability(num_classes, stats.max_value, EXPERIMENTAL_LOGIT_SCALE, value_at);
+      confidence = winning_probability(num_classes, stats.max_value, value_at);
       break;
     case OutputProcessing::OUTPUT_PROCESSING_QAT_QUANTIZED:
       // Quantization-aware trained models apply softmax, so this already is a probability.
@@ -101,10 +87,11 @@ ProcessedOutput process_values(int num_classes, OutputProcessing mode, float sca
         // An exact one-hot vector ({0, 1, 0}) sums to 1 and lands here as well.
         confidence = stats.max_value;
       } else if (looks_like_one_hot) {
-        // Exactly one non-zero element, so the winner is that element.
-        confidence = 1.0f;
+        // Exactly one non-zero element, so the winner is that element. Its value is all the
+        // information the model gave about how sure it is.
+        confidence = std::clamp(stats.max_value, 0.0f, 1.0f);
       } else {
-        confidence = winning_probability(num_classes, stats.max_value, 1.0f, value_at);
+        confidence = winning_probability(num_classes, stats.max_value, value_at);
       }
       break;
     }
