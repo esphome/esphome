@@ -986,8 +986,12 @@ def lazy_load_validator(
 
 async def lazy_load_setup(component: str, name: str, *args: Any) -> None:
     """Await ``components.<component>.<name>(*args)`` when the component is loaded."""
-    if component in CORE.loaded_integrations:
-        await getattr(import_module(f"esphome.components.{component}"), name)(*args)
+    if component not in CORE.loaded_integrations:
+        return
+    module = import_module(f"esphome.components.{component}")
+    if (hook := getattr(module, name, None)) is None:
+        raise ValueError(f"{component} has no setup hook {name!r}")
+    await hook(*args)
 
 
 async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:

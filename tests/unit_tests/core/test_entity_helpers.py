@@ -1,6 +1,7 @@
 """Test get_base_entity_object_id function matches C++ behavior."""
 
 from collections.abc import Callable, Generator
+from importlib import import_module
 import logging
 from pathlib import Path
 import re
@@ -1310,6 +1311,15 @@ async def test_lazy_load_setup_defers_import() -> None:
         )
 
 
+@pytest.mark.asyncio
+async def test_lazy_load_setup_names_missing_hook() -> None:
+    with (
+        patch.object(CORE, "loaded_integrations", {"zigbee"}),
+        pytest.raises(ValueError, match="no_such_hook"),
+    ):
+        await lazy_load_setup("zigbee", "no_such_hook", "var", {})
+
+
 def test_lazy_load_validator_rejects_unknown_component() -> None:
     """A typo in the component name fails at schema construction."""
     with pytest.raises(ValueError, match="no_such_component"):
@@ -1355,19 +1365,34 @@ def test_integration_class_handles_match_owning_definitions() -> None:
         assert str(owning) == f"zigbee::{class_name}"
 
 
+def _component_source_calls(pattern: str) -> set[tuple[str, ...]]:
+    components = Path(entity_helpers.__file__).parent.parent / "components"
+    return {
+        match if isinstance(match, tuple) else (match,)
+        for path in components.rglob("*.py")
+        for match in re.findall(pattern, path.read_text())
+    }
+
+
 def test_mqtt_component_class_names_exist() -> None:
     """Every mqtt_component_class("...") call names a class mqtt declares."""
     from esphome.components import mqtt
 
-    components = Path(entity_helpers.__file__).parent.parent / "components"
-    names = {
-        name
-        for path in components.glob("*/__init__.py")
-        for name in re.findall(r'mqtt_component_class\("(\w+)"\)', path.read_text())
-    }
-    assert "MQTTSensorComponent" in names
-    for name in names:
+    names = _component_source_calls(r'mqtt_component_class\(\s*"(\w+)"')
+    assert ("MQTTSensorComponent",) in names
+    for (name,) in names:
         assert str(mqtt_component_class(name)) == str(getattr(mqtt, name)), name
+
+
+def test_lazy_load_targets_exist() -> None:
+    """Every lazy_load_validator/lazy_load_setup call names a real component hook."""
+    calls = _component_source_calls(
+        r'lazy_load_(?:validator|setup)\(\s*"(\w+)",\s*"(\w+)"'
+    )
+    assert ("zigbee", "setup_switch") in calls
+    for component, name in calls:
+        module = import_module(f"esphome.components.{component}")
+        assert getattr(module, name, None) is not None, (component, name)
 
 
 def test_datetime_time_handle_matches_time_component() -> None:
