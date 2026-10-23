@@ -1,6 +1,7 @@
 #include "mcp251xfd.h"
 
 #include <algorithm>
+#include <array>
 #include <cinttypes>
 #include <cstring>
 
@@ -120,9 +121,9 @@ bool MCP251XFD::reset_() {
   if (!this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
     return false;
 
+  const uint8_t command[] = {INSTRUCTION_RESET, 0};
   this->enable();
-  this->write_byte(INSTRUCTION_RESET);
-  this->write_byte(0);
+  this->write_array(command, sizeof(command));
   this->disable();
   delay(10);
 
@@ -160,25 +161,38 @@ bool MCP251XFD::set_mode_(CanMode mode) {
 }
 
 bool MCP251XFD::read_registers_(uint16_t address, uint8_t *data, size_t length) {
-  const uint8_t command[] = {
+  if (length > MESSAGE_SIZE) {
+    this->status_set_warning(LOG_STR("SPI read length exceeds message buffer"));
+    return false;
+  }
+
+  const std::array<uint8_t, 3> command{
       static_cast<uint8_t>(INSTRUCTION_READ_CRC | (address >> 8)), static_cast<uint8_t>(address),
       static_cast<uint8_t>(address >= RAM_START && address < RAM_START + RAM_SIZE ? length / 4 : length)};
+
   // MCP2517FD errata DS80000792, section 1: RAM reads can block CAN RAM access during SPI pauses.
   // Byte gaps and the last-byte-to-CS-high delay must stay below the phase-dependent TSPIMAXDLY.
   // Separate SPI calls and preemption can exceed it. RX MAB overflow discards the frame and sets SERRIF.
   // TX MAB underflow sets SERRIF/MODIF and enters Restricted Operation or Listen Only (CiCON.SERR2LOM).
   // Software must request Normal mode to resume TX. FIFO space and SPI CRC retries do not prevent this.
   // MCP251XFD errata: ordinary READ can silently return corrupt data. Retry READ_CRC on a mismatch.
+
+  std::array<uint8_t, MESSAGE_SIZE + 5> transfer{};
   for (uint8_t attempt = 0; attempt < 3; attempt++) {
+    transfer.fill(0);
+    std::copy(command.begin(), command.end(), transfer.begin());
+
     this->enable();
-    this->write_array(command, sizeof(command));
-    this->read_array(data, length);
-    const uint16_t crc_high = this->read_byte();
-    const uint16_t received_crc = (crc_high << 8) | this->read_byte();
+    this->transfer_array(transfer.data(), length + command.size() + 2);
     this->disable();
-    uint16_t crc = crc16be(command, sizeof(command), 0xFFFF, 0x8005);
-    crc = crc16be(data, length, crc, 0x8005);
+
+    uint16_t crc = crc16be(command.data(), command.size(), 0xFFFF, 0x8005);
+    crc = crc16be(transfer.data() + command.size(), length, crc, 0x8005);
+    const size_t crc_offset = command.size() + length;
+    const uint16_t received_crc = (uint16_t{transfer[crc_offset]} << 8) | transfer[crc_offset + 1];
     if (crc == received_crc) {
+      if (length != 0)
+        std::memcpy(data, transfer.data() + command.size(), length);
       if (this->spi_error_) {
         this->spi_error_ = false;
         if (!this->bus_off_)
@@ -196,17 +210,26 @@ bool MCP251XFD::read_register_(uint16_t address, uint32_t &value) {
   uint8_t data[4];
   if (!this->read_registers_(address, data, sizeof(data)))
     return false;
-  value = uint32_t{data[0]} | (uint32_t{data[1]} << 8) | (uint32_t{data[2]} << 16) | (uint32_t{data[3]} << 24);
+  value = encode_value_le<uint32_t>(data);
   return true;
 }
 
 void MCP251XFD::write_registers_(uint16_t address, const uint8_t *data, size_t length) {
+  if (length > MESSAGE_SIZE) {
+    this->status_set_warning(LOG_STR("SPI write length exceeds message buffer"));
+    return;
+  }
+
+  std::array<uint8_t, MESSAGE_SIZE + 2> transfer{};
+  transfer[0] = static_cast<uint8_t>(INSTRUCTION_WRITE | (address >> 8));
+  transfer[1] = static_cast<uint8_t>(address);
+  if (length != 0)
+    std::memcpy(transfer.data() + 2, data, length);
+
   // Keep the CS-low window tight on every model. Bus ownership does not prevent task preemption.
   // A single buffered transfer reduces gaps but still needs prompt CS release after the last byte.
   this->enable();
-  this->write_byte(INSTRUCTION_WRITE | (address >> 8));
-  this->write_byte(address);
-  this->write_array(data, length);
+  this->write_array(transfer.data(), length + 2);
   this->disable();
 }
 
@@ -315,8 +338,7 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
     return canbus::ERROR_FAIL;
   this->write_byte_(REG_RX_FIFO_CON + 1, FIFO_INCREMENT);
 
-  const uint32_t id = message[0] | static_cast<uint32_t>(message[1]) << 8 | static_cast<uint32_t>(message[2]) << 16 |
-                      static_cast<uint32_t>(message[3]) << 24;
+  const uint32_t id = encode_value_le<uint32_t>(message);
   frame->use_extended_id = (message[4] & MESSAGE_IDE) != 0;
   if (frame->use_extended_id)
     frame->can_id = ((id & STANDARD_ID_MASK) << 18) | ((id >> 11) & EXTENDED_ID_LOW_MASK);
