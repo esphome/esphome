@@ -20,7 +20,6 @@
 #include <esp_modem_config.h>
 
 #include <atomic>
-#include <cmath>
 #include <memory>
 #include <string>
 #include <utility>
@@ -79,20 +78,6 @@ enum class PinSave : uint8_t {
   PIN_SAVE_DONE,
   PIN_SAVE_PENDING,
   PIN_SAVE_FAILED,
-};
-#endif
-
-#ifdef USE_MODEM_POLL
-// What one poll read from the modem; the defaults stand where it did not answer
-struct ModemPollResult {
-#ifdef USE_MODEM_SIGNAL
-  float rssi{NAN};
-  float ber{NAN};
-#endif
-#ifdef USE_MODEM_NETWORK_TYPE
-  static constexpr uint8_t NETWORK_MODE_NONE = 255;
-  uint8_t network_mode{NETWORK_MODE_NONE};
-#endif
 };
 #endif
 
@@ -192,16 +177,8 @@ class ModemComponent : public Component {
     PENDING_ON_SYNC = 1 << 4,          // loop() wakes the task once on_sync ran
     PENDING_ON_CONNECT = 1 << 5,
     PENDING_ON_DISCONNECT = 1 << 6,
-#ifdef USE_MODEM_POLL
-    PENDING_POLL = 1 << 7,  // poll_result_ is ready to publish
-#endif
   };
 #ifdef USE_MODEM_POLL
-  enum PollState : uint8_t {
-    POLL_IDLE,
-    POLL_REQUESTED,  // set by the interval on the main loop
-    POLL_READY,      // poll_result_ written by the task; loop() publishes it and goes back to IDLE
-  };
   void poll_();
   void publish_poll_();
 #endif
@@ -267,7 +244,7 @@ class ModemComponent : public Component {
 #endif
 #ifdef USE_MODEM_POLL
   uint32_t update_interval_{0};
-  ModemPollResult poll_result_{};  // the task writes it while poll_state_ is REQUESTED, loop() reads it while READY
+  uint32_t next_poll_ms_{0};  // task only
 #endif
   uint16_t tx_buffer_size_{1024};
   uint16_t rx_buffer_size_{1024};
@@ -296,7 +273,8 @@ class ModemComponent : public Component {
   std::atomic<uint8_t> urc_pending_{0};
 #endif
 #ifdef USE_MODEM_POLL
-  std::atomic<PollState> poll_state_{POLL_IDLE};
+  // Set by the task with the poll_ answers below; until loop() has published them, polls are skipped
+  std::atomic<uint8_t> poll_unpublished_{0};
 #endif
 #ifdef USE_MODEM_PIN_CODE
   std::atomic<PinSave> pin_save_state_{PinSave::PIN_SAVE_DONE};
@@ -307,6 +285,13 @@ class ModemComponent : public Component {
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
+#ifdef USE_MODEM_SIGNAL
+  uint8_t poll_rssi_{99};  // raw AT+CSQ answers, 99 = unknown
+  uint8_t poll_ber_{99};
+#endif
+#ifdef USE_MODEM_NETWORK_TYPE
+  uint8_t poll_mode_{255};  // raw AT+CNSMOD answer, 255 = none
+#endif
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
   bool resync_{false};        // the attachment read failed, so CONNECTING syncs again first

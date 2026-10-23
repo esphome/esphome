@@ -267,8 +267,9 @@ void ModemComponent::loop() {
   }
 #endif
 #ifdef USE_MODEM_POLL
-  if (pending & PENDING_POLL) {
+  if (this->poll_unpublished_.load(std::memory_order_acquire)) {
     this->publish_poll_();
+    this->poll_unpublished_.store(0, std::memory_order_release);
   }
 #endif
 #ifdef USE_MODEM_URC
@@ -449,20 +450,7 @@ void ModemComponent::setup() {
 #endif
   if (!this->task_.create(ModemComponent::task_entry, "modem", TASK_STACK_SIZE, this, 1, false)) {
     this->fail_setup_(LOG_STR("Task creation failed"));
-    return;
   }
-#ifdef USE_MODEM_POLL
-  this->set_interval(this->update_interval_, [this]() {
-    // A poll that has not been published yet is not asked for again
-    PollState state = POLL_IDLE;
-    this->poll_state_.compare_exchange_strong(state, POLL_REQUESTED);
-    // The task polls only while connected, where it is parked; on its way there it picks the request up itself
-    if (state != POLL_READY && this->is_connected() &&
-        this->target_state_.load() == ModemState::MODEM_STATE_CONNECTED) {
-      this->wake_task_();
-    }
-  });
-#endif
 }
 
 void ModemComponent::dump_config() {
@@ -512,19 +500,29 @@ void ModemComponent::run_task_() {
       this->at_pending_.store(0, std::memory_order_release);
     }
 #endif
-    // Like send_at(), these go out between state steps
-#ifdef USE_MODEM_POLL
-    if (this->is_connected() && this->poll_state_.load(std::memory_order_acquire) == POLL_REQUESTED) {
-      this->poll_();
-      this->poll_state_.store(POLL_READY, std::memory_order_release);
-      this->hand_over_(PENDING_POLL);
-    }
-#endif
     this->step_delay_ms_ = 0;
     this->transition_to_(this->compute_next_state_());
     // Nothing to do while disabled or connected: enable(), disable() and the PPP events wake the task
     const bool parked = this->component_state_.load() == this->target_state_.load();
-    ulTaskNotifyTake(pdTRUE, parked ? portMAX_DELAY : pdMS_TO_TICKS(this->step_delay_ms_));
+    TickType_t wait = parked ? portMAX_DELAY : pdMS_TO_TICKS(this->step_delay_ms_);
+#ifdef USE_MODEM_POLL
+    // Like send_at(), the poll goes out between state steps; while connected the next poll ends the wait
+    if (parked && this->is_connected()) {
+      int32_t remaining = static_cast<int32_t>(this->next_poll_ms_ - millis());
+      if (remaining <= 0) {
+        // A result loop() has not published yet is not overwritten; that poll is skipped
+        if (!this->poll_unpublished_.load(std::memory_order_acquire)) {
+          this->poll_();
+          this->poll_unpublished_.store(1, std::memory_order_release);
+          this->enable_loop_soon_any_context();
+        }
+        this->next_poll_ms_ = millis() + this->update_interval_;
+        remaining = static_cast<int32_t>(this->update_interval_);
+      }
+      wait = pdMS_TO_TICKS(remaining);
+    }
+#endif
+    ulTaskNotifyTake(pdTRUE, wait);
   }
 }
 
@@ -899,6 +897,9 @@ void ModemComponent::transition_to_(ModemState next_state) {
     }
   } else if (next_state == ModemState::MODEM_STATE_CONNECTED) {
     this->hand_over_(PENDING_ON_CONNECT | PENDING_CONNECT_TIMEOUT);
+#ifdef USE_MODEM_POLL
+    this->next_poll_ms_ = millis();  // the first poll runs right after connecting
+#endif
   } else if (next_state == ModemState::MODEM_STATE_DISCONNECTING) {
     // The lost IP event can lag by minutes; a quick re-enable must wait for a fresh address
     this->got_ip_.store(0, std::memory_order_release);
@@ -1092,61 +1093,46 @@ static constexpr float BER_PERCENT[] = {0.14f, 0.28f, 0.57f, 1.13f, 2.26f, 4.53f
 #endif
 
 void ModemComponent::poll_() {
-  // The task owns poll_result_ while poll_state_ is REQUESTED
-  this->poll_result_ = {};
-  ModemPollResult &result = this->poll_result_;
+  // The task owns the poll_ answers while poll_unpublished_ is clear
 #ifdef USE_MODEM_SIGNAL
   int rssi = 99, ber = 99;
-  if (this->dce_->get_signal_quality(rssi, ber) == command_result::OK) {
-    if (rssi <= 31) {
-      result.rssi = -113 + 2 * rssi;
-    }
-    if (ber < static_cast<int>(std::size(BER_PERCENT))) {
-      result.ber = BER_PERCENT[ber];
-    }
-  }
+  const bool signal_ok = this->dce_->get_signal_quality(rssi, ber) == command_result::OK;
+  this->poll_rssi_ = static_cast<uint8_t>(signal_ok && rssi >= 0 && rssi < 99 ? rssi : 99);
+  this->poll_ber_ = static_cast<uint8_t>(signal_ok && ber >= 0 && ber < 99 ? ber : 99);
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
   int mode = -1;
-  if (this->dce_->get_network_system_mode(mode) == command_result::OK && mode >= 0 &&
-      mode < ModemPollResult::NETWORK_MODE_NONE) {
-    result.network_mode = mode;
-  }
+  const bool mode_ok = this->dce_->get_network_system_mode(mode) == command_result::OK;
+  this->poll_mode_ = static_cast<uint8_t>(mode_ok && mode >= 0 && mode < 255 ? mode : 255);
 #endif
 }
 
 #ifdef USE_MODEM_NETWORK_TYPE
-// AT+CNSMOD values on the SIM7600 family
+// AT+CNSMOD values 0-8 on the SIM7600 family; anything else shows as Unknown
 PROGMEM_STRING_TABLE(NetworkModeStrings, "No service", "GSM", "GPRS", "EDGE", "WCDMA", "HSDPA", "HSUPA", "HSPA", "LTE",
                      "Unknown");
 #endif
 
-#ifdef USE_MODEM_SIGNAL
-static void publish_if(sensor::Sensor *sensor, float value) {
-  if (sensor != nullptr) {
-    sensor->publish_state(value);
-  }
-}
-#endif
-
 void ModemComponent::publish_poll_() {
-  const ModemPollResult &result = this->poll_result_;
 #ifdef USE_MODEM_SIGNAL
-  publish_if(this->rssi_sensor_, result.rssi);
-  publish_if(this->ber_sensor_, result.ber);
+  if (this->rssi_sensor_ != nullptr) {
+    this->rssi_sensor_->publish_state(this->poll_rssi_ <= 31 ? -113.0f + 2.0f * this->poll_rssi_ : NAN);
+  }
+  if (this->ber_sensor_ != nullptr) {
+    this->ber_sensor_->publish_state(this->poll_ber_ < std::size(BER_PERCENT) ? BER_PERCENT[this->poll_ber_] : NAN);
+  }
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
-  if (this->network_type_text_sensor_ != nullptr && result.network_mode != ModemPollResult::NETWORK_MODE_NONE) {
+  if (this->network_type_text_sensor_ != nullptr && this->poll_mode_ != 255) {
     char name[NetworkModeStrings::MAX_LENGTH + 1];
     ESPHOME_strncpy_P(name,
                       reinterpret_cast<ESPHOME_PGM_P>(
-                          NetworkModeStrings::get_progmem_str(result.network_mode, NetworkModeStrings::LAST_INDEX)),
+                          NetworkModeStrings::get_progmem_str(this->poll_mode_, NetworkModeStrings::LAST_INDEX)),
                       sizeof(name));
     name[sizeof(name) - 1] = '\0';
     this->network_type_text_sensor_->publish_state(name);
   }
 #endif
-  this->poll_state_.store(POLL_IDLE, std::memory_order_release);
 }
 #endif
 
