@@ -9,6 +9,7 @@ from esphome.components.st7305.display import (
     CONF_PORTRAIT,
     CONF_ROW_END,
     MODELS,
+    _model_schema,
     _resolve,
 )
 from esphome.const import CONF_CS_PIN, CONF_DC_PIN, CONF_HEIGHT, CONF_WIDTH
@@ -72,3 +73,22 @@ def test_portrait_rejects_inner_not_multiple_of_12(width: int) -> None:
 def test_window_ends_must_fit_in_a_byte() -> None:
     with pytest.raises(cv.Invalid, match="between 0 and 255"):
         _resolve(_config(**{CONF_WIDTH: 1024, CONF_HEIGHT: 300}), MODELS["CUSTOM"])
+
+
+MODEL_KEYS = (CONF_WIDTH, CONF_HEIGHT, CONF_PORTRAIT, CONF_CS_PIN, CONF_DC_PIN)
+
+
+def _schema_key(model: str, key: str) -> cv.Optional:
+    return next(k for k in _model_schema(MODELS[model]).schema if k == key)
+
+
+@pytest.mark.parametrize("key", MODEL_KEYS)
+def test_custom_requires_model_keys(key: str) -> None:
+    assert isinstance(_schema_key("CUSTOM", key), cv.Required)
+
+
+@pytest.mark.parametrize("key", MODEL_KEYS)
+def test_model_defaults_model_keys(key: str) -> None:
+    schema_key = _schema_key("WAVESHARE-400X300", key)
+    assert not isinstance(schema_key, cv.Required)
+    assert schema_key.default() == MODELS["WAVESHARE-400X300"].get_default(key)
