@@ -14,7 +14,7 @@ class XiaomiMUE4094RT final : public Component,
   void set_time(uint16_t timeout) { timeout_ = timeout; }
 
  protected:
-  void publish_result_(const xiaomi_ble::XiaomiParseResult &res) override;
+  void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
 
   uint16_t timeout_;
 };

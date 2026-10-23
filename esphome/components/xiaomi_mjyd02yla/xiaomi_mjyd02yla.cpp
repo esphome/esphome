@@ -15,7 +15,7 @@ void XiaomiMJYD02YLA::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_);
 }
 
-void XiaomiMJYD02YLA::publish_result_(const xiaomi_ble::XiaomiParseResult &res) {
+void XiaomiMJYD02YLA::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   if (res.idle_time.has_value() && this->idle_time_ != nullptr)
     this->idle_time_->publish_state(*res.idle_time);
   if (res.battery_level.has_value() && this->battery_level_ != nullptr)

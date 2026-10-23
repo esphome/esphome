@@ -30,7 +30,7 @@ class XiaomiRTCGQ02LM final : public Component, public xiaomi_ble::XiaomiEncrypt
 #endif
 
  protected:
-  void publish_result_(const xiaomi_ble::XiaomiParseResult &res) override;
+  void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
 
 #ifdef USE_BINARY_SENSOR
   uint16_t motion_timeout_;

@@ -12,7 +12,7 @@ void XiaomiWX08ZM::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-void XiaomiWX08ZM::publish_result_(const xiaomi_ble::XiaomiParseResult &res) {
+void XiaomiWX08ZM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   if (res.is_active.has_value()) {
     this->publish_state(*res.is_active);
   }

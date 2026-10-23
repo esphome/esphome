@@ -15,7 +15,7 @@ class XiaomiGCLS002 final : public Component, public xiaomi_ble::XiaomiDevice {
   void set_illuminance(sensor::Sensor *illuminance) { illuminance_ = illuminance; }
 
  protected:
-  void publish_result_(const xiaomi_ble::XiaomiParseResult &res) override;
+  void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
 
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *moisture_{nullptr};

@@ -11,7 +11,7 @@ void XiaomiHHCCPOT002::dump_config() {
   LOG_SENSOR("  ", "Conductivity", this->conductivity_);
 }
 
-void XiaomiHHCCPOT002::publish_result_(const xiaomi_ble::XiaomiParseResult &res) {
+void XiaomiHHCCPOT002::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   if (res.moisture.has_value() && this->moisture_ != nullptr)
     this->moisture_->publish_state(*res.moisture);
   if (res.conductivity.has_value() && this->conductivity_ != nullptr)

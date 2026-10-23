@@ -18,7 +18,7 @@ class XiaomiMJYD02YLA final : public Component,
   void set_light(binary_sensor::BinarySensor *light) { is_light_ = light; }
 
  protected:
-  void publish_result_(const xiaomi_ble::XiaomiParseResult &res) override;
+  void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
 
   sensor::Sensor *idle_time_{nullptr};
   sensor::Sensor *battery_level_{nullptr};

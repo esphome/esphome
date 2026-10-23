@@ -13,7 +13,7 @@ void XiaomiJQJCY01YM::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-void XiaomiJQJCY01YM::publish_result_(const xiaomi_ble::XiaomiParseResult &res) {
+void XiaomiJQJCY01YM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   if (res.temperature.has_value() && this->temperature_ != nullptr)
     this->temperature_->publish_state(*res.temperature);
   if (res.humidity.has_value() && this->humidity_ != nullptr)

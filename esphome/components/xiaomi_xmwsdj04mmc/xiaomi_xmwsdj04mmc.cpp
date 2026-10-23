@@ -15,7 +15,7 @@ void XiaomiXMWSDJ04MMC::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-void XiaomiXMWSDJ04MMC::publish_result_(const xiaomi_ble::XiaomiParseResult &res) {
+void XiaomiXMWSDJ04MMC::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   if (res.temperature.has_value() && this->temperature_ != nullptr)
     this->temperature_->publish_state(*res.temperature);
   // see https://github.com/custom-components/sensor.mitemp_bt/issues/7#issuecomment-595948254

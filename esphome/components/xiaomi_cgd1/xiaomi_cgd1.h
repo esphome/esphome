@@ -14,7 +14,7 @@ class XiaomiCGD1 : public Component, public xiaomi_ble::XiaomiEncryptedDevice {
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
 
  protected:
-  void publish_result_(const xiaomi_ble::XiaomiParseResult &res) override;
+  void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
 
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};

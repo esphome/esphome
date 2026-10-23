@@ -13,7 +13,7 @@ class XiaomiHHCCPOT002 final : public Component, public xiaomi_ble::XiaomiDevice
   void set_conductivity(sensor::Sensor *conductivity) { conductivity_ = conductivity; }
 
  protected:
-  void publish_result_(const xiaomi_ble::XiaomiParseResult &res) override;
+  void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
 
   sensor::Sensor *moisture_{nullptr};
   sensor::Sensor *conductivity_{nullptr};

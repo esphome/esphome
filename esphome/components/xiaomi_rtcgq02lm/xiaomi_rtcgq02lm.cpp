@@ -21,7 +21,7 @@ void XiaomiRTCGQ02LM::dump_config() {
 #endif
 }
 
-void XiaomiRTCGQ02LM::publish_result_(const xiaomi_ble::XiaomiParseResult &res) {
+void XiaomiRTCGQ02LM::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
 #ifdef USE_BINARY_SENSOR
   if (res.has_motion.has_value() && this->motion_ != nullptr) {
     this->motion_->publish_state(*res.has_motion);

@@ -12,7 +12,7 @@ void XiaomiMUE4094RT::dump_config() {
   LOG_BINARY_SENSOR("  ", "Motion", this);
 }
 
-void XiaomiMUE4094RT::publish_result_(const xiaomi_ble::XiaomiParseResult &res) {
+void XiaomiMUE4094RT::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
   if (res.has_motion.has_value()) {
     this->publish_state(*res.has_motion);
     this->set_timeout(MOTION_TIMEOUT_ID, timeout_, [this]() { this->publish_state(false); });
