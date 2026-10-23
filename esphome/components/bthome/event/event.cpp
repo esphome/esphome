@@ -10,8 +10,8 @@ static constexpr uint8_t BUTTON_LONG_TRIPLE_PRESS = 0x06;
 static constexpr uint8_t BUTTON_HOLD = 0x80;
 static constexpr uint8_t BUTTON_HOLD_ALIAS = 0xFE;
 static constexpr uint8_t DIMMER_ROTATE_RIGHT = 0x02;
-// Position of hold_press in the event types of event/__init__.py.
-static constexpr uint8_t HOLD_TYPE_INDEX = BUTTON_LONG_TRIPLE_PRESS;
+// hold_press comes after the six numbered gestures in EVENT_TYPES of event/__init__.py.
+static constexpr uint8_t HOLD_TYPE_INDEX = 6;
 
 bool BTHomeEvent::process_object(const BTHomeObject &object) {
   if (object.type == this->object_type_ && object.index == this->index_ && object.length > 0) {
