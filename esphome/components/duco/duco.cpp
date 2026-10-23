@@ -70,8 +70,10 @@ bool Duco::parse_byte_(uint8_t byte) {
 void Duco::finalize_message_() {
   const uint8_t *raw = this->rx_buffer_.data();
   // length (function, id and data), function, id, data, CRC low, CRC high
-  if (this->rx_size_ < 5 || raw[0] < 2 || this->rx_size_ < raw[0] + 3u)
+  if (this->rx_size_ < 5 || raw[0] < 2 || this->rx_size_ < raw[0] + 3u) {
+    ESP_LOGV(TAG, "Malformed message dropped: %u bytes, length byte %u", this->rx_size_, raw[0]);
     return;
+  }
   const uint8_t length = raw[0];
 
   const uint16_t computed_crc = crc16(raw, length + 1);
@@ -90,13 +92,30 @@ void Duco::finalize_message_() {
   for (auto &pending : this->pending_) {
     if (pending.function != 0 && pending.id == message.id && pending.function + 2 == raw[1]) {
       pending.function = 0;
-      this->status_clear_warning();
+      pending.missed = false;
+      this->update_warning_();
       pending.device->receive_response(message);
       return;
     }
   }
+  // Acknowledgements (odd function codes) are expected and never match
+  if ((raw[1] & 1) == 0) {
+    ESP_LOGV(TAG, "Answer %02X with id %u matches no open request", raw[1], message.id);
+  }
 #endif
 }
+
+#ifdef DUCO_DEVICE_COUNT
+void Duco::update_warning_() {
+  for (const auto &pending : this->pending_) {
+    if (pending.missed) {
+      this->status_set_warning(LOG_STR("No answer from the box"));
+      return;
+    }
+  }
+  this->status_clear_warning();
+}
+#endif
 
 void Duco::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -133,8 +152,11 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
 #ifdef DUCO_DEVICE_COUNT
   for (auto &pending : this->pending_) {
     if (pending.device == device) {
-      if (pending.function != 0)
-        this->status_set_warning(LOG_STR("No answer from the box"));
+      pending.missed = pending.function != 0;
+      if (pending.missed) {
+        ESP_LOGW(TAG, "No answer to request %02X with id %u", pending.function, pending.id);
+        this->update_warning_();
+      }
       pending.id = id;
       pending.function = function;
       break;

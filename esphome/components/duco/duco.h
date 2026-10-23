@@ -32,6 +32,7 @@ struct DucoPendingRequest {
   DucoDevice *device;
   uint8_t id;
   uint8_t function;  // 0 while nothing is open
+  bool missed;       // the request before this one got no answer; sits in padding
 };
 
 class Duco : public uart::UARTDevice, public Component {
@@ -42,7 +43,7 @@ class Duco : public uart::UARTDevice, public Component {
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
 
 #ifdef DUCO_DEVICE_COUNT
-  void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0}); }
+  void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0, false}); }
 #endif
 
   /// Send a request; its answer goes to device, or nowhere if nullptr. A device's new request replaces its
@@ -55,6 +56,9 @@ class Duco : public uart::UARTDevice, public Component {
   static constexpr size_t MAX_REQUEST_DATA = 9;
 
   bool parse_byte_(uint8_t byte);
+#ifdef DUCO_DEVICE_COUNT
+  void update_warning_();  // warn while any device's previous request went unanswered
+#endif
   void finalize_message_();
   uint8_t next_id_();
 

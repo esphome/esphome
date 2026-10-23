@@ -1,8 +1,11 @@
 #include "sensor.h"
 
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome::duco {
+
+ESPHOME_LOG_TAG(TAG, "duco.sensor");
 
 enum class DucoValueFormat : uint8_t {
   DUCO_VALUE_FORMAT_UINT8,
@@ -56,8 +59,10 @@ void DucoSensor::update() {
 void DucoSensor::receive_response(const DucoMessage &message) {
   const ReadingLayout layout = layout_of(this->reading_);
   const bool wide = layout.format != DucoValueFormat::DUCO_VALUE_FORMAT_UINT8;
-  if (message.size < layout.offset + (wide ? 2 : 1))
+  if (message.size < layout.offset + (wide ? 2 : 1)) {
+    ESP_LOGW(TAG, "Answer of %u bytes is too short", message.size);
     return;
+  }
 
   const uint8_t *field = message.data + layout.offset;
   int32_t value = field[0];
