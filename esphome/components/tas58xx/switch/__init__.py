@@ -14,33 +14,21 @@ from ..audio_dac import CONF_TAS58XX_ID, TAS58xx
 
 CONF_ACTIVATE = "activate"
 
-_NOT_RESTORED = "the amplifier always starts in play mode at boot, so the switch state is not restored"
-
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_TAS58XX_ID): cv.use_id(TAS58xx),
     # On activates the amplifier (play), off puts it into deep sleep
     cv.Optional(CONF_ACTIVATE): switch.switch_schema(
         switch.ApplySwitch,
+        default_restore_mode="DISABLED",
         entity_category=ENTITY_CATEGORY_CONFIG,
     ).extend(
         {
-            # The amplifier always starts in play (on), so the state is never saved or restored
-            cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_ON"): cv.Any(
-                cv.enum(
-                    {"ALWAYS_ON": switch.RESTORE_MODES["ALWAYS_ON"]},
-                    upper=True,
-                    space="_",
-                ),
-                msg="Only ALWAYS_ON is supported: the amplifier always starts in play mode at boot, "
-                "so only ALWAYS_ON is allowed",
-            ),
-            cv.Optional(CONF_RESTORE_STATE): cv.invalid(
-                f"Not supported: {_NOT_RESTORED}"
-            ),
-            cv.Optional(CONF_INITIAL_STATE): cv.invalid(
-                f"Not supported: {_NOT_RESTORED}"
-            ),
+            # The switch shows the state the amplifier publishes, so the restore options have no effect
+            cv.Optional(key): cv.invalid(
+                "Not supported: the activate switch shows the amplifier's state, which is ON after every boot"
+            )
+            for key in (CONF_RESTORE_MODE, CONF_RESTORE_STATE, CONF_INITIAL_STATE)
         }
     ),
 }
@@ -49,5 +37,5 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_TAS58XX_ID])
     switches = switch.sub_switches(config, parent=hub)
-    # The amplifier publishes the state (see TAS58xx::publish_active_()), so the switch does not
+    # The amplifier publishes the state (see TAS58xx::publish_active_()), so the switch does not publish it
     await switches(CONF_ACTIVATE, hub.set_activate_switch, apply="set_active(state)")

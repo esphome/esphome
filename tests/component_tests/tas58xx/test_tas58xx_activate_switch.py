@@ -26,28 +26,28 @@ def test_activate_switch_is_given_to_its_amplifier_only(
     assert "entity->publish_state(state);" not in main_cpp
     assert "amp_with_switch->set_activate_switch(activate);" in main_cpp
     assert "amp_without_switch->set_activate_switch(" not in main_cpp
-    # The amplifier always starts in play, so the switch state is never saved or restored
-    assert "activate->set_restore_mode(switch_::SWITCH_ALWAYS_ON);" in main_cpp
+    # The switch shows the state the amplifier publishes, so its restore mode is disabled
+    assert "activate->set_restore_mode(switch_::SWITCH_RESTORE_DISABLED);" in main_cpp
     # A configuration entity by default, as the pcm5122 switch
     assert "category:config" in main_cpp
 
 
 @pytest.mark.parametrize(
-    ("option", "message"),
+    "option",
     [
-        ({"restore_mode": "ALWAYS_OFF"}, "so only ALWAYS_ON is allowed"),
-        ({"restore_mode": "RESTORE_DEFAULT_ON"}, "so only ALWAYS_ON is allowed"),
-        ({"restore_mode": "RESTORE_DEFAULT_OFF"}, "so only ALWAYS_ON is allowed"),
-        ({"restore_state": {"state": "KEEP"}}, "the switch state is not restored"),
-        ({"restore_state": "none"}, "the switch state is not restored"),
-        ({"initial_state": "OFF"}, "the switch state is not restored"),
+        {"restore_mode": "ALWAYS_ON"},
+        {"restore_mode": "RESTORE_DEFAULT_OFF"},
+        {"restore_state": {"state": "KEEP"}},
+        {"initial_state": "OFF"},
     ],
 )
 def test_activate_switch_rejects_restore_options(
-    set_core_config: SetCoreConfigCallable, option: dict, message: str
+    set_core_config: SetCoreConfigCallable, option: dict
 ) -> None:
-    """Only restore_mode ALWAYS_ON is accepted: the amplifier always starts in play."""
+    """The switch shows the amplifier's state, so the restore options have no effect and are rejected."""
     set_core_config(PlatformFramework.ESP32_IDF)
 
-    with pytest.raises(cv.Invalid, match=message):
+    with pytest.raises(
+        cv.Invalid, match="the activate switch shows the amplifier's state"
+    ):
         cv.Schema(CONFIG_SCHEMA)({"activate": {"name": "Amplifier", **option}})
