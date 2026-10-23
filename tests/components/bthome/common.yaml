@@ -15,11 +15,11 @@ sensor:
 event:
   - platform: bthome
     source_id: bthome_remote_plain
-    type: BUTTON
+    type: button
     name: "Remote Button"
   - platform: bthome
     source_id: bthome_remote_plain
-    type: BUTTON
+    type: button
     index: 2
     name: "Remote Button 2"
     on_event:
@@ -28,7 +28,7 @@ event:
           args: [event_type.c_str()]
   - platform: bthome
     source_id: bthome_remote_plain
-    type: DIMMER
+    type: dimmer
     name: "Remote Dimmer"
 
 bthome:
