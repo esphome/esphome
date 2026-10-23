@@ -10,8 +10,9 @@
 #include <string>
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
-#include "esphome/components/tflite_op_processor/op_resolver.h"
 #include "esphome/components/tflite_memory_handler/memory_manager.h"
+#include "esphome/components/tflite_op_processor/op_resolver.h"
+#include "esphome/components/tflite_output_processor/output_processor.h"
 
 namespace esphome::tflite_model_loader {
 
@@ -86,8 +87,17 @@ class ModelLoader {
   /// @brief Get the configuration of the loaded model.
   const ModelConfig &config() const { return this->config_; }
 
+  /// @brief Get the output processing mode named by config().output_processing.
+  ///
+  /// Parsed when the configuration is set, so the inference path hands
+  /// process_output() the enum instead of comparing mode names every time.
+  tflite_output_processor::OutputProcessing output_processing() const { return this->output_processing_; }
+
   /// @brief Set the configuration (used to restore config after test loads).
-  void set_config(const ModelConfig &config) { this->config_ = config; }
+  void set_config(const ModelConfig &config) {
+    this->config_ = config;
+    this->output_processing_ = tflite_output_processor::parse_output_processing(config.output_processing);
+  }
 
   /// @brief Get the number of elements in the model output.
   int output_size() const { return this->output_size_; }
@@ -115,6 +125,8 @@ class ModelLoader {
   size_t tensor_arena_size_{0};
   size_t tensor_arena_size_requested_{0};
   ModelConfig config_;
+  tflite_output_processor::OutputProcessing output_processing_{
+      tflite_output_processor::OutputProcessing::OUTPUT_PROCESSING_ARGMAX};
   int output_size_{0};
   bool debug_{false};
 };

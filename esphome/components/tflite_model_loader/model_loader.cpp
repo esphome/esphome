@@ -18,7 +18,7 @@ void ModelLoader::release_model_() {
   this->model_length_ = 0;
   this->tensor_arena_ = nullptr;
   this->tensor_arena_size_ = 0;
-  this->config_ = ModelConfig{};
+  this->set_config(ModelConfig{});
   this->output_size_ = 0;
 }
 
@@ -209,8 +209,9 @@ bool ModelLoader::load_with_arena_(const uint8_t *model_data, size_t model_size,
     this->output_size_ = size;
   }
 
-  // Committed last, so a failed load never leaves a stale config behind.
-  this->config_ = config;
+  // Committed last, so a failed load never leaves a stale config behind. This also
+  // parses the output processing mode once, for the whole life of the model.
+  this->set_config(config);
 
   ESP_LOGI(TAG, "Model loaded successfully");
   return true;

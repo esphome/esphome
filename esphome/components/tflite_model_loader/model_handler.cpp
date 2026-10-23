@@ -18,13 +18,13 @@ bool ModelHandler::load_model_with_arena(const uint8_t *model_data, size_t model
 
 ProcessedOutput ModelHandler::process_output(const float *output_data) const {
   const ModelConfig &config = this->loader_.config();
-  return tflite_output_processor::process_output(output_data, this->loader_.output_size(), config.output_processing,
-                                                 config.scale_factor, this->debug_);
+  return tflite_output_processor::process_output(output_data, this->loader_.output_size(),
+                                                 this->loader_.output_processing(), config.scale_factor, this->debug_);
 }
 
 ProcessedOutput ModelHandler::process_output(TfLiteTensor *output_tensor) const {
   const ModelConfig &config = this->loader_.config();
-  return tflite_output_processor::process_output(output_tensor, config.output_processing, config.scale_factor,
+  return tflite_output_processor::process_output(output_tensor, this->loader_.output_processing(), config.scale_factor,
                                                  this->debug_);
 }
 
