@@ -197,17 +197,17 @@ void LD2410Component::dump_config() {
 #endif
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "Sensors:");
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "Light", this->light_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "DetectionDistance", this->detection_distance_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetDistance", this->moving_target_distance_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "MovingTargetEnergy", this->moving_target_energy_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetDistance", this->still_target_distance_sensor_);
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "StillTargetEnergy", this->still_target_energy_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Light", this->light_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "DetectionDistance", this->detection_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "MovingTargetDistance", this->moving_target_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "MovingTargetEnergy", this->moving_target_energy_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "StillTargetDistance", this->still_target_distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "StillTargetEnergy", this->still_target_energy_sensor_);
   for (auto &s : this->gate_move_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "GateMove", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "GateMove", s);
   }
   for (auto &s : this->gate_still_sensors_) {
-    LOG_SENSOR_WITH_DEDUP_SAFE("  ", "GateStill", s);
+    LOG_SENSOR_WITH_DEDUP("  ", "GateStill", s);
   }
 #endif
 #ifdef USE_TEXT_SENSOR
