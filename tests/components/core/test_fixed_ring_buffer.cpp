@@ -115,4 +115,23 @@ TEST(FixedRingBufferBulk, UninitialisedHoldsNothing) {
   EXPECT_EQ(buf.pop(out, 1), 0u);
 }
 
+// A uint8_t index at its limit: head and tail plus a full-buffer length go past 255
+TEST(FixedRingBufferBulk, WrapsAtTheIndexTypeLimit) {
+  FixedRingBuffer<uint8_t, 255> buf;
+  buf.init(255);
+  std::array<uint8_t, 255> data{};
+  ASSERT_EQ(buf.push(data.data(), 250), 250u);
+  ASSERT_EQ(buf.pop(data.data(), 250), 250u);  // head and tail now at 250
+  for (size_t i = 0; i < data.size(); i++)
+    data[i] = static_cast<uint8_t>(i);
+  EXPECT_EQ(buf.push(data.data(), data.size()), 255u);
+  EXPECT_TRUE(buf.full());
+  EXPECT_EQ(buf[0], 0);
+  EXPECT_EQ(buf[254], 254);
+  std::array<uint8_t, 255> out{};
+  EXPECT_EQ(buf.pop(out.data(), out.size()), 255u);
+  EXPECT_EQ(out, data);
+  EXPECT_TRUE(buf.empty());
+}
+
 }  // namespace esphome::core::testing
