@@ -17,17 +17,17 @@ class RecordingPin : public GPIOPin {
   std::string events;
 };
 
-TEST(PulseReset, NullPinIsIgnored) { pulse_reset(nullptr, 1); }
+TEST(PulseReset, NullPinIsIgnored) { pulse_reset(nullptr, {.low_ms = 1}); }
 
 TEST(PulseReset, LowThenHigh) {
   RecordingPin pin;
-  pulse_reset(&pin, 1);
+  pulse_reset(&pin, {.low_ms = 1});
   EXPECT_EQ(pin.events, "SLH");
 }
 
 TEST(PulseReset, PreHighDrivesHighFirst) {
   RecordingPin pin;
-  pulse_reset(&pin, 1, 1, 1);
+  pulse_reset(&pin, {.high_before_ms = 1, .low_ms = 1, .high_after_ms = 1});
   EXPECT_EQ(pin.events, "SHLH");
 }
 
