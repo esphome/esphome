@@ -74,3 +74,24 @@ button:
           value: !lambda |-
             uint8_t val = (uint8_t)id(ble_client_test_number).state;
             return std::vector<uint8_t>{0xAA, val, 0xBB};
+
+switch:
+  - platform: ble_client
+    ble_client_id: test_blec
+    name: BLE Client Enabled
+
+output:
+  - platform: ble_client
+    id: ble_client_output
+    ble_client_id: test_blec
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd1238-abcd-1234-abcd-abcd12345678"
+    require_response: true
+
+text_sensor:
+  - platform: ble_client
+    ble_client_id: test_blec
+    name: BLE Text Sensor
+    service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
+    characteristic_uuid: "abcd1239-abcd-1234-abcd-abcd12345678"
+    notify: true

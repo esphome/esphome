@@ -5,3 +5,7 @@ button:
 factory_reset:
   resets_required: 5
   max_delay: 10s
+
+switch:
+  - platform: factory_reset
+    name: Factory Reset Switch

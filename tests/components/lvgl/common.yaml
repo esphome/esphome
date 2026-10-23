@@ -125,6 +125,9 @@ text:
     mode: text
 
 text_sensor:
+  - platform: lvgl
+    widget: hello_label
+    name: LVGL Label Text
   - platform: template
     id: test_text_sensor
     name: "Test Text Sensor"
@@ -141,3 +144,8 @@ text_sensor:
               return "WILDCARD";
             }
             return x.c_str();
+
+switch:
+  - platform: lvgl
+    widget: checkbox_id
+    name: LVGL Checkbox Switch

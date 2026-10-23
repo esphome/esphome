@@ -29,3 +29,13 @@ sim800l:
     - sim800l.disconnect
   on_ussd_received:
     - logger.log: "ussd_received"
+
+binary_sensor:
+  - platform: sim800l
+    registered:
+      name: SIM800L Registered
+
+sensor:
+  - platform: sim800l
+    rssi:
+      name: SIM800L RSSI
