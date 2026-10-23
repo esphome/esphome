@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 import contextvars
 from typing import Any
 
 import esphome.config_validation as cv
+from esphome.const import CONF_PLATFORM
 from esphome.types import ID, ConfigFragmentType, ConfigPathType, ConfigType
 
 
@@ -52,6 +54,44 @@ def get_declaring_config(
     if not isinstance(declaring, dict):
         raise TypeError(f"ID {id_} is not declared in a config block")
     return declaring
+
+
+def platform_entries(domain: str, platform: str, **match: Any) -> list[ConfigType]:
+    """Return the entries of domain set up by platform whose keys equal the match values.
+
+    Reads the full config being validated, for example
+    platform_entries("switch", "my_hub", my_hub_id=hub_id, channel=1).
+    """
+    return [
+        entry
+        for entry in full_config.get().get(domain, [])
+        if entry.get(CONF_PLATFORM) == platform
+        and all(entry.get(key) == value for key, value in match.items())
+    ]
+
+
+def unique_platform_key(
+    domain: str,
+    platform: str,
+    *keys: str,
+    message: str,
+    path: ConfigPathType | None = None,
+) -> Callable[[ConfigType], ConfigType]:
+    """A final-validation function that allows one platform entry per combination of keys.
+
+    With no keys it allows one entry of the platform in total. message is formatted with
+    the entry's key values; path defaults to the last key.
+    """
+    if path is None:
+        path = [keys[-1]] if keys else []
+
+    def validator(config: ConfigType) -> ConfigType:
+        values = {key: config[key] for key in keys}
+        if len(platform_entries(domain, platform, **values)) > 1:
+            raise cv.Invalid(message.format(**values), path=path)
+        return config
+
+    return validator
 
 
 def id_declaration_match_schema(schema):

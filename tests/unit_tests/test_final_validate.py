@@ -1,10 +1,12 @@
 """Tests for esphome.final_validate helpers."""
 
+import contextvars
+
 import pytest
 
 from esphome import config_validation as cv, final_validate as fv
 from esphome.config import Config
-from esphome.const import CONF_ID
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_PLATFORM
 from esphome.core import ID
 
 
@@ -70,5 +72,79 @@ def test_id_declaration_match_schema_rejects_mismatch() -> None:
     try:
         with pytest.raises(cv.Invalid):
             validator(ID("my_hub"))
+    finally:
+        fv.full_config.reset(token)
+
+
+def _switches(*entries: tuple[str, str, int]) -> list[dict]:
+    return [
+        {CONF_PLATFORM: platform, "hub_id": ID(hub), CONF_CHANNEL: channel}
+        for platform, hub, channel in entries
+    ]
+
+
+def _with_switches(switches: list[dict]) -> contextvars.Token:
+    config = Config()
+    config["switch"] = switches
+    return fv.full_config.set(config)
+
+
+def test_platform_entries_filters_by_platform_and_match() -> None:
+    switches = _switches(("relay", "a", 1), ("relay", "b", 1), ("gpio", "a", 1))
+    token = _with_switches(switches)
+    try:
+        assert fv.platform_entries("switch", "relay") == switches[:2]
+        assert fv.platform_entries("switch", "relay", hub_id=ID("a")) == switches[:1]
+        assert fv.platform_entries("switch", "relay", channel=2) == []
+        assert fv.platform_entries("light", "relay") == []
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize(
+    ("entries", "fails"),
+    [
+        ((("relay", "a", 1), ("relay", "a", 2), ("relay", "b", 1)), False),
+        ((("relay", "a", 1), ("gpio", "a", 1)), False),
+        ((("relay", "a", 1), ("relay", "a", 1)), True),
+    ],
+)
+def test_unique_platform_key(
+    entries: tuple[tuple[str, str, int], ...], fails: bool
+) -> None:
+    switches = _switches(*entries)
+    validator = fv.unique_platform_key(
+        "switch",
+        "relay",
+        "hub_id",
+        CONF_CHANNEL,
+        message="Channel {channel} of {hub_id} is used twice",
+    )
+    token = _with_switches(switches)
+    try:
+        if fails:
+            with pytest.raises(cv.Invalid, match="Channel 1 of a is used twice") as err:
+                validator(switches[0])
+            assert err.value.path == [CONF_CHANNEL]
+        else:
+            assert validator(switches[0]) is switches[0]
+    finally:
+        fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize(("count", "fails"), [(1, False), (2, True)])
+def test_unique_platform_key_without_keys(count: int, fails: bool) -> None:
+    switches = _switches(*[("relay", "a", n) for n in range(count)])
+    validator = fv.unique_platform_key(
+        "switch", "relay", message="Only one relay", path=["x"]
+    )
+    token = _with_switches(switches)
+    try:
+        if fails:
+            with pytest.raises(cv.Invalid, match="Only one relay") as err:
+                validator(switches[0])
+            assert err.value.path == ["x"]
+        else:
+            validator(switches[0])
     finally:
         fv.full_config.reset(token)
