@@ -4,7 +4,8 @@ from esphome.const import CONF_DISABLED, CONF_MODE, PLATFORM_ESP32
 from esphome.pins import PIN_SCHEMA_REGISTRY
 from esphome.types import ConfigType
 
-from .gpio_common import ESP32PinSpec, spi_psram_errors, unusable_errors
+from .gpio_common import ESP32PinSpec
+from .gpio_esp32_s2 import s2_s3_error_pins
 
 _ESP32S3R8_PSRAM_PINS = {
     33: "SPIIO4",
@@ -20,23 +21,7 @@ ESP32_S3_PIN_SPEC = ESP32PinSpec(
     max_pin=48,
     strapping_pins=frozenset({0, 3, 45, 46}),
     usb_jtag_pins=frozenset({19, 20}),
-    error_pins={
-        **spi_psram_errors(
-            "ESP32-S3",
-            {
-                26: "SPICS1",
-                27: "SPIHD",
-                28: "SPIWP",
-                29: "SPICS0",
-                30: "SPICLK",
-                31: "SPIQ",
-                32: "SPID",
-            },
-        ),
-        # These pins are not exposed in GPIO mux (reason unknown)
-        # but they're missing from IO_MUX list in datasheet
-        **unusable_errors("ESP32-S3", (22, 23, 24, 25)),
-    },
+    error_pins=s2_s3_error_pins("ESP32-S3"),
 )
 
 
