@@ -16,7 +16,7 @@ esphome:
       - tag.polling_off: nfcc_pn7160_i2c
       - tag.polling_on: nfcc_pn7160_i2c
 
-pn7150_i2c:
+pn7160_i2c:
   id: nfcc_pn7160_i2c
   i2c_id: i2c_bus
   irq_pin: ${irq_pin}
