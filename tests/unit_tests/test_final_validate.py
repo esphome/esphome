@@ -154,3 +154,18 @@ def test_unique_platform_key_without_keys(count: int, fails: bool) -> None:
             assert err.value.path == []
         else:
             validator(switches[0])
+
+
+def test_unique_platform_key_with_missing_optional_key() -> None:
+    switches = [{CONF_PLATFORM: "relay", "hub_id": ID("a")} for _ in range(2)]
+    validator = fv.unique_platform_key(
+        domain="switch",
+        platform="relay",
+        keys=("hub_id", CONF_CHANNEL),
+        message="Channel {channel} of {0} is used twice",
+    )
+    with (
+        _with_switches(switches),
+        pytest.raises(cv.Invalid, match="Channel None of a is used twice"),
+    ):
+        validator(switches[0])

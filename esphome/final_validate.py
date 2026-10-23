@@ -84,7 +84,7 @@ def unique_platform_key(
     path = [keys[-1]] if keys else []
 
     def validator(config: ConfigType) -> ConfigType:
-        values = {key: config[key] for key in keys}
+        values = {key: config.get(key) for key in keys}
         if len(platform_entries(domain=domain, platform=platform, match=values)) > 1:
             raise cv.Invalid(message.format(*values.values(), **values), path=path)
         return config
