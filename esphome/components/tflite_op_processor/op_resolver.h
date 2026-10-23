@@ -34,8 +34,8 @@ void log_op_failed(const char *tag, const char *op_name);
 #define TFLITE_MICRO_HELPER_DEFINE_HAS_METHOD(method_name) \
   template<typename Resolver, typename = void> struct has_##method_name : std::false_type {}; \
   template<typename Resolver> \
-  struct has_## \
-      method_name<Resolver, std::void_t<decltype(std::declval<Resolver &>().method_name())>> : std::true_type {};
+  struct has_##method_name<Resolver, std::void_t<decltype(std::declval<Resolver &>().method_name())>> \
+      : std::true_type {};
 
 TFLITE_MICRO_HELPER_DEFINE_HAS_METHOD(AddDynamicUpdateSlice)
 TFLITE_MICRO_HELPER_DEFINE_HAS_METHOD(AddReduceMin)
