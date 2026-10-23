@@ -114,6 +114,7 @@ TEST(UARTBridge, BlockLeavesOnlyAfterTheGap) {
 }
 
 TEST(UARTBridge, IdlePassOnlyAsksForBytes) {
+  const uint8_t before = FastLoopRequests::count();
   WireUart a(9600);
   WireUart b(9600);
   UARTBridgePipe pipe(&a, &b);
@@ -124,6 +125,10 @@ TEST(UARTBridge, IdlePassOnlyAsksForBytes) {
   EXPECT_TRUE(pipe.poll());
   EXPECT_EQ(a.available(), 0u);
   EXPECT_TRUE(b.writes.empty());
+  // After the gap the block leaves and the fast loop is released.
+  EXPECT_FALSE(pipe.poll(micros() + GAP_9600_US));
+  EXPECT_EQ(b.joined(), frame(8));
+  EXPECT_EQ(FastLoopRequests::count(), before);
 }
 
 TEST(UARTBridge, PiecesInsideTheGapFormOneBlock) {
@@ -276,6 +281,7 @@ TEST(UARTBridge, UnknownRoomTakesTheWholeBlockInOneWrite) {
 }
 
 TEST(UARTBridge, SmallRoomFeedsTheRestOnLaterPasses) {
+  const uint8_t before = FastLoopRequests::count();
   WireUart a(9600);
   WireUart b(9600);
   b.room = 100;
@@ -296,6 +302,10 @@ TEST(UARTBridge, SmallRoomFeedsTheRestOnLaterPasses) {
   pipe.poll(GAP_9600_US + 2);
   EXPECT_EQ(b.joined(), frame(200));
   EXPECT_EQ(a.available(), 0u);
+  // The next frame leaves after its own gap and the fast loop is released.
+  EXPECT_FALSE(pipe.poll(GAP_9600_US + 2 + GAP_9600_US));
+  EXPECT_EQ(b.writes.back(), frame(4, 0xF0));
+  EXPECT_EQ(FastLoopRequests::count(), before);
 }
 
 TEST(UARTBridge, HardwareDestinationKeepsAFrameGapBetweenBlocks) {
