@@ -51,6 +51,9 @@ class TestableBWR : public EPaperBWR {
     this->x_high_ = 0;
     this->y_high_ = 0;
   }
+  /// Pretend nothing has been drawn since the frame on the panel was hashed.
+  void clear_drawn_since_hash() { this->drawn_since_hash_ = false; }
+  bool drawn_since_hash() const { return this->drawn_since_hash_; }
   bool whole_screen_dirty() const {
     return this->x_low_ == 0 && this->y_low_ == 0 && this->x_high_ == this->width_ && this->y_high_ == this->height_;
   }
@@ -192,6 +195,19 @@ TEST(EPaperBWR, FillMarksTheWholeScreenChanged) {
   display.fill(Color::BLACK);
 
   EXPECT_TRUE(display.whole_screen_dirty());
+}
+
+/// fill() writes the buffer without drawing pixels, so it must flag the frame as drawn itself;
+/// otherwise an update could skip the refresh as if the frame were unchanged.
+TEST(EPaperBWR, FillMarksTheFrameDrawn) {
+  TestableBWR display(16, 2, false);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+
+  display.clear_drawn_since_hash();
+  display.fill(Color::BLACK);
+
+  EXPECT_TRUE(display.drawn_since_hash());
 }
 
 /// With a clipping area set, only the pixels inside it change.
