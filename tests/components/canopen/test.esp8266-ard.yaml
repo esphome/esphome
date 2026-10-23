@@ -1,0 +1,12 @@
+spi:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13
+  miso_pin: GPIO12
+
+canbus:
+  - platform: mcp2515
+    cs_pin: GPIO15
+    can_id: 127
+    bit_rate: 125kbps
+
+<<: !include common.yaml
