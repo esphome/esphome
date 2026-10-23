@@ -119,6 +119,12 @@ class FakeDisplay : public display::Display {
   int out_of_bounds() const { return this->out_of_bounds_; }
   int draws_while_busy() const { return this->draws_while_busy_; }
   void set_draw_delay_us(uint32_t us) { this->draw_delay_us_ = us; }
+  /// A new size for the next session, like a rotation changed at runtime. Clears the pixels.
+  void resize(int width, int height) {
+    this->width_ = width;
+    this->height_ = height;
+    this->pixels_.assign(static_cast<size_t>(width) * height, UNSET);
+  }
 
  protected:
   int width_;
@@ -259,6 +265,9 @@ class TestVncClient : public VncClient {
   uint16_t vis_w() const { return this->vis_w_; }
   uint16_t vis_h() const { return this->vis_h_; }
   uint8_t bpp() const { return this->bpp_; }
+  uint16_t hash_cols() const { return this->hash_cols_; }
+  uint16_t hash_rows() const { return this->hash_rows_; }
+  uint32_t hash_capacity() const { return this->hash_capacity_; }
 };
 
 // ---------------------------------------------------------------------------
@@ -358,7 +367,7 @@ inline Bytes fbur(bool incremental, uint16_t w, uint16_t h) {
 }
 inline Bytes set_pixel_format_565() { return {0, 0, 0, 0, 16, 16, 0, 1, 0, 31, 0, 63, 0, 31, 11, 5, 0, 0, 0, 0}; }
 inline Bytes set_pixel_format_332() { return {0, 0, 0, 0, 8, 8, 0, 1, 0, 7, 0, 7, 0, 3, 5, 2, 0, 0, 0, 0}; }
-inline Bytes set_encodings() { return {2, 0, 0, 2, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x11}; }
+inline Bytes set_encodings() { return {2, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0x11}; }
 inline Bytes version_reply(char minor) { return text(std::string("RFB 003.00") + minor + "\n"); }
 
 /// Splits a stream of client messages that are all FramebufferUpdateRequests.
@@ -439,7 +448,8 @@ class Listener {
 
 class Session {
  public:
-  explicit Session(display::Display *display, uint32_t start_ms = 1000) : client(display) {
+  explicit Session(display::Display *display, uint32_t start_ms = 1000, bool big_endian = false)
+      : client(display, big_endian) {
     signal(SIGPIPE, SIG_IGN);
     set_now(start_ms);
     this->client.set_host("127.0.0.1");
@@ -574,6 +584,33 @@ class Session {
  protected:
   Bytes out_;
   size_t out_pos_{0};
+};
+
+inline constexpr int32_t HEXTILE = 5;
+
+/// Whether the w x h block at x,y shows one RGB565 wire colour.
+inline bool solid(const FakeDisplay &d, int x, int y, int w, int h, uint16_t colour) {
+  for (int row = y; row < y + h; row++) {
+    for (int col = x; col < x + w; col++) {
+      if (d.pixel(col, row) != expect_px(colour, 2)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+class VncSessionTest : public ::testing::Test {
+ protected:
+  void TearDown() override { this->session_.reset(); }
+  /// Starts a session, then moves past the 50 ms request spacing so the next request goes out as soon as a frame ends.
+  void start(FakeDisplay &display, uint16_t fb_w, uint16_t fb_h) {
+    this->session_ = std::make_unique<Session>(&display);
+    this->session_->start(fb_w, fb_h);
+    set_now(now_ms() + 100);
+  }
+  Session &s() { return *this->session_; }
+  std::unique_ptr<Session> session_;
 };
 
 }  // namespace esphome::vnc::testing
