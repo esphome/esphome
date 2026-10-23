@@ -96,7 +96,6 @@ void PCA6416AComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
       this->update_register_(pin, true, pull_dir);
       this->update_register_(pin, false, pull_en);
     }
-    this->enable_polling_loop_();
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     this->update_register_(pin, true, io_dir);
     if (has_pullup_) {
@@ -105,10 +104,11 @@ void PCA6416AComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
     } else {
       ESP_LOGW(TAG, "Your PCA6416A does not support pull-up resistors");
     }
-    this->enable_polling_loop_();
   } else if (flags == gpio::FLAG_OUTPUT) {
     this->update_register_(pin, false, io_dir);
   }
+  if (flags & gpio::FLAG_INPUT)
+    this->enable_polling_loop_();
 }
 
 bool PCA6416AComponent::read_register_(uint8_t reg, uint8_t *value) {

@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_I2C_ID,
     CONF_ID,
     CONF_INPUT,
+    CONF_INTERRUPT_PIN,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OUTPUT,
@@ -89,9 +90,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEVICE): cv.one_of(*DEVICES, upper=True),
             cv.Optional(CONF_PIN_COUNT): cv.one_of(4, 8, 16),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(gpio_expander.INTERRUPT_PIN_SCHEMA),
+    ).extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA),
     _validate_hub,
 )
 
@@ -103,7 +102,7 @@ async def to_code(config: ConfigType) -> None:
         # Only a build with a PCAL part carries the code for its extra registers
         cg.add_define("USE_PCA9554_PCAL")
         cg.add(var.set_pcal())
-    await gpio_expander.register_interrupt_pin(var, config)
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
 def validate_mode(value: ConfigType) -> ConfigType:

@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT,
+    CONF_INTERRUPT_PIN,
     CONF_OPEN_DRAIN_INTERRUPT,
     CONF_OUTPUT,
     CONF_PULLUP,
@@ -28,15 +29,11 @@ MCP23XXX_INTERRUPT_MODES = MCP23XXXInterruptMode.options(
 )
 
 
-MCP23XXX_CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.Optional(CONF_OPEN_DRAIN_INTERRUPT, default=False): cv.boolean,
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(gpio_expander.INTERRUPT_PIN_SCHEMA)
-)
+MCP23XXX_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_OPEN_DRAIN_INTERRUPT, default=False): cv.boolean,
+    }
+).extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA)
 
 
 @coroutine
@@ -46,7 +43,7 @@ async def register_mcp23xxx(config: ConfigType, num_pins: int) -> MockObj:
     await cg.register_component(var, config)
     CORE.data.setdefault(CONF_MCP23XXX, {})[id.id] = num_pins
     cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
-    await gpio_expander.register_interrupt_pin(var, config)
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
     return var
 
 

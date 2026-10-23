@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
+    CONF_INTERRUPT_PIN,
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
@@ -35,8 +36,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_RESET, default=True): cv.boolean,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(gpio_expander.INTERRUPT_PIN_SCHEMA)
+    .extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA)
     .extend(i2c.i2c_device_schema(0x43))
 )
 
@@ -45,7 +45,7 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_reset(config[CONF_RESET]))
-    await gpio_expander.register_interrupt_pin(var, config)
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
 
 
 PI4IOE5V6408_PIN_SCHEMA = pins.gpio_base_schema(
