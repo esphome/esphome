@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 
 #include <cstdint>
+#include <string>
 
 #ifdef USE_TFLITE_MICRO_HELPER
 #include "tensorflow/lite/c/common.h"
@@ -28,6 +29,18 @@ struct ProcessedOutput {
   float value;       // winning class index divided by scale_factor, in every mode
   float confidence;  // winning probability, or the winning tensor entry for argmax
 };
+
+/// @brief Map a configured mode name to its enum value.
+///
+/// The YAML configuration and the model report both carry the mode as a name, so
+/// the component that holds the model configuration calls this once when the
+/// model is loaded and passes the enum to process_output() from then on. An
+/// unknown name maps to OUTPUT_PROCESSING_ARGMAX, which is what a model without a
+/// mode in its report falls back to.
+///
+/// @param name  One of "argmax", "softmax", "qat_quantized" or "auto_detect".
+/// @return The matching mode, or OUTPUT_PROCESSING_ARGMAX for an unknown name.
+OutputProcessing parse_output_processing(const std::string &name);
 
 /// @brief Process a raw float32 output buffer.
 ///

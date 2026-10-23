@@ -199,4 +199,14 @@ ProcessedOutput process_output(TfLiteTensor *output_tensor, OutputProcessing mod
 
 #endif  // USE_TFLITE_MICRO_HELPER
 
+OutputProcessing parse_output_processing(const std::string &name) {
+  if (name == "softmax")
+    return OutputProcessing::OUTPUT_PROCESSING_SOFTMAX;
+  if (name == "qat_quantized")
+    return OutputProcessing::OUTPUT_PROCESSING_QAT_QUANTIZED;
+  if (name == "auto_detect")
+    return OutputProcessing::OUTPUT_PROCESSING_AUTO_DETECT;
+  return OutputProcessing::OUTPUT_PROCESSING_ARGMAX;
+}
+
 }  // namespace esphome::tflite_output_processor
