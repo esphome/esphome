@@ -5,15 +5,14 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-#include "esphome/core/preferences.h"
-#endif
-#if defined(USE_TOSHIBA_RAS_25J2KVSG_ND) && defined(USE_SELECT)
-#include "esphome/components/select/select.h"
-#endif
 
 namespace esphome::toshiba {
 
+static constexpr uint16_t TOSHIBA_HEADER_MARK = 4380;
+static constexpr uint16_t TOSHIBA_HEADER_SPACE = 4370;
+static constexpr uint16_t TOSHIBA_GAP_SPACE = 5480;
+static constexpr uint16_t TOSHIBA_BIT_MARK = 540;
+static constexpr uint8_t TOSHIBA_HEADER_LENGTH = 4;
 static constexpr uint8_t TOSHIBA_HEADER_BYTE_0 = 0xF2;
 static constexpr uint8_t TOSHIBA_HEADER_BYTE_1 = 0x0D;
 static constexpr uint8_t TOSHIBA_COMMAND_DEFAULT = 0x01;
@@ -51,10 +50,8 @@ const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN = 60.0;
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MAX = 86.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MIN = 18.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MAX = 30.0;
-static constexpr float TOSHIBA_RAS_25J2KVSG_ND_FROST_TEMP_C_MIN = 5.0f;
-static constexpr float TOSHIBA_RAS_25J2KVSG_ND_FROST_TEMP_C_MAX = 13.0f;
 
-class ToshibaClimate final : public climate_ir::ClimateIR {
+class ToshibaClimate : public climate_ir::ClimateIR {
  public:
   ToshibaClimate()
       : climate_ir::ClimateIR(TOSHIBA_GENERIC_TEMP_C_MIN, TOSHIBA_GENERIC_TEMP_C_MAX, 1.0f, true, true,
@@ -63,68 +60,8 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
 
   void setup() override;
   void set_model(Model model) { this->model_ = model; }
-  void fix();
-
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-  void set_power_selection(size_t index);
-#ifdef USE_SELECT
-  SUB_SELECT(power_selection)
-#endif
-#endif
 
  protected:
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-  enum class ToshibaPreset : uint8_t {
-    TOSHIBA_PRESET_NONE,
-    TOSHIBA_PRESET_BOOST,
-    TOSHIBA_PRESET_ECO,
-    TOSHIBA_PRESET_FIREPLACE_1,
-    TOSHIBA_PRESET_FIREPLACE_2,
-    TOSHIBA_PRESET_FROST_PROTECTION,
-    TOSHIBA_PRESET_HADA_CARE,
-    TOSHIBA_PRESET_SLEEP_1H,
-    TOSHIBA_PRESET_SLEEP_3H,
-    TOSHIBA_PRESET_SLEEP_5H,
-    TOSHIBA_PRESET_SLEEP_9H,
-  };
-  static bool is_heating_preset(ToshibaPreset preset) {
-    return preset >= ToshibaPreset::TOSHIBA_PRESET_FIREPLACE_1 &&
-           preset <= ToshibaPreset::TOSHIBA_PRESET_FROST_PROTECTION;
-  }
-  static bool is_sleep_preset(ToshibaPreset preset) { return preset >= ToshibaPreset::TOSHIBA_PRESET_SLEEP_1H; }
-  static ToshibaPreset custom_preset_at(size_t index) {
-    return static_cast<ToshibaPreset>(index + static_cast<uint8_t>(ToshibaPreset::TOSHIBA_PRESET_FIREPLACE_1));
-  }
-  static ToshibaPreset preset_from_custom(const char *custom_preset);
-  // Validates a 9 to 12 byte state frame and reads its preset and power selection.
-  static bool parse_ras_25j2kvsg_nd_state(const uint8_t *message, uint8_t length, ToshibaPreset &preset,
-                                          uint8_t &power);
-  void control(const climate::ClimateCall &call) override;
-  void setup_ras_25j2kvsg_nd_();
-  void restore_ras_25j2kvsg_nd_(climate::ClimateDeviceRestoreState &restore);
-  void transmit_ras_25j2kvsg_nd_(ToshibaPreset preset);
-  void transmit_ras_25j2kvsg_nd_motion_(uint8_t command, uint8_t repeat);
-  void encode_ras_25j2kvsg_nd_motion_(remote_base::RemoteTransmitData *data, uint8_t command, uint8_t repeat);
-  void perform_ras_25j2kvsg_nd_(remote_base::RemoteTransmitterBase::TransmitCall &transmit, bool swing);
-  bool receive_ras_25j2kvsg_nd_(remote_base::RemoteReceiveData data);
-  bool receive_ras_25j2kvsg_nd_frame_(const uint8_t *message, uint8_t length);
-  bool receive_ras_25j2kvsg_nd_motion_(uint8_t command);
-  ToshibaPreset ras_25j2kvsg_nd_preset_() const;
-  void set_ras_25j2kvsg_nd_preset_(ToshibaPreset preset);
-  uint8_t ras_25j2kvsg_nd_fan_() const;
-  void set_ras_25j2kvsg_nd_fan_(uint8_t code);
-  void publish_power_selection_();
-  void set_ras_25j2kvsg_nd_power_(uint8_t power);
-  bool validate_ras_25j2kvsg_nd_power_preset_(size_t power, ToshibaPreset preset) const;
-
-  ESPPreferenceObject power_selection_pref_;
-  uint32_t last_swing_received_{0};
-  uint32_t last_swing_transmitted_{0};
-  uint16_t swing_echo_duration_{0};
-  uint8_t normal_target_temperature_{24};
-  uint8_t power_selection_{0};
-  uint8_t sleep_fan_{0};
-#endif
   void transmit_state() override;
   void transmit_generic_();
   void transmit_rac_pt1411hwru_();
@@ -140,24 +77,46 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
   bool compare_rac_pt1411hwru_packets_(const uint8_t *message1, const uint8_t *message2);
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
- private:
-  // Last swing mode sent or received, for models whose swing is a one-shot command
-  climate::ClimateSwingMode last_swing_mode_{climate::CLIMATE_SWING_OFF};
-  climate::ClimateMode last_mode_{climate::CLIMATE_MODE_OFF};
-  optional<climate::ClimateFanMode> last_fan_mode_{};
-  float last_target_temperature_{24.0f};
-
-  float temperature_min_() {
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-    if (this->model_ == MODEL_RAS_25J2KVSG_ND)
-      return TOSHIBA_RAS_25J2KVSG_ND_FROST_TEMP_C_MIN;  // control() enforces the separate normal range.
-#endif
+  // Hooks for model subclasses
+  virtual float temperature_min_() {
     if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F)
       return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
     if (this->model_ == MODEL_RAS_2819T)
       return TOSHIBA_RAS_2819T_TEMP_C_MIN;
     return TOSHIBA_GENERIC_TEMP_C_MIN;  // Default to GENERIC for unknown models
   }
+  // Called from the sensor callback after current_temperature is updated
+  virtual void transmit_current_temperature_() { this->transmit_rac_pt1411hwru_temp_(); }
+  // Sanitizes the saved state before swing and apply() use it
+  virtual void restore_(climate::ClimateDeviceRestoreState &restore) {}
+
+  void encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);
+  bool decode_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes);
+  // Writes the F2 0D header, the length byte and its inverse, and the trailing XOR of an F2 0D frame.
+  static void finalize_frame(uint8_t *message, uint8_t length);
+  static bool frame_header_valid(const uint8_t *message) {
+    return message[0] == TOSHIBA_HEADER_BYTE_0 && message[1] == TOSHIBA_HEADER_BYTE_1 &&
+           (message[2] ^ message[3]) == 0xFF;
+  }
+  static bool frame_checksum_valid(const uint8_t *message, uint8_t length) {
+    return xor_bytes(message + 4, length - 5) == message[length - 1];
+  }
+
+  // Shared by every model that uses the F2 0D frame
+  uint8_t encode_mode_() const;
+  uint8_t encode_fan_() const;
+  void decode_mode_(const uint8_t *message);
+  static climate::ClimateFanMode decode_fan(uint8_t code);
+
+  // Last swing mode sent or received, for models whose swing is a one-shot command
+  climate::ClimateSwingMode last_swing_mode_{climate::CLIMATE_SWING_OFF};
+  Model model_;
+
+ private:
+  climate::ClimateMode last_mode_{climate::CLIMATE_MODE_OFF};
+  optional<climate::ClimateFanMode> last_fan_mode_{};
+  float last_target_temperature_{24.0f};
+
   float temperature_max_() {
     if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F)
       return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX;
@@ -175,21 +134,10 @@ class ToshibaClimate final : public climate_ir::ClimateIR {
     }
     return climate::ClimateSwingModeMask{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
   }
-  void encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);
-  bool decode_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes);
-  // Writes the F2 0D header, the length byte and its inverse, and the trailing XOR of an F2 0D frame.
-  static void finalize_frame(uint8_t *message, uint8_t length);
-  static bool frame_checksum_valid(const uint8_t *message, uint8_t length) {
-    return xor_bytes(message + 4, length - 5) == message[length - 1];
-  }
-
-  // Shared by every model that uses the F2 0D frame
-  uint8_t encode_mode_fan_() const;
+  uint8_t encode_mode_fan_() const { return this->encode_fan_() | this->encode_mode_(); }
   void decode_mode_fan_temperature_(const uint8_t *message);
   uint8_t seiya_swing_code_() const;
   void seiya_decode_swing_(uint8_t code);
-
-  Model model_;
 };
 
 }  // namespace esphome::toshiba

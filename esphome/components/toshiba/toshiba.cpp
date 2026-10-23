@@ -1,5 +1,4 @@
 #include "toshiba.h"
-#include <cmath>
 #include "esphome/components/remote_base/toshiba_ac_protocol.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -13,15 +12,10 @@ struct RacPt1411hwruFanSpeed {
 
 ESPHOME_LOG_TAG(TAG, "toshiba.climate");
 // Timings for IR bits/data
-const uint16_t TOSHIBA_HEADER_MARK = 4380;
-const uint16_t TOSHIBA_HEADER_SPACE = 4370;
-const uint16_t TOSHIBA_GAP_SPACE = 5480;
 const uint16_t TOSHIBA_PACKET_SPACE = 10500;
-const uint16_t TOSHIBA_BIT_MARK = 540;
 const uint16_t TOSHIBA_ZERO_SPACE = 540;
 const uint16_t TOSHIBA_ONE_SPACE = 1620;
 const uint16_t TOSHIBA_CARRIER_FREQUENCY = 38000;
-const uint8_t TOSHIBA_HEADER_LENGTH = 4;
 // Generic Toshiba commands/flags
 const uint8_t TOSHIBA_COMMAND_MOTION = 0x02;
 
@@ -409,20 +403,10 @@ void ToshibaClimate::setup() {
   this->minimum_temperature_ = this->temperature_min_();
   this->maximum_temperature_ = this->temperature_max_();
   this->swing_modes_ = this->toshiba_swing_modes_();
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-  if (this->model_ == MODEL_RAS_25J2KVSG_ND)
-    this->setup_ras_25j2kvsg_nd_();
-#endif
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-      if (this->model_ != MODEL_RAS_25J2KVSG_ND) {
-#endif
-        this->transmit_rac_pt1411hwru_temp_();
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-      }
-#endif
+      this->transmit_current_temperature_();
       // current temperature changed, publish state
       this->publish_state();
     });
@@ -433,14 +417,11 @@ void ToshibaClimate::setup() {
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-    if (this->model_ == MODEL_RAS_25J2KVSG_ND)
-      this->restore_ras_25j2kvsg_nd_(*restore);
-#endif
-    // apply() publishes synchronously, so on_state automations need the swing cache ready.
-    // OFF also stands for "not yet commanded" on models without a stop command.
-    this->swing_mode = this->last_swing_mode_ =
-        this->swing_modes_.count(restore->swing_mode) ? restore->swing_mode : climate::CLIMATE_SWING_OFF;
+    this->restore_(*restore);
+    // apply() publishes synchronously, so on_state automations need the swing cache ready. apply() skips an
+    // unsupported swing mode, leaving OFF, which also stands for "not yet commanded" on models without a stop.
+    if (this->swing_modes_.count(restore->swing_mode))
+      this->last_swing_mode_ = restore->swing_mode;
     restore->apply(this);
   } else {
     // restore from defaults
@@ -450,15 +431,6 @@ void ToshibaClimate::setup() {
         roundf(clamp<float>(this->current_temperature, this->minimum_temperature_, this->maximum_temperature_));
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
     this->swing_mode = this->last_swing_mode_ = climate::CLIMATE_SWING_OFF;
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-    if (this->model_ == MODEL_RAS_25J2KVSG_ND) {
-      this->target_temperature =
-          std::isfinite(this->target_temperature)
-              ? clamp(this->target_temperature, TOSHIBA_GENERIC_TEMP_C_MIN, TOSHIBA_GENERIC_TEMP_C_MAX)
-              : 24.0f;
-      this->normal_target_temperature_ = static_cast<uint8_t>(this->target_temperature);
-    }
-#endif
   }
   // Ensure mode is valid - ESPHome should only use standard climate modes
   if (this->mode != climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_HEAT &&
@@ -477,10 +449,6 @@ void ToshibaClimate::setup() {
   // Never send nan to HA
   if (std::isnan(this->target_temperature))
     this->target_temperature = 24;
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-  if (this->model_ == MODEL_RAS_25J2KVSG_ND)
-    this->publish_power_selection_();
-#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   // Log final state for debugging HA errors
   const char *fan_mode_str = "NONE";
@@ -495,12 +463,6 @@ void ToshibaClimate::setup() {
 }
 
 void ToshibaClimate::transmit_state() {
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-  if (this->model_ == MODEL_RAS_25J2KVSG_ND) {
-    this->transmit_ras_25j2kvsg_nd_(this->ras_25j2kvsg_nd_preset_());
-    return;
-  }
-#endif
   if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F) {
     this->transmit_rac_pt1411hwru_();
   } else if (this->model_ == MODEL_RAS_2819T) {
@@ -554,58 +516,38 @@ void ToshibaClimate::transmit_generic_() {
   transmit.perform();
 }
 
-uint8_t ToshibaClimate::encode_mode_fan_() const {
-  uint8_t mode;
+uint8_t ToshibaClimate::encode_mode_() const {
   switch (this->mode) {
     case climate::CLIMATE_MODE_OFF:
-      mode = TOSHIBA_MODE_OFF;
-      break;
-
+      return TOSHIBA_MODE_OFF;
     case climate::CLIMATE_MODE_HEAT:
-      mode = TOSHIBA_MODE_HEAT;
-      break;
-
+      return TOSHIBA_MODE_HEAT;
     case climate::CLIMATE_MODE_COOL:
-      mode = TOSHIBA_MODE_COOL;
-      break;
-
+      return TOSHIBA_MODE_COOL;
     case climate::CLIMATE_MODE_DRY:
-      mode = TOSHIBA_MODE_DRY;
-      break;
-
+      return TOSHIBA_MODE_DRY;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      mode = TOSHIBA_MODE_FAN_ONLY;
-      break;
-
+      return TOSHIBA_MODE_FAN_ONLY;
     case climate::CLIMATE_MODE_HEAT_COOL:
     default:
-      mode = TOSHIBA_MODE_AUTO;
+      return TOSHIBA_MODE_AUTO;
   }
+}
 
-  uint8_t fan;
+uint8_t ToshibaClimate::encode_fan_() const {
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_QUIET:
-      fan = TOSHIBA_FAN_SPEED_QUIET;
-      break;
-
+      return TOSHIBA_FAN_SPEED_QUIET;
     case climate::CLIMATE_FAN_LOW:
-      fan = TOSHIBA_FAN_SPEED_1;
-      break;
-
+      return TOSHIBA_FAN_SPEED_1;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan = TOSHIBA_FAN_SPEED_3;
-      break;
-
+      return TOSHIBA_FAN_SPEED_3;
     case climate::CLIMATE_FAN_HIGH:
-      fan = TOSHIBA_FAN_SPEED_5;
-      break;
-
+      return TOSHIBA_FAN_SPEED_5;
     case climate::CLIMATE_FAN_AUTO:
     default:
-      fan = TOSHIBA_FAN_SPEED_AUTO;
-      break;
+      return TOSHIBA_FAN_SPEED_AUTO;
   }
-  return fan | mode;
 }
 
 uint8_t ToshibaClimate::seiya_swing_code_() const {
@@ -1150,10 +1092,6 @@ bool ToshibaClimate::process_ras_2819t_command_(const remote_base::ToshibaAcData
 }
 
 bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-  if (this->model_ == MODEL_RAS_25J2KVSG_ND)
-    return this->receive_ras_25j2kvsg_nd_(data);
-#endif
   // Try modern ToshibaAcProtocol decoder first (handles RAS-2819T and potentially others)
   if (this->model_ != MODEL_SEIYA) {
     remote_base::ToshibaAcProtocol toshiba_protocol;
@@ -1185,8 +1123,7 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (this->is_valid_rac_pt1411hwru_header_(message)) {
     // We already received four bytes
     message_length = RAC_PT1411HWRU_MESSAGE_LENGTH - 4;
-  } else if ((message[0] ^ message[1] ^ message[2]) != message[3]) {
-    // Return false if first checksum was not valid
+  } else if (!frame_header_valid(message)) {
     return false;
   } else {
     // First checksum was valid so continue receiving the remaining bits
@@ -1359,39 +1296,6 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-bool ToshibaClimate::receive_ras_25j2kvsg_nd_(remote_base::RemoteReceiveData data) {
-  const ToshibaTimings timings = timings_for(this->model_);
-  bool received = false;
-  do {
-    uint8_t message[12]{};
-    if (!data.expect_item(timings.header_mark, timings.header_space) ||
-        !this->decode_(&data, message, TOSHIBA_HEADER_LENGTH) || message[0] != TOSHIBA_HEADER_BYTE_0 ||
-        message[1] != TOSHIBA_HEADER_BYTE_1 || (message[2] ^ message[3]) != 0xFF || message[2] < 1 || message[2] > 6 ||
-        message[2] == 2)
-      return received;
-    const uint8_t length = message[2] + 6;
-    if (!this->decode_(&data, message + TOSHIBA_HEADER_LENGTH, length - TOSHIBA_HEADER_LENGTH) ||
-        !data.expect_mark(timings.bit_mark) || !frame_checksum_valid(message, length) ||
-        !this->receive_ras_25j2kvsg_nd_frame_(message, length))
-      return received;
-    received = true;
-  } while (data.expect_space(timings.gap_space) && data.is_valid());
-  return received;
-}
-#endif
-
-void ToshibaClimate::fix() {
-#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-  if (this->model_ == MODEL_RAS_25J2KVSG_ND &&
-      this->ras_25j2kvsg_nd_preset_() != ToshibaPreset::TOSHIBA_PRESET_HADA_CARE) {
-    this->transmit_ras_25j2kvsg_nd_motion_(TOSHIBA_MOTION_FIX, 0);
-    return;
-  }
-#endif
-  ESP_LOGW(TAG, "FIX is unavailable for this model or preset");
-}
-
 void ToshibaClimate::finalize_frame(uint8_t *message, uint8_t length) {
   message[0] = TOSHIBA_HEADER_BYTE_0;
   message[1] = TOSHIBA_HEADER_BYTE_1;
@@ -1442,6 +1346,12 @@ bool ToshibaClimate::decode_(remote_base::RemoteReceiveData *data, uint8_t *mess
 }
 
 void ToshibaClimate::decode_mode_fan_temperature_(const uint8_t *message) {
+  this->decode_mode_(message);
+  this->fan_mode = decode_fan(message[6] & 0xF0);
+  this->target_temperature = (message[5] >> 4) + TOSHIBA_GENERIC_TEMP_C_MIN;
+}
+
+void ToshibaClimate::decode_mode_(const uint8_t *message) {
   switch (message[6] & 0x0F) {
     case TOSHIBA_MODE_OFF:
       this->mode = climate::CLIMATE_MODE_OFF;
@@ -1467,34 +1377,25 @@ void ToshibaClimate::decode_mode_fan_temperature_(const uint8_t *message) {
     default:
       this->mode = climate::CLIMATE_MODE_HEAT_COOL;
   }
+}
 
+climate::ClimateFanMode ToshibaClimate::decode_fan(uint8_t code) {
   // Speeds 2 and 4 are not exposed; report the nearest mode
-  switch (message[6] & 0xF0) {
+  switch (code) {
     case TOSHIBA_FAN_SPEED_QUIET:
-      this->fan_mode = climate::CLIMATE_FAN_QUIET;
-      break;
-
+      return climate::CLIMATE_FAN_QUIET;
     case TOSHIBA_FAN_SPEED_1:
-      this->fan_mode = climate::CLIMATE_FAN_LOW;
-      break;
-
+      return climate::CLIMATE_FAN_LOW;
     case TOSHIBA_FAN_SPEED_2:
     case TOSHIBA_FAN_SPEED_3:
-      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-      break;
-
+      return climate::CLIMATE_FAN_MEDIUM;
     case TOSHIBA_FAN_SPEED_4:
     case TOSHIBA_FAN_SPEED_5:
-      this->fan_mode = climate::CLIMATE_FAN_HIGH;
-      break;
-
+      return climate::CLIMATE_FAN_HIGH;
     case TOSHIBA_FAN_SPEED_AUTO:
     default:
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      break;
+      return climate::CLIMATE_FAN_AUTO;
   }
-
-  this->target_temperature = (message[5] >> 4) + TOSHIBA_GENERIC_TEMP_C_MIN;
 }
 
 void ToshibaClimate::seiya_decode_swing_(uint8_t code) {
