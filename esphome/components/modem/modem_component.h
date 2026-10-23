@@ -149,6 +149,7 @@ class ModemComponent : public Component {
   ModemState handle_state_wait_ip_();
   ModemState handle_state_disconnecting_();
   /// Pause the task before the next pass, then go to state
+  uint32_t next_probe_delay_();
   ModemState retry_(ModemState state, uint32_t delay_ms = RETRY_DELAY_MS);
   void transition_to_(ModemState next_state);
   // What the task left for loop() to do

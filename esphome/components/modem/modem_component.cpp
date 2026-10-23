@@ -243,6 +243,8 @@ void ModemComponent::loop() {
     const bool saved = this->pin_pref_.save(&this->pin_record_) && global_preferences->sync();
     if (!saved) {
       ESP_LOGE(TAG, "Failed to save the PIN record");
+      // A power cycle could send a refused PIN again, so this has to show in the status
+      this->set_fault_(ModemFault::MODEM_FAULT_PIN_RECORD);
     }
     this->pin_save_state_.store(saved ? PinSave::PIN_SAVE_DONE : PinSave::PIN_SAVE_FAILED, std::memory_order_release);
     this->wake_task_();
@@ -471,6 +473,15 @@ void ModemComponent::run_task_() {
   }
 }
 
+uint32_t ModemComponent::next_probe_delay_() {
+  const uint8_t backoff = this->probe_backoff_.load(std::memory_order_relaxed);
+  const uint32_t delay_ms = std::min(PROBE_RETRY_DELAY_MS << backoff, PROBE_RETRY_MAX_MS);
+  if (delay_ms < PROBE_RETRY_MAX_MS) {
+    this->probe_backoff_.store(backoff + 1, std::memory_order_relaxed);
+  }
+  return delay_ms;
+}
+
 ModemState ModemComponent::retry_(ModemState state, uint32_t delay_ms) {
   this->step_delay_ms_ = delay_ms;
   return state;
@@ -570,12 +581,7 @@ ModemState ModemComponent::handle_state_enabling_() {
         if (!probed && !rejected) {
           this->not_responding_(detected);
         }
-        const uint8_t backoff = this->probe_backoff_.load(std::memory_order_relaxed);
-        const uint32_t delay_ms = std::min(PROBE_RETRY_DELAY_MS << backoff, PROBE_RETRY_MAX_MS);
-        if (delay_ms < PROBE_RETRY_MAX_MS) {
-          this->probe_backoff_.store(backoff + 1, std::memory_order_relaxed);
-        }
-        return this->retry_(ModemState::MODEM_STATE_ENABLING, delay_ms);
+        return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
       }
       ESP_LOGD(TAG, "Modem responded at baud %d", this->current_baud_rate_);
       break;
@@ -603,9 +609,11 @@ ModemState ModemComponent::handle_state_enabling_() {
   }
 
   if (exited && this->dce_->sync() != command_result::OK) {
-    ESP_LOGW(TAG, "Waiting SYNC");
-    this->set_fault_(ModemFault::MODEM_FAULT_NO_RESPONSE);
-    return this->retry_(ModemState::MODEM_STATE_ENABLING);
+    // The detection proved the modem answers, so the CMUX or data mode exit is what failed; the exit can block
+    // for 20 s, so it backs off like the probe
+    ESP_LOGW(TAG, "Modem did not return to command mode");
+    this->set_fault_(ModemFault::MODEM_FAULT_TEARDOWN);
+    return this->retry_(ModemState::MODEM_STATE_ENABLING, this->next_probe_delay_());
   }
   this->probe_backoff_.store(0, std::memory_order_relaxed);
   // esp_modem keeps the last line before OK as the reply, which can be the echoed command
