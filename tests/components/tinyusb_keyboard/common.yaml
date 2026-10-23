@@ -1,0 +1,43 @@
+tinyusb:
+
+tinyusb_keyboard:
+  id: kb
+
+binary_sensor:
+  - platform: template
+    id: kb_letter
+    on_press:
+      - tinyusb_keyboard.press:
+          id: kb
+          key: a
+    on_release:
+      - tinyusb_keyboard.release: kb
+
+  - platform: template
+    id: kb_shift_digit
+    on_press:
+      - tinyusb_keyboard.press:
+          id: kb
+          key: "1"
+          modifiers: 0x02  # Left Shift
+    on_release:
+      - tinyusb_keyboard.release: kb
+
+  - platform: template
+    id: kb_raw_code
+    on_press:
+      - tinyusb_keyboard.press:
+          id: kb
+          key: 0x28  # Enter
+          modifiers: !lambda return 0;
+    on_release:
+      - tinyusb_keyboard.release: kb
+
+  - platform: template
+    id: kb_volume_up
+    on_press:
+      - tinyusb_keyboard.media_press:
+          id: kb
+          usage: 0xE9  # Volume Up
+    on_release:
+      - tinyusb_keyboard.media_release: kb

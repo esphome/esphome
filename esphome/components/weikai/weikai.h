@@ -40,6 +40,12 @@ constexpr size_t FIFO_SIZE = 256;
 /// @brief size of the ring buffer set to size of the FIFO
 constexpr size_t RING_BUFFER_SIZE = FIFO_SIZE;
 
+/// @brief Name of a register for the log messages
+const LogString *reg_to_str(int reg, bool page1);
+
+/// Logs a buffer in hexadecimal, 32 values per line, under @p tag at @p level.
+void print_buffer(const char *tag, const uint8_t *data, size_t length, int level = ESPHOME_LOG_LEVEL_VERY_VERBOSE);
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers that works as a FIFO
 /// @details This ring buffer is used to buffer the bytes received in the FIFO of the Weika device. The best way to read
@@ -266,7 +272,7 @@ class WeikaiComponent : public Component {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Helper class to expose a WeiKai family IO pin as an internal GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
-class WeikaiGPIOPin : public GPIOPin {
+class WeikaiGPIOPin final : public GPIOPin {
  public:
   void set_parent(WeikaiComponent *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
@@ -293,7 +299,7 @@ class WeikaiGPIOPin : public GPIOPin {
 /// uart::UARTComponent virtual class. This class is common to the different members of the Weikai
 /// components family and therefore avoid code duplication.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-class WeikaiChannel : public uart::UARTComponent {
+class WeikaiChannel final : public uart::UARTComponent {
  public:
   /// @brief We belongs to this WeikaiComponent
   /// @param parent pointer to the component we belongs to
@@ -315,10 +321,10 @@ class WeikaiChannel : public uart::UARTComponent {
   const char *get_channel_name() { return this->name_.c_str(); }
 
   /// @brief Setup the channel
-  void virtual setup_channel();
+  void setup_channel();
 
   /// @brief dump channel information
-  void virtual dump_channel();
+  void dump_channel();
 
   /// @brief Factory method to create a WeikaiRegister proxy object
   /// @param reg address of the register
@@ -423,7 +429,7 @@ class WeikaiChannel : public uart::UARTComponent {
 
   /// @brief check if channel is alive
   /// @return true if OK
-  bool virtual check_channel_down();
+  bool check_channel_down_();
 
 #ifdef TEST_COMPONENT
   /// @ingroup test_

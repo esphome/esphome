@@ -34,10 +34,7 @@ void MQTTTimeComponent::setup() {
       [this]() { this->publish_state(this->time_->hour, this->time_->minute, this->time_->second); });
 }
 
-void MQTTTimeComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Time '%s':", this->time_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTTimeComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
 MQTT_COMPONENT_TYPE(MQTTTimeComponent, "time")
 const EntityBase *MQTTTimeComponent::get_entity() const { return this->time_; }

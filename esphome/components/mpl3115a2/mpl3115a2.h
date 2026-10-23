@@ -94,11 +94,6 @@ class MPL3115A2Component final : public PollingComponent, public i2c::I2CDevice 
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *altitude_{nullptr};
   sensor::Sensor *pressure_{nullptr};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_ID,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::mpl3115a2
