@@ -63,7 +63,7 @@ void VEML6040Component::update() {
   if (!this->data_ready_)
     return;
 
-  uint16_t red, green, blue, white;
+  uint16_t red{0}, green{0}, blue{0}, white{0};
   if (!this->status_comm_result(this->read_byte_16_le(R_DATA_REG, &red) && this->read_byte_16_le(G_DATA_REG, &green) &&
                                 this->read_byte_16_le(B_DATA_REG, &blue) && this->read_byte_16_le(W_DATA_REG, &white)))
     return;
