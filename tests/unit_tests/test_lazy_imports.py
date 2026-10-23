@@ -220,7 +220,33 @@ def test_api_client_does_not_import_heavy_modules() -> None:
     )
 
 
-@pytest.mark.parametrize("component", ["binary_sensor", "sensor"])
+# Packages a domain needs for its own schema; cheap and never an integration
+_ENTITY_COMPONENT_DEPENDENCIES = {
+    "light": ("esphome.components.power_supply", "esphome.components.const.css_colors"),
+}
+
+
+@pytest.mark.parametrize(
+    "component",
+    [
+        "alarm_control_panel",
+        "binary_sensor",
+        "button",
+        "climate",
+        "cover",
+        "datetime",
+        "event",
+        "fan",
+        "light",
+        "lock",
+        "select",
+        "sensor",
+        "text",
+        "text_sensor",
+        "update",
+        "valve",
+    ],
+)
 def test_entity_component_does_not_import_integrations(component: str) -> None:
     """An entity component must not drag in its optional integrations.
 
@@ -229,15 +255,18 @@ def test_entity_component_does_not_import_integrations(component: str) -> None:
     esp32/logger chains mqtt and zigbee pull in) must only load when the
     user's config actually uses them.
     """
+    own = f"esphome.components.{component}"
     allowed = (
         "esphome.components",
-        f"esphome.components.{component}",
+        own,
         "esphome.components.const",
+        *_ENTITY_COMPONENT_DEPENDENCIES.get(component, ()),
     )
     check = (
-        f"import sys; import esphome.components.{component}; "
+        f"import sys; import {own}; "
         f"leaked = [m for m in sys.modules "
-        f"if m.startswith('esphome.components') and m not in {allowed!r}]; "
+        f"if m.startswith('esphome.components') and m not in {allowed!r} "
+        f"and not m.startswith('{own}.')]; "
         "print(','.join(leaked))"
     )
     result = subprocess.run(
