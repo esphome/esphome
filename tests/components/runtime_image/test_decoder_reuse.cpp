@@ -645,6 +645,10 @@ struct BoundaryTables : ImageDecoder {
   static size_t y_capacity(const ImageDecoder &decoder) {
     return (decoder.*(&BoundaryTables::y_boundaries_)).capacity();
   }
+  static bool size_valid(const ImageDecoder &decoder) { return decoder.*(&BoundaryTables::size_valid_); }
+  static void prepare_draw(ImageDecoder &decoder, int width, int height) {
+    (decoder.*(&BoundaryTables::prepare_draw_))(width, height);
+  }
 };
 
 // A JPEG decoded at reduced size builds its tables once, for the decoded size, not first for the full size
@@ -654,6 +658,18 @@ TEST(RuntimeImageDecoder, JpegTablesAreBuiltForTheDecodedSize) {
   ASSERT_EQ(static_cast<JpegDecoder *>(img.decoder())->get_scale(), 8);
   EXPECT_EQ(BoundaryTables::x_capacity(*img.decoder()), 2u);
   EXPECT_EQ(BoundaryTables::y_capacity(*img.decoder()), 2u);
+}
+
+// Without memory for the tables an RGB565 image is drawn pixel by pixel, rather than failing the decode
+TEST(RuntimeImageDecoder, DirectDrawFallsBackWhenTablesCannotBeAllocated) {
+  TestableRuntimeImage img(BMP, image::IMAGE_TYPE_RGB565, false, 0, 0);
+  ASSERT_TRUE(img.begin_decode(sizeof(BMP_24BPP)));
+  BoundaryTables::prepare_draw(*img.decoder(), 3, 2);
+  ASSERT_TRUE(img.decoder()->uses_direct_rgb565());
+  // A table of SIZE_MAX entries can never be allocated
+  BoundaryTables::prepare_draw(*img.decoder(), -2, -2);
+  EXPECT_FALSE(img.decoder()->uses_direct_rgb565());
+  EXPECT_TRUE(BoundaryTables::size_valid(*img.decoder())) << "draw() would paint nothing";
 }
 
 }  // namespace esphome::runtime_image::testing

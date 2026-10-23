@@ -194,9 +194,9 @@ class ImageDecoder {
   bool resize_image_(int width, int height);
   /**
    * Draw a source of width x height over the whole buffer from now on. For an opaque RGB565 image this builds the
-   * tables of where each source column and row lands. Returns false when they cannot be allocated.
+   * tables of where each source column and row lands; without the memory for them it draws pixel by pixel instead.
    */
-  bool prepare_draw_(int width, int height);
+  void prepare_draw_(int width, int height);
   /// Paint a block of source pixels in one color straight into the buffer. Only while uses_direct_rgb565().
   void draw_rgb565_(int x, int y, int w, int h, uint16_t rgb565);
 

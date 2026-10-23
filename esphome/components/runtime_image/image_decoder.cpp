@@ -9,7 +9,10 @@ namespace esphome::runtime_image {
 ESPHOME_LOG_TAG(TAG, "image_decoder");
 
 bool ImageDecoder::set_size(int width, int height) {
-  return this->resize_image_(width, height) && this->prepare_draw_(width, height);
+  if (!this->resize_image_(width, height))
+    return false;
+  this->prepare_draw_(width, height);
+  return true;
 }
 
 bool ImageDecoder::resize_image_(int width, int height) {
@@ -17,17 +20,17 @@ bool ImageDecoder::resize_image_(int width, int height) {
   return this->size_valid_;
 }
 
-bool ImageDecoder::prepare_draw_(int width, int height) {
+void ImageDecoder::prepare_draw_(int width, int height) {
   this->draw_width_ = width;
   this->draw_height_ = height;
   this->direct_rgb565_ = this->image_->get_type() == image::IMAGE_TYPE_RGB565 && !this->image_->has_transparency();
   if (!this->direct_rgb565_)
-    return true;
+    return;
   if ((this->x_boundaries_.capacity() < static_cast<size_t>(width + 1) && !this->x_boundaries_.try_init(width + 1)) ||
       (this->y_boundaries_.capacity() < static_cast<size_t>(height + 1) && !this->y_boundaries_.try_init(height + 1))) {
+    ESP_LOGW(TAG, "No memory to draw straight into the buffer; drawing pixel by pixel");
     this->direct_rgb565_ = false;
-    this->size_valid_ = false;
-    return false;
+    return;
   }
   this->x_boundaries_.clear();
   this->y_boundaries_.clear();
@@ -40,7 +43,6 @@ bool ImageDecoder::prepare_draw_(int width, int height) {
   for (uint32_t y = 0; y <= static_cast<uint32_t>(height); y++) {
     this->y_boundaries_.push_back(static_cast<uint16_t>((y * buffer_height + height - 1) / height));
   }
-  return true;
 }
 
 void ImageDecoder::draw_rgb565_(int x, int y, int w, int h, uint16_t rgb565) {
