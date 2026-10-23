@@ -30,8 +30,7 @@ void pulse_reset(GPIOPin *pin, uint32_t low_ms, uint32_t settle_ms, uint32_t pre
   pin->digital_write(false);
   delay(low_ms);
   pin->digital_write(true);
-  if (settle_ms != 0)
-    delay(settle_ms);
+  delay(settle_ms);
 }
 
 }  // namespace esphome

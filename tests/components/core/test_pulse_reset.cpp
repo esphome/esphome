@@ -17,7 +17,7 @@ class RecordingPin : public GPIOPin {
   std::string events;
 };
 
-TEST(PulseReset, NullPinIsIgnored) { pulse_reset(nullptr, 1, 1, 1); }
+TEST(PulseReset, NullPinIsIgnored) { pulse_reset(nullptr, 1); }
 
 TEST(PulseReset, LowThenHigh) {
   RecordingPin pin;
