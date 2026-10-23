@@ -1066,20 +1066,19 @@ bool LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
     ESP_LOGW(TAG, "Command data too large: %u", len);
     return false;
   }
-  if (this->cmd_count_ >= CMD_QUEUE_SIZE) {
+  if (this->cmd_queue_.size() >= CMD_QUEUE_SIZE) {
     ESP_LOGW(TAG, "Command queue full, dropping command 0x%04X", type);
     return false;
   }
 
-  PendingCommand &cmd = this->cmd_queue_[this->cmd_tail_];
+  PendingCommand cmd;
   cmd.type = type;
   cmd.len = len;
   if (len > 0 && data != nullptr) {
     std::memcpy(cmd.data.data(), data, len);
   }
+  this->cmd_queue_.push(cmd);
 
-  this->cmd_tail_ = (this->cmd_tail_ + 1) % CMD_QUEUE_SIZE;
-  this->cmd_count_++;
   this->process_command_queue_();
   return true;
 }
@@ -1146,12 +1145,11 @@ void LD6002BComponent::process_command_queue_() {
     return;
   }
 
-  if (this->cmd_count_ == 0)
+  if (this->cmd_queue_.empty())
     return;
 
-  this->active_command_ = this->cmd_queue_[this->cmd_head_];
-  this->cmd_head_ = (this->cmd_head_ + 1) % CMD_QUEUE_SIZE;
-  this->cmd_count_--;
+  this->active_command_ = this->cmd_queue_.front();
+  this->cmd_queue_.pop();
 
   this->send_generation_++;
   this->retries_left_ = CMD_MAX_RETRIES;
