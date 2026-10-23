@@ -29,7 +29,7 @@ class HashBase {
   void get_hex(char *output) { format_hex_to(output, this->get_size() * 2 + 1, this->digest_, this->get_size()); }
 
   /// Compare the hash against a provided byte-encoded hash
-  bool equals_bytes(const uint8_t *expected) { return memcmp(this->digest_, expected, this->get_size()) == 0; }
+  bool equals_bytes(const uint8_t *expected) { return constant_time_equals(this->digest_, expected, this->get_size()); }
 
   /// Compare the hash against a provided hex-encoded hash
   bool equals_hex(const char *expected) {
