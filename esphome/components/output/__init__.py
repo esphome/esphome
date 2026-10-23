@@ -106,7 +106,7 @@ def final_validate_unique_channel(
         platform,
         hub_key,
         CONF_CHANNEL,
-        message=f"Channel '{{{CONF_CHANNEL}}}' of '{{{hub_key}}}' is already used by another output",
+        message="Channel '{1}' of '{0}' is already used by another output",
     )
 
 
