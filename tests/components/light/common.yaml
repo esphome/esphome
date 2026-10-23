@@ -288,6 +288,9 @@ light:
     gamma_correct: 2.8
     transition_state_publish_interval: 200ms
     default_transition_length: 2s
+    initial_state:
+      state: true
+      effect: My Flicker
     effects:
       - strobe:
       - flicker:

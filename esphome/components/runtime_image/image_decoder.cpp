@@ -15,27 +15,12 @@ bool ImageDecoder::set_size(int width, int height) {
   return success;
 }
 
-int ImageDecoder::scaled_x_(int x) const {
-  if (this->draw_width_ <= 0)
-    return 0;
-  const uint32_t buffer_width = this->image_->get_buffer_width();
-  return static_cast<int>((static_cast<uint32_t>(x) * buffer_width + this->draw_width_ - 1) / this->draw_width_);
-}
-
-int ImageDecoder::scaled_y_(int y) const {
-  if (this->draw_height_ <= 0)
-    return 0;
-  const uint32_t buffer_height = this->image_->get_buffer_height();
-  return static_cast<int>((static_cast<uint32_t>(y) * buffer_height + this->draw_height_ - 1) / this->draw_height_);
-}
-
 void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
   if (!this->size_valid_) {
     return;
   }
-  // A source pixel paints the target pixels from ceil(start * scale) up to ceil(end * scale). The spans of neighbouring
-  // pixels meet without overlapping, so when an image is shrunk each target pixel is painted once, by the first
-  // source pixel that reaches it, rather than by every pixel that lands on it. Integer maths: the S3 has no double FPU.
+  // When shrinking, each target pixel is painted once, by the first source pixel that reaches it, rather than by every
+  // pixel that lands on it. Integer maths: the S3 has no double FPU.
   const int buffer_width = this->image_->get_buffer_width();
   const int buffer_height = this->image_->get_buffer_height();
   int x1 = x;
@@ -43,10 +28,10 @@ void ImageDecoder::draw(int x, int y, int w, int h, const Color &color) {
   int x2 = x + w;
   int y2 = y + h;
   if (buffer_width != this->draw_width_ || buffer_height != this->draw_height_) {
-    x1 = this->scaled_x_(x);
-    y1 = this->scaled_y_(y);
-    x2 = this->scaled_x_(x + w);
-    y2 = this->scaled_y_(y + h);
+    x1 = scale_boundary(x, this->draw_width_, buffer_width);
+    y1 = scale_boundary(y, this->draw_height_, buffer_height);
+    x2 = scale_boundary(x + w, this->draw_width_, buffer_width);
+    y2 = scale_boundary(y + h, this->draw_height_, buffer_height);
   }
   x2 = std::min(buffer_width, x2);
   y2 = std::min(buffer_height, y2);
