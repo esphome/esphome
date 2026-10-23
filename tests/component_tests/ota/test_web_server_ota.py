@@ -13,6 +13,7 @@ from esphome.components.web_server.ota import _web_server_ota_final_validate
 from esphome.const import (
     CONF_AP,
     CONF_ID,
+    CONF_NETWORKS,
     CONF_OTA,
     CONF_PLATFORM,
     CONF_WEB_SERVER,
@@ -108,6 +109,34 @@ def test_web_server_ota_captive_portal_without_ap_fails() -> None:
         _final_validate(
             {"captive_portal": {}, CONF_WIFI: {}, CONF_OTA: [_WEB_SERVER_OTA]}
         )
+
+
+def test_web_server_ota_captive_portal_with_disabled_fallback_fails() -> None:
+    """A disabled fallback AP does not provide web server OTA with an endpoint."""
+    with pytest.raises(cv.Invalid, match=_NO_SERVER_MATCH):
+        _final_validate(
+            {
+                "captive_portal": {},
+                CONF_WIFI: {
+                    CONF_NETWORKS: [{"ssid": "Station"}],
+                    CONF_AP: {"ssid": "Fallback", "ap_timeout": cv.time_period("0s")},
+                },
+                CONF_OTA: [_WEB_SERVER_OTA],
+            }
+        )
+
+
+def test_web_server_ota_captive_portal_with_ap_only_passes() -> None:
+    """An AP-only configuration starts its portal even with a zero timeout."""
+    _final_validate(
+        {
+            "captive_portal": {},
+            CONF_WIFI: {
+                CONF_AP: {"ssid": "Fallback", "ap_timeout": cv.time_period("0s")}
+            },
+            CONF_OTA: [_WEB_SERVER_OTA],
+        }
+    )
 
 
 def test_web_server_ota_captive_portal_without_ap_passes_with_other_ota() -> None:

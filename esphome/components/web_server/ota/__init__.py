@@ -10,7 +10,7 @@ from esphome.components.ota import (
 )
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
-from esphome.const import CONF_AP, CONF_ID, CONF_PLATFORM, CONF_WIFI
+from esphome.const import CONF_AP, CONF_ID, CONF_NETWORKS, CONF_PLATFORM, CONF_WIFI
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
@@ -26,13 +26,27 @@ DEPENDENCIES = ["network", "web_server_base"]
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServerOTAComponent = web_server_ns.class_("WebServerOTAComponent", OTAComponent)
 
+_HTTP_SERVER_PROVIDERS = (DOMAIN, "prometheus")
+_HTTP_SERVER_PROVIDER_MESSAGE = ", ".join(
+    f"'{provider}:'" for provider in _HTTP_SERVER_PROVIDERS
+)
+
 
 def _http_server_available(full_conf: ConfigType) -> bool:
     """Whether a configured component will start the shared HTTP server."""
-    if DOMAIN in full_conf or "prometheus" in full_conf:
+    if any(provider in full_conf for provider in _HTTP_SERVER_PROVIDERS):
         return True
-    # The captive portal only brings the server up behind an access point
-    return "captive_portal" in full_conf and CONF_AP in full_conf.get(CONF_WIFI, {})
+    if "captive_portal" not in full_conf:
+        return False
+    wifi_conf = full_conf.get(CONF_WIFI, {})
+    ap_conf = wifi_conf.get(CONF_AP)
+    if ap_conf is None:
+        return False
+    # With a station network, a zero timeout disables the fallback AP. An AP-only
+    # configuration still starts its portal immediately.
+    return not (
+        wifi_conf.get(CONF_NETWORKS) and ap_conf["ap_timeout"].total_milliseconds == 0
+    )
 
 
 def _web_server_ota_final_validate(config: ConfigType) -> None:
@@ -61,7 +75,8 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
     ):
         raise cv.Invalid(
             "The web_server OTA platform requires a component that starts the HTTP "
-            f"server: '{DOMAIN}:', 'prometheus:', or 'captive_portal:' with a "
+            f"server: {_HTTP_SERVER_PROVIDER_MESSAGE}, "
+            "or 'captive_portal:' with a "
             f"'{CONF_WIFI}.{CONF_AP}'"
         )
 
