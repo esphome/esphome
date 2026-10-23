@@ -90,6 +90,7 @@
 #define USE_EVENT
 #define USE_EZSP_PROXY_TAP
 #define USE_FAN
+#define USE_FONT
 #define USE_FEEDBACK_COVER_OVERSHOOT
 #define USE_GPIO_BINARY_SENSOR_INTERRUPT
 #define USE_GPIO_SWITCH_INTERLOCK
@@ -162,6 +163,7 @@
 #define USE_LVGL_TEXTAREA
 #define USE_LVGL_TILEVIEW
 #define USE_LVGL_TOUCHSCREEN
+#define LV_USE_LOG 1
 #define USE_MDNS
 #define USE_MDNS_STORE_SERVICES
 #define GPS_LISTENER_COUNT 1
@@ -169,6 +171,7 @@
 #define I2C_PORT_FREQUENCY_COUNT 1
 #define MDNS_SERVICE_COUNT 3
 #define USE_MDNS_DYNAMIC_TXT
+#define USE_MDNS_EXTRA_SERVICES
 #define MDNS_DYNAMIC_TXT_COUNT 2
 #define LD2450_POLYGON_ZONE_COUNT 2
 #define SEN6X_STATUS_SENSOR_COUNT 1
@@ -234,6 +237,7 @@
 #define USE_REMOTE_PROTOCOL_SYMPHONY
 #define USE_REMOTE_PROTOCOL_TOSHIBA_AC
 #define USE_REMOTE_PROTOCOL_TOTO
+#define USE_REMOTE_TRANSMITTER
 #define SYSTA_BUS_LISTENER_COUNT 2
 #define SERIAL_PROXY_COUNT 2
 #define SNTP_SERVER_COUNT 3
@@ -247,6 +251,8 @@
 // lwIP is built without IPv6 on ESP8266, RP2 and LibreTiny
 #if defined(USE_ESP32) || defined(USE_HOST)
 #define USE_NETWORK_IPV6 true
+#define USE_NETWORK_MIN_IPV6_ADDR_COUNT 1
+#define USE_UDP_IPV6_SEND
 #else
 #define USE_NETWORK_IPV6 false
 #endif
@@ -369,6 +375,7 @@
 #define USE_SHA256
 #if !defined(USE_RP2) && !defined(USE_HOST)  // no MQTT backend or esp_wireguard library on RP2 and host
 #define USE_MQTT
+#define USE_MQTT_ABBREVIATIONS
 #define USE_MQTT_COVER_JSON
 #define USE_WIREGUARD
 #endif
@@ -450,6 +457,7 @@
 #define OTA_TRUSTED_KEY_COUNT 1
 #define OTA_TRUSTED_KEY_DIGESTS {{0}}
 #define USE_OTA_DOWNGRADE_PROTECTION
+#define USE_OTA_PARTITIONS
 #define USE_ESP32_MIN_CHIP_REVISION_SET
 #define USE_ESP32_RTC_PREFERENCES
 #define USE_ESP32_SRAM1_AS_IRAM
@@ -468,6 +476,7 @@
 #define USE_ESP32_BLE_UUID
 #define USE_ESP32_BLE_ADVERTISING
 #define USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
+#define USE_ESP32_BLE_SOFTWARE_COEXISTENCE
 #define USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
 #define USE_ESP32_BLE_SERVER_NOTIFY_ACTION
 #define USE_ESP32_BLE_SERVER_CHARACTERISTIC_ON_WRITE
@@ -526,6 +535,20 @@
 #define USE_WEBSERVER_GZIP
 #define USE_WEBSERVER_SORTING
 #define USE_WEBSERVER_ALLOWED_ORIGINS
+#define USE_WEBSERVER_CSS_INCLUDE
+#define USE_WEBSERVER_JS_INCLUDE
+#define USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
+// The page version and the locally served vs CDN page are either/or in the
+// code, as is web_server OTA being enabled or disabled. ESP8266 parses the
+// locally served v2 page with OTA disabled; every other environment parses the
+// CDN-served v3 page with OTA enabled, so each arm is analyzed somewhere.
+#ifdef USE_ESP8266
+#define USE_WEBSERVER_VERSION 2
+#define USE_WEBSERVER_LOCAL
+#define USE_WEBSERVER_OTA_DISABLED
+#else
+#define USE_WEBSERVER_VERSION 3
+#endif
 #define WEB_SERVER_DEFAULT_HEADERS_COUNT 1
 #define USE_CAPTIVE_PORTAL_GZIP
 #endif
@@ -625,6 +648,7 @@
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
 #define USE_OPENTHREAD
 #define USE_OPENTHREAD_SRP
+#define USE_OPENTHREAD_TLVS "0e080000000000010000"
 #define USE_ZIGBEE
 #endif
 #if defined(USE_ESP32_VARIANT_ESP32S3)
@@ -678,6 +702,10 @@
 #define ESP8266_PREFERENCES_RTC_NORMAL_WORDS 78
 #define USE_ESP8266_UART_SERIAL
 #define USE_ESP8266_UART_SERIAL1
+#define USE_ESP8266_EARLY_PIN_INIT
+// Either the PSK comes from YAML or it is stored at runtime; ESP8266 parses the
+// YAML arm so the esp32 analysis keeps covering the runtime storage arm.
+#define USE_API_NOISE_PSK_FROM_YAML
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
@@ -718,6 +746,7 @@
 #define USE_BLE_GATT_CLIENT
 #define ESPHOME_BLE_GATT_CLIENT_COUNT 3
 #define USE_RP2040_VARIANT_RP2040
+#define USE_RP2_WATCHDOG_TIMEOUT 8000
 #define USE_SPI
 #ifndef USE_ETHERNET
 #define USE_ETHERNET
@@ -746,8 +775,10 @@
 #define USE_WIFI_AP_EXCLUSIVE
 #else
 #define USE_BK72XX_BLE_TRACKER
+#define BK72XX_BLE_HAS_COMMON_BDADDR
 #endif
 #define USE_LIBRETINY_RTC_PREFERENCES
+#define LT_GPIO_RECOVER 1
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define ESPHOME_SUSPEND_LOOP
 #define USE_BLE_SCAN_RESPONSE_MERGER
@@ -804,8 +835,13 @@
 // #define USE_BSEC2  // Requires a library with proprietary license
 
 #define USE_DASHBOARD_IMPORT
+#define DSMR_TEXT_SENSOR_LIST_DEFINED
 
 // Default counts for static analysis
+#define DLMS_MAX_BINARY_SENSORS 1
+#define DLMS_MAX_SENSORS 1
+#define DLMS_MAX_TEXT_SENSORS 1
+#define HYDREON_RGXX_NUM_SENSORS 6
 #define ESPHOME_AREA_COUNT 10
 #define ESPHOME_CDC_RX_RING_BUFFER_SIZE 256
 #define ESPHOME_CDC_TX_RING_BUFFER_SIZE 256
