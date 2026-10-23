@@ -42,10 +42,7 @@ void EPaperBWR::fill(Color color) {
   this->fill_range_(0, half_buffer, sets_bw_bit(bwr, this->red_sets_black_) ? 0xFF : 0x00);
   this->fill_range_(half_buffer, this->buffer_length_, bwr == BwrColor::BWR_COLOR_RED ? 0xFF : 0x00);
 
-  this->x_high_ = this->width_;
-  this->y_high_ = this->height_;
-  this->x_low_ = 0;
-  this->y_low_ = 0;
+  this->mark_all_drawn_();
 }
 
 void EPaperBWR::fill_range_(size_t index, size_t end, uint8_t value) {

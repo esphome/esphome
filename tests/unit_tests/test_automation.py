@@ -1319,23 +1319,50 @@ async def test_apply_string_ref_literal_stays_in_flash_on_esp8266(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("platform", ["esp32", "esp8266"])
+@pytest.mark.parametrize(
+    "body", ["x *= 2;\nreturn {0x01, x};", "return std::vector<uint8_t>{++x};"]
+)
 async def test_apply_bytes_lambda_is_a_vector_in_a_block(
-    registries: tuple[Registry, Registry], mock_cg: MockCodegen, platform: str
+    registries: tuple[Registry, Registry],
+    mock_cg: MockCodegen,
+    platform: str,
+    body: str,
 ) -> None:
-    """A lambda payload is called once into a scoped vector and passed as data and size."""
+    """A lambda payload is called once into a scoped vector and passed as data and size;
+    it takes the trigger args by their own types and is never reduced, so it may modify them."""
     fields = (ApplyBytes("data", "send({})"),)
-    config = {"data": Lambda("return {0x01, x};")}
+    config = {"data": Lambda(body)}
     await _run_apply_action(
         registries, fields, config, args=[(cg.uint8, "x")], platform=platform
     )
     text = _apply_definition(mock_cg)
-    # Parenthesized so a reduced `return a, b;` stays one initializer
-    assert "const std::vector<uint8_t> esphome__bytes = (" in text
-    assert "-> std::vector<uint8_t>" in text
+    assert text.startswith(
+        "static void esphome__obj_1__fn(const std::remove_cvref_t<uint8_t> & x) {"
+    )
+    assert (
+        "const std::vector<uint8_t> esphome__bytes = [](uint8_t x) -> std::vector<uint8_t> {"
+        in text
+    )
+    assert "}(x);" in text
     assert (
         f"::{PARENT_OBJ}->send(esphome__bytes.data(), esphome__bytes.size());" in text
     )
     assert "progmem_memcpy" not in text
+
+
+@pytest.mark.asyncio
+async def test_apply_bytes_keeps_a_mutable_reference_arg(
+    registries: tuple[Registry, Registry], mock_cg: MockCodegen
+) -> None:
+    """A reference trigger arg such as climate's `ClimateCall &` is passed through as is."""
+    fields = (ApplyBytes("data", "send({})"),)
+    config = {"data": Lambda("return {0x01};")}
+    call_ref = cg.MockObj("ClimateCall").operator("ref")
+    await _run_apply_action(registries, fields, config, args=[(call_ref, "x")])
+    text = _apply_definition(mock_cg)
+    assert text.startswith("static void esphome__obj_1__fn(ClimateCall & x) {")
+    assert "[](ClimateCall & x) -> std::vector<uint8_t> {" in text
+    assert "}(x);" in text
 
 
 @pytest.mark.asyncio

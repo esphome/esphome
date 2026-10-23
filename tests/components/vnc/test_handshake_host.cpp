@@ -41,6 +41,7 @@ TEST(VncHandshake, Rfb38NonePipelined) {
 
 struct PixelFormatCase {
   display::DisplayType type;
+  VncPixelFormat format;
   bool rgb565;
 };
 
@@ -50,6 +51,7 @@ TEST_P(VncPixelFormatSelection, SetPixelFormatMatchesTheDisplay) {
   const auto &param = GetParam();
   FakeDisplay display(64, 48, param.type);
   Session s(&display);
+  s.client.set_pixel_format(param.format);
   s.attach();
   s.deliver(handshake_38(64, 48));
   Bytes tx = s.take();
@@ -59,10 +61,13 @@ TEST_P(VncPixelFormatSelection, SetPixelFormatMatchesTheDisplay) {
   EXPECT_EQ(s.client.bpp(), param.rgb565 ? 2 : 1);
 }
 
-INSTANTIATE_TEST_SUITE_P(Formats, VncPixelFormatSelection,
-                         ::testing::Values(PixelFormatCase{display::DISPLAY_TYPE_COLOR, true},
-                                           PixelFormatCase{display::DISPLAY_TYPE_GRAYSCALE, true},
-                                           PixelFormatCase{display::DISPLAY_TYPE_BINARY, false}));
+INSTANTIATE_TEST_SUITE_P(
+    Formats, VncPixelFormatSelection,
+    ::testing::Values(PixelFormatCase{display::DISPLAY_TYPE_COLOR, VncPixelFormat::VNC_PIXEL_FORMAT_AUTO, true},
+                      PixelFormatCase{display::DISPLAY_TYPE_GRAYSCALE, VncPixelFormat::VNC_PIXEL_FORMAT_AUTO, true},
+                      PixelFormatCase{display::DISPLAY_TYPE_BINARY, VncPixelFormat::VNC_PIXEL_FORMAT_AUTO, false},
+                      PixelFormatCase{display::DISPLAY_TYPE_COLOR, VncPixelFormat::VNC_PIXEL_FORMAT_RGB332, false},
+                      PixelFormatCase{display::DISPLAY_TYPE_BINARY, VncPixelFormat::VNC_PIXEL_FORMAT_RGB565, true}));
 
 TEST(VncHandshake, Rfb37NoneHasNoSecurityResult) {
   FakeDisplay display(64, 48);
@@ -248,6 +253,8 @@ TEST(VncHandshake, FullSecurityListWithoutAUsableType) {
 TEST(VncHandshake, DumpConfig) {
   FakeDisplay display(64, 48);
   Session s(&display);
+  s.client.dump_config();
+  s.client.set_pixel_format(VncPixelFormat::VNC_PIXEL_FORMAT_RGB332);
   s.client.dump_config();
 }
 
