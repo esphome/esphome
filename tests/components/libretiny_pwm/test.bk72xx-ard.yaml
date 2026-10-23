@@ -1,4 +1,5 @@
 substitutions:
   pwm_pin: P6
 
-<<: !include common.yaml
+packages:
+  libretiny_pwm: !include common.yaml

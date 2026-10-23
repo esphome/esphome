@@ -3,5 +3,4 @@ substitutions:
 
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
-
-<<: !include common.yaml
+  ads1118: !include common.yaml

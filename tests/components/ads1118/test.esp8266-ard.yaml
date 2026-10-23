@@ -3,5 +3,4 @@ substitutions:
 
 packages:
   spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
-
-<<: !include common.yaml
+  ads1118: !include common.yaml
