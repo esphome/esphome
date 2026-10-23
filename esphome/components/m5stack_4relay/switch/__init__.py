@@ -24,7 +24,7 @@ FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
     domain=switch.DOMAIN,
     platform=DOMAIN,
     keys=(CONF_M5STACK_4RELAY_ID, CONF_CHANNEL),
-    message="Channel {1} of {0} is used by more than one switch",
+    message="Channel {channel} of {m5stack_4relay_id} is used by more than one switch",
 )
 
 
