@@ -11,7 +11,6 @@
 #include "light_transformer.h"
 
 #include <cmath>
-#include <cstring>
 
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
@@ -141,11 +140,6 @@ class AddressableLight : public LightOutput, public Component {
       return false;
     this->schedule_show();
     return true;
-  }
-  // Effect data is unallocated until setup() succeeds
-  static void zero_effect_data_(uint8_t *effect_data, size_t count) {
-    if (effect_data != nullptr)
-      memset(effect_data, 0, count);
   }
 
 #ifdef USE_LIGHT_POWER_ESTIMATION

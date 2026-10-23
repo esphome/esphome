@@ -22,7 +22,6 @@ class HelperStrip : public AddressableLight {
   LightTraits get_traits() override { return {}; }
   void write_state(LightState *state) override {}
   using AddressableLight::refresh_too_soon_;
-  using AddressableLight::zero_effect_data_;
 
  protected:
   ESPColorView get_view_internal(int32_t index) const override {
@@ -84,13 +83,6 @@ TEST(LedStripHelpers, RefreshTooSoonHoldsTheFrame) {
   // micros() wraps
   EXPECT_TRUE(strip.refresh_too_soon_(100, UINT32_MAX - 99, 300));
   EXPECT_FALSE(strip.refresh_too_soon_(200, UINT32_MAX - 99, 300));
-}
-
-TEST(LedStripHelpers, ZeroEffectDataSkipsAnUnallocatedBuffer) {
-  std::array<uint8_t, 3> effect{1, 2, 3};
-  HelperStrip::zero_effect_data_(effect.data(), effect.size());
-  EXPECT_EQ(effect, (std::array<uint8_t, 3>{}));
-  HelperStrip::zero_effect_data_(nullptr, 3);
 }
 
 }  // namespace esphome::light::testing
