@@ -1,0 +1,95 @@
+substitutions:
+  base: !secret manifest_base
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+logger:
+  level: DEBUG
+  on_message:
+    - level: DEBUG
+      then:
+        - lambda: |-
+            // Inline check path: replace the URL from inside the check (ESP8266 runs the check on the main loop)
+            if (id(swap_in_check) && strstr(message, "Content-Length") != nullptr) {
+              id(swap_in_check) = false;
+              std::string url = "${base}/beta.json";
+              id(upd).set_source_url(url);
+              ESP_LOGI("harness", "URL replaced from inside the check");
+            }
+
+api:
+  reboot_timeout: 0s
+
+http_request:
+  verify_ssl: false
+  timeout: 10s
+
+ota:
+  - platform: http_request
+    id: ota_http
+
+update:
+  - platform: http_request
+    id: upd
+    name: Firmware
+    source: ${base}/stable.json
+    update_interval: 1h
+
+globals:
+  - id: swap_in_check
+    type: bool
+    initial_value: "false"
+
+button:
+  - platform: template
+    name: Check
+    on_press:
+      - lambda: id(upd).check();
+  - platform: template
+    name: URL Beta String
+    on_press:
+      - lambda: |-
+          std::string url = "${base}/beta.json";
+          id(upd).set_source_url(url);
+  - platform: template
+    name: URL Slow Cstr
+    on_press:
+      - lambda: |-
+          std::string url = "${base}/slow.json";
+          id(upd).set_source_url(url.c_str());
+  - platform: template
+    name: URL Stable Literal
+    on_press:
+      - lambda: id(upd).set_source_url("${base}/stable.json");
+  - platform: template
+    name: URL Temporary
+    on_press:
+      - lambda: id(upd).set_source_url(std::string("${base}/beta.json"));
+  - platform: template
+    name: Same URL Back
+    on_press:
+      - lambda: id(upd).set_source_url(id(upd).get_source_url());
+  - platform: template
+    name: Check Then Swap
+    on_press:
+      - lambda: |-
+          // ESP32: the check task reads slow.json while the URL is replaced under it
+          id(upd).check();
+          std::string url = "${base}/beta.json";
+          id(upd).set_source_url(url);
+  - platform: template
+    name: Arm Swap In Check
+    on_press:
+      - lambda: id(swap_in_check) = true;
+  - platform: template
+    name: Heap
+    on_press:
+      - lambda: |-
+          #ifdef USE_ESP8266
+          ESP_LOGI("harness", "heap free %u", ESP.getFreeHeap());
+          #else
+          ESP_LOGI("harness", "heap free %u", (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+          #endif
