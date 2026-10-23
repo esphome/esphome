@@ -27,7 +27,8 @@ class LineWaiter:
     also matches lines seen before the call, and only one may be outstanding at a
     time. ``expect`` matches only later lines, and any number may be armed at once;
     each resolves on the next matching line, so two armed for the same text both
-    resolve on its first occurrence. Arm the second after the first, or use ``count``.
+    resolve on its first occurrence. Arm the second after the first, or use
+    ``wait_count`` to wait for the Nth matching line.
     """
 
     def __init__(self) -> None:

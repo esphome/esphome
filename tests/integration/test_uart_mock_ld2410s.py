@@ -108,7 +108,7 @@ BAD_COMMAND_FRAME_HEX = "FD FC FB FA 04 00 FE 01 00 00 00 00 00 00"
 
 def _tx_frame(line: str) -> str | None:
     """Return the hex payload of a uart_mock TX log line, or None."""
-    if "uart_mock" not in line or "TX " not in line or "bytes: " not in line:
+    if not TX_LINE.search(line):
         return None
     return ANSI_ESCAPE.sub("", line.split("bytes: ", 1)[1]).strip()
 
