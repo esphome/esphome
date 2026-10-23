@@ -1,5 +1,4 @@
 #include "delta_wallbox.h"
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include <algorithm>
@@ -35,6 +34,7 @@ static constexpr uint8_t TWO_REGISTER_BYTE_COUNT = 4;
 static constexpr uint8_t CHARGING_INFO_BYTE_COUNT = 18;
 static constexpr uint8_t SERIAL_TEXT_BYTE_COUNT = 14;
 static constexpr uint32_t RETRANSMIT_TIMEOUT_MS = 4000;
+static constexpr uint32_t RETRANSMIT_TIMEOUT_ID = 0;
 static constexpr uint8_t MAX_PAIRING_ATTEMPTS = 5;
 static constexpr uint16_t PAIRING_STATUS_READY = 0x0007;
 static constexpr uint16_t PAIRING_STATUS_WAITING = 0x0008;
@@ -158,30 +158,11 @@ void DeltaWallbox::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void DeltaWallbox::loop() {
-  if (this->node_state == esp32_ble_tracker::ClientState::ESTABLISHED) {
-    if (this->state_ == DeltaState::DELTA_STATE_IDLE) {
-      ESP_LOGI(TAG, "GATT connection established. Starting authentication state machine.");
-      this->state_ = DeltaState::DELTA_STATE_GET_MODEL;
-      this->send_next_state_command_();
-    } else if (this->state_ != DeltaState::DELTA_STATE_CONNECTED && this->state_ != DeltaState::DELTA_STATE_HALTED) {
-      // Re-transmit state-based command on timeout
-      const uint32_t now = App.get_loop_component_start_time();
-      if (now - this->last_tx_time_ > RETRANSMIT_TIMEOUT_MS) {
-        ESP_LOGW(TAG, "Timeout waiting in login state %s for %u ms. Retransmitting command...",
-                 LOG_STR_ARG(delta_state_to_string(this->state_)), (unsigned int) (now - this->last_tx_time_));
-        this->send_next_state_command_();
-      }
-    }
-  }
-}
-
 void DeltaWallbox::update() {
   if (this->is_connected()) {
     // Start poll flow sequence
     ESP_LOGD(TAG, "Polling charging info...");
     this->send_frame_(CMD_POLL_CHARGING, sizeof(CMD_POLL_CHARGING));
-    this->last_tx_time_ = App.get_loop_component_start_time();
   }
 }
 
@@ -278,9 +259,16 @@ void DeltaWallbox::send_next_state_command_() {
       this->send_frame_(CMD_GET_SERIAL_NUMBER, sizeof(CMD_GET_SERIAL_NUMBER));
       break;
     default:
+      this->cancel_timeout(RETRANSMIT_TIMEOUT_ID);
       return;
   }
-  this->last_tx_time_ = App.get_loop_component_start_time();
+  this->set_timeout(RETRANSMIT_TIMEOUT_ID, RETRANSMIT_TIMEOUT_MS, [this]() { this->retransmit_(); });
+}
+
+void DeltaWallbox::retransmit_() {
+  ESP_LOGW(TAG, "No answer in login state %s within %u ms. Sending the command again...",
+           LOG_STR_ARG(delta_state_to_string(this->state_)), (unsigned int) RETRANSMIT_TIMEOUT_MS);
+  this->send_next_state_command_();
 }
 
 void DeltaWallbox::advance_to_(DeltaState next) {
@@ -302,7 +290,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       this->advance_to_(DeltaState::DELTA_STATE_GET_CHARGER_FW_VERSION);
     } else if (expected_function_code(this->state_) != 0) {
       // The charger refused a handshake step; sending the same request again would not change that
-      this->halt_("Modbus exception during login");
+      this->halt_(LOG_STR("Modbus exception during login"));
     }
     return;
   }
@@ -326,8 +314,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       }
       model[model_len] = '\0';
       ESP_LOGI(TAG, "Discovered Wallbox Model Name: %s", model);
-      if (this->model_name_sensor_ != nullptr) {
-        this->model_name_sensor_->publish_state(model);
+      if (this->model_name_text_sensor_ != nullptr) {
+        this->model_name_text_sensor_->publish_state(model);
       }
       this->advance_to_(DeltaState::DELTA_STATE_GET_BT_FW_VERSION);
       break;
@@ -339,8 +327,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         char ver[16];
         snprintf(ver, sizeof(ver), "%d.%d", major, minor);
         ESP_LOGI(TAG, "Discovered Wallbox BT FW: %s", ver);
-        if (this->bt_fw_version_sensor_ != nullptr) {
-          this->bt_fw_version_sensor_->publish_state(ver);
+        if (this->bt_fw_version_text_sensor_ != nullptr) {
+          this->bt_fw_version_text_sensor_->publish_state(ver);
         }
       }
       this->advance_to_(DeltaState::DELTA_STATE_CHECK_PAIRING);
@@ -374,7 +362,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->pairing_attempts_++;
         }
         if (this->pairing_attempts_ >= MAX_PAIRING_ATTEMPTS) {
-          this->halt_("Too many failed/waiting pairing checks");
+          this->halt_(LOG_STR("Too many failed/waiting pairing checks"));
         }
       } else {
         ESP_LOGW(TAG, "Pairing status response too short: byte_count=%u frame_len=%u", frame[2], (unsigned int) len);
@@ -386,7 +374,9 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       break;
     }
     case DeltaState::DELTA_STATE_GET_LOGIN_RESULT0: {
-      this->advance_to_(DeltaState::DELTA_STATE_SEND_LOGIN_CREDENTIALS);
+      if (frame[2] == REGISTER_BYTE_COUNT) {
+        this->advance_to_(DeltaState::DELTA_STATE_SEND_LOGIN_CREDENTIALS);
+      }
       break;
     }
     case DeltaState::DELTA_STATE_SEND_LOGIN_CREDENTIALS: {
@@ -394,14 +384,15 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       break;
     }
     case DeltaState::DELTA_STATE_GET_LOGIN_RESULT: {
-      if (frame[2] >= REGISTER_BYTE_COUNT) {
+      // Only the one-register status answer counts; a late reply to another read has a different length
+      if (frame[2] == REGISTER_BYTE_COUNT) {
         uint8_t login_val = frame[4];  // respondent data_lo
         if (login_val == LOGIN_ACCEPTED) {
           ESP_LOGI(TAG, "Credentials accepted! Logged in as %s.", this->user_.c_str());
           this->advance_to_(DeltaState::DELTA_STATE_GET_LOGIN_ROLE);
         } else {
           ESP_LOGE(TAG, "Login validation failed (0x%02X). Check password.", login_val);
-          this->halt_("Bad credentials");
+          this->halt_(LOG_STR("Bad credentials"));
         }
       }
       break;
@@ -410,7 +401,9 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       break;  // Authentication is halted; ignore any late replies.
     }
     case DeltaState::DELTA_STATE_GET_LOGIN_ROLE: {
-      this->advance_to_(DeltaState::DELTA_STATE_TIME_SYNC);
+      if (frame[2] == REGISTER_BYTE_COUNT) {
+        this->advance_to_(DeltaState::DELTA_STATE_TIME_SYNC);
+      }
       break;
     }
     case DeltaState::DELTA_STATE_TIME_SYNC: {
@@ -422,8 +415,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         char ver[16];
         snprintf(ver, sizeof(ver), "%d.%d", frame[3], frame[4]);
         ESP_LOGI(TAG, "Discovered Charger Main FW: %s", ver);
-        if (this->fw_version_sensor_ != nullptr) {
-          this->fw_version_sensor_->publish_state(ver);
+        if (this->fw_version_text_sensor_ != nullptr) {
+          this->fw_version_text_sensor_->publish_state(ver);
         }
       }
       this->advance_to_(DeltaState::DELTA_STATE_GET_SERIAL_NUMBER);
@@ -440,8 +433,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         }
         serial[serial_len] = '\0';
         ESP_LOGI(TAG, "Wallbox serial text: %s", serial);
-        if (this->serial_number_sensor_ != nullptr)
-          this->serial_number_sensor_->publish_state(serial);
+        if (this->serial_number_text_sensor_ != nullptr)
+          this->serial_number_text_sensor_->publish_state(serial);
       }
       this->advance_to_(DeltaState::DELTA_STATE_CONNECTED);
       ESP_LOGI(TAG, "Authentication complete. Core parameters loaded.");
@@ -491,8 +484,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           uint16_t reg_val = (frame[3] << 8) | frame[4];
           char hex_str[16];
           snprintf(hex_str, sizeof(hex_str), "%04X", reg_val);
-          if (this->error_code_sensor_ != nullptr)
-            this->error_code_sensor_->publish_state(hex_str);
+          if (this->error_code_text_sensor_ != nullptr)
+            this->error_code_text_sensor_->publish_state(hex_str);
         }
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {
         // Confirmation frame of Start/Stop write actions
@@ -507,6 +500,7 @@ void DeltaWallbox::reset_state_() {
   ESP_LOGW(TAG, "Resetting component state from %s. pairing_attempts=%u, pairing_in_progress=%s, rx_buffer=%u bytes",
            LOG_STR_ARG(delta_state_to_string(this->state_)), this->pairing_attempts_,
            this->pairing_in_progress_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"), (unsigned int) this->rx_len_);
+  this->cancel_timeout(RETRANSMIT_TIMEOUT_ID);
   this->rx_len_ = 0;
   this->state_ = DeltaState::DELTA_STATE_IDLE;
   this->pairing_attempts_ = 0;
@@ -514,13 +508,14 @@ void DeltaWallbox::reset_state_() {
   this->status_set_warning();
 }
 
-void DeltaWallbox::halt_(const char *reason) {
-  ESP_LOGE(TAG, "Halting authentication: %s. A reconnect is required to retry.", reason);
+void DeltaWallbox::halt_(const LogString *reason) {
+  ESP_LOGE(TAG, "Halting authentication: %s. A reconnect is required to retry.", LOG_STR_ARG(reason));
+  this->cancel_timeout(RETRANSMIT_TIMEOUT_ID);
   this->rx_len_ = 0;
   this->state_ = DeltaState::DELTA_STATE_HALTED;
   this->pairing_attempts_ = 0;
   this->pairing_in_progress_ = false;
-  this->status_set_warning();
+  this->status_set_warning(reason);
 }
 
 void DeltaWallbox::set_charging_state(bool state) {
@@ -536,7 +531,6 @@ void DeltaWallbox::set_charging_state(bool state) {
     ESP_LOGI(TAG, "Sending remote STOP charging command...");
     this->send_frame_(CMD_STOP_CHARGING, sizeof(CMD_STOP_CHARGING));
   }
-  this->last_tx_time_ = App.get_loop_component_start_time();
 }
 
 void DeltaWallbox::start_charging() { this->set_charging_state(true); }
@@ -581,6 +575,10 @@ void DeltaWallbox::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       if (param->reg_for_notify.handle == this->rx_char_handle_) {
         ESP_LOGI(TAG, "Subscribed to RX notification handle 0x%04X successfully.", this->rx_char_handle_);
         this->node_state = esp32_ble_tracker::ClientState::ESTABLISHED;
+        if (this->state_ == DeltaState::DELTA_STATE_IDLE) {
+          ESP_LOGI(TAG, "GATT connection established. Starting authentication state machine.");
+          this->advance_to_(DeltaState::DELTA_STATE_GET_MODEL);
+        }
       }
       break;
     }

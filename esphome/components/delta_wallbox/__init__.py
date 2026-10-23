@@ -35,12 +35,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_client.new_ble_node_component(config)
-
-    cg.add(var.set_user(config[CONF_USER]))
-    cg.add(var.set_password(config[CONF_PASSWORD]))
+    var = await ble_client.new_ble_node_component(
+        config, config[CONF_USER], config[CONF_PASSWORD]
+    )
     cg.add_optional(var.set_pin, config.get(CONF_PIN))
-
-    if time_id := config.get(CONF_TIME_ID):
-        time_ = await cg.get_variable(time_id)
-        cg.add(var.set_time_id(time_))
+    await cg.add_variable(var.set_time_id, config.get(CONF_TIME_ID))

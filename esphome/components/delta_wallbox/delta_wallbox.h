@@ -36,35 +36,31 @@ enum class DeltaState : uint8_t {
 
 class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
-  void loop() override;
+  DeltaWallbox(const char *user, const char *password) : user_(user), password_(password) {}
   void update() override;
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void dump_config() override;
 
-  void set_user(const char *user) { this->user_ = StringRef(user); }
-  void set_password(const char *password) { this->password_ = StringRef(password); }
   void set_pin(uint32_t pin) {
-    pin_ = pin;
-    has_pin_ = true;
+    this->pin_ = pin;
+    this->has_pin_ = true;
   }
 #ifdef USE_TIME
-  void set_time_id(time::RealTimeClock *time_id) { time_id_ = time_id; }
+  void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
 #endif
 
-  // Sensors
-  void set_power_sensor(sensor::Sensor *s) { power_sensor_ = s; }
-  void set_energy_sensor(sensor::Sensor *s) { energy_sensor_ = s; }
-  void set_charging_time_sensor(sensor::Sensor *s) { charging_time_sensor_ = s; }
-  void set_charger_state_sensor(sensor::Sensor *s) { charger_state_sensor_ = s; }
-  void set_max_current_sensor(sensor::Sensor *s) { max_current_sensor_ = s; }
-  // Text Sensors
-  void set_serial_number_sensor(text_sensor::TextSensor *s) { serial_number_sensor_ = s; }
-  void set_fw_version_sensor(text_sensor::TextSensor *s) { fw_version_sensor_ = s; }
-  void set_bt_fw_version_sensor(text_sensor::TextSensor *s) { bt_fw_version_sensor_ = s; }
-  void set_model_name_sensor(text_sensor::TextSensor *s) { model_name_sensor_ = s; }
-  void set_error_code_sensor(text_sensor::TextSensor *s) { error_code_sensor_ = s; }
+  SUB_SENSOR(power)
+  SUB_SENSOR(energy)
+  SUB_SENSOR(charging_time)
+  SUB_SENSOR(charger_state)
+  SUB_SENSOR(max_current)
+  SUB_TEXT_SENSOR(serial_number)
+  SUB_TEXT_SENSOR(fw_version)
+  SUB_TEXT_SENSOR(bt_fw_version)
+  SUB_TEXT_SENSOR(model_name)
+  SUB_TEXT_SENSOR(error_code)
   void set_charging_state(bool state);
   void start_charging();
   void stop_charging();
@@ -78,12 +74,13 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   void write_frame_(const uint8_t *frame, size_t len);
   void send_frame_(const uint8_t *body, size_t len);
   void send_next_state_command_();
+  void retransmit_();
   void advance_to_(DeltaState next);
   void handle_frame_(const uint8_t *frame, size_t len);
   void drop_rx_bytes_(size_t count);
   void reset_state_();
   // Stops the handshake until the next BLE disconnect; used for failures a retry can't fix.
-  void halt_(const char *reason);
+  void halt_(const LogString *reason);
 
   // Members ordered by size so nothing is padded
   StringRef user_;
@@ -93,21 +90,6 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   time::RealTimeClock *time_id_{nullptr};
 #endif
   size_t rx_len_{0};
-  uint32_t last_tx_time_{0};
-
-  // Sensors
-  sensor::Sensor *power_sensor_{nullptr};
-  sensor::Sensor *energy_sensor_{nullptr};
-  sensor::Sensor *charging_time_sensor_{nullptr};
-  sensor::Sensor *charger_state_sensor_{nullptr};
-  sensor::Sensor *max_current_sensor_{nullptr};
-
-  // Text Sensors
-  text_sensor::TextSensor *serial_number_sensor_{nullptr};
-  text_sensor::TextSensor *fw_version_sensor_{nullptr};
-  text_sensor::TextSensor *bt_fw_version_sensor_{nullptr};
-  text_sensor::TextSensor *model_name_sensor_{nullptr};
-  text_sensor::TextSensor *error_code_sensor_{nullptr};
 
   uint16_t rx_char_handle_{0};
   uint16_t tx_char_handle_{0};

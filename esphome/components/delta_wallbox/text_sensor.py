@@ -27,8 +27,8 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DELTA_WALLBOX_ID])
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_SERIAL_NUMBER, hub.set_serial_number_sensor)
-    await text_sensors(CONF_FW_VERSION, hub.set_fw_version_sensor)
-    await text_sensors(CONF_BT_FW_VERSION, hub.set_bt_fw_version_sensor)
-    await text_sensors(CONF_MODEL_NAME, hub.set_model_name_sensor)
-    await text_sensors(CONF_ERROR_CODE, hub.set_error_code_sensor)
+    await text_sensors(CONF_SERIAL_NUMBER, hub.set_serial_number_text_sensor)
+    await text_sensors(CONF_FW_VERSION, hub.set_fw_version_text_sensor)
+    await text_sensors(CONF_BT_FW_VERSION, hub.set_bt_fw_version_text_sensor)
+    await text_sensors(CONF_MODEL_NAME, hub.set_model_name_text_sensor)
+    await text_sensors(CONF_ERROR_CODE, hub.set_error_code_text_sensor)
