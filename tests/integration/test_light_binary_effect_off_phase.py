@@ -26,10 +26,17 @@ from typing import Any
 from aioesphomeapi import LightState
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 OUTPUT_PATTERN = re.compile(r"BINARY_OUTPUT:(YES|NO)")
+
+
+async def output_on(waiter: LineWaiter, output: asyncio.Future[re.Match[str]]) -> bool:
+    """Await an output write armed with ``expect`` and return whether it switched on."""
+    match = await waiter.wait(output, 5.0, "No output write logged")
+    return match.group(1) == "YES"
 
 
 @pytest.mark.asyncio
@@ -39,28 +46,10 @@ async def test_light_binary_effect_off_phase(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """A strobe effect must drive a binary light's output both on and off."""
-    loop = asyncio.get_running_loop()
-    observed: list[bool] = []
-    pending: list[asyncio.Future[bool]] = []
-
-    def on_log_line(line: str) -> None:
-        if match := OUTPUT_PATTERN.search(line):
-            value = match.group(1) == "YES"
-            observed.append(value)
-            while pending:
-                future = pending.pop(0)
-                if not future.done():
-                    future.set_result(value)
-                    break
-
-    def arm_output() -> asyncio.Future[bool]:
-        """Arm a future for the next output write, before sending the command."""
-        future: asyncio.Future[bool] = loop.create_future()
-        pending.append(future)
-        return future
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -78,20 +67,25 @@ async def test_light_binary_effect_off_phase(
 
         # A plain turn-on must drive the output on -- brightness defaults to 100% and
         # must not be mistaken for a dark phase.
-        output = arm_output()
+        output = waiter.expect(OUTPUT_PATTERN)
         state = await send_and_wait(state=True)
         assert state.state is True
-        assert await asyncio.wait_for(output, timeout=5.0) is True, (
+        assert await output_on(waiter, output) is True, (
             "Plain turn-on did not switch the output on"
         )
 
         # Run the strobe effect; both phases must reach the output.
-        observed.clear()
+        start = len(waiter.lines)
         state = await send_and_wait(effect="Fast Strobe")
         assert state.effect == "Fast Strobe"
         # Let several effect cycles run (each phase is 50ms in the fixture).
         await asyncio.sleep(1.0)
 
+        observed = [
+            m.group(1) == "YES"
+            for line in waiter.lines[start:]
+            if (m := OUTPUT_PATTERN.search(line))
+        ]
         assert True in observed, (
             f"Strobe effect never switched the output on -- got {observed}"
         )
@@ -103,18 +97,18 @@ async def test_light_binary_effect_off_phase(
         # Stopping the effect must leave the light usable.
         state = await send_and_wait(effect="None")
         assert state.effect == "None"
-        output = arm_output()
+        output = waiter.expect(OUTPUT_PATTERN)
         state = await send_and_wait(state=True)
         assert state.state is True
-        assert await asyncio.wait_for(output, timeout=5.0) is True, (
+        assert await output_on(waiter, output) is True, (
             "Light stayed off after the effect stopped"
         )
 
         # An explicit turn-off still switches the output off.
-        output = arm_output()
+        output = waiter.expect(OUTPUT_PATTERN)
         state = await send_and_wait(state=False)
         assert state.state is False
-        assert await asyncio.wait_for(output, timeout=5.0) is False, (
+        assert await output_on(waiter, output) is False, (
             "Turn-off did not switch the output off"
         )
 
@@ -131,25 +125,10 @@ async def test_light_binary_zero_brightness_is_recoverable(
     no representable "on but dark" state. It must switch the output off and report the
     light as off, and a later plain turn-on must bring it back.
     """
-    loop = asyncio.get_running_loop()
-    pending: list[asyncio.Future[bool]] = []
-
-    def on_log_line(line: str) -> None:
-        if match := OUTPUT_PATTERN.search(line):
-            value = match.group(1) == "YES"
-            while pending:
-                future = pending.pop(0)
-                if not future.done():
-                    future.set_result(value)
-                    break
-
-    def arm_output() -> asyncio.Future[bool]:
-        future: asyncio.Future[bool] = loop.create_future()
-        pending.append(future)
-        return future
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -163,16 +142,16 @@ async def test_light_binary_zero_brightness_is_recoverable(
             client.light_command(key=light.key, **kwargs)
             return await next_light
 
-        output = arm_output()
+        output = waiter.expect(OUTPUT_PATTERN)
         state = await send_and_wait(state=True)
         assert state.state is True
-        assert await asyncio.wait_for(output, timeout=5.0) is True
+        assert await output_on(waiter, output) is True
 
         # Turning on at 0% brightness has no representable "on but dark" state here,
         # so the light must switch off and report itself as off.
-        output = arm_output()
+        output = waiter.expect(OUTPUT_PATTERN)
         state = await send_and_wait(state=True, brightness=0.0)
-        assert await asyncio.wait_for(output, timeout=5.0) is False, (
+        assert await output_on(waiter, output) is False, (
             "Zero brightness did not switch the output off"
         )
         assert state.state is False, (
@@ -180,9 +159,9 @@ async def test_light_binary_zero_brightness_is_recoverable(
         )
 
         # A plain turn-on must recover -- the stored zero brightness must not persist.
-        output = arm_output()
+        output = waiter.expect(OUTPUT_PATTERN)
         state = await send_and_wait(state=True)
         assert state.state is True
-        assert await asyncio.wait_for(output, timeout=5.0) is True, (
+        assert await output_on(waiter, output) is True, (
             "Light was left permanently off by a zero-brightness turn-on"
         )
