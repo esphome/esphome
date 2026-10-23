@@ -27,6 +27,7 @@ CONF_DATAPOINT = "datapoint"
 CONF_DECIMAL = "decimal"
 CONF_VALUES = "values"
 CONF_MAX_PENDING_MESSAGES = "max_pending_messages"
+CONF_MAX_FRAMES_PER_MESSAGE = "max_frames_per_message"
 CONF_MAX_PENDING_AGE = "max_pending_age"
 CONF_CLEANUP_INTERVAL = "cleanup_interval"
 
@@ -129,6 +130,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
         cv.Optional(CONF_MAX_PENDING_MESSAGES, default=32): cv.int_range(
             min=1, max=512
+        ),
+        cv.Optional(CONF_MAX_FRAMES_PER_MESSAGE, default=8): cv.int_range(
+            min=3, max=31
         ),
         cv.Optional(
             CONF_MAX_PENDING_AGE, default="5000ms"
@@ -257,6 +261,7 @@ async def to_code(config):
     cg.add(var.set_device_type(get_device_type(config["device_type"])))
     cg.add(var.set_device_addr(config[CONF_DEVICE_ADDR]))
     cg.add(var.set_max_pending_messages(config[CONF_MAX_PENDING_MESSAGES]))
+    cg.add(var.set_max_frames_per_message(config[CONF_MAX_FRAMES_PER_MESSAGE]))
     cg.add(var.set_max_pending_age_ms(config[CONF_MAX_PENDING_AGE]))
     cg.add(var.set_cleanup_interval_ms(config[CONF_CLEANUP_INTERVAL]))
     await _generate_entities(var, config)

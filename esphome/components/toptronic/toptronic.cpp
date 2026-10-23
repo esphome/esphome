@@ -1,5 +1,7 @@
 #include "toptronic.h"
 #include "esphome/core/log.h"
+#include <algorithm>
+#include <cmath>
 #include <array>
 #include <string>
 namespace esphome::toptronic {
@@ -139,21 +141,24 @@ template<typename T> static std::vector<uint8_t> number_to_bytes(T value) {
 }
 
 static std::vector<uint8_t> float_to_bytes(float value, TypeName type) {
+  // Round before narrowing (a scaled 21.5 must not become 21.4) and clamp to the
+  // wire type so an out-of-range write cannot wrap to an unrelated value.
+  const int64_t rounded = static_cast<int64_t>(llroundf(value));
   switch (type) {
     case U8:
-      return number_to_bytes((uint8_t) value);
+      return number_to_bytes(static_cast<uint8_t>(std::clamp<int64_t>(rounded, 0, UINT8_MAX)));
     case U16:
-      return number_to_bytes((uint16_t) value);
+      return number_to_bytes(static_cast<uint16_t>(std::clamp<int64_t>(rounded, 0, UINT16_MAX)));
     case U32:
-      return number_to_bytes((uint32_t) value);
+      return number_to_bytes(static_cast<uint32_t>(std::clamp<int64_t>(rounded, 0, UINT32_MAX)));
     case S8:
-      return number_to_bytes((int8_t) value);
+      return number_to_bytes(static_cast<int8_t>(std::clamp<int64_t>(rounded, INT8_MIN, INT8_MAX)));
     case S16:
-      return number_to_bytes((int16_t) value);
+      return number_to_bytes(static_cast<int16_t>(std::clamp<int64_t>(rounded, INT16_MIN, INT16_MAX)));
     case S32:
-      return number_to_bytes((int32_t) value);
+      return number_to_bytes(static_cast<int32_t>(std::clamp<int64_t>(rounded, INT32_MIN, INT32_MAX)));
     case S64:
-      return number_to_bytes((int64_t) value);
+      return number_to_bytes(rounded);
   }
   return {};
 }
@@ -390,8 +395,19 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
     if (data.size() < 2)
       return;
     uint8_t num_remaining = data[0] >> 3;
-    if (num_remaining > this->max_pending_messages_ || num_remaining == 1)
+    // The first-frame header holds the TOTAL frame count (first frame plus
+    // continuations). U32/S32 uses 2 and S64 uses 3, so a larger count is a
+    // corrupted header: reject it before reserving buffer space for it.
+    if (num_remaining > this->max_frames_per_message_) {
+      ESP_LOGD(TAG, "Dropping start frame with implausible frame count %u (header 0x%02X)", num_remaining, data[0]);
       return;
+    }
+    if (num_remaining == 1) {
+      // A start frame always begins a multi-frame message (total >= 2); total == 1
+      // would create an entry no continuation can complete.
+      ESP_LOGD(TAG, "Dropping start frame with total frame count 1 (header 0x%02X)", data[0]);
+      return;
+    }
     if (num_remaining == 0) {
       this->interpret_message_(data.data() + 1, data.size() - 1, can_id);
     } else {

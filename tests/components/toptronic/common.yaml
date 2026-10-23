@@ -12,6 +12,7 @@ toptronic:
     device_type: HV
     device_addr: 8
     max_pending_messages: 24
+    max_frames_per_message: 8
     max_pending_age: 6s
     cleanup_interval: 9s
 

@@ -241,6 +241,9 @@ class TopTronic : public Component {
   // and the start-frame count guard. All optional in YAML; the defaults match the
   // historical built-in constants (32 / 5000 ms / 5000 ms).
   void set_max_pending_messages(size_t max_pending_messages) { this->max_pending_messages_ = max_pending_messages; }
+  void set_max_frames_per_message(uint8_t max_frames_per_message) {
+    this->max_frames_per_message_ = max_frames_per_message;
+  }
   void set_max_pending_age_ms(uint32_t max_pending_age_ms) { this->max_pending_age_ms_ = max_pending_age_ms; }
   void set_cleanup_interval_ms(uint32_t cleanup_interval_ms) { this->cleanup_interval_ms_ = cleanup_interval_ms; }
 
@@ -290,6 +293,7 @@ class TopTronic : public Component {
 
   // Multi-frame reassembly buffer cap (default 32).
   size_t max_pending_messages_{32};
+  uint8_t max_frames_per_message_{8};
   // A pending message with no continuation frame for this long is considered lost (default 5000 ms).
   uint32_t max_pending_age_ms_{5000};
   // Sweep interval for the stale-fragment eviction (default 5000 ms).
