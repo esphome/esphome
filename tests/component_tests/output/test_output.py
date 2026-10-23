@@ -8,6 +8,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.lp5562 import output as lp5562_output
+from esphome.components.mcp4461 import output as mcp4461_output
 from esphome.components.mcp4728 import output as mcp4728_output
 from esphome.components.pca9685 import output as pca9685_output
 from esphome.components.sm2135 import output as sm2135_output
@@ -67,6 +68,7 @@ def _entries(platform: str, hub_key: str, *hub_channels: tuple[str, object]) -> 
     [
         (pca9685_output, "pca9685", "pca9685_id", 3, 4),
         (mcp4728_output, "mcp4728", "mcp4728_id", "A", "B"),
+        (mcp4461_output, "mcp4461", "mcp4461_id", "A", "E"),
         (sm2135_output, "sm2135", "sm2135_id", 1, 2),
         (lp5562_output, "lp5562", "lp5562_id", "red", "blue"),
     ],
