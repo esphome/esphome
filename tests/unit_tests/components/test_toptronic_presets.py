@@ -70,6 +70,26 @@ def test_entity_metadata(device_type, kind, language, path) -> None:
         assert len(set(values)) == len(values), (
             f"{path.name}: duplicate values for {entry.get('name')!r}"
         )
+        # The C++ option map keys on uint8_t, so a larger value would be truncated.
+        assert all(0 <= value <= 0xFF for value in values), (
+            f"{path.name}: option values outside 0..255 for {entry.get('name')!r}"
+        )
+
+
+@pytest.mark.parametrize(
+    ("device_type", "kind", "language", "path"),
+    ALL_FILES,
+    ids=[f"{d}/{k}_{lang}" for d, k, lang, _ in ALL_FILES],
+)
+def test_number_ranges(device_type, kind, language, path) -> None:
+    """Every number preset offers a non-empty range, as the schema requires."""
+    for platform, entry in _entries(path):
+        if platform != "number":
+            continue
+        assert entry["min_value"] < entry["max_value"], (
+            f"{path.name}: min_value {entry['min_value']} is not below max_value "
+            f"{entry['max_value']} for {entry.get('name')!r}"
+        )
 
 
 def test_languages_are_complete() -> None:
