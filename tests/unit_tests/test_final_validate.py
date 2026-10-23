@@ -98,12 +98,20 @@ def _with_switches(switches: list[dict]) -> Iterator[None]:
 def test_platform_entries_filters_by_platform_and_match() -> None:
     switches = _switches(("relay", "a", 1), ("relay", "b", 1), ("gpio", "a", 1))
     with _with_switches(switches):
-        assert fv.platform_entries("switch", "relay") == switches[:2]
+        assert fv.platform_entries(domain="switch", platform="relay") == switches[:2]
         assert (
-            fv.platform_entries("switch", "relay", {"hub_id": ID("a")}) == switches[:1]
+            fv.platform_entries(
+                domain="switch", platform="relay", match={"hub_id": ID("a")}
+            )
+            == switches[:1]
         )
-        assert fv.platform_entries("switch", "relay", {CONF_CHANNEL: 2}) == []
-        assert fv.platform_entries("light", "relay") == []
+        assert (
+            fv.platform_entries(
+                domain="switch", platform="relay", match={CONF_CHANNEL: 2}
+            )
+            == []
+        )
+        assert fv.platform_entries(domain="light", platform="relay") == []
 
 
 @pytest.mark.parametrize(
@@ -119,10 +127,9 @@ def test_unique_platform_key(
 ) -> None:
     switches = _switches(*entries)
     validator = fv.unique_platform_key(
-        "switch",
-        "relay",
-        "hub_id",
-        CONF_CHANNEL,
+        domain="switch",
+        platform="relay",
+        keys=("hub_id", CONF_CHANNEL),
         message="Channel {channel} of {0} is used twice",
     )
     with _with_switches(switches):
@@ -137,7 +144,9 @@ def test_unique_platform_key(
 @pytest.mark.parametrize(("count", "fails"), [(1, False), (2, True)])
 def test_unique_platform_key_without_keys(count: int, fails: bool) -> None:
     switches = _switches(*[("relay", "a", n) for n in range(count)])
-    validator = fv.unique_platform_key("switch", "relay", message="Only one relay")
+    validator = fv.unique_platform_key(
+        domain="switch", platform="relay", message="Only one relay"
+    )
     with _with_switches(switches):
         if fails:
             with pytest.raises(cv.Invalid, match="Only one relay") as err:
