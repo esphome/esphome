@@ -45,7 +45,7 @@ class ESP32PinSpec:
     """Pin facts of one ESP32 variant, with the two validators built from them.
 
     `error_pins` fail pin validation, which `ignore_pin_validation_error` bypasses;
-    `fatal_pins` fail both validators, so the option cannot bypass them.
+    `fatal_pins` and pins above `max_pin` fail both validators, so the option cannot bypass them.
     `input_only_label` is inserted after "GPIOn" in the input-only errors.
     A plain class, not a dataclass: building a dataclass costs ~0.5 ms of import.
     """
