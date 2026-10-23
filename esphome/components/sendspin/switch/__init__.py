@@ -5,7 +5,7 @@ from esphome.components import switch
 from esphome.components.const import CONF_ENABLED
 from esphome.components.switch import DOMAIN as SWITCH_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_PLATFORM, CONF_TYPE, ENTITY_CATEGORY_CONFIG
+from esphome.const import CONF_TYPE, ENTITY_CATEGORY_CONFIG
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -66,19 +66,16 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    full_config = fv.full_config.get()
-    switch_type = config[CONF_TYPE]
-    same_type = [
-        conf
-        for conf in full_config.get(SWITCH_DOMAIN, [])
-        if conf.get(CONF_PLATFORM) == DOMAIN and conf.get(CONF_TYPE) == switch_type
-    ]
     # Two switches of one type would each drive the same hub setting.
-    if len(same_type) > 1:
-        raise cv.Invalid(f"Only one sendspin '{switch_type}' switch is allowed")
-    if switch_type != CONF_UNPAIRED_ACCESS:
+    fv.unique_platform_key(
+        SWITCH_DOMAIN,
+        DOMAIN,
+        CONF_TYPE,
+        message="Only one sendspin '{type}' switch is allowed",
+    )(config)
+    if config[CONF_TYPE] != CONF_UNPAIRED_ACCESS:
         return config
-    hub_config = full_config.get(DOMAIN, {})
+    hub_config = fv.full_config.get().get(DOMAIN, {})
     if CONF_UNPAIRED_ACCESS in hub_config:
         raise cv.Invalid(
             f"'{DOMAIN}: {CONF_UNPAIRED_ACCESS}' cannot be set together with an "

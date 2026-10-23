@@ -14,7 +14,6 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_NUMBER,
     CONF_PIN,
-    CONF_PLATFORM,
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
@@ -71,15 +70,8 @@ def _get_data() -> ZephyrPWMData:
 
 
 def _allocate_blocks() -> None:
-    full_config = fv.full_config.get()
-    zephyr_pwm_conf = [
-        cfg
-        for cfg in full_config.get(OUTPUT_DOMAIN, [])
-        if cfg.get(CONF_PLATFORM) == DOMAIN
-    ]
-
     pwm_blocks: list[PWMBlock] = []
-    for cfg in zephyr_pwm_conf:
+    for cfg in fv.platform_entries(OUTPUT_DOMAIN, DOMAIN):
         pin_number = cfg[CONF_PIN][CONF_NUMBER]
         period_ns = int(1e9 / cfg[CONF_FREQUENCY])
         pwm_block = next(
