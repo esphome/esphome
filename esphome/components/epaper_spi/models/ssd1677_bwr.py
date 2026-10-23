@@ -7,7 +7,8 @@ The controller scans offset_height + height gates, and the panel is on the last 
 offset_height (under dimensions) is a property of the panel.
 """
 
-from esphome.const import CONF_OFFSET_HEIGHT
+import esphome.config_validation as cv
+from esphome.const import CONF_BUSY_PIN, CONF_OFFSET_HEIGHT, CONF_RESET_PIN
 
 from . import EpaperModel
 
@@ -20,6 +21,13 @@ class SSD1677BWR(EpaperModel):
     def __init__(self, name: str, **defaults: object) -> None:
         defaults.setdefault(CONF_OFFSET_HEIGHT, 0)
         super().__init__(name, "EPaperSSD1677BWR", **defaults)
+
+    def option(
+        self, name: str, fallback: object = cv.UNDEFINED
+    ) -> cv.Optional | cv.Required:
+        if name in (CONF_RESET_PIN, CONF_BUSY_PIN):
+            return cv.Required(name)
+        return super().option(name, fallback)
 
     def get_constructor_args(self, config) -> tuple:
         return (self.get_offset_height(config),)
