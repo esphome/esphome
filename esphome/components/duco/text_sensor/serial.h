@@ -1,22 +1,16 @@
 #pragma once
 
-#include "esphome/core/log.h"
-#include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/core/component.h"
+
 #include "../duco.h"
 
-namespace esphome {
-namespace duco {
+namespace esphome::duco {
 
 class DucoSerial : public DucoDevice, public PollingComponent, public text_sensor::TextSensor {
  public:
-  void setup() override;
   void update() override;
-
-  float get_setup_priority() const override;
-
-  void receive_response(const DucoMessage &message) override;
+  bool receive_response(const DucoMessage &message) override;
 };
 
-}  // namespace duco
-}  // namespace esphome
+}  // namespace esphome::duco

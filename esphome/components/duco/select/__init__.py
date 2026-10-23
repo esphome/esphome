@@ -1,13 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
-from .. import CONF_DUCO_ID, DUCO_COMPONENT_SCHEMA
+from .. import CONF_DUCO_ID, DUCO_COMPONENT_SCHEMA, duco_ns
 
 DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
 
+# Same order as MODE_CODES in select.cpp
 DUCO_MODE_OPTIONS = [
     "AUTO",
     "MAN1",
@@ -25,23 +26,16 @@ DUCO_MODE_OPTIONS = [
     "MAN3x3",
 ]
 
-duco_ns = cg.esphome_ns.namespace("duco")
 DucoSelect = duco_ns.class_("DucoSelect", cg.PollingComponent, select.Select)
 
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     select.select_schema(DucoSelect)
-    .extend(cv.COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("3s"))
     .extend(DUCO_COMPONENT_SCHEMA)
-    .extend({cv.GenerateID(): cv.declare_id(DucoSelect)})
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def to_code(config: ConfigType) -> None:
+    var = await select.new_select(config, options=DUCO_MODE_OPTIONS)
     await cg.register_component(var, config)
-
-    await select.register_select(var, config, options=DUCO_MODE_OPTIONS)
-
-    parent = await cg.get_variable(config[CONF_DUCO_ID])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_DUCO_ID])

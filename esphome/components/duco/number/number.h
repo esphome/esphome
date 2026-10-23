@@ -1,24 +1,19 @@
 #pragma once
 
-#include "esphome/core/log.h"
-#include "esphome/core/component.h"
 #include "esphome/components/number/number.h"
+#include "esphome/core/component.h"
+
 #include "../duco.h"
 
-namespace esphome {
-namespace duco {
+namespace esphome::duco {
 
 class DucoComfortTemperature : public DucoDevice, public PollingComponent, public number::Number {
  public:
-  void setup() override;
   void update() override;
+  bool receive_response(const DucoMessage &message) override;
 
-  float get_setup_priority() const override;
-
-  void receive_response(const DucoMessage &message) override;
-
-  void control(float number) override;
+ protected:
+  void control(float value) override;
 };
 
-}  // namespace duco
-}  // namespace esphome
+}  // namespace esphome::duco

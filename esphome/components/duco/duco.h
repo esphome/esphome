@@ -1,163 +1,95 @@
 #pragma once
 
-#include "esphome/core/helpers.h"
-#include "esphome/core/component.h"
-#include "esphome/components/uart/uart.h"
+#include <array>
+#include <initializer_list>
 
-#include <string>
-#include <vector>
-#include <map>
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
-#include "esphome/core/time.h"
 #endif
 
-namespace esphome {
-namespace duco {
+namespace esphome::duco {
+
+// Function codes of the requests; the box answers a request with function + 2
+static constexpr uint8_t FUNCTION_NODE = 0x0c;       // discovery, status and mode of a node
+static constexpr uint8_t FUNCTION_NODE_DATA = 0x10;  // a block of a node's data (sensors, serial number)
+static constexpr uint8_t FUNCTION_PARAMETER = 0x24;  // read or write a box parameter, set the clock
+
+/// A received message; data points into the receive buffer and is valid only during the callback.
+struct DucoMessage {
+  uint8_t function;
+  uint8_t id;
+  const uint8_t *data;
+  uint8_t size;
+};
 
 class DucoDevice;
 
-class DucoMessage {
- public:
-  DucoMessage() {}
-
-  uint8_t function;
-  uint8_t id;
-  std::vector<uint8_t> data;
-  uint16_t crc;
-
-  std::vector<uint8_t> get_message() {
-    std::vector<uint8_t> message;
-    message.push_back(data.size() + 2);
-    message.push_back(function);
-    message.push_back(id);
-    message.insert(message.end(), data.begin(), data.end());
-
-    auto crc = crc16(message.data(), message.size());
-
-    message.push_back(crc & 0xFF);
-    message.push_back((crc >> 8) & 0xFF);
-
-    return message;
-  }
-
-  std::string to_string() const {
-    std::string res;
-
-    char buf[5];
-
-    size_t len = data.size();
-
-    sprintf(buf, "%02X", len + 2);
-    res += buf;
-    res += "  ";
-
-    sprintf(buf, "%02X", function);
-    res += buf;
-    res += " ";
-
-    sprintf(buf, "%02X", id);
-    res += buf;
-    res += " ";
-
-    for (size_t i = 0; i < len; i++) {
-      res += " ";
-      sprintf(buf, "%02X", data[i]);
-      res += buf;
-    }
-
-    return res;
-  }
-};
-
 class Duco : public uart::UARTDevice, public Component {
  public:
-  Duco() { this->last_id_ = 10; };
-
-  void setup() override;
-
   void loop() override;
-
   void dump_config() override;
 
-  float get_setup_priority() const override;
+  void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
 
-  void send(DucoMessage message, DucoDevice *device);
-  void set_send_wait_time(uint16_t time_in_ms) { send_wait_time_ = time_in_ms; }
-  void set_disable_crc(bool disable_crc) { disable_crc_ = disable_crc; }
-
-  std::map<uint8_t, DucoDevice *> waiting_for_response;
-  void stop_waiting(uint8_t message_id);
+  /// Send a request; the answers carrying its message id go to device until it returns true.
+  uint8_t send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
 
  protected:
-  uint8_t last_id_ = 0;
-  uint8_t next_id_();
+  static constexpr size_t MAX_FRAME_SIZE = 64;
+  static constexpr size_t MAX_REQUEST_DATA = 16;
+  static constexpr uint8_t PENDING_SLOTS = 8;
 
   bool parse_byte_(uint8_t byte);
   void finalize_message_();
-  uint16_t send_wait_time_{250};
-  bool disable_crc_;
-  std::vector<uint8_t> rx_buffer_;
-  uint32_t last_byte_{0};
-  uint32_t last_send_{0};
-  bool removed_last_ = false;
+  uint8_t next_id_();
 
-  void debug_hex_(std::vector<uint8_t> bytes, uint8_t separator);
+  std::array<DucoDevice *, PENDING_SLOTS> pending_device_{};
+  std::array<uint8_t, PENDING_SLOTS> pending_id_{};
+  std::array<uint8_t, MAX_FRAME_SIZE> rx_buffer_{};
+  uint32_t last_byte_{0};
+  uint8_t rx_size_{0};
+  uint8_t last_id_{10};
+  bool removed_last_{false};
+  bool disable_crc_{false};
 };
 
 class DucoDevice : public Parented<Duco> {
  public:
-  virtual void receive_response(const DucoMessage &message) {}
+  /// Return true once the request is answered, so later messages with the same id are dropped.
+  virtual bool receive_response(const DucoMessage &message) = 0;
 };
 
 class DucoDiscovery : public DucoDevice, public PollingComponent {
  public:
-  void loop() override;
+  void setup() override;
   void update() override;
-
-  void receive_response(const DucoMessage &message) override;
-
-  static const std::string NODE_TYPE_UCBAT;
-  static const std::string NODE_TYPE_UC;
-  static const std::string NODE_TYPE_UCRH;
-  static const std::string NODE_TYPE_UCCO2;
-  static const std::string NODE_TYPE_VLV;
-  static const std::string NODE_TYPE_BOX;
-  static const std::string NODE_TYPE_SWITCH;
-  static const std::string NODE_TYPE_UNKNOWN;
-
-  static const uint8_t NODE_TYPE_CODE_UCBAT = 8;
-  static const uint8_t NODE_TYPE_CODE_UC = 9;
-  static const uint8_t NODE_TYPE_CODE_UCRH = 10;
-  static const uint8_t NODE_TYPE_CODE_UCCO2 = 12;
-  static const uint8_t NODE_TYPE_CODE_VLV = 13;
-  static const uint8_t NODE_TYPE_CODE_BOX = 17;
-  static const uint8_t NODE_TYPE_CODE_SWITCH = 18;
+  bool receive_response(const DucoMessage &message) override;
 
  protected:
-  // start with a delay of 1000 loops
-  uint32_t delay_{1000};
-  uint8_t next_node_{0};
-  bool waiting_for_response_ = false;
+  static constexpr uint8_t NODE_COUNT = 0x45;
 
-  std::vector<std::tuple<uint8_t, uint8_t>> nodes_;
+  void request_next_node_();
+
+  std::array<uint8_t, NODE_COUNT> node_types_{};  // 0 when no node answered at that address
+  uint8_t next_node_{0};
+  uint8_t request_id_{0};
+  bool waiting_{false};
 };
 
 #ifdef USE_TIME
 class DucoTime : public DucoDevice, public PollingComponent {
  public:
-  void setup() override;
+  explicit DucoTime(time::RealTimeClock *clock) : clock_(clock) {}
   void update() override;
-
-  void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
-
-  void receive_response(const DucoMessage &message) override;
+  bool receive_response(const DucoMessage &message) override { return message.function == FUNCTION_PARAMETER + 2; }
 
  protected:
-  time::RealTimeClock *time_id_{nullptr};
+  time::RealTimeClock *clock_;
 };
 #endif
 
-}  // namespace duco
-}  // namespace esphome
+}  // namespace esphome::duco
