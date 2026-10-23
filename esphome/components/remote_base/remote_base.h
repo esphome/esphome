@@ -110,7 +110,7 @@ class RemoteReceiveData {
   bool expect_space(uint32_t length);
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
-  /// False at the first item matching neither space, leaving it unread.
+  /// False at the first bit matching neither the one nor the zero timings, leaving it unread.
   template<BitTimings T> bool expect_bytes(uint8_t *out, size_t len) { return this->expect_bytes_<T, false>(out, len); }
   /// As expect_bytes, but the last bit is only its mark: its space runs into the gap after the frame.
   template<BitTimings T> bool expect_bytes_last_mark(uint8_t *out, size_t len) {
