@@ -52,9 +52,6 @@ inline ble_device_base::ESPBTDevice advert(uint64_t address, const Frame &frame)
 
 struct Harness {
   Harness(uint64_t address, const char *key) : scale(address, key) {
-    // The test main does not construct App as generated code does; the stabilized reset needs its scheduler
-    static const bool app_constructed = (new (&App) Application(), true);
-    (void) app_constructed;
     App.pre_setup("test_scale", 10, "", 0);
     this->scale.set_weight(&this->weight);
     this->scale.set_impedance_low(&this->impedance_low);
