@@ -18,6 +18,7 @@ class InterruptExpanderComponent : public Component {
   /// needs it. Returns whether the interrupt pin is in use.
   bool attach_interrupt_pin_();
   /// The loop runs again after the INT line falls; stop it once the line is released (HIGH).
+  /// Only called with an interrupt pin.
   void disable_loop_when_released_();
   /// Call from pin_mode() for an input pin: without an interrupt pin the loop polls instead.
   void enable_polling_loop_() {
@@ -34,7 +35,8 @@ class CachedGpioExpanderComponent : public InterruptExpanderComponent, public Ca
  public:
   void loop() override {
     this->reset_pin_cache_();
-    this->disable_loop_when_released_();
+    if (this->interrupt_pin_ != nullptr)
+      this->disable_loop_when_released_();
   }
 
  protected:
