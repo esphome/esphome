@@ -155,9 +155,10 @@ void TuyaFan::control(const fan::FanCall &call) {
 
   if (!this->optimistic_)
     return;
-  // FanCall::validate_() already dropped the fields this fan's traits do not support
+  // FanCall::validate_() already dropped the fields this fan's traits do not support; the on/off state is kept
+  // even without a switch datapoint, so a speed-only fan still reports turning on
   auto state = call.get_state();
-  if (switch_id.has_value() && state.has_value())
+  if (state.has_value())
     this->state = *state;
   auto oscillating = call.get_oscillating();
   if (oscillating.has_value())
