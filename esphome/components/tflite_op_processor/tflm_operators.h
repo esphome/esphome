@@ -4,8 +4,15 @@
 // namespace esphome::tflite_op_processor
 //
 // No #pragma once on purpose: this is an X-macro body that is expanded every
-// time it is included. The TFLM_OPERATORS_ACTIVE guard makes an accidental
-// include outside register_ops() a no-op.
+// time it is included, once per expansion mode. The guard below makes an
+// accidental include outside those modes a no-op.
+//
+// Expansion modes:
+//   TFLM_OPERATORS_ACTIVE -> one `case` per operator for the resolver switch.
+//   TFLM_OPERATORS_TRAITS -> one has_<method> trait per conditional operator.
+//
+// Each mode is responsible for defining TFLM_OP_AVAILABLE, TFLM_OP_UNAVAILABLE
+// and TFLM_OP_CONDITIONAL before including this file.
 
 // Verified against esp-tflite-micro 1.3.7 micro_mutable_op_resolver.h
 // DO NOT EDIT without cross-referencing that header.
@@ -15,7 +22,7 @@
 //   TFLM_OP_UNAVAILABLE(BuiltinOperator_suffix)            -> operator not available
 //   TFLM_OP_CONDITIONAL(BuiltinOperator_suffix, AddMethod) -> registered only when the resolver has the AddMethod
 
-#ifdef TFLM_OPERATORS_ACTIVE
+#if defined(TFLM_OPERATORS_ACTIVE) || defined(TFLM_OPERATORS_TRAITS)
 
 // ====== Core Neural Network Ops ======
 TFLM_OP_AVAILABLE(CONV_2D, AddConv2D)
@@ -156,4 +163,4 @@ TFLM_OP_UNAVAILABLE(CUSTOM)
 TFLM_OP_UNAVAILABLE(HASHTABLE_LOOKUP)
 TFLM_OP_UNAVAILABLE(CALL)
 
-#endif  // TFLM_OPERATORS_ACTIVE
+#endif  // TFLM_OPERATORS_ACTIVE || TFLM_OPERATORS_TRAITS

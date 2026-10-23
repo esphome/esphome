@@ -12,6 +12,10 @@ void log_op_unavailable(const char *tag, const char *op_name) {
   ESP_LOGW(tag, "Operator %s is not available in TFLite Micro", op_name);
 }
 
+void log_op_not_compiled(const char *tag, const char *op_name) {
+  ESP_LOGW(tag, "Operator %s is not compiled into this firmware (no configured model uses it)", op_name);
+}
+
 void log_op_unknown(const char *tag, const char *op_name) {
   ESP_LOGE(tag, "Unknown or unsupported operator: %s", op_name);
 }

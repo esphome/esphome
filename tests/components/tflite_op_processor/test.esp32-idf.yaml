@@ -1,1 +1,2 @@
-<<: !include common.yaml
+packages:
+  tflite_op_processor: !include common.yaml

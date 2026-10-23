@@ -5,10 +5,15 @@ supported TFLite Micro operators is available to the ESPHome code generator at
 compile (config) time, and reads the operator list of a model from its
 companion ``.txt`` metadata report. The C++ table remains the single source of
 truth; this module only reads it and never edits it.
+
+:func:`build_selective_op_defines` turns a set of operator names into the
+``TFLM_OP_ENABLED_<suffix>`` build defines that limit the firmware to the
+kernels the configured models use.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -23,7 +28,7 @@ _UNAVAILABLE_RE = re.compile(r"^TFLM_OP_UNAVAILABLE\(([A-Za-z0-9_]+)\)$")
 # A line in the model .txt report listing one operator type, e.g. "  REDUCE_MIN: 1"
 _OP_COUNT_RE = re.compile(r"^\s*([A-Z][A-Z0-9_]*):\s+\d+\s*$")
 
-_TABLE_START = "#ifdef TFLM_OPERATORS_ACTIVE"
+_TABLE_GUARD = "TFLM_OPERATORS_ACTIVE"
 _TABLE_END = "#endif"
 
 
@@ -39,6 +44,11 @@ class OpTable:
     def supported(self) -> frozenset[str]:
         """Operators the pinned esp-tflite-micro can register."""
         return self.available | self.conditional
+
+    @property
+    def suffixes(self) -> frozenset[str]:
+        """Every operator in the table, whatever its registration kind."""
+        return self.available | self.conditional | self.unavailable
 
 
 def table_path() -> Path:
@@ -75,7 +85,7 @@ def parse_op_table(path: str | Path | None = None) -> OpTable:
         line = raw_line.split("//", 1)[0].strip()
         if not line:
             continue
-        if line == _TABLE_START:
+        if line.startswith("#if") and _TABLE_GUARD in line:
             in_table = True
             seen_table = True
             continue
@@ -100,7 +110,7 @@ def parse_op_table(path: str | Path | None = None) -> OpTable:
             )
 
     if not seen_table:
-        raise ValueError(f"{table}: no {_TABLE_START} block found")
+        raise ValueError(f"{table}: no {_TABLE_GUARD} block found")
     return OpTable(
         available=frozenset(available),
         conditional=frozenset(conditional),
@@ -139,3 +149,38 @@ def extract_model_ops(model_path: str | Path) -> set[str] | None:
         if match:
             ops.add(match.group(1))
     return ops or None
+
+
+def build_selective_op_defines(
+    ops: Iterable[str], path: str | Path | None = None
+) -> dict[str, int]:
+    """Build the ``TFLM_OP_ENABLED_<suffix>`` defines for a set of operators.
+
+    ``op_resolver.h`` reads one flag per operator table entry when
+    ``USE_TFLITE_MICRO_SELECTIVE_OPS`` is set, so every entry gets a value: 1
+    when a configured model needs the kernel, 0 when it is compiled out. An
+    operator that appears in no flag would make the ``if constexpr`` invalid
+    C++, which is why the full set is always returned.
+
+    Args:
+        ops: operator names as they appear in a model ``.txt`` report, e.g.
+            ``{"CONV_2D", "SOFTMAX"}``.
+        path: optional explicit path to the table (defaults to the table in the
+            same directory as this module).
+
+    Returns:
+        A mapping of operator suffix to 0 or 1, covering the whole table.
+
+    Raises:
+        ValueError: if ``ops`` names an operator that is not in the table, so a
+            model the firmware cannot run fails at build time instead of at
+            registration time on the device.
+    """
+    table = parse_op_table(path)
+    requested = frozenset(ops)
+    if unknown := sorted(requested - table.suffixes):
+        raise ValueError(
+            f"unknown TFLite Micro operator(s): {', '.join(unknown)}; "
+            f"add them to {table_path() if path is None else path}"
+        )
+    return {suffix: int(suffix in requested) for suffix in sorted(table.suffixes)}
