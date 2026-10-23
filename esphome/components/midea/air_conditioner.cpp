@@ -173,9 +173,9 @@ void AirConditioner::do_follow_me(float temperature, bool use_fahrenheit, bool b
     return;
   }
 
-  // Round and convert temperature to long, then clamp and convert it to uint8_t
-  uint8_t temp_uint8 =
-      static_cast<uint8_t>(esphome::clamp<long>(std::lroundf(temperature), 0L, static_cast<long>(UINT8_MAX)));
+  // Round the temperature, then clamp and convert it to uint8_t
+  uint8_t temp_uint8 = static_cast<uint8_t>(
+      esphome::clamp<int32_t>(static_cast<int32_t>(std::lroundf(temperature)), 0, static_cast<int32_t>(UINT8_MAX)));
 
   char temp_symbol = use_fahrenheit ? 'F' : 'C';
   ESP_LOGD(Constants::TAG, "Follow me action called with temperature: %.5f °%c, rounded to: %u °%c", temperature,
