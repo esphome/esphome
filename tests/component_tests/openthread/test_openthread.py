@@ -132,7 +132,7 @@ def test_border_router_codegen(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     for option, value in BORDER_ROUTER_SDKCONFIG_OPTIONS.items():
         assert sdkconfig[option] == value
-    assert sdkconfig["CONFIG_SW_COEXIST_ENABLE"] is True
+    assert sdkconfig["CONFIG_ESP_COEX_SW_COEXIST_ENABLE"] is True
     assert sdkconfig["CONFIG_OPENTHREAD_SRP_CLIENT"] is False
     assert sdkconfig["CONFIG_OPENTHREAD_DNS64_CLIENT"] is False
     assert (
@@ -158,7 +158,7 @@ def test_border_router_rcp_codegen(
     assert sdkconfig["CONFIG_OPENTHREAD_RADIO_NATIVE"] is False
     assert sdkconfig["CONFIG_OPENTHREAD_RADIO_SPINEL_UART"] is True
     assert sdkconfig["CONFIG_VFS_SUPPORT_DIR"] is True
-    assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is not True
+    assert sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is not True
     assert any(define.name == "USE_OPENTHREAD_RCP_UART" for define in CORE.defines)
     assert "OpenThreadComponent(460800, 18, 17, nullptr)" in cpp_main
 

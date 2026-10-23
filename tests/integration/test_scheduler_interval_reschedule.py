@@ -147,12 +147,12 @@ async def test_scheduler_interval_reschedule(
             replace_original_future, 5.0, "Replace-test original interval did not fire"
         )
 
-        try:
-            await asyncio.wait_for(replaced_stopped_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Replaced interval did not stop. Fired {replaced_fire_count} times"
-            )
+        await wait_or_fail(
+            replaced_stopped_future,
+            5.0,
+            "Replaced interval did not stop",
+            fired=lambda: replaced_fire_count,
+        )
 
         # Wait to ensure replacement doesn't fire again after cancellation
         await asyncio.sleep(0.3)
