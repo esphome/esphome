@@ -14,6 +14,7 @@ static_assert(GPIO_DRIVE_CAP_MAX <= 4, "gpio_drive_cap_t has too many values for
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
 struct ISRFuncArg {
   gpio_num_t pin;
+  int rtc_pin;
   gpio_int_type_t type;
 #ifdef CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
   bool level;
