@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/components/remote_base/remote_base.h"
-#include "esphome/core/log.h"
 
 namespace esphome::remote_base {
 

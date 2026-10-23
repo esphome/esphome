@@ -11,7 +11,6 @@ constexpr int32_t SHORT_US = 750;
 constexpr int32_t LONG_US = 1460;
 constexpr int32_t FRAME_GAP_US = 63650;
 
-constexpr size_t TIMINGS_SIZE = 1 + 5 * 8 * 2 + 1;
 constexpr size_t FRAME_TIMINGS_SIZE = 1 + 5 * 8 * 2 + 1;
 
 // Captured frame: FA C3 EC A9 02, seed 0x65.
@@ -76,7 +75,7 @@ TEST(CardinS438ProtocolTest, RoundTrips) {
       sent.repeats = 1;
 
       const RawTimings timings = encode(sent);
-      ASSERT_EQ(timings.size(), TIMINGS_SIZE);
+      ASSERT_EQ(timings.size(), FRAME_TIMINGS_SIZE);
 
       auto decoded = decode(timings);
       ASSERT_TRUE(decoded.has_value());

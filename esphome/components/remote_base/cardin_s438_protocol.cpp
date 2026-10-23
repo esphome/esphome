@@ -1,4 +1,5 @@
 #include "cardin_s438_protocol.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -38,27 +39,12 @@ constexpr uint8_t WIRE_SIZE = 5;
 constexpr BitTimings CARDIN_TIMINGS{
     .one_space = 750, .zero_space = 1460, .one_mark = 1460, .zero_mark = 750, .space_first = true};
 
-// Maps pincode bits, most-significant first, into the X and Y fields.
-struct PinBit {
-  bool is_y;
-  uint8_t mask;
-};
-
-constexpr PinBit PINCODE_MAP[14] = {
-    {true, 0x80},   // Y7
-    {true, 0x40},   // Y6
-    {false, 0x80},  // X7
-    {false, 0x40},  // X6
-    {true, 0x20},   // Y5
-    {false, 0x20},  // X5
-    {true, 0x10},   // Y4
-    {false, 0x10},  // X4
-    {true, 0x08},   // Y3
-    {false, 0x08},  // X3
-    {true, 0x04},   // Y2
-    {true, 0x02},   // Y1
-    {true, 0x01},   // Y0
-    {false, 0x04},  // X2
+// Maps pincode bits, most-significant first, to a bit of the X or Y field: PIN_Y marks Y, the low bits are the bit
+// number. In flash, so it stays out of RAM on ESP8266.
+constexpr uint8_t PIN_Y = 0x08;
+constexpr uint8_t PINCODE_BITS = 14;
+constexpr uint8_t PINCODE_MAP[PINCODE_BITS] PROGMEM = {
+    PIN_Y | 7, PIN_Y | 6, 7, 6, PIN_Y | 5, 5, PIN_Y | 4, 4, PIN_Y | 3, 3, PIN_Y | 2, PIN_Y | 1, PIN_Y | 0, 2,
 };
 
 // Convert the pincode and channel to the two decoded pin fields.
@@ -66,14 +52,11 @@ void encode_pin_fields(uint16_t pincode, uint8_t channel, uint8_t &plain0, uint8
   uint8_t x = channel;
   uint8_t y = 0;
 
-  for (uint8_t i = 0; i < 14; ++i) {
-    if (((pincode >> (13 - i)) & 1U) == 0)
+  for (uint8_t i = 0; i < PINCODE_BITS; ++i) {
+    if (((pincode >> (PINCODE_BITS - 1 - i)) & 1U) == 0)
       continue;
-
-    if (PINCODE_MAP[i].is_y)
-      y |= PINCODE_MAP[i].mask;
-    else
-      x |= PINCODE_MAP[i].mask;
+    const uint8_t entry = progmem_read_byte(&PINCODE_MAP[i]);
+    (entry & PIN_Y ? y : x) |= 1U << (entry & 0x07);
   }
 
   plain1 = ~y;
@@ -149,10 +132,9 @@ optional<CardinS438Data> CardinS438Protocol::decode(RemoteReceiveData src) {
 
     // Reconstruct the 14-bit code in transmission order.
     uint16_t code = 0;
-    for (const auto &mapping : PINCODE_MAP) {
-      code <<= 1;
-      if ((mapping.is_y ? y : x) & mapping.mask)
-        code |= 1;
+    for (uint8_t i = 0; i < PINCODE_BITS; ++i) {
+      const uint8_t entry = progmem_read_byte(&PINCODE_MAP[i]);
+      code = (code << 1) | (((entry & PIN_Y ? y : x) >> (entry & 0x07)) & 1U);
     }
 
     return CardinS438Data{
@@ -166,24 +148,12 @@ optional<CardinS438Data> CardinS438Protocol::decode(RemoteReceiveData src) {
 }
 
 void CardinS438Protocol::dump(const CardinS438Data &data) {
-  const char *channel;
-
-  switch (data.channel & 0x03) {
-    case 0b10:
-      channel = "A";
-      break;
-    case 0b00:
-      channel = "B";
-      break;
-    case 0b11:
-      channel = "C";
-      break;
-    default:
-      channel = "D";
-      break;
-  }
-
-  ESP_LOGI(TAG, "Received Cardin S438: code=0x%04X channel=%s seed=0x%02X", data.code, channel, data.seed);
+  // The DIP switches as the config takes them; channels as CARDIN_S438_CHANNELS in __init__.py maps them
+  char code[PINCODE_BITS + 1];
+  for (uint8_t i = 0; i < PINCODE_BITS; ++i)
+    code[i] = (data.code >> (PINCODE_BITS - 1 - i)) & 1U ? '1' : '0';
+  code[PINCODE_BITS] = '\0';
+  ESP_LOGI(TAG, "Received Cardin S438: code=%s channel=%c seed=0x%02X", code, "BDAC"[data.channel & 0x03], data.seed);
 }
 
 }  // namespace esphome::remote_base
