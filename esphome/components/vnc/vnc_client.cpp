@@ -1,6 +1,7 @@
 #include "vnc_client.h"
 
 #include "esphome/components/network/util.h"
+#include "esphome/components/unicode/unicode.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -8,6 +9,7 @@
 
 #include <algorithm>
 #include <cinttypes>
+#include <cstdlib>
 #include <cstring>
 #include <iterator>
 
@@ -27,6 +29,7 @@ static constexpr uint32_t MIN_REQUEST_SPACING_MS = 50;
 static constexpr uint32_t DISPLAY_START_MS = 5000;
 // Longer than any driver's own busy timeout: a panel that stays busy this long is stuck
 static constexpr uint32_t DISPLAY_BUSY_TIMEOUT_MS = 120000;
+static constexpr size_t KEY_EVENT_SIZE = 8;
 static constexpr uint16_t MAX_CURSOR_SIDE = 1024;
 static constexpr uint32_t MAX_TEXT_LEN = 63;
 
@@ -53,6 +56,12 @@ static constexpr uint8_t MSG_SET_COLOUR_MAP = 1;
 static constexpr uint8_t MSG_BELL = 2;
 static constexpr uint8_t MSG_SERVER_CUT_TEXT = 3;
 
+static constexpr uint32_t KEYSYM_BACKSPACE = 0xFF08;
+static constexpr uint32_t KEYSYM_TAB = 0xFF09;
+static constexpr uint32_t KEYSYM_RETURN = 0xFF0D;
+// X11 encodes a character outside Latin-1 as this prefix plus its code point.
+static constexpr uint32_t KEYSYM_UNICODE = 0x01000000;
+
 static inline uint16_t read_be16(const uint8_t *p) { return encode_uint16(p[0], p[1]); }
 static inline uint32_t read_be32(const uint8_t *p) { return encode_uint32(p[0], p[1], p[2], p[3]); }
 static inline void write_be16(uint8_t *p, uint16_t v) {
@@ -77,8 +86,43 @@ static int parse_three_digits(const uint8_t *p) {
   return value;
 }
 
+static uint32_t keysym_for_codepoint(uint32_t cp) {
+  switch (cp) {
+    case '\n':
+      return KEYSYM_RETURN;
+    case '\t':
+      return KEYSYM_TAB;
+    case '\b':
+      return KEYSYM_BACKSPACE;
+    default:
+      break;
+  }
+  if (cp < 0x20 || (cp >= 0x7F && cp < 0xA0)) {
+    return 0;
+  }
+  return cp <= 0xFF ? cp : (KEYSYM_UNICODE | cp);
+}
+
+#ifdef USE_VNC_TOUCHSCREEN
+static constexpr uint16_t TOUCH_SLOP_PX = 8;
+
+void VncClient::update(const touchscreen::TouchPoints_t &tpoints) {
+  for (const auto &tp : tpoints) {
+    // A lifted finger lingers in the list as RELEASED or RELEASING until every finger is up.
+    if ((tp.state & (touchscreen::STATE_PRESSED | touchscreen::STATE_UPDATED)) != 0 &&
+        (tp.state & touchscreen::STATE_RELEASING) == 0) {
+      this->handle_touch_(tp.x, tp.y);
+      return;
+    }
+  }
+}
+
+void VncClient::release() { this->handle_release_(); }
+#endif
+
 void VncClient::setup() {
   this->setup_ms_ = App.get_loop_component_start_time();
+  this->last_input_ms_ = this->setup_ms_ - INPUT_BOOST_MS;  // no input yet
   this->link_.begin(TAG);
   // Sized for the display now; a rotation changed later swaps the sides but keeps the cell count.
   const uint32_t wanted = static_cast<uint32_t>((this->display_->get_width() + 15) / 16) *
@@ -121,6 +165,9 @@ void VncClient::dump_config() {
                 this->max_update_delay_ms_,
                 LOG_STR_ARG(PixelFormatStrings::get_log_str(static_cast<uint8_t>(this->pixel_format_), 0)),
                 this->hash_capacity_);
+#ifdef USE_VNC_TOUCHSCREEN
+  ESP_LOGCONFIG(TAG, "  Touchscreen: %s", this->has_touchscreen_ ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
+#endif
 }
 
 void VncClient::on_shutdown() { this->link_.close(); }
@@ -196,8 +243,9 @@ void VncClient::loop() {
   const bool display_starting =
       !this->display_parks_ && this->display_->has_overridden_loop() && now - this->setup_ms_ < DISPLAY_START_MS;
   // Wait until the screen stops changing, so an animation becomes one refresh showing where it ended.
+  // Right after input, paint at once instead: the reaction matters more than a calm panel.
   if (this->refresh_pending_ && !this->in_update_ && !this->display_busy_ && !display_starting &&
-      (now - this->last_change_ms_ >= this->update_delay_ms_ ||
+      (now - this->last_input_ms_ < INPUT_BOOST_MS || now - this->last_change_ms_ >= this->update_delay_ms_ ||
        now - this->first_change_ms_ >= this->max_update_delay_ms_)) {
     // Synchronous displays flush inside update(), so this pass does nothing else.
     this->refresh_pending_ = false;
@@ -263,6 +311,10 @@ void VncClient::reset_session_() {
   this->refresh_pending_ = false;
   this->need_full_ = false;
   this->frame_drawn_ = false;
+#ifdef USE_VNC_TOUCHSCREEN
+  this->dragging_ = false;
+  this->touching_ = false;
+#endif
   this->step_ = VncStep::VNC_STEP_VERSION;
   this->reason_failure_ = VncFailure::VNC_FAILURE_TRANSIENT;
   this->high_freq_.stop();
@@ -983,5 +1035,110 @@ bool VncClient::send_update_request_(bool incremental, uint32_t now) {
   this->last_request_ms_ = now;
   return true;
 }
+
+bool VncClient::send_key_event_(uint32_t keysym, VncKeyAction action) {
+  // A press is the down and the up event, sent whole or not at all.
+  uint8_t msg[2 * KEY_EVENT_SIZE] = {4, static_cast<uint8_t>(action != VncKeyAction::VNC_KEY_ACTION_UP)};
+  msg[KEY_EVENT_SIZE] = 4;
+  write_be32(msg + 4, keysym);
+  write_be32(msg + KEY_EVENT_SIZE + 4, keysym);
+  if (!this->send_(msg, action == VncKeyAction::VNC_KEY_ACTION_PRESS ? sizeof(msg) : KEY_EVENT_SIZE)) {
+    return false;
+  }
+  this->note_input_();
+  return true;
+}
+
+bool VncClient::send_pointer(uint16_t x, uint16_t y, uint8_t buttons) {
+  if (!this->is_connected()) {
+    ESP_LOGV(TAG, "Not connected, pointer event dropped");
+    return false;
+  }
+  x = std::min<uint16_t>(x, this->fb_w_ - 1);
+  y = std::min<uint16_t>(y, this->fb_h_ - 1);
+  uint8_t msg[6] = {5, buttons};
+  write_be16(msg + 2, x);
+  write_be16(msg + 4, y);
+  if (!this->send_(msg, sizeof(msg))) {
+    ESP_LOGW(TAG, "Send buffer full, pointer event dropped");
+    return false;
+  }
+  this->ptr_x_ = x;
+  this->ptr_y_ = y;
+  this->note_input_();
+  return true;
+}
+
+void VncClient::note_input_() { this->last_input_ms_ = App.get_loop_component_start_time(); }
+
+void VncClient::send_key(uint32_t keysym, VncKeyAction action) {
+  if (!this->is_connected()) {
+    ESP_LOGV(TAG, "Not connected, key dropped");
+    return;
+  }
+  if (!this->send_key_event_(keysym, action)) {
+    ESP_LOGW(TAG, "Send buffer full, key dropped");
+  }
+}
+
+void VncClient::type_text(const char *text, size_t len) {
+  if (!this->is_connected()) {
+    ESP_LOGV(TAG, "Not connected, text dropped");
+    return;
+  }
+  size_t typed = 0;
+  for (size_t i = 0; i < len;) {
+    size_t used;
+    const uint32_t cp = unicode::extract_unicode_codepoint(text + i, &used);
+    // A broken sequence or a NUL types nothing; carry on at the next byte.
+    i += used == 0 ? 1 : used;
+    const uint32_t keysym = keysym_for_codepoint(cp);
+    if (keysym == 0) {
+      continue;
+    }
+    if (!this->send_key_event_(keysym, VncKeyAction::VNC_KEY_ACTION_PRESS)) {
+      ESP_LOGW(TAG, "Send buffer full, text cut after %u characters", static_cast<unsigned>(typed));
+      return;
+    }
+    typed++;
+  }
+}
+
+#ifdef USE_VNC_TOUCHSCREEN
+void VncClient::handle_touch_(uint16_t x, uint16_t y) {
+  if (!this->is_connected()) {
+    return;
+  }
+  if (!this->touching_) {
+    if (x >= this->vis_w_ || y >= this->vis_h_) {
+      return;
+    }
+    this->press_x_ = x;
+    this->press_y_ = y;
+    this->dragging_ = false;
+    this->touching_ = this->send_pointer(x, y, 1);
+    return;
+  }
+  x = std::min<uint16_t>(x, this->vis_w_ - 1);
+  y = std::min<uint16_t>(y, this->vis_h_ - 1);
+  // Small jitter during a tap would start a text selection in a browser.
+  if (!this->dragging_) {
+    if (std::abs(x - this->press_x_) <= TOUCH_SLOP_PX && std::abs(y - this->press_y_) <= TOUCH_SLOP_PX) {
+      return;
+    }
+    this->dragging_ = true;
+  }
+  if (x != this->ptr_x_ || y != this->ptr_y_) {
+    this->send_pointer(x, y, 1);
+  }
+}
+
+void VncClient::handle_release_() {
+  if (this->touching_) {
+    this->touching_ = false;
+    this->send_pointer(this->ptr_x_, this->ptr_y_, 0);
+  }
+}
+#endif
 
 }  // namespace esphome::vnc

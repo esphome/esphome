@@ -125,6 +125,54 @@ TEST(VncPacingDelays, ZeroDelayRefreshesOnTheNextPass) {
   EXPECT_EQ(d.updates(), 1);
 }
 
+TEST_F(VncPacing, InputPaintsWithoutWaitingForTheScreenToSettle) {
+  set_now(1100);
+  s().client.send_pointer(5, 5, 1);
+  s().deliver(frame());
+  s().loop();
+  EXPECT_EQ(d_.updates(), 1);
+  // Every frame during the boost is painted on the next pass.
+  set_now(1150);
+  s().deliver(frame(10, 0x4321));
+  s().loop();
+  EXPECT_EQ(d_.updates(), 2);
+}
+
+TEST_F(VncPacing, KeysAndTextAlsoBoost) {
+  set_now(1100);
+  s().client.send_key(0xFF0D, VncKeyAction::VNC_KEY_ACTION_PRESS);
+  s().deliver(frame());
+  s().loop();
+  EXPECT_EQ(d_.updates(), 1);
+  set_now(4000);
+  s().client.type_text("a", 1);
+  s().deliver(frame(10, 0x4321));
+  s().loop();
+  EXPECT_EQ(d_.updates(), 2);
+}
+
+TEST_F(VncPacing, BoostEndsTwoSecondsAfterTheLastInput) {
+  set_now(1100);
+  s().client.send_pointer(5, 5, 0);
+  set_now(3100);
+  s().deliver(frame());
+  s().loop();
+  EXPECT_EQ(d_.updates(), 0);
+  s().at(3299);
+  EXPECT_EQ(d_.updates(), 0);
+  s().at(3300);
+  EXPECT_EQ(d_.updates(), 1);
+}
+
+TEST_F(VncPacing, DroppedInputDoesNotBoost) {
+  s().close_peer();
+  s().loop(2);
+  ASSERT_FALSE(s().client.is_connected());
+  set_now(1100);
+  s().client.send_pointer(5, 5, 1);
+  EXPECT_FALSE(s().client.input_boost());
+}
+
 TEST_F(VncPacing, NextRequestRightAfterEachFrameWithA50msFloor) {
   set_now(1010);
   s().deliver(frame());
