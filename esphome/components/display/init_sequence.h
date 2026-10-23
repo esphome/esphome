@@ -21,8 +21,8 @@ class InitSequenceReader {
  public:
   InitSequenceReader(const uint8_t *sequence, size_t length) : sequence_(sequence), length_(length) {}
 
-  /// Fill `entry` with the next entry; false at the end or on a malformed entry.
-  bool next(InitSequenceEntry &entry);
+  /// Fill `entry` with the next entry; false at the end or on a malformed entry, or one over `max_count` args.
+  bool next(InitSequenceEntry &entry, uint8_t max_count = 0xFE);
   bool malformed() const { return this->index_ > this->length_; }
 
  protected:
