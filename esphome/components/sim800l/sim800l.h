@@ -119,6 +119,7 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   bool disconnect_pending_{false};
   bool send_ussd_pending_{false};
   bool dtmf_enabled_{false};
+  bool dtmf_ready_{false};
   uint8_t call_state_{6};
 
   CallbackManager<void(std::string, std::string)> sms_received_callback_;
