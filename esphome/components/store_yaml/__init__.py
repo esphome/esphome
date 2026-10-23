@@ -71,8 +71,9 @@ _SENSITIVE_KEYS = frozenset(
 )
 # Keys under these name declared arguments, not values (`variables: {password: string}`).
 _DECLARATIONS = frozenset({"variables", "parameters"})
-# A quoted string or a number: a lambda without one cannot spell a credential.
+# cv.bind_key's normalised output: 32 uppercase hex digits.
 _BIND_KEY_RE = re.compile(r"[0-9A-F]{32}")
+# A quoted string or a number: a lambda without one cannot spell a credential.
 _LITERAL_RE = re.compile(r"""["']|(?<![\w.])\d""")
 
 CONFIG_SCHEMA = cv.Schema(
