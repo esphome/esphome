@@ -1,0 +1,1 @@
+DOMAIN = "growatt_solar"

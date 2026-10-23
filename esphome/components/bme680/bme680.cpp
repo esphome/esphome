@@ -1,10 +1,13 @@
 #include "bme680.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bme680 {
 
 ESPHOME_LOG_TAG(TAG, "bme680.sensor");
+
+static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 static const uint8_t BME680_REGISTER_COEFF1 = 0x89;
 static const uint8_t BME680_REGISTER_COEFF2 = 0xE1;
@@ -70,26 +73,28 @@ constexpr float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.
 }
 
 void BME680Component::setup() {
+  if (!this->setup_registers_())
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+}
+
+bool BME680Component::setup_registers_() {
   uint8_t chip_id;
   if (!this->read_byte(BME680_REGISTER_CHIPID, &chip_id) || chip_id != 0x61) {
-    this->mark_failed();
-    return;
+    return false;
   }
 
   // Read calibration
   uint8_t coeff1[25];
   if (!this->read_bytes(BME680_REGISTER_COEFF1, coeff1, 25)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   uint8_t coeff2[16];
   if (!this->read_bytes(BME680_REGISTER_COEFF2, coeff2, 16)) {
-    this->mark_failed();
-    return;
+    return false;
   }
 
-  this->calibration_.t1 = coeff2[9] << 8 | coeff2[8];
-  this->calibration_.t2 = coeff1[2] << 8 | coeff1[1];
+  this->calibration_.t1 = encode_value_le<uint16_t>(&coeff2[8]);
+  this->calibration_.t2 = encode_value_le<int16_t>(&coeff1[1]);
   this->calibration_.t3 = coeff1[3];
 
   this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
@@ -100,37 +105,34 @@ void BME680Component::setup() {
   this->calibration_.h6 = coeff2[6];
   this->calibration_.h7 = coeff2[7];
 
-  this->calibration_.p1 = coeff1[6] << 8 | coeff1[5];
-  this->calibration_.p2 = coeff1[8] << 8 | coeff1[7];
+  this->calibration_.p1 = encode_value_le<uint16_t>(&coeff1[5]);
+  this->calibration_.p2 = encode_value_le<int16_t>(&coeff1[7]);
   this->calibration_.p3 = coeff1[9];
-  this->calibration_.p4 = coeff1[12] << 8 | coeff1[11];
-  this->calibration_.p5 = coeff1[14] << 8 | coeff1[13];
+  this->calibration_.p4 = encode_value_le<int16_t>(&coeff1[11]);
+  this->calibration_.p5 = encode_value_le<int16_t>(&coeff1[13]);
   this->calibration_.p6 = coeff1[16];
   this->calibration_.p7 = coeff1[15];
-  this->calibration_.p8 = coeff1[20] << 8 | coeff1[19];
-  this->calibration_.p9 = coeff1[22] << 8 | coeff1[21];
+  this->calibration_.p8 = encode_value_le<int16_t>(&coeff1[19]);
+  this->calibration_.p9 = encode_value_le<int16_t>(&coeff1[21]);
   this->calibration_.p10 = coeff1[23];
 
   this->calibration_.gh1 = coeff2[14];
-  this->calibration_.gh2 = coeff2[12] << 8 | coeff2[13];
+  this->calibration_.gh2 = encode_value<int16_t>(&coeff2[12]);
   this->calibration_.gh3 = coeff2[15];
 
   uint8_t temp_var = 0;
   if (!this->read_byte(0x02, &temp_var)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   this->calibration_.res_heat_range = ((temp_var & 0x30) / 16);
 
   if (!this->read_byte(0x00, &temp_var)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   this->calibration_.res_heat_val = (int8_t) temp_var;
 
   if (!this->read_byte(0x04, &temp_var)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   this->calibration_.range_sw_err = ((int8_t) temp_var & (int8_t) 0xf0) / 16;
 
@@ -139,41 +141,35 @@ void BME680Component::setup() {
   // Config register
   uint8_t config_register;
   if (!this->read_byte(BME680_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   config_register &= ~0b00011100;
   config_register |= (this->iir_filter_ & 0b111) << 2;
   if (!this->write_byte(BME680_REGISTER_CONFIG, config_register)) {
-    this->mark_failed();
-    return;
+    return false;
   }
 
   // Humidity control register
   uint8_t hum_control;
   if (!this->read_byte(BME680_REGISTER_CONTROL_HUMIDITY, &hum_control)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   hum_control &= ~0b00000111;
   hum_control |= this->humidity_oversampling_ & 0b111;
   if (!this->write_byte(BME680_REGISTER_CONTROL_HUMIDITY, hum_control)) {
-    this->mark_failed();
-    return;
+    return false;
   }
 
   // Gas 1 control register
   uint8_t gas1_control;
   if (!this->read_byte(BME680_REGISTER_CONTROL_GAS1, &gas1_control)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   gas1_control &= ~0b00011111;
   gas1_control |= 1 << 4;
   gas1_control |= 0;  // profile 0
   if (!this->write_byte(BME680_REGISTER_CONTROL_GAS1, gas1_control)) {
-    this->mark_failed();
-    return;
+    return false;
   }
 
   const bool heat_off = this->heater_temperature_ == 0 || this->heater_duration_ == 0;
@@ -181,40 +177,34 @@ void BME680Component::setup() {
   // Gas 0 control register
   uint8_t gas0_control;
   if (!this->read_byte(BME680_REGISTER_CONTROL_GAS0, &gas0_control)) {
-    this->mark_failed();
-    return;
+    return false;
   }
   gas0_control &= ~0b00001000;
   gas0_control |= heat_off << 3;
   if (!this->write_byte(BME680_REGISTER_CONTROL_GAS0, gas0_control)) {
-    this->mark_failed();
-    return;
+    return false;
   }
 
   if (!heat_off) {
     // Gas Heater Temperature
     uint8_t temperature = this->calc_heater_resistance_(this->heater_temperature_);
     if (!this->write_byte(BME680_REGISTER_HEATER_HEAT0, temperature)) {
-      this->mark_failed();
-      return;
+      return false;
     }
 
     // Gas Heater Duration
     uint8_t duration = this->calc_heater_duration_(this->heater_duration_);
 
     if (!this->write_byte(BME680_REGISTER_HEATER_WAIT0, duration)) {
-      this->mark_failed();
-      return;
+      return false;
     }
   }
+  return true;
 }
 
 void BME680Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME680:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG, "  IIR Filter: %s", iir_filter_to_str(this->iir_filter_));
   LOG_UPDATE_INTERVAL(this);
 
@@ -242,7 +232,7 @@ void BME680Component::update() {
     return;
   }
 
-  this->set_timeout("data", this->calc_meas_duration_(), [this]() { this->read_data_(); });
+  this->set_timeout(DATA_TIMEOUT_ID, this->calc_meas_duration_(), [this]() { this->read_data_(); });
 }
 
 uint8_t BME680Component::calc_heater_resistance_(uint16_t temperature) {
@@ -294,7 +284,7 @@ uint8_t BME680Component::calc_heater_duration_(uint16_t duration) {
 }
 void BME680Component::read_data_() {
   uint8_t data[15];
-  if (!this->read_bytes(BME680_REGISTER_FIELD0, data, 15)) {
+  if (!this->status_comm_result(this->read_bytes(BME680_REGISTER_FIELD0, data, 15))) {
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(NAN);
     if (this->pressure_sensor_ != nullptr)
@@ -304,10 +294,8 @@ void BME680Component::read_data_() {
     if (this->gas_resistance_sensor_ != nullptr)
       this->gas_resistance_sensor_->publish_state(NAN);
     ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->status_set_warning();
     return;
   }
-  this->status_clear_warning();
 
   uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
   uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);

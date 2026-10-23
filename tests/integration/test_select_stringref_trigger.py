@@ -7,7 +7,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -89,21 +91,16 @@ async def test_select_stringref_trigger(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "select-stringref-test"
+        await assert_device_name(client, "select-stringref-test")
 
         # List entities to find our select
         entities, _ = await client.list_entities_services()
 
-        select_entity = next((e for e in entities if e.name == "Test Select"), None)
-        assert select_entity is not None, "Test Select entity not found"
+        select_entity = require_entity(entities, "test_select", exact=True)
 
-        baud_entity = next((e for e in entities if e.name == "Baud Rate"), None)
-        assert baud_entity is not None, "Baud Rate entity not found"
+        baud_entity = require_entity(entities, "baud_rate", exact=True)
 
-        action_entity = next((e for e in entities if e.name == "Action Select"), None)
-        assert action_entity is not None, "Action Select entity not found"
+        action_entity = require_entity(entities, "action_select", exact=True)
 
         # Change select to Option B - this should trigger on_value with StringRef
         client.select_command(select_entity.key, "Option B")
@@ -113,27 +110,25 @@ async def test_select_stringref_trigger(
         client.select_command(action_entity.key, "Action B")
 
         # Wait for all log messages confirming StringRef operations work
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(
-                    value_logged_future,
-                    concatenated_future,
-                    comparison_future,
-                    index_logged_future,
-                    length_future,
-                    find_substr_future,
-                    find_char_future,
-                    substr_future,
-                    set_action_future,
-                    stoi_future,
-                    stol_future,
-                    stof_future,
-                    stod_future,
-                ),
-                timeout=5.0,
-            )
-        except TimeoutError:
-            results = {
+        await wait_or_fail(
+            asyncio.gather(
+                value_logged_future,
+                concatenated_future,
+                comparison_future,
+                index_logged_future,
+                length_future,
+                find_substr_future,
+                find_char_future,
+                substr_future,
+                set_action_future,
+                stoi_future,
+                stol_future,
+                stof_future,
+                stod_future,
+            ),
+            5.0,
+            "StringRef operations failed",
+            received=lambda: {
                 "value_logged": value_logged_future.done(),
                 "concatenated": concatenated_future.done(),
                 "comparison": comparison_future.done(),
@@ -147,5 +142,5 @@ async def test_select_stringref_trigger(
                 "stol": stol_future.done(),
                 "stof": stof_future.done(),
                 "stod": stod_future.done(),
-            }
-            pytest.fail(f"StringRef operations failed - received: {results}")
+            },
+        )

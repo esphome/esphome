@@ -31,9 +31,9 @@ from esphome.components.libretiny.const import (
     COMPONENT_RTL87XX,
 )
 from esphome.components.zephyr import (
-    zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_claim_cdc_acm,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -45,7 +45,6 @@ from esphome.const import (
     CONF_HARDWARE_UART,
     CONF_ID,
     CONF_LEVEL,
-    CONF_LOGGER,
     CONF_LOGS,
     CONF_ON_MESSAGE,
     CONF_TAG,
@@ -361,11 +360,24 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate(config: ConfigType) -> None:
+    # Serial logging over USB CDC writes to CDC ACM port 0 with uart_poll_out()
+    if (
+        CORE.is_nrf52
+        and config[CONF_BAUD_RATE] != 0
+        and config.get(CONF_HARDWARE_UART) == USB_CDC
+    ):
+        zephyr_claim_cdc_acm(0, "logger", write_only=True)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 @coroutine_with_priority(CoroPriority.EARLY_INIT)
 async def to_code(config: ConfigType) -> None:
     baud_rate: int = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
-    CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
+    CORE.data.setdefault(DOMAIN, {})[CONF_LEVEL] = level
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
     # Determine task log buffer size. The buffer is a direct member of Logger
@@ -522,7 +534,6 @@ async def _late_logger_init(config: ConfigType) -> None:
             if config[CONF_HARDWARE_UART] == USB_CDC:
                 cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
-                zephyr_add_cdc_acm(config, 0)
 
     # Register at end for safe mode
     await cg.register_component(log, config)

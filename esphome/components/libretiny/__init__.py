@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_LIBRETINY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -57,6 +58,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
+DOMAIN = "libretiny"
 IS_TARGET_PLATFORM = True
 
 # BLE 5.x BK SDK options to disable unused features.
@@ -303,6 +305,15 @@ FRAMEWORK_SCHEMA = cv.All(
 
 CONFIG_SCHEMA = cv.All(_notify_old_style, cv.require_platformio_toolchain("LibreTiny"))
 
+
+def _require_ipv4(config: dict) -> dict:
+    """Declares that LibreTiny builds need IPv4."""
+    # Imported here: logger imports this module, so a module level import would load network for every config
+    from esphome.components import network
+
+    return network.require_ipv4(CONF_LIBRETINY)(config)
+
+
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
@@ -317,6 +328,7 @@ BASE_SCHEMA = cv.Schema(
 BASE_SCHEMA.add_extra(_detect_variant)
 BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
 BASE_SCHEMA.add_extra(_update_core_data)
+BASE_SCHEMA.add_extra(_require_ipv4)
 
 
 def _configure_lwip(config: dict) -> None:
@@ -490,6 +502,9 @@ async def component_to_code(config):
         # The -D wins over the #ifndef default in FreeRTOS.h.
         # Not enabled on RTL87xx/LN882x — costs more heap than it saves there.
         cg.add_build_flag("-DconfigSUPPORT_STATIC_ALLOCATION=1")
+
+    # Static destructors never run, so skip registering them. See atexit_stubs.cpp.
+    cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
 
     # LN882x: a zero-size allocation must not trip the SDK's assert (see ln882x_zero_malloc.c).
     if config[CONF_COMPONENT_ID] == COMPONENT_LN882X:

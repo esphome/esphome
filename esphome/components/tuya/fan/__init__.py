@@ -43,12 +43,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     await fan.register_fan(var, config)
 
-    if CONF_SPEED_DATAPOINT in config:
-        cg.add(var.set_speed_id(config[CONF_SPEED_DATAPOINT]))
-    if CONF_SWITCH_DATAPOINT in config:
-        cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
-    if CONF_OSCILLATION_DATAPOINT in config:
-        cg.add(var.set_oscillation_id(config[CONF_OSCILLATION_DATAPOINT]))
-    if CONF_DIRECTION_DATAPOINT in config:
-        cg.add(var.set_direction_id(config[CONF_DIRECTION_DATAPOINT]))
-    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+    cg.add_optional(var.set_speed_id, config.get(CONF_SPEED_DATAPOINT))
+    cg.add_optional(var.set_switch_id, config.get(CONF_SWITCH_DATAPOINT))
+    cg.add_optional(var.set_oscillation_id, config.get(CONF_OSCILLATION_DATAPOINT))
+    cg.add_optional(var.set_direction_id, config.get(CONF_DIRECTION_DATAPOINT))
+    cg.add_optional(var.set_optimistic, config.get(CONF_OPTIMISTIC))
+    

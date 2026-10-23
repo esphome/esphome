@@ -1,6 +1,6 @@
+import logging
 import os
 from pathlib import Path
-import re
 
 from esphome import pins
 from esphome.components import esp32
@@ -8,31 +8,24 @@ from esphome.components.const import CONF_SLOT, CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
-    CONF_COMPONENTS,
     CONF_CS_PIN,
-    CONF_FRAMEWORK,
     CONF_FREQUENCY,
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
-    CONF_NAME,
-    CONF_REF,
     CONF_RESET_PIN,
     CONF_TYPE,
     CONF_VARIANT,
-    KEY_ESP32,
 )
-from esphome.core import CORE
 from esphome.cpp_generator import add_define
-import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@swoboda1337"]
 DEPENDENCIES = ["esp32"]
+DOMAIN = "esp32_hosted"
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
 AUTO_LOAD = ["watchdog"]
-
-# 3.x is opt-in via a pin under esp32.framework.components (needs ESP-IDF 5.5)
-ESP_HOSTED_COMPONENT = "espressif/esp_hosted"
 
 CONF_ACTIVE_HIGH = "active_high"
 CONF_BUS_WIDTH = "bus_width"
@@ -71,7 +64,7 @@ _MAX_CUSTOM_MSG_HANDLERS = 8
 BASE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_VARIANT): cv.one_of(*esp32.VARIANTS, upper=True),
-        cv.Required(CONF_ACTIVE_HIGH): cv.boolean,
+        cv.Optional(CONF_ACTIVE_HIGH): cv.boolean,
         cv.Required(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_USE_PSRAM, default=False): cv.boolean,
     }
@@ -82,7 +75,7 @@ SDIO_SCHEMA = BASE_SCHEMA.extend(
         cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Required(CONF_CMD_PIN): pins.internal_gpio_output_pin_number,
         cv.Required(CONF_D0_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_D1_PIN): pins.internal_gpio_output_pin_number,
+        cv.Required(CONF_D1_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_D2_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_D3_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_BUS_WIDTH, default=4): cv.one_of(1, 4, int=True),
@@ -94,9 +87,26 @@ SDIO_SCHEMA = BASE_SCHEMA.extend(
 )
 
 
+def _validate_active_high(config: ConfigType) -> ConfigType:
+    # Remove before 2027.5.0
+    if (active_high := config.get(CONF_ACTIVE_HIGH)) is None:
+        return config
+    if not active_high:
+        raise cv.Invalid(
+            "esp_hosted always parks the reset line high with a low pulse, so "
+            "'active_high: false' is not supported.",
+            path=[CONF_ACTIVE_HIGH],
+        )
+    _LOGGER.warning(
+        "'active_high' is deprecated and ignored, remove it from esp32_hosted. "
+        "Removed in 2027.5.0"
+    )
+    return config
+
+
 def _validate_sdio(config: ConfigType) -> ConfigType:
     if config[CONF_BUS_WIDTH] == 4:
-        for pin in (CONF_D1_PIN, CONF_D2_PIN, CONF_D3_PIN):
+        for pin in (CONF_D2_PIN, CONF_D3_PIN):
             if pin not in config:
                 raise cv.Invalid(
                     f"{pin} is required when bus_width is 4",
@@ -149,121 +159,26 @@ def _validate_spi(config: ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        "sdio": cv.All(SDIO_SCHEMA, _validate_sdio),
-        "spi": cv.All(SPI_SCHEMA, _validate_spi),
+        "sdio": cv.All(SDIO_SCHEMA, _validate_sdio, _validate_active_high),
+        "spi": cv.All(SPI_SCHEMA, _validate_spi, _validate_active_high),
     },
     default_type="sdio",
 )
 
 
-# Version specs that stay within one major (exact, ^, ~, ~=); other ranges are 3.x
-_PINNED_MAJOR = re.compile(r"^(?:==|\^|~=|~)?(\d+)(?:\.(?:\d+|\*))*$")
-
-
-def user_esp_hosted_major() -> int | None:
-    """Major version of a user-pinned esp_hosted, or None without a pin."""
-    try:
-        full_config = fv.full_config.get()
-    except LookupError:
-        full_config = CORE.config
-    esp32_config = full_config.get(KEY_ESP32) or {}
-    for component in esp32_config.get(CONF_FRAMEWORK, {}).get(CONF_COMPONENTS, []):
-        if component.get(CONF_NAME) != ESP_HOSTED_COMPONENT:
-            continue
-        ref = component.get(CONF_REF, "").strip()
-        if not ref:
-            return 2
-        if match := _PINNED_MAJOR.match(ref):
-            return int(match.group(1))
-        return 3
-    return None
-
-
-def uses_esp_hosted_3x() -> bool:
-    """Whether the user pinned esp_hosted 3.x."""
-    return (major := user_esp_hosted_major()) is not None and major >= 3
-
-
 def _final_validate(config: ConfigType) -> None:
-    # The esp_hosted releases compatible with older ESP-IDF versions crash at
-    # boot with a heap double free in the SDIO RX path (fixed in esp_hosted
-    # 2.11.0, which requires ESP-IDF 5.3), so reject them at validation time.
-    if (idf_ver := esp32.idf_version()) < cv.Version(5, 3, 0):
+    if (idf_ver := esp32.idf_version()) < cv.Version(5, 5, 0):
         raise cv.Invalid(
-            f"esp32_hosted requires ESP-IDF 5.3 or newer, got {idf_ver}. "
+            f"esp32_hosted requires ESP-IDF 5.5 or newer, got {idf_ver}. "
             "Remove the framework version from your configuration to use the "
-            "recommended version, or pin a version at or above 5.3."
-        )
-    if (major := user_esp_hosted_major()) is None or major < 3:
-        return
-    if idf_ver < cv.Version(5, 5, 0):
-        raise cv.Invalid(
-            f"esp_hosted 3.x requires ESP-IDF 5.5 or newer, got {idf_ver}. "
-            f"Remove the {ESP_HOSTED_COMPONENT} pin from esp32.framework."
-            "components to stay on the 2.x line, or use ESP-IDF 5.5 or newer."
-        )
-    if not config[CONF_ACTIVE_HIGH]:
-        raise cv.Invalid(
-            "esp_hosted 3.x always parks the reset line high with a low pulse, so "
-            "'active_high: false' cannot be expressed on it. Remove the "
-            f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
-            "on the 2.x line."
-        )
-    if config[CONF_TYPE] == "sdio" and config[CONF_BUS_WIDTH] == 1:
-        raise cv.Invalid(
-            "esp_hosted 3.x cannot be built with a 1-bit SDIO bus "
-            "(espressif/esp-hosted-mcu#245). Remove the "
-            f"{ESP_HOSTED_COMPONENT} pin from esp32.framework.components to stay "
-            "on the 2.x line, or use a 4-bit bus."
+            "recommended version, or pin a version at or above 5.5."
         )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def _configure_sdio_2x(config: ConfigType) -> None:
-    slot = config[CONF_SLOT]
-    esp32.add_idf_sdkconfig_option(
-        f"CONFIG_ESP_HOSTED_SDIO_SLOT_{slot}",
-        True,
-    )
-    if config[CONF_BUS_WIDTH] == 1:
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SDIO_1_BIT_BUS", True)
-    else:
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SDIO_4_BIT_BUS", True)
-    esp32.add_idf_sdkconfig_option(
-        f"CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CLK_SLOT_{slot}",
-        config[CONF_CLK_PIN],
-    )
-    esp32.add_idf_sdkconfig_option(
-        f"CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_CMD_SLOT_{slot}",
-        config[CONF_CMD_PIN],
-    )
-    esp32.add_idf_sdkconfig_option(
-        f"CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D0_SLOT_{slot}",
-        config[CONF_D0_PIN],
-    )
-    if config[CONF_BUS_WIDTH] == 4:
-        esp32.add_idf_sdkconfig_option(
-            f"CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D1_4BIT_BUS_SLOT_{slot}",
-            config[CONF_D1_PIN],
-        )
-        esp32.add_idf_sdkconfig_option(
-            f"CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D2_4BIT_BUS_SLOT_{slot}",
-            config[CONF_D2_PIN],
-        )
-        esp32.add_idf_sdkconfig_option(
-            f"CONFIG_ESP_HOSTED_PRIV_SDIO_PIN_D3_4BIT_BUS_SLOT_{slot}",
-            config[CONF_D3_PIN],
-        )
-    esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_CUSTOM_SDIO_PINS", True)
-    esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_SDIO_CLOCK_FREQ_KHZ",
-        int(config[CONF_SDIO_FREQUENCY] // 1000),
-    )
-
-
-def _configure_sdio_3x(config: ConfigType) -> None:
+def _configure_sdio(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_TRANSPORT_BUS_SDIO", True)
     esp32.add_idf_sdkconfig_option(
         f"CONFIG_ESP_HOSTED_SDIO_SLOT_{config[CONF_SLOT]}",
@@ -282,10 +197,11 @@ def _configure_sdio_3x(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option(
         "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D0", config[CONF_D0_PIN]
     )
+    # D1 carries the card interrupt on a 1-bit bus too
+    esp32.add_idf_sdkconfig_option(
+        "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D1", config[CONF_D1_PIN]
+    )
     if config[CONF_BUS_WIDTH] == 4:
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D1", config[CONF_D1_PIN]
-        )
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_HOSTED_HOST_SDIO_PIN_D2", config[CONF_D2_PIN]
         )
@@ -298,55 +214,7 @@ def _configure_sdio_3x(config: ConfigType) -> None:
     )
 
 
-def _configure_spi_2x(config: ConfigType) -> None:
-    esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SPI_HOST_INTERFACE", True)
-    # SPI mode is set via per-variant choice options
-    variant = config[CONF_VARIANT]
-    mode = config[CONF_SPI_MODE]
-    suffix = "ESP32" if variant == "ESP32" else "ESP32XX"
-    esp32.add_idf_sdkconfig_option(
-        f"CONFIG_ESP_HOSTED_SPI_PRIV_MODE_{mode}_{suffix}",
-        True,
-    )
-    # Frequency is set via per-variant options
-    freq_mhz = int(config[CONF_FREQUENCY] // 1e6)
-    if variant == "ESP32":
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SPI_FREQ_ESP32", freq_mhz)
-    elif variant == "ESP32C6":
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SPI_FREQ_ESP32C6", freq_mhz)
-    else:
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SPI_FREQ_ESP32XX", freq_mhz)
-    # Pin configuration (use HSPI variant as P4/H2 hosts don't have VSPI)
-    esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_SPI_HSPI_GPIO_MOSI", config[CONF_MOSI_PIN]
-    )
-    esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_SPI_HSPI_GPIO_MISO", config[CONF_MISO_PIN]
-    )
-    esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_SPI_HSPI_GPIO_CLK", config[CONF_CLK_PIN]
-    )
-    esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_SPI_HSPI_GPIO_CS", config[CONF_CS_PIN]
-    )
-    esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_SPI_GPIO_HANDSHAKE", config[CONF_HANDSHAKE_PIN]
-    )
-    esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_SPI_GPIO_DATA_READY", config[CONF_DATA_READY_PIN]
-    )
-    # Handshake and data_ready polarity
-    if config[CONF_HANDSHAKE_ACTIVE_HIGH]:
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HS_ACTIVE_HIGH", True)
-    else:
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HS_ACTIVE_LOW", True)
-    if config[CONF_DATA_READY_ACTIVE_HIGH]:
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DR_ACTIVE_HIGH", True)
-    else:
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DR_ACTIVE_LOW", True)
-
-
-def _configure_spi_3x(config: ConfigType) -> None:
+def _configure_spi(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_TRANSPORT_BUS_SPI", True)
     esp32.add_idf_sdkconfig_option(
         "CONFIG_ESP_HOSTED_HOST_SPI_MODE", config[CONF_SPI_MODE]
@@ -391,59 +259,28 @@ def _configure_spi_3x(config: ConfigType) -> None:
         )
 
 
-def _configure_2x(config: ConfigType) -> None:
-    transport_prefix = "SDIO" if config[CONF_TYPE] == "sdio" else "SPI"
-    # Reset polarity
-    if config[CONF_ACTIVE_HIGH]:
-        esp32.add_idf_sdkconfig_option(
-            f"CONFIG_ESP_HOSTED_{transport_prefix}_RESET_ACTIVE_HIGH", True
-        )
-    else:
-        esp32.add_idf_sdkconfig_option(
-            f"CONFIG_ESP_HOSTED_{transport_prefix}_RESET_ACTIVE_LOW", True
-        )
-    # Reset GPIO
+async def to_code(config: ConfigType) -> None:
+    add_define("USE_ESP32_HOSTED")
+    # The board choice defaults to an Espressif dev board, which locks every
+    # pin's Kconfig range to that board and silently drops other values
+    esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_P4_DEV_BOARD_NONE", True)
     esp32.add_idf_sdkconfig_option(
-        f"CONFIG_ESP_HOSTED_{transport_prefix}_GPIO_RESET_SLAVE",  # NOLINT
-        config[CONF_RESET_PIN],
+        "CONFIG_ESP_HOSTED_HOST_RESET_GPIO", config[CONF_RESET_PIN]
     )
-    # Slave variant  # NOLINT
+    # Co-processor variant. Wi-Fi Remote owns the choice and esp_hosted only
+    # offers the matching CP target, so both must name the same chip
     esp32.add_idf_sdkconfig_option(
         f"CONFIG_SLAVE_IDF_TARGET_{config[CONF_VARIANT]}",  # NOLINT
         True,
     )
-    if config[CONF_TYPE] == "sdio":
-        _configure_sdio_2x(config)
-    else:
-        _configure_spi_2x(config)
-    if esp32.get_esp32_variant() == esp32.VARIANT_ESP32P4:
-        # esp-hosted's CustomRpc ("peer data transfer") path — off by default.
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_HOSTED_ENABLE_PEER_DATA_TRANSFER", True
-        )
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_ESP_HOSTED_MAX_CUSTOM_MSG_HANDLERS", _MAX_CUSTOM_MSG_HANDLERS
-        )
-    # Place the transport mempool in PSRAM. Required on memory-tight host
-    # configurations (e.g. P4 with a large LVGL UI) where the internal-RAM
-    # mempool allocation fails at boot with `sdio_mempool_create` assert.
-    if config[CONF_USE_PSRAM]:
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM", True)
-
-
-def _configure_3x(config: ConfigType) -> None:
-    esp32.add_idf_sdkconfig_option(
-        "CONFIG_ESP_HOSTED_HOST_RESET_GPIO", config[CONF_RESET_PIN]
-    )
-    # Co-processor variant
     esp32.add_idf_sdkconfig_option(
         f"CONFIG_ESP_HOSTED_CP_TARGET_{config[CONF_VARIANT]}",
         True,
     )
     if config[CONF_TYPE] == "sdio":
-        _configure_sdio_3x(config)
+        _configure_sdio(config)
     else:
-        _configure_spi_3x(config)
+        _configure_spi(config)
     if esp32.get_esp32_variant() == esp32.VARIANT_ESP32P4:
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_PEER_DATA", True)
         esp32.add_idf_sdkconfig_option(
@@ -453,16 +290,6 @@ def _configure_3x(config: ConfigType) -> None:
     if config[CONF_USE_PSRAM]:
         esp32.add_idf_sdkconfig_option("CONFIG_EH_HOST_PORT_DMA_PREFER_SPIRAM", True)
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DFLT_TASK_FROM_SPIRAM", True)
-
-
-async def to_code(config: ConfigType) -> None:
-    add_define("USE_ESP32_HOSTED")
-    use_3x = uses_esp_hosted_3x()
-
-    if use_3x:
-        _configure_3x(config)
-    else:
-        _configure_2x(config)
 
     # ESP-NOW-over-hosted shim: only the radio-less ESP32-P4 host needs it (see
     # the note by _MAX_CUSTOM_MSG_HANDLERS). Enabled for every P4 host, not
@@ -477,14 +304,14 @@ async def to_code(config: ConfigType) -> None:
         # esp_now_hosted.cpp includes esp_now.h, which esp_wifi provides
         esp32.include_builtin_idf_component("esp_wifi")
 
-    # Library versions; this component set requires ESP-IDF 5.3 or newer,
+    # Library versions; this component set requires ESP-IDF 5.5 or newer,
     # which is enforced at validation time.
     idf_ver = esp32.idf_version()
     os.environ["ESP_IDF_VERSION"] = f"{idf_ver.major}.{idf_ver.minor}"
     esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.5")
     esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
     esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.13")
+    esp32.add_idf_component(name="espressif/esp_hosted", ref="3.0.10")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",

@@ -24,7 +24,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -85,40 +87,31 @@ async def test_script_wait_on_boot(
         api_client_connected() as client,
     ):
         # Verify device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "test-script-wait-on-boot"
+        await assert_device_name(client, "test-script-wait-on-boot")
 
         # Wait for on_boot sequence to complete
         # The boot sequence should complete automatically
         # Timeout is generous to allow for delays in the scripts
-        try:
-            await asyncio.wait_for(test_complete.wait(), timeout=5.0)
-        except TimeoutError:
-            # Build a detailed error message showing where the boot sequence got stuck
-            progress = []
-            if boot_started:
-                progress.append("boot started")
-            if first_script_started:
-                progress.append("show_start_page started")
-            if first_script_completed:
-                progress.append("show_start_page completed")
-            if first_wait_returned:
-                progress.append("first script.wait returned")
-            if second_script_started:
-                progress.append("flip_thru_pages started")
-            if second_script_completed:
-                progress.append("flip_thru_pages completed")
+        def progress() -> list[str]:
+            steps = (
+                (boot_started, "boot started"),
+                (first_script_started, "show_start_page started"),
+                (first_script_completed, "show_start_page completed"),
+                (first_wait_returned, "first script.wait returned"),
+                (second_script_started, "flip_thru_pages started"),
+                (second_script_completed, "flip_thru_pages completed"),
+            )
+            return [name for done, name in steps if done]
 
-            if not first_wait_returned and first_script_completed:
-                pytest.fail(
-                    f"Test timed out - script.wait hung after show_start_page completed! "
-                    f"This is the issue #12043 bug. Progress: {', '.join(progress)}"
-                )
-            else:
-                pytest.fail(
-                    f"Test timed out. Progress: {', '.join(progress) if progress else 'none'}"
-                )
+        await wait_or_fail(
+            test_complete,
+            5.0,
+            "Boot sequence did not complete",
+            progress=progress,
+            issue_12043_script_wait_hung=lambda: (
+                first_script_completed and not first_wait_returned
+            ),
+        )
 
         # Verify the complete boot sequence executed in order
         assert boot_started, "on_boot did not start"
