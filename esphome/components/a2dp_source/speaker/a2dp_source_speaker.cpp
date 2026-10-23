@@ -4,7 +4,7 @@
 
 #include <algorithm>
 #include <cinttypes>
-#include <cstdio>
+#include <cmath>
 #include <cstring>
 #include <iterator>
 
@@ -21,18 +21,35 @@
 
 namespace esphome::a2dp_source {
 
-static const char *const TAG = "a2dp_source";
-static A2DPSourceSpeaker *active_speaker = nullptr;
+ESPHOME_LOG_TAG(TAG, "a2dp_source");
+// ESP-IDF's C callbacks do not accept an instance context.
+static A2DPSourceSpeaker *active_speaker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static constexpr size_t PCM_BUFFER_BYTES = 32768;
 static constexpr uint8_t MAX_CONNECT_ATTEMPTS = 3;
 
 void A2DPSourceSpeaker::set_address(const char *address) {
-  unsigned int octets[6];
-  if (std::sscanf(address, "%02x:%02x:%02x:%02x:%02x:%02x", &octets[0], &octets[1], &octets[2], &octets[3], &octets[4],
-                  &octets[5]) == 6) {
-    for (size_t i = 0; i < 6; i++)
-      this->address_[i] = static_cast<uint8_t>(octets[i]);
+  if (address == nullptr || std::strlen(address) != 17) {
+    return;
   }
+  auto hex_value = [](char digit) -> int {
+    if (digit >= '0' && digit <= '9')
+      return digit - '0';
+    if (digit >= 'a' && digit <= 'f')
+      return digit - 'a' + 10;
+    if (digit >= 'A' && digit <= 'F')
+      return digit - 'A' + 10;
+    return -1;
+  };
+  uint8_t parsed[6];
+  for (size_t i = 0; i < 6; i++) {
+    const int high = hex_value(address[i * 3]);
+    const int low = hex_value(address[i * 3 + 1]);
+    if (high < 0 || low < 0 || (i < 5 && address[i * 3 + 2] != ':')) {
+      return;
+    }
+    parsed[i] = static_cast<uint8_t>((high << 4) | low);
+  }
+  std::copy_n(parsed, 6, this->address_);
 }
 
 void A2DPSourceSpeaker::setup() { this->audio_stream_info_ = audio::AudioStreamInfo(16, 2, 44100); }
@@ -55,7 +72,7 @@ void A2DPSourceSpeaker::loop() {
 
   if (!this->initialized_) {
     active_speaker = this;
-    esp_err_t err = esp_bt_gap_register_callback(A2DPSourceSpeaker::gap_event_);
+    esp_err_t err = esp_bt_gap_register_callback(A2DPSourceSpeaker::gap_event);
     if (err == ESP_OK) {
       uint8_t iocap = ESP_BT_IO_CAP_IO;
       err = esp_bt_gap_set_security_param(ESP_BT_SP_IOCAP_MODE, &iocap, sizeof(iocap));
@@ -66,19 +83,20 @@ void A2DPSourceSpeaker::loop() {
     }
     if (err == ESP_OK) {
       const esp_err_t page_err = esp_bt_gap_set_page_timeout(0x2000);
-      if (page_err != ESP_OK)
+      if (page_err != ESP_OK) {
         ESP_LOGW(TAG, "Could not shorten Classic page timeout: %s", esp_err_to_name(page_err));
+      }
     }
     if (err == ESP_OK)
       err = esp_avrc_ct_init();
     if (err == ESP_OK)
-      err = esp_avrc_ct_register_callback(A2DPSourceSpeaker::avrcp_event_);
+      err = esp_avrc_ct_register_callback(A2DPSourceSpeaker::avrcp_event);
     if (err == ESP_OK)
       err = esp_a2d_source_init();
     if (err == ESP_OK)
-      err = esp_a2d_register_callback(A2DPSourceSpeaker::a2dp_event_);
+      err = esp_a2d_register_callback(A2DPSourceSpeaker::a2dp_event);
     if (err == ESP_OK)
-      err = esp_a2d_source_register_data_callback(A2DPSourceSpeaker::audio_data_);
+      err = esp_a2d_source_register_data_callback(A2DPSourceSpeaker::audio_data);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "A2DP init failed: %s", esp_err_to_name(err));
       this->mark_failed();
@@ -182,8 +200,9 @@ void A2DPSourceSpeaker::loop() {
         if (scanner_state == esp32_ble_tracker::ScannerState::IDLE ||
             scanner_state == esp32_ble_tracker::ScannerState::RUNNING ||
             scanner_state == esp32_ble_tracker::ScannerState::FAILED) {
-          if (!this->scanner_paused_for_connect_)
+          if (!this->scanner_paused_for_connect_) {
             ESP_LOGI(TAG, "Pausing BLE scan for A2DP connection");
+          }
           tracker->stop_scan();
           this->scanner_paused_for_connect_ = true;
         } else if (scanner_state == esp32_ble_tracker::ScannerState::STARTING &&
@@ -207,9 +226,9 @@ void A2DPSourceSpeaker::loop() {
       this->connect_attempts_++;
       esp_err_t err = esp_a2d_source_connect(this->address_);
       this->next_connect_attempt_ms_ = now + 15000;
-      if (err == ESP_OK)
+      if (err == ESP_OK) {
         this->connect_pending_ = true;
-      else {
+      } else {
         ESP_LOGW(TAG, "A2DP connect failed: %s", esp_err_to_name(err));
         this->connection_failed_ = true;
       }
@@ -226,10 +245,11 @@ void A2DPSourceSpeaker::loop() {
     if (this->streaming_.load())
       esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_SUSPEND);
     const esp_err_t err = esp_a2d_source_disconnect(this->address_);
-    if (err == ESP_OK)
+    if (err == ESP_OK) {
       this->disconnect_pending_ = true;
-    else
+    } else {
       ESP_LOGW(TAG, "A2DP disconnect request failed: %s", esp_err_to_name(err));
+    }
   }
 
   if (this->finish_pending_ && !this->has_buffered_data())
@@ -246,7 +266,7 @@ void A2DPSourceSpeaker::dump_config() {
 
 void A2DPSourceSpeaker::set_volume(float volume) {
   this->volume_ = std::clamp(volume, 0.0f, 1.0f);
-  this->avrcp_target_volume_.store(static_cast<uint8_t>(this->volume_ * 127.0f + 0.5f));
+  this->avrcp_target_volume_.store(static_cast<uint8_t>(std::lround(this->volume_ * 127.0f)));
 }
 
 void A2DPSourceSpeaker::set_mute_state(bool mute_state) {
@@ -320,12 +340,12 @@ size_t A2DPSourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ti
   return written;
 }
 
-void A2DPSourceSpeaker::a2dp_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
+void A2DPSourceSpeaker::a2dp_event(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param) {
   if (active_speaker)
     active_speaker->process_event_(event, param);
 }
 
-void A2DPSourceSpeaker::avrcp_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
+void A2DPSourceSpeaker::avrcp_event(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
   if (active_speaker)
     active_speaker->process_avrcp_event_(event, param);
 }
@@ -333,7 +353,8 @@ void A2DPSourceSpeaker::avrcp_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_c
 void A2DPSourceSpeaker::process_avrcp_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
   if (event == ESP_AVRC_CT_CONNECTION_STATE_EVT && std::memcmp(param->conn_stat.remote_bda, this->address_, 6) == 0) {
     this->avrcp_connected_.store(param->conn_stat.connected);
-    ESP_LOGI(TAG, "AVRCP %s", param->conn_stat.connected ? "connected" : "disconnected");
+    ESP_LOGI(TAG, "AVRCP %s",
+             param->conn_stat.connected ? LOG_STR_LITERAL("connected") : LOG_STR_LITERAL("disconnected"));
     this->avrcp_ready_.store(false);
     this->avrcp_command_pending_ = false;
     this->avrcp_last_requested_ = 255;
@@ -342,7 +363,7 @@ void A2DPSourceSpeaker::process_avrcp_event_(esp_avrc_ct_cb_event_t event, esp_a
   }
 }
 
-void A2DPSourceSpeaker::gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
+void A2DPSourceSpeaker::gap_event(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
   if (!active_speaker)
     return;
   auto *speaker = active_speaker;
@@ -357,10 +378,11 @@ void A2DPSourceSpeaker::gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_pa
     speaker->acl_disconnected_ms_.store(millis());
     ESP_LOGI(TAG, "Classic ACL disconnected (reason 0x%02x)", param->acl_disconn_cmpl_stat.reason);
   } else if (event == ESP_BT_GAP_AUTH_CMPL_EVT) {
-    if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS)
+    if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
       ESP_LOGI(TAG, "Bluetooth Classic speaker authenticated");
-    else
+    } else {
       ESP_LOGW(TAG, "Bluetooth Classic authentication failed: %d", param->auth_cmpl.stat);
+    }
   } else if (event == ESP_BT_GAP_CFM_REQ_EVT) {
     bool expected = std::memcmp(param->cfm_req.bda, speaker->address_, 6) == 0;
     esp_bt_gap_ssp_confirm_reply(param->cfm_req.bda, expected);
@@ -414,7 +436,7 @@ void A2DPSourceSpeaker::process_event_(esp_a2d_cb_event_t event, esp_a2d_cb_para
   }
 }
 
-int32_t A2DPSourceSpeaker::audio_data_(uint8_t *data, int32_t length) {
+int32_t A2DPSourceSpeaker::audio_data(uint8_t *data, int32_t length) {
   if (!active_speaker || !data || length <= 0)
     return 0;
   auto *speaker = active_speaker;

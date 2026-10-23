@@ -42,10 +42,10 @@ class A2DPSourceSpeaker final : public Component, public speaker::Speaker {
   bool profile_ready() const { return this->profile_ready_.load(); }
 
  protected:
-  static void a2dp_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param);
-  static void avrcp_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param);
-  static void gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param);
-  static int32_t audio_data_(uint8_t *data, int32_t length);
+  static void a2dp_event(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param);
+  static void avrcp_event(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param);
+  static void gap_event(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param);
+  static int32_t audio_data(uint8_t *data, int32_t length);
   void process_event_(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param);
   void process_avrcp_event_(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param);
 
