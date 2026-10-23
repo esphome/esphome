@@ -7,6 +7,7 @@ ESPHOME_LOG_TAG(TAG, "xiaomi_mjyd02yla");
 
 void XiaomiMJYD02YLA::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MJYD02YL-A");
+  this->dump_bindkey_(TAG);
   LOG_BINARY_SENSOR("  ", "Motion", this);
   LOG_BINARY_SENSOR("  ", "Light", this->is_light_);
   LOG_SENSOR("  ", "Idle Time", this->idle_time_);

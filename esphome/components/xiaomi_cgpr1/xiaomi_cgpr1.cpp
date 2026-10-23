@@ -7,6 +7,7 @@ ESPHOME_LOG_TAG(TAG, "xiaomi_cgpr1");
 
 void XiaomiCGPR1::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi CGPR1");
+  this->dump_bindkey_(TAG);
   LOG_BINARY_SENSOR("  ", "Motion", this);
   LOG_SENSOR("  ", "Idle Time", this->idle_time_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
