@@ -1,5 +1,4 @@
 #include "xiaomi_cgpr1.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::xiaomi_cgpr1 {

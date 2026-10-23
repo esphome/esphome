@@ -1,5 +1,4 @@
 #include "xiaomi_mjyd02yla.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::xiaomi_mjyd02yla {
