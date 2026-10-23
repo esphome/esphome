@@ -20,7 +20,7 @@ from typing import Any
 from aioesphomeapi import EntityState, LightState
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -56,9 +56,7 @@ async def test_light_effect_zero_brightness(
 
         # ESPHome sends the current state of every entity right after connecting; drain
         # that initial burst so it can't be mistaken for the response to a command below.
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         async def send_and_wait(timeout: float = 5.0, **kwargs: Any) -> LightState:
             """Send a light command and wait for the matching state response."""

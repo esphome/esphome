@@ -20,7 +20,7 @@ from aioesphomeapi import EntityState, LightInfo, LightState
 import pytest
 
 from .log_utils import LineWaiter
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -56,9 +56,6 @@ async def test_light_constant_brightness(
         cb_light = require_entity(entities, "test_cb_light", LightInfo, exact=True)
         ncb_light = require_entity(entities, "test_ncb_light", LightInfo, exact=True)
 
-        # Use InitialStateHelper to wait for initial state broadcast
-        initial_state_helper = InitialStateHelper(entities)
-
         # Track state changes per light key
         state_futures: dict[int, asyncio.Future[EntityState]] = {}
 
@@ -68,9 +65,7 @@ async def test_light_constant_brightness(
                 if not future.done():
                     future.set_result(state)
 
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
-        await initial_state_helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         async def send_and_wait(
             light_key: int, timeout: float = 5.0, **kwargs: Any

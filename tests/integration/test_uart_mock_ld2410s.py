@@ -41,7 +41,11 @@ import re
 from aioesphomeapi import APIClient, ButtonInfo, EntityState, NumberInfo, NumberState
 import pytest
 
-from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
+from .state_utils import (
+    SensorStateCollector,
+    require_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -115,9 +119,7 @@ async def _start_scenario(client: APIClient, collector: SensorStateCollector) ->
     """Subscribe the collector past the initial states, then start the mock scenario."""
     entities, _ = await client.list_entities_services()
     collector.build_key_mapping(entities)
-    initial_state_helper = InitialStateHelper(entities)
-    client.subscribe_states(initial_state_helper.on_state_wrapper(collector.on_state))
-    await initial_state_helper.wait_for_initial_states()
+    await subscribe_after_initial_states(client, entities, on_state=collector.on_state)
     start_btn = require_entity(entities, "start_scenario", ButtonInfo)
     client.button_command(start_btn.key)
 
@@ -194,12 +196,10 @@ async def test_uart_mock_ld2410s(
         entities, _ = await client.list_entities_services()
         collector.build_key_mapping(entities)
         max_distance_key = require_entity(entities, "max_distance", NumberInfo).key
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
         # The values read from the module: gate 16 and 10 s
         no_delay_key = require_entity(entities, "no_delay", NumberInfo).key
-        initial = initial_state_helper.initial_states
+        initial = sub.initial_states
         assert initial[max_distance_key].state == pytest.approx(11.2)
         assert initial[no_delay_key].state == pytest.approx(10)
 
