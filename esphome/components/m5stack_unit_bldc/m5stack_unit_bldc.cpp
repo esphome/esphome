@@ -197,8 +197,11 @@ bool M5StackUnitBldc::write_direction(Direction direction) {
 bool M5StackUnitBldc::write_direction_raw_(Direction direction) {
   if (!this->write_byte(REG_DIRECTION, static_cast<uint8_t>(direction)))
     return false;
-  if (!this->direction_change_pending_ && !this->write_command_raw_(0))
+  if (!this->direction_change_pending_ && !this->write_command_raw_(0)) {
+    // The new byte would latch at the next stop; put the driven direction back, best effort
+    this->write_byte(REG_DIRECTION, static_cast<uint8_t>(this->current_direction_));
     return false;
+  }
   this->current_direction_ = direction;
   this->direction_change_pending_ = true;
   this->direction_change_polls_ = 0;
