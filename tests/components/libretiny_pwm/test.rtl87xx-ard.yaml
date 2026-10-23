@@ -1,0 +1,4 @@
+substitutions:
+  pwm_pin: GPIO12
+
+<<: !include common.yaml

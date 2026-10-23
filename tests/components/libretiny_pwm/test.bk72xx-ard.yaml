@@ -1,0 +1,4 @@
+substitutions:
+  pwm_pin: P6
+
+<<: !include common.yaml
