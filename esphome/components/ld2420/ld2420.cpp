@@ -543,20 +543,8 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
 }
 
 void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
-  // Read all available bytes in batches to reduce UART call overhead.
-  size_t avail = this->available();
-  uint8_t buf[MAX_LINE_LENGTH];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->readline_(buf[i], buffer.data(), buffer.size());
-    }
-  }
+  this->read_available<MAX_LINE_LENGTH>(
+      [this, &buffer](uint8_t b) { this->readline_(b, buffer.data(), buffer.size()); });
 }
 
 void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {

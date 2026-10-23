@@ -82,19 +82,7 @@ void LD2460Component::dump_config() {
 }
 
 void LD2460Component::loop() {
-  size_t avail = this->available();
-  uint8_t buf[MAX_LINE_LENGTH];
-  while (avail > 0) {
-    size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
-      break;
-    }
-    avail -= to_read;
-
-    for (size_t i = 0; i < to_read; i++) {
-      this->readline_(buf[i]);
-    }
-  }
+  this->read_available<MAX_LINE_LENGTH>([this](uint8_t b) { this->readline_(b); });
 }
 
 void LD2460Component::handle_periodic_data_() {
