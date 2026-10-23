@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <cstring>
 #include <initializer_list>
 #include <vector>
@@ -30,7 +31,7 @@ template<typename Base> class Recording : public Base {
   std::vector<XiaomiParseResult> results;
 
  protected:
-  void publish_result_(const XiaomiParseResult &result) override { this->results.push_back(result); }
+  void publish_result(const XiaomiParseResult &result) override { this->results.push_back(result); }
 };
 using RecordingDevice = Recording<XiaomiDevice>;
 using RecordingEncryptedDevice = Recording<XiaomiEncryptedDevice>;
@@ -50,8 +51,8 @@ TEST(XiaomiDevice, PublishesPlainFrame) {
   EXPECT_TRUE(sensor.parse_device(device));
   ASSERT_EQ(sensor.results.size(), 1u);
   EXPECT_EQ(sensor.results[0].type, XiaomiParseResult::TYPE_LYWSDCGQ);
-  EXPECT_FLOAT_EQ(*sensor.results[0].temperature, 22.5f);
-  EXPECT_FLOAT_EQ(*sensor.results[0].humidity, 30.0f);
+  EXPECT_FLOAT_EQ(sensor.results[0].temperature.value_or(NAN), 22.5f);
+  EXPECT_FLOAT_EQ(sensor.results[0].humidity.value_or(NAN), 30.0f);
 }
 
 TEST(XiaomiDevice, IgnoresOtherAddress) {
@@ -89,7 +90,7 @@ TEST(XiaomiDevice, DecryptsWithoutChangingSharedServiceData) {
   EXPECT_TRUE(sensor.parse_device(device));
   ASSERT_EQ(sensor.results.size(), 1u);
   EXPECT_EQ(sensor.results[0].type, XiaomiParseResult::TYPE_LYWSD03MMC);
-  EXPECT_FLOAT_EQ(*sensor.results[0].humidity, 30.0f);
+  EXPECT_FLOAT_EQ(sensor.results[0].humidity.value_or(NAN), 30.0f);
   EXPECT_EQ(device.get_service_datas()[0].data, ENCRYPTED_FRAME);
 }
 

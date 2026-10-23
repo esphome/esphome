@@ -455,7 +455,7 @@ bool XiaomiDevice::parse_xiaomi_device_(const ble_device_base::ESPBTDevice &devi
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     report_xiaomi_results(*res, device.address_str_to(addr_buf));
 #endif
-    this->publish_result_(*res);
+    this->publish_result(*res);
     success = true;
   }
   return success;
