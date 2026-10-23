@@ -1,5 +1,6 @@
 """Tests for the esp-idf-sbom manifests written into the build tree."""
 
+import importlib.metadata
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -198,3 +199,42 @@ def test_external_component_unusual_url() -> None:
         "description": "External component from git@github.com:o/r.git",
         "version": "abc",
     }
+
+
+def test_esphome_commit_not_installed() -> None:
+    with patch(
+        "importlib.metadata.distribution",
+        side_effect=importlib.metadata.PackageNotFoundError,
+    ):
+        assert sbom._esphome_commit() is None
+
+
+def test_external_component_without_commit() -> None:
+    """Without a commit there is no version and no PURL to pin it."""
+    source = ExternalSource(components_dir=Path("/x"), url="https://github.com/o/r")
+    assert sbom._external_manifest(source, "widget") == {
+        "name": "widget",
+        "description": "External component from https://github.com/o/r",
+        "repository": "https://github.com/o/r",
+    }
+
+
+def test_external_manifests_skip_other_components(tmp_path: Path) -> None:
+    """Built-in, unresolvable and file-less components stay in the ESPHome package."""
+    components_dir = tmp_path / "components"
+    get_sources().append(ExternalSource(components_dir=components_dir))
+    _add_external_component(components_dir, "widget")
+    _add_external_component(tmp_path / "builtin", "wifi")
+    CORE.loaded_integrations.update({"missing", "namespace"})
+    sbom.loader._COMPONENT_CACHE["namespace"] = SimpleNamespace(
+        module=SimpleNamespace()
+    )
+
+    with patch.object(
+        sbom.loader,
+        "get_component",
+        side_effect=sbom.loader._COMPONENT_CACHE.get,
+    ):
+        manifests = sbom._external_manifests()
+
+    assert [m["dest"] for m in manifests] == ["esphome/components/widget"]
