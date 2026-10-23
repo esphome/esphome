@@ -100,6 +100,19 @@ def validate_bit_timing(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_data_rate(config: ConfigType) -> ConfigType:
+    """Limit SPI SCK to 0.85 * SYSCLK / 2 per Microchip DS20006027B, section 4.0."""
+    # The 4 MHz oscillator uses the PLL to produce a 40 MHz system clock.
+    system_clock = 20_000_000 if config[CONF_CLOCK] == "20MHZ" else 40_000_000
+    maximum = system_clock * 85 // 200
+    if config[CONF_DATA_RATE] > maximum:
+        raise cv.Invalid(
+            f"data_rate must not exceed {maximum} Hz with a {config[CONF_CLOCK]} oscillator",
+            path=[CONF_DATA_RATE],
+        )
+    return config
+
+
 def validate_mode_defaults(config: ConfigType) -> ConfigType:
     """Default NORMAL sends to FD and reject FD or BRS defaults in CLASSIC mode."""
     config.setdefault(canbus.CONF_DEFAULT_FD, config[CONF_MODE] == "NORMAL")
@@ -132,16 +145,13 @@ CONFIG_SCHEMA = cv.All(
     .extend(spi.spi_device_schema(True, "8MHz", "MODE0"))
     .extend(
         {
-            # SPI must stay below 0.85 * SYSCLK / 2. The slowest running SYSCLK is 20 MHz.
-            cv.Optional(CONF_DATA_RATE, default="8MHz"): cv.All(
-                spi.SPI_DATA_RATE_SCHEMA, cv.Range(max=8_000_000)
-            ),
             cv.Optional(CONF_SPI_MODE, default="MODE0"): cv.enum(
                 {key: spi.SPI_MODE_OPTIONS[key] for key in ("MODE0", "MODE3")},
                 upper=True,
             ),
         }
     ),
+    validate_data_rate,
     validate_mode_defaults,
     validate_bit_timing,
 )
