@@ -21,11 +21,10 @@ test_uart_mock_ld2410_engineering (engineering mode):
 
 from __future__ import annotations
 
-import asyncio
-
 from aioesphomeapi import ButtonInfo
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper, SensorStateCollector, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -38,20 +37,7 @@ async def test_uart_mock_ld2410(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2410 data parsing with happy path, garbage, a truncated frame, and recovery."""
-    loop = asyncio.get_running_loop()
-
-    # Track the warning for the dropped truncated frame in logs
-    resync_seen = loop.create_future()
-
-    # Track TX data logged by the mock for assertions
-    tx_log_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Invalid length" in line and not resync_seen.done():
-            resync_seen.set_result(True)
-        # Capture all TX log lines from uart_mock
-        if "uart_mock" in line and "TX " in line:
-            tx_log_lines.append(line)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -97,7 +83,7 @@ async def test_uart_mock_ld2410(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -135,11 +121,16 @@ async def test_uart_mock_ld2410(
         )
 
         # Verify the truncated frame was dropped with a warning
-        assert resync_seen.done(), "Expected 'Invalid length' warning in logs"
+        assert any("Invalid length" in line for line in waiter.lines), (
+            "Expected 'Invalid length' warning in logs"
+        )
 
         # Verify LD2410 sent setup commands (TX logging)
         # LD2410 sends 7 commands during setup: FF (config on), A0 (version),
         # A5 (MAC), AB (distance res), AE (light), 61 (params), FE (config off)
+        tx_log_lines = [
+            line for line in waiter.lines if "uart_mock" in line and "TX " in line
+        ]
         assert len(tx_log_lines) > 0, "Expected TX log lines from uart_mock"
         tx_data = " ".join(tx_log_lines)
         assert "FD:FC:FB:FA" in tx_data, (

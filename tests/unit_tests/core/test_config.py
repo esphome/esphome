@@ -26,7 +26,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     Toolchain,
 )
-from esphome.core import CORE, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
+from esphome.core import CORE, ID, KEY_CONTROLLER_REGISTRY_CONTROLLERS, config
 from esphome.core.config import (
     CONF_RELATION,
     CONF_SUSPEND_LOOP,
@@ -1112,6 +1112,40 @@ async def test_add_includes_with_single_file(
 
     # Verify include statement was added
     assert any('#include "my_header.h"' in inc for inc in includes_added)
+
+
+@pytest.mark.asyncio
+async def test_add_includes_sit_between_declarations_and_generated_code(
+    tmp_path: Path, mock_copy_file_if_changed: Mock
+) -> None:
+    """A header can name an id, and generated functions and tables can use the header."""
+    CORE.config_path = tmp_path / "config.yaml"
+    CORE.build_path = tmp_path / "build"
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
+    header = tmp_path / "my_header.h"
+    header.write_text("static constexpr int MY_CONSTANT = 42;")
+    CORE.config = {}
+
+    value = cg.new_Pvariable(ID("my_value", is_declaration=True, type=cg.int32))
+    cg.static_function(
+        "esphome__my_action__fn", cg.void, [], [f"*{value} = MY_CONSTANT;"]
+    )
+    cg.shared_progmem_array("my_table", cg.int32, [cg.RawExpression("MY_CONSTANT")])
+    await config.add_includes([str(header)])
+    # A job that runs after the includes still lands before the generated code.
+    cg.add_global(cg.RawStatement("static constexpr int FINAL_JOB = 1;"))
+
+    section = CORE.cpp_global_section
+    expected_order = [
+        "*const my_value",
+        "static void esphome__my_action__fn();",
+        '#include "my_header.h"',
+        "static constexpr int FINAL_JOB = 1;",
+        "static void esphome__my_action__fn() {",
+        "my_table[] PROGMEM",
+    ]
+    positions = [section.index(text) for text in expected_order]
+    assert positions == sorted(positions), section
 
 
 @pytest.mark.asyncio

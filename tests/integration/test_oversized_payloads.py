@@ -6,9 +6,16 @@ import asyncio
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name
 from .types import APIClientConnectedWithDisconnectFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
+
+
+def _crashed(waiter: LineWaiter) -> bool:
+    return any(
+        "Segmentation fault" in line or "core dumped" in line for line in waiter.lines
+    )
 
 
 @pytest.mark.asyncio
@@ -18,23 +25,9 @@ async def test_oversized_payload_plaintext(
     api_client_connected_with_disconnect: APIClientConnectedWithDisconnectFactory,
 ) -> None:
     """Test that oversized payloads (>32768 bytes) from client cause disconnection without crashing."""
-    process_exited = False
-    helper_log_event = asyncio.Event()
+    waiter = LineWaiter()
 
-    def check_logs(line: str) -> None:
-        nonlocal process_exited
-        # Check for signs that the process exited/crashed
-        if "Segmentation fault" in line or "core dumped" in line:
-            process_exited = True
-        # Check for HELPER_LOG message about message size exceeding maximum
-        if (
-            "[VV]" in line
-            and "Bad packet: message size" in line
-            and "exceeds maximum" in line
-        ):
-            helper_log_event.set()
-
-    async with run_compiled(yaml_config, line_callback=check_logs):
+    async with run_compiled(yaml_config, line_callback=waiter.callback):
         async with api_client_connected_with_disconnect() as (client, disconnect_event):
             # Verify basic connection works first
             await assert_device_name(client, "oversized-plaintext")
@@ -53,10 +46,10 @@ async def test_oversized_payload_plaintext(
             await asyncio.wait_for(disconnect_event.wait(), timeout=5.0)
 
         # After disconnection, verify process didn't crash
-        assert not process_exited, "ESPHome process should not crash"
+        assert not _crashed(waiter), "ESPHome process should not crash"
         # Wait for the expected log message (may arrive after disconnect event)
         await wait_or_fail(
-            helper_log_event,
+            waiter.wait_for("[VV]", "Bad packet: message size", "exceeds maximum"),
             2.0,
             "Expected to see HELPER_LOG about message size exceeding maximum",
         )
@@ -76,23 +69,9 @@ async def test_oversized_protobuf_message_id_plaintext(
 
     This tests the message type limit - message IDs must fit in a uint16_t (0-65535).
     """
-    process_exited = False
-    helper_log_event = asyncio.Event()
+    waiter = LineWaiter()
 
-    def check_logs(line: str) -> None:
-        nonlocal process_exited
-        # Check for signs that the process exited/crashed
-        if "Segmentation fault" in line or "core dumped" in line:
-            process_exited = True
-        # Check for HELPER_LOG message about message type exceeding maximum
-        if (
-            "[VV]" in line
-            and "Bad packet: message type" in line
-            and "exceeds maximum" in line
-        ):
-            helper_log_event.set()
-
-    async with run_compiled(yaml_config, line_callback=check_logs):
+    async with run_compiled(yaml_config, line_callback=waiter.callback):
         async with api_client_connected_with_disconnect() as (client, disconnect_event):
             # Verify basic connection works first
             await assert_device_name(client, "oversized-protobuf-plaintext")
@@ -111,10 +90,10 @@ async def test_oversized_protobuf_message_id_plaintext(
             await asyncio.wait_for(disconnect_event.wait(), timeout=5.0)
 
         # After disconnection, verify process didn't crash
-        assert not process_exited, "ESPHome process should not crash"
+        assert not _crashed(waiter), "ESPHome process should not crash"
         # Wait for the expected log message (may arrive after disconnect event)
         await wait_or_fail(
-            helper_log_event,
+            waiter.wait_for("[VV]", "Bad packet: message type", "exceeds maximum"),
             2.0,
             "Expected to see HELPER_LOG about message type exceeding maximum",
         )
@@ -132,24 +111,9 @@ async def test_oversized_payload_noise(
 ) -> None:
     """Test that oversized payloads from client cause disconnection without crashing with noise encryption."""
     noise_key = "N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU="
-    process_exited = False
-    helper_log_event = asyncio.Event()
+    waiter = LineWaiter()
 
-    def check_logs(line: str) -> None:
-        nonlocal process_exited
-        # Check for signs that the process exited/crashed
-        if "Segmentation fault" in line or "core dumped" in line:
-            process_exited = True
-        # Check for HELPER_LOG message about message size exceeding maximum
-        # With our new protection, oversized messages are rejected at frame level
-        if (
-            "[VV]" in line
-            and "Bad packet: message size" in line
-            and "exceeds maximum" in line
-        ):
-            helper_log_event.set()
-
-    async with run_compiled(yaml_config, line_callback=check_logs):
+    async with run_compiled(yaml_config, line_callback=waiter.callback):
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
             client,
             disconnect_event,
@@ -172,10 +136,10 @@ async def test_oversized_payload_noise(
             await asyncio.wait_for(disconnect_event.wait(), timeout=5.0)
 
         # After disconnection, verify process didn't crash
-        assert not process_exited, "ESPHome process should not crash"
+        assert not _crashed(waiter), "ESPHome process should not crash"
         # Wait for the expected log message (may arrive after disconnect event)
         await wait_or_fail(
-            helper_log_event,
+            waiter.wait_for("[VV]", "Bad packet: message size", "exceeds maximum"),
             2.0,
             "Expected to see HELPER_LOG about message size exceeding maximum",
         )
@@ -201,15 +165,9 @@ async def test_oversized_protobuf_message_id_noise(
     read the full message to maintain encryption stream continuity.
     """
     noise_key = "N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU="
-    process_exited = False
+    waiter = LineWaiter()
 
-    def check_logs(line: str) -> None:
-        nonlocal process_exited
-        # Check for signs that the process exited/crashed
-        if "Segmentation fault" in line or "core dumped" in line:
-            process_exited = True
-
-    async with run_compiled(yaml_config, line_callback=check_logs):
+    async with run_compiled(yaml_config, line_callback=waiter.callback):
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (
             client,
             disconnect_event,
@@ -241,7 +199,7 @@ async def test_oversized_protobuf_message_id_noise(
             await assert_device_name(client, "oversized-noise")
 
         # After test, verify process didn't crash
-        assert not process_exited, "ESPHome process should not crash"
+        assert not _crashed(waiter), "ESPHome process should not crash"
 
         # Verify we can still reconnect
         async with api_client_connected_with_disconnect(noise_psk=noise_key) as (

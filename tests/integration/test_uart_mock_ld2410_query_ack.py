@@ -22,6 +22,7 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper, build_key_to_entity_mapping, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
@@ -60,13 +61,12 @@ async def test_uart_mock_ld2410_query_ack(
 ) -> None:
     """Test a data frame, then a query ACK with the footer bytes in its values."""
     loop = asyncio.get_running_loop()
-    ack_errors: list[str] = []
+    waiter = LineWaiter()
 
-    def line_callback(line: str) -> None:
-        if "[ld2410" not in line:
-            return
-        if "Invalid " in line:
-            ack_errors.append(line)
+    def ack_errors() -> list[str]:
+        return [
+            line for line in waiter.lines if "[ld2410" in line and "Invalid " in line
+        ]
 
     number_states: dict[str, list[float]] = {name: [] for name in EXPECTED}
     sensor_states: dict[str, list[float]] = {name: [] for name in SENSOR_EXPECTED}
@@ -100,7 +100,7 @@ async def test_uart_mock_ld2410_query_ack(
             final_received.set_result(True)
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -155,4 +155,4 @@ async def test_uart_mock_ld2410_query_ack(
         # Only the whole version answer reached the text sensor
         assert version_states == [VERSION_EXPECTED]
         # The footer bytes inside the values never ended the frame early, so nothing was rejected
-        assert not ack_errors, f"Unexpected ACK errors: {ack_errors}"
+        assert not ack_errors(), f"Unexpected ACK errors: {ack_errors()}"
