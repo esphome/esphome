@@ -8,9 +8,20 @@ offset_height (under dimensions) is a property of the panel.
 """
 
 import esphome.config_validation as cv
-from esphome.const import CONF_BUSY_PIN, CONF_OFFSET_HEIGHT, CONF_RESET_PIN
+from esphome.const import (
+    CONF_BUSY_PIN,
+    CONF_DIMENSIONS,
+    CONF_OFFSET_HEIGHT,
+    CONF_RESET_PIN,
+    CONF_WIDTH,
+)
+from esphome.types import ConfigType
 
 from . import EpaperModel
+
+# The SSD1677 drives this many sources (columns) and gates (rows)
+SOURCE_COUNT = 960
+GATE_COUNT = 680
 
 
 class SSD1677BWR(EpaperModel):
@@ -28,6 +39,20 @@ class SSD1677BWR(EpaperModel):
         if name in (CONF_RESET_PIN, CONF_BUSY_PIN):
             return cv.Required(name)
         return super().option(name, fallback)
+
+    def validate_config(self, config: ConfigType) -> ConfigType:
+        width, height = self.get_dimensions(config)
+        if width > SOURCE_COUNT:
+            raise cv.Invalid(
+                f"The panel width must not exceed {SOURCE_COUNT} sources",
+                path=[CONF_DIMENSIONS, CONF_WIDTH],
+            )
+        if self.get_offset_height(config) + height > GATE_COUNT:
+            raise cv.Invalid(
+                f"{CONF_OFFSET_HEIGHT} plus the panel height must not exceed {GATE_COUNT} gates",
+                path=[CONF_DIMENSIONS, CONF_OFFSET_HEIGHT],
+            )
+        return config
 
     def get_constructor_args(self, config) -> tuple:
         return (self.get_offset_height(config),)
