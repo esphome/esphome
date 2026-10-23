@@ -8,7 +8,7 @@ ble_client:
 
 time:
   - platform: sntp
-    id: delta_wallbox_time
+    id: sntp_time
     servers:
       - 0.pool.ntp.org
       - 1.pool.ntp.org
@@ -19,7 +19,7 @@ delta_wallbox:
   password: secret
   pin: 123456
   update_interval: 15s
-  time_id: delta_wallbox_time
+  time_id: sntp_time
 
 sensor:
   - platform: delta_wallbox
