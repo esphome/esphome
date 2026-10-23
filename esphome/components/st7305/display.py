@@ -53,7 +53,7 @@ MODELS = DriverChip.get_models()
 DEFAULT_MODEL = "WAVESHARE-400X300"
 
 
-def _model_key(model: DriverChip, key: str) -> cv.Optional:
+def _model_key(model: DriverChip, key: str) -> cv.Optional | cv.Required:
     """Default the key from the model, or require it when the model has none."""
     if model.get_default(key, None) is None:
         return cv.Required(key)
@@ -96,7 +96,7 @@ def _model_schema(model: DriverChip) -> cv.Schema:
 
 
 def _resolve(config: ConfigType, model: DriverChip) -> None:
-    """Derive the address window from the geometry and validate it."""
+    """Derive and validate the address window, and default the init sequence."""
     width = config[CONF_WIDTH]
     height = config[CONF_HEIGHT]
     if config[CONF_PORTRAIT]:

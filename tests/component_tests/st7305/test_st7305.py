@@ -78,7 +78,7 @@ def test_window_ends_must_fit_in_a_byte() -> None:
 MODEL_KEYS = (CONF_WIDTH, CONF_HEIGHT, CONF_PORTRAIT, CONF_CS_PIN, CONF_DC_PIN)
 
 
-def _schema_key(model: str, key: str) -> cv.Optional:
+def _schema_key(model: str, key: str) -> cv.Optional | cv.Required:
     return next(k for k in _model_schema(MODELS[model]).schema if k == key)
 
 
