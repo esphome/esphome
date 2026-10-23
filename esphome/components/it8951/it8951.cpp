@@ -1272,22 +1272,28 @@ bool IT8951DirectDisplay::prepare_direct_write_() {
   return true;
 }
 
+template<ColorBitness BITNESS>
 void HOT IT8951DirectDisplay::pack_row_(uint16_t x, uint16_t y, uint16_t w, int32_t first_index,
                                         const FlushSource &src) {
   uint8_t *out = this->row_buf_.get();
   std::memset(out, 0, this->row_bytes_for_(w));
 
-  // LVGL is the only writer that reaches this class (anything drawing pixel by
-  // pixel routes to the buffered one), and it passes a compile-time-constant
-  // bitness and endianness. So for the whole flush the decode is one known
-  // shape: decide it once here rather than per pixel.
-  if (this->grayscale_ && src.bitness == COLOR_BITNESS_565) {
-    const uint8_t *pixel = src.ptr + first_index * 2;
-    const int32_t step = src.column_step * 2;
-    for (uint16_t c = 0; c < w; c++, pixel += step) {
-      const uint16_t value = src.big_endian ? static_cast<uint16_t>((static_cast<uint16_t>(pixel[0]) << 8) | pixel[1])
-                                            : static_cast<uint16_t>(pixel[0] | (static_cast<uint16_t>(pixel[1]) << 8));
-      uint8_t nibble = rgb565_to_nibble(value);
+  // BITNESS is a template argument, so ColorUtil::read_packed folds each
+  // pixel's byte layout at compile time -- and with it the rule that only 565
+  // has a byte order, 888 being b,g,r in memory whatever the caller says.
+  // Which of the two loops runs is decided per row rather than per pixel.
+  if (this->grayscale_) {
+    int32_t index = first_index;
+    for (uint16_t c = 0; c < w; c++, index += src.column_step) {
+      const uint32_t value = ColorUtil::read_packed<BITNESS>(src.ptr, static_cast<size_t>(index), src.big_endian);
+      // 565 is LVGL's own format; weighting its channels where they lie beats
+      // unpacking to a Color only to weigh it back down to four bits.
+      uint8_t nibble;
+      if constexpr (BITNESS == COLOR_BITNESS_565) {
+        nibble = rgb565_to_nibble(static_cast<uint16_t>(value));
+      } else {
+        nibble = color_to_nibble(ColorUtil::to_color(value, BITNESS));
+      }
       if (this->invert_colors_)
         nibble = static_cast<uint8_t>(0x0F - nibble);
       write_nibble(out, c, nibble);
@@ -1297,47 +1303,21 @@ void HOT IT8951DirectDisplay::pack_row_(uint16_t x, uint16_t y, uint16_t w, int3
 
   int32_t index = first_index;
   for (uint16_t c = 0; c < w; c++, index += src.column_step) {
-    uint32_t color_value;
-    switch (src.bitness) {
-      case COLOR_BITNESS_565: {
-        const int32_t i = index * 2;
-        color_value = src.big_endian ? (static_cast<uint32_t>(src.ptr[i]) << 8) | src.ptr[i + 1]
-                                     : src.ptr[i] | (static_cast<uint32_t>(src.ptr[i + 1]) << 8);
-        break;
-      }
-      case COLOR_BITNESS_888: {
-        const int32_t i = index * 3;
-        color_value = src.big_endian ? (static_cast<uint32_t>(src.ptr[i]) << 16) |
-                                           (static_cast<uint32_t>(src.ptr[i + 1]) << 8) | src.ptr[i + 2]
-                                     : src.ptr[i] | (static_cast<uint32_t>(src.ptr[i + 1]) << 8) |
-                                           (static_cast<uint32_t>(src.ptr[i + 2]) << 16);
-        break;
-      }
-      default:
-        color_value = src.ptr[index];
-        break;
-    }
-    const Color color = ColorUtil::to_color(color_value, src.bitness);
-    if (this->grayscale_) {
-      uint8_t nibble = color_to_nibble(color);
-      if (this->invert_colors_)
-        nibble = static_cast<uint8_t>(0x0F - nibble);
-      write_nibble(out, c, nibble);
-    } else {
-      // Rec.601 luma, matching write_pixel_native_.
-      auto lum = static_cast<uint16_t>(77u * color.r + 151u * color.g + 29u * color.b);
-      if (this->invert_colors_)
-        lum = static_cast<uint16_t>(65535u - lum);
-      // Threshold from absolute panel coordinates so the dither pattern stays
-      // continuous across flush-rectangle boundaries.
-      const uint16_t threshold = this->dithering_ ? dither_threshold(static_cast<uint16_t>(x + c), y) : 32768;
-      if (lum < threshold) {
-        // 16-pixel groups; on the wire the high byte (pixels 8..15) precedes
-        // the low byte (pixels 0..7). See set_mono_pixel_.
-        const uint8_t sub = static_cast<uint8_t>(c & 0x0F);
-        const uint16_t byte_index = static_cast<uint16_t>((c >> 4) * 2u + (sub < 8u ? 1u : 0u));
-        out[byte_index] = static_cast<uint8_t>(out[byte_index] | (1u << (sub & 0x07)));
-      }
+    const uint32_t value = ColorUtil::read_packed<BITNESS>(src.ptr, static_cast<size_t>(index), src.big_endian);
+    const Color color = ColorUtil::to_color(value, BITNESS);
+    // Rec.601 luma, matching write_pixel_native_.
+    auto lum = static_cast<uint16_t>(77u * color.r + 151u * color.g + 29u * color.b);
+    if (this->invert_colors_)
+      lum = static_cast<uint16_t>(65535u - lum);
+    // Threshold from absolute panel coordinates so the dither pattern stays
+    // continuous across flush-rectangle boundaries.
+    const uint16_t threshold = this->dithering_ ? dither_threshold(static_cast<uint16_t>(x + c), y) : 32768;
+    if (lum < threshold) {
+      // 16-pixel groups; on the wire the high byte (pixels 8..15) precedes
+      // the low byte (pixels 0..7). See set_mono_pixel_.
+      const uint8_t sub = static_cast<uint8_t>(c & 0x0F);
+      const uint16_t byte_index = static_cast<uint16_t>((c >> 4) * 2u + (sub < 8u ? 1u : 0u));
+      out[byte_index] = static_cast<uint8_t>(out[byte_index] | (1u << (sub & 0x07)));
     }
   }
 }
@@ -1371,6 +1351,21 @@ void IT8951DirectDisplay::write_area_(uint16_t x, uint16_t y, uint16_t w, uint16
 
   const uint16_t bytes_per_row = this->row_bytes_for_(w);
 
+  // One flush carries one bitness, so pick the packing loop for it here; the
+  // call is per row, which is the granularity it always had.
+  void (IT8951DirectDisplay::*pack_row)(uint16_t, uint16_t, uint16_t, int32_t, const FlushSource &);
+  switch (src.bitness) {
+    case COLOR_BITNESS_565:
+      pack_row = &IT8951DirectDisplay::pack_row_<COLOR_BITNESS_565>;
+      break;
+    case COLOR_BITNESS_888:
+      pack_row = &IT8951DirectDisplay::pack_row_<COLOR_BITNESS_888>;
+      break;
+    default:
+      pack_row = &IT8951DirectDisplay::pack_row_<COLOR_BITNESS_332>;
+      break;
+  }
+
   // One CS-asserted burst for the whole rectangle, matching op_xfer_rows_.
   this->enable();
   this->write_byte16(PACKET_TYPE_WRITE);
@@ -1378,7 +1373,7 @@ void IT8951DirectDisplay::write_area_(uint16_t x, uint16_t y, uint16_t w, uint16
   int32_t first_index = src.origin;
   for (uint16_t row = 0; row < h; row++, first_index += src.row_step) {
     App.feed_wdt();
-    this->pack_row_(x, static_cast<uint16_t>(y + row), w, first_index, src);
+    (this->*pack_row)(x, static_cast<uint16_t>(y + row), w, first_index, src);
     this->write_array(this->row_buf_.get(), bytes_per_row);
   }
   this->disable();

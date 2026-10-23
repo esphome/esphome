@@ -466,7 +466,9 @@ class IT8951DirectDisplay : public IT8951Display {
   // and alignment-checked, into controller image RAM.
   void write_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const FlushSource &src);
   // Pack one native row of that rectangle into row_buf_, starting from source
-  // pixel `first_index`.
+  // pixel `first_index`. Templated on the flush's bitness so the pixel decode
+  // folds at compile time; write_area_ resolves it once per rectangle.
+  template<ColorBitness BITNESS>
   void pack_row_(uint16_t x, uint16_t y, uint16_t w, int32_t first_index, const FlushSource &src);
   // Wait for any update in progress to finish, then bring the controller out of
   // sleep. Returns false if it does not become ready to accept pixel data.
