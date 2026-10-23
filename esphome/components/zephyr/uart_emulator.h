@@ -15,8 +15,7 @@ namespace esphome::zephyr {
 
 /// Watches TX bytes written by the ESPHome device and answers back with canned
 /// responses configured via `uart: emulation: responses:`, keyed by trigger byte
-/// pattern. Also exposes `push_rx()` so an unrelated automation can inject bytes
-/// into the device's RX path directly (unprompted, not tied to a trigger match).
+/// pattern. `uart.write` on its id injects bytes into the device's RX path unprompted.
 class ZephyrUartEmulator : public Component {
  public:
   ZephyrUartEmulator(const device *uart_dev, size_t trigger_count) : uart_dev_(uart_dev) {
@@ -31,8 +30,8 @@ class ZephyrUartEmulator : public Component {
   void add_trigger(const uint8_t *pattern, uint8_t pattern_len, size_t response_count);
   /// Attach a (possibly cycling) response entry to the most-recently-added trigger.
   void add_response(const uint8_t *data, uint16_t len);
-  /// Inject bytes directly into the device's RX path, independent of trigger matching.
-  void push_rx(const uint8_t *data, size_t len);
+  /// Inject bytes into the device's RX path. Named to match UARTComponent for `uart.write`.
+  void write_array(const uint8_t *data, size_t len);
 
  protected:
   struct ResponseEntry {

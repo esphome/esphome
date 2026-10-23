@@ -31,6 +31,5 @@ def test_cooling_timer_needs_cool_or_dry_action(
     assert read_config({}) is None
     captured = capsys.readouterr()
     assert (
-        "cool_action or dry_action must be defined to use min_cooling_off_time"
-        in captured.out
+        "'min_cooling_off_time' requires 'cool_action' or 'dry_action'" in captured.out
     )

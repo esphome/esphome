@@ -188,6 +188,8 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
 
     The ``esphome:`` key is special: its sub-keys are merged into the
     existing esphome config (e.g. to add ``areas:`` or ``devices:``).
+    A list, such as the entries of a platform component, is extended, so
+    several directories can each add their own entries to one key.
     Keys already present in the base config (e.g. ``host:``, ``logger:``)
     are protected by ``setdefault`` in the caller.
 
@@ -212,6 +214,9 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
                     esphome_extra = merged.setdefault(ESPHOME_KEY, {})
                     for sub_key, sub_value in value.items():
                         esphome_extra.setdefault(sub_key, sub_value)
+                    continue
+                if isinstance(value, list) and isinstance(merged.get(key), list):
+                    merged[key] = merged[key] + value
                     continue
                 merged.setdefault(key, value)
     return merged

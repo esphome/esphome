@@ -199,26 +199,6 @@ void DebugComponent::log_partition_info_() {
 }
 
 #ifdef USE_NRF52
-static const char *regout0_to_str(uint32_t value) {
-  switch (value) {
-    case (UICR_REGOUT0_VOUT_DEFAULT):
-      return "1.8V (default)";
-    case (UICR_REGOUT0_VOUT_1V8):
-      return "1.8V";
-    case (UICR_REGOUT0_VOUT_2V1):
-      return "2.1V";
-    case (UICR_REGOUT0_VOUT_2V4):
-      return "2.4V";
-    case (UICR_REGOUT0_VOUT_2V7):
-      return "2.7V";
-    case (UICR_REGOUT0_VOUT_3V0):
-      return "3.0V";
-    case (UICR_REGOUT0_VOUT_3V3):
-      return "3.3V";
-  }
-  return "???V";
-}
-
 #ifdef ESPHOME_LOG_HAS_VERBOSE
 // Check if an nRF peripheral's ENABLE register indicates it is enabled.
 // periph: peripheral register prefix (e.g. USBD, UARTE, SPI)
@@ -262,7 +242,29 @@ static void log_peripherals_info() {
 }
 // NOLINTEND(clang-analyzer-core.FixedAddressDereference)
 #undef NRF_PERIPH_ENABLED
-#endif  // ESPHOME_LOG_HAS_VERBOSE
+#endif
+
+static const char *regout0_to_str(uint32_t value) {
+  switch (value) {
+    case (UICR_REGOUT0_VOUT_DEFAULT):
+      return "1.8V (default)";
+    case (UICR_REGOUT0_VOUT_1V8):
+      return "1.8V";
+    case (UICR_REGOUT0_VOUT_2V1):
+      return "2.1V";
+    case (UICR_REGOUT0_VOUT_2V4):
+      return "2.4V";
+    case (UICR_REGOUT0_VOUT_2V7):
+      return "2.7V";
+    case (UICR_REGOUT0_VOUT_3V0):
+      return "3.0V";
+    case (UICR_REGOUT0_VOUT_3V3):
+      return "3.3V";
+    default:
+      break;
+  }
+  return "???V";
+}
 #endif  // USE_NRF52
 
 size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE> buffer, size_t pos) {
@@ -331,9 +333,9 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   pos = buf_append_str(buf, size, pos, usb_state);
 
   // Power-fail comparator
-  bool pof_enabled;
-  nrf_power_pof_thr_t pof_thr = nrf_power_pofcon_get(NRF_POWER, &pof_enabled);
-  if (pof_enabled) {
+  bool enabled;
+  nrf_power_pof_thr_t pof_thr = nrf_power_pofcon_get(NRF_POWER, &enabled);
+  if (enabled) {
     const char *pof_voltage;
     switch (pof_thr) {
       case POWER_POFCON_THRESHOLD_V17:
@@ -455,6 +457,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
         return "QFxx - 6x6 48-pin QFN";
       case 0x2005:
         return "CKxx - 3.544 x 3.607 WLCSP";
+      default:
+        break;
     }
     return "Unspecified";
   };

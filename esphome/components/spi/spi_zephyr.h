@@ -7,9 +7,16 @@
 
 namespace esphome::spi {
 
+class ZephyrSPIDelegate;
+
 class ZephyrSPIBus : public SPIBus {
+  friend class ZephyrSPIDelegate;
+
  public:
-  explicit ZephyrSPIBus(const device *dev) : dev_(dev) {}
+  explicit ZephyrSPIBus(const device *dev) : dev_(dev) {
+    this->idle_cfg_.frequency = IDLE_FREQUENCY;
+    this->idle_cfg_.operation = SPI_OP_MODE_MASTER | SPI_WORD_SET(8);
+  }
 
   bool is_hw() override { return true; }
 
@@ -17,40 +24,47 @@ class ZephyrSPIBus : public SPIBus {
                             bool release_device, bool write_only) override;
 
  protected:
+  // The lowest rate the SPIM driver accepts; only ever applied with no device selected
+  static constexpr uint32_t IDLE_FREQUENCY = 125000;
+
   const device *dev_;
+  // Delegate whose mode and frequency the driver last applied
+  const ZephyrSPIDelegate *active_{nullptr};
+  // Applied when the active delegate is deleted, so the driver never keeps a pointer to a freed config
+  spi_config idle_cfg_{};
 };
 
 class ZephyrSPIDelegate : public SPIDelegate {
  public:
-  ZephyrSPIDelegate(const device *dev, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin);
+  ZephyrSPIDelegate(ZephyrSPIBus *bus, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin);
+  ~ZephyrSPIDelegate() override;
+
+  void begin_transaction() override;
 
   uint8_t transfer(uint8_t data) override;
   void transfer(uint8_t *ptr, size_t length) override;
   void transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) override;
   void write_array(const uint8_t *ptr, size_t length) override;
+  void write_array16(const uint16_t *data, size_t length) override;
   void read_array(uint8_t *ptr, size_t length) override;
   void write_cmd_addr_data(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address, const uint8_t *data,
                            size_t length, uint8_t bus_width) override;
 
  protected:
-  void do_transceive_(const uint8_t *tx, uint8_t *rx, size_t length);
-  // WORKAROUND for zephyrproject-rtos/zephyr drivers/spi/spi_esp32_spim.c:
-  // spi_esp32_configure() hardcodes addr_lines=1/cmd_lines=1 ("multiline for command
-  // and address not supported"), so a single spi_transceive() can't do the 1-line
-  // cmd+addr / N-line data pattern real quad/octal displays and flash use. Splits it
-  // into two transceive() calls with CS held low across both (CS is a plain
-  // ESPHome-driven GPIO here, never touched by spi_transceive() itself -- see
-  // SPIDelegate::begin_transaction()/end_transaction() in spi.h). Delete this method
-  // (and call spi_transceive() directly from write_cmd_addr_data()) once that
-  // limitation is fixed upstream -- checked against zephyr@main on 2026-08-28, still
-  // present, no tracked upstream issue.
+  /// One spi_transceive; rx (if given) is zeroed when the transfer fails
+  void transceive_(const uint8_t *tx, uint8_t *rx, size_t length);
+  // WORKAROUND: Zephyr's ESP32 SPIM driver sends cmd/addr on one line only, so one
+  // spi_transceive() cannot do 1-line cmd+addr then N-line data. Sends them as two
+  // transfers with CS (driven by ESPHome) held low. Remove once the driver supports it
+  // (still missing in zephyr main on 2026-08-28).
   void write_cmd_addr_data_split_workaround_(size_t cmd_bits, uint32_t cmd, size_t addr_bits, uint32_t address,
                                              const uint8_t *data, size_t length, uint8_t bus_width);
 
-  const device *dev_;
-  // Drivers skip reconfiguration when the config pointer matches the last call, so
-  // each line mode needs its own long-lived config (no stack copies).
+  ZephyrSPIBus *bus_;
+  // CS is driven by ESPHome via SPIDelegate::cs_pin_; cfg_.cs stays unset so
+  // the Zephyr driver never touches a devicetree cs-gpios pin itself.
   spi_config cfg_{};
+  // The driver caches configs by address, so each line mode needs its own long-lived config
   spi_config quad_cfg_{};
   spi_config octal_cfg_{};
 };

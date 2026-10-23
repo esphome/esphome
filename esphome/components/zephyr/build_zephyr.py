@@ -267,11 +267,21 @@ def generate_cmake_lists(mode: str) -> bool:
         'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
     ]
 
-    if compile_flags:
+    defines = [flag for flag in compile_flags if flag.startswith("-D")]
+    options = [flag for flag in compile_flags if not flag.startswith("-D")]
+    if defines:
         lines += [
             "",
             "target_compile_options(app PRIVATE",
-            *[f'  "{flag}"' for flag in compile_flags],
+            *[f'  "{flag}"' for flag in defines],
+            ")",
+        ]
+    if options:
+        # Source options come after zephyr_interface's, so the last warning flag wins
+        lines += [
+            "",
+            "set_source_files_properties(${APP_SOURCES} PROPERTIES",
+            f'  COMPILE_OPTIONS "{";".join(options)}"',
             ")",
         ]
 

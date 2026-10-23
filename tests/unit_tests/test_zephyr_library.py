@@ -97,10 +97,7 @@ def test_generate_cmakelists_txt_lexes_spaced_flags(tmp_path):
 
 
 def test_generate_cmakelists_txt_applies_project_compile_options(tmp_path):
-    """Project-wide build flags reach the library through a variable the app
-    CMakeLists sets, like PlatformIO's build_flags -- and the generated file
-    stays project-independent (no flags inlined) for the shared cache. The
-    library's own flags come after them, so they win on a clash."""
+    """Project flags arrive through a variable, keeping the file cacheable; the library's own flags win."""
     c = _make_component(tmp_path)
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "a.c").write_text("")

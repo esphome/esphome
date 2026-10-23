@@ -16,16 +16,19 @@ from aioesphomeapi import (
 )
 import pytest
 
-from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient, encode_varint
+from .raw_api_client import (
+    MESSAGE_TYPE_OF,
+    WIRE_FIXED32,
+    WIRE_LENGTH,
+    WIRE_VARINT,
+    RawApiClient,
+    encode_varint,
+    tag,
+)
 from .state_utils import InitialStateHelper, StateWaiter, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 SWITCH_COMMAND = MESSAGE_TYPE_OF[api_pb2.SwitchCommandRequest]
-WIRE_VARINT, WIRE_LENGTH, WIRE_FIXED32 = 0, 2, 5
-
-
-def tag(field: int, wire_type: int) -> bytes:
-    return encode_varint((field << 3) | wire_type)
 
 
 @pytest.mark.asyncio

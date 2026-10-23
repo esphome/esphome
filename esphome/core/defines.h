@@ -94,10 +94,12 @@
 #define USE_DEEP_SLEEP
 #define USE_DEEP_SLEEP_ON_WAKE
 #define USE_DEVICES
+#define USE_DEVICE_RELATION
 #define USE_DFROBOT_SEN0465_TEMPERATURE_COMPENSATION
 #define DFROBOT_SEN0465_COMPENSATION_RANGES 3
 #define USE_DISPLAY
 #define DISPLAY_PAGE_CHANGE_CALLBACK_COUNT 1
+#define DUCO_DEVICE_COUNT 4
 #define USE_EMONTX_VERSION
 #define USE_EMONTX_VERSION_TEXT_SENSOR
 #define USE_ENTITY_DEVICE_CLASS
@@ -190,6 +192,7 @@
 #endif
 #define USE_MDNS
 #define USE_MDNS_STORE_SERVICES
+#define GPS_LISTENER_COUNT 1
 #define HDMI_CEC_MESSAGE_CALLBACK_COUNT 2
 #define I2C_PORT_FREQUENCY_COUNT 1
 #define MDNS_SERVICE_COUNT 3
@@ -296,6 +299,7 @@
 #define USE_OTA_VERSION 2
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
+#define USE_PCA9554_PCAL
 #define USE_POWER_SUPPLY
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
@@ -327,6 +331,7 @@
 #define USE_STATUS_LED
 #define USE_STATUS_SENSOR
 #define USE_SWITCH
+#define USE_SWITCH_STORAGE
 #define USE_TEXT
 #define USE_TEXT_SENSOR
 #define USE_TEXT_SENSOR_FILTER
@@ -388,6 +393,7 @@
 #define USE_API_USER_DEFINED_ACTIONS
 #define USE_API_CUSTOM_SERVICES
 #define USE_API_USER_DEFINED_ACTION_METADATA
+#define USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
 #define USE_API_USER_DEFINED_ACTION_RESPONSES
 #define USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #define API_MAX_SEND_QUEUE 8
@@ -464,6 +470,9 @@
 #define USE_ESP32_CRASH_HANDLER
 #define USE_ESP32_VASPRINTF_STUB
 #define USE_MQTT_IDF_ENQUEUE
+#define USE_MQTT_TLS
+#define USE_MQTT_CERT_BUNDLE
+#define USE_MQTT_TLS_INSECURE
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_OTA_ROLLBACK
@@ -471,10 +480,7 @@
 #define USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
 // Stub values for tooling; a real build's codegen emits these from verification_keys.
 #define OTA_TRUSTED_KEY_COUNT 1
-#define OTA_TRUSTED_KEY_DIGESTS \
-  { \
-    { 0 } \
-  }
+#define OTA_TRUSTED_KEY_DIGESTS {{0}}
 #define USE_OTA_DOWNGRADE_PROTECTION
 #define USE_ESP32_MIN_CHIP_REVISION_SET
 #define USE_ESP32_RTC_PREFERENCES
@@ -784,8 +790,7 @@
 #endif
 
 #ifdef USE_HOST
-#define USE_ESPHOME_HOST_MAC_ADDRESS \
-  { 0x98, 0x35, 0x69, 0xab, 0xf6, 0x79 }
+#define USE_ESPHOME_HOST_MAC_ADDRESS {0x98, 0x35, 0x69, 0xab, 0xf6, 0x79}
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_SERIAL_PROXY_HOST_UART
 // Host only: the uart arm would shadow the native logger UART arms in other envs

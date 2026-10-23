@@ -159,9 +159,8 @@ void Application::setup() {
 
 void Application::process_dump_config_() {
   if (this->dump_config_at_ == 0) {
-    char build_time_str[Application::BUILD_TIME_STR_SIZE];
-    this->get_build_time_string(build_time_str);
-    ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", build_time_str);
+    // %s reads flash on ESP8266, so the build time needs no RAM copy
+    ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", ESPHOME_BUILD_TIME_STR);
 #ifdef ESPHOME_PROJECT_NAME
     ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
 #endif
@@ -561,7 +560,7 @@ void Application::get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> b
 
 uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
 
-uint32_t Application::get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+uint32_t Application::get_config_version_hash() { return ESPHOME_CONFIG_VERSION_HASH; }
 
 time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
 

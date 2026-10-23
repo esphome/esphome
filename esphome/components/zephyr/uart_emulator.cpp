@@ -54,7 +54,9 @@ void ZephyrUartEmulator::add_response(const uint8_t *data, uint16_t len) {
   trigger.responses.push_back(ResponseEntry{data, len});
 }
 
-void ZephyrUartEmulator::push_rx(const uint8_t *data, size_t len) { uart_emul_put_rx_data(this->uart_dev_, data, len); }
+void ZephyrUartEmulator::write_array(const uint8_t *data, size_t len) {
+  uart_emul_put_rx_data(this->uart_dev_, data, len);
+}
 
 void ZephyrUartEmulator::feed_byte_(uint8_t byte) {
   for (auto &trigger : this->triggers_) {

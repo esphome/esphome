@@ -587,8 +587,7 @@ async def to_code(config: ConfigType) -> None:
         )
     add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
-    if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
-        cg.add(ot.set_poll_period(poll_period))
+    cg.add_optional(ot.set_poll_period, config.get(CONF_POLL_PERIOD))
 
     if not border_router:
         mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
@@ -596,8 +595,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(srp.set_mdns(mdns_component))
         await cg.register_component(srp, config)
 
-    if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
-        cg.add(ot.set_output_power(output_power))
+    cg.add_optional(ot.set_output_power, config.get(CONF_OUTPUT_POWER))
 
     if CORE.is_esp32:
         set_sdkconfig_options(config)

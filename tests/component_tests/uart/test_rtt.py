@@ -21,8 +21,6 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError
 from tests.component_tests.types import SetCoreConfigCallable
 
-CONFIG_DIR = Path(__file__).parent / "config"
-
 
 def _zephyr(set_core_config: SetCoreConfigCallable, variant: str) -> None:
     set_core_config(
@@ -84,11 +82,12 @@ def test_rtt_port_rejects_pins(set_core_config: SetCoreConfigCallable) -> None:
 
 def test_logger_and_bus_on_separate_channels(
     generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
     from esphome.components.zephyr import zephyr_data  # noqa: PLC0415
     from esphome.components.zephyr.const import KEY_OVERLAY, KEY_PRJ_CONF  # noqa: PLC0415
 
-    main_cpp = generate_main(CONFIG_DIR / "rtt_logger_and_bus.yaml")
+    main_cpp = generate_main(component_config_path("rtt_logger_and_bus.yaml"))
     assert "DEVICE_DT_GET_OR_NULL(DT_NODELABEL(rtt1))" in main_cpp
     # RTT has no pins, so dump_config shows none
     assert "rtt_bus->set_tx_pin_name(" not in main_cpp
@@ -104,6 +103,7 @@ def test_logger_and_bus_on_separate_channels(
 
 def test_logger_and_bus_on_same_channel_rejected(
     generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
     with pytest.raises(EsphomeError, match="RTT1 is used by both"):
-        generate_main(CONFIG_DIR / "rtt_same_channel.yaml")
+        generate_main(component_config_path("rtt_same_channel.yaml"))
