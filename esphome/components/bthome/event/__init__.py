@@ -46,7 +46,7 @@ EVENT_TYPES = {
     "DIMMER_EVENT": ["rotate_left", "rotate_right"],
 }
 
-# A legacy advertisement has room for about ten one-byte button objects.
+# A chosen limit: nine buttons, a packet ID and a battery fit in a legacy advertisement.
 MAX_INDEX = 8
 
 
