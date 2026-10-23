@@ -2,9 +2,8 @@ from typing import NamedTuple
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import gpio_expander, i2c
 from esphome.components.const import CONF_DRIVE_STRENGTH
-from esphome.components.gpio_expander import validate_interrupt_pin
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -12,7 +11,6 @@ from esphome.const import (
     CONF_I2C_ID,
     CONF_ID,
     CONF_INPUT,
-    CONF_INTERRUPT_PIN,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OUTPUT,
@@ -90,9 +88,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ADDRESS): cv.i2c_address,
             cv.Optional(CONF_DEVICE): cv.one_of(*DEVICES, upper=True),
             cv.Optional(CONF_PIN_COUNT): cv.one_of(4, 8, 16),
-            cv.Optional(CONF_INTERRUPT_PIN): validate_interrupt_pin,
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(gpio_expander.INTERRUPT_PIN_SCHEMA),
     _validate_hub,
 )
 
@@ -104,7 +103,7 @@ async def to_code(config: ConfigType) -> None:
         # Only a build with a PCAL part carries the code for its extra registers
         cg.add_define("USE_PCA9554_PCAL")
         cg.add(var.set_pcal())
-    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    await gpio_expander.register_interrupt_pin(var, config)
 
 
 def validate_mode(value: ConfigType) -> ConfigType:

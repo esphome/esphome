@@ -50,24 +50,7 @@ void PCA6416AComponent::setup() {
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
            this->status_has_error());
 
-  if (this->interrupt_pin_ != nullptr) {
-    this->interrupt_pin_->setup();
-    this->interrupt_pin_->attach_interrupt(&PCA6416AComponent::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-    this->set_invalidate_on_read_(false);
-  }
-  this->disable_loop();
-}
-
-void IRAM_ATTR PCA6416AComponent::gpio_intr(PCA6416AComponent *arg) { arg->enable_loop_soon_any_context(); }
-void PCA6416AComponent::loop() {
-  // Invalidate cache at the start of each loop
-  this->reset_pin_cache_();
-  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
-  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
-  // stale state forever; keep looping until the line is released so we self-heal.
-  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
-    this->disable_loop();
-  }
+  this->setup_interrupt_pin_();
 }
 
 void PCA6416AComponent::dump_config() {
@@ -113,9 +96,7 @@ void PCA6416AComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
       this->update_register_(pin, true, pull_dir);
       this->update_register_(pin, false, pull_en);
     }
-    if (this->interrupt_pin_ == nullptr) {
-      this->enable_loop();
-    }
+    this->enable_polling_loop_();
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     this->update_register_(pin, true, io_dir);
     if (has_pullup_) {
@@ -124,9 +105,7 @@ void PCA6416AComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
     } else {
       ESP_LOGW(TAG, "Your PCA6416A does not support pull-up resistors");
     }
-    if (this->interrupt_pin_ == nullptr) {
-      this->enable_loop();
-    }
+    this->enable_polling_loop_();
   } else if (flags == gpio::FLAG_OUTPUT) {
     this->update_register_(pin, false, io_dir);
   }
@@ -181,8 +160,6 @@ void PCA6416AComponent::update_register_(uint8_t pin, bool pin_value, uint8_t re
     this->output_1_ = reg_value;
   }
 }
-
-float PCA6416AComponent::get_setup_priority() const { return setup_priority::IO; }
 
 }  // namespace esphome::pca6416a
 
