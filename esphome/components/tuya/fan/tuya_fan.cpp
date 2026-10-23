@@ -87,17 +87,11 @@ fan::FanTraits TuyaFan::get_traits() {
 }
 
 void TuyaFan::control(const fan::FanCall &call) {
-  auto optimistic = this->optimistic_;
-  bool should_publish = false;
   auto switch_id = this->switch_id_;
   if (switch_id.has_value()) {
     auto state = call.get_state();
     if (state.has_value()) {
       this->parent_->set_boolean_datapoint_value(*switch_id, *state);
-      if (optimistic) {
-        this->state = *state;
-        should_publish = true;
-      }
     }
   }
   auto osc_id = this->oscillation_id_;
@@ -106,13 +100,9 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (oscillating.has_value()) {
       if (this->oscillation_type_ == TuyaDatapointType::ENUM) {
         this->parent_->set_enum_datapoint_value(*osc_id, *oscillating);
-      } else if (this->oscillation_type_ == TuyaDatapointType::BOOLEAN || optimistic) {
+      } else if (this->oscillation_type_ == TuyaDatapointType::BOOLEAN || this->optimistic_) {
         // Until the MCU reports the type, optimistic mode assumes a boolean datapoint
         this->parent_->set_boolean_datapoint_value(*osc_id, *oscillating);
-      }
-      if (optimistic) {
-        this->oscillating = *oscillating;
-        should_publish = true;
       }
     }
   }
@@ -122,10 +112,6 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (direction.has_value()) {
       bool enable = *direction == fan::FanDirection::REVERSE;
       this->parent_->set_enum_datapoint_value(*dir_id, enable);
-      if (optimistic) {
-        this->direction = *direction;
-        should_publish = true;
-      }
     }
   }
   auto spd_id = this->speed_id_;
@@ -134,19 +120,29 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (speed.has_value()) {
       if (this->speed_type_ == TuyaDatapointType::ENUM) {
         this->parent_->set_enum_datapoint_value(*spd_id, *speed - 1);
-      } else if (this->speed_type_ == TuyaDatapointType::INTEGER || optimistic) {
+      } else if (this->speed_type_ == TuyaDatapointType::INTEGER || this->optimistic_) {
         // Until the MCU reports the type, optimistic mode assumes an integer datapoint
         this->parent_->set_integer_datapoint_value(*spd_id, *speed);
       }
-      if (optimistic) {
-        this->speed = *speed;
-        should_publish = true;
-      }
     }
   }
-  if (should_publish) {
-    this->publish_state();
-  }
+
+  if (!this->optimistic_)
+    return;
+  // FanCall::validate_() already dropped the fields this fan's traits do not support
+  auto state = call.get_state();
+  if (switch_id.has_value() && state.has_value())
+    this->state = *state;
+  auto oscillating = call.get_oscillating();
+  if (oscillating.has_value())
+    this->oscillating = *oscillating;
+  auto direction = call.get_direction();
+  if (direction.has_value())
+    this->direction = *direction;
+  auto speed = call.get_speed();
+  if (speed.has_value())
+    this->speed = *speed;
+  this->publish_state();
 }
 
 }  // namespace esphome::tuya
