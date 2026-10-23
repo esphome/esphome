@@ -11,10 +11,9 @@ void SM300D2Sensor::update() {
   // Takes the first complete frame already received; the sensor sends one every second, so none is waited for
   FrameReader<SM300D2_RESPONSE_LENGTH, 0x3C, 0x02> reader;
   const uint8_t *response = nullptr;
-  this->read_available([&reader, &response](uint8_t c) {
-    response = reader.feed(c);
-    return response == nullptr;
-  });
+  uint8_t byte;
+  while (response == nullptr && this->available() > 0 && this->read_byte(&byte))
+    response = reader.feed(byte);
 
   if (response == nullptr) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
