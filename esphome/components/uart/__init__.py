@@ -123,7 +123,6 @@ HOST_BAUD_RATES = [
 ]
 
 UARTDevice = uart_ns.class_("UARTDevice")
-UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
 UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
@@ -600,9 +599,8 @@ def new_uart_component(
     return cg.new_bus_component(register_uart_device, config, *args)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "uart.write",
-    UARTWriteAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(UARTComponent),
@@ -610,15 +608,11 @@ def new_uart_component(
         },
         key=CONF_DATA,
     ),
-    synchronous=True,
+    # A constant stays in flash: write_array_progmem copies it out in chunks on ESP8266
+    automation.ApplyBytes(
+        CONF_DATA, "write_array({})", progmem_target="write_array_progmem({})"
+    ),
 )
-async def uart_write_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA], args, var.set_data_template, var.set_data_static, "uart_data"
-    )
-    return var
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

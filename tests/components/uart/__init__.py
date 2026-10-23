@@ -12,10 +12,15 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     manifest.multi_conf = False
     # Other tests (ufm01) still declare UARTs as a list.
     manifest.config_schema = cv.ensure_list(manifest.config_schema)
+    # benchmark.yaml configures a uart packet_interface, whose to_code waits on the uart bus variable.
+    manifest.enable_codegen()
+    uart_to_code = manifest.to_code
 
-    async def to_code_testing(config: ConfigType) -> None:
+    async def to_code_testing(config: list[ConfigType]) -> None:
         uart.require_virtual_uart()
         # The virtual UART reports to a debugger only when one is configured.
         cg.add_define("USE_UART_DEBUGGER")
+        for bus in config:
+            await uart_to_code(bus)
 
     manifest.to_code = to_code_testing

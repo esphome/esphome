@@ -730,7 +730,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
 
     uint32_t age = lease_cache_age_secs(lease);
     uint32_t remaining = lease.lease_secs > age ? lease.lease_secs - age : 0;
-    ESP_LOGI(TAG, "Applying cached lease " IPSTR ", ~%us left, skipping DHCP", IP2STR(&ip4), remaining);
+    ESP_LOGI(TAG, "Applying cached lease " IPSTR ", ~%" PRIu32 "s left, skipping DHCP", IP2STR(&ip4), remaining);
 
     // Still awake at T1: switch to real DHCP. lease_valid_for_apply_() guarantees age < T1.
     uint32_t renew_in = lease_renew_at_secs(lease) - age;
@@ -846,7 +846,7 @@ void WiFiComponent::save_lease_settings_() {
   this->lease_cache_pref_.save(&lease);
   this->cached_lease_ = lease;
 
-  ESP_LOGD(TAG, "Lease cache: saved " IPSTR " (network %d, lease %us)", IP2STR(&info.ip), lease.ap_index,
+  ESP_LOGD(TAG, "Lease cache: saved " IPSTR " (network %d, lease %" PRIu32 "s)", IP2STR(&info.ip), lease.ap_index,
            lease.lease_secs);
 }
 #endif

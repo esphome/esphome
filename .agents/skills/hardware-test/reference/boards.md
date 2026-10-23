@@ -7,6 +7,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 
 - Opening the port usually resets the board through DTR, but not always; `serial_capture.py --reset`
   pulses RTS to capture from boot. 74880 baud shows the ROM boot messages (`rst cause`, `boot mode`).
+- UART0 can be looped back onto itself (`USC0(0) |= (1 << UCLBE)` in an `on_boot` lambda) so a UART
+  component is testable without its device: frames written with `uart.write` arrive on RX. Log over the
+  API with `logger: baud_rate: 0`, since the serial port carries the component's bytes.
 - `esphome logs` on some CH340s emits thousands of duplicated garbage lines right after the RTS reset;
   a plain pyserial capture at 115200 is reliable.
 - A failed esptool write can wedge the adapter (`termios` error 22, or an open that hangs) until replug.

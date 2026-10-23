@@ -1,4 +1,5 @@
 #include "hitachi_ac344.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::hitachi_ac344 {
 
@@ -14,15 +15,6 @@ void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, con
   *dst &= ~(uint8_t) (mask << offset);
   // Merge in the data.
   *dst |= ((data & mask) << offset);
-}
-
-void set_bit(uint8_t *const data, const uint8_t position, const bool on) {
-  uint8_t mask = 1 << position;
-  if (on) {
-    *data |= mask;
-  } else {
-    *data &= ~mask;
-  }
 }
 
 uint8_t *invert_byte_pairs(uint8_t *ptr, const uint16_t length) {
@@ -124,7 +116,7 @@ bool HitachiClimate::get_swing_v_toggle_() { return get_button_() == HITACHI_AC3
 
 void HitachiClimate::set_swing_v_(bool on) {
   set_swing_v_toggle_(on);  // Set the button value.
-  set_bit(&remote_state_[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET, on);
+  assign_bits(this->remote_state_[HITACHI_AC344_SWINGV_BYTE], 1 << HITACHI_AC344_SWINGV_OFFSET, on);
 }
 
 bool HitachiClimate::get_swing_v_() {
