@@ -79,8 +79,6 @@ bool HOT EPaperMono::transfer_data() {
     }
     ++this->current_data_index_;
     this->write_array(&bytes_to_send.front(), row_length);  // NOLINT
-    if (!this->send_red_)
-      this->record_sent_(row_start, &bytes_to_send.front(), row_length);
     if (millis() - start_time > MAX_TRANSFER_TIME) {
       // Let the main loop run and come back next loop
       this->disable();

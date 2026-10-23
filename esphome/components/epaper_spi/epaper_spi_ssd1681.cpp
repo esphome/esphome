@@ -1,6 +1,7 @@
 #include "epaper_spi_ssd1681.h"
 
 #include <algorithm>
+#include <cstring>
 
 #include "esphome/core/log.h"
 
@@ -14,14 +15,26 @@ void EPaperSSD1681::bounds_from_changes_() {
   uint16_t row_low = this->height_, row_high = 0, col_low = this->row_width_, col_high = 0;
   for (uint16_t row = 0; row != this->height_; row++) {
     const size_t base = row * this->row_width_;
-    for (uint16_t col = 0; col != this->row_width_; col++) {
-      if (this->buffer_[base + col] == this->sent_[base + col])
-        continue;
-      changed = true;
-      row_low = std::min(row_low, row);
-      row_high = std::max<uint16_t>(row_high, row + 1);
-      col_low = std::min(col_low, col);
-      col_high = std::max<uint16_t>(col_high, col + 1);
+    const size_t end = base + this->row_width_;
+    size_t index = base;
+    while (index != end) {
+      size_t new_length, old_length;
+      const uint8_t *new_bytes = this->buffer_.get_span(index, new_length);
+      const uint8_t *old_bytes = this->sent_.get_span(index, old_length);
+      const size_t length = std::min({new_length, old_length, end - index});
+      if (std::memcmp(new_bytes, old_bytes, length) != 0) {
+        for (size_t i = 0; i != length; i++) {
+          if (new_bytes[i] == old_bytes[i])
+            continue;
+          const auto col = static_cast<uint16_t>(index + i - base);
+          changed = true;
+          row_low = std::min(row_low, row);
+          row_high = std::max<uint16_t>(row_high, row + 1);
+          col_low = std::min(col_low, col);
+          col_high = std::max<uint16_t>(col_high, col + 1);
+        }
+      }
+      index += length;
     }
   }
   if (!changed)

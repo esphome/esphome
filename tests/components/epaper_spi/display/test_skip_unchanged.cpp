@@ -41,16 +41,24 @@ template<typename Driver> class TestableDriver : public Driver {
     return pushed;
   }
 
-  /// A whole update whose frame is changed to `bytes` after it was hashed, before it is sent.
-  void run_update_changed_before_send(std::initializer_list<uint8_t> bytes) {
+  /// A whole update with a pixel drawn after the frame was hashed, while it is being sent.
+  void run_update_drawn_during_push(int x, int y) {
     this->state_ = EPaperState::UPDATE;
     while (this->state_ != EPaperState::TRANSFER_DATA)
       this->process_state_();
-    size_t i = 0;
-    for (const uint8_t byte : bytes)
-      this->buffer_[i++] = byte;
+    this->draw_pixel_at(x, y, Color::BLACK);
     while (this->state_ != EPaperState::IDLE)
       this->process_state_();
+  }
+
+  /// An update in which nothing is drawn; false if it went straight back to idle.
+  bool run_update_drawing_nothing() {
+    this->state_ = EPaperState::UPDATE;
+    this->process_state_();
+    const bool pushed = this->state_ == EPaperState::RESET;
+    while (this->state_ != EPaperState::IDLE)
+      this->process_state_();
+    return pushed;
   }
 
   /// An update given up on with the busy pin stuck, after its data was sent.
@@ -97,11 +105,27 @@ TEST(EPaperSkipUnchanged, FrameChangedDuringThePushIsNotTrusted) {
   display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
   EXPECT_TRUE(display.run_update());
   display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
-  display.run_update_changed_before_send({0x0F, 0xF0, 0x3C, 0xFF});
+  display.run_update_drawn_during_push(15, 1);
   EXPECT_FALSE(display.shown_hash_valid());
 
   display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
   EXPECT_TRUE(display.run_update()) << "frame that never reached the panel was skipped";
+}
+
+/// A draw during the push is sent by the next update even when that update draws nothing itself.
+TEST(EPaperSkipUnchanged, DrawDuringThePushIsSentByAnUpdateThatDrawsNothing) {
+  TestableDriver<EPaperSSD1683> display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  EXPECT_TRUE(display.run_update());
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.run_update_drawn_during_push(15, 1);
+  bus.clear();
+
+  EXPECT_TRUE(display.run_update_drawing_nothing()) << "draw made during the push was dropped";
+  EXPECT_EQ(bus.data[0x24].size(), 4u) << "whole frame not sent";
 }
 
 /// An abandoned update leaves no hash to match, since its frame may never have been shown.

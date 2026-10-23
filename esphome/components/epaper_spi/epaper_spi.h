@@ -99,10 +99,7 @@ class EPaperBase : public Display,
 
     // We store 8 pixels per byte
     this->buffer_.fill(pixel_color);
-    this->x_high_ = this->width_;
-    this->y_high_ = this->height_;
-    this->x_low_ = 0;
-    this->y_low_ = 0;
+    this->mark_all_drawn_();
   }
 
   void clear() override {
@@ -152,6 +149,12 @@ class EPaperBase : public Display,
   // FNV-1a hash of the current frame buffer, to detect an unchanged frame without a full copy
   uint32_t buffer_hash_() const;
   void reset_bounds_();
+  void set_full_bounds_();
+  // For a draw that writes the whole buffer without going through rotate_coordinates_()
+  void mark_all_drawn_() {
+    this->set_full_bounds_();
+    this->drawn_since_hash_ = true;
+  }
   void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
   void draw_rgb565_block_(uint8_t *buffer, int x_start, int y_start, int w, int h, const uint8_t *ptr, bool big_endian,
@@ -219,6 +222,7 @@ class EPaperBase : public Display,
   uint32_t shown_hash_{};             // hash of the frame on the panel, to skip an unchanged update
   bool shown_hash_valid_{};           // shown_hash_ holds the hash of a frame whose refresh completed
   bool sent_hash_intact_{};           // the buffer was unchanged by the end of the push of shown_hash_
+  bool drawn_since_hash_{};           // something was drawn after shown_hash_ was taken
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
