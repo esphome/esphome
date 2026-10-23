@@ -263,6 +263,15 @@ bool RX8111Component::set_alarm_interrupt_(bool enabled) {
 
 bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day,
                                      bool boot) {
+  uint8_t extension;
+  if (!this->read_byte(RX8111_REG_EXTENSION, &extension))
+    return false;
+  if (weekday != ALARM_FIELD_UNSET) {
+    extension &= ~RX8111_EXTENSION_WADA;
+  } else if (day != ALARM_FIELD_UNSET) {
+    extension |= RX8111_EXTENSION_WADA;
+  }
+
   const uint8_t fields[] = {
       second == ALARM_FIELD_UNSET ? RX8111_ALARM_DISABLED : uint8_to_bcd(second),
       minute == ALARM_FIELD_UNSET ? RX8111_ALARM_DISABLED : uint8_to_bcd(minute),
@@ -280,12 +289,8 @@ bool RX8111Component::program_alarm_(uint8_t second, uint8_t minute, uint8_t hou
     return false;
   if (!boot)
     this->alarm_flag_seen_ = (flags & RX8111_FLAG_AF) != 0;
-  if (!this->write_byte(RX8111_REG_SEC_ALARM, fields[0]) || !this->write_bytes(RX8111_REG_MIN_ALARM, &fields[1], 3))
-    return false;
-  // WADA selects the day alarm over the weekday alarm; neither set leaves it alone
-  if ((weekday != ALARM_FIELD_UNSET || day != ALARM_FIELD_UNSET) &&
-      !this->update_register(RX8111_REG_EXTENSION, RX8111_EXTENSION_WADA,
-                             day != ALARM_FIELD_UNSET ? RX8111_EXTENSION_WADA : 0))
+  if (!this->write_byte(RX8111_REG_SEC_ALARM, fields[0]) || !this->write_bytes(RX8111_REG_MIN_ALARM, &fields[1], 3) ||
+      !this->write_byte(RX8111_REG_EXTENSION, extension))
     return false;
   if (!this->set_alarm_interrupt_(this->alarm_enabled_))
     return false;
