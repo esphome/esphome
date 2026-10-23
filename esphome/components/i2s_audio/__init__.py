@@ -339,8 +339,9 @@ def _final_validate(_: ConfigType) -> None:
     data = _get_data()
     for config in i2s_audio_configs:
         if config[CONF_FULL_DUPLEX]:
-            _validate_full_duplex(config[CONF_ID])
-            data.full_duplex_buses.add(str(config[CONF_ID]))
+            bus_id = config[CONF_ID]
+            _validate_full_duplex(bus_id)
+            data.full_duplex_buses.add(str(bus_id))
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
