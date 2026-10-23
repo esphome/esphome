@@ -36,7 +36,6 @@ enum class DeltaState : uint8_t {
 
 class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
-  void setup() override;
   void loop() override;
   void update() override;
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
