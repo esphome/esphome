@@ -11,6 +11,7 @@
 #include <memory>
 #include <cinttypes>
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"
 
