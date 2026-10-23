@@ -20,13 +20,7 @@ static constexpr uint8_t DISCOVERY_MAX_ATTEMPTS = 3;
 
 void Duco::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->last_byte_ > FRAME_GAP_MS) {
-    // The last message of a burst has no header after it, so it ends on silence
-    this->finalize_message_();
-    this->rx_size_ = 0;
-    this->last_byte_ = now;
-  }
-
+  // Read first: after a slow loop pass the rest of a message is already waiting, which is not silence
   this->read_available([this, now](uint8_t byte) {
     if (this->parse_byte_(byte)) {
       this->last_byte_ = now;
@@ -34,12 +28,18 @@ void Duco::loop() {
       this->rx_size_ = 0;
     }
   });
+
+  // The last message of a burst has no header after it, so it ends on silence
+  if (this->rx_size_ != 0 && now - this->last_byte_ > FRAME_GAP_MS) {
+    this->finalize_message_();
+    this->rx_size_ = 0;
+  }
 }
 
 bool Duco::parse_byte_(uint8_t byte) {
   const size_t at = this->rx_size_;
   if (at >= MAX_FRAME_SIZE) {
-    ESP_LOGD(TAG, "Message longer than %u bytes dropped", static_cast<unsigned>(MAX_FRAME_SIZE));
+    ESP_LOGW(TAG, "Message longer than %u bytes dropped", static_cast<unsigned>(MAX_FRAME_SIZE));
     return false;
   }
   const uint8_t prev = at > 0 ? this->rx_buffer_[at - 1] : 0;
@@ -117,6 +117,7 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
     ESP_LOGE(TAG, "Request of %u bytes is too long", static_cast<unsigned>(data.size()));
     return;
   }
+  // Not byte stuffed, as in the author's original: no capture shows whether the box expects it on requests
   const size_t size = data.size();
   const uint8_t id = this->next_id_();
   uint8_t frame[5 + MAX_REQUEST_DATA + 2] = {HEADER_START, HEADER_END, static_cast<uint8_t>(size + 2), function, id};
