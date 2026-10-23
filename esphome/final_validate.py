@@ -57,12 +57,12 @@ def get_declaring_config(
 
 
 def platform_entries(
-    domain: str, platform: str, match: dict[str, Any] | None = None
+    *, domain: str, platform: str, match: dict[str, Any] | None = None
 ) -> list[ConfigType]:
     """Return the entries of domain set up by platform whose keys equal the match values.
 
     Reads the full config being validated, for example
-    platform_entries("switch", "my_hub", {CONF_MY_HUB_ID: hub_id, CONF_CHANNEL: 1}).
+    platform_entries(domain="switch", platform="my_hub", match={CONF_CHANNEL: 1}).
     """
     match = match or {}
     return [
@@ -74,7 +74,7 @@ def platform_entries(
 
 
 def unique_platform_key(
-    domain: str, platform: str, *keys: str, message: str
+    *, domain: str, platform: str, keys: tuple[str, ...] = (), message: str
 ) -> Callable[[ConfigType], ConfigType]:
     """A final-validation function that allows one platform entry per combination of keys.
 
@@ -85,7 +85,7 @@ def unique_platform_key(
 
     def validator(config: ConfigType) -> ConfigType:
         values = {key: config[key] for key in keys}
-        if len(platform_entries(domain, platform, values)) > 1:
+        if len(platform_entries(domain=domain, platform=platform, match=values)) > 1:
             raise cv.Invalid(message.format(*values.values(), **values), path=path)
         return config
 
