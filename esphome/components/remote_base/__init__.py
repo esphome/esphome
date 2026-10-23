@@ -2979,3 +2979,73 @@ register_protocol_action(
     (CONF_CHANNELS, "channels", cg.uint16),
     (CONF_COMMAND, "command", cg.uint8),
 )
+
+
+# Cardin S438
+(
+    CardinS438Data,
+    CardinS438BinarySensor,
+    CardinS438Trigger,
+    _,
+    CardinS438Dumper,
+) = declare_protocol("CardinS438")
+
+
+CARDIN_S438_CHANNELS = {
+    "A": 0x02,
+    "B": 0x00,
+    "C": 0x03,
+    "D": 0x01,
+}
+
+
+def _validate_cardin_s438_code(code):
+    """Accept the DIP switches as a 14-character binary string."""
+    code = cv.string_strict(code)
+    if len(code) != 14 or any(bit not in "01" for bit in code):
+        raise cv.Invalid("code must be exactly 14 binary digits, e.g. '10100110101010'")
+    return int(code, 2)
+
+
+CARDIN_S438_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): _validate_cardin_s438_code,
+        cv.Optional(CONF_CHANNEL, default="A"): cv.enum(
+            CARDIN_S438_CHANNELS, upper=True
+        ),
+        cv.Optional(CONF_COMMAND_REPEATS, default=3): cv.int_range(min=1, max=255),
+    }
+)
+
+
+@register_binary_sensor("cardin_s438", CardinS438BinarySensor, CARDIN_S438_SCHEMA)
+def cardin_s438_binary_sensor(var: MockObj, config: ConfigType) -> None:
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                CardinS438Data,
+                ("code", config[CONF_CODE]),
+                ("channel", config[CONF_CHANNEL]),
+            )
+        )
+    )
+
+
+@register_trigger("cardin_s438", CardinS438Trigger, CardinS438Data)
+def cardin_s438_trigger(var: MockObj, config: ConfigType) -> None:
+    """The trigger takes no options beyond the automation."""
+
+
+@register_dumper("cardin_s438", CardinS438Dumper)
+def cardin_s438_dumper(var: MockObj, config: ConfigType) -> None:
+    """The dumper takes no options."""
+
+
+register_protocol_action(
+    "cardin_s438",
+    "CardinS438",
+    CARDIN_S438_SCHEMA,
+    (CONF_CODE, "code", cg.uint16),
+    (CONF_CHANNEL, "channel", cg.uint8),
+    (CONF_COMMAND_REPEATS, "repeats", cg.uint8),
+)
