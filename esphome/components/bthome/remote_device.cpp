@@ -41,8 +41,8 @@ bool RemoteDeviceBase::matches_(const ble_device_base::ESPBTDevice &device, cons
 
 // The spec asks for a new packet ID whenever the data changes, but some firmware (pvvx ATC_MiThermometer)
 // alternates several different payloads under one packet ID. Only a payload already seen under the
-// current packet ID is treated as a duplicate. Frames without a packet ID are filtered the same way,
-// but only while the copies arrive within NO_PACKET_ID_REPEAT_MS of each other.
+// current packet ID is treated as a duplicate. Without a packet ID only a copy of the previous frame is,
+// and only while the copies arrive within NO_PACKET_ID_REPEAT_MS of each other.
 bool RemoteDeviceBase::is_duplicate_(optional<uint8_t> packet_id, const uint8_t *payload, size_t payload_size,
                                      uint32_t now) {
   uint32_t hash = FNV1_OFFSET_BASIS;
@@ -61,6 +61,11 @@ bool RemoteDeviceBase::is_duplicate_(optional<uint8_t> packet_id, const uint8_t 
   for (size_t i = 0; i < this->seen_payload_count_; i++) {
     if (this->seen_payload_hashes_[i] == hash)
       return true;
+  }
+  // A value that comes back without a packet ID is new data, so only this frame is kept.
+  if (!packet_id.has_value()) {
+    this->seen_payload_count_ = 0;
+    this->next_seen_payload_ = 0;
   }
   this->seen_payload_hashes_[this->next_seen_payload_] = hash;
   this->next_seen_payload_ = (this->next_seen_payload_ + 1) % SEEN_PAYLOAD_SLOTS;
