@@ -71,7 +71,9 @@ def _final_validate(config: ConfigType) -> None:
     """Each polygon zone must have exactly one presence binary sensor, on the same LD2450."""
     # Polygon zone id -> the LD2450 id of each presence binary sensor that uses it
     references: dict[str, list[str]] = {}
-    for binary_sensor_conf in fv.platform_entries("binary_sensor", "ld2450"):
+    for binary_sensor_conf in fv.platform_entries(
+        domain="binary_sensor", platform="ld2450"
+    ):
         hub_id = binary_sensor_conf[CONF_LD2450_ID].id
         for presence_conf in binary_sensor_conf.get(CONF_POLYGON_ZONES, []):
             zone_id = presence_conf[CONF_POLYGON_ZONE_ID].id

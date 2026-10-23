@@ -129,7 +129,9 @@ CONFIG_SCHEMA = cv.All(
 
 # The strip owns SPI0 and its DMA channel, so only one can exist.
 FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
-    light.DOMAIN, DOMAIN, message=f"Only one {DOMAIN} is supported (it uses SPI0)"
+    domain=light.DOMAIN,
+    platform=DOMAIN,
+    message=f"Only one {DOMAIN} is supported (it uses SPI0)",
 )
 
 

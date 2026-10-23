@@ -22,10 +22,9 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(HaierTundra).extend(
 
 # Each transmitter may drive at most one unit A and one unit B
 FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
-    "climate",
-    "haier_tundra",
-    remote_base.CONF_TRANSMITTER_ID,
-    CONF_UNIT,
+    domain="climate",
+    platform="haier_tundra",
+    keys=(remote_base.CONF_TRANSMITTER_ID, CONF_UNIT),
     message="Only one of each unit is allowed per transmitter",
 )
 

@@ -95,9 +95,9 @@ def apply_buffer_size(config: ConfigType, min_size: int, minimum: str) -> Config
 def final_validate_one_per_hub(domain: str) -> Callable[[ConfigType], ConfigType]:
     """The hub streams one speaker and one microphone, so reject a second platform of the same kind on a hub."""
     return fv.unique_platform_key(
-        domain,
-        DOMAIN,
-        CONF_USB_AUDIO_ID,
+        domain=domain,
+        platform=DOMAIN,
+        keys=(CONF_USB_AUDIO_ID,),
         message=f"Only one usb_audio {domain} per usb_audio component is supported",
     )
 
