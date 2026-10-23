@@ -8,6 +8,8 @@ from esphome.components.rx8111.time import (
     CONF_ALARM_DAY,
     CONF_ALARM_ENABLED,
     CONF_ALARM_WEEKDAY,
+    CONF_BATTERY_BACKUP,
+    CONF_BATTERY_CHARGING,
     CONF_DAY,
     CONF_ON_ALARM,
     CONF_ON_TIMER,
@@ -15,6 +17,7 @@ from esphome.components.rx8111.time import (
     CONF_TIMER_COUNT,
     CONF_TIMER_ENABLED,
     CONF_WEEKDAY,
+    FOUT_FREQUENCIES,
     _validate_alarm_config,
     _validate_alarm_options,
     _validate_set_alarm,
@@ -74,3 +77,55 @@ def test_on_alarm_requires_enabled_alarm() -> None:
     with pytest.raises(cv.Invalid, match="on_alarm"):
         _validate_alarm_config({CONF_ON_ALARM: [{}]})
     assert _validate_alarm_config({CONF_ON_ALARM: [{}], CONF_ALARM_ENABLED: True})
+
+
+def test_charging_requires_explicit_backup() -> None:
+    for config in (
+        {CONF_BATTERY_CHARGING: True},
+        {CONF_BATTERY_BACKUP: False, CONF_BATTERY_CHARGING: True},
+    ):
+        with pytest.raises(cv.Invalid, match="battery_backup"):
+            _validate_alarm_config(config)
+    assert _validate_alarm_config(
+        {CONF_BATTERY_BACKUP: True, CONF_BATTERY_CHARGING: True}
+    )
+
+
+@pytest.mark.parametrize("value", ["32768hz", "1024hz", "1hz", "off"])
+def test_fout_frequencies(value: str) -> None:
+    assert (
+        cv.enum(FOUT_FREQUENCIES, lower=True)(value).enum_value
+        == FOUT_FREQUENCIES[value]
+    )
+
+
+def test_invalid_fout_frequency() -> None:
+    with pytest.raises(cv.Invalid):
+        cv.enum(FOUT_FREQUENCIES, lower=True)("100hz")
+
+
+def test_event_configuration_requires_consumer() -> None:
+    from esphome.components.rx8111.time import (
+        CONF_EVENT_ENABLED,
+        CONF_EVENT_LEVEL,
+        CONF_EVIN_FILTER,
+        CONF_ON_EVENT,
+    )
+
+    for config in (
+        {CONF_ON_EVENT: [{}]},
+        {CONF_EVENT_LEVEL: 0},
+        {CONF_EVIN_FILTER: 2},
+    ):
+        with pytest.raises(cv.Invalid):
+            _validate_alarm_config(config)
+    assert _validate_alarm_config({CONF_EVENT_ENABLED: True, CONF_ON_EVENT: [{}]})
+    assert _validate_alarm_config({CONF_EVENT_ENABLED: False})
+
+
+@pytest.mark.parametrize("option", ["event_timestamp", "timestamp_record_mode"])
+def test_timestamp_options_are_not_in_time_platform(option: str) -> None:
+    from esphome.components.rx8111.time import CONFIG_SCHEMA
+
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({option: "latest"})

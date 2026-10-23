@@ -29,6 +29,25 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void set_timer_enabled(bool enabled) { this->timer_enabled_ = enabled; }
   void set_timer_configured(bool configured) { this->timer_configured_ = configured; }
   void set_event_poll_interval(uint32_t interval) { this->event_poll_interval_ = interval; }
+  void set_battery_backup(bool enabled, bool charging) {
+    this->battery_configured_ = true;
+    this->battery_backup_ = enabled;
+    this->battery_charging_ = charging;
+  }
+  void set_fout_frequency(uint8_t frequency) {
+    this->fout_configured_ = true;
+    this->fout_frequency_ = frequency;
+  }
+  void set_event_config(bool enabled, uint8_t settings) {
+    this->event_configured_ = true;
+    this->event_enabled_ = enabled;
+    this->evin_settings_ = settings;
+  }
+  void set_event_disabled() { this->event_configured_ = true; }
+  template<typename F> void add_on_event_callback(F &&callback) {
+    this->event_callbacks_.add(std::forward<F>(callback));
+  }
+  bool clear_event_flag();
   template<typename F> void add_on_alarm_callback(F &&callback) {
     this->alarm_callbacks_.add(std::forward<F>(callback));
   }
@@ -51,7 +70,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   static constexpr uint8_t ALARM_FIELD_UNSET = 0xFF;
 
   // One bit per fault source, so a recovery in one path cannot hide another path's fault
-  enum Warning : uint8_t {
+  enum Warning : uint16_t {
     WARN_CALENDAR = 1 << 0,
     WARN_EVENT_POLL = 1 << 1,
     WARN_ALARM = 1 << 2,
@@ -59,13 +78,25 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
     WARN_WRITE_TIME = 1 << 4,
     WARN_ALARM_FLAG_CLEAR = 1 << 5,
     WARN_TIMER_FLAG_CLEAR = 1 << 6,
+    WARN_BATTERY = 1 << 7,
+    WARN_FOUT = 1 << 8,
+    WARN_EVENT = 1 << 9,
+    WARN_EVENT_FLAG_CLEAR = 1 << 10,
   };
 
   bool set_stop_bit_(bool stop);
   bool read_calendar_(ESPTime &rtc_time);
-  void set_warning_(uint8_t bit, const LogString *message);
-  void clear_warning_(uint8_t bit);
-  bool watching_() const { return this->alarm_armed_ || this->timer_enabled_ || this->timer_retained_event_pending_; }
+  void set_warning_(uint16_t bit, const LogString *message);
+  void clear_warning_(uint16_t bit);
+  void configure_boot_battery_();
+  void configure_boot_fout_();
+  enum BootAux : uint8_t { BOOT_BATTERY, BOOT_FOUT, BOOT_EVENT };
+  void boot_aux_result_(BootAux feature, bool success);
+  bool watching_() const {
+    return this->alarm_armed_ || this->timer_enabled_ || this->timer_retained_event_pending_ || this->event_enabled_;
+  }
+  void configure_boot_event_();
+  bool configure_event_();
   void check_event_flags_();
   bool program_alarm_(uint8_t second, uint8_t minute, uint8_t hour, uint8_t weekday, uint8_t day, bool boot = false);
   bool set_alarm_interrupt_(bool enabled);
@@ -80,10 +111,24 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
 
   LazyCallbackManager<void()> alarm_callbacks_;
   LazyCallbackManager<void()> timer_callbacks_;
+  LazyCallbackManager<void()> event_callbacks_;
+  uint8_t evin_settings_{0};
+  uint8_t event_attempts_{0};
+  bool event_configured_{false};
+  bool event_enabled_{false};
+  bool event_flag_seen_{false};
+  bool event_boot_pending_{false};
   uint32_t timer_count_{0};
   uint32_t event_poll_interval_{1000};
   uint32_t boot_retry_delay_ms_{BOOT_RETRY_DELAY_MS};
-  uint8_t warnings_{0};
+  uint16_t warnings_{0};
+  uint8_t battery_attempts_{0};
+  uint8_t fout_attempts_{0};
+  uint8_t fout_frequency_{3};
+  bool battery_configured_{false};
+  bool battery_backup_{false};
+  bool battery_charging_{false};
+  bool fout_configured_{false};
   uint8_t timer_clock_{2};  // 1 Hz
   uint8_t boot_alarm_attempts_{0};
   uint8_t boot_timer_attempts_{0};
