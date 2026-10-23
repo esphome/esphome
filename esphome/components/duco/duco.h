@@ -46,6 +46,9 @@ class Duco : public uart::UARTDevice, public Component {
   void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0, false}); }
 #endif
 
+  /// Forget device's open request, for a device that will not send again.
+  void close_request(DucoDevice *device);
+
   /// Send a request; its answer goes to device, or nowhere if nullptr. A device's new request replaces its
   /// open one, so an answer is never lost to another device's traffic.
   void send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
@@ -56,6 +59,7 @@ class Duco : public uart::UARTDevice, public Component {
   static constexpr size_t MAX_REQUEST_DATA = 9;
 
   bool parse_byte_(uint8_t byte);
+  void reset_frame_();
 #ifdef DUCO_DEVICE_COUNT
   void update_warning_();  // warn while any device's previous request went unanswered
 #endif

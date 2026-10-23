@@ -25,15 +25,33 @@ void Duco::loop() {
     if (this->parse_byte_(byte)) {
       this->last_byte_ = now;
     } else {
-      this->rx_size_ = 0;
+      this->reset_frame_();
     }
   });
 
   // The last message of a burst has no header after it, so it ends on silence
   if (this->rx_size_ != 0 && now - this->last_byte_ > FRAME_GAP_MS) {
     this->finalize_message_();
-    this->rx_size_ = 0;
+    this->reset_frame_();
   }
+}
+
+void Duco::reset_frame_() {
+  this->rx_size_ = 0;
+  this->escaped_ = false;
+}
+
+void Duco::close_request(DucoDevice *device) {
+#ifdef DUCO_DEVICE_COUNT
+  for (auto &pending : this->pending_) {
+    if (pending.device == device) {
+      pending.function = 0;
+      pending.missed = false;
+      this->update_warning_();
+      return;
+    }
+  }
+#endif
 }
 
 bool Duco::parse_byte_(uint8_t byte) {
@@ -203,6 +221,7 @@ void DucoDiscovery::update() {
   }
   if (this->next_node_ >= NODE_COUNT) {
     this->cancel_interval(DISCOVERY_STEP_ID);
+    this->parent_->close_request(this);  // discovery never sends again, so a last miss must not stay a warning
     return;
   }
   // Without an answer by the next step the same node is asked again
