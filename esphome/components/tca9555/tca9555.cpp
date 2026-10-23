@@ -1,4 +1,5 @@
 #include "tca9555.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 static const uint8_t TCA9555_INPUT_PORT_REGISTER_0 = 0x00;
@@ -108,11 +109,7 @@ void TCA9555Component::digital_write_hw(uint8_t pin, bool value) {
   if (this->is_failed())
     return;
 
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_mask_, 1 << pin, value);
 
   this->status_comm_result(this->write_byte_16_le(TCA9555_OUTPUT_PORT_REGISTER_0, this->output_mask_),
                            LOG_STR("Failed to write output register"));

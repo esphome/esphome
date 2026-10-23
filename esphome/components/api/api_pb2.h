@@ -1594,6 +1594,12 @@ class ListEntitiesServicesArgument final : public ProtoMessage {
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   ProgmemStringRef example{};
 #endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  bool optional{false};
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  ProgmemStringRef default_value{};
+#endif
   static uint8_t *encode_msg(const void *self, uint8_t *pos PROTO_ENCODE_DEBUG_PARAM);
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
     return encode_msg(this, buffer.get_pos() PROTO_ENCODE_DEBUG_ARG);
