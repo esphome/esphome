@@ -77,8 +77,12 @@ void MipiRgbSpi::write_data_(uint8_t value) {
 void MipiRgbSpi::write_init_sequence_() {
   display::InitSequenceReader reader(this->init_sequence_, this->init_sequence_len_);
   display::InitSequenceEntry entry;
-  while (reader.next(entry)) {
-    if (entry.is_delay()) {
+  while (auto step = reader.next(entry)) {
+    if (step == display::INIT_SEQUENCE_STEP_MALFORMED) {
+      this->mark_failed(LOG_STR("Malformed init sequence"));
+      return;
+    }
+    if (step == display::INIT_SEQUENCE_STEP_DELAY) {
       ESP_LOGD(TAG, "Delay %dms", entry.value);
       delay(entry.value);
       continue;
@@ -94,10 +98,6 @@ void MipiRgbSpi::write_init_sequence_() {
       this->write_data_(entry.args[i]);
     if (cmd == SLEEP_OUT)
       delay(10);
-  }
-  if (reader.malformed()) {
-    this->mark_failed(LOG_STR("Malformed init sequence"));
-    return;
   }
   // this->spi_teardown();  // SPI not needed after this
   delay(10);

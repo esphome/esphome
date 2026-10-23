@@ -57,12 +57,8 @@ void ST7305::reset_() {
 
 void ST7305::send_init_sequence_() {
   display::InitSequenceEntry entry;
-  while (this->init_reader_.next(entry)) {
-    if (entry.is_delay()) {
-      // Resume the sequence after the delay instead of blocking the main loop.
-      this->set_timeout(STARTUP_TIMEOUT_ID, entry.value, [this]() { this->send_init_sequence_(); });
-      return;
-    }
+  display::InitSequenceStep step;
+  while ((step = this->init_reader_.next(entry)) == display::INIT_SEQUENCE_STEP_COMMAND) {
     this->enable();
     this->send_command_(entry.value);
     if (entry.count != 0) {
@@ -72,7 +68,10 @@ void ST7305::send_init_sequence_() {
     }
     this->disable();
   }
-  if (this->init_reader_.malformed()) {
+  if (step == display::INIT_SEQUENCE_STEP_DELAY) {
+    // Resume the sequence after the delay instead of blocking the main loop.
+    this->set_timeout(STARTUP_TIMEOUT_ID, entry.value, [this]() { this->send_init_sequence_(); });
+  } else if (step == display::INIT_SEQUENCE_STEP_MALFORMED) {
     this->mark_failed(LOG_STR("Malformed init sequence"));
   } else {
     this->finish_init_();
