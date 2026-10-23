@@ -284,4 +284,20 @@ TEST(BTHomePayloadDecoderTest, LightLevelAndSettingsRevisionAreDecoded) {
   EXPECT_EQ(decoded.objects[1].as_uint(), 3u);
 }
 
+TEST(BTHomePayloadDecoderTest, ObjectsOfOneTypeAreNumbered) {
+  // Packet ID, then three buttons: none, press, double press. Then a temperature.
+  auto decoded = decode_all("0001"
+                            "3A00"
+                            "3A01"
+                            "3A02"
+                            "45E100");
+  ASSERT_EQ(decoded.objects.size(), 5);
+  EXPECT_EQ(decoded.objects[0].index, 0);
+  EXPECT_EQ(decoded.objects[1].index, 0);
+  EXPECT_EQ(decoded.objects[2].index, 1);
+  EXPECT_EQ(decoded.objects[3].index, 2);
+  // A new type starts again at 0.
+  EXPECT_EQ(decoded.objects[4].index, 0);
+}
+
 }  // namespace esphome::bthome::testing
