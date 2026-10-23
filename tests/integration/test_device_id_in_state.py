@@ -27,6 +27,7 @@ from aioesphomeapi import (
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 # Mapping of entity name to device name for all entities with device_id
 ENTITY_TO_DEVICE = {
@@ -143,20 +144,17 @@ async def test_device_id_in_state(
         client.subscribe_states(on_state)
 
         # Wait for states
-        try:
-            await asyncio.wait_for(states_future, timeout=10.0)
-        except TimeoutError:
-            received_names = {e.name for e in all_entities if e.key in states}
-            missing_names = (
+        await wait_or_fail(
+            states_future,
+            10.0,
+            "Did not receive all entity states",
+            received=lambda: len(states),
+            missing=lambda: (
                 (set(ENTITY_TO_DEVICE) | NO_DEVICE_ENTITIES)
-                - received_names
+                - {e.name for e in all_entities if e.key in states}
                 - {"Doorbell"}
-            )
-            pytest.fail(
-                f"Did not receive all entity states within 10 seconds. "
-                f"Received {len(states)} states. "
-                f"Missing: {missing_names}"
-            )
+            ),
+        )
 
         # Verify each state has the correct device_id
         verified_count = 0
