@@ -27,17 +27,19 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
   float get_setup_priority() const override;
   void setup() override;
 
-  light::LightTraits get_traits() override;
+  light::LightTraits get_traits() override { return this->channel_colors_.traits(); }
 
   int32_t size() const override { return this->num_leds_; }
-  void clear_effect_data() override;
+  void clear_effect_data() override { zero_effect_data_(this->effect_data_, this->num_leds_); }
   void write_state(light::LightState *state) override;
 
  protected:
   static bool i2s_on_sent_callback(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
 
   bool allocate_buffers_();
-  light::ESPColorView get_view_internal(int32_t index) const override;
+  light::ESPColorView get_view_internal(int32_t index) const override {
+    return this->channel_colors_.view(this->color_data_, this->effect_data_, index, &this->correction_);
+  }
 
   const size_t color_data_bytes_;
   uint8_t *effect_data_{nullptr};

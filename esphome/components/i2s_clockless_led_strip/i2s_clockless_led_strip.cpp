@@ -167,16 +167,6 @@ bool I2SClocklessLedStrip::allocate_buffers_() {
   return false;
 }
 
-light::LightTraits I2SClocklessLedStrip::get_traits() {
-  auto traits = light::LightTraits();
-  if (this->channel_colors_.has_white()) {
-    traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE});
-  } else {
-    traits.set_supported_color_modes({light::ColorMode::RGB});
-  }
-  return traits;
-}
-
 void I2SClocklessLedStrip::write_state(light::LightState *state) {
   if (this->is_failed())
     return;
@@ -234,19 +224,6 @@ bool IRAM_ATTR HOT I2SClocklessLedStrip::i2s_on_sent_callback(i2s_chan_handle_t 
     memset(dma_buf, 0, dma_buf_size);
   }
   return false;
-}
-
-void I2SClocklessLedStrip::clear_effect_data() { memset(this->effect_data_, 0, this->num_leds_); }
-
-light::ESPColorView I2SClocklessLedStrip::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->color_data_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
 }
 
 }  // namespace esphome::i2s_clockless_led_strip

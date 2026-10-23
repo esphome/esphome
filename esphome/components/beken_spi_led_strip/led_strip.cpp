@@ -295,12 +295,8 @@ void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uin
 void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   // protect from refreshing too often
   uint32_t now = micros();
-  if (this->max_refresh_rate_.has_value() && *this->max_refresh_rate_ != 0 &&
-      (now - this->last_refresh_) < *this->max_refresh_rate_) {
-    // try again next loop iteration, so that this change won't get lost
-    this->schedule_show();
+  if (this->refresh_too_soon_(now, this->last_refresh_, this->max_refresh_rate_))
     return;
-  }
   this->last_refresh_ = now;
   this->mark_shown_();
 
@@ -369,17 +365,6 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
   this->status_clear_warning();
 }
 
-light::ESPColorView BekenSPILEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  uint8_t *led = this->buf_ + (index * colors.bytes_per_led());
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          &this->effect_data_[index],
-          &this->correction_};
-}
-
 void BekenSPILEDStripLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Beken SPI LED Strip:\n"
@@ -390,7 +375,7 @@ void BekenSPILEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_.value_or(0), this->num_leds_);
+                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_, this->num_leds_);
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

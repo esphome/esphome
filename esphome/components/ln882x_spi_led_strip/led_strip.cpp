@@ -141,32 +141,14 @@ void LN882xSPILEDStripLightOutput::dump_config() {
 
 float LN882xSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-light::LightTraits LN882xSPILEDStripLightOutput::get_traits() {
-  auto traits = light::LightTraits();
-  if (this->channel_colors_.has_white()) {
-    traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE});
-  } else {
-    traits.set_supported_color_modes({light::ColorMode::RGB});
-  }
-  return traits;
-}
-
-void LN882xSPILEDStripLightOutput::clear_effect_data() {
-  if (this->effect_data_ != nullptr)
-    memset(this->effect_data_, 0, this->num_leds_);
-}
-
 void LN882xSPILEDStripLightOutput::write_state(light::LightState *state) {
   if (this->is_failed())
     return;
 
   // protect from refreshing too often
   const uint32_t now = micros();
-  if (this->max_refresh_rate_ != 0 && (now - this->last_refresh_) < this->max_refresh_rate_) {
-    // try again next loop iteration, so that this change won't get lost
-    this->schedule_show();
+  if (this->refresh_too_soon_(now, this->last_refresh_, this->max_refresh_rate_))
     return;
-  }
 
   if (spi_dma_busy()) {
     // Busy sending the last frame, try again later.
@@ -189,20 +171,6 @@ void LN882xSPILEDStripLightOutput::write_state(light::LightState *state) {
   }
 
   spi_dma_transmit(this->dma_data_, this->dma_data_bytes_);
-}
-
-light::ESPColorView LN882xSPILEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  // After a failed setup() effects and partitions still write pixels, so they get a scratch pixel.
-  static uint8_t scratch[5];
-  const bool ready = this->color_data_ != nullptr;
-  uint8_t *led = ready ? this->color_data_ + (index * colors.bytes_per_led()) : scratch;
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          ready ? &this->effect_data_[index] : scratch + 4,
-          &this->correction_};
 }
 
 }  // namespace esphome::ln882x_spi_led_strip
