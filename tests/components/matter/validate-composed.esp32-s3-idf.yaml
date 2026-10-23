@@ -1,0 +1,19 @@
+# Config-only test: exercises `topology: composed` (spec §9.5 single-device
+# profile). Distinct from the default `bridge` topology the compile test
+# already covers.
+packages:
+  matter_network: !include common.yaml
+
+matter:
+  vendor_id: 0xFFF1
+  product_id: 0x8000
+  setup_code: "20202021"
+  discriminator: 0x0F0F
+  topology: composed
+  vendor_name: ESPHome
+  product_name: Matter Composed Test
+
+switch:
+  - platform: template
+    name: Matter Composed Switch
+    optimistic: true

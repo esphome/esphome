@@ -379,6 +379,8 @@ esphome/components/m5stack_4relay/* @KoenBreeman
 esphome/components/m5stack_8angle/* @rnauber
 esphome/components/mapping/* @clydebarrow
 esphome/components/matrix_keypad/* @ssieb
+esphome/components/matter/* @gtjadsonsantos
+esphome/components/matter/button/* @gtjadsonsantos
 esphome/components/max17043/* @blacknell
 esphome/components/max17048/* @B48D81EFCC @ryansch
 esphome/components/max170xx/* @ryansch
