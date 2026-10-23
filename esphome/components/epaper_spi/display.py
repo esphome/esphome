@@ -221,6 +221,11 @@ def customise_schema(config):
             path=[CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP],
         )
     if config.get(CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP) == PANEL:
+        if CORE.is_esp8266 and config.get(CONF_ENABLE_PIN):
+            raise cv.Invalid(
+                "The ESP8266 cannot hold the enable pins through deep sleep, so the panel would lose its image",
+                path=[CONF_PARTIAL_UPDATE_AFTER_DEEP_SLEEP],
+            )
         # The display keeps its image only while it stays powered through the deep sleep
         for pin in config.get(CONF_ENABLE_PIN, []):
             if CONF_HOLD_STATE in pin:

@@ -70,6 +70,8 @@ void EPaperBase::save_sleep_state_(bool panel_holds_image) {
 // Runs before the controller sleeps or reboots, after on_safe_shutdown(): finish an update in flight,
 // then note that the panel holds its image, so the first update after a wake is partial.
 bool EPaperBase::teardown() {
+  if (this->sleep_state_hash_ == 0)
+    return true;
   if (this->state_ != EPaperState::IDLE) {
     this->loop();
     return false;
@@ -421,7 +423,15 @@ void EPaperBase::start_data_() {
   this->enable();
 }
 
-void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
+// When the image is kept through the sleep, teardown() finishes an update in flight, which ends in deep sleep
+bool EPaperBase::leave_update_to_teardown_() const {
+  return this->sleep_state_hash_ != 0 && this->state_ != EPaperState::IDLE;
+}
+
+void EPaperBase::on_safe_shutdown() {
+  if (!this->leave_update_to_teardown_())
+    this->deep_sleep();
+}
 
 void EPaperBase::send_init_sequence_(const uint8_t *sequence, size_t length) {
   size_t index = 0;

@@ -213,6 +213,7 @@ class EPaperBase : public Display,
     uint8_t panel_holds_image;
   };
   bool woke_from_deep_sleep_() const;
+  bool leave_update_to_teardown_() const;
   void load_sleep_state_();
   void save_sleep_state_(bool panel_holds_image);
   ESPPreferenceObject sleep_state_;

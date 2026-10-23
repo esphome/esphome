@@ -20,6 +20,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32S3,
 )
+from esphome.components.esp8266 import gpio as esp8266_gpio  # noqa: F401  registers the pin schema
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
@@ -900,6 +901,31 @@ def test_partial_update_after_deep_sleep_holds_the_enable_pins(
 
     config = run_schema_validation({**base, "partial_update_after_deep_sleep": "panel"})
     assert all(pin[CONF_HOLD_STATE] for pin in config[CONF_ENABLE_PIN])
+
+
+def test_partial_update_after_deep_sleep_rejects_esp8266_enable_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """The ESP8266 cannot keep a panel powered through an enable pin while it sleeps."""
+    set_core_config(
+        PlatformFramework.ESP8266_ARDUINO, platform_data={KEY_BOARD: "d1_mini"}
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 14, "mosi_pin": 13})
+
+    base = {
+        "id": "test_display",
+        "model": "ssd1681",
+        "dc_pin": 4,
+        "reset_pin": 2,
+        "full_update_every": 20,
+        "partial_update_after_deep_sleep": "panel",
+    }
+    run_schema_validation(base)
+
+    with pytest.raises(cv.Invalid, match="cannot hold the enable pins"):
+        run_schema_validation({**base, "enable_pin": 5})
 
 
 def test_partial_update_after_deep_sleep_needs_a_model_that_supports_it(

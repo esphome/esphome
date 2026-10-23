@@ -33,6 +33,7 @@ class TestableSSD1681 : public EPaperSSD1681 {
     this->panel_holds_image_ = true;
   }
 
+  using EPaperSSD1681::on_safe_shutdown;
   using EPaperSSD1681::teardown;
   void abandon() { this->abandon_update_(); }
   EPaperState state() const { return this->state_; }
@@ -266,8 +267,9 @@ TEST(EPaperSSD1681, ComparisonFrameIsWhatWasSent) {
 }
 
 /// Before the controller sleeps, an update in flight is finished, so nothing is left for the
-/// controller's deep sleep to interrupt. The panel is then already in deep sleep mode 1 with its
-/// RAM kept, since every update ends that way, so nothing more is sent.
+/// controller's deep sleep to interrupt. The core runs on_safe_shutdown() before teardown(), so the
+/// panel must not be put to sleep there. It ends in deep sleep mode 1 with its RAM kept, since every
+/// update ends that way, so nothing more is sent.
 TEST(EPaperSSD1681, TeardownFinishesTheUpdateAndSendsNothingMore) {
   TestableSSD1681 display(16, 2);
   RecordingDelegate bus(&display.dc);
@@ -279,6 +281,8 @@ TEST(EPaperSSD1681, TeardownFinishesTheUpdateAndSendsNothingMore) {
   ASSERT_EQ(display.state(), EPaperState::RESET);
   bus.clear();
 
+  display.on_safe_shutdown();
+  EXPECT_TRUE(bus.commands.empty()) << "panel was put to sleep before the update in flight finished";
   while (!display.teardown()) {
   }
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0xC3})) << "update in flight was not finished";
@@ -305,6 +309,23 @@ TEST(EPaperSSD1681, AbandonedUpdateDoesNotKeepThePanelImage) {
   display.run_update_state();
   display.abandon();
   EXPECT_FALSE(display.panel_holds_image());
+}
+
+/// Without the image kept through the sleep, shutdown puts the panel to sleep at once, as before.
+TEST(EPaperSSD1681, ShutdownSleepsAtOnceWithoutTheOption) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 1);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update_state();
+  bus.clear();
+
+  display.on_safe_shutdown();
+  EXPECT_EQ(bus.commands, (Bytes{0x10}));
+  EXPECT_TRUE(display.teardown());
+  EXPECT_EQ(bus.commands, (Bytes{0x10})) << "teardown sent more after the panel was put to sleep";
 }
 
 /// With every update a full one the panel loses its RAM in deep sleep and there is nothing to keep.
