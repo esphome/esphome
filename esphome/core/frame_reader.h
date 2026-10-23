@@ -18,7 +18,7 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
   /// Feed one byte; returns the completed frame, header included, valid until the next call, or nullptr.
   const uint8_t *feed(uint8_t c) {
     pos_t pos = this->pos_;
-    if (pos < HEADER_LEN && c != header_byte_(pos)) {
+    if (pos < HEADER_LEN && c != header_byte(pos)) {
       if constexpr (HEADER_LEN > 1) {
         // A later byte of the broken header, or c, may start the real one
         this->buf_[pos] = c;
@@ -48,7 +48,7 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
 
  protected:
   // A fold, not an array, so no header table lands in RAM on ESP8266
-  static constexpr uint8_t header_byte_(size_t i) {
+  static constexpr uint8_t header_byte(size_t i) {
     size_t j = 0;
     uint8_t r = 0;
     ((r = (j++ == i) ? HEADER : r), ...);
