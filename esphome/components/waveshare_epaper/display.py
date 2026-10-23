@@ -17,6 +17,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+CONF_DISPLAY_MODE = "display_mode"
+
 DEPENDENCIES = ["spi"]
 
 LOGGER = logging.getLogger(__name__)
@@ -71,6 +73,9 @@ WaveshareEPaper4P2In = waveshare_epaper_ns.class_(
 )
 WaveshareEPaper4P2InBV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper4P2InBV2", WaveshareEPaper
+)
+WaveshareEPaper4P2InV2 = waveshare_epaper_ns.class_(
+    "WaveshareEPaper4P2InV2", WaveshareEPaper
 )
 WaveshareEPaper4P2InBV2BWR = waveshare_epaper_ns.class_(
     "WaveshareEPaper4P2InBV2BWR", WaveshareEPaperBWR
@@ -158,6 +163,7 @@ MODELS = {
     "gdey042t81": ("c", GDEY042T81),
     "4.20in": ("b", WaveshareEPaper4P2In),
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
+    "4.20in-v2": ("a-alt", WaveshareEPaper4P2InV2),
     "4.20in-bv2-bwr": ("b", WaveshareEPaper4P2InBV2BWR),
     "5.65in-f": ("b", WaveshareEPaper5P65InF),
     "5.83in": ("b", WaveshareEPaper5P8In),
@@ -180,6 +186,14 @@ MODELS = {
 }
 
 RESET_PIN_REQUIRED_MODELS = ("2.13inv2", "2.13in-ttgo-b74")
+
+DisplayMode = waveshare_epaper_ns.enum("DisplayMode")
+DISPLAY_MODES = {
+    "PARTIAL": DisplayMode.MODE_PARTIAL,
+    "FULL": DisplayMode.MODE_FULL,
+    "FAST": DisplayMode.MODE_FAST,
+    "GRAYSCALE4": DisplayMode.MODE_GRAYSCALE4,
+}
 
 
 def validate_full_update_every_only_types_ac(value: ConfigType) -> ConfigType:
@@ -205,6 +219,17 @@ def validate_reset_pin_required(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_grayscale4_supported(config):
+    print(config[CONF_MODEL])
+    if CONF_DISPLAY_MODE in config:
+        if config[CONF_MODEL] in ["4.20in-v2"]:
+            return config
+        raise cv.Invalid(
+            f"'{CONF_DISPLAY_MODE}' is not supported for model {config[CONF_MODEL]}"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
@@ -218,12 +243,14 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
+            cv.Optional(CONF_DISPLAY_MODE): cv.enum(DISPLAY_MODES, upper=True),
         }
     )
     .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema()),
     validate_full_update_every_only_types_ac,
     validate_reset_pin_required,
+    validate_grayscale4_supported,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 
@@ -242,7 +269,7 @@ async def to_code(config: ConfigType) -> None:
     if model_type == "a":
         rhs = WaveshareEPaperTypeA.new(model)
         var = cg.Pvariable(config[CONF_ID], rhs, WaveshareEPaperTypeA)
-    elif model_type in ("b", "c"):
+    elif model_type in ("a-alt", "b", "c"):
         rhs = model.new()
         var = cg.Pvariable(config[CONF_ID], rhs, model)
     else:
@@ -269,3 +296,5 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
+    if CONF_DISPLAY_MODE in config:
+        cg.add(var.set_display_mode(config[CONF_DISPLAY_MODE]))
