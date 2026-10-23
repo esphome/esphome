@@ -467,8 +467,9 @@ bool UFM01Component::process_active_stream_(uint32_t now) {
     }
     const uint8_t *frame = this->active_reader_.feed(byte);
     if (frame == nullptr) {
-      if (this->active_reader_.length() == 0)
+      if (this->active_reader_.length() == 0) {
         ESP_LOGD(TAG, "not start of data (is 0x%02X)", byte);
+      }
       continue;
     }
     if (validate_active_frame(frame)) {
