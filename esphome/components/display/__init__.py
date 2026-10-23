@@ -181,8 +181,8 @@ def get_all_display_metadata() -> dict[str, DisplayMetaData]:
     return {id_.id: meta for id_, meta in entries}
 
 
-def has_writer(config: ConfigType) -> bool:
-    """Return True when the display config draws anything: auto clear, pages, a lambda or the test card."""
+def config_has_writer(config: ConfigType) -> bool:
+    """Return True when the display config draws anything."""
     return (
         config.get(CONF_AUTO_CLEAR_ENABLED) is True
         or config.get(CONF_PAGES) is not None
