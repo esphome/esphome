@@ -242,7 +242,7 @@ class TcpServerTest : public ::testing::Test {
   static void set_time(uint32_t now) { LoopBlockingGuard guard{nullptr, nullptr, now}; }
   static uint16_t free_port() {
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     socklen_t len = sizeof(addr);
@@ -254,7 +254,7 @@ class TcpServerTest : public ::testing::Test {
   // Connects a client and runs the server's loop until it has accepted it
   int connect_client() {
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in addr {};
+    struct sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons(this->port);
