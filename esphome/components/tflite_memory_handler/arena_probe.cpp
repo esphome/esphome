@@ -4,6 +4,7 @@
 #include "memory_manager.h"
 #include "esphome/components/tflite_op_processor/op_resolver.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 #include <memory>
 #include <set>
 #include "tensorflow/lite/micro/micro_interpreter.h"
@@ -108,9 +109,12 @@ size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
     }
     probe_allocation.reset();
 
-    // low == high is the smallest size that allocated. It was tested, so it
-    // needs no confirmation; report it 16-byte aligned, which only grows it.
-    const size_t aligned_minimum = (low + 15) & ~15;
+    // low == high is the smallest size that allocated, but only at this probe
+    // pointer: the arena is not 16-byte aligned any more, and TFLM aligns the
+    // head itself, so a later arena landing worse can lose up to 12 usable
+    // bytes. Add the same 16 bytes of headroom the lower-bound path has, and
+    // never go above the size that was already proven to work.
+    const size_t aligned_minimum = std::min(((low + 15) & ~15) + 16, upper);
     ESP_LOGI(TAG, "probe_arena_size: minimum required arena: %zu bytes", aligned_minimum);
     return aligned_minimum;
   }

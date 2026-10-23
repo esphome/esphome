@@ -48,8 +48,8 @@ MemoryManager::AllocationResult MemoryManager::allocate_tensor_arena(size_t requ
   const bool from_psram = (flags & RAMAllocator<uint8_t>::ALLOC_EXTERNAL) != 0;
   RAMAllocator<uint8_t> allocator(flags);
 
-  uint8_t *arena_ptr = allocator.allocate(requested_size, 1);
-  if (arena_ptr == nullptr) {
+  result.data = allocator.make_unique_array_for_overwrite(requested_size);
+  if (!result.data) {
     ESP_LOGE(TAG, "Failed to allocate %zu bytes of tensor arena from %s (%zu bytes free)", requested_size,
              from_psram ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"), allocator.get_free_heap_size());
     if (from_psram) {
@@ -63,9 +63,8 @@ MemoryManager::AllocationResult MemoryManager::allocate_tensor_arena(size_t requ
     return result;
   }
 
-  result.data = std::unique_ptr<uint8_t[], AllocationResult::ArenaDeleter>(arena_ptr, AllocationResult::ArenaDeleter());
   result.from_psram = from_psram;
-  ESP_LOGI(TAG, "Allocated tensor arena: %zu bytes @ %p (%s)", requested_size, arena_ptr,
+  ESP_LOGI(TAG, "Allocated tensor arena: %zu bytes @ %p (%s)", requested_size, result.data.get(),
            from_psram ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("SRAM"));
   return result;
 }
