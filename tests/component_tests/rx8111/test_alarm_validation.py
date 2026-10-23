@@ -104,7 +104,7 @@ def test_invalid_fout_frequency() -> None:
         cv.enum(FOUT_FREQUENCIES, lower=True)("100hz")
 
 
-def test_event_configuration_requires_consumer() -> None:
+def test_event_configuration_requires_enablement() -> None:
     from esphome.components.rx8111.time import (
         CONF_EVENT_ENABLED,
         CONF_EVENT_LEVEL,
