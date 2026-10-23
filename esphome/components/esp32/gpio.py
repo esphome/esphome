@@ -150,9 +150,9 @@ def validate_gpio_pin(pin):
             exc,
         )
     else:
-        # `ignore_pin_validation_error` only suppresses an error raised by the
-        # variant's pin_validation above (e.g. SPI flash/PSRAM pins); pin numbers out
-        # of range still fail validate_supports. If nothing raised, the option is a
+        # `ignore_pin_validation_error` only suppresses an error raised by
+        # validate_gpio_pin above (e.g. SPI flash/PSRAM pins); pin numbers out of
+        # range still fail validate_supports. If nothing raised, the option is a
         # no-op -- warn so the user can clean it up, but don't block the build.
         if ignore_pin_validation_warning:
             _LOGGER.warning(
