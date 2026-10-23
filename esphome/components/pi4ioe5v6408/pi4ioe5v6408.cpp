@@ -34,9 +34,6 @@ void PI4IOE5V6408Component::setup() {
     }
   }
 
-  // No need to clear latched interrupts before attaching the ISR — if INT is
-  // already low the ISR fires immediately, loop runs, cache invalidates, and
-  // the read clears the latch. One harmless extra read at most.
   this->setup_interrupt_pin_();
 }
 void PI4IOE5V6408Component::dump_config() {

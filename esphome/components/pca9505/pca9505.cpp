@@ -63,7 +63,7 @@ void PCA9505Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   const uint8_t mask = 1 << (pin % 8);
   if (flags & gpio::FLAG_INPUT) {
     this->config_[bank] &= ~mask;
-    // An input may raise INT; the polling loop is only needed when there is no interrupt pin.
+    // An input may raise INT.
     this->mask_[bank] &= ~mask;
     this->enable_polling_loop_();
   } else if (flags & gpio::FLAG_OUTPUT) {

@@ -43,13 +43,12 @@ void MCP23X17Base::pin_mode(uint8_t pin, gpio::Flags flags) {
   } else if (flags == gpio::FLAG_OUTPUT) {
     this->update_reg(pin, false, iodir);
   }
-  // When interrupt_pin is configured, auto-enable CHANGE interrupt for input pins
-  // so the chip's INT output fires on any input state change
-  if (this->interrupt_pin_ != nullptr && (flags & gpio::FLAG_INPUT)) {
-    this->pin_interrupt_mode(pin, mcp23xxx_base::MCP23XXX_CHANGE);
-  }
-  if (flags & gpio::FLAG_INPUT)
+  if (flags & gpio::FLAG_INPUT) {
+    // With an interrupt pin, INT fires on any change of an input
+    if (this->interrupt_pin_ != nullptr)
+      this->pin_interrupt_mode(pin, mcp23xxx_base::MCP23XXX_CHANGE);
     this->enable_polling_loop_();
+  }
 }
 
 void MCP23X17Base::pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterruptMode interrupt_mode) {
