@@ -27,7 +27,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
-from esphome.git import strip_url_credentials
+from esphome.git import GitException, run_git_command, strip_url_credentials
 from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
@@ -79,6 +79,7 @@ def _esphome_vcs() -> tuple[str, str] | None:
         commit = info.get("vcs_info", {}).get("commit_id")
         url = info.get("url")
     except (ValueError, AttributeError):
+        _LOGGER.debug("SBOM: unreadable direct_url.json for esphome: %s", direct_url)
         return None
     if not commit or not isinstance(url, str):
         return None
@@ -91,6 +92,17 @@ def _project_manifest() -> dict[str, Any] | None:
     return {"name": project[CONF_NAME], "version": project[CONF_VERSION]}
 
 
+def _source_commit(source: ExternalSource) -> str | None:
+    """Return the commit checked out for a git source, if it can be read."""
+    if source.repo_dir is None:
+        return None
+    try:
+        return run_git_command(["git", "rev-parse", "HEAD"], git_dir=source.repo_dir)
+    except GitException:
+        # Only SBOM metadata depends on it; never fail the build over it
+        return None
+
+
 def _external_manifest(source: ExternalSource, name: str) -> dict[str, Any]:
     manifest: dict[str, Any] = {"name": name}
     if source.url is None:
@@ -98,14 +110,15 @@ def _external_manifest(source: ExternalSource, name: str) -> dict[str, Any]:
         return manifest
     location = f"{source.url}@{source.ref}" if source.ref else source.url
     manifest["description"] = f"External component from {location}"
-    if source.commit:
-        manifest["version"] = source.commit
+    commit = _source_commit(source)
+    if commit:
+        manifest["version"] = commit
     if _is_remote_url(source.url):
         manifest["repository"] = source.url
-    if source.commit and (
-        purl := _repo_purl(source.url, source.commit, f"{source.repo_subpath}/{name}")
-    ):
-        manifest["purl"] = purl
+    if commit and source.repo_dir is not None:
+        subpath = (source.components_dir / name).relative_to(source.repo_dir)
+        if purl := _repo_purl(source.url, commit, subpath.as_posix()):
+            manifest["purl"] = purl
     return manifest
 
 
@@ -114,9 +127,13 @@ def _external_manifests() -> list[dict[str, Any]]:
     sources = [(s, s.components_dir.resolve()) for s in get_sources()]
     found: dict[Path, ExternalSource] = {}
     for domain in CORE.loaded_integrations:
-        if (manifest := loader.get_component(domain)) is None:
-            continue
-        if (module_file := getattr(manifest.module, "__file__", None)) is None:
+        manifest = loader.get_component(domain)
+        module_file = getattr(getattr(manifest, "module", None), "__file__", None)
+        if module_file is None:
+            _LOGGER.warning(
+                "SBOM: cannot locate component '%s'; it is listed as part of ESPHome",
+                domain,
+            )
             continue
         component_dir = Path(module_file).resolve().parent
         for source, components_dir in sources:

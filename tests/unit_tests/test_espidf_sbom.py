@@ -13,6 +13,7 @@ from esphome.components.external_components import ExternalSource, get_sources
 from esphome.const import CONF_ESPHOME, CONF_NAME, CONF_PROJECT, CONF_VERSION
 from esphome.core import CORE
 from esphome.espidf import sbom
+from esphome.git import GitCommandError
 
 
 @pytest.fixture(name="build_tree")
@@ -199,8 +200,7 @@ def test_external_components(build_tree: Path, tmp_path: Path) -> None:
                 components_dir=git_dir,
                 url="https://github.com/acme/parts",
                 ref="main",
-                commit="abc",
-                repo_subpath="components",
+                repo_dir=tmp_path / "repo",
             ),
             ExternalSource(components_dir=local_dir),
         ]
@@ -210,7 +210,12 @@ def test_external_components(build_tree: Path, tmp_path: Path) -> None:
     # Provided by the source but not used by this configuration
     (git_dir / "unused").mkdir()
 
-    sbom.write_manifests()
+    with patch.object(sbom, "run_git_command", return_value="abc") as run_git:
+        sbom.write_manifests()
+
+    run_git.assert_called_once_with(
+        ["git", "rev-parse", "HEAD"], git_dir=tmp_path / "repo"
+    )
 
     assert _read(build_tree / "src" / "sbom.yml")["manifests"] == [
         {
@@ -233,9 +238,11 @@ def test_external_components(build_tree: Path, tmp_path: Path) -> None:
 def test_external_component_unusual_url() -> None:
     """A URL esp-idf-sbom would reject is kept only in the description."""
     source = ExternalSource(
-        components_dir=Path("/x"), url="git@github.com:o/r.git", commit="abc"
+        components_dir=Path("/x"), url="git@github.com:o/r.git", repo_dir=Path("/x")
     )
-    assert sbom._external_manifest(source, "widget") == {
+    with patch.object(sbom, "run_git_command", return_value="abc"):
+        manifest = sbom._external_manifest(source, "widget")
+    assert manifest == {
         "name": "widget",
         "description": "External component from git@github.com:o/r.git",
         "version": "abc",
@@ -251,19 +258,26 @@ def test_esphome_commit_not_installed() -> None:
 
 
 def test_external_component_without_commit() -> None:
-    """Without a commit there is no version and no PURL to pin it."""
-    source = ExternalSource(components_dir=Path("/x"), url="https://github.com/o/r")
-    assert sbom._external_manifest(source, "widget") == {
+    """Without a readable commit there is no version and no PURL to pin it."""
+    expected = {
         "name": "widget",
         "description": "External component from https://github.com/o/r",
         "repository": "https://github.com/o/r",
     }
+    source = ExternalSource(components_dir=Path("/x"), url="https://github.com/o/r")
+    assert sbom._external_manifest(source, "widget") == expected
+
+    source.repo_dir = Path("/x")
+    with patch.object(
+        sbom, "run_git_command", side_effect=GitCommandError("not a repo")
+    ):
+        assert sbom._external_manifest(source, "widget") == expected
 
 
 def test_external_manifests_skip_other_components(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Built-in, unresolvable and file-less components stay in the ESPHome package."""
+    """Only external components are carved out; unlocatable ones are reported."""
     components_dir = tmp_path / "components"
     get_sources().append(ExternalSource(components_dir=components_dir))
     _add_external_component(components_dir, "widget")
@@ -286,7 +300,9 @@ def test_external_manifests_skip_other_components(
         manifests = sbom._external_manifests()
 
     assert [m["dest"] for m in manifests] == ["esphome/components/widget"]
-    assert "SBOM" not in caplog.text
+    assert "'wifi'" not in caplog.text
+    assert "cannot locate component 'missing'" in caplog.text
+    assert "cannot locate component 'namespace'" in caplog.text
 
 
 def test_external_manifests_warn_unmatched(

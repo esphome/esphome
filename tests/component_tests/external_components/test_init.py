@@ -23,7 +23,6 @@ from esphome.const import (
     TYPE_LOCAL,
 )
 from esphome.core import CORE, TimePeriodSeconds
-from esphome.git import GitCommandError
 
 
 def _make_config(tmp_path: Path) -> dict[str, Any]:
@@ -196,22 +195,21 @@ def test_external_components_records_git_source(
     mock_clone_or_update: MagicMock,
     mock_install_meta_finder: MagicMock,
 ) -> None:
-    """A git source is recorded with its URL, ref and the commit that was checked out."""
+    """A git source is recorded with its URL, ref and checkout; validation runs no git."""
     mock_clone_or_update.return_value = (tmp_path, None)
     config = _make_config(tmp_path)
     config[CONF_EXTERNAL_COMPONENTS][0][CONF_SOURCE][CONF_REF] = "main"
 
-    with patch("esphome.git.run_git_command", return_value="abc123") as rev_parse:
+    with patch("esphome.git.run_git_command") as run_git:
         do_external_components_pass(config)
 
-    rev_parse.assert_called_once_with(["git", "rev-parse", "HEAD"], git_dir=tmp_path)
+    run_git.assert_not_called()
     assert get_sources() == [
         ExternalSource(
             components_dir=tmp_path / "components",
             url="https://github.com/test/components",
             ref="main",
-            commit="abc123",
-            repo_subpath="components",
+            repo_dir=tmp_path,
         )
     ]
 
@@ -228,27 +226,9 @@ def test_external_components_strips_url_credentials(
         "https://user:ghp_secret@github.com/test/components"
     )
 
-    with patch("esphome.git.run_git_command", return_value="abc123"):
-        do_external_components_pass(config)
+    do_external_components_pass(config)
 
     assert get_sources()[0].url == "https://github.com/test/components"
-
-
-def test_external_components_git_source_without_commit(
-    tmp_path: Path,
-    mock_clone_or_update: MagicMock,
-    mock_install_meta_finder: MagicMock,
-) -> None:
-    """A failed rev-parse leaves the commit unset instead of failing validation."""
-    mock_clone_or_update.return_value = (tmp_path, None)
-    config = _make_config(tmp_path)
-
-    with patch(
-        "esphome.git.run_git_command", side_effect=GitCommandError("not a repo")
-    ):
-        do_external_components_pass(config)
-
-    assert get_sources()[0].commit is None
 
 
 def test_external_components_records_local_source(

@@ -32,9 +32,8 @@ class ExternalSource:
     components_dir: Path
     url: str | None = None
     ref: str | None = None
-    commit: str | None = None
-    # components_dir relative to the repository root, POSIX form
-    repo_subpath: str | None = None
+    # Root of the git checkout holding components_dir
+    repo_dir: Path | None = None
 
 
 @dataclass
@@ -96,19 +95,13 @@ def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> P
             "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder"
         )
 
-    try:
-        commit = git.run_git_command(["git", "rev-parse", "HEAD"], git_dir=repo_dir)
-    except git.GitException:
-        # Only SBOM metadata depends on it; never fail the build over it
-        commit = None
     get_sources().append(
         ExternalSource(
             components_dir=components_dir,
             # Ends up in SBOMs that are shared outside
             url=git.strip_url_credentials(config[CONF_URL]),
             ref=config.get(CONF_REF),
-            commit=commit,
-            repo_subpath=components_dir.relative_to(repo_dir).as_posix(),
+            repo_dir=repo_dir,
         )
     )
     return components_dir
