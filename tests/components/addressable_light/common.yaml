@@ -1,6 +1,6 @@
 light:
   - platform: esp32_rmt_led_strip
-    id: led_matrix_32x8
+    id: addressable_light_matrix
     default_transition_length: 500ms
     chipset: ws2812
     channel_colors: GRB
@@ -9,8 +9,8 @@ light:
 
 display:
   - platform: addressable_light
-    id: led_matrix_32x8_display
-    addressable_light_id: led_matrix_32x8
+    id: addressable_light_display
+    addressable_light_id: addressable_light_matrix
     width: 32
     height: 8
     pixel_mapper: |-
