@@ -449,7 +449,8 @@ void ToshibaClimate::set_power_selection(size_t index) {
   if (index > 4 || !this->validate_ras_25j2kvsg_nd_power_preset_(index, preset))
     return;
   this->set_ras_25j2kvsg_nd_power_(static_cast<uint8_t>(index));
-  this->transmit_ras_25j2kvsg_nd_(preset);
+  // The select's on_value automation may have changed the preset.
+  this->transmit_ras_25j2kvsg_nd_(this->ras_25j2kvsg_nd_preset_());
 }
 
 bool ToshibaClimate::validate_ras_25j2kvsg_nd_power_preset_(size_t power, ToshibaPreset preset) const {

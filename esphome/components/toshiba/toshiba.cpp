@@ -417,9 +417,12 @@ void ToshibaClimate::setup() {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
 #ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
-      if (this->model_ != MODEL_RAS_25J2KVSG_ND)
+      if (this->model_ != MODEL_RAS_25J2KVSG_ND) {
 #endif
         this->transmit_rac_pt1411hwru_temp_();
+#ifdef USE_TOSHIBA_RAS_25J2KVSG_ND
+      }
+#endif
       // current temperature changed, publish state
       this->publish_state();
     });

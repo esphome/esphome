@@ -1288,6 +1288,45 @@ TEST(ToshibaWhTa15pe, CancellingPresetPreservesPowerLimitAndPublishesSelection) 
   expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x70, 0x63, 0x80, 0x92}, GENERIC), 9);
 }
 
+TEST(ToshibaWhTa15pe, PowerSelectionCallbacksKeepPresetAndWireInSync) {
+  for (const size_t selection : {1u, 2u}) {
+    for (const bool enable_eco : {false, true}) {
+      SCOPED_TRACE(::testing::Message() << "selection " << selection << " enable ECO " << enable_eco);
+      global_preferences->reset();
+      Fixture f(MODEL_RAS_25J2KVSG_ND);
+      f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_AUTO);
+      f.fan("Low+");
+      f.preset(enable_eco ? "NONE" : "ECO");
+      PowerSelection power;
+      f.climate.set_power_selection_select(&power);
+      size_t publications = 0;
+      power.add_on_state_callback([&](size_t index) {
+        publications++;
+        EXPECT_EQ(index, selection);
+        f.preset(enable_eco ? "ECO" : "NONE");
+      });
+      f.transmitter.frames.clear();
+      f.climate.set_power_selection(selection);
+      EXPECT_EQ(publications, 1u);
+      EXPECT_EQ(power.active_index(), selection);
+      EXPECT_EQ(f.climate.preset, enable_eco ? climate::CLIMATE_PRESET_ECO : climate::CLIMATE_PRESET_NONE);
+      ASSERT_EQ(f.transmitter.frames.size(), 2u);
+
+      // Derived regression frames: both sends must reflect the callback's preset and the selected limit.
+      std::vector<uint8_t> bytes{0xF2, 0x0D, 0x03, 0xFC, 0x01, 0x70, 0x63, static_cast<uint8_t>(selection << 6)};
+      if (enable_eco) {
+        bytes[2] = 0x04;
+        bytes[3] = 0xFB;
+        bytes[4] = 0x09;
+        bytes.push_back(0x03);
+      }
+      bytes.push_back(xor_bytes(bytes.data() + 4, bytes.size() - 4));
+      for (const auto &frame : f.transmitter.frames)
+        expect_frame(frame, waveform(bytes, GENERIC), bytes.size());
+    }
+  }
+}
+
 TEST(ToshibaWhTa15pe, SensorUpdatesDoNotTransmitARacComfortSenseCommand) {
   sensor::Sensor sensor;
   Fixture f(MODEL_RAS_25J2KVSG_ND, false);
