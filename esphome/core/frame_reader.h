@@ -19,7 +19,13 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
   const uint8_t *feed(uint8_t c) {
     pos_t pos = this->pos_;
     if (pos < HEADER_LEN && c != header_byte_(pos)) {
-      this->pos_ = this->rematch_(pos, c);
+      if constexpr (HEADER_LEN > 1) {
+        // A later byte of the broken header, or c, may start the real one
+        this->buf_[pos] = c;
+        this->replay_(pos);
+      } else {
+        this->pos_ = 0;
+      }
       return nullptr;
     }
     this->buf_[pos++] = c;
@@ -38,12 +44,7 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
   void reset() { this->pos_ = 0; }
 
   /// For a frame the caller rejected (bad checksum): drop its first byte and realign on a header in the rest.
-  void resync() {
-    this->pos_ = 0;
-    for (size_t i = 1; i < N; i++) {
-      this->feed(this->buf_[i]);
-    }
-  }
+  void resync() { this->replay_(N - 1); }
 
  protected:
   // A fold, not an array, so no header table lands in RAM on ESP8266
@@ -54,27 +55,12 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
     return r;
   }
 
-  // After header bytes [0, pos) matched and c did not: the longest header prefix ending in c, so no possible
-  // header start is lost.
-  pos_t rematch_(pos_t pos, uint8_t c) {
-    if constexpr (HEADER_LEN > 1) {
-      for (pos_t k = pos; k > 0; k--) {
-        if (header_byte_(k - 1) != c) {
-          continue;
-        }
-        bool match = true;
-        for (pos_t i = 0; i + 1 < k && match; i++) {
-          match = header_byte_(i) == header_byte_(pos - k + 1 + i);
-        }
-        if (match) {
-          for (pos_t i = 0; i < k; i++) {
-            this->buf_[i] = header_byte_(i);
-          }
-          return k;
-        }
-      }
+  // Start over and feed buf_[1..last] again; never completes a frame as last < N
+  void replay_(size_t last) {
+    this->pos_ = 0;
+    for (size_t i = 1; i <= last; i++) {
+      this->feed(this->buf_[i]);
     }
-    return 0;
   }
 
   uint8_t buf_[N];
