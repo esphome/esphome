@@ -11,9 +11,9 @@ import asyncio
 from aioesphomeapi import BinarySensorInfo, EntityState, NumberInfo, TextSensorInfo
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
-from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -23,13 +23,7 @@ async def test_uart_mock_dfrobot_sen0609(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Boot reads the module's settings; a number change is written and saved."""
-    loop = asyncio.get_running_loop()
-    saved = loop.create_future()
-
-    def line_callback(line: str) -> None:
-        if "Saved range 0.60 8.00" in line and not saved.done():
-            saved.set_result(True)
-
+    waiter = LineWaiter()
     states: dict[int, EntityState] = {}
 
     async def wait_for(condition, what: str) -> None:
@@ -41,7 +35,7 @@ async def test_uart_mock_dfrobot_sen0609(
             pytest.fail(f"Timeout waiting for {what}; states: {states}")
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -64,7 +58,7 @@ async def test_uart_mock_dfrobot_sen0609(
         assert state_of(min_range) == pytest.approx(0.6)
 
         client.number_command(max_range.key, 8.0)
-        await wait_or_fail(saved, 10.0, "The new range was not written and saved")
+        await waiter.wait_for("Saved range 0.60 8.00", timeout=10.0)
         await wait_for(
             lambda: state_of(max_range) == pytest.approx(8.0), "new maximum range"
         )

@@ -362,7 +362,7 @@ def _validate(config: ConfigType) -> ConfigType:
             from esphome.components.esp32 import (
                 VARIANT_ESP32S31,
                 get_esp32_variant,
-                idf_version,
+                require_idf_version,
             )
 
             eth_type = config[CONF_TYPE]
@@ -372,10 +372,9 @@ def _validate(config: ConfigType) -> ConfigType:
                     f"The '{eth_type}' (RGMII) PHY is only supported on gigabit-capable "
                     f"variants (ESP32-S31), not {variant}"
                 )
-            if idf_version() < cv.Version(6, 0, 0):
-                raise cv.Invalid(
-                    f"The '{eth_type}' (RGMII) PHY requires ESP-IDF 6.0 or newer."
-                )
+            require_idf_version(cv.Version(6, 0, 0), f"The '{eth_type}' (RGMII) PHY")(
+                config
+            )
         elif config[CONF_TYPE] != "OPENETH":
             from esphome.components.esp32 import (
                 VARIANT_ESP32,

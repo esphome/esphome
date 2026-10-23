@@ -13,3 +13,9 @@ binary_sensor:
         input: true
         pullup: true
       inverted: false
+
+output:
+  - platform: max6956
+    id: max6956_output
+    max6956: max6956_1
+    pin: 5
