@@ -454,12 +454,12 @@ TEST(ToshibaWhTa15pe, DecodesMeasuredSwingBurstIncludingItsRepeatedCopy) {
   EXPECT_EQ(f.climate.fan_mode, climate::CLIMATE_FAN_LOW);
 }
 
-TEST(ToshibaWhTa15pe, SendsOnlyMotionForSwingAndFix) {
+TEST(ToshibaWhTa15pe, SendsOnlyMotionForSwingAndVaneStep) {
   RasFixture f;
   f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_LOW);
   f.swing(climate::CLIMATE_SWING_VERTICAL);
   expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC), 7);
-  f.climate.fix();
+  f.climate.step_vane();
   expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x00, 0x21}, GENERIC, 1), 7);
   f.swing(climate::CLIMATE_SWING_OFF);
   expect_frame(f.last_frame(), waveform({0xF2, 0x0D, 0x01, 0xFE, 0x21, 0x04, 0x25}, GENERIC), 7);
@@ -712,13 +712,13 @@ TEST(ToshibaWhTa15pe, PresetReplacementAndHadaMotionRestrictions) {
   f.preset("HADA Care");
   EXPECT_EQ(f.climate.get_custom_preset(), "HADA Care");
   const auto transmissions = f.transmitter.frames.size();
-  f.climate.fix();
+  f.climate.step_vane();
   f.swing(climate::CLIMATE_SWING_VERTICAL);
   EXPECT_EQ(f.transmitter.frames.size(), transmissions);
   f.preset("NONE");
   EXPECT_EQ(f.climate.preset, climate::CLIMATE_PRESET_NONE);
   EXPECT_FALSE(f.climate.has_custom_preset());
-  f.climate.fix();
+  f.climate.step_vane();
   EXPECT_EQ(f.transmitter.frames.size(), transmissions + 2);
 }
 

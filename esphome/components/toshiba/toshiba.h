@@ -28,7 +28,7 @@ static constexpr uint8_t TOSHIBA_FAN_SPEED_5 = 0xC0;
 static constexpr uint8_t TOSHIBA_POWER_HIGH = 0x01;
 static constexpr uint8_t TOSHIBA_POWER_ECO = 0x03;
 static constexpr uint8_t TOSHIBA_MOTION_SWING = 0x04;
-static constexpr uint8_t TOSHIBA_MOTION_FIX = 0x00;
+static constexpr uint8_t TOSHIBA_MOTION_VANE_STEP = 0x00;
 
 // Simple enum to represent models.
 enum Model {
@@ -78,7 +78,7 @@ class ToshibaClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
   // Hooks for model subclasses
-  virtual float temperature_min_() {
+  virtual float temperature_min() {
     if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F)
       return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
     if (this->model_ == MODEL_RAS_2819T)
@@ -86,9 +86,9 @@ class ToshibaClimate : public climate_ir::ClimateIR {
     return TOSHIBA_GENERIC_TEMP_C_MIN;  // Default to GENERIC for unknown models
   }
   // Called from the sensor callback after current_temperature is updated
-  virtual void transmit_current_temperature_() { this->transmit_rac_pt1411hwru_temp_(); }
+  virtual void transmit_current_temperature() { this->transmit_rac_pt1411hwru_temp_(); }
   // Sanitizes the saved state before swing and apply() use it
-  virtual void restore_(climate::ClimateDeviceRestoreState &restore) {}
+  virtual void sanitize_restore_state(climate::ClimateDeviceRestoreState &restore) {}
 
   void encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);
   bool decode_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes);

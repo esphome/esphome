@@ -23,7 +23,7 @@ class ToshibaRas25j2kvsgNdClimate final : public ToshibaClimate {
   ToshibaRas25j2kvsgNdClimate() { this->set_model(MODEL_RAS_25J2KVSG_ND); }
 
   void setup() override;
-  void fix();
+  void step_vane();
   void set_power_selection(size_t index);
 #ifdef USE_SELECT
   SUB_SELECT(power_selection)
@@ -77,9 +77,9 @@ class ToshibaRas25j2kvsgNdClimate final : public ToshibaClimate {
   void transmit_state() override;
   bool on_receive(remote_base::RemoteReceiveData data) override;
   // control() enforces the separate normal range.
-  float temperature_min_() override { return TOSHIBA_RAS_25J2KVSG_ND_FROST_TEMP_C_MIN; }
-  void transmit_current_temperature_() override {}
-  void restore_(climate::ClimateDeviceRestoreState &restore) override;
+  float temperature_min() override { return TOSHIBA_RAS_25J2KVSG_ND_FROST_TEMP_C_MIN; }
+  void transmit_current_temperature() override {}
+  void sanitize_restore_state(climate::ClimateDeviceRestoreState &restore) override;
 
   void transmit_frame_(ToshibaPreset preset);
   void transmit_motion_(uint8_t command, uint8_t repeat);

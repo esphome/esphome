@@ -70,7 +70,7 @@ void ToshibaRas25j2kvsgNdClimate::setup() {
   this->publish_power_selection_();
 }
 
-void ToshibaRas25j2kvsgNdClimate::restore_(climate::ClimateDeviceRestoreState &restore) {
+void ToshibaRas25j2kvsgNdClimate::sanitize_restore_state(climate::ClimateDeviceRestoreState &restore) {
   if (!this->modes_.count(restore.mode))
     restore.mode = climate::CLIMATE_MODE_OFF;
   auto preset = ToshibaPreset::TOSHIBA_PRESET_NONE;
@@ -333,7 +333,7 @@ void ToshibaRas25j2kvsgNdClimate::perform_(remote_base::RemoteTransmitterBase::T
 
 bool ToshibaRas25j2kvsgNdClimate::receive_motion_(uint8_t command) {
   if (command != TOSHIBA_MOTION_SWING)
-    return command == TOSHIBA_MOTION_FIX;
+    return command == TOSHIBA_MOTION_VANE_STEP;
   const uint32_t now = millis();
   // Windows last well under 65 s, so a larger remainder is a deadline that has already passed.
   const uint32_t remaining = this->swing_ignore_until_ - now;
@@ -463,12 +463,12 @@ bool ToshibaRas25j2kvsgNdClimate::receive_frame_(const uint8_t *message, uint8_t
   return true;
 }
 
-void ToshibaRas25j2kvsgNdClimate::fix() {
+void ToshibaRas25j2kvsgNdClimate::step_vane() {
   if (this->toshiba_preset_() == ToshibaPreset::TOSHIBA_PRESET_HADA_CARE) {
-    ESP_LOGW(TAG, "FIX is unavailable during HADA Care");
+    ESP_LOGW(TAG, "Vane step is unavailable during HADA Care");
     return;
   }
-  this->transmit_motion_(TOSHIBA_MOTION_FIX, 0);
+  this->transmit_motion_(TOSHIBA_MOTION_VANE_STEP, 0);
 }
 
 void ToshibaRas25j2kvsgNdClimate::set_power_selection(size_t index) {

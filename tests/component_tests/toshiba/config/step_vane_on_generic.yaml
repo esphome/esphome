@@ -3,7 +3,7 @@ esphome:
   name: toshiba-test
   on_boot:
     then:
-      - toshiba.fix: generic
+      - toshiba.step_vane: generic
 
 esp32:
   board: esp32dev

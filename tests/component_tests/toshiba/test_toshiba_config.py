@@ -44,7 +44,9 @@ def test_ras_25j2kvsg_nd_uses_its_class(
     assert "USE_TOSHIBA_RAS_25J2KVSG_ND" in {d.name for d in CORE.defines}
 
 
-@pytest.mark.parametrize("file_name", ["select_on_generic.yaml", "fix_on_generic.yaml"])
+@pytest.mark.parametrize(
+    "file_name", ["select_on_generic.yaml", "step_vane_on_generic.yaml"]
+)
 def test_ras_25j2kvsg_nd_features_reject_other_models(
     file_name: str,
     component_config_path: Callable[[str], Path],

@@ -58,9 +58,9 @@ async def to_code(config: ConfigType) -> None:
 
 
 automation.register_apply_action(
-    "toshiba.fix",
+    "toshiba.step_vane",
     automation.maybe_simple_id(
         {cv.Required(CONF_ID): cv.use_id(ToshibaRas25j2kvsgNdClimate)}
     ),
-    automation.ApplyCall("fix()"),
+    automation.ApplyCall("step_vane()"),
 )

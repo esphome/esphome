@@ -47,4 +47,4 @@ esphome:
       - select.set:
           id: toshiba_power_selection
           option: Silent 1
-      - toshiba.fix: toshiba_ras_25j2kvsg_nd
+      - toshiba.step_vane: toshiba_ras_25j2kvsg_nd

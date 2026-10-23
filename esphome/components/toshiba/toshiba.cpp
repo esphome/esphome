@@ -400,13 +400,13 @@ static bool is_valid_ras_2819t_command(uint64_t rc_code_1, uint64_t rc_code_2 = 
 }
 
 void ToshibaClimate::setup() {
-  this->minimum_temperature_ = this->temperature_min_();
+  this->minimum_temperature_ = this->temperature_min();
   this->maximum_temperature_ = this->temperature_max_();
   this->swing_modes_ = this->toshiba_swing_modes_();
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
-      this->transmit_current_temperature_();
+      this->transmit_current_temperature();
       // current temperature changed, publish state
       this->publish_state();
     });
@@ -417,7 +417,7 @@ void ToshibaClimate::setup() {
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
-    this->restore_(*restore);
+    this->sanitize_restore_state(*restore);
     // apply() publishes synchronously, so on_state automations need the swing cache ready. apply() skips an
     // unsupported swing mode, leaving OFF, which also stands for "not yet commanded" on models without a stop.
     if (this->swing_modes_.count(restore->swing_mode))
