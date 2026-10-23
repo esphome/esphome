@@ -27,8 +27,10 @@ TEST(FixedRingBufferBulk, PushStopsWhenFullWithoutOverwriting) {
   const uint8_t first[] = {1, 2, 3};
   const uint8_t second[] = {4, 5, 6};
   EXPECT_EQ(buf.push(first, sizeof(first)), 3u);
+  EXPECT_EQ(buf.free_space(), 1);
   EXPECT_EQ(buf.push(second, sizeof(second)), 1u);
   EXPECT_TRUE(buf.full());
+  EXPECT_EQ(buf.free_space(), 0);
   EXPECT_EQ(buf.push(second, sizeof(second)), 0u);
 
   std::array<uint8_t, 4> out{};

@@ -551,7 +551,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
 
   /// Push up to `len` values without overwriting. Returns how many fit.
   size_t push(const T *data, size_t len) {
-    len = std::min<size_t>(len, this->capacity_ - this->count_);
+    len = std::min<size_t>(len, this->free_space());
     const size_t first = std::min<size_t>(len, this->capacity_ - this->tail_);
     std::copy_n(data, first, this->data_ + this->tail_);
     std::copy_n(data + first, len - first, this->data_);
@@ -584,6 +584,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
   index_type capacity() const { return this->capacity_; }
+  index_type free_space() const { return this->capacity_ - this->count_; }
   bool full() const { return this->count_ == this->capacity_; }
 
   /// Clear all elements (reset to empty, keep capacity)
