@@ -15,6 +15,7 @@
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
 #include <pico/sem.h>
+#include <cstring>
 #include <map>
 
 namespace esphome::rp2040_pio_led_strip {
@@ -49,7 +50,10 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
   void set_init_function(init_fn init) { this->init_ = init; }
 
   void set_chipset(Chipset chipset) { this->chipset_ = chipset; };
-  void clear_effect_data() override { zero_effect_data_(this->effect_data_, this->num_leds_); }
+  void clear_effect_data() override {
+    if (this->effect_data_ != nullptr)
+      memset(this->effect_data_, 0, this->num_leds_);
+  }
 
   void dump_config() override;
 

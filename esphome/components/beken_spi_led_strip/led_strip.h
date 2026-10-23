@@ -9,6 +9,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include <cstring>
+
 namespace esphome::beken_spi_led_strip {
 
 class BekenSPILEDStripLightOutput final : public light::AddressableLight {
@@ -29,7 +31,10 @@ class BekenSPILEDStripLightOutput final : public light::AddressableLight {
 
   void set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency);
 
-  void clear_effect_data() override { zero_effect_data_(this->effect_data_, this->num_leds_); }
+  void clear_effect_data() override {
+    if (this->effect_data_ != nullptr)
+      memset(this->effect_data_, 0, this->num_leds_);
+  }
 
   void dump_config() override;
 

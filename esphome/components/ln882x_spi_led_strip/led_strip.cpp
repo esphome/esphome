@@ -141,6 +141,11 @@ void LN882xSPILEDStripLightOutput::dump_config() {
 
 float LN882xSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
+void LN882xSPILEDStripLightOutput::clear_effect_data() {
+  if (this->effect_data_ != nullptr)
+    memset(this->effect_data_, 0, this->num_leds_);
+}
+
 void LN882xSPILEDStripLightOutput::write_state(light::LightState *state) {
   if (this->is_failed())
     return;

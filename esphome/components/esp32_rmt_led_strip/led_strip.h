@@ -9,6 +9,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include <cstring>
+
 #include <driver/gpio.h>
 #include <esp_err.h>
 #include <esp_idf_version.h>
@@ -46,7 +48,10 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
 
   void set_rmt_symbols(uint32_t rmt_symbols) { this->rmt_symbols_ = rmt_symbols; }
 
-  void clear_effect_data() override { zero_effect_data_(this->effect_data_, this->num_leds_); }
+  void clear_effect_data() override {
+    if (this->effect_data_ != nullptr)
+      memset(this->effect_data_, 0, this->num_leds_);
+  }
 
   void dump_config() override;
 

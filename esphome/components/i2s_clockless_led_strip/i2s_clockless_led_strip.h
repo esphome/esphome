@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <cstring>
 
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
@@ -30,7 +31,10 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
   light::LightTraits get_traits() override { return this->channel_colors_.traits(); }
 
   int32_t size() const override { return this->num_leds_; }
-  void clear_effect_data() override { zero_effect_data_(this->effect_data_(), this->num_leds_); }
+  void clear_effect_data() override {
+    if (this->color_data_ != nullptr)
+      memset(this->effect_data_(), 0, this->num_leds_);
+  }
   void write_state(light::LightState *state) override;
 
  protected:
