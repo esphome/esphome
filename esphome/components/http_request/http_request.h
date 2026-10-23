@@ -261,7 +261,8 @@ class HttpContainer : public Parented<HttpRequestComponent> {
   virtual void end() = 0;
 
   /// Advance a request started with HttpRequestComponent::begin(); call from the main loop until it is no
-  /// longer pending. Each call does a bounded amount of work. Containers from start() are already done.
+  /// longer pending. Containers from start() are already done. Most calls return quickly, but on ESP-IDF the
+  /// first call for each host waits for the name lookup and the TCP connection, up to the whole timeout.
   virtual HttpRequestProgress poll() { return HttpRequestProgress::HTTP_REQUEST_PROGRESS_DONE; }
 
   void set_secure(bool secure) { this->secure_ = secure; }
@@ -577,15 +578,24 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
   void play_complex(const Ts &...x) override {
     this->num_running_++;
     if (this->active_ < MAX_ACTIVE && this->queued_ == 0) {
+      // Started outside pending_: the request's lambdas can stop this action, which clears pending_
+      std::list<PendingRequest> request;
+      request.emplace_back(x...);
       this->active_++;
-      this->pending_.emplace_back(x...);
-      if (!this->start_(this->pending_.back())) {
+      const uint8_t generation = this->stop_generation_;
+      const bool started = this->start_(request.front());
+      if (generation != this->stop_generation_) {
+        // stop() has already reset the counts and the run
+        this->end_all_(request);
+        return;
+      }
+      if (!started) {
         // Not started; report it at once, as the loop may not run again
-        this->pending_.pop_back();
         this->active_--;
         this->report_error_(x...);
         return;
       }
+      this->pending_.splice(this->pending_.end(), request);
     } else if (this->queued_ < MAX_QUEUED) {
       this->queued_++;
       this->pending_.emplace_back(x...);
@@ -693,14 +703,18 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     std::list<PendingRequest> waiting;
     while (!queue.empty()) {
       auto it = queue.begin();
-      if (!this->advance_(*it)) {
-        waiting.splice(waiting.end(), queue, it);
-        continue;
+      const uint8_t generation = this->stop_generation_;
+      // advance_() can start a waiting request, whose lambdas can stop this action
+      const bool finished = this->advance_(*it);
+      if (generation == this->stop_generation_) {
+        if (!finished) {
+          waiting.splice(waiting.end(), queue, it);
+          continue;
+        }
+        std::list<PendingRequest> completed;
+        completed.splice(completed.begin(), queue, it);
+        this->finish_(completed.front());
       }
-      std::list<PendingRequest> completed;
-      completed.splice(completed.begin(), queue, it);
-      uint8_t generation = this->stop_generation_;
-      this->finish_(completed.front());
       if (generation != this->stop_generation_) {
         this->end_all_(waiting);
         this->end_all_(queue);
@@ -780,7 +794,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     }
 #ifdef USE_HTTP_REQUEST_RESPONSE
     else if (request.capture) {
-      std::string response_body(reinterpret_cast<char *>(request.buf), request.buf == nullptr ? 0 : request.read_index);
+      std::string response_body;
+      if (request.buf != nullptr)
+        response_body.assign(reinterpret_cast<char *>(request.buf), request.read_index);
       request.free_buffer();
       std::apply(
           [this, &container, &response_body](auto &...args) {

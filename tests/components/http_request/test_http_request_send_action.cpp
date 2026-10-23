@@ -26,6 +26,8 @@ class FakeContainer : public HttpContainer {
   int read_available(uint8_t *buf, size_t max_len) override {
     if (this->stall)
       return 0;
+    if (this->bytes_read_ >= this->fail_at)
+      return -1;
     size_t len = std::min({max_len, this->chunk, this->body.size() - this->bytes_read_});
     std::memcpy(buf, this->body.data() + this->bytes_read_, len);
     this->bytes_read_ += len;
@@ -38,6 +40,8 @@ class FakeContainer : public HttpContainer {
   std::string body;
   size_t chunk{512};
   bool stall{false};
+  // Reads fail once this many bytes have been read
+  size_t fail_at{SIZE_MAX};
   int polls{0};
   int ends{0};
 };
@@ -75,6 +79,17 @@ class FakeHttpRequest : public HttpRequestComponent {
   }
 };
 
+// The URL lambda must be stateless, so the stop it makes is set up through these
+Automation<> *stop_target = nullptr;
+int url_calls = 0;
+int stop_at_url_call = 0;
+
+std::string url_that_can_stop() {
+  if (++url_calls == stop_at_url_call)
+    stop_target->stop();
+  return "http://example.invalid/";
+}
+
 class CountAction : public Action<> {
  public:
   explicit CountAction(int *count) : count_(count) {}
@@ -91,6 +106,9 @@ class HttpRequestSendActionTest : public ::testing::Test {
     this->action_.set_method([]() -> const char * { return "GET"; });
     this->action_.set_max_response_buffer_size(1024);
     this->automation_.add_actions({&this->action_, &this->next_});
+    stop_target = &this->automation_;
+    url_calls = 0;
+    stop_at_url_call = 0;
   }
 
   // One pass of the main loop
@@ -357,6 +375,70 @@ TEST_F(HttpRequestSendActionTest, StalledBodyEndsAtTheTimeout) {
   EXPECT_FALSE(this->automation_.is_running());
   EXPECT_EQ(this->responses_, 1);
   EXPECT_TRUE(this->body_.empty());
+}
+
+// A url lambda that stops the action while the request is being started
+TEST_F(HttpRequestSendActionTest, StopFromLambdaWhileStartingEndsTheRequest) {
+  this->action_.set_url([]() -> std::string { return url_that_can_stop(); });
+  stop_at_url_call = 1;
+  this->trigger_.trigger();
+  EXPECT_FALSE(this->automation_.is_running());
+  ASSERT_EQ(this->http_.begins, 1);
+  EXPECT_EQ(this->http_.containers[0]->ends, 1);
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 0);
+  EXPECT_EQ(this->errors_, 0);
+  EXPECT_EQ(this->next_count_, 0);
+
+  this->trigger_.trigger();
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 1);
+  EXPECT_EQ(this->next_count_, 1);
+}
+
+TEST_F(HttpRequestSendActionTest, StopFromLambdaOfAWaitingRequestEndsIt) {
+  this->action_.set_url([]() -> std::string { return url_that_can_stop(); });
+  stop_at_url_call = 2;
+  this->trigger_.trigger();
+  this->trigger_.trigger();
+  this->run_until_idle_();
+  EXPECT_FALSE(this->automation_.is_running());
+  ASSERT_EQ(this->http_.begins, 2);
+  EXPECT_EQ(this->http_.containers[1]->ends, 1);
+  EXPECT_EQ(this->responses_, 1);
+  EXPECT_EQ(this->next_count_, 1);
+
+  // The slot counts survived the stop, so a new trigger starts at once
+  this->trigger_.trigger();
+  EXPECT_EQ(this->http_.begins, 3);
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 2);
+  EXPECT_EQ(this->next_count_, 2);
+}
+
+TEST_F(HttpRequestSendActionTest, ReadErrorKeepsTheBodyReadSoFar) {
+  this->capture_response_();
+  this->http_.response_body = std::string(800, 'd');
+  this->trigger_.trigger();
+  this->http_.containers[0]->chunk = 100;
+  this->http_.containers[0]->fail_at = 300;
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 1);
+  EXPECT_EQ(this->errors_, 0);
+  EXPECT_EQ(this->body_, std::string(300, 'd'));
+  EXPECT_EQ(this->next_count_, 1);
+}
+
+TEST_F(HttpRequestSendActionTest, BufferThatCannotBeAllocatedGivesAnEmptyBody) {
+  this->capture_response_();
+  this->action_.set_max_response_buffer_size(SIZE_MAX);
+  this->http_.response_body = "unread";
+  this->body_ = "not set";
+  this->trigger_.trigger();
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 1);
+  EXPECT_TRUE(this->body_.empty());
+  EXPECT_EQ(this->next_count_, 1);
 }
 
 }  // namespace esphome::http_request::testing
