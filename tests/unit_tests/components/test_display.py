@@ -1,4 +1,4 @@
-"""Tests for display.add_writer."""
+"""Tests for display.add_writer and display.has_writer."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -6,7 +6,8 @@ import pytest
 
 from esphome import codegen as cg
 from esphome.components import display
-from esphome.const import CONF_LAMBDA
+from esphome.components.display import CONF_SHOW_TEST_CARD
+from esphome.const import CONF_AUTO_CLEAR_ENABLED, CONF_LAMBDA, CONF_PAGES
 
 
 @pytest.mark.parametrize(
@@ -39,3 +40,20 @@ async def test_add_writer_without_lambda_does_nothing() -> None:
 
     process.assert_not_awaited()
     add.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ({}, False),
+        ({CONF_AUTO_CLEAR_ENABLED: True}, True),
+        ({CONF_AUTO_CLEAR_ENABLED: False}, False),
+        ({CONF_AUTO_CLEAR_ENABLED: "unspecified"}, False),
+        ({CONF_PAGES: []}, True),
+        ({CONF_LAMBDA: "x"}, True),
+        ({CONF_SHOW_TEST_CARD: True}, True),
+        ({CONF_SHOW_TEST_CARD: False}, False),
+    ],
+)
+def test_has_writer(config: dict, expected: bool) -> None:
+    assert display.has_writer(config) is expected
