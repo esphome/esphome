@@ -799,8 +799,10 @@ ModemState ModemComponent::handle_state_disconnecting_() {
     ESP_LOGW(TAG, "Failed to leave data mode");
     this->set_fault_(ModemFault::MODEM_FAULT_TEARDOWN);
   }
-  // Turn the radio off; waiting for the lost IP event could take up to 2 min
-  if (this->dce_->set_radio_state(0) == command_result::OK) {
+  // Turn the radio off; waiting for the lost IP event could take up to 2 min. A reconnect keeps the SIM powered
+  // so it is not unlocked again; only disable() powers it down.
+  const bool reconnect = this->target_state_.load() == ModemState::MODEM_STATE_CONNECTED;
+  if (this->dce_->set_radio_state(reconnect ? RADIO_STATE_RF_OFF : 0) == command_result::OK) {
     ESP_LOGI(TAG, "Radio off");
   } else {
     ESP_LOGW(TAG, "Radio off failed");
@@ -827,6 +829,7 @@ void ModemComponent::transition_to_(ModemState next_state) {
     while (this->sync_acked_.load(std::memory_order_acquire) == 0) {
       const uint32_t elapsed = millis() - started;
       if (elapsed >= SYNC_ACK_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "on_sync did not run within %u ms; continuing", static_cast<unsigned>(SYNC_ACK_TIMEOUT_MS));
         break;
       }
       ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(SYNC_ACK_TIMEOUT_MS - elapsed));
