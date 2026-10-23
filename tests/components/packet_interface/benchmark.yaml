@@ -1,10 +1,13 @@
+# A list, so the uart entries of other test directories are joined to it
 uart:
-  port: /dev/ttyUSB0
-  baud_rate: 9600
+  - id: bridge_test_bus
+    port: /dev/ttyUSB0
+    baud_rate: 9600
 
 packet_interface:
   - platform: uart
     id: bridge_test_link
+    uart_id: bridge_test_bus
 
 packet_transport:
   - platform: packet_interface

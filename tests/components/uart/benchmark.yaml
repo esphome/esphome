@@ -1,6 +1,9 @@
 packet_interface:
   - platform: uart
+    uart_id: uart_packet_interface_bus
 
+# A list, so the uart entries of other test directories are joined to it
 uart:
-  port: /dev/ttyUSB0
-  baud_rate: 9600
+  - id: uart_packet_interface_bus
+    port: /dev/ttyUSB0
+    baud_rate: 9600
