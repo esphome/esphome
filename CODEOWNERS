@@ -689,6 +689,7 @@ esphome/components/uart/packet_transport/* @clydebarrow
 esphome/components/uart_mux/* @kbx81
 esphome/components/uart_tcp/* @Bascht74
 esphome/components/udp/* @clydebarrow
+esphome/components/udp/packet_interface/* @clydebarrow
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ufm01/* @ljungqvist
