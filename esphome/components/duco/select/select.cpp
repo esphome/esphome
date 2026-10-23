@@ -28,17 +28,16 @@ static constexpr uint8_t MODE_CODES[] PROGMEM = {
 void DucoSelect::update() { this->parent_->send(this, FUNCTION_NODE, {0x02, 0x01}); }
 
 void DucoSelect::receive_response(const DucoMessage &message) {
-  if (message.size >= 1) {
-    size_t index = 0;  // unknown codes show as AUTO
-    for (size_t i = 0; i < sizeof(MODE_CODES); i++) {
-      if (progmem_read_byte(&MODE_CODES[i]) == message.data[0]) {
-        index = i;
-        break;
-      }
+  if (message.size < 1)
+    return;
+  for (size_t i = 0; i < sizeof(MODE_CODES); i++) {
+    if (progmem_read_byte(&MODE_CODES[i]) == message.data[0]) {
+      ESP_LOGD(TAG, "Current mode: %s", this->option_at(i));
+      this->publish_state(i);
+      return;
     }
-    ESP_LOGD(TAG, "Current mode: %s", this->option_at(index));
-    this->publish_state(index);
   }
+  ESP_LOGW(TAG, "Unknown mode %02X", message.data[0]);
 }
 
 void DucoSelect::control(size_t index) {

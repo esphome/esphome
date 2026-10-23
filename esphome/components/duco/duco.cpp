@@ -38,8 +38,10 @@ void Duco::loop() {
 
 bool Duco::parse_byte_(uint8_t byte) {
   const size_t at = this->rx_size_;
-  if (at >= MAX_FRAME_SIZE)
+  if (at >= MAX_FRAME_SIZE) {
+    ESP_LOGD(TAG, "Message longer than %u bytes dropped", static_cast<unsigned>(MAX_FRAME_SIZE));
     return false;
+  }
   const uint8_t prev = at > 0 ? this->rx_buffer_[at - 1] : 0;
 
   if (at == 1 && prev == HEADER_START && byte == HEADER_END)
@@ -88,6 +90,7 @@ void Duco::finalize_message_() {
   for (auto &pending : this->pending_) {
     if (pending.function != 0 && pending.id == message.id && pending.function + 2 == raw[1]) {
       pending.function = 0;
+      this->status_clear_warning();
       pending.device->receive_response(message);
       return;
     }
@@ -110,7 +113,11 @@ uint8_t Duco::next_id_() {
 }
 
 void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data) {
-  const size_t size = std::min(data.size(), MAX_REQUEST_DATA);
+  if (data.size() > MAX_REQUEST_DATA) {
+    ESP_LOGE(TAG, "Request of %u bytes is too long", static_cast<unsigned>(data.size()));
+    return;
+  }
+  const size_t size = data.size();
   const uint8_t id = this->next_id_();
   uint8_t frame[5 + MAX_REQUEST_DATA + 2] = {HEADER_START, HEADER_END, static_cast<uint8_t>(size + 2), function, id};
   std::copy_n(data.begin(), size, frame + 5);
@@ -123,6 +130,8 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
 #ifdef DUCO_DEVICE_COUNT
   for (auto &pending : this->pending_) {
     if (pending.device == device) {
+      if (pending.function != 0)
+        this->status_set_warning(LOG_STR("No answer from the box"));
       pending.id = id;
       pending.function = function;
       break;
