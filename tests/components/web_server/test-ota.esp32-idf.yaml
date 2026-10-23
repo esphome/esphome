@@ -1,11 +1,3 @@
-esphome:
-  name: test-web-server-ota-idf
-
-esp32:
-  board: esp32dev
-  framework:
-    type: esp-idf
-
 packages:
   device_base: !include common.yaml
 
