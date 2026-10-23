@@ -23,4 +23,5 @@ async def to_code(config: ConfigType) -> None:
     texts = text_sensor.sub_text_sensors(config)
     if await texts(CONF_URC, hub.set_urc_text_sensor) is not None:
         cg.add_define("USE_MODEM_URC")
+        cg.add_define("USE_LINE_READER")
         add_idf_sdkconfig_option("CONFIG_ESP_MODEM_URC_HANDLER", True)

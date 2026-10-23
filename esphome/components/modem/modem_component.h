@@ -3,6 +3,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
+#ifdef USE_MODEM_URC
+#include "esphome/core/line_reader.h"
+#endif
 #include "esphome/core/preferences.h"
 #include "esphome/core/static_task.h"
 #include "esphome/components/network/ip_address.h"
@@ -13,7 +16,6 @@
 #include <cxx_include/esp_modem_api.hpp>
 #include <esp_modem_config.h>
 
-#include <array>
 #include <atomic>
 #include <memory>
 #include <string>
@@ -40,19 +42,41 @@ enum class ConnectStep : uint8_t {
 
 enum class SimResult : uint8_t {
   SIM_RESULT_READY,
-  SIM_RESULT_RETRY,            // status not readable yet, or the PIN was just sent
-  SIM_RESULT_FATAL,            // locked with no usable PIN, or PUK locked
-  SIM_RESULT_PIN_REJECTED,     // pin_code was refused, now or on an earlier boot
-  SIM_RESULT_PIN_UNCONFIRMED,  // the PIN went out but the SIM stayed locked; nothing said it was wrong
-  SIM_RESULT_PIN_GIVEN_UP,     // unconfirmed too often across reboots, or the attempt could not be recorded
+  SIM_RESULT_RETRY,   // status not readable yet, or a PIN step is in progress
+  SIM_RESULT_LOCKED,  // nothing more to try: PUK, another lock, no pin_code or the PIN is not sent again
+  SIM_RESULT_HALT,    // stop this attempt; a reboot may still open the SIM, so the reboot timer stays
 };
 
-enum class SimFault : uint8_t {
-  SIM_FAULT_NONE,
-  SIM_FAULT_LOCKED,
-  SIM_FAULT_PIN_REJECTED,
-  SIM_FAULT_PIN_UNCONFIRMED,
+// The step that failed most recently; CONNECTED clears it
+enum class ModemFault : uint8_t {
+  MODEM_FAULT_NONE,
+  MODEM_FAULT_NO_RESPONSE,
+  MODEM_FAULT_BAUD,
+  MODEM_FAULT_INIT_AT,
+  MODEM_FAULT_SIM_NOT_READY,
+  MODEM_FAULT_SIM_LOCKED,
+  MODEM_FAULT_PIN_NOT_SENT,
+  MODEM_FAULT_PIN_RECORD,
+  MODEM_FAULT_SETUP,
+  MODEM_FAULT_NOT_ATTACHED,
+  MODEM_FAULT_PPP,
+  MODEM_FAULT_TEARDOWN,
 };
+
+#ifdef USE_MODEM_PIN_CODE
+enum class PinStep : uint8_t {
+  PIN_STEP_IDLE,
+  PIN_STEP_SAVING,  // the send is counted and waits for the record to reach flash
+  PIN_STEP_SENT,
+};
+
+// Written by loop() once it tried to save pin_record_; the task leaves the record alone while PENDING
+enum class PinSave : uint8_t {
+  PIN_SAVE_DONE,
+  PIN_SAVE_PENDING,
+  PIN_SAVE_FAILED,
+};
+#endif
 
 // Every esp_modem factory shares this signature, so codegen picks the one for the model
 using DceFactory = std::unique_ptr<esp_modem::DCE> (*)(const esp_modem::dce_config *, std::shared_ptr<esp_modem::DTE>,
@@ -72,7 +96,9 @@ class ModemComponent : public Component {
   void set_rts_pin(InternalGPIOPin *rts_pin) { this->rts_pin_ = rts_pin; }
   void set_cts_pin(InternalGPIOPin *cts_pin) { this->cts_pin_ = cts_pin; }
   void set_baud_rate(int baud_rate) { this->baud_rate_ = baud_rate; }
+#ifdef USE_MODEM_PIN_CODE
   void set_pin_code(const char *pin_code) { this->pin_code_ = pin_code; }
+#endif
   void set_tx_buffer_size(uint16_t tx_buffer_size) { this->tx_buffer_size_ = tx_buffer_size; }
   void set_rx_buffer_size(uint16_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
   void set_dte_buffer_size(uint16_t dte_buffer_size) { this->dte_buffer_size_ = dte_buffer_size; }
@@ -95,10 +121,12 @@ class ModemComponent : public Component {
   bool is_enabled() const { return !this->is_disabled(); }
   void enable();
   void disable();
+#ifdef USE_MODEM_SEND_AT
   /// Queue an AT command for the modem task, which sends it at its next pass and logs the result and response.
   /// Returns false when a command is still queued or the command is too long.
   bool send_at(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
   bool send_at(const std::string &cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
+#endif
 
   network::IPAddresses get_ip_addresses();
   const char *get_use_address() const { return this->use_address_; }
@@ -106,27 +134,8 @@ class ModemComponent : public Component {
  protected:
   static constexpr uint32_t COMMAND_TIMEOUT_MS = 1000;
   static constexpr uint32_t RETRY_DELAY_MS = 1000;
-  // A silent modem is not going to answer the next second, so its probes are spaced out
-  static constexpr uint32_t PROBE_RETRY_DELAY_MS = 5000;
-  // How long the task waits for the main loop to run on_sync before attaching
-  static constexpr uint32_t SYNC_ACK_TIMEOUT_MS = 5000;
-  static constexpr uint32_t SYNC_ACK_POLL_MS = 50;
-  // AT+CPIN= can take a few seconds; the SIM may need longer still before AT+CPIN? says READY
-  static constexpr uint32_t PIN_TIMEOUT_MS = 5000;
-  static constexpr uint32_t PIN_UNLOCK_WAIT_MS = 10000;
-  // Sends of one pin_code the SIM never confirmed, across reboots, before it is not sent again
-  static constexpr uint8_t PIN_MAX_UNCONFIRMED_SENDS = 2;
-  // A reply is kept whole for its result line, but never beyond this many bytes
-  static constexpr size_t RAW_REPLY_MAX = 512;
-  // A rejected PIN that could not be written to flash is retried a few times
-  static constexpr uint32_t PIN_SAVE_RETRY_MS = 5000;
-  static constexpr uint8_t PIN_SAVE_RETRIES = 3;
   static constexpr size_t URC_LINE_SIZE = 128;
   static constexpr size_t AT_COMMAND_SIZE = 128;
-  // State changes the task made since loop() last ran; a burst is a handful of quick steps
-  static constexpr uint8_t STATE_QUEUE_SIZE = 8;
-  // esp_modem's command strings and the log lines are built on this stack
-  static constexpr uint32_t TASK_STACK_SIZE = 5120;
 
   // esp_modem's calls block until the modem answers or their own timeouts run out, up to a minute for a
   // mode change, so the state machine runs on its own task and leaves the main loop alone
@@ -135,48 +144,42 @@ class ModemComponent : public Component {
   void wake_task_();
   ModemState compute_next_state_();
   ModemState handle_state_enabling_();
+  ModemState handle_state_synced_();
   ModemState handle_state_connecting_();
   ModemState handle_state_wait_ip_();
   ModemState handle_state_disconnecting_();
   /// Pause the task before the next pass, then go to state
   ModemState retry_(ModemState state, uint32_t delay_ms = RETRY_DELAY_MS);
   void transition_to_(ModemState next_state);
-  // One bit per fault source, so a recovery in one path cannot hide another path's fault
-  enum Warning : uint8_t {
-    WARN_INIT_AT = 1 << 0,
-    WARN_BAUD = 1 << 1,
-    WARN_TEARDOWN = 1 << 2,
-    WARN_NO_RESPONSE = 1 << 3,
-    WARN_NOT_ATTACHED = 1 << 4,
-    WARN_PPP = 1 << 5,    // PPP did not start or gave no address
-    WARN_SIM = 1 << 6,    // no SIM, or its state cannot be read
-    WARN_SETUP = 1 << 7,  // the APN or the radio was refused
-  };
-  // What the task left for loop() to publish
+  // What the task left for loop() to do
   enum Pending : uint32_t {
     PENDING_STATUS = 1 << 0,
     PENDING_SAVE_BAUD = 1 << 1,
+#ifdef USE_MODEM_PIN_CODE
     PENDING_SAVE_PIN = 1 << 2,
+#endif
     PENDING_CONNECT_TIMEOUT = 1 << 3,  // arm or cancel the reboot timer for the current state
+    PENDING_ON_SYNC = 1 << 4,          // loop() wakes the task once on_sync ran
+    PENDING_ON_CONNECT = 1 << 5,
+    PENDING_ON_DISCONNECT = 1 << 6,
   };
 
   // Main loop only, so arming and cancelling cannot interleave
   void arm_connect_timeout_();
   void cancel_connect_timeout_();
   void fail_setup_(const LogString *reason);
-  void set_warning_(uint8_t bit);
-  void clear_warning_(uint8_t bit);
-  void set_sim_fault_(SimFault fault);
+  void set_fault_(ModemFault fault);
   void hand_over_(uint32_t pending);
   /// Send an AT command from the task and log the result; blocks for up to the timeout
   bool at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
-  void save_pin_record_();
-  /// Send cmd and keep the whole reply in output, ERROR lines included (dce_->at() drops those)
-  esp_modem::command_result command_raw_(const char *cmd, std::string &output, uint32_t timeout);
   void publish_status_();
   void not_responding_(int baud);
   void dump_connect_params_();
   SimResult prepare_sim_();
+#ifdef USE_MODEM_PIN_CODE
+  SimResult send_pin_();
+  void save_pin_record_();
+#endif
 
   InternalGPIOPin *tx_pin_;
   InternalGPIOPin *rx_pin_;
@@ -185,75 +188,78 @@ class ModemComponent : public Component {
   const char *model_;
   DceFactory dce_factory_;
   const char *apn_;
-  const char *pin_code_{nullptr};
   const char *const *init_at_commands_{nullptr};  // static array from code generation
 #ifdef USE_MODEM_URC
   text_sensor::TextSensor *urc_text_sensor_{nullptr};
+  const char *urc_line_{nullptr};  // the line urc_pending_ hands to loop(), inside urc_reader_
 #endif
   std::unique_ptr<esp_modem::DCE> dce_;
   std::shared_ptr<esp_modem::DTE> dte_;
   esp_netif_t *ppp_netif_{nullptr};
   ESPPreferenceObject pref_;
-  ESPPreferenceObject pin_pref_;
   LazyCallbackManager<void(ModemState)> on_state_callback_;
-  // The task writes a slot, then advances the head; loop() owns the tail
-  std::array<ModemState, STATE_QUEUE_SIZE> state_queue_{};
-  std::atomic<uint8_t> state_head_{0};
-  std::atomic<uint8_t> state_tail_{0};
   int baud_rate_{0};  // 0 = use the esp_modem default
   int current_baud_rate_{0};
   int restored_baud_{0};
   StaticTask task_;
   uint32_t timeout_{0};
   uint32_t step_delay_ms_{0};
-  uint32_t wait_ip_start_{0};
-  uint32_t synced_at_{0};
-  uint32_t pin_sent_at_{0};
-  // What happened to the configured pin_code, kept in flash so a reboot cannot spend another SIM attempt
+  uint32_t state_started_ms_{0};  // when the IP wait or the PIN unlock wait began
+  std::atomic<uint32_t> pending_{0};
+#ifdef USE_MODEM_PIN_CODE
+  const char *pin_code_{nullptr};
+  ESPPreferenceObject pin_pref_;
+#endif
+  // Kept in flash so reboots cannot keep spending the SIM's attempts on a PIN it never confirmed
   struct PinRecord {
     uint32_t hash;  // pin_code the record is about
     uint8_t sends;  // AT+CPIN= sent without the SIM reporting READY since
-    bool rejected;  // the SIM refused it
-  } pin_record_{};
-  PinRecord pin_record_to_save_{};  // the copy loop() writes to flash; the task fills it, then hands it over
+  };
+#ifdef USE_MODEM_PIN_CODE
+  PinRecord pin_record_{};  // the task writes it, loop() saves it while pin_save_state_ is PENDING
+#endif
+#ifdef USE_MODEM_SEND_AT
   uint32_t at_timeout_{COMMAND_TIMEOUT_MS};
-  std::atomic<uint32_t> pending_{0};
+#endif
   uint16_t tx_buffer_size_{1024};
   uint16_t rx_buffer_size_{1024};
   uint16_t dte_buffer_size_{1024};
   // The task owns component_state_; the main loop sets target_state_ and reads both
   std::atomic<ModemState> component_state_{ModemState::MODEM_STATE_DISABLED};
   std::atomic<ModemState> target_state_{ModemState::MODEM_STATE_DISABLED};
-  std::atomic<SimFault> sim_fault_{SimFault::SIM_FAULT_NONE};
-  // Written by the task only; loop() picks the published message from it
-  std::atomic<uint8_t> warnings_{0};
+  // Written by the task only, read by loop()
+  std::atomic<ModemFault> fault_{ModemFault::MODEM_FAULT_NONE};
   // std::atomic<uint8_t> flags: GCC on Xtensa calls out of line for std::atomic<bool>
-  // Set by send_at() on the main loop once at_command_ is written, cleared by the task after sending it
-  std::atomic<uint8_t> at_pending_{0};
   // Written by the IP event task, read by the modem task
   std::atomic<uint8_t> got_ip_{0};
   std::atomic<uint8_t> ppp_error_{0};  // last NETIF_PPP_STATUS error code, 0 = none
-  // Set by loop() after it tried to write pin_record_: 1 saved, 2 given up; the task sends the PIN only after 1
-  std::atomic<uint8_t> pin_save_state_{0};
+  // Doublings of the silent-modem probe delay; enable() and an answer reset it
+  std::atomic<uint8_t> probe_backoff_{0};
+#ifdef USE_MODEM_SEND_AT
+  // Set by send_at() on the main loop once at_command_ is written, cleared by the task after sending it
+  std::atomic<uint8_t> at_pending_{0};
+#endif
+#ifdef USE_MODEM_URC
+  // Set by the UART task with urc_line_; until loop() has published it, new lines are dropped
+  std::atomic<uint8_t> urc_pending_{0};
+#endif
+#ifdef USE_MODEM_PIN_CODE
+  std::atomic<PinSave> pin_save_state_{PinSave::PIN_SAVE_DONE};
+  PinStep pin_step_{PinStep::PIN_STEP_IDLE};
+#endif
   ConnectStep connect_step_{ConnectStep::CONNECT_STEP_START};
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
-  uint8_t pin_save_retries_{0};
-  // One PIN attempt per connection attempt: a second wrong PIN could PUK-lock the SIM
-  bool pin_sent_{false};
   bool connect_timeout_armed_{false};
-  bool modem_synced_{false};    // a modem that never answered has nothing to tear down
-  bool pin_send_armed_{false};  // the send is counted and waits for the record to reach flash
-  bool cme_numeric_{false};     // AT+CMEE=1 accepted, so a wrong PIN answers +CME ERROR: 16
+  bool modem_synced_{false};  // a modem that never answered has nothing to tear down
+  bool resync_{false};        // the attachment read failed, so CONNECTING syncs again first
+#ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
+#endif
 #ifdef USE_MODEM_URC
-  // The UART task assembles a line in urc_buf_ and hands it to loop() by setting urc_pending_; until loop()
-  // has published it, new lines are dropped
-  std::atomic<uint8_t> urc_pending_{0};
-  uint8_t urc_len_{0};
-  bool urc_discard_{false};  // drop the rest of the current line
-  char urc_buf_[URC_LINE_SIZE];
+  // Fed on the UART task
+  LineReader<URC_LINE_SIZE> urc_reader_;
 #endif
 
  private:

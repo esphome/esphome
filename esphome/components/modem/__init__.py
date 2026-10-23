@@ -1,4 +1,4 @@
-from typing import Any
+import voluptuous as vol
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -21,9 +21,10 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_USE_ADDRESS,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, ID, coroutine_with_priority
 from esphome.coroutine import CoroPriority
-from esphome.types import ConfigType
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType, TemplateArgsType
 
 # Static so `api:` finds network before its dependency check; a config-dependent
 # AUTO_LOAD resolves after that check and fails a cellular-only node
@@ -41,16 +42,18 @@ CONF_ON_SYNC = "on_sync"
 CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
 CONF_MODEM_ID = "modem_id"
 
+esp_modem_ns = cg.global_ns.namespace("esp_modem")
+
 # Model name to the esp_modem factory that drives it
 MODEM_MODELS = {
-    "BG96": "BG96",
-    "SIM800": "SIM800",
-    "SIM7000": "SIM7000",
-    "SIM7070": "SIM7070",
-    "SIM7080": "SIM7000",
-    "SIM7600": "SIM7600",
-    "SIM7670": "SIM7600",
-    "GENERIC": "generic",
+    "BG96": esp_modem_ns.create_BG96_dce,
+    "SIM800": esp_modem_ns.create_SIM800_dce,
+    "SIM7000": esp_modem_ns.create_SIM7000_dce,
+    "SIM7070": esp_modem_ns.create_SIM7070_dce,
+    "SIM7080": esp_modem_ns.create_SIM7000_dce,
+    "SIM7600": esp_modem_ns.create_SIM7600_dce,
+    "SIM7670": esp_modem_ns.create_SIM7600_dce,
+    "GENERIC": esp_modem_ns.create_generic_dce,
 }
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component)
@@ -84,12 +87,14 @@ _CALLBACK_AUTOMATIONS = (
 MAX_AT_COMMAND_LENGTH = 127
 
 
-def _validate_pin_code(value: Any) -> str:
-    """A SIM PIN is 4 to 8 digits; anything else would spend one of the SIM's attempts."""
-    value = cv.string_strict(value)
-    if not (value.isascii() and value.isdigit()) or not 4 <= len(value) <= 8:
-        raise cv.Invalid("pin_code must be 4 to 8 digits")
-    return value
+# A SIM PIN is 4 to 8 digits; anything else would spend one of the SIM's attempts. \Z, not $, so a
+# trailing newline is refused too
+_validate_pin_code = cv.All(
+    cv.string_strict,
+    vol.Match(r"^[0-9]{4,8}\Z", msg="pin_code must be 4 to 8 digits"),
+)
+# The IDF UART driver needs more than its 128 byte FIFO; the setters take uint16_t
+_UART_BUFFER_SIZE = cv.int_range(min=129, max=65535)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -113,13 +118,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.Length(max=255),
             ),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            # The IDF UART driver needs more than its 128 byte FIFO; the setters take uint16_t
-            cv.Optional(CONF_TX_BUFFER_SIZE, default=1024): cv.int_range(
-                min=129, max=65535
-            ),
-            cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.int_range(
-                min=129, max=65535
-            ),
+            cv.Optional(CONF_TX_BUFFER_SIZE, default=1024): _UART_BUFFER_SIZE,
+            cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): _UART_BUFFER_SIZE,
             # CMUX keeps 128 bytes of the DTE buffer back, so a smaller buffer could not be read
             cv.Optional(CONF_DTE_BUFFER_SIZE, default=1024): cv.int_range(
                 min=256, max=65535
@@ -156,12 +156,27 @@ for _name in ("enable", "disable"):
     automation.register_apply_action(
         f"modem.{_name}", MODEM_ID_SCHEMA, automation.ApplyCall(f"{_name}()")
     )
-automation.register_apply_action(
+_send_at_builder = automation.apply_action_builder(
     "modem.send_at",
     SEND_AT_SCHEMA,
     # A constant renders as a literal and takes the const char * overload; a lambda returns std::string
     automation.ApplyField(CONF_COMMAND, "send_at", cg.std_string),
 )
+
+
+@automation.register_action(
+    "modem.send_at", automation.ApplyAction, SEND_AT_SCHEMA, synchronous=True
+)
+async def send_at_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    cg.add_define("USE_MODEM_SEND_AT")
+    return await _send_at_builder(config, action_id, template_arg, args)
+
+
 automation.register_apply_condition(
     "modem.connected", MODEM_ID_SCHEMA, "is_connected()"
 )
@@ -183,14 +198,16 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_MODEM")
 
     model = config[CONF_MODEL]
-    factory = cg.RawExpression(f"esp_modem::create_{MODEM_MODELS[model]}_dce")
+    factory = MODEM_MODELS[model]
     tx = await cg.gpio_pin_expression(config[CONF_TX_PIN])
     rx = await cg.gpio_pin_expression(config[CONF_RX_PIN])
     var = cg.new_Pvariable(config[CONF_ID], tx, rx, model, factory, config[CONF_APN])
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     add_use_address(var, config[CONF_USE_ADDRESS])
-    cg.add_optional(var.set_pin_code, config.get(CONF_PIN_CODE))
+    if (pin_code := config.get(CONF_PIN_CODE)) is not None:
+        cg.add_define("USE_MODEM_PIN_CODE")
+        cg.add(var.set_pin_code(pin_code))
 
     if config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.enable())
