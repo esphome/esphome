@@ -25,7 +25,7 @@ static constexpr size_t SECRET_BEGIN_LEN = sizeof(SECRET_BEGIN) - 1;
 static constexpr size_t SECRET_END_LEN = sizeof(SECRET_END) - 1;
 
 static bool starts_with_marker(const char *message, size_t remaining, const char *marker, size_t marker_len) {
-  return remaining >= marker_len && memcmp(message, marker, marker_len) == 0;
+  return message[0] == '\033' && remaining >= marker_len && memcmp(message, marker, marker_len) == 0;
 }
 
 static size_t append_bytes(char *buf, size_t size, size_t pos, const char *data, size_t len) {
@@ -40,6 +40,9 @@ static size_t append_bytes(char *buf, size_t size, size_t pos, const char *data,
 }
 
 size_t append_redacted_message(char *buf, size_t size, size_t pos, const char *message, size_t len) {
+  if (memchr(message, '\033', len) == nullptr) {
+    return append_bytes(buf, size, pos, message, len);
+  }
   size_t i = 0;
   while (i < len) {
     if (starts_with_marker(message + i, len - i, SECRET_BEGIN, SECRET_BEGIN_LEN)) {
