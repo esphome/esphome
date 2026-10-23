@@ -82,7 +82,9 @@ def final_validate(config: ConfigType) -> None:
     # Count sensors registered to this hub (IDs are resolved at final_validate stage)
     hub_id = config[CONF_ID]
     _get_data().sensor_counts[str(hub_id)] = len(
-        fv.platform_entries(SENSOR_DOMAIN, DOMAIN, {CONF_EMONTX_ID: hub_id})
+        fv.platform_entries(
+            domain=SENSOR_DOMAIN, platform=DOMAIN, match={CONF_EMONTX_ID: hub_id}
+        )
     )
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
