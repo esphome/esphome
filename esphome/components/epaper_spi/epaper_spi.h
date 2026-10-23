@@ -71,6 +71,7 @@ class EPaperBase : public Display,
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
   void set_sleep_state_hash(uint32_t hash) { this->sleep_state_hash_ = hash; }
   bool teardown() override;
+  void on_powerdown() override;
   void dump_config() override;
 
   void command(uint8_t value);

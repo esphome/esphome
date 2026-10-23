@@ -33,6 +33,7 @@ class TestableSSD1681 : public EPaperSSD1681 {
     this->panel_holds_image_ = true;
   }
 
+  using EPaperSSD1681::on_powerdown;
   using EPaperSSD1681::on_safe_shutdown;
   using EPaperSSD1681::teardown;
   void abandon() { this->abandon_update_(); }
@@ -309,6 +310,25 @@ TEST(EPaperSSD1681, AbandonedUpdateDoesNotKeepThePanelImage) {
   display.run_update_state();
   display.abandon();
   EXPECT_FALSE(display.panel_holds_image());
+}
+
+/// If teardown() runs out of time with an update still in flight, the panel is put to sleep at power down.
+TEST(EPaperSSD1681, PowerdownSleepsThePanelWhenTeardownRanOutOfTime) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(0, 0, 16, 2);
+  display.run_update_state();
+  bus.clear();
+
+  display.on_safe_shutdown();
+  EXPECT_FALSE(display.teardown());
+  display.on_powerdown();
+  EXPECT_EQ(display.state(), EPaperState::IDLE);
+  ASSERT_FALSE(bus.commands.empty());
+  EXPECT_EQ(bus.commands.back(), 0x10) << "panel was not put to sleep";
 }
 
 /// Without the image kept through the sleep, shutdown puts the panel to sleep at once, as before.

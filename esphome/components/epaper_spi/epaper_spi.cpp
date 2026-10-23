@@ -79,9 +79,20 @@ bool EPaperBase::teardown() {
   if (this->parked_)
     return true;
   this->parked_ = true;
-  if (this->sleep_state_hash_ != 0 && this->panel_holds_image_ && this->image_survives_sleep())
+  if (this->panel_holds_image_ && this->image_survives_sleep())
     this->save_sleep_state_(true);
   return true;
+}
+
+// Runs after teardown() even when it ran out of time: give up on an update still in flight so the panel sleeps
+void EPaperBase::on_powerdown() {
+  if (!this->leave_update_to_teardown_())
+    return;
+  if (this->state_ == EPaperState::TRANSFER_DATA)
+    this->abort_transfer();
+  this->power_off();
+  this->set_state_(EPaperState::IDLE);
+  this->on_safe_shutdown();
 }
 
 bool EPaperBase::init_buffer_(size_t buffer_length) {
