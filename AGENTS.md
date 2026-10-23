@@ -442,6 +442,8 @@ file does, and it is the authority when they disagree. The most useful starting 
           uses `button.ApplyButton` (`switch.ApplySwitch`, `number.ApplyNumber`, `select.ApplySelect`) in its schema
           and `apply=` on the `sub_*` call. The body is a call on the hub with `entity` and `state`, `value` or
           `index`/`option` in scope; on a switch, number or select `publish="before"` or `"after"` publishes the state.
+          A switch that only triggers an action (restart, factory reset) uses `publish="momentary"`: it publishes off
+          and runs the body only when turned on.
           ```python
           switches = switch.sub_switches(config, parent=hub)
           await switches(CONF_BLUETOOTH, None, apply="set_bluetooth(state)", publish="after")

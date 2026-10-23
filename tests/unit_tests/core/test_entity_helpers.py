@@ -1479,6 +1479,7 @@ _SWITCH_APPLY = entity_helpers.ApplyEntity(
     _APPLY_SWITCH_CLS,
     ((RawExpression("switch_::Switch *"), "entity"), (RawExpression("bool"), "state")),
     "entity->publish_state(state);",
+    momentary=("entity->publish_state(false);", "state"),
 )
 _BUTTON_APPLY = entity_helpers.ApplyEntity(
     cg.esphome_ns.namespace("button").class_("ApplyButton"),
@@ -1670,6 +1671,12 @@ async def test_sub_entities_apply_parent_id(
             {"apply": "x()", "publish": "Before"},
             "must be",
         ),
+        (
+            _SELECT_APPLY,
+            _apply_conf("k_id", _SELECT_APPLY.cls),
+            {"apply": "x()", "publish": "momentary"},
+            "not supported",
+        ),
     ],
 )
 async def test_sub_entities_apply_errors(
@@ -1687,6 +1694,35 @@ async def test_sub_entities_apply_errors(
         await sub("k", MockObj("hub", "->").set_k, **kwargs)
     assert calls == []
     assert apply_functions == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("parent", "apply", "body"),
+    [
+        (
+            _HUB,
+            "restart()",
+            "entity->publish_state(false);\nif (state) ::hub->restart();",
+        ),
+        (
+            None,
+            "restart::restart_device()",
+            "entity->publish_state(false);\nif (state) restart::restart_device();",
+        ),
+    ],
+)
+async def test_sub_entities_apply_momentary(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    parent: MockObj | None,
+    apply: str,
+    body: str,
+) -> None:
+    """A momentary switch publishes off first and acts only when turned on."""
+    sub = _apply_sub([], {"r": _apply_conf("r_sw")}, parent=parent)
+    await sub("r", None, apply=apply, publish="momentary")
+    assert apply_functions[0][2] == body
 
 
 @pytest.mark.asyncio
