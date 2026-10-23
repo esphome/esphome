@@ -17,9 +17,7 @@ void DFRobotSEN0465UARTComponent::setup() {
 void DFRobotSEN0465UARTComponent::loop() {
   // The tail of a reading the probe sent on its own may precede the answer; the reader skips to the frame head.
   const uint8_t *frame = nullptr;
-  uint8_t byte;
-  while (frame == nullptr && this->available() > 0 && this->read_byte(&byte))
-    frame = this->reader_.feed(byte);
+  this->read_available<FRAME_SIZE>([&](uint8_t c) { return (frame = this->reader_.feed(c)) == nullptr; });
   if (frame == nullptr)
     return;
 
