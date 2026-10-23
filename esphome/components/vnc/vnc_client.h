@@ -85,6 +85,7 @@ class VncClient : public Component
     touchscreen->register_listener(this);
     this->has_touchscreen_ = true;
   }
+  void touch(touchscreen::TouchPoint tp) override;
   void update(const touchscreen::TouchPoints_t &tpoints) override;
   void release() override;
 #endif
@@ -143,6 +144,8 @@ class VncClient : public Component
   /// Touch input in display coordinates.
   void handle_touch_(uint16_t x, uint16_t y);
   void handle_release_();
+  /// Sends a release that did not fit earlier; true once none is waiting.
+  bool send_pending_release_();
 #endif
   VncParse fail_(VncFailure failure, const LogString *reason);
   VncParse fail_send_() { return this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Send failed")); }
@@ -241,6 +244,7 @@ class VncClient : public Component
   bool has_touchscreen_{false};
   bool dragging_{false};
   bool touching_{false};
+  bool release_pending_{false};
 #endif
   bool big_endian_;  // the pixel order the display takes
 

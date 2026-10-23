@@ -30,6 +30,7 @@ static constexpr uint32_t DISPLAY_START_MS = 5000;
 // Longer than any driver's own busy timeout: a panel that stays busy this long is stuck
 static constexpr uint32_t DISPLAY_BUSY_TIMEOUT_MS = 120000;
 static constexpr size_t KEY_EVENT_SIZE = 8;
+static constexpr size_t POINTER_EVENT_SIZE = 6;
 static constexpr uint16_t MAX_CURSOR_SIDE = 1024;
 static constexpr uint32_t MAX_TEXT_LEN = 63;
 
@@ -106,11 +107,22 @@ static uint32_t keysym_for_codepoint(uint32_t cp) {
 #ifdef USE_VNC_TOUCHSCREEN
 static constexpr uint16_t TOUCH_SLOP_PX = 8;
 
+static bool is_down(const touchscreen::TouchPoint &tp) {
+  // A lifted finger lingers in the list as RELEASED or RELEASING until every finger is up.
+  return (tp.state & (touchscreen::STATE_PRESSED | touchscreen::STATE_UPDATED)) != 0 &&
+         (tp.state & touchscreen::STATE_RELEASING) == 0;
+}
+
+// A first touch at (0, 0) matches a new point's default previous position, so only touch() reports it.
+void VncClient::touch(touchscreen::TouchPoint tp) {
+  if (is_down(tp)) {
+    this->handle_touch_(tp.x, tp.y);
+  }
+}
+
 void VncClient::update(const touchscreen::TouchPoints_t &tpoints) {
   for (const auto &tp : tpoints) {
-    // A lifted finger lingers in the list as RELEASED or RELEASING until every finger is up.
-    if ((tp.state & (touchscreen::STATE_PRESSED | touchscreen::STATE_UPDATED)) != 0 &&
-        (tp.state & touchscreen::STATE_RELEASING) == 0) {
+    if (is_down(tp)) {
       this->handle_touch_(tp.x, tp.y);
       return;
     }
@@ -255,6 +267,9 @@ void VncClient::loop() {
     this->service_rx_(now);
   }
   if (this->state_ == VncState::VNC_STATE_RUNNING) {
+#ifdef USE_VNC_TOUCHSCREEN
+    this->send_pending_release_();
+#endif
     // A new session lays the screen out again for the new rotation and redraws all of it.
     if (static_cast<uint8_t>(this->display_->get_rotation() / 90) != this->hash_rotation_) {
       this->fail_(VncFailure::VNC_FAILURE_TRANSIENT, LOG_STR("Display rotation changed"));
@@ -314,6 +329,7 @@ void VncClient::reset_session_() {
 #ifdef USE_VNC_TOUCHSCREEN
   this->dragging_ = false;
   this->touching_ = false;
+  this->release_pending_ = false;
 #endif
   this->step_ = VncStep::VNC_STEP_VERSION;
   this->reason_failure_ = VncFailure::VNC_FAILURE_TRANSIENT;
@@ -1056,7 +1072,7 @@ bool VncClient::send_pointer(uint16_t x, uint16_t y, uint8_t buttons) {
   }
   x = std::min<uint16_t>(x, this->fb_w_ - 1);
   y = std::min<uint16_t>(y, this->fb_h_ - 1);
-  uint8_t msg[6] = {5, buttons};
+  uint8_t msg[POINTER_EVENT_SIZE] = {5, buttons};
   write_be16(msg + 2, x);
   write_be16(msg + 4, y);
   if (!this->send_(msg, sizeof(msg))) {
@@ -1088,8 +1104,11 @@ void VncClient::type_text(const char *text, size_t len) {
   }
   size_t typed = 0;
   for (size_t i = 0; i < len;) {
+    // The decoder reads up to a NUL, so give it only the bytes that belong to this text.
+    char sequence[5] = {};
+    std::memcpy(sequence, text + i, std::min<size_t>(4, len - i));
     size_t used;
-    const uint32_t cp = unicode::extract_unicode_codepoint(text + i, &used);
+    const uint32_t cp = unicode::extract_unicode_codepoint(sequence, &used);
     // A broken sequence or a NUL types nothing; carry on at the next byte.
     i += used == 0 ? 1 : used;
     const uint32_t keysym = keysym_for_codepoint(cp);
@@ -1110,7 +1129,7 @@ void VncClient::handle_touch_(uint16_t x, uint16_t y) {
     return;
   }
   if (!this->touching_) {
-    if (x >= this->vis_w_ || y >= this->vis_h_) {
+    if (x >= this->vis_w_ || y >= this->vis_h_ || !this->send_pending_release_()) {
       return;
     }
     this->press_x_ = x;
@@ -1136,8 +1155,16 @@ void VncClient::handle_touch_(uint16_t x, uint16_t y) {
 void VncClient::handle_release_() {
   if (this->touching_) {
     this->touching_ = false;
-    this->send_pointer(this->ptr_x_, this->ptr_y_, 0);
+    // The touchscreen reports a lift only once, so a release that did not fit is sent later.
+    this->release_pending_ = !this->send_pointer(this->ptr_x_, this->ptr_y_, 0);
   }
+}
+
+bool VncClient::send_pending_release_() {
+  if (this->release_pending_ && this->link_.tx_free() >= POINTER_EVENT_SIZE) {
+    this->release_pending_ = !this->send_pointer(this->ptr_x_, this->ptr_y_, 0);
+  }
+  return !this->release_pending_;
 }
 #endif
 

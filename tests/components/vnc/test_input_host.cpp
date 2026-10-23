@@ -84,6 +84,13 @@ TEST_F(VncInput, InvalidUtf8ValuesAreSkipped) {
   EXPECT_EQ(hex(s().take()), hex(cat({press('a'), press('b'), press('c'), press(0x0110FFFF)})));
 }
 
+TEST_F(VncInput, LengthCutsAMultiByteCharacter) {
+  c().type_text("a\xC3\xA9", 2);
+  EXPECT_EQ(hex(s().take()), hex(press('a')));
+  c().type_text("\xC3\xA9", 1);
+  EXPECT_EQ(s().take().size(), 0u);
+}
+
 TEST_F(VncInput, EmbeddedNulIsSkipped) {
   c().type_text("a\0b", 3);
   EXPECT_EQ(hex(s().take()), hex(cat({press('a'), press('b')})));
@@ -144,6 +151,16 @@ TEST_F(VncInputFull, TextStopsAtAWholeCharacter) {
   this->fill(40);
   c().type_text(std::string("abcd"));
   EXPECT_EQ(hex(this->drain()), hex(cat({this->expected_, press('a'), press('b')})));
+}
+
+TEST_F(VncInputFull, DroppedReleaseIsSentOnceThereIsRoom) {
+  c().handle_touch_(10, 10);
+  EXPECT_EQ(hex(s().take()), hex(pointer(1, 10, 10)));
+  this->fill(3);
+  c().handle_release_();
+  EXPECT_EQ(hex(this->drain()), hex(this->expected_));
+  s().loop();
+  EXPECT_EQ(hex(s().take()), hex(pointer(0, 10, 10)));
 }
 
 TEST_F(VncInputFull, TouchPressRetriedWhenDropped) {
@@ -412,6 +429,12 @@ TEST_F(VncTouchscreen, TapsLandWhereTheFingerIs) {
     EXPECT_LE(std::abs(y - t[1]), 1);
     EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, x, y), pointer(0, x, y)}))) << t[0] << "," << t[1];
   }
+}
+
+TEST_F(VncTouchscreen, TapAtTheOrigin) {
+  this->ts_.report({{0, 0, 0}});
+  this->ts_.report({});
+  EXPECT_EQ(hex(s().take()), hex(cat({pointer(1, 0, 0), pointer(0, 0, 0)})));
 }
 
 TEST_F(VncTouchscreen, DragFollowsTheFinger) {
