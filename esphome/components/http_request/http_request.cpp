@@ -34,4 +34,13 @@ std::string HttpContainer::get_response_header(const std::string &header_name) {
 
 void log_request_dropped() { ESP_LOGW(TAG, "Too many requests waiting; request dropped"); }
 
+void log_response_buffer_failed(size_t size) {
+  ESP_LOGW(TAG, "Could not allocate %zu bytes for the response body", size);
+}
+
+void log_response_body_cut_off(bool timed_out, size_t bytes_read) {
+  ESP_LOGW(TAG, "Response body %s after %zu bytes",
+           timed_out ? LOG_STR_LITERAL("timed out") : LOG_STR_LITERAL("read failed"), bytes_read);
+}
+
 }  // namespace esphome::http_request

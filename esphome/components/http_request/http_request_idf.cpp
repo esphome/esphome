@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include <algorithm>
+#include <cerrno>
 #include <cstring>
 
 #include <fcntl.h>
@@ -340,7 +341,11 @@ HttpRequestProgress HttpContainerIDF::poll() {
           // failing; reads only start once the socket is readable
           const int fd = esp_http_client_get_socket(this->client_);
           if (fd >= 0) {
-            fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) & ~O_NONBLOCK);
+            const int flags = fcntl(fd, F_GETFL, 0);
+            if (flags < 0 || fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) < 0) {
+              ESP_LOGE(TAG, "Could not make the socket blocking: errno %d", errno);
+              return this->fail_(ESP_FAIL);
+            }
           }
         }
 #endif

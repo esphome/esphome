@@ -527,8 +527,10 @@ class HttpRequestComponent : public Component {
   uint32_t watchdog_timeout_{0};
 };
 
-/// Shared by every HttpRequestSendAction, so the message is not repeated in each template
+// Shared by every HttpRequestSendAction, so the messages are not repeated in each template
 void log_request_dropped();
+void log_response_buffer_failed(size_t size);
+void log_response_body_cut_off(bool timed_out, size_t bytes_read);
 
 template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...>, public Component {
  public:
@@ -749,8 +751,11 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       if (!request.capture)
         return true;
       request.buf = RAMAllocator<uint8_t>().allocate(this->max_response_buffer_size_);
-      if (request.buf == nullptr)
+      if (request.buf == nullptr) {
+        // As before, on_response still fires, with an empty body
+        log_response_buffer_failed(this->max_response_buffer_size_);
         return true;
+      }
       request.buf_size = this->max_response_buffer_size_;
       request.reading = true;
       request.last_data_time = App.get_loop_component_start_time();
@@ -762,10 +767,18 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       int read_or_error =
           request.container->read_available(request.buf + request.read_index, request.buf_size - request.read_index);
       const uint32_t now = millis();
-      if (read_or_error < 0)
+      // As before, a body that is cut off still fires on_response with what was read
+      if (read_or_error < 0) {
+        log_response_body_cut_off(false, request.read_index);
         return true;
+      }
       if (read_or_error == 0) {
-        return request.container->is_read_complete() || now - request.last_data_time >= request.timeout;
+        if (request.container->is_read_complete())
+          return true;
+        if (now - request.last_data_time < request.timeout)
+          return false;
+        log_response_body_cut_off(true, request.read_index);
+        return true;
       }
       request.read_index += read_or_error;
       request.last_data_time = now;
