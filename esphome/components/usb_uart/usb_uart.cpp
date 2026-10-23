@@ -170,16 +170,11 @@ bool USBUartChannelBase::read_array(uint8_t *data, size_t len) {
     ESP_LOGV(TAG, "Channel not initialised - read ignored");
     return false;
   }
-  auto available = this->available();
-  bool status = true;
-  if (len > available) {
-    ESP_LOGV(TAG, "underflow: requested %zu but returned %d, bytes", len, available);
-    len = available;
-    status = false;
-  }
-  this->input_buffer_.pop(data, len);
+  const size_t got = this->input_buffer_.pop(data, len);
+  if (got < len)
+    ESP_LOGV(TAG, "underflow: requested %zu but returned %zu bytes", len, got);
   this->parent_->start_input(this);
-  return status;
+  return got == len;
 }
 void USBUartComponent::setup() { USBClient::setup(); }
 void USBUartComponent::loop() {
