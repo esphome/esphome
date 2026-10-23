@@ -10,6 +10,8 @@ struct BTHomeObject {
   BTHomeObjectType type = BTHomeObjectType::PACKET_ID;
   const uint8_t *data = nullptr;
   size_t length = 0;
+  // Position among the objects of the same type in this payload, from 0 (button 1, button 2, ...).
+  uint8_t index = 0;
   float scaling_factor() const;
   bool is_signed() const;
   uint32_t as_uint() const;
