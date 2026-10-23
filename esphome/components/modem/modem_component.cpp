@@ -171,6 +171,13 @@ void ModemComponent::set_fault_(ModemFault fault) {
   }
 }
 
+// The fault that ended the session says more than a failed cleanup after it
+void ModemComponent::set_teardown_fault_() {
+  if (this->fault_.load(std::memory_order_relaxed) == ModemFault::MODEM_FAULT_NONE) {
+    this->set_fault_(ModemFault::MODEM_FAULT_TEARDOWN);
+  }
+}
+
 void ModemComponent::clear_config_fault_(ModemFault fault) {
   if (this->config_fault_.load(std::memory_order_relaxed) == fault) {
     this->config_fault_.store(ModemFault::MODEM_FAULT_NONE, std::memory_order_relaxed);
@@ -180,6 +187,11 @@ void ModemComponent::clear_config_fault_(ModemFault fault) {
 
 void ModemComponent::publish_status_() {
   ModemFault fault = this->fault_.load(std::memory_order_relaxed);
+#ifdef USE_MODEM_PIN_CODE
+  if (this->pin_record_unsaved_) {
+    fault = ModemFault::MODEM_FAULT_PIN_RECORD;
+  }
+#endif
   if (fault == ModemFault::MODEM_FAULT_NONE) {
     fault = this->config_fault_.load(std::memory_order_relaxed);
   }
@@ -243,8 +255,11 @@ void ModemComponent::loop() {
     const bool saved = this->pin_pref_.save(&this->pin_record_) && global_preferences->sync();
     if (!saved) {
       ESP_LOGE(TAG, "Failed to save the PIN record");
-      // A power cycle could send a refused PIN again, so this has to show in the status
-      this->set_fault_(ModemFault::MODEM_FAULT_PIN_RECORD);
+    }
+    // A power cycle could send a refused PIN again, so a failed save shows until a later one succeeds
+    if (this->pin_record_unsaved_ != !saved) {
+      this->pin_record_unsaved_ = !saved;
+      this->publish_status_();
     }
     this->pin_save_state_.store(saved ? PinSave::PIN_SAVE_DONE : PinSave::PIN_SAVE_FAILED, std::memory_order_release);
     this->wake_task_();
@@ -267,7 +282,10 @@ void ModemComponent::setup() {
   this->pref_.load(&this->restored_baud_);
 #ifdef USE_MODEM_PIN_CODE
   this->pin_pref_ = global_preferences->make_preference<PinRecord>(PIN_PREF_HASH);
-  this->pin_pref_.load(&this->pin_record_);
+  if (!this->pin_pref_.load(&this->pin_record_)) {
+    // Also the first boot with pin_code; after a flash fault the send count starts over
+    ESP_LOGD(TAG, "No PIN record stored");
+  }
   // A changed pin_code starts with a clean record and may be sent again
   const uint32_t pin_hash = fnv1_hash(this->pin_code_);
   if (this->pin_record_.hash != pin_hash) {
@@ -805,7 +823,7 @@ ModemState ModemComponent::handle_state_disconnecting_() {
   if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
     // The next enable() probes the mode again and retries the exit; the fault keeps this visible
     ESP_LOGW(TAG, "Failed to leave data mode");
-    this->set_fault_(ModemFault::MODEM_FAULT_TEARDOWN);
+    this->set_teardown_fault_();
   }
   // Turn the radio off; waiting for the lost IP event could take up to 2 min. A reconnect keeps the SIM powered
   // so it is not unlocked again; only disable() powers it down.
@@ -814,7 +832,7 @@ ModemState ModemComponent::handle_state_disconnecting_() {
     ESP_LOGI(TAG, "Radio off");
   } else {
     ESP_LOGW(TAG, "Radio off failed");
-    this->set_fault_(ModemFault::MODEM_FAULT_TEARDOWN);
+    this->set_teardown_fault_();
   }
   return ModemState::MODEM_STATE_DISABLED;
 }
@@ -913,13 +931,17 @@ SimResult ModemComponent::prepare_sim_() {
     this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
     return SimResult::SIM_RESULT_RETRY;
   }
-  static constexpr char CPIN_PREFIX[] = "+CPIN: ";
-  StringRef status(output);
-  if (status.starts_with(CPIN_PREFIX)) {
-    status = StringRef(status.c_str() + sizeof(CPIN_PREFIX) - 1, status.size() - (sizeof(CPIN_PREFIX) - 1));
+  // Anything else, such as an echoed command, is not a status and must not reach the lock checks below
+  const char *found = strstr(output.c_str(), "+CPIN:");
+  if (found != nullptr) {
+    found += sizeof("+CPIN:") - 1;
+    while (*found == ' ') {
+      found++;
+    }
   }
+  const StringRef status = found != nullptr ? StringRef(found) : StringRef();
   if (status.empty()) {
-    ESP_LOGD(TAG, "SIM status not reported yet");
+    ESP_LOGD(TAG, "SIM status not reported yet: %s", output.c_str());
     this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
     return SimResult::SIM_RESULT_RETRY;
   }

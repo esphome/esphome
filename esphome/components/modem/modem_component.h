@@ -170,6 +170,7 @@ class ModemComponent : public Component {
   void cancel_connect_timeout_();
   void fail_setup_(const LogString *reason);
   void set_fault_(ModemFault fault);
+  void set_teardown_fault_();
   void clear_config_fault_(ModemFault fault);
   void hand_over_(uint32_t pending);
   /// Send an AT command from the task and log the result; blocks for up to the timeout
@@ -252,6 +253,7 @@ class ModemComponent : public Component {
 #ifdef USE_MODEM_PIN_CODE
   std::atomic<PinSave> pin_save_state_{PinSave::PIN_SAVE_DONE};
   PinStep pin_step_{PinStep::PIN_STEP_IDLE};
+  bool pin_record_unsaved_{false};  // loop() only; the last PIN record save failed
 #endif
   ConnectStep connect_step_{ConnectStep::CONNECT_STEP_START};
   uint8_t init_at_count_{0};
