@@ -553,6 +553,8 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   size_t push(const T *data, size_t len) {
     static_assert(std::is_trivially_copyable<T>::value, "bulk push copies with memcpy");
     len = std::min<size_t>(len, this->free_space());
+    if (len == 0)
+      return 0;  // data_ may be null, and memcpy with a null pointer is undefined even for 0 bytes
     const size_t first = std::min<size_t>(len, this->capacity_ - this->tail_);
     std::memcpy(this->data_ + this->tail_, data, first * sizeof(T));
     std::memcpy(this->data_, data + first, (len - first) * sizeof(T));
@@ -573,6 +575,8 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   size_t pop(T *out, size_t len) {
     static_assert(std::is_trivially_copyable<T>::value, "bulk pop copies with memcpy");
     len = std::min<size_t>(len, this->count_);
+    if (len == 0)
+      return 0;
     const size_t first = std::min<size_t>(len, this->capacity_ - this->head_);
     std::memcpy(out, this->data_ + this->head_, first * sizeof(T));
     std::memcpy(out + first, this->data_, (len - first) * sizeof(T));
