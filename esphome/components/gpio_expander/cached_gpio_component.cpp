@@ -5,8 +5,8 @@ namespace esphome::gpio_expander {
 // Not a member of the template: GCC 10 (ESP8266) ignores section attributes on template instantiations.
 static void IRAM_ATTR interrupt_pin_isr(Component *arg) { arg->enable_loop_soon_any_context(); }
 
-// No need to clear a latched interrupt first: if INT is already low the ISR fires at once, the loop
-// invalidates the cache and the next read clears the latch.
+// Like the per-chip code this replaces, an INT line already low at attach gives no falling edge, so
+// nothing runs until the next edge.
 bool InterruptExpanderComponent::attach_interrupt_pin_() {
   // Polling mode enables the loop in pin_mode() for the first input; interrupt mode from the ISR.
   this->disable_loop();
