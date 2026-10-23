@@ -20,26 +20,13 @@ static constexpr uint8_t SET_REQ = 0x46;
 // bytes). Continuation CAN IDs clear bits 28-22 (msg_id -> 0).
 static constexpr size_t MAX_FIRST_FRAME_PAYLOAD = 6;
 static constexpr size_t MAX_CONT_FRAME_PAYLOAD = 7;
+// GET and SET requests fit in one CAN frame; 64 chars cover the longest one.
+static constexpr size_t HEX_LOG_BUFFER_SIZE = 64;
 static constexpr uint32_t CONTINUATION_ID_MASK = 0x003FFFFF;
 static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 
 // Minimum decodable TopTronic message: cmd | function_group | function_number | dp_hi | dp_lo.
 static constexpr size_t MIN_MESSAGE_LEN = 5;
-
-// Format a byte buffer as a zero-padded hex string for log output (e.g. "4001001a").
-// Uses a plain std::string (no std::stringstream) — common short messages fit in the
-// small-string-optimization buffer, so the hot path (every received frame) performs
-// no heap allocation.
-std::string hex_str(const uint8_t *data, size_t len) {
-  static const char *const HEX = "0123456789abcdef";
-  std::string out;
-  out.reserve(len * 2);
-  for (size_t i = 0; i < len; ++i) {
-    out.push_back(HEX[(data[i] >> 4) & 0x0F]);
-    out.push_back(HEX[data[i] & 0x0F]);
-  }
-  return out;
-}
 
 // The ESP32 CAN gateway presents itself on the bus as a TopTronic gateway (GW)
 // device. This constant is the device-type portion of the sender CAN ID for all
@@ -175,8 +162,9 @@ void TopTronicNumber::control(float value) {
   std::vector<uint8_t> data = build_set_request(this->function_group_, this->function_number_, this->datapoint_, bytes);
   this->set_callback_.call(data);
 
-  ESP_LOGD(TAG, "[SET] %s: %f, Data: 0x%s", LOG_STR_ARG(this->get_log_name()), v,
-           hex_str(data.data(), data.size()).c_str());
+  char hex[HEX_LOG_BUFFER_SIZE];
+  format_hex_to(hex, data);
+  ESP_LOGD(TAG, "[SET] %s: %f, Data: 0x%s", LOG_STR_ARG(this->get_log_name()), v, hex);
 }
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -237,7 +225,9 @@ void TopTronic::register_sensor_callbacks() {
       sensor->add_on_update_callback([canbus, sensor, can_id, receiver_dev]() -> void {
         const auto &data = sensor->get_request_data();
         canbus->send_data(can_id, true, data);
-        ESP_LOGD(TAG, "[GET] dev 0x%04X Data: 0x%s", receiver_dev, hex_str(data.data(), data.size()).c_str());
+        char hex[HEX_LOG_BUFFER_SIZE];
+        format_hex_to(hex, data);
+        ESP_LOGD(TAG, "[GET] dev 0x%04X Data: 0x%s", receiver_dev, hex);
       });
     }
   }
