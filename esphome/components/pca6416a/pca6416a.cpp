@@ -1,4 +1,5 @@
 #include "pca6416a.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pca6416a {
@@ -170,11 +171,7 @@ void PCA6416AComponent::update_register_(uint8_t pin, bool pin_value, uint8_t re
     this->read_register_(reg_addr, &reg_value);
   }
 
-  if (pin_value) {
-    reg_value |= 1 << bit;
-  } else {
-    reg_value &= ~(1 << bit);
-  }
+  assign_bits(reg_value, 1 << bit, pin_value);
 
   this->write_register_(reg_addr, reg_value);
 
