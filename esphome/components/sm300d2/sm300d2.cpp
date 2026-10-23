@@ -8,10 +8,12 @@ ESPHOME_LOG_TAG(TAG, "sm300d2");
 static constexpr uint8_t SM300D2_RESPONSE_LENGTH = 17;
 
 void SM300D2Sensor::update() {
-  // Takes the first complete frame already received; the sensor sends one every second, so none is waited for
+  // Takes the first frame already received; only one cut off at the end of the buffer is waited for
   FrameReader<SM300D2_RESPONSE_LENGTH, 0x3C, 0x02> reader;
   const uint8_t *response = nullptr;
   this->read_available<1>([&](uint8_t c) { return (response = reader.feed(c)) == nullptr; });
+  for (uint8_t c; response == nullptr && reader.length() > 0 && this->read_byte(&c);)
+    response = reader.feed(c);
 
   if (response == nullptr) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
