@@ -204,12 +204,13 @@ async def to_code(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_IEEE802154_SLEEP_ENABLE", True)
 
 
+_validate_single_instance = fv.unique_platform_key(
+    power_management.DOMAIN, DOMAIN, message=f"Only one {DOMAIN} instance is allowed"
+)
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
-    fv.unique_platform_key(
-        power_management.DOMAIN,
-        DOMAIN,
-        message=f"Only one {DOMAIN} instance is allowed",
-    )(config)
+    _validate_single_instance(config)
     full_config = fv.full_config.get()
     boot_freq = full_config[esp32.DOMAIN][esp32.CONF_CPU_FREQUENCY]
     boot_mhz = int(boot_freq[:-3])

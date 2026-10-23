@@ -1,5 +1,6 @@
 """Shared TMP102 types and configuration validation."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 import math
 
@@ -123,10 +124,11 @@ def validate_tmp102_thresholds(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_unique_child(config: ConfigType, platform: str) -> ConfigType:
+def unique_child(platform: str) -> Callable[[ConfigType], ConfigType]:
+    """Allow one TMP102 entity of platform per temperature sensor."""
     return fv.unique_platform_key(
         platform,
         DOMAIN,
         CONF_TMP102_ID,
         message=f"Only one TMP102 {platform} may reference each temperature sensor",
-    )(config)
+    )
