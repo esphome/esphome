@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <initializer_list>
 #include <vector>
 
 namespace esphome::xiaomi_ble::testing {
@@ -19,24 +20,20 @@ static const std::vector<uint8_t> PLAIN_FRAME = {0x50, 0x20, 0xAA, 0x01, 0x05, 0
 static const std::vector<uint8_t> ENCRYPTED_FRAME = {0x58, 0x58, 0x5B, 0x05, 0x07, 0x11, 0x22, 0x33,
                                                      0x44, 0x55, 0x66, 0x19, 0x5F, 0x86, 0x6A, 0x56,
                                                      0x01, 0x02, 0x03, 0xA4, 0x77, 0xE8, 0x30};
-static const char *const BINDKEY = "101112131415161718191a1b1c1d1e1f";
-static const char *const WRONG_BINDKEY = "000102030405060708090a0b0c0d0e0f";
+static constexpr std::initializer_list<uint8_t> BINDKEY = {0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+                                                           0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
+static constexpr std::initializer_list<uint8_t> WRONG_BINDKEY = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                                                                 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
 
-class RecordingDevice : public XiaomiDevice {
+template<typename Base> class Recording : public Base {
  public:
   std::vector<XiaomiParseResult> results;
 
  protected:
   void publish_result_(const XiaomiParseResult &result) override { this->results.push_back(result); }
 };
-
-class RecordingEncryptedDevice : public XiaomiEncryptedDevice {
- public:
-  std::vector<XiaomiParseResult> results;
-
- protected:
-  void publish_result_(const XiaomiParseResult &result) override { this->results.push_back(result); }
-};
+using RecordingDevice = Recording<XiaomiDevice>;
+using RecordingEncryptedDevice = Recording<XiaomiEncryptedDevice>;
 
 static ble_device_base::ESPBTDevice device_from(const uint8_t *mac, const std::vector<uint8_t> &frame) {
   std::vector<uint8_t> adv = {static_cast<uint8_t>(frame.size() + 3), 0x16, 0x95, 0xFE};

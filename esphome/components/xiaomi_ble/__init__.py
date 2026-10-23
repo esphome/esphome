@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import ble_device_base
 import esphome.config_validation as cv
 from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
+from esphome.core import HexInt
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -33,4 +34,6 @@ async def to_code(config: ConfigType) -> None:
 def setup_xiaomi_device(var: MockObj, config: ConfigType) -> None:
     """Set the address, and the bindkey when configured, of a XiaomiDevice."""
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    cg.add_optional(var.set_bindkey, config.get(CONF_BINDKEY))
+    if bindkey := config.get(CONF_BINDKEY):
+        key = (HexInt(byte) for byte in bytes.fromhex(bindkey))
+        cg.add(var.set_bindkey(cg.ArrayInitializer(*key)))
