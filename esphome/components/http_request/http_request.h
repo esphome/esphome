@@ -583,8 +583,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
         // Not started; report it at once, as the loop may not run again
         this->pending_.pop_back();
         this->active_--;
-        this->error_trigger_.trigger(x...);
-        this->play_next_(x...);
+        this->report_error_(x...);
         return;
       }
     } else if (this->queued_ < MAX_QUEUED) {
@@ -592,8 +591,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       this->pending_.emplace_back(x...);
     } else {
       log_request_dropped();
-      this->error_trigger_.trigger(x...);
-      this->play_next_(x...);
+      this->report_error_(x...);
       return;
     }
     this->enable_loop();
@@ -763,9 +761,19 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     return true;
   }
 
+  /// Fire on_error for a request that was never started, then continue the chain
+  void report_error_(const Ts &...x) {
+    const uint8_t generation = this->stop_generation_;
+    this->error_trigger_.trigger(x...);
+    // A stop from the trigger ended this run; a run started after it continues the chain instead
+    if (generation == this->stop_generation_)
+      this->play_next_(x...);
+  }
+
   void finish_(PendingRequest &request) {
     // Free the slot first, so that the chain can start this action again
     this->active_--;
+    const uint8_t generation = this->stop_generation_;
     auto &container = request.container;
     if (request.failed) {
       std::apply([this](auto &...args) { this->error_trigger_.trigger(args...); }, request.args);
@@ -787,7 +795,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     }
     if (container != nullptr)
       container->end();
-    std::apply([this](auto &...args) { this->play_next_(args...); }, request.args);
+    // A stop from the triggers ended this run; a run started after it continues the chain instead
+    if (generation == this->stop_generation_)
+      std::apply([this](auto &...args) { this->play_next_(args...); }, request.args);
   }
 
   void encode_json_(Ts... x, JsonObject root) {

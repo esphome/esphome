@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <algorithm>
 #include <cstring>
 
 #include <fcntl.h>
@@ -23,6 +24,10 @@
 namespace esphome::http_request {
 
 ESPHOME_LOG_TAG(TAG, "http_request");
+
+// Request body sent per esp_http_client_write() call, and the time one poll() spends sending it
+static constexpr size_t SEND_CHUNK_SIZE = 1024;
+static constexpr uint32_t SEND_BUDGET_MS = 10;
 static constexpr uint32_t ERROR_DURATION_MS = 1000;
 
 void HttpRequestIDF::dump_config() {
@@ -346,21 +351,27 @@ HttpRequestProgress HttpContainerIDF::poll() {
       }
 
       case Stage::STAGE_SEND_BODY: {
-        if (!this->socket_ready_(true)) {
-          return this->wait_();
-        }
-        int written = esp_http_client_write(this->client_, this->body_.data() + this->body_sent_,
-                                            this->body_.size() - this->body_sent_);
-        if (written < 0) {
-          return this->fail_(ESP_FAIL);
-        }
-        if (written == 0) {
-          return this->wait_();
-        }
-        this->body_sent_ += written;
-        this->progress_time_ = millis();
-        if (this->body_sent_ < this->body_.size()) {
-          return HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING;
+        // esp_http_client_write() returns only once all it was given is sent, so give it a piece at a time
+        watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+        const uint32_t start = millis();
+        while (this->body_sent_ < this->body_.size()) {
+          if (!this->socket_ready_(true)) {
+            return this->wait_();
+          }
+          const size_t len = std::min(this->body_.size() - this->body_sent_, SEND_CHUNK_SIZE);
+          int written = esp_http_client_write(this->client_, this->body_.data() + this->body_sent_, len);
+          this->feed_wdt();
+          if (written < 0) {
+            return this->fail_(ESP_FAIL);
+          }
+          if (written == 0) {
+            return this->wait_();
+          }
+          this->body_sent_ += written;
+          this->progress_time_ = millis();
+          if (this->progress_time_ - start >= SEND_BUDGET_MS && this->body_sent_ < this->body_.size()) {
+            return HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING;
+          }
         }
         this->body_ = std::string();
         this->stage_ = Stage::STAGE_HEADERS;

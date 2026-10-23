@@ -255,6 +255,53 @@ TEST_F(HttpRequestSendActionTest, StopFromOnResponseDropsTheRest) {
   EXPECT_FALSE(this->automation_.is_running());
 }
 
+// A script in mode restart that executes itself from on_response
+TEST_F(HttpRequestSendActionTest, RestartFromOnResponseContinuesOnlyTheNewRun) {
+  int restarts = 0;
+  LambdaAction<std::shared_ptr<HttpContainer>> restart{[this, &restarts](const std::shared_ptr<HttpContainer> &) {
+    if (restarts++ == 0) {
+      this->automation_.stop();
+      this->trigger_.trigger();
+    }
+  }};
+  this->on_response_.add_action(&restart);
+  this->trigger_.trigger();
+  this->loop_();
+  this->loop_();
+  this->loop_();
+  EXPECT_EQ(this->http_.begins, 2);
+  EXPECT_EQ(this->http_.containers[0]->ends, 1);
+  EXPECT_EQ(this->next_count_, 0);
+  EXPECT_TRUE(this->automation_.is_running());
+
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 2);
+  EXPECT_EQ(this->next_count_, 1);
+  EXPECT_FALSE(this->automation_.is_running());
+}
+
+TEST_F(HttpRequestSendActionTest, RestartFromOnErrorContinuesOnlyTheNewRun) {
+  LambdaAction<> restart{[this]() {
+    if (this->http_.refuse) {
+      this->http_.refuse = false;
+      this->automation_.stop();
+      this->trigger_.trigger();
+    }
+  }};
+  this->on_error_.add_action(&restart);
+  this->http_.refuse = true;
+  this->trigger_.trigger();
+  EXPECT_EQ(this->errors_, 1);
+  EXPECT_EQ(this->http_.begins, 2);
+  EXPECT_EQ(this->next_count_, 0);
+  EXPECT_TRUE(this->automation_.is_running());
+
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 1);
+  EXPECT_EQ(this->next_count_, 1);
+  EXPECT_FALSE(this->automation_.is_running());
+}
+
 TEST_F(HttpRequestSendActionTest, TriggerFromOnResponseStartsAtOnce) {
   int retriggers = 0;
   LambdaAction<std::shared_ptr<HttpContainer>> again{[this, &retriggers](const std::shared_ptr<HttpContainer> &) {
