@@ -31,6 +31,7 @@ from esphome.core.entity_helpers import (
     ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
+    lazy_load_setup,
     lazy_load_validator,
     mqtt_component_class,
     queue_entity_register,
@@ -279,10 +280,7 @@ async def setup_switch_core_(var, config):
     setup_device_class(config)
 
     cg.add(var.set_restore_mode(_resolve_restore_mode(config)))
-    if "zigbee" in CORE.loaded_integrations:
-        from esphome.components import zigbee
-
-        await zigbee.setup_switch(var, config)
+    await lazy_load_setup("zigbee", "setup_switch", var, config)
 
 
 async def register_switch(var, config):

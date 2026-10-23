@@ -961,11 +961,8 @@ def _zigbee_entity_schema(platform: str) -> cv.Schema:
 
 
 ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
-
 ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
-
 ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
-
 ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
 
 
@@ -985,6 +982,12 @@ def lazy_load_validator(
         return delegate(config)
 
     return validator
+
+
+async def lazy_load_setup(component: str, name: str, *args: Any) -> None:
+    """Await ``components.<component>.<name>(*args)`` when the component is loaded."""
+    if component in CORE.loaded_integrations:
+        await getattr(import_module(f"esphome.components.{component}"), name)(*args)
 
 
 async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:

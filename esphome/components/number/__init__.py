@@ -83,6 +83,7 @@ from esphome.core.entity_helpers import (
     ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
+    lazy_load_setup,
     lazy_load_validator,
     mqtt_component_class,
     queue_entity_register,
@@ -298,10 +299,9 @@ async def setup_number_core_(
 
     await entity_helpers.setup_entity_integrations(var, config)
 
-    if "zigbee" in CORE.loaded_integrations:
-        from esphome.components import zigbee
-
-        await zigbee.setup_number(var, config, min_value, max_value, step)
+    await lazy_load_setup(
+        "zigbee", "setup_number", var, config, min_value, max_value, step
+    )
 
 
 async def register_number(

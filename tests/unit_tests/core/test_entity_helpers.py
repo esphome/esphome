@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 import re
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -38,6 +38,7 @@ from esphome.core.entity_helpers import (
     finalize_entity_strings,
     get_base_entity_object_id,
     inherit_property_from,
+    lazy_load_setup,
     lazy_load_validator,
     mqtt_component_class,
     register_device_class,
@@ -1288,6 +1289,25 @@ def test_lazy_load_validator_defers_import() -> None:
         assert validator(config) == {CONF_NAME: "validated"}
         import_mock.assert_called_once_with("esphome.components.zigbee")
         delegate.assert_called_once_with(config)
+
+
+@pytest.mark.asyncio
+async def test_lazy_load_setup_defers_import() -> None:
+    """The setup hook no-ops without importing unless the component is loaded."""
+    with (
+        patch.object(CORE, "loaded_integrations", set()),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+    ):
+        await lazy_load_setup("zigbee", "setup_number", "var", {}, 0, 10, 1)
+        import_mock.assert_not_called()
+
+        CORE.loaded_integrations.add("zigbee")
+        import_mock.return_value.setup_number = AsyncMock()
+        await lazy_load_setup("zigbee", "setup_number", "var", {}, 0, 10, 1)
+        import_mock.assert_called_once_with("esphome.components.zigbee")
+        import_mock.return_value.setup_number.assert_awaited_once_with(
+            "var", {}, 0, 10, 1
+        )
 
 
 def test_lazy_load_validator_rejects_unknown_component() -> None:
