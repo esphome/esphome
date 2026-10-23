@@ -507,7 +507,7 @@ class HttpRequestComponent : public Component {
   /// Start a request without waiting for the response, then poll() the container until it is not pending.
   /// Returns nullptr when the request cannot be started. Platforms without a non-blocking client complete
   /// the request here.
-  virtual std::shared_ptr<HttpContainer> begin(const char *url, const char *method, std::string body,
+  virtual std::shared_ptr<HttpContainer> begin(const char *url, const char *method, std::string &&body,
                                                const std::vector<Header> &request_headers,
                                                const std::vector<std::string> &lower_case_collect_headers,
                                                uint32_t timeout_ms) {
@@ -639,7 +639,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
   };
 
   void stop() override {
-    end_all_(this->pending_);
+    this->end_all_(this->pending_);
     this->active_ = 0;
     this->queued_ = 0;
     // Tell any process_pending_() further down the stack that the requests it holds were cancelled
@@ -647,7 +647,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     this->disable_loop();
   }
 
-  static void end_all_(std::list<PendingRequest> &requests) {
+  void end_all_(std::list<PendingRequest> &requests) {
     for (auto &request : requests) {
       if (request.container != nullptr)
         request.container->end();
@@ -704,8 +704,8 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       uint8_t generation = this->stop_generation_;
       this->finish_(completed.front());
       if (generation != this->stop_generation_) {
-        end_all_(waiting);
-        end_all_(queue);
+        this->end_all_(waiting);
+        this->end_all_(queue);
         break;
       }
     }

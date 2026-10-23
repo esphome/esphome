@@ -81,7 +81,7 @@ class HttpRequestIDF final : public HttpRequestComponent {
   void set_verify_ssl(bool verify_ssl) { this->verify_ssl_ = verify_ssl; }
   void set_ca_certificate(const char *ca_certificate) { this->ca_certificate_ = ca_certificate; }
 
-  std::shared_ptr<HttpContainer> begin(const char *url, const char *method, std::string body,
+  std::shared_ptr<HttpContainer> begin(const char *url, const char *method, std::string &&body,
                                        const std::vector<Header> &request_headers,
                                        const std::vector<std::string> &lower_case_collect_headers,
                                        uint32_t timeout_ms) override;

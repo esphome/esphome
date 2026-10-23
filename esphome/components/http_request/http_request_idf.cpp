@@ -250,7 +250,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const char *url, const ch
   return container;
 }
 
-std::shared_ptr<HttpContainer> HttpRequestIDF::begin(const char *url, const char *method, std::string body,
+std::shared_ptr<HttpContainer> HttpRequestIDF::begin(const char *url, const char *method, std::string &&body,
                                                      const std::vector<Header> &request_headers,
                                                      const std::vector<std::string> &lower_case_collect_headers,
                                                      uint32_t timeout_ms) {
@@ -295,7 +295,8 @@ bool HttpContainerIDF::socket_ready_(bool write) {
   FD_SET(fd, &fds);
   timeval no_wait{};
   // An error also counts as ready, so that the call that follows reports it
-  return select(fd + 1, write ? nullptr : &fds, write ? &fds : nullptr, nullptr, &no_wait) != 0;
+  // Qualified: esphome::select is a namespace
+  return ::select(fd + 1, write ? nullptr : &fds, write ? &fds : nullptr, nullptr, &no_wait) != 0;
 #else
   return true;
 #endif
