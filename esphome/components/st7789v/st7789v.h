@@ -149,7 +149,6 @@ class ST7789V final : public display::DisplayBuffer,
   uint16_t offset_height_{0};
   uint16_t offset_width_{0};
 
-  void init_reset_();
   void backlight_(bool onoff);
   void write_command_(uint8_t value);
   void write_data_(uint8_t value);

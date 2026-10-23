@@ -17,8 +17,6 @@ static const uint8_t BW_FSK[21] = {
     FSK_BW_23400,  FSK_BW_29300,  FSK_BW_39000,  FSK_BW_46900,  FSK_BW_58600,  FSK_BW_78200,  FSK_BW_93800,
     FSK_BW_117300, FSK_BW_156200, FSK_BW_187200, FSK_BW_234300, FSK_BW_312000, FSK_BW_373600, FSK_BW_467000};
 
-static constexpr uint32_t RESET_DELAY_HIGH_MS = 5;
-static constexpr uint32_t RESET_DELAY_LOW_MS = 2;
 static constexpr uint32_t SWITCHING_DELAY_US = 1;
 static constexpr uint32_t TRANSMIT_TIMEOUT_MS = 4000;
 static constexpr uint32_t BUSY_TIMEOUT_MS = 20;
@@ -127,9 +125,7 @@ void SX126x::configure() {
   uint8_t buf[8];
 
   // toggle chip reset
-  pulse_reset(
-      this->rst_pin_,
-      {.high_before_ms = RESET_DELAY_HIGH_MS, .low_ms = RESET_DELAY_LOW_MS, .high_after_ms = RESET_DELAY_HIGH_MS});
+  pulse_reset(this->rst_pin_, {.high_before_ms = 5, .low_ms = 2, .high_after_ms = 5});
 
   // wakeup
   this->read_opcode_(RADIO_GET_STATUS, nullptr, 0);

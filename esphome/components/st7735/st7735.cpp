@@ -240,7 +240,7 @@ void ST7735::setup() {
   this->dc_pin_->digital_write(true);
   this->cs_->digital_write(true);
 
-  this->init_reset_();
+  pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10});
   delay(100);  // NOLINT
 
   ESP_LOGD(TAG, "  START");
@@ -321,7 +321,6 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 
-void ST7735::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 const char *ST7735::model_str_() {
   switch (this->model_) {
     case INITR_GREENTAB:

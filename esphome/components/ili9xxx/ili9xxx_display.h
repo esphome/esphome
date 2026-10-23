@@ -113,7 +113,6 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void display_();
   void init_lcd_(const uint8_t *addr);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2);
-  void reset_();
 
   uint8_t const *init_sequence_{};
   std::vector<uint8_t> extra_init_sequence_;

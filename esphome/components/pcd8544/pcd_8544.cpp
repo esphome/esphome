@@ -9,11 +9,9 @@ ESPHOME_LOG_TAG(TAG, "pcd_8544");
 
 void PCD8544::setup_pins_() {
   this->spi_setup();
-  this->init_reset_();
+  pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10});
   this->dc_pin_->setup();
 }
-
-void PCD8544::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 
 void PCD8544::initialize() {
   this->init_internal_(this->get_buffer_length_());

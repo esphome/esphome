@@ -827,7 +827,7 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
 
   int get_height_internal() override;
 
-  void reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 200, .low_ms = 5, .high_after_ms = 200}); };
+  void reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 200, .low_ms = 5, .high_after_ms = 200}); }
 
   void init_display_();
 };
@@ -856,7 +856,7 @@ class WaveshareEPaper7P5InBV3BWR : public WaveshareEPaperBWR {
 
   int get_height_internal() override;
 
-  void reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 200, .low_ms = 5, .high_after_ms = 200}); };
+  void reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 200, .low_ms = 5, .high_after_ms = 200}); }
 
   void init_display_();
 };
@@ -918,7 +918,7 @@ class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {
   void dump_config() override;
 
  protected:
-  void reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 200, .low_ms = 2, .high_after_ms = 20}); };
+  void reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 200, .low_ms = 2, .high_after_ms = 20}); }
 };
 
 class WaveshareEPaper7P5InV2P : public WaveshareEPaper {
