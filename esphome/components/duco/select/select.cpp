@@ -32,12 +32,11 @@ void DucoSelect::receive_response(const DucoMessage &message) {
     return;
   for (size_t i = 0; i < sizeof(MODE_CODES); i++) {
     if (progmem_read_byte(&MODE_CODES[i]) == message.data[0]) {
-      ESP_LOGD(TAG, "Current mode: %s", this->option_at(i));
       this->publish_state(i);
       return;
     }
   }
-  ESP_LOGW(TAG, "Unknown mode %02X", message.data[0]);
+  ESP_LOGV(TAG, "Unknown mode %02X", message.data[0]);
 }
 
 void DucoSelect::control(size_t index) {

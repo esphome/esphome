@@ -129,8 +129,7 @@ uart_mock:
 
 duco:
   uart_id: mock_uart
-  discovery:
-    update_interval: 2s
+  discovery: {}
   time:
     time_id: host_time
     update_interval: 2s

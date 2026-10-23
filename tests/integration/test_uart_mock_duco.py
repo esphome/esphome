@@ -94,5 +94,5 @@ async def test_uart_mock_duco(
         await wait_for(lambda: state_of(comfort) == pytest.approx(22.3), "new comfort")
 
         await waiter.wait_for_each(
-            "Node 1: type 17 (BOX)", "Node 3: type 12 (UCCO2)", timeout=40.0
+            "Found node 1: type 17", "Found node 3: type 12", timeout=40.0
         )

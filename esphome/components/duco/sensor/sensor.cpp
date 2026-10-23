@@ -60,7 +60,7 @@ void DucoSensor::receive_response(const DucoMessage &message) {
   const ReadingLayout layout = layout_of(this->reading_);
   const bool wide = layout.format != DucoValueFormat::DUCO_VALUE_FORMAT_UINT8;
   if (message.size < layout.offset + (wide ? 2 : 1)) {
-    ESP_LOGW(TAG, "Answer of %u bytes is too short", message.size);
+    ESP_LOGV(TAG, "Answer of %u bytes is too short", message.size);
     return;
   }
 

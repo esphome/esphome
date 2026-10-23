@@ -79,16 +79,16 @@ class DucoDevice : public PollingComponent, public Parented<Duco> {
   virtual void receive_response(const DucoMessage &message) = 0;
 };
 
+/// Walks the node addresses once after boot; the nodes found are listed in the config dump.
 class DucoDiscovery : public DucoDevice {
  public:
   void setup() override;
-  void update() override;
+  void dump_config() override;
+  void update() override;  // one discovery step, run by the step interval
   void receive_response(const DucoMessage &message) override;
 
  protected:
   static constexpr uint8_t NODE_COUNT = 0x45;
-
-  void request_next_node_();
 
   std::array<uint8_t, NODE_COUNT> node_types_{};  // 0 when no node answered at that address
   uint8_t next_node_{0};

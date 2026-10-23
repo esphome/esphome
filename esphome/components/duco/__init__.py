@@ -26,7 +26,7 @@ DucoTime = duco_ns.class_("DucoTime", cg.PollingComponent, cg.Parented.template(
 DUCO_COMPONENT_SCHEMA = cv.Schema({cv.GenerateID(CONF_DUCO_ID): cv.use_id(Duco)})
 
 DISCOVERY_SCHEMA = cv.Schema({cv.GenerateID(): cv.declare_id(DucoDiscovery)}).extend(
-    cv.polling_component_schema("60s")
+    cv.COMPONENT_SCHEMA
 )
 
 TIME_SCHEMA = cv.Schema(

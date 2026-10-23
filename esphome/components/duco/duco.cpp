@@ -39,7 +39,7 @@ void Duco::loop() {
 bool Duco::parse_byte_(uint8_t byte) {
   const size_t at = this->rx_size_;
   if (at >= MAX_FRAME_SIZE) {
-    ESP_LOGW(TAG, "Message longer than %u bytes dropped", static_cast<unsigned>(MAX_FRAME_SIZE));
+    ESP_LOGV(TAG, "Message longer than %u bytes dropped", static_cast<unsigned>(MAX_FRAME_SIZE));
     return false;
   }
   const uint8_t prev = at > 0 ? this->rx_buffer_[at - 1] : 0;
@@ -80,10 +80,10 @@ void Duco::finalize_message_() {
   const uint16_t remote_crc = encode_uint16(raw[length + 2], raw[length + 1]);
   if (computed_crc != remote_crc) {
     if (!this->disable_crc_) {
-      ESP_LOGW(TAG, "CRC check failed: %04X != %04X", computed_crc, remote_crc);
+      ESP_LOGV(TAG, "CRC check failed: %04X != %04X", computed_crc, remote_crc);
       return;
     }
-    ESP_LOGD(TAG, "CRC check failed, ignored: %04X != %04X", computed_crc, remote_crc);
+    ESP_LOGV(TAG, "CRC check failed, ignored: %04X != %04X", computed_crc, remote_crc);
   }
 
 #ifdef DUCO_DEVICE_COUNT
@@ -154,7 +154,7 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
     if (pending.device == device) {
       pending.missed = pending.function != 0;
       if (pending.missed) {
-        ESP_LOGW(TAG, "No answer to request %02X with id %u", pending.function, pending.id);
+        ESP_LOGV(TAG, "No answer to request %02X with id %u", pending.function, pending.id);
         this->update_warning_();
       }
       pending.id = id;
@@ -191,13 +191,13 @@ static const LogString *node_type_name(uint8_t type) {
 void DucoDiscovery::setup() {
   // Give the box time to start before walking its node addresses
   this->set_timeout(DISCOVERY_START_ID, DISCOVERY_START_MS, [this]() {
-    this->set_interval(DISCOVERY_STEP_ID, DISCOVERY_STEP_MS, [this]() { this->request_next_node_(); });
+    this->set_interval(DISCOVERY_STEP_ID, DISCOVERY_STEP_MS, [this]() { this->update(); });
   });
 }
 
-void DucoDiscovery::request_next_node_() {
+void DucoDiscovery::update() {
   if (this->attempts_ == DISCOVERY_MAX_ATTEMPTS) {
-    ESP_LOGW(TAG, "No answer for node %u", this->next_node_);
+    ESP_LOGV(TAG, "No answer for node %u", this->next_node_);
     this->next_node_++;
     this->attempts_ = 0;
   }
@@ -206,7 +206,7 @@ void DucoDiscovery::request_next_node_() {
     return;
   }
   // Without an answer by the next step the same node is asked again
-  ESP_LOGD(TAG, "Discovering node %u", this->next_node_);
+  ESP_LOGV(TAG, "Discovering node %u", this->next_node_);
   this->attempts_++;
   this->parent_->send(this, FUNCTION_NODE, {0x01, this->next_node_});
 }
@@ -214,18 +214,24 @@ void DucoDiscovery::request_next_node_() {
 void DucoDiscovery::receive_response(const DucoMessage &message) {
   // Only the latest attempt is open, so a late answer to an earlier one never arrives here
   if (message.size >= 1 && this->next_node_ < NODE_COUNT) {
+    if (message.data[0] != 0) {
+      ESP_LOGV(TAG, "Found node %u: type %u", this->next_node_, message.data[0]);
+    }
     this->node_types_[this->next_node_++] = message.data[0];
     this->attempts_ = 0;
   }
 }
 
-void DucoDiscovery::update() {
-  ESP_LOGI(TAG, "Discovered nodes:");
+void DucoDiscovery::dump_config() {
+  ESP_LOGCONFIG(TAG, "Discovered nodes:");
   for (uint8_t node = 0; node < NODE_COUNT; node++) {
     const uint8_t type = this->node_types_[node];
     if (type != 0) {
-      ESP_LOGI(TAG, "  Node %u: type %u (%s)", node, type, LOG_STR_ARG(node_type_name(type)));
+      ESP_LOGCONFIG(TAG, "  Node %u: type %u (%s)", node, type, LOG_STR_ARG(node_type_name(type)));
     }
+  }
+  if (this->next_node_ < NODE_COUNT) {
+    ESP_LOGCONFIG(TAG, "  Still discovering, at node %u", this->next_node_);
   }
 }
 
@@ -233,7 +239,7 @@ void DucoDiscovery::update() {
 void DucoTime::update() {
   const ESPTime now = this->clock_->now();
   if (!now.is_valid()) {
-    ESP_LOGW(TAG, "Time is not valid yet");
+    ESP_LOGV(TAG, "Time is not valid yet");
     return;
   }
   const uint32_t ts = now.timestamp;
