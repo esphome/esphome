@@ -102,6 +102,28 @@ class LineWaiter:
             lines=self.lines,
         )
 
+    async def wait_count(
+        self,
+        pattern: LinePattern,
+        n: int,
+        timeout: float = 5.0,
+        msg: str = "log line not repeated",
+    ) -> None:
+        """Wait until ``n`` lines, past or future, match ``pattern``; fail like ``wait``."""
+
+        async def reach() -> None:
+            while self.count(pattern) < n:
+                await self.expect(pattern)
+
+        await wait_or_fail(
+            reach(),
+            timeout,
+            msg,
+            pattern=pattern,
+            seen=lambda: f"{self.count(pattern)} of {n}",
+            lines=self.lines,
+        )
+
     def count(self, pattern: LinePattern) -> int:
         """Return how many lines seen so far match ``pattern``."""
         return sum(_match(pattern, line) is not None for line in self.lines)

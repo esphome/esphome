@@ -26,6 +26,7 @@ from aioesphomeapi import (
 import pytest
 
 from .host_prefs import clear_host_prefs
+from .log_utils import LineWaiter
 from .state_utils import (
     InitialStateHelper,
     require_entity,
@@ -46,14 +47,10 @@ async def test_template_climate_basic(
     """Sensor-pushed measured values, on_control + publish for settable ones."""
     clear_host_prefs(DEVICE_NAME)
 
-    log_lines: list[str] = []
-
-    def on_log_line(line: str) -> None:
-        if "on_control " in line:
-            log_lines.append(line)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
 
@@ -98,7 +95,7 @@ async def test_template_climate_basic(
         assert initial.action == ClimateAction.IDLE
         assert initial.mode == ClimateMode.OFF
         # Nothing was commanded yet: on_control must not have fired.
-        assert not log_lines
+        assert not waiter.count("on_control ")
 
         # Commands apply optimistically and on_control fires with the same values.
         client.climate_command(test_climate.key, mode=ClimateMode.HEAT)
@@ -122,15 +119,13 @@ async def test_template_climate_basic(
         assert state.preset == ClimatePreset.ECO
 
         await asyncio.sleep(0.2)
-        assert any(
-            "on_control mode=3" in line for line in log_lines
-        )  # CLIMATE_MODE_HEAT
-        assert any("on_control target_temperature=22.5" in line for line in log_lines)
-        assert any("on_control fan_mode=" in line for line in log_lines)
-        assert any("on_control swing_mode=" in line for line in log_lines)
-        assert any("on_control preset=" in line for line in log_lines)
+        assert waiter.count("on_control mode=3")  # CLIMATE_MODE_HEAT
+        assert waiter.count("on_control target_temperature=22.5")
+        assert waiter.count("on_control fan_mode=")
+        assert waiter.count("on_control swing_mode=")
+        assert waiter.count("on_control preset=")
         # Exactly one on_control log line per command, none extra (e.g. from a stray republish).
-        assert len(log_lines) == 5
+        assert waiter.count("on_control ") == 5
 
         # measured values are untouched by any of the above (no set action exists for them).
         assert state.current_temperature == pytest.approx(22.5, abs=0.1)
