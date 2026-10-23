@@ -111,6 +111,42 @@ def test_emit_selective_op_defines_reports_an_unavailable_op(
         tflite_op_processor._emit_selective_op_defines(["POW"])
 
 
+def test_emit_selective_op_defines_keeps_the_kernels_of_other_components(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second operator list widens the flags instead of replacing them."""
+    monkeypatch.setattr(CORE, "defines", set())
+    tflite_op_processor._emit_selective_op_defines(["SOFTMAX"])
+
+    tflite_op_processor._emit_selective_op_defines(["CONV_2D"])
+
+    flags = {
+        define.name: str(define.value)
+        for define in CORE.defines
+        if define.name.startswith("TFLM_OP_ENABLED_")
+    }
+    names = [
+        define.name
+        for define in CORE.defines
+        if define.name.startswith("TFLM_OP_ENABLED_")
+    ]
+    assert len(names) == len(set(names))
+    assert flags["TFLM_OP_ENABLED_SOFTMAX"] == "1"
+    assert flags["TFLM_OP_ENABLED_CONV_2D"] == "1"
+    assert flags["TFLM_OP_ENABLED_ADD"] == "0"
+
+
+def test_emit_selective_op_defines_validates_after_other_components(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Flags emitted earlier do not skip validation of a later operator list."""
+    monkeypatch.setattr(CORE, "defines", set())
+    tflite_op_processor._emit_selective_op_defines(["SOFTMAX"])
+
+    with pytest.raises(cv.Invalid, match="FROBNICATE"):
+        tflite_op_processor._emit_selective_op_defines(["FROBNICATE"])
+
+
 def test_unknown_table_line_is_rejected(tmp_path: Path) -> None:
     table = tmp_path / "tflm_operators.h"
     table.write_text(
@@ -176,3 +212,27 @@ def test_extract_model_ops_without_operator_section(tmp_path: Path) -> None:
     )
 
     assert extract_model_ops(model) is None
+
+
+def test_extract_model_ops_rejects_an_unreadable_entry(tmp_path: Path) -> None:
+    """A line the parser cannot read must not shrink the operator set."""
+    model = tmp_path / "model.tflite"
+    (tmp_path / "model.txt").write_text(
+        "Unique operator types: 2\n  ADD: 1\n  softmax (classifier): 1\n\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="cannot read operator entry"):
+        extract_model_ops(model)
+
+
+def test_extract_model_ops_rejects_a_count_mismatch(tmp_path: Path) -> None:
+    """The declared count catches entries that were dropped by a bad regex."""
+    model = tmp_path / "model.tflite"
+    (tmp_path / "model.txt").write_text(
+        "Unique operator types: 3\n  ADD: 1\n  SOFTMAX: 1\n\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="declares 3"):
+        extract_model_ops(model)

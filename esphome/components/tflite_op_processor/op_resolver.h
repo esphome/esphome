@@ -59,6 +59,14 @@ void log_op_failed(const char *tag, const char *op_name);
 // suffix is never macro-expanded on the way. A helper macro taking the suffix as
 // an argument would receive it already expanded: ARG_MAX is 65536 on ESP-IDF, so
 // that entry would turn into TFLM_OP_ENABLED_65536 and fail to compile.
+//
+// The two modes give the flags a different shape, so read them unqualified:
+//  - selective build: global #defines in defines.h, written by codegen
+//  - table-driven build: enumerators of an unnamed enum in this namespace
+// A qualified name (esphome::tflite_op_processor::TFLM_OP_ENABLED_X) can only
+// work where the flag is an enumerator; in the selective build the preprocessor
+// replaces TFLM_OP_ENABLED_X inside it and leaves a namespace followed by a
+// number. The bare name works in both modes here, in this namespace.
 #ifndef USE_TFLITE_MICRO_SELECTIVE_OPS
 #define TFLM_OP_AVAILABLE(op_suffix, method) TFLM_OP_ENABLED_##op_suffix = 1,
 #define TFLM_OP_UNAVAILABLE(op_suffix)

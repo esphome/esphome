@@ -57,17 +57,41 @@ async def to_code(config):
 def _emit_selective_op_defines(operators: list[str]) -> None:
     """Compile in only the kernels ``operators`` need, leaving the rest out.
 
-    The flags are process-global, so they are emitted once: tflite_micro_runtime
-    computes the same set for the whole build from the configured models, and a
-    second set would define every enum value twice.
+    The flags are process-global, so tflite_micro_runtime computes the same set
+    for the whole build from the configured models. ``operators`` is always
+    validated against the table, and a kernel this list needs is enabled even
+    when another component already emitted the flags, so nothing is dropped
+    without a trace: a component can widen the set, never narrow it.
     """
-    if any(define.name.startswith(_SELECTIVE_FLAG_PREFIX) for define in CORE.defines):
-        _LOGGER.debug("Selective operator flags are already set, keeping them")
-        return
     try:
         defines = build_selective_op_defines(operators)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
     cg.add_define("USE_TFLITE_MICRO_SELECTIVE_OPS")
+    existing = {
+        define.name: define
+        for define in CORE.defines
+        if define.name.startswith(_SELECTIVE_FLAG_PREFIX)
+    }
+    written = 0
+    widened: list[str] = []
     for suffix, enabled in defines.items():
-        cg.add_define(f"{_SELECTIVE_FLAG_PREFIX}{suffix}", enabled)
+        name = f"{_SELECTIVE_FLAG_PREFIX}{suffix}"
+        if (define := existing.get(name)) is not None:
+            if str(define.value) == "1":
+                # Another component needs this kernel: the set only widens.
+                continue
+            if not enabled:
+                continue
+            # Define hashes on its value, so replace it instead of mutating it.
+            CORE.defines.discard(define)
+            widened.append(suffix)
+        cg.add_define(name, enabled)
+        written += 1
+    if widened:
+        _LOGGER.info(
+            "Enabled selective operator flags an earlier component left out: %s",
+            ", ".join(widened),
+        )
+    else:
+        _LOGGER.debug("Wrote %d selective operator flag(s)", written)

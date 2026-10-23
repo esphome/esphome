@@ -27,6 +27,9 @@ _CONDITIONAL_RE = re.compile(
 _UNAVAILABLE_RE = re.compile(r"^TFLM_OP_UNAVAILABLE\(([A-Za-z0-9_]+)\)$")
 # A line in the model .txt report listing one operator type, e.g. "  REDUCE_MIN: 1"
 _OP_COUNT_RE = re.compile(r"^\s*([A-Z][A-Z0-9_]*):\s+\d+\s*$")
+# The header of that list, e.g. "Unique operator types: 18"; trailing text after
+# the count is allowed.
+_OP_LIST_HEADER_RE = re.compile(r"^Unique operator types:\s*(\d+)\b")
 
 _TABLE_GUARD = "TFLM_OPERATORS_ACTIVE"
 _TABLE_END = "#endif"
@@ -135,19 +138,42 @@ def extract_model_ops(model_path: str | Path) -> set[str] | None:
         A set of operator names, or ``None`` when no companion ``.txt`` file
         exists (or it contains no operator list). The device-side runtime check
         remains the final safety net in that case.
+
+    Raises:
+        ValueError: if an entry in the list cannot be read, or the number of
+            entries does not match the count in the header. A partial set would
+            compile out kernels the model needs, and the device would only find
+            out when it tries to register them.
     """
     txt_path = Path(model_path).with_suffix(".txt")
     if not txt_path.exists():
         return None
-    content = txt_path.read_text(encoding="utf-8").replace("\r\n", "\n")
-    section = re.search(r"Unique operator types:.*?(?=\n\s*\n|\Z)", content, re.DOTALL)
-    if not section:
+    lines = txt_path.read_text(encoding="utf-8").replace("\r\n", "\n").splitlines()
+    declared: int | None = None
+    start = 0
+    for index, line in enumerate(lines):
+        if (header := _OP_LIST_HEADER_RE.match(line)) is not None:
+            declared = int(header.group(1))
+            start = index + 1
+            break
+    if declared is None:
         return None
     ops: set[str] = set()
-    for line in section.group(0).splitlines():
-        match = _OP_COUNT_RE.match(line)
-        if match:
-            ops.add(match.group(1))
+    for line in lines[start:]:
+        # The list ends at a blank line or at the next non-indented section.
+        if not line.strip() or not line[:1].isspace():
+            break
+        if (entry := _OP_COUNT_RE.match(line)) is None:
+            raise ValueError(
+                f"{txt_path}: cannot read operator entry {line.strip()!r}; "
+                "regenerate the report instead of editing it"
+            )
+        ops.add(entry.group(1))
+    if len(ops) != declared:
+        raise ValueError(
+            f"{txt_path}: the operator list names {len(ops)} operator(s) but "
+            f"declares {declared}; regenerate the report instead of editing it"
+        )
     return ops or None
 
 
