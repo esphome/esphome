@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from esphome import automation
@@ -6,6 +7,7 @@ import esphome.codegen as cg
 from esphome.components import power_supply
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CHANNEL,
     CONF_ID,
     CONF_INVERTED,
     CONF_LEVEL,
@@ -14,6 +16,7 @@ from esphome.const import (
     CONF_POWER_SUPPLY,
 )
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -89,6 +92,22 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
         cv.Required(CONF_ID): cv.use_id(BinaryOutput),
     }
 )
+
+
+def final_validate_unique_channel(
+    platform: str, hub_key: str
+) -> Callable[[ConfigType], ConfigType]:
+    """Reject a second output of platform on the same channel of one hub.
+
+    Two outputs on one channel would overwrite each other's value.
+    """
+    return fv.unique_platform_key(
+        DOMAIN,
+        platform,
+        hub_key,
+        CONF_CHANNEL,
+        message=f"Channel '{{{CONF_CHANNEL}}}' of '{{{hub_key}}}' is already used by another output",
+    )
 
 
 def _enable_power_scaling(config: ConfigType) -> ConfigType:

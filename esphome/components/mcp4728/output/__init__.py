@@ -48,6 +48,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel("mcp4728", CONF_MCP4728_ID)
+
+
 async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_MCP4728_ID])
     var = cg.new_Pvariable(
