@@ -85,22 +85,15 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   // Stops the handshake until the next BLE disconnect; used for failures a retry can't fix.
   void halt_(const char *reason);
 
+  // Members ordered by size so nothing is padded
   StringRef user_;
   StringRef password_;
   uint32_t pin_{0};
-  bool has_pin_{false};
 #ifdef USE_TIME
   time::RealTimeClock *time_id_{nullptr};
 #endif
-
-  uint16_t rx_char_handle_{0};
-  uint16_t tx_char_handle_{0};
-  DeltaState state_{DeltaState::DELTA_STATE_IDLE};
-  std::array<uint8_t, MAX_FRAME_LEN> rx_buffer_{};
   size_t rx_len_{0};
   uint32_t last_tx_time_{0};
-  uint8_t pairing_attempts_{0};
-  bool pairing_in_progress_{false};
 
   // Sensors
   sensor::Sensor *power_sensor_{nullptr};
@@ -115,6 +108,14 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   text_sensor::TextSensor *bt_fw_version_sensor_{nullptr};
   text_sensor::TextSensor *model_name_sensor_{nullptr};
   text_sensor::TextSensor *error_code_sensor_{nullptr};
+
+  uint16_t rx_char_handle_{0};
+  uint16_t tx_char_handle_{0};
+  DeltaState state_{DeltaState::DELTA_STATE_IDLE};
+  uint8_t pairing_attempts_{0};
+  bool has_pin_{false};
+  bool pairing_in_progress_{false};
+  std::array<uint8_t, MAX_FRAME_LEN> rx_buffer_{};
 };
 }  // namespace esphome::delta_wallbox
 #endif
