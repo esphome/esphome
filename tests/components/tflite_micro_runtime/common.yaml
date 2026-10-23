@@ -1,0 +1,20 @@
+# ESPHome build test: tflite_micro_runtime (both model types).
+# Audio model: remote http manifest.
+# Image model: remote .tflite (REDUCE_MIN op is registered through the
+# conditional/optional-add path of tflite_op_processor).
+psram:
+  mode: quad
+
+tflite_micro_runtime:
+  - id: test_tflite_audio
+    model_type: audio
+    model: https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/okay_nabu.json
+    probability_cutoff: 0.5
+    sliding_window_size: 10
+    features_step_size: 20
+    feature_count: 40
+    debug: false
+  - id: test_tflite_image
+    model_type: image
+    model: https://raw.githubusercontent.com/nliaudat/esphome_ai_component/refs/heads/main/models/digit_recognizer_v24_quantized_integer_quant_uint8.tflite
+    debug: true
