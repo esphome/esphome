@@ -1050,8 +1050,7 @@ async def to_code(config):
         if CONF_AP in config:
             # AP-mode code (wifi_component_zephyr.cpp) needs this for DHCP to work.
             zephyr_add_prj_conf("NET_DHCPV4_SERVER", True)
-        if (min_rssi := config.get(CONF_MIN_RSSI)) is not None:
-            cg.add(var.set_min_scan_rssi(min_rssi))
+        cg.add_optional(var.set_min_scan_rssi, config.get(CONF_MIN_RSSI))
 
     if CORE.is_esp32:
         if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
