@@ -21,10 +21,9 @@ CONFIG_SCHEMA = switch.switch_schema(
 
 # The hub has one slot per channel, so a second switch on it would take over the first
 FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
-    switch.DOMAIN,
-    DOMAIN,
-    CONF_M5STACK_4RELAY_ID,
-    CONF_CHANNEL,
+    domain=switch.DOMAIN,
+    platform=DOMAIN,
+    keys=(CONF_M5STACK_4RELAY_ID, CONF_CHANNEL),
     message="Channel {1} of {0} is used by more than one switch",
 )
 

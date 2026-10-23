@@ -124,11 +124,11 @@ def validate_tmp102_thresholds(config: ConfigType) -> ConfigType:
     return config
 
 
-def unique_child(platform: str) -> Callable[[ConfigType], ConfigType]:
-    """Allow one TMP102 entity of platform per temperature sensor."""
+def unique_child(domain: str) -> Callable[[ConfigType], ConfigType]:
+    """Allow one TMP102 entity of domain per temperature sensor."""
     return fv.unique_platform_key(
-        platform,
-        DOMAIN,
-        CONF_TMP102_ID,
-        message=f"Only one TMP102 {platform} may reference each temperature sensor",
+        domain=domain,
+        platform=DOMAIN,
+        keys=(CONF_TMP102_ID,),
+        message=f"Only one TMP102 {domain} may reference each temperature sensor",
     )

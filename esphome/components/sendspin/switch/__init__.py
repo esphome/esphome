@@ -67,9 +67,9 @@ CONFIG_SCHEMA = cv.All(
 
 # Two switches of one type would each drive the same hub setting.
 _validate_unique_type = fv.unique_platform_key(
-    SWITCH_DOMAIN,
-    DOMAIN,
-    CONF_TYPE,
+    domain=SWITCH_DOMAIN,
+    platform=DOMAIN,
+    keys=(CONF_TYPE,),
     message="Only one sendspin '{0}' switch is allowed",
 )
 

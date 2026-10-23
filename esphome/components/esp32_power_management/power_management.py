@@ -205,7 +205,9 @@ async def to_code(config: ConfigType) -> None:
 
 
 _validate_single_instance = fv.unique_platform_key(
-    power_management.DOMAIN, DOMAIN, message=f"Only one {DOMAIN} instance is allowed"
+    domain=power_management.DOMAIN,
+    platform=DOMAIN,
+    message=f"Only one {DOMAIN} instance is allowed",
 )
 
 

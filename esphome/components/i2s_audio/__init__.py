@@ -286,8 +286,10 @@ def _assign_ports() -> None:
 def _validate_full_duplex(bus_id: ID) -> None:
     """Check that a full duplex bus has one microphone and speakers that can share its clocks and TX channel."""
     on_bus = {CONF_I2S_AUDIO_ID: bus_id}
-    microphones = fv.platform_entries(MICROPHONE_DOMAIN, DOMAIN, on_bus)
-    speakers = fv.platform_entries(CONF_SPEAKER, DOMAIN, on_bus)
+    microphones = fv.platform_entries(
+        domain=MICROPHONE_DOMAIN, platform=DOMAIN, match=on_bus
+    )
+    speakers = fv.platform_entries(domain=CONF_SPEAKER, platform=DOMAIN, match=on_bus)
     if len(microphones) != 1 or not speakers:
         raise cv.Invalid(
             f"'{CONF_FULL_DUPLEX}' requires exactly one i2s_audio microphone and at least one "

@@ -71,7 +71,7 @@ def _get_data() -> ZephyrPWMData:
 
 def _allocate_blocks() -> None:
     pwm_blocks: list[PWMBlock] = []
-    for cfg in fv.platform_entries(OUTPUT_DOMAIN, DOMAIN):
+    for cfg in fv.platform_entries(domain=OUTPUT_DOMAIN, platform=DOMAIN):
         pin_number = cfg[CONF_PIN][CONF_NUMBER]
         period_ns = int(1e9 / cfg[CONF_FREQUENCY])
         pwm_block = next(

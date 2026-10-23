@@ -50,10 +50,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 # Two outputs on one channel would fight over its PWM, and the last current would win
 FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
-    output.DOMAIN,
-    "lp5562",
-    CONF_LP5562_ID,
-    CONF_CHANNEL,
+    domain=output.DOMAIN,
+    platform="lp5562",
+    keys=(CONF_LP5562_ID, CONF_CHANNEL),
     message="Channel '{1}' of '{0}' is already used by another output",
 )
 
