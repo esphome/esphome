@@ -20,6 +20,10 @@ class TuyaFan final : public Component, public fan::Fan {
   fan::FanTraits get_traits() override;
 
  protected:
+  void set_boolean_(uint8_t datapoint_id, bool value);
+  void set_enum_(uint8_t datapoint_id, uint8_t value);
+  void set_integer_(uint8_t datapoint_id, uint32_t value);
+
   void control(const fan::FanCall &call) override;
 
   Tuya *parent_;

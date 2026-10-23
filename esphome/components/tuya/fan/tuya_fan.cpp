@@ -86,13 +86,38 @@ fan::FanTraits TuyaFan::get_traits() {
                         this->speed_count_);
 }
 
+// The parent skips a value equal to the last MCU report, which an MCU that does not report back leaves stale, so
+// optimistic mode always sends
+void TuyaFan::set_boolean_(uint8_t datapoint_id, bool value) {
+  if (this->optimistic_) {
+    this->parent_->force_set_boolean_datapoint_value(datapoint_id, value);
+  } else {
+    this->parent_->set_boolean_datapoint_value(datapoint_id, value);
+  }
+}
+
+void TuyaFan::set_enum_(uint8_t datapoint_id, uint8_t value) {
+  if (this->optimistic_) {
+    this->parent_->force_set_enum_datapoint_value(datapoint_id, value);
+  } else {
+    this->parent_->set_enum_datapoint_value(datapoint_id, value);
+  }
+}
+
+void TuyaFan::set_integer_(uint8_t datapoint_id, uint32_t value) {
+  if (this->optimistic_) {
+    this->parent_->force_set_integer_datapoint_value(datapoint_id, value);
+  } else {
+    this->parent_->set_integer_datapoint_value(datapoint_id, value);
+  }
+}
+
 void TuyaFan::control(const fan::FanCall &call) {
-  // An MCU that does not report back leaves the parent's last value stale, so optimistic mode always sends
   auto switch_id = this->switch_id_;
   if (switch_id.has_value()) {
     auto state = call.get_state();
     if (state.has_value()) {
-      this->parent_->set_boolean_datapoint_value(*switch_id, *state, this->optimistic_);
+      this->set_boolean_(*switch_id, *state);
     }
   }
   auto osc_id = this->oscillation_id_;
@@ -100,10 +125,10 @@ void TuyaFan::control(const fan::FanCall &call) {
     auto oscillating = call.get_oscillating();
     if (oscillating.has_value()) {
       if (this->oscillation_type_ == TuyaDatapointType::ENUM) {
-        this->parent_->set_enum_datapoint_value(*osc_id, *oscillating, this->optimistic_);
+        this->set_enum_(*osc_id, *oscillating);
       } else if (this->oscillation_type_ == TuyaDatapointType::BOOLEAN || this->optimistic_) {
         // Until the MCU reports the type, optimistic mode assumes a boolean datapoint
-        this->parent_->set_boolean_datapoint_value(*osc_id, *oscillating, this->optimistic_);
+        this->set_boolean_(*osc_id, *oscillating);
       }
     }
   }
@@ -112,7 +137,7 @@ void TuyaFan::control(const fan::FanCall &call) {
     auto direction = call.get_direction();
     if (direction.has_value()) {
       bool enable = *direction == fan::FanDirection::REVERSE;
-      this->parent_->set_enum_datapoint_value(*dir_id, enable, this->optimistic_);
+      this->set_enum_(*dir_id, enable);
     }
   }
   auto spd_id = this->speed_id_;
@@ -120,10 +145,10 @@ void TuyaFan::control(const fan::FanCall &call) {
     auto speed = call.get_speed();
     if (speed.has_value()) {
       if (this->speed_type_ == TuyaDatapointType::ENUM) {
-        this->parent_->set_enum_datapoint_value(*spd_id, *speed - 1, this->optimistic_);
+        this->set_enum_(*spd_id, *speed - 1);
       } else if (this->speed_type_ == TuyaDatapointType::INTEGER || this->optimistic_) {
         // Until the MCU reports the type, optimistic mode assumes an integer datapoint
-        this->parent_->set_integer_datapoint_value(*spd_id, *speed, this->optimistic_);
+        this->set_integer_(*spd_id, *speed);
       }
     }
   }
