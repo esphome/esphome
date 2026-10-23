@@ -1685,6 +1685,9 @@ def test_udp_channel_delivers_in_order(loss: float) -> None:
         channel.close()
     assert b"".join(device.received) == data
     assert all(len(m) <= espota2.UDP_MAX_PAYLOAD for m in device.received)
+    assert all(
+        espota2.UDP_HEADER_SIZE + len(m) + 8 + 40 <= 1280 for m in device.received
+    )
     assert device.committed
 
 

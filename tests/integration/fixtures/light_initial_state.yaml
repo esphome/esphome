@@ -42,6 +42,11 @@ output:
     write_action:
       - lambda: ""
   - platform: template
+    id: test_effect_output
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
     id: test_no_restore_key_output
     type: float
     write_action:
@@ -75,6 +80,20 @@ light:
       color_mode: BRIGHTNESS
       state: false
       brightness: 0%
+
+  - platform: monochromatic
+    name: "Test Effect Light"
+    id: test_effect_light
+    output: test_effect_output
+    # ALWAYS_ON boots the light on; an effect only starts on a light that is on
+    restore_mode: ALWAYS_ON
+    initial_state:
+      color_mode: BRIGHTNESS
+      brightness: 60%
+      effect: "Test Pulse"
+    effects:
+      - pulse:
+          name: "Test Pulse"
 
   # With neither restore_mode nor restore_state configured, initial_state: must be
   # honored as-is (no implicit forcing to OFF) -- unlike every explicit restore_mode:
