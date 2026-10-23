@@ -12,8 +12,10 @@
 
 #include "esphome/components/http_request/http_request.h"
 #include "esphome/components/online_image/online_image.h"
+#include "esphome/components/runtime_image/png_decoder.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "pngle.h"
 
 namespace esphome::online_image::testing {
 
@@ -135,7 +137,8 @@ static constexpr std::array<uint8_t, 69> PNG_1X1{
     0x0C, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0xC9,
     0xFE, 0x92, 0xEF, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82};
 
-// 800x600 RGB PNG of a single color, 2312 bytes: the decoder needs several calls to draw it
+// 800x600 RGB PNG of a single color, 2312 bytes: the decoder needs several calls to draw it.
+// The same bytes are in tests/components/runtime_image/test_png_time_limit.cpp.
 static const uint8_t PNG_SOLID[] = {
     0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x03,
     0x20, 0x00, 0x00, 0x02, 0x58, 0x08, 0x02, 0x00, 0x00, 0x00, 0x15, 0x14, 0x15, 0x27, 0x00, 0x00, 0x08, 0xCF, 0x49,
@@ -259,6 +262,26 @@ static const uint8_t PNG_SOLID[] = {
     0xB0, 0x00, 0x00, 0x30, 0x58, 0x00, 0x00, 0x06, 0x0B, 0x00, 0xC0, 0x60, 0x01, 0x00, 0x60, 0xB0, 0x00, 0x00, 0x0C,
     0x16, 0x00, 0x80, 0xC1, 0x02, 0x00, 0xC0, 0x60, 0x01, 0x00, 0xDC, 0x19, 0x79, 0xA5, 0x06, 0x0E, 0x33, 0xD4, 0xAF,
     0xF2, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+};
+
+// Draws that take a millisecond every fourth row, so decoding PNG_SOLID always outlasts the time limit of one call
+class SlowDraws : public runtime_image::PngDecoder, public runtime_image::RuntimeImage {
+ public:
+  static void install(runtime_image::RuntimeImage &image) {
+    auto *decoder = static_cast<runtime_image::PngDecoder *>((image.*&SlowDraws::decoder_).get());
+    pngle_set_draw_callback(decoder->*&SlowDraws::pngle_, draw);
+  }
+
+ private:
+  static void draw(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t rgba[4]) {
+    if (x == 0 && y % 4 == 0) {
+      const uint32_t until = millis() + 2;
+      while (millis() < until) {
+      }
+    }
+    static_cast<runtime_image::PngDecoder *>(pngle_get_user_data(pngle))
+        ->draw(x, y, w, h, Color(rgba[0], rgba[1], rgba[2], rgba[3]));
+  }
 };
 
 // 8x8 progressive JPEG, 521 bytes
@@ -594,6 +617,7 @@ TEST_F(OnlineImageDownloadEnd, PngDecodedOverSeveralPassesAfterTheDownloadEnds) 
     auto container = std::make_shared<FakeContainer>(std::vector<uint8_t>(PNG_SOLID, PNG_SOLID + sizeof(PNG_SOLID)),
                                                      sizeof(PNG_SOLID), chunked);
     this->start_(*image, container);
+    SlowDraws::install(*image);
 
     int passes = 0;
     for (; passes < 1000 && this->finished_ + this->errors_ == 0; passes++)
