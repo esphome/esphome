@@ -94,6 +94,32 @@ TEST(DecodeTimeLimit, BmpIsDecodedOverSeveralCalls) {
   }
 }
 
+// Bytes after the pixel data are used up, not drawn; here they would be colour indexes past the end of the table
+TEST(DecodeTimeLimit, BmpIgnoresBytesAfterThePixels) {
+  RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
+  constexpr size_t data_offset = 14 + 40 + 2 * 4;
+  std::vector<uint8_t> data(data_offset, 0);
+  data[0] = 'B';
+  data[1] = 'M';
+  put_le32(data, 10, data_offset);
+  put_le32(data, 14, 40);  // DIB header size
+  put_le32(data, 18, 2);   // width
+  put_le32(data, 22, 1);   // height
+  data[26] = 1;            // color planes
+  data[28] = 8;            // bits per pixel
+  data[46] = 2;            // colors in the table
+  put_le32(data, 54, 0xFF0000);
+  put_le32(data, 58, 0x0000FF);
+  data.insert(data.end(), {0, 1, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF});
+  put_le32(data, 2, data.size());
+
+  ASSERT_TRUE(img.begin_decode(data.size()));
+  EXPECT_EQ(img.feed_data(data.data(), data.size()), static_cast<int>(data.size()));
+  ASSERT_TRUE(img.end_decode());
+  EXPECT_EQ(img.get_pixel(0, 0).r, 255);
+  EXPECT_EQ(img.get_pixel(1, 0).b, 255);
+}
+
 TEST(DecodeTimeLimit, QoiIsDecodedOverSeveralCalls) {
   RuntimeImage img(QOI, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
   auto data = make_solid_qoi();
