@@ -137,7 +137,7 @@ void ST7567::fill(Color color) {
   memset(buffer_, fill, this->get_buffer_length_());
 }
 
-void ST7567::init_reset_() { pulse_reset(this->reset_pin_, 10, 0, 1); }
+void ST7567::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 
 const char *ST7567::model_str_() { return "ST7567 128x64"; }
 

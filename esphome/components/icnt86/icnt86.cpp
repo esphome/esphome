@@ -19,7 +19,7 @@ void ICNT86Touchscreen::setup() {
   }
 
   // Perform reset if necessary
-  pulse_reset(this->reset_pin_, 10);
+  pulse_reset(this->reset_pin_, {.low_ms = 10});
 
   if (this->x_raw_max_ == this->x_raw_min_) {
     this->x_raw_max_ = this->display_->get_native_width();

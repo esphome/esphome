@@ -16,7 +16,7 @@ constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 
   }
 
 void AXS15231Touchscreen::setup() {
-  pulse_reset(this->reset_pin_, 5, 10);
+  pulse_reset(this->reset_pin_, {.low_ms = 5, .high_after_ms = 10});
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
     this->interrupt_pin_->setup();

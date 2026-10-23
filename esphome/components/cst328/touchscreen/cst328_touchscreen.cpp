@@ -43,7 +43,7 @@ void CST328Touchscreen::setup() {
 }
 
 void CST328Touchscreen::reset_device_() {
-  pulse_reset(this->reset_pin_, 5);
+  pulse_reset(this->reset_pin_, {.low_ms = 5});
   this->set_timeout(CST328_TRANSITION_TIMEOUT, [this] { this->continue_setup_(); });
 }
 

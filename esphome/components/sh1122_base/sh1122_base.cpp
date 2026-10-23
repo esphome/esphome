@@ -122,7 +122,7 @@ void SH1122::fill(Color color) {
   const uint8_t fill = (color4 & SH1122_COLORMASK) | ((color4 & SH1122_COLORMASK) << SH1122_COLORSHIFT);
   memset(this->buffer_, fill, this->get_buffer_length_());
 }
-void SH1122::init_reset_() { pulse_reset(this->reset_pin_, 10, 0, 1); }
+void SH1122::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 const LogString *SH1122::model_str_() {
   switch (this->model_) {
     case SH1122_MODEL_256_64:

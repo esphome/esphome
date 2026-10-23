@@ -160,7 +160,7 @@ void SSD1327::fill(Color color) {
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
-void SSD1327::init_reset_() { pulse_reset(this->reset_pin_, 10, 0, 1); }
+void SSD1327::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 const char *SSD1327::model_str_() {
   switch (this->model_) {
     case SSD1327_MODEL_128_128:

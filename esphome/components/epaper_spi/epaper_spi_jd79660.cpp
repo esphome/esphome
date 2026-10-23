@@ -72,7 +72,7 @@ bool EPaperJD79660::reset() {
 
       // As commented on SLEEP_MS_RESET1: Reset pulse must happen within time window.
       // So do not use FSM loop, and avoid other calls/logs during pulse below.
-      pulse_reset(this->reset_pin_, SLEEP_MS_RESET1);
+      pulse_reset(this->reset_pin_, {.low_ms = SLEEP_MS_RESET1});
 
       this->reset_duration_ = SLEEP_MS_RESET2;
       this->step_ = FSMState::RESET_STEP2_IDLECHECK;

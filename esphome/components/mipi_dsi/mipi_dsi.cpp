@@ -107,7 +107,7 @@ void MipiDsi::setup() {
   }
 #endif
   if (this->reset_pin_ != nullptr) {
-    pulse_reset(this->reset_pin_, 5, 0, 5);
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
   } else {
     esp_lcd_panel_io_tx_param(this->io_handle_, SW_RESET_CMD, nullptr, 0);
   }

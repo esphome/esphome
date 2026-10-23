@@ -20,7 +20,7 @@ void EKTF2232Touchscreen::setup() {
 
   this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
-  pulse_reset(this->reset_pin_, 15, 15);
+  pulse_reset(this->reset_pin_, {.low_ms = 15, .high_after_ms = 15});
   if (!this->soft_reset_()) {
     ESP_LOGE(TAG, "Failed to soft reset EKT2232!");
     this->interrupt_pin_->detach_interrupt();

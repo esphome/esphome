@@ -297,7 +297,7 @@ void ADE7880::init_device_() {
 void ADE7880::reset_device_() {
   if (this->reset_pin_ != nullptr) {
     ESP_LOGD(TAG, "Reset device using RESET pin");
-    pulse_reset(this->reset_pin_, 1);
+    pulse_reset(this->reset_pin_, {.low_ms = 1});
   } else {
     ESP_LOGD(TAG, "Reset device using SWRST command");
     this->write_u16_register16_(CONFIG, CONFIG_SWRST);

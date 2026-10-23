@@ -355,7 +355,7 @@ void SSD1306::fill(Color color) {
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
-void SSD1306::init_reset_() { pulse_reset(this->reset_pin_, 10, 0, 1); }
+void SSD1306::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 const LogString *SSD1306::model_str_() {
   return ModelStrings::get_log_str(static_cast<uint8_t>(this->model_), ModelStrings::LAST_INDEX);
 }

@@ -426,7 +426,7 @@ void ILI9XXXDisplay::start_data_() {
 void ILI9XXXDisplay::end_command_() { this->disable(); }
 void ILI9XXXDisplay::end_data_() { this->disable(); }
 
-void ILI9XXXDisplay::reset_() { pulse_reset(this->reset_pin_, 20, 20); }
+void ILI9XXXDisplay::reset_() { pulse_reset(this->reset_pin_, {.low_ms = 20, .high_after_ms = 20}); }
 
 void ILI9XXXDisplay::init_lcd_(const uint8_t *addr) {
   if (addr == nullptr)

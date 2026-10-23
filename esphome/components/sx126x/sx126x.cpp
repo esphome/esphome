@@ -127,7 +127,9 @@ void SX126x::configure() {
   uint8_t buf[8];
 
   // toggle chip reset
-  pulse_reset(this->rst_pin_, RESET_DELAY_LOW_MS, RESET_DELAY_HIGH_MS, RESET_DELAY_HIGH_MS);
+  pulse_reset(
+      this->rst_pin_,
+      {.high_before_ms = RESET_DELAY_HIGH_MS, .low_ms = RESET_DELAY_LOW_MS, .high_after_ms = RESET_DELAY_HIGH_MS});
 
   // wakeup
   this->read_opcode_(RADIO_GET_STATUS, nullptr, 0);

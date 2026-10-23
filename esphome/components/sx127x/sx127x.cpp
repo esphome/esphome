@@ -74,7 +74,7 @@ void SX127x::setup() {
 
 void SX127x::configure() {
   // toggle chip reset
-  pulse_reset(this->rst_pin_, 1, 10);
+  pulse_reset(this->rst_pin_, {.low_ms = 1, .high_after_ms = 10});
 
   // check silicon version to make sure hw is ok
   if (this->read_register_(REG_VERSION) != 0x12) {

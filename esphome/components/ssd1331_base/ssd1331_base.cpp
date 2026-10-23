@@ -142,6 +142,6 @@ void SSD1331::fill(Color color) {
     }
   }
 }
-void SSD1331::init_reset_() { pulse_reset(this->reset_pin_, 10, 0, 1); }
+void SSD1331::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 
 }  // namespace esphome::ssd1331_base

@@ -77,7 +77,7 @@ void WaveshareEPaper2P13InV3::write_buffer_(uint8_t cmd, int top, int bottom) {
   this->end_data_();
 }
 
-void WaveshareEPaper2P13InV3::send_reset_() { pulse_reset(this->reset_pin_, 2); }
+void WaveshareEPaper2P13InV3::send_reset_() { pulse_reset(this->reset_pin_, {.low_ms = 2}); }
 
 void WaveshareEPaper2P13InV3::setup() {
   this->init_internal_(this->get_buffer_length_());

@@ -13,7 +13,7 @@ void PCD8544::setup_pins_() {
   this->dc_pin_->setup();
 }
 
-void PCD8544::init_reset_() { pulse_reset(this->reset_pin_, 10, 0, 1); }
+void PCD8544::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 
 void PCD8544::initialize() {
   this->init_internal_(this->get_buffer_length_());

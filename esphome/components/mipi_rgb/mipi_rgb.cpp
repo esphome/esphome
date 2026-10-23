@@ -33,7 +33,7 @@ void MipiRgb::setup_enables_() {
     }
     delay(10);
   }
-  pulse_reset(this->reset_pin_, 5, 0, 5);
+  pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
 }
 
 #ifdef USE_SPI

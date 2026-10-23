@@ -34,7 +34,7 @@ void FT63X6Touchscreen::setup() {
     this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_ANY_EDGE);
   }
 
-  pulse_reset(this->reset_pin_, 10);
+  pulse_reset(this->reset_pin_, {.low_ms = 10});
 
   // Get touch resolution
   if (this->x_raw_max_ == this->x_raw_min_) {

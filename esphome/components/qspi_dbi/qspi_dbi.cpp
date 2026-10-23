@@ -17,7 +17,7 @@ void QspiDbi::setup() {
     this->enable_pin_->setup();
     this->enable_pin_->digital_write(true);
   }
-  pulse_reset(this->reset_pin_, 5, 0, 5);
+  pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
   this->set_timeout(120, [this] { this->write_command_(SLEEP_OUT); });
   this->set_timeout(240, [this] { this->write_init_sequence_(); });
   if (this->draw_from_origin_)

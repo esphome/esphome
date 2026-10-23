@@ -6,7 +6,7 @@ ESPHOME_LOG_TAG(TAG, "cst226.touchscreen");
 
 void CST226Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
-    pulse_reset(this->reset_pin_, 5, 0, 5);
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
     this->set_timeout(30, [this] { this->continue_setup_(); });
   } else {
     this->continue_setup_();

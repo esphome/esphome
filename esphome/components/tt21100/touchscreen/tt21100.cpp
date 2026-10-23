@@ -54,7 +54,7 @@ void TT21100Touchscreen::setup() {
   }
 
   // Perform reset if necessary
-  pulse_reset(this->reset_pin_, 10, 10);
+  pulse_reset(this->reset_pin_, {.low_ms = 10, .high_after_ms = 10});
 
   // Update display dimensions if they were updated during display setup
   if (this->display_ != nullptr) {

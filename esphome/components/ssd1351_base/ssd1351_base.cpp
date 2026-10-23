@@ -174,7 +174,7 @@ void SSD1351::fill(Color color) {
     }
   }
 }
-void SSD1351::init_reset_() { pulse_reset(this->reset_pin_, 10, 0, 1); }
+void SSD1351::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 const char *SSD1351::model_str_() {
   switch (this->model_) {
     case SSD1351_MODEL_128_96:

@@ -83,7 +83,7 @@ void GSL3670Touchscreen::update_touches() {
 void GSL3670Touchscreen::clear_reg_() {
   ESP_LOGD(TAG, "clear_reg");
 
-  pulse_reset(this->reset_pin_, 1, 5);
+  pulse_reset(this->reset_pin_, {.low_ms = 1, .high_after_ms = 5});
 
   this->write_reg8_(0x88, 0x01);
   // delay(5);
@@ -100,7 +100,7 @@ void GSL3670Touchscreen::clear_reg_() {
 void GSL3670Touchscreen::reset_() {
   ESP_LOGD(TAG, "reset");
 
-  pulse_reset(this->reset_pin_, 1, 5);
+  pulse_reset(this->reset_pin_, {.low_ms = 1, .high_after_ms = 5});
 
   this->write_reg8_(0xe4, 0x04);
 
