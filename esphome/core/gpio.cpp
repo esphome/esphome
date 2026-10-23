@@ -23,14 +23,12 @@ void pulse_reset(GPIOPin *pin, uint32_t low_ms, uint32_t settle_ms, uint32_t pre
   if (pin == nullptr)
     return;
   pin->setup();
-  if (pre_high_ms != 0) {
-    pin->digital_write(true);
-    delay(pre_high_ms);
+  const uint32_t waits[] = {pre_high_ms, low_ms, settle_ms};
+  // Level for each step is high, low, high; a zero pre_high_ms skips the first step
+  for (size_t i = pre_high_ms == 0; i < 3; i++) {
+    pin->digital_write(i != 1);
+    delay(waits[i]);
   }
-  pin->digital_write(false);
-  delay(low_ms);
-  pin->digital_write(true);
-  delay(settle_ms);
 }
 
 }  // namespace esphome
