@@ -313,6 +313,7 @@ class TopTronic : public Component
   bool is_paused() { return this->paused_; }
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
 
 #ifdef USE_OTA_STATE_LISTENER
