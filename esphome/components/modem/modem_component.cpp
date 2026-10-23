@@ -267,8 +267,12 @@ void ModemComponent::loop() {
   }
 #endif
 #ifdef USE_MODEM_POLL
-  if (this->poll_unpublished_.load(std::memory_order_acquire)) {
-    this->publish_poll_();
+  if (pending & PENDING_ON_DISCONNECT) {
+    // A lost link must not keep showing the last healthy reading, nor one taken before it dropped
+    this->poll_unpublished_.store(0, std::memory_order_release);
+    this->publish_readings_(99, 99, 0);
+  } else if (this->poll_unpublished_.load(std::memory_order_acquire)) {
+    this->publish_readings_(this->poll_rssi_, this->poll_ber_, this->poll_mode_);
     this->poll_unpublished_.store(0, std::memory_order_release);
   }
 #endif
@@ -1113,22 +1117,24 @@ PROGMEM_STRING_TABLE(NetworkModeStrings, "No service", "GSM", "GPRS", "EDGE", "W
                      "Unknown");
 #endif
 
-void ModemComponent::publish_poll_() {
+// Raw AT answers: CSQ rssi and ber (99 = unknown) and the CNSMOD mode (past the table = Unknown)
+void ModemComponent::publish_readings_([[maybe_unused]] uint8_t rssi, [[maybe_unused]] uint8_t ber,
+                                       [[maybe_unused]] uint8_t mode) {
 #ifdef USE_MODEM_SIGNAL
   if (this->rssi_sensor_ != nullptr) {
-    this->rssi_sensor_->publish_state(this->poll_rssi_ <= 31 ? -113.0f + 2.0f * this->poll_rssi_ : NAN);
+    this->rssi_sensor_->publish_state(rssi <= 31 ? -113.0f + 2.0f * rssi : NAN);
   }
   if (this->ber_sensor_ != nullptr) {
-    this->ber_sensor_->publish_state(this->poll_ber_ < std::size(BER_PERCENT) ? BER_PERCENT[this->poll_ber_] : NAN);
+    this->ber_sensor_->publish_state(ber < std::size(BER_PERCENT) ? BER_PERCENT[ber] : NAN);
   }
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
-  if (this->network_type_text_sensor_ != nullptr && this->poll_mode_ != 255) {
+  if (this->network_type_text_sensor_ != nullptr) {
     char name[NetworkModeStrings::MAX_LENGTH + 1];
-    ESPHOME_strncpy_P(name,
-                      reinterpret_cast<ESPHOME_PGM_P>(
-                          NetworkModeStrings::get_progmem_str(this->poll_mode_, NetworkModeStrings::LAST_INDEX)),
-                      sizeof(name));
+    ESPHOME_strncpy_P(
+        name,
+        reinterpret_cast<ESPHOME_PGM_P>(NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX)),
+        sizeof(name));
     name[sizeof(name) - 1] = '\0';
     this->network_type_text_sensor_->publish_state(name);
   }

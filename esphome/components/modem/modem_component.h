@@ -180,7 +180,7 @@ class ModemComponent : public Component {
   };
 #ifdef USE_MODEM_POLL
   void poll_();
-  void publish_poll_();
+  void publish_readings_(uint8_t rssi, uint8_t ber, uint8_t mode);
 #endif
 
   // Main loop only, so arming and cancelling cannot interleave
@@ -285,12 +285,10 @@ class ModemComponent : public Component {
   uint8_t init_at_count_{0};
   uint8_t uart_port_{UART_NUM_MAX};
   uint8_t attach_polls_{0};
-#ifdef USE_MODEM_SIGNAL
+#ifdef USE_MODEM_POLL
   uint8_t poll_rssi_{99};  // raw AT+CSQ answers, 99 = unknown
   uint8_t poll_ber_{99};
-#endif
-#ifdef USE_MODEM_NETWORK_TYPE
-  uint8_t poll_mode_{255};  // raw AT+CNSMOD answer, 255 = none
+  uint8_t poll_mode_{255};  // raw AT+CNSMOD answer, 255 = no answer
 #endif
   bool connect_timeout_armed_{false};
   bool modem_synced_{false};  // a modem that never answered has nothing to tear down
