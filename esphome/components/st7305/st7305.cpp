@@ -1,7 +1,6 @@
 #include "st7305.h"
 
 #include <algorithm>
-#include <cstring>
 
 #include "esphome/core/log.h"
 
@@ -27,7 +26,6 @@ bool ST7305::init_buffer_() {
     this->mark_failed(LOG_STR("Buffer allocation failed"));
     return false;
   }
-  memset(this->buffer_, 0x00, this->buffer_length_);
   this->clear_dirty_();
   return true;
 }
