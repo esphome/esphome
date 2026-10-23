@@ -25,6 +25,8 @@ class FakeComponent : public CachedGpioExpanderComponent<uint8_t, 8> {
 
 class CachedGpioComponentTest : public ::testing::Test {
  protected:
+  void SetUp() override { this->int_pin_.set_inverted(true); }  // INT released
+
   FakeComponent component_;
   InternalGPIOPin int_pin_;  // digital_read() returns the inverted flag on the host, so it doubles as the level
 };
@@ -75,6 +77,17 @@ TEST_F(CachedGpioComponentTest, LoopStaysOnUntilIntIsReleased) {
   EXPECT_TRUE(this->component_.is_in_loop_state());
 
   this->int_pin_.set_inverted(true);  // INT released
+  this->component_.loop();
+  EXPECT_TRUE(this->component_.is_idle());
+}
+
+TEST_F(CachedGpioComponentTest, IntAlreadyLowAtSetupRunsTheLoop) {
+  this->int_pin_.set_inverted(false);  // INT asserted before the ISR is attached
+  this->component_.set_interrupt_pin(&this->int_pin_);
+  this->component_.setup();
+  EXPECT_TRUE(this->component_.is_in_loop_state());
+
+  this->int_pin_.set_inverted(true);
   this->component_.loop();
   EXPECT_TRUE(this->component_.is_idle());
 }
