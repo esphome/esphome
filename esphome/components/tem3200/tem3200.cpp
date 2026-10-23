@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tem3200 {
+namespace esphome::tem3200 {
 
-static const char *const TAG = "tem3200";
+ESPHOME_LOG_TAG(TAG, "tem3200");
 
 enum ErrorCode {
   NONE = 0,
@@ -40,6 +39,8 @@ void TEM3200Component::setup() {
       ESP_LOGE(TAG, "STALE data. Data has not been updated since last fetch");
       this->status_set_warning();
       break;
+    default:
+      break;
   }
 }
 
@@ -50,8 +51,6 @@ void TEM3200Component::dump_config() {
   LOG_SENSOR("  ", "Raw Pressure", this->raw_pressure_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
-
-float TEM3200Component::get_setup_priority() const { return setup_priority::DATA; }
 
 i2c::ErrorCode TEM3200Component::read_(uint8_t &status, uint16_t &raw_temperature, uint16_t &raw_pressure) {
   uint8_t response[4] = {0x00, 0x00, 0x00, 0x00};
@@ -130,6 +129,8 @@ void TEM3200Component::update() {
       ESP_LOGE(TAG, "Warning: STALE data. Data has not been updated since last fetch");
       this->status_set_warning();
       return;
+    default:
+      break;
   }
 
   float temperature = convert_temperature(raw_temperature);
@@ -144,5 +145,4 @@ void TEM3200Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace tem3200
-}  // namespace esphome
+}  // namespace esphome::tem3200

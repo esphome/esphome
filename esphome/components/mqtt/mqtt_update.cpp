@@ -6,10 +6,9 @@
 #ifdef USE_MQTT
 #ifdef USE_UPDATE
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.update";
+ESPHOME_LOG_TAG(TAG, "mqtt.update");
 
 using namespace esphome::update;
 
@@ -20,44 +19,41 @@ void MQTTUpdateComponent::setup() {
     if (payload == "INSTALL") {
       this->update_->perform();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown update payload: %s", this->friendly_name().c_str(), payload.c_str());
-      this->status_momentary_warning("state", 5000);
+      ESP_LOGW(TAG, "'%s': Received unknown update payload: %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
+      this->status_momentary_warning(5000);
     }
   });
 
-  this->update_->add_on_state_callback([this]() { this->defer("send", [this]() { this->publish_state(); }); });
+  this->update_->add_on_state_callback([this]() { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
 }
 
 bool MQTTUpdateComponent::publish_state() {
-  return this->publish_json(this->get_state_topic_(), [this](JsonObject root) {
-    root["installed_version"] = this->update_->update_info.current_version;
-    root["latest_version"] = this->update_->update_info.latest_version;
-    root["title"] = this->update_->update_info.title;
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish_json(this->get_state_topic_to_(topic_buf), [this](JsonObject root) {
+    root[ESPHOME_F("installed_version")] = this->update_->update_info.current_version;
+    root[ESPHOME_F("latest_version")] = this->update_->update_info.latest_version;
+    root[ESPHOME_F("title")] = this->update_->update_info.title;
     if (!this->update_->update_info.summary.empty())
-      root["release_summary"] = this->update_->update_info.summary;
+      root[ESPHOME_F("release_summary")] = this->update_->update_info.summary;
     if (!this->update_->update_info.release_url.empty())
-      root["release_url"] = this->update_->update_info.release_url;
+      root[ESPHOME_F("release_url")] = this->update_->update_info.release_url;
   });
 }
 
 void MQTTUpdateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  root["schema"] = "json";
-  root[MQTT_PAYLOAD_INSTALL] = "INSTALL";
+  root[ESPHOME_F("schema")] = ESPHOME_F("json");
+  root[MQTT_PAYLOAD_INSTALL] = ESPHOME_F("INSTALL");
 }
 
 bool MQTTUpdateComponent::send_initial_state() { return this->publish_state(); }
 
-void MQTTUpdateComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Update '%s': ", this->update_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
-}
+void MQTTUpdateComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
 
-std::string MQTTUpdateComponent::component_type() const { return "update"; }
+MQTT_COMPONENT_TYPE(MQTTUpdateComponent, "update")
 const EntityBase *MQTTUpdateComponent::get_entity() const { return this->update_; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_UPDATE
 #endif  // USE_MQTT

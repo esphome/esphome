@@ -1,0 +1,4 @@
+esp32_ble:
+  use_psram: true
+
+psram:

@@ -1,30 +1,22 @@
 #include "button.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace button {
+namespace esphome::button {
 
-static const char *const TAG = "button";
+ESPHOME_LOG_TAG(TAG, "button");
 
 // Function implementation of LOG_BUTTON macro to reduce code size
 void log_button(const char *tag, const char *prefix, const char *type, Button *obj) {
-  if (obj == nullptr) {
+  if (!log_entity_header(tag, prefix, type, obj)) {
     return;
   }
-
-  ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-
-  if (!obj->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
-  }
+  LOG_ENTITY_ICON(tag, prefix, *obj);
 }
 
 void Button::press() {
-  ESP_LOGD(TAG, "'%s' Pressed.", this->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' Pressed.", LOG_STR_ARG(this->get_log_name()));
   this->press_action();
   this->press_callback_.call();
 }
-void Button::add_on_press_callback(std::function<void()> &&callback) { this->press_callback_.add(std::move(callback)); }
 
-}  // namespace button
-}  // namespace esphome
+}  // namespace esphome::button

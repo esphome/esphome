@@ -4,16 +4,15 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace st7920 {
+namespace esphome::st7920 {
 
 class ST7920;
 
-using st7920_writer_t = std::function<void(ST7920 &)>;
+using st7920_writer_t = display::DisplayWriter<ST7920>;
 
-class ST7920 : public display::DisplayBuffer,
-               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
-                                     spi::DATA_RATE_200KHZ> {
+class ST7920 final : public display::DisplayBuffer,
+                     public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                           spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
  public:
   void set_writer(st7920_writer_t &&writer) { this->writer_local_ = writer; }
   void set_height(uint16_t height) { this->height_ = height; }
@@ -44,8 +43,7 @@ class ST7920 : public display::DisplayBuffer,
   void end_transaction_();
 
   int16_t width_ = 128, height_ = 64;
-  optional<st7920_writer_t> writer_local_{};
+  st7920_writer_t writer_local_{};
 };
 
-}  // namespace st7920
-}  // namespace esphome
+}  // namespace esphome::st7920

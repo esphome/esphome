@@ -7,13 +7,13 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/defines.h"
 #include <map>
+#include <queue>
 
 #ifdef USE_BSEC
 #include <bsec.h>
 #endif
 
-namespace esphome {
-namespace bme680_bsec {
+namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
 
 enum IAQMode {
@@ -34,9 +34,9 @@ enum SampleRate {
 
 #define BME680_BSEC_SAMPLE_RATE_LOG(r) (r == SAMPLE_RATE_DEFAULT ? "Default" : (r == SAMPLE_RATE_ULP ? "ULP" : "LP"))
 
-class BME680BSECComponent : public Component, public i2c::I2CDevice {
+class BME680BSECComponent final : public Component, public i2c::I2CDevice {
  public:
-  void set_device_id(const std::string &devid) { this->device_id_.assign(devid); }
+  void set_device_id(const char *devid) { this->device_id_ = devid; }
   void set_temperature_offset(float offset) { this->temperature_offset_ = offset; }
   void set_iaq_mode(IAQMode iaq_mode) { this->iaq_mode_ = iaq_mode; }
   void set_state_save_interval(uint32_t interval) { this->state_save_interval_ms_ = interval; }
@@ -64,7 +64,6 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
 
  protected:
@@ -112,7 +111,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   uint32_t last_state_save_ms_ = 0;
   bsec_bme_settings_t bme680_settings_;
 
-  std::string device_id_;
+  const char *device_id_{nullptr};
   float temperature_offset_{0};
   IAQMode iaq_mode_{IAQ_MODE_STATIC};
   SupplyVoltage supply_voltage_;
@@ -133,5 +132,4 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   sensor::Sensor *breath_voc_equivalent_sensor_{nullptr};
 };
 #endif
-}  // namespace bme680_bsec
-}  // namespace esphome
+}  // namespace esphome::bme680_bsec

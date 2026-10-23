@@ -1,12 +1,11 @@
 #include "xiaomi_miscale.h"
+#include "esphome/components/ble_device_base/ble_device.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+namespace esphome::xiaomi_miscale {
 
-namespace esphome {
-namespace xiaomi_miscale {
-
-static const char *const TAG = "xiaomi_miscale";
+ESPHOME_LOG_TAG(TAG, "xiaomi_miscale");
 
 void XiaomiMiscale::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
@@ -14,12 +13,14 @@ void XiaomiMiscale::dump_config() {
   LOG_SENSOR("  ", "Impedance", this->impedance_);
 }
 
-bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiMiscale::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  const char *addr_str = device.address_str_to(addr_buf);
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
@@ -30,7 +31,7 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     if (!parse_message_(service_data.data, *res))
       continue;
 
-    if (!report_results_(res, device.address_str()))
+    if (!report_results_(res, addr_str))
       continue;
 
     if (res->weight.has_value() && this->weight_ != nullptr)
@@ -54,16 +55,17 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-optional<ParseResult> XiaomiMiscale::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> XiaomiMiscale::parse_header_(const ble_device_base::ServiceData &service_data) {
   ParseResult result;
-  if (service_data.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(0x181D) && service_data.data.size() == 10) {
+  if (service_data.uuid == ble_device_base::ESPBTUUID::from_uint16(0x181D) && service_data.data.size() == 10) {
     result.version = 1;
-  } else if (service_data.uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(0x181B) && service_data.data.size() == 13) {
+  } else if (service_data.uuid == ble_device_base::ESPBTUUID::from_uint16(0x181B) && service_data.data.size() == 13) {
     result.version = 2;
   } else {
+    char uuid_buf[ble_device_base::UUID_STR_LEN];
     ESP_LOGVV(TAG,
               "parse_header(): Couldn't identify scale version or data size was not correct. UUID: %s, data_size: %d",
-              service_data.uuid.to_string().c_str(), service_data.data.size());
+              service_data.uuid.to_str(uuid_buf), service_data.data.size());
     return {};
   }
 
@@ -91,7 +93,7 @@ bool XiaomiMiscale::parse_message_v1_(const std::vector<uint8_t> &message, Parse
   const uint8_t *data = message.data();
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+  const int16_t weight = encode_value_le<int16_t>(&data[1]);
   if (data[0] == 0x22 || data[0] == 0xa2) {
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   } else if (data[0] == 0x12 || data[0] == 0xb2) {
@@ -125,7 +127,7 @@ bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, Parse
   }
 
   // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-  const int16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
+  const int16_t weight = encode_value_le<int16_t>(&data[11]);
   if (data[0] == 0x02) {
     result.weight = weight * 0.01f / 2.0f;  // unit 'kg'
   } else if (data[0] == 0x03) {
@@ -134,7 +136,7 @@ bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, Parse
 
   if (has_impedance) {
     // impedance, 2 bytes, 16-bit
-    const int16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+    const int16_t impedance = encode_value_le<int16_t>(&data[9]);
     result.impedance = impedance;
 
     if (impedance == 0 || impedance >= 3000) {
@@ -145,13 +147,13 @@ bool XiaomiMiscale::parse_message_v2_(const std::vector<uint8_t> &message, Parse
   return true;
 }
 
-bool XiaomiMiscale::report_results_(const optional<ParseResult> &result, const std::string &address) {
+bool XiaomiMiscale::report_results_(const optional<ParseResult> &result, const char *address) {
   if (!result.has_value()) {
     ESP_LOGVV(TAG, "report_results(): no results available.");
     return false;
   }
 
-  ESP_LOGD(TAG, "Got Xiaomi Miscale v%d (%s):", result->version, address.c_str());
+  ESP_LOGD(TAG, "Got Xiaomi Miscale v%d (%s):", result->version, address);
 
   if (result->weight.has_value()) {
     ESP_LOGD(TAG, "  Weight: %.2fkg", *result->weight);
@@ -163,7 +165,4 @@ bool XiaomiMiscale::report_results_(const optional<ParseResult> &result, const s
   return true;
 }
 
-}  // namespace xiaomi_miscale
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_miscale

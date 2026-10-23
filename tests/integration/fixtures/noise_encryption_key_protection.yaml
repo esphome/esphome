@@ -1,0 +1,10 @@
+esphome:
+  name: noise-key-test
+
+host:
+
+api:
+  encryption:
+    key: "zX9/JHxMKwpP0jUGsF0iESCm1wRvNgR6NkKVOhn7kSs="
+
+logger:

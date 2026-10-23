@@ -1,9 +1,8 @@
 #include "hitachi_ac424.h"
 
-namespace esphome {
-namespace hitachi_ac424 {
+namespace esphome::hitachi_ac424 {
 
-static const char *const TAG = "climate.hitachi_ac424";
+ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac424");
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)
@@ -176,7 +175,7 @@ void HitachiClimate::transmit_state() {
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       set_fan_(HITACHI_AC424_FAN_LOW);
       break;
@@ -225,13 +224,7 @@ void HitachiClimate::transmit_state() {
     // Header
     data->item(HITACHI_AC424_HDR_MARK, HITACHI_AC424_HDR_SPACE);
     // Data
-    for (uint8_t i : remote_state_) {
-      for (uint8_t j = 0; j < 8; j++) {
-        data->mark(HITACHI_AC424_BIT_MARK);
-        bool bit = i & (1 << j);
-        data->space(bit ? HITACHI_AC424_ONE_SPACE : HITACHI_AC424_ZERO_SPACE);
-      }
-    }
+    data->item_bytes<HITACHI_AC424_BIT_TIMINGS>(remote_state_, HITACHI_AC424_STATE_LENGTH);
     // Footer
     data->item(HITACHI_AC424_BIT_MARK, HITACHI_AC424_MIN_GAP);
   }
@@ -261,6 +254,8 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
         break;
       case HITACHI_AC424_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+        break;
+      default:
         break;
     }
   } else {
@@ -296,6 +291,8 @@ bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
     case HITACHI_AC424_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
+    default:
+      break;
   }
   return true;
 }
@@ -321,18 +318,10 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t recv_state[HITACHI_AC424_STATE_LENGTH] = {0};
-  // Read all bytes.
-  for (uint8_t pos = 0; pos < HITACHI_AC424_STATE_LENGTH; pos++) {
-    // Read bit
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(HITACHI_AC424_BIT_MARK, HITACHI_AC424_ONE_SPACE)) {
-        recv_state[pos] |= 1 << bit;
-      } else if (!data.expect_item(HITACHI_AC424_BIT_MARK, HITACHI_AC424_ZERO_SPACE)) {
-        ESP_LOGVV(TAG, "Byte %d bit %d fail", pos, bit);
-        return false;
-      }
-    }
+  uint8_t recv_state[HITACHI_AC424_STATE_LENGTH];
+  if (!data.expect_bytes<HITACHI_AC424_BIT_TIMINGS>(recv_state, HITACHI_AC424_STATE_LENGTH)) {
+    ESP_LOGVV(TAG, "Data fail");
+    return false;
   }
 
   // Validate footer
@@ -367,5 +356,4 @@ void HitachiClimate::dump_state_(const char action[], uint8_t state[]) {
   ESP_LOGV(TAG, "%s: %02X %02X %02X", action, state[40], state[41], state[42]);
 }
 
-}  // namespace hitachi_ac424
-}  // namespace esphome
+}  // namespace esphome::hitachi_ac424

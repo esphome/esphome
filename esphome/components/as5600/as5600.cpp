@@ -1,10 +1,9 @@
 #include "as5600.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as5600 {
+namespace esphome::as5600 {
 
-static const char *const TAG = "as5600";
+ESPHOME_LOG_TAG(TAG, "as5600");
 
 // Configuration registers
 static const uint8_t REGISTER_ZMCO = 0x00;  // 8 bytes  / R
@@ -24,7 +23,7 @@ static const uint8_t REGISTER_MAGNITUDE = 0x1B;  // 16 bytes / R
 
 void AS5600Component::setup() {
   if (!this->read_byte(REGISTER_STATUS).has_value()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -55,7 +54,7 @@ void AS5600Component::setup() {
 
   // write config to config register
   if (!this->write_byte_16(REGISTER_CONF, config)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -88,10 +87,8 @@ void AS5600Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AS5600:");
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (this->is_failed())
     return;
-  }
 
   ESP_LOGCONFIG(TAG,
                 "  Watchdog: %d\n"
@@ -134,5 +131,4 @@ optional<uint16_t> AS5600Component::read_raw_position() {
   return pos;
 }
 
-}  // namespace as5600
-}  // namespace esphome
+}  // namespace esphome::as5600

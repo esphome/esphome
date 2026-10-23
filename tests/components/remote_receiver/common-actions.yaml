@@ -8,6 +8,11 @@ on_beo4:
     - logger.log:
         format: "on_beo4: %u %u"
         args: ["x.source", "x.command"]
+on_brennenstuhl:
+  then:
+    - logger.log:
+        format: "on_brennenstuhl: %u"
+        args: ["(unsigned) x.code"]
 on_aeha:
   then:
     - logger.log:
@@ -32,7 +37,7 @@ on_coolix:
   then:
     - logger.log:
         format: "on_coolix: %lu %lu"
-        args: ["long(x.first)", "long(x.second)"]
+        args: ["(unsigned long) x.first", "(unsigned long) x.second"]
 on_dish:
   then:
     - logger.log:
@@ -46,8 +51,13 @@ on_dooya:
 on_drayton:
   then:
     - logger.log:
-        format: "on_drayton: %u %u %u"
-        args: ["x.address", "x.channel", "x.command"]
+        format: "on_drayton: %u %u %u %u"
+        args: ["x.address", "x.channel", "x.command", "x.data"]
+on_dyson:
+  then:
+    - logger.log:
+        format: "on_dyson: %u %u"
+        args: ["x.code", "x.index"]
 on_gobox:
   then:
     - logger.log:
@@ -57,12 +67,12 @@ on_jvc:
   then:
     - logger.log:
         format: "on_jvc: %lu"
-        args: ["long(x.data)"]
+        args: ["(unsigned long) x.data"]
 on_keeloq:
   then:
     - logger.log:
-        format: "on_keeloq: %lu %lu %u"
-        args: ["long(x.encrypted)", "long(x.address)", "x.command"]
+        format: "on_keeloq: %lu %lu %u %u %u %u"
+        args: ["(unsigned long) x.encrypted", "(unsigned long) x.address", "x.command", "x.suffix", "x.suffix_bits", "x.suffix_bits == 6 ? x.group() : 0"]
 on_haier:
   then:
     - logger.log:
@@ -72,12 +82,12 @@ on_lg:
   then:
     - logger.log:
         format: "on_lg: %lu %u"
-        args: ["long(x.data)", "x.nbits"]
+        args: ["(unsigned long) x.data", "x.nbits"]
 on_magiquest:
   then:
     - logger.log:
         format: "on_magiquest: %u %lu"
-        args: ["x.magnitude", "long(x.wand_id)"]
+        args: ["x.magnitude", "(unsigned long) x.wand_id"]
 on_midea:
   then:
     - logger.log:
@@ -92,12 +102,22 @@ on_nexa:
   then:
     - logger.log:
         format: "on_nexa: %lu %u %u %u %u"
-        args: ["long(x.device)", "x.group", "x.state", "x.channel", "x.level"]
+        args: ["(unsigned long) x.device", "x.group", "x.state", "x.channel", "x.level"]
+on_nexus:
+  then:
+    - logger.log:
+        format: "on_nexus: %u %u %.1f %u %d %d"
+        args: ["x.channel", "x.address", "x.temperature", "x.humidity", "x.battery_level", "x.force_update"]
+on_onkyori:
+  then:
+    - logger.log:
+        format: "on_onkyori: 0x%03X"
+        args: ["x.data"]
 on_panasonic:
   then:
     - logger.log:
-        format: "on_panasonic: %u %lu"
-        args: ["x.address", "long(x.command)"]
+        format: "on_panasonic: %u %u %u %lu"
+        args: ["x.nbits", "x.address", "x.address_2", "(unsigned long) x.command"]
 on_pioneer:
   then:
     - logger.log:
@@ -111,13 +131,18 @@ on_pronto:
 on_raw:
   then:
     - logger.log:
-        format: "on_raw: %lu"
-        args: ["long(x.front())"]
+        format: "on_raw: %ld"
+        args: ["(long) x.front()"]
 on_rc5:
   then:
     - logger.log:
         format: "on_rc5: %u %u"
         args: ["x.address", "x.command"]
+on_rc5x:
+  then:
+    - logger.log:
+        format: "on_rc5x: %u %u %u"
+        args: ["x.address", "x.command", "x.extension"]
 on_rc6:
   then:
     - logger.log:
@@ -137,12 +162,17 @@ on_samsung36:
   then:
     - logger.log:
         format: "on_samsung36: %u %lu"
-        args: ["x.address", "long(x.command)"]
+        args: ["x.address", "(unsigned long) x.command"]
 on_sony:
   then:
     - logger.log:
         format: "on_sony: %lu %u"
-        args: ["long(x.data)", "x.nbits"]
+        args: ["(unsigned long) x.data", "x.nbits"]
+on_symphony:
+  then:
+    - logger.log:
+        format: "on_symphony: 0x%lX %u"
+        args: ["(unsigned long) x.data", "x.nbits"]
 on_toshiba_ac:
   then:
     - logger.log:
@@ -157,3 +187,23 @@ on_toto:
     - logger.log:
         format: "on_toto: %u %u %u"
         args: ["x.rc_code_1", "x.rc_code_2", "x.command"]
+on_aok:
+  then:
+    - logger.log:
+        format: "on_aok: %lu %u %u"
+        args: ["(unsigned long) x.remote_id", "x.channels", "x.command"]
+on_hob2hood:
+  then:
+    - logger.log:
+        format: "on_hob2hood: %u"
+        args: ["x.command"]
+on_pd_pioneer:
+  then:
+    - logger.log:
+        format: "on_pd_pioneer: burst %u power %u"
+        args: ["x[3]", "x[5]"]
+on_ira211:
+  then:
+    - logger.log:
+        format: "on_ira211: %u %.1f"
+        args: ["static_cast<uint8_t>(x.command)", "x.get_temperature()"]

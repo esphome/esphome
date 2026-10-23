@@ -1,0 +1,21 @@
+coverage:
+  status:
+    patch:
+      default:
+        target: 100%
+        threshold: 0%
+    project:
+      default:
+        informational: true
+
+ignore:
+  - "esphome/components/**/*"
+  - "esphome/analyze_memory/**/*"
+  # Run as standalone scripts under the ESP-IDF Python, never imported by pytest
+  - "esphome/espidf/get_idf_tool_paths.py"
+  - "esphome/espidf/get_idf_version.py"
+  - "tests/integration/**/*"
+
+comment:
+  layout: "reach, diff, flags, files"
+  require_changes: true

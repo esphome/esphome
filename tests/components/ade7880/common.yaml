@@ -1,11 +1,6 @@
-i2c:
-  - id: i2c_ade7880
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: ade7880
-    i2c_id: i2c_ade7880
+    i2c_id: i2c_bus
     irq0_pin: ${irq0_pin}
     irq1_pin: ${irq1_pin}
     reset_pin: ${reset_pin}

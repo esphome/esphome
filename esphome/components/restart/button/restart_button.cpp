@@ -3,18 +3,15 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace restart {
+namespace esphome::restart {
 
-static const char *const TAG = "restart.button";
+ESPHOME_LOG_TAG(TAG, "restart.button");
 
-void RestartButton::press_action() {
+void restart_device() {
   ESP_LOGI(TAG, "Restarting device");
   // Let MQTT settle a bit
   delay(100);  // NOLINT
   App.safe_reboot();
 }
-void RestartButton::dump_config() { LOG_BUTTON("", "Restart Button", this); }
 
-}  // namespace restart
-}  // namespace esphome
+}  // namespace esphome::restart

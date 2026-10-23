@@ -3,10 +3,9 @@
 #include "esphome/core/application.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace status_led {
+namespace esphome::status_led {
 
-static const char *const TAG = "status_led";
+ESPHOME_LOG_TAG(TAG, "status_led");
 
 void StatusLEDLightOutput::loop() {
   uint8_t new_state = App.get_app_state() & STATUS_LED_MASK;
@@ -36,7 +35,7 @@ void StatusLEDLightOutput::loop() {
 
 void StatusLEDLightOutput::setup_state(light::LightState *state) {
   lightstate_ = state;
-  ESP_LOGD(TAG, "'%s': Setting initial state", state->get_name().c_str());
+  ESP_LOGD(TAG, "'%s': Setting initial state", LOG_STR_ARG(state->get_log_name()));
   this->write_state(state);
 }
 
@@ -47,7 +46,7 @@ void StatusLEDLightOutput::write_state(light::LightState *state) {
   // if in warning/error, don't overwrite the status_led
   // once it is back to OK, the loop will restore the state
   if ((App.get_app_state() & (STATUS_LED_ERROR | STATUS_LED_WARNING)) == 0u) {
-    ESP_LOGD(TAG, "'%s': Setting state %s", state->get_name().c_str(), ONOFF(binary));
+    ESP_LOGD(TAG, "'%s': Setting state %s", LOG_STR_ARG(state->get_log_name()), ONOFF(binary));
     this->output_state_(binary);
   }
 }
@@ -71,5 +70,4 @@ void StatusLEDLightOutput::output_state_(bool state) {
     this->output_->set_state(state);
 }
 
-}  // namespace status_led
-}  // namespace esphome
+}  // namespace esphome::status_led

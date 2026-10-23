@@ -9,30 +9,24 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace factory_reset {
+namespace esphome::factory_reset {
 
-static const char *const TAG = "factory_reset.button";
+ESPHOME_LOG_TAG(TAG, "factory_reset.button");
 
-void FactoryResetButton::dump_config() { LOG_BUTTON("", "Factory Reset Button", this); }
-void FactoryResetButton::press_action() {
+static void reset_and_reboot() {
+  global_preferences->reset();
+  App.safe_reboot();
+}
+
+void factory_reset_device() {
   ESP_LOGI(TAG, "Resetting");
   // Let MQTT settle a bit
   delay(100);  // NOLINT
 #ifdef USE_OPENTHREAD
-  openthread::global_openthread_component->on_factory_reset(FactoryResetButton::factory_reset_callback);
+  openthread::global_openthread_component->on_factory_reset(reset_and_reboot);
 #else
-  global_preferences->reset();
-  App.safe_reboot();
+  reset_and_reboot();
 #endif
 }
 
-#ifdef USE_OPENTHREAD
-void FactoryResetButton::factory_reset_callback() {
-  global_preferences->reset();
-  App.safe_reboot();
-}
-#endif
-
-}  // namespace factory_reset
-}  // namespace esphome
+}  // namespace esphome::factory_reset

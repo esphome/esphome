@@ -1,0 +1,10 @@
+# included from 10-dynamic_packages.input.yaml
+substitutions:
+  a: from package2  # must not override base config's a
+  # b not defined here, won't override package1's b
+  c: from package2  # will override package1's c
+
+package2_test_list:
+  - a: ${ a }
+  - b: ${ b }
+  - c: ${ c }

@@ -1,10 +1,9 @@
 #include "sun_gtil2.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sun_gtil2 {
+namespace esphome::sun_gtil2 {
 
-static const char *const TAG = "sun_gtil2";
+ESPHOME_LOG_TAG(TAG, "sun_gtil2");
 
 static const double NTC_A = 0.0011591051055979914;
 static const double NTC_B = 0.00022878183547845582;
@@ -40,21 +39,18 @@ static_assert(MESSAGE_SIZE == 350, "Expected the message size to be 350 bytes");
 void SunGTIL2::setup() { this->rx_message_.reserve(MESSAGE_SIZE); }
 
 void SunGTIL2::loop() {
-  while (this->available()) {
-    uint8_t c;
-    this->read_byte(&c);
-    this->handle_char_(c);
-  }
+  this->read_available([this](uint8_t c) { this->handle_char_(c); });
 }
 
-std::string SunGTIL2::state_to_string_(uint8_t state) {
+const char *SunGTIL2::state_to_string_(uint8_t state, std::span<char, STATE_BUFFER_SIZE> buffer) {
   switch (state) {
     case 0x02:
       return "Starting voltage too low";
     case 0x07:
       return "Working";
     default:
-      return str_sprintf("Unknown (0x%02x)", state);
+      snprintf(buffer.data(), buffer.size(), "Unknown (0x%02x)", state);
+      return buffer.data();
   }
 }
 
@@ -106,12 +102,11 @@ void SunGTIL2::handle_char_(uint8_t c) {
 #endif
 #ifdef USE_TEXT_SENSOR
   if (this->state_ != nullptr) {
-    this->state_->publish_state(this->state_to_string_(msg.state));
+    char state_buffer[STATE_BUFFER_SIZE];
+    this->state_->publish_state(this->state_to_string_(msg.state, state_buffer));
   }
   if (this->serial_number_ != nullptr) {
-    std::string serial_number;
-    serial_number.assign(msg.serial_number, 10);
-    this->serial_number_->publish_state(serial_number);
+    this->serial_number_->publish_state(msg.serial_number, 10);
   }
 #endif
 }
@@ -131,5 +126,4 @@ void SunGTIL2::dump_config() {
 #endif
 }
 
-}  // namespace sun_gtil2
-}  // namespace esphome
+}  // namespace esphome::sun_gtil2

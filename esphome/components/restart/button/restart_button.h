@@ -1,18 +1,8 @@
 #pragma once
 
-#include "esphome/components/button/button.h"
-#include "esphome/core/component.h"
+namespace esphome::restart {
 
-namespace esphome {
-namespace restart {
+/// Run by the restart button.
+void restart_device();
 
-class RestartButton : public button::Button, public Component {
- public:
-  void dump_config() override;
-
- protected:
-  void press_action() override;
-};
-
-}  // namespace restart
-}  // namespace esphome
+}  // namespace esphome::restart

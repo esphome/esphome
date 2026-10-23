@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_scd4x
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: scd4x
+    i2c_id: i2c_bus
     id: scd40
     co2:
       name: SCD4X CO2
@@ -18,3 +14,19 @@ sensor:
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
     update_interval: 15s
+  - platform: scd4x
+    i2c_id: i2c_bus
+    co2:
+      name: SCD4X CO2 (bare hPa)
+    ambient_pressure_compensation: 961
+  - platform: scd4x
+    i2c_id: i2c_bus
+    co2:
+      name: SCD4X CO2 (bar)
+    ambient_pressure_compensation: 0.961bar
+  - platform: scd4x
+    i2c_id: i2c_bus
+    co2:
+      name: SCD4X CO2 (altitude only)
+    altitude_compensation: 500m
+    ambient_pressure_compensation: 0

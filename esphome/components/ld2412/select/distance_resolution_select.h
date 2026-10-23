@@ -3,16 +3,15 @@
 #include "esphome/components/select/select.h"
 #include "../ld2412.h"
 
-namespace esphome {
-namespace ld2412 {
+namespace esphome::ld2412 {
 
-class DistanceResolutionSelect : public select::Select, public Parented<LD2412Component> {
+class DistanceResolutionSelect final : public select::Select, public Parented<LD2412Component> {
  public:
-  DistanceResolutionSelect() = default;
+  // User provided, not "= default": `new(p) DistanceResolutionSelect()` would zero-fill .bss that is already zero.
+  DistanceResolutionSelect() {}
 
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 };
 
-}  // namespace ld2412
-}  // namespace esphome
+}  // namespace esphome::ld2412

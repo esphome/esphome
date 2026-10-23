@@ -2,27 +2,19 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace as7341 {
+namespace esphome::as7341 {
 
-static const char *const TAG = "as7341";
+ESPHOME_LOG_TAG(TAG, "as7341");
 
 void AS7341Component::setup() {
   LOG_I2C_DEVICE(this);
 
-  // Verify device ID
-  uint8_t id;
-  this->read_byte(AS7341_ID, &id);
-  ESP_LOGCONFIG(TAG, "  Read ID: 0x%X", id);
-  if ((id & 0xFC) != (AS7341_CHIP_ID << 2)) {
-    this->mark_failed();
+  if (!this->check_chip_id(this, AS7341_ID, AS7341_CHIP_ID << 2, 0xFC))
     return;
-  }
 
   // Power on (enter IDLE state)
   if (!this->enable_power(true)) {
-    ESP_LOGE(TAG, "  Power on failed!");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Power on failed"));
     return;
   }
 
@@ -36,9 +28,6 @@ void AS7341Component::setup() {
 void AS7341Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AS7341:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
                 "  Gain: %u\n"
@@ -57,8 +46,6 @@ void AS7341Component::dump_config() {
   LOG_SENSOR("  ", "Clear", this->clear_);
   LOG_SENSOR("  ", "NIR", this->nir_);
 }
-
-float AS7341Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void AS7341Component::update() {
   this->read_channels(this->channel_readings_);
@@ -108,16 +95,16 @@ uint8_t AS7341Component::get_atime() {
 }
 
 uint16_t AS7341Component::get_astep() {
-  uint16_t data;
-  this->read_byte_16(AS7341_ASTEP, &data);
-  return this->swap_bytes(data);
+  uint16_t data = 0;
+  this->read_byte_16_le(AS7341_ASTEP, &data);
+  return data;
 }
 
 bool AS7341Component::setup_gain(AS7341Gain gain) { return this->write_byte(AS7341_CFG1, gain); }
 
 bool AS7341Component::setup_atime(uint8_t atime) { return this->write_byte(AS7341_ATIME, atime); }
 
-bool AS7341Component::setup_astep(uint16_t astep) { return this->write_byte_16(AS7341_ASTEP, swap_bytes(astep)); }
+bool AS7341Component::setup_astep(uint16_t astep) { return this->write_byte_16_le(AS7341_ASTEP, astep); }
 
 bool AS7341Component::read_channels(uint16_t *data) {
   this->set_smux_low_channels(true);
@@ -266,7 +253,4 @@ bool AS7341Component::clear_register_bit(uint8_t address, uint8_t bit_position) 
   return this->write_byte(address, data);
 }
 
-uint16_t AS7341Component::swap_bytes(uint16_t data) { return (data >> 8) | (data << 8); }
-
-}  // namespace as7341
-}  // namespace esphome
+}  // namespace esphome::as7341

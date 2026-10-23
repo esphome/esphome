@@ -3,25 +3,23 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
+
 #include "cover_traits.h"
 
-namespace esphome {
-namespace cover {
+namespace esphome::cover {
 
-const extern float COVER_OPEN;
-const extern float COVER_CLOSED;
+static constexpr float COVER_OPEN = 1.0f;
+static constexpr float COVER_CLOSED = 0.0f;
 
 #define LOG_COVER(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    if (!(obj)->get_device_class_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class_ref().c_str()); \
-    } \
+    LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
   }
 
 class Cover;
@@ -38,6 +36,8 @@ class CoverCall {
   CoverCall &set_command_close();
   /// Set the command to stop the cover.
   CoverCall &set_command_stop();
+  /// Set the command to stop the cover tilt.
+  CoverCall &set_command_stop_tilt();
   /// Set the command to toggle the cover.
   CoverCall &set_command_toggle();
   /// Set the call to a certain target position.
@@ -46,12 +46,15 @@ class CoverCall {
   CoverCall &set_tilt(float tilt);
   /// Set whether this cover call should stop the cover.
   CoverCall &set_stop(bool stop);
+  /// Set whether this cover call should stop the cover tilt.
+  CoverCall &set_stop_tilt(bool stop_tilt);
 
   /// Perform the cover call.
   void perform();
 
   const optional<float> &get_position() const;
-  bool get_stop() const;
+  bool get_stop() const { return this->stop_; }
+  bool get_stop_tilt() const { return this->stop_tilt_; }
   const optional<float> &get_tilt() const;
   const optional<bool> &get_toggle() const;
 
@@ -60,6 +63,7 @@ class CoverCall {
 
   Cover *parent_;
   bool stop_{false};
+  bool stop_tilt_{false};
   optional<float> position_{};
   optional<float> tilt_{};
   optional<bool> toggle_{};
@@ -86,7 +90,7 @@ enum CoverOperation : uint8_t {
   COVER_OPERATION_CLOSING,
 };
 
-const char *cover_operation_to_str(CoverOperation op);
+const LogString *cover_operation_to_str(CoverOperation op);
 
 /** Base class for all cover devices.
  *
@@ -108,7 +112,7 @@ const char *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public EntityBase, public EntityBase_DeviceClass {
+class Cover : public EntityBase {
  public:
   explicit Cover();
 
@@ -124,28 +128,9 @@ class Cover : public EntityBase, public EntityBase_DeviceClass {
   float tilt{COVER_OPEN};
 
   /// Construct a new cover call used to control the cover.
-  CoverCall make_call();
-  /** Open the cover.
-   *
-   * This is a legacy method and may be removed later, please use `.make_call()` instead.
-   */
-  ESPDEPRECATED("open() is deprecated, use make_call().set_command_open().perform() instead.", "2021.9")
-  void open();
-  /** Close the cover.
-   *
-   * This is a legacy method and may be removed later, please use `.make_call()` instead.
-   */
-  ESPDEPRECATED("close() is deprecated, use make_call().set_command_close().perform() instead.", "2021.9")
-  void close();
-  /** Stop the cover.
-   *
-   * This is a legacy method and may be removed later, please use `.make_call()` instead.
-   * As per solution from issue #2885 the call should include perform()
-   */
-  ESPDEPRECATED("stop() is deprecated, use make_call().set_command_stop().perform() instead.", "2021.9")
-  void stop();
+  CoverCall make_call() { return {this}; }
 
-  void add_on_state_callback(std::function<void()> &&f);
+  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
   /** Publish the current state of the cover.
    *
@@ -159,9 +144,9 @@ class Cover : public EntityBase, public EntityBase_DeviceClass {
   virtual CoverTraits get_traits() = 0;
 
   /// Helper method to check if the cover is fully open. Equivalent to comparing .position against 1.0
-  bool is_fully_open() const;
+  bool is_fully_open() const { return this->position == COVER_OPEN; }
   /// Helper method to check if the cover is fully closed. Equivalent to comparing .position against 0.0
-  bool is_fully_closed() const;
+  bool is_fully_closed() const { return this->position == COVER_CLOSED; }
 
  protected:
   friend CoverCall;
@@ -170,10 +155,9 @@ class Cover : public EntityBase, public EntityBase_DeviceClass {
 
   optional<CoverRestoreState> restore_state_();
 
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
 
   ESPPreferenceObject rtc_;
 };
 
-}  // namespace cover
-}  // namespace esphome
+}  // namespace esphome::cover

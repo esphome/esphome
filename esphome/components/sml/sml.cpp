@@ -3,10 +3,9 @@
 #include "esphome/core/log.h"
 #include "sml_parser.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
-static const char *const TAG = "sml";
+ESPHOME_LOG_TAG(TAG, "sml");
 
 const char START_BYTES_DETECTED = 1;
 const char END_BYTES_DETECTED = 2;
@@ -25,9 +24,7 @@ char Sml::check_start_end_bytes_(uint8_t byte) {
 }
 
 void Sml::loop() {
-  while (available()) {
-    const char c = read();
-
+  this->read_available([this](uint8_t c) {
     if (this->record_)
       this->sml_data_.emplace_back(c);
 
@@ -58,11 +55,7 @@ void Sml::loop() {
         break;
       };
     };
-  }
-}
-
-void Sml::add_on_data_callback(std::function<void(std::vector<uint8_t>, bool)> &&callback) {
-  this->data_callbacks_.add(std::move(callback));
+  });
 }
 
 void Sml::process_sml_file_(const BytesView &sml_data) {
@@ -115,7 +108,7 @@ bool check_sml_data(const bytes &buffer) {
 
   uint16_t crc_received = (buffer.at(buffer.size() - 2) << 8) | buffer.at(buffer.size() - 1);
   uint16_t crc_calculated = crc16(buffer.data() + 8, buffer.size() - 10, 0x6e23, 0x8408, true, true);
-  crc_calculated = (crc_calculated >> 8) | (crc_calculated << 8);
+  crc_calculated = byteswap(crc_calculated);
   if (crc_received == crc_calculated) {
     ESP_LOGV(TAG, "Checksum verification successful with CRC16/X25.");
     return true;
@@ -144,5 +137,4 @@ uint8_t get_code(uint8_t byte) {
   }
 }
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

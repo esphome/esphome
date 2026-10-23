@@ -1,8 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace esphome {
-namespace bl0906 {
+namespace esphome::bl0906 {
 
 // Total power conversion
 static const float BL0906_WATT = 16 * 1.097 * 1.097 * (20000 + 20000 + 20000 + 20000 + 20000) /
@@ -112,11 +111,9 @@ static const uint8_t BL0906_USR_WRPROT = 0x9E;
 // Reset Register
 static const uint8_t BL0906_SOFT_RESET = 0x9F;
 
-const uint8_t BL0906_INIT[2][6] = {
-    // Reset to default
-    {BL0906_WRITE_COMMAND, BL0906_SOFT_RESET, 0x5A, 0x5A, 0x5A, 0x52},
-    // Enable User Operation Write
-    {BL0906_WRITE_COMMAND, BL0906_USR_WRPROT, 0x55, 0x55, 0x00, 0xB7}};
+const uint8_t BL0906_INIT[2][6] = {// Reset to default
+                                   {BL0906_WRITE_COMMAND, BL0906_SOFT_RESET, 0x5A, 0x5A, 0x5A, 0x52},
+                                   // Enable User Operation Write
+                                   {BL0906_WRITE_COMMAND, BL0906_USR_WRPROT, 0x55, 0x55, 0x00, 0xB7}};
 
-}  // namespace bl0906
-}  // namespace esphome
+}  // namespace esphome::bl0906

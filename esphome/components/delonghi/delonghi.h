@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace delonghi {
+namespace esphome::delonghi {
 
 // Values for DELONGHI ARC43XXX IR Controllers
 const uint8_t DELONGHI_ADDRESS = 83;
@@ -34,13 +33,13 @@ const uint32_t DELONGHI_IR_FREQUENCY = 38000;
 const uint32_t DELONGHI_HEADER_MARK = 9000;
 const uint32_t DELONGHI_HEADER_SPACE = 4500;
 const uint32_t DELONGHI_BIT_MARK = 465;
-const uint32_t DELONGHI_ONE_SPACE = 1750;
-const uint32_t DELONGHI_ZERO_SPACE = 670;
+static constexpr remote_base::BitTimings DELONGHI_BIT_TIMINGS{
+    .bit_mark = DELONGHI_BIT_MARK, .one_space = 1750, .zero_space = 670};
 
 // State Frame size
 const uint8_t DELONGHI_STATE_FRAME_SIZE = 8;
 
-class DelonghiClimate : public climate_ir::ClimateIR {
+class DelonghiClimate final : public climate_ir::ClimateIR {
  public:
   DelonghiClimate()
       : climate_ir::ClimateIR(DELONGHI_TEMP_MIN, DELONGHI_TEMP_MAX, 1.0f, true, true,
@@ -60,5 +59,4 @@ class DelonghiClimate : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 };
 
-}  // namespace delonghi
-}  // namespace esphome
+}  // namespace esphome::delonghi

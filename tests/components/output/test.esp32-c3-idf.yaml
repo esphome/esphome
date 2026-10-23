@@ -1,5 +1,0 @@
-substitutions:
-  output_platform: ledc
-  pin: GPIO1
-
-<<: !include common.yaml

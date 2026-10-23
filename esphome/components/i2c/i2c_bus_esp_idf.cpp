@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "i2c_bus_esp_idf.h"
 
@@ -10,19 +10,18 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
-static const char *const TAG = "i2c.idf";
+ESPHOME_LOG_TAG(TAG, "i2c");
+
+// Maximum bytes to log in hex format (truncates larger transfers)
+static constexpr size_t I2C_MAX_LOG_BYTES = 32;
 
 void IDFI2CBus::setup() {
-  static i2c_port_t next_port = I2C_NUM_0;
-  this->port_ = next_port;
-  if (this->port_ == I2C_NUM_MAX) {
-    ESP_LOGE(TAG, "No more than %u buses supported", I2C_NUM_MAX);
-    this->mark_failed();
-    return;
-  }
+  static i2c_port_t next_hp_port = I2C_NUM_0;
+#if SOC_LP_I2C_SUPPORTED
+  static i2c_port_t next_lp_port = LP_I2C_NUM_0;
+#endif
 
   if (this->timeout_ > 13000) {
     ESP_LOGW(TAG, "Using max allowed timeout: 13 ms");
@@ -31,24 +30,36 @@ void IDFI2CBus::setup() {
 
   this->recover_();
 
-  next_port = (i2c_port_t) (next_port + 1);
-
   i2c_master_bus_config_t bus_conf{};
   memset(&bus_conf, 0, sizeof(bus_conf));
-  bus_conf.sda_io_num = gpio_num_t(sda_pin_);
-  bus_conf.scl_io_num = gpio_num_t(scl_pin_);
-  bus_conf.i2c_port = this->port_;
+  bus_conf.sda_io_num = gpio_num_t(this->sda_pin_);
+  bus_conf.scl_io_num = gpio_num_t(this->scl_pin_);
   bus_conf.glitch_ignore_cnt = 7;
 #if SOC_LP_I2C_SUPPORTED
-  if (this->port_ < SOC_HP_I2C_NUM) {
-    bus_conf.clk_source = I2C_CLK_SRC_DEFAULT;
-  } else {
+  if (this->lp_mode_) {
+    if ((next_lp_port - LP_I2C_NUM_0) == SOC_LP_I2C_NUM) {
+      ESP_LOGE(TAG, "No more than %u LP buses supported", SOC_LP_I2C_NUM);
+      this->mark_failed();
+      return;
+    }
+    this->port_ = next_lp_port;
+    next_lp_port = (i2c_port_t) (next_lp_port + 1);
     bus_conf.lp_source_clk = LP_I2C_SCLK_DEFAULT;
-  }
-#else
-  bus_conf.clk_source = I2C_CLK_SRC_DEFAULT;
+  } else {
 #endif
-  bus_conf.flags.enable_internal_pullup = sda_pullup_enabled_ || scl_pullup_enabled_;
+    if (next_hp_port == SOC_HP_I2C_NUM) {
+      ESP_LOGE(TAG, "No more than %u HP buses supported", SOC_HP_I2C_NUM);
+      this->mark_failed();
+      return;
+    }
+    this->port_ = next_hp_port;
+    next_hp_port = (i2c_port_t) (next_hp_port + 1);
+    bus_conf.clk_source = I2C_CLK_SRC_DEFAULT;
+#if SOC_LP_I2C_SUPPORTED
+  }
+#endif
+  bus_conf.i2c_port = this->port_;
+  bus_conf.flags.enable_internal_pullup = this->sda_pullup_enabled_ || this->scl_pullup_enabled_;
   esp_err_t err = i2c_new_master_bus(&bus_conf, &this->bus_);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_new_master_bus failed: %s", esp_err_to_name(err));
@@ -56,18 +67,21 @@ void IDFI2CBus::setup() {
     return;
   }
 
-  i2c_device_config_t dev_conf{};
-  memset(&dev_conf, 0, sizeof(dev_conf));
-  dev_conf.dev_addr_length = I2C_ADDR_BIT_LEN_7;
-  dev_conf.device_address = I2C_DEVICE_ADDRESS_NOT_USED;
-  dev_conf.scl_speed_hz = this->frequency_;
-  dev_conf.scl_wait_us = this->timeout_;
-  err = i2c_master_bus_add_device(this->bus_, &dev_conf, &this->dev_);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_master_bus_add_device failed: %s", esp_err_to_name(err));
+  this->dev_ = this->add_device_(this->frequency_);
+  if (this->dev_ == nullptr) {
     this->mark_failed();
     return;
   }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  this->add_frequency(this->frequency_);
+  for (auto &device : this->devices_) {
+    device.dev = device.frequency == this->frequency_ ? this->dev_ : this->add_device_(device.frequency);
+    if (device.dev == nullptr) {
+      this->mark_failed();
+      return;
+    }
+  }
+#endif
 
   this->initialized_ = true;
 
@@ -77,6 +91,21 @@ void IDFI2CBus::setup() {
   }
 }
 
+i2c_master_dev_handle_t IDFI2CBus::add_device_(uint32_t frequency) {
+  i2c_device_config_t dev_conf{};
+  dev_conf.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+  dev_conf.device_address = I2C_DEVICE_ADDRESS_NOT_USED;
+  dev_conf.scl_speed_hz = frequency;
+  dev_conf.scl_wait_us = this->timeout_;
+  i2c_master_dev_handle_t dev{};
+  const esp_err_t err = i2c_master_bus_add_device(this->bus_, &dev_conf, &dev);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "i2c_master_bus_add_device failed: %s", esp_err_to_name(err));
+    return nullptr;
+  }
+  return dev;
+}
+
 void IDFI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
   ESP_LOGCONFIG(TAG,
@@ -84,7 +113,7 @@ void IDFI2CBus::dump_config() {
                 "  SCL Pin: GPIO%u\n"
                 "  Frequency: %" PRIu32 " Hz",
                 this->sda_pin_, this->scl_pin_, this->frequency_);
-  if (timeout_ > 0) {
+  if (this->timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 "us", this->timeout_);
   }
   switch (this->recovery_result_) {
@@ -100,10 +129,10 @@ void IDFI2CBus::dump_config() {
   }
   if (this->scan_) {
     ESP_LOGCONFIG(TAG, "Results from bus scan:");
-    if (scan_results_.empty()) {
+    if (this->scan_results_.empty()) {
       ESP_LOGCONFIG(TAG, "Found no devices");
     } else {
-      for (const auto &s : scan_results_) {
+      for (const auto &s : this->scan_results_) {
         if (s.second) {
           ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
         } else {
@@ -118,7 +147,7 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
                                  size_t read_count) {
   // logging is only enabled with v level, if warnings are shown the caller
   // should log them
-  if (!initialized_) {
+  if (!this->initialized_) {
     ESP_LOGW(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
   }
@@ -138,7 +167,7 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
     jobs[num_jobs++].write.total_bytes = 1;
   } else {
     if (write_count != 0) {
-      ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty(write_buffer, write_count).c_str());
+      ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
       jobs[num_jobs++].command = I2C_MASTER_CMD_START;
       jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
       jobs[num_jobs].write.ack_check = true;
@@ -170,8 +199,8 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
   }
   jobs[num_jobs++].command = I2C_MASTER_CMD_STOP;
   ESP_LOGV(TAG, "Sending %zu jobs", num_jobs);
-  esp_err_t err = i2c_master_execute_defined_operations(this->dev_, jobs, num_jobs, 20);
-  if (err == ESP_ERR_INVALID_STATE) {
+  esp_err_t err = i2c_master_execute_defined_operations(this->dev_, jobs, num_jobs, 100);
+  if (err == ESP_ERR_INVALID_STATE || err == ESP_ERR_INVALID_RESPONSE) {
     ESP_LOGV(TAG, "TX to %02X failed: not acked", address);
     return ERROR_NOT_ACKNOWLEDGED;
   } else if (err == ESP_ERR_TIMEOUT) {
@@ -184,14 +213,44 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
   return ERROR_OK;
 }
 
+#ifdef I2C_PORT_FREQUENCY_COUNT
+void IDFI2CBus::add_frequency(uint32_t frequency) {
+  for (const auto &device : this->devices_) {
+    if (device.frequency == frequency) {
+      return;
+    }
+  }
+  this->devices_.push_back({frequency, nullptr});
+}
+
+ErrorCode IDFI2CBus::switch_frequency(uint32_t frequency) {
+  if (this->frequency_ == frequency) {
+    return ERROR_OK;
+  }
+  if (!this->initialized_) {
+    this->frequency_ = frequency;
+    return ERROR_OK;
+  }
+  // Every handle exists since setup(); a frequency nobody registered has none
+  for (const auto &device : this->devices_) {
+    if (device.frequency == frequency) {
+      this->dev_ = device.dev;
+      this->frequency_ = frequency;
+      return ERROR_OK;
+    }
+  }
+  return ERROR_UNKNOWN;
+}
+#endif
+
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 /// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
 void IDFI2CBus::recover_() {
   ESP_LOGI(TAG, "Performing bus recovery");
 
-  const auto scl_pin = static_cast<gpio_num_t>(scl_pin_);
-  const auto sda_pin = static_cast<gpio_num_t>(sda_pin_);
+  const auto scl_pin = static_cast<gpio_num_t>(this->scl_pin_);
+  const auto sda_pin = static_cast<gpio_num_t>(this->sda_pin_);
 
   // For the upcoming operations, target for a 60kHz toggle frequency.
   // 1000kHz is the maximum frequency for I2C running in standard-mode,
@@ -204,7 +263,7 @@ void IDFI2CBus::recover_() {
   // Configure SCL pin for open drain input/output, with a pull up resistor.
   gpio_set_level(scl_pin, 1);
   gpio_config_t scl_config{};
-  scl_config.pin_bit_mask = 1ULL << scl_pin_;
+  scl_config.pin_bit_mask = 1ULL << this->scl_pin_;
   scl_config.mode = GPIO_MODE_INPUT_OUTPUT_OD;
   scl_config.pull_up_en = GPIO_PULLUP_ENABLE;
   scl_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -214,7 +273,7 @@ void IDFI2CBus::recover_() {
   // Configure SDA pin for open drain input/output, with a pull up resistor.
   gpio_set_level(sda_pin, 1);
   gpio_config_t sda_conf{};
-  sda_conf.pin_bit_mask = 1ULL << sda_pin_;
+  sda_conf.pin_bit_mask = 1ULL << this->sda_pin_;
   sda_conf.mode = GPIO_MODE_INPUT_OUTPUT_OD;
   sda_conf.pull_up_en = GPIO_PULLUP_ENABLE;
   sda_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -226,7 +285,7 @@ void IDFI2CBus::recover_() {
   delayMicroseconds(half_period_usec);
   if (gpio_get_level(scl_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the bus");
-    recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+    this->recovery_result_ = RECOVERY_FAILED_SCL_LOW;
     return;
   }
 
@@ -257,7 +316,7 @@ void IDFI2CBus::recover_() {
     }
     if (gpio_get_level(scl_pin) == 0) {
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
-      recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+      this->recovery_result_ = RECOVERY_FAILED_SCL_LOW;
       return;
     }
   }
@@ -267,7 +326,7 @@ void IDFI2CBus::recover_() {
   // in SDA being pulled up.
   if (gpio_get_level(sda_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
-    recovery_result_ = RECOVERY_FAILED_SDA_LOW;
+    this->recovery_result_ = RECOVERY_FAILED_SDA_LOW;
     return;
   }
 
@@ -294,9 +353,8 @@ void IDFI2CBus::recover_() {
   delayMicroseconds(half_period_usec);
   gpio_set_level(sda_pin, 1);
 
-  recovery_result_ = RECOVERY_COMPLETED;
+  this->recovery_result_ = RECOVERY_COMPLETED;
 }
 
-}  // namespace i2c
-}  // namespace esphome
-#endif  // USE_ESP_IDF
+}  // namespace esphome::i2c
+#endif  // USE_ESP32

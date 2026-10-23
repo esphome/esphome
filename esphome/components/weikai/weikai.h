@@ -8,7 +8,6 @@
 ///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
 
 #pragma once
-#include <bitset>
 #include <memory>
 #include <cinttypes>
 #include "esphome/core/component.h"
@@ -26,8 +25,7 @@
 /// @endcode
 // #define TEST_COMPONENT
 
-namespace esphome {
-namespace weikai {
+namespace esphome::weikai {
 
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
 #if defined(I2C_BUFFER_LENGTH)
@@ -41,6 +39,12 @@ constexpr size_t FIFO_SIZE = 256;
 
 /// @brief size of the ring buffer set to size of the FIFO
 constexpr size_t RING_BUFFER_SIZE = FIFO_SIZE;
+
+/// @brief Name of a register for the log messages
+const LogString *reg_to_str(int reg, bool page1);
+
+/// Logs a buffer in hexadecimal, 32 values per line, under @p tag at @p level.
+void print_buffer(const char *tag, const uint8_t *data, size_t length, int level = ESPHOME_LOG_LEVEL_VERY_VERBOSE);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers that works as a FIFO
@@ -268,7 +272,7 @@ class WeikaiComponent : public Component {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Helper class to expose a WeiKai family IO pin as an internal GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
-class WeikaiGPIOPin : public GPIOPin {
+class WeikaiGPIOPin final : public GPIOPin {
  public:
   void set_parent(WeikaiComponent *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
@@ -278,7 +282,7 @@ class WeikaiGPIOPin : public GPIOPin {
   gpio::Flags get_flags() const override { return this->flags_; }
 
   void setup() override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void pin_mode(gpio::Flags flags) override { this->parent_->set_pin_direction_(this->pin_, flags); }
   bool digital_read() override { return this->parent_->read_pin_val_(this->pin_) != this->inverted_; }
   void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }
@@ -295,7 +299,7 @@ class WeikaiGPIOPin : public GPIOPin {
 /// uart::UARTComponent virtual class. This class is common to the different members of the Weikai
 /// components family and therefore avoid code duplication.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-class WeikaiChannel : public uart::UARTComponent {
+class WeikaiChannel final : public uart::UARTComponent {
  public:
   /// @brief We belongs to this WeikaiComponent
   /// @param parent pointer to the component we belongs to
@@ -317,10 +321,10 @@ class WeikaiChannel : public uart::UARTComponent {
   const char *get_channel_name() { return this->name_.c_str(); }
 
   /// @brief Setup the channel
-  void virtual setup_channel();
+  void setup_channel();
 
   /// @brief dump channel information
-  void virtual dump_channel();
+  void dump_channel();
 
   /// @brief Factory method to create a WeikaiRegister proxy object
   /// @param reg address of the register
@@ -375,13 +379,22 @@ class WeikaiChannel : public uart::UARTComponent {
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
-  int available() override;
+  size_t available() override;
 
   /// @brief Flush the output fifo.
   /// @details If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission of outgoing serial data
   /// to complete. (Prior to Arduino 1.0, this the method was removing any buffered incoming serial data.). ** Therefore
   /// we wait until all bytes are gone with a timeout of 100 ms
-  void flush() override;
+  uart::UARTFlushResult flush() override;
+
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  /// @brief Re-apply the current line settings (baud, parity, etc) to the channel.
+  void load_settings(bool dump_config) override {
+    this->set_line_param_();
+    this->set_baudrate_();
+  }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+#endif
 
  protected:
   friend class WeikaiComponent;
@@ -416,7 +429,7 @@ class WeikaiChannel : public uart::UARTComponent {
 
   /// @brief check if channel is alive
   /// @return true if OK
-  bool virtual check_channel_down();
+  bool check_channel_down_();
 
 #ifdef TEST_COMPONENT
   /// @ingroup test_
@@ -441,5 +454,4 @@ class WeikaiChannel : public uart::UARTComponent {
   std::string name_;         ///< name of the entity
 };
 
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai

@@ -1,18 +1,14 @@
 #include "copy_lock.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
-static const char *const TAG = "copy.lock";
+ESPHOME_LOG_TAG(TAG, "copy.lock");
 
 void CopyLock::setup() {
-  source_->add_on_state_callback([this]() { this->publish_state(source_->state); });
+  source_->add_on_state_callback([this](lock::LockState state) { this->publish_state(state); });
 
-  traits.set_assumed_state(source_->traits.get_assumed_state());
-  traits.set_requires_code(source_->traits.get_requires_code());
-  traits.set_supported_states(source_->traits.get_supported_states());
-  traits.set_supports_open(source_->traits.get_supports_open());
+  this->traits = this->source_->traits;
 
   this->publish_state(source_->state);
 }
@@ -25,5 +21,4 @@ void CopyLock::control(const lock::LockCall &call) {
   call2.perform();
 }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

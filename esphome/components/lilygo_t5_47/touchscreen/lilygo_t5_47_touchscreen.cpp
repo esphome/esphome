@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace lilygo_t5_47 {
+namespace esphome::lilygo_t5_47 {
 
-static const char *const TAG = "lilygo_t5_47.touchscreen";
+ESPHOME_LOG_TAG(TAG, "lilygo_t5_47.touchscreen");
 
 static const uint8_t POWER_REGISTER = 0xD6;
 static const uint8_t TOUCH_REGISTER = 0xD0;
@@ -42,7 +41,7 @@ void LilygoT547Touchscreen::setup() {
       this->x_raw_max_ = this->display_->get_native_width();
     }
     if (this->y_raw_max_ == this->y_raw_min_) {
-      this->x_raw_max_ = this->display_->get_native_height();
+      this->y_raw_max_ = this->display_->get_native_height();
     }
   }
 }
@@ -64,6 +63,10 @@ void LilygoT547Touchscreen::update_touches() {
   }
 
   point = buffer[5] & 0xF;
+  if (point > 2) {
+    ESP_LOGW(TAG, "Invalid touch point count: %d", point);
+    point = 2;
+  }
 
   if (point == 1) {
     err = this->write_register(TOUCH_REGISTER, READ_TOUCH, 1);
@@ -100,5 +103,4 @@ void LilygoT547Touchscreen::dump_config() {
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 }
 
-}  // namespace lilygo_t5_47
-}  // namespace esphome
+}  // namespace esphome::lilygo_t5_47

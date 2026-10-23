@@ -1,11 +1,12 @@
 #include "nau7802.h"
+#include <cmath>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace nau7802 {
+namespace esphome::nau7802 {
 
-static const char *const TAG = "nau7802";
+ESPHOME_LOG_TAG(TAG, "nau7802");
 
 // Only define what we need
 
@@ -56,8 +57,7 @@ void NAU7802Sensor::setup() {
   uint8_t rev;
 
   if (this->read_register(DEVICE_REV | READ_BIT, &rev, 1)) {
-    ESP_LOGE(TAG, "Failed I2C read during setup()");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed I2C read during setup()"));
     return;
   }
   ESP_LOGI(TAG, "Setting up NAU7802 Rev %d", rev);
@@ -72,19 +72,17 @@ void NAU7802Sensor::setup() {
 
   delay(1);
   if (!(pu_ctrl.get() & PU_CTRL_POWERUP_READY)) {
-    ESP_LOGE(TAG, "Failed to reset sensor during setup()");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to reset sensor during setup()"));
     return;
   }
 
-  uint32_t gcal = (uint32_t) (round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
+  uint32_t gcal = (uint32_t) (std::round(this->gain_calibration_ * (1 << GCAL1_FRACTIONAL)));
   this->write_value_(OCAL1_B2_REG, 3, this->offset_calibration_);
   this->write_value_(GCAL1_B3_REG, 4, gcal);
 
   // turn on AFE
   pu_ctrl |= PU_CTRL_POWERUP_ANALOG;
-  auto f = std::bind(&NAU7802Sensor::complete_setup_, this);
-  this->set_timeout(600, f);
+  this->set_timeout(600, [this]() { this->complete_setup_(); });
 }
 
 void NAU7802Sensor::complete_setup_() {
@@ -125,15 +123,13 @@ void NAU7802Sensor::dump_config() {
   LOG_SENSOR("", "NAU7802", this);
   LOG_I2C_DEVICE(this);
 
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL_FOR, this->get_name().c_str());
+  if (this->is_failed())
     return;
-  }
   // Note these may differ from the values on the device if calbration has been run
   ESP_LOGCONFIG(TAG,
-                "  Offset Calibration: %s\n"
+                "  Offset Calibration: %" PRId32 "\n"
                 "  Gain Calibration: %f",
-                to_string(this->offset_calibration_).c_str(), this->gain_calibration_);
+                this->offset_calibration_, this->gain_calibration_);
 
   std::string voltage = "unknown";
   switch (this->ldo_) {
@@ -218,7 +214,7 @@ void NAU7802Sensor::dump_config() {
 
 void NAU7802Sensor::write_value_(uint8_t start_reg, size_t size, int32_t value) {
   uint8_t data[4];
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     data[i] = 0xFF & (value >> (size - 1 - i) * 8);
   }
   this->write_register(start_reg, data, size);
@@ -228,14 +224,10 @@ int32_t NAU7802Sensor::read_value_(uint8_t start_reg, size_t size) {
   uint8_t data[4];
   this->read_register(start_reg, data, size);
   int32_t result = 0;
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     result |= data[i] << (size - 1 - i) * 8;
   }
-  // extend sign bit
-  if (result & 0x800000 && size == 3) {
-    result |= 0xFF000000;
-  }
-  return result;
+  return size == 3 ? sign_extend<24>(result) : result;
 }
 
 bool NAU7802Sensor::calibrate_(enum NAU7802CalibrationModes mode) {
@@ -278,7 +270,7 @@ void NAU7802Sensor::loop() {
       this->set_calibration_failure_(true);
       this->state_ = CalibrationState::INACTIVE;
       ESP_LOGE(TAG, "Failed to calibrate sensor");
-      this->status_set_error("Calibration Failed");
+      this->status_set_error(LOG_STR("Calibration Failed"));
       return;
     }
 
@@ -289,32 +281,26 @@ void NAU7802Sensor::loop() {
       this->status_clear_error();
 
     int32_t ocal = this->read_value_(OCAL1_B2_REG, 3);
-    ESP_LOGI(TAG, "New Offset: %s", to_string(ocal).c_str());
+    ESP_LOGI(TAG, "New Offset: %" PRId32, ocal);
     uint32_t gcal = this->read_value_(GCAL1_B3_REG, 4);
     float gcal_f = ((float) gcal / (float) (1 << GCAL1_FRACTIONAL));
     ESP_LOGI(TAG, "New Gain: %f", gcal_f);
   }
 }
 
-float NAU7802Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void NAU7802Sensor::update() {
-  if (!this->is_data_ready_()) {
+  if (!this->status_comm_result(this->is_data_ready_(), nullptr)) {
     ESP_LOGW(TAG, "No measurements ready!");
-    this->status_set_warning();
     return;
   }
-
-  this->status_clear_warning();
 
   // Get the most recent sample to publish
   int32_t result = this->read_value_(ADCO_B2_REG, 3);
 
-  ESP_LOGD(TAG, "'%s': Got value %" PRId32, this->name_.c_str(), result);
+  ESP_LOGD(TAG, "'%s': Got value %" PRId32, LOG_STR_ARG(this->get_log_name()), result);
   this->publish_state(result);
 }
 
 bool NAU7802Sensor::is_data_ready_() { return this->reg(PU_CTRL_REG).get() & PU_CTRL_CYCLE_READY; }
 
-}  // namespace nau7802
-}  // namespace esphome
+}  // namespace esphome::nau7802

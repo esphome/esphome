@@ -1,11 +1,19 @@
-import re
-
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components import logger
-from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.components import logger, network, socket
+from esphome.components.const import CONF_VERIFY_SSL
+from esphome.components.esp32 import (
+    add_idf_component,
+    allow_insecure_tls,
+    idf_version,
+    include_builtin_idf_component,
+    request_tls,
+    require_certificate_bundle,
+)
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
@@ -18,6 +26,7 @@ from esphome.const import (
     CONF_CLIENT_ID,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
+    CONF_DISCOVER_IP,
     CONF_DISCOVERY,
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_DISCOVERY_PREFIX,
@@ -28,6 +37,7 @@ from esphome.const import (
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_MQTT,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -43,23 +53,26 @@ from esphome.const import (
     CONF_RETAIN,
     CONF_SHUTDOWN_MESSAGE,
     CONF_SKIP_CERT_CN_CHECK,
-    CONF_SSL_FINGERPRINTS,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
-    CONF_TRIGGER_ID,
     CONF_USE_ABBREVIATIONS,
     CONF_USERNAME,
     CONF_WILL_MESSAGE,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
+    Framework,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
+DOMAIN = "mqtt"
 
 
 def AUTO_LOAD():
@@ -68,9 +81,23 @@ def AUTO_LOAD():
     return ["json"]
 
 
-CONF_DISCOVER_IP = "discover_ip"
+CONF_TLS = "tls"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_TRANSPORT = "transport"
+CONF_WS_PATH = "ws_path"
+
+MQTT_TRANSPORT_TCP = "tcp"
+MQTT_TRANSPORT_WS = "ws"
+MQTT_TRANSPORT_WSS = "wss"
+DEFAULT_WS_PATH = "/mqtt"
+
+# Max lengths for stack-based topic building.
+# These values are used in cv.Length() validators below to ensure the C++ code
+# in mqtt_component.cpp can safely use fixed-size stack buffers without overflow.
+# If you change these, update the corresponding constants in mqtt_component.cpp.
+TOPIC_PREFIX_MAX_LEN = 64  # Default is device name, typically short
+DISCOVERY_PREFIX_MAX_LEN = 64  # Default is "homeassistant" (13 chars)
 
 
 def validate_message_just_topic(value):
@@ -101,23 +128,10 @@ MQTT_MESSAGE_SCHEMA = cv.Any(
 
 mqtt_ns = cg.esphome_ns.namespace("mqtt")
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
+MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
-MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
-MQTTEnableAction = mqtt_ns.class_("MQTTEnableAction", automation.Action)
-MQTTDisableAction = mqtt_ns.class_("MQTTDisableAction", automation.Action)
-MQTTMessageTrigger = mqtt_ns.class_(
-    "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
-)
-MQTTJsonMessageTrigger = mqtt_ns.class_(
-    "MQTTJsonMessageTrigger", automation.Trigger.template(cg.JsonObjectConst)
-)
-MQTTConnectTrigger = mqtt_ns.class_("MQTTConnectTrigger", automation.Trigger.template())
-MQTTDisconnectTrigger = mqtt_ns.class_(
-    "MQTTDisconnectTrigger", automation.Trigger.template()
-)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
-MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
 
 MQTTAlarmControlPanelComponent = mqtt_ns.class_(
     "MQTTAlarmControlPanelComponent", MQTTComponent
@@ -154,8 +168,36 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
     "device_name": MQTTDiscoveryObjectIdGenerator.MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 }
 
+# Only ESP-IDF's esp-mqtt implements MQTT over WebSocket
+MQTTTransport = mqtt_ns.enum("MQTTTransport", is_class=True)
+MQTT_TRANSPORT_OPTIONS = {
+    MQTT_TRANSPORT_TCP: MQTTTransport.MQTT_TRANSPORT_TCP,
+    MQTT_TRANSPORT_WS: MQTTTransport.MQTT_TRANSPORT_WS,
+    MQTT_TRANSPORT_WSS: MQTTTransport.MQTT_TRANSPORT_WSS,
+}
+
+
+def _validate_transport(value: str) -> str:
+    value = cv.enum(MQTT_TRANSPORT_OPTIONS, lower=True)(value)
+    if value in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
+        if not CORE.is_esp32:
+            raise cv.Invalid(
+                f"transport '{value}' is currently only supported on ESP32"
+            )
+        if CORE.target_framework != Framework.ESP_IDF:
+            raise cv.Invalid(f"transport '{value}' requires the esp-idf framework")
+    return value
+
 
 def validate_config(value):
+    if (
+        value.get(CONF_TRANSPORT) not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
+        and CONF_WS_PATH in value
+    ):
+        raise cv.Invalid(
+            f"'{CONF_WS_PATH}' is only valid when 'transport' is 'ws' or 'wss'"
+        )
+
     # Populate default fields
     out = value.copy()
     topic_prefix = value[CONF_TOPIC_PREFIX]
@@ -203,12 +245,63 @@ def validate_config(value):
     return out
 
 
-def validate_fingerprint(value):
-    value = cv.string(value)
-    if re.match(r"^[0-9a-f]{40}$", value) is None:
-        raise cv.Invalid("fingerprint must be valid SHA1 hash")
-    return value
+# Keys that only make sense over TLS; any of them switches it on
+TLS_IMPLYING_KEYS = frozenset(
+    {CONF_CERTIFICATE_AUTHORITY, CONF_VERIFY_SSL, CONF_CLIENT_CERTIFICATE}
+)
 
+
+def _derive_tls(config: ConfigType) -> ConfigType:
+    """Derive ``tls`` from the certificate options and the transport, reject contradictions, pick the port."""
+    # skip_cert_cn_check has a default on ESP32, so its value decides, not its presence
+    if config.get(CONF_VERIFY_SSL) is False and config.get(CONF_SKIP_CERT_CN_CHECK):
+        raise cv.Invalid(
+            "'skip_cert_cn_check' has no effect when 'verify_ssl' is false."
+        )
+    transport = config.get(CONF_TRANSPORT)
+    if (
+        config.keys() & TLS_IMPLYING_KEYS
+        or config.get(CONF_SKIP_CERT_CN_CHECK)
+        or transport == MQTT_TRANSPORT_WSS
+    ):
+        if config.get(CONF_TLS) is False:
+            raise cv.Invalid(
+                "'tls' cannot be false when a certificate, 'verify_ssl', "
+                "'skip_cert_cn_check' or transport 'wss' is set."
+            )
+        config[CONF_TLS] = True
+    # TLS with plain ws is almost certainly a typo for wss
+    if transport == MQTT_TRANSPORT_WS and config.get(CONF_TLS):
+        raise cv.Invalid(
+            "transport 'ws' is unencrypted; remove the TLS options "
+            "or switch to transport 'wss'"
+        )
+    config.setdefault(CONF_PORT, 8883 if config.get(CONF_TLS) else 1883)
+    return config
+
+
+_validate_tls = cv.All(
+    cv.only_when(CONF_CERTIFICATE_AUTHORITY, CONF_VERIFY_SSL, False, negate=True),
+    _derive_tls,
+)
+
+
+def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for MQTT component."""
+    # MQTT needs 1 socket for the broker connection
+    socket.consume_sockets(1, "mqtt")(config)
+    return config
+
+
+# The parsed JSON document is freed once the automation returns
+JSON_MESSAGE_AUTOMATION_SCHEMA = automation.validate_synchronous_automation(
+    "on_json_message",
+    "the parsed JSON document",
+    {
+        cv.Required(CONF_TOPIC): cv.subscribe_topic,
+        cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
+    },
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -216,34 +309,40 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(MQTTClientComponent),
             cv.Required(CONF_BROKER): cv.string_strict,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_PORT, default=1883): cv.port,
+            cv.Optional(CONF_PORT): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
-            cv.Optional(CONF_PASSWORD, default=""): cv.string,
+            cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
-            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.Optional(
+                CONF_TRANSPORT, default=MQTT_TRANSPORT_TCP
+            ): _validate_transport,
+            cv.Optional(CONF_WS_PATH): cv.string,
+            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
+            cv.Optional(CONF_TLS): cv.All(cv.boolean, cv.only_on_esp32),
+            cv.Optional(CONF_VERIFY_SSL): cv.All(cv.boolean, cv.only_on_esp32),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
-                cv.string, cv.only_with_esp_idf
+                cv.string, cv.only_on_esp32
             ),
             cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
-                cv.string, cv.only_on_esp32
+            cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.sensitive(
+                cv.All(cv.string, cv.only_on_esp32)
             ),
-            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
             cv.Optional(CONF_DISCOVER_IP, default=True): cv.boolean,
-            cv.Optional(
-                CONF_DISCOVERY_PREFIX, default="homeassistant"
-            ): cv.publish_topic,
+            cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.All(
+                cv.publish_topic, cv.Length(max=DISCOVERY_PREFIX_MAX_LEN)
+            ),
             cv.Optional(CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"): cv.enum(
                 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS
             ),
@@ -254,7 +353,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
-            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.publish_topic,
+            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.All(
+                cv.publish_topic, cv.Length(max=TOPIC_PREFIX_MAX_LEN)
+            ),
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
                 None,
                 MQTT_MESSAGE_BASE.extend(
@@ -264,48 +365,37 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 validate_message_just_topic,
             ),
-            cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
-                cv.only_on_esp8266, cv.ensure_list(validate_fingerprint)
-            ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTConnectTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MQTTDisconnectTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(),
+            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(),
             cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTMessageTrigger),
                     cv.Required(CONF_TOPIC): cv.subscribe_topic,
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                     cv.Optional(CONF_PAYLOAD): cv.string_strict,
                 }
             ),
-            cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        MQTTJsonMessageTrigger
-                    ),
-                    cv.Required(CONF_TOPIC): cv.subscribe_topic,
-                    cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
-                }
-            ),
+            cv.Optional(CONF_ON_JSON_MESSAGE): JSON_MESSAGE_AUTOMATION_SCHEMA,
             cv.Optional(CONF_PUBLISH_NAN_AS_NONE, default=False): cv.boolean,
             cv.Optional(CONF_WAIT_FOR_CONNECTION, default=False): cv.boolean,
         }
     ),
     validate_config,
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
+    _validate_tls,
+    cv.only_on(
+        [
+            PLATFORM_BK72XX,
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_LN882X,
+            PLATFORM_RTL87XX,
+        ]
+    ),
+    _consume_mqtt_sockets,
+    network.require_ipv4(CONF_MQTT),
 )
 
 
@@ -321,14 +411,37 @@ def exp_mqtt_message(config):
     )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CONNECT, "set_on_connect", [(cg.bool_, "session_present")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DISCONNECT,
+        "set_on_disconnect",
+        [(MQTTClientDisconnectReason, "reason")],
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
     # Add required libraries for ESP8266 and LibreTiny
     if CORE.is_esp8266 or CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
+
+    if CORE.is_esp32:
+        # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
+        # IDF 6.0 moved esp-mqtt to an external component
+        if idf_version() >= cv.Version(6, 0, 0):
+            add_idf_component(name="espressif/mqtt", ref="1.0.0")
+        else:
+            include_builtin_idf_component("mqtt")
+        # esp-mqtt links transport_ssl.c (esp_tls) even for plain MQTT
+        request_tls()
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -339,8 +452,7 @@ async def to_code(config):
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
-    if CONF_CLIENT_ID in config:
-        cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
+    cg.add_optional(var.set_client_id, config.get(CONF_CLIENT_ID))
 
     discovery = config[CONF_DISCOVERY]
     discovery_retain = config[CONF_DISCOVERY_RETAIN]
@@ -402,57 +514,76 @@ async def to_code(config):
         cg.add(var.disable_log_message())
     else:
         cg.add(var.set_log_message_template(exp_mqtt_message(log_topic)))
+        # Request a log listener slot only when log topic is enabled
+        logger.request_log_listener()
 
         if CONF_LEVEL in log_topic:
             cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
-
-    if CONF_SSL_FINGERPRINTS in config:
-        for fingerprint in config[CONF_SSL_FINGERPRINTS]:
-            arr = [
-                cg.RawExpression(f"0x{fingerprint[i : i + 2]}") for i in range(0, 40, 2)
-            ]
-            cg.add(var.add_ssl_fingerprint(arr))
-        cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
 
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     # esp-idf only
-    if CONF_CERTIFICATE_AUTHORITY in config:
-        cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
-        cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
-        if CONF_CLIENT_CERTIFICATE in config:
-            cg.add(var.set_cl_certificate(config[CONF_CLIENT_CERTIFICATE]))
+    transport = config.get(CONF_TRANSPORT)
+    if config.get(CONF_TLS):
+        cg.add_define("USE_MQTT_TLS")
+        if (client_certificate := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
+            cg.add(var.set_cl_certificate(client_certificate))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
+        if config.get(CONF_SKIP_CERT_CN_CHECK):
+            cg.add(var.set_skip_cert_cn_check(True))
+        # Trust source: none, the given CA, or the certificate bundle
+        if config.get(CONF_VERIFY_SSL) is False:
+            cg.add_define("USE_MQTT_TLS_INSECURE")
+            allow_insecure_tls()
+        elif (ca := config.get(CONF_CERTIFICATE_AUTHORITY)) is not None:
+            cg.add(var.set_ca_certificate(ca))
+        else:
+            cg.add_define("USE_MQTT_CERT_BUNDLE")
+            require_certificate_bundle()
 
-        # prevent error -0x428e
-        # See https://github.com/espressif/esp-idf/issues/139
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_HARDWARE_MPI", False)
+    if CORE.is_esp32:
+        if transport != MQTT_TRANSPORT_TCP:
+            cg.add(var.set_transport(transport))
+        if transport in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
+            cg.add(var.set_ws_path(config.get(CONF_WS_PATH, DEFAULT_WS_PATH)))
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
 
+    # The client queues subscriptions until it connects, so they can be made at construction.
     for conf in config.get(CONF_ON_MESSAGE, []):
-        trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])
-        cg.add(trig.set_qos(conf[CONF_QOS]))
-        if CONF_PAYLOAD in conf:
-            cg.add(trig.set_payload(conf[CONF_PAYLOAD]))
-        await cg.register_component(trig, conf)
-        await automation.build_automation(trig, [(cg.std_string, "x")], conf)
+        callback = await automation.build_trigger_callback(
+            [(cg.std_string, "x")],
+            conf,
+            params=[(cg.std_string, "topic"), (cg.std_string, "payload")],
+            forward=["payload"],
+            # The length is compared first; the literal stays in flash on ESP8266.
+            when=automation.ApplyCall(
+                "StringRef(payload) == {}",
+                ((CONF_PAYLOAD, cg.std_string, automation.string_ref_literal),),
+            ),
+        )
+        cg.add(
+            var.subscribe(cg.progmem_string(conf[CONF_TOPIC]), callback, conf[CONF_QOS])
+        )
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
-        trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
-        await automation.build_automation(trig, [(cg.JsonObjectConst, "x")], conf)
+        callback = await automation.build_trigger_callback(
+            [(cg.JsonObjectConst, "x")],
+            conf,
+            params=[(cg.std_string, "topic"), (cg.JsonObject, "root")],
+            forward=["root"],
+        )
+        cg.add(
+            var.subscribe_json(
+                cg.progmem_string(conf[CONF_TOPIC]), callback, conf[CONF_QOS]
+            )
+        )
 
-    for conf in config.get(CONF_ON_CONNECT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_DISCONNECT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_publish_nan_as_none(config[CONF_PUBLISH_NAN_AS_NONE]))
 
@@ -470,22 +601,26 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA
-)
-async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(var.set_topic(template_))
+# A bare literal is ambiguous between the std::string and (const char *, size_t) publish
+# overloads, so constants and inlined `return "...";` lambdas are both spelled as std::string.
+def _std_string(config: ConfigType, value: str) -> str:
+    rendered = automation.flash_string(config, value)
+    return rendered if CORE.is_esp8266 else f"std::string({rendered})"
 
-    template_ = await cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
-    cg.add(var.set_payload(template_))
-    template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
-    cg.add(var.set_retain(template_))
-    return var
+
+automation.register_apply_action(
+    "mqtt.publish",
+    MQTT_PUBLISH_ACTION_SCHEMA,
+    automation.ApplyCall(
+        "publish({}, {}, {}, {})",
+        (
+            (CONF_TOPIC, "std::string", _std_string),
+            (CONF_PAYLOAD, "std::string", _std_string),
+            (CONF_QOS, cg.uint8),
+            (CONF_RETAIN, cg.bool_),
+        ),
+    ),
+)
 
 
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
@@ -500,7 +635,10 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "mqtt.publish_json", MQTTPublishJsonAction, MQTT_PUBLISH_JSON_ACTION_SCHEMA
+    "mqtt.publish_json",
+    MQTTPublishJsonAction,
+    MQTT_PUBLISH_JSON_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -513,7 +651,7 @@ async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args
     cg.add(var.set_payload(lambda_))
     template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
     cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
+    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
     cg.add(var.set_retain(template_))
     return var
 
@@ -529,20 +667,20 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
-    if CONF_QOS in config:
-        cg.add(var.set_qos(config[CONF_QOS]))
-    if CONF_RETAIN in config:
-        cg.add(var.set_retain(config[CONF_RETAIN]))
-    if CONF_SUBSCRIBE_QOS in config:
-        cg.add(var.set_subscribe_qos(config[CONF_SUBSCRIBE_QOS]))
+    cg.add_optional(var.set_qos, config.get(CONF_QOS))
+    cg.add_optional(var.set_retain, config.get(CONF_RETAIN))
+    cg.add_optional(var.set_subscribe_qos, config.get(CONF_SUBSCRIBE_QOS))
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
-        cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
+        state_topic = await cg.templatable(config[CONF_STATE_TOPIC], [], cg.std_string)
+        cg.add(var.set_custom_state_topic(state_topic))
     if CONF_COMMAND_TOPIC in config:
-        cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
-    if CONF_COMMAND_RETAIN in config:
-        cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
+        command_topic = await cg.templatable(
+            config[CONF_COMMAND_TOPIC], [], cg.std_string
+        )
+        cg.add(var.set_custom_command_topic(command_topic))
+    cg.add_optional(var.set_command_retain, config.get(CONF_COMMAND_RETAIN))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
         if not availability:
@@ -557,49 +695,30 @@ async def register_mqtt_component(var, config):
             )
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "mqtt.connected",
-    MQTTConnectedCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(MQTTClientComponent),
         }
     ),
+    "is_connected()",
 )
-async def mqtt_connected_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@automation.register_action(
-    "mqtt.enable",
-    MQTTEnableAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(MQTTClientComponent),
-        }
-    ),
-)
-async def mqtt_enable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+for _name, _call in (("mqtt.enable", "enable()"), ("mqtt.disable", "disable()")):
+    automation.register_apply_action(
+        _name,
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(MQTTClientComponent),
+            }
+        ),
+        automation.ApplyCall(_call),
+    )
 
 
-@automation.register_action(
-    "mqtt.disable",
-    MQTTDisableAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(MQTTClientComponent),
-        }
-    ),
-)
-async def mqtt_disable_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
-
-
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "mqtt_backend_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
@@ -607,3 +726,34 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# Each entity file is fully #ifdef'd on the USE_<ENTITY> define the core
+# emits for entity platforms present in the config.
+_define_filter = filter_source_files_from_defines(
+    {
+        "mqtt_alarm_control_panel.cpp": "USE_ALARM_CONTROL_PANEL",
+        "mqtt_binary_sensor.cpp": "USE_BINARY_SENSOR",
+        "mqtt_button.cpp": "USE_BUTTON",
+        "mqtt_climate.cpp": "USE_CLIMATE",
+        "mqtt_cover.cpp": "USE_COVER",
+        "mqtt_date.cpp": "USE_DATETIME_DATE",
+        "mqtt_datetime.cpp": "USE_DATETIME_DATETIME",
+        "mqtt_event.cpp": "USE_EVENT",
+        "mqtt_fan.cpp": "USE_FAN",
+        "mqtt_light.cpp": "USE_LIGHT",
+        "mqtt_lock.cpp": "USE_LOCK",
+        "mqtt_number.cpp": "USE_NUMBER",
+        "mqtt_select.cpp": "USE_SELECT",
+        "mqtt_sensor.cpp": "USE_SENSOR",
+        "mqtt_switch.cpp": "USE_SWITCH",
+        "mqtt_text.cpp": "USE_TEXT",
+        "mqtt_text_sensor.cpp": "USE_TEXT_SENSOR",
+        "mqtt_time.cpp": "USE_DATETIME_TIME",
+        "mqtt_update.cpp": "USE_UPDATE",
+        "mqtt_valve.cpp": "USE_VALVE",
+    }
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _platform_filter() + _define_filter()

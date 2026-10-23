@@ -15,6 +15,7 @@ ST7789V.extend(
     dc_pin=13,
     reset_pin=9,
     data_rate="80MHz",
+    requires={"psram"},
 )
 
 ST7789V.extend(
@@ -42,6 +43,7 @@ ST7789V.extend(
     enable_pin=[9, 15],
     data_rate="10MHz",
     bus_mode=TYPE_OCTAL,
+    requires={"psram"},
 )
 
 ST7796.extend(
@@ -50,11 +52,11 @@ ST7796.extend(
     height=480,
     offset_width=49,
     draw_rounding=1,
+    data_rate="40MHz",
     cs_pin=39,
     reset_pin=47,
     dc_pin=9,
     backlight_pin=48,
     invert_colors=True,
+    requires={"psram"},
 )
-
-models = {}

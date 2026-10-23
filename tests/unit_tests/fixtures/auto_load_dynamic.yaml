@@ -1,0 +1,10 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+
+# Test component with dynamic AUTO_LOAD
+test_component:
+  enable_logger: true
+  enable_api: false

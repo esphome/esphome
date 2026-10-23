@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import importlib
+import logging
 import re
 import socket
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
 import pytest
 
+from esphome import resolver
+from esphome.async_thread import AsyncDispatchTimeout
 from esphome.core import EsphomeError
 from esphome.resolver import RESOLVE_TIMEOUT, AsyncResolver
 
@@ -115,24 +119,18 @@ def test_async_resolver_generic_exception() -> None:
 
 
 def test_async_resolver_thread_timeout() -> None:
-    """Test timeout when thread doesn't complete in time."""
-    # Mock the start method to prevent actual thread execution
+    """Test timeout when the runner thread doesn't complete in time."""
+    # Patch run_async inside esphome.resolver so we never actually start a
+    # thread and can simulate the wait timing out.
     with (
-        patch.object(AsyncResolver, "start"),
-        patch("esphome.resolver.hr.async_resolve_host"),
+        patch(
+            "esphome.resolver.run_async", side_effect=AsyncDispatchTimeout
+        ) as mock_run,
+        pytest.raises(EsphomeError, match=re.escape("Timeout resolving IP address")),
     ):
-        resolver = AsyncResolver(["test.local"], 6053)
-        # Override event.wait to simulate timeout (return False = timeout occurred)
-        with (
-            patch.object(resolver.event, "wait", return_value=False),
-            pytest.raises(
-                EsphomeError, match=re.escape("Timeout resolving IP address")
-            ),
-        ):
-            resolver.resolve()
+        AsyncResolver(["test.local"], 6053).resolve()
 
-        # Verify thread start was called
-        resolver.start.assert_called_once()
+    mock_run.assert_called_once_with(ANY, timeout=RESOLVE_TIMEOUT + 1.0)
 
 
 def test_async_resolver_ip_addresses(mock_addr_info_ipv4: AddrInfo) -> None:
@@ -167,3 +165,18 @@ def test_async_resolver_mixed_addresses(
         mock_resolve.assert_called_once_with(
             ["test.local", "192.168.1.100", "::1"], 6053, timeout=RESOLVE_TIMEOUT
         )
+
+
+def test_invalid_resolve_timeout_env_falls_back_to_default(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-numeric ESPHOME_RESOLVE_TIMEOUT warns and uses the default."""
+    monkeypatch.setenv("ESPHOME_RESOLVE_TIMEOUT", "soon")
+    try:
+        with caplog.at_level(logging.WARNING, logger="esphome.resolver"):
+            importlib.reload(resolver)
+        assert resolver.RESOLVE_TIMEOUT == 20.0
+        assert "ESPHOME_RESOLVE_TIMEOUT='soon' is not a valid number" in caplog.text
+    finally:
+        monkeypatch.delenv("ESPHOME_RESOLVE_TIMEOUT")
+        importlib.reload(resolver)

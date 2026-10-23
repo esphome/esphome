@@ -4,10 +4,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace slow_pwm {
+namespace esphome::slow_pwm {
 
-class SlowPWMOutput : public output::FloatOutput, public Component {
+class SlowPWMOutput final : public output::FloatOutput, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; };
   void set_period(unsigned int period) { period_ = period; };
@@ -51,11 +50,10 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
   std::unique_ptr<Trigger<>> turn_off_trigger_{nullptr};
   std::unique_ptr<Trigger<bool>> state_change_trigger_{nullptr};
   float state_{0};
-  bool current_state_{false};
   unsigned int period_start_time_{0};
   unsigned int period_;
+  bool current_state_{false};
   bool restart_cycle_on_state_change_;
 };
 
-}  // namespace slow_pwm
-}  // namespace esphome
+}  // namespace esphome::slow_pwm

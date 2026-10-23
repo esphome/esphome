@@ -5,17 +5,9 @@
 
 #include "weikai_spi.h"
 
-namespace esphome {
-namespace weikai_spi {
+namespace esphome::weikai_spi {
 using namespace weikai;
-static const char *const TAG = "weikai_spi";
-
-/// @brief convert an int to binary representation as C++ std::string
-/// @param val integer to convert
-/// @return a std::string
-inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
-/// Convert std::string to C string
-#define I2S2CS(val) (i2s(val).c_str())
+ESPHOME_LOG_TAG(TAG, "weikai_spi");
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
@@ -40,39 +32,6 @@ const char *p2s(uart::UARTParityOptions parity) {
       return "ODD";
     default:
       return "UNKNOWN";
-  }
-}
-
-/// @brief Display a buffer in hexadecimal format (32 hex values / line).
-void print_buffer(const uint8_t *data, size_t length) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < length; i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
-    if (i % 32 == 31) {
-      ESP_LOGVV(TAG, "   %s", hex_buffer);
-    }
-  }
-  if (length % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (length % 32) + 2] = 0;
-    ESP_LOGVV(TAG, "   %s", hex_buffer);
-  }
-}
-
-static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
-                                              "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
-static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
-                                              "TFTL", "FWTH", "FWTL", "XON1",  "XOFF1", "SADR",  "SAEN", "RTSDLY"};
-
-// method to print a register value as text: used in the log messages ...
-const char *reg_to_str(int reg, bool page1) {
-  if (reg == WKREG_GPDAT) {
-    return "GPDAT";
-  } else if (reg == WKREG_GPDIR) {
-    return "GPDIR";
-  } else {
-    return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
   }
 }
 
@@ -107,8 +66,9 @@ uint8_t WeikaiRegisterSPI::read_reg() const {
   spi_comp->write_byte(cmd);
   uint8_t val = spi_comp->read_byte();
   spi_comp->disable();
-  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(cmd), cmd,
-            reg_to_str(this->register_, this->comp_->page1()), this->channel_, val);
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", format_bin_to(bin_buf, cmd), cmd,
+            LOG_STR_ARG(reg_to_str(this->register_, this->comp_->page1())), this->channel_, val);
   return val;
 }
 
@@ -120,9 +80,10 @@ void WeikaiRegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   spi_comp->read_array(data, length);
   spi_comp->disable();
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
-            length);
-  print_buffer(data, length);
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
+            this->channel_, length);
+  print_buffer(TAG, data, length);
 #endif
 }
 
@@ -132,8 +93,9 @@ void WeikaiRegisterSPI::write_reg(uint8_t value) {
   spi_comp->enable();
   spi_comp->write_array(buf, 2);
   spi_comp->disable();
-  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", I2S2CS(buf[0]), buf[0],
-            reg_to_str(this->register_, this->comp_->page1()), this->channel_, buf[1]);
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", format_bin_to(bin_buf, buf[0]),
+            buf[0], LOG_STR_ARG(reg_to_str(this->register_, this->comp_->page1())), this->channel_, buf[1]);
 }
 
 void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
@@ -145,9 +107,10 @@ void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
   spi_comp->disable();
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", I2S2CS(cmd), cmd, this->channel_,
-            length);
-  print_buffer(data, length);
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
+            this->channel_, length);
+  print_buffer(TAG, data, length);
 #endif
 }
 
@@ -190,5 +153,4 @@ void WeikaiComponentSPI::dump_config() {
   }
 }
 
-}  // namespace weikai_spi
-}  // namespace esphome
+}  // namespace esphome::weikai_spi

@@ -1,11 +1,6 @@
-uart:
-  - id: uart_selec_meter
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 sensor:
   - platform: selec_meter
+    modbus_id: modbus_bus
     total_active_energy:
       name: SelecEM2M Total Active Energy
     import_active_energy:

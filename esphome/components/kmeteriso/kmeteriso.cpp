@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace kmeteriso {
+namespace esphome::kmeteriso {
 
-static const char *const TAG = "kmeteriso.sensor";
+ESPHOME_LOG_TAG(TAG, "kmeteriso.sensor");
 
 static const uint8_t KMETER_ERROR_STATUS_REG = 0x20;
 static const uint8_t KMETER_TEMP_VAL_REG = 0x00;
@@ -47,8 +46,6 @@ void KMeterISOComponent::setup() {
   }
 }
 
-float KMeterISOComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void KMeterISOComponent::update() {
   uint8_t read_buf[4];
 
@@ -76,5 +73,4 @@ void KMeterISOComponent::update() {
   }
 }
 
-}  // namespace kmeteriso
-}  // namespace esphome
+}  // namespace esphome::kmeteriso

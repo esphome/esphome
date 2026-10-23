@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace sds011 {
+namespace esphome::sds011 {
 
-static const char *const TAG = "sds011";
+ESPHOME_LOG_TAG(TAG, "sds011");
 
 static const uint8_t SDS011_MSG_REQUEST_LENGTH = 19;
 static const uint8_t SDS011_MSG_RESPONSE_LENGTH = 10;
@@ -74,7 +73,6 @@ void SDS011Component::dump_config() {
                 this->update_interval_min_, ONOFF(this->rx_mode_only_));
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
-  this->check_uart_settings(9600);
 }
 
 void SDS011Component::loop() {
@@ -85,32 +83,31 @@ void SDS011Component::loop() {
     this->data_index_ = 0;
   }
 
-  if (this->available() == 0) {
+  const size_t avail = this->available();
+  if (avail == 0) {
     return;
   }
 
   this->last_transmission_ = now;
-  while (this->available() != 0) {
-    this->read_byte(&this->data_[this->data_index_]);
-    auto check = this->check_byte_();
-    if (!check.has_value()) {
-      // finished
-      this->parse_data_();
-      this->data_index_ = 0;
-    } else if (!*check) {
-      // wrong data
-      ESP_LOGV(TAG, "Byte %i of received data frame is invalid.", this->data_index_);
-      this->data_index_ = 0;
-    } else {
-      // next byte
-      this->data_index_++;
-    }
-  }
+  this->read_available(
+      [this](uint8_t byte) {
+        this->data_[this->data_index_] = byte;
+        auto check = this->check_byte_();
+        if (!check.has_value()) {
+          // finished
+          this->parse_data_();
+          this->data_index_ = 0;
+        } else if (!*check) {
+          // wrong data
+          ESP_LOGV(TAG, "Byte %i of received data frame is invalid.", this->data_index_);
+          this->data_index_ = 0;
+        } else {
+          // next byte
+          this->data_index_++;
+        }
+      },
+      avail);
 }
-
-float SDS011Component::get_setup_priority() const { return setup_priority::DATA; }
-
-void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
   this->write_byte(SDS011_MSG_HEAD);
@@ -121,11 +118,7 @@ void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
 }
 
 uint8_t SDS011Component::sds011_checksum_(const uint8_t *command_data, uint8_t length) const {
-  uint8_t sum = 0;
-  for (uint8_t i = 0; i < length; i++) {
-    sum += command_data[i];
-  }
-  return sum;
+  return sum_bytes(command_data, length);
 }
 
 optional<bool> SDS011Component::check_byte_() const {
@@ -186,5 +179,4 @@ void SDS011Component::set_update_interval_min(uint8_t update_interval_min) {
   this->update_interval_min_ = update_interval_min;
 }
 
-}  // namespace sds011
-}  // namespace esphome
+}  // namespace esphome::sds011

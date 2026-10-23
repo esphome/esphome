@@ -1,0 +1,4 @@
+climate:
+  - platform: islandaire
+    name: Islandaire Climate
+    transmitter_id: xmitr

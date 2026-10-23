@@ -4,10 +4,9 @@
 #include "mmc5983.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mmc5983 {
+namespace esphome::mmc5983 {
 
-static const char *const TAG = "mmc5983";
+ESPHOME_LOG_TAG(TAG, "mmc5983");
 
 namespace {
 constexpr uint8_t IC0_ADDR = 0x09;
@@ -15,6 +14,7 @@ constexpr uint8_t IC1_ADDR = 0x0a;
 constexpr uint8_t IC2_ADDR = 0x0b;
 constexpr uint8_t IC3_ADDR = 0x0c;
 constexpr uint8_t PRODUCT_ID_ADDR = 0x2f;
+constexpr uint8_t MMC5983_PRODUCT_ID = 0x30;
 
 float convert_data_to_millitesla(uint8_t data_17_10, uint8_t data_9_2, uint8_t data_1_0) {
   int32_t counts = (data_17_10 << 10) | (data_9_2 << 2) | data_1_0;
@@ -67,25 +67,13 @@ void MMC5983Component::update() {
 }
 
 void MMC5983Component::setup() {
-  // Verify product id.
-  const uint8_t mmc5983_product_id = 0x30;
-  uint8_t id;
-  i2c::ErrorCode err = this->read_register(PRODUCT_ID_ADDR, &id, 1);
-  if (err != i2c::ErrorCode::ERROR_OK) {
-    ESP_LOGE(TAG, "Reading product id failed with i2c error %d", err);
-    this->mark_failed();
+  if (!this->check_chip_id(this, PRODUCT_ID_ADDR, MMC5983_PRODUCT_ID))
     return;
-  }
-  if (id != mmc5983_product_id) {
-    ESP_LOGE(TAG, "Product id 0x%02x does not match expected value 0x%02x", id, mmc5983_product_id);
-    this->mark_failed();
-    return;
-  }
 
   // Initialize Internal Control registers to 0.
   // Internal Control 0.
   const uint8_t zero = 0;
-  err = this->write_register(IC0_ADDR, &zero, 1);
+  i2c::ErrorCode err = this->write_register(IC0_ADDR, &zero, 1);
   if (err != i2c::ErrorCode::ERROR_OK) {
     ESP_LOGE(TAG, "Initializing Internal Control 0 failed with i2c error %d", err);
     this->mark_failed();
@@ -133,7 +121,4 @@ void MMC5983Component::dump_config() {
   LOG_SENSOR("  ", "Z", this->z_sensor_);
 }
 
-float MMC5983Component::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace mmc5983
-}  // namespace esphome
+}  // namespace esphome::mmc5983

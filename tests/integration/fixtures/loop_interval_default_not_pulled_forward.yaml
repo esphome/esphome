@@ -1,0 +1,51 @@
+esphome:
+  name: loop-default-not-pulled
+  on_boot:
+    priority: -100
+    then:
+      # Leave loop_interval_ at its default (16 ms → ~62 Hz). Do NOT call
+      # set_loop_interval here. The fast scheduler interval below used to
+      # pull the component phase forward to ~128 Hz via the old
+      # std::max(next_schedule, delay_time / 2) floor.
+      # Start measurement after 1s so boot transients settle.
+      - delay: 1000ms
+      - lambda: |-
+          id(loop_at_start) = id(loop_counter)->get_loop_count();
+          ESP_LOGI("test", "MEASUREMENT_STARTED loop=%d", id(loop_at_start));
+      # Observe for 2s.
+      - delay: 2000ms
+      - lambda: |-
+          int loop_delta = id(loop_counter)->get_loop_count() - id(loop_at_start);
+          ESP_LOGI("test", "MEASUREMENT_DONE loop_delta=%d", loop_delta);
+
+host:
+api:
+logger:
+  level: INFO
+  logs:
+    loop_test_component: WARN   # Silence per-loop log spam
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+globals:
+  - id: loop_at_start
+    type: int
+    initial_value: "0"
+
+loop_test_component:
+  components:
+    - id: loop_counter
+      name: loop_counter
+
+interval:
+  # Fast scheduler interval (well under loop_interval_/2 = 8ms). In the
+  # pre-decoupling code this would have pulled the component phase forward
+  # to ~128 Hz. After the decoupling fix the component phase stays at
+  # ~62 Hz regardless.
+  - interval: 5ms
+    then:
+      - lambda: |-
+          // No-op; the presence of a due scheduler item is what matters.

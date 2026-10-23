@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_am2315c
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: am2315c
+    i2c_id: i2c_bus
     temperature:
       name: Temperature
     humidity:

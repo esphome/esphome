@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import text
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ID,
     CONF_INITIAL_VALUE,
     CONF_LAMBDA,
     CONF_MAX_LENGTH,
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_RESTORE_VALUE,
     CONF_SET_ACTION,
 )
+from esphome.core import ID
 
 from .. import template_ns
 
@@ -49,8 +51,8 @@ CONFIG_SCHEMA = cv.All(
     text.text_schema(TemplateText)
     .extend(
         {
-            cv.Optional(CONF_MIN_LENGTH, default=0): cv.int_range(min=0, max=255),
-            cv.Optional(CONF_MAX_LENGTH, default=255): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_MIN_LENGTH, default=0): cv.uint8_t,
+            cv.Optional(CONF_MAX_LENGTH, default=255): cv.uint8_t,
             cv.Optional(CONF_PATTERN): cv.string,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
@@ -84,8 +86,15 @@ async def to_code(config):
         if initial_value_config := config.get(CONF_INITIAL_VALUE):
             cg.add(var.set_initial_value(initial_value_config))
         if config[CONF_RESTORE_VALUE]:
-            args = cg.TemplateArguments(config[CONF_MAX_LENGTH])
-            saver = TextSaverTemplate.template(args).new()
+            saver_id = ID(
+                f"{config[CONF_ID].id}_value_saver",
+                is_declaration=True,
+                type=TextSaverBase,
+            )
+            saver_type = TextSaverTemplate.template(
+                cg.TemplateArguments(config[CONF_MAX_LENGTH])
+            )
+            saver = cg.Pvariable(saver_id, saver_type.new())
             cg.add(var.set_value_saver(saver))
 
     if CONF_SET_ACTION in config:

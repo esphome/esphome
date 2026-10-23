@@ -2,4 +2,7 @@ substitutions:
   tx_pin: GPIO4
   rx_pin: GPIO5
 
+packages:
+  modbus: !include ../../test_build_components/common/modbus/rp2040-ard.yaml
+
 <<: !include common.yaml

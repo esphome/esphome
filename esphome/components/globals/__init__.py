@@ -1,54 +1,92 @@
 import hashlib
 
-from esphome import automation, codegen as cg, config_validation as cv
+from esphome import automation, codegen as cg, config_validation as cv, preferences
 from esphome.const import (
     CONF_ID,
     CONF_INITIAL_VALUE,
     CONF_RESTORE_VALUE,
+    CONF_STORAGE,
     CONF_TYPE,
     CONF_VALUE,
 )
 from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "globals"
 globals_ns = cg.esphome_ns.namespace("globals")
 GlobalsComponent = globals_ns.class_("GlobalsComponent", cg.Component)
-RestoringGlobalsComponent = globals_ns.class_("RestoringGlobalsComponent", cg.Component)
-RestoringGlobalStringComponent = globals_ns.class_(
-    "RestoringGlobalStringComponent", cg.Component
+RestoringGlobalsComponent = globals_ns.class_(
+    "RestoringGlobalsComponent", cg.PollingComponent
 )
-GlobalVarSetAction = globals_ns.class_("GlobalVarSetAction", automation.Action)
+RestoringGlobalStringComponent = globals_ns.class_(
+    "RestoringGlobalStringComponent", cg.PollingComponent
+)
+Storage = globals_ns.enum("Storage", is_class=True)
 
 CONF_MAX_RESTORE_DATA_LENGTH = "max_restore_data_length"
 
+# Base schema fields shared by both variants
+_BASE_SCHEMA = {
+    cv.Required(CONF_ID): cv.declare_id(GlobalsComponent),
+    cv.Required(CONF_TYPE): cv.string_strict,
+    cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
+    cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH): cv.int_range(0, 254),
+}
 
-MULTI_CONF = True
-CONFIG_SCHEMA = cv.Schema(
+# Non-restoring globals: regular Component (no polling needed)
+_NON_RESTORING_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ID): cv.declare_id(GlobalsComponent),
-        cv.Required(CONF_TYPE): cv.string_strict,
-        cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
+        **_BASE_SCHEMA,
         cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
-        cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH): cv.int_range(0, 254),
+        cv.Optional(CONF_STORAGE): cv.invalid(
+            f"'{CONF_STORAGE}' needs '{CONF_RESTORE_VALUE}: true'"
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+# Restoring globals: PollingComponent with configurable update_interval
+_RESTORING_SCHEMA = cv.Schema(
+    {
+        **_BASE_SCHEMA,
+        cv.Optional(CONF_RESTORE_VALUE, default=True): cv.boolean,
+        # No default: when omitted the global keeps the platform's own default backend,
+        # which on ESP8266 follows restore_from_flash
+        cv.Optional(CONF_STORAGE): preferences.validate_storage,
+    }
+).extend(cv.polling_component_schema("1s"))
+
+
+def _globals_schema(config: ConfigType) -> ConfigType:
+    """Select schema based on restore_value setting."""
+    if cv.boolean(config.get(CONF_RESTORE_VALUE, False)):
+        return _RESTORING_SCHEMA(config)
+    return _NON_RESTORING_SCHEMA(config)
+
+
+MULTI_CONF = True
+CONFIG_SCHEMA = _globals_schema
 
 
 # Run with low priority so that namespaces are registered first
 @coroutine_with_priority(CoroPriority.LATE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     type_ = cg.RawExpression(config[CONF_TYPE])
     restore = config[CONF_RESTORE_VALUE]
 
     # Special casing the strings to their own class with a different save/restore mechanism
     if str(type_) == "std::string" and restore:
-        template_args = cg.TemplateArguments(
-            type_, config.get(CONF_MAX_RESTORE_DATA_LENGTH, 63) + 1
-        )
+        args = [type_, config.get(CONF_MAX_RESTORE_DATA_LENGTH, 63) + 1]
         type = RestoringGlobalStringComponent
     else:
-        template_args = cg.TemplateArguments(type_)
+        args = [type_]
         type = RestoringGlobalsComponent if restore else GlobalsComponent
+    in_flash = None
+    if (storage := config.get(CONF_STORAGE)) is not None:
+        # is_in_flash() also requests the RTC backend when rtc is chosen
+        in_flash = preferences.is_in_flash(storage)
+        args.append(Storage.STORAGE_FLASH if in_flash else Storage.STORAGE_RTC)
+    template_args = cg.TemplateArguments(*args)
 
     res_type = type.template(template_args)
     initial_value = None
@@ -65,24 +103,25 @@ async def to_code(config):
             value = value.encode()
         hash_ = int(hashlib.md5(value).hexdigest()[:8], 16)
         cg.add(glob.set_name_hash(hash_))
+        if type is RestoringGlobalStringComponent:
+            # The ESP8266 adds up every saved value to check that they fit its store; only the
+            # string's size is known here
+            preferences.reserve_preferences(1, args[1], in_flash)
 
 
-@automation.register_action(
+# A lambda returns the global's own type so `return 42;` reduces to a cast; the value
+# itself is raw C++ text.
+_VALUE_TYPE = "std::remove_reference_t<decltype({parent}->value())>"
+
+automation.register_apply_action(
     "globals.set",
-    GlobalVarSetAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(GlobalsComponent),
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
+    automation.ApplyField(
+        CONF_VALUE, "value() = {}", _VALUE_TYPE, const_fn=lambda _, value: value
+    ),
 )
-async def globals_set_to_code(config, action_id, template_arg, args):
-    full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
-    template_arg = cg.TemplateArguments(full_id.type, *template_arg)
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    templ = await cg.templatable(
-        config[CONF_VALUE], args, None, to_exp=cg.RawExpression
-    )
-    cg.add(var.set_value(templ))
-    return var

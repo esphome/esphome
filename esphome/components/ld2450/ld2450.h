@@ -24,6 +24,10 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
+#ifdef LD2450_POLYGON_ZONE_COUNT
+#include "polygon_zone.h"
+#endif
+
 #include "esphome/components/ld24xx/ld24xx.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/helpers.h"
@@ -31,16 +35,17 @@
 
 #include <array>
 
-namespace esphome {
-namespace ld2450 {
+namespace esphome::ld2450 {
 
 using namespace ld24xx;
 
 // Constants
 static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
-static constexpr uint8_t MAX_LINE_LENGTH = 41;          // Max characters for serial buffer
-static constexpr uint8_t MAX_TARGETS = 3;               // Max 3 Targets in LD2450
-static constexpr uint8_t MAX_ZONES = 3;                 // Max 3 Zones in LD2450
+// Zone query response is 40 bytes; +1 for null terminator, +4 so that a frame footer always
+// lands inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 45;
+static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
+static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
 enum Direction : uint8_t {
   DIRECTION_APPROACHING = 0,
@@ -115,15 +120,15 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_multi_target(bool enable);
-  void set_baud_rate(const std::string &state);
-  void set_zone_type(const std::string &state);
+  void set_baud_rate(const char *state);
+  void set_zone_type(const char *state);
   void publish_zone_type();
   void factory_reset();
 #ifdef USE_TEXT_SENSOR
   void set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s);
 #endif
 #ifdef USE_NUMBER
-  void set_zone_coordinate(uint8_t zone);
+  void set_zone_coordinate(number::Number *n);
   void set_zone_numbers(uint8_t zone, number::Number *x1, number::Number *y1, number::Number *x2, number::Number *y2);
 #endif
 #ifdef USE_SENSOR
@@ -137,10 +142,16 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_zone_still_target_count_sensor(uint8_t zone, sensor::Sensor *s);
   void set_zone_moving_target_count_sensor(uint8_t zone, sensor::Sensor *s);
 #endif
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  void register_polygon_zone(PolygonZone *zone) { this->polygon_zones_.push_back(zone); }
+#endif
   void reset_radar_zone();
   void set_radar_zone(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2, int32_t zone1_y2,
                       int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
                       int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
+
+  /// Add a callback that will be called after each successfully processed periodic data frame.
+  template<typename F> void add_on_data_callback(F &&callback) { this->data_callback_.add(std::forward<F>(callback)); }
 
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
@@ -158,40 +169,49 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
-  uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
+  void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
-  uint16_t timeout_ = 5;
+  uint32_t timeout_ = DEFAULT_PRESENCE_TIMEOUT * 1000;  // presence_timeout, in ms
   uint8_t buffer_data_[MAX_LINE_LENGTH];
-  uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
+#ifdef USE_TEXT_SENSOR
+  // Byte aligned, so it packs after zone_config_ instead of padding before data_callback_
+  std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
+#endif
 
 #ifdef USE_NUMBER
   ESPPreferenceObject pref_;  // only used when numbers are in use
   ZoneOfNumbers zone_numbers_[MAX_ZONES];
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<int16_t> *, MAX_TARGETS> move_x_sensors_{};
-  std::array<SensorWithDedup<int16_t> *, MAX_TARGETS> move_y_sensors_{};
-  std::array<SensorWithDedup<int16_t> *, MAX_TARGETS> move_speed_sensors_{};
-  std::array<SensorWithDedup<float> *, MAX_TARGETS> move_angle_sensors_{};
-  std::array<SensorWithDedup<uint16_t> *, MAX_TARGETS> move_distance_sensors_{};
-  std::array<SensorWithDedup<uint16_t> *, MAX_TARGETS> move_resolution_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_still_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_moving_target_count_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_x_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_y_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_speed_sensors_{};
+  std::array<SensorWithDedup<float>, MAX_TARGETS> move_angle_sensors_{};
+  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_distance_sensors_{};
+  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_resolution_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_target_count_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_still_target_count_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_moving_target_count_sensors_{};
 #endif
 #ifdef USE_TEXT_SENSOR
-  std::array<text_sensor::TextSensor *, 3> direction_text_sensors_{};
+  std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
 #endif
+
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  StaticVector<PolygonZone *, LD2450_POLYGON_ZONE_COUNT> polygon_zones_;
+#endif
+
+  LazyCallbackManager<void()> data_callback_;
 };
 
-}  // namespace ld2450
-}  // namespace esphome
+}  // namespace esphome::ld2450

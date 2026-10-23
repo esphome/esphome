@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor, i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBOUNCE, DEVICE_CLASS_MOTION
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@kahrendt"]
@@ -23,12 +24,6 @@ QwiicPIRComponent = qwiic_pir_ns.class_(
 )
 
 
-def validate_no_debounce_unless_native(config):
-    if CONF_DEBOUNCE in config and config[CONF_DEBOUNCE_MODE] != "NATIVE":
-        raise cv.Invalid("debounce can only be set if debounce_mode is NATIVE")
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(
         QwiicPIRComponent,
@@ -47,11 +42,11 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x12)),
-    validate_no_debounce_unless_native,
+    cv.only_when(CONF_DEBOUNCE, CONF_DEBOUNCE_MODE, "NATIVE"),
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

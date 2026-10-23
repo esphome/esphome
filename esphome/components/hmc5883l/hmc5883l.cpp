@@ -2,10 +2,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace hmc5883l {
+#include <numbers>
 
-static const char *const TAG = "hmc5883l";
+namespace esphome::hmc5883l {
+
+ESPHOME_LOG_TAG(TAG, "hmc5883l");
 static const uint8_t HMC5883L_ADDRESS = 0x1E;
 static const uint8_t HMC5883L_REGISTER_CONFIG_A = 0x00;
 static const uint8_t HMC5883L_REGISTER_CONFIG_B = 0x01;
@@ -26,8 +27,7 @@ void HMC5883LComponent::setup() {
   if (!this->read_byte(HMC5883L_REGISTER_IDENTIFICATION_A, &id[0]) ||
       !this->read_byte(HMC5883L_REGISTER_IDENTIFICATION_B, &id[1]) ||
       !this->read_byte(HMC5883L_REGISTER_IDENTIFICATION_C, &id[2])) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -36,8 +36,7 @@ void HMC5883LComponent::setup() {
   }
 
   if (id[0] != 0x48 || id[1] != 0x34 || id[2] != 0x33) {
-    this->error_code_ = ID_REGISTERS;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("The ID registers don't match - Is this really an HMC5883L?"));
     return;
   }
 
@@ -46,16 +45,14 @@ void HMC5883LComponent::setup() {
   config_a |= this->datarate_ << 2;
   config_a |= 0b0 << 0;  // Measurement Mode: Normal(high impedance on load)
   if (!this->write_byte(HMC5883L_REGISTER_CONFIG_A, config_a)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   uint8_t config_b = 0;
   config_b |= this->range_ << 5;
   if (!this->write_byte(HMC5883L_REGISTER_CONFIG_B, config_b)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -63,19 +60,13 @@ void HMC5883LComponent::setup() {
   // Continuous Measurement Mode
   mode |= 0b00;
   if (!this->write_byte(HMC5883L_REGISTER_MODE, mode)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
 void HMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HMC5883L:");
   LOG_I2C_DEVICE(this);
-  if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  } else if (this->error_code_ == ID_REGISTERS) {
-    ESP_LOGE(TAG, "The ID registers don't match - Is this really an HMC5883L?");
-  }
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "X Axis", this->x_sensor_);
@@ -83,7 +74,6 @@ void HMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
 }
-float HMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 void HMC5883LComponent::update() {
   uint16_t raw_x, raw_y, raw_z;
   if (!this->read_byte_16(HMC5883L_REGISTER_DATA_X_MSB, &raw_x) ||
@@ -96,7 +86,7 @@ void HMC5883LComponent::update() {
   float mg_per_bit;
   switch (this->range_) {
     case HMC5883L_RANGE_88_UT:
-      mg_per_bit = 0.073f;
+      mg_per_bit = 0.73f;
       break;
     case HMC5883L_RANGE_130_UT:
       mg_per_bit = 0.92f;
@@ -128,7 +118,7 @@ void HMC5883LComponent::update() {
   const float y = int16_t(raw_y) * mg_per_bit * 0.1f;
   const float z = int16_t(raw_z) * mg_per_bit * 0.1f;
 
-  float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
+  float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
   ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f°", x, y, z, heading);
 
   if (this->x_sensor_ != nullptr)
@@ -141,5 +131,4 @@ void HMC5883LComponent::update() {
     this->heading_sensor_->publish_state(heading);
 }
 
-}  // namespace hmc5883l
-}  // namespace esphome
+}  // namespace esphome::hmc5883l

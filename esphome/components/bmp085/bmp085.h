@@ -4,10 +4,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace bmp085 {
+namespace esphome::bmp085 {
 
-class BMP085Component : public PollingComponent, public i2c::I2CDevice {
+class BMP085Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_pressure(sensor::Sensor *pressure) { pressure_ = pressure; }
@@ -17,8 +16,6 @@ class BMP085Component : public PollingComponent, public i2c::I2CDevice {
   /// Setup the sensor and test for a connection.
   void setup() override;
   void dump_config() override;
-
-  float get_setup_priority() const override;
 
  protected:
   struct CalibrationData {
@@ -41,5 +38,4 @@ class BMP085Component : public PollingComponent, public i2c::I2CDevice {
   CalibrationData calibration_;
 };
 
-}  // namespace bmp085
-}  // namespace esphome
+}  // namespace esphome::bmp085

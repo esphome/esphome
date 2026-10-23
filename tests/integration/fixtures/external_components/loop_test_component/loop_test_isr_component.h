@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace loop_test_component {
+namespace esphome::loop_test_component {
 
 class LoopTestISRComponent : public Component {
  public:
@@ -28,5 +27,4 @@ class LoopTestISRComponent : public Component {
   int isr_call_count_{0};
 };
 
-}  // namespace loop_test_component
-}  // namespace esphome
+}  // namespace esphome::loop_test_component

@@ -1,4 +1,12 @@
-<<: !include common.yaml
+packages:
+  debug: !include common.yaml
 
 esp32:
   cpu_frequency: 240MHz
+
+sensor:
+  - platform: debug
+    fragmentation:
+      name: "Heap Fragmentation"
+    min_free:
+      name: "Heap Min Free"

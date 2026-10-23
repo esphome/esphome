@@ -1,10 +1,9 @@
 #include "binary_sensor_map.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace binary_sensor_map {
+namespace esphome::binary_sensor_map {
 
-static const char *const TAG = "binary_sensor_map";
+ESPHOME_LOG_TAG(TAG, "binary_sensor_map");
 
 void BinarySensorMap::dump_config() { LOG_SENSOR("  ", "binary_sensor_map", this); }
 
@@ -48,7 +47,7 @@ void BinarySensorMap::process_group_() {
     }
   } else if (this->last_mask_ != 0ULL) {
     // no buttons are pressed and the states have changed since last run, so publish NAN
-    ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing NAN", this->name_.c_str());
+    ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing NAN", LOG_STR_ARG(this->get_log_name()));
     this->publish_state(NAN);
   }
 
@@ -113,7 +112,7 @@ float BinarySensorMap::bayesian_predicate_(bool sensor_state, float prior, float
     prob_state_source_false = 1 - prob_given_false;
   }
 
-  return prob_state_source_true / (prior * prob_state_source_true + (1.0 - prior) * prob_state_source_false);
+  return prob_state_source_true / (prior * prob_state_source_true + (1.0f - prior) * prob_state_source_false);
 }
 
 void BinarySensorMap::add_channel(binary_sensor::BinarySensor *sensor, float value) {
@@ -138,5 +137,4 @@ void BinarySensorMap::add_channel(binary_sensor::BinarySensor *sensor, float pro
   };
   this->channels_.push_back(sensor_channel);
 }
-}  // namespace binary_sensor_map
-}  // namespace esphome
+}  // namespace esphome::binary_sensor_map

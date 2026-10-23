@@ -2,41 +2,45 @@
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <map>
 #include <utility>
 #include <vector>
 
-#ifdef USE_ARDUINO
-
-#include <SPI.h>
-
-#ifdef USE_RP2040
-using SPIInterface = SPIClassRP2040 *;
-#else
-using SPIInterface = SPIClass *;
-#endif
-
-#endif
-
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "driver/spi_master.h"
 
 using SPIInterface = spi_host_device_t;
 
-#endif  // USE_ESP_IDF
+#elif defined(USE_ARDUINO) && !defined(USE_LIBRETINY)
 
-#ifdef USE_ZEPHYR
-// TODO supprse clang-tidy. Remove after SPI driver for nrf52 is added.
-using SPIInterface = void *;
+#include <SPI.h>
+
+#ifdef USE_RP2
+using SPIInterface = SPIClassRP2040 *;
+#else
+using SPIInterface = SPIClass *;
 #endif
+
+#elif defined(USE_ZEPHYR)
+
+struct device;
+using SPIInterface = const device *;
+
+#elif defined(USE_HOST) || defined(CLANG_TIDY)
+
+using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host)
+
+#endif  // USE_ESP32 / USE_ARDUINO
 
 /**
  * Implementation of SPI Controller mode.
  */
-namespace esphome {
-namespace spi {
+namespace esphome::spi {
+
+#define LOG_SPI_DEVICE(this) ESP_LOGCONFIG(TAG, "  CS Pin: %d", esphome::spi::Utility::get_pin_no(this->cs_));
 
 /// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
@@ -124,7 +128,11 @@ class NullPin : public GPIOPin {
 
   void digital_write(bool value) override {}
 
-  std::string dump_summary() const override { return std::string(); }
+  size_t dump_summary(char *buffer, size_t len) const override {
+    if (len > 0)
+      buffer[0] = '\0';
+    return 0;
+  }
 
  protected:
   static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -175,6 +183,7 @@ class SPIDelegateDummy;
 // a thin wrapper over SPIClass.
 class SPIDelegate {
   friend class SPIClient;
+  friend class SPIComponent;  // hands out NULL_DELEGATE for a failed bus
 
  public:
   SPIDelegate() = default;
@@ -187,7 +196,7 @@ class SPIDelegate {
     this->cs_pin_->digital_write(true);
   }
 
-  virtual ~SPIDelegate(){};
+  virtual ~SPIDelegate() {};
 
   // enable CS if configured.
   virtual void begin_transaction() { this->cs_pin_->digital_write(false); }
@@ -222,8 +231,7 @@ class SPIDelegate {
   // write 16 bits
   virtual void write16(uint16_t data) {
     if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
-      uint16_t buffer;
-      buffer = (data >> 8) | (data << 8);
+      uint16_t buffer = byteswap(data);
       this->write_array(reinterpret_cast<const uint8_t *>(&buffer), 2);
     } else {
       this->write_array(reinterpret_cast<const uint8_t *>(&data), 2);
@@ -251,11 +259,18 @@ class SPIDelegate {
   // check if device is ready
   virtual bool is_ready();
 
+#ifdef USE_SPI_PSRAM_DMA
+  void set_psram_dma(bool enable) { this->psram_dma_ = enable; }
+#endif
+
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
   GPIOPin *cs_pin_{NullPin::NULL_PIN};
+#ifdef USE_SPI_PSRAM_DMA
+  bool psram_dma_{false};
+#endif
   static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
@@ -268,7 +283,7 @@ class SPIDelegateDummy : public SPIDelegate {
   SPIDelegateDummy() = default;
 
   uint8_t transfer(uint8_t data) override { return 0; }
-  void end_transaction() override{};
+  void end_transaction() override {};
 
   void begin_transaction() override;
 };
@@ -332,7 +347,7 @@ class SPIBus {
 
 class SPIClient;
 
-class SPIComponent : public Component {
+class SPIComponent final : public Component {
  public:
   SPIDelegate *register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                GPIOPin *cs_pin, bool release_device, bool write_only);
@@ -349,6 +364,8 @@ class SPIComponent : public Component {
     this->interface_ = interface;
     this->using_hw_ = true;
   }
+
+  SPIInterface get_interface() const { return this->interface_; }
 
   void set_interface_name(const char *name) { this->interface_name_ = name; }
 
@@ -393,6 +410,12 @@ class SPIClient {
     esph_log_d("spi_device", "mode %u, data_rate %ukHz", (unsigned) this->mode_, (unsigned) (this->data_rate_ / 1000));
     this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_,
                                                      this->release_device_, this->write_only_);
+#ifdef USE_SPI_PSRAM_DMA
+    this->delegate_->set_psram_dma(this->psram_dma_);
+    if (this->psram_dma_) {
+      esph_log_config("spi_device", "PSRAM DMA: enabled");
+    }
+#endif
   }
 
   virtual void spi_teardown() {
@@ -403,6 +426,9 @@ class SPIClient {
   bool spi_is_ready() { return this->delegate_->is_ready(); }
   void set_release_device(bool release) { this->release_device_ = release; }
   void set_write_only(bool write_only) { this->write_only_ = write_only; }
+#ifdef USE_SPI_PSRAM_DMA
+  void set_psram_dma(bool enable) { this->psram_dma_ = enable; }
+#endif
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
@@ -412,6 +438,9 @@ class SPIClient {
   GPIOPin *cs_{nullptr};
   bool release_device_{false};
   bool write_only_{false};
+#ifdef USE_SPI_PSRAM_DMA
+  bool psram_dma_{false};
+#endif
   SPIDelegate *delegate_{SPIDelegate::NULL_DELEGATE};
 };
 
@@ -449,7 +478,7 @@ class SPIDevice : public SPIClient {
 
   uint8_t read_byte() { return this->delegate_->transfer(0); }
 
-  void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
+  void read_array(uint8_t *data, size_t length) { this->delegate_->read_array(data, length); }
 
   /**
    * Write a single data item, up to 32 bits.
@@ -509,5 +538,4 @@ class SPIDevice : public SPIClient {
   template<size_t N> void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
 };
 
-}  // namespace spi
-}  // namespace esphome
+}  // namespace esphome::spi

@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace duty_cycle {
+namespace esphome::duty_cycle {
 
-static const char *const TAG = "duty_cycle";
+ESPHOME_LOG_TAG(TAG, "duty_cycle");
 
 void DutyCycleSensor::setup() {
   this->pin_->setup();
@@ -37,13 +36,11 @@ void DutyCycleSensor::update() {
     const float total_time = float(now - this->last_update_);
 
     const float value = (on_time * 100.0f) / total_time;
-    ESP_LOGD(TAG, "'%s' Got duty cycle=%.1f%%", this->get_name().c_str(), value);
+    ESP_LOGD(TAG, "'%s' Got duty cycle=%.1f%%", LOG_STR_ARG(this->get_log_name()), value);
     this->publish_state(value);
   }
   this->last_update_ = now;
 }
-
-float DutyCycleSensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void IRAM_ATTR DutyCycleSensorStore::gpio_intr(DutyCycleSensorStore *arg) {
   const bool new_level = arg->pin.digital_read();
@@ -58,5 +55,4 @@ void IRAM_ATTR DutyCycleSensorStore::gpio_intr(DutyCycleSensorStore *arg) {
   arg->last_interrupt = now;
 }
 
-}  // namespace duty_cycle
-}  // namespace esphome
+}  // namespace esphome::duty_cycle

@@ -1,19 +1,19 @@
-#include <set>
-#include <utility>
-
 #pragma once
 
-namespace esphome {
+#include <cstring>
+#include <type_traits>
+#include "esphome/core/helpers.h"
 
-#ifdef USE_API
-namespace api {
-class APIConnection;
-}  // namespace api
-#endif
+namespace esphome::fan {
 
-namespace fan {
+class Fan;  // Forward declaration
+
+/// Preset modes: a flash table from codegen, or an owned copy set at runtime.
+using FanPresetModes = ConstVector<const char *, true>;
 
 class FanTraits {
+  friend class Fan;  // Allow Fan to access protected pointer setter
+
  public:
   FanTraits() = default;
   FanTraits(bool oscillation, bool speed, bool direction, int speed_count)
@@ -35,29 +35,37 @@ class FanTraits {
   bool supports_direction() const { return this->direction_; }
   /// Set whether this fan supports changing direction
   void set_direction(bool direction) { this->direction_ = direction; }
-  /// Return the preset modes supported by the fan.
-  std::set<std::string> supported_preset_modes() const { return this->preset_modes_; }
-  /// Set the preset modes supported by the fan.
-  void set_supported_preset_modes(const std::set<std::string> &preset_modes) { this->preset_modes_ = preset_modes; }
+  /// Empty when the fan has no preset modes. Set them on the Fan entity.
+  const FanPresetModes &supported_preset_modes() const;
+
   /// Return if preset modes are supported
-  bool supports_preset_modes() const { return !this->preset_modes_.empty(); }
+  bool supports_preset_modes() const { return this->preset_modes_ != nullptr && !this->preset_modes_->empty(); }
+  /// Find and return the matching preset mode pointer from supported modes, or nullptr if not found.
+  const char *find_preset_mode(const char *preset_mode) const {
+    return this->find_preset_mode(preset_mode, preset_mode ? strlen(preset_mode) : 0);
+  }
+  const char *find_preset_mode(const char *preset_mode, size_t len) const {
+    if (preset_mode == nullptr || len == 0) {
+      return nullptr;
+    }
+    for (const char *mode : this->supported_preset_modes()) {
+      if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0') {
+        return mode;
+      }
+    }
+    return nullptr;
+  }
 
  protected:
-#ifdef USE_API
-  // The API connection is a friend class to access internal methods
-  friend class api::APIConnection;
-  // This method returns a reference to the internal preset modes set.
-  // It is used by the API to avoid copying data when encoding messages.
-  // Warning: Do not use this method outside of the API connection code.
-  // It returns a reference to internal data that can be invalidated.
-  const std::set<std::string> &supported_preset_modes_for_api_() const { return this->preset_modes_; }
-#endif
+  /// Set the preset modes pointer (only Fan::wire_preset_modes_() should call this).
+  void set_supported_preset_modes_(const FanPresetModes *preset_modes) { this->preset_modes_ = preset_modes; }
+
   bool oscillation_{false};
   bool speed_{false};
   bool direction_{false};
   int speed_count_{};
-  std::set<std::string> preset_modes_{};
+  const FanPresetModes *preset_modes_{nullptr};  // owned by the Fan entity
 };
+static_assert(std::is_trivially_copyable_v<FanTraits>, "FanTraits is returned by value from get_traits()");
 
-}  // namespace fan
-}  // namespace esphome
+}  // namespace esphome::fan

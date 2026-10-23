@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_OHM,
 )
+from esphome.types import ConfigType
 
 resistance_ns = cg.esphome_ns.namespace("resistance")
 ResistanceSensor = resistance_ns.class_("ResistanceSensor", cg.Component, sensor.Sensor)
@@ -16,10 +17,7 @@ CONF_CONFIGURATION = "configuration"
 CONF_RESISTOR = "resistor"
 
 ResistanceConfiguration = resistance_ns.enum("ResistanceConfiguration")
-CONFIGURATIONS = {
-    "DOWNSTREAM": ResistanceConfiguration.DOWNSTREAM,
-    "UPSTREAM": ResistanceConfiguration.UPSTREAM,
-}
+CONFIGURATIONS = ResistanceConfiguration.options("DOWNSTREAM", "UPSTREAM")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -41,12 +39,11 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_sensor(sens))
+    await cg.add_variable(var.set_sensor, config[CONF_SENSOR])
     cg.add(var.set_configuration(config[CONF_CONFIGURATION]))
     cg.add(var.set_resistor(config[CONF_RESISTOR]))
     cg.add(var.set_reference_voltage(config[CONF_REFERENCE_VOLTAGE]))

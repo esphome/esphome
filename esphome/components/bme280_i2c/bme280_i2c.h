@@ -2,19 +2,18 @@
 
 #include "esphome/components/bme280_base/bme280_base.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace bme280_i2c {
+namespace esphome::bme280_i2c {
 
-static const char *const TAG = "bme280_i2c.sensor";
+ESPHOME_LOG_TAG(TAG, "bme280_i2c.sensor");
 
-class BME280I2CComponent : public esphome::bme280_base::BME280Component, public i2c::I2CDevice {
+class BME280I2CComponent final : public esphome::bme280_base::BME280Component, public i2c::I2CDevice {
   bool read_byte(uint8_t a_register, uint8_t *data) override;
   bool write_byte(uint8_t a_register, uint8_t data) override;
   bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
-  bool read_byte_16(uint8_t a_register, uint16_t *data) override;
+  bool read_byte_16_le(uint8_t a_register, uint16_t *data) override;
   void dump_config() override;
 };
 
-}  // namespace bme280_i2c
-}  // namespace esphome
+}  // namespace esphome::bme280_i2c

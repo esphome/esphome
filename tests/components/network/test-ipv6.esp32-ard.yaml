@@ -1,4 +1,5 @@
 substitutions:
   network_enable_ipv6: "true"
 
-<<: !include common.yaml
+packages:
+  network: !include common.yaml

@@ -1,0 +1,51 @@
+dlms_meter:
+  id: dlms_meter_hub
+  receive_timeout: 50ms
+  decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"
+  auth_key: "11223344556677889900AABBCCDDEEFF"
+  skip_crc: true
+  custom_patterns:
+    - "custom_pattern_1"
+    - "custom_pattern_2"
+    - pattern: "L, TSTR"
+      name: "MeterID"
+      default_obis: "0.0.96.1.0.255"
+    - pattern: "F, TDTM"
+      name: "DateTime"
+      default_obis: "0.0.1.0.0.255"
+
+sensor:
+  - platform: dlms_meter
+    obis_code: "1.0.32.7.0.255"
+    name: "Voltage L1"
+    unit_of_measurement: V
+    accuracy_decimals: 1
+    device_class: voltage
+    state_class: measurement
+  - platform: dlms_meter
+    obis_code: "1.0.1.8.0.255"
+    name: "Active energy taken from grid"
+    unit_of_measurement: Wh
+    device_class: energy
+    state_class: total_increasing
+
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub
+    obis_code: "1-0:99.99.9"
+    name: "Custom Dynamic Sensor"
+
+text_sensor:
+  - platform: dlms_meter
+    obis_code: "0.0.1.0.0.255"
+    name: "timestamp"
+
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub
+    obis_code: "0-0:99.99.9"
+    name: "Custom Dynamic Text Sensor"
+
+binary_sensor:
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub
+    obis_code: "0-1:2.3.4"
+    name: "Custom Binary Sensor"

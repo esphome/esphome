@@ -1,5 +1,3 @@
-from esphome.config_validation import UNDEFINED
-
 from .st7701s import ST7701S
 
 # fmt: off
@@ -7,12 +5,11 @@ ST7701S(
     "T-PANEL-S3",
     width=480,
     height=480,
-    color_order="BGR",
     invert_colors=False,
-    swap_xy=UNDEFINED,
     spi_mode="MODE3",
     cs_pin={"xl9535": None, "number": 17},
     reset_pin={"xl9535": None, "number": 5},
+    requires={"psram", "xl9535"},
     hsync_pin=39,
     vsync_pin=40,
     pclk_pin=41,
@@ -56,12 +53,11 @@ t_rgb = ST7701S(
     "T-RGB-2.1",
     width=480,
     height=480,
-    color_order="BGR",
     pixel_mode="18bit",
     invert_colors=False,
-    swap_xy=UNDEFINED,
     spi_mode="MODE3",
     cs_pin={"xl9535": None, "number": 3},
+    requires={"psram", "xl9535"},
     de_pin=45,
     hsync_pin=47,
     vsync_pin=41,

@@ -7,8 +7,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace canbus {
+namespace esphome::canbus {
 
 enum Error : uint8_t {
   ERROR_OK = 0,
@@ -49,6 +48,8 @@ template<typename... Ts> class CanbusSendAction;
 /* CAN payload length definitions according to ISO 11898-1 */
 static const uint8_t CAN_MAX_DATA_LENGTH = 8;
 
+static const uint8_t CAN_ERROR_PASSIVE_THRESHOLD = 128;
+
 /*
 Can Frame describes a normative CAN Frame
 The RTR = Remote Transmission Request is implemented in every CAN controller but rarely used
@@ -62,23 +63,49 @@ struct CanFrame {
   uint8_t data[CAN_MAX_DATA_LENGTH] __attribute__((aligned(8)));
 };
 
+enum CanEventFlags : uint8_t {
+  CAN_EVENT_PASSIVE = 1 << 0,
+  CAN_EVENT_ACTIVE = 1 << 1,
+  CAN_EVENT_BUS_OFF = 1 << 2,
+  CAN_EVENT_RX_QUEUE_FULL = 1 << 3,
+};
+
+static constexpr uint32_t CAN_STATUS_UNSET = UINT32_MAX;
+
+struct CanStatus {
+  bool bus_off{false};
+  uint8_t rx_error_counter{0};
+  uint8_t tx_error_counter{0};
+  uint32_t tx_failed_count{CAN_STATUS_UNSET};
+  uint32_t rx_missed_count{CAN_STATUS_UNSET};
+  uint32_t rx_overrun_count{CAN_STATUS_UNSET};
+  uint32_t arb_lost_count{CAN_STATUS_UNSET};
+  uint32_t bus_error_count{CAN_STATUS_UNSET};
+};
+
 class Canbus : public Component {
  public:
-  Canbus(){};
+  Canbus() {};
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
-  void send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
-                 const std::vector<uint8_t> &data);
-  void send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
+  canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request, const uint8_t *data,
+                          size_t len);
+  canbus::Error send_data(uint32_t can_id, bool use_extended_id, bool remote_transmission_request,
+                          const std::vector<uint8_t> &data) {
+    return this->send_data(can_id, use_extended_id, remote_transmission_request, data.data(), data.size());
+  }
+  canbus::Error send_data(uint32_t can_id, bool use_extended_id, const std::vector<uint8_t> &data) {
     // for backwards compatibility only
-    this->send_data(can_id, use_extended_id, false, data);
+    return this->send_data(can_id, use_extended_id, false, data);
   }
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
   void set_use_extended_id(bool use_extended_id) { this->use_extended_id_ = use_extended_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
+  void set_max_frames_per_loop(uint32_t max_frames_per_loop) { this->max_frames_per_loop_ = max_frames_per_loop; }
+  virtual CanStatus get_status() { return {}; }
 
   void add_trigger(CanbusTrigger *trigger);
   /**
@@ -91,35 +118,46 @@ class Canbus : public Component {
    * - rtr If this is a remote transmission request
    * - data The message data
    */
-  void add_callback(
-      std::function<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)> callback) {
-    this->callback_manager_.add(std::move(callback));
-  }
+  template<typename F> void add_callback(F &&callback) { this->callback_manager_.add(std::forward<F>(callback)); }
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;
   std::vector<CanbusTrigger *> triggers_{};
   uint32_t can_id_;
-  bool use_extended_id_;
-  CanSpeed bit_rate_;
+  uint32_t max_frames_per_loop_{50};  // Keep in sync with DEFAULT_MAX_FRAMES_PER_LOOP in __init__.py
+  CanSpeed bit_rate_{CAN_125KBPS};    // Keep in sync with DEFAULT_BIT_RATE in __init__.py
+  bool use_extended_id_{false};
+  uint8_t events_to_log_{0};
+  bool bus_off_{false};
   CallbackManager<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)>
       callback_manager_{};
 
-  virtual bool setup_internal();
-  virtual Error send_message(struct CanFrame *frame);
-  virtual Error read_message(struct CanFrame *frame);
+  // interval in which to check for new can bus events (bus-off, passive, active)
+  static constexpr uint32_t EVENT_CHECK_INTERVAL_MS = 100;
+  uint32_t last_event_check_time_{0};
+
+  // time to wait after logging an event before logging the next event(s)
+  static constexpr uint32_t EVENT_LOG_THROTTLE_MS = 1000;
+  uint32_t last_event_log_time_{0};
+
+  // time span without bus-off events before the bus is declared recovered
+  static constexpr uint32_t EVENT_LOG_BUS_OFF_HOLDOFF_MS = 1000;
+  uint32_t last_bus_off_time_{0};
+
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  static constexpr uint32_t STATE_LOG_INTERVAL_MS = 1000;
+  uint32_t last_state_log_time_{0};
+#endif
+
+  void log_events_(CanEventFlags events, uint32_t now);
+  virtual bool setup_internal() = 0;
+  virtual Error send_message(struct CanFrame *frame) = 0;
+  virtual Error read_message(struct CanFrame *frame) = 0;
+  virtual CanEventFlags get_events() { return CanEventFlags{}; }
 };
 
-template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {
- public:
-  void set_data_template(const std::function<std::vector<uint8_t>(Ts...)> func) {
-    this->data_func_ = func;
-    this->static_ = false;
-  }
-  void set_data_static(const std::vector<uint8_t> &data) {
-    this->data_static_ = data;
-    this->static_ = true;
-  }
+template<typename... Ts> class CanbusSendAction final : public Action<Ts...>, public Parented<Canbus> {
+  TEMPLATABLE_BYTES(data)
 
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
 
@@ -129,34 +167,30 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
     this->remote_transmission_request_ = remote_transmission_request;
   }
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
     auto use_extended_id =
         this->use_extended_id_.has_value() ? *this->use_extended_id_ : this->parent_->use_extended_id_;
-    if (this->static_) {
-      this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, this->data_static_);
-    } else {
-      auto val = this->data_func_(x...);
-      this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, val);
-    }
+    this->data_.template visit<CAN_MAX_DATA_LENGTH>(
+        [&](const uint8_t *data, size_t len) {
+          this->parent_->send_data(can_id, use_extended_id, this->remote_transmission_request_, data, len);
+        },
+        x...);
   }
 
  protected:
   optional<uint32_t> can_id_{};
   optional<bool> use_extended_id_{};
   bool remote_transmission_request_{false};
-  bool static_{false};
-  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
-  std::vector<uint8_t> data_static_{};
 };
 
-class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t, bool>, public Component {
+class CanbusTrigger final : public Trigger<std::vector<uint8_t>, uint32_t, bool>, public Component {
   friend class Canbus;
 
  public:
   explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id, const std::uint32_t can_id_mask,
                          const bool use_extended_id)
-      : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id){};
+      : parent_(parent), can_id_(can_id), can_id_mask_(can_id_mask), use_extended_id_(use_extended_id) {};
 
   void set_remote_transmission_request(bool remote_transmission_request) {
     this->remote_transmission_request_ = remote_transmission_request;
@@ -172,5 +206,4 @@ class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t, bool>, publ
   optional<bool> remote_transmission_request_{};
 };
 
-}  // namespace canbus
-}  // namespace esphome
+}  // namespace esphome::canbus
