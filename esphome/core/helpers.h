@@ -475,7 +475,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   class Iterator {
    public:
     Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    T &operator*() { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
     Iterator &operator++() {
       ++pos_;
       return *this;
@@ -490,7 +490,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   class ConstIterator {
    public:
     ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    const T &operator*() const { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
     ConstIterator &operator++() {
       ++pos_;
       return *this;
@@ -532,7 +532,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     if (this->count_ >= this->capacity_)
       return false;
     this->data_[this->tail_] = value;
-    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + 1);
     ++this->count_;
     return true;
   }
@@ -540,7 +540,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   /// Push a value, overwriting the oldest if full.
   void push_overwrite(const T &value) {
     this->data_[this->tail_] = value;
-    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + 1);
     if (this->count_ >= this->capacity_) {
       // Buffer full - advance head to drop oldest, count stays at capacity
       this->head_ = this->tail_;
@@ -551,10 +551,11 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
 
   /// Push up to `len` values without overwriting. Returns how many fit.
   size_t push(const T *data, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk push copies with memcpy");
     len = std::min<size_t>(len, this->free_space());
     const size_t first = std::min<size_t>(len, this->capacity_ - this->tail_);
-    std::copy_n(data, first, this->data_ + this->tail_);
-    std::copy_n(data + first, len - first, this->data_);
+    std::memcpy(this->data_ + this->tail_, data, first * sizeof(T));
+    std::memcpy(this->data_, data + first, (len - first) * sizeof(T));
     this->tail_ = this->wrap_(static_cast<size_t>(this->tail_) + len);
     this->count_ += len;
     return len;
@@ -563,17 +564,18 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   /// Remove the oldest element.
   void pop() {
     if (this->count_ > 0) {
-      this->head_ = (this->head_ + 1) % this->capacity_;
+      this->head_ = this->wrap_(static_cast<size_t>(this->head_) + 1);
       --this->count_;
     }
   }
 
   /// Move up to `len` of the oldest values into `out`. Returns how many were copied.
   size_t pop(T *out, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk pop copies with memcpy");
     len = std::min<size_t>(len, this->count_);
     const size_t first = std::min<size_t>(len, this->capacity_ - this->head_);
-    std::copy_n(this->data_ + this->head_, first, out);
-    std::copy_n(this->data_, len - first, out + first);
+    std::memcpy(out, this->data_ + this->head_, first * sizeof(T));
+    std::memcpy(out + first, this->data_, (len - first) * sizeof(T));
     this->head_ = this->wrap_(static_cast<size_t>(this->head_) + len);
     this->count_ -= len;
     return len;
