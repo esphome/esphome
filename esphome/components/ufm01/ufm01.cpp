@@ -118,9 +118,8 @@ static bool check_byte(const uint8_t data[FRAME_SIZE], size_t index, uint8_t exp
 
 static bool validate_active_frame(const uint8_t data[FRAME_SIZE]) {
   const uint8_t sum = sum_bytes(data, FRAME_CHECKSUM_INDEX);
-  return check_byte(data, 0, FRAME_START_BYTE_1, "start byte 1") &&
-         check_byte(data, 1, FRAME_START_BYTE_2, "start byte 2") &&
-         check_byte(data, FRAME_INDEX_INSTANT_FLOW_FLAG, FRAME_FLAG_INSTANT_FLOW, "instant flow flag") &&
+  // FrameReader already matched the start bytes
+  return check_byte(data, FRAME_INDEX_INSTANT_FLOW_FLAG, FRAME_FLAG_INSTANT_FLOW, "instant flow flag") &&
          check_byte(data, FRAME_INDEX_RESERVED_SECTION, FRAME_FLAG_RESERVED_SECTION, "reserved section flag") &&
          check_byte(data, FRAME_INDEX_TEMP_FLAG, FRAME_FLAG_TEMP, "temperature flag") &&
          check_byte(data, FRAME_CHECKSUM_INDEX, sum, "checksum") &&
