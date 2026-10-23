@@ -79,7 +79,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
 void report_xiaomi_results(const XiaomiParseResult &result, const char *address);
 bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const char *address);
 
-/// A Xiaomi MiBeacon device: matches its address, decodes each frame once and hands it to publish_result_().
+/// A Xiaomi MiBeacon device: matches its address, decodes each frame once and hands it to publish_result().
 class XiaomiDevice : public ble_device_base::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
@@ -90,7 +90,7 @@ class XiaomiDevice : public ble_device_base::ESPBTDeviceListener {
  protected:
   /// Encrypted frames are dropped when `bindkey` is null.
   bool parse_xiaomi_device_(const ble_device_base::ESPBTDevice &device, const uint8_t *bindkey);
-  virtual void publish_result_(const XiaomiParseResult &result) = 0;
+  virtual void publish_result(const XiaomiParseResult &result) = 0;
 
   uint64_t address_{0};
   optional<uint8_t> last_frame_count_;
