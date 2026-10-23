@@ -40,6 +40,7 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
   void reset() { this->pos_ = 0; }
 
   /// For a frame the caller rejected (bad checksum): drop its first byte and realign on a header in the rest.
+  /// Call only right after feed() returned that frame; use reset() otherwise.
   void resync() { this->replay_(N - 1); }
 
  protected:
