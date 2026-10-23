@@ -178,7 +178,7 @@ def customise_schema(config: ConfigType) -> ConfigType:
         config[CONF_HEIGHT],
         has_hardware_rotation=False,
         byte_order=cv.UNDEFINED,
-        has_writer=display.has_writer(config),
+        has_writer=display.config_has_writer(config),
         rotation=config.get(CONF_ROTATION, 0),
     )
     return config

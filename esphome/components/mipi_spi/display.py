@@ -1,7 +1,6 @@
 import importlib
 import logging
 import pkgutil
-from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -34,7 +33,6 @@ from esphome.components.spi import CONF_SPI_MODE, TYPE_OCTAL, TYPE_QUAD, TYPE_SI
 import esphome.config_validation as cv
 from esphome.config_validation import ALLOW_EXTRA
 from esphome.const import (
-    CONF_AUTO_CLEAR_ENABLED,
     CONF_BRIGHTNESS,
     CONF_BUFFER_SIZE,
     CONF_COLOR_ORDER,
@@ -76,16 +74,6 @@ BusType = mipi_spi_ns.enum("BusType")
 
 # Matches INIT_SEQUENCE_MAX_ARGS, the flash copy buffer in mipi_spi.h
 INIT_SEQUENCE_MAX_ARGS = 128
-
-
-def _map_sequence_entry(value: Any) -> tuple[int, ...]:
-    """Map one init sequence entry, limiting its data to the C++ copy buffer."""
-    entry = map_sequence(value)
-    if len(entry) - 1 > INIT_SEQUENCE_MAX_ARGS:
-        raise cv.Invalid(
-            f"An init sequence command can have at most {INIT_SEQUENCE_MAX_ARGS} data bytes"
-        )
-    return entry
 
 
 COLOR_ORDERS = {
@@ -231,7 +219,15 @@ def model_schema(config: ConfigType) -> cv.All | cv.Schema:
                     bus_mode, lower=True
                 ),
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
-                iseqconf: cv.ensure_list(_map_sequence_entry),
+                iseqconf: cv.ensure_list(
+                    cv.All(
+                        map_sequence,
+                        cv.Length(
+                            max=INIT_SEQUENCE_MAX_ARGS + 1,
+                            msg=f"An init sequence command can have at most {INIT_SEQUENCE_MAX_ARGS} data bytes",
+                        ),
+                    )
+                ),
                 cv.Optional(CONF_BUFFER_SIZE): cv.All(
                     cv.percentage, cv.Range(0.12, 1.0)
                 ),
@@ -305,8 +301,7 @@ def customise_schema(config: ConfigType) -> ConfigType:
         height,
         has_hardware_transform,
         byte_order=config[CONF_BYTE_ORDER],
-        has_writer=requires_buffer(config)
-        or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
+        has_writer=display.config_has_writer(config),
         rotation=config.get(CONF_ROTATION, 0),
         draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
     )

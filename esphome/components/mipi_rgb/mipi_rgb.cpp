@@ -77,21 +77,15 @@ void MipiRgbSpi::write_data_(uint8_t value) {
 void MipiRgbSpi::write_init_sequence_() {
   display::InitSequenceReader reader(this->init_sequence_, this->init_sequence_len_);
   display::InitSequenceEntry entry;
-  display::InitSequenceStep step;
-  while ((step = reader.next(entry)) != display::InitSequenceStep::INIT_SEQUENCE_STEP_END) {
-    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_MALFORMED) {
-      this->mark_failed(LOG_STR("Malformed init sequence"));
-      return;
-    }
-    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_DELAY) {
+  while (reader.next(entry)) {
+    if (entry.is_delay()) {
       ESP_LOGD(TAG, "Delay %dms", entry.value);
       delay(entry.value);
       continue;
     }
     const uint8_t cmd = entry.value;
-    if (cmd == SLEEP_OUT) {
+    if (cmd == SLEEP_OUT)
       delay(120);  // NOLINT
-    }
     char hex_buf[format_hex_pretty_size(MIPI_RGB_MAX_CMD_LOG_BYTES)];
     ESP_LOGD(TAG, "Write command %02X, length %d, byte(s) %s", cmd, entry.count,
              format_hex_pretty_to(hex_buf, entry.args, entry.count, '.'));
@@ -100,6 +94,10 @@ void MipiRgbSpi::write_init_sequence_() {
       this->write_data_(entry.args[i]);
     if (cmd == SLEEP_OUT)
       delay(10);
+  }
+  if (reader.malformed()) {
+    this->mark_failed(LOG_STR("Malformed init sequence"));
+    return;
   }
   // this->spi_teardown();  // SPI not needed after this
   delay(10);

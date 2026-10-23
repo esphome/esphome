@@ -170,23 +170,23 @@ class MipiSpi : public display::Display,
     display::InitSequenceEntry entry;
     // The sequence is in flash, which SPI DMA (and ESP8266 byte loads) cannot read
     uint8_t args[INIT_SEQUENCE_MAX_ARGS];
-    display::InitSequenceStep step;
-    while ((step = reader.next(entry)) != display::InitSequenceStep::INIT_SEQUENCE_STEP_END) {
-      if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_MALFORMED || entry.count > sizeof(args)) {
-        this->mark_failed(LOG_STR("Malformed init sequence"));
-        return;
-      }
-      if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_DELAY) {
-        uint8_t ms = entry.value;
-        if (ms == 0) {
-          ms = clamp_at_least((int) (when - millis()), 0);
-        }
+    while (reader.next(entry)) {
+      if (entry.is_delay()) {
+        const uint8_t ms = entry.value != 0 ? entry.value : clamp_at_least((int) (when - millis()), 0);
         esph_log_d(TAG, "Delay %dms", ms);
         delay(ms);
         continue;
       }
+      if (entry.count > sizeof(args)) {
+        this->mark_failed(LOG_STR("Malformed init sequence"));
+        return;
+      }
       progmem_memcpy(args, entry.args, entry.count);
       this->write_command_(entry.value, args, entry.count);
+    }
+    if (reader.malformed()) {
+      this->mark_failed(LOG_STR("Malformed init sequence"));
+      return;
     }
     this->reset_params_();
     // Marks init as done, so later commands log at verbose level instead of debug

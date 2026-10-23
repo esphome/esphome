@@ -188,7 +188,7 @@ def customise_schema(config):
         height,
         has_hardware_rotation=True,
         byte_order=cv.UNDEFINED,
-        has_writer=display.has_writer(config),
+        has_writer=display.config_has_writer(config),
         rotation=config.get(CONF_ROTATION, 0),
         draw_rounding=0,
     )

@@ -50,7 +50,6 @@ from esphome.components.spi import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_AUTO_CLEAR_ENABLED,
     CONF_BLUE,
     CONF_COLOR_ORDER,
     CONF_CS_PIN,
@@ -243,8 +242,7 @@ def _config_schema(config: ConfigType) -> ConfigType:
         height,
         has_hardware_rotation=True,
         byte_order=config[CONF_BYTE_ORDER],
-        has_writer=requires_buffer(config)
-        or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
+        has_writer=display.config_has_writer(config),
         rotation=config.get(CONF_ROTATION, 0),
         draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
     )
