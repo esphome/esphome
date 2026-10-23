@@ -83,6 +83,7 @@ struct FastLoopRequests : public HighFrequencyLoopRequester {
 
 static std::vector<uint8_t> frame(size_t len, uint8_t first = 0) {
   std::vector<uint8_t> out;
+  out.reserve(len);
   for (size_t i = 0; i < len; i++) {
     out.push_back(static_cast<uint8_t>(first + i));
   }
@@ -184,7 +185,8 @@ TEST(UARTBridge, FullBlockLeavesWithoutWaiting) {
   pipe.poll(1);
   pipe.poll(1 + GAP_9600_US);
   ASSERT_EQ(b.writes.size(), 2u);
-  EXPECT_EQ(b.writes[1], frame(300 - UARTBridgePipe::BLOCK_SIZE, UARTBridgePipe::BLOCK_SIZE));
+  EXPECT_EQ(b.writes[1].size(), 300 - UARTBridgePipe::BLOCK_SIZE);
+  EXPECT_EQ(b.joined(), frame(300));
 }
 
 TEST(UARTBridge, FullDriverBatchWaitsForTheRestOfTheFrame) {
