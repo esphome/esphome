@@ -186,6 +186,13 @@ enum class HttpReadLoopResult : uint8_t {
   TIMEOUT,   ///< Timeout waiting for data, caller should exit loop
 };
 
+/// Progress of a request started with HttpRequestComponent::begin()
+enum class HttpRequestProgress : uint8_t {
+  HTTP_REQUEST_PROGRESS_PENDING,  ///< Still connecting, sending, or waiting for the response headers
+  HTTP_REQUEST_PROGRESS_DONE,     ///< Response headers received; status_code is set and the body can be read
+  HTTP_REQUEST_PROGRESS_FAILED,   ///< No response; the container must still be ended
+};
+
 /// Process a read result with timeout tracking and delay handling
 /// @param bytes_read_or_error Return value from read() - positive for bytes read, negative for error
 /// @param last_data_time Time of last successful read, updated when data received
@@ -249,7 +256,13 @@ class HttpContainer : public Parented<HttpRequestComponent> {
    *   - http_read_fully(): for simple "read N bytes" operations
    */
   virtual int read(uint8_t *buf, size_t max_len) = 0;
+  /// Like read(), but returns 0 at once when no data has arrived yet, where read() may wait for it.
+  virtual int read_available(uint8_t *buf, size_t max_len) { return this->read(buf, max_len); }
   virtual void end() = 0;
+
+  /// Advance a request started with HttpRequestComponent::begin(); call from the main loop until it is no
+  /// longer pending. Each call does a bounded amount of work. Containers from start() are already done.
+  virtual HttpRequestProgress poll() { return HttpRequestProgress::HTTP_REQUEST_PROGRESS_DONE; }
 
   void set_secure(bool secure) { this->secure_ = secure; }
   void set_watchdog_timeout(uint32_t watchdog_timeout) { this->watchdog_timeout_ = watchdog_timeout; }
@@ -491,6 +504,16 @@ class HttpRequestComponent : public Component {
     return this->start(url.c_str(), method.c_str(), body, request_headers, lower_case_collect_headers);
   }
 
+  /// Start a request without waiting for the response, then poll() the container until it is not pending.
+  /// Returns nullptr when the request cannot be started. Platforms without a non-blocking client complete
+  /// the request here.
+  virtual std::shared_ptr<HttpContainer> begin(const char *url, const char *method, std::string body,
+                                               const std::vector<Header> &request_headers,
+                                               const std::vector<std::string> &lower_case_collect_headers,
+                                               uint32_t timeout_ms) {
+    return this->perform(url, method, body, request_headers, lower_case_collect_headers, timeout_ms);
+  }
+
  protected:
   virtual std::shared_ptr<HttpContainer> perform(const char *url, const char *method, const std::string &body,
                                                  const std::vector<Header> &request_headers,
@@ -503,7 +526,10 @@ class HttpRequestComponent : public Component {
   uint32_t watchdog_timeout_{0};
 };
 
-template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...> {
+/// Shared by every HttpRequestSendAction, so the message is not repeated in each template
+void log_request_dropped();
+
+template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...>, public Component {
  public:
   HttpRequestSendAction(HttpRequestComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, url)
@@ -542,7 +568,100 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
     this->max_response_buffer_size_ = max_response_buffer_size;
   }
 
-  void play(const Ts &...x) override {
+  void setup() override {
+    // play_complex() may already have run from an on_boot trigger at the same priority
+    if (this->num_running_ == 0)
+      this->disable_loop();
+  }
+
+  void play_complex(const Ts &...x) override {
+    this->num_running_++;
+    if (this->active_ < MAX_ACTIVE && this->queued_ == 0) {
+      this->active_++;
+      this->pending_.emplace_back(x...);
+      if (!this->start_(this->pending_.back())) {
+        // Not started; report it at once, as the loop may not run again
+        this->pending_.pop_back();
+        this->active_--;
+        this->error_trigger_.trigger(x...);
+        this->play_next_(x...);
+        return;
+      }
+    } else if (this->queued_ < MAX_QUEUED) {
+      this->queued_++;
+      this->pending_.emplace_back(x...);
+    } else {
+      log_request_dropped();
+      this->error_trigger_.trigger(x...);
+      this->play_next_(x...);
+      return;
+    }
+    this->enable_loop();
+  }
+
+  void loop() override {
+    if (!this->process_pending_())
+      this->disable_loop();
+  }
+
+  void play(const Ts &...x) override { /* see play_complex */ }
+
+ protected:
+  /// Longest time one loop() pass spends reading a response body
+  static constexpr uint32_t READ_BUDGET_MS = 10;
+  /// Requests of one action that run at once; each holds a client, and a TLS client holds about 40 kB
+  static constexpr uint8_t MAX_ACTIVE = 1;
+  /// Requests that wait for a free slot; more are dropped with on_error
+  static constexpr uint8_t MAX_QUEUED = 4;
+
+  struct PendingRequest {
+    explicit PendingRequest(const Ts &...x) : args(x...) {}
+    PendingRequest(const PendingRequest &) = delete;
+    PendingRequest &operator=(const PendingRequest &) = delete;
+    ~PendingRequest() { this->free_buffer(); }
+    void free_buffer() {
+      if (this->buf != nullptr)
+        RAMAllocator<uint8_t>().deallocate(this->buf, this->buf_size);
+      this->buf = nullptr;
+    }
+
+    // nullptr until the request has started
+    std::shared_ptr<HttpContainer> container;
+    uint8_t *buf{nullptr};
+    size_t buf_size{0};
+    size_t read_index{0};
+    uint32_t last_data_time{0};
+    uint32_t timeout{0};
+    bool capture{false};
+    bool reading{false};
+    bool failed{false};
+    std::tuple<stored_trigger_arg_t<Ts>...> args;
+  };
+
+  void stop() override {
+    end_all_(this->pending_);
+    this->active_ = 0;
+    this->queued_ = 0;
+    // Tell any process_pending_() further down the stack that the requests it holds were cancelled
+    this->stop_generation_++;
+    this->disable_loop();
+  }
+
+  static void end_all_(std::list<PendingRequest> &requests) {
+    for (auto &request : requests) {
+      if (request.container != nullptr)
+        request.container->end();
+    }
+    requests.clear();
+  }
+
+  /// Build the request from the stored trigger arguments and start it. Returns false if it could not start.
+  bool start_(PendingRequest &request) {
+    std::apply([this, &request](auto &...x) { this->start_request_(request, x...); }, request.args);
+    return request.container != nullptr;
+  }
+
+  void start_request_(PendingRequest &request, const Ts &...x) {
     std::string body;
     if (this->body_.has_value()) {
       body = this->body_.value(x...);
@@ -559,62 +678,118 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       request_headers.push_back({header.name, header.value(x...)});
     }
 
-    const uint32_t timeout = this->timeout_.has_value() ? this->timeout_.value(x...) : this->parent_->get_timeout();
-    auto container = this->parent_->start(this->url_.value(x...).c_str(), this->method_.value(x...), body,
-                                          request_headers, this->lower_case_collect_headers_, timeout);
-
-    auto captured_args = std::make_tuple(x...);
-
-    if (container == nullptr) {
-      std::apply([this](Ts... captured_args_inner) { this->error_trigger_.trigger(captured_args_inner...); },
-                 captured_args);
-      return;
-    }
-
+    request.timeout = this->timeout_.has_value() ? this->timeout_.value(x...) : this->parent_->get_timeout();
 #ifdef USE_HTTP_REQUEST_RESPONSE
-    if (this->capture_response_.value(x...)) {
-      size_t max_length = this->max_response_buffer_size_;
-      std::string response_body;
-      RAMAllocator<uint8_t> allocator;
-      uint8_t *buf = allocator.allocate(max_length);
-      if (buf != nullptr) {
-        // NOTE: HttpContainer::read() has non-BSD socket semantics - see top of this file
-        // Use http_read_loop_result() helper instead of checking return values directly
-        size_t read_index = 0;
-        uint32_t last_data_time = millis();
-        const uint32_t read_timeout = timeout;
-        while (container->get_bytes_read() < max_length) {
-          int read_or_error = container->read(buf + read_index, std::min<size_t>(max_length - read_index, 512));
-          App.feed_wdt();
-          yield();
-          auto result =
-              http_read_loop_result(read_or_error, last_data_time, read_timeout, container->is_read_complete());
-          if (result == HttpReadLoopResult::RETRY)
-            continue;
-          if (result != HttpReadLoopResult::DATA)
-            break;  // COMPLETE, ERROR, or TIMEOUT
-          read_index += read_or_error;
-        }
-        response_body.reserve(read_index);
-        response_body.assign((char *) buf, read_index);
-        allocator.deallocate(buf, max_length);
-      }
-      std::apply(
-          [this, &container, &response_body](Ts... captured_args_inner) {
-            this->success_trigger_with_response_.trigger(container, response_body, captured_args_inner...);
-          },
-          captured_args);
-    } else
+    request.capture = this->capture_response_.value(x...);
 #endif
-    {
-      std::apply([this, &container](
-                     Ts... captured_args_inner) { this->success_trigger_.trigger(container, captured_args_inner...); },
-                 captured_args);
-    }
-    container->end();
+    request.container = this->parent_->begin(this->url_.value(x...).c_str(), this->method_.value(x...), std::move(body),
+                                             request_headers, this->lower_case_collect_headers_, request.timeout);
   }
 
- protected:
+  /// Returns true if requests are still in progress
+  bool process_pending_() {
+    // A finished request runs the rest of the action chain, which can start this action again
+    // or stop it, so work on a local list rather than the member.
+    std::list<PendingRequest> queue;
+    queue.swap(this->pending_);
+    std::list<PendingRequest> waiting;
+    while (!queue.empty()) {
+      auto it = queue.begin();
+      if (!this->advance_(*it)) {
+        waiting.splice(waiting.end(), queue, it);
+        continue;
+      }
+      std::list<PendingRequest> completed;
+      completed.splice(completed.begin(), queue, it);
+      uint8_t generation = this->stop_generation_;
+      this->finish_(completed.front());
+      if (generation != this->stop_generation_) {
+        end_all_(waiting);
+        end_all_(queue);
+        break;
+      }
+    }
+    // Keep the older requests ahead of any started from inside the chain
+    this->pending_.splice(this->pending_.begin(), waiting);
+    return !this->pending_.empty();
+  }
+
+  /// Returns true once the request has finished and its triggers can run
+  bool advance_(PendingRequest &request) {
+    if (request.container == nullptr) {
+      if (this->active_ >= MAX_ACTIVE)
+        return false;
+      this->queued_--;
+      this->active_++;
+      if (!this->start_(request)) {
+        request.failed = true;
+        return true;
+      }
+    }
+    if (!request.reading) {
+      auto progress = request.container->poll();
+      if (progress == HttpRequestProgress::HTTP_REQUEST_PROGRESS_PENDING)
+        return false;
+      if (progress == HttpRequestProgress::HTTP_REQUEST_PROGRESS_FAILED) {
+        request.failed = true;
+        return true;
+      }
+      if (!request.capture)
+        return true;
+      request.buf = RAMAllocator<uint8_t>().allocate(this->max_response_buffer_size_);
+      if (request.buf == nullptr)
+        return true;
+      request.buf_size = this->max_response_buffer_size_;
+      request.reading = true;
+      request.last_data_time = App.get_loop_component_start_time();
+    }
+    // NOTE: HttpContainer::read() has non-BSD socket semantics - see top of this file
+    // millis(), not the loop time: the budget is shorter than one pass of the loop
+    const uint32_t start = millis();
+    while (request.read_index < request.buf_size) {
+      int read_or_error =
+          request.container->read_available(request.buf + request.read_index, request.buf_size - request.read_index);
+      const uint32_t now = millis();
+      if (read_or_error < 0)
+        return true;
+      if (read_or_error == 0) {
+        return request.container->is_read_complete() || now - request.last_data_time >= request.timeout;
+      }
+      request.read_index += read_or_error;
+      request.last_data_time = now;
+      if (now - start >= READ_BUDGET_MS)
+        return false;
+    }
+    return true;
+  }
+
+  void finish_(PendingRequest &request) {
+    // Free the slot first, so that the chain can start this action again
+    this->active_--;
+    auto &container = request.container;
+    if (request.failed) {
+      std::apply([this](auto &...args) { this->error_trigger_.trigger(args...); }, request.args);
+    }
+#ifdef USE_HTTP_REQUEST_RESPONSE
+    else if (request.capture) {
+      std::string response_body(reinterpret_cast<char *>(request.buf), request.buf == nullptr ? 0 : request.read_index);
+      request.free_buffer();
+      std::apply(
+          [this, &container, &response_body](auto &...args) {
+            this->success_trigger_with_response_.trigger(container, response_body, args...);
+          },
+          request.args);
+    }
+#endif
+    else {
+      std::apply([this, &container](auto &...args) { this->success_trigger_.trigger(container, args...); },
+                 request.args);
+    }
+    if (container != nullptr)
+      container->end();
+    std::apply([this](auto &...args) { this->play_next_(args...); }, request.args);
+  }
+
   void encode_json_(Ts... x, JsonObject root) {
     for (const auto &item : this->json_) {
       auto val = item.second;
@@ -631,8 +806,14 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
 #endif
   Trigger<std::shared_ptr<HttpContainer>, Ts...> success_trigger_;
   Trigger<Ts...> error_trigger_;
+  std::list<PendingRequest> pending_{};
 
   size_t max_response_buffer_size_{SIZE_MAX};
+  // Started and unfinished requests, and requests waiting to start
+  uint8_t active_{0};
+  uint8_t queued_{0};
+  // Bumped by stop() so process_pending_() can detect a stop from inside the action chain
+  uint8_t stop_generation_{0};
 };
 
 }  // namespace esphome::http_request

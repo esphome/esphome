@@ -32,4 +32,6 @@ std::string HttpContainer::get_response_header(const std::string &header_name) {
   return "";
 }
 
+void log_request_dropped() { ESP_LOGW(TAG, "Too many requests waiting; request dropped"); }
+
 }  // namespace esphome::http_request
