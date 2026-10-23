@@ -429,6 +429,20 @@ TEST(VncHandshake, StallAfterResponseIsAmbiguous) {
   EXPECT_FALSE(s.client.link().connected());
 }
 
+TEST(VncHandshake, AmbiguousHoldSurvivesANetworkDrop) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  const uint32_t start = now_ms();
+  s.deliver(Rfb().version().security_list({2}).challenge());
+  s.at(start + 15000);
+  ASSERT_EQ(s.client.hold_ms(), 60000u);
+  s.client.network_dropped();
+  s.tick(10);
+  EXPECT_EQ(s.client.hold_ms(), 60000u);
+}
+
 TEST(VncHandshake, HandshakeTimeout) {
   FakeDisplay display(64, 48);
   Session s(&display);

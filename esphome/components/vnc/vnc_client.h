@@ -209,6 +209,7 @@ class VncClient : public Component {
 
   bool rx_pending_{false};
   bool auth_retried_{false};  // the one retry after a drop left the password's fate unknown
+  bool auth_hold_{false};     // hold_ms_ is the wait after that drop
   bool in_update_{false};
   bool request_outstanding_{false};
   bool refresh_pending_{false};

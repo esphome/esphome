@@ -255,6 +255,8 @@ class TestVncClient : public VncClient {
   VncState state() const { return this->state_; }
   VncStep step() const { return this->step_; }
   uint32_t hold_ms() const { return this->hold_ms_; }
+  /// The next connect step sees the network come back.
+  void network_dropped() { this->network_was_up_ = false; }
   uint32_t hold_start_ms() const { return this->hold_start_ms_; }
   uint32_t backoff_ms() const { return this->backoff_ms_; }
   bool rx_pending() const { return this->rx_pending_; }

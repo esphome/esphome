@@ -233,6 +233,16 @@ TEST(VncBackoff, DisconnectMidFrameStopsTheFastLoopAndRetries) {
   EXPECT_TRUE(s.wait_until([&]() { return listener.accepted() == 1; }));
 }
 
+TEST(VncBackoff, ConnectFromOnDisconnectKeepsTheLoopRunning) {
+  FakeDisplay d;
+  Session s(&d);
+  s.client.add_on_disconnect_callback([&s]() { s.client.connect(); });
+  s.start(64, 48);
+  s.client.disconnect();
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_FALSE(s.client.is_idle());
+}
+
 TEST(VncBackoff, DisconnectDuringHandshake) {
   FakeDisplay d;
   Session s(&d);

@@ -241,6 +241,7 @@ void VncClient::connect() {
   this->backoff_ms_ = 0;
   this->hold_ms_ = 0;
   this->auth_retried_ = false;
+  this->auth_hold_ = false;
   this->status_clear_error();
   this->status_clear_warning();
   this->state_ = VncState::VNC_STATE_IDLE;
@@ -260,17 +261,21 @@ void VncClient::disconnect() {
   this->state_ = VncState::VNC_STATE_STOPPED;
   this->status_clear_warning();
   ESP_LOGI(TAG, "Disconnected");
+  // Before the callback, so a vnc.connect in on_disconnect keeps the loop running.
+  this->disable_loop();
   if (was_running) {
     this->disconnect_callback_.call();
   }
-  this->disable_loop();
 }
 
 void VncClient::connect_step_(uint32_t now) {
   const bool up = network::is_connected();
   if (up && !this->network_was_up_) {
     this->backoff_ms_ = 0;
-    this->hold_ms_ = 0;
+    // The wait after an unanswered password protects the server's lockout counter, so it survives a network drop.
+    if (!this->auth_hold_) {
+      this->hold_ms_ = 0;
+    }
   }
   this->network_was_up_ = up;
   if (!up) {
@@ -344,6 +349,7 @@ void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *
   this->reset_session_();
   this->state_ = VncState::VNC_STATE_IDLE;
   this->hold_start_ms_ = now;
+  this->auth_hold_ = false;
   if (was_running) {
     const uint32_t lasted = now - this->session_start_ms_;
     ESP_LOGW(TAG, "%s after %" PRIu32 "s", LOG_STR_ARG(reason), lasted / 1000);
@@ -360,6 +366,7 @@ void VncClient::session_end_(uint32_t now, VncFailure failure, const LogString *
     case VncFailure::VNC_FAILURE_AUTH_AMBIGUOUS:
       if (!this->auth_retried_) {
         this->auth_retried_ = true;
+        this->auth_hold_ = true;
         this->hold_ms_ = AUTH_AMBIGUOUS_HOLD_MS;
         ESP_LOGW(TAG, "%s before the password was accepted; retrying in %" PRIu32 "s", LOG_STR_ARG(reason),
                  this->hold_ms_ / 1000);
