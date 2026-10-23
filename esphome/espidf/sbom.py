@@ -12,6 +12,7 @@ validation are written.
 
 import importlib.metadata
 import json
+import logging
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -26,7 +27,10 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
+from esphome.git import strip_url_credentials
 from esphome.helpers import write_file_if_changed
+
+_LOGGER = logging.getLogger(__name__)
 
 SBOM_FILENAME = "sbom.yml"
 
@@ -60,8 +64,8 @@ def _repo_purl(url: str, version: str, subpath: str | None = None) -> str | None
     return purl
 
 
-def _esphome_commit() -> str | None:
-    """Return the commit ESPHome was installed from, if installed from git."""
+def _esphome_vcs() -> tuple[str, str] | None:
+    """Return the repository URL and commit ESPHome was installed from, if from git."""
     try:
         direct_url = importlib.metadata.distribution("esphome").read_text(
             "direct_url.json"
@@ -71,9 +75,14 @@ def _esphome_commit() -> str | None:
     if not direct_url:
         return None
     try:
-        return json.loads(direct_url).get("vcs_info", {}).get("commit_id")
+        info = json.loads(direct_url)
+        commit = info.get("vcs_info", {}).get("commit_id")
+        url = info.get("url")
     except (ValueError, AttributeError):
         return None
+    if not commit or not isinstance(url, str):
+        return None
+    return strip_url_credentials(url), commit
 
 
 def _project_manifest() -> dict[str, Any] | None:
@@ -114,6 +123,14 @@ def _external_manifests() -> list[dict[str, Any]]:
             if component_dir.parent == components_dir:
                 found[component_dir] = source
                 break
+        else:
+            if not component_dir.is_relative_to(loader.CORE_COMPONENTS_PATH):
+                _LOGGER.warning(
+                    "SBOM: component '%s' in %s matches no external component "
+                    "source and is listed as part of ESPHome",
+                    domain,
+                    component_dir,
+                )
     return [
         {
             "dest": f"esphome/components/{component_dir.name}",
@@ -130,13 +147,19 @@ def _esphome_manifest() -> dict[str, Any]:
         "description": "ESPHome firmware runtime and generated code",
         "supplier": ESPHOME_SUPPLIER,
         "license": ESPHOME_LICENSE,
-        "repository": ESPHOME_REPOSITORY,
     }
-    if commit := _esphome_commit():
-        manifest["purl"] = _repo_purl(ESPHOME_REPOSITORY, commit)
-    elif "dev" not in ESPHOME_VERSION:
-        # Release versions are also the git tags
-        manifest["purl"] = _repo_purl(ESPHOME_REPOSITORY, ESPHOME_VERSION)
+    if (vcs := _esphome_vcs()) is not None:
+        # Installed from git, which may be a fork
+        url, commit = vcs
+        if _is_remote_url(url):
+            manifest["repository"] = url
+        if purl := _repo_purl(url, commit):
+            manifest["purl"] = purl
+    else:
+        manifest["repository"] = ESPHOME_REPOSITORY
+        if "dev" not in ESPHOME_VERSION:
+            # Release versions are also the git tags
+            manifest["purl"] = _repo_purl(ESPHOME_REPOSITORY, ESPHOME_VERSION)
     if externals := _external_manifests():
         manifest["manifests"] = externals
     return manifest

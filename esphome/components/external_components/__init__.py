@@ -104,7 +104,8 @@ def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> P
     get_sources().append(
         ExternalSource(
             components_dir=components_dir,
-            url=config[CONF_URL],
+            # Ends up in SBOMs that are shared outside
+            url=git.strip_url_credentials(config[CONF_URL]),
             ref=config.get(CONF_REF),
             commit=commit,
             repo_subpath=components_dir.relative_to(repo_dir).as_posix(),

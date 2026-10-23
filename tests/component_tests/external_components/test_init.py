@@ -216,6 +216,24 @@ def test_external_components_records_git_source(
     ]
 
 
+def test_external_components_strips_url_credentials(
+    tmp_path: Path,
+    mock_clone_or_update: MagicMock,
+    mock_install_meta_finder: MagicMock,
+) -> None:
+    """Credentials in a git URL are not recorded, since the URL ends up in SBOMs."""
+    mock_clone_or_update.return_value = (tmp_path, None)
+    config = _make_config(tmp_path)
+    config[CONF_EXTERNAL_COMPONENTS][0][CONF_SOURCE][CONF_URL] = (
+        "https://user:ghp_secret@github.com/test/components"
+    )
+
+    with patch("esphome.git.run_git_command", return_value="abc123"):
+        do_external_components_pass(config)
+
+    assert get_sources()[0].url == "https://github.com/test/components"
+
+
 def test_external_components_git_source_without_commit(
     tmp_path: Path,
     mock_clone_or_update: MagicMock,

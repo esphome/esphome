@@ -77,26 +77,40 @@ def test_is_remote_url(url: str | None, expected: bool) -> None:
     assert sbom._is_remote_url(url) is expected
 
 
+def _direct_url(url: str | None, commit: str | None) -> str:
+    return json.dumps({"url": url, "vcs_info": {"vcs": "git", "commit_id": commit}})
+
+
 @pytest.mark.parametrize(
     ("direct_url", "expected"),
     [
-        (json.dumps({"vcs_info": {"vcs": "git", "commit_id": "abc"}}), "abc"),
+        (
+            _direct_url("https://github.com/esphome/esphome", "abc"),
+            ("https://github.com/esphome/esphome", "abc"),
+        ),
+        (
+            _direct_url("https://user:token@github.com/someone/esphome", "abc"),
+            ("https://github.com/someone/esphome", "abc"),
+        ),
+        (_direct_url(None, "abc"), None),
+        (_direct_url("https://github.com/esphome/esphome", None), None),
         (json.dumps({"dir_info": {"editable": True}}), None),
+        (json.dumps([]), None),
         (None, None),
         ("not json", None),
     ],
 )
-def test_esphome_commit(direct_url: str | None, expected: str | None) -> None:
+def test_esphome_vcs(direct_url: str | None, expected: tuple[str, str] | None) -> None:
     dist = MagicMock()
     dist.read_text.return_value = direct_url
     with patch("importlib.metadata.distribution", return_value=dist):
-        assert sbom._esphome_commit() == expected
+        assert sbom._esphome_vcs() == expected
 
 
 def test_esphome_manifest_release(build_tree: Path) -> None:
     with (
         patch.object(sbom, "ESPHOME_VERSION", "2026.10.1"),
-        patch.object(sbom, "_esphome_commit", return_value=None),
+        patch.object(sbom, "_esphome_vcs", return_value=None),
     ):
         sbom.write_manifests()
 
@@ -115,7 +129,11 @@ def test_esphome_manifest_dev_commit(build_tree: Path) -> None:
     """A git install is identified by its commit; a dev version is not a tag."""
     with (
         patch.object(sbom, "ESPHOME_VERSION", "2026.11.0-dev"),
-        patch.object(sbom, "_esphome_commit", return_value="abc"),
+        patch.object(
+            sbom,
+            "_esphome_vcs",
+            return_value=("https://github.com/esphome/esphome.git", "abc"),
+        ),
     ):
         sbom.write_manifests()
     assert (
@@ -125,10 +143,33 @@ def test_esphome_manifest_dev_commit(build_tree: Path) -> None:
 
     with (
         patch.object(sbom, "ESPHOME_VERSION", "2026.11.0-dev"),
-        patch.object(sbom, "_esphome_commit", return_value=None),
+        patch.object(sbom, "_esphome_vcs", return_value=None),
     ):
         sbom.write_manifests()
     assert "purl" not in _read(build_tree / "src" / "sbom.yml")
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        (
+            "https://github.com/someone/esphome",
+            {
+                "repository": "https://github.com/someone/esphome",
+                "purl": "pkg:github/someone/esphome@abc",
+            },
+        ),
+        ("file:///src/esphome", {}),
+    ],
+)
+def test_esphome_manifest_fork(
+    build_tree: Path, url: str, expected: dict[str, str]
+) -> None:
+    """A git install from a fork or a local checkout names that source, not upstream."""
+    with patch.object(sbom, "_esphome_vcs", return_value=(url, "abc")):
+        sbom.write_manifests()
+    manifest = _read(build_tree / "src" / "sbom.yml")
+    assert {k: manifest[k] for k in ("repository", "purl") if k in manifest} == expected
 
 
 def test_project_manifest(build_tree: Path) -> None:
@@ -206,7 +247,7 @@ def test_esphome_commit_not_installed() -> None:
         "importlib.metadata.distribution",
         side_effect=importlib.metadata.PackageNotFoundError,
     ):
-        assert sbom._esphome_commit() is None
+        assert sbom._esphome_vcs() is None
 
 
 def test_external_component_without_commit() -> None:
@@ -219,7 +260,9 @@ def test_external_component_without_commit() -> None:
     }
 
 
-def test_external_manifests_skip_other_components(tmp_path: Path) -> None:
+def test_external_manifests_skip_other_components(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """Built-in, unresolvable and file-less components stay in the ESPHome package."""
     components_dir = tmp_path / "components"
     get_sources().append(ExternalSource(components_dir=components_dir))
@@ -230,11 +273,29 @@ def test_external_manifests_skip_other_components(tmp_path: Path) -> None:
         module=SimpleNamespace()
     )
 
-    with patch.object(
-        sbom.loader,
-        "get_component",
-        side_effect=sbom.loader._COMPONENT_CACHE.get,
+    with (
+        patch.object(
+            sbom.loader,
+            "get_component",
+            side_effect=sbom.loader._COMPONENT_CACHE.get,
+        ),
+        patch.object(
+            sbom.loader, "CORE_COMPONENTS_PATH", (tmp_path / "builtin").resolve()
+        ),
     ):
         manifests = sbom._external_manifests()
 
     assert [m["dest"] for m in manifests] == ["esphome/components/widget"]
+    assert "SBOM" not in caplog.text
+
+
+def test_external_manifests_warn_unmatched(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A component from outside ESPHome that matches no source is not dropped silently."""
+    _add_external_component(tmp_path / "stray", "widget")
+
+    sbom._external_manifests()
+
+    assert "SBOM: component 'widget'" in caplog.text
+    assert "matches no external component source" in caplog.text
