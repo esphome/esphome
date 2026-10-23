@@ -112,7 +112,6 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         }
         // Module firmware without DTMF support, carry on with the setup sequence
         ESP_LOGW(TAG, "DTMF detection not supported by the module: %s", message.c_str());
-        this->dtmf_enabled_ = false;
       } else {
         ESP_LOGW(TAG, "Not ack. %d %s", this->state_, message.c_str());
         this->state_ = STATE_IDLE;  // Let it timeout
@@ -214,8 +213,9 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->state_ = STATE_INIT;
       break;
     case STATE_DDET_SENT:
-      // Only enable DTMF detection once, until the module gets reset
-      this->dtmf_ready_ = ok;
+      // Tried once per module reset; firmware without DDET only logs a warning, and a passing error is retried
+      // after the next reset
+      this->dtmf_ready_ = true;
       [[fallthrough]];
     case STATE_CREG:
       send_cmd_("AT+CREG?");
