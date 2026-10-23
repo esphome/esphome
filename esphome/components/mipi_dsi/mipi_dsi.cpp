@@ -1,6 +1,7 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 #include <utility>
 #include "mipi_dsi.h"
+#include "esphome/components/display/init_sequence.h"
 #include "esphome/core/helpers.h"
 
 #include <algorithm>
@@ -125,10 +126,8 @@ void MipiDsi::setup() {
   }
   display::InitSequenceReader reader(this->init_sequence_, this->init_sequence_len_);
   display::InitSequenceEntry entry;
-  for (;;) {
-    const auto step = reader.next(entry);
-    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_END)
-      break;
+  display::InitSequenceStep step;
+  while ((step = reader.next(entry)) != display::InitSequenceStep::INIT_SEQUENCE_STEP_END) {
     if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_MALFORMED) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;

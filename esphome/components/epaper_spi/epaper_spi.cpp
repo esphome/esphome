@@ -318,10 +318,8 @@ void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 void EPaperBase::send_init_sequence_(const uint8_t *sequence, size_t length) {
   display::InitSequenceReader reader(sequence, length);
   display::InitSequenceEntry entry;
-  for (;;) {
-    const auto step = reader.next(entry);
-    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_END)
-      return;
+  display::InitSequenceStep step;
+  while ((step = reader.next(entry)) != display::InitSequenceStep::INIT_SEQUENCE_STEP_END) {
     if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_MALFORMED) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;

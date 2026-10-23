@@ -13,7 +13,6 @@
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
-#include "esphome/components/display/init_sequence.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_io.h"
 
