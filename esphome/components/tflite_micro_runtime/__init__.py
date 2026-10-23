@@ -48,6 +48,9 @@ from .schema import (
     CONF_SCALE_FACTOR,
     CONF_SLIDING_WINDOW_SIZE,
     CONF_TENSOR_ARENA_SIZE,
+    INPUT_ORDERS,
+    INPUT_TYPES,
+    MODEL_TYPES,
     TFLiteMicroHelper,
 )
 
@@ -91,7 +94,7 @@ __all__ = [
 
 
 async def to_code(config: ConfigType) -> None:
-    cg.add_define("USE_TFLITE_MICRO_HELPER")
+    _add_build_defines()
     model_type = config[CONF_MODEL_TYPE]
     model_path, model_data = resolve_model_source(config)
     # Compile-time operator support check: fail config generation (before
@@ -109,7 +112,7 @@ async def to_code(config: ConfigType) -> None:
     # Per-instance CRC32 - MULTI_CONF safe, each TFLiteMicroHelper carries its own expected checksum
     crc32_val = zlib.crc32(model_data) & 0xFFFFFFFF
     cg.add(var.set_expected_crc32(crc32_val))
-    cg.add(var.set_model_type(model_type))
+    cg.add(var.set_model_type(MODEL_TYPES[model_type]))
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")
@@ -118,10 +121,9 @@ async def to_code(config: ConfigType) -> None:
     # computed across ALL configured models and emitted once for the whole build.
     _add_operator_defines()
     if config.get(CONF_DEBUG, False):
-        # Build-wide macro: it only compiles in the heavy tflite_model_debug
-        # diagnostics, which stay off for an instance configured with debug: false.
-        # The per-instance verbose logging is the set_debug() call below.
-        cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
+        # Per instance only: set_debug() switches the verbose logging and the
+        # extra load diagnostics of this helper. It does not touch the build-wide
+        # defines above.
         cg.add(var.set_debug(True))
     if model_type == "image":
         await _configure_image_model(config, var, model_path, model_data)
@@ -156,6 +158,21 @@ def _validate_model_operators(model_path: Path) -> None:
             f"  Re-export the model without the unsupported operator(s) "
             f"or choose a compatible model."
         )
+
+
+def _add_build_defines() -> None:
+    """Emit the defines that describe the build rather than one model.
+
+    ``USE_TFLITE_MICRO_HELPER`` compiles the runtime in and
+    ``DEBUG_TFLITE_MICRO_HELPER`` compiles in the optional diagnostics of the
+    sibling components. Neither belongs to a model: a model's ``debug:`` only
+    calls set_debug(), which switches the verbose logging of that one helper.
+    ``cg.add_define()`` compares by identity, so a second MULTI_CONF invocation
+    would queue them again; skip them when they are already there.
+    """
+    for name in ("USE_TFLITE_MICRO_HELPER", "DEBUG_TFLITE_MICRO_HELPER"):
+        if not any(define.name == name for define in CORE.defines):
+            cg.add_define(name)
 
 
 def _add_operator_defines() -> None:
@@ -273,13 +290,13 @@ async def _configure_image_model(entry, var, model_path, model_data):
             yaml_overrides[auto_key] = entry[yaml_key]
     if yaml_overrides:
         auto_config.update(yaml_overrides)
-    cg.add(var.set_input_type(auto_config.get("input_type", "uint8")))
+    cg.add(var.set_input_type(INPUT_TYPES[auto_config.get("input_type", "uint8")]))
     cg.add(var.set_input_channels(auto_config.get("input_channels", 3)))
     cg.add(var.set_input_width(auto_config.get("input_width", 32)))
     cg.add(var.set_input_height(auto_config.get("input_height", 20)))
     cg.add(var.set_output_processing(auto_config.get("output_processing", "argmax")))
     cg.add(var.set_scale_factor(auto_config.get("scale_factor", 1.0)))
-    cg.add(var.set_input_order(auto_config.get("input_order", "RGB")))
+    cg.add(var.set_input_order(INPUT_ORDERS[auto_config.get("input_order", "RGB")]))
     cg.add(var.set_normalize(auto_config.get("normalize", False)))
     cg.add(var.set_invert(auto_config.get("invert", False)))
     if CONF_TENSOR_ARENA_SIZE in entry:

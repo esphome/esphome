@@ -81,6 +81,26 @@ struct LoadStats {
   bool success{false};
 };
 
+/// @brief What the configured model consumes, which decides the load-time checks.
+enum class ModelType : uint8_t {
+  MODEL_TYPE_IMAGE,
+  MODEL_TYPE_AUDIO,
+};
+
+/// @brief Element type of the buffer handed to run_inference().
+enum class InputType : uint8_t {
+  INPUT_TYPE_UINT8,
+  INPUT_TYPE_INT8,
+  INPUT_TYPE_FLOAT32,
+};
+
+/// @brief Channel order of an image input.
+enum class InputOrder : uint8_t {
+  INPUT_ORDER_RGB,
+  INPUT_ORDER_BGR,
+  INPUT_ORDER_GRAY,
+};
+
 /**
  * @class TFLiteMicroHelper
  * @brief Reusable TFLite Micro component for ESPHome.
@@ -103,7 +123,7 @@ class TFLiteMicroHelper : public Component {
   void dump_config() override;
 
   // -- Common Model Config Setters -----------------------------------
-  void set_model_type(const std::string &t) { this->model_type_ = t; }
+  void set_model_type(ModelType t) { this->model_type_ = t; }
   void set_tensor_arena_size(size_t size);
   /// @brief Point the helper at the model data in flash.
   /// @return false (logged) when a model is loaded or loading; call
@@ -112,20 +132,19 @@ class TFLiteMicroHelper : public Component {
   void set_output_processing(const std::string &p) { this->output_processing_ = p; }
   void set_scale_factor(float f) { this->scale_factor_ = f; }
   /// @brief Per-instance verbose logging (load timings, tensor details).
-  /// The build-wide DEBUG_TFLITE_MICRO_HELPER macro, emitted when any model sets
-  /// `debug: true`, only controls whether the heavy tflite_model_debug diagnostics
-  /// are compiled in; they are still off for instances where this is false.
+  /// The `debug:` option only calls this: it is not tied to a build-wide define,
+  /// so the setting of one model never changes what another one logs.
   void set_debug(bool d) {
     this->debug_ = d;
     this->model_handler_.set_debug(d);
   }
 
   // -- Image Model Config Setters ------------------------------------
-  void set_input_type(const std::string &t);
+  void set_input_type(InputType t) { this->input_type_ = t; }
   void set_input_channels(int c);
   void set_input_width(int w);
   void set_input_height(int h);
-  void set_input_order(const std::string &o);
+  void set_input_order(InputOrder o) { this->input_order_ = o; }
   void set_normalize(bool n);
   void set_invert(bool i);
 
@@ -214,9 +233,9 @@ class TFLiteMicroHelper : public Component {
   // -- Load statistics -------------------------------------------------
   const LoadStats &get_last_load_stats() const { return this->last_load_stats_; }
 
-#ifdef DEBUG_TFLITE_MICRO_HELPER
-  /// @brief Parameter sweep of the debug component, compiled in only when a
-  /// configured model sets `debug: true` (the macro is build-wide).
+#ifdef USE_TFLITE_MODEL_DEBUG
+  /// @brief Parameter sweep of the debug component. Gated on the component that
+  /// implements it, not on any model's `debug:` option.
   void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
     this->model_handler_.debug_test_parameters(zone_data);
   }
@@ -224,14 +243,15 @@ class TFLiteMicroHelper : public Component {
 
  private:
   // Model config (set from __init__.py)
-  std::string model_type_{"default"};
-  std::string input_type_{"uint8"};
+  ModelType model_type_{ModelType::MODEL_TYPE_IMAGE};
+  InputType input_type_{InputType::INPUT_TYPE_UINT8};
   int input_channels_{3};
   int input_width_{32};
   int input_height_{20};
+  /// Passed through by name to ModelConfig, which parses it into its own enum.
   std::string output_processing_{"argmax"};
   float scale_factor_{1.0f};
-  std::string input_order_{"RGB"};
+  InputOrder input_order_{InputOrder::INPUT_ORDER_RGB};
   bool normalize_{false};
   bool invert_{false};
   bool debug_{false};

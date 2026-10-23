@@ -15,15 +15,53 @@ ESPHOME_LOG_TAG(TAG, "tflite_micro_runtime");
 
 namespace {
 
-/// The tensor type a configured input_type name denotes, or kTfLiteNoType when the
-/// name is not one this component maps (then no check is possible).
-TfLiteType configured_input_tensor_type(const std::string &name) {
-  if (name == "uint8")
-    return kTfLiteUInt8;
-  if (name == "int8")
-    return kTfLiteInt8;
-  if (name == "float32" || name == "float")
-    return kTfLiteFloat32;
+/// Name a model type is logged and reported under. Points at a string literal.
+const char *model_type_name(ModelType type) {
+  switch (type) {
+    case ModelType::MODEL_TYPE_IMAGE:
+      return "image";
+    case ModelType::MODEL_TYPE_AUDIO:
+      return "audio";
+  }
+  return "unknown";
+}
+
+/// Name an input type is logged under. Points at a string literal.
+const char *input_type_name(InputType type) {
+  switch (type) {
+    case InputType::INPUT_TYPE_UINT8:
+      return "uint8";
+    case InputType::INPUT_TYPE_INT8:
+      return "int8";
+    case InputType::INPUT_TYPE_FLOAT32:
+      return "float32";
+  }
+  return "unknown";
+}
+
+/// Name a channel order is logged under. Points at a string literal.
+const char *input_order_name(InputOrder order) {
+  switch (order) {
+    case InputOrder::INPUT_ORDER_RGB:
+      return "RGB";
+    case InputOrder::INPUT_ORDER_BGR:
+      return "BGR";
+    case InputOrder::INPUT_ORDER_GRAY:
+      return "GRAY";
+  }
+  return "unknown";
+}
+
+/// The tensor type a configured input type denotes.
+TfLiteType configured_input_tensor_type(InputType type) {
+  switch (type) {
+    case InputType::INPUT_TYPE_UINT8:
+      return kTfLiteUInt8;
+    case InputType::INPUT_TYPE_INT8:
+      return kTfLiteInt8;
+    case InputType::INPUT_TYPE_FLOAT32:
+      return kTfLiteFloat32;
+  }
   return kTfLiteNoType;
 }
 
@@ -52,7 +90,7 @@ void TFLiteMicroHelper::setup() {
 
 void TFLiteMicroHelper::dump_config() {
   ESP_LOGCONFIG(TAG, "TFLite Micro Runtime:");
-  ESP_LOGCONFIG(TAG, "  Model type: %s", this->model_type_.c_str());
+  ESP_LOGCONFIG(TAG, "  Model type: %s", model_type_name(this->model_type_));
   ESP_LOGCONFIG(TAG, "  Model size: %zu bytes", this->model_length_);
   ESP_LOGCONFIG(TAG, "  Tensor arena: %zu bytes configured, %zu bytes used by the last load",
                 this->tensor_arena_size_requested_, this->tensor_arena_size_effective_);
@@ -61,9 +99,9 @@ void TFLiteMicroHelper::dump_config() {
     return;
   }
   const ModelSpec spec = this->get_model_spec();
-  if (this->model_type_ == "image") {
+  if (this->model_type_ == ModelType::MODEL_TYPE_IMAGE) {
     ESP_LOGCONFIG(TAG, "  Input: %dx%dx%d %s (%s)", spec.input_width, spec.input_height, spec.input_channels,
-                  this->input_type_.c_str(), this->input_order_.c_str());
+                  input_type_name(this->input_type_), input_order_name(this->input_order_));
   }
   ESP_LOGCONFIG(TAG, "  Tensor arena allocated: %zu bytes, %zu bytes in use", this->get_tensor_arena_size_actual(),
                 this->get_arena_used_bytes());
@@ -96,7 +134,7 @@ bool TFLiteMicroHelper::allocate_tensor_arena_() {
 
 ModelConfig TFLiteMicroHelper::build_config_() {
   ModelConfig config;
-  config.description = this->model_type_;
+  config.description = model_type_name(this->model_type_);
   config.output_processing = this->output_processing_;
   config.scale_factor = this->scale_factor_;
   return config;
@@ -165,11 +203,9 @@ optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_da
 }
 
 // Image model setters
-void TFLiteMicroHelper::set_input_type(const std::string &t) { this->input_type_ = t; }
 void TFLiteMicroHelper::set_input_channels(int c) { this->input_channels_ = c; }
 void TFLiteMicroHelper::set_input_width(int w) { this->input_width_ = w; }
 void TFLiteMicroHelper::set_input_height(int h) { this->input_height_ = h; }
-void TFLiteMicroHelper::set_input_order(const std::string &o) { this->input_order_ = o; }
 void TFLiteMicroHelper::set_normalize(bool n) { this->normalize_ = n; }
 void TFLiteMicroHelper::set_invert(bool i) { this->invert_ = i; }
 
@@ -281,11 +317,11 @@ bool TFLiteMicroHelper::load_model() {
   // configured input matches the tensor the model was converted with: a mismatch
   // would feed the model a differently shaped buffer and only show up as bad
   // predictions.
-  if (this->model_type_ == "image") {
+  if (this->model_type_ == ModelType::MODEL_TYPE_IMAGE) {
     ImageModelConfig img_cfg;
-    img_cfg.input_type = this->input_type_;
+    img_cfg.input_type = input_type_name(this->input_type_);
     img_cfg.input_channels = this->input_channels_;
-    img_cfg.input_order = this->input_order_;
+    img_cfg.input_order = input_order_name(this->input_order_);
     img_cfg.input_size = {this->input_width_, this->input_height_};
     img_cfg.normalize = this->normalize_;
     img_cfg.invert = this->invert_;
@@ -307,9 +343,9 @@ bool TFLiteMicroHelper::load_model() {
     // silently and only show up as wrong predictions.
     const TfLiteType expected_type = configured_input_tensor_type(this->input_type_);
     const TfLiteTensor *input = this->model_handler_.input_tensor();
-    if (expected_type != kTfLiteNoType && input != nullptr && input->type != expected_type) {
-      ESP_LOGE(TAG, "Configured input_type '%s' does not match the model's %s input tensor", this->input_type_.c_str(),
-               LOG_STR_ARG(tensor_type_name(input->type)));
+    if (input != nullptr && input->type != expected_type) {
+      ESP_LOGE(TAG, "Configured input_type '%s' does not match the model's %s input tensor",
+               input_type_name(this->input_type_), LOG_STR_ARG(tensor_type_name(input->type)));
       ESP_LOGE(TAG, "  Supply the model's .txt report, or set input_type to the tensor's type");
       return fail_load();
     }
@@ -370,14 +406,14 @@ void TFLiteMicroHelper::reset_config() {
   this->tensor_arena_size_effective_ = 0;
   this->expected_crc32_ = 0;
 
-  this->model_type_ = "default";
-  this->input_type_ = "uint8";
+  this->model_type_ = ModelType::MODEL_TYPE_IMAGE;
+  this->input_type_ = InputType::INPUT_TYPE_UINT8;
   this->input_channels_ = 3;
   this->input_width_ = 32;
   this->input_height_ = 20;
   this->output_processing_ = "argmax";
   this->scale_factor_ = 1.0f;
-  this->input_order_ = "RGB";
+  this->input_order_ = InputOrder::INPUT_ORDER_RGB;
   this->normalize_ = false;
   this->invert_ = false;
 

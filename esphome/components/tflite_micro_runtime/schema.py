@@ -28,6 +28,30 @@ tflite_micro_runtime_ns = cg.esphome_ns.namespace("tflite_micro_runtime")
 # at boot even when no consumer references the model.
 TFLiteMicroHelper = tflite_micro_runtime_ns.class_("TFLiteMicroHelper", cg.Component)
 
+# Closed name sets the helper stores as C++ enums. The configuration keeps the
+# names, because they also select the code path here; to_code maps each one with
+# the tables below.
+ModelType = tflite_micro_runtime_ns.enum("ModelType", is_class=True)
+InputType = tflite_micro_runtime_ns.enum("InputType", is_class=True)
+InputOrder = tflite_micro_runtime_ns.enum("InputOrder", is_class=True)
+
+MODEL_TYPES = {
+    "image": ModelType.MODEL_TYPE_IMAGE,
+    "audio": ModelType.MODEL_TYPE_AUDIO,
+}
+
+INPUT_TYPES = {
+    "uint8": InputType.INPUT_TYPE_UINT8,
+    "int8": InputType.INPUT_TYPE_INT8,
+    "float32": InputType.INPUT_TYPE_FLOAT32,
+}
+
+INPUT_ORDERS = {
+    "RGB": InputOrder.INPUT_ORDER_RGB,
+    "BGR": InputOrder.INPUT_ORDER_BGR,
+    "GRAY": InputOrder.INPUT_ORDER_GRAY,
+}
+
 # tflite_output_processor implements these four modes. The names below them come
 # from the upstream project this component was ported from and map onto the mode
 # they actually behaved like, so an existing configuration still validates without
