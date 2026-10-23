@@ -42,14 +42,15 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import (
     InitialStateHelper,
     SensorStateCollector,
     StateWaiter,
-    find_entity,
     require_entity,
 )
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 # Length and command word of each frame as the uart mock logs it; the payload is logged on its own TX line
 MOTION_COMMAND = "10:00:03:00"
@@ -89,10 +90,7 @@ async def _wait_initial(
     """Subscribe to states and wait until every entity has sent its initial state."""
     initial_state_helper = InitialStateHelper(entities)
     client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-    try:
-        await initial_state_helper.wait_for_initial_states()
-    except TimeoutError:
-        pytest.fail("Timeout waiting for initial states")
+    await initial_state_helper.wait_for_initial_states()
     return initial_state_helper
 
 
@@ -142,20 +140,7 @@ async def test_uart_mock_ld2412(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test LD2412 data parsing with happy path, garbage, overflow, and recovery."""
-    loop = asyncio.get_running_loop()
-
-    # Track overflow warning in logs
-    overflow_seen = loop.create_future()
-
-    # Track TX data logged by the mock for assertions
-    tx_log_lines: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "Max command length exceeded" in line and not overflow_seen.done():
-            overflow_seen.set_result(True)
-        # Capture all TX log lines from uart_mock
-        if _is_tx(line):
-            tx_log_lines.append(line)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -184,7 +169,7 @@ async def test_uart_mock_ld2412(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -193,19 +178,11 @@ async def test_uart_mock_ld2412(
         await _wait_initial(client, entities, collector.on_state)
 
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 values: moving=100, still=120, energy=50/25, detect=100
         assert collector.sensor_states["moving_distance"][0] == pytest.approx(100.0)
@@ -216,20 +193,20 @@ async def test_uart_mock_ld2412(
 
         # Wait for the recovery frame (Phase 5) to be parsed
         # This proves the component survived garbage + truncated + overflow
-        try:
-            await asyncio.wait_for(recovery_received, timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for recovery frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            3.0,
+            "Timeout waiting for recovery frame",
+            sensor_states=collector.sensor_states,
+        )
 
         # Verify overflow warning was logged
-        assert overflow_seen.done(), (
+        assert any("Max command length exceeded" in line for line in waiter.lines), (
             "Expected 'Max command length exceeded' warning in logs"
         )
 
         # Verify LD2412 sent setup commands (TX logging)
+        tx_log_lines = [line for line in waiter.lines if _is_tx(line)]
         assert len(tx_log_lines) > 0, "Expected TX log lines from uart_mock"
         tx_data = " ".join(tx_log_lines)
         assert "FD:FC:FB:FA" in tx_data, (
@@ -301,19 +278,11 @@ async def test_uart_mock_ld2412_engineering(
         await _wait_initial(client, entities, collector.on_state)
 
         # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 - all sensors and binary sensors have at least one value
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 values (engineering mode frame):
         # moving=30, energy=100, still=30, energy=100, detect=30
@@ -324,24 +293,22 @@ async def test_uart_mock_ld2412_engineering(
         assert collector.sensor_states["light"][0] == pytest.approx(87.0)
 
         # Wait for Phase 3 frame: still_distance = 291cm (multi-byte)
-        try:
-            await asyncio.wait_for(phase3_still_received, timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 3 still_distance. Received:\n"
-                f"  still_distance: {collector.sensor_states['still_distance']}"
-            )
+        await wait_or_fail(
+            phase3_still_received,
+            3.0,
+            "Timeout waiting for Phase 3 still_distance",
+            still_distance=collector.sensor_states["still_distance"],
+        )
 
         assert pytest.approx(291.0) in collector.sensor_states["still_distance"]
 
         # Wait for Phase 3: detection_distance = 291 (still-only target)
-        try:
-            await asyncio.wait_for(phase3_detect_received, timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for detection_distance=291. "
-                f"Received: {collector.sensor_states['detection_distance']}"
-            )
+        await wait_or_fail(
+            phase3_detect_received,
+            3.0,
+            "Timeout waiting for detection_distance=291",
+            detection_distance=collector.sensor_states["detection_distance"],
+        )
 
         assert pytest.approx(291.0) in collector.sensor_states["detection_distance"]
 
@@ -359,17 +326,7 @@ async def test_uart_mock_ld2412_engineering_truncated(
     (e.g. frame footer bytes 0xF8=248 as gate energy).
     """
 
-    loop = asyncio.get_running_loop()
-
-    # Track the truncated frame warning
-    truncated_warning_seen = loop.create_future()
-
-    def line_callback(line: str) -> None:
-        if (
-            "Engineering mode packet too short" in line
-            and not truncated_warning_seen.done()
-        ):
-            truncated_warning_seen.set_result(True)
+    waiter = LineWaiter()
 
     collector = SensorStateCollector(
         sensor_names=[
@@ -399,7 +356,7 @@ async def test_uart_mock_ld2412_engineering_truncated(
     )
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -407,38 +364,29 @@ async def test_uart_mock_ld2412_engineering_truncated(
 
         await _wait_initial(client, entities, collector.on_state)
 
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
+        start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)
 
         # Wait for Phase 1 — valid engineering frame establishes baseline
-        try:
-            await collector.wait_for_all(timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Phase 1 frame. Received:\n"
-                f"  sensor_states: {collector.sensor_states}\n"
-                f"  binary_states: {collector.binary_states}"
-            )
+        await collector.wait_for_all(timeout=3.0)
 
         # Phase 1 baseline: gate_0_move=100, light=87
         assert collector.sensor_states["gate_0_move_energy"][0] == pytest.approx(100.0)
         assert collector.sensor_states["light"][0] == pytest.approx(87.0)
 
         # Wait for Phase 3 recovery frame (gate_0_move=50)
-        try:
-            await asyncio.wait_for(recovery_received, timeout=3.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for recovery frame. Received:\n"
-                f"  gate_0_move_energy: {collector.sensor_states['gate_0_move_energy']}\n"
-                f"  light: {collector.sensor_states['light']}"
-            )
+        await wait_or_fail(
+            recovery_received,
+            3.0,
+            "Timeout waiting for recovery frame",
+            gate_0_move_energy=collector.sensor_states["gate_0_move_energy"],
+            light=collector.sensor_states["light"],
+        )
 
         # Verify the truncated frame warning was logged
-        assert truncated_warning_seen.done(), (
-            "Expected 'Engineering mode packet too short' warning in logs"
-        )
+        assert any(
+            "Engineering mode packet too short" in line for line in waiter.lines
+        ), "Expected 'Engineering mode packet too short' warning in logs"
 
         # Phase 3 recovery: gate_0_move=50, light=42
         assert pytest.approx(50.0) in collector.sensor_states["gate_0_move_energy"]
@@ -490,13 +438,12 @@ async def test_uart_mock_ld2412_footer_in_payload(
 
         motion_written = events.next_line_with(expected_motion)
         client.number_command(numbers["gate_0_move_threshold"].key, 77.0)
-        try:
-            await asyncio.wait_for(motion_written, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for the motion threshold command.\n"
-                f"  expected motion payload: {expected_motion}"
-            )
+        await wait_or_fail(
+            motion_written,
+            5.0,
+            "Timeout waiting for the motion threshold command",
+            expected_payload=expected_motion,
+        )
 
         assert events.count(STILL_COMMAND) == 0, (
             "still threshold command was sent for a motion write"
@@ -504,13 +451,12 @@ async def test_uart_mock_ld2412_footer_in_payload(
 
         still_written = events.next_line_with(expected_still)
         client.number_command(numbers["gate_5_still_threshold"].key, 77.0)
-        try:
-            await asyncio.wait_for(still_written, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for the still threshold command.\n"
-                f"  expected still payload: {expected_still}"
-            )
+        await wait_or_fail(
+            still_written,
+            5.0,
+            "Timeout waiting for the still threshold command",
+            expected_payload=expected_still,
+        )
 
         assert events.count(MOTION_COMMAND) == 1
         assert events.count(STILL_COMMAND) == 1
@@ -519,24 +465,20 @@ async def test_uart_mock_ld2412_footer_in_payload(
         # The reset discards the module's thresholds, so the next write is held back and re-queried
         reset_sent = events.next_line_with(FACTORY_RESET)
         client.button_command(require_entity(entities, "factory_reset", ButtonInfo).key)
-        try:
-            await asyncio.wait_for(reset_sent, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for the factory reset command")
+        await wait_or_fail(
+            reset_sent, 5.0, "Timeout waiting for the factory reset command"
+        )
 
         held_back = events.next_line_with(MOTION_HELD_BACK)
         written_after_reset = events.next_line_with(expected_motion_after_reset)
         client.number_command(numbers["gate_0_move_threshold"].key, 50.0)
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(held_back, written_after_reset), timeout=5.0
-            )
-        except TimeoutError:
-            pytest.fail(
-                "Timeout waiting for the write after the factory reset.\n"
-                f"  expected motion payload: {expected_motion_after_reset}\n"
-                f"  logged: {events.lines}"
-            )
+        await wait_or_fail(
+            asyncio.gather(held_back, written_after_reset),
+            5.0,
+            "Timeout waiting for the write after the factory reset",
+            expected_payload=expected_motion_after_reset,
+            logged=events.lines,
+        )
         reset_at = events.index_after(-1, FACTORY_RESET)
         warning_at = events.index_after(reset_at, MOTION_HELD_BACK)
         query_at = events.index_after(warning_at, MOTION_QUERY)
@@ -553,34 +495,25 @@ async def test_uart_mock_ld2412_truncated_answer(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test that a threshold answer merged with the next frame is dropped and the parser recovers."""
-    loop = asyncio.get_running_loop()
-
-    dropped = loop.create_future()
-    warnings: list[str] = []
-
-    def line_callback(line: str) -> None:
-        if "[W][ld2412" in line:
-            warnings.append(line)
-        if "Dropping gate threshold answer" in line and not dropped.done():
-            dropped.set_result(True)
+    waiter = LineWaiter()
 
     # Gate bytes of the truncated answer
     merged_values = set(range(0x30, 0x3C))
 
     async with (
-        run_compiled(yaml_config, line_callback=line_callback),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
         numbers = _threshold_numbers(entities)
 
         states: dict[int, list[float]] = {}
-        waiter = StateWaiter()
-        gate_0_read = waiter.expect(
+        state_waiter = StateWaiter()
+        gate_0_read = state_waiter.expect(
             _number_state_of(numbers["gate_0_move_threshold"].key),
             label="gate 0 move threshold",
         )
-        gate_5_read = waiter.expect(
+        gate_5_read = state_waiter.expect(
             _number_state_of(numbers["gate_5_move_threshold"].key),
             label="gate 5 move threshold",
         )
@@ -588,7 +521,7 @@ async def test_uart_mock_ld2412_truncated_answer(
         def record(state: EntityState) -> None:
             if isinstance(state, NumberState) and not state.missing_state:
                 states.setdefault(state.key, []).append(state.state)
-            waiter.on_state(state)
+            state_waiter.on_state(state)
 
         initial_state_helper = await _wait_initial(client, entities, record)
 
@@ -598,12 +531,14 @@ async def test_uart_mock_ld2412_truncated_answer(
 
         try:
             _, gate_0_state, gate_5_state = await asyncio.gather(
-                asyncio.wait_for(dropped, timeout=5.0), gate_0_read, gate_5_read
+                waiter.wait_for("Dropping gate threshold answer", timeout=5.0),
+                gate_0_read,
+                gate_5_read,
             )
         except TimeoutError:
             pytest.fail(
                 "Timeout waiting for the threshold answers.\n"
-                f"  ld2412 warnings: {warnings}\n"
+                f"  ld2412 warnings: {[line for line in waiter.lines if '[W][ld2412' in line]}\n"
                 f"  states: {states}"
             )
 
@@ -658,12 +593,12 @@ async def test_uart_mock_ld2412_requery_after_giveup(
             for key in (gate_0_key, gate_5_key)
         ]
         client.number_command(gate_5_key, 20.0)
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(held_back, config_mode_left), timeout=5.0
-            )
-        except TimeoutError:
-            pytest.fail(f"Timeout waiting for the write to be handled: {events.lines}")
+        await wait_or_fail(
+            asyncio.gather(held_back, config_mode_left),
+            5.0,
+            "Timeout waiting for the write to be handled",
+            logged=events.lines,
+        )
         # The unanswered query times out after 2 s
         try:
             await asyncio.wait_for(given_up, timeout=3.0)

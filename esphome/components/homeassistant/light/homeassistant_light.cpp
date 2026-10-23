@@ -131,9 +131,7 @@ void HomeassistantLight::setup() {
       ESP_LOGW(TAG, "'%s': Can't parse '%s' as state!", this->entity_id_, value.c_str());
       return;
     }
-    const bool state = on_off == PARSE_ON;
-    this->on_report_(this->imported_.state != state);
-    this->imported_.state = state;
+    this->import_(this->imported_.state, optional<bool>(on_off == PARSE_ON));
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_mode", [this](StringRef value) {
     if (is_unset(value)) {
@@ -144,19 +142,16 @@ void HomeassistantLight::setup() {
       ESP_LOGE(TAG, "'%s': Can't parse 'color_mode' value '%s' as color mode!", this->entity_id_, value.c_str());
       return;
     }
-    this->on_report_(this->imported_.color_mode != *mode);
-    this->imported_.color_mode = *mode;
+    this->import_(this->imported_.color_mode, *mode);
   });
   server->subscribe_home_assistant_state(this->entity_id_, "brightness", [this](StringRef value) {
     if (auto brightness = this->parse_integer_("brightness", value, 255)) {
-      this->on_report_(this->imported_.brightness != *brightness);
-      this->imported_.brightness = *brightness;
+      this->import_(this->imported_.brightness, static_cast<uint8_t>(*brightness));
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "color_temp_kelvin", [this](StringRef value) {
     if (auto kelvin = this->parse_integer_("color_temp_kelvin", value, UINT16_MAX)) {
-      this->on_report_(this->imported_.color_temp_kelvin != *kelvin);
-      this->imported_.color_temp_kelvin = *kelvin;
+      this->import_(this->imported_.color_temp_kelvin, *kelvin);
     }
   });
   server->subscribe_home_assistant_state(this->entity_id_, "rgb_color", [this](StringRef value) {
@@ -202,11 +197,15 @@ optional<uint16_t> HomeassistantLight::parse_integer_(const char *name, StringRe
 void HomeassistantLight::on_report_(bool changed) {
   // A report that changed an attribute answers the change that armed the echo timeout; a repeated
   // value (or a trait) does not, so a refused change still gets its warning
-  if (changed && this->echo_pending_) {
-    this->echo_pending_ = false;
-    this->cancel_timeout(ECHO_TIMEOUT_ID);
+  if (changed) {
+    if (this->echo_pending_) {
+      this->echo_pending_ = false;
+      this->cancel_timeout(ECHO_TIMEOUT_ID);
+    }
+    // Noted as the report arrives, not when the deferred apply runs: a call read from the same loop
+    // pass before this report is older than it, one read after it is newer
+    this->state_->clear_called();
   }
-  this->report_changed_ |= changed;
   this->schedule_apply_();
 }
 
@@ -254,10 +253,10 @@ void HomeassistantLight::apply_imported_() {
   }
   if (!this->state_->set_external_state(values)) {
     // A report that changed something during a transition or flash is applied once it ends, in
-    // place of the values it ends at; a trait or a repeated report has nothing newer to say
-    if (this->state_->is_transitioning() && this->report_changed_) {
+    // place of the values it ends at, unless a call came after the report; a trait or a repeated
+    // report has nothing newer to say
+    if (this->state_->is_transitioning() && !this->state_->called_since_clear()) {
       this->report_held_ = true;
-      this->held_hash_ = state_hash(this->state_->remote_values);
       return;
     }
     // A local change still waits for LightState::loop() to send it. Home Assistant reports again
@@ -266,18 +265,7 @@ void HomeassistantLight::apply_imported_() {
     ESP_LOGD(TAG, "'%s': Report dropped, a local change is on its way", this->entity_id_);
     return;
   }
-  this->report_changed_ = false;
   ESP_LOGV(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
-}
-
-uint32_t HomeassistantLight::state_hash(const LightColorValues &values) {
-  uint32_t hash = fnv1a_hash_extend(FNV1_OFFSET_BASIS, static_cast<uint8_t>(values.get_color_mode()));
-  for (const float channel :
-       {values.get_state(), values.get_brightness(), values.get_color_brightness(), values.get_red(),
-        values.get_green(), values.get_blue(), values.get_white(), values.get_cold_white(), values.get_warm_white()}) {
-    hash = fnv1a_hash_extend(hash, to_uint8_scale(channel));
-  }
-  return fnv1a_hash_extend(hash, static_cast<uint16_t>(values.get_color_temperature()));  // mireds exceed a byte
 }
 
 void HomeassistantLight::update_state(LightState *state) {
@@ -289,15 +277,16 @@ void HomeassistantLight::update_state(LightState *state) {
     }
     this->initial_seen_ = true;
   }
-  // A call without a transition replaces whatever ran, so a report held for it is older than the call
-  if (!state->is_transitioning()) {
+  // Every call that changes the light reaches here within a loop pass (a new transformer's first
+  // apply() or set_immediately_()), and a call since the held report was read is newer than it
+  if (this->report_held_ && state->called_since_clear()) {
     this->report_held_ = false;
   }
 }
 
 bool HomeassistantLight::is_imported_(const Attributes &outgoing) const {
   const Attributes &imported = this->imported_;
-  if (!imported.state.has_value() || !outgoing.state.has_value() || *imported.state != *outgoing.state) {
+  if (!outgoing.state.has_value() || imported.state != outgoing.state) {
     return false;
   }
   if (!*outgoing.state) {
@@ -334,11 +323,7 @@ void HomeassistantLight::write_state(LightState *state) {
     return;
   }
   if (state->is_transitioning()) {
-    // A transition or flash runs here alone; Home Assistant gets the state it ends at. A call that
-    // replaces the transition a report was held for retargets it and is newer than the report
-    if (this->report_held_ && state_hash(state->remote_values) != this->held_hash_) {
-      this->report_held_ = false;
-    }
+    // A transition or flash runs here alone; Home Assistant gets the state it ends at
     this->transitioned_ = true;
     return;
   }
@@ -346,7 +331,6 @@ void HomeassistantLight::write_state(LightState *state) {
   const bool transitioned = this->transitioned_;
   this->report_held_ = false;
   this->transitioned_ = false;
-  this->report_changed_ = false;  // this change is newer than any report so far, held or dropped
   // Home Assistant changed meanwhile; its report is newer than what the transition ends at or
   // what the flash goes back to
   if (held) {
@@ -404,7 +388,7 @@ void HomeassistantLight::write_state(LightState *state) {
   }
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", state->get_name().c_str());
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(state->get_log_name()));
     this->fall_back_();
     return;
   }
@@ -430,10 +414,10 @@ void HomeassistantLight::write_state(LightState *state) {
   entity_id.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
   entity_id.value = ProgmemStringRef(StringRef(this->entity_id_));
 
-  auto add_number = [&](ProgmemStringRef key, auto &buf, unsigned number) {
+  auto add_number = [&](ProgmemStringRef key, char *buf, size_t size, unsigned number) {
     auto &entry = resp.data.emplace_back();
     entry.key = key;
-    entry.value = ProgmemStringRef(StringRef(buf, buf_append_printf(buf, sizeof(buf), 0, "%u", number)));
+    entry.value = ProgmemStringRef(StringRef(buf, buf_append_printf(buf, size, 0, "%u", number)));
   };
   if (!*outgoing.state) {
     resp.service = ProgmemStringRef::from_lit(SERVICE_TURN_OFF);
@@ -443,7 +427,7 @@ void HomeassistantLight::write_state(LightState *state) {
       // The level goes under "white" in that mode, which also selects the mode
       add_number(outgoing.color_mode == ColorMode::WHITE ? ProgmemStringRef::from_lit(WHITE_KEY)
                                                          : ProgmemStringRef::from_lit(BRIGHTNESS_KEY),
-                 level_buf, outgoing.brightness);
+                 level_buf, sizeof(level_buf), outgoing.brightness);
     }
     // Home Assistant converts the color to the light's own channels, which loses the white balance
     // of a cold/warm white light, so the color goes only when it or the mode changed (or may have,
@@ -451,7 +435,8 @@ void HomeassistantLight::write_state(LightState *state) {
     const Attributes &imported = this->imported_;
     const bool new_color = this->echo_pending_ || outgoing.color_mode != imported.color_mode;
     if (outgoing.color_temp_kelvin != 0 && (new_color || outgoing.color_temp_kelvin != imported.color_temp_kelvin)) {
-      add_number(ProgmemStringRef::from_lit(COLOR_TEMP_KELVIN_KEY), color_temp_buf, outgoing.color_temp_kelvin);
+      add_number(ProgmemStringRef::from_lit(COLOR_TEMP_KELVIN_KEY), color_temp_buf, sizeof(color_temp_buf),
+                 outgoing.color_temp_kelvin);
     }
     if (outgoing.has_rgb && (new_color || !imported.has_rgb || outgoing.rgb != imported.rgb)) {
       // A list, which only a template renders as one
