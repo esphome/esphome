@@ -63,7 +63,9 @@ TEST(LedStripHelpers, ViewFallsBackToScratchBeforeSetup) {
   std::array<uint8_t, 4> buf{};
   // Any index is safe without a buffer, as is a buffer without effect data
   GRBW.view(nullptr, nullptr, 1000, &correction) = Color(1, 2, 3, 4);
-  GRBW.view(nullptr, nullptr, 1000, &correction).set_effect_data(5);
+  auto scratch = GRBW.view(nullptr, nullptr, 1000, &correction);
+  scratch.set_effect_data(5);
+  EXPECT_EQ(scratch.get_effect_data(), 0);
   GRBW.view(buf.data(), nullptr, 0, &correction) = Color(1, 2, 3, 4);
   EXPECT_EQ(buf, (std::array<uint8_t, 4>{}));
 
