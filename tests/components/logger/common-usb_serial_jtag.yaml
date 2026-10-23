@@ -1,0 +1,8 @@
+esphome:
+  on_boot:
+    then:
+      - logger.log: Hello world
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
