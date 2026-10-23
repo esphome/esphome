@@ -29,3 +29,7 @@ sim800l:
     - sim800l.disconnect
   on_ussd_received:
     - logger.log: "ussd_received"
+  on_dtmf_received:
+    - logger.log:
+        format: "DTMF key '%s'"
+        args: ["key.c_str()"]

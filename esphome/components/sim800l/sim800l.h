@@ -44,7 +44,9 @@ enum State {
   STATE_SEND_USSD1,
   STATE_SEND_USSD2,
   STATE_CHECK_USSD,
-  STATE_RECEIVED_USSD
+  STATE_RECEIVED_USSD,
+  STATE_SETUP_DDET,
+  STATE_DDET_SENT
 };
 
 class Sim800LComponent final : public uart::UARTDevice, public PollingComponent {
@@ -75,6 +77,11 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   }
   template<typename F> void add_on_ussd_received_callback(F &&callback) {
     this->ussd_received_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_dtmf_received_callback(F &&callback) {
+    // DTMF detection is only enabled on the module when someone listens for it
+    this->dtmf_enabled_ = true;
+    this->dtmf_received_callback_.add(std::forward<F>(callback));
   }
   void send_sms(const std::string &recipient, const std::string &message);
   void send_ussd(const std::string &ussd_code);
@@ -111,6 +118,7 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   bool connect_pending_{false};
   bool disconnect_pending_{false};
   bool send_ussd_pending_{false};
+  bool dtmf_enabled_{false};
   uint8_t call_state_{6};
 
   CallbackManager<void(std::string, std::string)> sms_received_callback_;
@@ -118,6 +126,7 @@ class Sim800LComponent final : public uart::UARTDevice, public PollingComponent 
   CallbackManager<void()> call_connected_callback_;
   CallbackManager<void()> call_disconnected_callback_;
   CallbackManager<void(std::string)> ussd_received_callback_;
+  CallbackManager<void(std::string)> dtmf_received_callback_;
 };
 
 }  // namespace esphome::sim800l
