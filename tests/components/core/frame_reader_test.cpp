@@ -96,18 +96,22 @@ TEST(FrameReaderTest, ResyncFindsHeaderInRejectedFrame) {
 
 TEST(FrameReaderTest, ResyncWithoutHeaderStartsOver) {
   FrameReader<4, 0xFF> reader;
+  const uint8_t *frame = nullptr;
   for (uint8_t c : {0xFF, 0x01, 0x02, 0x03}) {
-    reader.feed(c);
+    frame = reader.feed(c);
   }
+  ASSERT_NE(frame, nullptr);
   reader.resync();
   EXPECT_EQ(reader.length(), 0u);
 }
 
 TEST(FrameReaderTest, ResyncKeepsPartialHeaderAtEnd) {
   FrameReader<5, 0x3C, 0x32> reader;
+  const uint8_t *frame = nullptr;
   for (uint8_t c : {0x3C, 0x32, 0x00, 0x00, 0x3C}) {
-    reader.feed(c);
+    frame = reader.feed(c);
   }
+  ASSERT_NE(frame, nullptr);
   reader.resync();
   EXPECT_EQ(reader.length(), 1u);
   EXPECT_EQ(feed_all(reader, {0x32, 0x01, 0x02, 0x03}), (Frames{{0x3C, 0x32, 0x01, 0x02, 0x03}}));
