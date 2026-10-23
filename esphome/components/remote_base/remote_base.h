@@ -47,6 +47,7 @@ class RemoteTransmitData {
   void reserve(uint32_t len) { this->data_.reserve(len); }
   /// One item per bit of each byte.
   template<BitTimings T> void item_bytes(const uint8_t *bytes, size_t len) {
+    static_assert(T.one_mark != 0 && T.zero_mark != 0, "set bit_mark, or one_mark and zero_mark");
     for (size_t i = 0; i < len; i++) {
       for (uint8_t bit = 0; bit < 8; bit++) {
         const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
@@ -128,6 +129,7 @@ class RemoteReceiveData {
 
  protected:
   template<BitTimings T, bool LAST_MARK> bool expect_bytes_(uint8_t *out, size_t len) {
+    static_assert(T.one_mark != 0 && T.zero_mark != 0, "set bit_mark, or one_mark and zero_mark");
     for (size_t i = 0; i < len; i++) {
       uint8_t byte = 0;
       for (uint8_t bit = 0; bit < 8; bit++) {
