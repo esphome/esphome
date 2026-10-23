@@ -31,7 +31,6 @@ namespace esphome::deep_sleep {
 
 ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {
   switch (esp_sleep_get_wakeup_cause()) {
     case ESP_SLEEP_WAKEUP_EXT0:
@@ -48,7 +47,6 @@ WakeupCause get_wakeup_cause() {
       return WAKEUP_CAUSE_UNKNOWN;
   }
 }
-#endif  // USE_DEEP_SLEEP_ON_WAKE
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const {
   if (this->wakeup_cause_to_run_duration_.has_value()) {

@@ -33,18 +33,18 @@ namespace esphome::esp32_ble_tracker {
 
 using namespace esp32_ble;
 
-using adv_data_t = ble_device_base::adv_data_t;
+using ble_device_base::adv_data_t;
 
 #ifdef USE_ESP32_BLE_UUID
-using ServiceData = ble_device_base::ServiceData;
+using ble_device_base::ServiceData;
 #endif
 
 #ifdef USE_ESP32_BLE_DEVICE
 // The advertisement device types are owned by the platform-neutral
 // ble_device_base layer; re-exported here (esp32 only) for backward
 // compatibility. ESPBTDevice::parse_scan_rst() (esp32-only) adapts BLEScanResult.
-using ESPBLEiBeacon = ble_device_base::ESPBLEiBeacon;
-using ESPBTDevice = ble_device_base::ESPBTDevice;
+using ble_device_base::ESPBLEiBeacon;
+using ble_device_base::ESPBTDevice;
 #endif  // USE_ESP32_BLE_DEVICE
 
 class ESP32BLETracker;
@@ -82,12 +82,12 @@ struct ClientStateCounts {
 
 // The client connection state types are owned by the platform-neutral
 // ble_device_base layer; re-exported here for backward compatibility.
-using ClientState = ble_device_base::ClientState;
-using ConnectionType = ble_device_base::ConnectionType;
+using ble_device_base::ClientState;
+using ble_device_base::ConnectionType;
 using ble_device_base::client_state_to_string;
 
 // Neutral scanner lifecycle re-exported for backward compatibility.
-using ScannerState = ble_device_base::ScannerState;
+using ble_device_base::ScannerState;
 
 /// Base class for BLE GATT clients that connect to remote devices.
 ///

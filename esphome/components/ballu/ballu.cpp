@@ -168,6 +168,8 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
       case BALLU_AUTO:
         this->mode = climate::CLIMATE_MODE_AUTO;
         break;
+      default:
+        break;
     }
   }
 
