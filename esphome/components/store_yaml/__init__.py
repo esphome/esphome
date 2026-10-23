@@ -552,6 +552,11 @@ def _generate_redacted_files(
             )
             if info and info.is_int and (at_key or definition):
                 return yaml_util.make_data_base(_INT_MARK + info.secret_name)
+            # cv.bind_key uppercases the key, so match an inline one the same way
+            upper = node.upper() if isinstance(node, str) else ""
+            bind = sensitive.get(upper) if _BIND_KEY_RE.fullmatch(upper) else None
+            if bind and bind.sensitive_keys.intersection(path[-1:]):
+                return yaml_util.make_data_base(upper)
         elif isinstance(node, yaml_util.IncludeFile):
             vars = _str_keys(node.vars)
             if yaml_util.is_secret(node.vars) is not None:

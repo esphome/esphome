@@ -678,6 +678,15 @@ def test_redacted_fails_closed(
         ),
         pytest.param(
             {
+                "entry.yaml": "sensor:\n  - platform: xiaomi_lywsd03mmc\n"
+                "    bindkey: 00112233445566778899aabbccddeeff\n",
+            },
+            {"sensor": [{"bindkey": SensitiveStr("00112233445566778899AABBCCDDEEFF")}]},
+            {"entry.yaml": "bindkey: !secret 'sensor_bindkey'"},
+            id="inline_lowercase_bind_key",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": _SECRET_VAR,
                 "wifi.yaml": "password: ${pw}\n",
                 "secrets.yaml": _WIFI_SECRET,
