@@ -84,7 +84,6 @@ class TsdbComponent : public PollingComponent {
   uint32_t index_stride_{tsdbmath::INDEX_DEFAULT_STRIDE};
   uint32_t buffer_pool_size_{4096};
   uint32_t sync_interval_{60000};
-  tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
   uint32_t last_reopen_{0};
   uint32_t last_sync_{0};
   uint32_t last_timestamp_{0};
@@ -101,6 +100,7 @@ class TsdbComponent : public PollingComponent {
   uint32_t held_{0};
   uint32_t sentinel_{0};
 
+  tsdbmath::MissingPolicy missing_policy_{tsdbmath::MISSING_SKIP};
   bool format_on_first_boot_{true};
   bool require_time_{true};
   bool mounted_{false};
