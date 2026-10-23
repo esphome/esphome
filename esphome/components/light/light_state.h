@@ -90,7 +90,17 @@ class LightState : public EntityBase, public Component {
 
   /// True from the call that starts a transition or flash until it reaches its target.
   bool is_transitioning() const { return this->transformer_ != nullptr; }
+
+  /// True once a call is performed after clear_called(), so an output can tell whether a call came
+  /// after something it noted. Every call that changes the light reaches update_state() within a loop pass.
+  bool called_since_clear() const { return this->called_; }
+  void clear_called() { this->called_ = false; }
   LightCall make_call();
+
+  /// Take over the state of a light mirrored from elsewhere: current and target values at once,
+  /// published but not written or saved; a running effect stops. False while a write is pending or
+  /// a transition or flash runs.
+  bool set_external_state(const LightColorValues &values);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -308,6 +318,9 @@ class LightState : public EntityBase, public Component {
   bool is_transformer_active() const { return this->is_transformer_active_; }
 
  protected:
+  // The two halves of loop()
+  void apply_effect_and_transformer_();
+  void write_if_pending_();
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
@@ -408,6 +421,7 @@ class LightState : public EntityBase, public Component {
   bool next_write_{true};  // a plain bool: it is the most written flag, and still shares the index's word
   // for effects, true if a transformer (transition) is active.
   bool is_transformer_active_ : 1 {false};
+  bool called_ : 1 {false};  // see called_since_clear()
   /// Whether this light persists its state to preferences at all.
   bool save_enabled_ : 1 {false};
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL

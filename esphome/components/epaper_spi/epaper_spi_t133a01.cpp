@@ -232,6 +232,7 @@ void EPaperT133A01::fill(Color color) {
   }
   auto pixel_color = color_to_index(color);
   this->buffer_.fill(pixel_color + (pixel_color << 4));
+  this->drawn_since_hash_ = true;
 }
 
 void EPaperT133A01::draw_pixel_at(int x, int y, Color color) {
@@ -362,6 +363,15 @@ bool HOT EPaperT133A01::transfer_data() {
 
   this->current_data_index_ = 0;
   return true;
+}
+
+void EPaperT133A01::abort_transfer() {
+  // A data stream is open, with one of the chip selects held low, whenever transfer_data() has started sending rows
+  if (this->current_data_index_ == 0)
+    return;
+  this->disable();
+  this->cs_pin_->digital_write(true);
+  this->cs1_pin_->digital_write(true);
 }
 
 void EPaperT133A01::dump_config() {

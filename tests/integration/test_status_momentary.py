@@ -7,6 +7,7 @@ import asyncio
 from aioesphomeapi import BinarySensorState, EntityState
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -18,20 +19,10 @@ async def test_status_momentary(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     loop = asyncio.get_running_loop()
-    warning_logged = loop.create_future()
-    error_logged = loop.create_future()
-
-    def on_log_line(line: str) -> None:
-        if (
-            "set Warning flag: probe warning reason" in line
-            and not warning_logged.done()
-        ):
-            warning_logged.set_result(True)
-        if "set Error flag: probe error reason" in line and not error_logged.done():
-            error_logged.set_result(True)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         entities, services = await client.list_entities_services()
@@ -82,6 +73,6 @@ async def test_status_momentary(
 
         # A message replaces "unspecified" in the log line
         await client.execute_service(svc["momentary_warning_message"], {})
-        await asyncio.wait_for(warning_logged, timeout=5)
+        await waiter.wait_for("set Warning flag: probe warning reason", timeout=5)
         await client.execute_service(svc["momentary_error_message"], {})
-        await asyncio.wait_for(error_logged, timeout=5)
+        await waiter.wait_for("set Error flag: probe error reason", timeout=5)

@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_COUNT,
     CONF_ELSE,
     CONF_ID,
+    CONF_IF,
     CONF_THEN,
     CONF_TIME,
     CONF_TIMEOUT,
@@ -23,6 +24,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, EsphomeError, HexInt, Lambda
 from esphome.cpp_generator import (
+    CallExpression,
     Expression,
     LambdaExpression,
     MockObj,
@@ -33,6 +35,9 @@ from esphome.cpp_generator import (
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType, SafeExpType
 from esphome.util import Registry
+
+CONF_CHOOSE = "choose"
+CONF_CHOICE_ID = "choice_id"
 
 
 def progmem_bytes(name: str, data: bytes | list[int]) -> MockObj:
@@ -55,10 +60,15 @@ async def templatable_bytes(
     if cg.is_template(value):
         fn = await cg.templatable(value, args, cg.std_vector.template(cg.uint8))
         cg.add(set_template(fn))
-    elif len(value) > 0xFFFF:
-        raise EsphomeError(f"Byte payload is {len(value)} bytes; the maximum is 65535")
     else:
-        cg.add(set_static(progmem_bytes(table_name, value), len(value)))
+        cg.add(set_static(*_static_bytes(table_name, value)))
+
+
+def _static_bytes(table_name: str, value: bytes | list[int]) -> tuple[MockObj, int]:
+    """The shared PROGMEM table for a constant payload and its length."""
+    if (size := len(value)) > 0xFFFF:
+        raise EsphomeError(f"Byte payload is {size} bytes; the maximum is 65535")
+    return progmem_bytes(table_name, value), size
 
 
 def maybe_simple_id(*validators):
@@ -248,6 +258,23 @@ def flash_string(config: ConfigType, value: str) -> str:
     return str(cg.progmem_string(value))
 
 
+def flash_compare(config: ConfigType, value: str) -> str:
+    """Default renderer for ``std::string`` constants in conditions; compares in flash on ESP8266."""
+    if CORE.is_esp8266:
+        return f"::esphome::ProgmemStringRef{{PSTR({cg.safe_exp(value)}), {len(value.encode('utf-8'))}}}"
+    return str(cg.safe_exp(value))
+
+
+def _default_std_string(
+    members: list[tuple[str, Any, Any]], renderer: Callable[[ConfigType, str], str]
+) -> list[tuple[str, Any, Any]]:
+    """Give ``cg.std_string`` members without a renderer the given default."""
+    return [
+        (key, t, fn or (renderer if t is cg.std_string else None))
+        for key, t, fn in members
+    ]
+
+
 def literal_with_length(config: ConfigType, value: str) -> str:
     """Renderer for a ``(const char *, size_t)`` target: a plain literal plus its byte length.
 
@@ -335,6 +362,33 @@ class ApplyField:
         return ApplyCall(target, ((self.conf_key, self.type_, self.const_fn),))
 
 
+@dataclass(frozen=True)
+class ApplyBytes:
+    """A byte payload key forwarded as ``target``, whose ``{}`` stands for ``data, len``.
+
+    A constant payload is a shared PROGMEM table passed as is; on ESP8266 it is first copied
+    out, to the stack up to ``stack`` bytes and to the heap beyond, unless ``progmem_target``
+    names a call that reads flash itself. A lambda's ``std::vector<uint8_t>`` is passed as
+    its data and size. The template may name the parent as ``{parent}``. An absent key
+    emits nothing.
+    """
+
+    conf_key: str | tuple[str, ...]
+    target: str
+    stack: int = 64
+    progmem_target: str | None = None
+
+    def __post_init__(self) -> None:
+        for target in (self.target, self.progmem_target):
+            if target is None:
+                continue
+            fields = [
+                f for _, f, _, _ in string.Formatter().parse(target) if f is not None
+            ]
+            if fields.count("") != 1 or any(f not in ("", "parent") for f in fields):
+                raise ValueError(f"apply bytes target {target!r} needs one {{}}")
+
+
 def _config_lookup(config: ConfigType, key: str | tuple[str, ...]) -> Any:
     if isinstance(key, str):
         return config.get(key)
@@ -393,9 +447,17 @@ async def _apply_parent(config: ConfigType, id_key: str = CONF_ID) -> str:
 
 
 def _apply_lambda_args(args: TemplateArgsType) -> TemplateArgsType:
-    # The generated function's parameters; a std::string arg is never copied.
+    # The generated function's parameters: a reference keeps its spelling, so a mutable
+    # one stays mutable; a value is taken by const reference, so a std::string is never copied.
     return [
-        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), arg)
+        (
+            (
+                t
+                if str(cg.safe_exp(t)).rstrip().endswith("&")
+                else cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &")
+            ),
+            arg,
+        )
         for t, arg in args
     ]
 
@@ -409,10 +471,18 @@ def _apply_function(
 ) -> MockObj:
     """Emit the generated function and declare ``id_`` as the ``ApplyAction`` or
     ``ApplyCondition`` templated on it, so ``play()`` calls it directly."""
-    fn = cg.static_function(
-        f"esphome__{id_.id}__fn", return_type, lambda_args, statements
-    )
+    fn = apply_static_function(id_, return_type, lambda_args, statements)
     return cg.new_Pvariable(id_, cg.TemplateArguments(fn, *template_arg))
+
+
+def apply_static_function(
+    id_: ID,
+    return_type: SafeExpType,
+    params: TemplateArgsType,
+    statements: list[str],
+) -> MockObj:
+    """Emit the static function generated for ``id_`` and return an expression naming it."""
+    return cg.static_function(f"esphome__{id_.id}__fn", return_type, params, statements)
 
 
 async def _render_values(
@@ -459,7 +529,7 @@ def _apply_values(config: ConfigType, members: list[tuple[Any, Any, Any]]) -> li
 def register_apply_action(
     name: str,
     schema: cv.Schema,
-    *fields: ApplyField | ApplyCall,
+    *fields: ApplyField | ApplyCall | ApplyBytes,
     call: str | None = None,
     id_key: str = CONF_ID,
 ) -> None:
@@ -475,7 +545,7 @@ def register_apply_action(
 def apply_action_builder(
     name: str,
     schema: cv.Schema,
-    *fields: ApplyField | ApplyCall,
+    *fields: ApplyField | ApplyCall | ApplyBytes,
     call: str | None = None,
     id_key: str = CONF_ID,
 ) -> Callable[..., Awaitable[MockObj]]:
@@ -488,20 +558,20 @@ def apply_action_builder(
     and ``apply_call.perform()`` is appended.
     """
     # An action stores the value, so a std::string constant stays in flash on ESP8266.
-    statements_spec = [
-        (
-            c.target,
-            [
-                (key, t, fn or (flash_string if t is cg.std_string else None))
-                for key, t, fn in c.members
-            ],
-        )
-        for c in (f if isinstance(f, ApplyCall) else f.call() for f in fields)
-    ]
     _check_key_in_schema(name, schema, id_key)
-    for _, members in statements_spec:
+    statements_spec: list[ApplyBytes | tuple[str, list[tuple[Any, Any, Any]]]] = []
+    for f in fields:
+        if isinstance(f, ApplyBytes):
+            _check_key_in_schema(name, schema, f.conf_key)
+            statements_spec.append(f)
+            continue
+        c = f if isinstance(f, ApplyCall) else f.call()
+        members = _default_std_string(c.members, flash_string)
         for conf_key, _, _ in members:
             _check_key_in_schema(name, schema, conf_key)
+        statements_spec.append((c.target, members))
+    # Named like the generated function, so it cannot clash with an SDK symbol
+    table_name = f"esphome__{name.replace('.', '_')}__bytes"
 
     async def builder(
         config: ConfigType,
@@ -513,7 +583,15 @@ def apply_action_builder(
         lambda_args = _apply_lambda_args(args)
         receiver = "apply_call." if call else f"{parent}->"
         statements: list[str] = []
-        for target, members in statements_spec:
+        for spec in statements_spec:
+            if isinstance(spec, ApplyBytes):
+                statements.extend(
+                    await _render_bytes(
+                        spec, config, receiver, parent, args, table_name
+                    )
+                )
+                continue
+            target, members = spec
             values = _apply_values(config, members)
             if not _apply_call_active(members, values):
                 continue
@@ -532,6 +610,62 @@ def apply_action_builder(
         )
 
     return builder
+
+
+async def _render_bytes(
+    spec: ApplyBytes,
+    config: ConfigType,
+    receiver: str,
+    parent: str,
+    args: TemplateArgsType,
+    table_name: str,
+) -> list[str]:
+    """The statements for one ``ApplyBytes``: what ``TemplatableBytes::visit`` does, inlined.
+
+    The payload lambda keeps the automation's own argument types, as ``TemplatableBytes``
+    gave it, and is always called, so a body that modifies an argument still compiles.
+    """
+    value = _config_lookup(config, spec.conf_key)
+    if value is None:
+        return []
+
+    # The temporary carries the generated-name prefix so a trigger argument cannot shadow it
+    def send(target: str, data: str) -> str:
+        return f"{receiver}{target.format(data, parent=parent)};"
+
+    if isinstance(value, Lambda):
+        inner = await cg.process_lambda(
+            value, args, return_type=cg.std_vector.template(cg.uint8)
+        )
+        # Never reduced into the outer function, whose own parameters are const
+        call = CallExpression(inner, *[cg.MockObj(name) for _, name in args])
+        return [
+            "{",
+            f"  const std::vector<uint8_t> esphome__bytes = {call};",
+            f"  {send(spec.target, 'esphome__bytes.data(), esphome__bytes.size()')}",
+            "}",
+        ]
+    table, size = _static_bytes(table_name, value)
+    # Qualified so a trigger argument cannot shadow a reused table; an empty payload is nullptr
+    table_args = f"::{table}, {size}" if size else f"{table}, {size}"
+    if CORE.is_esp8266 and spec.progmem_target is not None:
+        return [send(spec.progmem_target, table_args)]
+    if not CORE.is_esp8266:
+        return [send(spec.target, table_args)]
+    # A PROGMEM table must be read with aligned loads on ESP8266, so copy it out first;
+    # the length is known here, so the copy is an exact array, on the heap past ``stack``.
+    # An empty payload still gets a one byte array: the raw lwIP socket rejects a null buffer.
+    if size <= spec.stack:
+        buffer, data = f"uint8_t esphome__bytes[{max(size, 1)}];", "esphome__bytes"
+    else:
+        buffer, data = (
+            f"auto esphome__bytes = std::make_unique<uint8_t[]>({size});",
+            "esphome__bytes.get()",
+        )
+    statements = ["{", f"  {buffer}"]
+    if size:
+        statements.append(f"  esphome::progmem_memcpy({data}, {table_args});")
+    return [*statements, f"  {send(spec.target, f'{data}, {size}')}", "}"]
 
 
 def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -> bool:
@@ -563,11 +697,12 @@ def register_apply_condition(
     ``check`` is applied to the parent: ``"is_playing()"`` becomes ``parent->is_playing()``; an
     ``ApplyCall`` such as ``ApplyCall("state == {}", ((CONF_STATE, cg.bool_),))`` compares
     against config values, all of which must be present. Write ``== false`` to negate.
-    String constants are plain literals, so compare a ``std::string`` or ``StringRef`` member.
+    A ``cg.std_string`` constant stays in flash on ESP8266 and supports only ``==`` or ``!=``
+    against a ``std::string`` or ``StringRef`` member; other string types are plain literals.
     Generates one static predicate and an ``ApplyCondition`` templated on it.
     """
     call = check if isinstance(check, ApplyCall) else ApplyCall(check)
-    members = call.members
+    members = _default_std_string(call.members, flash_compare)
     _check_key_in_schema(name, schema, id_key)
     for conf_key, _, _ in members:
         _check_key_in_schema(name, schema, conf_key)
@@ -825,10 +960,39 @@ async def delay_action_to_code(
     return var
 
 
+def _wrap_bare_if_condition(value: Any) -> Any:
+    """Allow a single condition directly under `if:` in place of `condition: {...}`."""
+    if not isinstance(value, dict):
+        return value
+    # `any` and `all` are also registered conditions, but here they are the if action's own keys
+    bare = [
+        key
+        for key in value
+        if key in CONDITION_REGISTRY and key not in (CONF_ANY, CONF_ALL)
+    ]
+    if not bare:
+        return value
+    if len(bare) > 1:
+        raise cv.Invalid(
+            f"Only one condition may be given directly under 'if', found {', '.join(bare)}. "
+            f"Use '{CONF_CONDITION}', '{CONF_ALL}' or '{CONF_ANY}' to combine conditions"
+        )
+    if other := [k for k in (CONF_CONDITION, CONF_ANY, CONF_ALL) if k in value]:
+        raise cv.Invalid(
+            f"'{bare[0]}' given directly under 'if' cannot be used with '{other[0]}'. "
+            f"Move it into '{other[0]}'"
+        )
+    key = bare[0]
+    result = {k: v for k, v in value.items() if k != key}
+    result[CONF_CONDITION] = {key: value[key]}
+    return result
+
+
 @register_action(
     "if",
     IfAction,
     cv.All(
+        _wrap_bare_if_condition,
         {
             cv.Exclusive(
                 CONF_CONDITION, CONF_CONDITION
@@ -855,14 +1019,104 @@ async def if_action_to_code(
     cond_conf = next(el for el in config if el in (CONF_ANY, CONF_ALL, CONF_CONDITION))
     condition = await build_condition(config[cond_conf], template_arg, args)
     var = cg.new_Pvariable(action_id, if_template_arg, condition)
+    then_actions = else_actions = None
     if CONF_THEN in config:
-        for action in await build_action_list(config[CONF_THEN], template_arg, args):
+        then_actions = await build_action_list(config[CONF_THEN], template_arg, args)
+    if has_else:
+        else_actions = await build_action_list(config[CONF_ELSE], template_arg, args)
+    _add_if_branches(var, then_actions, else_actions)
+    return var
+
+
+def _add_if_branches(
+    var: MockObj,
+    then_actions: list[MockObj] | None,
+    else_actions: list[MockObj] | None,
+) -> None:
+    """Add the branches of an IfAction one action at a time; None leaves a branch out."""
+    if then_actions is not None:
+        for action in then_actions:
             cg.add(var.add_then_action(action))
         cg.add(var.finish_then())
-    if has_else:
-        for action in await build_action_list(config[CONF_ELSE], template_arg, args):
+    if else_actions is not None:
+        for action in else_actions:
             cg.add(var.add_else_action(action))
         cg.add(var.finish_else())
+
+
+def _validate_choice(choice: ConfigType) -> ConfigType:
+    """A choice is either `if` with `then`, or `else` on its own."""
+    if CONF_ELSE in choice:
+        for key in (CONF_IF, CONF_THEN):
+            if key in choice:
+                raise cv.Invalid(f"'{key}' cannot be used with 'else'", path=[key])
+        return choice
+    for key in (CONF_IF, CONF_THEN):
+        if key not in choice:
+            raise cv.Invalid(f"'{key}' is required", path=[key])
+    return choice
+
+
+def _validate_choose_else(choices: list[ConfigType]) -> list[ConfigType]:
+    """`else` may only be the last choice, and not the only one."""
+    for index, choice in enumerate(choices[:-1]):
+        if CONF_ELSE in choice:
+            raise cv.Invalid(
+                "Only the last choice may be 'else'", path=[index, CONF_ELSE]
+            )
+    if len(choices) == 1 and CONF_ELSE in choices[0]:
+        raise cv.Invalid(
+            "At least one choice must have 'if' and 'then'", path=[0, CONF_ELSE]
+        )
+    return choices
+
+
+@register_action(
+    CONF_CHOOSE,
+    IfAction,
+    cv.All(
+        cv.ensure_list(
+            cv.All(
+                cv.Schema(
+                    {
+                        cv.GenerateID(CONF_CHOICE_ID): cv.declare_id(IfAction),
+                        cv.Optional(CONF_IF): validate_potentially_and_condition,
+                        cv.Optional(CONF_THEN): validate_action_list,
+                        cv.Optional(CONF_ELSE): validate_action_list,
+                    }
+                ),
+                _validate_choice,
+            )
+        ),
+        cv.Length(min=1),
+        _validate_choose_else,
+    ),
+    synchronous=True,
+)
+async def choose_action_to_code(
+    config: list[ConfigType],
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    # Built as a chain of if/else actions: each choice's else branch holds the next choice,
+    # and the last choice's else branch holds the `else` actions, if any.
+    else_actions: list[MockObj] | None = None
+    if CONF_ELSE in config[-1]:
+        else_actions = await build_action_list(
+            config[-1][CONF_ELSE], template_arg, args
+        )
+        config = config[:-1]
+    var: MockObj | None = None
+    for index in reversed(range(len(config))):
+        choice = config[index]
+        if_template_arg = cg.TemplateArguments(else_actions is not None, *template_arg)
+        condition = await build_condition(choice[CONF_IF], template_arg, args)
+        choice_id = action_id if index == 0 else choice[CONF_CHOICE_ID]
+        var = cg.new_Pvariable(choice_id, if_template_arg, condition)
+        then_actions = await build_action_list(choice[CONF_THEN], template_arg, args)
+        _add_if_branches(var, then_actions, else_actions)
+        else_actions = [var]
     return var
 
 
@@ -891,6 +1145,21 @@ async def while_action_to_code(
     return var
 
 
+def _shadow_iteration(args: TemplateArgsType) -> TemplateArgsType:
+    """Rename an inherited `iteration` so the inner repeat's own counter can shadow it."""
+    names = {name for _, name in args}
+    renamed: TemplateArgsType = []
+    for type_, name in args:
+        if name == "iteration":
+            depth = 1
+            while f"iteration_{depth}" in names:
+                depth += 1
+            name = f"iteration_{depth}"
+            names.add(name)
+        renamed.append((type_, name))
+    return renamed
+
+
 @register_action(
     "repeat",
     RepeatAction,
@@ -914,7 +1183,7 @@ async def repeat_action_to_code(
     actions = await build_action_list(
         config[CONF_THEN],
         cg.TemplateArguments(cg.uint32, *template_arg.args),
-        [(cg.uint32, "iteration"), *args],
+        [(cg.uint32, "iteration"), *_shadow_iteration(args)],
     )
     for action in actions:
         cg.add(var.add_then_action(action))
