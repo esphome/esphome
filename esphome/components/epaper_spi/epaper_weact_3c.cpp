@@ -87,6 +87,8 @@ void EPaperWeAct3C::fill(Color color) {
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[half_buffer + i] = 0x00;
   }
+
+  this->mark_all_drawn_();
 }
 
 void EPaperWeAct3C::clear() {
