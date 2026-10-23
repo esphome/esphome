@@ -108,35 +108,6 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
   return cdc_devs;
 }
 
-void RingBuffer::push(uint8_t item) {
-  if (this->get_free_space() == 0)
-    return;
-  this->buffer_[this->insert_pos_] = item;
-  this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
-}
-void RingBuffer::push(const uint8_t *data, size_t len) {
-  size_t free = this->get_free_space();
-  if (len > free)
-    len = free;
-  for (size_t i = 0; i != len; i++) {
-    this->buffer_[this->insert_pos_] = *data++;
-    this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
-  }
-}
-
-uint8_t RingBuffer::pop() {
-  uint8_t item = this->buffer_[this->read_pos_];
-  this->read_pos_ = (this->read_pos_ + 1) % this->buffer_size_;
-  return item;
-}
-size_t RingBuffer::pop(uint8_t *data, size_t len) {
-  len = std::min(len, this->get_available());
-  for (size_t i = 0; i != len; i++) {
-    *data++ = this->buffer_[this->read_pos_];
-    this->read_pos_ = (this->read_pos_ + 1) % this->buffer_size_;
-  }
-  return len;
-}
 void USBUartChannelBase::write_array(const uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
     ESP_LOGD(TAG, "Channel not initialised - write ignored");
@@ -188,10 +159,10 @@ uart::UARTFlushResult USBUartChannelBase::flush() {
 }
 
 bool USBUartChannelBase::peek_byte(uint8_t *data) {
-  if (this->input_buffer_.is_empty()) {
+  if (this->input_buffer_.empty()) {
     return false;
   }
-  *data = this->input_buffer_.peek();
+  *data = this->input_buffer_.front();
   return true;
 }
 bool USBUartChannelBase::read_array(uint8_t *data, size_t len) {
@@ -206,9 +177,7 @@ bool USBUartChannelBase::read_array(uint8_t *data, size_t len) {
     len = available;
     status = false;
   }
-  for (size_t i = 0; i != len; i++) {
-    *data++ = this->input_buffer_.pop();
-  }
+  this->input_buffer_.pop(data, len);
   this->parent_->start_input(this);
   return status;
 }
@@ -233,7 +202,7 @@ void USBUartComponent::loop() {
 
     // If there is not enough space for the full chunk, let the device subclass
     // handle it (e.g. FTDI clears the buffer to prevent mid-telegram corruption).
-    if (channel->input_buffer_.get_free_space() < chunk->length) {
+    if (channel->input_buffer_.capacity() - channel->input_buffer_.size() < chunk->length) {
       this->on_rx_overflow(channel);
     }
     // Push data to ring buffer (now safe in main loop)
