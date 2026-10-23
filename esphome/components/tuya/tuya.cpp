@@ -695,20 +695,20 @@ void Tuya::set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8
   this->set_raw_datapoint_value_(datapoint_id, value, false);
 }
 
-void Tuya::set_boolean_datapoint_value(uint8_t datapoint_id, bool value) {
-  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::BOOLEAN, value, 1, false);
+void Tuya::set_boolean_datapoint_value(uint8_t datapoint_id, bool value, bool forced) {
+  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::BOOLEAN, value, 1, forced);
 }
 
-void Tuya::set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value) {
-  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::INTEGER, value, 4, false);
+void Tuya::set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value, bool forced) {
+  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::INTEGER, value, 4, forced);
 }
 
 void Tuya::set_string_datapoint_value(uint8_t datapoint_id, const std::string &value) {
   this->set_string_datapoint_value_(datapoint_id, value, false);
 }
 
-void Tuya::set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value) {
-  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::ENUM, value, 1, false);
+void Tuya::set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value, bool forced) {
+  this->set_numeric_datapoint_value_(datapoint_id, TuyaDatapointType::ENUM, value, 1, forced);
 }
 
 void Tuya::set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length) {

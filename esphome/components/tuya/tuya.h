@@ -99,11 +99,12 @@ class Tuya final : public Component, public uart::UARTDevice {
     this->register_listener_(datapoint_id, Callback<void(const TuyaDatapoint &)>::create(std::forward<F>(func)));
   }
   void set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
-  void set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
-  void set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
+  // forced sends even when the value matches the last MCU report
+  void set_boolean_datapoint_value(uint8_t datapoint_id, bool value, bool forced = false);
+  void set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value, bool forced = false);
   void set_status_pin(InternalGPIOPin *status_pin) { this->status_pin_ = status_pin; }
   void set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
-  void set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value);
+  void set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value, bool forced = false);
   void set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length);
   void force_set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
   void force_set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
