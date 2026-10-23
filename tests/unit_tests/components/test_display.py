@@ -1,4 +1,4 @@
-"""Tests for display.add_writer and display.has_writer."""
+"""Tests for display.add_writer and display.config_has_writer."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -55,5 +55,5 @@ async def test_add_writer_without_lambda_does_nothing() -> None:
         ({CONF_SHOW_TEST_CARD: False}, False),
     ],
 )
-def test_has_writer(config: dict, expected: bool) -> None:
-    assert display.has_writer(config) is expected
+def test_config_has_writer(config: dict, expected: bool) -> None:
+    assert display.config_has_writer(config) is expected

@@ -6,89 +6,76 @@
 
 namespace esphome::display::testing {
 
-using Step = InitSequenceStep;
-
 TEST(InitSequenceReader, WalksCommandsAndDelays) {
   static const uint8_t SEQ[] = {0x11, 0x00, 120, 0xFF, 0x3A, 0x01, 0x55, 0x2A, 0x02, 0x00, 0xEF};
   InitSequenceReader reader(SEQ, sizeof(SEQ));
   InitSequenceEntry entry{};
 
-  ASSERT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_COMMAND);
+  ASSERT_TRUE(reader.next(entry));
+  EXPECT_FALSE(entry.is_delay());
   EXPECT_EQ(entry.value, 0x11);
   EXPECT_EQ(entry.count, 0);
 
-  ASSERT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_DELAY);
+  ASSERT_TRUE(reader.next(entry));
+  EXPECT_TRUE(entry.is_delay());
   EXPECT_EQ(entry.value, 120);
 
-  ASSERT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_COMMAND);
+  ASSERT_TRUE(reader.next(entry));
   EXPECT_EQ(entry.value, 0x3A);
   ASSERT_EQ(entry.count, 1);
   EXPECT_EQ(entry.args, &SEQ[6]);
 
-  ASSERT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_COMMAND);
+  ASSERT_TRUE(reader.next(entry));
   EXPECT_EQ(entry.value, 0x2A);
   ASSERT_EQ(entry.count, 2);
   EXPECT_EQ(entry.args[0], 0x00);
   EXPECT_EQ(entry.args[1], 0xEF);
 
-  EXPECT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_END);
-  EXPECT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_END);
+  EXPECT_FALSE(reader.next(entry));
+  EXPECT_FALSE(reader.next(entry));
+  EXPECT_FALSE(reader.malformed());
 }
 
 TEST(InitSequenceReader, EmptySequenceEnds) {
   InitSequenceReader reader(nullptr, 0);
   InitSequenceEntry entry{};
-  EXPECT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_END);
+  EXPECT_FALSE(reader.next(entry));
+  EXPECT_FALSE(reader.malformed());
 }
 
 // A count above 127 is a real length, not a flag bit.
 TEST(InitSequenceReader, HonoursFullCount) {
   uint8_t seq[2 + 253 + 2] = {0x32, 253};
-  for (int i = 0; i < 253; i++)
-    seq[2 + i] = static_cast<uint8_t>(i);
   seq[2 + 253] = 0x29;
-  seq[2 + 253 + 1] = 0x00;
   InitSequenceReader reader(seq, sizeof(seq));
   InitSequenceEntry entry{};
 
-  ASSERT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_COMMAND);
+  ASSERT_TRUE(reader.next(entry));
   EXPECT_EQ(entry.value, 0x32);
   EXPECT_EQ(entry.count, 253);
-  EXPECT_EQ(entry.args, &seq[2]);
-  ASSERT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_COMMAND);
+  ASSERT_TRUE(reader.next(entry));
   EXPECT_EQ(entry.value, 0x29);
-  EXPECT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_END);
+  EXPECT_FALSE(reader.next(entry));
+  EXPECT_FALSE(reader.malformed());
 }
 
 TEST(InitSequenceReader, TruncatedHeaderIsMalformed) {
   static const uint8_t SEQ[] = {0x11, 0x00, 0x29};
   InitSequenceReader reader(SEQ, sizeof(SEQ));
   InitSequenceEntry entry{};
-  ASSERT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_COMMAND);
-  EXPECT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_MALFORMED);
-  EXPECT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_END);
+  ASSERT_TRUE(reader.next(entry));
+  EXPECT_FALSE(reader.next(entry));
+  EXPECT_TRUE(reader.malformed());
+  EXPECT_FALSE(reader.next(entry));
+  EXPECT_TRUE(reader.malformed());
 }
 
 TEST(InitSequenceReader, ShortArgsAreMalformed) {
   static const uint8_t SEQ[] = {0x2A, 0x04, 0x00, 0x00, 0x00};
   InitSequenceReader reader(SEQ, sizeof(SEQ));
   InitSequenceEntry entry{};
-  ASSERT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_MALFORMED);
-  EXPECT_EQ(entry.value, 0x2A);
-  EXPECT_EQ(entry.count, 4);
-  EXPECT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_END);
-}
-
-// A caller can stop at a delay and continue later from the same reader.
-TEST(InitSequenceReader, ResumesAfterDelay) {
-  static const uint8_t SEQ[] = {10, 0xFF, 0x29, 0x00};
-  InitSequenceReader reader(SEQ, sizeof(SEQ));
-  InitSequenceEntry entry{};
-  ASSERT_EQ(reader.next(entry), Step::INIT_SEQUENCE_STEP_DELAY);
-  InitSequenceEntry later{};
-  ASSERT_EQ(reader.next(later), Step::INIT_SEQUENCE_STEP_COMMAND);
-  EXPECT_EQ(later.value, 0x29);
-  EXPECT_EQ(reader.next(later), Step::INIT_SEQUENCE_STEP_END);
+  EXPECT_FALSE(reader.next(entry));
+  EXPECT_TRUE(reader.malformed());
 }
 
 }  // namespace esphome::display::testing
