@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_PORT,
 )
-from esphome.core import ID
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -180,8 +179,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_pixel_format(config[CONF_PIXEL_FORMAT]))
     if (password := config.get(CONF_PASSWORD)) is not None:
         cg.add_define("USE_VNC_AUTH")
-        key_id = ID(f"{config[CONF_ID]}_auth_key", is_declaration=True, type=cg.uint8)
-        key = cg.progmem_array(key_id, cg.ArrayInitializer(*vnc_auth_key(password)))
+        key = cg.shared_progmem_array(
+            f"{config[CONF_ID]}_auth_key",
+            cg.uint8,
+            cg.ArrayInitializer(*vnc_auth_key(password)),
+        )
         cg.add(var.set_auth_key(key))
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

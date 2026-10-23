@@ -320,6 +320,20 @@ def test_password_emits_bit_reversed_key(
     assert password[:8] not in code
 
 
+def test_auth_key_name_does_not_clash_with_an_id(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
+) -> None:
+    main_cpp = generate_main(
+        write_yaml(
+            IT8951,
+            "\nvnc:\n  - id: remote\n    host: 192.168.1.20\n    password: secret\n",
+            "\nglobals:\n  - id: remote_auth_key\n    type: int\n",
+        )
+    )
+
+    assert re.search(r"remote->set_auth_key\(remote_auth_key_\w+\);", main_cpp)
+
+
 def test_long_password_warns(
     generate_main: Callable[[str | Path], str],
     write_yaml: Callable[..., Path],
