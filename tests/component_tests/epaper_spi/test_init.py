@@ -636,6 +636,22 @@ def _gdey029z95_config(**overrides: Any) -> ConfigType:
     return config
 
 
+def test_waveshare_7p5in_hd_b_uses_the_ssd1677_bwr_driver() -> None:
+    """The 7.5" HD (B) uses EPaperSSD1677BWR, and its 528 rows are the last of the controller's 680 gates."""
+    model = MODELS["WAVESHARE-7.5IN-HD-B"]
+
+    assert model.class_name == "EPaperSSD1677BWR"
+    assert model.get_dimensions({}) == (880, 528)
+    assert model.get_constructor_args({}) == (152,)
+    assert model.get_init_sequence({}) == (
+        (0x0C, 0xAE, 0xC7, 0xC3, 0xC0, 0x40),
+        (0x01, 0xA7, 0x02, 0x01),
+        (0x11, 0x01),
+        (0x3C, 0x01),
+        (0x18, 0x80),
+    )
+
+
 def test_gdey029z95_uses_the_good_display_driver() -> None:
     """The GDEY029Z95 uses EPaperGoodDisplay3C with the WeAct init sequence."""
     model = MODELS[GDEY029Z95.upper()]
