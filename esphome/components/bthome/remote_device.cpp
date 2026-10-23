@@ -1,5 +1,6 @@
 #include "remote_device.h"
 #include "decoder.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::bthome::client {
@@ -40,13 +41,19 @@ bool RemoteDeviceBase::matches_(const ble_device_base::ESPBTDevice &device, cons
 
 // The spec asks for a new packet ID whenever the data changes, but some firmware (pvvx ATC_MiThermometer)
 // alternates several different payloads under one packet ID. Only a payload already seen under the
-// current packet ID is treated as a duplicate.
-bool RemoteDeviceBase::is_duplicate_(uint8_t packet_id, const uint8_t *payload, size_t payload_size) {
+// current packet ID is treated as a duplicate. Frames without a packet ID are filtered the same way,
+// but only while the copies arrive within NO_PACKET_ID_REPEAT_MS of each other.
+bool RemoteDeviceBase::is_duplicate_(optional<uint8_t> packet_id, const uint8_t *payload, size_t payload_size,
+                                     uint32_t now) {
   uint32_t hash = FNV1_OFFSET_BASIS;
   for (size_t i = 0; i < payload_size; i++)
     hash = fnv1a_hash_extend(hash, payload[i]);
 
-  if (this->last_packet_id_ != packet_id) {
+  // A restarted transmitter can send the same packet ID again, so a pause forgets what was seen.
+  const uint32_t window = packet_id.has_value() ? PACKET_ID_RESET_MS : NO_PACKET_ID_REPEAT_MS;
+  const bool pause = now - this->last_frame_ms_ >= window;
+  this->last_frame_ms_ = now;
+  if (this->last_packet_id_ != packet_id || pause) {
     this->last_packet_id_ = packet_id;
     this->seen_payload_count_ = 0;
     this->next_seen_payload_ = 0;
@@ -98,16 +105,16 @@ bool RemoteDeviceBase::parse_data(const ble_device_base::ESPBTDevice &device, co
 
   BTHomePayloadDecoder decoder(payload, payload_size);
 
-  // Ignore repeated packets using the optional packet ID field (object type 0x00).
-  // Since objects are in ascending order, PACKET_ID always appears first if present.
+  // Ignore repeated frames. The packet ID (object type 0x00) is optional; since objects are in
+  // ascending order, it always appears first if present.
   auto it = decoder.begin();
-  if (it != decoder.end() && (*it).type == BTHomeObjectType::PACKET_ID) {
-    const uint8_t packet_id = (*it).data[0];
-    if (this->is_duplicate_(packet_id, payload, payload_size)) {
-      char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-      ESP_LOGVV(TAG, "Duplicate packet ID %u from %s, ignoring", packet_id, device.address_str_to(addr_buf));
-      return true;
-    }
+  optional<uint8_t> packet_id;
+  if (it != decoder.end() && (*it).type == BTHomeObjectType::PACKET_ID)
+    packet_id = (*it).data[0];
+  if (this->is_duplicate_(packet_id, payload, payload_size, App.get_loop_component_start_time())) {
+    char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    ESP_LOGVV(TAG, "Repeated frame from %s, ignoring", device.address_str_to(addr_buf));
+    return true;
   }
 
   size_t index = 0;
