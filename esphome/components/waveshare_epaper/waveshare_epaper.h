@@ -35,7 +35,14 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
 
   void setup_pins_();
 
-  void reset_() { pulse_reset(this->reset_pin_, {.low_ms = this->reset_duration_, .high_after_ms = 20}); }
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(false);
+      delay(reset_duration_);  // NOLINT
+      this->reset_pin_->digital_write(true);
+      delay(20);
+    }
+  }
 
   virtual int get_width_controller() { return this->get_width_internal(); };
 
@@ -827,7 +834,16 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
 
   int get_height_internal() override;
 
-  void reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 200, .low_ms = 5, .high_after_ms = 200}); }
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+      this->reset_pin_->digital_write(false);
+      delay(5);
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+    }
+  };
 
   void init_display_();
 };
@@ -856,7 +872,16 @@ class WaveshareEPaper7P5InBV3BWR : public WaveshareEPaperBWR {
 
   int get_height_internal() override;
 
-  void reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 200, .low_ms = 5, .high_after_ms = 200}); }
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+      this->reset_pin_->digital_write(false);
+      delay(5);
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+    }
+  };
 
   void init_display_();
 };
@@ -918,7 +943,16 @@ class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {
   void dump_config() override;
 
  protected:
-  void reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 200, .low_ms = 2, .high_after_ms = 20}); }
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+      this->reset_pin_->digital_write(false);
+      delay(2);
+      this->reset_pin_->digital_write(true);
+      delay(20);
+    }
+  };
 };
 
 class WaveshareEPaper7P5InV2P : public WaveshareEPaper {

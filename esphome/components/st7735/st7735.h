@@ -62,6 +62,7 @@ class ST7735 final : public display::DisplayBuffer,
 
   void write_display_data_();
 
+  void init_reset_();
   void display_init_(const uint8_t *addr);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;

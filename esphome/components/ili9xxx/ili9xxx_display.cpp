@@ -84,7 +84,7 @@ void ILI9XXXDisplay::setup_pins_() {
 
   this->spi_setup();
 
-  pulse_reset(this->reset_pin_, {.low_ms = 20, .high_after_ms = 20});
+  this->reset_();
 }
 
 void ILI9XXXDisplay::dump_config() {
@@ -425,6 +425,15 @@ void ILI9XXXDisplay::start_data_() {
 
 void ILI9XXXDisplay::end_command_() { this->disable(); }
 void ILI9XXXDisplay::end_data_() { this->disable(); }
+
+void ILI9XXXDisplay::reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(20);
+    this->reset_pin_->digital_write(true);
+    delay(20);
+  }
+}
 
 void ILI9XXXDisplay::init_lcd_(const uint8_t *addr) {
   if (addr == nullptr)

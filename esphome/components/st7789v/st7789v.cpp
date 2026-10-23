@@ -19,7 +19,7 @@ void ST7789V::setup() {
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
 
-  pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 1, .high_after_ms = 5});
+  this->init_reset_();
 
   this->write_command_(ST7789_SLPOUT);  // Sleep out
   delay(120);                           // NOLINT
@@ -198,6 +198,20 @@ void ST7789V::write_display_data() {
   }
 
   this->disable();
+}
+
+void ST7789V::init_reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->setup();
+    this->reset_pin_->digital_write(true);
+    delay(1);
+    // Trigger Reset
+    this->reset_pin_->digital_write(false);
+    delay(1);
+    // Wake up
+    this->reset_pin_->digital_write(true);
+    delay(5);
+  }
 }
 
 void ST7789V::backlight_(bool onoff) {
