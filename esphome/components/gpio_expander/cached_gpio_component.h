@@ -30,8 +30,8 @@ class InterruptExpanderComponent : public Component {
 };
 
 /// Base for expanders that cache reads per loop. With an interrupt pin the cache stays valid until INT fires.
-template<typename T, uint16_t N, typename P = typename std::conditional<(N > 256), uint16_t, uint8_t>::type>
-class CachedGpioExpanderComponent : public InterruptExpanderComponent, public CachedGpioExpander<T, N, P> {
+template<typename T, uint16_t N>
+class CachedGpioExpanderComponent : public InterruptExpanderComponent, public CachedGpioExpander<T, N> {
  public:
   void loop() override {
     this->reset_pin_cache_();
