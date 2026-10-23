@@ -49,20 +49,20 @@ bool MCP251XFD::setup_internal() {
   this->write_register_(REG_NBTCFG, this->nominal_bit_timing_);
   this->write_register_(REG_DBTCFG, this->data_bit_timing_);
   this->write_register_(REG_TDC, this->transmitter_delay_compensation_);
-  bool timing_error = false;
+  bool timing_valid = true;
   if (uint32_t timing; !this->read_register_(REG_NBTCFG, timing) || timing != this->nominal_bit_timing_) {
     ESP_LOGE(TAG, "Nominal Bit Timing register verification failed");
-    timing_error = true;
+    timing_valid = false;
   }
   if (uint32_t timing; !this->read_register_(REG_DBTCFG, timing) || timing != this->data_bit_timing_) {
     ESP_LOGE(TAG, "Data Bit Timing register verification failed");
-    timing_error = true;
+    timing_valid = false;
   }
   if (uint32_t timing; !this->read_register_(REG_TDC, timing) || timing != this->transmitter_delay_compensation_) {
     ESP_LOGE(TAG, "Transmitter Delay Compensation register verification failed");
-    timing_error = true;
+    timing_valid = false;
   }
-  if (timing_error) {
+  if (!timing_valid) {
     return false;
   }
 
@@ -237,11 +237,26 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
     return canbus::ERROR_FAILTX;
 
   const uint8_t length = canbus::can_dlc_to_len(frame->can_data_length_code);
-  if (length == canbus::CAN_INVALID_DLC || (!frame->fd && length > canbus::CAN_MAX_DATA_LENGTH) ||
-      (frame->fd && (frame->remote_transmission_request || this->mcp_mode_ == CanMode::CAN_MODE_CLASSIC)) ||
-      (!frame->fd && frame->bit_rate_switch) ||
-      frame->can_id > (frame->use_extended_id ? EXTENDED_ID_MASK : STANDARD_ID_MASK))
+  if (length == canbus::CAN_INVALID_DLC)
     return canbus::ERROR_FAILTX;
+  if (!frame->fd) {
+    if (length > canbus::CAN_MAX_DATA_LENGTH)
+      return canbus::ERROR_FAILTX;
+  }
+  if (frame->fd) {
+    if (frame->remote_transmission_request)
+      return canbus::ERROR_FAILTX;
+    if (this->mcp_mode_ == CanMode::CAN_MODE_CLASSIC)
+      return canbus::ERROR_FAILTX;
+  } else if (frame->bit_rate_switch) {
+    return canbus::ERROR_FAILTX;
+  }
+  if (frame->use_extended_id) {
+    if (frame->can_id > EXTENDED_ID_MASK)
+      return canbus::ERROR_FAILTX;
+  } else if (frame->can_id > STANDARD_ID_MASK) {
+    return canbus::ERROR_FAILTX;
+  }
 
   uint8_t status;
   if (!this->read_registers_(REG_TX_FIFO_STA, &status, 1))
@@ -254,13 +269,23 @@ canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
     return canbus::ERROR_FAILTX;
 
   uint8_t message[MESSAGE_SIZE]{};
-  const uint32_t id =
-      frame->use_extended_id ? (frame->can_id >> 18) | ((frame->can_id & EXTENDED_ID_LOW_MASK) << 11) : frame->can_id;
+  uint32_t id;
+  ;
+  if (frame->use_extended_id)
+    id = (frame->can_id >> 18) | ((frame->can_id & EXTENDED_ID_LOW_MASK) << 11);
+  else
+    id = frame->can_id;
   for (uint8_t i = 0; i < 4; i++)
     message[i] = id >> (8 * i);
-  message[4] = frame->can_data_length_code | (frame->use_extended_id ? MESSAGE_IDE : 0) |
-               (frame->remote_transmission_request ? MESSAGE_RTR : 0) | (frame->fd ? MESSAGE_FDF : 0) |
-               (frame->bit_rate_switch ? MESSAGE_BRS : 0);
+  message[4] = frame->can_data_length_code;
+  if (frame->use_extended_id)
+    message[4] |= MESSAGE_IDE;
+  if (frame->remote_transmission_request)
+    message[4] |= MESSAGE_RTR;
+  if (frame->fd)
+    message[4] |= MESSAGE_FDF;
+  if (frame->bit_rate_switch)
+    message[4] |= MESSAGE_BRS;
   if (!frame->remote_transmission_request)
     std::memcpy(message + 8, frame->data, length);
 
@@ -290,23 +315,32 @@ canbus::Error MCP251XFD::read_message(canbus::CanFrame *frame) {
     return canbus::ERROR_FAIL;
   this->write_byte_(REG_RX_FIFO_CON + 1, FIFO_INCREMENT);
 
-  const uint32_t id =
-      uint32_t{message[0]} | (uint32_t{message[1]} << 8) | (uint32_t{message[2]} << 16) | (uint32_t{message[3]} << 24);
+  const uint32_t id = message[0] | static_cast<uint32_t>(message[1]) << 8 | static_cast<uint32_t>(message[2]) << 16 |
+                      static_cast<uint32_t>(message[3]) << 24;
   frame->use_extended_id = (message[4] & MESSAGE_IDE) != 0;
-  frame->can_id = frame->use_extended_id ? ((id & STANDARD_ID_MASK) << 18) | ((id >> 11) & EXTENDED_ID_LOW_MASK)
-                                         : id & STANDARD_ID_MASK;
+  if (frame->use_extended_id)
+    frame->can_id = ((id & STANDARD_ID_MASK) << 18) | ((id >> 11) & EXTENDED_ID_LOW_MASK);
+  else
+    frame->can_id = id & STANDARD_ID_MASK;
   frame->remote_transmission_request = (message[4] & MESSAGE_RTR) != 0;
   frame->fd = (message[4] & MESSAGE_FDF) != 0;
-  frame->bit_rate_switch = frame->fd && (message[4] & MESSAGE_BRS) != 0;
-  frame->error_state_indicator = frame->fd && (message[5] & MESSAGE_ESI) != 0;
-  if (frame->fd && frame->remote_transmission_request) {
-    this->status_set_warning(LOG_STR("Invalid CAN FD frame: RTR is not supported"));
-    return canbus::ERROR_FAIL;
+  frame->bit_rate_switch = false;
+  frame->error_state_indicator = false;
+  if (frame->fd) {
+    if (frame->remote_transmission_request) {
+      this->status_set_warning(LOG_STR("Invalid CAN FD frame: RTR is not supported"));
+      return canbus::ERROR_FAIL;
+    }
+    frame->bit_rate_switch = (message[4] & MESSAGE_BRS) != 0;
+    frame->error_state_indicator = (message[5] & MESSAGE_ESI) != 0;
   }
   frame->can_data_length_code = message[4] & MESSAGE_DLC_MASK;
   // Classic CAN DLC values 9..15 still represent eight data bytes.
-  const uint8_t length = frame->fd ? canbus::can_dlc_to_len(frame->can_data_length_code)
-                                   : std::min(frame->can_data_length_code, canbus::CAN_MAX_DATA_LENGTH);
+  uint8_t length;
+  if (frame->fd)
+    length = canbus::can_dlc_to_len(frame->can_data_length_code);
+  else
+    length = std::min(frame->can_data_length_code, canbus::CAN_MAX_DATA_LENGTH);
   std::memset(frame->data, 0, sizeof(frame->data));
   if (!frame->remote_transmission_request)
     std::memcpy(frame->data, message + 8, length);
@@ -329,28 +363,39 @@ canbus::CanEventFlags MCP251XFD::get_events() {
 
   uint8_t events = 0;
   if (!this->read_register_(REG_TREC, this->last_trec_)) {
-    return static_cast<canbus::CanEventFlags>((this->last_error_flags_ & ERROR_BUS_OFF) ? canbus::CAN_EVENT_BUS_OFF
-                                                                                        : 0);
+    if (this->last_error_flags_ & ERROR_BUS_OFF)
+      return static_cast<canbus::CanEventFlags>(canbus::CAN_EVENT_BUS_OFF);
+    return static_cast<canbus::CanEventFlags>(0);
   }
   const uint8_t error_flags = this->last_trec_ >> 16;
   const bool was_passive = (this->last_error_flags_ & (ERROR_RX_PASSIVE | ERROR_TX_PASSIVE)) != 0;
   const bool is_passive = (error_flags & (ERROR_RX_PASSIVE | ERROR_TX_PASSIVE)) != 0;
-  if (was_passive != is_passive)
-    events |= is_passive ? canbus::CAN_EVENT_PASSIVE : canbus::CAN_EVENT_ACTIVE;
+  if (was_passive != is_passive) {
+    if (is_passive)
+      events |= canbus::CAN_EVENT_PASSIVE;
+    else
+      events |= canbus::CAN_EVENT_ACTIVE;
+  }
   if (error_flags & ERROR_BUS_OFF)
     events |= canbus::CAN_EVENT_BUS_OFF;
   this->last_error_flags_ = error_flags;
 
   uint8_t fifo_status;
-  if (this->read_registers_(REG_RX_FIFO_STA, &fifo_status, 1) && (fifo_status & FIFO_RX_OVERFLOW)) {
-    events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
-    this->write_byte_(REG_RX_FIFO_STA, static_cast<uint8_t>(~FIFO_RX_OVERFLOW));
+  const bool fifo_status_read = this->read_registers_(REG_RX_FIFO_STA, &fifo_status, 1);
+  if (fifo_status_read) {
+    if (fifo_status & FIFO_RX_OVERFLOW) {
+      events |= canbus::CAN_EVENT_RX_QUEUE_FULL;
+      this->write_byte_(REG_RX_FIFO_STA, static_cast<uint8_t>(~FIFO_RX_OVERFLOW));
+    }
   }
   uint8_t interrupt_flags;
-  if (this->read_registers_(REG_INT + 1, &interrupt_flags, 1) && (interrupt_flags & INT_SYSTEM_ERROR)) {
-    ESP_LOGW(TAG, "CAN system error (SERRIF): RX frame loss or TX halted. Check SPI RAM read timing");
-    // SERRIF is latched, not a frame-loss counter. Clear only this flag using write-zero-to-clear.
-    this->write_byte_(REG_INT + 1, static_cast<uint8_t>(~INT_SYSTEM_ERROR));
+  const bool interrupt_flags_read = this->read_registers_(REG_INT + 1, &interrupt_flags, 1);
+  if (interrupt_flags_read) {
+    if (interrupt_flags & INT_SYSTEM_ERROR) {
+      ESP_LOGW(TAG, "CAN system error (SERRIF): RX frame loss or TX halted. Check SPI RAM read timing");
+      // SERRIF is latched, not a frame-loss counter. Clear only this flag using write-zero-to-clear.
+      this->write_byte_(REG_INT + 1, static_cast<uint8_t>(~INT_SYSTEM_ERROR));
+    }
   }
   return static_cast<canbus::CanEventFlags>(events);
 }
