@@ -301,8 +301,8 @@ void RuntimeImage::release_buffer_() {
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
 #ifdef USE_LVGL
-    // A widget may still hold the descriptor
-    this->get_lv_image_dsc();
+    // A widget may still hold the descriptor. Not a virtual call: this also runs from the destructor
+    this->RuntimeImage::get_lv_image_dsc();
 #endif
   }
 }
