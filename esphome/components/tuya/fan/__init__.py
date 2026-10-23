@@ -48,4 +48,3 @@ async def to_code(config):
     cg.add_optional(var.set_oscillation_id, config.get(CONF_OSCILLATION_DATAPOINT))
     cg.add_optional(var.set_direction_id, config.get(CONF_DIRECTION_DATAPOINT))
     cg.add_optional(var.set_optimistic, config.get(CONF_OPTIMISTIC))
-    
