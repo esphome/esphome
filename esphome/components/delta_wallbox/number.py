@@ -1,13 +1,11 @@
 import esphome.config_validation as cv
 from esphome.components import number
-from esphome.const import ENTITY_CATEGORY_CONFIG, UNIT_AMPERE
+from esphome.const import ENTITY_CATEGORY_CONFIG, UNIT_AMPERE, CONF_MAX_CURRENT
 from esphome.types import ConfigType
 
 from . import CONF_DELTA_WALLBOX_ID, DeltaWallbox
 
 DEPENDENCIES = ["delta_wallbox"]
-
-CONF_MAX_CURRENT = "max_current"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -16,6 +14,7 @@ CONFIG_SCHEMA = cv.Schema(
             number.ApplyNumber,
             unit_of_measurement=UNIT_AMPERE,
             entity_category=ENTITY_CATEGORY_CONFIG,
+            icon="mdi:flash",
         ),
     }
 )
