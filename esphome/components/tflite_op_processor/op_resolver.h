@@ -4,6 +4,7 @@
 
 #ifdef USE_TFLITE_MICRO_HELPER
 
+#include <cstdint>
 #include <set>
 #include <type_traits>
 #include <utility>
@@ -51,11 +52,25 @@ void log_op_failed(const char *tag, const char *op_name);
 // When tflite_micro_runtime codegen knows the operator set of every configured
 // model, it emits USE_TFLITE_MICRO_SELECTIVE_OPS and one TFLM_OP_ENABLED_<suffix>
 // flag per table entry (1 = compiled in, 0 = left out). Without those defines
-// every operator stays available, which is what a model swap at run time needs.
-#ifdef USE_TFLITE_MICRO_SELECTIVE_OPS
-#define TFLM_OP_FLAG(op_suffix) TFLM_OP_ENABLED_##op_suffix
-#else
-#define TFLM_OP_FLAG(op_suffix) 1
+// every operator stays available, which is what a model swap at run time needs;
+// the flags are then expanded from the table itself in flags mode.
+//
+// Both the flags and the switch below paste the name from the table suffix, so a
+// suffix is never macro-expanded on the way. A helper macro taking the suffix as
+// an argument would receive it already expanded: ARG_MAX is 65536 on ESP-IDF, so
+// that entry would turn into TFLM_OP_ENABLED_65536 and fail to compile.
+#ifndef USE_TFLITE_MICRO_SELECTIVE_OPS
+#define TFLM_OP_AVAILABLE(op_suffix, method) TFLM_OP_ENABLED_##op_suffix = 1,
+#define TFLM_OP_UNAVAILABLE(op_suffix)
+#define TFLM_OP_CONDITIONAL(op_suffix, method) TFLM_OP_ENABLED_##op_suffix = 1,
+enum : uint8_t {
+#define TFLM_OPERATORS_FLAGS
+#include "tflm_operators.h"
+#undef TFLM_OPERATORS_FLAGS
+};
+#undef TFLM_OP_AVAILABLE
+#undef TFLM_OP_UNAVAILABLE
+#undef TFLM_OP_CONDITIONAL
 #endif
 
 class OpResolverManager {
@@ -80,7 +95,7 @@ class OpResolverManager {
       switch (op) {
 #define TFLM_OP_AVAILABLE(op_suffix, method) \
   case tflite::BuiltinOperator_##op_suffix: \
-    if constexpr (TFLM_OP_FLAG(op_suffix)) { \
+    if constexpr (TFLM_OP_ENABLED_##op_suffix) { \
       add_status = resolver.method(); \
     } else { \
       log_op_not_compiled(tag, op_name); \
@@ -95,7 +110,7 @@ class OpResolverManager {
 
 #define TFLM_OP_CONDITIONAL(op_suffix, method) \
   case tflite::BuiltinOperator_##op_suffix: \
-    if constexpr (TFLM_OP_FLAG(op_suffix)) { \
+    if constexpr (TFLM_OP_ENABLED_##op_suffix) { \
       if constexpr (has_##method<Resolver>::value) { \
         add_status = resolver.method(); \
       } else { \
@@ -114,7 +129,6 @@ class OpResolverManager {
 #undef TFLM_OP_AVAILABLE
 #undef TFLM_OP_UNAVAILABLE
 #undef TFLM_OP_CONDITIONAL
-#undef TFLM_OP_FLAG
 
         default:
           log_op_unknown(tag, op_name);
