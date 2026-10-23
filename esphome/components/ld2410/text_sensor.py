@@ -15,6 +15,8 @@ from . import CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]
 
+CONF_CALIBRATION_RESULT = "calibration_result"
+
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
@@ -24,6 +26,9 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_BLUETOOTH
     ),
+    cv.Optional(CONF_CALIBRATION_RESULT): text_sensor.text_sensor_schema(
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon="mdi:radar"
+    ),
 }
 
 
@@ -32,3 +37,4 @@ async def to_code(config: ConfigType) -> None:
     text_sensors = text_sensor.sub_text_sensors(config)
     await text_sensors(CONF_VERSION, hub.set_version_text_sensor)
     await text_sensors(CONF_MAC_ADDRESS, hub.set_mac_text_sensor)
+    await text_sensors(CONF_CALIBRATION_RESULT, hub.set_calibration_result_text_sensor)

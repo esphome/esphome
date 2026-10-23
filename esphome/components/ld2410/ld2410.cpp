@@ -156,6 +156,19 @@ static constexpr uint8_t CMD_QUERY_MAC_ADDRESS = 0xA5;
 static constexpr uint8_t CMD_RESET = 0xA2;
 static constexpr uint8_t CMD_RESTART = 0xA3;
 static constexpr uint8_t CMD_BLUETOOTH = 0xA4;
+// Automatic background-noise correction (firmware >= V2.44, common to LD2410 /
+// LD2410B / LD2410C). 0x0B starts the routine; 0x1B queries its progress.
+static constexpr uint8_t CMD_BG_CORRECTION_START = 0x0B;
+static constexpr uint8_t CMD_BG_CORRECTION_QUERY = 0x1B;
+// Status byte returned in the 0x1B query ACK: 0 = idle, 1 = in progress, 2 = done.
+static constexpr uint8_t BG_CORRECTION_COMPLETED = 0x02;
+// How often we poll 0x1B from loop() while a correction is running.
+static constexpr uint32_t BG_CORRECTION_POLL_INTERVAL_MS = 1000;
+static constexpr uint32_t BG_CORRECTION_SAFETY_MARGIN_MS = 3000;
+// After accepting 0x0B the module waits a fixed ~10 s warm-up before it begins
+// measuring, so the safety deadline must allow for it on top of the requested window;
+// otherwise it elapses before the module can ever report completion.
+static constexpr uint32_t BG_CORRECTION_WARMUP_MS = 10000;
 // Commands values
 static constexpr uint8_t CMD_MAX_MOVE_VALUE = 0x00;
 static constexpr uint8_t CMD_MAX_STILL_VALUE = 0x01;
@@ -163,6 +176,13 @@ static constexpr uint8_t CMD_DURATION_VALUE = 0x02;
 // Bitmasks for target states
 static constexpr uint8_t MOVE_BITMASK = 0x01;
 static constexpr uint8_t STILL_BITMASK = 0x02;
+// While background correction runs, the module repurposes the target-state byte to
+// report calibration progress (0x04 running, 0x05 success, 0x06 failure) instead of
+// real presence. Normal presence only uses 0x00-0x03, so any value >= this is a
+// calibration status frame and must not drive the target sensors.
+static constexpr uint8_t TARGET_STATE_CALIBRATING_MIN = 0x04;
+static constexpr uint8_t TARGET_STATE_BG_SUCCESS = 0x05;
+static constexpr uint8_t TARGET_STATE_BG_FAILED = 0x06;
 // Header & Footer size
 static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
 // Command Header & Footer
@@ -194,6 +214,7 @@ void LD2410Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "MovingTarget", this->moving_target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "StillTarget", this->still_target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "OutPinPresenceStatus", this->out_pin_presence_status_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Calibration", this->calibration_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
   ESP_LOGCONFIG(TAG, "Sensors:");
@@ -214,6 +235,7 @@ void LD2410Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Text Sensors:");
   LOG_TEXT_SENSOR("  ", "Mac", this->mac_text_sensor_);
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "CalibrationResult", this->calibration_result_text_sensor_);
 #endif
 #ifdef USE_NUMBER
   ESP_LOGCONFIG(TAG, "Numbers:");
@@ -245,6 +267,7 @@ void LD2410Component::dump_config() {
   LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
   LOG_BUTTON("  ", "Query", this->query_button_);
   LOG_BUTTON("  ", "Restart", this->restart_button_);
+  LOG_BUTTON("  ", "BackgroundCorrection", this->background_correction_button_);
 #endif
 }
 
@@ -274,6 +297,19 @@ void LD2410Component::restart_and_read_all_info() {
 }
 
 void LD2410Component::loop() {
+  // Drive background-correction polling here instead of the scheduler to avoid
+  // runtime heap allocation (set_interval/set_timeout allocate a SchedulerItem).
+  if (this->bg_correction_running_) {
+    const uint32_t now = millis();
+    if ((int32_t) (now - this->bg_correction_deadline_) >= 0) {
+      // Completion was never reported (e.g. firmware predating 0x1B); clear the
+      // indicator so it can never latch on forever.
+      this->finish_background_correction_(BgCorrectionResult::TIMED_OUT);
+    } else if ((int32_t) (now - this->bg_correction_next_poll_) >= 0) {
+      this->bg_correction_next_poll_ = now + BG_CORRECTION_POLL_INTERVAL_MS;
+      this->query_background_correction_();
+    }
+  }
   // Read all available bytes in batches to reduce UART call overhead.
   size_t avail = this->available();
   uint8_t buf[MAX_LINE_LENGTH];
@@ -333,6 +369,13 @@ void LD2410Component::handle_periodic_data_() {
     this->engineering_mode_switch_->publish_state(engineering_mode);
   }
 #endif
+  // The 0x1B query reports only idle/running/done, so the frame byte is the only pass/fail
+  // signal. Keep the last one, and let the 0x1B "done" poll decide when the run ends.
+  const uint8_t frame_state = this->buffer_data_[TARGET_STATES];
+  if (this->bg_correction_running_ &&
+      (frame_state == TARGET_STATE_BG_SUCCESS || frame_state == TARGET_STATE_BG_FAILED)) {
+    this->bg_correction_frame_result_ = frame_state;
+  }
 #ifdef USE_BINARY_SENSOR
   /*
     Target states: 9th
@@ -341,15 +384,20 @@ void LD2410Component::handle_periodic_data_() {
     0x02 = Still targets
     0x03 = Moving+Still targets
   */
-  char target_state = this->buffer_data_[TARGET_STATES];
-  if (this->target_binary_sensor_ != nullptr) {
-    this->target_binary_sensor_->publish_state(target_state != 0x00);
-  }
-  if (this->moving_target_binary_sensor_ != nullptr) {
-    this->moving_target_binary_sensor_->publish_state(target_state & MOVE_BITMASK);
-  }
-  if (this->still_target_binary_sensor_ != nullptr) {
-    this->still_target_binary_sensor_->publish_state(target_state & STILL_BITMASK);
+  uint8_t target_state = this->buffer_data_[TARGET_STATES];
+  // During background correction the module reports calibration progress in this byte
+  // (>= 0x04) rather than real presence. Skip those frames so an empty room being
+  // calibrated isn't published as occupied and doesn't trigger presence automations.
+  if (target_state < TARGET_STATE_CALIBRATING_MIN) {
+    if (this->target_binary_sensor_ != nullptr) {
+      this->target_binary_sensor_->publish_state(target_state != 0x00);
+    }
+    if (this->moving_target_binary_sensor_ != nullptr) {
+      this->moving_target_binary_sensor_->publish_state(target_state & MOVE_BITMASK);
+    }
+    if (this->still_target_binary_sensor_ != nullptr) {
+      this->still_target_binary_sensor_->publish_state(target_state & STILL_BITMASK);
+    }
   }
 #endif
   /*
@@ -431,6 +479,10 @@ bool LD2410Component::handle_ack_data_() {
   }
   if (this->buffer_data_[8] || this->buffer_data_[9]) {
     ESP_LOGW(TAG, "Invalid command: %02X, %02X", this->buffer_data_[8], this->buffer_data_[9]);
+    if (this->buffer_data_[COMMAND] == CMD_BG_CORRECTION_START ||
+        this->buffer_data_[COMMAND] == CMD_BG_CORRECTION_QUERY) {
+      this->finish_background_correction_(BgCorrectionResult::REFUSED);
+    }
     return true;
   }
 
@@ -529,6 +581,27 @@ bool LD2410Component::handle_ack_data_() {
     case CMD_GATE_SENS:
       ESP_LOGV(TAG, "Sensitivity");
       break;
+
+    case CMD_BG_CORRECTION_START:
+      ESP_LOGV(TAG, "Background correction started");
+      break;
+
+    case CMD_BG_CORRECTION_QUERY: {
+      // First value byte holds the routine's state: 0 idle, 1 running, 2 done.
+      const uint8_t status = this->buffer_data_[10];
+      ESP_LOGV(TAG, "Background correction status: %u", status);
+      if (status == BG_CORRECTION_COMPLETED) {
+        // Only the module's own 0x05/0x06 frame decides pass or fail.
+        BgCorrectionResult result = BgCorrectionResult::UNCONFIRMED;
+        if (this->bg_correction_frame_result_ == TARGET_STATE_BG_SUCCESS) {
+          result = BgCorrectionResult::SUCCESS;
+        } else if (this->bg_correction_frame_result_ == TARGET_STATE_BG_FAILED) {
+          result = BgCorrectionResult::FAILED;
+        }
+        this->finish_background_correction_(result);
+      }
+      break;
+    }
 
     case CMD_BLUETOOTH:
       ESP_LOGV(TAG, "Bluetooth");
@@ -683,6 +756,90 @@ void LD2410Component::get_mac_() {
 void LD2410Component::get_distance_resolution_() { this->send_command_(CMD_QUERY_DISTANCE_RESOLUTION, nullptr, 0); }
 
 void LD2410Component::query_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
+
+void LD2410Component::start_background_correction() {
+  if (this->bg_correction_running_) {
+    ESP_LOGW(TAG, "Background correction already running; ignoring request");
+    return;
+  }
+  ESP_LOGI(TAG, "Starting background correction (%u s); room must be empty (leave fixed clutter in place)",
+           this->bg_correction_duration_);
+  // The module runs the routine in normal reporting mode, so open config only
+  // long enough to issue the command, then close it again.
+  this->set_config_mode_(true);
+  const uint8_t value[2] = {lowbyte(this->bg_correction_duration_), highbyte(this->bg_correction_duration_)};
+  this->send_command_(CMD_BG_CORRECTION_START, value, sizeof(value));
+  this->set_config_mode_(false);
+  this->bg_correction_frame_result_ = 0;
+  this->set_background_correction_running_(true);
+  this->publish_calibration_result_("Running");
+  // Poll the module for real completion from loop() instead of trusting a fixed
+  // timer. The safety deadline clears the indicator if completion is never reported
+  // (e.g. firmware predating 0x1B); it includes the module's fixed warm-up so it
+  // can't elapse before the routine has even started measuring.
+  const uint32_t now = millis();
+  this->bg_correction_next_poll_ = now + BG_CORRECTION_POLL_INTERVAL_MS;
+  this->bg_correction_deadline_ =
+      now + (uint32_t) this->bg_correction_duration_ * 1000 + BG_CORRECTION_WARMUP_MS + BG_CORRECTION_SAFETY_MARGIN_MS;
+}
+
+void LD2410Component::query_background_correction_() {
+  this->set_config_mode_(true);
+  this->send_command_(CMD_BG_CORRECTION_QUERY, nullptr, 0);
+  this->set_config_mode_(false);
+}
+
+void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
+  if (!this->bg_correction_running_) {
+    return;
+  }
+  // Clearing the flag stops the poll/deadline checks in loop().
+  this->set_background_correction_running_(false);
+  switch (result) {
+    case BgCorrectionResult::SUCCESS:
+      ESP_LOGI(TAG, "Background correction succeeded; refreshing thresholds");
+      this->publish_calibration_result_("Success");
+      break;
+    case BgCorrectionResult::FAILED:
+      ESP_LOGW(TAG, "Background correction failed; the room was likely not empty");
+      this->publish_calibration_result_("Failed");
+      break;
+    case BgCorrectionResult::UNCONFIRMED:
+      ESP_LOGW(TAG, "Background correction finished without a pass or fail frame");
+      this->publish_calibration_result_("Unconfirmed");
+      break;
+    case BgCorrectionResult::REFUSED:
+      ESP_LOGW(TAG, "Background correction command refused by the module");
+      this->publish_calibration_result_("Refused");
+      return;
+    case BgCorrectionResult::TIMED_OUT:
+      ESP_LOGW(TAG, "Background correction window elapsed without a completion report");
+      this->publish_calibration_result_("Timed out");
+      return;
+  }
+  // The module reports completion either way and may have rewritten its gate
+  // thresholds; re-read them so any exposed number entities reflect the module.
+  this->set_config_mode_(true);
+  this->query_parameters_();
+  this->set_config_mode_(false);
+}
+
+void LD2410Component::set_background_correction_running_(bool running) {
+  this->bg_correction_running_ = running;
+#ifdef USE_BINARY_SENSOR
+  if (this->calibration_binary_sensor_ != nullptr) {
+    this->calibration_binary_sensor_->publish_state(running);
+  }
+#endif
+}
+
+void LD2410Component::publish_calibration_result_(const char *state) {
+#ifdef USE_TEXT_SENSOR
+  if (this->calibration_result_text_sensor_ != nullptr) {
+    this->calibration_result_text_sensor_->publish_state(state);
+  }
+#endif
+}
 
 #ifdef USE_NUMBER
 void LD2410Component::set_max_distances_timeout() {
