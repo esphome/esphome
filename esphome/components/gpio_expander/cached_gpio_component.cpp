@@ -21,7 +21,7 @@ bool InterruptExpanderComponent::attach_interrupt_pin_() {
 // Input changes that straddle the read leave INT asserted without a new falling edge, so keep looping
 // until the line is released or the expander would keep stale state forever.
 void InterruptExpanderComponent::disable_loop_when_released_() {
-  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read())
+  if (this->interrupt_pin_->digital_read())
     this->disable_loop();
 }
 
