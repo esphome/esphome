@@ -8,6 +8,7 @@ ESP-IDF platform/framework compatibility defaults.
 """
 
 from collections.abc import Callable
+import contextlib
 import logging
 import os
 from pathlib import Path
@@ -308,6 +309,13 @@ def _write_sbom_yml(component: IDFComponent) -> None:
         target.unlink()
 
 
+def _remove_generated_sbom_yml(target: Path) -> None:
+    """Remove ``target`` if ESPHome wrote it, so a failed run leaves no stale version."""
+    with contextlib.suppress(OSError, ValueError):
+        if target.read_text(encoding="utf-8").startswith(SBOM_YML_HEADER):
+            target.unlink()
+
+
 def _emit_idf_component(component: IDFComponent) -> None:
     """Write the ESP-IDF build files for a resolved library into its cache dir."""
     from esphome.components.esp32 import get_esp32_variant
@@ -333,6 +341,7 @@ def _emit_idf_component(component: IDFComponent) -> None:
         _LOGGER.warning(
             "SBOM: could not write sbom.yml for %s: %s", component.name, err
         )
+        _remove_generated_sbom_yml(component.path / "sbom.yml")
 
 
 def generate_idf_components(

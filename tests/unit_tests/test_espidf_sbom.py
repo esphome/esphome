@@ -366,25 +366,86 @@ def _editable_direct_url(path: Path) -> str:
     return json.dumps({"url": path.as_uri(), "dir_info": {"editable": True}})
 
 
+def _fake_git(outputs: dict[str, str | Exception]):
+    """Answer git commands by their longest matching argument prefix."""
+
+    def run(cmd: list[str], git_dir: Path) -> str:
+        args = " ".join(cmd[1:])
+        prefix = max((p for p in outputs if args.startswith(p)), key=len)
+        if isinstance(result := outputs[prefix], Exception):
+            raise result
+        return result
+
+    return run
+
+
+def _checkout_outputs(**overrides: str | Exception) -> dict[str, str | Exception]:
+    outputs: dict[str, str | Exception] = {
+        "rev-parse HEAD": "abc",
+        "rev-parse --abbrev-ref HEAD": "dev",
+        "config --get branch.dev.remote": "origin",
+        "remote get-url origin": "https://user:token@github.com/someone/esphome.git",
+        "status": "",
+        "branch --remotes": "  origin/dev",
+    }
+    outputs.update({k.replace("_", " "): v for k, v in overrides.items()})
+    return outputs
+
+
 def test_esphome_vcs_editable_checkout(tmp_path: Path) -> None:
     """An editable install from a git clone is described by that clone."""
     (tmp_path / ".git").mkdir()
     dist = MagicMock()
     dist.read_text.return_value = _editable_direct_url(tmp_path)
-    outputs = {
-        "rev-parse": "abc",
-        "ls-remote": "https://user:token@github.com/someone/esphome.git",
-        "status": "",
-        "branch": "  origin/dev",
-    }
     with (
         patch("importlib.metadata.distribution", return_value=dist),
         patch.object(
-            sbom, "run_git_command", side_effect=lambda cmd, git_dir: outputs[cmd[1]]
+            sbom, "run_git_command", side_effect=_fake_git(_checkout_outputs())
         ) as run_git,
     ):
         assert sbom._esphome_vcs() == ("https://github.com/someone/esphome.git", "abc")
     assert {call.kwargs["git_dir"] for call in run_git.call_args_list} == {tmp_path}
+
+
+def test_checkout_vcs_tracked_remote(tmp_path: Path) -> None:
+    """The URL and the pushed check both use the remote the branch tracks."""
+    (tmp_path / ".git").mkdir()
+    outputs = _checkout_outputs()
+    outputs["config --get branch.dev.remote"] = "fork"
+    outputs["remote get-url fork"] = "git@github.com:me/esphome.git"
+    with patch.object(sbom, "run_git_command", side_effect=_fake_git(outputs)) as run:
+        assert sbom._checkout_vcs(tmp_path) == ("git@github.com:me/esphome.git", "abc")
+    assert ["git", "branch", "--remotes", "--contains", "HEAD", "--list", "fork/*"] in [
+        call.args[0] for call in run.call_args_list
+    ]
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        # Detached HEAD: falls back to origin
+        (
+            {"config --get branch.dev.remote": GitCommandError("unset")},
+            ("https://github.com/someone/esphome.git", "abc"),
+        ),
+        # No remote at all: nothing that can be fetched
+        ({"remote get-url origin": GitCommandError("no such remote")}, (None, None)),
+        # Pushed check fails: keep the repository, drop the commit
+        (
+            {"branch --remotes": GitCommandError("bad ref")},
+            ("https://github.com/someone/esphome.git", None),
+        ),
+    ],
+    ids=["detached", "no-remote", "pushed-check-fails"],
+)
+def test_checkout_vcs_remote_fallbacks(
+    tmp_path: Path, overrides: dict[str, str | Exception], expected: tuple
+) -> None:
+    (tmp_path / ".git").mkdir()
+    outputs = _checkout_outputs()
+    outputs.update(overrides)
+    with patch.object(sbom, "run_git_command", side_effect=_fake_git(outputs)):
+        assert sbom._checkout_vcs(tmp_path) == expected
 
 
 def test_esphome_vcs_editable_without_git(tmp_path: Path) -> None:
@@ -411,17 +472,13 @@ def test_esphome_vcs_editable_not_exact(
     (tmp_path / ".git").mkdir()
     dist = MagicMock()
     dist.read_text.return_value = _editable_direct_url(tmp_path)
-    outputs = {
-        "rev-parse": "abc",
-        "ls-remote": "git@github.com:someone/esphome.git",
-        "status": status,
-        "branch": branch,
-    }
+    outputs = _checkout_outputs()
+    outputs["remote get-url origin"] = "git@github.com:someone/esphome.git"
+    outputs["status"] = status
+    outputs["branch --remotes"] = branch
     with (
         patch("importlib.metadata.distribution", return_value=dist),
-        patch.object(
-            sbom, "run_git_command", side_effect=lambda cmd, git_dir: outputs[cmd[1]]
-        ),
+        patch.object(sbom, "run_git_command", side_effect=_fake_git(outputs)),
     ):
         assert sbom._esphome_vcs() == ("git@github.com:someone/esphome.git", None)
 
@@ -487,9 +544,14 @@ def test_esphome_vcs_unknown_warns_without_url(
 def test_write_manifests_never_fails_the_build(
     build_tree: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """A failed run logs and removes the earlier build's manifests."""
+    for path in (build_tree / "sbom.yml", build_tree / "src" / "sbom.yml"):
+        path.write_text("name: stale\n")
     with patch.object(sbom, "_write_manifests", side_effect=OSError("disk full")):
         sbom.write_manifests()
     assert "could not write sbom.yml manifests: disk full" in caplog.text
+    assert not (build_tree / "sbom.yml").exists()
+    assert not (build_tree / "src" / "sbom.yml").exists()
 
 
 def test_source_commit_failure_warns(caplog: pytest.LogCaptureFixture) -> None:

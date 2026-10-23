@@ -10,6 +10,7 @@ esp-idf-sbom aborts on a malformed manifest, so only values that pass its
 validation are written.
 """
 
+import contextlib
 import importlib.metadata
 import json
 import logging
@@ -96,18 +97,34 @@ def _https_repo_url(url: str) -> str:
     return f"https://{host}/{path.lstrip('/')}"
 
 
+def _checkout_remote(path: Path) -> tuple[str, str] | None:
+    """Return the name and URL of the remote the branch tracks (else origin), if any."""
+    try:
+        branch = run_git_command(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"], git_dir=path
+        )
+        remote = run_git_command(
+            ["git", "config", "--get", f"branch.{branch}.remote"], git_dir=path
+        )
+    except GitException:
+        # Detached HEAD or a branch that tracks nothing
+        remote = "origin"
+    try:
+        return remote, run_git_command(
+            ["git", "remote", "get-url", remote], git_dir=path
+        )
+    except GitException:
+        return None
+
+
 def _checkout_vcs(path: Path) -> _Source | None:
     """Describe the git checkout at ``path``; None if it is not a checkout."""
     if not (path / ".git").exists():
         return None
     try:
         commit = run_git_command(["git", "rev-parse", "HEAD"], git_dir=path)
-        url = run_git_command(["git", "ls-remote", "--get-url"], git_dir=path)
         modified = run_git_command(
             ["git", "status", "--porcelain", "--untracked-files=no"], git_dir=path
-        )
-        pushed = run_git_command(
-            ["git", "branch", "--remotes", "--contains", "HEAD"], git_dir=path
         )
     except GitException as err:
         _LOGGER.warning(
@@ -117,6 +134,19 @@ def _checkout_vcs(path: Path) -> _Source | None:
             err,
         )
         return _Source(None, None)
+    if (remote := _checkout_remote(path)) is None:
+        # Local-only clone: nothing that can be fetched to name
+        return _Source(None, None)
+    name, url = remote
+    try:
+        # Only the remote the URL comes from counts, or the PURL could name a
+        # commit that exists in another remote only
+        pushed = run_git_command(
+            ["git", "branch", "--remotes", "--contains", "HEAD", "--list", f"{name}/*"],
+            git_dir=path,
+        )
+    except GitException:
+        pushed = ""
     if modified or not pushed:
         # A PURL would name code other than what was built, or that no one can fetch
         return _Source(strip_url_credentials(url), None)
@@ -271,6 +301,13 @@ def write_manifests() -> None:
         _write_manifests()
     except (OSError, ValueError) as err:
         _LOGGER.warning("SBOM: could not write sbom.yml manifests: %s", err)
+        # Manifests from an earlier build would describe other firmware
+        for path in (
+            CORE.relative_build_path(SBOM_FILENAME),
+            CORE.relative_src_path(SBOM_FILENAME),
+        ):
+            with contextlib.suppress(OSError):
+                path.unlink(missing_ok=True)
 
 
 def _write_manifests() -> None:
