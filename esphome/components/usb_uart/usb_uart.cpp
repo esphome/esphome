@@ -202,7 +202,7 @@ void USBUartComponent::loop() {
 
     // If there is not enough space for the full chunk, let the device subclass
     // handle it (e.g. FTDI clears the buffer to prevent mid-telegram corruption).
-    if (channel->input_buffer_.capacity() - channel->input_buffer_.size() < chunk->length) {
+    if (channel->input_buffer_.free_space() < chunk->length) {
       this->on_rx_overflow(channel);
     }
     // Push data to ring buffer (now safe in main loop)
