@@ -1,6 +1,6 @@
 """End-to-end test of `store_yaml` recovery over the native API.
 
-Uses the raw client: released aioesphomeapi does not know GetYamlResponse yet.
+Uses the raw client so a test controls when it reads; aioesphomeapi has no get_yaml helper.
 """
 
 from __future__ import annotations
@@ -16,17 +16,19 @@ from esphome.helpers import zstd_module
 from esphome.yaml_util import find_secret_references
 
 from .log_utils import LineWaiter
-from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient, decode_fields
+from .raw_api_client import MESSAGE_TYPE_OF, RawApiClient
 from .types import RunCompiledFunction
 
-# Not in the released aioesphomeapi yet; see esphome/components/api/api.proto.
-GET_YAML_REQUEST = 161
-GET_YAML_RESPONSE = 162
-# DeviceCapabilitiesResponse.store_yaml and StoreYamlCapabilities.supported
-CAPABILITIES_STORE_YAML_FIELD = 7
-STORE_YAML_SUPPORTED_FIELD = 1
-# GetYamlResponse fields
-DATA_FIELD, DONE_FIELD, TOTAL_SIZE_FIELD = 1, 2, 3
+GET_YAML_RESPONSE = MESSAGE_TYPE_OF[api_pb2.GetYamlResponse]
+
+
+async def _read_yaml_stream(client: RawApiClient) -> list[api_pb2.GetYamlResponse]:
+    """Read GetYamlResponse chunks up to and including the one marked done."""
+    responses: list[api_pb2.GetYamlResponse] = []
+    while not responses or not responses[-1].done:
+        payload = await client.read_frame(GET_YAML_RESPONSE)
+        responses.append(api_pb2.GetYamlResponse.FromString(payload))
+    return responses
 
 
 @pytest.mark.asyncio
@@ -41,19 +43,16 @@ async def test_store_yaml_recovery(
 
         # Clients learn the device can answer get_yaml from its capabilities.
         await client.send_message(api_pb2.DeviceCapabilitiesRequest())
-        capabilities = decode_fields(
+        capabilities = api_pb2.DeviceCapabilitiesResponse.FromString(
             await client.read_frame(MESSAGE_TYPE_OF[api_pb2.DeviceCapabilitiesResponse])
         )
-        (store_yaml,) = capabilities[CAPABILITIES_STORE_YAML_FIELD]
-        assert decode_fields(store_yaml).get(STORE_YAML_SUPPORTED_FIELD) == [1]
+        assert capabilities.store_yaml.supported
 
-        await client.send_raw(GET_YAML_REQUEST, b"")
-        responses: list[dict[int, list[int | bytes]]] = []
-        while not responses or responses[-1].get(DONE_FIELD) != [1]:
-            responses.append(decode_fields(await client.read_frame(GET_YAML_RESPONSE)))
+        await client.send_message(api_pb2.GetYamlRequest())
+        responses = await _read_yaml_stream(client)
 
-    compressed = b"".join(r[DATA_FIELD][0] for r in responses if DATA_FIELD in r)
-    assert responses[0][TOTAL_SIZE_FIELD] == [len(compressed)]
+    compressed = b"".join(r.data for r in responses)
+    assert responses[0].total_size == len(compressed)
 
     envelope = zstd_module().decompress(compressed)
     files = unpack_envelope(envelope)
@@ -93,19 +92,17 @@ async def test_store_yaml_recovery_backpressure(
         # Without the pin the kernel buffers could swallow the stall
         await log.wait_for("SO_SNDBUF pinned to", timeout=10.0)
         await client.connect("store_yaml backpressure test")
-        await client.send_raw(GET_YAML_REQUEST, b"")
+        await client.send_message(api_pb2.GetYamlRequest())
         # Stop reading so the device fills both buffers and has to resume later
         await asyncio.sleep(0.5)
-        responses: list[dict[int, list[int | bytes]]] = []
-        while not responses or responses[-1].get(DONE_FIELD) != [1]:
-            responses.append(decode_fields(await client.read_frame(GET_YAML_RESPONSE)))
+        responses = await _read_yaml_stream(client)
 
-    chunks = [r[DATA_FIELD][0] for r in responses]
+    chunks = [r.data for r in responses]
     compressed = b"".join(chunks)
     assert len(compressed) > 4 * (SERVER_SNDBUF + RECV_BUFFER_SIZE)
     assert len(responses) > 1 and all(len(c) <= CHUNK_LIMIT for c in chunks)
-    assert all(r.get(DONE_FIELD) != [1] for r in responses[:-1])
-    assert responses[0][TOTAL_SIZE_FIELD] == [len(compressed)]
+    assert not any(r.done for r in responses[:-1])
+    assert responses[0].total_size == len(compressed)
     combined = b"\n".join(
         unpack_envelope(zstd_module().decompress(compressed)).values()
     )
