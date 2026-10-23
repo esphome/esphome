@@ -47,7 +47,7 @@ def _one_hub_per_bus(config: ConfigType) -> ConfigType:
     data = bytes(config[CONF_DATA])
     first = True
     for other in fv.platform_entries(
-        "binary_sensor", "uart", **{CONF_UART_ID: config[CONF_UART_ID]}
+        "binary_sensor", "uart", {CONF_UART_ID: config[CONF_UART_ID]}
     ):
         if other is config:
             break  # Every sensor before this one on the bus has been seen
