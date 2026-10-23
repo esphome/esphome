@@ -67,6 +67,10 @@ TEST(LedStripHelpers, ViewFallsBackToScratchBeforeSetup) {
   EXPECT_EQ(scratch.get_effect_data(), 0);
   GRBW.view(buf.data(), nullptr, 0, &correction) = Color(1, 2, 3, 4);
   EXPECT_EQ(buf, (std::array<uint8_t, 4>{}));
+  // Effect data without a buffer is left alone too
+  std::array<uint8_t, 4> effect{};
+  GRBW.view(nullptr, effect.data(), 3, &correction).set_effect_data(5);
+  EXPECT_EQ(effect, (std::array<uint8_t, 4>{}));
 }
 
 TEST(LedStripHelpers, ThrottleShowHoldsTheFrame) {

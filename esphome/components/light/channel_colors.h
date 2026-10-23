@@ -56,6 +56,7 @@ struct ChannelColors {
     static uint8_t scratch[4];
     if (buf == nullptr || effect_data == nullptr) {
       buf = scratch;
+      effect_data = nullptr;
       index = 0;
     }
     uint8_t *led = buf + index * this->bytes_per_led();
