@@ -117,7 +117,9 @@ void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint
     ESP_LOGE(TAG, "Request of %u bytes is too long", static_cast<unsigned>(data.size()));
     return;
   }
-  // Not byte stuffed, as in the author's original: no capture shows whether the box expects it on requests
+  // Not byte stuffed, as in the author's original and no capture shows a request with 0xAA. An 0xAA followed by any
+  // byte but 0x01 or 0x55 reads the same with or without unstuffing on the box, so only those rare pairs are
+  // unverified.
   const size_t size = data.size();
   const uint8_t id = this->next_id_();
   uint8_t frame[5 + MAX_REQUEST_DATA + 2] = {HEADER_START, HEADER_END, static_cast<uint8_t>(size + 2), function, id};
