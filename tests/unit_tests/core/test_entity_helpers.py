@@ -1370,7 +1370,7 @@ def _component_source_calls(pattern: str) -> set[tuple[str, ...]]:
     return {
         match if isinstance(match, tuple) else (match,)
         for path in components.rglob("*.py")
-        for match in re.findall(pattern, path.read_text())
+        for match in re.findall(pattern, path.read_text(encoding="utf-8"))
     }
 
 
