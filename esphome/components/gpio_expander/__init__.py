@@ -1,6 +1,8 @@
 from esphome import pins
+import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ALLOW_OTHER_USES, CONF_INTERRUPT_PIN, CONF_INVERTED
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 DOMAIN = "gpio_expander"
@@ -22,3 +24,13 @@ def validate_interrupt_pin(value: ConfigType) -> ConfigType:
             f"Remove the '{CONF_INTERRUPT_PIN}' to fall back to polling."
         )
     return value
+
+
+INTERRUPT_PIN_SCHEMA = cv.Schema(
+    {cv.Optional(CONF_INTERRUPT_PIN): validate_interrupt_pin}
+)
+
+
+async def register_interrupt_pin(var: MockObj, config: ConfigType) -> None:
+    """Set the optional interrupt pin of a CachedGpioExpanderComponent."""
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))

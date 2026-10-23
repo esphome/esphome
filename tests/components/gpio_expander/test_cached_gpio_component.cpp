@@ -1,0 +1,93 @@
+#include <gtest/gtest.h>
+
+#include "esphome/components/gpio_expander/cached_gpio_component.h"
+
+namespace esphome::gpio_expander::testing {
+
+class FakeComponent : public CachedGpioExpanderComponent<uint8_t, 8> {
+ public:
+  void setup() override { this->setup_interrupt_pin_(); }
+  void pin_mode(uint8_t pin, gpio::Flags flags) {
+    if (flags & gpio::FLAG_INPUT)
+      this->enable_polling_loop_();
+  }
+
+  unsigned reads{0};
+
+ protected:
+  bool digital_read_hw(uint8_t pin) override {
+    this->reads++;
+    return true;
+  }
+  bool digital_read_cache(uint8_t pin) override { return false; }
+  void digital_write_hw(uint8_t pin, bool value) override {}
+};
+
+class CachedGpioComponentTest : public ::testing::Test {
+ protected:
+  FakeComponent component_;
+  InternalGPIOPin int_pin_;  // digital_read() returns the inverted flag on the host, so it doubles as the level
+};
+
+TEST_F(CachedGpioComponentTest, SetupPriorityIsIo) {
+  EXPECT_EQ(this->component_.get_setup_priority(), setup_priority::IO);
+}
+
+TEST_F(CachedGpioComponentTest, InputEnablesPollingOnlyWithoutAnInterruptPin) {
+  this->component_.setup();
+  ASSERT_TRUE(this->component_.is_idle());
+  this->component_.pin_mode(0, gpio::FLAG_OUTPUT);
+  EXPECT_TRUE(this->component_.is_idle());
+  this->component_.pin_mode(0, gpio::FLAG_INPUT);
+  EXPECT_TRUE(this->component_.is_in_loop_state());
+
+  FakeComponent with_interrupt;
+  with_interrupt.set_interrupt_pin(&this->int_pin_);
+  with_interrupt.setup();
+  ASSERT_TRUE(with_interrupt.is_idle());
+  with_interrupt.pin_mode(0, gpio::FLAG_INPUT);
+  EXPECT_TRUE(with_interrupt.is_idle());
+}
+
+TEST_F(CachedGpioComponentTest, WithoutAnInterruptPinEveryReadHitsTheChip) {
+  this->component_.setup();
+  this->component_.digital_read(0);
+  this->component_.digital_read(0);
+  EXPECT_EQ(this->component_.reads, 2u);
+}
+
+TEST_F(CachedGpioComponentTest, InterruptPinKeepsTheCacheUntilTheLoopRuns) {
+  this->component_.set_interrupt_pin(&this->int_pin_);
+  this->component_.setup();
+  this->component_.digital_read(0);
+  this->component_.digital_read(0);
+  EXPECT_EQ(this->component_.reads, 1u);
+
+  this->component_.loop();
+  this->component_.digital_read(0);
+  EXPECT_EQ(this->component_.reads, 2u);
+}
+
+TEST_F(CachedGpioComponentTest, LoopStaysOnUntilIntIsReleased) {
+  this->component_.set_interrupt_pin(&this->int_pin_);
+  this->component_.setup();
+  this->component_.enable_loop();
+  ASSERT_TRUE(this->component_.is_in_loop_state());
+
+  this->int_pin_.set_inverted(false);  // INT still low
+  this->component_.loop();
+  EXPECT_TRUE(this->component_.is_in_loop_state());
+
+  this->int_pin_.set_inverted(true);  // INT released
+  this->component_.loop();
+  EXPECT_TRUE(this->component_.is_idle());
+}
+
+TEST_F(CachedGpioComponentTest, PollingLoopNeverDisablesItself) {
+  this->component_.setup();
+  this->component_.pin_mode(0, gpio::FLAG_INPUT);
+  this->component_.loop();
+  EXPECT_TRUE(this->component_.is_in_loop_state());
+}
+
+}  // namespace esphome::gpio_expander::testing
