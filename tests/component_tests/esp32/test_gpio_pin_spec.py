@@ -3,24 +3,27 @@
 import pytest
 
 from esphome.components.const import CONF_HOLD_STATE
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+)
+from esphome.components.esp32.gpio import _esp32_validations
 from esphome.components.esp32.gpio_common import (
     ESP32PinSpec,
     spi_psram_errors,
     unusable_errors,
 )
-from esphome.components.esp32.gpio_esp32 import ESP32_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_c2 import ESP32_C2_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_c3 import ESP32_C3_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_c5 import ESP32_C5_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_c6 import ESP32_C6_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_c61 import ESP32_C61_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_h2 import ESP32_H2_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_h4 import ESP32_H4_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_h21 import ESP32_H21_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_p4 import ESP32_P4_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_s2 import ESP32_S2_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_s3 import ESP32_S3_PIN_SPEC
-from esphome.components.esp32.gpio_esp32_s31 import ESP32_S31_PIN_SPEC
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_IGNORE_STRAPPING_WARNING,
@@ -65,13 +68,22 @@ def _conf(num: int, hold: bool = False, **mode: bool) -> ConfigType:
     }
 
 
-@pytest.mark.parametrize("num", [-1, 41])
-def test_out_of_range_rejected_by_both(num: int) -> None:
-    message = rf"Invalid pin number: {num} \(must be 0-40\)"
-    with pytest.raises(cv.Invalid, match=message):
-        SPEC.validate_gpio_pin(num)
-    with pytest.raises(cv.Invalid, match=message):
-        SPEC.validate_supports(_conf(num, input=True))
+@pytest.mark.parametrize(
+    ("num", "message"),
+    [
+        (-1, "Invalid pin number: -1 (must be 0-40)"),
+        (41, "Invalid pin number: 41 (must be 0-40)"),
+        (29, "GPIO29 does not exist on ESP32-X1."),
+    ],
+)
+def test_rejected_by_both_validators(num: int, message: str) -> None:
+    for validate, value in (
+        (SPEC.validate_gpio_pin, num),
+        (SPEC.validate_supports, _conf(num, input=True)),
+    ):
+        with pytest.raises(cv.Invalid) as exc:
+            validate(value)
+        assert exc.value.msg == message
 
 
 @pytest.mark.parametrize(
@@ -92,15 +104,6 @@ def test_error_pins_only_fail_pin_validation(num: int, message: str) -> None:
         SPEC.validate_gpio_pin(num)
     assert exc.value.msg == message
     SPEC.validate_supports(_conf(num, output=True))
-
-
-def test_fatal_pins_fail_both_validators() -> None:
-    for validate, value in (
-        (SPEC.validate_gpio_pin, 29),
-        (SPEC.validate_supports, _conf(29, input=True)),
-    ):
-        with pytest.raises(cv.Invalid, match="GPIO29 does not exist on ESP32-X1."):
-            validate(value)
 
 
 def test_warning_and_usb_jtag_pins(caplog: pytest.LogCaptureFixture) -> None:
@@ -168,61 +171,80 @@ def test_ignore_strapping_warning_on_normal_pin_rejected() -> None:
         SPEC.validate_supports(conf)
 
 
-_VARIANT_SPECS = {
-    "esp32": ESP32_PIN_SPEC,
-    "c2": ESP32_C2_PIN_SPEC,
-    "c3": ESP32_C3_PIN_SPEC,
-    "c5": ESP32_C5_PIN_SPEC,
-    "c6": ESP32_C6_PIN_SPEC,
-    "c61": ESP32_C61_PIN_SPEC,
-    "h2": ESP32_H2_PIN_SPEC,
-    "h21": ESP32_H21_PIN_SPEC,
-    "h4": ESP32_H4_PIN_SPEC,
-    "p4": ESP32_P4_PIN_SPEC,
-    "s2": ESP32_S2_PIN_SPEC,
-    "s3": ESP32_S3_PIN_SPEC,
-    "s31": ESP32_S31_PIN_SPEC,
-}
 _USB_JTAG = "is used by the USB-Serial-JTAG interface"
-_OK = None
 
 
 @pytest.mark.parametrize(
     ("variant", "num", "error", "warning"),
     [
-        ("esp32", 4, _OK, _OK),
-        ("esp32", 6, "used by the flash interface (function: Flash Clock).", _OK),
-        ("esp32", 9, _OK, "Pin 9 (9-10) might already be used by the flash"),
-        ("esp32", 24, "The pin GPIO24 is not usable on ESP32s.", _OK),
-        ("esp32", 40, "Invalid pin number: 40 (must be 0-39)", _OK),
-        ("c2", 8, _OK, _OK),
-        ("c2", 21, "Invalid pin number: 21 (must be 0-20)", _OK),
-        ("c3", 12, "used on ESP32-C3s and is already used by the SPI/PSRAM", _OK),
-        ("c3", 18, _OK, _USB_JTAG),
-        ("c5", 19, "ESP32-C5s and is already used by the SPI/PSRAM interface", _OK),
-        ("c5", 13, _OK, _USB_JTAG),
-        ("c6", 27, "SPI/PSRAM interface (function: VDD_SPI)", _OK),
-        ("c6", 12, _OK, _USB_JTAG),
-        ("c61", 21, "used on ESP32-C61s and is already used by the SPI/PSRAM", _OK),
-        ("c61", 18, _OK, _OK),
-        ("h2", 6, _OK, "GPIO6 is reserved for SPI Flash communication on some"),
-        ("h2", 26, _OK, _USB_JTAG),
-        ("h2", 28, "Invalid pin number: 28 (must be 0-27)", _OK),
-        ("h21", 17, _OK, _USB_JTAG),
-        ("h4", 13, _OK, _USB_JTAG),
-        ("h4", 40, "Invalid pin number: 40 (must be 0-39)", _OK),
-        ("p4", 24, _OK, _USB_JTAG),
-        ("p4", 55, "Invalid pin number: 55 (must be 0-54)", _OK),
-        ("s2", 26, "ESP32-S2s and is already used by the SPI/PSRAM interface", _OK),
-        ("s2", 22, "The pin GPIO22 is not usable on ESP32-S2s.", _OK),
-        ("s3", 33, _OK, _OK),
-        ("s3", 19, _OK, _USB_JTAG),
-        ("s3", 25, "The pin GPIO25 is not usable on ESP32-S3s.", _OK),
-        ("s3", 32, "SPI/PSRAM interface (function: SPID)", _OK),
-        ("s31", 26, "GPIO26 is reserved for the SPI flash interface on ESP32-S31", _OK),
-        ("s31", 29, "GPIO29 does not exist on ESP32-S31.", _OK),
-        ("s31", 33, _OK, _USB_JTAG),
-        ("s31", 62, "Invalid pin number: 62 (must be 0-61)", _OK),
+        (VARIANT_ESP32, 4, None, None),
+        (
+            VARIANT_ESP32,
+            6,
+            "used by the flash interface (function: Flash Clock).",
+            None,
+        ),
+        (VARIANT_ESP32, 9, None, "Pin 9 (9-10) might already be used by the flash"),
+        (VARIANT_ESP32, 24, "The pin GPIO24 is not usable on ESP32s.", None),
+        (VARIANT_ESP32, 40, "Invalid pin number: 40 (must be 0-39)", None),
+        (VARIANT_ESP32C2, 8, None, None),
+        (VARIANT_ESP32C2, 21, "Invalid pin number: 21 (must be 0-20)", None),
+        (
+            VARIANT_ESP32C3,
+            12,
+            "used on ESP32-C3s and is already used by the SPI/PSRAM",
+            None,
+        ),
+        (VARIANT_ESP32C3, 18, None, _USB_JTAG),
+        (
+            VARIANT_ESP32C5,
+            19,
+            "ESP32-C5s and is already used by the SPI/PSRAM interface",
+            None,
+        ),
+        (VARIANT_ESP32C5, 13, None, _USB_JTAG),
+        (VARIANT_ESP32C6, 27, "SPI/PSRAM interface (function: VDD_SPI)", None),
+        (VARIANT_ESP32C6, 12, None, _USB_JTAG),
+        (
+            VARIANT_ESP32C61,
+            21,
+            "used on ESP32-C61s and is already used by the SPI/PSRAM",
+            None,
+        ),
+        (VARIANT_ESP32C61, 18, None, None),
+        (
+            VARIANT_ESP32H2,
+            6,
+            None,
+            "GPIO6 is reserved for SPI Flash communication on some",
+        ),
+        (VARIANT_ESP32H2, 26, None, _USB_JTAG),
+        (VARIANT_ESP32H2, 28, "Invalid pin number: 28 (must be 0-27)", None),
+        (VARIANT_ESP32H21, 17, None, _USB_JTAG),
+        (VARIANT_ESP32H4, 13, None, _USB_JTAG),
+        (VARIANT_ESP32H4, 40, "Invalid pin number: 40 (must be 0-39)", None),
+        (VARIANT_ESP32P4, 24, None, _USB_JTAG),
+        (VARIANT_ESP32P4, 55, "Invalid pin number: 55 (must be 0-54)", None),
+        (
+            VARIANT_ESP32S2,
+            26,
+            "ESP32-S2s and is already used by the SPI/PSRAM interface",
+            None,
+        ),
+        (VARIANT_ESP32S2, 22, "The pin GPIO22 is not usable on ESP32-S2s.", None),
+        (VARIANT_ESP32S3, 33, None, None),
+        (VARIANT_ESP32S3, 19, None, _USB_JTAG),
+        (VARIANT_ESP32S3, 25, "The pin GPIO25 is not usable on ESP32-S3s.", None),
+        (VARIANT_ESP32S3, 32, "SPI/PSRAM interface (function: SPID)", None),
+        (
+            VARIANT_ESP32S31,
+            26,
+            "GPIO26 is reserved for the SPI flash interface on ESP32-S31",
+            None,
+        ),
+        (VARIANT_ESP32S31, 29, "GPIO29 does not exist on ESP32-S31.", None),
+        (VARIANT_ESP32S31, 33, None, _USB_JTAG),
+        (VARIANT_ESP32S31, 62, "Invalid pin number: 62 (must be 0-61)", None),
     ],
 )
 def test_variant_pin_validation(
@@ -232,7 +254,7 @@ def test_variant_pin_validation(
     warning: str | None,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    spec = _VARIANT_SPECS[variant]
+    spec = _esp32_validations[variant]
     with caplog.at_level("WARNING"):
         if error is None:
             assert spec.validate_gpio_pin(num) == num
@@ -250,35 +272,55 @@ def test_variant_pin_validation(
 @pytest.mark.parametrize(
     ("variant", "conf", "error"),
     [
-        ("esp32", _conf(36, output=True), "GPIO36 (34-39) does not support output"),
-        ("esp32", _conf(39, pullup=True), "GPIO39 (34-39) does not support pullups."),
-        ("esp32", _conf(34, hold=True), "GPIO34 (34-39) is input-only and cannot"),
-        ("esp32", _conf(20, hold=True), "GPIO20 has no hold function."),
-        ("esp32", _conf(40), "Invalid pin number: 40 (must be 0-39)"),
-        ("s2", _conf(46, pulldown=True), "GPIO46 does not support pulldowns."),
-        ("s2", _conf(46, hold=True), "GPIO46 is input-only and cannot be held."),
-        ("s31", _conf(41), "GPIO41 does not exist on ESP32-S31."),
-        ("c2", _conf(21), "Invalid pin number: 21 (must be 0-20)"),
+        (
+            VARIANT_ESP32,
+            _conf(36, output=True),
+            "GPIO36 (34-39) does not support output",
+        ),
+        (
+            VARIANT_ESP32,
+            _conf(39, pullup=True),
+            "GPIO39 (34-39) does not support pullups.",
+        ),
+        (
+            VARIANT_ESP32,
+            _conf(34, hold=True),
+            "GPIO34 (34-39) is input-only and cannot",
+        ),
+        (VARIANT_ESP32, _conf(20, hold=True), "GPIO20 has no hold function."),
+        (VARIANT_ESP32, _conf(40), "Invalid pin number: 40 (must be 0-39)"),
+        (
+            VARIANT_ESP32S2,
+            _conf(46, pulldown=True),
+            "GPIO46 does not support pulldowns.",
+        ),
+        (
+            VARIANT_ESP32S2,
+            _conf(46, hold=True),
+            "GPIO46 is input-only and cannot be held.",
+        ),
+        (VARIANT_ESP32S31, _conf(41), "GPIO41 does not exist on ESP32-S31."),
+        (VARIANT_ESP32C2, _conf(21), "Invalid pin number: 21 (must be 0-20)"),
     ],
 )
 def test_variant_supports_errors(variant: str, conf: ConfigType, error: str) -> None:
     with pytest.raises(cv.Invalid) as exc:
-        _VARIANT_SPECS[variant].validate_supports(conf)
+        _esp32_validations[variant].validate_supports(conf)
     assert error in exc.value.msg
 
 
 @pytest.mark.parametrize(
     ("variant", "conf", "warnings"),
     [
-        ("esp32", _conf(0, output=True), ["GPIO0 is a strapping pin"]),
-        ("esp32", _conf(35, input=True), []),
-        ("c3", _conf(18, hold=True), ["GPIO18 cannot hold at low level"]),
+        (VARIANT_ESP32, _conf(0, output=True), ["GPIO0 is a strapping pin"]),
+        (VARIANT_ESP32, _conf(35, input=True), []),
+        (VARIANT_ESP32C3, _conf(18, hold=True), ["GPIO18 cannot hold at low level"]),
         (
-            "h4",
+            VARIANT_ESP32H4,
             _conf(13, hold=True),
             ["GPIO13 cannot hold at low level", "GPIO13 is a strapping pin"],
         ),
-        ("s3", _conf(46, input=True), ["GPIO46 is a strapping pin"]),
+        (VARIANT_ESP32S3, _conf(46, input=True), ["GPIO46 is a strapping pin"]),
     ],
 )
 def test_variant_supports_warnings(
@@ -288,7 +330,7 @@ def test_variant_supports_warnings(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level("WARNING"):
-        _VARIANT_SPECS[variant].validate_supports(conf)
+        _esp32_validations[variant].validate_supports(conf)
     assert len(caplog.messages) == len(warnings)
     for message, expected in zip(caplog.messages, warnings, strict=True):
         assert message.startswith(expected)

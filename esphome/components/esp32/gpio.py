@@ -1,7 +1,5 @@
 from collections.abc import Callable
-from dataclasses import dataclass
 import logging
-from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -95,37 +93,23 @@ def _translate_pin(value):
     return _lookup_pin(value)
 
 
-@dataclass
-class ESP32ValidationFunctions:
-    pin_validation: Callable[[int], int]
-    usage_validation: Callable[[dict[str, Any]], dict[str, Any]]
-    final_validate: Callable[[ConfigType], None] | None = None
-
-    @classmethod
-    def from_spec(
-        cls,
-        spec: ESP32PinSpec,
-        final_validate: Callable[[ConfigType], None] | None = None,
-    ) -> "ESP32ValidationFunctions":
-        return cls(spec.validate_gpio_pin, spec.validate_supports, final_validate)
-
-
-_esp32_validations = {
-    VARIANT_ESP32: ESP32ValidationFunctions.from_spec(ESP32_PIN_SPEC),
-    VARIANT_ESP32C2: ESP32ValidationFunctions.from_spec(ESP32_C2_PIN_SPEC),
-    VARIANT_ESP32C3: ESP32ValidationFunctions.from_spec(ESP32_C3_PIN_SPEC),
-    VARIANT_ESP32C5: ESP32ValidationFunctions.from_spec(ESP32_C5_PIN_SPEC),
-    VARIANT_ESP32C6: ESP32ValidationFunctions.from_spec(ESP32_C6_PIN_SPEC),
-    VARIANT_ESP32C61: ESP32ValidationFunctions.from_spec(ESP32_C61_PIN_SPEC),
-    VARIANT_ESP32H2: ESP32ValidationFunctions.from_spec(ESP32_H2_PIN_SPEC),
-    VARIANT_ESP32H4: ESP32ValidationFunctions.from_spec(ESP32_H4_PIN_SPEC),
-    VARIANT_ESP32H21: ESP32ValidationFunctions.from_spec(ESP32_H21_PIN_SPEC),
-    VARIANT_ESP32P4: ESP32ValidationFunctions.from_spec(ESP32_P4_PIN_SPEC),
-    VARIANT_ESP32S2: ESP32ValidationFunctions.from_spec(ESP32_S2_PIN_SPEC),
-    VARIANT_ESP32S3: ESP32ValidationFunctions.from_spec(
-        ESP32_S3_PIN_SPEC, esp32_s3_final_validate_pins
-    ),
-    VARIANT_ESP32S31: ESP32ValidationFunctions.from_spec(ESP32_S31_PIN_SPEC),
+_esp32_validations: dict[str, ESP32PinSpec] = {
+    VARIANT_ESP32: ESP32_PIN_SPEC,
+    VARIANT_ESP32C2: ESP32_C2_PIN_SPEC,
+    VARIANT_ESP32C3: ESP32_C3_PIN_SPEC,
+    VARIANT_ESP32C5: ESP32_C5_PIN_SPEC,
+    VARIANT_ESP32C6: ESP32_C6_PIN_SPEC,
+    VARIANT_ESP32C61: ESP32_C61_PIN_SPEC,
+    VARIANT_ESP32H2: ESP32_H2_PIN_SPEC,
+    VARIANT_ESP32H4: ESP32_H4_PIN_SPEC,
+    VARIANT_ESP32H21: ESP32_H21_PIN_SPEC,
+    VARIANT_ESP32P4: ESP32_P4_PIN_SPEC,
+    VARIANT_ESP32S2: ESP32_S2_PIN_SPEC,
+    VARIANT_ESP32S3: ESP32_S3_PIN_SPEC,
+    VARIANT_ESP32S31: ESP32_S31_PIN_SPEC,
+}
+_final_validations: dict[str, Callable[[ConfigType], None]] = {
+    VARIANT_ESP32S3: esp32_s3_final_validate_pins,
 }
 
 
@@ -155,7 +139,9 @@ def validate_gpio_pin(pin):
 
     ignore_pin_validation_warning = pin[CONF_IGNORE_PIN_VALIDATION_ERROR]
     try:
-        pin[CONF_NUMBER] = _esp32_validations[variant].pin_validation(pin[CONF_NUMBER])
+        pin[CONF_NUMBER] = _esp32_validations[variant].validate_gpio_pin(
+            pin[CONF_NUMBER]
+        )
     except cv.Invalid as exc:
         if not ignore_pin_validation_warning:
             raise
@@ -193,7 +179,7 @@ def validate_supports(value):
             "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
         )
 
-    return _esp32_validations[variant].usage_validation(value)
+    return _esp32_validations[variant].validate_supports(value)
 
 
 # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-reference/peripherals/gpio.html#_CPPv416gpio_drive_cap_t
@@ -244,6 +230,5 @@ async def esp32_pin_to_code(config):
 
 def final_validate_pins(full_config: ConfigType) -> None:
     """Run the active variant's pin final-validation, if it defines one."""
-    funcs = _esp32_validations.get(CORE.data[KEY_ESP32][KEY_VARIANT])
-    if funcs is not None and funcs.final_validate is not None:
-        funcs.final_validate(full_config)
+    if (final := _final_validations.get(CORE.data[KEY_ESP32][KEY_VARIANT])) is not None:
+        final(full_config)
