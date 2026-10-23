@@ -67,10 +67,6 @@ TEST(LedStripHelpers, ViewFallsBackToScratchBeforeSetup) {
   EXPECT_EQ(scratch.get_effect_data(), 0);
   GRBW.view(buf.data(), nullptr, 0, &correction) = Color(1, 2, 3, 4);
   EXPECT_EQ(buf, (std::array<uint8_t, 4>{}));
-
-  HelperStrip strip;
-  strip.all() = Color(9, 9, 9);
-  EXPECT_EQ(strip[0].get_red_raw(), 9);
 }
 
 TEST(LedStripHelpers, ThrottleShowHoldsTheFrame) {

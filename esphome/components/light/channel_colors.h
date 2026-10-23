@@ -51,9 +51,8 @@ struct ChannelColors {
     return traits;
   }
 
-  /// View of LED `index` in `buf`; a scratch pixel while `buf` or `effect_data` is unallocated.
+  /// View of LED `index` in `buf`; a scratch pixel while `buf` or `effect_data` is unallocated (failed setup()).
   ESPColorView view(uint8_t *buf, uint8_t *effect_data, int32_t index, const ESPColorCorrection *correction) const {
-    // After a failed setup() effects and update_state() still write pixels
     static uint8_t scratch[4];
     if (buf == nullptr || effect_data == nullptr) {
       buf = scratch;
