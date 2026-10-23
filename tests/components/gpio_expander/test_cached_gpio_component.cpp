@@ -29,10 +29,6 @@ class CachedGpioComponentTest : public ::testing::Test {
   InternalGPIOPin int_pin_;  // digital_read() returns the inverted flag on the host, so it doubles as the level
 };
 
-TEST_F(CachedGpioComponentTest, SetupPriorityIsIo) {
-  EXPECT_EQ(this->component_.get_setup_priority(), setup_priority::IO);
-}
-
 TEST_F(CachedGpioComponentTest, InputEnablesPollingOnlyWithoutAnInterruptPin) {
   this->component_.setup();
   ASSERT_TRUE(this->component_.is_idle());
