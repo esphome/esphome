@@ -2,6 +2,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+#include <cstring>
 #include <vector>
 
 // AES-CCM backend for encrypted-payload (bindkey) decryption:
@@ -498,8 +500,8 @@ void XiaomiEncryptedDevice::dump_bindkey_(const char *tag) const {
   ESP_LOGCONFIG(tag, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, sizeof(this->bindkey_), '.'));
 }
 
-void XiaomiEncryptedDevice::set_bindkey(const char *bindkey) {
-  parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_));
+void XiaomiEncryptedDevice::set_bindkey(std::initializer_list<uint8_t> bindkey) {
+  memcpy(this->bindkey_, bindkey.begin(), std::min(bindkey.size(), sizeof(this->bindkey_)));
 }
 
 bool XiaomiListener::parse_device(const ble_device_base::ESPBTDevice &device) {

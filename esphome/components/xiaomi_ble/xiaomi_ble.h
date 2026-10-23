@@ -1,8 +1,9 @@
 #pragma once
 
 #include "esphome/components/ble_device_base/ble_device.h"
-#include "esphome/core/component.h"
 #include "esphome/core/optional.h"
+
+#include <initializer_list>
 
 #include <vector>
 
@@ -98,7 +99,7 @@ class XiaomiDevice : public ble_device_base::ESPBTDeviceListener {
 /// A XiaomiDevice whose frames are encrypted with a bindkey.
 class XiaomiEncryptedDevice : public XiaomiDevice {
  public:
-  void set_bindkey(const char *bindkey);
+  void set_bindkey(std::initializer_list<uint8_t> bindkey);
   bool parse_device(const ble_device_base::ESPBTDevice &device) override {
     return this->parse_xiaomi_device_(device, this->bindkey_);
   }
