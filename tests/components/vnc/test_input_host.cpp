@@ -7,6 +7,7 @@
 namespace esphome::vnc::testing {
 
 static constexpr uint32_t KEYSYM_RETURN = 0xFF0D;
+static constexpr uint32_t KEYSYM_SHIFT_L = 0xFFE1;
 
 class VncInput : public ::testing::Test {
  protected:
@@ -145,6 +146,23 @@ TEST_F(VncInputFull, PressNeedsRoomForBothHalves) {
   c().send_key('a', VncKeyAction::VNC_KEY_ACTION_PRESS);
   c().send_key('b', VncKeyAction::VNC_KEY_ACTION_DOWN);
   EXPECT_EQ(hex(this->drain()), hex(cat({this->expected_, key(true, 'b')})));
+}
+
+TEST_F(VncInputFull, DroppedKeyUpIsSentOnceThereIsRoom) {
+  this->fill(5);
+  c().send_key(KEYSYM_SHIFT_L, VncKeyAction::VNC_KEY_ACTION_UP);
+  EXPECT_EQ(hex(this->drain()), hex(this->expected_));
+  s().loop();
+  EXPECT_EQ(hex(s().take()), hex(key(false, KEYSYM_SHIFT_L)));
+}
+
+TEST_F(VncInputFull, LaterInputWaitsForTheDroppedKeyUp) {
+  this->fill(5);
+  c().send_key(KEYSYM_SHIFT_L, VncKeyAction::VNC_KEY_ACTION_UP);
+  EXPECT_EQ(hex(this->drain()), hex(this->expected_));
+  c().send_key('a', VncKeyAction::VNC_KEY_ACTION_PRESS);
+  c().send_pointer(3, 4, 0);
+  EXPECT_EQ(hex(s().take()), hex(cat({key(false, KEYSYM_SHIFT_L), press('a'), pointer(0, 3, 4)})));
 }
 
 TEST_F(VncInputFull, TextStopsAtAWholeCharacter) {

@@ -267,6 +267,7 @@ void VncClient::loop() {
     this->service_rx_(now);
   }
   if (this->state_ == VncState::VNC_STATE_RUNNING) {
+    this->send_pending_key_up_();
 #ifdef USE_VNC_TOUCHSCREEN
     this->send_pending_release_();
 #endif
@@ -326,6 +327,7 @@ void VncClient::reset_session_() {
   this->refresh_pending_ = false;
   this->need_full_ = false;
   this->frame_drawn_ = false;
+  this->pending_key_up_ = 0;
 #ifdef USE_VNC_TOUCHSCREEN
   this->dragging_ = false;
   this->touching_ = false;
@@ -1053,6 +1055,9 @@ bool VncClient::send_update_request_(bool incremental, uint32_t now) {
 }
 
 bool VncClient::send_key_event_(uint32_t keysym, VncKeyAction action) {
+  if (!this->send_pending_key_up_()) {
+    return false;
+  }
   // A press is the down and the up event, sent whole or not at all.
   uint8_t msg[2 * KEY_EVENT_SIZE] = {4, static_cast<uint8_t>(action != VncKeyAction::VNC_KEY_ACTION_UP)};
   msg[KEY_EVENT_SIZE] = 4;
@@ -1065,9 +1070,26 @@ bool VncClient::send_key_event_(uint32_t keysym, VncKeyAction action) {
   return true;
 }
 
+bool VncClient::send_pending_key_up_() {
+  if (this->pending_key_up_ == 0) {
+    return true;
+  }
+  uint8_t msg[KEY_EVENT_SIZE] = {4, 0};
+  write_be32(msg + 4, this->pending_key_up_);
+  if (!this->send_(msg, sizeof(msg))) {
+    return false;
+  }
+  this->pending_key_up_ = 0;
+  return true;
+}
+
 bool VncClient::send_pointer(uint16_t x, uint16_t y, uint8_t buttons) {
   if (!this->is_connected()) {
     ESP_LOGV(TAG, "Not connected, pointer event dropped");
+    return false;
+  }
+  if (!this->send_pending_key_up_()) {
+    ESP_LOGW(TAG, "Send buffer full, pointer event dropped");
     return false;
   }
   x = std::min<uint16_t>(x, this->fb_w_ - 1);
@@ -1093,6 +1115,11 @@ void VncClient::send_key(uint32_t keysym, VncKeyAction action) {
     return;
   }
   if (!this->send_key_event_(keysym, action)) {
+    // A modifier left down would change every later key and click, so its release is sent later.
+    if (action == VncKeyAction::VNC_KEY_ACTION_UP && this->pending_key_up_ == 0) {
+      this->pending_key_up_ = keysym;
+      return;
+    }
     ESP_LOGW(TAG, "Send buffer full, key dropped");
   }
 }

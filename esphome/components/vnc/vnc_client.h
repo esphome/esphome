@@ -139,6 +139,8 @@ class VncClient : public Component
   bool send_(const uint8_t *data, size_t len);
   bool send_update_request_(bool incremental, uint32_t now);
   bool send_key_event_(uint32_t keysym, VncKeyAction action);
+  /// Sends a key-up that did not fit earlier, before any other input; true once none is waiting.
+  bool send_pending_key_up_();
   void note_input_();
 #ifdef USE_VNC_TOUCHSCREEN
   /// Touch input in display coordinates.
@@ -175,6 +177,7 @@ class VncClient : public Component
   // The first and the latest frame drawn since the display last refreshed.
   uint32_t first_change_ms_{0};
   uint32_t last_input_ms_{0};
+  uint32_t pending_key_up_{0};  // a keysym whose release did not fit; 0 is none
   uint32_t last_change_ms_{0};
   uint32_t rx_total_{0};
   uint32_t update_start_bytes_{0};
