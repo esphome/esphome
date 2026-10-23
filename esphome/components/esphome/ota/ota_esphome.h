@@ -30,7 +30,7 @@
 #undef ESPHOME_OTA_UDP
 #undef ESPHOME_OTA_UDP_LWIP
 #endif
-#elif defined(USE_HOST)
+#elif defined(USE_HOST) || (defined(USE_ZEPHYR) && !defined(USE_NRF52))
 #define ESPHOME_OTA_UDP
 #endif
 
