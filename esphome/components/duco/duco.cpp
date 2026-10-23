@@ -221,10 +221,12 @@ void DucoDiscovery::update() {
   }
   if (this->next_node_ >= NODE_COUNT) {
     this->cancel_interval(DISCOVERY_STEP_ID);
-    this->parent_->close_request(this);  // discovery never sends again, so a last miss must not stay a warning
+    this->parent_->close_request(this);
     return;
   }
-  // Without an answer by the next step the same node is asked again
+  // Without an answer by the next step the same node is asked again; a retry is not a missed answer
+  if (this->attempts_ > 0)
+    this->parent_->close_request(this);
   ESP_LOGV(TAG, "Discovering node %u", this->next_node_);
   this->attempts_++;
   this->parent_->send(this, FUNCTION_NODE, {0x01, this->next_node_});
