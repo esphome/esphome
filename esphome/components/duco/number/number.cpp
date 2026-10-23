@@ -1,5 +1,7 @@
 #include "number.h"
 
+#include <cmath>
+
 namespace esphome::duco {
 
 static constexpr uint8_t PARAMETER_COMFORT_TEMPERATURE = 0x12;
@@ -16,7 +18,7 @@ void DucoComfortTemperature::receive_response(const DucoMessage &message) {
 }
 
 void DucoComfortTemperature::control(float value) {
-  const auto tenths = static_cast<uint8_t>(value * 10.0f + 0.5f);
+  const auto tenths = static_cast<uint8_t>(lroundf(value * 10.0f));
   this->parent_->send(this, FUNCTION_PARAMETER,
                       {0x01, PARAMETER_COMFORT_TEMPERATURE, GROUP_COMFORT_TEMPERATURE, tenths, 0x00, 0x00, 0x00});
 }
