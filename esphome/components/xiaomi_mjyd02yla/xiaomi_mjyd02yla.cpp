@@ -15,51 +15,17 @@ void XiaomiMJYD02YLA::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_);
 }
 
-bool XiaomiMJYD02YLA::parse_device(const ble_device_base::ESPBTDevice &device) {
-  if (device.address_uint64() != this->address_) {
-    ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
-    return false;
-  }
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  const char *addr_str = device.address_str_to(addr_buf);
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
-
-  bool success = false;
-  for (auto &service_data : device.get_service_datas()) {
-    auto res = xiaomi_ble::parse_xiaomi_header(service_data);
-    if (!res.has_value()) {
-      continue;
-    }
-    if (res->is_duplicate) {
-      continue;
-    }
-    if (res->has_encryption &&
-        (!(xiaomi_ble::decrypt_xiaomi_payload(const_cast<std::vector<uint8_t> &>(service_data.data), this->bindkey_,
-                                              this->address_)))) {
-      continue;
-    }
-    if (!(xiaomi_ble::parse_xiaomi_message(service_data.data, *res))) {
-      continue;
-    }
-    if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
-      continue;
-    }
-    if (res->idle_time.has_value() && this->idle_time_ != nullptr)
-      this->idle_time_->publish_state(*res->idle_time);
-    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(*res->battery_level);
-    if (res->illuminance.has_value() && this->illuminance_ != nullptr)
-      this->illuminance_->publish_state(*res->illuminance);
-    if (res->is_light.has_value() && this->is_light_ != nullptr)
-      this->is_light_->publish_state(*res->is_light);
-    if (res->has_motion.has_value())
-      this->publish_state(*res->has_motion);
-    success = true;
-  }
-
-  return success;
+void XiaomiMJYD02YLA::publish_result_(const xiaomi_ble::XiaomiParseResult &res) {
+  if (res.idle_time.has_value() && this->idle_time_ != nullptr)
+    this->idle_time_->publish_state(*res.idle_time);
+  if (res.battery_level.has_value() && this->battery_level_ != nullptr)
+    this->battery_level_->publish_state(*res.battery_level);
+  if (res.illuminance.has_value() && this->illuminance_ != nullptr)
+    this->illuminance_->publish_state(*res.illuminance);
+  if (res.is_light.has_value() && this->is_light_ != nullptr)
+    this->is_light_->publish_state(*res.is_light);
+  if (res.has_motion.has_value())
+    this->publish_state(*res.has_motion);
 }
-
-void XiaomiMJYD02YLA::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
 }  // namespace esphome::xiaomi_mjyd02yla

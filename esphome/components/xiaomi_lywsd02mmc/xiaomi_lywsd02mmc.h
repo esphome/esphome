@@ -2,26 +2,20 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 
 namespace esphome::xiaomi_lywsd02mmc {
 
-class XiaomiLYWSD02MMC final : public Component, public ble_device_base::ESPBTDeviceListener {
+class XiaomiLYWSD02MMC final : public Component, public xiaomi_ble::XiaomiEncryptedDevice {
  public:
-  void set_address(uint64_t address) { this->address_ = address; }
-  void set_bindkey(const char *bindkey);
-
-  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
-
   void dump_config() override;
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { this->humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { this->battery_level_ = battery_level; }
 
  protected:
-  uint64_t address_;
-  uint8_t bindkey_[16];
+  void publish_result_(const xiaomi_ble::XiaomiParseResult &res) override;
+
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};

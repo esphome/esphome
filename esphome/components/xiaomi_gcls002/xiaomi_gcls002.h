@@ -2,17 +2,12 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/ble_device_base/ble_device.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 
 namespace esphome::xiaomi_gcls002 {
 
-class XiaomiGCLS002 final : public Component, public ble_device_base::ESPBTDeviceListener {
+class XiaomiGCLS002 final : public Component, public xiaomi_ble::XiaomiDevice {
  public:
-  void set_address(uint64_t address) { address_ = address; }
-
-  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
-
   void dump_config() override;
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_moisture(sensor::Sensor *moisture) { moisture_ = moisture; }
@@ -20,7 +15,8 @@ class XiaomiGCLS002 final : public Component, public ble_device_base::ESPBTDevic
   void set_illuminance(sensor::Sensor *illuminance) { illuminance_ = illuminance; }
 
  protected:
-  uint64_t address_;
+  void publish_result_(const xiaomi_ble::XiaomiParseResult &res) override;
+
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *moisture_{nullptr};
   sensor::Sensor *conductivity_{nullptr};

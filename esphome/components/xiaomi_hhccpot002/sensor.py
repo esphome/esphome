@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import ble_device_base, sensor
+from esphome.components import ble_device_base, sensor, xiaomi_ble
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CONDUCTIVITY,
@@ -17,7 +17,7 @@ AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_hhccpot002_ns = cg.esphome_ns.namespace("xiaomi_hhccpot002")
 XiaomiHHCCPOT002 = xiaomi_hhccpot002_ns.class_(
-    "XiaomiHHCCPOT002", ble_device_base.ESPBTDeviceListener, cg.Component
+    "XiaomiHHCCPOT002", xiaomi_ble.XiaomiDevice, cg.Component
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -48,7 +48,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = await ble_device_base.new_ble_device_component(config)
 
-    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+    xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_MOISTURE, var.set_moisture)
