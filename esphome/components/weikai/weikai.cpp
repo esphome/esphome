@@ -5,6 +5,7 @@
 
 #include "weikai.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::weikai {
 
@@ -37,35 +38,34 @@ const char *p2s(uart::UARTParityOptions parity) {
 }
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line) for debug
-void print_buffer(const uint8_t *data, size_t length) {
+void print_buffer(const char *tag, const uint8_t *data, size_t length, int level) {
   char hex_buffer[100];
   hex_buffer[(3 * 32) + 1] = 0;
   for (size_t i = 0; i < length; i++) {
     snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
     if (i % 32 == 31) {
-      ESP_LOGVV(TAG, "   %s", hex_buffer);
+      esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT("   %s"), hex_buffer);
     }
   }
   if (length % 32) {
     // null terminate if incomplete line
     hex_buffer[3 * (length % 32) + 2] = 0;
-    ESP_LOGVV(TAG, "   %s", hex_buffer);
+    esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT("   %s"), hex_buffer);
   }
 }
 
-static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
-                                              "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
-static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
-                                              "TFTL", "FWTH", "FWTL", "XON1",  "XOFF1", "SADR",  "SAEN", "RTSDLY"};
+PROGMEM_STRING_TABLE(RegNamesPage0, "GENA", "GRST", "GMUT", "SPAGE", "SCR", "LCR", "FCR", "SIER", "SIFR", "TFCNT",
+                     "RFCNT", "FSR", "LSR", "FDAT", "FWCR", "RS485");
+PROGMEM_STRING_TABLE(RegNamesPage1, "GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL", "FWTH",
+                     "FWTL", "XON1", "XOFF1", "SADR", "SAEN", "RTSDLY");
 
-// method to print a register value as text: used in the log messages ...
-const char *reg_to_str(int reg, bool page1) {
+const LogString *reg_to_str(int reg, bool page1) {
   if (reg == WKREG_GPDAT) {
-    return "GPDAT";
+    return LOG_STR("GPDAT");
   } else if (reg == WKREG_GPDIR) {
-    return "GPDIR";
+    return LOG_STR("GPDIR");
   } else {
-    return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
+    return page1 ? RegNamesPage1::get_log_str(reg & 0x0F, 0) : RegNamesPage0::get_log_str(reg & 0x0F, 0);
   }
 }
 
@@ -210,11 +210,7 @@ bool WeikaiComponent::read_pin_val_(uint8_t pin) {
 }
 
 void WeikaiComponent::write_pin_val_(uint8_t pin, bool value) {
-  if (value) {
-    this->output_state_ |= (1 << pin);
-  } else {
-    this->output_state_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_state_, 1 << pin, value);
   char bin_buf[9];
   ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, uint8_t(value),
             format_bin_to(bin_buf, this->output_state_));
@@ -450,9 +446,12 @@ uart::UARTFlushResult WeikaiChannel::flush() {
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {
   size_t total = 0;
-  size_t to_transfer;
-  size_t free;
-  while ((to_transfer = this->rx_in_fifo_()) && (free = this->receive_buffer_.free())) {
+  while (true) {
+    size_t to_transfer = this->rx_in_fifo_();
+    size_t free = this->receive_buffer_.free();
+    if (to_transfer == 0 || free == 0) {
+      break;
+    }
     // while bytes in fifo and some room in the buffer we transfer
     if (to_transfer > XFER_MAX_SIZE)
       to_transfer = XFER_MAX_SIZE;  // we can only do so much
@@ -491,24 +490,6 @@ class Increment {
  private:
   uint8_t i_;
 };
-
-/// @brief Hex converter to print/display a buffer in hexadecimal format (32 hex values / line).
-/// @param buffer contains the values to display
-void print_buffer(std::vector<uint8_t> buffer) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < buffer.size(); i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", buffer[i]);
-    if (i % 32 == 31) {
-      ESP_LOGI(TAG, "   %s", hex_buffer);
-    }
-  }
-  if (buffer.size() % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (buffer.size() % 32) + 1] = 0;
-    ESP_LOGI(TAG, "   %s", hex_buffer);
-  }
-}
 
 /// @brief test the write_array method
 void WeikaiChannel::uart_send_test_(char *message) {
@@ -557,7 +538,7 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
   for (size_t i = 0; i < RING_BUFFER_SIZE; i++) {
     if (buffer[i] != i % XFER_MAX_SIZE) {
       ESP_LOGE(TAG, "Read buffer contains error b=%x i=%x", buffer[i], i % XFER_MAX_SIZE);
-      print_buffer(buffer);
+      print_buffer(TAG, buffer.data(), buffer.size(), ESPHOME_LOG_LEVEL_INFO);
       status = false;
       break;
     }

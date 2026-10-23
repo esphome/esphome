@@ -285,12 +285,8 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->target_display_switch_ != nullptr) {
       target_display_controlled = true;
-      // Nothing reports this switch back, so its restored state is the only state
-      // there is.  Restoring through the switch keeps its inversion in the path:
-      // the restored value is logical, and driving the switch is what turns it
-      // into the raw command, the published state and the stream flag.
-      const bool state = this->target_display_switch_->get_initial_state_with_restore_mode().value_or(true);
-      this->target_display_switch_->control(state);
+      // Nothing reports this switch back, so its restored state is the only state there is.
+      this->target_display_switch_->restore(true);
     }
 #endif
     if (!target_display_controlled) {
@@ -307,10 +303,7 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     if (this->point_cloud_switch_ != nullptr) {
       point_cloud_controlled = true;
-      // The switch owns the stream, so it is also what applies the restored state:
-      // driving it rather than the module keeps the entity's inversion in the path.
-      const bool state = this->point_cloud_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->point_cloud_switch_->control(state);
+      this->point_cloud_switch_->restore(false);
     }
 #endif
     if (!point_cloud_controlled) {
@@ -349,11 +342,9 @@ void LD6002BComponent::setup() {
 #ifdef USE_SWITCH
     bool want_low_power = this->low_power_switch_ != nullptr;
     if (want_low_power) {
-      // The module reports this one back, so the query below confirms what it took.
-      // Driving the switch applies its inversion; it also marks the restored value
-      // as reported, so the work mode fallback runs on that until the query lands.
-      const bool state = this->low_power_switch_->get_initial_state_with_restore_mode().value_or(false);
-      this->low_power_switch_->control(state);
+      // The query below confirms what the module took; until it lands, the work mode
+      // fallback runs on the restored value.
+      this->low_power_switch_->restore(false);
     }
 #else
     bool want_low_power = false;
@@ -1041,8 +1032,8 @@ void LD6002BComponent::publish_number_clamped_(number::Number *number, float val
   // Outside the declared range the user cannot write the value back, so publish
   // what they can reach and say what the module actually sent.
   if (value < min_value || value > max_value) {
-    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", number->get_name().c_str(), value, min_value,
-             max_value);
+    ESP_LOGW(TAG, "'%s': module reported %.1f, clamped to %.1f..%.1f", LOG_STR_ARG(number->get_log_name()), value,
+             min_value, max_value);
     value = std::clamp(value, min_value, max_value);
   }
   number->publish_state(value);

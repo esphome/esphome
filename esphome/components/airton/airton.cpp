@@ -136,13 +136,7 @@ void AirtonClimate::transmit_state() {
   data->set_carrier_frequency(AIRTON_IR_FREQUENCY);
   data->mark(AIRTON_HEADER_MARK);
   data->space(AIRTON_HEADER_SPACE);
-  for (uint8_t payload_byte : remote_state) {
-    for (uint8_t payload_bit_cursor = 0; payload_bit_cursor < 8; payload_bit_cursor++) {
-      data->mark(AIRTON_BIT_MARK);
-      bool bit = payload_byte & (1 << payload_bit_cursor);
-      data->space(bit ? AIRTON_ONE_SPACE : AIRTON_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<AIRTON_BIT_TIMINGS>(remote_state, AIRTON_STATE_FRAME_SIZE);
 
   data->mark(AIRTON_BIT_MARK);
   data->space(AIRTON_MESSAGE_SPACE);
@@ -267,6 +261,8 @@ void AirtonClimate::parse_state_frame_(const uint8_t *frame) {
     case AIRTON_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
+    default:
+      break;
   }
 
   this->target_temperature = (frame[3] & 0b00001111) + AIRTON_TEMP_MIN;
@@ -284,20 +280,14 @@ void AirtonClimate::parse_state_frame_(const uint8_t *frame) {
 }
 
 bool AirtonClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t remote_state[AIRTON_STATE_FRAME_SIZE] = {};
+  uint8_t remote_state[AIRTON_STATE_FRAME_SIZE];
   if (!data.expect_item(AIRTON_HEADER_MARK, AIRTON_HEADER_SPACE)) {
     ESP_LOGV(TAG, "Wrong header encoding detected!");
     return false;
   }
-  for (int i = 0; i < AIRTON_STATE_FRAME_SIZE; i++) {
-    for (int j = 0; j < 8; j++) {
-      if (data.expect_item(AIRTON_BIT_MARK, AIRTON_ONE_SPACE)) {
-        remote_state[i] |= 1 << j;
-      } else if (!data.expect_item(AIRTON_BIT_MARK, AIRTON_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Wrong modulation encoding for: Byte %d, bit %d", i, j);
-        return false;
-      }
-    }
+  if (!data.expect_bytes<AIRTON_BIT_TIMINGS>(remote_state, AIRTON_STATE_FRAME_SIZE)) {
+    ESP_LOGV(TAG, "Wrong modulation encoding");
+    return false;
   }
 
   if (remote_state[0] != AIRTON_HEADER_BYTE0 || remote_state[1] != AIRTON_HEADER_BYTE1) {
