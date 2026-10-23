@@ -29,7 +29,8 @@ size_t probe_arena_size(const uint8_t *model_start, size_t initial_size) {
   // Build a local resolver for probing. Uses the same registration path as
   // load_model_with_arena so the probe reflects the real runtime setup.
   auto local_resolver = std::make_unique<tflite::MicroMutableOpResolver<TFLITE_MICRO_MAX_OPERATORS>>();
-  if (!tflite_op_processor::OpResolverManager::register_ops<TFLITE_MICRO_MAX_OPERATORS>(*local_resolver, required_ops, TAG)) {
+  if (!tflite_op_processor::OpResolverManager::register_ops<TFLITE_MICRO_MAX_OPERATORS>(*local_resolver, required_ops,
+                                                                                        TAG)) {
     ESP_LOGE(TAG, "probe_arena_size: Failed to register operators for probing");
     return 0;
   }
