@@ -10,7 +10,14 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.web_server.ota import _web_server_ota_final_validate
-from esphome.const import CONF_ID, CONF_OTA, CONF_PLATFORM, CONF_WEB_SERVER
+from esphome.const import (
+    CONF_AP,
+    CONF_ID,
+    CONF_OTA,
+    CONF_PLATFORM,
+    CONF_WEB_SERVER,
+    CONF_WIFI,
+)
 from esphome.core import ID
 import esphome.final_validate as fv
 
@@ -60,36 +67,58 @@ def test_web_server_ota_idf_multipart(generate_main: Callable[[str], str]) -> No
     assert "web_server::WebServerOTAComponent" in main_cpp
 
 
+_WEB_SERVER_OTA = {
+    CONF_PLATFORM: CONF_WEB_SERVER,
+    CONF_ID: ID("ota_web", is_manual=False),
+}
+_ESPHOME_OTA = {CONF_PLATFORM: "esphome", CONF_ID: ID("ota_esphome", is_manual=False)}
+_NO_SERVER_MATCH = "requires a component that starts the HTTP server"
+
+
+def _final_validate(full_conf: dict) -> None:
+    token = fv.full_config.set(full_conf)
+    try:
+        _web_server_ota_final_validate(_WEB_SERVER_OTA)
+    finally:
+        fv.full_config.reset(token)
+
+
 def test_web_server_ota_without_web_server_fails() -> None:
     """Web server OTA refuses a configuration without an HTTP server."""
-    ota_config = {
-        CONF_PLATFORM: CONF_WEB_SERVER,
-        CONF_ID: ID("ota_web", is_manual=False),
-    }
-    token = fv.full_config.set({CONF_OTA: [ota_config]})
-    try:
-        with pytest.raises(
-            cv.Invalid,
-            match="requires a component that starts the HTTP server: one of "
-            "'web_server:', 'captive_portal:', 'prometheus:'",
-        ):
-            _web_server_ota_final_validate(ota_config)
-    finally:
-        fv.full_config.reset(token)
+    with pytest.raises(cv.Invalid, match=_NO_SERVER_MATCH):
+        _final_validate({CONF_OTA: [_WEB_SERVER_OTA]})
 
 
-@pytest.mark.parametrize("provider", ["captive_portal", "prometheus"])
-def test_web_server_ota_with_other_http_server_provider_passes(provider: str) -> None:
+@pytest.mark.parametrize(
+    "providers",
+    [
+        {"prometheus": {}},
+        {"captive_portal": {}, CONF_WIFI: {CONF_AP: {"ssid": "Fallback"}}},
+    ],
+    ids=["prometheus", "captive_portal_with_ap"],
+)
+def test_web_server_ota_with_other_http_server_provider_passes(providers: dict) -> None:
     """Any component that starts the shared HTTP server satisfies web server OTA."""
-    ota_config = {
-        CONF_PLATFORM: CONF_WEB_SERVER,
-        CONF_ID: ID("ota_web", is_manual=False),
-    }
-    token = fv.full_config.set({provider: {}, CONF_OTA: [ota_config]})
-    try:
-        _web_server_ota_final_validate(ota_config)
-    finally:
-        fv.full_config.reset(token)
+    _final_validate({**providers, CONF_OTA: [_WEB_SERVER_OTA]})
+
+
+def test_web_server_ota_captive_portal_without_ap_fails() -> None:
+    """A captive portal with no access point never starts the server, so OTA has no endpoint."""
+    with pytest.raises(cv.Invalid, match=_NO_SERVER_MATCH):
+        _final_validate(
+            {"captive_portal": {}, CONF_WIFI: {}, CONF_OTA: [_WEB_SERVER_OTA]}
+        )
+
+
+def test_web_server_ota_captive_portal_without_ap_passes_with_other_ota() -> None:
+    """The portal's auto-loaded web OTA is tolerated when another platform still updates the device."""
+    _final_validate(
+        {
+            "captive_portal": {},
+            CONF_WIFI: {},
+            CONF_OTA: [_ESPHOME_OTA, _WEB_SERVER_OTA],
+        }
+    )
 
 
 def test_multiple_ota_platforms(generate_main: Callable[[str], str]) -> None:

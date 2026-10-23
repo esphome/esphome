@@ -10,7 +10,7 @@ from esphome.components.ota import (
 )
 from esphome.config_helpers import merge_config
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PLATFORM
+from esphome.const import CONF_AP, CONF_ID, CONF_PLATFORM, CONF_WIFI
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
@@ -27,8 +27,12 @@ web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServerOTAComponent = web_server_ns.class_("WebServerOTAComponent", OTAComponent)
 
 
-# Components whose C++ calls WebServerBase::init() and so bring up the shared HTTP server
-_HTTP_SERVER_PROVIDERS = (DOMAIN, "captive_portal", "prometheus")
+def _http_server_available(full_conf: ConfigType) -> bool:
+    """Whether a configured component will start the shared HTTP server."""
+    if DOMAIN in full_conf or "prometheus" in full_conf:
+        return True
+    # The captive portal only brings the server up behind an access point
+    return "captive_portal" in full_conf and CONF_AP in full_conf.get(CONF_WIFI, {})
 
 
 def _web_server_ota_final_validate(config: ConfigType) -> None:
@@ -38,11 +42,6 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
     causing undefined behavior. Merge them into a single instance.
     """
     full_conf = fv.full_config.get()
-    if not any(provider in full_conf for provider in _HTTP_SERVER_PROVIDERS):
-        raise cv.Invalid(
-            "The web_server OTA platform requires a component that starts the HTTP "
-            "server: one of " + ", ".join(f"'{p}:'" for p in _HTTP_SERVER_PROVIDERS)
-        )
     ota_confs = full_conf.get(OTA_DOMAIN, [])
 
     web_server_ota_configs: list[ConfigType] = []
@@ -53,6 +52,18 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
             web_server_ota_configs.append(ota_conf)
         else:
             other_ota_configs.append(ota_conf)
+
+    # captive_portal auto-loads this platform, so with another OTA platform present a portal
+    # that has no access point is only pointless, not a device without updates; captive_portal
+    # already warns about the missing access point
+    if not _http_server_available(full_conf) and not (
+        "captive_portal" in full_conf and other_ota_configs
+    ):
+        raise cv.Invalid(
+            "The web_server OTA platform requires a component that starts the HTTP "
+            f"server: '{DOMAIN}:', 'prometheus:', or 'captive_portal:' with a "
+            f"'{CONF_WIFI}.{CONF_AP}'"
+        )
 
     if len(web_server_ota_configs) <= 1:
         return
