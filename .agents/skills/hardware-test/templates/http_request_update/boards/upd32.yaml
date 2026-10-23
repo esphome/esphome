@@ -1,0 +1,10 @@
+esphome:
+  name: upd32
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+packages:
+  common: !include ../upd-common.yaml
