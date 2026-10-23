@@ -1,15 +1,17 @@
 """Tests for the tflite_model_source helpers (model sources, reports, heuristics)."""
 
 import json
+import logging
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from esphome.components.tflite_model_source import model_source
 from esphome.components.tflite_model_source.model_metadata import (
-    _parse_audio_config,
     datasize_to_bytes,
     infer_model_config_from_filename,
+    parse_audio_txt_file,
     parse_model_txt_file,
 )
 from esphome.components.tflite_model_source.model_source import TYPE_HTTP
@@ -24,6 +26,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
 )
+from esphome.core import CORE
 
 
 @pytest.fixture(autouse=True)
@@ -69,6 +72,17 @@ def _fake_download(contents_by_name=None, default=b"MODEL"):
 
     fake_download.calls = calls
     return fake_download
+
+
+def _http_status_error(status_code: int) -> Exception:
+    """Stand-in for the requests error behind a failed download.
+
+    Only ``response.status_code`` is read, so the test does not depend on how
+    requests builds its exceptions.
+    """
+    cause = Exception(f"{status_code} Client Error")
+    cause.response = SimpleNamespace(status_code=status_code)
+    return cause
 
 
 @pytest.mark.parametrize(
@@ -126,6 +140,12 @@ def test_parse_model_txt_file_image_report(tmp_path):
     assert config["output_processing"] == "softmax"
 
 
+def test_parse_model_txt_file_with_softmax_reports_argmax(tmp_path):
+    model_path = _write_report(tmp_path, IMAGE_REPORT + "  SOFTMAX: 1\n")
+
+    assert parse_model_txt_file(model_path)["output_processing"] == "argmax"
+
+
 def test_parse_model_txt_file_without_input_section_returns_none(tmp_path):
     model_path = _write_report(
         tmp_path, "Recommended tensor_arena_size: 64KB\nTotal operations: 12\n"
@@ -172,10 +192,10 @@ def test_parse_model_txt_file_rejects_hybrid_quantization(tmp_path):
         parse_model_txt_file(model_path)
 
 
-def test_parse_audio_config(tmp_path):
+def test_parse_audio_txt_file(tmp_path):
     model_path = _write_report(tmp_path, AUDIO_REPORT)
 
-    config = _parse_audio_config(model_path)
+    config = parse_audio_txt_file(model_path)
 
     assert config["sliding_window_size"] == 16
     assert config["feature_count"] == 96
@@ -184,16 +204,16 @@ def test_parse_audio_config(tmp_path):
     assert config["features_step_size"] == 8
 
 
-def test_parse_audio_config_arena_in_megabytes(tmp_path):
+def test_parse_audio_txt_file_arena_in_megabytes(tmp_path):
     model_path = _write_report(tmp_path, AUDIO_REPORT.replace("128KB", "0.25MB"))
 
-    assert _parse_audio_config(model_path)["tensor_arena_size"] == 262144
+    assert parse_audio_txt_file(model_path)["tensor_arena_size"] == 262144
 
 
-def test_parse_audio_config_without_input_section_returns_none(tmp_path):
+def test_parse_audio_txt_file_without_input_section_returns_none(tmp_path):
     model_path = _write_report(tmp_path, "features_step_size: 8\n")
 
-    assert _parse_audio_config(model_path) is None
+    assert parse_audio_txt_file(model_path) is None
 
 
 def test_github_shorthand_with_model_suffix_is_cloned(tmp_path, monkeypatch):
@@ -364,6 +384,81 @@ def test_model_source_rejects_non_string_non_mapping():
         model_source.MODEL_SOURCE_SCHEMA(42)
 
 
-def test_unresolvable_shorthand_lists_accepted_forms():
-    with pytest.raises(cv.Invalid, match="Cannot resolve model source"):
-        model_source.MODEL_SOURCE_SCHEMA("not-a-model.txt")
+def test_unresolvable_shorthand_reports_the_file_error():
+    with pytest.raises(cv.Invalid, match="Could not find file") as err:
+        model_source.MODEL_SOURCE_SCHEMA("models/digt.tflite")
+
+    message = str(err.value)
+    assert "Cannot use 'models/digt.tflite' as a local model file" in message
+    assert "github://<owner>/<repo>/<path> shorthand" in message
+
+
+def test_missing_companion_report_is_logged_at_info(tmp_path, monkeypatch, caplog):
+    """A 404 for the optional .txt report is expected, so it is not a warning."""
+    monkeypatch.setattr(model_source, "_cache_dir", lambda url: tmp_path)
+    download = _fake_download()
+
+    def fake_download(url, path, *args, **kwargs):
+        if url.endswith(".txt"):
+            raise cv.Invalid(
+                f"Could not download from {url}: 404 Client Error"
+            ) from _http_status_error(404)
+        return download(url, path, *args, **kwargs)
+
+    monkeypatch.setattr("esphome.external_files.download_content", fake_download)
+
+    with caplog.at_level(logging.INFO, logger=model_source.__name__):
+        model_source.MODEL_SOURCE_SCHEMA("https://example.com/models/digit.tflite")
+
+    report_logs = [r for r in caplog.records if "digit.txt" in r.getMessage()]
+    assert report_logs
+    assert all(record.levelno == logging.INFO for record in report_logs)
+
+
+def test_failed_companion_report_download_warns(tmp_path, monkeypatch, caplog):
+    """A network or disk failure drops the metadata, so it deserves a warning."""
+    monkeypatch.setattr(model_source, "_cache_dir", lambda url: tmp_path)
+    download = _fake_download()
+
+    def fake_download(url, path, *args, **kwargs):
+        if url.endswith(".txt"):
+            raise OSError("network is unreachable")
+        return download(url, path, *args, **kwargs)
+
+    monkeypatch.setattr("esphome.external_files.download_content", fake_download)
+
+    with caplog.at_level(logging.INFO, logger=model_source.__name__):
+        model_source.MODEL_SOURCE_SCHEMA("https://example.com/models/digit.tflite")
+
+    report_logs = [r for r in caplog.records if "digit.txt" in r.getMessage()]
+    assert report_logs
+    assert all(record.levelno == logging.WARNING for record in report_logs)
+
+
+def test_resolved_model_cache_is_dropped_by_core_reset(tmp_path, monkeypatch):
+    """Resolved paths must not outlive the configuration run that found them."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / "model.tflite").write_bytes(b"MODEL")
+    calls = []
+
+    def fake_clone_or_update(**kwargs):
+        calls.append(kwargs)
+        return repo_dir, None
+
+    monkeypatch.setattr("esphome.git.clone_or_update", fake_clone_or_update)
+    config = {
+        CONF_MODEL: {
+            CONF_TYPE: TYPE_GIT,
+            CONF_URL: "https://example.com/model-repo.git",
+            CONF_FILE: "model.tflite",
+        }
+    }
+
+    assert model_source.resolve_model_source(config)[1] == b"MODEL"
+    assert len(calls) == 1
+
+    CORE.reset()
+    assert model_source.resolve_model_source(config)[1] == b"MODEL"
+
+    assert len(calls) == 2

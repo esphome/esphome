@@ -1,5 +1,0 @@
-# tflite_model_source is a pure Python helper component (no C++ sources).
-# Loading it exercises the component module, its schema fragments and the
-# metadata helpers; the helpers themselves are unit tested in
-# tests/unit_tests/components/test_tflite_model_source.py.
-tflite_model_source:

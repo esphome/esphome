@@ -4,7 +4,7 @@ Handles local file, github:// shorthand, and http(s):// URL model sources,
 including external-file caching and JSON manifest downloads.
 """
 
-from contextlib import suppress
+from dataclasses import dataclass, field
 import json
 import logging
 from pathlib import Path
@@ -39,9 +39,25 @@ TYPE_HTTP = "http"
 # model file share this suffix; every other remote source is a JSON manifest.
 MODEL_SUFFIX = ".tflite"
 
-# Resolved model files, keyed by source. Validation resolves (clones/downloads)
-# once and code generation reuses the result instead of doing the work again.
-_RESOLVED_PATHS: dict[tuple[str, ...], Path] = {}
+
+@dataclass
+class _ResolvedModels:
+    """Model files resolved during this run, keyed by their source."""
+
+    paths: dict[tuple[str, ...], Path] = field(default_factory=dict)
+
+
+def _resolved_paths() -> dict[tuple[str, ...], Path]:
+    """Return the resolved-model cache of this run.
+
+    Validation resolves (clones/downloads) once and code generation reuses the
+    result instead of doing the work again. The cache lives in ``CORE.data`` so
+    a long-running process starts each run without carrying paths from the last
+    configuration.
+    """
+    if (data := CORE.data.get(_DOMAIN)) is None:
+        data = CORE.data[_DOMAIN] = _ResolvedModels()
+    return data.paths
 
 
 def _cache_dir(url: str) -> Path:
@@ -64,15 +80,32 @@ def _download_companion_txt(model_url: str, cache_dir: Path) -> None:
         parts._replace(path=posixpath.splitext(parts.path)[0] + ".txt")
     )
     txt_path = cache_dir / posixpath.basename(urlparse(txt_url).path)
-    # Missing report is fine: configuration falls back to filename heuristics.
-    with suppress(cv.Invalid, OSError):
+    try:
         external_files.download_content(txt_url, txt_path)
+    except (cv.Invalid, OSError) as err:
+        # A report the exporter never wrote is routine, and so is a flaky host.
+        # Both leave the model configured from its filename, which is only
+        # visible in the build log if the reason is logged here.
+        log = _LOGGER.info if _is_missing_report(err) else _LOGGER.warning
+        log(
+            "Could not fetch the metadata report %s (%s); the model is configured "
+            "from its filename instead",
+            txt_url,
+            err,
+        )
+
+
+def _is_missing_report(err: Exception) -> bool:
+    """Whether a failed ``.txt`` download means the report does not exist upstream."""
+    status = getattr(getattr(err.__cause__, "response", None), "status_code", None)
+    return status == 404
 
 
 def _git_model_path(config) -> Path:
     """Clone (or update) the repository and return the model file inside it."""
     key = (TYPE_GIT, config[CONF_URL], config.get(CONF_REF, ""), config[CONF_FILE])
-    if (path := _RESOLVED_PATHS.get(key)) is not None:
+    resolved = _resolved_paths()
+    if (path := resolved.get(key)) is not None:
         _LOGGER.debug("Reusing resolved model file %s", path)
         return path
 
@@ -90,14 +123,15 @@ def _git_model_path(config) -> Path:
     if not model_path.is_file():
         raise cv.Invalid(f"File does not exist in repository: {config[CONF_FILE]}")
 
-    _RESOLVED_PATHS[key] = model_path
+    resolved[key] = model_path
     return model_path
 
 
 def _http_model_path(url: str) -> Path:
     """Download the model (directly or from its JSON manifest) and return it."""
     key = (TYPE_HTTP, url)
-    if (path := _RESOLVED_PATHS.get(key)) is not None:
+    resolved = _resolved_paths()
+    if (path := resolved.get(key)) is not None:
         _LOGGER.debug("Reusing downloaded model file %s", path)
         return path
 
@@ -127,7 +161,7 @@ def _http_model_path(url: str) -> Path:
     external_files.download_content(model_url, model_path)
     _download_companion_txt(model_url, cache_dir)
 
-    _RESOLVED_PATHS[key] = model_path
+    resolved[key] = model_path
     return model_path
 
 
@@ -163,8 +197,9 @@ def _validate_source_shorthand(value):
         return MODEL_SOURCE_MAPPING_SCHEMA({CONF_TYPE: TYPE_LOCAL, CONF_PATH: value})
     except cv.Invalid as err:
         raise cv.Invalid(
-            f"Cannot resolve model source '{value}': use a local {MODEL_SUFFIX} path, "
-            "a github://<owner>/<repo>/<path> shorthand or an http(s):// URL"
+            f"Cannot use '{value}' as a local model file: {err}\n"
+            f"Use a local {MODEL_SUFFIX} path, a github://<owner>/<repo>/<path> "
+            "shorthand or an http(s):// URL"
         ) from err
 
 

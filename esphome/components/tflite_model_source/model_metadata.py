@@ -55,6 +55,11 @@ def _parse_arena_size(content):
     return datasize_to_bytes(re.sub(r"\s+", "", match.group(1)))
 
 
+def _scale_factor_for_classes(num_classes):
+    """Class index scale factor: 100-class models report tens rather than units."""
+    return 10.0 if num_classes == 100 else 1.0
+
+
 def parse_model_txt_file(model_path):
     """Parse an image-model ``.txt`` report, or return None if it is unusable."""
     txt_path = Path(model_path).with_suffix(".txt")
@@ -86,13 +91,7 @@ def parse_model_txt_file(model_path):
     }
     output_match = _IMAGE_OUTPUT_RE.search(content)
     if output_match:
-        num_classes = int(output_match.group(1))
-        if num_classes == 10:
-            config["scale_factor"] = 1.0
-        elif num_classes == 100:
-            config["scale_factor"] = 10.0
-        else:
-            config["scale_factor"] = 1.0
+        config["scale_factor"] = _scale_factor_for_classes(int(output_match.group(1)))
     if (arena_size := _parse_arena_size(content)) is not None:
         config["tensor_arena_size"] = arena_size
     if ops_match := _OPERATIONS_RE.search(content):
@@ -100,7 +99,9 @@ def parse_model_txt_file(model_path):
     if _DELEGATE_RE.search(content):
         _LOGGER.info("Model '%s' contains DELEGATE operations", txt_path.name)
     has_softmax = bool(_SOFTMAX_RE.search(content))
-    config["output_processing"] = "direct_class" if has_softmax else "softmax"
+    # A model that ends in SOFTMAX already outputs probabilities, so the class
+    # index is the argmax of the tensor; otherwise the softmax is applied here.
+    config["output_processing"] = "argmax" if has_softmax else "softmax"
     has_int8_weights = bool(_INT8_WEIGHT_RE.search(content))
     if dtype == "float32" and has_int8_weights:
         raise cv.Invalid(
@@ -112,7 +113,7 @@ def parse_model_txt_file(model_path):
     return config
 
 
-def _parse_audio_config(model_path):
+def parse_audio_txt_file(model_path):
     """Parse an audio-model ``.txt`` report, or return None if it is unusable."""
     txt_path = Path(model_path).with_suffix(".txt")
     if not txt_path.exists():
@@ -156,10 +157,8 @@ def infer_model_config_from_filename(model_filename):
     else:
         config["input_channels"] = 3
         config["input_order"] = "RGB"
-    if "_10cls_" in name or name.endswith("_10cls"):
-        config["scale_factor"] = 1.0
-    elif "_100cls_" in name or name.endswith("_100cls"):
-        config["scale_factor"] = 10.0
-    else:
-        config["scale_factor"] = 1.0
+    # A "_10cls" tag is the default, so only "_100cls" changes the scale.
+    config["scale_factor"] = _scale_factor_for_classes(
+        100 if "_100cls_" in name or name.endswith("_100cls") else 10
+    )
     return config
