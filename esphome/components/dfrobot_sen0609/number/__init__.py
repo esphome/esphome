@@ -31,7 +31,6 @@ from .. import (
     get_hub_config,
 )
 
-DFRobotSEN0609Number = dfrobot_sen0609_ns.class_("DFRobotSEN0609Number", number.Number)
 NumberSetting = dfrobot_sen0609_ns.enum("NumberSetting")
 
 CONF_HOLD_SENSITIVITY = "hold_sensitivity"
@@ -55,7 +54,7 @@ class Setting(NamedTuple):
 
 def _distance(icon: str = ICON_RULER) -> cv.Schema:
     return number.number_schema(
-        DFRobotSEN0609Number,
+        number.ApplyNumber,
         device_class=DEVICE_CLASS_DISTANCE,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=icon,
@@ -65,7 +64,7 @@ def _distance(icon: str = ICON_RULER) -> cv.Schema:
 
 def _duration() -> cv.Schema:
     return number.number_schema(
-        DFRobotSEN0609Number,
+        number.ApplyNumber,
         device_class=DEVICE_CLASS_DURATION,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_TIMELAPSE,
@@ -75,7 +74,7 @@ def _duration() -> cv.Schema:
 
 def _plain() -> cv.Schema:
     return number.number_schema(
-        DFRobotSEN0609Number,
+        number.ApplyNumber,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_MOTION_SENSOR,
     )
@@ -187,8 +186,8 @@ async def to_code(config: ConfigType) -> None:
         await numbers(
             s.key,
             lambda n, setting=s.setting: hub.set_number(setting, n),
-            s.setting,
             min_value=s.min_value,
             max_value=max_range if s.max_value is None else s.max_value,
             step=s.step,
+            apply="control_number(entity, value)",
         )
