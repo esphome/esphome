@@ -32,39 +32,6 @@ MCP_MODE = {
 }
 
 
-def nominal_bit_timing(clock: str, bit_rate: str) -> int:
-    """Choose nominal segments near an 80% sample point, with at most 0.5% rate error."""
-    system_clock = 20_000_000 if clock == "20MHZ" else 40_000_000
-    rate = {"33KBPS": 100_000 / 3, "83K3BPS": 250_000 / 3}.get(
-        bit_rate, canbus.get_rate(bit_rate)
-    )
-    best: tuple[float, float, int] | None = None
-    timing = 0
-    for prescaler in range(1, 257):
-        quanta = round(system_clock / (rate * prescaler))
-        if not 4 <= quanta <= 385:
-            continue
-        segment2 = max(1, min(128, round(quanta * 0.2)))
-        segment1 = quanta - segment2 - 1
-        if not 2 <= segment1 <= 256:
-            continue
-        error = abs(system_clock / (prescaler * quanta) / rate - 1)
-        score = (error, abs((1 + segment1) / quanta - 0.8), -quanta)
-        if best is None or score < best:
-            best = score
-            timing = (
-                ((prescaler - 1) << 24)
-                | ((segment1 - 1) << 16)
-                | ((segment2 - 1) << 8)
-                | (segment2 - 1)
-            )
-    if best is None or best[0] > 0.005:
-        raise cv.Invalid(
-            f"Cannot achieve {bit_rate} with a {clock} oscillator within 0.5%"
-        )
-    return timing
-
-
 def bit_timings(clock: str, bit_rate: str, data_bit_rate: str) -> tuple[int, int, int]:
     """Choose both phase registers with a common prescaler, plus the CiTDC register."""
     system_clock = 20_000_000 if clock == "20MHZ" else 40_000_000
