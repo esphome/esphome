@@ -1,12 +1,12 @@
 display:
   - platform: hub75
-    id: hub75_display_board
+    id: my_hub75
     board: adafruit-matrix-portal-s3
     panel_width: 64
     panel_height: 32
     double_buffer: true
     brightness: 128
-    gamma_correct: gamma_2_2
+    gamma_correct: linear
     pages:
       - id: page1
         lambda: |-
