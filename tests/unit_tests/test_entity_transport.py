@@ -79,6 +79,33 @@ def test_timeout_not_with_session(setup_core, layers: dict, allowed: bool) -> No
         fv.full_config.reset(token)
 
 
+def test_timeout_not_with_session_on_peer(setup_core) -> None:
+    """The layers of an addressing peer are found by the peer's id."""
+    peers = [
+        {CONF_ID: ID("plain", is_manual=True)},
+        {CONF_ID: ID("with_session", is_manual=True), "session": {}},
+    ]
+    token = fv.full_config.set(
+        {
+            "packet_interface": [
+                {CONF_ID: ID("bus", is_manual=True), "addressing": {"peers": peers}}
+            ]
+        }
+    )
+    try:
+        FINAL_VALIDATE_SCHEMA(
+            CONFIG_SCHEMA({"packet_interface": "plain", CONF_TIMEOUT: "1min"})
+        )
+        with pytest.raises(cv.Invalid, match="session"):
+            FINAL_VALIDATE_SCHEMA(
+                CONFIG_SCHEMA(
+                    {"packet_interface": "with_session", CONF_TIMEOUT: "1min"}
+                )
+            )
+    finally:
+        fv.full_config.reset(token)
+
+
 def test_advertised_ids_unique(setup_core) -> None:
     """Two entities of one type cannot be sent with the same id."""
     base = {"packet_interface": "link"}
