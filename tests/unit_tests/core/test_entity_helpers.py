@@ -1,6 +1,8 @@
 """Test get_base_entity_object_id function matches C++ behavior."""
 
+import ast
 from collections.abc import Callable, Generator
+from functools import cache
 from importlib import import_module
 import logging
 from pathlib import Path
@@ -1365,20 +1367,35 @@ def test_integration_class_handles_match_owning_definitions() -> None:
         assert str(owning) == f"zigbee::{class_name}"
 
 
-def _component_source_calls(pattern: str) -> set[tuple[str, ...]]:
+@cache
+def _component_calls_by_name() -> dict[str, list[tuple[Path, ast.Call]]]:
     components = Path(entity_helpers.__file__).parent.parent / "components"
-    return {
-        match if isinstance(match, tuple) else (match,)
-        for path in components.rglob("*.py")
-        for match in re.findall(pattern, path.read_text(encoding="utf-8"))
-    }
+    calls: dict[str, list[tuple[Path, ast.Call]]] = {}
+    for path in components.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call) and (name := getattr(node.func, "id", None)):
+                calls.setdefault(name, []).append((path, node))
+    return calls
+
+
+def _component_calls(func: str, nargs: int) -> set[tuple[str, ...]]:
+    """The leading string arguments of every call to ``func`` in the component sources."""
+    calls: set[tuple[str, ...]] = set()
+    for path, node in _component_calls_by_name().get(func, []):
+        args = node.args[:nargs]
+        # A computed name would escape the checks below
+        assert all(
+            isinstance(arg, ast.Constant) and isinstance(arg.value, str) for arg in args
+        ), f"{path}:{node.lineno} {func} needs string literal arguments"
+        calls.add(tuple(arg.value for arg in args))
+    return calls
 
 
 def test_mqtt_component_class_names_exist() -> None:
     """Every mqtt_component_class("...") call names a class mqtt declares."""
     from esphome.components import mqtt
 
-    names = _component_source_calls(r'mqtt_component_class\(\s*"(\w+)"')
+    names = _component_calls("mqtt_component_class", 1)
     assert ("MQTTSensorComponent",) in names
     for (name,) in names:
         assert str(mqtt_component_class(name)) == str(getattr(mqtt, name)), name
@@ -1386,8 +1403,8 @@ def test_mqtt_component_class_names_exist() -> None:
 
 def test_lazy_load_targets_exist() -> None:
     """Every lazy_load_validator/lazy_load_setup call names a real component hook."""
-    calls = _component_source_calls(
-        r'lazy_load_(?:validator|setup)\(\s*"(\w+)",\s*"(\w+)"'
+    calls = _component_calls("lazy_load_validator", 2) | _component_calls(
+        "lazy_load_setup", 2
     )
     assert ("zigbee", "setup_switch") in calls
     for component, name in calls:
