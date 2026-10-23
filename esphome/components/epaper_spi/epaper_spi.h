@@ -34,7 +34,6 @@ static constexpr uint32_t MAX_TRANSFER_TIME = 10;  // Transfer in 10ms blocks to
 static constexpr size_t MAX_TRANSFER_SIZE = 128;
 // Longer busy waits are the waveform or a stuck pin, and are polled at the normal loop pace
 static constexpr uint32_t FAST_BUSY_POLL_MS = 50;
-static constexpr uint8_t DELAY_FLAG = 0xFF;
 
 class EPaperBase : public Display,
                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,

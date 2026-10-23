@@ -7,11 +7,15 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/components/display/init_sequence.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mipi_spi {
+
+/// Largest argument count in one init command; display.py rejects longer ones.
+static constexpr size_t INIT_SEQUENCE_MAX_ARGS = 128;
 
 ESPHOME_LOG_TAG(TAG, "display.mipi_spi");
 
@@ -48,7 +52,6 @@ static constexpr uint8_t MADCTL_XFLIP = 0x02;        // Mirror the display horiz
 static constexpr uint8_t MADCTL_YFLIP = 0x01;        // Mirror the display vertically
 static constexpr uint16_t MADCTL_FLIP_FLAG = 0x100;  // controller uses axis flip bits
 
-static constexpr uint8_t DELAY_FLAG = 0xFF;
 // store a 16 bit value in a buffer, big endian.
 static inline void put16_be(uint8_t *buf, uint16_t value) {
   buf[0] = value >> 8;
@@ -163,36 +166,29 @@ class MipiSpi : public display::Display,
 
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;
-    size_t index = 0;
-    const uint8_t *seq = this->init_sequence_;
-    const size_t len = this->init_sequence_len_;
-    while (index != len) {
-      if (len - index < 2) {
-        esph_log_e(TAG, "Malformed init sequence");
-        this->mark_failed();
+    display::InitSequenceReader reader(this->init_sequence_, this->init_sequence_len_);
+    display::InitSequenceEntry entry;
+    // The sequence is in flash, which SPI DMA (and ESP8266 byte loads) cannot read
+    uint8_t args[INIT_SEQUENCE_MAX_ARGS];
+    for (;;) {
+      const auto step = reader.next(entry);
+      if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_END)
+        break;
+      if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_MALFORMED || entry.count > sizeof(args)) {
+        this->mark_failed(LOG_STR("Malformed init sequence"));
         return;
       }
-      uint8_t cmd = progmem_read_byte(seq + index++);
-      uint8_t x = progmem_read_byte(seq + index++);
-      if (x == DELAY_FLAG) {
-        if (cmd == 0) {
-          cmd = clamp_at_least((int) (when - millis()), 0);
+      if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_DELAY) {
+        uint8_t ms = entry.value;
+        if (ms == 0) {
+          ms = clamp_at_least((int) (when - millis()), 0);
         }
-        esph_log_d(TAG, "Delay %dms", cmd);
-        delay(cmd);
-      } else {
-        uint8_t num_args = x & 0x7F;
-        if (len - index < num_args) {
-          esph_log_e(TAG, "Malformed init sequence");
-          this->mark_failed();
-          return;
-        }
-        // The sequence is in flash, which SPI DMA (and ESP8266 byte loads) cannot read
-        uint8_t args[0x80];
-        progmem_memcpy(args, seq + index, num_args);
-        this->write_command_(cmd, args, num_args);
-        index += num_args;
+        esph_log_d(TAG, "Delay %dms", ms);
+        delay(ms);
+        continue;
       }
+      progmem_memcpy(args, entry.args, entry.count);
+      this->write_command_(entry.value, args, entry.count);
     }
     this->reset_params_();
     // Marks init as done, so later commands log at verbose level instead of debug

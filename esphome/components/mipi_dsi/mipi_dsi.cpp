@@ -123,47 +123,41 @@ void MipiDsi::setup() {
     this->smark_failed(LOG_STR("esp_lcd_init failed"), err);
     return;
   }
-  size_t index = 0;
-  const uint8_t *seq = this->init_sequence_;
-  const size_t len = this->init_sequence_len_;
-  while (index != len) {
-    if (len - index < 2) {
+  display::InitSequenceReader reader(this->init_sequence_, this->init_sequence_len_);
+  display::InitSequenceEntry entry;
+  for (;;) {
+    const auto step = reader.next(entry);
+    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_END)
+      break;
+    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_MALFORMED) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
-    uint8_t cmd = seq[index++];
-    uint8_t x = seq[index++];
-    if (x == DELAY_FLAG) {
-      ESP_LOGD(TAG, "Delay %dms", cmd);
-      delay(cmd);
-    } else {
-      uint8_t num_args = x & 0x7F;
-      if (len - index < num_args) {
-        this->mark_failed(LOG_STR("Malformed init sequence"));
-        return;
-      }
-      if (cmd == SLEEP_OUT) {
-        // are we ready, boots?
-        int duration = when - millis();
-        if (duration > 0) {
-          delay(duration);
-        }
-      }
-      const auto *ptr = seq + index;
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-      char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
-#endif
-      ESP_LOGVV(TAG, "Command %02X, length %d, byte(s) %s", cmd, num_args,
-                format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
-      err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, ptr, num_args);
-      if (err != ESP_OK) {
-        this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
-        return;
-      }
-      index += num_args;
-      if (cmd == SLEEP_OUT)
-        delay(10);
+    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_DELAY) {
+      ESP_LOGD(TAG, "Delay %dms", entry.value);
+      delay(entry.value);
+      continue;
     }
+    const uint8_t cmd = entry.value;
+    if (cmd == SLEEP_OUT) {
+      // are we ready, boots?
+      int duration = when - millis();
+      if (duration > 0) {
+        delay(duration);
+      }
+    }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+    char hex_buf[format_hex_pretty_size(MIPI_DSI_MAX_CMD_LOG_BYTES)];
+#endif
+    ESP_LOGVV(TAG, "Command %02X, length %d, byte(s) %s", cmd, entry.count,
+              format_hex_pretty_to(hex_buf, entry.args, entry.count, '.'));
+    err = esp_lcd_panel_io_tx_param(this->io_handle_, cmd, entry.args, entry.count);
+    if (err != ESP_OK) {
+      this->smark_failed(LOG_STR("lcd_panel_io_tx_param failed"), err);
+      return;
+    }
+    if (cmd == SLEEP_OUT)
+      delay(10);
   }
   this->io_lock_ = xSemaphoreCreateBinary();
   esp_lcd_dpi_panel_event_callbacks_t cbs = {

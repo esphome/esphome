@@ -1,5 +1,6 @@
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "mipi_rgb.h"
+#include "esphome/components/display/init_sequence.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -12,8 +13,6 @@
 #include <span>
 
 namespace esphome::mipi_rgb {
-
-static const uint8_t DELAY_FLAG = 0xFF;
 
 // Maximum bytes to log for init commands (truncated if larger)
 static constexpr size_t MIPI_RGB_MAX_CMD_LOG_BYTES = 64;
@@ -75,44 +74,35 @@ void MipiRgbSpi::write_data_(uint8_t value) {
   this->disable();
 }
 
-/**
- * this relies upon the init sequence being well-formed, which is guaranteed by the Python init code.
- */
-
 void MipiRgbSpi::write_init_sequence_() {
-  size_t index = 0;
-  const uint8_t *seq = this->init_sequence_;
-  const size_t len = this->init_sequence_len_;
-  while (index != len) {
-    if (len - index < 2) {
+  display::InitSequenceReader reader(this->init_sequence_, this->init_sequence_len_);
+  display::InitSequenceEntry entry;
+  for (;;) {
+    const auto step = reader.next(entry);
+    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_END)
+      break;
+    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_MALFORMED) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
-    uint8_t cmd = seq[index++];
-    uint8_t x = seq[index++];
-    if (x == DELAY_FLAG) {
-      ESP_LOGD(TAG, "Delay %dms", cmd);
-      delay(cmd);
-    } else {
-      uint8_t num_args = x & 0x7F;
-      if (len - index < num_args) {
-        this->mark_failed(LOG_STR("Malformed init sequence"));
-        return;
-      }
-      if (cmd == SLEEP_OUT) {
-        delay(120);  // NOLINT
-      }
-      const auto *ptr = seq + index;
-      char hex_buf[format_hex_pretty_size(MIPI_RGB_MAX_CMD_LOG_BYTES)];
-      ESP_LOGD(TAG, "Write command %02X, length %d, byte(s) %s", cmd, num_args,
-               format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
-      index += num_args;
-      this->write_command_(cmd);
-      while (num_args-- != 0)
-        this->write_data_(*ptr++);
-      if (cmd == SLEEP_OUT)
-        delay(10);
+    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_DELAY) {
+      ESP_LOGD(TAG, "Delay %dms", entry.value);
+      delay(entry.value);
+      continue;
     }
+    const uint8_t cmd = entry.value;
+    if (cmd == SLEEP_OUT) {
+      delay(120);  // NOLINT
+    }
+    const auto *ptr = entry.args;
+    char hex_buf[format_hex_pretty_size(MIPI_RGB_MAX_CMD_LOG_BYTES)];
+    ESP_LOGD(TAG, "Write command %02X, length %d, byte(s) %s", cmd, entry.count,
+             format_hex_pretty_to(hex_buf, ptr, entry.count, '.'));
+    this->write_command_(cmd);
+    for (uint8_t i = 0; i < entry.count; i++)
+      this->write_data_(ptr[i]);
+    if (cmd == SLEEP_OUT)
+      delay(10);
   }
   // this->spi_teardown();  // SPI not needed after this
   delay(10);

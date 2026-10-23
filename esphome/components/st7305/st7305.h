@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/init_sequence.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -35,8 +36,7 @@ class ST7305 : public display::DisplayBuffer,
         row_start_(row_start),
         row_end_(row_end),
         buffer_length_(static_cast<size_t>(width) * static_cast<size_t>(height) / 8),
-        init_sequence_(init_sequence),
-        init_sequence_length_(init_sequence_length) {}
+        init_reader_(init_sequence, init_sequence_length) {}
 
   void setup() override;
   void update() override;
@@ -113,9 +113,7 @@ class ST7305 : public display::DisplayBuffer,
   uint8_t row_start_;
   uint8_t row_end_;
   size_t buffer_length_;
-  const uint8_t *init_sequence_;
-  size_t init_sequence_length_;
-  size_t init_index_{0};
+  display::InitSequenceReader init_reader_;
   bool ready_{false};
 
   int x_low_{0};

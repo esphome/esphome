@@ -220,10 +220,7 @@ def get_display_metadata(display_id: ID) -> DisplayMetaData:
         height=dimensions[1],
         has_hardware_rotation=False,
         byte_order=disp_config.get(CONF_BYTE_ORDER, cv.UNDEFINED),
-        has_writer=disp_config.get(CONF_AUTO_CLEAR_ENABLED) is True
-        or disp_config.get(CONF_PAGES) is not None
-        or disp_config.get(CONF_LAMBDA) is not None
-        or disp_config.get(CONF_SHOW_TEST_CARD) is True,
+        has_writer=has_writer(disp_config),
         rotation=disp_config.get(CONF_ROTATION, 0),
         draw_rounding=disp_config.get(CONF_DRAW_ROUNDING, 0),
     )

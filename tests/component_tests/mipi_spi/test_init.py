@@ -93,6 +93,16 @@ def run_schema_validation(config: ConfigType) -> None:
             r"value must be a power of two for dictionary value @ data\['draw_rounding'\]",
             id="invalid_draw_rounding",
         ),
+        pytest.param(
+            {
+                "model": "custom",
+                "dc_pin": 18,
+                "dimensions": {"width": 320, "height": 240},
+                "init_sequence": [[0xE0] + [0x00] * 129],
+            },
+            r"at most 128 data bytes",
+            id="init_command_too_long",
+        ),
     ],
 )
 def test_basic_configuration_errors(
@@ -606,3 +616,19 @@ def test_identical_init_sequences_share_one_table(
     assert first is not None and second is not None
     assert first.group(1) == second.group(1)
     assert main_cpp.count("mipi_spi_init_sequence[] PROGMEM") == 1
+
+
+def test_init_command_at_buffer_limit(set_core_config: SetCoreConfigCallable) -> None:
+    """A command with exactly 128 data bytes fits the C++ copy buffer."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    run_schema_validation(
+        {
+            "model": "custom",
+            "dc_pin": 18,
+            "dimensions": {"width": 320, "height": 240},
+            "init_sequence": [[0xE0] + [0x00] * 128],
+        }
+    )

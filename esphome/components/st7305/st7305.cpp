@@ -56,33 +56,26 @@ void ST7305::reset_() {
 }
 
 void ST7305::send_init_sequence_() {
-  while (this->init_index_ < this->init_sequence_length_) {
-    if (this->init_sequence_length_ - this->init_index_ < 2) {
-      this->mark_failed(LOG_STR("Malformed init sequence"));
-      return;
-    }
-    const uint8_t command = progmem_read_byte(&this->init_sequence_[this->init_index_++]);
-    const uint8_t count = progmem_read_byte(&this->init_sequence_[this->init_index_++]);
-    if (count == 0xFF) {
-      // Resume the sequence after the delay instead of blocking the main loop.
-      this->set_timeout(STARTUP_TIMEOUT_ID, command, [this]() { this->send_init_sequence_(); });
-      return;
-    }
-    if (this->init_sequence_length_ - this->init_index_ < count) {
-      this->mark_failed(LOG_STR("Malformed init sequence"));
-      return;
-    }
+  display::InitSequenceEntry entry;
+  display::InitSequenceStep step;
+  while ((step = this->init_reader_.next(entry)) == display::InitSequenceStep::INIT_SEQUENCE_STEP_COMMAND) {
     this->enable();
-    this->send_command_(command);
-    if (count != 0) {
+    this->send_command_(entry.value);
+    if (entry.count != 0) {
       this->dc_pin_->digital_write(true);
-      for (uint8_t i = 0; i < count; i++)
-        this->write_byte(progmem_read_byte(&this->init_sequence_[this->init_index_ + i]));
+      for (uint8_t i = 0; i < entry.count; i++)
+        this->write_byte(progmem_read_byte(entry.args + i));
     }
     this->disable();
-    this->init_index_ += count;
   }
-  this->finish_init_();
+  if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_DELAY) {
+    // Resume the sequence after the delay instead of blocking the main loop.
+    this->set_timeout(STARTUP_TIMEOUT_ID, entry.value, [this]() { this->send_init_sequence_(); });
+  } else if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_MALFORMED) {
+    this->mark_failed(LOG_STR("Malformed init sequence"));
+  } else {
+    this->finish_init_();
+  }
 }
 
 void ST7305::finish_init_() {

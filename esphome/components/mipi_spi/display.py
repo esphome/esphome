@@ -1,6 +1,7 @@
 import importlib
 import logging
 import pkgutil
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -72,6 +73,20 @@ Model = mipi_spi_ns.enum("Model")
 
 PixelMode = mipi_spi_ns.enum("PixelMode")
 BusType = mipi_spi_ns.enum("BusType")
+
+# Matches INIT_SEQUENCE_MAX_ARGS, the flash copy buffer in mipi_spi.h
+INIT_SEQUENCE_MAX_ARGS = 128
+
+
+def _map_sequence_entry(value: Any) -> tuple[int, ...]:
+    """Map one init sequence entry, limiting its data to the C++ copy buffer."""
+    entry = map_sequence(value)
+    if len(entry) - 1 > INIT_SEQUENCE_MAX_ARGS:
+        raise cv.Invalid(
+            f"An init sequence command can have at most {INIT_SEQUENCE_MAX_ARGS} data bytes"
+        )
+    return entry
+
 
 COLOR_ORDERS = {
     MODE_RGB: ColorOrder.COLOR_ORDER_RGB,
@@ -216,7 +231,7 @@ def model_schema(config: ConfigType) -> cv.All | cv.Schema:
                     bus_mode, lower=True
                 ),
                 cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
-                iseqconf: cv.ensure_list(map_sequence),
+                iseqconf: cv.ensure_list(_map_sequence_entry),
                 cv.Optional(CONF_BUFFER_SIZE): cv.All(
                     cv.percentage, cv.Range(0.12, 1.0)
                 ),

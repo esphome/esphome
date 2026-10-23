@@ -13,6 +13,7 @@
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/components/display/init_sequence.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_panel_io.h"
 
@@ -31,7 +32,6 @@ const uint8_t INVERT_OFF = 0x20;
 const uint8_t INVERT_ON = 0x21;
 const uint8_t DISPLAY_ON = 0x29;
 const uint8_t CMD2_BKSEL = 0xFF;
-const uint8_t DELAY_FLAG = 0xFF;
 const uint8_t MADCTL_BGR = 0x08;
 const uint8_t MADCTL_MX = 0x40;
 const uint8_t MADCTL_MY = 0x80;

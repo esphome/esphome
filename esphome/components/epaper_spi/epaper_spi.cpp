@@ -1,4 +1,5 @@
 #include "epaper_spi.h"
+#include "esphome/components/display/init_sequence.h"
 #include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -315,26 +316,21 @@ void EPaperBase::start_data_() {
 void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 
 void EPaperBase::send_init_sequence_(const uint8_t *sequence, size_t length) {
-  size_t index = 0;
-
-  while (index != length) {
-    if (length - index < 2) {
+  display::InitSequenceReader reader(sequence, length);
+  display::InitSequenceEntry entry;
+  for (;;) {
+    const auto step = reader.next(entry);
+    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_END)
+      return;
+    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_MALFORMED) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
-    const uint8_t cmd = sequence[index++];
-    if (const uint8_t x = sequence[index++]; x == DELAY_FLAG) {
-      ESP_LOGV(TAG, "Delay %dms", cmd);
-      delay(cmd);
+    if (step == display::InitSequenceStep::INIT_SEQUENCE_STEP_DELAY) {
+      ESP_LOGV(TAG, "Delay %dms", entry.value);
+      delay(entry.value);
     } else {
-      const uint8_t num_args = x & 0x7F;
-      if (length - index < num_args) {
-        ESP_LOGE(TAG, "Malformed init sequence, cmd = %X, num_args = %u", cmd, num_args);
-        this->mark_failed();
-        return;
-      }
-      this->cmd_data(cmd, sequence + index, num_args);
-      index += num_args;
+      this->cmd_data(entry.value, entry.args, entry.count);
     }
   }
 }

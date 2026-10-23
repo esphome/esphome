@@ -4,7 +4,6 @@ import pkgutil
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
-from esphome.components.display import CONF_SHOW_TEST_CARD
 from esphome.components.mipi import (
     DriverChip,
     flatten_sequence,
@@ -13,16 +12,13 @@ from esphome.components.mipi import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_AUTO_CLEAR_ENABLED,
     CONF_CS_PIN,
     CONF_DATA_RATE,
     CONF_DC_PIN,
     CONF_HEIGHT,
     CONF_ID,
     CONF_INIT_SEQUENCE,
-    CONF_LAMBDA,
     CONF_MODEL,
-    CONF_PAGES,
     CONF_RESET_PIN,
     CONF_ROTATION,
     CONF_WIDTH,
@@ -182,10 +178,7 @@ def customise_schema(config: ConfigType) -> ConfigType:
         config[CONF_HEIGHT],
         has_hardware_rotation=False,
         byte_order=cv.UNDEFINED,
-        has_writer=config.get(CONF_AUTO_CLEAR_ENABLED) is True
-        or config.get(CONF_PAGES) is not None
-        or config.get(CONF_LAMBDA) is not None
-        or config.get(CONF_SHOW_TEST_CARD) is True,
+        has_writer=display.has_writer(config),
         rotation=config.get(CONF_ROTATION, 0),
     )
     return config
