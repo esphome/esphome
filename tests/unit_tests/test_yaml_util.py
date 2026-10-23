@@ -2756,13 +2756,14 @@ def test_named_path_collapses_dotdot_lexically_on_windows(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Windows resolves `..` before following a directory link, so named_path does too."""
-    (tmp_path / "real").mkdir()
-    (tmp_path / "link").symlink_to(tmp_path / "real")
+    (tmp_path / "real" / "sub").mkdir(parents=True)
+    # Nested, so following the link (real) and collapsing `..` (tmp_path) differ
+    (tmp_path / "link").symlink_to(tmp_path / "real" / "sub")
+    path = tmp_path / "link" / ".." / "x.yaml"
+    assert yaml_util.named_path(path) == tmp_path.resolve() / "real" / "x.yaml"
     # Only yaml_util sees Windows; pathlib keeps resolving with the real os
     monkeypatch.setattr(yaml_util, "os", SimpleNamespace(name="nt", path=os.path))
-    assert yaml_util.named_path(tmp_path / "link" / ".." / "x.yaml") == (
-        tmp_path.resolve() / "x.yaml"
-    )
+    assert yaml_util.named_path(path) == tmp_path.resolve() / "x.yaml"
 
 
 def test_discover_user_yaml_files_loads_an_include_with_a_templated_condition(
