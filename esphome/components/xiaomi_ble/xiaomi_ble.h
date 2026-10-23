@@ -44,8 +44,6 @@ struct XiaomiParseResult {
   optional<bool> has_motion;
   optional<bool> is_light;
   optional<bool> button_press;
-  bool has_data;        // 0x40
-  bool has_capability;  // 0x20
   bool has_encryption;  // 0x08
   bool is_duplicate;
   int raw_offset;
@@ -106,6 +104,8 @@ class XiaomiEncryptedDevice : public XiaomiDevice {
   }
 
  protected:
+  void dump_bindkey_(const char *tag) const;
+
   uint8_t bindkey_[16]{};
 };
 
