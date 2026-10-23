@@ -81,11 +81,22 @@ def _download_companion_txt(model_url: str, cache_dir: Path) -> None:
     )
     txt_path = cache_dir / posixpath.basename(urlparse(txt_url).path)
     try:
-        external_files.download_content(txt_url, txt_path)
+        # Never fall back to the cached copy: it describes whatever model an
+        # earlier run downloaded, and a report for a different model would
+        # configure this one from the wrong tensor shapes.
+        external_files.download_content(txt_url, txt_path, allow_stale=False)
     except (cv.Invalid, OSError) as err:
         # A report the exporter never wrote is routine, and so is a flaky host.
         # Both leave the model configured from its filename, which is only
-        # visible in the build log if the reason is logged here.
+        # visible in the build log if the reason is logged here. A report left
+        # in the cache by an earlier run is removed so the mismatch is not
+        # silently carried into the next configuration.
+        try:
+            txt_path.unlink(missing_ok=True)
+        except OSError as remove_err:
+            _LOGGER.debug(
+                "Could not remove the cached report %s: %s", txt_path, remove_err
+            )
         log = _LOGGER.info if _is_missing_report(err) else _LOGGER.warning
         log(
             "Could not fetch the metadata report %s (%s); the model is configured "
@@ -168,7 +179,15 @@ def _http_model_path(url: str) -> Path:
 def _validate_github_shorthand(value: str):
     from esphome import git
 
-    git_file = git.GitFile.from_shorthand(value)
+    try:
+        git_file = git.GitFile.from_shorthand(value)
+    except ValueError as err:
+        # Without this the bare ValueError reaches the user as "not a valid
+        # value", which does not say what the shorthand should look like.
+        raise cv.Invalid(
+            f"Invalid github:// model shorthand '{value}': {err}\n"
+            "Use github://<owner>/<repo>/<path-to-model>.tflite"
+        ) from err
     conf = {
         CONF_TYPE: TYPE_GIT,
         CONF_URL: git_file.git_url,

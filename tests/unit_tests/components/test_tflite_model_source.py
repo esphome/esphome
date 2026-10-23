@@ -216,6 +216,36 @@ def test_parse_audio_txt_file_without_input_section_returns_none(tmp_path):
     assert parse_audio_txt_file(model_path) is None
 
 
+@pytest.mark.parametrize("dtype", ["int16", "bool"])
+def test_parse_audio_txt_file_rejects_unsupported_input_type(tmp_path, dtype):
+    """The feature buffer is filled in one dtype only, so anything else is an error."""
+    model_path = _write_report(
+        tmp_path, AUDIO_REPORT.replace("numpy.int8", f"numpy.{dtype}")
+    )
+
+    with pytest.raises(cv.Invalid, match="unsupported audio input type"):
+        parse_audio_txt_file(model_path)
+
+
+def test_parse_audio_txt_file_rejects_hybrid_quantization(tmp_path):
+    model_path = _write_report(
+        tmp_path,
+        AUDIO_REPORT.replace("numpy.int8", "numpy.float32")
+        + "Weights: <class 'numpy.int8'>\n",
+    )
+
+    with pytest.raises(cv.Invalid, match="hybrid quantization"):
+        parse_audio_txt_file(model_path)
+
+
+def test_github_shorthand_rejects_a_malformed_value():
+    """A ValueError from the parser is reported as a config error, not a crash."""
+    with pytest.raises(cv.Invalid, match="Invalid github:// model shorthand") as err:
+        model_source.MODEL_SOURCE_SCHEMA("github://own er/repo/models/digit.tflite")
+
+    assert "github://<owner>/<repo>/<path-to-model>.tflite" in str(err.value)
+
+
 def test_github_shorthand_with_model_suffix_is_cloned(tmp_path, monkeypatch):
     repo_dir = tmp_path / "repo"
     (repo_dir / "models").mkdir(parents=True)
@@ -433,6 +463,29 @@ def test_failed_companion_report_download_warns(tmp_path, monkeypatch, caplog):
     report_logs = [r for r in caplog.records if "digit.txt" in r.getMessage()]
     assert report_logs
     assert all(record.levelno == logging.WARNING for record in report_logs)
+
+
+def test_failed_companion_report_drops_the_cached_copy(tmp_path, monkeypatch, caplog):
+    """A report left by an earlier run must not configure this run's model."""
+    monkeypatch.setattr(model_source, "_cache_dir", lambda url: tmp_path)
+    stale = tmp_path / "digit.txt"
+    stale.write_text("Input 0: [  1  28  28   1]  numpy.uint8\n", encoding="utf-8")
+    download = _fake_download()
+    report_calls = []
+
+    def fake_download(url, path, *args, **kwargs):
+        if url.endswith(".txt"):
+            report_calls.append(kwargs)
+            raise OSError("network is unreachable")
+        return download(url, path, *args, **kwargs)
+
+    monkeypatch.setattr("esphome.external_files.download_content", fake_download)
+
+    with caplog.at_level(logging.WARNING, logger=model_source.__name__):
+        model_source.MODEL_SOURCE_SCHEMA("https://example.com/models/digit.tflite")
+
+    assert report_calls == [{"allow_stale": False}]
+    assert not stale.exists()
 
 
 def test_resolved_model_cache_is_dropped_by_core_reset(tmp_path, monkeypatch):

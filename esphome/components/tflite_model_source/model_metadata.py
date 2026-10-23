@@ -17,6 +17,10 @@ _LOGGER = logging.getLogger(__name__)
 # results, so it is rejected instead of being reported as uint8.
 _SUPPORTED_INPUT_TYPES = {"float32", "uint8"}
 
+# The audio pipeline handles the int8 features that the wake-word front end
+# produces, so int8 models are usable there as well as uint8 and float32.
+_SUPPORTED_AUDIO_INPUT_TYPES = {"float32", "uint8", "int8"}
+
 _ARENA_SIZE_RE = re.compile(
     r"Recommended tensor_arena_size:\s*([\d.]+\s*[KM]?B)", re.IGNORECASE
 )
@@ -133,12 +137,26 @@ def parse_audio_txt_file(model_path):
         "sliding_window_size": int(input_match.group(1)),
         "feature_count": int(input_match.group(2)),
     }
+    dtype = input_match.group(3)
+    if dtype not in _SUPPORTED_AUDIO_INPUT_TYPES:
+        raise cv.Invalid(
+            f"Model '{Path(model_path).name}' has unsupported audio input type "
+            f"'{dtype}'. Supported input types: "
+            f"{', '.join(sorted(_SUPPORTED_AUDIO_INPUT_TYPES))}"
+        )
     if (arena_size := _parse_arena_size(content)) is not None:
         config["tensor_arena_size"] = arena_size
     if prob_match := _PROBABILITY_CUTOFF_RE.search(content):
         config["probability_cutoff"] = float(prob_match.group(1))
     if step_match := _FEATURES_STEP_SIZE_RE.search(content):
         config["features_step_size"] = int(step_match.group(1))
+    if dtype == "float32" and _INT8_WEIGHT_RE.search(content):
+        raise cv.Invalid(
+            f"Model '{Path(model_path).name}' uses hybrid quantization "
+            "(float32 I/O + int8 weights).\n"
+            "  TFLite Micro on ESP32 does NOT support hybrid execution.\n"
+            "  Use a full integer quantized model instead."
+        )
     return config
 
 
