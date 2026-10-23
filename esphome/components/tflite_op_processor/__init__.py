@@ -43,10 +43,13 @@ async def to_code(config):
     # it is loaded directly instead of through tflite_micro_runtime.
     cg.add_define("USE_TFLITE_MICRO_HELPER")
     # The TFLM_OP_CONDITIONAL operators in tflm_operators.h need 1.3.7 or newer.
-    # Keep this pin in sync with micro_wake_word and esphome/idf_component.yml:
-    # add_idf_component() keeps the last ref it is given, so a different pin
-    # elsewhere in the config would make the version depend on load order.
+    # Keep these pins in sync with micro_wake_word, esphome/idf_component.yml and
+    # the other tflite_* components: add_idf_component() keeps the last ref it is
+    # given, so a different pin elsewhere would make the version depend on load
+    # order. esp-nn is pinned with it because it decides how much memory each
+    # kernel needs, so an unpinned esp-nn makes the arena sizes vary per build.
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.2.3")
     if (operators := config.get(CONF_OPERATORS)) is not None:
         _emit_selective_op_defines(operators)
 
