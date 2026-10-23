@@ -1,28 +1,23 @@
 #include "sm300d2.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sm300d2 {
 
 ESPHOME_LOG_TAG(TAG, "sm300d2");
-static const uint8_t SM300D2_RESPONSE_LENGTH = 17;
+static constexpr uint8_t SM300D2_RESPONSE_LENGTH = 17;
 
 void SM300D2Sensor::update() {
-  uint8_t response[SM300D2_RESPONSE_LENGTH];
-  uint8_t peeked;
+  // Takes the first complete frame already received; the sensor sends one every second, so none is waited for
+  FrameReader<SM300D2_RESPONSE_LENGTH, 0x3C, 0x02> reader;
+  const uint8_t *response = nullptr;
+  this->read_available([&reader, &response](uint8_t c) {
+    response = reader.feed(c);
+    return response == nullptr;
+  });
 
-  while (this->available() > 0 && this->peek_byte(&peeked) && peeked != 0x3C)
-    this->read();
-
-  bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
-
-  if (!read_success) {
+  if (response == nullptr) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
-    status_set_warning();
-    return;
-  }
-
-  if (response[0] != 0x3C || response[1] != 0x02) {
-    ESP_LOGW(TAG, "Invalid preamble for SM300D2 response!");
     this->status_set_warning();
     return;
   }
@@ -83,7 +78,7 @@ void SM300D2Sensor::update() {
     this->humidity_sensor_->publish_state(humidity);
 }
 
-uint16_t SM300D2Sensor::sm300d2_checksum_(uint8_t *ptr) { return sum_bytes(ptr, SM300D2_RESPONSE_LENGTH - 1); }
+uint16_t SM300D2Sensor::sm300d2_checksum_(const uint8_t *ptr) { return sum_bytes(ptr, SM300D2_RESPONSE_LENGTH - 1); }
 
 void SM300D2Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "SM300D2:");
