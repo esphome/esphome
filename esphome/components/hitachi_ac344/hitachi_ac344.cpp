@@ -1,9 +1,9 @@
 #include "hitachi_ac344.h"
+#include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace hitachi_ac344 {
+namespace esphome::hitachi_ac344 {
 
-static const char *const TAG = "climate.hitachi_ac344";
+ESPHOME_LOG_TAG(TAG, "climate.hitachi_ac344");
 
 void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, const uint8_t data) {
   if (offset >= 8 || !nbits)
@@ -15,15 +15,6 @@ void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, con
   *dst &= ~(uint8_t) (mask << offset);
   // Merge in the data.
   *dst |= ((data & mask) << offset);
-}
-
-void set_bit(uint8_t *const data, const uint8_t position, const bool on) {
-  uint8_t mask = 1 << position;
-  if (on) {
-    *data |= mask;
-  } else {
-    *data &= ~mask;
-  }
 }
 
 uint8_t *invert_byte_pairs(uint8_t *ptr, const uint16_t length) {
@@ -125,7 +116,7 @@ bool HitachiClimate::get_swing_v_toggle_() { return get_button_() == HITACHI_AC3
 
 void HitachiClimate::set_swing_v_(bool on) {
   set_swing_v_toggle_(on);  // Set the button value.
-  set_bit(&remote_state_[HITACHI_AC344_SWINGV_BYTE], HITACHI_AC344_SWINGV_OFFSET, on);
+  assign_bits(this->remote_state_[HITACHI_AC344_SWINGV_BYTE], 1 << HITACHI_AC344_SWINGV_OFFSET, on);
 }
 
 bool HitachiClimate::get_swing_v_() {
@@ -175,7 +166,7 @@ void HitachiClimate::transmit_state() {
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       set_fan_(HITACHI_AC344_FAN_LOW);
       break;
@@ -261,6 +252,8 @@ bool HitachiClimate::parse_mode_(const uint8_t remote_state[]) {
       case HITACHI_AC344_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
+      default:
+        break;
     }
   } else {
     this->mode = climate::CLIMATE_MODE_OFF;
@@ -294,6 +287,8 @@ bool HitachiClimate::parse_fan_(const uint8_t remote_state[]) {
       break;
     case HITACHI_AC344_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+    default:
       break;
   }
   return true;
@@ -366,5 +361,4 @@ void HitachiClimate::dump_state_(const char action[], uint8_t state[]) {
   ESP_LOGV(TAG, "%s: %02X %02X %02X", action, state[40], state[41], state[42]);
 }
 
-}  // namespace hitachi_ac344
-}  // namespace esphome
+}  // namespace esphome::hitachi_ac344

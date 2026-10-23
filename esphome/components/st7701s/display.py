@@ -1,10 +1,20 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
-from esphome.components.esp32 import const, only_on_variant
-from esphome.components.rpi_dpi_rgb.display import (
+from esphome.components.esp32 import VARIANT_ESP32S3, only_on_variant
+from esphome.components.mipi import (
+    CONF_DE_PIN,
+    CONF_HSYNC_BACK_PORCH,
+    CONF_HSYNC_FRONT_PORCH,
+    CONF_HSYNC_PULSE_WIDTH,
     CONF_PCLK_FREQUENCY,
     CONF_PCLK_INVERTED,
+    CONF_PCLK_PIN,
+    CONF_VSYNC_BACK_PORCH,
+    CONF_VSYNC_FRONT_PORCH,
+    CONF_VSYNC_PULSE_WIDTH,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -20,7 +30,6 @@ from esphome.const import (
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_NUMBER,
@@ -33,18 +42,9 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 from .init_sequences import ST7701S_INITS, cmd
-
-CONF_DE_PIN = "de_pin"
-CONF_PCLK_PIN = "pclk_pin"
-
-CONF_HSYNC_PULSE_WIDTH = "hsync_pulse_width"
-CONF_HSYNC_BACK_PORCH = "hsync_back_porch"
-CONF_HSYNC_FRONT_PORCH = "hsync_front_porch"
-CONF_VSYNC_PULSE_WIDTH = "vsync_pulse_width"
-CONF_VSYNC_BACK_PORCH = "vsync_back_porch"
-CONF_VSYNC_FRONT_PORCH = "vsync_front_porch"
 
 DEPENDENCIES = ["spi", "esp32"]
 
@@ -53,14 +53,11 @@ ST7701S = st7701s_ns.class_("ST7701S", display.Display, cg.Component, spi.SPIDev
 ColorOrder = display.display_ns.enum("ColorMode")
 ST7701S_DELAY_FLAG = 0xFF
 
-COLOR_ORDERS = {
-    "RGB": ColorOrder.COLOR_ORDER_RGB,
-    "BGR": ColorOrder.COLOR_ORDER_BGR,
-}
+COLOR_ORDERS = ColorOrder.options("RGB", "BGR", prefix="COLOR_ORDER_")
 DATA_PIN_SCHEMA = pins.internal_gpio_output_pin_schema
 
 
-def data_pin_validate(value):
+def data_pin_validate(value: Any) -> ConfigType:
     """
     It is safe to use strapping pins as RGB output data bits, as they are outputs only,
     and not initialised until after boot.
@@ -75,14 +72,14 @@ def data_pin_validate(value):
     return DATA_PIN_SCHEMA(value)
 
 
-def data_pin_set(length):
+def data_pin_set(length: int) -> cv.Schema:
     return cv.All(
         [data_pin_validate],
         cv.Length(min=length, max=length, msg=f"Exactly {length} data pins required"),
     )
 
 
-def map_sequence(value):
+def map_sequence(value: Any) -> list:
     """
     An initialisation sequence can be selected from one of the pre-defined sequences in init_sequences.py,
     or can be a literal array of data bytes.
@@ -140,7 +137,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_INIT_SEQUENCE, default=1): cv.ensure_list(
                     map_sequence
                 ),
-                cv.Optional(CONF_COLOR_ORDER): cv.one_of(
+                cv.Optional(CONF_COLOR_ORDER, default="BGR"): cv.one_of(
                     *COLOR_ORDERS.keys(), upper=True
                 ),
                 cv.Optional(CONF_PCLK_FREQUENCY, default="16MHz"): cv.All(
@@ -163,8 +160,8 @@ CONFIG_SCHEMA = cv.All(
             }
         ).extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6))
     ),
-    only_on_variant(supported=[const.VARIANT_ESP32S3]),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
+    only_on_variant(supported=[VARIANT_ESP32S3]),
 )
 
 FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
@@ -172,10 +169,10 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     sequence = []
     for seq in config[CONF_INIT_SEQUENCE]:
@@ -191,7 +188,6 @@ async def to_code(config):
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
     cg.add(var.set_pclk_inverted(config[CONF_PCLK_INVERTED]))
     cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY]))
-    index = 0
     dpins = []
     if CONF_RED in config[CONF_DATA_PINS]:
         red_pins = config[CONF_DATA_PINS][CONF_RED]
@@ -209,18 +205,12 @@ async def to_code(config):
         dpins = dpins[8:16] + dpins[0:8]
     else:
         dpins = config[CONF_DATA_PINS]
-    for pin in dpins:
+    for index, pin in enumerate(dpins):
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
-        index += 1
 
-    if dc_pin := config.get(CONF_DC_PIN):
-        dc = await cg.gpio_pin_expression(dc_pin)
-        cg.add(var.set_dc_pin(dc))
-
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_dc_pin, config.get(CONF_DC_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     if transform := config.get(CONF_TRANSFORM):
         cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
@@ -239,17 +229,9 @@ async def to_code(config):
             (width, height) = dimensions
             cg.add(var.set_dimensions(width, height))
 
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
-    cg.add(var.set_de_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
-    cg.add(var.set_pclk_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_HSYNC_PIN])
-    cg.add(var.set_hsync_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_VSYNC_PIN])
-    cg.add(var.set_vsync_pin(pin))
+    await cg.add_pin(var.set_de_pin, config[CONF_DE_PIN])
+    await cg.add_pin(var.set_pclk_pin, config[CONF_PCLK_PIN])
+    await cg.add_pin(var.set_hsync_pin, config[CONF_HSYNC_PIN])
+    await cg.add_pin(var.set_vsync_pin, config[CONF_VSYNC_PIN])

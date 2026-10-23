@@ -2,10 +2,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace grove_gas_mc_v2 {
+namespace esphome::grove_gas_mc_v2 {
 
-static const char *const TAG = "grove_gas_mc_v2";
+ESPHOME_LOG_TAG(TAG, "grove_gas_mc_v2");
 
 // I2C Commands for Grove Gas Multichannel V2 Sensor
 // Taken from:
@@ -24,7 +23,6 @@ bool GroveGasMultichannelV2Component::read_sensor_(uint8_t address, sensor::Sens
   uint32_t value = 0;
   if (!this->read_bytes(address, (uint8_t *) &value, 4)) {
     ESP_LOGW(TAG, "Reading Grove Gas Sensor data failed!");
-    this->error_code_ = COMMUNICATION_FAILED;
     this->status_set_warning();
     return false;
   }
@@ -33,11 +31,9 @@ bool GroveGasMultichannelV2Component::read_sensor_(uint8_t address, sensor::Sens
 }
 
 void GroveGasMultichannelV2Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Before reading sensor values, must preheat sensor
   if (!(this->write_bytes(GROVE_GAS_MC_V2_HEAT_ON, {}))) {
-    this->mark_failed();
-    this->error_code_ = APP_START_FAILED;
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 
@@ -58,30 +54,11 @@ void GroveGasMultichannelV2Component::update() {
 void GroveGasMultichannelV2Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Grove Multichannel Gas Sensor V2");
   LOG_I2C_DEVICE(this)
-  LOG_UPDATE_INTERVAL(this)
-  LOG_SENSOR("  ", "Nitrogen Dioxide", this->nitrogen_dioxide_sensor_)
-  LOG_SENSOR("  ", "Ethanol", this->ethanol_sensor_)
-  LOG_SENSOR("  ", "Carbon Monoxide", this->carbon_monoxide_sensor_)
-  LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_)
-
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case APP_INVALID:
-        ESP_LOGW(TAG, "Sensor reported invalid APP installed");
-        break;
-      case APP_START_FAILED:
-        ESP_LOGW(TAG, "Sensor reported APP start failed");
-        break;
-      case UNKNOWN:
-      default:
-        ESP_LOGW(TAG, "Unknown setup error");
-        break;
-    }
-  }
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Nitrogen Dioxide", this->nitrogen_dioxide_sensor_);
+  LOG_SENSOR("  ", "Ethanol", this->ethanol_sensor_);
+  LOG_SENSOR("  ", "Carbon Monoxide", this->carbon_monoxide_sensor_);
+  LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
 }
 
-}  // namespace grove_gas_mc_v2
-}  // namespace esphome
+}  // namespace esphome::grove_gas_mc_v2

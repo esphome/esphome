@@ -1,15 +1,18 @@
 """ESPHome packet transport component."""
 
+from collections.abc import Callable, Iterator
 import hashlib
 import logging
+from typing import Any
 
 import esphome.codegen as cg
-from esphome.components.api import CONF_ENCRYPTION
 from esphome.components.binary_sensor import BinarySensor
+from esphome.components.const import CONF_PROVIDER, CONF_REMOTE_ID
 from esphome.components.sensor import Sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINARY_SENSORS,
+    CONF_ENCRYPTION,
     CONF_ID,
     CONF_INTERNAL,
     CONF_KEY,
@@ -17,8 +20,9 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_SENSORS,
 )
-from esphome.core import CORE
-from esphome.cpp_generator import MockObjClass
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 AUTO_LOAD = ["xxtea"]
@@ -31,9 +35,7 @@ IS_PLATFORM_COMPONENT = True
 DOMAIN = "packet_transport"
 CONF_BROADCAST = "broadcast"
 CONF_BROADCAST_ID = "broadcast_id"
-CONF_PROVIDER = "provider"
 CONF_PROVIDERS = "providers"
-CONF_REMOTE_ID = "remote_id"
 CONF_PING_PONG_ENABLE = "ping_pong_enable"
 CONF_PING_PONG_RECYCLE_TIME = "ping_pong_recycle_time"
 CONF_ROLLING_CODE_ENABLE = "rolling_code_enable"
@@ -43,7 +45,7 @@ CONF_TRANSPORT_ID = "transport_id"
 _LOGGER = logging.getLogger(__name__)
 
 
-def sensor_validation(cls: MockObjClass):
+def sensor_validation(cls: MockObjClass) -> Callable[[Any], Any]:
     return cv.maybe_simple_value(
         cv.Schema(
             {
@@ -55,7 +57,7 @@ def sensor_validation(cls: MockObjClass):
     )
 
 
-def provider_name_validate(value):
+def provider_name_validate(value: Any) -> str:
     value = cv.valid_name(value)
     if "_" in value:
         _LOGGER.warning(
@@ -69,7 +71,7 @@ ENCRYPTION_SCHEMA = {
     cv.Optional(CONF_ENCRYPTION): cv.maybe_simple_value(
         cv.Schema(
             {
-                cv.Required(CONF_KEY): cv.string,
+                cv.Required(CONF_KEY): cv.sensitive(cv.string),
             }
         ),
         key=CONF_KEY,
@@ -83,15 +85,16 @@ PROVIDER_SCHEMA = cv.Schema(
 ).extend(ENCRYPTION_SCHEMA)
 
 
-def validate_(config):
+def validate_(config: ConfigType) -> ConfigType:
     if CONF_ENCRYPTION in config:
         if CONF_SENSORS not in config and CONF_BINARY_SENSORS not in config:
             raise cv.Invalid("No sensors or binary sensors to encrypt")
     elif config[CONF_ROLLING_CODE_ENABLE]:
         raise cv.Invalid("Rolling code requires an encryption key")
-    if config[CONF_PING_PONG_ENABLE]:
-        if not any(CONF_ENCRYPTION in p for p in config.get(CONF_PROVIDERS) or ()):
-            raise cv.Invalid("Ping-pong requires at least one encrypted provider")
+    if config[CONF_PING_PONG_ENABLE] and not any(
+        CONF_ENCRYPTION in p for p in config.get(CONF_PROVIDERS) or ()
+    ):
+        raise cv.Invalid("Ping-pong requires at least one encrypted provider")
     return config
 
 
@@ -116,31 +119,28 @@ TRANSPORT_SCHEMA = (
 )
 
 
-def transport_schema(cls):
+def transport_schema(cls: MockObjClass) -> cv.Schema:
     return TRANSPORT_SCHEMA.extend({cv.GenerateID(): cv.declare_id(cls)})
 
 
-# Build a list of sensors for this platform
-CORE.data[DOMAIN] = {CONF_SENSORS: []}
-
-
-def get_sensors(transport_id):
+def get_sensors(transport_id: ID) -> Iterator[ConfigType]:
     """Return the list of sensors for this platform."""
     return (
         sensor
-        for sensor in CORE.data[DOMAIN][CONF_SENSORS]
+        for sensor in CORE.data.setdefault(DOMAIN, {}).setdefault(CONF_SENSORS, [])
         if sensor[CONF_TRANSPORT_ID] == transport_id
     )
 
 
-def validate_packet_transport_sensor(config):
+def validate_packet_transport_sensor(config: ConfigType) -> ConfigType:
     if CONF_NAME in config and CONF_INTERNAL not in config:
         raise cv.Invalid("Must provide internal: config when using name:")
-    CORE.data[DOMAIN][CONF_SENSORS].append(config)
+    conf_sensors = CORE.data.setdefault(DOMAIN, {}).setdefault(CONF_SENSORS, [])
+    conf_sensors.append(config)
     return config
 
 
-def packet_transport_sensor_schema(base_schema):
+def packet_transport_sensor_schema(base_schema: cv.Schema) -> cv.Schema:
     return cv.All(
         base_schema.extend(
             {
@@ -154,11 +154,11 @@ def packet_transport_sensor_schema(base_schema):
     )
 
 
-def hash_encryption_key(config: dict):
+def hash_encryption_key(config: dict) -> list[int]:
     return list(hashlib.sha256(config[CONF_KEY].encode()).digest())
 
 
-async def register_packet_transport(var, config):
+async def register_packet_transport(var: MockObj, config: ConfigType) -> set[str]:
     var = await cg.register_component(var, config)
     cg.add(var.set_rolling_code_enable(config[CONF_ROLLING_CODE_ENABLE]))
     cg.add(var.set_ping_pong_enable(config[CONF_PING_PONG_ENABLE]))
@@ -178,24 +178,37 @@ async def register_packet_transport(var, config):
         if encryption := provider.get(CONF_ENCRYPTION):
             cg.add(var.set_provider_encryption(name, hash_encryption_key(encryption)))
 
-    for sens_conf in config.get(CONF_SENSORS, ()):
+    is_provider = False
+    sensors = config.get(CONF_SENSORS, ())
+    binary_sensors = config.get(CONF_BINARY_SENSORS, ())
+    if sensors:
+        cg.add(var.set_sensor_count(len(sensors)))
+    if binary_sensors:
+        cg.add(var.set_binary_sensor_count(len(binary_sensors)))
+    for sens_conf in sensors:
+        is_provider = True
         sens_id = sens_conf[CONF_ID]
         sensor = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
         cg.add(var.add_sensor(bcst_id, sensor))
-    for sens_conf in config.get(CONF_BINARY_SENSORS, ()):
+    for sens_conf in binary_sensors:
+        is_provider = True
         sens_id = sens_conf[CONF_ID]
         sensor = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
         cg.add(var.add_binary_sensor(bcst_id, sensor))
 
+    if is_provider:
+        cg.add(var.set_is_provider(True))
     if encryption := config.get(CONF_ENCRYPTION):
         cg.add(var.set_encryption_key(hash_encryption_key(encryption)))
     return providers
 
 
-async def new_packet_transport(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_packet_transport(
+    config: ConfigType, *args: Any
+) -> tuple[MockObj, set[str]]:
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     cg.add(var.set_platform_name(config[CONF_PLATFORM]))
     providers = await register_packet_transport(var, config)
     return var, providers

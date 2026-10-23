@@ -1,14 +1,17 @@
 #include "airthings_wave_base.h"
+#include "esphome/components/esp32_ble/ble_uuid.h"
 
 // All information related to reading battery information came from the sensors.airthings_wave
 // project by Sverre Hamre (https://github.com/sverrham/sensor.airthings_wave)
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace airthings_wave_base {
+namespace esphome::airthings_wave_base {
 
-static const char *const TAG = "airthings_wave_base";
+ESPHOME_LOG_TAG(TAG, "airthings_wave_base");
+
+static constexpr uint32_t BATTERY_READ_TIMEOUT_ID = 0;
+static constexpr uint32_t RESPONSE_TIMEOUT_ID = 1;
 
 void AirthingsWaveBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                             esp_ble_gattc_cb_param_t *param) {
@@ -93,8 +96,10 @@ void AirthingsWaveBase::update() {
 bool AirthingsWaveBase::request_read_values_() {
   auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->sensors_data_characteristic_uuid_);
   if (chr == nullptr) {
-    ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", this->service_uuid_.to_string().c_str(),
-             this->sensors_data_characteristic_uuid_.to_string().c_str());
+    char service_buf[esp32_ble::UUID_STR_LEN];
+    char char_buf[esp32_ble::UUID_STR_LEN];
+    ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", this->service_uuid_.to_str(service_buf),
+             this->sensors_data_characteristic_uuid_.to_str(char_buf));
     return false;
   }
 
@@ -117,17 +122,20 @@ bool AirthingsWaveBase::request_battery_() {
 
   auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->access_control_point_characteristic_uuid_);
   if (chr == nullptr) {
+    char service_buf[esp32_ble::UUID_STR_LEN];
+    char char_buf[esp32_ble::UUID_STR_LEN];
     ESP_LOGW(TAG, "No access control point characteristic found at service %s char %s",
-             this->service_uuid_.to_string().c_str(),
-             this->access_control_point_characteristic_uuid_.to_string().c_str());
+             this->service_uuid_.to_str(service_buf), this->access_control_point_characteristic_uuid_.to_str(char_buf));
     return false;
   }
 
   auto *descr = this->parent()->get_descriptor(this->service_uuid_, this->access_control_point_characteristic_uuid_,
                                                CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR_UUID);
   if (descr == nullptr) {
-    ESP_LOGW(TAG, "No CCC descriptor found at service %s char %s", this->service_uuid_.to_string().c_str(),
-             this->access_control_point_characteristic_uuid_.to_string().c_str());
+    char service_buf[esp32_ble::UUID_STR_LEN];
+    char char_buf[esp32_ble::UUID_STR_LEN];
+    ESP_LOGW(TAG, "No CCC descriptor found at service %s char %s", this->service_uuid_.to_str(service_buf),
+             this->access_control_point_characteristic_uuid_.to_str(char_buf));
     return false;
   }
 
@@ -176,7 +184,7 @@ void AirthingsWaveBase::read_battery_(uint8_t *raw_value, uint16_t value_len) {
     // read the battery again at the configured update interval
     if (this->battery_update_interval_ != this->update_interval_) {
       this->read_battery_next_update_ = false;
-      this->set_timeout("battery", this->battery_update_interval_,
+      this->set_timeout(BATTERY_READ_TIMEOUT_ID, this->battery_update_interval_,
                         [this]() { this->read_battery_next_update_ = true; });
     }
   }
@@ -199,13 +207,12 @@ void AirthingsWaveBase::response_received_() {
 }
 
 void AirthingsWaveBase::set_response_timeout_() {
-  this->set_timeout("response_timeout", 30 * 1000, [this]() {
+  this->set_timeout(RESPONSE_TIMEOUT_ID, 30 * 1000, [this]() {
     this->responses_pending_ = 1;
     this->response_received_();
   });
 }
 
-}  // namespace airthings_wave_base
-}  // namespace esphome
+}  // namespace esphome::airthings_wave_base
 
 #endif  // USE_ESP32

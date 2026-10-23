@@ -2,64 +2,96 @@
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
 
-#include <freertos/portmacro.h>
-
 #include <openthread/cli.h>
 #include <openthread/instance.h>
+#include <openthread/ip6.h>
 #include <openthread/logging.h>
 #include <openthread/netdata.h>
-#include <openthread/srp_client.h>
-#include <openthread/srp_client_buffers.h>
 #include <openthread/tasklet.h>
 
 #include <cstring>
+#include <utility>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-static const char *const TAG = "openthread";
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+#include "esp_err.h"
+#include "esp_openthread_border_router.h"
+#endif
 
-namespace esphome {
-namespace openthread {
+ESPHOME_LOG_TAG(TAG, "openthread");
+
+namespace esphome::openthread {
 
 OpenThreadComponent *global_openthread_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;                                        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 OpenThreadComponent::OpenThreadComponent() { global_openthread_component = this; }
 
-OpenThreadComponent::~OpenThreadComponent() {
-  auto lock = InstanceLock::try_acquire(100);
-  if (!lock) {
-    ESP_LOGW(TAG, "Failed to acquire OpenThread lock in destructor, leaking memory");
-    return;
+#ifdef USE_OPENTHREAD_RCP_UART
+OpenThreadComponent::OpenThreadComponent(uint32_t rcp_baud_rate, uint8_t rcp_rx_pin, uint8_t rcp_tx_pin,
+                                         GPIOPin *rcp_reset_pin)
+    : rcp_baud_rate_(rcp_baud_rate), rcp_rx_pin_(rcp_rx_pin), rcp_tx_pin_(rcp_tx_pin), rcp_reset_pin_(rcp_reset_pin) {
+  global_openthread_component = this;
+}
+#endif
+
+void OpenThreadComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "Open Thread:");
+#if CONFIG_OPENTHREAD_FTD
+  ESP_LOGCONFIG(TAG, "  Device Type: FTD");
+#elif CONFIG_OPENTHREAD_MTD
+  ESP_LOGCONFIG(TAG, "  Device Type: MTD");
+  // TBD: Synchronized Sleepy End Device
+  if (this->poll_period_ > 0) {
+    ESP_LOGCONFIG(TAG, "  Device is configured as Sleepy End Device (SED)");
+    uint32_t duration = this->poll_period_ / 1000;
+    ESP_LOGCONFIG(TAG, "  Poll Period: %" PRIu32 "s", duration);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Device is configured as Minimal End Device (MED)");
   }
-  otInstance *instance = lock->get_instance();
-  otSrpClientClearHostAndServices(instance);
-  otSrpClientBuffersFreeAllServices(instance);
-  global_openthread_component = nullptr;
+#endif
+  if (this->output_power_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Output power: %" PRId8 "dBm", *this->output_power_);
+  }
+#ifdef USE_OPENTHREAD_RCP_UART
+  ESP_LOGCONFIG(TAG,
+                "  Radio: External RCP\n"
+                "  Transport: UART1 at %" PRIu32 " baud\n"
+                "  RX Pin: GPIO%u\n"
+                "  TX Pin: GPIO%u",
+                this->rcp_baud_rate_, this->rcp_rx_pin_, this->rcp_tx_pin_);
+  if (this->rcp_reset_pin_ != nullptr) {
+    LOG_PIN("  RCP Reset Pin: ", this->rcp_reset_pin_);
+  }
+#else
+  ESP_LOGCONFIG(TAG, "  Radio: Native 802.15.4");
+#endif
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  ESP_LOGCONFIG(TAG, "  Border Router: ENABLED\n"
+                     "  Backbone: Wi-Fi STA\n"
+                     "  Experimental: YES");
+#endif
 }
 
-bool OpenThreadComponent::is_connected() {
-  auto lock = InstanceLock::try_acquire(100);
-  if (!lock) {
-    ESP_LOGW(TAG, "Failed to acquire OpenThread lock in is_connected");
-    return false;
+void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) {
+  if (flags & OT_CHANGED_THREAD_ROLE) {
+    auto *self = static_cast<OpenThreadComponent *>(context);
+    // This runs on the OpenThread task thread with the OT lock held,
+    // so we can safely call otThreadGetDeviceRole directly.
+    otInstance *instance = self->get_openthread_instance_();
+    otDeviceRole role = otThreadGetDeviceRole(instance);
+    self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
   }
-
-  otInstance *instance = lock->get_instance();
-  if (instance == nullptr) {
-    return false;
-  }
-
-  otDeviceRole role = otThreadGetDeviceRole(instance);
-
-  // TODO: If we're a leader, check that there is at least 1 known peer
-  return role >= OT_DEVICE_ROLE_CHILD;
 }
 
 // Gets the off-mesh routable address
 std::optional<otIp6Address> OpenThreadComponent::get_omr_address() {
+  // A failed setup never creates the lock, and acquire() would abort waiting for it
+  if (this->is_failed())
+    return {};
   InstanceLock lock = InstanceLock::acquire();
   return this->get_omr_address_(lock);
 }
@@ -86,8 +118,15 @@ std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(InstanceLock &
   return {};
 }
 
-void srp_callback(otError err, const otSrpClientHostInfo *host_info, const otSrpClientService *services,
-                  const otSrpClientService *removed_services, void *context) {
+#ifdef USE_OPENTHREAD_SRP
+void OpenThreadComponent::defer_factory_reset_external_callback() {
+  ESP_LOGD(TAG, "Defer factory_reset_external_callback_");
+  this->defer([this]() { this->factory_reset_external_callback_(); });
+}
+
+void OpenThreadSrpComponent::srp_callback(otError err, const otSrpClientHostInfo *host_info,
+                                          const otSrpClientService *services,
+                                          const otSrpClientService *removed_services, void *context) {
   if (err != 0) {
     ESP_LOGW(TAG, "SRP client reported an error: %s", otThreadErrorToString(err));
     for (const otSrpClientHostInfo *host = host_info; host; host = nullptr) {
@@ -99,23 +138,47 @@ void srp_callback(otError err, const otSrpClientHostInfo *host_info, const otSrp
   }
 }
 
-void srp_start_callback(const otSockAddr *server_socket_address, void *context) {
+void OpenThreadSrpComponent::srp_start_callback(const otSockAddr *server_socket_address, void *context) {
   ESP_LOGI(TAG, "SRP client has started");
 }
 
+void OpenThreadSrpComponent::srp_factory_reset_callback(otError err, const otSrpClientHostInfo *host_info,
+                                                        const otSrpClientService *services,
+                                                        const otSrpClientService *removed_services, void *context) {
+  OpenThreadComponent *obj = (OpenThreadComponent *) context;
+  if (err == OT_ERROR_NONE && removed_services != NULL && host_info != NULL &&
+      host_info->mState == OT_SRP_CLIENT_ITEM_STATE_REMOVED) {
+    ESP_LOGD(TAG, "Successful Removal SRP Host and Services");
+  } else if (err != OT_ERROR_NONE) {
+    // Handle other SRP client events or errors
+    ESP_LOGW(TAG, "SRP client event/error: %s", otThreadErrorToString(err));
+  }
+  obj->defer_factory_reset_external_callback();
+}
+
 void OpenThreadSrpComponent::setup() {
+  // A start-up failure on the OpenThread task reaches the component as a deferred mark_failed();
+  // the task itself may already be gone, and acquire() would abort instead of waiting
+  if (global_openthread_component->is_failed()
+#ifdef USE_ESP32
+      || global_openthread_component->is_task_exited()
+#endif
+  ) {
+    this->mark_failed();
+    return;
+  }
   otError error;
   InstanceLock lock = InstanceLock::acquire();
   otInstance *instance = lock.get_instance();
 
-  otSrpClientSetCallback(instance, srp_callback, nullptr);
+  otSrpClientSetCallback(instance, OpenThreadSrpComponent::srp_callback, nullptr);
 
   // set the host name
   uint16_t size;
   char *existing_host_name = otSrpClientBuffersGetHostNameString(instance, &size);
-  const std::string &host_name = App.get_name();
+  const auto &host_name = App.get_name();
   uint16_t host_name_len = host_name.size();
-  if (host_name_len > size) {
+  if (host_name_len >= size) {
     ESP_LOGW(TAG, "Hostname is too long, choose a shorter project name");
     return;
   }
@@ -134,11 +197,10 @@ void OpenThreadSrpComponent::setup() {
     return;
   }
 
-  // Copy the mdns services to our local instance so that the c_str pointers remain valid for the lifetime of this
-  // component
-  this->mdns_services_ = this->mdns_->get_services();
-  ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", this->mdns_services_.size());
-  for (const auto &service : this->mdns_services_) {
+  // Get mdns services and copy their data (strdup on ESP32, pool_alloc_ on Zephyr)
+  const auto &mdns_services = this->mdns_->get_services();
+  ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_services.size());
+  for (const auto &service : mdns_services) {
     otSrpClientBuffersServiceEntry *entry = otSrpClientBuffersAllocateService(instance);
     if (!entry) {
       ESP_LOGW(TAG, "Failed to allocate service entry");
@@ -147,8 +209,8 @@ void OpenThreadSrpComponent::setup() {
 
     // Set service name
     char *string = otSrpClientBuffersGetServiceEntryServiceNameString(entry, &size);
-    std::string full_service = service.service_type + "." + service.proto;
-    if (full_service.size() > size) {
+    std::string full_service = std::string(MDNS_STR_ARG(service.service_type)) + "." + MDNS_STR_ARG(service.proto);
+    if (full_service.size() >= size) {
       ESP_LOGW(TAG, "Service name too long: %s", full_service.c_str());
       continue;
     }
@@ -156,7 +218,7 @@ void OpenThreadSrpComponent::setup() {
 
     // Set instance name (using host_name)
     string = otSrpClientBuffersGetServiceEntryInstanceNameString(entry, &size);
-    if (host_name_len > size) {
+    if (host_name_len >= size) {
       ESP_LOGW(TAG, "Instance name too long: %s", host_name.c_str());
       continue;
     }
@@ -164,7 +226,7 @@ void OpenThreadSrpComponent::setup() {
     memcpy(string, host_name.c_str(), host_name_len);
 
     // Set port
-    entry->mService.mPort = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    entry->mService.mPort = service.port.value();
 
     otDnsTxtEntry *txt_entries =
         reinterpret_cast<otDnsTxtEntry *>(this->pool_alloc_(sizeof(otDnsTxtEntry) * service.txt_records.size()));
@@ -172,10 +234,22 @@ void OpenThreadSrpComponent::setup() {
     entry->mService.mNumTxtEntries = service.txt_records.size();
     for (size_t i = 0; i < service.txt_records.size(); i++) {
       const auto &txt = service.txt_records[i];
-      auto value = const_cast<TemplatableValue<std::string> &>(txt.value).value();
-      txt_entries[i].mKey = strdup(txt.key.c_str());
-      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value.c_str()));
-      txt_entries[i].mValueLength = value.size();
+      // Value is either a compile-time string literal in flash or a pointer to dynamic_txt_values_
+      // OpenThread SRP client expects the data to persist, so we copy it
+      const char *value_str = MDNS_STR_ARG(txt.value);
+      txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
+#ifndef USE_ZEPHYR
+      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value_str));
+      txt_entries[i].mValueLength = strlen(value_str);
+#else
+      // strdup is not available on zephyr
+      // https:// github.com/zephyrproject-rtos/zephyr/issues/22464
+      size_t value_len = strlen(value_str);
+      char *value_copy = reinterpret_cast<char *>(this->pool_alloc_(value_len + 1));
+      memcpy(value_copy, value_str, value_len + 1);
+      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(value_copy);
+      txt_entries[i].mValueLength = value_len;
+#endif
     }
     entry->mService.mTxtEntries = txt_entries;
     entry->mService.mNumTxtEntries = service.txt_records.size();
@@ -188,7 +262,7 @@ void OpenThreadSrpComponent::setup() {
     ESP_LOGD(TAG, "Added service: %s", full_service.c_str());
   }
 
-  otSrpClientEnableAutoStartMode(instance, srp_start_callback, nullptr);
+  otSrpClientEnableAutoStartMode(instance, OpenThreadSrpComponent::srp_start_callback, nullptr);
   ESP_LOGD(TAG, "Finished SRP setup");
 }
 
@@ -198,9 +272,143 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
   return ptr;
 }
 
-void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
+#endif
 
-}  // namespace openthread
-}  // namespace esphome
+bool OpenThreadComponent::teardown() {
+  // A setup() failure marks the stage complete itself; a failure with the task running, such as a
+  // border router that did not come up or an RCP that stays silent, still needs the stop below
+  switch (this->teardown_stage_) {
+    case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {
+      {
+        auto lock = InstanceLock::try_acquire(100);
+        // The OT task may still be starting up; stay pending and retry on
+        // the next call rather than giving up after a single failed attempt.
+        if (!lock) {
+          ESP_LOGV(TAG, "Failed to acquire OpenThread lock during teardown");
+          return false;
+        }
+        // The OpenThread task may have completed on its own in the meantime; never move back from there
+        TeardownStage expected = TeardownStage::TEARDOWN_STAGE_NOT_STARTED;
+        if (!this->teardown_stage_.compare_exchange_strong(expected, TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS)) {
+          break;
+        }
+        otInstance *instance = lock.get_instance();
+        // Stop mirroring address changes onto the netif. Every multicast group and address the
+        // stack drops from here on would otherwise become an MLD message that is sent, through
+        // the event loop, after the clean-up has deleted the glue's packet queue, which aborts.
+        otIp6SetAddressCallback(instance, nullptr, nullptr);
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+        if (this->border_router_started_) {
+          if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
+            ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
+          }
+          this->border_router_started_ = false;
+        }
+#endif
+#ifdef USE_OPENTHREAD_SRP
+        ESP_LOGV(TAG, "Clear SRP");
+        otSrpClientClearHostAndServices(instance);
+        otSrpClientBuffersFreeAllServices(instance);
+#endif
+        if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
+          ESP_LOGW(TAG, "Failed to disable Thread during teardown");
+        }
+        if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
+          ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
+        }
+      }
+      // Stop OpenThread
+      global_openthread_component = nullptr;
+      ESP_LOGV(TAG, "Stop OpenThread");
+      if (int error = this->openthread_stop_(); error != 0) {
+        // Nothing will mark the stage complete for us; do not wait out the teardown timeout
+        ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
+        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
+      }
+    } break;
+    case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
+      // On ESP32 the OpenThread task is leaving its main loop and cleaning up; it marks the
+      // stage complete when done. Zephyr completes synchronously in openthread_stop_().
+      break;
+    case TeardownStage::TEARDOWN_STAGE_COMPLETED:
+      ESP_LOGV(TAG, "OpenThreadComponent Teardown Complete");
+      break;
+  }
+  return this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_COMPLETED;
+}
 
+void OpenThreadComponent::on_factory_reset(const std::function<void()> &callback) {
+#ifndef USE_OPENTHREAD_SRP
+  // Nothing registered with an SRP server to remove first
+  callback();
+#else
+  if (this->is_failed()) {
+    // No SRP registration to remove; reset right away
+    callback();
+    return;
+  }
+  this->factory_reset_external_callback_ = callback;
+  ESP_LOGD(TAG, "Start Removal SRP Host and Services");
+  otError error;
+  InstanceLock lock = InstanceLock::acquire();
+  otInstance *instance = lock.get_instance();
+  otSrpClientSetCallback(instance, OpenThreadSrpComponent::srp_factory_reset_callback, this);
+  error = otSrpClientRemoveHostAndServices(instance, true, true);
+  if (error != OT_ERROR_NONE) {
+    ESP_LOGW(TAG, "Failed to Remove SRP Host and Services");
+    return;
+  }
+  ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
+#endif
+}
+
+void OpenThreadComponent::apply_poll_period(uint32_t poll_period) {
+#if CONFIG_OPENTHREAD_MTD
+  this->set_poll_period(poll_period);
+  if (!this->is_lock_initialized()) {
+    // The action may run before the stack is up, e.g. from a restore mode; setup() applies the stored value.
+    ESP_LOGD(TAG, "Not (yet) ready to apply");
+    return;
+  }
+  auto lock = InstanceLock::try_acquire(100);
+  if (!lock) {
+    ESP_LOGW(TAG, "Failed to acquire lock in action");
+    return;
+  }
+  this->apply_linkmode_(lock.get_instance());
+#else
+  ESP_LOGW(TAG, "OpenThread action has no effect on FTD devices (MTD only)");
+#endif
+}
+
+void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
+  otLinkModeConfig link_mode_config{};
+#if CONFIG_OPENTHREAD_FTD
+  link_mode_config.mRxOnWhenIdle = true;
+  link_mode_config.mDeviceType = true;
+  link_mode_config.mNetworkData = true;
+#elif CONFIG_OPENTHREAD_MTD
+  if (this->poll_period_ > 0) {
+    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set pollperiod");
+    }
+    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
+  }
+  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
+  link_mode_config.mDeviceType = false;
+  link_mode_config.mNetworkData = false;
+#endif
+
+  if (otThreadSetLinkMode(instance, link_mode_config) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set linkmode");
+  }
+#ifdef ESPHOME_LOG_HAS_DEBUG  // Fetch link mode from OT only when DEBUG
+  link_mode_config = otThreadGetLinkMode(instance);
+  ESP_LOGD(TAG, "Link Mode Device Type: %s, Network Data: %s, RX On When Idle: %s",
+           TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
+           TRUEFALSE(link_mode_config.mRxOnWhenIdle));
+#endif
+}
+
+}  // namespace esphome::openthread
 #endif

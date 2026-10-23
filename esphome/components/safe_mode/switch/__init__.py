@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_SAFE_MODE, ENTITY_CATEGORY_CONFIG, ICON_RESTART_ALERT
+from esphome.types import ConfigType
 
 from .. import SafeModeComponent, safe_mode_ns
 
@@ -21,9 +22,8 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
 
-    safe_mode_component = await cg.get_variable(config[CONF_SAFE_MODE])
-    cg.add(var.set_safe_mode(safe_mode_component))
+    await cg.add_variable(var.set_safe_mode, config[CONF_SAFE_MODE])

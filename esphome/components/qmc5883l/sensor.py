@@ -1,13 +1,18 @@
+from collections.abc import Callable
+import logging
+from typing import Any
+
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_DATA_RATE,
     CONF_FIELD_STRENGTH_X,
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
     CONF_HEADING,
-    CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RANGE,
     CONF_TEMPERATURE,
@@ -20,6 +25,11 @@ from esphome.const import (
     UNIT_DEGREES,
     UNIT_MICROTESLA,
 )
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
+
+CONF_DRDY_PIN = "drdy_pin"
 
 DEPENDENCIES = ["i2c"]
 
@@ -52,14 +62,28 @@ QMC5883LOversamplings = {
 }
 
 
-def validate_enum(enum_values, units=None, int=True):
+def validate_config(config: ConfigType) -> ConfigType:
+    if (
+        config[CONF_UPDATE_INTERVAL].total_milliseconds < 15
+        and CONF_DRDY_PIN not in config
+    ):
+        _LOGGER.warning(
+            "[qmc5883l] 'update_interval' is less than 15ms and 'drdy_pin' is "
+            "not configured, this may result in I2C errors"
+        )
+    return config
+
+
+def validate_enum(
+    enum_values: dict[Any, Any], units: str | list[str] | None = None, int: bool = True
+) -> Callable[[Any], Any]:
     _units = []
     if units is not None:
         _units = units if isinstance(units, list) else [units]
         _units = [str(x) for x in _units]
     enum_bound = cv.enum(enum_values, int=int)
 
-    def validate_enum_bound(value):
+    def validate_enum_bound(value: Any) -> Any:
         value = cv.string(value)
         for unit in _units:
             if value.endswith(unit):
@@ -80,6 +104,7 @@ heading_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_DEGREES,
     icon=ICON_SCREEN_ROTATION,
     accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 temperature_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_CELSIUS,
@@ -88,7 +113,7 @@ temperature_schema = sensor.sensor_schema(
     state_class=STATE_CLASS_MEASUREMENT,
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(QMC5883LComponent),
@@ -104,42 +129,28 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
             cv.Optional(CONF_HEADING): heading_schema,
             cv.Optional(CONF_TEMPERATURE): temperature_schema,
+            cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_DATA_RATE, default="200hz"): validate_enum(
+                QMC5883LDatarates, units=["hz", "Hz"]
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x0D))
+    .extend(i2c.i2c_device_schema(0x0D)),
+    validate_config,
 )
 
 
-def auto_data_rate(config):
-    interval_sec = config[CONF_UPDATE_INTERVAL].total_milliseconds / 1000
-    interval_hz = 1.0 / interval_sec
-    for datarate in sorted(QMC5883LDatarates.keys()):
-        if float(datarate) >= interval_hz:
-            return QMC5883LDatarates[datarate]
-    return QMC5883LDatarates[200]
-
-
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
-    cg.add(var.set_datarate(auto_data_rate(config)))
+    cg.add(var.set_datarate(config[CONF_DATA_RATE]))
     cg.add(var.set_range(config[CONF_RANGE]))
-    if CONF_FIELD_STRENGTH_X in config:
-        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_X])
-        cg.add(var.set_x_sensor(sens))
-    if CONF_FIELD_STRENGTH_Y in config:
-        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_Y])
-        cg.add(var.set_y_sensor(sens))
-    if CONF_FIELD_STRENGTH_Z in config:
-        sens = await sensor.new_sensor(config[CONF_FIELD_STRENGTH_Z])
-        cg.add(var.set_z_sensor(sens))
-    if CONF_HEADING in config:
-        sens = await sensor.new_sensor(config[CONF_HEADING])
-        cg.add(var.set_heading_sensor(sens))
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FIELD_STRENGTH_X, var.set_x_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Y, var.set_y_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Z, var.set_z_sensor)
+    await sensors(CONF_HEADING, var.set_heading_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await cg.add_pin(var.set_drdy_pin, config.get(CONF_DRDY_PIN))

@@ -1,11 +1,10 @@
 import esphome.codegen as cg
-from esphome.components import esp32_ble_tracker, sensor
+from esphome.components import ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BINDKEY,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
@@ -16,16 +15,17 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
-DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble"]
+AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_cgg1_ns = cg.esphome_ns.namespace("xiaomi_cgg1")
 XiaomiCGG1 = xiaomi_cgg1_ns.class_(
-    "XiaomiCGG1", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
+    "XiaomiCGG1", ble_device_base.ESPBTDeviceListener, cg.Component
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("xiaomi_cgg1"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XiaomiCGG1),
@@ -52,26 +52,18 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
-    if CONF_BINDKEY in config:
-        cg.add(var.set_bindkey(config[CONF_BINDKEY]))
+    cg.add_optional(var.set_bindkey, config.get(CONF_BINDKEY))
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
-        cg.add(var.set_humidity(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature)
+    await sensors(CONF_HUMIDITY, var.set_humidity)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)

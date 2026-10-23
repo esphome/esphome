@@ -1,0 +1,96 @@
+#ifdef USE_ARDUINO
+#ifdef USE_RP2
+#include "ota_backend_arduino_rp2.h"
+#include "ota_backend.h"
+
+#include "esphome/components/rp2/preferences.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/log.h"
+
+#include <Updater.h>
+
+// LittleFS region bounds, provided by the arduino-pico linker script.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern "C" uint8_t _FS_start;
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern "C" uint8_t _FS_end;
+
+namespace esphome::ota {
+
+ESPHOME_LOG_TAG(TAG, "ota");
+
+std::unique_ptr<ArduinoRP2OTABackend> make_ota_backend() { return make_unique<ArduinoRP2OTABackend>(); }
+
+OTAResponseTypes ArduinoRP2OTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
+  if (ota_type != OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
+  // 0 means the size is unknown (web_server upload). The updater only checks the size
+  // against the LittleFS region it stages the image in, so ask for all of it.
+  if (image_size == 0) {
+    image_size = reinterpret_cast<uintptr_t>(&_FS_end) - reinterpret_cast<uintptr_t>(&_FS_start);
+  }
+  bool ret = Update.begin(image_size, U_FLASH);
+  if (ret) {
+    rp2::preferences_prevent_write(true);
+    return OTA_RESPONSE_OK;
+  }
+
+  uint8_t error = Update.getError();
+  if (error == UPDATE_ERROR_BOOTSTRAP)
+    return OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
+  if (error == UPDATE_ERROR_NEW_FLASH_CONFIG)
+    return OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG;
+  if (error == UPDATE_ERROR_FLASH_CONFIG)
+    return OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
+  if (error == UPDATE_ERROR_SPACE || error == UPDATE_ERROR_SIZE)
+    return OTA_RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE;
+
+  ESP_LOGE(TAG, "Begin error: %d", error);
+
+  return OTA_RESPONSE_ERROR_UNKNOWN;
+}
+
+void ArduinoRP2OTABackend::set_update_md5(const char *md5) {
+  Update.setMD5(md5);
+  this->md5_set_ = true;
+}
+
+OTAResponseTypes ArduinoRP2OTABackend::write(uint8_t *data, size_t len) {
+  size_t written = Update.write(data, len);
+  if (written == len) {
+    return OTA_RESPONSE_OK;
+  }
+
+  uint8_t error = Update.getError();
+  ESP_LOGE(TAG, "Write error: %d", error);
+
+  return OTA_RESPONSE_ERROR_WRITING_FLASH;
+}
+
+OTAResponseTypes ArduinoRP2OTABackend::end() {
+  // Use strict validation (false) when MD5 is set, lenient validation (true) when no MD5
+  // This matches the behavior of the old web_server OTA implementation
+  if (Update.end(!this->md5_set_)) {
+    this->lock_.hold_until_reboot();
+    return OTA_RESPONSE_OK;
+  }
+
+  uint8_t error = Update.getError();
+  ESP_LOGE(TAG, "End error: %d", error);
+
+  return OTA_RESPONSE_ERROR_UPDATE_END;
+}
+
+void ArduinoRP2OTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin()
+    return;
+  Update.end();
+  rp2::preferences_prevent_write(false);
+}
+
+}  // namespace esphome::ota
+#endif  // USE_RP2
+#endif  // USE_ARDUINO

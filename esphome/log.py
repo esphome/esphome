@@ -1,5 +1,7 @@
 from enum import Enum
 import logging
+import sys
+from typing import TextIO
 
 from esphome.core import CORE
 
@@ -28,15 +30,19 @@ class AnsiFore(Enum):
 
 
 class AnsiStyle(Enum):
+    # BOLD/BRIGHT and THIN/DIM are intentional ANSI synonyms; Enum treats the
+    # second name in each pair as an alias of the first.
     BRIGHT = "\033[1m"
-    BOLD = "\033[1m"
+    BOLD = "\033[1m"  # noqa: PIE796
     DIM = "\033[2m"
-    THIN = "\033[2m"
+    THIN = "\033[2m"  # noqa: PIE796
     NORMAL = "\033[22m"
     RESET_ALL = "\033[0m"
 
 
 def color(col: AnsiFore, msg: str, reset: bool = True) -> str:
+    if col == AnsiFore.KEEP:
+        return msg
     s = col.value + msg
     if reset and col:
         s += AnsiStyle.RESET_ALL.value
@@ -61,20 +67,37 @@ class ESPHomeLogFormatter(logging.Formatter):
         }.get(record.levelname, "")
         message = f"{prefix}{formatted}{AnsiStyle.RESET_ALL.value}"
         if CORE.dashboard:
-            try:
+            try:  # noqa: SIM105
                 message = message.replace("\033", "\\033")
             except UnicodeEncodeError:
                 pass
         return message
 
 
+def _is_tty(stream: TextIO | None) -> bool:
+    # A stream can be missing, closed, or not a real file object; colorama
+    # tolerates all three, so treat them like a redirect and let its own
+    # handling apply.
+    if stream is None or getattr(stream, "closed", True):
+        return False
+    return hasattr(stream, "isatty") and stream.isatty()
+
+
 def setup_log(
     log_level: int = logging.INFO,
     include_timestamp: bool = False,
 ) -> None:
-    import colorama
+    # colorama translates ANSI escapes for old Windows consoles and strips
+    # them from redirected output. POSIX terminals render ANSI natively, and
+    # dashboard runs escape their color codes before printing, so both would
+    # use colorama as a plain passthrough; skip the import there (it pulls
+    # in ctypes, ~3ms on every CLI invocation).
+    if sys.platform == "win32" or not (
+        CORE.dashboard or (_is_tty(sys.stdout) and _is_tty(sys.stderr))
+    ):
+        import colorama
 
-    colorama.init()
+        colorama.init()
 
     # Setup logging - will map log level from string to constant
     logging.basicConfig(level=log_level)

@@ -1,0 +1,9 @@
+wifi:
+  ssid: MySSID
+  password: password1
+  power_save_mode: none
+
+api:
+
+zwave_proxy:
+  id: zw_proxy

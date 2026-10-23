@@ -5,10 +5,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
-class BLETextSensorNotifyTrigger : public Trigger<std::string>, public BLETextSensor {
+class BLETextSensorNotifyTrigger final : public Trigger<std::string>, public BLETextSensor {
  public:
   explicit BLETextSensorNotifyTrigger(BLETextSensor *sensor) { sensor_ = sensor; }
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -22,7 +21,7 @@ class BLETextSensorNotifyTrigger : public Trigger<std::string>, public BLETextSe
         if (param->notify.conn_id != this->sensor_->parent()->get_conn_id() ||
             param->notify.handle != this->sensor_->handle)
           break;
-        this->trigger(this->sensor_->parse_data(param->notify.value, param->notify.value_len));
+        this->trigger(std::string(reinterpret_cast<const char *>(param->notify.value), param->notify.value_len));
       }
       default:
         break;
@@ -33,7 +32,6 @@ class BLETextSensorNotifyTrigger : public Trigger<std::string>, public BLETextSe
   BLETextSensor *sensor_;
 };
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif

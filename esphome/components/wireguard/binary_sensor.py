@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_STATUS,
@@ -8,8 +9,6 @@ from esphome.const import (
 )
 
 from . import CONF_WIREGUARD_ID, Wireguard
-
-CONF_ENABLED = "enabled"
 
 DEPENDENCIES = ["wireguard"]
 
@@ -25,12 +24,8 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_WIREGUARD_ID])
+    hub = await cg.get_variable(config[CONF_WIREGUARD_ID])
 
-    if status_config := config.get(CONF_STATUS):
-        sens = await binary_sensor.new_binary_sensor(status_config)
-        cg.add(parent.set_status_sensor(sens))
-
-    if enabled_config := config.get(CONF_ENABLED):
-        sens = await binary_sensor.new_binary_sensor(enabled_config)
-        cg.add(parent.set_enabled_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_STATUS, hub.set_status_sensor)
+    await binary_sensors(CONF_ENABLED, hub.set_enabled_sensor)

@@ -1,5 +1,0 @@
-substitutions:
-  i2c_sda: GPIO21
-  i2c_scl: GPIO22
-
-<<: !include common.yaml

@@ -1,23 +1,19 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace interval {
+namespace esphome::interval {
 
-class IntervalTrigger : public Trigger<>, public PollingComponent {
+class IntervalTrigger final : public Trigger<>, public PollingComponent {
  public:
-  void update() override {
-    if (this->started_)
-      this->trigger();
-  }
+  void update() override { this->trigger(); }
 
   void setup() override {
-    if (this->startup_delay_ == 0) {
-      this->started_ = true;
-    } else {
-      this->set_timeout(this->startup_delay_, [this] { this->started_ = true; });
+    if (this->startup_delay_ != 0) {
+      this->stop_poller();
+      this->set_timeout(this->startup_delay_, [this] { this->start_poller(); });
     }
   }
 
@@ -25,8 +21,6 @@ class IntervalTrigger : public Trigger<>, public PollingComponent {
 
  protected:
   uint32_t startup_delay_{0};
-  bool started_{false};
 };
 
-}  // namespace interval
-}  // namespace esphome
+}  // namespace esphome::interval

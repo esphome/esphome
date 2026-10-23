@@ -2,37 +2,205 @@
 // See script/api_protobuf/api_protobuf.py
 #include "api_pb2.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
+#ifdef USE_ESP8266
+// Out-of-line to avoid inlining strlen_P/memcpy_P at every call site
+void DumpBuffer::append_p_esp8266(const char *str) { this->append_p_esp8266(str, strlen_P(str)); }
+
+void DumpBuffer::append_p_esp8266(const char *str, size_t len) {
+  size_t space = CAPACITY - 1 - pos_;
+  if (len > space)
+    len = space;
+  if (len > 0) {
+    memcpy_P(buf_ + pos_, str, len);
+    pos_ += len;
+    buf_[pos_] = '\0';
+  }
+}
+#endif
+
+// Helper function to append a quoted string, handling empty StringRef
+static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
+  out.append("'");
+  if (!ref.empty()) {
+    out.append(ref.c_str(), ref.size());
+  }
+  out.append("'");
+}
+
+// Common helpers for dump_field functions
+// field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
+static inline void append_field_prefix(DumpBuffer &out, const char *field_name, int indent) {
+  out.append(indent, ' ').append_p(field_name).append(": ");
+}
+
+static inline void append_uint(DumpBuffer &out, uint32_t value) {
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu32, value));
+}
+
+// RAII helper for message dump formatting
+// message_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
+class MessageDumpHelper {
+ public:
+  MessageDumpHelper(DumpBuffer &out, const char *message_name) : out_(out) {
+    out_.append_p(message_name);
+    out_.append(" {\n");
+  }
+  ~MessageDumpHelper() { out_.append(" }"); }
+
+ private:
+  DumpBuffer &out_;
+};
+
+// Helper functions to reduce code duplication in dump methods
+// field_name parameters are PROGMEM pointers (flash on ESP8266, regular pointers on other platforms)
+// Not all overloads are used in every build (depends on enabled components)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+static void dump_field(DumpBuffer &out, const char *field_name, int32_t value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRId32 "\n", value));
+}
+
+static void dump_field(DumpBuffer &out, const char *field_name, uint32_t value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu32 "\n", value));
+}
+
+static void dump_field(DumpBuffer &out, const char *field_name, float value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%g\n", value));
+}
+
+static void dump_field(DumpBuffer &out, const char *field_name, uint64_t value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu64 "\n", value));
+}
+
+static void dump_field(DumpBuffer &out, const char *field_name, bool value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append(YESNO(value));
+  out.append("\n");
+}
+
+static void dump_field(DumpBuffer &out, const char *field_name, const std::string &value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value.c_str()).append("'");
+  out.append("\n");
+}
+
+static void dump_field(DumpBuffer &out, const char *field_name, StringRef value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  append_quoted_string(out, value);
+  out.append("\n");
+}
+
+static void dump_field(DumpBuffer &out, const char *field_name, const char *value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append(value).append("'");
+  out.append("\n");
+}
+
+// proto_enum_to_string returns PROGMEM pointers, so use append_p
+template<typename T> static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append_p(proto_enum_to_string<T>(value));
+  out.append("\n");
+}
+
+// Bytes shown by a bytes field dump: 160 bytes is 480 chars with separators, to fit a typical log buffer
+static constexpr size_t DUMP_BYTES_MAX = 160;
+
+// Helper for bytes fields - uses stack buffer to avoid heap allocation
+// field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
+static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
+  char hex_buf[format_hex_pretty_size(DUMP_BYTES_MAX)];
+  append_field_prefix(out, field_name, indent);
+  format_hex_pretty_to(hex_buf, data, len);
+  out.append(hex_buf).append("\n");
+}
+
+// Helper for bytes fields in flash: copies the shown bytes out with progmem_memcpy first
+static void dump_progmem_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len,
+                                     int indent = 2) {
+  uint8_t data_buf[DUMP_BYTES_MAX];
+  len = std::min(len, sizeof(data_buf));
+  progmem_memcpy(data_buf, data, len);
+  dump_bytes_field(out, field_name, data_buf, len, indent);
+}
+
+// Helper for string fields in flash
+static void dump_progmem_string_field(DumpBuffer &out, const char *field_name, const ProgmemStringRef &value,
+                                      int indent = 2) {
+  append_field_prefix(out, field_name, indent);
+  out.append("'").append_p(value.progmem_ptr(), value.size()).append("'\n");
+}
+#pragma GCC diagnostic pop
+
+template<> const char *proto_enum_to_string<enums::DisconnectReason>(enums::DisconnectReason value) {
+  switch (value) {
+    case enums::DISCONNECT_REASON_UNSPECIFIED:
+      return ESPHOME_PSTR("DISCONNECT_REASON_UNSPECIFIED");
+    case enums::DISCONNECT_REASON_PROVISIONING_CLOSED:
+      return ESPHOME_PSTR("DISCONNECT_REASON_PROVISIONING_CLOSED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+template<> const char *proto_enum_to_string<enums::DeviceRelation>(enums::DeviceRelation value) {
+  switch (value) {
+    case enums::DEVICE_RELATION_VIA:
+      return ESPHOME_PSTR("DEVICE_RELATION_VIA");
+    case enums::DEVICE_RELATION_CHILD:
+      return ESPHOME_PSTR("DEVICE_RELATION_CHILD");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::SerialProxyPortType value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_PORT_TYPE_TTL:
+      return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_TTL");
+    case enums::SERIAL_PROXY_PORT_TYPE_RS232:
+      return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_RS232");
+    case enums::SERIAL_PROXY_PORT_TYPE_RS485:
+      return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_RS485");
+    case enums::SERIAL_PROXY_PORT_TYPE_USB_SERIAL:
+      return ESPHOME_PSTR("SERIAL_PROXY_PORT_TYPE_USB_SERIAL");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
   switch (value) {
     case enums::ENTITY_CATEGORY_NONE:
-      return "ENTITY_CATEGORY_NONE";
+      return ESPHOME_PSTR("ENTITY_CATEGORY_NONE");
     case enums::ENTITY_CATEGORY_CONFIG:
-      return "ENTITY_CATEGORY_CONFIG";
+      return ESPHOME_PSTR("ENTITY_CATEGORY_CONFIG");
     case enums::ENTITY_CATEGORY_DIAGNOSTIC:
-      return "ENTITY_CATEGORY_DIAGNOSTIC";
+      return ESPHOME_PSTR("ENTITY_CATEGORY_DIAGNOSTIC");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #ifdef USE_COVER
 template<> const char *proto_enum_to_string<enums::CoverOperation>(enums::CoverOperation value) {
   switch (value) {
     case enums::COVER_OPERATION_IDLE:
-      return "COVER_OPERATION_IDLE";
+      return ESPHOME_PSTR("COVER_OPERATION_IDLE");
     case enums::COVER_OPERATION_IS_OPENING:
-      return "COVER_OPERATION_IS_OPENING";
+      return ESPHOME_PSTR("COVER_OPERATION_IS_OPENING");
     case enums::COVER_OPERATION_IS_CLOSING:
-      return "COVER_OPERATION_IS_CLOSING";
+      return ESPHOME_PSTR("COVER_OPERATION_IS_CLOSING");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -40,11 +208,11 @@ template<> const char *proto_enum_to_string<enums::CoverOperation>(enums::CoverO
 template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirection value) {
   switch (value) {
     case enums::FAN_DIRECTION_FORWARD:
-      return "FAN_DIRECTION_FORWARD";
+      return ESPHOME_PSTR("FAN_DIRECTION_FORWARD");
     case enums::FAN_DIRECTION_REVERSE:
-      return "FAN_DIRECTION_REVERSE";
+      return ESPHOME_PSTR("FAN_DIRECTION_REVERSE");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -52,29 +220,29 @@ template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirec
 template<> const char *proto_enum_to_string<enums::ColorMode>(enums::ColorMode value) {
   switch (value) {
     case enums::COLOR_MODE_UNKNOWN:
-      return "COLOR_MODE_UNKNOWN";
+      return ESPHOME_PSTR("COLOR_MODE_UNKNOWN");
     case enums::COLOR_MODE_ON_OFF:
-      return "COLOR_MODE_ON_OFF";
+      return ESPHOME_PSTR("COLOR_MODE_ON_OFF");
     case enums::COLOR_MODE_LEGACY_BRIGHTNESS:
-      return "COLOR_MODE_LEGACY_BRIGHTNESS";
+      return ESPHOME_PSTR("COLOR_MODE_LEGACY_BRIGHTNESS");
     case enums::COLOR_MODE_BRIGHTNESS:
-      return "COLOR_MODE_BRIGHTNESS";
+      return ESPHOME_PSTR("COLOR_MODE_BRIGHTNESS");
     case enums::COLOR_MODE_WHITE:
-      return "COLOR_MODE_WHITE";
+      return ESPHOME_PSTR("COLOR_MODE_WHITE");
     case enums::COLOR_MODE_COLOR_TEMPERATURE:
-      return "COLOR_MODE_COLOR_TEMPERATURE";
+      return ESPHOME_PSTR("COLOR_MODE_COLOR_TEMPERATURE");
     case enums::COLOR_MODE_COLD_WARM_WHITE:
-      return "COLOR_MODE_COLD_WARM_WHITE";
+      return ESPHOME_PSTR("COLOR_MODE_COLD_WARM_WHITE");
     case enums::COLOR_MODE_RGB:
-      return "COLOR_MODE_RGB";
+      return ESPHOME_PSTR("COLOR_MODE_RGB");
     case enums::COLOR_MODE_RGB_WHITE:
-      return "COLOR_MODE_RGB_WHITE";
+      return ESPHOME_PSTR("COLOR_MODE_RGB_WHITE");
     case enums::COLOR_MODE_RGB_COLOR_TEMPERATURE:
-      return "COLOR_MODE_RGB_COLOR_TEMPERATURE";
+      return ESPHOME_PSTR("COLOR_MODE_RGB_COLOR_TEMPERATURE");
     case enums::COLOR_MODE_RGB_COLD_WARM_WHITE:
-      return "COLOR_MODE_RGB_COLD_WARM_WHITE";
+      return ESPHOME_PSTR("COLOR_MODE_RGB_COLD_WARM_WHITE");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -82,177 +250,266 @@ template<> const char *proto_enum_to_string<enums::ColorMode>(enums::ColorMode v
 template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::SensorStateClass value) {
   switch (value) {
     case enums::STATE_CLASS_NONE:
-      return "STATE_CLASS_NONE";
+      return ESPHOME_PSTR("STATE_CLASS_NONE");
     case enums::STATE_CLASS_MEASUREMENT:
-      return "STATE_CLASS_MEASUREMENT";
+      return ESPHOME_PSTR("STATE_CLASS_MEASUREMENT");
     case enums::STATE_CLASS_TOTAL_INCREASING:
-      return "STATE_CLASS_TOTAL_INCREASING";
+      return ESPHOME_PSTR("STATE_CLASS_TOTAL_INCREASING");
     case enums::STATE_CLASS_TOTAL:
-      return "STATE_CLASS_TOTAL";
+      return ESPHOME_PSTR("STATE_CLASS_TOTAL");
+    case enums::STATE_CLASS_MEASUREMENT_ANGLE:
+      return ESPHOME_PSTR("STATE_CLASS_MEASUREMENT_ANGLE");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
 template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
   switch (value) {
     case enums::LOG_LEVEL_NONE:
-      return "LOG_LEVEL_NONE";
+      return ESPHOME_PSTR("LOG_LEVEL_NONE");
     case enums::LOG_LEVEL_ERROR:
-      return "LOG_LEVEL_ERROR";
+      return ESPHOME_PSTR("LOG_LEVEL_ERROR");
     case enums::LOG_LEVEL_WARN:
-      return "LOG_LEVEL_WARN";
+      return ESPHOME_PSTR("LOG_LEVEL_WARN");
     case enums::LOG_LEVEL_INFO:
-      return "LOG_LEVEL_INFO";
+      return ESPHOME_PSTR("LOG_LEVEL_INFO");
     case enums::LOG_LEVEL_CONFIG:
-      return "LOG_LEVEL_CONFIG";
+      return ESPHOME_PSTR("LOG_LEVEL_CONFIG");
     case enums::LOG_LEVEL_DEBUG:
-      return "LOG_LEVEL_DEBUG";
+      return ESPHOME_PSTR("LOG_LEVEL_DEBUG");
     case enums::LOG_LEVEL_VERBOSE:
-      return "LOG_LEVEL_VERBOSE";
+      return ESPHOME_PSTR("LOG_LEVEL_VERBOSE");
     case enums::LOG_LEVEL_VERY_VERBOSE:
-      return "LOG_LEVEL_VERY_VERBOSE";
+      return ESPHOME_PSTR("LOG_LEVEL_VERY_VERBOSE");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
-#ifdef USE_API_SERVICES
+template<> const char *proto_enum_to_string<enums::DSTRuleType>(enums::DSTRuleType value) {
+  switch (value) {
+    case enums::DST_RULE_TYPE_NONE:
+      return ESPHOME_PSTR("DST_RULE_TYPE_NONE");
+    case enums::DST_RULE_TYPE_MONTH_WEEK_DAY:
+      return ESPHOME_PSTR("DST_RULE_TYPE_MONTH_WEEK_DAY");
+    case enums::DST_RULE_TYPE_JULIAN_NO_LEAP:
+      return ESPHOME_PSTR("DST_RULE_TYPE_JULIAN_NO_LEAP");
+    case enums::DST_RULE_TYPE_DAY_OF_YEAR:
+      return ESPHOME_PSTR("DST_RULE_TYPE_DAY_OF_YEAR");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+#ifdef USE_API_USER_DEFINED_ACTIONS
 template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
   switch (value) {
     case enums::SERVICE_ARG_TYPE_BOOL:
-      return "SERVICE_ARG_TYPE_BOOL";
+      return ESPHOME_PSTR("SERVICE_ARG_TYPE_BOOL");
     case enums::SERVICE_ARG_TYPE_INT:
-      return "SERVICE_ARG_TYPE_INT";
+      return ESPHOME_PSTR("SERVICE_ARG_TYPE_INT");
     case enums::SERVICE_ARG_TYPE_FLOAT:
-      return "SERVICE_ARG_TYPE_FLOAT";
+      return ESPHOME_PSTR("SERVICE_ARG_TYPE_FLOAT");
     case enums::SERVICE_ARG_TYPE_STRING:
-      return "SERVICE_ARG_TYPE_STRING";
+      return ESPHOME_PSTR("SERVICE_ARG_TYPE_STRING");
     case enums::SERVICE_ARG_TYPE_BOOL_ARRAY:
-      return "SERVICE_ARG_TYPE_BOOL_ARRAY";
+      return ESPHOME_PSTR("SERVICE_ARG_TYPE_BOOL_ARRAY");
     case enums::SERVICE_ARG_TYPE_INT_ARRAY:
-      return "SERVICE_ARG_TYPE_INT_ARRAY";
+      return ESPHOME_PSTR("SERVICE_ARG_TYPE_INT_ARRAY");
     case enums::SERVICE_ARG_TYPE_FLOAT_ARRAY:
-      return "SERVICE_ARG_TYPE_FLOAT_ARRAY";
+      return ESPHOME_PSTR("SERVICE_ARG_TYPE_FLOAT_ARRAY");
     case enums::SERVICE_ARG_TYPE_STRING_ARRAY:
-      return "SERVICE_ARG_TYPE_STRING_ARRAY";
+      return ESPHOME_PSTR("SERVICE_ARG_TYPE_STRING_ARRAY");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+template<> const char *proto_enum_to_string<enums::SupportsResponseType>(enums::SupportsResponseType value) {
+  switch (value) {
+    case enums::SUPPORTS_RESPONSE_NONE:
+      return ESPHOME_PSTR("SUPPORTS_RESPONSE_NONE");
+    case enums::SUPPORTS_RESPONSE_OPTIONAL:
+      return ESPHOME_PSTR("SUPPORTS_RESPONSE_OPTIONAL");
+    case enums::SUPPORTS_RESPONSE_ONLY:
+      return ESPHOME_PSTR("SUPPORTS_RESPONSE_ONLY");
+    case enums::SUPPORTS_RESPONSE_STATUS:
+      return ESPHOME_PSTR("SUPPORTS_RESPONSE_STATUS");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
+template<> const char *proto_enum_to_string<enums::TemperatureUnit>(enums::TemperatureUnit value) {
+  switch (value) {
+    case enums::TEMPERATURE_UNIT_CELSIUS:
+      return ESPHOME_PSTR("TEMPERATURE_UNIT_CELSIUS");
+    case enums::TEMPERATURE_UNIT_FAHRENHEIT:
+      return ESPHOME_PSTR("TEMPERATURE_UNIT_FAHRENHEIT");
+    case enums::TEMPERATURE_UNIT_KELVIN:
+      return ESPHOME_PSTR("TEMPERATURE_UNIT_KELVIN");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 #ifdef USE_CLIMATE
 template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
   switch (value) {
     case enums::CLIMATE_MODE_OFF:
-      return "CLIMATE_MODE_OFF";
+      return ESPHOME_PSTR("CLIMATE_MODE_OFF");
     case enums::CLIMATE_MODE_HEAT_COOL:
-      return "CLIMATE_MODE_HEAT_COOL";
+      return ESPHOME_PSTR("CLIMATE_MODE_HEAT_COOL");
     case enums::CLIMATE_MODE_COOL:
-      return "CLIMATE_MODE_COOL";
+      return ESPHOME_PSTR("CLIMATE_MODE_COOL");
     case enums::CLIMATE_MODE_HEAT:
-      return "CLIMATE_MODE_HEAT";
+      return ESPHOME_PSTR("CLIMATE_MODE_HEAT");
     case enums::CLIMATE_MODE_FAN_ONLY:
-      return "CLIMATE_MODE_FAN_ONLY";
+      return ESPHOME_PSTR("CLIMATE_MODE_FAN_ONLY");
     case enums::CLIMATE_MODE_DRY:
-      return "CLIMATE_MODE_DRY";
+      return ESPHOME_PSTR("CLIMATE_MODE_DRY");
     case enums::CLIMATE_MODE_AUTO:
-      return "CLIMATE_MODE_AUTO";
+      return ESPHOME_PSTR("CLIMATE_MODE_AUTO");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::ClimateFanMode>(enums::ClimateFanMode value) {
   switch (value) {
     case enums::CLIMATE_FAN_ON:
-      return "CLIMATE_FAN_ON";
+      return ESPHOME_PSTR("CLIMATE_FAN_ON");
     case enums::CLIMATE_FAN_OFF:
-      return "CLIMATE_FAN_OFF";
+      return ESPHOME_PSTR("CLIMATE_FAN_OFF");
     case enums::CLIMATE_FAN_AUTO:
-      return "CLIMATE_FAN_AUTO";
+      return ESPHOME_PSTR("CLIMATE_FAN_AUTO");
     case enums::CLIMATE_FAN_LOW:
-      return "CLIMATE_FAN_LOW";
+      return ESPHOME_PSTR("CLIMATE_FAN_LOW");
     case enums::CLIMATE_FAN_MEDIUM:
-      return "CLIMATE_FAN_MEDIUM";
+      return ESPHOME_PSTR("CLIMATE_FAN_MEDIUM");
     case enums::CLIMATE_FAN_HIGH:
-      return "CLIMATE_FAN_HIGH";
+      return ESPHOME_PSTR("CLIMATE_FAN_HIGH");
     case enums::CLIMATE_FAN_MIDDLE:
-      return "CLIMATE_FAN_MIDDLE";
+      return ESPHOME_PSTR("CLIMATE_FAN_MIDDLE");
     case enums::CLIMATE_FAN_FOCUS:
-      return "CLIMATE_FAN_FOCUS";
+      return ESPHOME_PSTR("CLIMATE_FAN_FOCUS");
     case enums::CLIMATE_FAN_DIFFUSE:
-      return "CLIMATE_FAN_DIFFUSE";
+      return ESPHOME_PSTR("CLIMATE_FAN_DIFFUSE");
     case enums::CLIMATE_FAN_QUIET:
-      return "CLIMATE_FAN_QUIET";
+      return ESPHOME_PSTR("CLIMATE_FAN_QUIET");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::ClimateSwingMode value) {
   switch (value) {
     case enums::CLIMATE_SWING_OFF:
-      return "CLIMATE_SWING_OFF";
+      return ESPHOME_PSTR("CLIMATE_SWING_OFF");
     case enums::CLIMATE_SWING_BOTH:
-      return "CLIMATE_SWING_BOTH";
+      return ESPHOME_PSTR("CLIMATE_SWING_BOTH");
     case enums::CLIMATE_SWING_VERTICAL:
-      return "CLIMATE_SWING_VERTICAL";
+      return ESPHOME_PSTR("CLIMATE_SWING_VERTICAL");
     case enums::CLIMATE_SWING_HORIZONTAL:
-      return "CLIMATE_SWING_HORIZONTAL";
+      return ESPHOME_PSTR("CLIMATE_SWING_HORIZONTAL");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::ClimateAction value) {
   switch (value) {
     case enums::CLIMATE_ACTION_OFF:
-      return "CLIMATE_ACTION_OFF";
+      return ESPHOME_PSTR("CLIMATE_ACTION_OFF");
     case enums::CLIMATE_ACTION_COOLING:
-      return "CLIMATE_ACTION_COOLING";
+      return ESPHOME_PSTR("CLIMATE_ACTION_COOLING");
     case enums::CLIMATE_ACTION_HEATING:
-      return "CLIMATE_ACTION_HEATING";
+      return ESPHOME_PSTR("CLIMATE_ACTION_HEATING");
     case enums::CLIMATE_ACTION_IDLE:
-      return "CLIMATE_ACTION_IDLE";
+      return ESPHOME_PSTR("CLIMATE_ACTION_IDLE");
     case enums::CLIMATE_ACTION_DRYING:
-      return "CLIMATE_ACTION_DRYING";
+      return ESPHOME_PSTR("CLIMATE_ACTION_DRYING");
     case enums::CLIMATE_ACTION_FAN:
-      return "CLIMATE_ACTION_FAN";
+      return ESPHOME_PSTR("CLIMATE_ACTION_FAN");
+    case enums::CLIMATE_ACTION_DEFROSTING:
+      return ESPHOME_PSTR("CLIMATE_ACTION_DEFROSTING");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::ClimatePreset value) {
   switch (value) {
     case enums::CLIMATE_PRESET_NONE:
-      return "CLIMATE_PRESET_NONE";
+      return ESPHOME_PSTR("CLIMATE_PRESET_NONE");
     case enums::CLIMATE_PRESET_HOME:
-      return "CLIMATE_PRESET_HOME";
+      return ESPHOME_PSTR("CLIMATE_PRESET_HOME");
     case enums::CLIMATE_PRESET_AWAY:
-      return "CLIMATE_PRESET_AWAY";
+      return ESPHOME_PSTR("CLIMATE_PRESET_AWAY");
     case enums::CLIMATE_PRESET_BOOST:
-      return "CLIMATE_PRESET_BOOST";
+      return ESPHOME_PSTR("CLIMATE_PRESET_BOOST");
     case enums::CLIMATE_PRESET_COMFORT:
-      return "CLIMATE_PRESET_COMFORT";
+      return ESPHOME_PSTR("CLIMATE_PRESET_COMFORT");
     case enums::CLIMATE_PRESET_ECO:
-      return "CLIMATE_PRESET_ECO";
+      return ESPHOME_PSTR("CLIMATE_PRESET_ECO");
     case enums::CLIMATE_PRESET_SLEEP:
-      return "CLIMATE_PRESET_SLEEP";
+      return ESPHOME_PSTR("CLIMATE_PRESET_SLEEP");
     case enums::CLIMATE_PRESET_ACTIVITY:
-      return "CLIMATE_PRESET_ACTIVITY";
+      return ESPHOME_PSTR("CLIMATE_PRESET_ACTIVITY");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
+#ifdef USE_WATER_HEATER
+template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::WaterHeaterMode value) {
+  switch (value) {
+    case enums::WATER_HEATER_MODE_OFF:
+      return ESPHOME_PSTR("WATER_HEATER_MODE_OFF");
+    case enums::WATER_HEATER_MODE_ECO:
+      return ESPHOME_PSTR("WATER_HEATER_MODE_ECO");
+    case enums::WATER_HEATER_MODE_ELECTRIC:
+      return ESPHOME_PSTR("WATER_HEATER_MODE_ELECTRIC");
+    case enums::WATER_HEATER_MODE_PERFORMANCE:
+      return ESPHOME_PSTR("WATER_HEATER_MODE_PERFORMANCE");
+    case enums::WATER_HEATER_MODE_HIGH_DEMAND:
+      return ESPHOME_PSTR("WATER_HEATER_MODE_HIGH_DEMAND");
+    case enums::WATER_HEATER_MODE_HEAT_PUMP:
+      return ESPHOME_PSTR("WATER_HEATER_MODE_HEAT_PUMP");
+    case enums::WATER_HEATER_MODE_GAS:
+      return ESPHOME_PSTR("WATER_HEATER_MODE_GAS");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+#endif
+template<>
+const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::WaterHeaterCommandHasField value) {
+  switch (value) {
+    case enums::WATER_HEATER_COMMAND_HAS_NONE:
+      return ESPHOME_PSTR("WATER_HEATER_COMMAND_HAS_NONE");
+    case enums::WATER_HEATER_COMMAND_HAS_MODE:
+      return ESPHOME_PSTR("WATER_HEATER_COMMAND_HAS_MODE");
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE:
+      return ESPHOME_PSTR("WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE");
+    case enums::WATER_HEATER_COMMAND_HAS_STATE:
+      return ESPHOME_PSTR("WATER_HEATER_COMMAND_HAS_STATE");
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW:
+      return ESPHOME_PSTR("WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW");
+    case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH:
+      return ESPHOME_PSTR("WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH");
+    case enums::WATER_HEATER_COMMAND_HAS_ON_STATE:
+      return ESPHOME_PSTR("WATER_HEATER_COMMAND_HAS_ON_STATE");
+    case enums::WATER_HEATER_COMMAND_HAS_AWAY_STATE:
+      return ESPHOME_PSTR("WATER_HEATER_COMMAND_HAS_AWAY_STATE");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 #ifdef USE_NUMBER
 template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
   switch (value) {
     case enums::NUMBER_MODE_AUTO:
-      return "NUMBER_MODE_AUTO";
+      return ESPHOME_PSTR("NUMBER_MODE_AUTO");
     case enums::NUMBER_MODE_BOX:
-      return "NUMBER_MODE_BOX";
+      return ESPHOME_PSTR("NUMBER_MODE_BOX");
     case enums::NUMBER_MODE_SLIDER:
-      return "NUMBER_MODE_SLIDER";
+      return ESPHOME_PSTR("NUMBER_MODE_SLIDER");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -260,31 +517,35 @@ template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode
 template<> const char *proto_enum_to_string<enums::LockState>(enums::LockState value) {
   switch (value) {
     case enums::LOCK_STATE_NONE:
-      return "LOCK_STATE_NONE";
+      return ESPHOME_PSTR("LOCK_STATE_NONE");
     case enums::LOCK_STATE_LOCKED:
-      return "LOCK_STATE_LOCKED";
+      return ESPHOME_PSTR("LOCK_STATE_LOCKED");
     case enums::LOCK_STATE_UNLOCKED:
-      return "LOCK_STATE_UNLOCKED";
+      return ESPHOME_PSTR("LOCK_STATE_UNLOCKED");
     case enums::LOCK_STATE_JAMMED:
-      return "LOCK_STATE_JAMMED";
+      return ESPHOME_PSTR("LOCK_STATE_JAMMED");
     case enums::LOCK_STATE_LOCKING:
-      return "LOCK_STATE_LOCKING";
+      return ESPHOME_PSTR("LOCK_STATE_LOCKING");
     case enums::LOCK_STATE_UNLOCKING:
-      return "LOCK_STATE_UNLOCKING";
+      return ESPHOME_PSTR("LOCK_STATE_UNLOCKING");
+    case enums::LOCK_STATE_OPENING:
+      return ESPHOME_PSTR("LOCK_STATE_OPENING");
+    case enums::LOCK_STATE_OPEN:
+      return ESPHOME_PSTR("LOCK_STATE_OPEN");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::LockCommand>(enums::LockCommand value) {
   switch (value) {
     case enums::LOCK_UNLOCK:
-      return "LOCK_UNLOCK";
+      return ESPHOME_PSTR("LOCK_UNLOCK");
     case enums::LOCK_LOCK:
-      return "LOCK_LOCK";
+      return ESPHOME_PSTR("LOCK_LOCK");
     case enums::LOCK_OPEN:
-      return "LOCK_OPEN";
+      return ESPHOME_PSTR("LOCK_OPEN");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -292,92 +553,118 @@ template<> const char *proto_enum_to_string<enums::LockCommand>(enums::LockComma
 template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::MediaPlayerState value) {
   switch (value) {
     case enums::MEDIA_PLAYER_STATE_NONE:
-      return "MEDIA_PLAYER_STATE_NONE";
+      return ESPHOME_PSTR("MEDIA_PLAYER_STATE_NONE");
     case enums::MEDIA_PLAYER_STATE_IDLE:
-      return "MEDIA_PLAYER_STATE_IDLE";
+      return ESPHOME_PSTR("MEDIA_PLAYER_STATE_IDLE");
     case enums::MEDIA_PLAYER_STATE_PLAYING:
-      return "MEDIA_PLAYER_STATE_PLAYING";
+      return ESPHOME_PSTR("MEDIA_PLAYER_STATE_PLAYING");
     case enums::MEDIA_PLAYER_STATE_PAUSED:
-      return "MEDIA_PLAYER_STATE_PAUSED";
+      return ESPHOME_PSTR("MEDIA_PLAYER_STATE_PAUSED");
+    case enums::MEDIA_PLAYER_STATE_ANNOUNCING:
+      return ESPHOME_PSTR("MEDIA_PLAYER_STATE_ANNOUNCING");
+    case enums::MEDIA_PLAYER_STATE_OFF:
+      return ESPHOME_PSTR("MEDIA_PLAYER_STATE_OFF");
+    case enums::MEDIA_PLAYER_STATE_ON:
+      return ESPHOME_PSTR("MEDIA_PLAYER_STATE_ON");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::MediaPlayerCommand value) {
   switch (value) {
     case enums::MEDIA_PLAYER_COMMAND_PLAY:
-      return "MEDIA_PLAYER_COMMAND_PLAY";
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_PLAY");
     case enums::MEDIA_PLAYER_COMMAND_PAUSE:
-      return "MEDIA_PLAYER_COMMAND_PAUSE";
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_PAUSE");
     case enums::MEDIA_PLAYER_COMMAND_STOP:
-      return "MEDIA_PLAYER_COMMAND_STOP";
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_STOP");
     case enums::MEDIA_PLAYER_COMMAND_MUTE:
-      return "MEDIA_PLAYER_COMMAND_MUTE";
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_MUTE");
     case enums::MEDIA_PLAYER_COMMAND_UNMUTE:
-      return "MEDIA_PLAYER_COMMAND_UNMUTE";
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_UNMUTE");
+    case enums::MEDIA_PLAYER_COMMAND_TOGGLE:
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_TOGGLE");
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_UP:
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_VOLUME_UP");
+    case enums::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_VOLUME_DOWN");
+    case enums::MEDIA_PLAYER_COMMAND_ENQUEUE:
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_ENQUEUE");
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_REPEAT_ONE");
+    case enums::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_REPEAT_OFF");
+    case enums::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST:
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST");
+    case enums::MEDIA_PLAYER_COMMAND_TURN_ON:
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_TURN_ON");
+    case enums::MEDIA_PLAYER_COMMAND_TURN_OFF:
+      return ESPHOME_PSTR("MEDIA_PLAYER_COMMAND_TURN_OFF");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::MediaPlayerFormatPurpose>(enums::MediaPlayerFormatPurpose value) {
   switch (value) {
     case enums::MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT:
-      return "MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT";
+      return ESPHOME_PSTR("MEDIA_PLAYER_FORMAT_PURPOSE_DEFAULT");
     case enums::MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT:
-      return "MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT";
+      return ESPHOME_PSTR("MEDIA_PLAYER_FORMAT_PURPOSE_ANNOUNCEMENT");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 template<>
 const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
-      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT";
+      return ESPHOME_PSTR("BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT");
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT:
-      return "BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT";
+      return ESPHOME_PSTR("BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT");
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
-      return "BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR";
+      return ESPHOME_PSTR("BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR");
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
-      return "BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR";
+      return ESPHOME_PSTR("BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR");
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE:
-      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE";
+      return ESPHOME_PSTR("BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE");
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
-      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE";
+      return ESPHOME_PSTR("BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE");
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE:
-      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE";
+      return ESPHOME_PSTR("BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 template<> const char *proto_enum_to_string<enums::BluetoothScannerState>(enums::BluetoothScannerState value) {
   switch (value) {
     case enums::BLUETOOTH_SCANNER_STATE_IDLE:
-      return "BLUETOOTH_SCANNER_STATE_IDLE";
+      return ESPHOME_PSTR("BLUETOOTH_SCANNER_STATE_IDLE");
     case enums::BLUETOOTH_SCANNER_STATE_STARTING:
-      return "BLUETOOTH_SCANNER_STATE_STARTING";
+      return ESPHOME_PSTR("BLUETOOTH_SCANNER_STATE_STARTING");
     case enums::BLUETOOTH_SCANNER_STATE_RUNNING:
-      return "BLUETOOTH_SCANNER_STATE_RUNNING";
+      return ESPHOME_PSTR("BLUETOOTH_SCANNER_STATE_RUNNING");
     case enums::BLUETOOTH_SCANNER_STATE_FAILED:
-      return "BLUETOOTH_SCANNER_STATE_FAILED";
+      return ESPHOME_PSTR("BLUETOOTH_SCANNER_STATE_FAILED");
     case enums::BLUETOOTH_SCANNER_STATE_STOPPING:
-      return "BLUETOOTH_SCANNER_STATE_STOPPING";
+      return ESPHOME_PSTR("BLUETOOTH_SCANNER_STATE_STOPPING");
     case enums::BLUETOOTH_SCANNER_STATE_STOPPED:
-      return "BLUETOOTH_SCANNER_STATE_STOPPED";
+      return ESPHOME_PSTR("BLUETOOTH_SCANNER_STATE_STOPPED");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::BluetoothScannerMode>(enums::BluetoothScannerMode value) {
   switch (value) {
     case enums::BLUETOOTH_SCANNER_MODE_PASSIVE:
-      return "BLUETOOTH_SCANNER_MODE_PASSIVE";
+      return ESPHOME_PSTR("BLUETOOTH_SCANNER_MODE_PASSIVE");
     case enums::BLUETOOTH_SCANNER_MODE_ACTIVE:
-      return "BLUETOOTH_SCANNER_MODE_ACTIVE";
+      return ESPHOME_PSTR("BLUETOOTH_SCANNER_MODE_ACTIVE");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -385,76 +672,76 @@ template<>
 const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_SUBSCRIBE_NONE:
-      return "VOICE_ASSISTANT_SUBSCRIBE_NONE";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_SUBSCRIBE_NONE");
     case enums::VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO:
-      return "VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::VoiceAssistantRequestFlag>(enums::VoiceAssistantRequestFlag value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_REQUEST_NONE:
-      return "VOICE_ASSISTANT_REQUEST_NONE";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_REQUEST_NONE");
     case enums::VOICE_ASSISTANT_REQUEST_USE_VAD:
-      return "VOICE_ASSISTANT_REQUEST_USE_VAD";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_REQUEST_USE_VAD");
     case enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD:
-      return "VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #ifdef USE_VOICE_ASSISTANT
 template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::VoiceAssistantEvent value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_ERROR:
-      return "VOICE_ASSISTANT_ERROR";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_ERROR");
     case enums::VOICE_ASSISTANT_RUN_START:
-      return "VOICE_ASSISTANT_RUN_START";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_RUN_START");
     case enums::VOICE_ASSISTANT_RUN_END:
-      return "VOICE_ASSISTANT_RUN_END";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_RUN_END");
     case enums::VOICE_ASSISTANT_STT_START:
-      return "VOICE_ASSISTANT_STT_START";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_STT_START");
     case enums::VOICE_ASSISTANT_STT_END:
-      return "VOICE_ASSISTANT_STT_END";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_STT_END");
     case enums::VOICE_ASSISTANT_INTENT_START:
-      return "VOICE_ASSISTANT_INTENT_START";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_INTENT_START");
     case enums::VOICE_ASSISTANT_INTENT_END:
-      return "VOICE_ASSISTANT_INTENT_END";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_INTENT_END");
     case enums::VOICE_ASSISTANT_TTS_START:
-      return "VOICE_ASSISTANT_TTS_START";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_TTS_START");
     case enums::VOICE_ASSISTANT_TTS_END:
-      return "VOICE_ASSISTANT_TTS_END";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_TTS_END");
     case enums::VOICE_ASSISTANT_WAKE_WORD_START:
-      return "VOICE_ASSISTANT_WAKE_WORD_START";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_WAKE_WORD_START");
     case enums::VOICE_ASSISTANT_WAKE_WORD_END:
-      return "VOICE_ASSISTANT_WAKE_WORD_END";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_WAKE_WORD_END");
     case enums::VOICE_ASSISTANT_STT_VAD_START:
-      return "VOICE_ASSISTANT_STT_VAD_START";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_STT_VAD_START");
     case enums::VOICE_ASSISTANT_STT_VAD_END:
-      return "VOICE_ASSISTANT_STT_VAD_END";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_STT_VAD_END");
     case enums::VOICE_ASSISTANT_TTS_STREAM_START:
-      return "VOICE_ASSISTANT_TTS_STREAM_START";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_TTS_STREAM_START");
     case enums::VOICE_ASSISTANT_TTS_STREAM_END:
-      return "VOICE_ASSISTANT_TTS_STREAM_END";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_TTS_STREAM_END");
     case enums::VOICE_ASSISTANT_INTENT_PROGRESS:
-      return "VOICE_ASSISTANT_INTENT_PROGRESS";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_INTENT_PROGRESS");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<> const char *proto_enum_to_string<enums::VoiceAssistantTimerEvent>(enums::VoiceAssistantTimerEvent value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_TIMER_STARTED:
-      return "VOICE_ASSISTANT_TIMER_STARTED";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_TIMER_STARTED");
     case enums::VOICE_ASSISTANT_TIMER_UPDATED:
-      return "VOICE_ASSISTANT_TIMER_UPDATED";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_TIMER_UPDATED");
     case enums::VOICE_ASSISTANT_TIMER_CANCELLED:
-      return "VOICE_ASSISTANT_TIMER_CANCELLED";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_TIMER_CANCELLED");
     case enums::VOICE_ASSISTANT_TIMER_FINISHED:
-      return "VOICE_ASSISTANT_TIMER_FINISHED";
+      return ESPHOME_PSTR("VOICE_ASSISTANT_TIMER_FINISHED");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -462,48 +749,48 @@ template<> const char *proto_enum_to_string<enums::VoiceAssistantTimerEvent>(enu
 template<> const char *proto_enum_to_string<enums::AlarmControlPanelState>(enums::AlarmControlPanelState value) {
   switch (value) {
     case enums::ALARM_STATE_DISARMED:
-      return "ALARM_STATE_DISARMED";
+      return ESPHOME_PSTR("ALARM_STATE_DISARMED");
     case enums::ALARM_STATE_ARMED_HOME:
-      return "ALARM_STATE_ARMED_HOME";
+      return ESPHOME_PSTR("ALARM_STATE_ARMED_HOME");
     case enums::ALARM_STATE_ARMED_AWAY:
-      return "ALARM_STATE_ARMED_AWAY";
+      return ESPHOME_PSTR("ALARM_STATE_ARMED_AWAY");
     case enums::ALARM_STATE_ARMED_NIGHT:
-      return "ALARM_STATE_ARMED_NIGHT";
+      return ESPHOME_PSTR("ALARM_STATE_ARMED_NIGHT");
     case enums::ALARM_STATE_ARMED_VACATION:
-      return "ALARM_STATE_ARMED_VACATION";
+      return ESPHOME_PSTR("ALARM_STATE_ARMED_VACATION");
     case enums::ALARM_STATE_ARMED_CUSTOM_BYPASS:
-      return "ALARM_STATE_ARMED_CUSTOM_BYPASS";
+      return ESPHOME_PSTR("ALARM_STATE_ARMED_CUSTOM_BYPASS");
     case enums::ALARM_STATE_PENDING:
-      return "ALARM_STATE_PENDING";
+      return ESPHOME_PSTR("ALARM_STATE_PENDING");
     case enums::ALARM_STATE_ARMING:
-      return "ALARM_STATE_ARMING";
+      return ESPHOME_PSTR("ALARM_STATE_ARMING");
     case enums::ALARM_STATE_DISARMING:
-      return "ALARM_STATE_DISARMING";
+      return ESPHOME_PSTR("ALARM_STATE_DISARMING");
     case enums::ALARM_STATE_TRIGGERED:
-      return "ALARM_STATE_TRIGGERED";
+      return ESPHOME_PSTR("ALARM_STATE_TRIGGERED");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 template<>
 const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
   switch (value) {
     case enums::ALARM_CONTROL_PANEL_DISARM:
-      return "ALARM_CONTROL_PANEL_DISARM";
+      return ESPHOME_PSTR("ALARM_CONTROL_PANEL_DISARM");
     case enums::ALARM_CONTROL_PANEL_ARM_AWAY:
-      return "ALARM_CONTROL_PANEL_ARM_AWAY";
+      return ESPHOME_PSTR("ALARM_CONTROL_PANEL_ARM_AWAY");
     case enums::ALARM_CONTROL_PANEL_ARM_HOME:
-      return "ALARM_CONTROL_PANEL_ARM_HOME";
+      return ESPHOME_PSTR("ALARM_CONTROL_PANEL_ARM_HOME");
     case enums::ALARM_CONTROL_PANEL_ARM_NIGHT:
-      return "ALARM_CONTROL_PANEL_ARM_NIGHT";
+      return ESPHOME_PSTR("ALARM_CONTROL_PANEL_ARM_NIGHT");
     case enums::ALARM_CONTROL_PANEL_ARM_VACATION:
-      return "ALARM_CONTROL_PANEL_ARM_VACATION";
+      return ESPHOME_PSTR("ALARM_CONTROL_PANEL_ARM_VACATION");
     case enums::ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS:
-      return "ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS";
+      return ESPHOME_PSTR("ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS");
     case enums::ALARM_CONTROL_PANEL_TRIGGER:
-      return "ALARM_CONTROL_PANEL_TRIGGER";
+      return ESPHOME_PSTR("ALARM_CONTROL_PANEL_TRIGGER");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -511,11 +798,11 @@ const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::Al
 template<> const char *proto_enum_to_string<enums::TextMode>(enums::TextMode value) {
   switch (value) {
     case enums::TEXT_MODE_TEXT:
-      return "TEXT_MODE_TEXT";
+      return ESPHOME_PSTR("TEXT_MODE_TEXT");
     case enums::TEXT_MODE_PASSWORD:
-      return "TEXT_MODE_PASSWORD";
+      return ESPHOME_PSTR("TEXT_MODE_PASSWORD");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -523,13 +810,13 @@ template<> const char *proto_enum_to_string<enums::TextMode>(enums::TextMode val
 template<> const char *proto_enum_to_string<enums::ValveOperation>(enums::ValveOperation value) {
   switch (value) {
     case enums::VALVE_OPERATION_IDLE:
-      return "VALVE_OPERATION_IDLE";
+      return ESPHOME_PSTR("VALVE_OPERATION_IDLE");
     case enums::VALVE_OPERATION_IS_OPENING:
-      return "VALVE_OPERATION_IS_OPENING";
+      return ESPHOME_PSTR("VALVE_OPERATION_IS_OPENING");
     case enums::VALVE_OPERATION_IS_CLOSING:
-      return "VALVE_OPERATION_IS_CLOSING";
+      return ESPHOME_PSTR("VALVE_OPERATION_IS_CLOSING");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
@@ -537,3894 +824,2199 @@ template<> const char *proto_enum_to_string<enums::ValveOperation>(enums::ValveO
 template<> const char *proto_enum_to_string<enums::UpdateCommand>(enums::UpdateCommand value) {
   switch (value) {
     case enums::UPDATE_COMMAND_NONE:
-      return "UPDATE_COMMAND_NONE";
+      return ESPHOME_PSTR("UPDATE_COMMAND_NONE");
     case enums::UPDATE_COMMAND_UPDATE:
-      return "UPDATE_COMMAND_UPDATE";
+      return ESPHOME_PSTR("UPDATE_COMMAND_UPDATE");
     case enums::UPDATE_COMMAND_CHECK:
-      return "UPDATE_COMMAND_CHECK";
+      return ESPHOME_PSTR("UPDATE_COMMAND_CHECK");
     default:
-      return "UNKNOWN";
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums::ZWaveProxyRequestType value) {
+  switch (value) {
+    case enums::ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE:
+      return ESPHOME_PSTR("ZWAVE_PROXY_REQUEST_TYPE_SUBSCRIBE");
+    case enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      return ESPHOME_PSTR("ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE");
+    case enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE:
+      return ESPHOME_PSTR("ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+template<> const char *proto_enum_to_string<enums::ZWaveProxyStatus>(enums::ZWaveProxyStatus value) {
+  switch (value) {
+    case enums::ZWAVE_PROXY_STATUS_OK:
+      return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_OK");
+    case enums::ZWAVE_PROXY_STATUS_IN_USE:
+      return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_IN_USE");
+    case enums::ZWAVE_PROXY_STATUS_NOT_SUPPORTED:
+      return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_NOT_SUPPORTED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+#endif
+#ifdef USE_SERIAL_PROXY
+template<> const char *proto_enum_to_string<enums::SerialProxyParity>(enums::SerialProxyParity value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_PARITY_NONE:
+      return ESPHOME_PSTR("SERIAL_PROXY_PARITY_NONE");
+    case enums::SERIAL_PROXY_PARITY_EVEN:
+      return ESPHOME_PSTR("SERIAL_PROXY_PARITY_EVEN");
+    case enums::SERIAL_PROXY_PARITY_ODD:
+      return ESPHOME_PSTR("SERIAL_PROXY_PARITY_ODD");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+template<> const char *proto_enum_to_string<enums::SerialProxyRequestType>(enums::SerialProxyRequestType value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_FLUSH");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_CONFIGURE");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODE:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_SET_MODE");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+template<> const char *proto_enum_to_string<enums::SerialProxyStatus>(enums::SerialProxyStatus value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_STATUS_OK:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_OK");
+    case enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_ASSUMED_SUCCESS");
+    case enums::SERIAL_PROXY_STATUS_ERROR:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_ERROR");
+    case enums::SERIAL_PROXY_STATUS_TIMEOUT:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_TIMEOUT");
+    case enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_NOT_SUPPORTED");
+    case enums::SERIAL_PROXY_STATUS_PORT_IN_USE:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_PORT_IN_USE");
+    case enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_INVALID_ARGUMENT");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+template<> const char *proto_enum_to_string<enums::SerialProxyMode>(enums::SerialProxyMode value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_MODE_RAW:
+      return ESPHOME_PSTR("SERIAL_PROXY_MODE_RAW");
+    case enums::SERIAL_PROXY_MODE_PROTOCOL:
+      return ESPHOME_PSTR("SERIAL_PROXY_MODE_PROTOCOL");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+template<> const char *proto_enum_to_string<enums::SerialProxyIdentitySource>(enums::SerialProxyIdentitySource value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_IDENTITY_SOURCE_NONE:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_SOURCE_NONE");
+    case enums::SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_SOURCE_CONFIGURED");
+    case enums::SERIAL_PROXY_IDENTITY_SOURCE_USB:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_SOURCE_USB");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+#endif
+template<> const char *proto_enum_to_string<enums::SerialProxyIdentityFlag>(enums::SerialProxyIdentityFlag value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_IDENTITY_FLAG_NONE:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_FLAG_NONE");
+    case enums::SERIAL_PROXY_IDENTITY_FLAG_CONNECTED:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_FLAG_CONNECTED");
+    case enums::SERIAL_PROXY_IDENTITY_FLAG_ERROR:
+      return ESPHOME_PSTR("SERIAL_PROXY_IDENTITY_FLAG_ERROR");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
+#ifdef USE_SENDSPIN
+template<>
+const char *proto_enum_to_string<enums::SendspinPairingTokenStatus>(enums::SendspinPairingTokenStatus value) {
+  switch (value) {
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_NOT_READY");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_OK");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_ENCRYPTION_REQUIRED");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_DISABLED");
+    case enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED:
+      return ESPHOME_PSTR("SENDSPIN_PAIRING_TOKEN_STATUS_FAILED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
   }
 }
 #endif
 
-void HelloRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("HelloRequest {\n");
-  out.append("  client_info: ");
-  out.append("'").append(this->client_info).append("'");
-  out.append("\n");
-
-  out.append("  api_version_major: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->api_version_major);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  api_version_minor: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->api_version_minor);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
+const char *HelloRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("HelloRequest"));
+  dump_field(out, ESPHOME_PSTR("client_info"), this->client_info);
+  dump_field(out, ESPHOME_PSTR("api_version_major"), this->api_version_major);
+  dump_field(out, ESPHOME_PSTR("api_version_minor"), this->api_version_minor);
+#ifdef USE_API_OUTGOING_CONNECTION
+  dump_field(out, ESPHOME_PSTR("outgoing_connection_target"), this->outgoing_connection_target);
+#endif
+  return out.c_str();
 }
-void HelloResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("HelloResponse {\n");
-  out.append("  api_version_major: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->api_version_major);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  api_version_minor: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->api_version_minor);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  server_info: ");
-  out.append("'").append(this->server_info).append("'");
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-  out.append("}");
+const char *HelloResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("HelloResponse"));
+  dump_field(out, ESPHOME_PSTR("api_version_major"), this->api_version_major);
+  dump_field(out, ESPHOME_PSTR("api_version_minor"), this->api_version_minor);
+  dump_progmem_string_field(out, ESPHOME_PSTR("server_info"), this->server_info);
+  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  return out.c_str();
 }
-void ConnectRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ConnectRequest {\n");
-  out.append("  password: ");
-  out.append("'").append(this->password).append("'");
-  out.append("\n");
-  out.append("}");
+const char *DisconnectRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DisconnectRequest"));
+  dump_field(out, ESPHOME_PSTR("reason"), static_cast<enums::DisconnectReason>(this->reason));
+  return out.c_str();
 }
-void ConnectResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ConnectResponse {\n");
-  out.append("  invalid_password: ");
-  out.append(YESNO(this->invalid_password));
-  out.append("\n");
-  out.append("}");
+const char *DisconnectResponse::dump_to(DumpBuffer &out) const {
+  out.append_p(ESPHOME_PSTR("DisconnectResponse {}"));
+  return out.c_str();
 }
-void DisconnectRequest::dump_to(std::string &out) const { out.append("DisconnectRequest {}"); }
-void DisconnectResponse::dump_to(std::string &out) const { out.append("DisconnectResponse {}"); }
-void PingRequest::dump_to(std::string &out) const { out.append("PingRequest {}"); }
-void PingResponse::dump_to(std::string &out) const { out.append("PingResponse {}"); }
-void DeviceInfoRequest::dump_to(std::string &out) const { out.append("DeviceInfoRequest {}"); }
+const char *PingRequest::dump_to(DumpBuffer &out) const {
+  out.append_p(ESPHOME_PSTR("PingRequest {}"));
+  return out.c_str();
+}
+const char *PingResponse::dump_to(DumpBuffer &out) const {
+  out.append_p(ESPHOME_PSTR("PingResponse {}"));
+  return out.c_str();
+}
 #ifdef USE_AREAS
-void AreaInfo::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("AreaInfo {\n");
-  out.append("  area_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->area_id);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-  out.append("}");
+const char *AreaInfo::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("AreaInfo"));
+  dump_field(out, ESPHOME_PSTR("area_id"), this->area_id);
+  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  return out.c_str();
 }
 #endif
 #ifdef USE_DEVICES
-void DeviceInfo::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("DeviceInfo {\n");
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  area_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->area_id);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
+const char *DeviceInfo::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceInfo"));
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("area_id"), this->area_id);
+  dump_field(out, ESPHOME_PSTR("relation"), static_cast<enums::DeviceRelation>(this->relation));
+  return out.c_str();
 }
 #endif
-void DeviceInfoResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("DeviceInfoResponse {\n");
-#ifdef USE_API_PASSWORD
-  out.append("  uses_password: ");
-  out.append(YESNO(this->uses_password));
-  out.append("\n");
-
+#ifdef USE_SERIAL_PROXY
+const char *SerialProxyInfo::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyInfo"));
+  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("port_type"), static_cast<enums::SerialProxyPortType>(this->port_type));
+  dump_field(out, ESPHOME_PSTR("configured_line_states"), this->configured_line_states);
+  return out.c_str();
+}
 #endif
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  mac_address: ");
-  out.append("'").append(this->mac_address).append("'");
-  out.append("\n");
-
-  out.append("  esphome_version: ");
-  out.append("'").append(this->esphome_version).append("'");
-  out.append("\n");
-
-  out.append("  compilation_time: ");
-  out.append("'").append(this->compilation_time).append("'");
-  out.append("\n");
-
-  out.append("  model: ");
-  out.append("'").append(this->model).append("'");
-  out.append("\n");
-
+const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceInfoResponse"));
+  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("mac_address"), this->mac_address);
+  dump_progmem_string_field(out, ESPHOME_PSTR("esphome_version"), this->esphome_version);
+  dump_field(out, ESPHOME_PSTR("compilation_time"), this->compilation_time);
+  dump_progmem_string_field(out, ESPHOME_PSTR("model"), this->model);
 #ifdef USE_DEEP_SLEEP
-  out.append("  has_deep_sleep: ");
-  out.append(YESNO(this->has_deep_sleep));
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("has_deep_sleep"), this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  out.append("  project_name: ");
-  out.append("'").append(this->project_name).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("project_name"), this->project_name);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  out.append("  project_version: ");
-  out.append("'").append(this->project_version).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("project_version"), this->project_version);
 #endif
 #ifdef USE_WEBSERVER
-  out.append("  webserver_port: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->webserver_port);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("webserver_port"), this->webserver_port);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  out.append("  bluetooth_proxy_feature_flags: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->bluetooth_proxy_feature_flags);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("bluetooth_proxy_feature_flags"), this->bluetooth_proxy_feature_flags);
 #endif
-  out.append("  manufacturer: ");
-  out.append("'").append(this->manufacturer).append("'");
-  out.append("\n");
-
-  out.append("  friendly_name: ");
-  out.append("'").append(this->friendly_name).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
+  dump_field(out, ESPHOME_PSTR("friendly_name"), this->friendly_name);
 #ifdef USE_VOICE_ASSISTANT
-  out.append("  voice_assistant_feature_flags: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->voice_assistant_feature_flags);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("voice_assistant_feature_flags"), this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  out.append("  suggested_area: ");
-  out.append("'").append(this->suggested_area).append("'");
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("suggested_area"), this->suggested_area);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  out.append("  bluetooth_mac_address: ");
-  out.append("'").append(this->bluetooth_mac_address).append("'");
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("bluetooth_mac_address"), this->bluetooth_mac_address);
 #endif
 #ifdef USE_API_NOISE
-  out.append("  api_encryption_supported: ");
-  out.append(YESNO(this->api_encryption_supported));
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("api_encryption_supported"), this->api_encryption_supported);
 #endif
 #ifdef USE_DEVICES
   for (const auto &it : this->devices) {
-    out.append("  devices: ");
+    out.append(4, ' ').append_p(ESPHOME_PSTR("devices")).append(": ");
     it.dump_to(out);
     out.append("\n");
   }
-
 #endif
 #ifdef USE_AREAS
   for (const auto &it : this->areas) {
-    out.append("  areas: ");
+    out.append(4, ' ').append_p(ESPHOME_PSTR("areas")).append(": ");
     it.dump_to(out);
     out.append("\n");
   }
-
 #endif
 #ifdef USE_AREAS
-  out.append("  area: ");
+  out.append(2, ' ').append_p(ESPHOME_PSTR("area")).append(": ");
   this->area.dump_to(out);
   out.append("\n");
-
 #endif
-  out.append("}");
-}
-void ListEntitiesRequest::dump_to(std::string &out) const { out.append("ListEntitiesRequest {}"); }
-void ListEntitiesDoneResponse::dump_to(std::string &out) const { out.append("ListEntitiesDoneResponse {}"); }
-void SubscribeStatesRequest::dump_to(std::string &out) const { out.append("SubscribeStatesRequest {}"); }
-#ifdef USE_BINARY_SENSOR
-void ListEntitiesBinarySensorResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesBinarySensorResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-  out.append("  is_status_binary_sensor: ");
-  out.append(YESNO(this->is_status_binary_sensor));
-  out.append("\n");
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
+#ifdef USE_ZWAVE_PROXY
+  dump_field(out, ESPHOME_PSTR("zwave_proxy_feature_flags"), this->zwave_proxy_feature_flags);
 #endif
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+#ifdef USE_ZWAVE_PROXY
+  dump_field(out, ESPHOME_PSTR("zwave_home_id"), this->zwave_home_id);
 #endif
-  out.append("}");
-}
-void BinarySensorStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BinarySensorStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(YESNO(this->state));
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_COVER
-void ListEntitiesCoverResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesCoverResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  assumed_state: ");
-  out.append(YESNO(this->assumed_state));
-  out.append("\n");
-
-  out.append("  supports_position: ");
-  out.append(YESNO(this->supports_position));
-  out.append("\n");
-
-  out.append("  supports_tilt: ");
-  out.append(YESNO(this->supports_tilt));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  supports_stop: ");
-  out.append(YESNO(this->supports_stop));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void CoverStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("CoverStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  position: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->position);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  tilt: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->tilt);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  current_operation: ");
-  out.append(proto_enum_to_string<enums::CoverOperation>(this->current_operation));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void CoverCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("CoverCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_position: ");
-  out.append(YESNO(this->has_position));
-  out.append("\n");
-
-  out.append("  position: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->position);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_tilt: ");
-  out.append(YESNO(this->has_tilt));
-  out.append("\n");
-
-  out.append("  tilt: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->tilt);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  stop: ");
-  out.append(YESNO(this->stop));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_FAN
-void ListEntitiesFanResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesFanResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  supports_oscillation: ");
-  out.append(YESNO(this->supports_oscillation));
-  out.append("\n");
-
-  out.append("  supports_speed: ");
-  out.append(YESNO(this->supports_speed));
-  out.append("\n");
-
-  out.append("  supports_direction: ");
-  out.append(YESNO(this->supports_direction));
-  out.append("\n");
-
-  out.append("  supported_speed_count: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->supported_speed_count);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  for (const auto &it : this->supported_preset_modes) {
-    out.append("  supported_preset_modes: ");
-    out.append("'").append(it).append("'");
+#ifdef USE_SERIAL_PROXY
+  for (const auto &it : this->serial_proxies) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("serial_proxies")).append(": ");
+    it.dump_to(out);
     out.append("\n");
   }
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
 #endif
-  out.append("}");
-}
-void FanStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("FanStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(YESNO(this->state));
-  out.append("\n");
-
-  out.append("  oscillating: ");
-  out.append(YESNO(this->oscillating));
-  out.append("\n");
-
-  out.append("  direction: ");
-  out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
-  out.append("\n");
-
-  out.append("  speed_level: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->speed_level);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  preset_mode: ");
-  out.append("'").append(this->preset_mode).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void FanCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("FanCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_state: ");
-  out.append(YESNO(this->has_state));
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(YESNO(this->state));
-  out.append("\n");
-
-  out.append("  has_oscillating: ");
-  out.append(YESNO(this->has_oscillating));
-  out.append("\n");
-
-  out.append("  oscillating: ");
-  out.append(YESNO(this->oscillating));
-  out.append("\n");
-
-  out.append("  has_direction: ");
-  out.append(YESNO(this->has_direction));
-  out.append("\n");
-
-  out.append("  direction: ");
-  out.append(proto_enum_to_string<enums::FanDirection>(this->direction));
-  out.append("\n");
-
-  out.append("  has_speed_level: ");
-  out.append(YESNO(this->has_speed_level));
-  out.append("\n");
-
-  out.append("  speed_level: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->speed_level);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_preset_mode: ");
-  out.append(YESNO(this->has_preset_mode));
-  out.append("\n");
-
-  out.append("  preset_mode: ");
-  out.append("'").append(this->preset_mode).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_LIGHT
-void ListEntitiesLightResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesLightResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  for (const auto &it : this->supported_color_modes) {
-    out.append("  supported_color_modes: ");
-    out.append(proto_enum_to_string<enums::ColorMode>(it));
-    out.append("\n");
-  }
-
-  out.append("  min_mireds: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->min_mireds);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  max_mireds: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->max_mireds);
-  out.append(buffer);
-  out.append("\n");
-
-  for (const auto &it : this->effects) {
-    out.append("  effects: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void LightStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("LightStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(YESNO(this->state));
-  out.append("\n");
-
-  out.append("  brightness: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->brightness);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  color_mode: ");
-  out.append(proto_enum_to_string<enums::ColorMode>(this->color_mode));
-  out.append("\n");
-
-  out.append("  color_brightness: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->color_brightness);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  red: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->red);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  green: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->green);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  blue: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->blue);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  white: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->white);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  color_temperature: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->color_temperature);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  cold_white: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->cold_white);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  warm_white: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->warm_white);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  effect: ");
-  out.append("'").append(this->effect).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void LightCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("LightCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_state: ");
-  out.append(YESNO(this->has_state));
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(YESNO(this->state));
-  out.append("\n");
-
-  out.append("  has_brightness: ");
-  out.append(YESNO(this->has_brightness));
-  out.append("\n");
-
-  out.append("  brightness: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->brightness);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_color_mode: ");
-  out.append(YESNO(this->has_color_mode));
-  out.append("\n");
-
-  out.append("  color_mode: ");
-  out.append(proto_enum_to_string<enums::ColorMode>(this->color_mode));
-  out.append("\n");
-
-  out.append("  has_color_brightness: ");
-  out.append(YESNO(this->has_color_brightness));
-  out.append("\n");
-
-  out.append("  color_brightness: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->color_brightness);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_rgb: ");
-  out.append(YESNO(this->has_rgb));
-  out.append("\n");
-
-  out.append("  red: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->red);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  green: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->green);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  blue: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->blue);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_white: ");
-  out.append(YESNO(this->has_white));
-  out.append("\n");
-
-  out.append("  white: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->white);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_color_temperature: ");
-  out.append(YESNO(this->has_color_temperature));
-  out.append("\n");
-
-  out.append("  color_temperature: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->color_temperature);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_cold_white: ");
-  out.append(YESNO(this->has_cold_white));
-  out.append("\n");
-
-  out.append("  cold_white: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->cold_white);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_warm_white: ");
-  out.append(YESNO(this->has_warm_white));
-  out.append("\n");
-
-  out.append("  warm_white: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->warm_white);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_transition_length: ");
-  out.append(YESNO(this->has_transition_length));
-  out.append("\n");
-
-  out.append("  transition_length: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->transition_length);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_flash_length: ");
-  out.append(YESNO(this->has_flash_length));
-  out.append("\n");
-
-  out.append("  flash_length: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->flash_length);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_effect: ");
-  out.append(YESNO(this->has_effect));
-  out.append("\n");
-
-  out.append("  effect: ");
-  out.append("'").append(this->effect).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_SENSOR
-void ListEntitiesSensorResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesSensorResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  unit_of_measurement: ");
-  out.append("'").append(this->unit_of_measurement).append("'");
-  out.append("\n");
-
-  out.append("  accuracy_decimals: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->accuracy_decimals);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  force_update: ");
-  out.append(YESNO(this->force_update));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-  out.append("  state_class: ");
-  out.append(proto_enum_to_string<enums::SensorStateClass>(this->state_class));
-  out.append("\n");
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void SensorStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SensorStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->state);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_SWITCH
-void ListEntitiesSwitchResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesSwitchResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  assumed_state: ");
-  out.append(YESNO(this->assumed_state));
-  out.append("\n");
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void SwitchStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SwitchStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(YESNO(this->state));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void SwitchCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SwitchCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(YESNO(this->state));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_TEXT_SENSOR
-void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesTextSensorResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void TextSensorStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("TextSensorStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append("'").append(this->state).append("'");
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-void SubscribeLogsRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SubscribeLogsRequest {\n");
-  out.append("  level: ");
-  out.append(proto_enum_to_string<enums::LogLevel>(this->level));
-  out.append("\n");
-
-  out.append("  dump_config: ");
-  out.append(YESNO(this->dump_config));
-  out.append("\n");
-  out.append("}");
-}
-void SubscribeLogsResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SubscribeLogsResponse {\n");
-  out.append("  level: ");
-  out.append(proto_enum_to_string<enums::LogLevel>(this->level));
-  out.append("\n");
-
-  out.append("  message: ");
-  out.append(format_hex_pretty(this->message));
-  out.append("\n");
-
-  out.append("  send_failed: ");
-  out.append(YESNO(this->send_failed));
-  out.append("\n");
-  out.append("}");
-}
 #ifdef USE_API_NOISE
-void NoiseEncryptionSetKeyRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("NoiseEncryptionSetKeyRequest {\n");
-  out.append("  key: ");
-  out.append(format_hex_pretty(this->key));
-  out.append("\n");
-  out.append("}");
+  dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  dump_field(out, ESPHOME_PSTR("api_outgoing_connection_supported"), this->api_outgoing_connection_supported);
+#endif
+  return out.c_str();
 }
-void NoiseEncryptionSetKeyResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("NoiseEncryptionSetKeyResponse {\n");
-  out.append("  success: ");
-  out.append(YESNO(this->success));
-  out.append("\n");
-  out.append("}");
-}
-#endif
-void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
-  out.append("SubscribeHomeassistantServicesRequest {}");
-}
-void HomeassistantServiceMap::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("HomeassistantServiceMap {\n");
-  out.append("  key: ");
-  out.append("'").append(this->key).append("'");
-  out.append("\n");
-
-  out.append("  value: ");
-  out.append("'").append(this->value).append("'");
-  out.append("\n");
-  out.append("}");
-}
-void HomeassistantServiceResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("HomeassistantServiceResponse {\n");
-  out.append("  service: ");
-  out.append("'").append(this->service).append("'");
-  out.append("\n");
-
-  for (const auto &it : this->data) {
-    out.append("  data: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-
-  for (const auto &it : this->data_template) {
-    out.append("  data_template: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-
-  for (const auto &it : this->variables) {
-    out.append("  variables: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-
-  out.append("  is_event: ");
-  out.append(YESNO(this->is_event));
-  out.append("\n");
-  out.append("}");
-}
-void SubscribeHomeAssistantStatesRequest::dump_to(std::string &out) const {
-  out.append("SubscribeHomeAssistantStatesRequest {}");
-}
-void SubscribeHomeAssistantStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SubscribeHomeAssistantStateResponse {\n");
-  out.append("  entity_id: ");
-  out.append("'").append(this->entity_id).append("'");
-  out.append("\n");
-
-  out.append("  attribute: ");
-  out.append("'").append(this->attribute).append("'");
-  out.append("\n");
-
-  out.append("  once: ");
-  out.append(YESNO(this->once));
-  out.append("\n");
-  out.append("}");
-}
-void HomeAssistantStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("HomeAssistantStateResponse {\n");
-  out.append("  entity_id: ");
-  out.append("'").append(this->entity_id).append("'");
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append("'").append(this->state).append("'");
-  out.append("\n");
-
-  out.append("  attribute: ");
-  out.append("'").append(this->attribute).append("'");
-  out.append("\n");
-  out.append("}");
-}
-void GetTimeRequest::dump_to(std::string &out) const { out.append("GetTimeRequest {}"); }
-void GetTimeResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("GetTimeResponse {\n");
-  out.append("  epoch_seconds: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->epoch_seconds);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-#ifdef USE_API_SERVICES
-void ListEntitiesServicesArgument::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesServicesArgument {\n");
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  type: ");
-  out.append(proto_enum_to_string<enums::ServiceArgType>(this->type));
-  out.append("\n");
-  out.append("}");
-}
-void ListEntitiesServicesResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesServicesResponse {\n");
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  for (const auto &it : this->args) {
-    out.append("  args: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-  out.append("}");
-}
-void ExecuteServiceArgument::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ExecuteServiceArgument {\n");
-  out.append("  bool_: ");
-  out.append(YESNO(this->bool_));
-  out.append("\n");
-
-  out.append("  legacy_int: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->legacy_int);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  float_: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->float_);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  string_: ");
-  out.append("'").append(this->string_).append("'");
-  out.append("\n");
-
-  out.append("  int_: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->int_);
-  out.append(buffer);
-  out.append("\n");
-
-  for (const auto it : this->bool_array) {
-    out.append("  bool_array: ");
-    out.append(YESNO(it));
-    out.append("\n");
-  }
-
-  for (const auto &it : this->int_array) {
-    out.append("  int_array: ");
-    snprintf(buffer, sizeof(buffer), "%" PRId32, it);
-    out.append(buffer);
-    out.append("\n");
-  }
-
-  for (const auto &it : this->float_array) {
-    out.append("  float_array: ");
-    snprintf(buffer, sizeof(buffer), "%g", it);
-    out.append(buffer);
-    out.append("\n");
-  }
-
-  for (const auto &it : this->string_array) {
-    out.append("  string_array: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-  out.append("}");
-}
-void ExecuteServiceRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ExecuteServiceRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  for (const auto &it : this->args) {
-    out.append("  args: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-  out.append("}");
-}
-#endif
-#ifdef USE_CAMERA
-void ListEntitiesCameraResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesCameraResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void CameraImageResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("CameraImageResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data));
-  out.append("\n");
-
-  out.append("  done: ");
-  out.append(YESNO(this->done));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void CameraImageRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("CameraImageRequest {\n");
-  out.append("  single: ");
-  out.append(YESNO(this->single));
-  out.append("\n");
-
-  out.append("  stream: ");
-  out.append(YESNO(this->stream));
-  out.append("\n");
-  out.append("}");
-}
-#endif
-#ifdef USE_CLIMATE
-void ListEntitiesClimateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesClimateResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  supports_current_temperature: ");
-  out.append(YESNO(this->supports_current_temperature));
-  out.append("\n");
-
-  out.append("  supports_two_point_target_temperature: ");
-  out.append(YESNO(this->supports_two_point_target_temperature));
-  out.append("\n");
-
-  for (const auto &it : this->supported_modes) {
-    out.append("  supported_modes: ");
-    out.append(proto_enum_to_string<enums::ClimateMode>(it));
-    out.append("\n");
-  }
-
-  out.append("  visual_min_temperature: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->visual_min_temperature);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  visual_max_temperature: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->visual_max_temperature);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  visual_target_temperature_step: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->visual_target_temperature_step);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  supports_action: ");
-  out.append(YESNO(this->supports_action));
-  out.append("\n");
-
-  for (const auto &it : this->supported_fan_modes) {
-    out.append("  supported_fan_modes: ");
-    out.append(proto_enum_to_string<enums::ClimateFanMode>(it));
-    out.append("\n");
-  }
-
-  for (const auto &it : this->supported_swing_modes) {
-    out.append("  supported_swing_modes: ");
-    out.append(proto_enum_to_string<enums::ClimateSwingMode>(it));
-    out.append("\n");
-  }
-
-  for (const auto &it : this->supported_custom_fan_modes) {
-    out.append("  supported_custom_fan_modes: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-
-  for (const auto &it : this->supported_presets) {
-    out.append("  supported_presets: ");
-    out.append(proto_enum_to_string<enums::ClimatePreset>(it));
-    out.append("\n");
-  }
-
-  for (const auto &it : this->supported_custom_presets) {
-    out.append("  supported_custom_presets: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  visual_current_temperature_step: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->visual_current_temperature_step);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  supports_current_humidity: ");
-  out.append(YESNO(this->supports_current_humidity));
-  out.append("\n");
-
-  out.append("  supports_target_humidity: ");
-  out.append(YESNO(this->supports_target_humidity));
-  out.append("\n");
-
-  out.append("  visual_min_humidity: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->visual_min_humidity);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  visual_max_humidity: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->visual_max_humidity);
-  out.append(buffer);
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void ClimateStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ClimateStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  mode: ");
-  out.append(proto_enum_to_string<enums::ClimateMode>(this->mode));
-  out.append("\n");
-
-  out.append("  current_temperature: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->current_temperature);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  target_temperature: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->target_temperature);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  target_temperature_low: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->target_temperature_low);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  target_temperature_high: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->target_temperature_high);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  action: ");
-  out.append(proto_enum_to_string<enums::ClimateAction>(this->action));
-  out.append("\n");
-
-  out.append("  fan_mode: ");
-  out.append(proto_enum_to_string<enums::ClimateFanMode>(this->fan_mode));
-  out.append("\n");
-
-  out.append("  swing_mode: ");
-  out.append(proto_enum_to_string<enums::ClimateSwingMode>(this->swing_mode));
-  out.append("\n");
-
-  out.append("  custom_fan_mode: ");
-  out.append("'").append(this->custom_fan_mode).append("'");
-  out.append("\n");
-
-  out.append("  preset: ");
-  out.append(proto_enum_to_string<enums::ClimatePreset>(this->preset));
-  out.append("\n");
-
-  out.append("  custom_preset: ");
-  out.append("'").append(this->custom_preset).append("'");
-  out.append("\n");
-
-  out.append("  current_humidity: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->current_humidity);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  target_humidity: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->target_humidity);
-  out.append(buffer);
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void ClimateCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ClimateCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_mode: ");
-  out.append(YESNO(this->has_mode));
-  out.append("\n");
-
-  out.append("  mode: ");
-  out.append(proto_enum_to_string<enums::ClimateMode>(this->mode));
-  out.append("\n");
-
-  out.append("  has_target_temperature: ");
-  out.append(YESNO(this->has_target_temperature));
-  out.append("\n");
-
-  out.append("  target_temperature: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->target_temperature);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_target_temperature_low: ");
-  out.append(YESNO(this->has_target_temperature_low));
-  out.append("\n");
-
-  out.append("  target_temperature_low: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->target_temperature_low);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_target_temperature_high: ");
-  out.append(YESNO(this->has_target_temperature_high));
-  out.append("\n");
-
-  out.append("  target_temperature_high: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->target_temperature_high);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_fan_mode: ");
-  out.append(YESNO(this->has_fan_mode));
-  out.append("\n");
-
-  out.append("  fan_mode: ");
-  out.append(proto_enum_to_string<enums::ClimateFanMode>(this->fan_mode));
-  out.append("\n");
-
-  out.append("  has_swing_mode: ");
-  out.append(YESNO(this->has_swing_mode));
-  out.append("\n");
-
-  out.append("  swing_mode: ");
-  out.append(proto_enum_to_string<enums::ClimateSwingMode>(this->swing_mode));
-  out.append("\n");
-
-  out.append("  has_custom_fan_mode: ");
-  out.append(YESNO(this->has_custom_fan_mode));
-  out.append("\n");
-
-  out.append("  custom_fan_mode: ");
-  out.append("'").append(this->custom_fan_mode).append("'");
-  out.append("\n");
-
-  out.append("  has_preset: ");
-  out.append(YESNO(this->has_preset));
-  out.append("\n");
-
-  out.append("  preset: ");
-  out.append(proto_enum_to_string<enums::ClimatePreset>(this->preset));
-  out.append("\n");
-
-  out.append("  has_custom_preset: ");
-  out.append(YESNO(this->has_custom_preset));
-  out.append("\n");
-
-  out.append("  custom_preset: ");
-  out.append("'").append(this->custom_preset).append("'");
-  out.append("\n");
-
-  out.append("  has_target_humidity: ");
-  out.append(YESNO(this->has_target_humidity));
-  out.append("\n");
-
-  out.append("  target_humidity: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->target_humidity);
-  out.append(buffer);
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_NUMBER
-void ListEntitiesNumberResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesNumberResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  min_value: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->min_value);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  max_value: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->max_value);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  step: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->step);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  unit_of_measurement: ");
-  out.append("'").append(this->unit_of_measurement).append("'");
-  out.append("\n");
-
-  out.append("  mode: ");
-  out.append(proto_enum_to_string<enums::NumberMode>(this->mode));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void NumberStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("NumberStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->state);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void NumberCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("NumberCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->state);
-  out.append(buffer);
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_SELECT
-void ListEntitiesSelectResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesSelectResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  for (const auto &it : this->options) {
-    out.append("  options: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void SelectStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SelectStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append("'").append(this->state).append("'");
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void SelectCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SelectCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append("'").append(this->state).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_SIREN
-void ListEntitiesSirenResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesSirenResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  for (const auto &it : this->tones) {
-    out.append("  tones: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-
-  out.append("  supports_duration: ");
-  out.append(YESNO(this->supports_duration));
-  out.append("\n");
-
-  out.append("  supports_volume: ");
-  out.append(YESNO(this->supports_volume));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void SirenStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SirenStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(YESNO(this->state));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void SirenCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SirenCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_state: ");
-  out.append(YESNO(this->has_state));
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(YESNO(this->state));
-  out.append("\n");
-
-  out.append("  has_tone: ");
-  out.append(YESNO(this->has_tone));
-  out.append("\n");
-
-  out.append("  tone: ");
-  out.append("'").append(this->tone).append("'");
-  out.append("\n");
-
-  out.append("  has_duration: ");
-  out.append(YESNO(this->has_duration));
-  out.append("\n");
-
-  out.append("  duration: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->duration);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_volume: ");
-  out.append(YESNO(this->has_volume));
-  out.append("\n");
-
-  out.append("  volume: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->volume);
-  out.append(buffer);
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_LOCK
-void ListEntitiesLockResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesLockResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  assumed_state: ");
-  out.append(YESNO(this->assumed_state));
-  out.append("\n");
-
-  out.append("  supports_open: ");
-  out.append(YESNO(this->supports_open));
-  out.append("\n");
-
-  out.append("  requires_code: ");
-  out.append(YESNO(this->requires_code));
-  out.append("\n");
-
-  out.append("  code_format: ");
-  out.append("'").append(this->code_format).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void LockStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("LockStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(proto_enum_to_string<enums::LockState>(this->state));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void LockCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("LockCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  command: ");
-  out.append(proto_enum_to_string<enums::LockCommand>(this->command));
-  out.append("\n");
-
-  out.append("  has_code: ");
-  out.append(YESNO(this->has_code));
-  out.append("\n");
-
-  out.append("  code: ");
-  out.append("'").append(this->code).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_BUTTON
-void ListEntitiesButtonResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesButtonResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void ButtonCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ButtonCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
-#ifdef USE_MEDIA_PLAYER
-void MediaPlayerSupportedFormat::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("MediaPlayerSupportedFormat {\n");
-  out.append("  format: ");
-  out.append("'").append(this->format).append("'");
-  out.append("\n");
-
-  out.append("  sample_rate: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->sample_rate);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  num_channels: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->num_channels);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  purpose: ");
-  out.append(proto_enum_to_string<enums::MediaPlayerFormatPurpose>(this->purpose));
-  out.append("\n");
-
-  out.append("  sample_bytes: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->sample_bytes);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesMediaPlayerResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-#ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
-#endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  supports_pause: ");
-  out.append(YESNO(this->supports_pause));
-  out.append("\n");
-
-  for (const auto &it : this->supported_formats) {
-    out.append("  supported_formats: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void MediaPlayerStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("MediaPlayerStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(proto_enum_to_string<enums::MediaPlayerState>(this->state));
-  out.append("\n");
-
-  out.append("  volume: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->volume);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  muted: ");
-  out.append(YESNO(this->muted));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-void MediaPlayerCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("MediaPlayerCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_command: ");
-  out.append(YESNO(this->has_command));
-  out.append("\n");
-
-  out.append("  command: ");
-  out.append(proto_enum_to_string<enums::MediaPlayerCommand>(this->command));
-  out.append("\n");
-
-  out.append("  has_volume: ");
-  out.append(YESNO(this->has_volume));
-  out.append("\n");
-
-  out.append("  volume: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->volume);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_media_url: ");
-  out.append(YESNO(this->has_media_url));
-  out.append("\n");
-
-  out.append("  media_url: ");
-  out.append("'").append(this->media_url).append("'");
-  out.append("\n");
-
-  out.append("  has_announcement: ");
-  out.append(YESNO(this->has_announcement));
-  out.append("\n");
-
-  out.append("  announcement: ");
-  out.append(YESNO(this->announcement));
-  out.append("\n");
-
-#ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
-#endif
-  out.append("}");
-}
-#endif
 #ifdef USE_BLUETOOTH_PROXY
-void SubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SubscribeBluetoothLEAdvertisementsRequest {\n");
-  out.append("  flags: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->flags);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothLERawAdvertisement::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothLERawAdvertisement {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  rssi: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->rssi);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  address_type: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->address_type);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data, this->data_len));
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothLERawAdvertisementsResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothLERawAdvertisementsResponse {\n");
-  for (const auto &it : this->advertisements) {
-    out.append("  advertisements: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-  out.append("}");
-}
-void BluetoothDeviceRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothDeviceRequest {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  request_type: ");
-  out.append(proto_enum_to_string<enums::BluetoothDeviceRequestType>(this->request_type));
-  out.append("\n");
-
-  out.append("  has_address_type: ");
-  out.append(YESNO(this->has_address_type));
-  out.append("\n");
-
-  out.append("  address_type: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->address_type);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothDeviceConnectionResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothDeviceConnectionResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  connected: ");
-  out.append(YESNO(this->connected));
-  out.append("\n");
-
-  out.append("  mtu: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->mtu);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  error: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->error);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTGetServicesRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTGetServicesRequest {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTDescriptor::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTDescriptor {\n");
-  for (const auto &it : this->uuid) {
-    out.append("  uuid: ");
-    snprintf(buffer, sizeof(buffer), "%llu", it);
-    out.append(buffer);
-    out.append("\n");
-  }
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTCharacteristic::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTCharacteristic {\n");
-  for (const auto &it : this->uuid) {
-    out.append("  uuid: ");
-    snprintf(buffer, sizeof(buffer), "%llu", it);
-    out.append(buffer);
-    out.append("\n");
-  }
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  properties: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->properties);
-  out.append(buffer);
-  out.append("\n");
-
-  for (const auto &it : this->descriptors) {
-    out.append("  descriptors: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-  out.append("}");
-}
-void BluetoothGATTService::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTService {\n");
-  for (const auto &it : this->uuid) {
-    out.append("  uuid: ");
-    snprintf(buffer, sizeof(buffer), "%llu", it);
-    out.append(buffer);
-    out.append("\n");
-  }
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-
-  for (const auto &it : this->characteristics) {
-    out.append("  characteristics: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-  out.append("}");
-}
-void BluetoothGATTGetServicesResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTGetServicesResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  for (const auto &it : this->services) {
-    out.append("  services: ");
-    it.dump_to(out);
-    out.append("\n");
-  }
-  out.append("}");
-}
-void BluetoothGATTGetServicesDoneResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTGetServicesDoneResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTReadRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTReadRequest {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTReadResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTReadResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data));
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTWriteRequest {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  response: ");
-  out.append(YESNO(this->response));
-  out.append("\n");
-
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data));
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTReadDescriptorRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTReadDescriptorRequest {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTWriteDescriptorRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTWriteDescriptorRequest {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data));
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTNotifyRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTNotifyRequest {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  enable: ");
-  out.append(YESNO(this->enable));
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTNotifyDataResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTNotifyDataResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data));
-  out.append("\n");
-  out.append("}");
-}
-void SubscribeBluetoothConnectionsFreeRequest::dump_to(std::string &out) const {
-  out.append("SubscribeBluetoothConnectionsFreeRequest {}");
-}
-void BluetoothConnectionsFreeResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothConnectionsFreeResponse {\n");
-  out.append("  free: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->free);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  limit: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->limit);
-  out.append(buffer);
-  out.append("\n");
-
-  for (const auto &it : this->allocated) {
-    out.append("  allocated: ");
-    snprintf(buffer, sizeof(buffer), "%llu", it);
-    out.append(buffer);
-    out.append("\n");
-  }
-  out.append("}");
-}
-void BluetoothGATTErrorResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTErrorResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  error: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->error);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTWriteResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTWriteResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothGATTNotifyResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothGATTNotifyResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  handle: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->handle);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothDevicePairingResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothDevicePairingResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  paired: ");
-  out.append(YESNO(this->paired));
-  out.append("\n");
-
-  out.append("  error: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->error);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothDeviceUnpairingResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothDeviceUnpairingResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  success: ");
-  out.append(YESNO(this->success));
-  out.append("\n");
-
-  out.append("  error: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->error);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void UnsubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
-  out.append("UnsubscribeBluetoothLEAdvertisementsRequest {}");
-}
-void BluetoothDeviceClearCacheResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothDeviceClearCacheResponse {\n");
-  out.append("  address: ");
-  snprintf(buffer, sizeof(buffer), "%llu", this->address);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  success: ");
-  out.append(YESNO(this->success));
-  out.append("\n");
-
-  out.append("  error: ");
-  snprintf(buffer, sizeof(buffer), "%" PRId32, this->error);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothScannerStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothScannerStateResponse {\n");
-  out.append("  state: ");
-  out.append(proto_enum_to_string<enums::BluetoothScannerState>(this->state));
-  out.append("\n");
-
-  out.append("  mode: ");
-  out.append(proto_enum_to_string<enums::BluetoothScannerMode>(this->mode));
-  out.append("\n");
-  out.append("}");
-}
-void BluetoothScannerSetModeRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("BluetoothScannerSetModeRequest {\n");
-  out.append("  mode: ");
-  out.append(proto_enum_to_string<enums::BluetoothScannerMode>(this->mode));
-  out.append("\n");
-  out.append("}");
+const char *BluetoothProxyCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothProxyCapabilities"));
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("mac_address"), this->mac_address);
+  return out.c_str();
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-void SubscribeVoiceAssistantRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("SubscribeVoiceAssistantRequest {\n");
-  out.append("  subscribe: ");
-  out.append(YESNO(this->subscribe));
-  out.append("\n");
-
-  out.append("  flags: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->flags);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
+const char *VoiceAssistantCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantCapabilities"));
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  return out.c_str();
 }
-void VoiceAssistantAudioSettings::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantAudioSettings {\n");
-  out.append("  noise_suppression_level: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->noise_suppression_level);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  auto_gain: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->auto_gain);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  volume_multiplier: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->volume_multiplier);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
+#endif
+#ifdef USE_ZWAVE_PROXY
+const char *ZWaveProxyCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ZWaveProxyCapabilities"));
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("home_id"), this->home_id);
+  return out.c_str();
 }
-void VoiceAssistantRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantRequest {\n");
-  out.append("  start: ");
-  out.append(YESNO(this->start));
+#endif
+#ifdef USE_API_WIZARD
+const char *WizardCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardCapabilities"));
+  dump_field(out, ESPHOME_PSTR("configured"), this->configured);
+  return out.c_str();
+}
+#endif
+#ifdef USE_SENDSPIN
+const char *SendspinCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinCapabilities"));
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("client_id"), this->client_id);
+  return out.c_str();
+}
+#endif
+const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceCapabilitiesResponse"));
+#ifdef USE_BLUETOOTH_PROXY
+  out.append(2, ' ').append_p(ESPHOME_PSTR("bluetooth_proxy")).append(": ");
+  this->bluetooth_proxy.dump_to(out);
   out.append("\n");
-
-  out.append("  conversation_id: ");
-  out.append("'").append(this->conversation_id).append("'");
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  out.append(2, ' ').append_p(ESPHOME_PSTR("voice_assistant")).append(": ");
+  this->voice_assistant.dump_to(out);
   out.append("\n");
-
-  out.append("  flags: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->flags);
-  out.append(buffer);
+#endif
+#ifdef USE_ZWAVE_PROXY
+  out.append(2, ' ').append_p(ESPHOME_PSTR("zwave_proxy")).append(": ");
+  this->zwave_proxy.dump_to(out);
   out.append("\n");
-
-  out.append("  audio_settings: ");
+#endif
+#ifdef USE_SERIAL_PROXY
+  for (const auto &it : this->serial_proxies) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("serial_proxies")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+#endif
+#ifdef USE_API_WIZARD
+  out.append(2, ' ').append_p(ESPHOME_PSTR("wizard")).append(": ");
+  this->wizard.dump_to(out);
+  out.append("\n");
+#endif
+#ifdef USE_SENDSPIN
+  out.append(2, ' ').append_p(ESPHOME_PSTR("sendspin")).append(": ");
+  this->sendspin.dump_to(out);
+  out.append("\n");
+#endif
+  return out.c_str();
+}
+#ifdef USE_API_WIZARD
+const char *DeviceWizardResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceWizardResponse"));
+  dump_progmem_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_WIZARD_INPUTS
+const char *WizardInputSetRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WizardInputSetRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("entity_id"), this->entity_id);
+  return out.c_str();
+}
+#endif
+const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
+  out.append_p(ESPHOME_PSTR("ListEntitiesDoneResponse {}"));
+  return out.c_str();
+}
+#ifdef USE_BINARY_SENSOR
+const char *ListEntitiesBinarySensorResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesBinarySensorResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_field(out, ESPHOME_PSTR("is_status_binary_sensor"), this->is_status_binary_sensor);
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *BinarySensorStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BinarySensorStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_COVER
+const char *ListEntitiesCoverResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesCoverResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("assumed_state"), this->assumed_state);
+  dump_field(out, ESPHOME_PSTR("supports_position"), this->supports_position);
+  dump_field(out, ESPHOME_PSTR("supports_tilt"), this->supports_tilt);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_field(out, ESPHOME_PSTR("supports_stop"), this->supports_stop);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("supports_stop_tilt"), this->supports_stop_tilt);
+  dump_field(out, ESPHOME_PSTR("supports_toggle"), this->supports_toggle);
+  return out.c_str();
+}
+const char *CoverStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CoverStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("position"), this->position);
+  dump_field(out, ESPHOME_PSTR("tilt"), this->tilt);
+  dump_field(out, ESPHOME_PSTR("current_operation"), static_cast<enums::CoverOperation>(this->current_operation));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *CoverCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CoverCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("has_position"), this->has_position);
+  dump_field(out, ESPHOME_PSTR("position"), this->position);
+  dump_field(out, ESPHOME_PSTR("has_tilt"), this->has_tilt);
+  dump_field(out, ESPHOME_PSTR("tilt"), this->tilt);
+  dump_field(out, ESPHOME_PSTR("stop"), this->stop);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("stop_tilt"), this->stop_tilt);
+  dump_field(out, ESPHOME_PSTR("toggle"), this->toggle);
+  return out.c_str();
+}
+#endif
+#ifdef USE_FAN
+const char *ListEntitiesFanResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesFanResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("supports_oscillation"), this->supports_oscillation);
+  dump_field(out, ESPHOME_PSTR("supports_speed"), this->supports_speed);
+  dump_field(out, ESPHOME_PSTR("supports_direction"), this->supports_direction);
+  dump_field(out, ESPHOME_PSTR("supported_speed_count"), this->supported_speed_count);
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  for (const auto &it : *this->supported_preset_modes) {
+    dump_field(out, ESPHOME_PSTR("supported_preset_modes"), it, 4);
+  }
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *FanStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("FanStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("oscillating"), this->oscillating);
+  dump_field(out, ESPHOME_PSTR("direction"), static_cast<enums::FanDirection>(this->direction));
+  dump_field(out, ESPHOME_PSTR("speed_level"), this->speed_level);
+  dump_field(out, ESPHOME_PSTR("preset_mode"), this->preset_mode);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *FanCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("FanCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("has_state"), this->has_state);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("has_oscillating"), this->has_oscillating);
+  dump_field(out, ESPHOME_PSTR("oscillating"), this->oscillating);
+  dump_field(out, ESPHOME_PSTR("has_direction"), this->has_direction);
+  dump_field(out, ESPHOME_PSTR("direction"), static_cast<enums::FanDirection>(this->direction));
+  dump_field(out, ESPHOME_PSTR("has_speed_level"), this->has_speed_level);
+  dump_field(out, ESPHOME_PSTR("speed_level"), this->speed_level);
+  dump_field(out, ESPHOME_PSTR("has_preset_mode"), this->has_preset_mode);
+  dump_field(out, ESPHOME_PSTR("preset_mode"), this->preset_mode);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_LIGHT
+const char *ListEntitiesLightResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesLightResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+  for (const auto &it : *this->supported_color_modes) {
+    dump_field(out, ESPHOME_PSTR("supported_color_modes"), static_cast<enums::ColorMode>(it), 4);
+  }
+  dump_field(out, ESPHOME_PSTR("min_mireds"), this->min_mireds);
+  dump_field(out, ESPHOME_PSTR("max_mireds"), this->max_mireds);
+  for (const auto &it : *this->effects) {
+    dump_field(out, ESPHOME_PSTR("effects"), it, 4);
+  }
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *LightStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("LightStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("brightness"), this->brightness);
+  dump_field(out, ESPHOME_PSTR("color_mode"), static_cast<enums::ColorMode>(this->color_mode));
+  dump_field(out, ESPHOME_PSTR("color_brightness"), this->color_brightness);
+  dump_field(out, ESPHOME_PSTR("red"), this->red);
+  dump_field(out, ESPHOME_PSTR("green"), this->green);
+  dump_field(out, ESPHOME_PSTR("blue"), this->blue);
+  dump_field(out, ESPHOME_PSTR("white"), this->white);
+  dump_field(out, ESPHOME_PSTR("color_temperature"), this->color_temperature);
+  dump_field(out, ESPHOME_PSTR("cold_white"), this->cold_white);
+  dump_field(out, ESPHOME_PSTR("warm_white"), this->warm_white);
+  dump_field(out, ESPHOME_PSTR("effect"), this->effect);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *LightCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("LightCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("has_state"), this->has_state);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("has_brightness"), this->has_brightness);
+  dump_field(out, ESPHOME_PSTR("brightness"), this->brightness);
+  dump_field(out, ESPHOME_PSTR("has_color_mode"), this->has_color_mode);
+  dump_field(out, ESPHOME_PSTR("color_mode"), static_cast<enums::ColorMode>(this->color_mode));
+  dump_field(out, ESPHOME_PSTR("has_color_brightness"), this->has_color_brightness);
+  dump_field(out, ESPHOME_PSTR("color_brightness"), this->color_brightness);
+  dump_field(out, ESPHOME_PSTR("has_rgb"), this->has_rgb);
+  dump_field(out, ESPHOME_PSTR("red"), this->red);
+  dump_field(out, ESPHOME_PSTR("green"), this->green);
+  dump_field(out, ESPHOME_PSTR("blue"), this->blue);
+  dump_field(out, ESPHOME_PSTR("has_white"), this->has_white);
+  dump_field(out, ESPHOME_PSTR("white"), this->white);
+  dump_field(out, ESPHOME_PSTR("has_color_temperature"), this->has_color_temperature);
+  dump_field(out, ESPHOME_PSTR("color_temperature"), this->color_temperature);
+  dump_field(out, ESPHOME_PSTR("has_cold_white"), this->has_cold_white);
+  dump_field(out, ESPHOME_PSTR("cold_white"), this->cold_white);
+  dump_field(out, ESPHOME_PSTR("has_warm_white"), this->has_warm_white);
+  dump_field(out, ESPHOME_PSTR("warm_white"), this->warm_white);
+  dump_field(out, ESPHOME_PSTR("has_transition_length"), this->has_transition_length);
+  dump_field(out, ESPHOME_PSTR("transition_length"), this->transition_length);
+  dump_field(out, ESPHOME_PSTR("has_flash_length"), this->has_flash_length);
+  dump_field(out, ESPHOME_PSTR("flash_length"), this->flash_length);
+  dump_field(out, ESPHOME_PSTR("has_effect"), this->has_effect);
+  dump_field(out, ESPHOME_PSTR("effect"), this->effect);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_SENSOR
+const char *ListEntitiesSensorResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSensorResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("unit_of_measurement"), this->unit_of_measurement);
+  dump_field(out, ESPHOME_PSTR("accuracy_decimals"), this->accuracy_decimals);
+  dump_field(out, ESPHOME_PSTR("force_update"), this->force_update);
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_field(out, ESPHOME_PSTR("state_class"), static_cast<enums::SensorStateClass>(this->state_class));
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *SensorStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SensorStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_SWITCH
+const char *ListEntitiesSwitchResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSwitchResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("assumed_state"), this->assumed_state);
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *SwitchStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SwitchStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+  return out.c_str();
+}
+const char *SwitchCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SwitchCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_TEXT_SENSOR
+const char *ListEntitiesTextSensorResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesTextSensorResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *TextSensorStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("TextSensorStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+const char *SubscribeLogsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SubscribeLogsRequest"));
+  dump_field(out, ESPHOME_PSTR("level"), static_cast<enums::LogLevel>(this->level));
+  dump_field(out, ESPHOME_PSTR("dump_config"), this->dump_config);
+  return out.c_str();
+}
+const char *SubscribeLogsResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SubscribeLogsResponse"));
+  dump_field(out, ESPHOME_PSTR("level"), static_cast<enums::LogLevel>(this->level));
+  dump_bytes_field(out, ESPHOME_PSTR("message"), this->message_ptr_, this->message_len_);
+  return out.c_str();
+}
+#ifdef USE_API_NOISE
+const char *NoiseEncryptionSetKeyRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("NoiseEncryptionSetKeyRequest"));
+  dump_bytes_field(out, ESPHOME_PSTR("key"), this->key, this->key_len);
+  return out.c_str();
+}
+const char *NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("NoiseEncryptionSetKeyResponse"));
+  dump_field(out, ESPHOME_PSTR("success"), this->success);
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+const char *HomeassistantServiceMap::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("HomeassistantServiceMap"));
+  dump_progmem_string_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("value"), this->value);
+  return out.c_str();
+}
+const char *HomeassistantActionRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("HomeassistantActionRequest"));
+  dump_progmem_string_field(out, ESPHOME_PSTR("service"), this->service);
+  for (const auto &it : this->data) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("data")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  for (const auto &it : this->data_template) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("data_template")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  for (const auto &it : this->variables) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("variables")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  dump_field(out, ESPHOME_PSTR("is_event"), this->is_event);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+  dump_field(out, ESPHOME_PSTR("call_id"), this->call_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  dump_field(out, ESPHOME_PSTR("wants_response"), this->wants_response);
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  dump_field(out, ESPHOME_PSTR("response_template"), this->response_template);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
+const char *HomeassistantActionResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("HomeassistantActionResponse"));
+  dump_field(out, ESPHOME_PSTR("call_id"), this->call_id);
+  dump_field(out, ESPHOME_PSTR("success"), this->success);
+  dump_field(out, ESPHOME_PSTR("error_message"), this->error_message);
+#ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+  dump_bytes_field(out, ESPHOME_PSTR("response_data"), this->response_data, this->response_data_len);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_HOMEASSISTANT_STATES
+const char *SubscribeHomeAssistantStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SubscribeHomeAssistantStateResponse"));
+  dump_field(out, ESPHOME_PSTR("entity_id"), this->entity_id);
+  dump_field(out, ESPHOME_PSTR("attribute"), this->attribute);
+  dump_field(out, ESPHOME_PSTR("once"), this->once);
+  return out.c_str();
+}
+const char *HomeAssistantStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("HomeAssistantStateResponse"));
+  dump_field(out, ESPHOME_PSTR("entity_id"), this->entity_id);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("attribute"), this->attribute);
+  return out.c_str();
+}
+#endif
+const char *GetTimeRequest::dump_to(DumpBuffer &out) const {
+  out.append_p(ESPHOME_PSTR("GetTimeRequest {}"));
+  return out.c_str();
+}
+const char *DSTRule::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DSTRule"));
+  dump_field(out, ESPHOME_PSTR("time_seconds"), this->time_seconds);
+  dump_field(out, ESPHOME_PSTR("day"), this->day);
+  dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::DSTRuleType>(this->type));
+  dump_field(out, ESPHOME_PSTR("month"), this->month);
+  dump_field(out, ESPHOME_PSTR("week"), this->week);
+  dump_field(out, ESPHOME_PSTR("day_of_week"), this->day_of_week);
+  return out.c_str();
+}
+const char *ParsedTimezone::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ParsedTimezone"));
+  dump_field(out, ESPHOME_PSTR("std_offset_seconds"), this->std_offset_seconds);
+  dump_field(out, ESPHOME_PSTR("dst_offset_seconds"), this->dst_offset_seconds);
+  out.append(2, ' ').append_p(ESPHOME_PSTR("dst_start")).append(": ");
+  this->dst_start.dump_to(out);
+  out.append("\n");
+  out.append(2, ' ').append_p(ESPHOME_PSTR("dst_end")).append(": ");
+  this->dst_end.dump_to(out);
+  out.append("\n");
+  return out.c_str();
+}
+const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("GetTimeResponse"));
+  dump_field(out, ESPHOME_PSTR("epoch_seconds"), this->epoch_seconds);
+  dump_field(out, ESPHOME_PSTR("has_parsed_timezone"), this->has_parsed_timezone);
+  out.append(2, ' ').append_p(ESPHOME_PSTR("parsed_timezone")).append(": ");
+  this->parsed_timezone.dump_to(out);
+  out.append("\n");
+  return out.c_str();
+}
+#ifdef USE_API_USER_DEFINED_ACTIONS
+const char *ListEntitiesServicesArgument::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesServicesArgument"));
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ServiceArgType>(this->type));
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  dump_progmem_string_field(out, ESPHOME_PSTR("description"), this->description);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  dump_progmem_string_field(out, ESPHOME_PSTR("example"), this->example);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  dump_field(out, ESPHOME_PSTR("optional"), this->optional);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  dump_progmem_string_field(out, ESPHOME_PSTR("default_value"), this->default_value);
+#endif
+  return out.c_str();
+}
+const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesServicesResponse"));
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  for (const auto &it : this->args) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("args")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  dump_field(out, ESPHOME_PSTR("supports_response"), static_cast<enums::SupportsResponseType>(this->supports_response));
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  dump_progmem_string_field(out, ESPHOME_PSTR("description"), this->description);
+#endif
+  return out.c_str();
+}
+const char *ExecuteServiceArgument::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ExecuteServiceArgument"));
+  dump_field(out, ESPHOME_PSTR("bool_"), this->bool_);
+  dump_field(out, ESPHOME_PSTR("legacy_int"), this->legacy_int);
+  dump_field(out, ESPHOME_PSTR("float_"), this->float_);
+  dump_field(out, ESPHOME_PSTR("string_"), this->string_);
+  dump_field(out, ESPHOME_PSTR("int_"), this->int_);
+  for (const auto it : this->bool_array) {
+    dump_field(out, ESPHOME_PSTR("bool_array"), static_cast<bool>(it), 4);
+  }
+  for (const auto &it : this->int_array) {
+    dump_field(out, ESPHOME_PSTR("int_array"), it, 4);
+  }
+  for (const auto &it : this->float_array) {
+    dump_field(out, ESPHOME_PSTR("float_array"), it, 4);
+  }
+  for (const auto &it : this->string_array) {
+    dump_field(out, ESPHOME_PSTR("string_array"), it, 4);
+  }
+  return out.c_str();
+}
+const char *ExecuteServiceRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ExecuteServiceRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  for (const auto &it : this->args) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("args")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, ESPHOME_PSTR("call_id"), this->call_id);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  dump_field(out, ESPHOME_PSTR("return_response"), this->return_response);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+const char *ExecuteServiceResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ExecuteServiceResponse"));
+  dump_field(out, ESPHOME_PSTR("call_id"), this->call_id);
+  dump_field(out, ESPHOME_PSTR("success"), this->success);
+  dump_field(out, ESPHOME_PSTR("error_message"), this->error_message);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  dump_bytes_field(out, ESPHOME_PSTR("response_data"), this->response_data, this->response_data_len);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_CAMERA
+const char *ListEntitiesCameraResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesCameraResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *CameraImageResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CameraImageResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data_ptr_, this->data_len_);
+  dump_field(out, ESPHOME_PSTR("done"), this->done);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *CameraImageRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CameraImageRequest"));
+  dump_field(out, ESPHOME_PSTR("single"), this->single);
+  dump_field(out, ESPHOME_PSTR("stream"), this->stream);
+  return out.c_str();
+}
+#endif
+#ifdef USE_CLIMATE
+const char *ListEntitiesClimateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesClimateResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("supports_current_temperature"), this->supports_current_temperature);
+  dump_field(out, ESPHOME_PSTR("supports_two_point_target_temperature"), this->supports_two_point_target_temperature);
+  for (const auto &it : *this->supported_modes) {
+    dump_field(out, ESPHOME_PSTR("supported_modes"), static_cast<enums::ClimateMode>(it), 4);
+  }
+  dump_field(out, ESPHOME_PSTR("visual_min_temperature"), this->visual_min_temperature);
+  dump_field(out, ESPHOME_PSTR("visual_max_temperature"), this->visual_max_temperature);
+  dump_field(out, ESPHOME_PSTR("visual_target_temperature_step"), this->visual_target_temperature_step);
+  dump_field(out, ESPHOME_PSTR("supports_action"), this->supports_action);
+  for (const auto &it : *this->supported_fan_modes) {
+    dump_field(out, ESPHOME_PSTR("supported_fan_modes"), static_cast<enums::ClimateFanMode>(it), 4);
+  }
+  for (const auto &it : *this->supported_swing_modes) {
+    dump_field(out, ESPHOME_PSTR("supported_swing_modes"), static_cast<enums::ClimateSwingMode>(it), 4);
+  }
+  for (const auto &it : *this->supported_custom_fan_modes) {
+    dump_field(out, ESPHOME_PSTR("supported_custom_fan_modes"), it, 4);
+  }
+  for (const auto &it : *this->supported_presets) {
+    dump_field(out, ESPHOME_PSTR("supported_presets"), static_cast<enums::ClimatePreset>(it), 4);
+  }
+  for (const auto &it : *this->supported_custom_presets) {
+    dump_field(out, ESPHOME_PSTR("supported_custom_presets"), it, 4);
+  }
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_field(out, ESPHOME_PSTR("visual_current_temperature_step"), this->visual_current_temperature_step);
+  dump_field(out, ESPHOME_PSTR("supports_current_humidity"), this->supports_current_humidity);
+  dump_field(out, ESPHOME_PSTR("supports_target_humidity"), this->supports_target_humidity);
+  dump_field(out, ESPHOME_PSTR("visual_min_humidity"), this->visual_min_humidity);
+  dump_field(out, ESPHOME_PSTR("visual_max_humidity"), this->visual_max_humidity);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("temperature_unit"), static_cast<enums::TemperatureUnit>(this->temperature_unit));
+  return out.c_str();
+}
+const char *ClimateStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ClimateStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::ClimateMode>(this->mode));
+  dump_field(out, ESPHOME_PSTR("current_temperature"), this->current_temperature);
+  dump_field(out, ESPHOME_PSTR("target_temperature"), this->target_temperature);
+  dump_field(out, ESPHOME_PSTR("target_temperature_low"), this->target_temperature_low);
+  dump_field(out, ESPHOME_PSTR("target_temperature_high"), this->target_temperature_high);
+  dump_field(out, ESPHOME_PSTR("action"), static_cast<enums::ClimateAction>(this->action));
+  dump_field(out, ESPHOME_PSTR("fan_mode"), static_cast<enums::ClimateFanMode>(this->fan_mode));
+  dump_field(out, ESPHOME_PSTR("swing_mode"), static_cast<enums::ClimateSwingMode>(this->swing_mode));
+  dump_field(out, ESPHOME_PSTR("custom_fan_mode"), this->custom_fan_mode);
+  dump_field(out, ESPHOME_PSTR("preset"), static_cast<enums::ClimatePreset>(this->preset));
+  dump_field(out, ESPHOME_PSTR("custom_preset"), this->custom_preset);
+  dump_field(out, ESPHOME_PSTR("current_humidity"), this->current_humidity);
+  dump_field(out, ESPHOME_PSTR("target_humidity"), this->target_humidity);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+  return out.c_str();
+}
+const char *ClimateCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ClimateCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("has_mode"), this->has_mode);
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::ClimateMode>(this->mode));
+  dump_field(out, ESPHOME_PSTR("has_target_temperature"), this->has_target_temperature);
+  dump_field(out, ESPHOME_PSTR("target_temperature"), this->target_temperature);
+  dump_field(out, ESPHOME_PSTR("has_target_temperature_low"), this->has_target_temperature_low);
+  dump_field(out, ESPHOME_PSTR("target_temperature_low"), this->target_temperature_low);
+  dump_field(out, ESPHOME_PSTR("has_target_temperature_high"), this->has_target_temperature_high);
+  dump_field(out, ESPHOME_PSTR("target_temperature_high"), this->target_temperature_high);
+  dump_field(out, ESPHOME_PSTR("has_fan_mode"), this->has_fan_mode);
+  dump_field(out, ESPHOME_PSTR("fan_mode"), static_cast<enums::ClimateFanMode>(this->fan_mode));
+  dump_field(out, ESPHOME_PSTR("has_swing_mode"), this->has_swing_mode);
+  dump_field(out, ESPHOME_PSTR("swing_mode"), static_cast<enums::ClimateSwingMode>(this->swing_mode));
+  dump_field(out, ESPHOME_PSTR("has_custom_fan_mode"), this->has_custom_fan_mode);
+  dump_field(out, ESPHOME_PSTR("custom_fan_mode"), this->custom_fan_mode);
+  dump_field(out, ESPHOME_PSTR("has_preset"), this->has_preset);
+  dump_field(out, ESPHOME_PSTR("preset"), static_cast<enums::ClimatePreset>(this->preset));
+  dump_field(out, ESPHOME_PSTR("has_custom_preset"), this->has_custom_preset);
+  dump_field(out, ESPHOME_PSTR("custom_preset"), this->custom_preset);
+  dump_field(out, ESPHOME_PSTR("has_target_humidity"), this->has_target_humidity);
+  dump_field(out, ESPHOME_PSTR("target_humidity"), this->target_humidity);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_WATER_HEATER
+const char *ListEntitiesWaterHeaterResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesWaterHeaterResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("min_temperature"), this->min_temperature);
+  dump_field(out, ESPHOME_PSTR("max_temperature"), this->max_temperature);
+  dump_field(out, ESPHOME_PSTR("target_temperature_step"), this->target_temperature_step);
+  for (const auto &it : *this->supported_modes) {
+    dump_field(out, ESPHOME_PSTR("supported_modes"), static_cast<enums::WaterHeaterMode>(it), 4);
+  }
+  dump_field(out, ESPHOME_PSTR("supported_features"), this->supported_features);
+  dump_field(out, ESPHOME_PSTR("temperature_unit"), static_cast<enums::TemperatureUnit>(this->temperature_unit));
+  return out.c_str();
+}
+const char *WaterHeaterStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WaterHeaterStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("current_temperature"), this->current_temperature);
+  dump_field(out, ESPHOME_PSTR("target_temperature"), this->target_temperature);
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::WaterHeaterMode>(this->mode));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("target_temperature_low"), this->target_temperature_low);
+  dump_field(out, ESPHOME_PSTR("target_temperature_high"), this->target_temperature_high);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+  return out.c_str();
+}
+const char *WaterHeaterCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("WaterHeaterCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("has_fields"), this->has_fields);
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::WaterHeaterMode>(this->mode));
+  dump_field(out, ESPHOME_PSTR("target_temperature"), this->target_temperature);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("target_temperature_low"), this->target_temperature_low);
+  dump_field(out, ESPHOME_PSTR("target_temperature_high"), this->target_temperature_high);
+  return out.c_str();
+}
+#endif
+#ifdef USE_NUMBER
+const char *ListEntitiesNumberResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesNumberResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("min_value"), this->min_value);
+  dump_field(out, ESPHOME_PSTR("max_value"), this->max_value);
+  dump_field(out, ESPHOME_PSTR("step"), this->step);
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_field(out, ESPHOME_PSTR("unit_of_measurement"), this->unit_of_measurement);
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::NumberMode>(this->mode));
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *NumberStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("NumberStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *NumberCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("NumberCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_SELECT
+const char *ListEntitiesSelectResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSelectResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  for (const auto &it : *this->options) {
+    dump_field(out, ESPHOME_PSTR("options"), it, 4);
+  }
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *SelectStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SelectStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *SelectCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SelectCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_SIREN
+const char *ListEntitiesSirenResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesSirenResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  for (const auto &it : *this->tones) {
+    dump_field(out, ESPHOME_PSTR("tones"), it, 4);
+  }
+  dump_field(out, ESPHOME_PSTR("supports_duration"), this->supports_duration);
+  dump_field(out, ESPHOME_PSTR("supports_volume"), this->supports_volume);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *SirenStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SirenStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *SirenCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SirenCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("has_state"), this->has_state);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("has_tone"), this->has_tone);
+  dump_field(out, ESPHOME_PSTR("tone"), this->tone);
+  dump_field(out, ESPHOME_PSTR("has_duration"), this->has_duration);
+  dump_field(out, ESPHOME_PSTR("duration"), this->duration);
+  dump_field(out, ESPHOME_PSTR("has_volume"), this->has_volume);
+  dump_field(out, ESPHOME_PSTR("volume"), this->volume);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_LOCK
+const char *ListEntitiesLockResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesLockResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_field(out, ESPHOME_PSTR("assumed_state"), this->assumed_state);
+  dump_field(out, ESPHOME_PSTR("supports_open"), this->supports_open);
+  dump_field(out, ESPHOME_PSTR("requires_code"), this->requires_code);
+  dump_field(out, ESPHOME_PSTR("code_format"), this->code_format);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *LockStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("LockStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), static_cast<enums::LockState>(this->state));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *LockCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("LockCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("command"), static_cast<enums::LockCommand>(this->command));
+  dump_field(out, ESPHOME_PSTR("has_code"), this->has_code);
+  dump_field(out, ESPHOME_PSTR("code"), this->code);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_BUTTON
+const char *ListEntitiesButtonResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesButtonResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *ButtonCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ButtonCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_MEDIA_PLAYER
+const char *MediaPlayerSupportedFormat::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("MediaPlayerSupportedFormat"));
+  dump_field(out, ESPHOME_PSTR("format"), this->format);
+  dump_field(out, ESPHOME_PSTR("sample_rate"), this->sample_rate);
+  dump_field(out, ESPHOME_PSTR("num_channels"), this->num_channels);
+  dump_field(out, ESPHOME_PSTR("purpose"), static_cast<enums::MediaPlayerFormatPurpose>(this->purpose));
+  dump_field(out, ESPHOME_PSTR("sample_bytes"), this->sample_bytes);
+  dump_field(out, ESPHOME_PSTR("bitrate"), this->bitrate);
+  return out.c_str();
+}
+const char *ListEntitiesMediaPlayerResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesMediaPlayerResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  for (const auto &it : this->supported_formats) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("supported_formats")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  return out.c_str();
+}
+const char *MediaPlayerStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("MediaPlayerStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), static_cast<enums::MediaPlayerState>(this->state));
+  dump_field(out, ESPHOME_PSTR("volume"), this->volume);
+  dump_field(out, ESPHOME_PSTR("muted"), this->muted);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+const char *MediaPlayerCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("MediaPlayerCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("has_command"), this->has_command);
+  dump_field(out, ESPHOME_PSTR("command"), static_cast<enums::MediaPlayerCommand>(this->command));
+  dump_field(out, ESPHOME_PSTR("has_volume"), this->has_volume);
+  dump_field(out, ESPHOME_PSTR("volume"), this->volume);
+  dump_field(out, ESPHOME_PSTR("has_media_url"), this->has_media_url);
+  dump_field(out, ESPHOME_PSTR("media_url"), this->media_url);
+  dump_field(out, ESPHOME_PSTR("has_announcement"), this->has_announcement);
+  dump_field(out, ESPHOME_PSTR("announcement"), this->announcement);
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  return out.c_str();
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+const char *SubscribeBluetoothLEAdvertisementsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SubscribeBluetoothLEAdvertisementsRequest"));
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
+  return out.c_str();
+}
+const char *BluetoothLERawAdvertisement::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothLERawAdvertisement"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("rssi"), this->rssi);
+  dump_field(out, ESPHOME_PSTR("address_type"), this->address_type);
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  return out.c_str();
+}
+const char *BluetoothLERawAdvertisementsResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothLERawAdvertisementsResponse"));
+  for (uint16_t i = 0; i < this->advertisements_len; i++) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("advertisements")).append(": ");
+    this->advertisements[i].dump_to(out);
+    out.append("\n");
+  }
+  return out.c_str();
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
+const char *BluetoothDeviceRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothDeviceRequest"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("request_type"), static_cast<enums::BluetoothDeviceRequestType>(this->request_type));
+  dump_field(out, ESPHOME_PSTR("has_address_type"), this->has_address_type);
+  dump_field(out, ESPHOME_PSTR("address_type"), this->address_type);
+  return out.c_str();
+}
+const char *BluetoothDeviceConnectionResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothDeviceConnectionResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("connected"), this->connected);
+  dump_field(out, ESPHOME_PSTR("mtu"), this->mtu);
+  dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+const char *BluetoothGATTGetServicesRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTGetServicesRequest"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  return out.c_str();
+}
+const char *BluetoothGATTDescriptor::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTDescriptor"));
+  for (const auto &it : this->uuid) {
+    dump_field(out, ESPHOME_PSTR("uuid"), it, 4);
+  }
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  dump_field(out, ESPHOME_PSTR("short_uuid"), this->short_uuid);
+  return out.c_str();
+}
+const char *BluetoothGATTCharacteristic::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTCharacteristic"));
+  for (const auto &it : this->uuid) {
+    dump_field(out, ESPHOME_PSTR("uuid"), it, 4);
+  }
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  dump_field(out, ESPHOME_PSTR("properties"), this->properties);
+  for (const auto &it : this->descriptors) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("descriptors")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  dump_field(out, ESPHOME_PSTR("short_uuid"), this->short_uuid);
+  return out.c_str();
+}
+const char *BluetoothGATTService::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTService"));
+  for (const auto &it : this->uuid) {
+    dump_field(out, ESPHOME_PSTR("uuid"), it, 4);
+  }
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  for (const auto &it : this->characteristics) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("characteristics")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  dump_field(out, ESPHOME_PSTR("short_uuid"), this->short_uuid);
+  return out.c_str();
+}
+const char *BluetoothGATTGetServicesResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTGetServicesResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  for (const auto &it : this->services) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("services")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  return out.c_str();
+}
+const char *BluetoothGATTGetServicesDoneResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTGetServicesDoneResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  return out.c_str();
+}
+const char *BluetoothGATTReadRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTReadRequest"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  return out.c_str();
+}
+const char *BluetoothGATTReadResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTReadResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data_ptr_, this->data_len_);
+  return out.c_str();
+}
+const char *BluetoothGATTWriteRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTWriteRequest"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  dump_field(out, ESPHOME_PSTR("response"), this->response);
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  return out.c_str();
+}
+const char *BluetoothGATTReadDescriptorRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTReadDescriptorRequest"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  return out.c_str();
+}
+const char *BluetoothGATTWriteDescriptorRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTWriteDescriptorRequest"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  return out.c_str();
+}
+const char *BluetoothGATTNotifyRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTNotifyRequest"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  dump_field(out, ESPHOME_PSTR("enable"), this->enable);
+  return out.c_str();
+}
+const char *BluetoothGATTNotifyDataResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTNotifyDataResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data_ptr_, this->data_len_);
+  return out.c_str();
+}
+const char *BluetoothConnectionsFreeResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothConnectionsFreeResponse"));
+  dump_field(out, ESPHOME_PSTR("free"), this->free);
+  dump_field(out, ESPHOME_PSTR("limit"), this->limit);
+  for (const auto &it : this->allocated) {
+    dump_field(out, ESPHOME_PSTR("allocated"), it, 4);
+  }
+  return out.c_str();
+}
+const char *BluetoothGATTErrorResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTErrorResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+const char *BluetoothGATTWriteResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTWriteResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  return out.c_str();
+}
+const char *BluetoothGATTNotifyResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothGATTNotifyResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("handle"), this->handle);
+  return out.c_str();
+}
+const char *BluetoothDevicePairingResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothDevicePairingResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("paired"), this->paired);
+  dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+const char *BluetoothDeviceUnpairingResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothDeviceUnpairingResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("success"), this->success);
+  dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+const char *BluetoothDeviceClearCacheResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothDeviceClearCacheResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("success"), this->success);
+  dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+const char *BluetoothScannerStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothScannerStateResponse"));
+  dump_field(out, ESPHOME_PSTR("state"), static_cast<enums::BluetoothScannerState>(this->state));
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::BluetoothScannerMode>(this->mode));
+  dump_field(out, ESPHOME_PSTR("configured_mode"), static_cast<enums::BluetoothScannerMode>(this->configured_mode));
+  return out.c_str();
+}
+const char *BluetoothScannerSetModeRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothScannerSetModeRequest"));
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::BluetoothScannerMode>(this->mode));
+  return out.c_str();
+}
+#endif
+#ifdef USE_VOICE_ASSISTANT
+const char *SubscribeVoiceAssistantRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SubscribeVoiceAssistantRequest"));
+  dump_field(out, ESPHOME_PSTR("subscribe"), this->subscribe);
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
+  return out.c_str();
+}
+const char *VoiceAssistantAudioSettings::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantAudioSettings"));
+  dump_field(out, ESPHOME_PSTR("noise_suppression_level"), this->noise_suppression_level);
+  dump_field(out, ESPHOME_PSTR("auto_gain"), this->auto_gain);
+  dump_field(out, ESPHOME_PSTR("volume_multiplier"), this->volume_multiplier);
+  return out.c_str();
+}
+const char *VoiceAssistantRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantRequest"));
+  dump_field(out, ESPHOME_PSTR("start"), this->start);
+  dump_field(out, ESPHOME_PSTR("conversation_id"), this->conversation_id);
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
+  out.append(2, ' ').append_p(ESPHOME_PSTR("audio_settings")).append(": ");
   this->audio_settings.dump_to(out);
   out.append("\n");
-
-  out.append("  wake_word_phrase: ");
-  out.append("'").append(this->wake_word_phrase).append("'");
-  out.append("\n");
-  out.append("}");
+  dump_field(out, ESPHOME_PSTR("wake_word_phrase"), this->wake_word_phrase);
+  return out.c_str();
 }
-void VoiceAssistantResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantResponse {\n");
-  out.append("  port: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->port);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  error: ");
-  out.append(YESNO(this->error));
-  out.append("\n");
-  out.append("}");
+const char *VoiceAssistantResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantResponse"));
+  dump_field(out, ESPHOME_PSTR("port"), this->port);
+  dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
 }
-void VoiceAssistantEventData::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantEventData {\n");
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  value: ");
-  out.append("'").append(this->value).append("'");
-  out.append("\n");
-  out.append("}");
+const char *VoiceAssistantEventData::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantEventData"));
+  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("value"), this->value);
+  return out.c_str();
 }
-void VoiceAssistantEventResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantEventResponse {\n");
-  out.append("  event_type: ");
-  out.append(proto_enum_to_string<enums::VoiceAssistantEvent>(this->event_type));
-  out.append("\n");
-
+const char *VoiceAssistantEventResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantEventResponse"));
+  dump_field(out, ESPHOME_PSTR("event_type"), static_cast<enums::VoiceAssistantEvent>(this->event_type));
   for (const auto &it : this->data) {
-    out.append("  data: ");
+    out.append(4, ' ').append_p(ESPHOME_PSTR("data")).append(": ");
     it.dump_to(out);
     out.append("\n");
   }
-  out.append("}");
+  return out.c_str();
 }
-void VoiceAssistantAudio::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantAudio {\n");
-  out.append("  data: ");
-  out.append(format_hex_pretty(this->data));
-  out.append("\n");
-
-  out.append("  end: ");
-  out.append(YESNO(this->end));
-  out.append("\n");
-  out.append("}");
+const char *VoiceAssistantAudio::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantAudio"));
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  dump_field(out, ESPHOME_PSTR("end"), this->end);
+  dump_bytes_field(out, ESPHOME_PSTR("data2"), this->data2, this->data2_len);
+  return out.c_str();
 }
-void VoiceAssistantTimerEventResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantTimerEventResponse {\n");
-  out.append("  event_type: ");
-  out.append(proto_enum_to_string<enums::VoiceAssistantTimerEvent>(this->event_type));
-  out.append("\n");
-
-  out.append("  timer_id: ");
-  out.append("'").append(this->timer_id).append("'");
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
-  out.append("  total_seconds: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->total_seconds);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  seconds_left: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->seconds_left);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  is_active: ");
-  out.append(YESNO(this->is_active));
-  out.append("\n");
-  out.append("}");
+const char *VoiceAssistantTimerEventResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantTimerEventResponse"));
+  dump_field(out, ESPHOME_PSTR("event_type"), static_cast<enums::VoiceAssistantTimerEvent>(this->event_type));
+  dump_field(out, ESPHOME_PSTR("timer_id"), this->timer_id);
+  dump_field(out, ESPHOME_PSTR("name"), this->name);
+  dump_field(out, ESPHOME_PSTR("total_seconds"), this->total_seconds);
+  dump_field(out, ESPHOME_PSTR("seconds_left"), this->seconds_left);
+  dump_field(out, ESPHOME_PSTR("is_active"), this->is_active);
+  return out.c_str();
 }
-void VoiceAssistantAnnounceRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantAnnounceRequest {\n");
-  out.append("  media_id: ");
-  out.append("'").append(this->media_id).append("'");
-  out.append("\n");
-
-  out.append("  text: ");
-  out.append("'").append(this->text).append("'");
-  out.append("\n");
-
-  out.append("  preannounce_media_id: ");
-  out.append("'").append(this->preannounce_media_id).append("'");
-  out.append("\n");
-
-  out.append("  start_conversation: ");
-  out.append(YESNO(this->start_conversation));
-  out.append("\n");
-  out.append("}");
+const char *VoiceAssistantAnnounceRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantAnnounceRequest"));
+  dump_field(out, ESPHOME_PSTR("media_id"), this->media_id);
+  dump_field(out, ESPHOME_PSTR("text"), this->text);
+  dump_field(out, ESPHOME_PSTR("preannounce_media_id"), this->preannounce_media_id);
+  dump_field(out, ESPHOME_PSTR("start_conversation"), this->start_conversation);
+  return out.c_str();
 }
-void VoiceAssistantAnnounceFinished::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantAnnounceFinished {\n");
-  out.append("  success: ");
-  out.append(YESNO(this->success));
-  out.append("\n");
-  out.append("}");
+const char *VoiceAssistantAnnounceFinished::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantAnnounceFinished"));
+  dump_field(out, ESPHOME_PSTR("success"), this->success);
+  return out.c_str();
 }
-void VoiceAssistantWakeWord::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantWakeWord {\n");
-  out.append("  id: ");
-  out.append("'").append(this->id).append("'");
-  out.append("\n");
-
-  out.append("  wake_word: ");
-  out.append("'").append(this->wake_word).append("'");
-  out.append("\n");
-
+const char *VoiceAssistantWakeWord::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantWakeWord"));
+  dump_field(out, ESPHOME_PSTR("id"), this->id);
+  dump_field(out, ESPHOME_PSTR("wake_word"), this->wake_word);
   for (const auto &it : this->trained_languages) {
-    out.append("  trained_languages: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
+    dump_field(out, ESPHOME_PSTR("trained_languages"), it, 4);
   }
-  out.append("}");
+  return out.c_str();
 }
-void VoiceAssistantConfigurationRequest::dump_to(std::string &out) const {
-  out.append("VoiceAssistantConfigurationRequest {}");
+const char *VoiceAssistantExternalWakeWord::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantExternalWakeWord"));
+  dump_field(out, ESPHOME_PSTR("id"), this->id);
+  dump_field(out, ESPHOME_PSTR("wake_word"), this->wake_word);
+  for (const auto &it : this->trained_languages) {
+    dump_field(out, ESPHOME_PSTR("trained_languages"), it, 4);
+  }
+  dump_field(out, ESPHOME_PSTR("model_type"), this->model_type);
+  dump_field(out, ESPHOME_PSTR("model_size"), this->model_size);
+  dump_field(out, ESPHOME_PSTR("model_hash"), this->model_hash);
+  dump_field(out, ESPHOME_PSTR("url"), this->url);
+  return out.c_str();
 }
-void VoiceAssistantConfigurationResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantConfigurationResponse {\n");
-  for (const auto &it : this->available_wake_words) {
-    out.append("  available_wake_words: ");
+const char *VoiceAssistantConfigurationRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantConfigurationRequest"));
+  for (const auto &it : this->external_wake_words) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("external_wake_words")).append(": ");
     it.dump_to(out);
     out.append("\n");
   }
-
-  for (const auto &it : this->active_wake_words) {
-    out.append("  active_wake_words: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
-  }
-
-  out.append("  max_active_wake_words: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->max_active_wake_words);
-  out.append(buffer);
-  out.append("\n");
-  out.append("}");
+  return out.c_str();
 }
-void VoiceAssistantSetConfiguration::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("VoiceAssistantSetConfiguration {\n");
-  for (const auto &it : this->active_wake_words) {
-    out.append("  active_wake_words: ");
-    out.append("'").append(it).append("'");
+const char *VoiceAssistantConfigurationResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantConfigurationResponse"));
+  for (const auto &it : this->available_wake_words) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("available_wake_words")).append(": ");
+    it.dump_to(out);
     out.append("\n");
   }
-  out.append("}");
+  for (const auto &it : *this->active_wake_words) {
+    dump_field(out, ESPHOME_PSTR("active_wake_words"), it, 4);
+  }
+  dump_field(out, ESPHOME_PSTR("max_active_wake_words"), this->max_active_wake_words);
+  return out.c_str();
+}
+const char *VoiceAssistantSetConfiguration::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantSetConfiguration"));
+  for (const auto &it : this->active_wake_words) {
+    dump_field(out, ESPHOME_PSTR("active_wake_words"), it, 4);
+  }
+  return out.c_str();
 }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-void ListEntitiesAlarmControlPanelResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesAlarmControlPanelResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
+const char *ListEntitiesAlarmControlPanelResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesAlarmControlPanelResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  supported_features: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->supported_features);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  requires_code: ");
-  out.append(YESNO(this->requires_code));
-  out.append("\n");
-
-  out.append("  requires_code_to_arm: ");
-  out.append(YESNO(this->requires_code_to_arm));
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_field(out, ESPHOME_PSTR("supported_features"), this->supported_features);
+  dump_field(out, ESPHOME_PSTR("requires_code"), this->requires_code);
+  dump_field(out, ESPHOME_PSTR("requires_code_to_arm"), this->requires_code_to_arm);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void AlarmControlPanelStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("AlarmControlPanelStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append(proto_enum_to_string<enums::AlarmControlPanelState>(this->state));
-  out.append("\n");
-
+const char *AlarmControlPanelStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("AlarmControlPanelStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), static_cast<enums::AlarmControlPanelState>(this->state));
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void AlarmControlPanelCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("AlarmControlPanelCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  command: ");
-  out.append(proto_enum_to_string<enums::AlarmControlPanelStateCommand>(this->command));
-  out.append("\n");
-
-  out.append("  code: ");
-  out.append("'").append(this->code).append("'");
-  out.append("\n");
-
+const char *AlarmControlPanelCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("AlarmControlPanelCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("command"), static_cast<enums::AlarmControlPanelStateCommand>(this->command));
+  dump_field(out, ESPHOME_PSTR("code"), this->code);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
 #endif
 #ifdef USE_TEXT
-void ListEntitiesTextResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesTextResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
+const char *ListEntitiesTextResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesTextResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  min_length: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->min_length);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  max_length: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->max_length);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  pattern: ");
-  out.append("'").append(this->pattern).append("'");
-  out.append("\n");
-
-  out.append("  mode: ");
-  out.append(proto_enum_to_string<enums::TextMode>(this->mode));
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_field(out, ESPHOME_PSTR("min_length"), this->min_length);
+  dump_field(out, ESPHOME_PSTR("max_length"), this->max_length);
+  dump_field(out, ESPHOME_PSTR("pattern"), this->pattern);
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::TextMode>(this->mode));
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void TextStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("TextStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append("'").append(this->state).append("'");
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
+const char *TextStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("TextStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void TextCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("TextCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  state: ");
-  out.append("'").append(this->state).append("'");
-  out.append("\n");
-
+const char *TextCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("TextCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("state"), this->state);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
 #endif
 #ifdef USE_DATETIME_DATE
-void ListEntitiesDateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesDateResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
+const char *ListEntitiesDateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesDateResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void DateStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("DateStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
-  out.append("  year: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->year);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  month: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->month);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  day: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->day);
-  out.append(buffer);
-  out.append("\n");
-
+const char *DateStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DateStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+  dump_field(out, ESPHOME_PSTR("year"), this->year);
+  dump_field(out, ESPHOME_PSTR("month"), this->month);
+  dump_field(out, ESPHOME_PSTR("day"), this->day);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void DateCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("DateCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  year: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->year);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  month: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->month);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  day: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->day);
-  out.append(buffer);
-  out.append("\n");
-
+const char *DateCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DateCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("year"), this->year);
+  dump_field(out, ESPHOME_PSTR("month"), this->month);
+  dump_field(out, ESPHOME_PSTR("day"), this->day);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
 #endif
 #ifdef USE_DATETIME_TIME
-void ListEntitiesTimeResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesTimeResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
+const char *ListEntitiesTimeResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesTimeResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void TimeStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("TimeStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
-  out.append("  hour: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->hour);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  minute: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->minute);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  second: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->second);
-  out.append(buffer);
-  out.append("\n");
-
+const char *TimeStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("TimeStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+  dump_field(out, ESPHOME_PSTR("hour"), this->hour);
+  dump_field(out, ESPHOME_PSTR("minute"), this->minute);
+  dump_field(out, ESPHOME_PSTR("second"), this->second);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void TimeCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("TimeCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  hour: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->hour);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  minute: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->minute);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  second: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->second);
-  out.append(buffer);
-  out.append("\n");
-
+const char *TimeCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("TimeCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("hour"), this->hour);
+  dump_field(out, ESPHOME_PSTR("minute"), this->minute);
+  dump_field(out, ESPHOME_PSTR("second"), this->second);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
 #endif
 #ifdef USE_EVENT
-void ListEntitiesEventResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesEventResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
+const char *ListEntitiesEventResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesEventResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-  for (const auto &it : this->event_types) {
-    out.append("  event_types: ");
-    out.append("'").append(it).append("'");
-    out.append("\n");
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  for (const auto &it : *this->event_types) {
+    dump_field(out, ESPHOME_PSTR("event_types"), it, 4);
   }
-
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void EventResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("EventResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  event_type: ");
-  out.append("'").append(this->event_type).append("'");
-  out.append("\n");
-
+const char *EventResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("EventResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("event_type"), this->event_type);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
 #endif
 #ifdef USE_VALVE
-void ListEntitiesValveResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesValveResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
+const char *ListEntitiesValveResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesValveResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
-  out.append("  assumed_state: ");
-  out.append(YESNO(this->assumed_state));
-  out.append("\n");
-
-  out.append("  supports_position: ");
-  out.append(YESNO(this->supports_position));
-  out.append("\n");
-
-  out.append("  supports_stop: ");
-  out.append(YESNO(this->supports_stop));
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
+  dump_field(out, ESPHOME_PSTR("assumed_state"), this->assumed_state);
+  dump_field(out, ESPHOME_PSTR("supports_position"), this->supports_position);
+  dump_field(out, ESPHOME_PSTR("supports_stop"), this->supports_stop);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void ValveStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ValveStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  position: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->position);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  current_operation: ");
-  out.append(proto_enum_to_string<enums::ValveOperation>(this->current_operation));
-  out.append("\n");
-
+const char *ValveStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ValveStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("position"), this->position);
+  dump_field(out, ESPHOME_PSTR("current_operation"), static_cast<enums::ValveOperation>(this->current_operation));
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void ValveCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ValveCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  has_position: ");
-  out.append(YESNO(this->has_position));
-  out.append("\n");
-
-  out.append("  position: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->position);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  stop: ");
-  out.append(YESNO(this->stop));
-  out.append("\n");
-
+const char *ValveCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ValveCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("has_position"), this->has_position);
+  dump_field(out, ESPHOME_PSTR("position"), this->position);
+  dump_field(out, ESPHOME_PSTR("stop"), this->stop);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
 #endif
 #ifdef USE_DATETIME_DATETIME
-void ListEntitiesDateTimeResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesDateTimeResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
+const char *ListEntitiesDateTimeResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesDateTimeResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void DateTimeStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("DateTimeStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
-  out.append("  epoch_seconds: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->epoch_seconds);
-  out.append(buffer);
-  out.append("\n");
-
+const char *DateTimeStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DateTimeStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+  dump_field(out, ESPHOME_PSTR("epoch_seconds"), this->epoch_seconds);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void DateTimeCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("DateTimeCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  epoch_seconds: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->epoch_seconds);
-  out.append(buffer);
-  out.append("\n");
-
+const char *DateTimeCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DateTimeCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("epoch_seconds"), this->epoch_seconds);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
 #endif
 #ifdef USE_UPDATE
-void ListEntitiesUpdateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("ListEntitiesUpdateResponse {\n");
-  out.append("  object_id: ");
-  out.append("'").append(this->object_id).append("'");
-  out.append("\n");
-
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  name: ");
-  out.append("'").append(this->name).append("'");
-  out.append("\n");
-
+const char *ListEntitiesUpdateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesUpdateResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
 #ifdef USE_ENTITY_ICON
-  out.append("  icon: ");
-  out.append("'").append(this->icon).append("'");
-  out.append("\n");
-
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
 #endif
-  out.append("  disabled_by_default: ");
-  out.append(YESNO(this->disabled_by_default));
-  out.append("\n");
-
-  out.append("  entity_category: ");
-  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
-  out.append("\n");
-
-  out.append("  device_class: ");
-  out.append("'").append(this->device_class).append("'");
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+  dump_progmem_string_field(out, ESPHOME_PSTR("device_class"), this->device_class);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void UpdateStateResponse::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("UpdateStateResponse {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  missing_state: ");
-  out.append(YESNO(this->missing_state));
-  out.append("\n");
-
-  out.append("  in_progress: ");
-  out.append(YESNO(this->in_progress));
-  out.append("\n");
-
-  out.append("  has_progress: ");
-  out.append(YESNO(this->has_progress));
-  out.append("\n");
-
-  out.append("  progress: ");
-  snprintf(buffer, sizeof(buffer), "%g", this->progress);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  current_version: ");
-  out.append("'").append(this->current_version).append("'");
-  out.append("\n");
-
-  out.append("  latest_version: ");
-  out.append("'").append(this->latest_version).append("'");
-  out.append("\n");
-
-  out.append("  title: ");
-  out.append("'").append(this->title).append("'");
-  out.append("\n");
-
-  out.append("  release_summary: ");
-  out.append("'").append(this->release_summary).append("'");
-  out.append("\n");
-
-  out.append("  release_url: ");
-  out.append("'").append(this->release_url).append("'");
-  out.append("\n");
-
+const char *UpdateStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("UpdateStateResponse"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("missing_state"), this->missing_state);
+  dump_field(out, ESPHOME_PSTR("in_progress"), this->in_progress);
+  dump_field(out, ESPHOME_PSTR("has_progress"), this->has_progress);
+  dump_field(out, ESPHOME_PSTR("progress"), this->progress);
+  dump_field(out, ESPHOME_PSTR("current_version"), this->current_version);
+  dump_field(out, ESPHOME_PSTR("latest_version"), this->latest_version);
+  dump_field(out, ESPHOME_PSTR("title"), this->title);
+  dump_field(out, ESPHOME_PSTR("release_summary"), this->release_summary);
+  dump_field(out, ESPHOME_PSTR("release_url"), this->release_url);
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
-void UpdateCommandRequest::dump_to(std::string &out) const {
-  __attribute__((unused)) char buffer[64];
-  out.append("UpdateCommandRequest {\n");
-  out.append("  key: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->key);
-  out.append(buffer);
-  out.append("\n");
-
-  out.append("  command: ");
-  out.append(proto_enum_to_string<enums::UpdateCommand>(this->command));
-  out.append("\n");
-
+const char *UpdateCommandRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("UpdateCommandRequest"));
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("command"), static_cast<enums::UpdateCommand>(this->command));
 #ifdef USE_DEVICES
-  out.append("  device_id: ");
-  snprintf(buffer, sizeof(buffer), "%" PRIu32, this->device_id);
-  out.append(buffer);
-  out.append("\n");
-
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
-  out.append("}");
+  return out.c_str();
 }
 #endif
+#ifdef USE_ZWAVE_PROXY
+const char *ZWaveProxyFrame::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ZWaveProxyFrame"));
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  return out.c_str();
+}
+const char *ZWaveProxyRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ZWaveProxyRequest"));
+  dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ZWaveProxyRequestType>(this->type));
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  return out.c_str();
+}
+const char *ZWaveProxyRequestResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ZWaveProxyRequestResponse"));
+  dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ZWaveProxyRequestType>(this->type));
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::ZWaveProxyStatus>(this->status));
+  return out.c_str();
+}
+#endif
+#ifdef USE_INFRARED
+const char *ListEntitiesInfraredResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesInfraredResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("capabilities"), this->capabilities);
+  dump_field(out, ESPHOME_PSTR("receiver_frequency"), this->receiver_frequency);
+  return out.c_str();
+}
+#endif
+#ifdef USE_IR_RF
+const char *InfraredRFTransmitRawTimingsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("InfraredRFTransmitRawTimingsRequest"));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("carrier_frequency"), this->carrier_frequency);
+  dump_field(out, ESPHOME_PSTR("repeat_count"), this->repeat_count);
+  out.append(2, ' ').append_p(ESPHOME_PSTR("timings")).append(": ");
+  out.append_p(ESPHOME_PSTR("packed buffer ["));
+  append_uint(out, this->timings_count_);
+  out.append_p(ESPHOME_PSTR(" values, "));
+  append_uint(out, this->timings_length_);
+  out.append_p(ESPHOME_PSTR(" bytes]\n"));
+  dump_field(out, ESPHOME_PSTR("modulation"), this->modulation);
+  return out.c_str();
+}
+const char *InfraredRFReceiveEvent::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("InfraredRFReceiveEvent"));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  for (const auto &it : *this->timings) {
+    dump_field(out, ESPHOME_PSTR("timings"), it, 4);
+  }
+  return out.c_str();
+}
+const char *InfraredRFTransmitCompleteResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("InfraredRFTransmitCompleteResponse"));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("success"), this->success);
+  return out.c_str();
+}
+#endif
+#ifdef USE_RADIO_FREQUENCY
+const char *ListEntitiesRadioFrequencyResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesRadioFrequencyResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_progmem_string_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_progmem_string_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("capabilities"), this->capabilities);
+  dump_field(out, ESPHOME_PSTR("frequency_min"), this->frequency_min);
+  dump_field(out, ESPHOME_PSTR("frequency_max"), this->frequency_max);
+  dump_field(out, ESPHOME_PSTR("supported_modulations"), this->supported_modulations);
+  return out.c_str();
+}
+#endif
+#ifdef USE_SERIAL_PROXY
+const char *SerialProxyConfigureRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyConfigureRequest"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("baudrate"), this->baudrate);
+  dump_field(out, ESPHOME_PSTR("flow_control"), this->flow_control);
+  dump_field(out, ESPHOME_PSTR("parity"), static_cast<enums::SerialProxyParity>(this->parity));
+  dump_field(out, ESPHOME_PSTR("stop_bits"), this->stop_bits);
+  dump_field(out, ESPHOME_PSTR("data_size"), this->data_size);
+  return out.c_str();
+}
+const char *SerialProxyDataReceived::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyDataReceived"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data_ptr_, this->data_len_);
+  return out.c_str();
+}
+const char *SerialProxyWriteRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyWriteRequest"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  return out.c_str();
+}
+const char *SerialProxySetModemPinsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxySetModemPinsRequest"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("line_states"), this->line_states);
+  return out.c_str();
+}
+const char *SerialProxyGetModemPinsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyGetModemPinsRequest"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  return out.c_str();
+}
+const char *SerialProxyGetModemPinsResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyGetModemPinsResponse"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("line_states"), this->line_states);
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SerialProxyStatus>(this->status));
+  return out.c_str();
+}
+const char *SerialProxyRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyRequest"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::SerialProxyRequestType>(this->type));
+  return out.c_str();
+}
+const char *SerialProxyRequestResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyRequestResponse"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::SerialProxyRequestType>(this->type));
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SerialProxyStatus>(this->status));
+  dump_field(out, ESPHOME_PSTR("error_message"), this->error_message);
+  return out.c_str();
+}
+const char *SerialProxySetModeRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxySetModeRequest"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("mode"), static_cast<enums::SerialProxyMode>(this->mode));
+  return out.c_str();
+}
+const char *UsbDeviceDescriptor::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("UsbDeviceDescriptor"));
+  dump_field(out, ESPHOME_PSTR("vendor_id"), this->vendor_id);
+  dump_field(out, ESPHOME_PSTR("product_id"), this->product_id);
+  dump_field(out, ESPHOME_PSTR("bcd_device"), this->bcd_device);
+  dump_field(out, ESPHOME_PSTR("interface_number"), this->interface_number);
+  dump_field(out, ESPHOME_PSTR("interface_class"), this->interface_class);
+  dump_field(out, ESPHOME_PSTR("port_number"), this->port_number);
+  return out.c_str();
+}
+const char *SerialProxyIdentity::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyIdentity"));
+  dump_field(out, ESPHOME_PSTR("instance"), this->instance);
+  dump_field(out, ESPHOME_PSTR("source"), static_cast<enums::SerialProxyIdentitySource>(this->source));
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
+  dump_field(out, ESPHOME_PSTR("manufacturer"), this->manufacturer);
+  dump_field(out, ESPHOME_PSTR("product"), this->product);
+  dump_field(out, ESPHOME_PSTR("serial_number"), this->serial_number);
+  out.append(2, ' ').append_p(ESPHOME_PSTR("usb")).append(": ");
+  this->usb.dump_to(out);
+  out.append("\n");
+  return out.c_str();
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
+const char *BluetoothSetConnectionParamsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothSetConnectionParamsRequest"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("min_interval"), this->min_interval);
+  dump_field(out, ESPHOME_PSTR("max_interval"), this->max_interval);
+  dump_field(out, ESPHOME_PSTR("latency"), this->latency);
+  dump_field(out, ESPHOME_PSTR("timeout"), this->timeout);
+  return out.c_str();
+}
+const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothSetConnectionParamsResponse"));
+  dump_field(out, ESPHOME_PSTR("address"), this->address);
+  dump_field(out, ESPHOME_PSTR("error"), this->error);
+  return out.c_str();
+}
+#endif
+#ifdef USE_SENDSPIN
+const char *SendspinPairingTokenResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinPairingTokenResponse"));
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SendspinPairingTokenStatus>(this->status));
+  dump_field(out, ESPHOME_PSTR("token"), this->token);
+  return out.c_str();
+}
+#endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 
 #endif  // HAS_PROTO_MESSAGE_DUMP

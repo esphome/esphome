@@ -2,13 +2,14 @@ esphome:
   name: componenttestespbk72xx
   friendly_name: $component_name
 
-bk72xx:
-  board: generic-bk7231n-qfn32-tuya
-
 logger:
   level: VERY_VERBOSE
 
 packages:
+  # A component test can override the board with its own bk72xx: block.
+  base_board:
+    bk72xx:
+      board: generic-bk7252
   component_under_test: !include
     file: $component_test_file
     vars:

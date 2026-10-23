@@ -11,6 +11,7 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
 )
 from esphome.core import TimePeriod
+from esphome.types import ConfigType
 
 from . import XiaomiRTCGQ02LM
 
@@ -45,19 +46,12 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
-    parent = await cg.get_variable(config[CONF_ID])
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_ID])
 
-    if CONF_MOTION in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_MOTION])
-        cg.add(parent.set_motion(sens))
-        cg.add(parent.set_motion_timeout(config[CONF_MOTION][CONF_TIMEOUT]))
-
-    if CONF_LIGHT in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_LIGHT])
-        cg.add(parent.set_light(sens))
-
-    if CONF_BUTTON in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_BUTTON])
-        cg.add(parent.set_button(sens))
-        cg.add(parent.set_button_timeout(config[CONF_BUTTON][CONF_TIMEOUT]))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    if await binary_sensors(CONF_MOTION, hub.set_motion):
+        cg.add(hub.set_motion_timeout(config[CONF_MOTION][CONF_TIMEOUT]))
+    await binary_sensors(CONF_LIGHT, hub.set_light)
+    if await binary_sensors(CONF_BUTTON, hub.set_button):
+        cg.add(hub.set_button_timeout(config[CONF_BUTTON][CONF_TIMEOUT]))

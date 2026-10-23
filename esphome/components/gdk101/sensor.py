@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_MICROSILVERTS_PER_HOUR,
     UNIT_SECOND,
 )
+from esphome.types import ConfigType
 
 from . import CONF_GDK101_ID, GDK101Component
 
@@ -40,9 +41,8 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_EMPTY,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
-        cv.Optional(CONF_VERSION): sensor.sensor_schema(
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            accuracy_decimals=1,
+        cv.Optional(CONF_VERSION): cv.invalid(
+            "The 'version' option has been moved to the `text_sensor` component."
         ),
         cv.Optional(CONF_STATUS): sensor.sensor_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -60,25 +60,11 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_GDK101_ID])
 
-    if radiation_dose_per_1m := config.get(CONF_RADIATION_DOSE_PER_1M):
-        sens = await sensor.new_sensor(radiation_dose_per_1m)
-        cg.add(hub.set_rad_1m_sensor(sens))
-
-    if radiation_dose_per_10m := config.get(CONF_RADIATION_DOSE_PER_10M):
-        sens = await sensor.new_sensor(radiation_dose_per_10m)
-        cg.add(hub.set_rad_10m_sensor(sens))
-
-    if version_config := config.get(CONF_VERSION):
-        sens = await sensor.new_sensor(version_config)
-        cg.add(hub.set_fw_version_sensor(sens))
-
-    if status_config := config.get(CONF_STATUS):
-        sens = await sensor.new_sensor(status_config)
-        cg.add(hub.set_status_sensor(sens))
-
-    if measurement_duration_config := config.get(CONF_MEASUREMENT_DURATION):
-        sens = await sensor.new_sensor(measurement_duration_config)
-        cg.add(hub.set_measurement_duration_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_RADIATION_DOSE_PER_1M, hub.set_rad_1m_sensor)
+    await sensors(CONF_RADIATION_DOSE_PER_10M, hub.set_rad_10m_sensor)
+    await sensors(CONF_STATUS, hub.set_status_sensor)
+    await sensors(CONF_MEASUREMENT_DURATION, hub.set_measurement_duration_sensor)

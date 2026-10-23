@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 max31856_ns = cg.esphome_ns.namespace("max31856")
 MAX31856Sensor = max31856_ns.class_(
@@ -20,16 +21,9 @@ FILTER = {
     60: MAX31865ConfigFilter.FILTER_60HZ,
 }
 MAX31856ThermocoupleType = max31856_ns.enum("MAX31856ThermocoupleType")
-THERMOCOUPLE_TYPE = {
-    "B": MAX31856ThermocoupleType.MAX31856_TCTYPE_B,
-    "E": MAX31856ThermocoupleType.MAX31856_TCTYPE_E,
-    "J": MAX31856ThermocoupleType.MAX31856_TCTYPE_J,
-    "K": MAX31856ThermocoupleType.MAX31856_TCTYPE_K,
-    "N": MAX31856ThermocoupleType.MAX31856_TCTYPE_N,
-    "R": MAX31856ThermocoupleType.MAX31856_TCTYPE_R,
-    "S": MAX31856ThermocoupleType.MAX31856_TCTYPE_S,
-    "T": MAX31856ThermocoupleType.MAX31856_TCTYPE_T,
-}
+THERMOCOUPLE_TYPE = MAX31856ThermocoupleType.options(
+    "B", "E", "J", "K", "N", "R", "S", "T", prefix="MAX31856_TCTYPE_"
+)
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -58,7 +52,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)

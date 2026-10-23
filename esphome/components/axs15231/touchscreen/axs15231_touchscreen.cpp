@@ -3,21 +3,19 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace axs15231 {
+namespace esphome::axs15231 {
 
-static const char *const TAG = "ax15231.touchscreen";
+ESPHOME_LOG_TAG(TAG, "ax15231.touchscreen");
 
 constexpr static const uint8_t AXS_READ_TOUCHPAD[11] = {0xb5, 0xab, 0xa5, 0x5a, 0x0, 0x0, 0x0, 0x8};
 
 #define ERROR_CHECK(err) \
   if ((err) != i2c::ERROR_OK) { \
-    this->status_set_warning("Failed to communicate"); \
+    this->status_set_warning(LOG_STR("Failed to communicate")); \
     return; \
   }
 
 void AXS15231Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(false);
@@ -36,14 +34,13 @@ void AXS15231Touchscreen::setup() {
   if (this->y_raw_max_ == 0) {
     this->y_raw_max_ = this->display_->get_native_height();
   }
-  ESP_LOGCONFIG(TAG, "AXS15231 Touchscreen setup complete");
 }
 
 void AXS15231Touchscreen::update_touches() {
   i2c::ErrorCode err;
   uint8_t data[8]{};
 
-  err = this->write(AXS_READ_TOUCHPAD, sizeof(AXS_READ_TOUCHPAD), false);
+  err = this->write(AXS_READ_TOUCHPAD, sizeof(AXS_READ_TOUCHPAD));
   ERROR_CHECK(err);
   err = this->read(data, sizeof(data));
   ERROR_CHECK(err);
@@ -66,5 +63,4 @@ void AXS15231Touchscreen::dump_config() {
                 this->x_raw_max_, this->y_raw_max_);
 }
 
-}  // namespace axs15231
-}  // namespace esphome
+}  // namespace esphome::axs15231

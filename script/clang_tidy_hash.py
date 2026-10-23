@@ -1,170 +1,107 @@
-#!/usr/bin/env python3
-"""Calculate and manage hash for clang-tidy configuration."""
+"""Files that affect clang-tidy results and the idedata built from them.
+
+``CLANG_TIDY_GLOBAL_FILES`` (plus ``SDKCONFIG_DEFAULTS_PREFIX``) lists the files
+that influence clang-tidy output; ``script/determine-jobs.py`` runs a full scan
+when one changes. ``ESP_IDF_INFRA_TRIGGER_*`` lists the native ESP-IDF build
+code. ``idedata_cache_hash()`` folds the right set into the idedata cache key
+used by ``script/helpers.py`` and the CI cache action.
+"""
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 from pathlib import Path
-import re
-import sys
 
-# Add the script directory to path to import helpers
-script_dir = Path(__file__).parent
-sys.path.insert(0, str(script_dir))
+# Root-relative paths whose contents affect clang-tidy results.
+CLANG_TIDY_GLOBAL_FILES = (
+    ".clang-tidy",
+    "script/clang-tidy",
+    "platformio.ini",
+    "requirements_dev.txt",
+    "esphome/idf_component.yml",
+    "esphome/components/esp32/__init__.py",
+    "esphome/components/nrf52/__init__.py",
+)
 
+# sdkconfig.defaults and per-target sdkconfig.defaults.<target> files flip the
+# CONFIG flags that decide which variant code paths clang-tidy sees. Matched by
+# this prefix at the repo root.
+SDKCONFIG_DEFAULTS_PREFIX = "sdkconfig.defaults"
 
-def read_file_lines(path: Path) -> list[str]:
-    """Read lines from a file."""
-    with open(path) as f:
-        return f.readlines()
-
-
-def parse_requirement_line(line: str) -> tuple[str, str] | None:
-    """Parse a requirement line and return (package, original_line) or None.
-
-    Handles formats like:
-    - package==1.2.3
-    - package==1.2.3  # comment
-    - package>=1.2.3,<2.0.0
-    """
-    original_line = line.strip()
-
-    # Extract the part before any comment for parsing
-    parse_line = line
-    if "#" in parse_line:
-        parse_line = parse_line[: parse_line.index("#")]
-
-    parse_line = parse_line.strip()
-    if not parse_line:
-        return None
-
-    # Use regex to extract package name
-    # This matches package names followed by version operators
-    match = re.match(r"^([a-zA-Z0-9_-]+)(==|>=|<=|>|<|!=|~=)(.+)$", parse_line)
-    if match:
-        return (match.group(1), original_line)  # Return package name and original line
-
-    return None
-
-
-def get_clang_tidy_version_from_requirements() -> str:
-    """Get clang-tidy version from requirements_dev.txt"""
-    requirements_path = Path(__file__).parent.parent / "requirements_dev.txt"
-    lines = read_file_lines(requirements_path)
-
-    for line in lines:
-        parsed = parse_requirement_line(line)
-        if parsed and parsed[0] == "clang-tidy":
-            # Return the original line (preserves comments)
-            return parsed[1]
-
-    return "clang-tidy version not found"
+# Native ESP-IDF build infra: determine-jobs forces an esp32 compile when these
+# change, and they feed the clang-tidy idedata cache key.
+ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
+ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
+    {
+        "esphome/build_gen/espidf.py",
+        "esphome/framework_helpers.py",
+        "esphome/platformio/library.py",
+        "esphome/platformio/extra_script.py",
+    }
+)
 
 
 def read_file_bytes(path: Path) -> bytes:
     """Read bytes from a file."""
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         return f.read()
 
 
-def calculate_clang_tidy_hash() -> str:
-    """Calculate hash of clang-tidy configuration and version"""
+def get_repo_root() -> Path:
+    """Get the repository root directory."""
+    return Path(__file__).parent.parent
+
+
+def _ensure_repo_root(repo_root: Path | None) -> Path:
+    """Ensure repo_root is a Path, using default if None."""
+    return repo_root if repo_root is not None else get_repo_root()
+
+
+def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
+    """Calculate a hash of the files that affect clang-tidy results."""
+    repo_root = _ensure_repo_root(repo_root)
+
     hasher = hashlib.sha256()
 
-    # Hash .clang-tidy file
-    clang_tidy_path = Path(__file__).parent.parent / ".clang-tidy"
-    content = read_file_bytes(clang_tidy_path)
-    hasher.update(content)
+    for name in CLANG_TIDY_GLOBAL_FILES:
+        path = repo_root / name
+        if path.exists():
+            hasher.update(read_file_bytes(path))
 
-    # Hash clang-tidy version from requirements_dev.txt
-    version = get_clang_tidy_version_from_requirements()
-    hasher.update(version.encode())
-
-    # Hash the entire platformio.ini file
-    platformio_path = Path(__file__).parent.parent / "platformio.ini"
-    platformio_content = read_file_bytes(platformio_path)
-    hasher.update(platformio_content)
+    # Hash each sdkconfig.defaults* file. Include the filename so adding or
+    # renaming a per-target variant is detected, not just content edits.
+    for path in sorted(repo_root.glob(f"{SDKCONFIG_DEFAULTS_PREFIX}*")):
+        hasher.update(path.name.encode())
+        hasher.update(read_file_bytes(path))
 
     return hasher.hexdigest()
 
 
-def read_stored_hash() -> str | None:
-    """Read the stored hash from file"""
-    hash_file = Path(__file__).parent.parent / ".clang-tidy.hash"
-    if hash_file.exists():
-        lines = read_file_lines(hash_file)
-        return lines[0].strip() if lines else None
-    return None
+def calculate_idedata_cache_hash(repo_root: Path | None = None) -> str:
+    """Clang-tidy hash plus the Python that generates the idedata."""
+    repo_root = _ensure_repo_root(repo_root)
+
+    hasher = hashlib.sha256()
+    hasher.update(calculate_clang_tidy_hash(repo_root).encode())
+
+    paths = {repo_root / name for name in ESP_IDF_INFRA_TRIGGER_FILES}
+    for prefix in ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES:
+        # .pyc files appear between the CI key computation and load_idedata's.
+        paths.update(
+            path
+            for path in (repo_root / prefix).rglob("*")
+            if "__pycache__" not in path.parts
+        )
+    for path in sorted(paths):
+        if path.is_file():
+            hasher.update(str(path.relative_to(repo_root)).encode())
+            hasher.update(read_file_bytes(path))
+
+    return hasher.hexdigest()
 
 
-def write_file_content(path: Path, content: str) -> None:
-    """Write content to a file."""
-    with open(path, "w") as f:
-        f.write(content)
-
-
-def write_hash(hash_value: str) -> None:
-    """Write hash to file"""
-    hash_file = Path(__file__).parent.parent / ".clang-tidy.hash"
-    # Strip any trailing newlines to ensure consistent formatting
-    write_file_content(hash_file, hash_value.strip() + "\n")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Manage clang-tidy configuration hash")
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Check if full scan needed (exit 0 if needed)",
-    )
-    parser.add_argument("--update", action="store_true", help="Update the hash file")
-    parser.add_argument(
-        "--update-if-changed",
-        action="store_true",
-        help="Update hash only if configuration changed (for pre-commit)",
-    )
-    parser.add_argument(
-        "--verify", action="store_true", help="Verify hash matches (for CI)"
-    )
-
-    args = parser.parse_args()
-
-    current_hash = calculate_clang_tidy_hash()
-    stored_hash = read_stored_hash()
-
-    if args.check:
-        # Exit 0 if full scan needed (hash changed or no hash file)
-        sys.exit(0 if current_hash != stored_hash else 1)
-
-    elif args.update:
-        write_hash(current_hash)
-        print(f"Hash updated: {current_hash}")
-
-    elif args.update_if_changed:
-        if current_hash != stored_hash:
-            write_hash(current_hash)
-            print(f"Clang-tidy hash updated: {current_hash}")
-            # Exit 0 so pre-commit can stage the file
-            sys.exit(0)
-        else:
-            print("Clang-tidy hash unchanged")
-            sys.exit(0)
-
-    elif args.verify:
-        if current_hash != stored_hash:
-            print("ERROR: Clang-tidy configuration has changed but hash not updated!")
-            print(f"Expected: {current_hash}")
-            print(f"Found: {stored_hash}")
-            print("\nPlease run: script/clang_tidy_hash.py --update")
-            sys.exit(1)
-        print("Hash verification passed")
-
-    else:
-        print(f"Current hash: {current_hash}")
-        print(f"Stored hash: {stored_hash}")
-        print(f"Match: {current_hash == stored_hash}")
-
-
-if __name__ == "__main__":
-    main()
+def idedata_cache_hash(environment: str, repo_root: Path | None = None) -> str:
+    """Hash gating the cached idedata of one clang-tidy environment."""
+    if "esp32" in environment:
+        return calculate_idedata_cache_hash(repo_root)
+    return calculate_clang_tidy_hash(repo_root)

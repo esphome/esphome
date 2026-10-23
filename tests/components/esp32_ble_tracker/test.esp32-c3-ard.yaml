@@ -1,5 +1,0 @@
-<<: !include common.yaml
-
-esp32_ble_tracker:
-  max_connections: 3
-  software_coexistence: false

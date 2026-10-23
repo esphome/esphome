@@ -1,7 +1,10 @@
-remote_transmitter:
-  pin: ${pin}
-  carrier_duty_percent: 50%
-
 climate:
   - platform: whirlpool
     name: Whirlpool Climate
+    transmitter_id: xmitr
+  - platform: whirlpool
+    id: whirlpool_hisense_arg
+    name: Whirlpool Hisense ARG Climate
+    model: HISENSE_ARG
+    transmitter_id: xmitr
+    receiver_id: rcvr

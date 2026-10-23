@@ -1,0 +1,62 @@
+command_line_substitutions:
+  selected_package_number: 3
+
+substitutions:
+  a: from base config
+
+  package1: &p1
+    substitutions:
+      a: from package1
+      b: from package1
+      c: from package1
+    package1_test_list:
+      - a: ${ a }
+      - b: ${ b }
+      - c: ${ c }
+
+  package2: &p2 !include
+            file: package2.yaml
+            vars:
+              a: from package2 vars
+
+  package3: &p3
+    substitutions:
+      a: from package3
+      b: from package3
+      c: from package3
+    package3_test_list:
+      - a: ${ a }
+      - b: ${ b }
+      - c: ${ c }
+
+  package4:
+    substitutions:
+      nested_package:
+        substitutions:
+          c: from nested package4
+        nested_package_test_list:
+          - a: ${ a }
+          - b: ${ b }
+          - c: ${ c }
+    packages:
+      - ${ nested_package }
+
+  package_map:
+    package1: *p1
+    package2: *p2
+    package3: *p3
+
+  selected_package_number: 2  # will be overridden by command line substitutions
+  selected_package_name: package${ selected_package_number }
+  selected_package: ${ package_map[selected_package_name] }
+
+packages:
+  - ${ package1 }
+  - ${ package2 }
+  - ${ selected_package }
+  - ${ package4 }
+
+base_test_list:
+  - a: ${ a }
+  - b: ${ b }
+  - c: ${ c }

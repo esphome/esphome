@@ -7,8 +7,7 @@
 
 #include "esphome/components/time/real_time_clock.h"
 
-namespace esphome {
-namespace sun {
+namespace esphome::sun {
 
 namespace internal {
 
@@ -52,7 +51,7 @@ struct HorizontalCoordinate {
 
 }  // namespace internal
 
-class Sun {
+class Sun final {
  public:
   void set_time(time::RealTimeClock *time) { time_ = time; }
   time::RealTimeClock *get_time() const { return time_; }
@@ -79,7 +78,7 @@ class Sun {
   internal::GeoLocation location_;
 };
 
-class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Sun> {
+class SunTrigger final : public Trigger<>, public PollingComponent, public Parented<Sun> {
  public:
   SunTrigger() : PollingComponent(60000) {}
 
@@ -110,24 +109,4 @@ class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Su
   double elevation_;
 };
 
-template<typename... Ts> class SunCondition : public Condition<Ts...>, public Parented<Sun> {
- public:
-  TEMPLATABLE_VALUE(double, elevation);
-  void set_above(bool above) { above_ = above; }
-
-  bool check(Ts... x) override {
-    double elevation = this->elevation_.value(x...);
-    double current = this->parent_->elevation();
-    if (this->above_) {
-      return current > elevation;
-    } else {
-      return current < elevation;
-    }
-  }
-
- protected:
-  bool above_;
-};
-
-}  // namespace sun
-}  // namespace esphome
+}  // namespace esphome::sun

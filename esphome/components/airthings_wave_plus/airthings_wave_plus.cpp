@@ -2,10 +2,9 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace airthings_wave_plus {
+namespace esphome::airthings_wave_plus {
 
-static const char *const TAG = "airthings_wave_plus";
+ESPHOME_LOG_TAG(TAG, "airthings_wave_plus");
 
 void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
   auto *value = (WavePlusReadings *) raw_value;
@@ -98,7 +97,6 @@ void AirthingsWavePlus::setup() {
       espbt::ESPBTUUID::from_raw(access_control_point_characteristic_uuid);
 }
 
-}  // namespace airthings_wave_plus
-}  // namespace esphome
+}  // namespace esphome::airthings_wave_plus
 
 #endif  // USE_ESP32

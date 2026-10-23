@@ -3,10 +3,9 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace zio_ultrasonic {
+namespace esphome::zio_ultrasonic {
 
-static const char *const TAG = "zio_ultrasonic";
+ESPHOME_LOG_TAG(TAG, "zio_ultrasonic");
 
 void ZioUltrasonicComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Zio Ultrasonic Sensor:");
@@ -27,5 +26,4 @@ void ZioUltrasonicComponent::update() {
   }
 }
 
-}  // namespace zio_ultrasonic
-}  // namespace esphome
+}  // namespace esphome::zio_ultrasonic

@@ -1,0 +1,18 @@
+ethernet:
+  type: LAN8670
+  mdc_pin: 23
+  mdio_pin: 32
+  clk:
+    pin: 0
+    mode: CLK_EXT_IN
+  phy_addr: 0
+  power_pin: 33
+  manual_ip:
+    static_ip: 192.168.178.56
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+  domain: .local
+  on_connect:
+    - logger.log: "Ethernet connected!"
+  on_disconnect:
+    - logger.log: "Ethernet disconnected!"

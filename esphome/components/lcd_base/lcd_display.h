@@ -6,8 +6,7 @@
 #include <map>
 #include <vector>
 
-namespace esphome {
-namespace lcd_base {
+namespace esphome::lcd_base {
 
 class LCDDisplay;
 
@@ -62,5 +61,4 @@ class LCDDisplay : public PollingComponent {
   std::map<uint8_t, std::vector<uint8_t> > user_defined_chars_;
 };
 
-}  // namespace lcd_base
-}  // namespace esphome
+}  // namespace esphome::lcd_base

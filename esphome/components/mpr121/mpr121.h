@@ -4,12 +4,12 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "esphome/components/i2c/i2c.h"
 
 #include <vector>
 
-namespace esphome {
-namespace mpr121 {
+namespace esphome::mpr121 {
 
 enum {
   MPR121_TOUCHSTATUS_L = 0x00,
@@ -58,7 +58,7 @@ class MPR121Channel {
   virtual void process(uint16_t data) = 0;
 };
 
-class MPR121Component : public Component, public i2c::I2CDevice {
+class MPR121Component final : public Component, public i2c::I2CDevice {
  public:
   void register_channel(MPR121Channel *channel) { this->channels_.push_back(channel); }
   void set_touch_debounce(uint8_t debounce);
@@ -74,10 +74,10 @@ class MPR121Component : public Component, public i2c::I2CDevice {
 
   void set_max_touch_channel(uint8_t max_touch_channel) { this->max_touch_channel_ = max_touch_channel; }
 
-  // GPIO helper functions.
-  bool digital_read(uint8_t ionum);
-  void digital_write(uint8_t ionum, bool value);
-  void pin_mode(uint8_t ionum, gpio::Flags flags);
+  // GPIO helper functions; `pin` is the electrode number, 4 to 11, of the shared GPIO pins.
+  bool digital_read(uint8_t pin);
+  void digital_write(uint8_t pin, bool value);
+  void pin_mode(uint8_t pin, gpio::Flags flags);
 
  protected:
   std::vector<MPR121Channel *> channels_{};
@@ -85,11 +85,6 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   uint8_t touch_threshold_{};
   uint8_t release_threshold_{};
   uint8_t max_touch_channel_{3};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_CHIP_STATE,
-  } error_code_{NONE};
 
   bool flush_gpio_();
 
@@ -104,27 +99,8 @@ class MPR121Component : public Component, public i2c::I2CDevice {
 };
 
 /// Helper class to expose a MPR121 pin as an internal input GPIO pin.
-class MPR121GPIOPin : public GPIOPin {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  std::string dump_summary() const override;
+using MPR121GPIOPin = gpio_expander::ExpanderGPIOPin<MPR121Component>;
 
-  void set_parent(MPR121Component *parent) { this->parent_ = parent; }
-  void set_pin(uint8_t pin) { this->pin_ = pin; }
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
+}  // namespace esphome::mpr121
 
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  MPR121Component *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
-
-}  // namespace mpr121
-}  // namespace esphome
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::mpr121::MPR121Component);

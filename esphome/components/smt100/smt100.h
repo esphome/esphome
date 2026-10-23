@@ -2,13 +2,14 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/line_reader.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace smt100 {
+namespace esphome::smt100 {
 
-class SMT100Component : public PollingComponent, public uart::UARTDevice {
-  static const uint16_t MAX_LINE_LENGTH = 31;
+class SMT100Component final : public PollingComponent, public uart::UARTDevice {
+  // 33 characters plus the NUL; the longest line, "15000,80.00,100.00,-20.00,12.00", is 31
+  static constexpr uint16_t LINE_BUFFER_SIZE = 34;
 
  public:
   SMT100Component() = default;
@@ -16,8 +17,6 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
   void update() override;
-
-  float get_setup_priority() const override;
 
   void set_counts_sensor(sensor::Sensor *counts_sensor) { this->counts_sensor_ = counts_sensor; }
   void set_permittivity_sensor(sensor::Sensor *permittivity_sensor) {
@@ -28,7 +27,7 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { this->voltage_sensor_ = voltage_sensor; }
 
  protected:
-  int readline_(int readch, char *buffer, int len);
+  LineReader<LINE_BUFFER_SIZE, '\r', '\n'> line_reader_;
 
   sensor::Sensor *counts_sensor_{nullptr};
   sensor::Sensor *permittivity_sensor_{nullptr};
@@ -39,5 +38,4 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   uint32_t last_transmission_{0};
 };
 
-}  // namespace smt100
-}  // namespace esphome
+}  // namespace esphome::smt100

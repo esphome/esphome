@@ -8,6 +8,7 @@ from aioesphomeapi import EntityInfo
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -38,8 +39,7 @@ async def test_duplicate_entities_on_different_devices(
         # Get entity list
         entities = await client.list_entities_services()
         all_entities: list[EntityInfo] = []
-        for entity_list in entities[0]:
-            all_entities.append(entity_list)
+        all_entities.extend(entities[0])
 
         # Group entities by type for easier testing
         sensors = [e for e in all_entities if e.__class__.__name__ == "SensorInfo"]
@@ -175,10 +175,10 @@ async def test_duplicate_entities_on_different_devices(
         client.subscribe_states(on_state)
 
         # Wait for all entity states
-        try:
-            await asyncio.wait_for(states_future, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Did not receive all entity states within 10 seconds. "
-                f"Expected {expected_count}, received {state_count}"
-            )
+        await wait_or_fail(
+            states_future,
+            10.0,
+            "Did not receive all entity states",
+            expected=expected_count,
+            received=lambda: state_count,
+        )

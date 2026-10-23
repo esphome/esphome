@@ -11,16 +11,15 @@ CONF_NEXTION_ID = "nextion_id"
 CONF_PUBLISH_STATE = "publish_state"
 CONF_SEND_TO_NEXTION = "send_to_nextion"
 
+DOMAIN = "nextion"
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "nextion_upload_arduino.cpp": {
+        "nextion_upload_esp32.cpp": {
             PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP8266_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
-            PlatformFramework.BK72XX_ARDUINO,
-            PlatformFramework.RTL87XX_ARDUINO,
-            PlatformFramework.LN882X_ARDUINO,
+            PlatformFramework.ESP32_IDF,
         },
-        "nextion_upload_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "nextion_upload_arduino.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+        },
     }
 )

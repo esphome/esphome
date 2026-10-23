@@ -1,0 +1,5 @@
+packages:
+  base: !include common.yaml
+
+esphome:
+  suspend_loop: true

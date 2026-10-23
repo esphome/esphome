@@ -1,0 +1,18 @@
+binary_sensor:
+  - platform: esp32_touch
+    name: ESP32 Touch Pad Get Value
+    pin: ${pin}
+    threshold: 1000
+    id: esp32_touch_pad_get_value
+    on_press:
+      then:
+        - lambda: |-
+            // Test that get_value() compiles and works
+            uint32_t value = id(esp32_touch_pad_get_value).get_value();
+            ESP_LOGD("test", "Touch value on press: %u", value);
+    on_release:
+      then:
+        - lambda: |-
+            // Test get_value() on release
+            uint32_t value = id(esp32_touch_pad_get_value).get_value();
+            ESP_LOGD("test", "Touch value on release: %u", value);

@@ -1,10 +1,4 @@
-substitutions:
-  tx_pin: GPIO4
-  rx_pin: GPIO5
-
 packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
   base: !include common.yaml
-
-display:
-  - id: !extend main_lcd
-    tft_url: http://esphome.io/default35.tft
+  tft_upload: !include common_tft_upload.yaml

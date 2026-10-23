@@ -1,12 +1,7 @@
 #pragma once
 
-#include "esphome/components/uart/uart.h"
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/preferences.h"
-#include <limits>
-#include <cmath>
+#include "esphome/core/component.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -29,18 +24,28 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-#ifndef M_PI
-#define M_PI 3.14
+#ifdef LD2450_POLYGON_ZONE_COUNT
+#include "polygon_zone.h"
 #endif
 
-namespace esphome {
-namespace ld2450 {
+#include "esphome/components/ld24xx/ld24xx.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
+
+#include <array>
+
+namespace esphome::ld2450 {
+
+using namespace ld24xx;
 
 // Constants
-static const uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
-static const uint8_t MAX_LINE_LENGTH = 41;          // Max characters for serial buffer
-static const uint8_t MAX_TARGETS = 3;               // Max 3 Targets in LD2450
-static const uint8_t MAX_ZONES = 3;                 // Max 3 Zones in LD2450
+static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
+// Zone query response is 40 bytes; +1 for null terminator, +4 so that a frame footer always
+// lands inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 45;
+static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
+static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
 enum Direction : uint8_t {
   DIRECTION_APPROACHING = 0,
@@ -81,9 +86,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   SUB_BINARY_SENSOR(target)
 #endif
 #ifdef USE_SENSOR
-  SUB_SENSOR(moving_target_count)
-  SUB_SENSOR(still_target_count)
-  SUB_SENSOR(target_count)
+  SUB_SENSOR_WITH_DEDUP(moving_target_count, uint8_t)
+  SUB_SENSOR_WITH_DEDUP(still_target_count, uint8_t)
+  SUB_SENSOR_WITH_DEDUP(target_count, uint8_t)
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(mac)
@@ -110,21 +115,20 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
   void set_presence_timeout();
-  void set_throttle(uint16_t value) { this->throttle_ = value; }
   void read_all_info();
   void query_zone_info();
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
   void set_multi_target(bool enable);
-  void set_baud_rate(const std::string &state);
-  void set_zone_type(const std::string &state);
+  void set_baud_rate(const char *state);
+  void set_zone_type(const char *state);
   void publish_zone_type();
   void factory_reset();
 #ifdef USE_TEXT_SENSOR
   void set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s);
 #endif
 #ifdef USE_NUMBER
-  void set_zone_coordinate(uint8_t zone);
+  void set_zone_coordinate(number::Number *n);
   void set_zone_numbers(uint8_t zone, number::Number *x1, number::Number *y1, number::Number *x2, number::Number *y2);
 #endif
 #ifdef USE_SENSOR
@@ -138,10 +142,16 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_zone_still_target_count_sensor(uint8_t zone, sensor::Sensor *s);
   void set_zone_moving_target_count_sensor(uint8_t zone, sensor::Sensor *s);
 #endif
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  void register_polygon_zone(PolygonZone *zone) { this->polygon_zones_.push_back(zone); }
+#endif
   void reset_radar_zone();
   void set_radar_zone(int32_t zone_type, int32_t zone1_x1, int32_t zone1_y1, int32_t zone1_x2, int32_t zone1_y2,
                       int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
                       int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
+
+  /// Add a callback that will be called after each successfully processed periodic data frame.
+  template<typename F> void add_on_data_callback(F &&callback) { this->data_callback_.add(std::forward<F>(callback)); }
 
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
@@ -159,67 +169,49 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
-  uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
+  void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
-  uint32_t last_periodic_millis_ = 0;
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
-  uint16_t throttle_ = 0;
-  uint16_t timeout_ = 5;
+  uint32_t timeout_ = DEFAULT_PRESENCE_TIMEOUT * 1000;  // presence_timeout, in ms
   uint8_t buffer_data_[MAX_LINE_LENGTH];
-  uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
   Target target_info_[MAX_TARGETS];
   Zone zone_config_[MAX_ZONES];
-
-  // Change detection - cache previous values to avoid redundant publishes
-  // All values are initialized to sentinel values that are outside the valid sensor ranges
-  // to ensure the first real measurement is always published
-  struct CachedTargetData {
-    int16_t x = std::numeric_limits<int16_t>::min();             // -32768, outside range of -4860 to 4860
-    int16_t y = std::numeric_limits<int16_t>::min();             // -32768, outside range of 0 to 7560
-    int16_t speed = std::numeric_limits<int16_t>::min();         // -32768, outside practical sensor range
-    uint16_t resolution = std::numeric_limits<uint16_t>::max();  // 65535, unlikely resolution value
-    uint16_t distance = std::numeric_limits<uint16_t>::max();    // 65535, outside range of 0 to ~8990
-    Direction direction = DIRECTION_UNDEFINED;                   // Undefined, will differ from any real direction
-    float angle = NAN;                                           // NAN, safe sentinel for floats
-  } cached_target_data_[MAX_TARGETS];
-
-  struct CachedZoneData {
-    uint8_t still_count = std::numeric_limits<uint8_t>::max();   // 255, unlikely zone count
-    uint8_t moving_count = std::numeric_limits<uint8_t>::max();  // 255, unlikely zone count
-    uint8_t total_count = std::numeric_limits<uint8_t>::max();   // 255, unlikely zone count
-  } cached_zone_data_[MAX_ZONES];
-
-  struct CachedGlobalData {
-    uint8_t target_count = std::numeric_limits<uint8_t>::max();  // 255, max 3 targets possible
-    uint8_t still_count = std::numeric_limits<uint8_t>::max();   // 255, max 3 targets possible
-    uint8_t moving_count = std::numeric_limits<uint8_t>::max();  // 255, max 3 targets possible
-  } cached_global_data_;
+#ifdef USE_TEXT_SENSOR
+  // Byte aligned, so it packs after zone_config_ instead of padding before data_callback_
+  std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
+#endif
 
 #ifdef USE_NUMBER
   ESPPreferenceObject pref_;  // only used when numbers are in use
   ZoneOfNumbers zone_numbers_[MAX_ZONES];
 #endif
 #ifdef USE_SENSOR
-  std::vector<sensor::Sensor *> move_x_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
-  std::vector<sensor::Sensor *> move_y_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
-  std::vector<sensor::Sensor *> move_speed_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
-  std::vector<sensor::Sensor *> move_angle_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
-  std::vector<sensor::Sensor *> move_distance_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
-  std::vector<sensor::Sensor *> move_resolution_sensors_ = std::vector<sensor::Sensor *>(MAX_TARGETS);
-  std::vector<sensor::Sensor *> zone_target_count_sensors_ = std::vector<sensor::Sensor *>(MAX_ZONES);
-  std::vector<sensor::Sensor *> zone_still_target_count_sensors_ = std::vector<sensor::Sensor *>(MAX_ZONES);
-  std::vector<sensor::Sensor *> zone_moving_target_count_sensors_ = std::vector<sensor::Sensor *>(MAX_ZONES);
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_x_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_y_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_speed_sensors_{};
+  std::array<SensorWithDedup<float>, MAX_TARGETS> move_angle_sensors_{};
+  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_distance_sensors_{};
+  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_resolution_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_target_count_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_still_target_count_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_moving_target_count_sensors_{};
 #endif
 #ifdef USE_TEXT_SENSOR
-  std::vector<text_sensor::TextSensor *> direction_text_sensors_ = std::vector<text_sensor::TextSensor *>(3);
+  std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
 #endif
+
+#ifdef LD2450_POLYGON_ZONE_COUNT
+  StaticVector<PolygonZone *, LD2450_POLYGON_ZONE_COUNT> polygon_zones_;
+#endif
+
+  LazyCallbackManager<void()> data_callback_;
 };
 
-}  // namespace ld2450
-}  // namespace esphome
+}  // namespace esphome::ld2450

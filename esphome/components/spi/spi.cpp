@@ -2,10 +2,13 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace spi {
+#ifdef USE_ZEPHYR
+#include "spi_zephyr.h"
+#endif
 
-const char *const TAG = "spi";
+namespace esphome::spi {
+
+ESPHOME_LOG_TAG(TAG, "spi");
 
 SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     new SPIDelegateDummy();
@@ -17,9 +20,12 @@ GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-a
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin, bool release_device, bool write_only) {
-  if (this->devices_.count(device) != 0) {
+  if (this->devices_.contains(device)) {
     ESP_LOGE(TAG, "Device already registered");
     return this->devices_[device];
+  }
+  if (this->spi_bus_ == nullptr) {
+    return SPIDelegate::NULL_DELEGATE;  // the bus failed in setup(); the device stays not ready
   }
   SPIDelegate *delegate =
       this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin, release_device, write_only);  // NOLINT
@@ -28,7 +34,10 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
 }
 
 void SPIComponent::unregister_device(SPIClient *device) {
-  if (this->devices_.count(device) == 0) {
+  if (this->spi_bus_ == nullptr) {
+    return;  // nothing was registered on a failed bus
+  }
+  if (!this->devices_.contains(device)) {
     esph_log_e(TAG, "Device not registered");
     return;
   }
@@ -37,8 +46,6 @@ void SPIComponent::unregister_device(SPIClient *device) {
 }
 
 void SPIComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (this->sdo_pin_ == nullptr)
     this->sdo_pin_ = NullPin::NULL_PIN;
   if (this->sdi_pin_ == nullptr)
@@ -67,11 +74,14 @@ void SPIComponent::setup() {
 
 void SPIComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SPI bus:");
-  LOG_PIN("  CLK Pin: ", this->clk_pin_)
-  LOG_PIN("  SDI Pin: ", this->sdi_pin_)
-  LOG_PIN("  SDO Pin: ", this->sdo_pin_)
+  LOG_PIN("  CLK Pin: ", this->clk_pin_);
+  LOG_PIN("  SDI Pin: ", this->sdi_pin_);
+  LOG_PIN("  SDO Pin: ", this->sdo_pin_);
   for (size_t i = 0; i != this->data_pins_.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  Data pin %u: GPIO%d", i, this->data_pins_[i]);
+    ESP_LOGCONFIG(TAG, "  Data pin %zu: GPIO%d", i, this->data_pins_[i]);
+  }
+  if (this->spi_bus_ == nullptr) {
+    return;
   }
   if (this->spi_bus_->is_hw()) {
     ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", this->interface_name_);
@@ -121,5 +131,23 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   return out_data;
 }
 
-}  // namespace spi
-}  // namespace esphome
+#if defined(USE_ZEPHYR)
+
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                              const std::vector<uint8_t> &data_pins) {
+  if (!device_is_ready(interface)) {
+    ESP_LOGE(TAG, "SPI device is not ready");
+    return nullptr;
+  }
+  return new ZephyrSPIBus(interface);  // NOLINT
+}
+
+#elif !defined(USE_ESP32) && !defined(USE_ARDUINO)
+// Stub for unsupported platforms (host, etc.) - hardware SPI is unavailable
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                              const std::vector<uint8_t> &data_pins) {
+  return nullptr;
+}
+#endif
+
+}  // namespace esphome::spi

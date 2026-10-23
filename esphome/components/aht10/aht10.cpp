@@ -17,10 +17,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace aht10 {
+namespace esphome::aht10 {
 
-static const char *const TAG = "aht10";
+ESPHOME_LOG_TAG(TAG, "aht10");
 static const uint8_t AHT10_INITIALIZE_CMD[] = {0xE1, 0x08, 0x00};
 static const uint8_t AHT20_INITIALIZE_CMD[] = {0xBE, 0x08, 0x00};
 static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
@@ -38,8 +37,6 @@ static const uint8_t AHT10_STATUS_BUSY = 0x80;
 static const float AHT10_DIVISOR = 1048576.0f;  // 2^20, used for temperature and humidity calculations
 
 void AHT10Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (this->write(AHT10_SOFTRESET_CMD, sizeof(AHT10_SOFTRESET_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Reset failed");
   }
@@ -55,8 +52,7 @@ void AHT10Component::setup() {
       break;
   }
   if (error_code != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   uint8_t cal_attempts = 0;
@@ -64,30 +60,25 @@ void AHT10Component::setup() {
   while (data & AHT10_STATUS_BUSY) {
     delay(AHT10_DEFAULT_DELAY);
     if (this->read(&data, 1) != i2c::ERROR_OK) {
-      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-      this->mark_failed();
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
     ++cal_attempts;
     if (cal_attempts > AHT10_INIT_ATTEMPTS) {
-      ESP_LOGE(TAG, "Initialization timed out");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Initialization timed out"));
       return;
     }
   }
   if ((data & 0x68) != 0x08) {  // Bit[6:5] = 0b00, NORMAL mode and Bit[3] = 0b1, CALIBRATED
-    ESP_LOGE(TAG, "Initialization failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Initialization failed"));
     return;
   }
-
-  ESP_LOGV(TAG, "Initialization complete");
 }
 
 void AHT10Component::restart_read_() {
   if (this->read_count_ == AHT10_ATTEMPTS) {
     this->read_count_ = 0;
-    this->status_set_error("Reading timed out");
+    this->status_set_error(LOG_STR("Reading timed out"));
     return;
   }
   this->read_count_++;
@@ -100,7 +91,7 @@ void AHT10Component::read_data_() {
     ESP_LOGD(TAG, "Read attempt %d at %ums", this->read_count_, (unsigned) (millis() - this->start_time_));
   }
   if (this->read(data, 6) != i2c::ERROR_OK) {
-    this->status_set_warning("Read failed, will retry");
+    this->status_set_warning(LOG_STR("Read failed, will retry"));
     this->restart_read_();
     return;
   }
@@ -117,7 +108,7 @@ void AHT10Component::read_data_() {
     } else {
       ESP_LOGD(TAG, "Invalid humidity, retrying");
       if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-        this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+        this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       }
       this->restart_read_();
       return;
@@ -148,23 +139,17 @@ void AHT10Component::update() {
     return;
   this->start_time_ = millis();
   if (this->write(AHT10_MEASURE_CMD, sizeof(AHT10_MEASURE_CMD)) != i2c::ERROR_OK) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->restart_read_();
 }
 
-float AHT10Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void AHT10Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AHT10:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-}  // namespace aht10
-}  // namespace esphome
+}  // namespace esphome::aht10

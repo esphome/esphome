@@ -8,10 +8,10 @@
 ///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
 
 #pragma once
-#include <bitset>
 #include <memory>
 #include <cinttypes>
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"
 
@@ -26,8 +26,7 @@
 /// @endcode
 // #define TEST_COMPONENT
 
-namespace esphome {
-namespace weikai {
+namespace esphome::weikai {
 
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
 #if defined(I2C_BUFFER_LENGTH)
@@ -42,83 +41,11 @@ constexpr size_t FIFO_SIZE = 256;
 /// @brief size of the ring buffer set to size of the FIFO
 constexpr size_t RING_BUFFER_SIZE = FIFO_SIZE;
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief This is an helper class that provides a simple ring buffers that works as a FIFO
-/// @details This ring buffer is used to buffer the bytes received in the FIFO of the Weika device. The best way to read
-/// characters from the device FIFO, is to first check how many bytes were received and then read them all at once.
-/// Unfortunately in all the code I have reviewed the characters are read one by one in a while loop by checking if
-/// bytes are available then reading the byte until no more byte available. This is pretty inefficient for two reasons:
-/// - Fist you need to perform a test for each byte to read
-/// - and second you call the read byte method for each character.
-/// .
-/// Assuming you need to read 100 bytes that results into 200 calls. This is to compare to 2 calls (one to find the
-/// number of bytes available plus one to read all the bytes) in the best case! If the registers you read are located on
-/// the micro-controller this is acceptable because the registers can be accessed fast. But when the registers are
-/// located on a remote device accessing them requires several cycles on a slow bus. As it it not possible to fix this
-/// problem by asking users to rewrite their code, I have implemented this ring buffer that store the bytes received
-/// locally.
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-template<typename T, size_t SIZE> class WKRingBuffer {
- public:
-  /// @brief pushes an item at the tail of the fifo
-  /// @param item item to push
-  /// @return true if item has been pushed, false il item could not pushed (buffer full)
-  bool push(const T item) {
-    if (is_full())
-      return false;
-    this->rb_[this->head_] = item;
-    this->head_ = (this->head_ + 1) % SIZE;
-    this->count_++;
-    return true;
-  }
+/// @brief Name of a register for the log messages
+const LogString *reg_to_str(int reg, bool page1);
 
-  /// @brief return and remove the item at head of the fifo
-  /// @param item item read
-  /// @return true if an item has been retrieved, false il no item available (buffer empty)
-  bool pop(T &item) {
-    if (is_empty())
-      return false;
-    item = this->rb_[this->tail_];
-    this->tail_ = (this->tail_ + 1) % SIZE;
-    this->count_--;
-    return true;
-  }
-
-  /// @brief return the value of the item at fifo's head without removing it
-  /// @param item pointer to item to return
-  /// @return true if item has been retrieved, false il no item available (buffer empty)
-  bool peek(T &item) {
-    if (is_empty())
-      return false;
-    item = this->rb_[this->tail_];
-    return true;
-  }
-
-  /// @brief test is the Ring Buffer is empty ?
-  /// @return true if empty
-  inline bool is_empty() { return (this->count_ == 0); }
-
-  /// @brief test is the ring buffer is full ?
-  /// @return true if full
-  inline bool is_full() { return (this->count_ == SIZE); }
-
-  /// @brief return the number of item in the ring buffer
-  /// @return the number of items
-  inline size_t count() { return this->count_; }
-
-  /// @brief returns the number of free positions in the buffer
-  /// @return how many items can be added
-  inline size_t free() { return SIZE - this->count_; }
-
-  /// @brief clear the buffer content
-  inline void clear() { this->head_ = this->tail_ = this->count_ = 0; }
-
- protected:
-  std::array<T, SIZE> rb_{0};  ///< the ring buffer
-  int tail_{0};                ///< position of the next element to read
-  int head_{0};                ///< position of the next element to write
-  size_t count_{0};            ///< count number of element in the buffer
-};
+/// Logs a buffer in hexadecimal, 32 values per line, under @p tag at @p level.
+void print_buffer(const char *tag, const uint8_t *data, size_t length, int level = ESPHOME_LOG_LEVEL_VERY_VERBOSE);
 
 class WeikaiComponent;
 // class WeikaiComponentSPI;
@@ -268,7 +195,7 @@ class WeikaiComponent : public Component {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Helper class to expose a WeiKai family IO pin as an internal GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
-class WeikaiGPIOPin : public GPIOPin {
+class WeikaiGPIOPin final : public GPIOPin {
  public:
   void set_parent(WeikaiComponent *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
@@ -278,7 +205,7 @@ class WeikaiGPIOPin : public GPIOPin {
   gpio::Flags get_flags() const override { return this->flags_; }
 
   void setup() override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void pin_mode(gpio::Flags flags) override { this->parent_->set_pin_direction_(this->pin_, flags); }
   bool digital_read() override { return this->parent_->read_pin_val_(this->pin_) != this->inverted_; }
   void digital_write(bool value) override { this->parent_->write_pin_val_(this->pin_, value != this->inverted_); }
@@ -295,7 +222,7 @@ class WeikaiGPIOPin : public GPIOPin {
 /// uart::UARTComponent virtual class. This class is common to the different members of the Weikai
 /// components family and therefore avoid code duplication.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-class WeikaiChannel : public uart::UARTComponent {
+class WeikaiChannel final : public uart::UARTComponent {
  public:
   /// @brief We belongs to this WeikaiComponent
   /// @param parent pointer to the component we belongs to
@@ -317,10 +244,10 @@ class WeikaiChannel : public uart::UARTComponent {
   const char *get_channel_name() { return this->name_.c_str(); }
 
   /// @brief Setup the channel
-  void virtual setup_channel();
+  void setup_channel();
 
   /// @brief dump channel information
-  void virtual dump_channel();
+  void dump_channel();
 
   /// @brief Factory method to create a WeikaiRegister proxy object
   /// @param reg address of the register
@@ -375,13 +302,22 @@ class WeikaiChannel : public uart::UARTComponent {
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
-  int available() override;
+  size_t available() override;
 
   /// @brief Flush the output fifo.
   /// @details If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission of outgoing serial data
   /// to complete. (Prior to Arduino 1.0, this the method was removing any buffered incoming serial data.). ** Therefore
   /// we wait until all bytes are gone with a timeout of 100 ms
-  void flush() override;
+  uart::UARTFlushResult flush() override;
+
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  /// @brief Re-apply the current line settings (baud, parity, etc) to the channel.
+  void load_settings(bool dump_config) override {
+    this->set_line_param_();
+    this->set_baudrate_();
+  }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+#endif
 
  protected:
   friend class WeikaiComponent;
@@ -416,7 +352,7 @@ class WeikaiChannel : public uart::UARTComponent {
 
   /// @brief check if channel is alive
   /// @return true if OK
-  bool virtual check_channel_down();
+  bool check_channel_down_();
 
 #ifdef TEST_COMPONENT
   /// @ingroup test_
@@ -434,12 +370,11 @@ class WeikaiChannel : public uart::UARTComponent {
 #endif
 
   /// @brief the buffer where we store temporarily the bytes received
-  WKRingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
+  StaticRingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
   WeikaiComponent *parent_;  ///< our WK2168component parent
   uint8_t channel_;          ///< our Channel number
   uint8_t data_;             ///< a one byte buffer for register read storage
   std::string name_;         ///< name of the entity
 };
 
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai

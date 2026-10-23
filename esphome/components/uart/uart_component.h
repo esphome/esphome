@@ -1,22 +1,34 @@
 #pragma once
 
 #include <vector>
+#include <cstdint>
 #include <cstring>
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #ifdef USE_UART_DEBUGGER
 #include "esphome/core/automation.h"
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE,
   UART_CONFIG_PARITY_EVEN,
   UART_CONFIG_PARITY_ODD,
+  // Only USB serial adapters (usb_uart) support these
+  UART_CONFIG_PARITY_MARK,
+  UART_CONFIG_PARITY_SPACE,
+};
+
+// A runtime setting like CRTSCTS and IXON/IXOFF in termios. A backend without the lines
+// keeps the value and ignores it, as a Linux driver does.
+enum UARTFlowControl : uint8_t {
+  UART_FLOW_CONTROL_NONE,
+  UART_FLOW_CONTROL_RTS_CTS,
+  UART_FLOW_CONTROL_XON_XOFF,
 };
 
 #ifdef USE_UART_DEBUGGER
@@ -29,8 +41,18 @@ enum UARTDirection {
 
 const LogString *parity_to_str(UARTParityOptions parity);
 
+/// Result of a flush() call.
+enum class UARTFlushResult {
+  UART_FLUSH_RESULT_SUCCESS,          ///< Confirmed: all bytes left the TX FIFO.
+  UART_FLUSH_RESULT_TIMEOUT,          ///< Confirmed: timed out before TX completed.
+  UART_FLUSH_RESULT_FAILED,           ///< Confirmed: driver or hardware error.
+  UART_FLUSH_RESULT_ASSUMED_SUCCESS,  ///< Platform cannot report result; success is assumed.
+};
+
 class UARTComponent {
  public:
+  static constexpr size_t RX_FULL_THRESHOLD_UNSET = 0;
+
   // Writes an array of bytes to the UART bus.
   // @param data A vector of bytes to be written.
   void write_array(const std::vector<uint8_t> &data) { this->write_array(&data[0], data.size()); }
@@ -51,6 +73,13 @@ class UARTComponent {
   // @param len Length of the array.
   virtual void write_array(const uint8_t *data, size_t len) = 0;
 
+  // Writes bytes that may live in PROGMEM; ESP8266 cannot read flash bytewise, so it copies chunks.
+#ifdef USE_ESP8266
+  void write_array_progmem(const uint8_t *data, size_t len);
+#else
+  void write_array_progmem(const uint8_t *data, size_t len) { this->write_array(data, len); }
+#endif
+
   // Reads a single byte from the UART bus.
   // @param data Pointer to the byte where the read data will be stored.
   // @return True if a byte was successfully read, false otherwise.
@@ -69,10 +98,28 @@ class UARTComponent {
 
   // Pure virtual method to return the number of bytes available for reading.
   // @return Number of available bytes.
-  virtual int available() = 0;
+  virtual size_t available() = 0;
+
+  // Returns how many bytes write_array() accepts right now without blocking.
+  // Platforms that cannot tell return SIZE_MAX: write_array() takes everything and may block.
+  virtual size_t available_for_write() { return SIZE_MAX; }
+
+  // Bytes a write can take now. Where available_for_write() cannot tell (SIZE_MAX), paces to the line time since
+  // last_write_ms, a loop start time: at most one loop interval and 4 s, at least one byte.
+  size_t paced_write_room(uint32_t last_write_ms);
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
-  virtual void flush() = 0;
+  // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
+  virtual UARTFlushResult flush() = 0;
+
+  // Returns true if the underlying transport is connected and operational.
+  // Hardware UARTs always return true. USB-backed UARTs override to reflect actual connection state.
+  virtual bool is_connected() { return true; }
+
+  // Sets the maximum time to wait for TX to drain during flush().
+  // Only meaningful on ESP32 (IDF). Other platforms ignore this value.
+  // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.
+  virtual void set_flush_timeout(uint32_t flush_timeout_ms) {}
 
   // Sets the TX (transmit) pin for the UART bus.
   // @param tx_pin Pointer to the internal GPIO pin used for transmission.
@@ -82,6 +129,10 @@ class UARTComponent {
   // @param rx_pin Pointer to the internal GPIO pin used for reception.
   void set_rx_pin(InternalGPIOPin *rx_pin) { this->rx_pin_ = rx_pin; }
 
+  // Sets the flow control pin for the UART bus.
+  // @param flow_control_pin Pointer to the internal GPIO pin used for flow control.
+  void set_flow_control_pin(InternalGPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
+
   // Sets the size of the RX buffer.
   // @param rx_buffer_size Size of the RX buffer in bytes.
   void set_rx_buffer_size(size_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
@@ -89,6 +140,26 @@ class UARTComponent {
   // Gets the size of the RX buffer.
   // @return Size of the RX buffer in bytes.
   size_t get_rx_buffer_size() { return this->rx_buffer_size_; }
+
+  // Sets the RX FIFO full interrupt threshold.
+  // @param rx_full_threshold RX full interrupt threshold in bytes.
+  virtual void set_rx_full_threshold(size_t rx_full_threshold) {}
+
+  // Sets the RX FIFO full interrupt threshold.
+  // @param time RX full interrupt threshold in ms.
+  void set_rx_full_threshold_ms(uint8_t time);
+
+  // Gets the RX FIFO full interrupt threshold.
+  // @return RX full interrupt threshold in bytes.
+  size_t get_rx_full_threshold() { return this->rx_full_threshold_; }
+
+  // Sets the RX timeout interrupt threshold.
+  // @param rx_timeout RX timeout interrupt threshold (unit: time of sending one byte).
+  virtual void set_rx_timeout(size_t rx_timeout) {}
+
+  // Gets the RX timeout interrupt threshold.
+  // @return RX timeout interrupt threshold (unit: time of sending one byte).
+  size_t get_rx_timeout() { return this->rx_timeout_; }
 
   // Sets the number of stop bits used in UART communication.
   // @param stop_bits Number of stop bits.
@@ -122,6 +193,15 @@ class UARTComponent {
   // @return Baud rate in bits per second.
   uint32_t get_baud_rate() const { return baud_rate_; }
 
+  // Set the line handshaking (RTS/CTS or XON/XOFF) used in UART communication. Unrelated to
+  // flow_control_pin, the RS485 driver enable; backends without handshaking ignore it.
+  // @param flow_control Flow control option.
+  void set_flow_control(UARTFlowControl flow_control) { this->flow_control_ = flow_control; }
+
+  // Get the flow control used in UART communication.
+  // @return Flow control option.
+  UARTFlowControl get_flow_control() const { return this->flow_control_; }
+
 #if defined(USE_ESP8266) || defined(USE_ESP32)
   /**
    * Load the UART settings.
@@ -134,7 +214,7 @@ class UARTComponent {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
-  virtual void load_settings(bool dump_config){};
+  virtual void load_settings(bool dump_config) = 0;
 
   /**
    * Load the UART settings.
@@ -146,30 +226,33 @@ class UARTComponent {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
-  virtual void load_settings(){};
+  void load_settings() { this->load_settings(true); }
 #endif  // USE_ESP8266 || USE_ESP32
 
 #ifdef USE_UART_DEBUGGER
-  void add_debug_callback(std::function<void(UARTDirection, uint8_t)> &&callback) {
-    this->debug_callback_.add(std::move(callback));
-  }
+  template<typename F> void add_debug_callback(F &&callback) { this->debug_callback_.add(std::forward<F>(callback)); }
 #endif
 
  protected:
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
 
-  InternalGPIOPin *tx_pin_;
-  InternalGPIOPin *rx_pin_;
-  size_t rx_buffer_size_;
-  uint32_t baud_rate_;
-  uint8_t stop_bits_;
-  uint8_t data_bits_;
-  UARTParityOptions parity_;
+  InternalGPIOPin *tx_pin_{};
+  InternalGPIOPin *rx_pin_{};
+  InternalGPIOPin *flow_control_pin_{};
+  size_t rx_buffer_size_{};
+  // ESP32 (both Arduino and ESP-IDF) always sets this at codegen time via set_rx_full_threshold().
+  // Other platforms (USB UART, Arduino, etc.) leave it unset.
+  size_t rx_full_threshold_{RX_FULL_THRESHOLD_UNSET};
+  size_t rx_timeout_{0};
+  uint32_t baud_rate_{0};
+  uint8_t stop_bits_{0};
+  uint8_t data_bits_{0};
+  UARTFlowControl flow_control_{UART_FLOW_CONTROL_NONE};
+  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};  // Must match the parity check in __init__.py
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

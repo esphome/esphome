@@ -14,14 +14,23 @@ esphome:
           sensitivity: 6
       - dfrobot_sen0395.reset
 
-uart:
-  - id: uart_dfrobot_sen0395
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 dfrobot_sen0395:
   - id: mmwave
+
+number:
+  - platform: template
+    id: mmwave_max_distance
+    name: mmwave max distance
+    min_value: 1
+    max_value: 9
+    step: 0.5
+    set_action:
+      - dfrobot_sen0395.settings:
+          id: mmwave
+          detection_segments:
+            - 0cm
+            - !lambda "return x;"
+          sensitivity: 5
 
 binary_sensor:
   - platform: dfrobot_sen0395

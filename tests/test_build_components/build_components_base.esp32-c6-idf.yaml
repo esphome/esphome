@@ -4,6 +4,7 @@ esphome:
 
 esp32:
   board: esp32-c6-devkitc-1
+  flash_size: 8MB
   framework:
     type: esp-idf
 

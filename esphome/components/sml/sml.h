@@ -7,24 +7,23 @@
 #include "esphome/components/uart/uart.h"
 #include "sml_parser.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
 class SmlListener {
  public:
   std::string server_id;
   std::string obis_code;
   SmlListener(std::string server_id, std::string obis_code);
-  virtual void publish_val(const ObisInfo &obis_info){};
+  virtual void publish_val(const ObisInfo &obis_info) {};
 };
 
-class Sml : public Component, public uart::UARTDevice {
+class Sml final : public Component, public uart::UARTDevice {
  public:
   void register_sml_listener(SmlListener *listener);
   void loop() override;
   void dump_config() override;
   std::vector<SmlListener *> sml_listeners_{};
-  void add_on_data_callback(std::function<void(std::vector<uint8_t>, bool)> &&callback);
+  template<typename F> void add_on_data_callback(F &&callback) { this->data_callbacks_.add(std::forward<F>(callback)); }
 
  protected:
   void process_sml_file_(const BytesView &sml_data);
@@ -44,5 +43,4 @@ class Sml : public Component, public uart::UARTDevice {
 bool check_sml_data(const bytes &buffer);
 
 uint8_t get_code(uint8_t byte);
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

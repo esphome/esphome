@@ -29,9 +29,12 @@ from esphome.const import (
     CONF_WHITE,
     CONF_WIDTH,
 )
+from esphome.cpp_generator import MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType
 from esphome.util import Registry
 
+from .automation import COLOR_SCHEMA, color_to_rgb, validate_light_state
 from .types import (
     COLOR_MODES,
     AddressableColorWipeEffect,
@@ -50,6 +53,7 @@ from .types import (
     FlickerLightEffect,
     LambdaLightEffect,
     LightColorValues,
+    LightStateRef,
     PulseLightEffect,
     RandomLightEffect,
     StrobeLightEffect,
@@ -85,11 +89,40 @@ MONOCHROMATIC_EFFECTS = []
 RGB_EFFECTS = []
 ADDRESSABLE_EFFECTS = []
 
+
+def _with_color_option(schema: cv.Schema, *default_keys: str) -> cv.Schema:
+    """Add the `color:` option to a per-item effect color schema.
+
+    `color_to_rgb` must run before the keys are defaulted to full level below, so a
+    `color:` can populate `default_keys` (red/green/blue and, where the effect has
+    one, color_brightness) and a plain channel list still defaults them to full
+    level. Centralizing both steps here means a new effect schema only has to call
+    this once instead of repeating the ordering rule itself.
+    """
+    schema = schema.extend(COLOR_SCHEMA)
+    schema.add_extra(color_to_rgb)
+
+    def _default_to_full_level(config: ConfigType) -> ConfigType:
+        for key in default_keys:
+            config.setdefault(key, 1.0)
+        return config
+
+    schema.add_extra(_default_to_full_level)
+    return schema
+
+
 EFFECTS_REGISTRY = Registry()
 
 
-def register_effect(name, effect_type, default_name, schema, *extra_validators):
-    schema = cv.Schema(schema).extend(
+def register_effect(
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
+):
+    schema = schema if isinstance(schema, cv.Schema) else cv.Schema(schema)
+    schema = schema.extend(
         {
             cv.Optional(CONF_NAME, default=default_name): cv.string_strict,
         }
@@ -98,7 +131,13 @@ def register_effect(name, effect_type, default_name, schema, *extra_validators):
     return EFFECTS_REGISTRY.register(name, effect_type, validator)
 
 
-def register_binary_effect(name, effect_type, default_name, schema, *extra_validators):
+def register_binary_effect(
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
+):
     # binary effect can be used for all lights
     BINARY_EFFECTS.append(name)
     MONOCHROMATIC_EFFECTS.append(name)
@@ -109,7 +148,11 @@ def register_binary_effect(name, effect_type, default_name, schema, *extra_valid
 
 
 def register_monochromatic_effect(
-    name, effect_type, default_name, schema, *extra_validators
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
 ):
     # monochromatic effect can be used for all lights expect binary
     MONOCHROMATIC_EFFECTS.append(name)
@@ -119,7 +162,13 @@ def register_monochromatic_effect(
     return register_effect(name, effect_type, default_name, schema, *extra_validators)
 
 
-def register_rgb_effect(name, effect_type, default_name, schema, *extra_validators):
+def register_rgb_effect(
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
+):
     # RGB effect can be used for RGB and addressable lights
     RGB_EFFECTS.append(name)
     ADDRESSABLE_EFFECTS.append(name)
@@ -128,7 +177,11 @@ def register_rgb_effect(name, effect_type, default_name, schema, *extra_validato
 
 
 def register_addressable_effect(
-    name, effect_type, default_name, schema, *extra_validators
+    name: str,
+    effect_type: MockObjClass,
+    default_name: str,
+    schema: cv.Schema | dict,
+    *extra_validators,
 ):
     # addressable effect can be used only in addressable
     ADDRESSABLE_EFFECTS.append(name)
@@ -147,7 +200,9 @@ def register_addressable_effect(
 )
 async def lambda_effect_to_code(config, effect_id):
     lambda_ = await cg.process_lambda(
-        config[CONF_LAMBDA], [(bool, "initial_run")], return_type=cg.void
+        config[CONF_LAMBDA],
+        [(LightStateRef, "it"), (bool, "initial_run")],
+        return_type=cg.void,
     )
     return cg.new_Pvariable(
         effect_id, config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL]
@@ -235,6 +290,30 @@ async def random_effect_to_code(config, effect_id):
     return effect
 
 
+STROBE_COLOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_STATE, default=True): validate_light_state,
+        cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+        cv.Optional(CONF_COLOR_MODE): cv.enum(COLOR_MODES, upper=True, space="_"),
+        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.percentage,
+        cv.Optional(CONF_RED): cv.percentage,
+        cv.Optional(CONF_GREEN): cv.percentage,
+        cv.Optional(CONF_BLUE): cv.percentage,
+        cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
+        cv.Optional(CONF_COLOR_TEMPERATURE): cv.color_temperature,
+        cv.Optional(CONF_COLD_WHITE, default=1.0): cv.percentage,
+        cv.Optional(CONF_WARM_WHITE, default=1.0): cv.percentage,
+        cv.Required(CONF_DURATION): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TRANSITION_LENGTH, default="0s"
+        ): cv.positive_time_period_milliseconds,
+    }
+)
+STROBE_COLOR_SCHEMA = _with_color_option(
+    STROBE_COLOR_SCHEMA, CONF_COLOR_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE
+)
+
+
 @register_binary_effect(
     "strobe",
     StrobeLightEffect,
@@ -248,29 +327,7 @@ async def random_effect_to_code(config, effect_id):
             ],
         ): cv.All(
             cv.ensure_list(
-                cv.Schema(
-                    {
-                        cv.Optional(CONF_STATE, default=True): cv.boolean,
-                        cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
-                        cv.Optional(CONF_COLOR_MODE): cv.enum(
-                            COLOR_MODES, upper=True, space="_"
-                        ),
-                        cv.Optional(CONF_COLOR_BRIGHTNESS, default=1.0): cv.percentage,
-                        cv.Optional(CONF_RED, default=1.0): cv.percentage,
-                        cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
-                        cv.Optional(CONF_BLUE, default=1.0): cv.percentage,
-                        cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
-                        cv.Optional(CONF_COLOR_TEMPERATURE): cv.color_temperature,
-                        cv.Optional(CONF_COLD_WHITE, default=1.0): cv.percentage,
-                        cv.Optional(CONF_WARM_WHITE, default=1.0): cv.percentage,
-                        cv.Required(
-                            CONF_DURATION
-                        ): cv.positive_time_period_milliseconds,
-                        cv.Optional(
-                            CONF_TRANSITION_LENGTH, default="0s"
-                        ): cv.positive_time_period_milliseconds,
-                    }
-                ),
+                STROBE_COLOR_SCHEMA,
                 cv.has_at_least_one_key(
                     CONF_STATE,
                     CONF_BRIGHTNESS,
@@ -291,31 +348,30 @@ async def random_effect_to_code(config, effect_id):
 )
 async def strobe_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
-    colors = []
-    for color in config.get(CONF_COLORS, []):
-        colors.append(
-            cg.StructInitializer(
-                StrobeLightEffectColor,
-                (
-                    "color",
-                    LightColorValues(
-                        color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
-                        color[CONF_STATE],
-                        color[CONF_BRIGHTNESS],
-                        color[CONF_COLOR_BRIGHTNESS],
-                        color[CONF_RED],
-                        color[CONF_GREEN],
-                        color[CONF_BLUE],
-                        color[CONF_WHITE],
-                        color.get(CONF_COLOR_TEMPERATURE, 0.0),
-                        color[CONF_COLD_WHITE],
-                        color[CONF_WARM_WHITE],
-                    ),
+    colors = [
+        cg.StructInitializer(
+            StrobeLightEffectColor,
+            (
+                "color",
+                LightColorValues(
+                    color.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
+                    color[CONF_STATE],
+                    color[CONF_BRIGHTNESS],
+                    color[CONF_COLOR_BRIGHTNESS],
+                    color[CONF_RED],
+                    color[CONF_GREEN],
+                    color[CONF_BLUE],
+                    color[CONF_WHITE],
+                    color.get(CONF_COLOR_TEMPERATURE, 0.0),
+                    color[CONF_COLD_WHITE],
+                    color[CONF_WARM_WHITE],
                 ),
-                ("duration", color[CONF_DURATION]),
-                ("transition_length", color[CONF_TRANSITION_LENGTH]),
-            )
+            ),
+            ("duration", color[CONF_DURATION]),
+            ("transition_length", color[CONF_TRANSITION_LENGTH]),
         )
+        for color in config.get(CONF_COLORS, [])
+    ]
     cg.add(var.set_colors(colors))
     return var
 
@@ -354,10 +410,9 @@ async def addressable_lambda_effect_to_code(config, effect_id):
         (bool, "initial_run"),
     ]
     lambda_ = await cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
-    var = cg.new_Pvariable(
+    return cg.new_Pvariable(
         effect_id, config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL]
     )
-    return var
 
 
 @register_addressable_effect(
@@ -366,7 +421,7 @@ async def addressable_lambda_effect_to_code(config, effect_id):
     "Rainbow",
     {
         cv.Optional(CONF_SPEED, default=10): cv.uint32_t,
-        cv.Optional(CONF_WIDTH, default=50): cv.uint32_t,
+        cv.Optional(CONF_WIDTH, default=50): cv.int_range(min=1, max=65535),
     },
 )
 async def addressable_rainbow_effect_to_code(config, effect_id):
@@ -376,6 +431,27 @@ async def addressable_rainbow_effect_to_code(config, effect_id):
     return var
 
 
+ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_COLOR_BRIGHTNESS): cv.percentage,
+        cv.Optional(CONF_RED): cv.percentage,
+        cv.Optional(CONF_GREEN): cv.percentage,
+        cv.Optional(CONF_BLUE): cv.percentage,
+        cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
+        cv.Optional(CONF_RANDOM, default=False): cv.boolean,
+        cv.Required(CONF_NUM_LEDS): cv.All(cv.uint32_t, cv.Range(min=1)),
+        cv.Optional(CONF_GRADIENT, default=False): cv.boolean,
+    }
+)
+ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA = _with_color_option(
+    ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA,
+    CONF_COLOR_BRIGHTNESS,
+    CONF_RED,
+    CONF_GREEN,
+    CONF_BLUE,
+)
+
+
 @register_addressable_effect(
     "addressable_color_wipe",
     AddressableColorWipeEffect,
@@ -383,17 +459,7 @@ async def addressable_rainbow_effect_to_code(config, effect_id):
     {
         cv.Optional(
             CONF_COLORS, default=[{CONF_NUM_LEDS: 1, CONF_RANDOM: True}]
-        ): cv.ensure_list(
-            {
-                cv.Optional(CONF_RED, default=1.0): cv.percentage,
-                cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
-                cv.Optional(CONF_BLUE, default=1.0): cv.percentage,
-                cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
-                cv.Optional(CONF_RANDOM, default=False): cv.boolean,
-                cv.Required(CONF_NUM_LEDS): cv.All(cv.uint32_t, cv.Range(min=1)),
-                cv.Optional(CONF_GRADIENT, default=False): cv.boolean,
-            }
-        ),
+        ): cv.ensure_list(ADDRESSABLE_COLOR_WIPE_COLOR_SCHEMA),
         cv.Optional(
             CONF_ADD_LED_INTERVAL, default="0.1s"
         ): cv.positive_time_period_milliseconds,
@@ -406,12 +472,13 @@ async def addressable_color_wipe_effect_to_code(config, effect_id):
     cg.add(var.set_reverse(config[CONF_REVERSE]))
     colors = []
     for color in config.get(CONF_COLORS, []):
+        color_brightness = color[CONF_COLOR_BRIGHTNESS]
         colors.append(
             cg.StructInitializer(
                 AddressableColorWipeEffectColor,
-                ("r", int(round(color[CONF_RED] * 255))),
-                ("g", int(round(color[CONF_GREEN] * 255))),
-                ("b", int(round(color[CONF_BLUE] * 255))),
+                ("r", int(round(color[CONF_RED] * color_brightness * 255))),
+                ("g", int(round(color[CONF_GREEN] * color_brightness * 255))),
+                ("b", int(round(color[CONF_BLUE] * color_brightness * 255))),
                 ("w", int(round(color[CONF_WHITE] * 255))),
                 ("random", color[CONF_RANDOM]),
                 ("num_leds", color[CONF_NUM_LEDS]),
@@ -516,17 +583,23 @@ async def addressable_flicker_effect_to_code(config, effect_id):
     return var
 
 
+# LightState stores the active effect index in a uint16_t
+MAX_EFFECTS = 65535
+
+
 def validate_effects(allowed_effects):
     @schema_extractor("effects")
     def validator(value):
         if value == SCHEMA_EXTRACT:
             return (allowed_effects, EFFECTS_REGISTRY)
 
+        if isinstance(value, list) and len(value) > MAX_EFFECTS:
+            raise cv.Invalid(f"A light supports at most {MAX_EFFECTS} effects")
         value = cv.validate_registry("effect", EFFECTS_REGISTRY)(value)
         errors = []
         names = set()
         for i, x in enumerate(value):
-            key = next(it for it in x.keys())
+            key = next(it for it in x)
             if key not in allowed_effects:
                 errors.append(
                     cv.Invalid(

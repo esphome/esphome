@@ -3,8 +3,7 @@
 #include <cstdint>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 enum AlarmControlPanelState : uint8_t {
   ACP_STATE_DISARMED = 0,
@@ -25,5 +24,4 @@ enum AlarmControlPanelState : uint8_t {
  */
 const LogString *alarm_control_panel_state_to_string(AlarmControlPanelState state);
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

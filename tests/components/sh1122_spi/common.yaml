@@ -1,0 +1,19 @@
+display:
+  - platform: sh1122_spi
+    cs_pin: ${cs_pin}
+    dc_pin: ${dc_pin}
+    reset_pin: ${reset_pin}
+    brightness: 80%
+    pages:
+      - id: sh1122_spi_page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+      - id: sh1122_spi_page2
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+    on_page_change:
+      from: sh1122_spi_page1
+      to: sh1122_spi_page2
+      then:
+        lambda: |-
+          ESP_LOGD("display", "1 -> 2");

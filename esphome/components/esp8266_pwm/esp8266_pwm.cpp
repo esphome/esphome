@@ -8,20 +8,20 @@
 
 #include <core_esp8266_waveform.h>
 
-namespace esphome {
-namespace esp8266_pwm {
+namespace esphome::esp8266_pwm {
 
-static const char *const TAG = "esp8266_pwm";
+ESPHOME_LOG_TAG(TAG, "esp8266_pwm");
 
 void ESP8266PWM::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_->setup();
   this->turn_off();
 }
 void ESP8266PWM::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP8266 PWM:");
+  ESP_LOGCONFIG(TAG,
+                "ESP8266 PWM:\n"
+                "  Frequency: %.1f Hz",
+                this->frequency_);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.1f Hz", this->frequency_);
   LOG_FLOAT_OUTPUT(this);
 }
 void HOT ESP8266PWM::write_state(float state) {
@@ -52,7 +52,6 @@ void HOT ESP8266PWM::write_state(float state) {
   }
 }
 
-}  // namespace esp8266_pwm
-}  // namespace esphome
+}  // namespace esphome::esp8266_pwm
 
 #endif

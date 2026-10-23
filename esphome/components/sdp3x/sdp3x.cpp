@@ -3,10 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sdp3x {
+namespace esphome::sdp3x {
 
-static const char *const TAG = "sdp3x.sensor";
+ESPHOME_LOG_TAG(TAG, "sdp3x.sensor");
 static const uint16_t SDP3X_SOFT_RESET = 0x0006;
 static const uint16_t SDP3X_READ_ID1 = 0x367C;
 static const uint16_t SDP3X_READ_ID2 = 0xE102;
@@ -17,8 +16,6 @@ static const uint16_t SDP3X_STOP_MEAS = 0x3FF9;
 void SDP3XComponent::update() { this->read_pressure_(); }
 
 void SDP3XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (!this->write_command(SDP3X_STOP_MEAS)) {
     ESP_LOGW(TAG, "Stop failed");  // This sometimes fails for no good reason
   }
@@ -29,20 +26,17 @@ void SDP3XComponent::setup() {
 
   this->set_timeout(20, [this] {
     if (!this->write_command(SDP3X_READ_ID1)) {
-      ESP_LOGE(TAG, "Read ID1 failed");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Read ID1 failed"));
       return;
     }
     if (!this->write_command(SDP3X_READ_ID2)) {
-      ESP_LOGE(TAG, "Read ID2 failed");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Read ID2 failed"));
       return;
     }
 
     uint16_t data[6];
     if (!this->read_data(data, 6)) {
-      ESP_LOGE(TAG, "Read ID failed");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Read ID failed"));
       return;
     }
 
@@ -79,8 +73,7 @@ void SDP3XComponent::setup() {
     }
 
     if (!this->write_command(measurement_mode_ == DP_AVG ? SDP3X_START_DP_AVG : SDP3X_START_MASS_FLOW_AVG)) {
-      ESP_LOGE(TAG, "Start Measurements failed");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Start Measurements failed"));
       return;
     }
     ESP_LOGCONFIG(TAG, "started");
@@ -89,9 +82,6 @@ void SDP3XComponent::setup() {
 void SDP3XComponent::dump_config() {
   LOG_SENSOR("  ", "SDP3X", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Connection with failed");
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -116,7 +106,4 @@ void SDP3XComponent::read_pressure_() {
   this->status_clear_warning();
 }
 
-float SDP3XComponent::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace sdp3x
-}  // namespace esphome
+}  // namespace esphome::sdp3x

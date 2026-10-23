@@ -1,0 +1,10 @@
+esphome:
+  on_boot:
+    - bm8563.read_time
+    - bm8563.write_time
+    - bm8563.start_timer:
+        duration: 300s
+
+time:
+  - platform: bm8563
+    i2c_id: i2c_bus

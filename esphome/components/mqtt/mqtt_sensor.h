@@ -8,10 +8,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
-class MQTTSensorComponent : public mqtt::MQTTComponent {
+class MQTTSensorComponent final : public mqtt::MQTTComponent {
  public:
   /** Construct this MQTTSensorComponent instance with the provided friendly_name and sensor
    *
@@ -23,9 +22,9 @@ class MQTTSensorComponent : public mqtt::MQTTComponent {
   explicit MQTTSensorComponent(sensor::Sensor *sensor);
 
   /// Setup an expiry, 0 disables it
-  void set_expire_after(uint32_t expire_after);
+  void set_expire_after(uint32_t expire_after) { this->expire_after_ = expire_after; }
   /// Disable Home Assistant value expiry.
-  void disable_expire_after();
+  void disable_expire_after() { this->expire_after_ = 0; }
 
   void send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) override;
 
@@ -44,15 +43,14 @@ class MQTTSensorComponent : public mqtt::MQTTComponent {
 
  protected:
   /// Override for MQTTComponent, returns "sensor".
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   sensor::Sensor *sensor_;
   optional<uint32_t> expire_after_;  // Override the expire after advertised to Home Assistant
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

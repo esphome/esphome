@@ -1,10 +1,12 @@
 #include "cs5460a.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cs5460a {
+namespace esphome::cs5460a {
 
-static const char *const TAG = "cs5460a";
+ESPHOME_LOG_TAG(TAG, "cs5460a");
+
+static constexpr uint32_t STATUS_CHECK_TIMEOUT_ID = 0;
 
 void CS5460AComponent::write_register_(enum CS5460ARegister addr, uint32_t value) {
   this->write_byte(CMD_WRITE | (addr << 1));
@@ -52,8 +54,6 @@ bool CS5460AComponent::softreset_() {
 }
 
 void CS5460AComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   float current_full_scale = (pga_gain_ == CS5460A_PGA_GAIN_10X) ? 0.25 : 0.10;
   float voltage_full_scale = 0.25;
   current_multiplier_ = current_full_scale / (fabsf(current_gain_) * 0x1000000);
@@ -149,16 +149,16 @@ void CS5460AComponent::schedule_next_check_() {
      */
     if (time_left > -15000) {
       time_left = 1000;
-      this->status_momentary_warning("warning", 1000);
+      this->status_momentary_warning(1000);
     } else {
       ESP_LOGCONFIG(TAG, "Device officially stuck, resetting");
-      this->cancel_timeout("status-check");
+      this->cancel_timeout(STATUS_CHECK_TIMEOUT_ID);
       this->hw_init_();
       return;
     }
   }
 
-  this->set_timeout("status-check", time_left, [this]() {
+  this->set_timeout(STATUS_CHECK_TIMEOUT_ID, time_left, [this]() {
     if (!this->check_status_())
       this->schedule_next_check_();
   });
@@ -180,67 +180,67 @@ bool CS5460AComponent::check_status_() {
   if (status & (1 << 2)) {
     clear |= 1 << 2;
     ESP_LOGE(TAG, "Low supply detected");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 3)) {
     clear |= 1 << 3;
     ESP_LOGE(TAG, "Modulator oscillation on current channel");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 4)) {
     clear |= 1 << 4;
     ESP_LOGE(TAG, "Modulator oscillation on voltage channel");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 5)) {
     clear |= 1 << 5;
     ESP_LOGE(TAG, "Watch-dog timeout");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 11)) {
     clear |= 1 << 11;
     ESP_LOGE(TAG, "EOUT Energy Accumulation Register out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 12)) {
     clear |= 1 << 12;
     ESP_LOGE(TAG, "Energy out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 13)) {
     clear |= 1 << 13;
     ESP_LOGE(TAG, "RMS voltage out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 14)) {
     clear |= 1 << 14;
     ESP_LOGE(TAG, "RMS current out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 15)) {
     clear |= 1 << 15;
     ESP_LOGE(TAG, "Power calculation out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 16)) {
     clear |= 1 << 16;
     ESP_LOGE(TAG, "Voltage out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 17)) {
     clear |= 1 << 17;
     ESP_LOGE(TAG, "Current out of range");
-    this->status_momentary_warning("warning", 500);
+    this->status_momentary_warning(500);
   }
 
   if (status & (1 << 19)) {
@@ -252,7 +252,7 @@ bool CS5460AComponent::check_status_() {
     bool dir = status & (1 << 21);
     if (current_gain_ < 0)
       dir = !dir;
-    ESP_LOGI(TAG, "Energy counter %s pulse", dir ? "negative" : "positive");
+    ESP_LOGI(TAG, "Energy counter %s pulse", dir ? LOG_STR_LITERAL("negative") : LOG_STR_LITERAL("positive"));
     clear |= 1 << 22;
   }
 
@@ -305,7 +305,7 @@ bool CS5460AComponent::check_status_() {
       voltage_sensor_->publish_state(raw_voltage * voltage_multiplier_);
 
     if (power_sensor_ != nullptr && raw_energy != prev_raw_energy_) {
-      int32_t raw = (int32_t) (raw_energy << 8) >> 8; /* Sign-extend */
+      int32_t raw = sign_extend<24>(raw_energy);
       power_sensor_->publish_state(raw * power_multiplier_);
       prev_raw_energy_ = raw_energy;
     }
@@ -322,7 +322,9 @@ void CS5460AComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "CS5460A:\n"
                 "  Init status: %s",
-                state == COMPONENT_STATE_LOOP ? "OK" : (state == COMPONENT_STATE_FAILED ? "failed" : "other"));
+                state == COMPONENT_STATE_LOOP
+                    ? LOG_STR_LITERAL("OK")
+                    : (state == COMPONENT_STATE_FAILED ? LOG_STR_LITERAL("failed") : LOG_STR_LITERAL("other")));
   LOG_PIN("  CS Pin: ", cs_);
   ESP_LOGCONFIG(TAG,
                 "  Samples / cycle: %" PRIu32 "\n"
@@ -333,13 +335,13 @@ void CS5460AComponent::dump_config() {
                 "  Current HPF: %s\n"
                 "  Voltage HPF: %s\n"
                 "  Pulse energy: %.2f Wh",
-                samples_, phase_offset_, pga_gain_ == CS5460A_PGA_GAIN_50X ? "50x" : "10x", current_gain_,
-                voltage_gain_, current_hpf_ ? "enabled" : "disabled", voltage_hpf_ ? "enabled" : "disabled",
-                pulse_energy_wh_);
+                samples_, phase_offset_,
+                pga_gain_ == CS5460A_PGA_GAIN_50X ? LOG_STR_LITERAL("50x") : LOG_STR_LITERAL("10x"), current_gain_,
+                voltage_gain_, current_hpf_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                voltage_hpf_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"), pulse_energy_wh_);
   LOG_SENSOR("  ", "Voltage", voltage_sensor_);
   LOG_SENSOR("  ", "Current", current_sensor_);
   LOG_SENSOR("  ", "Power", power_sensor_);
 }
 
-}  // namespace cs5460a
-}  // namespace esphome
+}  // namespace esphome::cs5460a

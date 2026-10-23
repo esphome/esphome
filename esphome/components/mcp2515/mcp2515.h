@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "mcp2515_defs.h"
 
-namespace esphome {
-namespace mcp2515 {
+namespace esphome::mcp2515 {
 static const uint32_t SPI_CLOCK = 10000000;  // 10MHz
 
 static const int N_TXBUFFERS = 3;
@@ -52,13 +51,14 @@ enum STAT : uint8_t { STAT_RX0IF = (1 << 0), STAT_RX1IF = (1 << 1) };
 static const uint8_t STAT_RXIF_MASK = STAT_RX0IF | STAT_RX1IF;
 static const uint8_t EFLG_ERRORMASK = EFLG_RX1OVR | EFLG_RX0OVR | EFLG_TXBO | EFLG_TXEP | EFLG_RXEP;
 
-class MCP2515 : public canbus::Canbus,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_8MHZ> {
+class MCP2515 final : public canbus::Canbus,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                            spi::DATA_RATE_8MHZ> {
  public:
-  MCP2515(){};
+  MCP2515() {};
   void set_mcp_clock(CanClock clock) { this->mcp_clock_ = clock; };
   void set_mcp_mode(const CanctrlReqopMode mode) { this->mcp_mode_ = mode; }
+  canbus::CanStatus get_status() override;
   static const struct TxBnRegs {
     REGISTER CTRL;
     REGISTER SIDH;
@@ -75,7 +75,11 @@ class MCP2515 : public canbus::Canbus,
  protected:
   CanClock mcp_clock_{MCP_8MHZ};
   CanctrlReqopMode mcp_mode_ = CANCTRL_REQOP_NORMAL;
+
+  uint8_t last_error_flags_{0};
+
   bool setup_internal() override;
+  canbus::CanEventFlags get_events() override;
   canbus::Error set_mode_(CanctrlReqopMode mode);
 
   uint8_t read_register_(REGISTER reg);
@@ -108,5 +112,4 @@ class MCP2515 : public canbus::Canbus,
   void clear_merr_();
   void clear_errif_();
 };
-}  // namespace mcp2515
-}  // namespace esphome
+}  // namespace esphome::mcp2515

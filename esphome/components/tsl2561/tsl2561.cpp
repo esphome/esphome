@@ -1,10 +1,11 @@
 #include "tsl2561.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tsl2561 {
+namespace esphome::tsl2561 {
 
-static const char *const TAG = "tsl2561";
+ESPHOME_LOG_TAG(TAG, "tsl2561");
+
+static constexpr uint32_t READ_TIMEOUT_ID = 0;
 
 static const uint8_t TSL2561_COMMAND_BIT = 0x80;
 static const uint8_t TSL2561_WORD_BIT = 0x20;
@@ -15,16 +16,15 @@ static const uint8_t TSL2561_REGISTER_DATA_0 = 0x0C;
 static const uint8_t TSL2561_REGISTER_DATA_1 = 0x0E;
 
 void TSL2561Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t id;
   if (!this->tsl2561_read_byte(TSL2561_REGISTER_ID, &id)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
   uint8_t timing;
   if (!this->tsl2561_read_byte(TSL2561_REGISTER_TIMING, &timing)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -39,10 +39,6 @@ void TSL2561Sensor::setup() {
 void TSL2561Sensor::dump_config() {
   LOG_SENSOR("", "TSL2561", this);
   LOG_I2C_DEVICE(this);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 
   int gain = this->gain_ == TSL2561_GAIN_1X ? 1 : 16;
   ESP_LOGCONFIG(TAG,
@@ -62,7 +58,7 @@ void TSL2561Sensor::update() {
   // Make sure the data is there when we will read it.
   auto timeout = static_cast<uint32_t>(this->get_integration_time_ms_() + 20);
 
-  this->set_timeout("illuminance", timeout, [this]() { this->read_data_(); });
+  this->set_timeout(READ_TIMEOUT_ID, timeout, [this]() { this->read_data_(); });
 }
 
 float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
@@ -71,6 +67,10 @@ float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
     return NAN;
   }
 
+  if (ch0 == 0) {
+    ESP_LOGVV(TAG, "No light detected");
+    return 0.0f;
+  }
   float d0 = ch0, d1 = ch1;
   float ratio = d1 / d0;
 
@@ -119,15 +119,12 @@ void TSL2561Sensor::read_data_() {
     return;
   }
   // Power off
-  if (!this->tsl2561_write_byte(TSL2561_REGISTER_CONTROL, 0b00000000)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->tsl2561_write_byte(TSL2561_REGISTER_CONTROL, 0b00000000)))
     return;
-  }
 
   float lx = this->calculate_lx_(data0, data1);
   ESP_LOGD(TAG, "Got illuminance=%.1flx", lx);
   this->publish_state(lx);
-  this->status_clear_warning();
 }
 float TSL2561Sensor::get_integration_time_ms_() {
   switch (this->integration_time_) {
@@ -143,24 +140,15 @@ float TSL2561Sensor::get_integration_time_ms_() {
 void TSL2561Sensor::set_integration_time(TSL2561IntegrationTime integration_time) {
   this->integration_time_ = integration_time;
 }
-void TSL2561Sensor::set_gain(TSL2561Gain gain) { this->gain_ = gain; }
-void TSL2561Sensor::set_is_cs_package(bool package_cs) { this->package_cs_ = package_cs; }
-float TSL2561Sensor::get_setup_priority() const { return setup_priority::DATA; }
+
 bool TSL2561Sensor::tsl2561_write_byte(uint8_t a_register, uint8_t value) {
   return this->write_byte(a_register | TSL2561_COMMAND_BIT, value);
 }
 bool TSL2561Sensor::tsl2561_read_uint(uint8_t a_register, uint16_t *value) {
-  uint8_t data[2];
-  if (!this->read_bytes(a_register | TSL2561_COMMAND_BIT, data, 2))
-    return false;
-  const uint16_t hi = data[1];
-  const uint16_t lo = data[0];
-  *value = (hi << 8) | lo;
-  return true;
+  return this->read_byte_16_le(a_register | TSL2561_COMMAND_BIT, value);
 }
 bool TSL2561Sensor::tsl2561_read_byte(uint8_t a_register, uint8_t *value) {
   return this->read_byte(a_register | TSL2561_COMMAND_BIT, value);
 }
 
-}  // namespace tsl2561
-}  // namespace esphome
+}  // namespace esphome::tsl2561

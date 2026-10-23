@@ -2,15 +2,15 @@
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/key_provider/key_provider.h"
+#include "esphome/components/gpio_expander/cached_gpio.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "sx1509_gpio_pin.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 #include "sx1509_registers.h"
 
 #include <vector>
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
 // These are used for clock config:
 const uint8_t INTERNAL_CLOCK_2MHZ = 2;
@@ -25,32 +25,34 @@ const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3,
 // for all components that implement the process(uint16_t data )
 class SX1509Processor {
  public:
-  virtual void process(uint16_t data){};
+  virtual void process(uint16_t data) {};
 };
 
-class SX1509KeyTrigger : public Trigger<uint8_t> {};
+class SX1509KeyTrigger final : public Trigger<uint8_t> {};
 
-class SX1509Component : public Component, public i2c::I2CDevice, public key_provider::KeyProvider {
+class SX1509Component final : public Component,
+                              public i2c::I2CDevice,
+                              public gpio_expander::CachedGpioExpander<uint16_t, 16>,
+                              public key_provider::KeyProvider {
  public:
   SX1509Component() = default;
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::IO; }
   void loop() override;
 
-  bool digital_read(uint8_t pin);
   uint16_t read_key_data();
   void set_pin_value(uint8_t pin, uint8_t i_on) { this->write_byte(REG_I_ON[pin], i_on); };
   void pin_mode(uint8_t pin, gpio::Flags flags);
-  void digital_write(uint8_t pin, bool bit_value);
   uint32_t get_clock() { return this->clk_x_; };
   void set_rows_cols(uint8_t rows, uint8_t cols) {
     this->rows_ = rows;
     this->cols_ = cols;
     this->has_keypad_ = true;
   };
-  void set_keys(std::string keys) { this->keys_ = std::move(keys); };
+  /// `keys` is a codegen PROGMEM table with one key code per button.
+  void set_keys(const uint8_t *keys) { this->keys_ = keys; }
   void set_sleep_time(uint16_t sleep_time) { this->sleep_time_ = sleep_time; };
   void set_scan_time(uint8_t scan_time) { this->scan_time_ = scan_time; };
   void set_debounce_time(uint8_t debounce_time = 1) { this->debounce_time_ = debounce_time; };
@@ -61,16 +63,21 @@ class SX1509Component : public Component, public i2c::I2CDevice, public key_prov
   void setup_led_driver(uint8_t pin);
 
  protected:
+  // Virtual methods from CachedGpioExpander — names come from base class
+  bool digital_read_hw(uint8_t pin) override;               // NOLINT(readability-identifier-naming)
+  bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
+  void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
+
   uint32_t clk_x_ = 2000000;
   uint8_t frequency_ = 0;
   uint16_t ddr_mask_ = 0x00;
-  uint16_t input_mask_ = 0x00;
+  uint16_t input_mask_ = 0x00;  // Cache for input values (16-bit for all pins)
   uint16_t port_mask_ = 0x00;
   uint16_t output_state_ = 0x00;
   bool has_keypad_ = false;
   uint8_t rows_ = 0;
   uint8_t cols_ = 0;
-  std::string keys_;
+  const uint8_t *keys_{nullptr};
   uint16_t sleep_time_ = 128;
   uint8_t scan_time_ = 1;
   uint8_t debounce_time_ = 1;
@@ -90,5 +97,8 @@ class SX1509Component : public Component, public i2c::I2CDevice, public key_prov
   void clock_(uint8_t osc_source = 2, uint8_t osc_pin_function = 1, uint8_t osc_freq_out = 0, uint8_t osc_divider = 0);
 };
 
-}  // namespace sx1509
-}  // namespace esphome
+using SX1509GPIOPin = gpio_expander::ExpanderGPIOPin<SX1509Component>;
+
+}  // namespace esphome::sx1509
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::sx1509::SX1509Component);

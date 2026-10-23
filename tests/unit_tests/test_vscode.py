@@ -1,11 +1,13 @@
 import json
-import os
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from esphome import vscode
+import esphome.config_validation as cv
+from esphome.core import EsphomeError
 
 
-def _run_repl_test(input_data):
+def _run_repl_test(input_data, *, ace=False):
     """Reusable test function for different input scenarios."""
     input_data.append(_exit())
     with (
@@ -13,7 +15,8 @@ def _run_repl_test(input_data):
         patch("sys.stdout") as mock_stdout,
     ):
         args = Mock([])
-        args.ace = False
+        args.ace = ace
+        args.configuration = "config_dir"
         args.substitution = None
         vscode.read_config(args)
 
@@ -22,8 +25,7 @@ def _run_repl_test(input_data):
             call[0][0] for call in mock_stdout.write.call_args_list
         ).strip()
         splitted_output = full_output.split("\n")
-        remove_version = splitted_output[1:]  # remove first entry with version info
-        return remove_version
+        return splitted_output[1:]  # remove first entry with version info
 
 
 def _validate(file_path: str):
@@ -46,7 +48,7 @@ RESULT_NO_ERROR = '{"type": "result", "yaml_errors": [], "validation_errors": []
 
 
 def test_multi_file():
-    source_path = os.path.join("dir_path", "x.yaml")
+    source_path = str(Path("dir_path", "x.yaml"))
     output_lines = _run_repl_test(
         [
             _validate(source_path),
@@ -57,13 +59,13 @@ esp8266:
   board: !secret my_secret_board
 """),
             # read_file secrets.yaml
-            _file_response("""my_secret_board: esp1f"""),
+            _file_response("""my_secret_board: d1_mini"""),
         ]
     )
 
     expected_lines = [
         _read_file(source_path),
-        _read_file(os.path.join("dir_path", "secrets.yaml")),
+        _read_file(str(Path("dir_path", "secrets.yaml"))),
         RESULT_NO_ERROR,
     ]
 
@@ -71,7 +73,7 @@ esp8266:
 
 
 def test_shows_correct_range_error():
-    source_path = os.path.join("dir_path", "x.yaml")
+    source_path = str(Path("dir_path", "x.yaml"))
     output_lines = _run_repl_test(
         [
             _validate(source_path),
@@ -82,7 +84,7 @@ esp8266:
   broad: !secret my_secret_board        # typo here
 """),
             # read_file secrets.yaml
-            _file_response("""my_secret_board: esp1f"""),
+            _file_response("""my_secret_board: d1_mini"""),
         ]
     )
 
@@ -99,7 +101,7 @@ esp8266:
 
 
 def test_shows_correct_loaded_file_error():
-    source_path = os.path.join("dir_path", "x.yaml")
+    source_path = str(Path("dir_path", "x.yaml"))
     output_lines = _run_repl_test(
         [
             _validate(source_path),
@@ -122,8 +124,164 @@ packages:
     validation_error = error["validation_errors"][0]
     assert validation_error["message"].startswith("[broad] is an invalid option for")
     range = validation_error["range"]
-    assert range["document"] == os.path.join("dir_path", ".pkg.esp8266.yaml")
+    assert range["document"] == str(Path("dir_path", ".pkg.esp8266.yaml"))
     assert range["start_line"] == 1
     assert range["start_col"] == 2
     assert range["end_line"] == 1
     assert range["end_col"] == 7
+
+
+def _explode(*_args: object, **_kwargs: object) -> None:
+    raise AttributeError("'NoneType' object has no attribute 'get'")
+
+
+def test_unexpected_error_reports_origin() -> None:
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch("esphome.vscode.validate_config", _explode):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                _file_response("""esphome:
+  name: test1
+"""),
+            ]
+        )
+
+    result = json.loads(output_lines[-1])
+    assert result["validation_errors"] == []
+    (error,) = result["yaml_errors"]
+    assert error["message"].startswith(
+        "Unexpected error while validating: AttributeError: "
+        "'NoneType' object has no attribute 'get' ("
+    )
+    assert "test_vscode.py" in error["message"]
+    assert error["message"].endswith(" in _explode)")
+
+
+def test_esphome_error_stays_plain() -> None:
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch("esphome.vscode.validate_config", side_effect=EsphomeError("boom")):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                _file_response("""esphome:
+  name: test1
+"""),
+            ]
+        )
+
+    result = json.loads(output_lines[-1])
+    assert result["yaml_errors"] == [{"message": "boom"}]
+
+
+def test_invalid_stays_plain() -> None:
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch("esphome.vscode.validate_config", side_effect=cv.Invalid("bad value")):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                _file_response("""esphome:
+  name: test1
+"""),
+            ]
+        )
+
+    result = json.loads(output_lines[-1])
+    assert result["yaml_errors"] == [{"message": "bad value"}]
+
+
+def test_format_unexpected_error_without_traceback() -> None:
+    message = vscode._format_unexpected_error(ValueError("boom"))
+    assert message == "Unexpected error while validating: ValueError: boom"
+
+
+def test_reports_error_with_exception_message():
+    source_path = str(Path("dir_path", "x.yaml"))
+    output_lines = _run_repl_test(
+        [
+            _validate(source_path),
+            # read_file x.yaml
+            _file_response("""esphome:
+  name: test1
+host:
+sensor:
+  - platform: template
+    name: foo
+    update_interval: ms   # no number, so the validator raises Invalid(ValueError)
+"""),
+        ]
+    )
+
+    error = json.loads(output_lines[-1])
+    validation_error = error["validation_errors"][0]
+    assert validation_error["message"] == "could not convert string to float: ''."
+    assert validation_error["range"]["start_line"] == 6
+
+
+def test_unknown_action_range_is_the_key():
+    source_path = str(Path("dir_path", "x.yaml"))
+    output_lines = _run_repl_test(
+        [
+            _validate(source_path),
+            # read_file x.yaml
+            _file_response("""esphome:
+  name: test1
+host:
+button:
+  - platform: template
+    on_press:
+      - loggr.log: "msg"
+"""),
+        ]
+    )
+
+    error = json.loads(output_lines[-1])
+    validation_error = error["validation_errors"][0]
+    assert (
+        validation_error["message"]
+        == "Unable to find action with the name 'loggr.log'."
+    )
+    assert validation_error["range"]["start_line"] == 6
+    assert validation_error["range"]["start_col"] == 8
+
+
+def test_error_kept_when_range_lookup_fails():
+    source_path = str(Path("dir_path", "x.yaml"))
+    with patch.object(vscode, "get_invalid_range", side_effect=RuntimeError("boom")):
+        output_lines = _run_repl_test(
+            [
+                _validate(source_path),
+                # read_file x.yaml
+                _file_response("""esphome:
+  name: test1
+host:
+logger:
+  levl: DEBUG
+"""),
+            ]
+        )
+
+    error = json.loads(output_lines[-1])
+    (validation_error,) = error["validation_errors"]
+    assert validation_error["range"] is None
+    assert "extra keys not allowed" in validation_error["message"]
+
+
+def test_ace_mode_loads_config_relative_to_configuration_dir():
+    output_lines = _run_repl_test(
+        [
+            _validate("x.yaml"),
+            # read_file x.yaml
+            _file_response("""esphome:
+  name: test1
+esp8266:
+  board: d1_mini
+"""),
+        ],
+        ace=True,
+    )
+
+    assert output_lines == [
+        _read_file(str(Path("config_dir", "x.yaml"))),
+        RESULT_NO_ERROR,
+    ]

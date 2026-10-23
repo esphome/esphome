@@ -1,4 +1,7 @@
 substitutions:
+  y: ${x}  # Circular reference, expect to pass unresolved.
+  x: ${y}  # Circular reference, expect to pass unresolved.
+  double_height: ${height * 2}
   width: 7
   height: 8
   enabled: true
@@ -8,6 +11,9 @@ substitutions:
   area: 25
   numberOne: 1
   var1: 79
+  double_width: ${width * 2}
+  c: ${b+1}
+  b: ${undefined_variable | default(79) }
 
 test_list:
   - "The area is ${width * height}"
@@ -20,3 +26,8 @@ test_list:
   - The pin number is ${pin.number}
   - The square root is: ${math.sqrt(area)}
   - The number is ${var${numberOne} + 1}
+  - ord("a") = ${ ord("a") }
+  - chr(97) = ${ chr(97) }
+  - len([1,2,3]) = ${ len([1,2,3]) }
+  - width = ${width}, double_width = ${double_width}
+  - a = ${a}

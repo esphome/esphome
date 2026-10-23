@@ -7,6 +7,8 @@ This directory contains end-to-end integration tests for ESPHome, focusing on te
 - `conftest.py` - Common fixtures and utilities
 - `const.py` - Constants used throughout the integration tests
 - `types.py` - Type definitions for fixtures and functions
+- `raw_api_client.py` - Minimal plaintext api client whose reads happen only on request (for backpressure tests)
+- `state_utils.py` - State handling utilities (e.g., `InitialStateHelper`, `find_entity`, `require_entity`)
 - `fixtures/` - YAML configuration files for tests
 - `test_*.py` - Individual test files
 
@@ -19,12 +21,110 @@ The `yaml_config` fixture automatically loads YAML configurations based on the t
 - The fixture file must exist or the test will fail with a clear error message
 - The fixture automatically injects a dynamic port number into the API configuration
 
+Tests marked `@pytest.mark.shared_yaml("name")` load `fixtures/name.yaml` instead
+of the test-named file and compile it in a shared, hash-keyed build directory, so
+the whole group pays one full compile and each test only a relink. The marker
+argument must be a single-line string literal (CI test selection maps fixtures to
+test files by scanning for it), and marked tests must hand the `yaml_config`
+content to `run_compiled` unmodified.
+
 ### Key Fixtures
 
 - `run_compiled` - Combines write, compile, and run operations into a single context manager
 - `api_client_connected` - Creates an API client that automatically connects using ReconnectLogic
 - `reserved_tcp_port` - Reserves a TCP port by holding the socket open until ESPHome needs it
 - `unused_tcp_port` - Provides the reserved port number for each test
+
+### Helper Utilities
+
+#### InitialStateHelper (`state_utils.py`)
+
+The `InitialStateHelper` class solves a common problem in integration tests: when an API client connects, ESPHome automatically broadcasts the current state of all entities. This can interfere with tests that want to track only new state changes triggered by test actions.
+
+**What it does:**
+- Tracks all entities (except stateless ones like buttons)
+- Swallows the first state broadcast for each entity
+- Forwards all subsequent state changes to your test callback
+- Provides `wait_for_initial_states()` to synchronize before test actions; it fails the test on timeout, naming the entities still without a state
+
+**When to use it:**
+- Any test that triggers entity state changes and needs to verify them
+- Tests that would otherwise see duplicate or unexpected states
+- Tests that need clean separation between initial state and test-triggered changes
+
+**Implementation details:**
+- Uses `(device_id, key)` tuples to uniquely identify entities across devices
+- Automatically excludes `ButtonInfo` entities (stateless)
+- Provides debug logging to track state reception (use `--log-cli-level=DEBUG`)
+- Safe for concurrent use with multiple entity types
+
+#### Subscribing after the initial states (`state_utils.py`)
+
+`subscribe_after_initial_states()` does the `InitialStateHelper` setup in one call: it subscribes, waits
+for every entity's connect time state, and fails the test with the entities still missing on timeout.
+It returns a `StateSubscription` with `initial_states` (by key) and a `waiter`, a `StateWaiter` that sees
+every later state. `waiter.next_state(key=..., state_type=...)` arms a wait for the next matching state;
+call it before sending the command. `press_and_wait()` presses a button and returns the next state of a
+type, from one entity when `key=` is given:
+
+```python
+from .state_utils import press_and_wait, subscribe_after_initial_states
+
+entities, _ = await client.list_entities_services()
+sub = await subscribe_after_initial_states(client, entities)
+
+state = await press_and_wait(client, entities, sub.waiter, "set_position", CoverState)
+assert state.position == pytest.approx(0.5, abs=0.01)
+
+next_light = sub.waiter.next_state(key=light.key, state_type=LightState)
+client.light_command(key=light.key, state=True)
+assert (await next_light).state is True
+```
+
+Pass `on_state=` as well when the test also needs to collect every state.
+
+#### Entity Lookup Helpers (`state_utils.py`)
+
+These helpers simplify finding entities, services and device info in test code:
+
+**`find_entity(entities, object_id_substring, entity_type=None, *, exact=False)`**
+- Finds an entity by searching for a substring in its `object_id` (case-insensitive)
+- With `exact=True`, the whole `object_id` must match exactly (case-sensitive)
+- Optionally filters by entity type (e.g., `BinarySensorInfo`)
+- Returns `None` if not found
+
+**`require_entity(entities, object_id_substring, entity_type=None, description=None, *, exact=False)`**
+- Same as `find_entity` but raises `AssertionError` if not found
+- Use `description` parameter for clearer error messages
+
+**`require_only_entity(entities, entity_type)`**
+- Returns the one entity of `entity_type`; raises `AssertionError` if there is none or more than one
+
+**`require_service(services, name)`**
+- Returns the user service with exactly this name; fails the test with the available names if missing
+
+**`await assert_device_name(client, name)`**
+- Fetches `device_info()`, asserts it is not `None` and has this name, and returns it
+
+```python
+from aioesphomeapi import BinarySensorInfo, LockInfo
+from .state_utils import (
+    assert_device_name,
+    require_entity,
+    require_only_entity,
+    require_service,
+)
+
+await assert_device_name(client, "host-test")
+entities, services = await client.list_entities_services()
+
+# Find entities with clear error messages
+binary_sensor = require_entity(entities, "test_sensor", BinarySensorInfo)
+button = require_entity(entities, "set_true", description="Set True button")
+switch = require_entity(entities, "relay", exact=True)  # not "relay_2"
+lock = require_only_entity(entities, LockInfo)
+my_service = require_service(services, "my_service")
+```
 
 ### Writing Tests
 
@@ -40,8 +140,7 @@ async def test_my_feature(
     # Write, compile and run the ESPHome device, then connect to API
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Test your feature using the connected client
-        device_info = await client.device_info()
-        assert device_info is not None
+        await assert_device_name(client, "my-test-device")
 ```
 
 ### Creating YAML Fixtures
@@ -125,11 +224,37 @@ async def test_my_sensor(
 ```
 
 ##### State Subscription Pattern
+
+**Recommended: Using subscribe_after_initial_states**
+
+When an API client connects, ESPHome automatically sends the current state of all entities.
+`subscribe_after_initial_states()` (from `state_utils.py`) swallows these initial states and only forwards
+subsequent state changes, to your callback and to the returned `waiter`:
+
+```python
+from .state_utils import subscribe_after_initial_states
+
+entities, services = await client.list_entities_services()
+sub = await subscribe_after_initial_states(client, entities)
+
+# Arm the wait before the action that produces the state
+expected = sub.waiter.expect(
+    lambda s: isinstance(s, SensorState) and s.state == expected_value
+)
+# ... trigger state changes ...
+result = await expected
+```
+
+**Legacy: Manual State Tracking**
+
+If you need to handle initial states manually (not recommended for new tests):
+
 ```python
 # Track state changes with futures
 loop = asyncio.get_running_loop()
 states: dict[int, EntityState] = {}
 state_future: asyncio.Future[EntityState] = loop.create_future()
+
 
 def on_state(state: EntityState) -> None:
     states[state.key] = state
@@ -138,24 +263,23 @@ def on_state(state: EntityState) -> None:
         if not state_future.done():
             state_future.set_result(state)
 
+
 client.subscribe_states(on_state)
 
 # Wait for state with timeout
-try:
-    result = await asyncio.wait_for(state_future, timeout=5.0)
-except asyncio.TimeoutError:
-    pytest.fail(f"Expected state not received. Got: {list(states.values())}")
+result = await wait_or_fail(
+    state_future, 5.0, "Expected state not received", states=states
+)
 ```
 
 ##### Service Execution Pattern
 ```python
 # Find and execute service
 entities, services = await client.list_entities_services()
-my_service = next((s for s in services if s.name == "my_service"), None)
-assert my_service is not None
+my_service = require_service(services, "my_service")
 
 # Execute with parameters
-client.execute_service(my_service, {"param1": "value1", "param2": 42})
+await client.execute_service(my_service, {"param1": "value1", "param2": 42})
 ```
 
 ##### Multiple Entity Tracking
@@ -166,10 +290,12 @@ entity_count = 50
 received_states: set[int] = set()
 all_states_future: asyncio.Future[bool] = loop.create_future()
 
+
 def on_state(state: EntityState) -> None:
     received_states.add(state.key)
     if len(received_states) >= entity_count and not all_states_future.done():
         all_states_future.set_result(True)
+
 
 client.subscribe_states(on_state)
 await asyncio.wait_for(all_states_future, timeout=10.0)
@@ -223,6 +349,7 @@ esphome:
     - id: my_device
       name: "Test Device"
       area_id: living_room
+      relation: via
 
 # API services
 api:
@@ -244,6 +371,7 @@ Create C++ components in `fixtures/external_components/` for:
 - Custom entity behaviors
 - Scheduler testing
 - Memory management tests
+- Deterministic network backpressure (`sndbuf_pin_component` pins socket send buffers; assert on its log line to prove the pin took effect)
 
 ##### Log Line Monitoring
 ```python
@@ -258,45 +386,46 @@ async with run_compiled(yaml_config, line_callback=on_log_line):
     # Test implementation
 ```
 
-Example using futures for specific log patterns:
+To wait for log lines, use `LineWaiter` (`log_utils.py`) instead of a hand written
+callback with one future per pattern:
 ```python
 import re
 
-loop = asyncio.get_running_loop()
-connected_future = loop.create_future()
-service_future = loop.create_future()
+from .log_utils import LineWaiter
 
-# Patterns to match
-connected_pattern = re.compile(r"Client .* connected from")
-service_pattern = re.compile(r"Service called")
+log = LineWaiter()
+# Arm expectations before the action that logs them; any number may be pending.
+connected = log.expect(re.compile(r"Client .* connected from"))
+value = log.expect(re.compile(r"value=(\d+)"))
 
-def check_output(line: str) -> None:
-    """Check log output for expected messages."""
-    if not connected_future.done() and connected_pattern.search(line):
-        connected_future.set_result(True)
-    elif not service_future.done() and service_pattern.search(line):
-        service_future.set_result(True)
-
-async with run_compiled(yaml_config, line_callback=check_output):
+async with run_compiled(yaml_config, line_callback=log.callback):
     async with api_client_connected() as client:
-        # Wait for specific log message
-        await asyncio.wait_for(connected_future, timeout=5.0)
-
-        # Do test actions...
-
-        # Wait for service log
-        await asyncio.wait_for(service_future, timeout=5.0)
+        await log.wait(connected)
+        match = await log.wait(value, timeout=5.0, msg="no value logged")
+        assert match.group(1) == "42"
+        assert log.count("Service called") == 1
 ```
+
+- `expect(pattern)` only matches lines that arrive after the call. A `str` matches as a
+  substring and resolves to the line; a compiled regex is searched and resolves to its match.
+  Each expectation resolves on the next matching line, so two armed for the same text both
+  resolve on its first occurrence: arm the second after the first resolves, or use `count`.
+- `wait(future)` fails the test on timeout with the pattern and the last 20 log lines.
+- `wait_for(*needles)` also matches lines seen before the call, but only one may be pending.
+- `count(pattern)` counts the lines seen so far.
 
 **Note**: Tests that monitor log messages typically have fewer race conditions compared to state-based testing, making them more reliable. However, be aware that the host platform currently does not have a thread-safe logger, so logging from threads will not work correctly.
 
 ##### Timeout Handling
+Always use timeouts for async operations. `wait_or_fail` (`wait_utils.py`) awaits a future,
+coroutine or `asyncio.Event` and fails the test with a message on timeout. Keyword arguments
+are added to the message only on failure, so pass live collections; lists, tuples, deques and
+mappings show their last 20 items.
 ```python
-# Always use timeouts for async operations
-try:
-    result = await asyncio.wait_for(some_future, timeout=5.0)
-except asyncio.TimeoutError:
-    pytest.fail("Operation timed out - check test expectations")
+from .wait_utils import wait_or_fail
+
+result = await wait_or_fail(some_future, 5.0, "no reply to the service call")
+await wait_or_fail(done_event, 5.0, "sensor never updated", log_lines=log_lines)
 ```
 
 #### 6. Common Assertions

@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 using namespace esphome::fan;
 
@@ -19,7 +18,8 @@ void BedJetFan::control(const fan::FanCall &call) {
   }
   bool did_change = false;
 
-  if (call.get_state().has_value() && this->state != *call.get_state()) {
+  auto state_opt = call.get_state();
+  if (state_opt.has_value() && this->state != *state_opt) {
     // Turning off is easy:
     if (this->state && this->parent_->button_off()) {
       this->state = false;
@@ -36,8 +36,9 @@ void BedJetFan::control(const fan::FanCall &call) {
   }
 
   // ignore speed changes if not on or turning on
-  if (this->state && call.get_speed().has_value()) {
-    auto speed = *call.get_speed();
+  auto speed_opt = call.get_speed();
+  if (this->state && speed_opt.has_value()) {
+    auto speed = *speed_opt;
     if (speed >= 1) {
       this->speed = speed;
       // Fan.speed is 1-20, but Bedjet expects 0-19, so subtract 1
@@ -52,7 +53,7 @@ void BedJetFan::control(const fan::FanCall &call) {
 }
 
 void BedJetFan::on_status(const BedjetStatusPacket *data) {
-  ESP_LOGVV(TAG, "[%s] Handling on_status with data=%p", this->get_name().c_str(), (void *) data);
+  ESP_LOGVV(TAG, "[%s] Handling on_status with data=%p", LOG_STR_ARG(this->get_log_name()), (void *) data);
   bool did_change = false;
   bool new_state = data->mode != MODE_STANDBY && data->mode != MODE_WAIT;
 
@@ -95,11 +96,11 @@ bool BedJetFan::update_status_() {
 }
 
 void BedJetFan::update() {
-  ESP_LOGD(TAG, "[%s] update()", this->get_name().c_str());
+  ESP_LOGD(TAG, "[%s] update()", LOG_STR_ARG(this->get_log_name()));
   // TODO: if the hub component is already polling, do we also need to include polling?
   //  We're already going to get on_status() at the hub's polling interval.
   auto result = this->update_status_();
-  ESP_LOGD(TAG, "[%s] update_status result=%s", this->get_name().c_str(), result ? "true" : "false");
+  ESP_LOGD(TAG, "[%s] update_status result=%s", LOG_STR_ARG(this->get_log_name()), result ? "true" : "false");
 }
 
 /** Resets states to defaults. */
@@ -107,7 +108,6 @@ void BedJetFan::reset_state_() {
   this->state = false;
   this->publish_state();
 }
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

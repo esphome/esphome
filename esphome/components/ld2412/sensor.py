@@ -1,0 +1,112 @@
+import esphome.codegen as cg
+from esphome.components import sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID,
+    CONF_LIGHT,
+    CONF_MOVING_DISTANCE,
+    DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_ILLUMINANCE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_FLASH,
+    ICON_LIGHTBULB,
+    ICON_MOTION_SENSOR,
+    ICON_SIGNAL,
+    UNIT_CENTIMETER,
+    UNIT_EMPTY,
+    UNIT_PERCENT,
+)
+from esphome.types import ConfigType
+
+from . import CONF_LD2412_ID, LD2412Component
+
+DEPENDENCIES = ["ld2412"]
+
+CONF_DETECTION_DISTANCE = "detection_distance"
+CONF_MOVE_ENERGY = "move_energy"
+CONF_MOVING_ENERGY = "moving_energy"
+CONF_STILL_DISTANCE = "still_distance"
+CONF_STILL_ENERGY = "still_energy"
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
+        cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
+        cv.Optional(CONF_DETECTION_DISTANCE): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_DISTANCE,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
+            icon=ICON_SIGNAL,
+            unit_of_measurement=UNIT_CENTIMETER,
+        ),
+        cv.Optional(CONF_LIGHT): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_ILLUMINANCE,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
+            icon=ICON_LIGHTBULB,
+            unit_of_measurement=UNIT_EMPTY,  # No standard unit for this light sensor
+        ),
+        cv.Optional(CONF_MOVING_DISTANCE): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_DISTANCE,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
+            icon=ICON_SIGNAL,
+            unit_of_measurement=UNIT_CENTIMETER,
+        ),
+        cv.Optional(CONF_MOVING_ENERGY): sensor.sensor_schema(
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
+            icon=ICON_MOTION_SENSOR,
+            unit_of_measurement=UNIT_PERCENT,
+        ),
+        cv.Optional(CONF_STILL_DISTANCE): sensor.sensor_schema(
+            device_class=DEVICE_CLASS_DISTANCE,
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
+            icon=ICON_SIGNAL,
+            unit_of_measurement=UNIT_CENTIMETER,
+        ),
+        cv.Optional(CONF_STILL_ENERGY): sensor.sensor_schema(
+            filters=sensor.TIMEOUT_THROTTLE_FILTERS,
+            icon=ICON_FLASH,
+            unit_of_measurement=UNIT_PERCENT,
+        ),
+    }
+)
+
+CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
+    {
+        cv.Optional(f"gate_{x}"): (
+            {
+                cv.Optional(CONF_MOVE_ENERGY): sensor.sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                    filters=sensor.TIMEOUT_THROTTLE_FILTERS,
+                    icon=ICON_MOTION_SENSOR,
+                    unit_of_measurement=UNIT_PERCENT,
+                ),
+                cv.Optional(CONF_STILL_ENERGY): sensor.sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                    filters=sensor.TIMEOUT_THROTTLE_FILTERS,
+                    icon=ICON_FLASH,
+                    unit_of_measurement=UNIT_PERCENT,
+                ),
+            }
+        )
+        for x in range(14)
+    }
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_LD2412_ID])
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_DETECTION_DISTANCE, hub.set_detection_distance_sensor)
+    await sensors(CONF_LIGHT, hub.set_light_sensor)
+    await sensors(CONF_MOVING_DISTANCE, hub.set_moving_target_distance_sensor)
+    await sensors(CONF_MOVING_ENERGY, hub.set_moving_target_energy_sensor)
+    await sensors(CONF_STILL_DISTANCE, hub.set_still_target_distance_sensor)
+    await sensors(CONF_STILL_ENERGY, hub.set_still_target_energy_sensor)
+    for x in range(14):
+        if gate_conf := config.get(f"gate_{x}"):
+            if move_config := gate_conf.get(CONF_MOVE_ENERGY):
+                sens = await sensor.new_sensor(move_config)
+                cg.add(hub.set_gate_move_sensor(x, sens))
+            if still_config := gate_conf.get(CONF_STILL_ENERGY):
+                sens = await sensor.new_sensor(still_config)
+                cg.add(hub.set_gate_still_sensor(x, sens))

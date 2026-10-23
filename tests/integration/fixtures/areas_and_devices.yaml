@@ -15,15 +15,19 @@ esphome:
     - id: light_controller_device
       name: Light Controller
       area_id: living_room_area  # Uses top-level area
+      relation: via
     - id: temp_sensor_device
       name: Temperature Sensor
       area_id: bedroom_area
+      relation: via
     - id: motion_detector_device
       name: Motion Detector
       area_id: living_room_area  # Reuses top-level area
+      relation: child
     - id: smart_switch_device
       name: Smart Switch
       area_id: kitchen_area
+      relation: child
 
 host:
 api:
@@ -53,6 +57,12 @@ sensor:
     name: Smart Switch Power
     device_id: smart_switch_device
     lambda: return 4.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Living Room Sensor
+    device_id: ""
+    lambda: return 5.0;
     update_interval: 0.1s
 
 # Switches with the same name on different devices to test device_id lookup
@@ -96,3 +106,23 @@ switch:
       - logger.log: "Turning on Test Switch on Motion Detector"
     turn_off_action:
       - logger.log: "Turning off Test Switch on Motion Detector"
+
+  - platform: template
+    name: Living Room Blank Switch
+    device_id: ""
+    id: test_switch_blank_living_room
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Living Room Blank Switch"
+    turn_off_action:
+      - logger.log: "Turning off Living Room Blank Switch"
+
+  - platform: template
+    name: Living Room None Switch
+    device_id:
+    id: test_switch_none_living_room
+    optimistic: true
+    turn_on_action:
+      - logger.log: "Turning on Living Room None Switch"
+    turn_off_action:
+      - logger.log: "Turning off Living Room None Switch"

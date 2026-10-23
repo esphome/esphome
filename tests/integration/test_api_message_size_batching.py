@@ -7,7 +7,9 @@ import asyncio
 from aioesphomeapi import EntityState, NumberInfo, SelectInfo, TextInfo, TextSensorInfo
 import pytest
 
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -21,9 +23,7 @@ async def test_api_message_size_batching(
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Verify we can get device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "message-size-batching-test"
+        await assert_device_name(client, "message-size-batching-test")
 
         # List entities - this will batch various sized messages together
         entity_info, services = await asyncio.wait_for(
@@ -60,33 +60,13 @@ async def test_api_message_size_batching(
             f"Expected exactly 1 text input entity, got {len(text_inputs)}"
         )
 
-        # Collect all select entity object_ids for error messages
-        select_ids = [s.object_id for s in selects]
-
         # Find our specific test entities
-        small_select = None
-        medium_select = None
-        large_select = None
-
-        for select in selects:
-            if select.object_id == "small_select":
-                small_select = select
-            elif select.object_id == "medium_select":
-                medium_select = select
-            elif (
-                select.object_id
-                == "large_select_with_many_options_to_create_larger_payload"
-            ):
-                large_select = select
-
-        assert small_select is not None, (
-            f"Could not find small_select entity. Found: {select_ids}"
-        )
-        assert medium_select is not None, (
-            f"Could not find medium_select entity. Found: {select_ids}"
-        )
-        assert large_select is not None, (
-            f"Could not find large_select entity. Found: {select_ids}"
+        small_select = require_entity(selects, "small_select", exact=True)
+        medium_select = require_entity(selects, "medium_select", exact=True)
+        large_select = require_entity(
+            selects,
+            "large_select_with_many_options_to_create_larger_payload",
+            exact=True,
         )
 
         # Verify the selects have the expected number of options
@@ -100,46 +80,20 @@ async def test_api_message_size_batching(
             f"Expected 50 options for large_select, got {len(large_select.options)}"
         )
 
-        # Collect all text sensor object_ids for error messages
-        text_sensor_ids = [t.object_id for t in text_sensors]
-
         # Verify text sensors with different value lengths
-        short_text_sensor = None
-        medium_text_sensor = None
-        long_text_sensor = None
-
-        for text_sensor in text_sensors:
-            if text_sensor.object_id == "short_text_sensor":
-                short_text_sensor = text_sensor
-            elif text_sensor.object_id == "medium_text_sensor":
-                medium_text_sensor = text_sensor
-            elif text_sensor.object_id == "long_text_sensor_with_very_long_value":
-                long_text_sensor = text_sensor
-
-        assert short_text_sensor is not None, (
-            f"Could not find short_text_sensor. Found: {text_sensor_ids}"
-        )
-        assert medium_text_sensor is not None, (
-            f"Could not find medium_text_sensor. Found: {text_sensor_ids}"
-        )
-        assert long_text_sensor is not None, (
-            f"Could not find long_text_sensor. Found: {text_sensor_ids}"
+        require_entity(text_sensors, "short_text_sensor", exact=True)
+        require_entity(text_sensors, "medium_text_sensor", exact=True)
+        require_entity(
+            text_sensors, "long_text_sensor_with_very_long_value", exact=True
         )
 
         # Check text input which can have a long max_length
-        text_input = None
-        text_input_ids = [t.object_id for t in text_inputs]
-
-        for ti in text_inputs:
-            if ti.object_id == "test_text_input":
-                text_input = ti
-                break
-
-        assert text_input is not None, (
-            f"Could not find test_text_input. Found: {text_input_ids}"
-        )
+        text_input = require_entity(text_inputs, "test_text_input", exact=True)
         assert text_input.max_length == 255, (
             f"Expected max_length 255, got {text_input.max_length}"
+        )
+        assert text_input.pattern == "[A-Za-z0-9 ]+", (
+            f"Expected pattern '[A-Za-z0-9 ]+', got '{text_input.pattern}'"
         )
 
         # Verify total entity count - messages of various sizes were batched successfully
@@ -175,15 +129,13 @@ async def test_api_message_size_batching(
         client.subscribe_states(on_state)
 
         # Wait for states with timeout
-        try:
-            await asyncio.wait_for(states_future, timeout=5.0)
-        except TimeoutError:
-            missing_keys = expected_keys - received_keys
-            pytest.fail(
-                f"Did not receive states from all entities within 5 seconds. "
-                f"Missing keys: {missing_keys}, "
-                f"Received {len(received_keys)} of {len(expected_keys)} expected states"
-            )
+        await wait_or_fail(
+            states_future,
+            5.0,
+            "Did not receive states from all entities",
+            missing_keys=lambda: expected_keys - received_keys,
+            received=lambda: f"{len(received_keys)} of {len(expected_keys)}",
+        )
 
         # Verify we received states from all entities
         assert expected_keys.issubset(received_keys)

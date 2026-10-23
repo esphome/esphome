@@ -1,0 +1,20 @@
+esphome:
+  name: test-device
+
+esp32:
+  board: esp32dev
+
+# Uptime sensor
+sensor:
+  - platform: uptime
+    name: "Battery"
+    id: uptime_battery
+
+# Template sensor also named "Battery" - this should conflict
+  - platform: template
+    name: "Battery"
+    id: template_battery
+    lambda: |-
+      return 95.0;
+    unit_of_measurement: "%"
+    update_interval: 60s

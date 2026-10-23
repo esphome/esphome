@@ -1,0 +1,4 @@
+socket:
+
+network:
+  enable_ipv6: true

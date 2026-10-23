@@ -1,17 +1,28 @@
 #pragma once
 
-#include "i2c_bus.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/optional.h"
 #include <array>
 #include <vector>
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "esphome/core/optional.h"
+#include "i2c_bus.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 #define LOG_I2C_DEVICE(this) ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
 
 class I2CDevice;  // forward declaration
+
+/// One register write for I2CDevice::write_registers(); tables of these may live in PROGMEM.
+struct I2CRegValue {
+  uint8_t reg;
+  uint8_t value;
+};
+static_assert(sizeof(I2CRegValue) == 2, "each entry is sent to the bus as is");
+
+/// Out of line so each check_chip_id() caller only pays for a call.
+void log_wrong_chip_id(uint8_t id, uint8_t expected);
 
 /// @brief This class is used to create I2CRegister objects that act as proxies to read/write internal registers on an
 /// I2C device.
@@ -161,51 +172,73 @@ class I2CDevice {
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
   /// @return an i2c::ErrorCode
-  ErrorCode read(uint8_t *data, size_t len) { return bus_->read(address_, data, len); }
+  ErrorCode read(uint8_t *data, size_t len) const { return bus_->write_readv(this->address_, nullptr, 0, data, len); }
 
   /// @brief reads an array of bytes from a specific register in the I²C device
   /// @param a_register an 8 bits internal address of the I²C register to read from
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop = true);
+  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len);
 
   /// @brief reads an array of bytes from a specific register in the I²C device
   /// @param a_register the 16 bits internal address of the I²C register to read from
   /// @param data pointer to an array of bytes to store the information
   /// @param len length of the buffer = number of bytes to read
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop = true);
+  ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len);
 
   /// @brief writes an array of bytes to a device using an I2CBus
   /// @param data pointer to an array that contains the bytes to send
   /// @param len length of the buffer = number of bytes to write
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode write(const uint8_t *data, size_t len, bool stop = true) { return bus_->write(address_, data, len, stop); }
+  ErrorCode write(const uint8_t *data, size_t len) const {
+    return bus_->write_readv(this->address_, data, len, nullptr, 0);
+  }
+
+  /// @brief writes an array of bytes to a device, then reads an array, as a single transaction
+  /// @param write_data pointer to an array that contains the bytes to send
+  /// @param write_len length of the buffer = number of bytes to write
+  /// @param read_data pointer to an array to store the bytes read
+  /// @param read_len length of the buffer = number of bytes to read
+  /// @return an i2c::ErrorCode
+  ErrorCode write_read(const uint8_t *write_data, size_t write_len, uint8_t *read_data, size_t read_len) const {
+    return bus_->write_readv(this->address_, write_data, write_len, read_data, read_len);
+  }
 
   /// @brief writes an array of bytes to a specific register in the I²C device
   /// @param a_register the internal address of the register to read from
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop = true);
+  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len) const;
 
   /// @brief write an array of bytes to a specific register in the I²C device
   /// @param a_register the 16 bits internal address of the register to read from
   /// @param data pointer to an array to store the bytes
   /// @param len length of the buffer = number of bytes to read
-  /// @param stop (true/false): True will send a stop message, releasing the bus after
-  /// transmission. False will send a restart, keeping the connection active.
   /// @return an i2c::ErrorCode
-  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop = true);
+  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len) const;
+
+  /// Write each register and value of \p table in order, stopping at the first failure.
+  /// The table may be in PROGMEM.
+  bool write_registers(const I2CRegValue *table, size_t count) const;
+  template<size_t N> bool write_registers(const I2CRegValue (&table)[N]) const {
+    return this->write_registers(table, N);
+  }
+
+  /// Read the 8-bit ID at \p a_register and accept it when it matches \p expected in the bits set in \p mask.
+  /// Otherwise mark \p component failed and return false.
+  bool check_chip_id(Component *component, uint8_t a_register, uint8_t expected, uint8_t mask = 0xFF) {
+    uint8_t id;
+    const ErrorCode err = this->read_register(a_register, &id, 1);
+    if (err == ERROR_OK && (id & mask) == (expected & mask))
+      return true;
+    if (err == ERROR_OK)
+      log_wrong_chip_id(id, expected & mask);
+    component->mark_failed(err == ERROR_OK ? LOG_STR("Wrong chip ID") : LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
 
   ///
   /// Compat APIs
@@ -217,7 +250,7 @@ class I2CDevice {
     return read_register(a_register, data, len) == ERROR_OK;
   }
 
-  bool read_bytes_raw(uint8_t *data, uint8_t len) { return read(data, len) == ERROR_OK; }
+  bool read_bytes_raw(uint8_t *data, uint8_t len) const { return read(data, len) == ERROR_OK; }
 
   template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {
     std::array<uint8_t, N> res;
@@ -236,9 +269,7 @@ class I2CDevice {
 
   bool read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len);
 
-  bool read_byte(uint8_t a_register, uint8_t *data, bool stop = true) {
-    return read_register(a_register, data, 1, stop) == ERROR_OK;
-  }
+  bool read_byte(uint8_t a_register, uint8_t *data) { return read_register(a_register, data, 1) == ERROR_OK; }
 
   optional<uint8_t> read_byte(uint8_t a_register) {
     uint8_t data;
@@ -249,11 +280,26 @@ class I2CDevice {
 
   bool read_byte_16(uint8_t a_register, uint16_t *data) { return read_bytes_16(a_register, data, 1); }
 
-  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len, bool stop = true) {
-    return write_register(a_register, data, len, stop) == ERROR_OK;
+  /// Read len 16-bit values stored least significant byte first; no conversion is compiled on little-endian hosts.
+  bool read_bytes_16_le(uint8_t a_register, uint16_t *data, uint8_t len) {
+    if (this->read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2) != ERROR_OK)
+      return false;
+    for (size_t i = 0; i < len; i++)
+      data[i] = convert_little_endian(data[i]);
+    return true;
+  }
+  bool read_bytes_16_le(uint8_t a_register, int16_t *data, uint8_t len) {
+    return this->read_bytes_16_le(a_register, reinterpret_cast<uint16_t *>(data), len);
   }
 
-  bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) {
+  /// Read a 16-bit value stored least significant byte first.
+  bool read_byte_16_le(uint8_t a_register, uint16_t *data) { return this->read_bytes_16_le(a_register, data, 1); }
+
+  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) const {
+    return write_register(a_register, data, len) == ERROR_OK;
+  }
+
+  bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) const {
     return write_bytes(a_register, data.data(), data.size());
   }
 
@@ -261,18 +307,23 @@ class I2CDevice {
     return write_bytes(a_register, data.data(), data.size());
   }
 
-  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len);
+  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const;
 
-  bool write_byte(uint8_t a_register, uint8_t data, bool stop = true) {
-    return write_bytes(a_register, &data, 1, stop);
-  }
+  bool write_byte(uint8_t a_register, uint8_t data) const { return write_bytes(a_register, &data, 1); }
 
-  bool write_byte_16(uint8_t a_register, uint16_t data) { return write_bytes_16(a_register, &data, 1); }
+  bool write_byte_16(uint8_t a_register, uint16_t data) const;
+
+  /// Write a 16-bit value least significant byte first.
+  bool write_byte_16_le(uint8_t a_register, uint16_t data) const;
+
+  /// Read a register, replace the bits in @p mask with those of @p value and write it back.
+  /// The write always happens; bits of @p value outside @p mask are ignored. Logs both values at VERBOSE.
+  /// @return false if the read or the write failed (nothing is written after a failed read)
+  bool update_register(uint8_t a_register, uint8_t mask, uint8_t value);
 
  protected:
   uint8_t address_{0x00};  ///< store the address of the device on the bus
   I2CBus *bus_{nullptr};   ///< pointer to I2CBus instance
 };
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c

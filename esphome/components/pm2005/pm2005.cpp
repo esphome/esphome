@@ -1,10 +1,9 @@
 #include "esphome/core/log.h"
 #include "pm2005.h"
 
-namespace esphome {
-namespace pm2005 {
+namespace esphome::pm2005 {
 
-static const char *const TAG = "pm2005";
+ESPHOME_LOG_TAG(TAG, "pm2005");
 
 // Converts a sensor situation to a human readable string
 static const LogString *pm2005_get_situation_string(int status) {
@@ -39,7 +38,6 @@ static const LogString *pm2005_get_measuring_mode_string(int status) {
 static inline uint16_t get_sensor_value(const uint8_t *data, uint8_t i) { return data[i] * 0x100 + data[i + 1]; }
 
 void PM2005Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (this->sensor_type_ == PM2005) {
     this->situation_value_index_ = 3;
     this->pm_1_0_value_index_ = 4;
@@ -55,8 +53,7 @@ void PM2005Component::setup() {
   }
 
   if (this->read(this->data_buffer_, 12) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -109,14 +106,10 @@ void PM2005Component::dump_config() {
                 this->sensor_type_ == PM2105);
 
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 
   LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10 ", this->pm_10_0_sensor_);
 }
 
-}  // namespace pm2005
-}  // namespace esphome
+}  // namespace esphome::pm2005

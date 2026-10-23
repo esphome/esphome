@@ -1,8 +1,22 @@
+from esphome.components.mipi import (
+    MIPI,
+    MODE_RGB,
+    NORON,
+    PAGESEL,
+    PIXFMT,
+    SLPOUT,
+    SPIMODESEL,
+    SWIRE1,
+    SWIRE2,
+    TEON,
+    WCE,
+    WRAM,
+    WRCTRLD,
+    DriverChip,
+    delay,
+)
 from esphome.components.spi import TYPE_QUAD
-
-from .. import MODE_RGB
-from . import DriverChip, delay
-from .commands import MIPI, NORON, PAGESEL, PIXFMT, SLPOUT, SWIRE1, SWIRE2, TEON, WRAM
+from esphome.const import CONF_MIRROR_X, CONF_MIRROR_Y
 
 DriverChip(
     "T-DISPLAY-S3-AMOLED",
@@ -14,7 +28,9 @@ DriverChip(
     bus_mode=TYPE_QUAD,
     brightness=0xD0,
     color_order=MODE_RGB,
-    initsequence=(SLPOUT,),  # Requires early SLPOUT
+    no_slpout=True,  # SLPOUT is in the init sequence, early
+    requires={"psram"},
+    initsequence=(SLPOUT,),
 )
 
 DriverChip(
@@ -28,6 +44,7 @@ DriverChip(
     data_rate="40MHz",
     brightness=0xD0,
     color_order=MODE_RGB,
+    requires={"psram"},
     initsequence=(
         (PAGESEL, 4),
         (0x6A, 0x00),
@@ -75,6 +92,23 @@ T4_S3_AMOLED = RM690B0.extend(
     reset_pin=13,
     enable_pin=9,
     bus_mode=TYPE_QUAD,
+    requires={"psram"},
 )
 
-models = {}
+CO5300 = DriverChip(
+    "CO5300",
+    brightness=0xD0,
+    color_order=MODE_RGB,
+    bus_mode=TYPE_QUAD,
+    no_slpout=True,
+    transforms={CONF_MIRROR_X, CONF_MIRROR_Y},
+    width=480,
+    height=480,
+    initsequence=(
+        (SLPOUT,),  # Requires early SLPOUT
+        (PAGESEL, 0x00),
+        (SPIMODESEL, 0x80),
+        (WRCTRLD, 0x20),
+        (WCE, 0x00),
+    ),
+)

@@ -1,8 +1,8 @@
 #include "ch422g.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ch422g {
+namespace esphome::ch422g {
 
 static const uint8_t CH422G_REG_MODE = 0x24;
 static const uint8_t CH422G_MODE_OUTPUT = 0x01;      // enables output mode on 0-7
@@ -11,16 +11,15 @@ static const uint8_t CH422G_REG_IN = 0x26;           // read reg for input bits
 static const uint8_t CH422G_REG_OUT = 0x38;          // write reg for output bits 0-7
 static const uint8_t CH422G_REG_OUT_UPPER = 0x23;    // write reg for output bits 8-11
 
-static const char *const TAG = "ch422g";
+ESPHOME_LOG_TAG(TAG, "ch422g");
 
 void CH422GComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // set outputs before mode
   this->write_outputs_();
   // Set mode and check for errors
   if (!this->set_mode_(this->mode_value_) || !this->read_inputs_()) {
     ESP_LOGE(TAG, "CH422G not detected at 0x%02X", this->address_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -36,9 +35,6 @@ void CH422GComponent::loop() {
 void CH422GComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "CH422G:");
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void CH422GComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
@@ -64,11 +60,7 @@ bool CH422GComponent::digital_read(uint8_t pin) {
 }
 
 void CH422GComponent::digital_write(uint8_t pin, bool value) {
-  if (value) {
-    this->output_bits_ |= (1 << pin);
-  } else {
-    this->output_bits_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_bits_, 1 << pin, value);
   this->write_outputs_();
 }
 
@@ -92,9 +84,11 @@ bool CH422GComponent::read_inputs_() {
 
 // Write a register. Can't use the standard write_byte() method because there is no single pre-configured i2c address.
 bool CH422GComponent::write_reg_(uint8_t reg, uint8_t value) {
-  auto err = this->bus_->write(reg, &value, 1);
+  auto err = this->bus_->write_readv(reg, &value, 1, nullptr, 0);
   if (err != i2c::ERROR_OK) {
-    this->status_set_warning(str_sprintf("write failed for register 0x%X, error %d", reg, err).c_str());
+    char buf[64];
+    snprintf(buf, sizeof(buf), "write failed for register 0x%X, error %d", reg, err);
+    this->status_set_warning(buf);
     return false;
   }
   this->status_clear_warning();
@@ -103,9 +97,11 @@ bool CH422GComponent::write_reg_(uint8_t reg, uint8_t value) {
 
 uint8_t CH422GComponent::read_reg_(uint8_t reg) {
   uint8_t value;
-  auto err = this->bus_->read(reg, &value, 1);
+  auto err = this->bus_->write_readv(reg, nullptr, 0, &value, 1);
   if (err != i2c::ERROR_OK) {
-    this->status_set_warning(str_sprintf("read failed for register 0x%X, error %d", reg, err).c_str());
+    char buf[64];
+    snprintf(buf, sizeof(buf), "read failed for register 0x%X, error %d", reg, err);
+    this->status_set_warning(buf);
     return 0;
   }
   this->status_clear_warning();
@@ -121,19 +117,6 @@ bool CH422GComponent::write_outputs_() {
 
 float CH422GComponent::get_setup_priority() const { return setup_priority::IO; }
 
-// Run our loop() method very early in the loop, so that we cache read values
-// before other components call our digital_read() method.
-float CH422GComponent::get_loop_priority() const { return 9.0f; }  // Just after WIFI
+}  // namespace esphome::ch422g
 
-void CH422GGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-bool CH422GGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
-
-void CH422GGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value ^ this->inverted_); }
-std::string CH422GGPIOPin::dump_summary() const { return str_sprintf("EXIO%u via CH422G", pin_); }
-void CH422GGPIOPin::set_flags(gpio::Flags flags) {
-  flags_ = flags;
-  this->parent_->pin_mode(this->pin_, flags);
-}
-
-}  // namespace ch422g
-}  // namespace esphome
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::ch422g::CH422GComponent, "EXIO%u via CH422G")

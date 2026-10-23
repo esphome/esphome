@@ -9,12 +9,15 @@ from esphome.const import (
     CONF_FLIP_X,
     CONF_FLIP_Y,
     CONF_INVERT,
-    CONF_LAMBDA,
     CONF_MODEL,
     CONF_OFFSET_X,
     CONF_OFFSET_Y,
     CONF_RESET_PIN,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+DOMAIN = "ssd1306_base"
 
 ssd1306_base_ns = cg.esphome_ns.namespace("ssd1306_base")
 SSD1306 = ssd1306_base_ns.class_("SSD1306", cg.PollingComponent, display.DisplayBuffer)
@@ -40,16 +43,17 @@ MODELS = {
 SSD1306_MODEL = cv.enum(MODELS, upper=True, space="_")
 
 
-def _validate(value):
+def _validate(value: ConfigType) -> ConfigType:
     model = value[CONF_MODEL]
-    if model not in ("SSD1305_128X32", "SSD1305_128X64"):
-        # Contrast is default value (1.0) while brightness is not
-        # Indicates user is using old `brightness` option
-        if value[CONF_BRIGHTNESS] != 1.0 and value[CONF_CONTRAST] == 1.0:
-            raise cv.Invalid(
-                "SSD1306/SH1106 no longer accepts brightness option, "
-                'please use "contrast" instead.'
-            )
+    if (
+        model not in ("SSD1305_128X32", "SSD1305_128X64")
+        and value[CONF_BRIGHTNESS] != 1.0
+        and value[CONF_CONTRAST] == 1.0
+    ):
+        raise cv.Invalid(
+            "SSD1306/SH1106 no longer accepts brightness option, "
+            'please use "contrast" instead.'
+        )
 
     return value
 
@@ -72,31 +76,17 @@ SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def setup_ssd1306(var, config):
+async def setup_ssd1306(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
-    if CONF_BRIGHTNESS in config:
-        cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
-    if CONF_CONTRAST in config:
-        cg.add(var.init_contrast(config[CONF_CONTRAST]))
-    if CONF_EXTERNAL_VCC in config:
-        cg.add(var.set_external_vcc(config[CONF_EXTERNAL_VCC]))
-    if CONF_FLIP_X in config:
-        cg.add(var.init_flip_x(config[CONF_FLIP_X]))
-    if CONF_FLIP_Y in config:
-        cg.add(var.init_flip_y(config[CONF_FLIP_Y]))
-    if CONF_OFFSET_X in config:
-        cg.add(var.init_offset_x(config[CONF_OFFSET_X]))
-    if CONF_OFFSET_Y in config:
-        cg.add(var.init_offset_y(config[CONF_OFFSET_Y]))
-    if CONF_INVERT in config:
-        cg.add(var.init_invert(config[CONF_INVERT]))
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    cg.add_optional(var.init_brightness, config.get(CONF_BRIGHTNESS))
+    cg.add_optional(var.init_contrast, config.get(CONF_CONTRAST))
+    cg.add_optional(var.set_external_vcc, config.get(CONF_EXTERNAL_VCC))
+    cg.add_optional(var.init_flip_x, config.get(CONF_FLIP_X))
+    cg.add_optional(var.init_flip_y, config.get(CONF_FLIP_Y))
+    cg.add_optional(var.init_offset_x, config.get(CONF_OFFSET_X))
+    cg.add_optional(var.init_offset_y, config.get(CONF_OFFSET_Y))
+    cg.add_optional(var.init_invert, config.get(CONF_INVERT))
+    await display.add_writer(var, config)

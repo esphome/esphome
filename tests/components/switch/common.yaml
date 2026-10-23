@@ -1,6 +1,6 @@
 binary_sensor:
   - platform: switch
-    id: some_binary_sensor
+    id: switch_some_binary_sensor
     name: "Template Switch State"
     source_id: the_switch
 
@@ -9,3 +9,40 @@ switch:
     name: "Template Switch"
     id: the_switch
     optimistic: true
+    on_state:
+      - if:
+          condition:
+            - lambda: return x;
+          then:
+            - logger.log: "Switch turned ON"
+          else:
+            - logger.log: "Switch turned OFF"
+    on_turn_on:
+      - logger.log: "Switch is now ON"
+    on_turn_off:
+      - logger.log: "Switch is now OFF"
+  - platform: template
+    name: "Flash Storage Switch"
+    id: flash_storage_switch
+    optimistic: true
+    restore_state:
+      state: KEEP
+      storage: flash
+
+esphome:
+  on_boot:
+    - switch.turn_on: the_switch
+    - switch.turn_off: the_switch
+    - switch.control:
+        id: the_switch
+        state: !lambda return (1 > 2);
+    - if:
+        condition:
+          switch.is_on: the_switch
+        then:
+          - logger.log: "Switch is on"
+    - if:
+        condition:
+          switch.is_off: the_switch
+        then:
+          - logger.log: "Switch is off"

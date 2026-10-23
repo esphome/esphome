@@ -3,8 +3,7 @@
 #include "esphome/components/remote_base/midea_protocol.h"
 #include "esphome/components/climate/climate_mode.h"
 
-namespace esphome {
-namespace midea_ir {
+namespace esphome::midea_ir {
 
 using climate::ClimateMode;
 using climate::ClimateFanMode;
@@ -88,5 +87,4 @@ class SpecialData : public MideaData {
   static const uint8_t TURBO_TOGGLE = 9;
 };
 
-}  // namespace midea_ir
-}  // namespace esphome
+}  // namespace esphome::midea_ir

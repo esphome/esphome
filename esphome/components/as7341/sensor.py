@@ -1,13 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import UNIT_COUNTS
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CLEAR,
     CONF_GAIN,
-    CONF_ID,
-    DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_EMPTY,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@mrgnr"]
 DEPENDENCIES = ["i2c"]
@@ -29,10 +31,7 @@ CONF_F5 = "f5"
 CONF_F6 = "f6"
 CONF_F7 = "f7"
 CONF_F8 = "f8"
-CONF_CLEAR = "clear"
 CONF_NIR = "nir"
-
-UNIT_COUNTS = "#"
 
 AS7341_GAIN = as7341_ns.enum("AS7341Gain")
 GAIN_OPTIONS = {
@@ -54,7 +53,7 @@ SENSOR_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_COUNTS,
     icon=ICON_BRIGHTNESS_5,
     accuracy_decimals=0,
-    device_class=DEVICE_CLASS_ILLUMINANCE,
+    device_class=DEVICE_CLASS_EMPTY,
     state_class=STATE_CLASS_MEASUREMENT,
 )
 
@@ -74,7 +73,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CLEAR): SENSOR_SCHEMA,
             cv.Optional(CONF_NIR): SENSOR_SCHEMA,
             cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS),
-            cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_ATIME, default=29): cv.uint8_t,
             cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),
         }
     )
@@ -96,10 +95,8 @@ SENSORS = {
 }
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_atime(config[CONF_ATIME]))

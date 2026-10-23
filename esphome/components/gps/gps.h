@@ -1,16 +1,12 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
-#include "esphome/core/component.h"
-#include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include <TinyGPSPlus.h>
 
-#include <vector>
-
-namespace esphome {
-namespace gps {
+namespace esphome::gps {
 
 class GPS;
 
@@ -25,7 +21,7 @@ class GPSListener {
   GPS *parent_;
 };
 
-class GPS : public PollingComponent, public uart::UARTDevice {
+class GPS final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_latitude_sensor(sensor::Sensor *latitude_sensor) { this->latitude_sensor_ = latitude_sensor; }
   void set_longitude_sensor(sensor::Sensor *longitude_sensor) { this->longitude_sensor_ = longitude_sensor; }
@@ -35,10 +31,12 @@ class GPS : public PollingComponent, public uart::UARTDevice {
   void set_satellites_sensor(sensor::Sensor *satellites_sensor) { this->satellites_sensor_ = satellites_sensor; }
   void set_hdop_sensor(sensor::Sensor *hdop_sensor) { this->hdop_sensor_ = hdop_sensor; }
 
+#ifdef GPS_LISTENER_COUNT
   void register_listener(GPSListener *listener) {
     listener->parent_ = this;
     this->listeners_.push_back(listener);
   }
+#endif
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void dump_config() override;
@@ -53,8 +51,9 @@ class GPS : public PollingComponent, public uart::UARTDevice {
   float speed_{NAN};
   float course_{NAN};
   float altitude_{NAN};
-  uint16_t satellites_{0};
   float hdop_{NAN};
+  uint16_t satellites_{0};
+  bool has_time_{false};
 
   sensor::Sensor *latitude_sensor_{nullptr};
   sensor::Sensor *longitude_sensor_{nullptr};
@@ -64,12 +63,10 @@ class GPS : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *satellites_sensor_{nullptr};
   sensor::Sensor *hdop_sensor_{nullptr};
 
-  bool has_time_{false};
   TinyGPSPlus tiny_gps_;
-  std::vector<GPSListener *> listeners_{};
+#ifdef GPS_LISTENER_COUNT
+  StaticVector<GPSListener *, GPS_LISTENER_COUNT> listeners_;
+#endif
 };
 
-}  // namespace gps
-}  // namespace esphome
-
-#endif  // USE_ARDUINO
+}  // namespace esphome::gps

@@ -1,18 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/components/button/button.h"
+namespace esphome::factory_reset {
 
-namespace esphome {
-namespace factory_reset {
+/// Run by the factory reset button.
+void factory_reset_device();
 
-class FactoryResetButton : public button::Button, public Component {
- public:
-  void dump_config() override;
-
- protected:
-  void press_action() override;
-};
-
-}  // namespace factory_reset
-}  // namespace esphome
+}  // namespace esphome::factory_reset

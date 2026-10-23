@@ -5,10 +5,9 @@
 #include <cinttypes>
 #include <cmath>
 
-namespace esphome {
-namespace ina2xx_base {
+namespace esphome::ina2xx_base {
 
-static const char *const TAG = "ina2xx";
+ESPHOME_LOG_TAG(TAG, "ina2xx");
 
 #define OKFAILED(b) ((b) ? "OK" : "FAILED")
 
@@ -50,18 +49,14 @@ static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
 }
 
 void INA2XX::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (!this->reset_config_()) {
-    ESP_LOGE(TAG, "Reset failed, check connection");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Reset failed, check connection"));
     return;
   }
   delay(2);
 
   if (!this->check_device_model_()) {
-    ESP_LOGE(TAG, "Device not supported or model selected improperly in yaml file");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Device not supported or model selected improperly in yaml file"));
     return;
   }
   delay(1);
@@ -80,8 +75,6 @@ void INA2XX::setup() {
 
   this->state_ = State::IDLE;
 }
-
-float INA2XX::get_setup_priority() const { return setup_priority::DATA; }
 
 void INA2XX::update() {
   ESP_LOGD(TAG, "Updating");
@@ -179,11 +172,7 @@ void INA2XX::loop() {
         break;
 
       case State::DATA_COLLECTION_8:
-        if (this->full_loop_is_okay_) {
-          this->status_clear_warning();
-        } else {
-          this->status_set_warning();
-        }
+        this->status_comm_result(this->full_loop_is_okay_);
         this->state_ = State::IDLE;
         break;
 
@@ -202,9 +191,6 @@ void INA2XX::dump_config() {
     ESP_LOGE(TAG, "  Device model mismatch. Found device with ID = %x. Please check your configuration.",
              this->dev_id_);
   }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG,
                 "  Shunt resistance = %f Ohm\n"
@@ -214,7 +200,8 @@ void INA2XX::dump_config() {
                 "  CURRENT_LSB = %f\n"
                 "  SHUNT_CAL = %d",
                 this->shunt_resistance_ohm_, this->max_current_a_, this->shunt_tempco_ppm_c_,
-                (uint8_t) this->adc_range_, this->adc_range_ ? "±40.96 mV" : "±163.84 mV", this->current_lsb_,
+                (uint8_t) this->adc_range_,
+                this->adc_range_ ? LOG_STR_LITERAL("±40.96 mV") : LOG_STR_LITERAL("±163.84 mV"), this->current_lsb_,
                 this->shunt_cal_);
 
   ESP_LOGCONFIG(TAG, "  ADC Samples = %d; ADC times: Bus = %d μs, Shunt = %d μs, Temp = %d μs",
@@ -259,7 +246,12 @@ bool INA2XX::reset_energy_counters() {
 bool INA2XX::reset_config_() {
   ESP_LOGV(TAG, "Reset");
   ConfigurationRegister cfg{0};
-  cfg.RST = true;
+  if (!this->reset_on_boot_) {
+    ESP_LOGI(TAG, "Skipping on-boot device reset");
+    cfg.RST = false;
+  } else {
+    cfg.RST = true;
+  }
   return this->write_unsigned_16_(RegisterMap::REG_CONFIG, cfg.raw_u16);
 }
 
@@ -361,8 +353,8 @@ bool INA2XX::configure_shunt_() {
     ESP_LOGW(TAG, "Shunt value too high");
   }
   this->shunt_cal_ &= 0x7FFF;
-  ESP_LOGV(TAG, "Given Rshunt=%f Ohm and Max_current=%.3f", this->shunt_resistance_ohm_, this->max_current_a_);
-  ESP_LOGV(TAG, "New CURRENT_LSB=%f, SHUNT_CAL=%u", this->current_lsb_, this->shunt_cal_);
+  ESP_LOGV(TAG, "Rshunt=%f Ohm, max current=%.3f A, current LSB=%f, shunt cal=%u", this->shunt_resistance_ohm_,
+           this->max_current_a_, this->current_lsb_, this->shunt_cal_);
   return this->write_unsigned_16_(RegisterMap::REG_SHUNT_CAL, this->shunt_cal_);
 }
 
@@ -389,10 +381,10 @@ bool INA2XX::read_shunt_voltage_mv_(float &volt_out) {
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_VSHUNT, 3, raw);
     raw >>= 4;
-    volt_reading = this->two_complement_(raw, 20);
+    volt_reading = sign_extend<20>(raw);
   } else {
     ret = this->read_unsigned_(RegisterMap::REG_VSHUNT, 2, raw);
-    volt_reading = this->two_complement_(raw, 16);
+    volt_reading = sign_extend<16>(raw);
   }
 
   if (ret) {
@@ -416,10 +408,10 @@ bool INA2XX::read_bus_voltage_(float &volt_out) {
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_VBUS, 3, raw);
     raw >>= 4;
-    volt_reading = this->two_complement_(raw, 20);
+    volt_reading = sign_extend<20>(raw);
   } else {
     ret = this->read_unsigned_(RegisterMap::REG_VBUS, 2, raw);
-    volt_reading = this->two_complement_(raw, 16);
+    volt_reading = sign_extend<16>(raw);
   }
   if (ret) {
     volt_out = this->cfg_.vbus_lsb * (float) volt_reading;
@@ -440,11 +432,11 @@ bool INA2XX::read_die_temp_c_(float &temp_out) {
 
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_DIETEMP, 2, raw);
-    temp_reading = this->two_complement_(raw, 16);
+    temp_reading = sign_extend<16>(raw);
   } else {
     ret = this->read_unsigned_(RegisterMap::REG_DIETEMP, 2, raw);
     raw >>= 4;
-    temp_reading = this->two_complement_(raw, 12);
+    temp_reading = sign_extend<12>(raw);
   }
   if (ret) {
     temp_out = this->cfg_.die_temp_lsb * (float) temp_reading;
@@ -465,10 +457,10 @@ bool INA2XX::read_current_a_(float &amps_out) {
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
     ret = this->read_unsigned_(RegisterMap::REG_CURRENT, 3, raw);
     raw >>= 4;
-    amps_reading = this->two_complement_(raw, 20);
+    amps_reading = sign_extend<20>(raw);
   } else {
     ret = this->read_unsigned_(RegisterMap::REG_CURRENT, 2, raw);
-    amps_reading = this->two_complement_(raw, 16);
+    amps_reading = sign_extend<16>(raw);
   }
 
   ESP_LOGV(TAG, "read_current_a_ ret=%s. current_lsb=%f. reading_lsb=%f", OKFAILED(ret), this->current_lsb_,
@@ -571,9 +563,8 @@ bool INA2XX::write_unsigned_16_(uint8_t reg, uint16_t val) {
 }
 
 bool INA2XX::read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out) {
-  static uint8_t rx_buf[5] = {0};  // max buffer size
-
-  if (reg_size > 5) {
+  uint8_t rx_buf[5]{};
+  if (reg_size > sizeof(rx_buf)) {
     return false;
   }
 
@@ -598,11 +589,6 @@ bool INA2XX::read_unsigned_16_(uint8_t reg, uint16_t &out) {
 }
 
 int64_t INA2XX::two_complement_(uint64_t value, uint8_t bits) {
-  if (value > (1ULL << (bits - 1))) {
-    return (int64_t) (value - (1ULL << bits));
-  } else {
-    return (int64_t) value;
-  }
+  return (int64_t) (value << (64 - bits)) >> (64 - bits);
 }
-}  // namespace ina2xx_base
-}  // namespace esphome
+}  // namespace esphome::ina2xx_base

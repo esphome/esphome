@@ -1,6 +1,0 @@
-packages:
-  base: !include common.yaml
-
-sensor:
-  - id: !extend my_sensor
-    pin: A0

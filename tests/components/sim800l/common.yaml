@@ -11,12 +11,6 @@ esphome:
       - sim800l.send_ussd:
           ussd: test_ussd
 
-uart:
-  - id: uart_sim800l
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 sim800l:
   on_sms_received:
     - lambda: |-
@@ -35,3 +29,17 @@ sim800l:
     - sim800l.disconnect
   on_ussd_received:
     - logger.log: "ussd_received"
+  on_call_connected:
+    - logger.log: "call connected"
+  on_call_disconnected:
+    - logger.log: "call disconnected"
+
+binary_sensor:
+  - platform: sim800l
+    registered:
+      name: SIM800L Registered
+
+sensor:
+  - platform: sim800l
+    rssi:
+      name: SIM800L RSSI

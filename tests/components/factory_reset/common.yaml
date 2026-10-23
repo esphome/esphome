@@ -1,3 +1,13 @@
 button:
   - platform: factory_reset
     name: Reset to Factory Default Settings
+
+factory_reset:
+  resets_required: 5
+  max_delay: 10s
+  on_increment:
+    - logger.log: Reset counter incremented
+
+switch:
+  - platform: factory_reset
+    name: Factory Reset Switch

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32
 
 #include <string.h>
@@ -25,6 +27,10 @@
 #include "driver/gpio.h"
 #include "esp_rom_gpio.h"
 #include "esp_rom_sys.h"
+#include "esp_idf_version.h"
+
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) || \
+                                     ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
 
 static const char *TAG = "jl1101";
 #define PHY_CHECK(a, str, goto_tag, ...) \
@@ -336,4 +342,6 @@ esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config) {
 err:
   return NULL;
 }
+
+#endif /* USE_ARDUINO */
 #endif /* USE_ESP32 */

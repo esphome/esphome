@@ -1,9 +1,3 @@
-uart:
-  - id: uart_pylontech0
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 115200
-
 pylontech:
   - id: pylontech0
   - id: pylontech1
@@ -20,6 +14,15 @@ sensor:
       id: pyl01_soc
     mos_temperature:
       id: pyl01_mos_temperature
+    cells:
+      - cell: 0
+        voltage:
+          id: pyl01_cell_0_voltage
+        temperature:
+          id: pyl01_cell_0_temperature
+      - cell: 14
+        voltage:
+          id: pyl01_cell_14_voltage
   - platform: pylontech
     pylontech_id: pylontech1
     battery: 1
@@ -46,3 +49,15 @@ text_sensor:
       id: pyl0_current_state
     temperature_state:
       id: pyl0_temperature_state
+
+button:
+  - platform: template
+    name: Pylontech cell polling
+    on_press:
+      - pylontech.set_cell_polling:
+          id: pylontech0
+          enabled: !lambda return false;
+      # pylontech1 has no cells, so this does nothing
+      - pylontech.set_cell_polling:
+          id: pylontech1
+          enabled: true

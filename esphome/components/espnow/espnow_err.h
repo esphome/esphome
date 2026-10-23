@@ -1,0 +1,18 @@
+#pragma once
+
+#if defined(USE_ESP32) || defined(USE_ESP8266)
+
+#include "espnow_types.h"
+
+namespace esphome::espnow {
+
+static constexpr esp_err_t ESP_ERR_ESPNOW_CMP_BASE = (ESP_ERR_ESPNOW_BASE + 20);
+static constexpr esp_err_t ESP_ERR_ESPNOW_FAILED = (ESP_ERR_ESPNOW_CMP_BASE + 1);
+static constexpr esp_err_t ESP_ERR_ESPNOW_OWN_ADDRESS = (ESP_ERR_ESPNOW_CMP_BASE + 2);
+static constexpr esp_err_t ESP_ERR_ESPNOW_DATA_SIZE = (ESP_ERR_ESPNOW_CMP_BASE + 3);
+static constexpr esp_err_t ESP_ERR_ESPNOW_PEER_NOT_SET = (ESP_ERR_ESPNOW_CMP_BASE + 4);
+static constexpr esp_err_t ESP_ERR_ESPNOW_PEER_NOT_PAIRED = (ESP_ERR_ESPNOW_CMP_BASE + 5);
+
+}  // namespace esphome::espnow
+
+#endif  // USE_ESP32 || USE_ESP8266

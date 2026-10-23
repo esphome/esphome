@@ -6,15 +6,14 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace es7243e {
+namespace esphome::es7243e {
 
-static const char *const TAG = "es7243e";
+ESPHOME_LOG_TAG(TAG, "es7243e");
 
 // Mark the component as failed; use only in setup
 #define ES7243E_ERROR_FAILED(func) \
   if (!(func)) { \
-    this->mark_failed(); \
+    this->mark_failed(LOG_STR("Failed to initialize")); \
     return; \
   }
 
@@ -24,18 +23,9 @@ static const char *const TAG = "es7243e";
     return false; \
   }
 
-void ES7243E::dump_config() {
-  ESP_LOGCONFIG(TAG, "ES7243E audio ADC:");
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Failed to initialize");
-    return;
-  }
-}
+void ES7243E::dump_config() { ESP_LOGCONFIG(TAG, "ES7243E audio ADC:"); }
 
 void ES7243E::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   ES7243E_ERROR_FAILED(this->write_byte(ES7243E_CLOCK_MGR_REG01, 0x3A));
   ES7243E_ERROR_FAILED(this->write_byte(ES7243E_RESET_REG00, 0x80));
   ES7243E_ERROR_FAILED(this->write_byte(ES7243E_TEST_MODE_REGF9, 0x00));
@@ -108,18 +98,17 @@ bool ES7243E::configure_mic_gain_() {
 
 uint8_t ES7243E::es7243e_gain_reg_value_(float mic_gain) {
   // reg: 12 - 34.5dB, 13 - 36dB, 14 - 37.5dB
-  mic_gain += 0.5;
-  if (mic_gain <= 33.0) {
+  mic_gain += 0.5f;
+  if (mic_gain <= 33.0f) {
     return (uint8_t) mic_gain / 3;
   }
-  if (mic_gain < 36.0) {
+  if (mic_gain < 36.0f) {
     return 12;
   }
-  if (mic_gain < 37.0) {
+  if (mic_gain < 37.0f) {
     return 13;
   }
   return 14;
 }
 
-}  // namespace es7243e
-}  // namespace esphome
+}  // namespace esphome::es7243e

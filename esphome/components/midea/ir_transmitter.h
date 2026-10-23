@@ -1,11 +1,10 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 #ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 
-namespace esphome {
-namespace midea {
+namespace esphome::midea {
 
 using remote_base::RemoteTransmitterBase;
 using IrData = remote_base::MideaData;
@@ -54,15 +53,15 @@ class IrFollowMeData : public IrData {
   void set_fahrenheit(bool val) { this->set_mask_(2, val, 32); }
 
  protected:
-  static const uint8_t MIN_TEMP_C = 0;
-  static const uint8_t MAX_TEMP_C = 37;
+  inline static constexpr uint8_t MIN_TEMP_C = 0;
+  inline static constexpr uint8_t MAX_TEMP_C = 37;
 
   // see
   // https://github.com/crankyoldgit/IRremoteESP8266/blob/9bdf8abcb465268c5409db99dc83a26df64c7445/src/ir_Midea.h#L116
-  static const uint8_t MIN_TEMP_F = 32;
+  inline static constexpr uint8_t MIN_TEMP_F = 32;
   // see
   // https://github.com/crankyoldgit/IRremoteESP8266/blob/9bdf8abcb465268c5409db99dc83a26df64c7445/src/ir_Midea.h#L117
-  static const uint8_t MAX_TEMP_F = 99;
+  inline static constexpr uint8_t MAX_TEMP_F = 99;
 };
 
 class IrSpecialData : public IrData {
@@ -84,8 +83,7 @@ class IrTransmitter {
   RemoteTransmitterBase *transmitter_{nullptr};
 };
 
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea
 
-#endif
-#endif  // USE_ARDUINO
+#endif  // USE_REMOTE_TRANSMITTER
+#endif  // USE_ARDUINO || USE_ESP_IDF

@@ -8,44 +8,44 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INDEX,
+    CONF_LAMBDA,
     CONF_MODE,
     CONF_MQTT_ID,
     CONF_ON_VALUE,
     CONF_OPERATION,
     CONF_OPTION,
-    CONF_TRIGGER_ID,
+    CONF_OPTIONS,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.cpp_generator import MockObjClass
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import (
+    ApplyEntity,
+    SubEntities,
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArguments
+from esphome.cpp_types import global_ns
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "select"
 IS_PLATFORM_COMPONENT = True
 
 select_ns = cg.esphome_ns.namespace("select")
 Select = select_ns.class_("Select", cg.EntityBase)
 SelectPtr = Select.operator("ptr")
+ApplySelect = select_ns.class_("ApplySelect", Select)
 
-# Triggers
-SelectStateTrigger = select_ns.class_(
-    "SelectStateTrigger",
-    automation.Trigger.template(cg.std_string, cg.size_t),
-)
-
-# Actions
-SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
-SelectSetIndexAction = select_ns.class_("SelectSetIndexAction", automation.Action)
-SelectOperationAction = select_ns.class_("SelectOperationAction", automation.Action)
+# Conditions
+SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
 
 # Enums
 SelectOperation = select_ns.enum("SelectOperation")
-SELECT_OPERATION_OPTIONS = {
-    "NEXT": SelectOperation.SELECT_OP_NEXT,
-    "PREVIOUS": SelectOperation.SELECT_OP_PREVIOUS,
-    "FIRST": SelectOperation.SELECT_OP_FIRST,
-    "LAST": SelectOperation.SELECT_OP_LAST,
-}
+SELECT_OPERATION_OPTIONS = SelectOperation.options(
+    "NEXT", "PREVIOUS", "FIRST", "LAST", prefix="SELECT_OP_"
+)
 
 
 _SELECT_SCHEMA = (
@@ -55,11 +55,7 @@ _SELECT_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
             cv.GenerateID(): cv.declare_id(Select),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(),
         }
     )
 )
@@ -86,20 +82,23 @@ def select_schema(
     return _SELECT_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-SELECT_SCHEMA = select_schema(Select)
-SELECT_SCHEMA.add_extra(cv.deprecated_schema_constant("select"))
-
-
+@setup_entity("select")
 async def setup_select_core_(var, config, *, options: list[str]):
-    await setup_entity(var, config, "select")
-
-    cg.add(var.traits.set_options(options))
+    if options:
+        table = cg.shared_progmem_array("select_options", cg.const_char_ptr, options)
+        cg.add(var.traits.set_options_static(table, len(options)))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.std_string, "x"), (cg.size_t, "i")], conf
+        # The callback carries the index; the automation gets the option text as well.
+        parent = automation.parent_ref(var)
+        index = cg.RawExpression("index")
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.StringRef, "x"), (cg.size_t, "i")],
+            conf,
+            params=[(cg.size_t, "index")],
+            forward=[cg.StringRef(parent.option_at(index)), index],
         )
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
@@ -113,20 +112,34 @@ async def setup_select_core_(var, config, *, options: list[str]):
 async def register_select(var, config, *, options: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_select(var))
+    queue_entity_register("select", config)
     CORE.register_platform_component("select", var)
     await setup_select_core_(var, config, options=options)
 
 
-async def new_select(config, *, options: list[str]):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_select(config, *args, options: list[str]):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_select(var, config, options=options)
     return var
 
 
-@coroutine_with_priority(100.0)
+APPLY_ENTITY = ApplyEntity(
+    ApplySelect,
+    ((SelectPtr, "entity"), (cg.size_t, "index")),
+    "entity->publish_state(index);",
+    (("option", "const char *option = entity->option_at(index);"),),
+)
+
+
+def sub_selects(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_select; ``apply`` statements can use ``entity``, ``index`` and ``option``."""
+    return SubEntities(new_select, config, parent, APPLY_ENTITY)
+
+
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    cg.add_define("USE_SELECT")
     cg.add_global(select_ns.using)
 
 
@@ -137,43 +150,65 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "select.set",
-    SelectSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
         }
     ),
+    automation.ApplyField(
+        CONF_OPTION,
+        "set_option",
+        cg.std_string,
+        const_fn=automation.literal_with_length,
+    ),
+    call="make_call",
 )
-async def select_set_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_OPTION], args, cg.std_string)
-    cg.add(var.set_option(template_))
-    return var
 
-
-@automation.register_action(
+automation.register_apply_action(
     "select.set_index",
-    SelectSetIndexAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_INDEX): cv.templatable(cv.positive_int),
         }
     ),
+    automation.ApplyField(CONF_INDEX, "set_index", cg.size_t),
+    call="make_call",
 )
-async def select_set_index_to_code(config, action_id, template_arg, args):
+
+
+@automation.register_condition(
+    "select.is",
+    SelectIsCondition,
+    OPERATION_BASE_SCHEMA.extend(
+        {
+            cv.Optional(CONF_OPTIONS): cv.All(
+                cv.ensure_list(cv.string_strict), cv.Length(min=1)
+            ),
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+        }
+    ).add_extra(cv.has_exactly_one_key(CONF_OPTIONS, CONF_LAMBDA)),
+)
+async def select_is_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_INDEX], args, cg.size_t)
-    cg.add(var.set_index(template_))
-    return var
+    if options := config.get(CONF_OPTIONS):
+        # Shared flash table of option pointers, length passed as a template argument
+        arg = cg.shared_progmem_array("select_is_options", cg.const_char_ptr, options)
+        template_arg = TemplateArguments(len(options), *template_arg)
+    else:
+        # Lambda
+        arg = await cg.process_lambda(
+            config[CONF_LAMBDA],
+            [(global_ns.namespace("StringRef &").operator("const"), "current")] + args,
+            return_type=cg.bool_,
+        )
+        template_arg = TemplateArguments(0, *template_arg)
+    return cg.new_Pvariable(condition_id, template_arg, paren, arg)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "select.operation",
-    SelectOperationAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_OPERATION): cv.templatable(
@@ -182,66 +217,28 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
+    automation.ApplyField(CONF_OPERATION, "with_operation", SelectOperation),
+    automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_),
+    call="make_call",
 )
-@automation.register_action(
-    "select.next",
-    SelectOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="NEXT"): cv.one_of("NEXT", upper=True),
-                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-            }
-        )
-    ),
-)
-@automation.register_action(
-    "select.previous",
-    SelectOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="PREVIOUS"): cv.one_of(
-                    "PREVIOUS", upper=True
-                ),
-                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
-            }
-        )
-    ),
-)
-@automation.register_action(
-    "select.first",
-    SelectOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="FIRST"): cv.one_of("FIRST", upper=True),
-            }
-        )
-    ),
-)
-@automation.register_action(
-    "select.last",
-    SelectOperationAction,
-    automation.maybe_simple_id(
-        OPERATION_BASE_SCHEMA.extend(
-            {
-                cv.Optional(CONF_MODE, default="LAST"): cv.one_of("LAST", upper=True),
-            }
-        )
-    ),
-)
-async def select_operation_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (operation := config.get(CONF_OPERATION)) is not None:
-        op_ = await cg.templatable(operation, args, SelectOperation)
-        cg.add(var.set_operation(op_))
-        if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, bool)
-            cg.add(var.set_cycle(template_))
-    if (mode := config.get(CONF_MODE)) is not None:
-        cg.add(var.set_operation(SELECT_OPERATION_OPTIONS[mode]))
-        if (cycle := config.get(CONF_CYCLE)) is not None:
-            cg.add(var.set_cycle(cycle))
-    return var
+
+# The operation is fixed by the action name; CONF_MODE only stays accepted in the config.
+for _name, _mode, _cycle in (
+    ("select.next", "NEXT", True),
+    ("select.previous", "PREVIOUS", True),
+    ("select.first", "FIRST", False),
+    ("select.last", "LAST", False),
+):
+    _schema = {cv.Optional(CONF_MODE, default=_mode): cv.one_of(_mode, upper=True)}
+    _fields = [
+        automation.ApplyCall(f"with_operation({SELECT_OPERATION_OPTIONS[_mode]})")
+    ]
+    if _cycle:
+        _schema[cv.Optional(CONF_CYCLE, default=True)] = cv.boolean
+        _fields.append(automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_))
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(OPERATION_BASE_SCHEMA.extend(_schema)),
+        *_fields,
+        call="make_call",
+    )

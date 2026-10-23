@@ -2,10 +2,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace scd4x {
+namespace esphome::scd4x {
 
-static const char *const TAG = "scd4x";
+ESPHOME_LOG_TAG(TAG, "scd4x");
 
 static const uint16_t SCD41_ID = 0x1408;
 static const uint16_t SCD40_ID = 0x440;
@@ -27,13 +26,11 @@ static const uint16_t SCD4X_CMD_GET_FEATURESET = 0x202f;
 static const float SCD4X_TEMPERATURE_OFFSET_MULTIPLIER = (1 << 16) / 175.0f;
 
 void SCD4XComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // the sensor needs 1000 ms to enter the idle state
   this->set_timeout(1000, [this]() {
     this->status_clear_error();
     if (!this->write_command(SCD4X_CMD_STOP_MEASUREMENTS)) {
-      ESP_LOGE(TAG, "Failed to stop measurements");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Failed to stop measurements"));
       return;
     }
     // According to the SCD4x datasheet the sensor will only respond to other commands after waiting 500 ms after
@@ -41,9 +38,7 @@ void SCD4XComponent::setup() {
     this->set_timeout(500, [this]() {
       uint16_t raw_serial_number[3];
       if (!this->get_register(SCD4X_CMD_GET_SERIAL_NUMBER, raw_serial_number, 3, 1)) {
-        ESP_LOGE(TAG, "Failed to read serial number");
-        this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Unable to read serial number"));
         return;
       }
       ESP_LOGD(TAG, "Serial number %02d.%02d.%02d", (uint16_t(raw_serial_number[0]) >> 8),
@@ -51,33 +46,25 @@ void SCD4XComponent::setup() {
 
       if (!this->write_command(SCD4X_CMD_TEMPERATURE_OFFSET,
                                (uint16_t) (temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
-        ESP_LOGE(TAG, "Error setting temperature offset");
-        this->error_code_ = MEASUREMENT_INIT_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Error setting temperature offset"));
         return;
       }
 
       // If pressure compensation available use it, else use altitude
       if (this->ambient_pressure_) {
         if (!this->update_ambient_pressure_compensation_(this->ambient_pressure_)) {
-          ESP_LOGE(TAG, "Error setting ambient pressure compensation");
-          this->error_code_ = MEASUREMENT_INIT_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR("Error setting ambient pressure compensation"));
           return;
         }
       } else {
         if (!this->write_command(SCD4X_CMD_ALTITUDE_COMPENSATION, this->altitude_compensation_)) {
-          ESP_LOGE(TAG, "Error setting altitude compensation");
-          this->error_code_ = MEASUREMENT_INIT_FAILED;
-          this->mark_failed();
+          this->mark_failed(LOG_STR("Error setting altitude compensation"));
           return;
         }
       }
 
       if (!this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, this->enable_asc_ ? 1 : 0)) {
-        ESP_LOGE(TAG, "Error setting automatic self calibration");
-        this->error_code_ = MEASUREMENT_INIT_FAILED;
-        this->mark_failed();
+        this->mark_failed(LOG_STR("Error setting automatic self calibration"));
         return;
       }
 
@@ -112,22 +99,6 @@ void SCD4XComponent::dump_config() {
 
   ESP_LOGCONFIG(TAG, "SCD4X:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed");
-        break;
-      case SERIAL_NUMBER_IDENTIFICATION_FAILED:
-        ESP_LOGW(TAG, "Unable to read firmware version");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown setup error");
-        break;
-    }
-  }
   ESP_LOGCONFIG(TAG,
                 "  Automatic self calibration: %s\n"
                 "  Measurement mode: %s\n"
@@ -135,7 +106,7 @@ void SCD4XComponent::dump_config() {
                 ONOFF(this->enable_asc_), measurement_mode_str, this->temperature_offset_);
   if (this->ambient_pressure_source_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
-                  this->ambient_pressure_source_->get_name().c_str());
+                  LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
   } else {
     if (this->ambient_pressure_) {
       ESP_LOGCONFIG(TAG,
@@ -239,7 +210,6 @@ bool SCD4XComponent::perform_forced_calibration(uint16_t current_co2_concentrati
       return true;
     } else {
       ESP_LOGE(TAG, "Force calibration failed");
-      this->error_code_ = FRC_FAILED;
       this->status_set_warning();
       return false;
     }
@@ -308,15 +278,15 @@ bool SCD4XComponent::start_measurement_() {
       break;
   }
 
-  static uint8_t remaining_retries = 3;
+  uint8_t remaining_retries = 3;
   while (remaining_retries) {
     if (!this->write_command(measurement_command)) {
       ESP_LOGE(TAG, "Error starting measurements");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->status_set_warning();
       if (--remaining_retries == 0)
         return false;
       delay(50);  // NOLINT wait 50 ms and try again
+      continue;
     }
     this->status_clear_warning();
     return true;
@@ -324,5 +294,4 @@ bool SCD4XComponent::start_measurement_() {
   return false;
 }
 
-}  // namespace scd4x
-}  // namespace esphome
+}  // namespace esphome::scd4x

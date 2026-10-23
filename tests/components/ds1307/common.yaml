@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_ds1307
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 time:
   - platform: ds1307
+    i2c_id: i2c_bus
     id: ds1307_time
     update_interval: never

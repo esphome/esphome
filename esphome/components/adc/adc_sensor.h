@@ -13,12 +13,16 @@
 #include "hal/adc_types.h"  // This defines ADC_CHANNEL_MAX
 #endif                      // USE_ESP32
 
-namespace esphome {
-namespace adc {
+#ifdef USE_ZEPHYR
+#include <zephyr/drivers/adc.h>
+#endif
+
+namespace esphome::adc {
 
 #ifdef USE_ESP32
 // clang-format off
-#if (ESP_IDF_VERSION_MAJOR == 5 && \
+#if ESP_IDF_VERSION_MAJOR >= 6 || \
+    (ESP_IDF_VERSION_MAJOR == 5 && \
      ((ESP_IDF_VERSION_MINOR == 0 && ESP_IDF_VERSION_PATCH >= 5) || \
       (ESP_IDF_VERSION_MINOR == 1 && ESP_IDF_VERSION_PATCH >= 3) || \
       (ESP_IDF_VERSION_MINOR >= 2)) \
@@ -38,19 +42,19 @@ enum class SamplingMode : uint8_t {
 
 const LogString *sampling_mode_to_str(SamplingMode mode);
 
-class Aggregator {
+template<typename T> class Aggregator {
  public:
   Aggregator(SamplingMode mode);
-  void add_sample(uint32_t value);
-  uint32_t aggregate();
+  void add_sample(T value);
+  T aggregate();
 
  protected:
-  uint32_t aggr_{0};
-  uint32_t samples_{0};
+  T aggr_{0};
+  uint8_t samples_{0};
   SamplingMode mode_{SamplingMode::AVG};
 };
 
-class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
+class ADCSensor final : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
   /// Update the sensor's state by reading the current ADC value.
   /// This method is called periodically based on the update interval.
@@ -64,11 +68,11 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   /// This method is called during the ESPHome setup process to log the configuration.
   void dump_config() override;
 
-  /// Return the setup priority for this component.
-  /// Components with higher priority are initialized earlier during setup.
-  /// @return A float representing the setup priority.
-  float get_setup_priority() const override;
-
+#ifdef USE_ZEPHYR
+  /// Set the ADC channel to be used by the ADC sensor.
+  /// @param channel Pointer to an adc_dt_spec structure representing the ADC channel.
+  void set_adc_channel(const adc_dt_spec *channel) { this->channel_ = channel; }
+#endif
   /// Set the GPIO pin to be used by the ADC sensor.
   /// @param pin Pointer to an InternalGPIOPin representing the ADC input pin.
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
@@ -90,7 +94,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   ///   - SamplingMode::MIN: Use the lowest sample value
   ///   - SamplingMode::MAX: Use the highest sample value
   /// @param sampling_mode The desired sampling mode to use for aggregating ADC samples.
-  void set_sampling_mode(SamplingMode sampling_mode);
+  void set_sampling_mode(SamplingMode sampling_mode) { this->sampling_mode_ = sampling_mode; }
 
   /// Perform a single ADC sampling operation and return the measured value.
   /// This function handles raw readings, calibration, and averaging as needed.
@@ -119,15 +123,15 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   void set_autorange(bool autorange) { this->autorange_ = autorange; }
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   void set_is_temperature() { this->is_temperature_ = true; }
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
  protected:
-  uint8_t sample_count_{1};
-  bool output_raw_{false};
+  uint8_t sample_count_{1};  // Must match DEFAULT_SAMPLES in sensor.py
+  bool output_raw_{false};   // Must match CONF_RAW default in sensor.py
   InternalGPIOPin *pin_;
-  SamplingMode sampling_mode_{SamplingMode::AVG};
+  SamplingMode sampling_mode_{SamplingMode::AVG};  // Must match DEFAULT_SAMPLING_MODE in sensor.py
 
 #ifdef USE_ESP32
   float sample_autorange_();
@@ -135,9 +139,9 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   bool autorange_{false};
   adc_oneshot_unit_handle_t adc_handle_{nullptr};
   adc_cali_handle_t calibration_handle_{nullptr};
-  adc_atten_t attenuation_{ADC_ATTEN_DB_0};
-  adc_channel_t channel_;
-  adc_unit_t adc_unit_;
+  adc_atten_t attenuation_{ADC_ATTEN_DB_0};  // Must match DEFAULT_ATTENUATION in sensor.py
+  adc_channel_t channel_{};
+  adc_unit_t adc_unit_{};
   struct SetupFlags {
     uint8_t init_complete : 1;
     uint8_t config_complete : 1;
@@ -148,10 +152,13 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   static adc_oneshot_unit_handle_t shared_adc_handles[2];
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   bool is_temperature_{false};
-#endif  // USE_RP2040
+#endif  // USE_RP2
+
+#ifdef USE_ZEPHYR
+  const struct adc_dt_spec *channel_ = nullptr;
+#endif
 };
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc

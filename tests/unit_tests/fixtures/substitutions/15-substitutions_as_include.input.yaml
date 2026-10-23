@@ -1,0 +1,5 @@
+substitutions: !include 15-substitutions_inc.yaml
+
+wifi:
+  ssid: main_ssid
+  password: $wifi_password
