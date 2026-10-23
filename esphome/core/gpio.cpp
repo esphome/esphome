@@ -19,6 +19,7 @@ void log_pin(const char *tag, const char *prefix, GPIOPin *pin) {
 }
 #endif
 
+namespace internal {
 void pulse_reset_ms(GPIOPin *pin, uint32_t high_before_ms, uint32_t low_ms, uint32_t high_after_ms) {
   if (pin == nullptr)
     return;
@@ -30,5 +31,6 @@ void pulse_reset_ms(GPIOPin *pin, uint32_t high_before_ms, uint32_t low_ms, uint
     delay(waits[i]);
   }
 }
+}  // namespace internal
 
 }  // namespace esphome
