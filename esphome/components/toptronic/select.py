@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPTIONS, CONF_TYPE
+from esphome.const import CONF_OPTIONS, CONF_TYPE
 
 from . import (
     CONF_DATAPOINT,
@@ -39,15 +39,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def new_select(config, *, options: list[str]):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await select.register_select(var, config, options=options)
-    return var
-
-
 async def to_code(config):
     tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
-    var = await new_select(config, options=config[CONF_OPTIONS])
+    var = await select.new_select(config, options=config[CONF_OPTIONS])
     await cg.register_component(var, config)
 
     cg.add(var.set_function_group(config[CONF_FUNCTION_GROUP]))
