@@ -1066,16 +1066,18 @@ bool LD6002BComponent::queue_command_(uint16_t type, const uint8_t *data, uint8_
     ESP_LOGW(TAG, "Command data too large: %u", len);
     return false;
   }
+  if (this->cmd_queue_.size() >= CMD_QUEUE_SIZE) {
+    ESP_LOGW(TAG, "Command queue full, dropping command 0x%04X", type);
+    return false;
+  }
+
   PendingCommand cmd;
   cmd.type = type;
   cmd.len = len;
   if (len > 0 && data != nullptr) {
     std::memcpy(cmd.data.data(), data, len);
   }
-  if (!this->cmd_queue_.push(cmd)) {
-    ESP_LOGW(TAG, "Command queue full, dropping command 0x%04X", type);
-    return false;
-  }
+  this->cmd_queue_.push(cmd);
 
   this->process_command_queue_();
   return true;
