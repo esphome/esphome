@@ -21,12 +21,19 @@ class MemoryManager {
     };
 
     std::unique_ptr<uint8_t[], HeapCapsDeleter> data;
-    size_t actual_size;
+    size_t actual_size{0};
 
     // Source of allocation for logging / diagnostics
     bool from_psram{false};
 
     operator bool() const { return static_cast<bool>(data); }
+
+    /// @brief Release the arena and reset the reported size.
+    void reset() {
+      this->data.reset();
+      this->actual_size = 0;
+      this->from_psram = false;
+    }
   };
 
   [[nodiscard]] static AllocationResult allocate_tensor_arena(size_t requested_size);
