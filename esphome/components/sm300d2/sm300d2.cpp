@@ -11,9 +11,7 @@ void SM300D2Sensor::update() {
   // Takes the first complete frame already received; the sensor sends one every second, so none is waited for
   FrameReader<SM300D2_RESPONSE_LENGTH, 0x3C, 0x02> reader;
   const uint8_t *response = nullptr;
-  uint8_t byte;
-  while (response == nullptr && this->available() > 0 && this->read_byte(&byte))
-    response = reader.feed(byte);
+  this->read_available<1>([&](uint8_t c) { return (response = reader.feed(c)) == nullptr; });
 
   if (response == nullptr) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
@@ -21,7 +19,7 @@ void SM300D2Sensor::update() {
     return;
   }
 
-  uint16_t calculated_checksum = this->sm300d2_checksum_(response);
+  uint16_t calculated_checksum = sum_bytes(response, SM300D2_RESPONSE_LENGTH - 1);
   // Occasionally the checksum has a +/- 0x80 offset. Negative temperatures are
   // responsible for some of these. The rest are unknown/undocumented.
   if ((calculated_checksum != response[SM300D2_RESPONSE_LENGTH - 1]) &&
@@ -76,8 +74,6 @@ void SM300D2Sensor::update() {
   if (this->humidity_sensor_ != nullptr)
     this->humidity_sensor_->publish_state(humidity);
 }
-
-uint16_t SM300D2Sensor::sm300d2_checksum_(const uint8_t *ptr) { return sum_bytes(ptr, SM300D2_RESPONSE_LENGTH - 1); }
 
 void SM300D2Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "SM300D2:");
