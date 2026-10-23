@@ -16,6 +16,7 @@ import logging
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 from esphome import loader, yaml_util
 from esphome.components.external_components import ExternalSource, get_sources
@@ -64,8 +65,24 @@ def _repo_purl(url: str, version: str, subpath: str | None = None) -> str | None
     return purl
 
 
+def _checkout_vcs(path: Path) -> tuple[str, str] | None:
+    """Return the remote URL and commit of the git checkout at ``path``, if it is one."""
+    if not (path / ".git").exists():
+        return None
+    try:
+        commit = run_git_command(["git", "rev-parse", "HEAD"], git_dir=path)
+        url = run_git_command(["git", "ls-remote", "--get-url"], git_dir=path)
+    except GitException as err:
+        _LOGGER.debug("SBOM: cannot read git checkout %s: %s", path, err)
+        return None
+    return strip_url_credentials(url), commit
+
+
 def _esphome_vcs() -> tuple[str, str] | None:
-    """Return the repository URL and commit ESPHome was installed from, if from git."""
+    """Return the repository URL and commit ESPHome was installed from, if known.
+
+    None means a plain package install, described by its release version.
+    """
     try:
         direct_url = importlib.metadata.distribution("esphome").read_text(
             "direct_url.json"
@@ -81,9 +98,15 @@ def _esphome_vcs() -> tuple[str, str] | None:
     except (ValueError, AttributeError):
         _LOGGER.debug("SBOM: unreadable direct_url.json for esphome: %s", direct_url)
         return None
-    if not commit or not isinstance(url, str):
+    if not isinstance(url, str):
         return None
-    return strip_url_credentials(url), commit
+    if commit:
+        return strip_url_credentials(url), commit
+    if "dir_info" in info and url.startswith("file:"):
+        # An editable or local install may be a fork or a patched clone. The
+        # Docker image's tree has no .git, so it keeps the release description.
+        return _checkout_vcs(Path(url2pathname(urlparse(url).path)))
+    return None
 
 
 def _project_manifest() -> dict[str, Any] | None:
@@ -98,8 +121,9 @@ def _source_commit(source: ExternalSource) -> str | None:
         return None
     try:
         return run_git_command(["git", "rev-parse", "HEAD"], git_dir=source.repo_dir)
-    except GitException:
+    except GitException as err:
         # Only SBOM metadata depends on it; never fail the build over it
+        _LOGGER.debug("SBOM: cannot read commit in %s: %s", source.repo_dir, err)
         return None
 
 

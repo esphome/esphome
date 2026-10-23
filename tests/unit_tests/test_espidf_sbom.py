@@ -2,6 +2,7 @@
 
 import importlib.metadata
 import json
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -315,3 +316,55 @@ def test_external_manifests_warn_unmatched(
 
     assert "SBOM: component 'widget'" in caplog.text
     assert "matches no external component source" in caplog.text
+
+
+def _editable_direct_url(path: Path) -> str:
+    return json.dumps({"url": path.as_uri(), "dir_info": {"editable": True}})
+
+
+def test_esphome_vcs_editable_checkout(tmp_path: Path) -> None:
+    """An editable install from a git clone is described by that clone."""
+    (tmp_path / ".git").mkdir()
+    dist = MagicMock()
+    dist.read_text.return_value = _editable_direct_url(tmp_path)
+    outputs = {
+        "rev-parse": "abc",
+        "ls-remote": "https://user:token@github.com/someone/esphome.git",
+    }
+    with (
+        patch("importlib.metadata.distribution", return_value=dist),
+        patch.object(
+            sbom, "run_git_command", side_effect=lambda cmd, git_dir: outputs[cmd[1]]
+        ) as run_git,
+    ):
+        assert sbom._esphome_vcs() == ("https://github.com/someone/esphome.git", "abc")
+    assert {call.kwargs["git_dir"] for call in run_git.call_args_list} == {tmp_path}
+
+
+def test_esphome_vcs_editable_without_git(tmp_path: Path) -> None:
+    """A local tree without .git, like the Docker image's, keeps the release description."""
+    dist = MagicMock()
+    dist.read_text.return_value = _editable_direct_url(tmp_path)
+    with (
+        patch("importlib.metadata.distribution", return_value=dist),
+        patch.object(sbom, "run_git_command") as run_git,
+    ):
+        assert sbom._esphome_vcs() is None
+    run_git.assert_not_called()
+
+
+def test_esphome_vcs_editable_git_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    (tmp_path / ".git").mkdir()
+    dist = MagicMock()
+    dist.read_text.return_value = _editable_direct_url(tmp_path)
+    with (
+        caplog.at_level(logging.DEBUG),
+        patch("importlib.metadata.distribution", return_value=dist),
+        patch.object(
+            sbom, "run_git_command", side_effect=GitCommandError("broken repo")
+        ),
+    ):
+        assert sbom._esphome_vcs() is None
+    assert "cannot read git checkout" in caplog.text
