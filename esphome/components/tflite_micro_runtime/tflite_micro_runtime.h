@@ -9,7 +9,6 @@
 #include "esphome/core/log.h"
 
 #include <atomic>
-#include <mutex>
 
 #include <string>
 #include <vector>
@@ -154,8 +153,8 @@ class TFLiteMicroHelper {
   size_t get_tensor_arena_size_actual() const { return this->tensor_arena_allocation_.actual_size; }
   size_t get_model_size_bytes() const { return this->model_length_; }
 
+  /// @brief Current tensor arena utilization, read from the live interpreter.
   ArenaStats get_arena_stats() const;
-  void update_arena_stats_cache();
   void report_memory_status();
 
   // -- Load statistics -------------------------------------------------
@@ -184,7 +183,7 @@ class TFLiteMicroHelper {
   // Model data (set via set_model)
   const uint8_t *model_data_{nullptr};
   size_t model_length_{0};
-  size_t tensor_arena_size_requested_{100 * 1024};
+  size_t tensor_arena_size_requested_{tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE};
 
   // Image model config
   ImageModelConfig image_config_;
@@ -194,11 +193,8 @@ class TFLiteMicroHelper {
 
   // Components
   tflite_model_loader::ModelHandler model_handler_;
+  /// Tensor arena owned by this helper; freed in unload_model().
   MemoryManager::AllocationResult tensor_arena_allocation_;
-
-  // Arena stats cache (thread-safe for dual-core)
-  mutable std::mutex arena_stats_mutex_;
-  ArenaStats cached_arena_stats_{};
 
   // Load statistics (last load_model() attempt)
   LoadStats last_load_stats_{};

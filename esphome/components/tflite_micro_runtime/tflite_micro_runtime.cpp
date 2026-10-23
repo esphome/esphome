@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include <cstdlib>
 #include <algorithm>
+#include <cstring>
 #include <esp_heap_caps.h>
 
 namespace esphome::tflite_micro_runtime {
@@ -78,7 +79,6 @@ bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t 
     ESP_LOGE(TAG, "Model invocation failed");
     return false;
   }
-  this->update_arena_stats_cache();
   return true;
 }
 
@@ -187,8 +187,7 @@ bool TFLiteMicroHelper::load_model() {
                                                   this->tensor_arena_allocation_.actual_size, config)) {
     ESP_LOGE(TAG, "Failed to load model into interpreter");
     this->model_handler_.unload();
-    this->tensor_arena_allocation_.data.reset();
-    this->tensor_arena_allocation_.actual_size = 0;
+    this->tensor_arena_allocation_.reset();
     stats.total_load_time_ms = millis() - stats.load_start_ms;
     this->last_load_stats_ = stats;
     this->state_.store(LoadState::UNLOADED);
@@ -224,12 +223,10 @@ void TFLiteMicroHelper::unload_model(bool reset_config) {
   ESP_LOGI(TAG, "Unloading model and freeing arena");
   this->model_handler_.unload();
 
-  // Free the arena owned by this helper. ModelHandler::unload() only resets its
-  // own (empty) allocation, so we must release the one allocated here.
-  this->tensor_arena_allocation_.data.reset();
-  this->tensor_arena_allocation_.actual_size = 0;
+  // The arena is owned here: load_model() hands it to the loader, which never frees it.
+  this->tensor_arena_allocation_.reset();
 
-  // E3: reset runtime state (stats cache + load state). Config fields (model data,
+  // E3: reset runtime state (load state). Config fields (model data,
   // size, CRC, input/audio config) are intentionally preserved by default: the
   // consumer reload path (meter_reader_tflite::reload_resources) calls
   // unload_model() then load_model() without re-issuing set_model()/
@@ -239,11 +236,6 @@ void TFLiteMicroHelper::unload_model(bool reset_config) {
   // reset_config() -- otherwise the previous model's arena size, dimensions,
   // preprocessing, and audio config leak into the next load_model(), causing
   // incorrect inference or tensor-allocation failure.
-  {
-    std::scoped_lock<std::mutex> lock(this->arena_stats_mutex_);
-    this->cached_arena_stats_ = ArenaStats{};
-  }
-
   if (reset_config) {
     this->reset_config();
   }
@@ -256,7 +248,7 @@ void TFLiteMicroHelper::reset_config() {
 
   this->model_data_ = nullptr;
   this->model_length_ = 0;
-  this->tensor_arena_size_requested_ = 100 * 1024;
+  this->tensor_arena_size_requested_ = tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE;
   this->expected_crc32_ = 0;
 
   this->model_type_ = "default";
@@ -295,22 +287,16 @@ ModelSpec TFLiteMicroHelper::get_model_spec() const {
 }
 
 ArenaStats TFLiteMicroHelper::get_arena_stats() const {
-  std::scoped_lock<std::mutex> lock(this->arena_stats_mutex_);
-  return this->cached_arena_stats_;
-}
-
-void TFLiteMicroHelper::update_arena_stats_cache() {
   ArenaStats stats;
-  stats.total_size = this->tensor_arena_allocation_.actual_size;
+  stats.total_size = this->get_tensor_arena_size_actual();
   stats.used_bytes = this->model_handler_.get_arena_used_bytes();
   stats.wasted_bytes = (stats.total_size > stats.used_bytes) ? (stats.total_size - stats.used_bytes) : 0;
   stats.efficiency = (stats.total_size > 0) ? (100.0f * stats.used_bytes / stats.total_size) : 0.0f;
-  std::scoped_lock<std::mutex> lock(this->arena_stats_mutex_);
-  this->cached_arena_stats_ = stats;
+  return stats;
 }
 
 void TFLiteMicroHelper::report_memory_status() {
-  MemoryManager::report_memory_status(this->tensor_arena_size_requested_, this->tensor_arena_allocation_.actual_size,
+  MemoryManager::report_memory_status(this->tensor_arena_size_requested_, this->get_tensor_arena_size_actual(),
                                       this->model_handler_.get_arena_used_bytes(), this->model_length_);
 
   // 5.1: monitor heap fragmentation -- warn when the largest contiguous free
