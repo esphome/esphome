@@ -20,6 +20,7 @@ from esphome.espidf.component import (
     generate_cmakelists_txt,
     generate_idf_component_yml,
     generate_idf_components,
+    generate_sbom_yml,
 )
 import esphome.platformio.library
 from esphome.platformio.library import (
@@ -1308,6 +1309,33 @@ def test_emit_idf_component_wires_esp32_target(tmp_path, monkeypatch):
     c.data = {"build": {"extraScript": "extra.py"}}
     _emit_idf_component(c)
     assert c.data["build"]["flags"] == ["-lesp32"]
+
+
+def test_generate_sbom_yml(tmp_component):
+    """The manifest carries the library's own name and version."""
+    tmp_component.data = {"name": "Lib", "version": "2.1.0", "license": "MIT"}
+    assert generate_sbom_yml(tmp_component) == "name: Lib\nversion: 2.1.0\n"
+
+    tmp_component.data = {"version": "2.1.0"}
+    assert generate_sbom_yml(tmp_component) == "name: owner/name\nversion: 2.1.0\n"
+
+    tmp_component.data = {"name": "Lib"}
+    assert generate_sbom_yml(tmp_component) is None
+
+
+def test_emit_idf_component_writes_sbom_yml(tmp_path, monkeypatch):
+    """An emitted library gets an sbom.yml unless it ships its own."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    _emit_idf_component(c)
+    assert (tmp_path / "sbom.yml").read_text() == "name: Lib\nversion: 2.1.0\n"
+
+    (tmp_path / "sbom.yml").write_text("name: shipped\n")
+    _emit_idf_component(c)
+    assert (tmp_path / "sbom.yml").read_text() == "name: shipped\n"
 
 
 def test_build_flags_dangling_flag_does_not_cross_entries(

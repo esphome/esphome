@@ -268,6 +268,23 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
     return yaml_util.dump(data)
 
 
+def generate_sbom_yml(component: IDFComponent) -> str | None:
+    """Return an esp-idf-sbom manifest naming the library and its version.
+
+    The license is left out: esp-idf-sbom aborts on an expression that is not
+    valid SPDX, and library manifests often hold free text.
+    """
+    from esphome import yaml_util
+
+    version = component.data.get("version")
+    if not isinstance(version, str) or not version:
+        return None
+    name = component.data.get("name")
+    if not isinstance(name, str) or not name:
+        name = component.name
+    return yaml_util.dump({"name": name, "version": version})
+
+
 def _emit_idf_component(component: IDFComponent) -> None:
     """Write the ESP-IDF build files for a resolved library into its cache dir."""
     from esphome.components.esp32 import get_esp32_variant
@@ -286,6 +303,12 @@ def _emit_idf_component(component: IDFComponent) -> None:
         component.path / "idf_component.yml",
         generate_idf_component_yml(component),
     )
+    # Keep a manifest the library ships in its own files
+    shipped = (component.source_dir / "sbom.yml").is_file() and (
+        component.source_dir.resolve() == component.path.resolve()
+    )
+    if not shipped and (sbom_yml := generate_sbom_yml(component)) is not None:
+        write_file_if_changed(component.path / "sbom.yml", sbom_yml)
 
 
 def generate_idf_components(
