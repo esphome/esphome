@@ -1,4 +1,5 @@
 #include "cardin_s438_protocol.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::remote_base {
@@ -31,9 +32,11 @@ namespace {
 // Frame format and timing, in microseconds.
 constexpr uint8_t MARKER = 0x87;
 constexpr uint16_t SYNC_MARK_US = 6400;
-constexpr uint16_t SHORT_US = 750;
-constexpr uint16_t LONG_US = 1460;
 constexpr uint32_t FRAME_GAP_US = 63650;
+constexpr uint8_t WIRE_SIZE = 5;
+// Each bit is a space then a mark, and both lengths carry it
+constexpr BitTimings CARDIN_TIMINGS{
+    .one_space = 750, .zero_space = 1460, .one_mark = 1460, .zero_mark = 750, .space_first = true};
 
 // Maps pincode bits, most-significant first, into the X and Y fields.
 struct PinBit {
@@ -78,7 +81,7 @@ void encode_pin_fields(uint16_t pincode, uint8_t channel, uint8_t &plain0, uint8
 }
 
 // Construct the wire bytes for one seed.
-void build_wire(uint8_t wire[5], uint8_t seed, uint8_t plain0, uint8_t plain1) {
+void build_wire(uint8_t wire[WIRE_SIZE], uint8_t seed, uint8_t plain0, uint8_t plain1) {
   uint16_t sum = MARKER + seed;
   wire[2] = sum;
 
@@ -91,44 +94,9 @@ void build_wire(uint8_t wire[5], uint8_t seed, uint8_t plain0, uint8_t plain1) {
   wire[0] = plain0 + key;
 
   // checksum over the first three bytes, little-endian.
-  const uint16_t checksum = wire[0] + wire[1] + wire[2];
+  const uint16_t checksum = sum16_bytes(wire, 3);
   wire[3] = checksum;
   wire[4] = checksum >> 8;
-}
-
-// Transmit one frame, least-significant bit first.
-void transmit_frame(RemoteTransmitData *dst, const uint8_t wire[5]) {
-  dst->mark(SYNC_MARK_US);
-
-  for (uint8_t i = 0; i < 5; ++i) {
-    const uint8_t byte = wire[i];
-    for (uint8_t bit = 0; bit < 8; ++bit) {
-      const bool bit_is_zero = ((byte >> bit) & 1U) == 0;
-
-      dst->space(bit_is_zero ? LONG_US : SHORT_US);
-      dst->mark(bit_is_zero ? SHORT_US : LONG_US);
-    }
-  }
-}
-
-bool read_bit(RemoteReceiveData &src, bool &bit) {
-  // Wire zero: long space, short mark.
-  if (src.expect_space(LONG_US)) {
-    if (!src.expect_mark(SHORT_US))
-      return false;
-    bit = false;
-    return true;
-  }
-
-  // Wire one: short space, long mark.
-  if (src.expect_space(SHORT_US)) {
-    if (!src.expect_mark(LONG_US))
-      return false;
-    bit = true;
-    return true;
-  }
-
-  return false;
 }
 
 }  // namespace
@@ -140,11 +108,12 @@ void CardinS438Protocol::encode(RemoteTransmitData *dst, const CardinS438Data &d
   encode_pin_fields(data.code & 0x3FFF, data.channel & 0x03, plain0, plain1);
 
   for (uint8_t frame = 0; frame < data.repeats; ++frame) {
-    uint8_t wire[5];
+    uint8_t wire[WIRE_SIZE];
     uint8_t seed = static_cast<uint8_t>(random_uint32() & 0xFF);
 
     build_wire(wire, seed, plain0, plain1);
-    transmit_frame(dst, wire);
+    dst->mark(SYNC_MARK_US);
+    dst->item_bytes<CARDIN_TIMINGS>(wire, WIRE_SIZE);
     dst->space(FRAME_GAP_US);
   }
 }
@@ -157,29 +126,11 @@ optional<CardinS438Data> CardinS438Protocol::decode(RemoteReceiveData src) {
       continue;
     }
 
-    // Read five bytes, least-significant bit first.
-    uint8_t wire[5]{};
-    bool valid = true;
-
-    for (uint8_t i = 0; i < 5 && valid; ++i) {
-      for (uint8_t bit = 0; bit < 8; ++bit) {
-        bool value;
-        if (!read_bit(src, value)) {
-          valid = false;
-          break;
-        }
-        if (value)
-          wire[i] |= 1U << bit;
-      }
+    uint8_t wire[WIRE_SIZE];
+    if (!src.expect_bytes<CARDIN_TIMINGS>(wire, WIRE_SIZE) ||
+        encode_value_le<uint16_t>(wire + 3) != sum16_bytes(wire, 3)) {
+      continue;
     }
-
-    if (!valid)
-      continue;
-
-    // verify checksum
-    uint16_t checksum = wire[0] + wire[1] + wire[2];
-    if (wire[3] != (checksum & 0xFF) || wire[4] != (checksum >> 8))
-      continue;
 
     // Recover the seed and undo the encoder's carry transform.
     uint8_t seed = wire[2] - MARKER;
