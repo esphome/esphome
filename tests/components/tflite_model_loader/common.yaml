@@ -1,0 +1,18 @@
+# tflite_model_loader ties together the operator table, the tensor arena and
+# the output post-processing, so the whole chain is configured here.
+tflite_output_processor:
+
+tflite_op_processor:
+
+tflite_memory_handler:
+
+tflite_model_loader:
+
+esphome:
+  on_boot:
+    - lambda: |-
+        // CRC32 verification of the model blob is what the loader checks
+        // before handing the data to the interpreter.
+        using esphome::tflite_model_loader::calculate_crc32;
+        const uint8_t model_data[] = {0x18, 0x00, 0x00, 0x00, 0x54, 0x46, 0x4C, 0x33};
+        ESP_LOGI("tflite_model_loader", "crc32 = 0x%08X", calculate_crc32(model_data, sizeof(model_data)));
