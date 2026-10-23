@@ -563,3 +563,55 @@ def test_source_commit_failure_warns(caplog: pytest.LogCaptureFixture) -> None:
     ):
         assert sbom._source_commit(source) is None
     assert "cannot read commit in" in caplog.text
+
+
+@pytest.mark.parametrize("absolute", [True, False], ids=["absolute", "parent"])
+def test_external_component_outside_repo(
+    build_tree: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture, absolute: bool
+) -> None:
+    """A components path outside the repository loses only that component's PURL."""
+    repo_dir = tmp_path / "repo"
+    # What repo_dir / path gives for path: /abs/components and path: ../outside
+    path = str(tmp_path / "elsewhere" / "components") if absolute else "../outside"
+    components_dir = repo_dir / path
+    get_sources().append(
+        ExternalSource(
+            components_dir=components_dir,
+            url="https://github.com/acme/parts",
+            repo_dir=repo_dir,
+        )
+    )
+    _add_external_component(components_dir, "widget")
+
+    with patch.object(sbom, "run_git_command", return_value="abc"):
+        sbom.write_manifests()
+
+    manifest = _read(build_tree / "src" / "sbom.yml")
+    assert manifest["name"] == "esphome"
+    widget = manifest["manifests"][0]["manifest"]
+    assert widget["version"] == "abc"
+    assert "purl" not in widget
+    assert "component 'widget' is outside its repository" in caplog.text
+
+
+def test_checkout_vcs_status_scope(tmp_path: Path) -> None:
+    """Changes are looked for in the package only, untracked files included."""
+    (tmp_path / ".git").mkdir()
+    with patch.object(
+        sbom, "run_git_command", side_effect=_fake_git(_checkout_outputs())
+    ) as run:
+        sbom._checkout_vcs(tmp_path)
+    assert ["git", "status", "--porcelain", "--", "esphome"] in [
+        call.args[0] for call in run.call_args_list
+    ]
+
+
+def test_checkout_vcs_pushed_check_failure_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    (tmp_path / ".git").mkdir()
+    outputs = _checkout_outputs()
+    outputs["branch --remotes"] = GitCommandError("bad ref")
+    with patch.object(sbom, "run_git_command", side_effect=_fake_git(outputs)):
+        assert sbom._checkout_vcs(tmp_path)[1] is None
+    assert "cannot check whether origin has HEAD" in caplog.text

@@ -113,7 +113,8 @@ def _checkout_remote(path: Path) -> tuple[str, str] | None:
         return remote, run_git_command(
             ["git", "remote", "get-url", remote], git_dir=path
         )
-    except GitException:
+    except GitException as err:
+        _LOGGER.debug("SBOM: no URL for remote '%s' in %s: %s", remote, path, err)
         return None
 
 
@@ -123,8 +124,9 @@ def _checkout_vcs(path: Path) -> _Source | None:
         return None
     try:
         commit = run_git_command(["git", "rev-parse", "HEAD"], git_dir=path)
+        # Only the package is compiled in; new files there count, notes elsewhere don't
         modified = run_git_command(
-            ["git", "status", "--porcelain", "--untracked-files=no"], git_dir=path
+            ["git", "status", "--porcelain", "--", "esphome"], git_dir=path
         )
     except GitException as err:
         _LOGGER.warning(
@@ -145,7 +147,12 @@ def _checkout_vcs(path: Path) -> _Source | None:
             ["git", "branch", "--remotes", "--contains", "HEAD", "--list", f"{name}/*"],
             git_dir=path,
         )
-    except GitException:
+    except GitException as err:
+        _LOGGER.warning(
+            "SBOM: cannot check whether %s has HEAD, so no commit is named: %s",
+            name,
+            err,
+        )
         pushed = ""
     if modified or not pushed:
         # A PURL would name code other than what was built, or that no one can fetch
@@ -226,8 +233,18 @@ def _external_manifest(source: ExternalSource, name: str) -> dict[str, Any]:
     if _is_remote_url(url):
         manifest["repository"] = url
     if commit and source.repo_dir is not None:
-        subpath = (source.components_dir / name).relative_to(source.repo_dir)
-        if purl := _repo_purl(url, commit, subpath.as_posix()):
+        component_dir = (source.components_dir / name).resolve()
+        repo_dir = source.repo_dir.resolve()
+        if not component_dir.is_relative_to(repo_dir):
+            # An absolute or ../ path: nothing in the repository to point at
+            _LOGGER.warning(
+                "SBOM: component '%s' is outside its repository %s, so it has no PURL",
+                name,
+                source.url,
+            )
+        elif purl := _repo_purl(
+            url, commit, component_dir.relative_to(repo_dir).as_posix()
+        ):
             manifest["purl"] = purl
     return manifest
 
