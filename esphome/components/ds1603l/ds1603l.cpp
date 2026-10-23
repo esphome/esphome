@@ -8,20 +8,19 @@ namespace esphome::ds1603l {
 ESPHOME_LOG_TAG(TAG, "ds1603l.sensor");
 
 void DS1603L::loop() {
-  uint8_t byte;
-  while (this->available() > 0 && this->read_byte(&byte)) {
+  this->read_available([this](uint8_t byte) {
     const uint8_t *frame = this->reader_.feed(byte);
     if (frame == nullptr) {
       if (this->reader_.length() == 0) {
         ESP_LOGV(TAG, "Skipping byte 0x%02X while looking for header", byte);
       }
-      continue;
+      return;
     }
     if (!this->parse_data_(frame)) {
       // The header byte was part of the payload of a misaligned frame, so realign instead of dropping everything
       this->reader_.resync();
     }
-  }
+  });
 }
 
 void DS1603L::dump_config() { LOG_SENSOR("", "DS1603L", this); }

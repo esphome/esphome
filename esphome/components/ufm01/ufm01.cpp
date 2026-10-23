@@ -458,28 +458,26 @@ void UFM01Component::on_active_frame_(const uint8_t data[FRAME_SIZE], uint32_t n
 bool UFM01Component::process_active_stream_(uint32_t now) {
   bool got_valid_frame = false;
 
-  while (this->available()) {
-    uint8_t byte;
-    if (!this->read_byte(&byte)) {
-      ESP_LOGW(TAG, "unable to read byte");
-      this->active_reader_.reset();
-      continue;
-    }
+  const bool read_ok = this->read_available([this, now, &got_valid_frame](uint8_t byte) {
     const uint8_t *frame = this->active_reader_.feed(byte);
     if (frame == nullptr) {
       if (this->active_reader_.length() == 0) {
         ESP_LOGD(TAG, "not start of data (is 0x%02X)", byte);
       }
-      continue;
+      return;
     }
     if (validate_active_frame(frame)) {
       this->on_active_frame_(frame, now);
       got_valid_frame = true;
-      continue;
+      return;
     }
     log_hex(frame, FRAME_SIZE);
     ESP_LOGW(TAG, "unable to read data");
     this->active_reader_.resync();
+  });
+  if (!read_ok) {
+    ESP_LOGW(TAG, "unable to read byte");
+    this->active_reader_.reset();
   }
 
   return got_valid_frame;
