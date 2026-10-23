@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -617,6 +618,81 @@ TEST_F(OnlineImageDownloadEnd, JpegProgressiveReportsError) {
 
   EXPECT_EQ(this->errors_, 1);
   EXPECT_EQ(this->finished_, 0);
+}
+
+// on_download_started fires once the server has accepted the request, before the first progress report, and not
+// for a response that has no image to download
+TEST_F(OnlineImageDownloadEnd, StartedFiresOnlyWhenTheDownloadBegins) {
+  auto image = this->make_image_(runtime_image::JPEG, 1024);
+  std::vector<std::string> events;
+  image->add_on_download_started_callback([&events]() { events.emplace_back("started"); });
+  image->add_on_progress_callback([&events](float, size_t) { events.emplace_back("progress"); });
+  this->start_(*image,
+               std::make_shared<FakeContainer>(std::vector<uint8_t>(JPEG_48X40, JPEG_48X40 + sizeof(JPEG_48X40)),
+                                               sizeof(JPEG_48X40), false));
+  ASSERT_GE(events.size(), 2u);
+  EXPECT_EQ(events[0], "started");
+  EXPECT_EQ(events[1], "progress");
+  for (int i = 0; i < 100 && this->finished_ + this->errors_ == 0; i++)
+    image->loop();
+  EXPECT_EQ(std::count(events.begin(), events.end(), std::string("started")), 1);
+
+  for (int status : {304, 404}) {
+    events.clear();
+    auto container = std::make_shared<FakeContainer>(std::vector<uint8_t>{}, 0, false);
+    container->status_code = status;
+    this->http_.next = container;
+    image->update();
+    EXPECT_TRUE(events.empty()) << "HTTP " << status;
+  }
+}
+
+// Progress starts at 0, is reported at most every 100 ms, and always reaches 100%
+TEST_F(OnlineImageDownloadEnd, ProgressIsReportedAsTheImageDownloads) {
+  auto image = this->make_image_(runtime_image::JPEG, 1024);
+  std::vector<float> reports;
+  image->add_on_progress_callback([&reports](float progress, size_t) { reports.push_back(progress); });
+  auto container =
+      std::make_shared<FakeContainer>(std::vector<uint8_t>(JPEG_48X40, JPEG_48X40 + sizeof(JPEG_48X40)), 100, false);
+  uint32_t now = 1000;
+  set_loop_time(now);
+  this->start_(*image, container);
+  ASSERT_EQ(reports.size(), 1u);
+  EXPECT_EQ(reports[0], 0.0f);
+
+  int passes = 0;
+  for (; passes < 1000 && this->finished_ + this->errors_ == 0; passes++) {
+    now += 50;
+    set_loop_time(now);
+    container->deliver(100);
+    image->loop();
+  }
+
+  ASSERT_EQ(this->finished_, 1);
+  EXPECT_EQ(reports.back(), 100.0f);
+  EXPECT_TRUE(std::is_sorted(reports.begin(), reports.end()));
+  // A report every 100 ms of a 50 ms loop, plus the start and the end
+  EXPECT_LE(reports.size(), static_cast<size_t>(passes / 2 + 2));
+  EXPECT_GT(reports.size(), 3u);
+}
+
+// Without a Content-Length the percentage is unknown, but the bytes read are still reported
+TEST_F(OnlineImageDownloadEnd, ProgressOfAChunkedDownloadHasNoPercentage) {
+  auto image = this->make_image_(runtime_image::PNG);
+  std::vector<std::pair<float, size_t>> reports;
+  image->add_on_progress_callback(
+      [&reports](float progress, size_t bytes_read) { reports.emplace_back(progress, bytes_read); });
+  auto container =
+      std::make_shared<FakeContainer>(std::vector<uint8_t>(PNG_1X1.begin(), PNG_1X1.end()), PNG_1X1.size(), true);
+  set_loop_time(1000);
+  this->start_(*image, container);
+  set_loop_time(2000);
+  for (int i = 0; i < 10 && this->finished_ + this->errors_ == 0; i++)
+    image->loop();
+
+  ASSERT_GE(reports.size(), 2u);
+  EXPECT_TRUE(std::isnan(reports.back().first));
+  EXPECT_EQ(reports.back().second, PNG_1X1.size());
 }
 
 // Scan data that cannot be decoded fails the download part way through

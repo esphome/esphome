@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 ESPHOME_LOG_TAG(TAG, "online_image");
@@ -17,6 +18,8 @@ namespace esphome::online_image {
 
 // Time one loop pass may spend reading, and decoding a JPEG as it downloads
 static constexpr uint32_t PASS_BUDGET_MS = 20;
+// Shortest time between two on_download_progress calls
+static constexpr uint32_t PROGRESS_INTERVAL_MS = 100;
 
 OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
@@ -159,6 +162,8 @@ void OnlineImage::update() {
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
   this->start_time_ = millis();
   this->last_data_time_ = this->start_time_;
+  this->download_started_callback_.call();
+  this->report_progress_(true);
   this->enable_loop();
 }
 
@@ -206,6 +211,7 @@ void OnlineImage::loop() {
 
     if (received > 0) {
       this->last_data_time_ = now;
+      this->report_progress_(false);
 
       // Feed data to decoder
       auto consumed = this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread());
@@ -297,6 +303,7 @@ void OnlineImage::loop_stream_() {
           break;
         this->last_data_time_ = now;
         this->download_buffer_.write(len);
+        this->report_progress_(false);
       } while (this->downloader_->get_bytes_read() < total && this->download_buffer_.free_capacity() != 0 &&
                millis() - now < PASS_BUDGET_MS);
       if (len < 0) {
@@ -361,6 +368,18 @@ void OnlineImage::loop_stream_() {
     }
     return;
   } while (millis() - now < PASS_BUDGET_MS);
+}
+
+void OnlineImage::report_progress_(bool force) {
+  const uint32_t now = App.get_loop_component_start_time();
+  const size_t bytes = this->downloader_->get_bytes_read();
+  const size_t total = this->downloader_->content_length;
+  // The last bytes are always reported, so a progress bar reaches 100%
+  if (!force && now - this->last_progress_time_ < PROGRESS_INTERVAL_MS && (total == 0 || bytes < total))
+    return;
+  this->last_progress_time_ = now;
+  const float progress = total > 0 ? std::min(100.0f, bytes * 100.0f / total) : NAN;
+  this->download_progress_callback_.call(progress, bytes);
 }
 
 void OnlineImage::fail_download_() {
