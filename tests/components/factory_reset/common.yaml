@@ -5,6 +5,8 @@ button:
 factory_reset:
   resets_required: 5
   max_delay: 10s
+  on_increment:
+    - logger.log: Reset counter incremented
 
 switch:
   - platform: factory_reset

@@ -29,6 +29,10 @@ sim800l:
     - sim800l.disconnect
   on_ussd_received:
     - logger.log: "ussd_received"
+  on_call_connected:
+    - logger.log: "call connected"
+  on_call_disconnected:
+    - logger.log: "call disconnected"
 
 binary_sensor:
   - platform: sim800l

@@ -31,6 +31,10 @@ ble_client:
       - ble_client.numeric_comparison_reply:
           id: test_blec
           accept: false
+    on_passkey_notification:
+      - logger.log:
+          format: "Passkey %u"
+          args: [passkey]
 
 sensor:
   - platform: ble_client
@@ -52,6 +56,11 @@ sensor:
     name: "BLE Sensor without Lambda"
     service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
     characteristic_uuid: "abcd1237-abcd-1234-abcd-abcd12345678"
+    notify: true
+    on_notify:
+      - logger.log:
+          format: "Notify %.2f"
+          args: [x]
 
 number:
   - platform: template
@@ -74,6 +83,10 @@ button:
           value: !lambda |-
             uint8_t val = (uint8_t)id(ble_client_test_number).state;
             return std::vector<uint8_t>{0xAA, val, 0xBB};
+      - ble_client.disconnect: test_blec
+      - ble_client.connect: test_blec
+      - ble_client.remove_bond:
+          id: test_blec
 
 switch:
   - platform: ble_client

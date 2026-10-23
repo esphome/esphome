@@ -90,6 +90,25 @@ binary_sensor:
         - lvgl.page.previous:
             animation: move_right
             time: 600ms
+        - lvgl.page.show: page1
+        - lvgl.page.show:
+            id: page1
+            animation: fade_in
+            time: 300ms
+        - lvgl.animimg.start: anim_img
+        - lvgl.tileview.select:
+            id: tileview_id
+            tile_id: tile_1
+            animated: true
+        - lvgl.tileview.select:
+            id: tileview_id
+            row: 0
+            column: 0
+        - if:
+            condition:
+              lvgl.is_paused:
+            then:
+              - logger.log: LVGL is paused
   - platform: lvgl
     id: common_button_checker
     name: Common button
