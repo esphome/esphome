@@ -1,0 +1,2 @@
+# Registers the climate platform so USE_CLIMATE is defined for the host unit test build
+climate: []

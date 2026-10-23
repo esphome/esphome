@@ -40,8 +40,8 @@ const uint8_t MITSUBISHI_NIGHTMODE = 0xC1;
 
 // Pulse parameters in usec
 const uint16_t MITSUBISHI_BIT_MARK = 430;
-const uint16_t MITSUBISHI_ONE_SPACE = 1250;
-const uint16_t MITSUBISHI_ZERO_SPACE = 390;
+static constexpr remote_base::BitTimings MITSUBISHI_BIT_TIMINGS{
+    .bit_mark = MITSUBISHI_BIT_MARK, .one_space = 1250, .zero_space = 390};
 const uint16_t MITSUBISHI_HEADER_MARK = 3500;
 const uint16_t MITSUBISHI_HEADER_SPACE = 1700;
 const uint16_t MITSUBISHI_MIN_GAP = 17500;
@@ -102,8 +102,8 @@ void MitsubishiClimate::transmit_state() {
   // Byte 15: HVAC specfic, i.e. POWERFUL, SMART SET, PLASMA, always 0x00
   // Byte 16: Left vane control (for specific models). Constants match right vane controls.
   // Byte 17: Checksum: SUM[Byte0...Byte16]
-  uint8_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00,
-                              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  uint8_t remote_state[MITSUBISHI_FRAME_SIZE] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00,
+                                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_HEAT:
@@ -242,9 +242,7 @@ void MitsubishiClimate::transmit_state() {
   }
 
   // Checksum
-  for (int i = 0; i < 17; i++) {
-    remote_state[17] += remote_state[i];
-  }
+  remote_state[17] = sum_bytes(remote_state, 17);
 
   ESP_LOGD(TAG, "sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X",
            remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
@@ -261,13 +259,7 @@ void MitsubishiClimate::transmit_state() {
     data->mark(MITSUBISHI_HEADER_MARK);
     data->space(MITSUBISHI_HEADER_SPACE);
     // Data
-    for (uint8_t i : remote_state) {
-      for (uint8_t j = 0; j < 8; j++) {
-        data->mark(MITSUBISHI_BIT_MARK);
-        bool bit = i & (1 << j);
-        data->space(bit ? MITSUBISHI_ONE_SPACE : MITSUBISHI_ZERO_SPACE);
-      }
-    }
+    data->item_bytes<MITSUBISHI_BIT_TIMINGS>(remote_state, sizeof(remote_state));
     // Footer
     if (r == 0) {
       data->mark(MITSUBISHI_BIT_MARK);
@@ -282,33 +274,21 @@ void MitsubishiClimate::transmit_state() {
 bool MitsubishiClimate::parse_state_frame_(const uint8_t frame[]) { return false; }
 
 bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t state_frame[18] = {};
+  uint8_t state_frame[MITSUBISHI_FRAME_SIZE];
 
   if (!data.expect_item(MITSUBISHI_HEADER_MARK, MITSUBISHI_HEADER_SPACE)) {
     ESP_LOGV(TAG, "Header fail");
     return false;
   }
 
-  for (uint8_t pos = 0; pos < 18; pos++) {
-    uint8_t byte = 0;
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(MITSUBISHI_BIT_MARK, MITSUBISHI_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(MITSUBISHI_BIT_MARK, MITSUBISHI_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", pos, bit);
-        return false;
-      }
-    }
-    state_frame[pos] = byte;
-
-    // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).
-    if ((pos == 0 && byte != MITSUBISHI_BYTE00) || (pos == 1 && byte != MITSUBISHI_BYTE01) ||
-        (pos == 2 && byte != MITSUBISHI_BYTE02) || (pos == 3 && byte != MITSUBISHI_BYTE03) ||
-        (pos == 4 && byte != MITSUBISHI_BYTE04) || (pos == 13 && byte != MITSUBISHI_BYTE13) ||
-        (pos == 16 && (byte & ~MITSUBISHI_VERTICAL_VANE_MASK) != 0)) {
-      ESP_LOGV(TAG, "Bytes 0,1,2,3,4,13 or 16 fail - invalid value");
-      return false;
-    }
+  // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).
+  if (!data.expect_bytes<MITSUBISHI_BIT_TIMINGS>(state_frame, sizeof(state_frame)) ||
+      state_frame[0] != MITSUBISHI_BYTE00 || state_frame[1] != MITSUBISHI_BYTE01 ||
+      state_frame[2] != MITSUBISHI_BYTE02 || state_frame[3] != MITSUBISHI_BYTE03 ||
+      state_frame[4] != MITSUBISHI_BYTE04 || state_frame[13] != MITSUBISHI_BYTE13 ||
+      (state_frame[16] & ~MITSUBISHI_VERTICAL_VANE_MASK) != 0) {
+    ESP_LOGV(TAG, "Bit decode or bytes 0,1,2,3,4,13 or 16 fail");
+    return false;
   }
 
   // On/Off and Mode
@@ -389,10 +369,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MITSUBISHI_FRAME_SIZE)];
-#endif
-  ESP_LOGV(TAG, "Receiving: %s", format_hex_pretty_to(hex_buf, state_frame, MITSUBISHI_FRAME_SIZE));
+  ESP_LOGV_HEX(TAG, state_frame, MITSUBISHI_FRAME_SIZE, MITSUBISHI_FRAME_SIZE, "Receiving: %s");
 
   this->publish_state();
   return true;

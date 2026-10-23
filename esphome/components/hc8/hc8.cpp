@@ -18,9 +18,7 @@ void HC8Component::setup() {
   this->write_array(HC8_COMMAND_GET_PPM);
   this->flush();
 
-  // ensure the buffer is empty
-  while (this->available())
-    this->read();
+  this->discard_available();
 }
 
 void HC8Component::update() {
@@ -36,8 +34,7 @@ void HC8Component::update() {
     this->status_clear_warning();
   }
 
-  while (this->available())
-    this->read();
+  this->discard_available();
 
   this->write_array(HC8_COMMAND_GET_PPM);
   this->flush();
@@ -58,13 +55,10 @@ void HC8Component::update() {
       return;
     }
 
-    if (crc16(response.data(), 12) != encode_uint16(response[13], response[12])) {
+    if (!this->status_comm_result(crc16(response.data(), 12) == encode_uint16(response[13], response[12]))) {
       ESP_LOGW(TAG, "HC8 Checksum mismatch");
-      this->status_set_warning();
       return;
     }
-
-    this->status_clear_warning();
 
     const uint16_t ppm = encode_uint16(response[5], response[4]);
     ESP_LOGD(TAG, "HC8 Received CO₂=%uppm", ppm);

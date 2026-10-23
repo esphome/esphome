@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_SOURCE,
     KEY_ESP32,
     KEY_FLASH_SIZE,
+    KEY_IDF_EXTRA_TARGETS,
     KEY_IDF_VERSION,
     KEY_VARIANT,
 )
@@ -86,8 +87,14 @@ def _get_configured_targets() -> list[str] | None:
     """
     if os.environ.get("CI"):
         return None
-    variant = CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT)
-    return [variant_to_idf_target(variant)] if variant else None
+    esp32_data = CORE.data.get(KEY_ESP32, {})
+    variant = esp32_data.get(KEY_VARIANT)
+    if not variant:
+        return None
+    # Components may ask for another chip's tools (add_idf_install_target),
+    # e.g. the RISC-V compiler for ULP programs on an Xtensa variant.
+    extra = esp32_data.get(KEY_IDF_EXTRA_TARGETS, ())
+    return [variant_to_idf_target(variant), *sorted(extra)]
 
 
 def _get_esphome_esp_idf_paths(
@@ -353,7 +360,11 @@ def _clean_foreign_target_tree() -> None:
     clean_build(clear_pio_cache=False)
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
         return
-    # Restart sdkconfig from ESPHome's options
+    _reset_sdkconfig()
+
+
+def _reset_sdkconfig() -> None:
+    """Restart the project sdkconfig from ESPHome's own options."""
     internal = CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
     if internal.is_file():
         shutil.copyfile(internal, CORE.relative_build_path(f"sdkconfig.{CORE.name}"))
@@ -656,6 +667,9 @@ def _configure_project(verbose: bool = False) -> int:
     if not discovered:
         _LOGGER.error("Component discovery found no built-in ESP-IDF components")
         return 1
+    # The discovery configure builds every IDF component, and their Kconfig
+    # selects (e.g. esp-tls turning TLS on) would otherwise stay in sdkconfig
+    _reset_sdkconfig()
     if (rc := _write_project_and_reconfigure(discovered, verbose)) != 0:
         _LOGGER.error("Reconfigure with discovered components failed")
         return rc

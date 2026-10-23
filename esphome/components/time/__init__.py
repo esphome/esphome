@@ -26,6 +26,8 @@ from esphome.const import (
     CONF_SECONDS,
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -455,6 +457,12 @@ async def register_time(time_var, config):
 async def to_code(config):
     if CORE.using_zephyr:
         zephyr_add_prj_conf("POSIX_CLOCK", True)
+        # From sdk-nrf 2.8.0 newlib time() gets the clock through gettimeofday(),
+        # which Zephyr only provides with XSI_SINGLE_PROCESS. Without it time()
+        # always returns -1.
+        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 8, 0):
+            zephyr_add_prj_conf("POSIX_SINGLE_PROCESS", True)
+            zephyr_add_prj_conf("XSI_SINGLE_PROCESS", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 

@@ -16,6 +16,10 @@ class EPaperSSD1681 : public EPaperSSD1683 {
   }
 
  protected:
+  // Reads the previous frame to compute the changed window for a partial refresh
+  bool needs_previous_frame() const override { return true; }
+  // Shrinks the update bounds to the bytes that differ from the frame last sent
+  void bounds_from_changes_();
   // Deep sleep mode 1 keeps the RAM and the hardware reset that leaves it keeps the RAM ping-pong, so the
   // image a partial refresh compares against survives the controller's deep sleep
   bool image_survives_sleep() const override { return true; }

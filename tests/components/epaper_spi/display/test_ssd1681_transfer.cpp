@@ -184,6 +184,22 @@ TEST(EPaperSSD1681, UnchangedFrameSkipsTheRefresh) {
   EXPECT_EQ(display.update_count(), 2);
 }
 
+/// The first update sends the whole frame whatever was drawn, so the skip works without auto clear.
+TEST(EPaperSSD1681, SkipWorksWhenOnlyPartOfThePanelIsDrawn) {
+  TestableSSD1681 display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  display.set_dirty(8, 1, 16, 2);
+  EXPECT_TRUE(display.run_update());
+  bus.clear();
+
+  display.set_dirty(8, 1, 16, 2);
+  EXPECT_FALSE(display.run_update()) << "unchanged frame was pushed";
+  EXPECT_TRUE(bus.commands.empty());
+}
+
 /// A requested full update pushes even if the frame is unchanged.
 TEST(EPaperSSD1681, RequestedFullUpdateIsNotSkipped) {
   TestableSSD1681 display(16, 2);

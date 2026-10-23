@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -17,6 +18,4 @@ async def test_host_mode_basic(
     # Write, compile and run the ESPHome device, then connect to API
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Verify we can get device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "host-test"
+        await assert_device_name(client, "host-test")

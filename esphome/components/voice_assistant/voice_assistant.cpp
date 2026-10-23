@@ -82,7 +82,11 @@ void VoiceAssistant::setup() {
 float VoiceAssistant::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 bool VoiceAssistant::start_udp_socket_() {
+#if USE_NETWORK_IPV4
   this->socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+#else
+  this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+#endif
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Could not create socket");
     this->mark_failed();
@@ -224,11 +228,11 @@ void VoiceAssistant::stream_api_audio_() {
   while (true) {
     // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
     // reports the currently exposed bytes either way.
-    this->audio_source_->fill(0, false);
+    this->audio_source_->fill(0);
     size_t available = this->audio_source_->available();
     size_t available2 = 0;
     if (this->audio_source2_ != nullptr) {
-      this->audio_source2_->fill(0, false);
+      this->audio_source2_->fill(0);
       available2 = this->audio_source2_->available();
     }
 
@@ -357,7 +361,7 @@ void VoiceAssistant::loop() {
       msg.start = true;
       msg.conversation_id = StringRef(this->conversation_id_);
       msg.flags = flags;
-      msg.audio_settings = audio_settings;
+      msg.audio_settings = std::move(audio_settings);
       msg.wake_word_phrase = StringRef(this->wake_word_);
 
       // Reset media player state tracking
@@ -383,14 +387,13 @@ void VoiceAssistant::loop() {
       break;  // State changed when udp server port received
     }
     case State::STREAMING_MICROPHONE: {
-      // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
       if (this->audio_mode_ == AUDIO_MODE_API) {
         this->stream_api_audio_();
       } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
         while (true) {
-          this->audio_source_->fill(0, false);
+          this->audio_source_->fill(0);
           size_t available = this->audio_source_->available();
           if (available == 0) {
             break;
@@ -664,17 +667,20 @@ void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t por
   }
 
   memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
-  if (this->dest_addr_.ss_family == AF_INET) {
-    ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
-  }
-#if LWIP_IPV6
-  else if (this->dest_addr_.ss_family == AF_INET6) {
-    ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
-  }
+  switch (this->dest_addr_.ss_family) {
+#if USE_NETWORK_IPV4
+    case AF_INET:
+      ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
+      break;
 #endif
-  else {
-    ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
-    return;
+#if LWIP_IPV6
+    case AF_INET6:
+      ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
+      break;
+#endif
+    default:
+      ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
+      return;
   }
 
   // Only primary microphone channel over UDP
@@ -760,7 +766,7 @@ void VoiceAssistant::signal_stop_() {
 }
 
 void VoiceAssistant::start_playback_timeout_() {
-  this->set_timeout(PLAYBACK_TIMEOUT_ID, 2000, [this]() {
+  this->set_timeout(PLAYBACK_TIMEOUT_ID, this->tts_playback_start_timeout_, [this]() {
     this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "epaper_spi.h"
+#include "epaper_spi_ultrachip.h"
 
 namespace esphome::epaper_spi {
 
@@ -28,26 +28,19 @@ namespace esphome::epaper_spi {
  *   waveform is forced, partial mode is entered with a full-screen window and
  *   only DTM2 is sent; the controller compares against its previous-image RAM.
  */
-class EPaperUC8179 final : public EPaperBase {
+class EPaperUC8179 final : public EPaperUltraChip {
  public:
   EPaperUC8179(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                size_t init_sequence_length)
-      : EPaperBase(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY) {
-    this->buffer_length_ = this->row_width_ * height;
-  }
+      : EPaperUltraChip(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_BINARY) {}
 
  protected:
   bool initialise(bool partial) override;
-  void setup() override;
   bool transfer_data() override;
   void refresh_screen(bool partial) override;
   void power_on() override;
   void power_off() override;
-  void deep_sleep() override;
   void set_refresh_mode_();
-
-  // Set by initialise() so transfer_data() knows which planes to send
-  bool partial_{};
 };
 
 }  // namespace esphome::epaper_spi

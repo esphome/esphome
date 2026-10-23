@@ -66,11 +66,7 @@ ACCELERATION_MODES = {
     "high": RhtAccelerationMode.HIGH_ACCELERATION,
 }
 
-MODELS = {
-    "SEN50": Sen5xType.SEN50,
-    "SEN54": Sen5xType.SEN54,
-    "SEN55": Sen5xType.SEN55,
-}
+MODELS = Sen5xType.options("SEN50", "SEN54", "SEN55")
 
 
 def _gas_sensor(
@@ -223,16 +219,13 @@ SETTING_MAP = {
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     for key, funcName in SETTING_MAP.items():
         if cfg := config.get(key):
             cg.add(getattr(var, funcName)(cfg))
 
-    if (model := config.get(CONF_MODEL)) is not None:
-        cg.add(var.set_model(model))
+    cg.add_optional(var.set_model, config.get(CONF_MODEL))
 
     for key, funcName in SENSOR_MAP.items():
         if cfg := config.get(key):
