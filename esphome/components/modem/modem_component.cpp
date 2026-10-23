@@ -160,14 +160,28 @@ void ModemComponent::hand_over_(uint32_t pending) {
 
 // The task is the only writer, so a load and a store do; a byte-sized read-modify-write is a library call on Xtensa
 void ModemComponent::set_fault_(ModemFault fault) {
+  // A wrong baud_rate or init_at is kept apart, so it stays visible once the modem connects
+  if (fault == ModemFault::MODEM_FAULT_BAUD || fault == ModemFault::MODEM_FAULT_INIT_AT) {
+    this->config_fault_.store(fault, std::memory_order_relaxed);
+  }
   if (this->fault_.load(std::memory_order_relaxed) != fault) {
     this->fault_.store(fault, std::memory_order_relaxed);
     this->hand_over_(PENDING_STATUS);
   }
 }
 
+void ModemComponent::clear_config_fault_(ModemFault fault) {
+  if (this->config_fault_.load(std::memory_order_relaxed) == fault) {
+    this->config_fault_.store(ModemFault::MODEM_FAULT_NONE, std::memory_order_relaxed);
+    this->hand_over_(PENDING_STATUS);
+  }
+}
+
 void ModemComponent::publish_status_() {
-  const ModemFault fault = this->fault_.load(std::memory_order_relaxed);
+  ModemFault fault = this->fault_.load(std::memory_order_relaxed);
+  if (fault == ModemFault::MODEM_FAULT_NONE) {
+    fault = this->config_fault_.load(std::memory_order_relaxed);
+  }
   if (fault == ModemFault::MODEM_FAULT_NONE) {
     this->status_clear_warning();
     this->status_clear_error();
@@ -197,7 +211,8 @@ void ModemComponent::loop() {
     }
     if (pending & PENDING_ON_SYNC) {
       this->on_state_callback_.call(ModemState::MODEM_STATE_SYNCED);
-      this->wake_task_();  // on_sync finished, so the task may attach
+      this->sync_acked_.store(1, std::memory_order_release);  // on_sync finished, so the task may attach
+      this->wake_task_();
     }
     if (pending & PENDING_ON_CONNECT) {
       this->dump_connect_params_();
@@ -472,8 +487,8 @@ ModemState ModemComponent::compute_next_state_() {
   switch (state) {
     case ModemState::MODEM_STATE_DISABLED:
 #ifdef USE_MODEM_PIN_CODE
-      // A new attempt may send the PIN again; a send already counted in a pending save still goes out
-      if (this->pin_save_state_.load(std::memory_order_acquire) != PinSave::PIN_SAVE_PENDING) {
+      // A new attempt may send the PIN again; a counted send that has not gone out yet still does
+      if (this->pin_step_ == PinStep::PIN_STEP_SENT) {
         this->pin_step_ = PinStep::PIN_STEP_IDLE;
       }
 #endif
@@ -490,7 +505,9 @@ ModemState ModemComponent::compute_next_state_() {
       if (this->got_ip_.load(std::memory_order_acquire)) {
         return ModemState::MODEM_STATE_CONNECTED;
       }
-      ESP_LOGW(TAG, "Lost IP");
+      ESP_LOGW(TAG, "Lost IP; PPP error %u", this->ppp_error_.load(std::memory_order_acquire));
+      this->ppp_error_.store(0, std::memory_order_release);
+      this->set_fault_(ModemFault::MODEM_FAULT_PPP);
       return ModemState::MODEM_STATE_DISCONNECTING;
     case ModemState::MODEM_STATE_DISCONNECTING:
       return this->handle_state_disconnecting_();
@@ -592,6 +609,10 @@ ModemState ModemComponent::handle_state_enabling_() {
     return this->retry_(ModemState::MODEM_STATE_ENABLING);
   }
   this->probe_backoff_.store(0, std::memory_order_relaxed);
+  // The library logs echoed commands at verbose level, which would include the PIN
+  if (this->dce_->set_echo(false) != command_result::OK) {
+    ESP_LOGW(TAG, "Failed to disable command echo");
+  }
 
   int radio_state = 0;
   if (this->dce_->get_radio_state(radio_state) != command_result::OK) {
@@ -620,6 +641,7 @@ ModemState ModemComponent::handle_state_enabling_() {
         return ModemState::MODEM_STATE_DISCONNECTING;
       }
       ESP_LOGI(TAG, "Modem synced at baud rate %d.", this->current_baud_rate_);
+      this->clear_config_fault_(ModemFault::MODEM_FAULT_BAUD);
     } else {
       // The modem still answers at the probed rate, so a rejected rate is not worth a retry loop
       ESP_LOGW(TAG, "Modem rejected baud rate %d. Staying at %d.", this->baud_rate_, this->current_baud_rate_);
@@ -642,10 +664,14 @@ ModemState ModemComponent::handle_state_enabling_() {
 
 ModemState ModemComponent::handle_state_synced_() {
   // transition_to_() gave on_sync its head start; a command it queued went out at the top of this pass
+  bool failed = false;
   for (uint8_t i = 0; i != this->init_at_count_; i++) {
-    if (!this->at_(this->init_at_commands_[i])) {  // at_() logs the failure
-      this->set_fault_(ModemFault::MODEM_FAULT_INIT_AT);
-    }
+    failed |= !this->at_(this->init_at_commands_[i]);  // at_() logs the failure
+  }
+  if (failed) {
+    this->set_fault_(ModemFault::MODEM_FAULT_INIT_AT);
+  } else {
+    this->clear_config_fault_(ModemFault::MODEM_FAULT_INIT_AT);
   }
   this->connect_step_ = ConnectStep::CONNECT_STEP_START;
   return ModemState::MODEM_STATE_CONNECTING;
@@ -790,9 +816,17 @@ void ModemComponent::transition_to_(ModemState next_state) {
   // The automations run on the main loop
   if (next_state == ModemState::MODEM_STATE_SYNCED) {
     // on_sync may queue an AT command or disable the modem; it gets a bounded head start, and loop() wakes the
-    // task once it ran
+    // task once it ran. An earlier enable() or a send_at() inside on_sync also notifies, so the flag decides.
+    this->sync_acked_.store(0, std::memory_order_release);
     this->hand_over_(PENDING_ON_SYNC);
-    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(SYNC_ACK_TIMEOUT_MS));
+    const uint32_t started = millis();
+    while (this->sync_acked_.load(std::memory_order_acquire) == 0) {
+      const uint32_t elapsed = millis() - started;
+      if (elapsed >= SYNC_ACK_TIMEOUT_MS) {
+        break;
+      }
+      ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(SYNC_ACK_TIMEOUT_MS - elapsed));
+    }
   } else if (next_state == ModemState::MODEM_STATE_CONNECTED) {
     this->hand_over_(PENDING_ON_CONNECT | PENDING_CONNECT_TIMEOUT);
   } else if (next_state == ModemState::MODEM_STATE_DISCONNECTING) {

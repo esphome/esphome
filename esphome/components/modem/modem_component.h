@@ -169,6 +169,7 @@ class ModemComponent : public Component {
   void cancel_connect_timeout_();
   void fail_setup_(const LogString *reason);
   void set_fault_(ModemFault fault);
+  void clear_config_fault_(ModemFault fault);
   void hand_over_(uint32_t pending);
   /// Send an AT command from the task and log the result; blocks for up to the timeout
   bool at_(const char *cmd, uint32_t timeout = COMMAND_TIMEOUT_MS);
@@ -229,12 +230,16 @@ class ModemComponent : public Component {
   std::atomic<ModemState> target_state_{ModemState::MODEM_STATE_DISABLED};
   // Written by the task only, read by loop()
   std::atomic<ModemFault> fault_{ModemFault::MODEM_FAULT_NONE};
+  // A failed baud_rate or init_at step, shown once fault_ is clear until the step passes again
+  std::atomic<ModemFault> config_fault_{ModemFault::MODEM_FAULT_NONE};
   // std::atomic<uint8_t> flags: GCC on Xtensa calls out of line for std::atomic<bool>
   // Written by the IP event task, read by the modem task
   std::atomic<uint8_t> got_ip_{0};
   std::atomic<uint8_t> ppp_error_{0};  // last NETIF_PPP_STATUS error code, 0 = none
   // Doublings of the silent-modem probe delay; enable() and an answer reset it
   std::atomic<uint8_t> probe_backoff_{0};
+  // Set by loop() once on_sync ran; the task waits for it, not for any notification
+  std::atomic<uint8_t> sync_acked_{0};
 #ifdef USE_MODEM_SEND_AT
   // Set by send_at() on the main loop once at_command_ is written, cleared by the task after sending it
   std::atomic<uint8_t> at_pending_{0};
