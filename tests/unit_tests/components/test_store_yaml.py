@@ -387,6 +387,15 @@ def test_redacted_inline_value_becomes_secret_ref(
         ),
         pytest.param(
             {
+                "base.yaml": "dsmr:\n  decryption_key: 00112233445566778899AABBCCDDEEFF\n",
+                "entry.yaml": "<<: !include base.yaml\ndsmr:\n  max_telegram_length: 1500\n",
+            },
+            API_KEY,
+            "dsmr.decryption_key in base.yaml",
+            id="bind_key_shadowed_by_a_merge",
+        ),
+        pytest.param(
+            {
                 "pkg.yaml": "packet_transport:\n  encryption: old_key_123\n",
                 "entry.yaml": "packages:\n  p: !include pkg.yaml\n"
                 "packet_transport:\n  encryption: !secret new_key\n",
@@ -656,6 +665,16 @@ def test_redacted_fails_closed(
             WIFI_PW,
             {"entry.yaml": "password: !include 'password.yaml'"},
             id="credential_loaded_by_include",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "sensor:\n  - platform: xiaomi_lywsd03mmc\n"
+                "    bindkey: !secret device_key\n",
+                "secrets.yaml": "device_key: 00112233445566778899aabbccddeeff\n",
+            },
+            {"sensor": [{"bindkey": SensitiveStr("00112233445566778899AABBCCDDEEFF")}]},
+            {"entry.yaml": "bindkey: !secret 'device_key'"},
+            id="lowercase_bind_key_secret",
         ),
         pytest.param(
             {
@@ -1268,11 +1287,11 @@ def test_credential_words_cover_every_sensitive_key() -> None:
         consts.get(m.group(1), m.group(1))
         for text in sources
         for m in re.finditer(
-            r"cv\.(?:Optional|Required|Exclusive|Inclusive)\((CONF_\w+)[^:]*:\s*cv\.sensitive\(",
+            r"cv\.(?:Optional|Required|Exclusive|Inclusive)\((CONF_\w+)[^:]*:\s*cv\.(?:sensitive\(|bind_key)",
             text,
         )
     }
-    assert {"password", "tlv", "static_pairing_code"} <= keys
+    assert {"password", "tlv", "static_pairing_code", "bindkey", "auth_key"} <= keys
     # A broadcast SSID is not secret, and a bare `key` also names keypad keys.
     missing = keys - {"ssid", "key"} - store_yaml._SENSITIVE_KEYS
     assert not missing, f"add {sorted(missing)} to _SENSITIVE_KEYS"

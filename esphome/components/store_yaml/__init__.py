@@ -67,11 +67,12 @@ _CREDENTIAL_WORDS = ("password", "key", "secret", "token", "psk", "tlv", "pairin
 _SENSITIVE_KEYS = frozenset(
     {"password", "new_password", "private_key", "peer_preshared_key"}
     | {"client_certificate_key", "network_key", "old_key", "pskc", "tlv"}
-    | {"static_pairing_code", "encryption"}
+    | {"static_pairing_code", "encryption", "bindkey", "decryption_key", "auth_key"}
 )
 # Keys under these name declared arguments, not values (`variables: {password: string}`).
 _DECLARATIONS = frozenset({"variables", "parameters"})
 # A quoted string or a number: a lambda without one cannot spell a credential.
+_BIND_KEY_RE = re.compile(r"[0-9A-F]{32}")
 _LITERAL_RE = re.compile(r"""["']|(?<![\w.])\d""")
 
 CONFIG_SCHEMA = cv.Schema(
@@ -430,7 +431,12 @@ def _collect_sensitive_values() -> tuple[
         # Decimal for ints, to match the raw tree's parsed scalars, not HexInt's hex.
         value = str(int(node)) if isinstance(node, int) else str(node)
         if (entry := result.get(value)) is None:
-            from_secret = (name := yaml_util.is_secret(value)) is not None
+            name = yaml_util.is_secret(value)
+            if name is None and _BIND_KEY_RE.fullmatch(value):
+                # cv.bind_key uppercases the key; its secret keeps the user's spelling
+                secrets = yaml_util.registered_secret_values().items()
+                name = next((n for v, n in secrets if v.upper() == value), None)
+            from_secret = name is not None
             if not from_secret:
                 name = ensure_unique_string("_".join(path) or "secret", used)
                 used.add(name)
