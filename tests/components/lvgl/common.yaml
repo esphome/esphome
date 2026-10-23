@@ -104,6 +104,37 @@ binary_sensor:
             id: tileview_id
             row: 0
             column: 0
+        - lvgl.switch.update:
+            id: wifi_switch
+            state:
+              checked: true
+        - lvgl.roller.update:
+            id: lv_roller
+            selected_index: 1
+        - lvgl.led.update:
+            id: lv_led
+            brightness: 50%
+        - lvgl.tabview.update:
+            id: tabview_id
+            hidden: false
+        - lvgl.tileview.update:
+            id: tileview_id
+            hidden: false
+        - lvgl.menu.update:
+            id: settings_menu
+            hidden: false
+        - lvgl.canvas.update:
+            id: canvas_id
+            hidden: false
+        - lvgl.buttonmatrix.update:
+            id: b_matrix
+            hidden: false
+        - lvgl.obj.update:
+            id: anim_box
+            hidden: false
+        - lvgl.page.update:
+            id: page1
+            hidden: false
         - if:
             condition:
               lvgl.is_paused:
