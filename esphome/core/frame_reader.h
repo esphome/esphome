@@ -11,7 +11,7 @@ namespace esphome {
 template<size_t N, uint8_t... HEADER> class FrameReader {
   using pos_t = std::conditional_t<(N <= 0xFF), uint8_t, uint16_t>;
   static constexpr size_t HEADER_LEN = sizeof...(HEADER);
-  static_assert(HEADER_LEN >= 1, "FrameReader needs at least one header byte");
+  static_assert(HEADER_LEN >= 1 && HEADER_LEN <= 8, "FrameReader takes 1 to 8 header bytes");  // bounds replay_() depth
   static_assert(HEADER_LEN < N && N <= 0xFFFF, "FrameReader size out of range");
 
  public:
