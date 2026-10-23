@@ -4,12 +4,16 @@ from pathlib import Path
 
 import pytest
 
+from esphome.components import tflite_op_processor
+from esphome.components.tflite_op_processor import CONF_OPERATORS
 from esphome.components.tflite_op_processor.op_manifest import (
     OpTable,
     build_selective_op_defines,
     extract_model_ops,
     parse_op_table,
 )
+import esphome.config_validation as cv
+from esphome.core import CORE
 
 MODEL_REPORT = """Model report
 =================
@@ -59,7 +63,8 @@ def test_suffixes_cover_every_table_entry() -> None:
 def test_selective_defines_flag_only_the_requested_ops() -> None:
     defines = build_selective_op_defines({"CONV_2D", "SOFTMAX"})
 
-    assert set(defines) == parse_op_table().suffixes
+    # Unavailable operators read no flag, so they get none.
+    assert set(defines) == parse_op_table().supported
     assert {name for name, value in defines.items() if value} == {
         "CONV_2D",
         "SOFTMAX",
@@ -77,6 +82,33 @@ def test_selective_defines_without_ops_compile_every_kernel_out() -> None:
 def test_selective_defines_reject_unknown_ops() -> None:
     with pytest.raises(ValueError, match="FROBNICATE"):
         build_selective_op_defines({"SOFTMAX", "FROBNICATE"})
+
+
+def test_selective_defines_reject_unavailable_ops() -> None:
+    """A kernel the table marks unavailable cannot be flagged into the build."""
+    with pytest.raises(ValueError, match="POW"):
+        build_selective_op_defines({"SOFTMAX", "POW"})
+
+
+def test_schema_accepts_an_operator_list() -> None:
+    config = tflite_op_processor.CONFIG_SCHEMA({CONF_OPERATORS: ["SOFTMAX"]})
+
+    assert config[CONF_OPERATORS] == ["SOFTMAX"]
+
+
+def test_schema_rejects_an_empty_operator_list() -> None:
+    with pytest.raises(cv.Invalid):
+        tflite_op_processor.CONFIG_SCHEMA({CONF_OPERATORS: []})
+
+
+def test_emit_selective_op_defines_reports_an_unavailable_op(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A manifest error reaches the user as a config error, not a traceback."""
+    monkeypatch.setattr(CORE, "defines", set())
+
+    with pytest.raises(cv.Invalid, match="POW"):
+        tflite_op_processor._emit_selective_op_defines(["POW"])
 
 
 def test_unknown_table_line_is_rejected(tmp_path: Path) -> None:

@@ -156,11 +156,11 @@ def build_selective_op_defines(
 ) -> dict[str, int]:
     """Build the ``TFLM_OP_ENABLED_<suffix>`` defines for a set of operators.
 
-    ``op_resolver.h`` reads one flag per operator table entry when
-    ``USE_TFLITE_MICRO_SELECTIVE_OPS`` is set, so every entry gets a value: 1
-    when a configured model needs the kernel, 0 when it is compiled out. An
+    ``op_resolver.h`` reads one flag per registerable operator table entry when
+    ``USE_TFLITE_MICRO_SELECTIVE_OPS`` is set, so every one of them gets a value:
+    1 when a configured model needs the kernel, 0 when it is compiled out. An
     operator that appears in no flag would make the ``if constexpr`` invalid
-    C++, which is why the full set is always returned.
+    C++, which is why the whole registerable set is always returned.
 
     Args:
         ops: operator names as they appear in a model ``.txt`` report, e.g.
@@ -169,12 +169,16 @@ def build_selective_op_defines(
             same directory as this module).
 
     Returns:
-        A mapping of operator suffix to 0 or 1, covering the whole table.
+        A mapping of operator suffix to 0 or 1, covering every registerable
+        operator in the table.
 
     Raises:
         ValueError: if ``ops`` names an operator that is not in the table, so a
             model the firmware cannot run fails at build time instead of at
-            registration time on the device.
+            registration time on the device. An operator the table marks
+            ``TFLM_OP_UNAVAILABLE`` is rejected for the same reason: the
+            resolver cannot register it, and flagging it 0 would only turn the
+            failure into a runtime one.
     """
     table = parse_op_table(path)
     requested = frozenset(ops)
@@ -183,4 +187,11 @@ def build_selective_op_defines(
             f"unknown TFLite Micro operator(s): {', '.join(unknown)}; "
             f"add them to {table_path() if path is None else path}"
         )
-    return {suffix: int(suffix in requested) for suffix in sorted(table.suffixes)}
+    if unavailable := sorted(requested & table.unavailable):
+        raise ValueError(
+            f"TFLite Micro operator(s) {', '.join(unavailable)} cannot be "
+            f"registered by the pinned esp-tflite-micro, as marked in "
+            f"{table_path() if path is None else path}; a model that needs them "
+            "cannot run"
+        )
+    return {suffix: int(suffix in requested) for suffix in sorted(table.supported)}
