@@ -538,10 +538,6 @@
 #define USE_WEBSERVER_CSS_INCLUDE
 #define USE_WEBSERVER_JS_INCLUDE
 #define USE_WEBSERVER_PRIVATE_NETWORK_ACCESS
-// The page version and the locally served vs CDN page are either/or in the
-// code, as is web_server OTA being enabled or disabled. ESP8266 parses the
-// locally served v2 page with OTA disabled; every other environment parses the
-// CDN-served v3 page with OTA enabled, so each arm is analyzed somewhere.
 #ifdef USE_ESP8266
 #define USE_WEBSERVER_VERSION 2
 #define USE_WEBSERVER_LOCAL
@@ -703,8 +699,6 @@
 #define USE_ESP8266_UART_SERIAL
 #define USE_ESP8266_UART_SERIAL1
 #define USE_ESP8266_EARLY_PIN_INIT
-// Either the PSK comes from YAML or it is stored at runtime; ESP8266 parses the
-// YAML arm so the esp32 analysis keeps covering the runtime storage arm.
 #define USE_API_NOISE_PSK_FROM_YAML
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_HTTP_REQUEST_RESPONSE
