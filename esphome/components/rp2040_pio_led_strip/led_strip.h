@@ -15,7 +15,6 @@
 #include <hardware/structs/pio.h>
 #include <pico/stdio.h>
 #include <pico/sem.h>
-#include <cstring>
 #include <map>
 
 namespace esphome::rp2040_pio_led_strip {

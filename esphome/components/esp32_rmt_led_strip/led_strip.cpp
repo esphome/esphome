@@ -157,7 +157,6 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 }
 
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
-  // protect from refreshing too often
   uint32_t now = micros();
   if (this->throttle_show_(now, this->last_refresh_, this->max_refresh_rate_))
     return;

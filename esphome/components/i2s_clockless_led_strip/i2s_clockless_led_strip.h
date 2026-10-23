@@ -32,8 +32,8 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
 
   int32_t size() const override { return this->num_leds_; }
   void clear_effect_data() override {
-    if (this->color_data_ != nullptr)
-      memset(this->effect_data_(), 0, this->num_leds_);
+    if (uint8_t *effect = this->effect_data_())
+      memset(effect, 0, this->num_leds_);
   }
   void write_state(light::LightState *state) override;
 

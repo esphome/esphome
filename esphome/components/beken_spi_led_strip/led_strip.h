@@ -9,8 +9,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-#include <cstring>
-
 namespace esphome::beken_spi_led_strip {
 
 class BekenSPILEDStripLightOutput final : public light::AddressableLight {

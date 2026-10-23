@@ -9,8 +9,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-#include <cstring>
-
 #include <driver/gpio.h>
 #include <esp_err.h>
 #include <esp_idf_version.h>
