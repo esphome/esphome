@@ -145,7 +145,8 @@ bool ModelLoader::load_model_with_arena(const uint8_t *model_data, size_t model_
     required_ops.insert(op_code->builtin_code());
   }
 
-  if (!tflite_op_processor::OpResolverManager::register_ops<TFLITE_MICRO_MAX_OPERATORS>(*this->resolver_, required_ops, TAG)) {
+  if (!tflite_op_processor::OpResolverManager::register_ops<TFLITE_MICRO_MAX_OPERATORS>(*this->resolver_, required_ops,
+                                                                                        TAG)) {
     ESP_LOGE(TAG, "Failed to register operators");
     return false;
   }
