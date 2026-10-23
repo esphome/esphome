@@ -21,7 +21,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel("gp8403", CONF_GP8403_ID)
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="gp8403", hub_key=CONF_GP8403_ID
+)
 
 
 async def to_code(config: ConfigType) -> None:

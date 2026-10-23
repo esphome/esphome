@@ -48,7 +48,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel("mcp4728", CONF_MCP4728_ID)
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="mcp4728", hub_key=CONF_MCP4728_ID
+)
 
 
 async def to_code(config: ConfigType) -> None:

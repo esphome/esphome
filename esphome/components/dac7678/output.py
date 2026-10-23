@@ -21,7 +21,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel("dac7678", CONF_DAC7678_ID)
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="dac7678", hub_key=CONF_DAC7678_ID
+)
 
 
 async def to_code(config: ConfigType) -> MockObj:

@@ -21,7 +21,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel("bp5758d", CONF_BP5758D_ID)
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="bp5758d", hub_key=CONF_BP5758D_ID
+)
 
 
 async def to_code(config: ConfigType) -> None:

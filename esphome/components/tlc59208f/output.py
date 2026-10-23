@@ -21,7 +21,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
-    "tlc59208f", CONF_TLC59208F_ID
+    platform="tlc59208f", hub_key=CONF_TLC59208F_ID
 )
 
 

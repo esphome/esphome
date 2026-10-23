@@ -21,7 +21,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
-    "bp1658cj", CONF_BP1658CJ_ID
+    platform="bp1658cj", hub_key=CONF_BP1658CJ_ID
 )
 
 

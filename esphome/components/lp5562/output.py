@@ -48,7 +48,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 # A second output on a channel would also set its current, and the last one would win
-FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel("lp5562", CONF_LP5562_ID)
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="lp5562", hub_key=CONF_LP5562_ID
+)
 
 
 async def to_code(config: ConfigType) -> None:

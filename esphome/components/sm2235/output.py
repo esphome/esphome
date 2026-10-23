@@ -21,7 +21,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel("sm2235", CONF_SM2235_ID)
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="sm2235", hub_key=CONF_SM2235_ID
+)
 
 
 async def to_code(config: ConfigType) -> None:

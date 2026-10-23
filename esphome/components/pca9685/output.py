@@ -20,7 +20,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 )
 
 
-FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel("pca9685", CONF_PCA9685_ID)
+FINAL_VALIDATE_SCHEMA = output.final_validate_unique_channel(
+    platform="pca9685", hub_key=CONF_PCA9685_ID
+)
 
 
 async def to_code(config: ConfigType) -> None:
