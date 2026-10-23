@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_NUM_LEDS,
     CONF_OUTPUT_ID,
     CONF_PIN,
-    CONF_PLATFORM,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -128,12 +127,10 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> None:
-    # The strip owns SPI0 and its DMA channel, so only one can exist.
-    lights = fv.full_config.get().get(light.DOMAIN, [])
-    if sum(entry.get(CONF_PLATFORM) == DOMAIN for entry in lights) > 1:
-        raise cv.Invalid(f"Only one {DOMAIN} is supported (it uses SPI0)")
-
+# The strip owns SPI0 and its DMA channel, so only one can exist.
+_final_validate = fv.unique_platform_key(
+    light.DOMAIN, DOMAIN, message=f"Only one {DOMAIN} is supported (it uses SPI0)"
+)
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 

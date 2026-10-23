@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir, remote_base
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PLATFORM
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -21,26 +20,14 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(HaierTundra).extend(
 )
 
 
-def _final_validate_unit(config: ConfigType) -> None:
-    # Each transmitter may drive at most one unit A and one unit B
-    climates = fv.full_config.get()["climate"]
-    seen = set()
-
-    for climate in climates:
-        if CONF_PLATFORM in climate and climate[CONF_PLATFORM] == "haier_tundra":
-            unit_tx_pair = (
-                climate[CONF_UNIT],
-                climate[remote_base.CONF_TRANSMITTER_ID],
-            )
-
-            if unit_tx_pair in seen and climate[CONF_ID] == config[CONF_ID]:
-                raise cv.Invalid(
-                    "Only one of each unit is allowed per transmitter", path=[CONF_UNIT]
-                )
-            seen.add(unit_tx_pair)
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate_unit
+# Each transmitter may drive at most one unit A and one unit B
+FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
+    "climate",
+    "haier_tundra",
+    remote_base.CONF_TRANSMITTER_ID,
+    CONF_UNIT,
+    message="Only one of each unit is allowed per transmitter",
+)
 
 
 async def to_code(config: ConfigType) -> None:
