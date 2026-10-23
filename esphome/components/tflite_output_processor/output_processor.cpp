@@ -1,284 +1,215 @@
 #include "output_processor.h"
 
-#ifdef USE_TFLITE_MICRO_HELPER
 #include "esphome/core/log.h"
+
 #include <algorithm>
 #include <cmath>
-#include <vector>
 
 namespace esphome::tflite_output_processor {
 
 ESPHOME_LOG_TAG(TAG, "output_processor");
 
-ProcessedOutput process_output(TfLiteTensor *output_tensor, const std::string &output_processing, float scale_factor,
+/// Multiplies the logits of OUTPUT_PROCESSING_EXPERIMENTAL_SCALE; below 1.0 flattens the distribution.
+static constexpr float EXPERIMENTAL_LOGIT_SCALE = 0.1f;
+
+namespace {
+
+struct OutputStats {
+  float min_value;
+  float max_value;
+  float sum;
+  int max_index;
+  int non_zero_count;
+};
+
+/// Single pass over the output: range, winning index, sum and non-zero count.
+/// `value_at` returns the already dequantized value of one element.
+template<typename ValueAt> OutputStats compute_stats(int num_classes, const ValueAt &value_at) {
+  const float first = value_at(0);
+  OutputStats stats{first, first, 0.0f, 0, 0};
+  for (int i = 0; i < num_classes; i++) {
+    const float value = value_at(i);
+    if (value < stats.min_value)
+      stats.min_value = value;
+    if (value > stats.max_value) {
+      stats.max_value = value;
+      stats.max_index = i;
+    }
+    stats.sum += value;
+    if (std::fabs(value) > 1e-6f)
+      stats.non_zero_count++;
+  }
+  return stats;
+}
+
+/// Probability of the winning class after softmax. Softmax keeps the argmax, so the winner is
+/// already known and only its probability has to be computed. `logit_scale` multiplies the centred
+/// logits before exp(): 1.0 is a plain softmax, smaller values flatten the distribution.
+template<typename ValueAt>
+float winning_probability(int num_classes, float max_value, float logit_scale, const ValueAt &value_at) {
+  if (!(logit_scale > 0.0f))
+    logit_scale = 1.0f;
+  float sum = 0.0f;
+  for (int i = 0; i < num_classes; i++)
+    sum += expf((value_at(i) - max_value) * logit_scale);
+  return sum > 0.0f ? 1.0f / sum : 0.0f;
+}
+
+/// Shared implementation for float output buffers and dequantized integer tensors.
+template<typename ValueAt>
+ProcessedOutput process_values(int num_classes, OutputProcessing mode, float scale_factor, bool debug,
+                               const ValueAt &value_at) {
+  const OutputStats stats = compute_stats(num_classes, value_at);
+
+  if (debug) {
+    ESP_LOGD(TAG, "Output range: min=%.6f, max=%.6f, sum=%.6f", stats.min_value, stats.max_value, stats.sum);
+  }
+
+  float confidence = 0.0f;
+
+  switch (mode) {
+    case OutputProcessing::OUTPUT_PROCESSING_DIRECT_CLASS:
+    case OutputProcessing::OUTPUT_PROCESSING_ARGMAX:
+      // The tensor already holds scores or probabilities, so the winning entry is the confidence.
+      confidence = stats.max_value;
+      break;
+    case OutputProcessing::OUTPUT_PROCESSING_SOFTMAX:
+    case OutputProcessing::OUTPUT_PROCESSING_LOGITS:
+    case OutputProcessing::OUTPUT_PROCESSING_LOGITS_JOMJOL:
+    case OutputProcessing::OUTPUT_PROCESSING_SOFTMAX_JOMJOL:
+      // Logits: softmax does not change the winning class, so only its probability is needed.
+      confidence = winning_probability(num_classes, stats.max_value, 1.0f, value_at);
+      break;
+    case OutputProcessing::OUTPUT_PROCESSING_EXPERIMENTAL_SCALE:
+      confidence = winning_probability(num_classes, stats.max_value, EXPERIMENTAL_LOGIT_SCALE, value_at);
+      break;
+    case OutputProcessing::OUTPUT_PROCESSING_QAT_QUANTIZED:
+      // Quantization-aware trained models apply softmax, so this already is a probability.
+      confidence = std::clamp(stats.max_value, 0.0f, 1.0f);
+      break;
+    case OutputProcessing::OUTPUT_PROCESSING_AUTO_DETECT: {
+      const bool looks_like_probabilities =
+          stats.min_value >= 0.0f && stats.max_value <= 1.0f && std::fabs(stats.sum - 1.0f) <= 0.05f;
+      // A single non-zero element above 0.5 is not logits and does not sum to 1.
+      const bool looks_like_one_hot = stats.non_zero_count == 1 && stats.max_value >= 0.5f;
+      if (debug) {
+        ESP_LOGD(TAG, "Auto-detect: non-zero=%d probabilities=%s one_hot=%s", stats.non_zero_count,
+                 looks_like_probabilities ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"),
+                 looks_like_one_hot ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
+      }
+      if (looks_like_probabilities) {
+        // An exact one-hot vector ({0, 1, 0}) sums to 1 and lands here as well.
+        confidence = stats.max_value;
+      } else if (looks_like_one_hot) {
+        // Exactly one non-zero element, so the winner is that element.
+        confidence = 1.0f;
+      } else {
+        confidence = winning_probability(num_classes, stats.max_value, 1.0f, value_at);
+      }
+      break;
+    }
+  }
+
+  float value = static_cast<float>(stats.max_index);
+  // The class index is scaled in every mode. Configuration validation rejects this, but a caller
+  // can still pass it, and dividing by zero would report inf.
+  if (!(scale_factor > 0.0f))
+    scale_factor = 1.0f;
+  value /= scale_factor;
+
+  if (debug) {
+    ESP_LOGD(TAG, "Processed output: value=%.4f confidence=%.6f", value, confidence);
+  }
+
+  return {value, confidence};
+}
+
+}  // namespace
+
+ProcessedOutput process_output(const float *output_data, int num_classes, OutputProcessing mode, float scale_factor,
                                bool debug) {
-  if (!output_tensor) {
+  if (output_data == nullptr) {
+    ESP_LOGE(TAG, "Null output data pointer");
+    return {0.0f, 0.0f};
+  }
+  if (num_classes <= 0) {
+    ESP_LOGE(TAG, "Invalid number of output classes: %d", num_classes);
+    return {0.0f, 0.0f};
+  }
+  return process_values(num_classes, mode, scale_factor, debug,
+                        [output_data](int i) -> float { return output_data[i]; });
+}
+
+#ifdef USE_TFLITE_MICRO_HELPER
+
+namespace {
+
+/// Product of the tensor dimensions; 0 when the tensor has no usable dimensions.
+int tensor_element_count(const TfLiteTensor *tensor) {
+  if (tensor->dims == nullptr || tensor->dims->size <= 0)
+    return 0;
+  int count = 1;
+  for (int i = 0; i < tensor->dims->size; i++) {
+    if (tensor->dims->data[i] <= 0)
+      return 0;
+    count *= tensor->dims->data[i];
+  }
+  return count;
+}
+
+}  // namespace
+
+ProcessedOutput process_output(TfLiteTensor *output_tensor, OutputProcessing mode, float scale_factor, bool debug) {
+  if (output_tensor == nullptr) {
     ESP_LOGE(TAG, "Null output tensor");
     return {0.0f, 0.0f};
   }
 
+  const int count = tensor_element_count(output_tensor);
+  if (count <= 0) {
+    ESP_LOGE(TAG, "Output tensor has no usable dimensions");
+    return {0.0f, 0.0f};
+  }
+
   if (output_tensor->type == kTfLiteFloat32) {
-    // num_classes is derived from the tensor dimensions by the caller path; use the
-    // dequantized/float count computed here for the float overload.
-    int count = 1;
-    for (int i = 0; i < output_tensor->dims->size; i++) {
-      count *= output_tensor->dims->data[i];
+    if (output_tensor->data.f == nullptr) {
+      ESP_LOGE(TAG, "Output tensor has no data");
+      return {0.0f, 0.0f};
     }
-    return process_output(output_tensor->data.f, count, output_processing, scale_factor, debug);
-  } else if (output_tensor->type == kTfLiteUInt8 || output_tensor->type == kTfLiteInt8) {
-    // Calculate total elements
-    int count = 1;
-    for (int i = 0; i < output_tensor->dims->size; i++) {
-      count *= output_tensor->dims->data[i];
-    }
+    return process_output(output_tensor->data.f, count, mode, scale_factor, debug);
+  }
 
-    // Safety check against buffer overflow if count differs from output_size_
-    // Use local vector to ensure bounds safety regardless of output_size_ member state.
-    // This ensures dequantization loop is safe.
-
-    std::vector<float> dequantized(count);
-    float scale = output_tensor->params.scale;
-    int32_t zero_point = output_tensor->params.zero_point;
-
-    if (scale == 0.0f) {
-      scale = 1.0f;
-      ESP_LOGW(TAG, "Output tensor has scale 0.0, assuming 1.0 -- probabilities may be garbage");
-    }
-
-    if (output_tensor->type == kTfLiteUInt8) {
-      uint8_t *data = output_tensor->data.uint8;
-      for (int i = 0; i < count; i++) {
-        dequantized[i] = (data[i] - zero_point) * scale;
-      }
-    } else {  // Int8
-      int8_t *data = output_tensor->data.int8;
-      for (int i = 0; i < count; i++) {
-        dequantized[i] = (data[i] - zero_point) * scale;
-      }
-    }
-
-    return process_output(dequantized.data(), count, output_processing, scale_factor, debug);
-  } else {
+  if (output_tensor->type != kTfLiteUInt8 && output_tensor->type != kTfLiteInt8) {
     ESP_LOGE(TAG, "Unsupported output tensor type: %d", output_tensor->type);
     return {0.0f, 0.0f};
   }
+
+  float scale = output_tensor->params.scale;
+  const int32_t zero_point = output_tensor->params.zero_point;
+  if (scale == 0.0f) {
+    scale = 1.0f;
+    ESP_LOGW(TAG, "Output tensor has scale 0.0, assuming 1.0 -- probabilities may be garbage");
+  }
+
+  if (output_tensor->type == kTfLiteUInt8) {
+    const uint8_t *data = output_tensor->data.uint8;
+    if (data == nullptr) {
+      ESP_LOGE(TAG, "Output tensor has no data");
+      return {0.0f, 0.0f};
+    }
+    return process_values(count, mode, scale_factor, debug,
+                          [data, zero_point, scale](int i) -> float { return (data[i] - zero_point) * scale; });
+  }
+
+  const int8_t *data = output_tensor->data.int8;
+  if (data == nullptr) {
+    ESP_LOGE(TAG, "Output tensor has no data");
+    return {0.0f, 0.0f};
+  }
+  return process_values(count, mode, scale_factor, debug,
+                        [data, zero_point, scale](int i) -> float { return (data[i] - zero_point) * scale; });
 }
-
-ProcessedOutput process_output(const float *output_data, int num_classes, const std::string &output_processing,
-                               float scale_factor, bool debug) {
-  ProcessedOutput result = {0.0f, 0.0f};
-
-  if (output_data == nullptr) {
-    ESP_LOGE(TAG, "Null output data pointer");
-    return result;
-  }
-
-  if (num_classes <= 0) {
-    ESP_LOGE(TAG, "Invalid number of output classes: %d", num_classes);
-    return result;
-  }
-
-  // Single-pass statistics calculation
-  float min_val = output_data[0];
-  float max_val = output_data[0];
-  int max_idx = 0;
-
-  for (int i = 1; i < num_classes; i++) {
-    float val = output_data[i];
-    if (val < min_val)
-      min_val = val;
-    if (val > max_val) {
-      max_val = val;
-      max_idx = i;
-    }
-  }
-
-  float max_val_output = max_val;
-  if (debug) {
-    ESP_LOGD(TAG, "Output range: min=%.6f, max=%.6f", min_val, max_val);
-  }
-
-  if (output_processing == "direct_class" || output_processing == "argmax") {
-    result.value = static_cast<float>(max_idx);
-    result.confidence = max_val_output;
-    ESP_LOGD(TAG, "Direct class - Value: %.1f, Confidence: %.6f", result.value, result.confidence);
-
-  } else if (output_processing == "softmax") {
-    float max_logit = *std::max_element(output_data, output_data + num_classes);
-    std::vector<float> exp_vals(num_classes);
-    float sum = 0.0f;
-    for (int i = 0; i < num_classes; i++) {
-      exp_vals[i] = expf(output_data[i] - max_logit);
-      sum += exp_vals[i];
-    }
-
-    int softmax_max_idx = 0;
-    float softmax_max_val = 0.0f;
-    for (int i = 0; i < num_classes; i++) {
-      float prob = exp_vals[i] / sum;
-      if (prob > softmax_max_val) {
-        softmax_max_val = prob;
-        softmax_max_idx = i;
-      }
-    }
-
-    result.value = static_cast<float>(softmax_max_idx) / scale_factor;
-    result.confidence = softmax_max_val;
-    ESP_LOGD(TAG, "Softmax - Value: %.1f, Confidence: %.6f", result.value, result.confidence);
-
-  } else if (output_processing == "logits") {
-    result.value = static_cast<float>(max_idx);
-
-    if (min_val >= 0.0f && max_val <= 1.0f) {
-      result.confidence = max_val_output;
-    } else {
-      float confidence_range = max_val - min_val;
-      if (confidence_range > 0.001f) {
-        result.confidence = (max_val_output - min_val) / confidence_range;
-      } else {
-        result.confidence = 1.0f;
-      }
-      result.confidence = std::max(0.0f, std::min(1.0f, result.confidence));
-    }
-
-    if (scale_factor != 1.0f) {
-      result.value = result.value / scale_factor;
-    }
-
-    ESP_LOGD(TAG, "Logits - Value: %.1f, Raw Max: %.6f, Confidence: %.6f", result.value, max_val_output,
-             result.confidence);
-
-  } else if (output_processing == "qat_quantized") {
-    result.value = static_cast<float>(max_idx);
-
-    if (max_val > min_val) {
-      result.confidence = (max_val_output - min_val) / (max_val - min_val);
-    } else {
-      result.confidence = 1.0f;
-    }
-    result.confidence = std::max(0.0f, std::min(1.0f, result.confidence));
-
-    if (scale_factor != 1.0f) {
-      result.value = result.value / scale_factor;
-    }
-
-    ESP_LOGD(TAG, "QAT Quantized - Value: %.1f, Confidence: %.6f (raw: %.6f)", result.value, result.confidence,
-             max_val_output);
-
-  } else if (output_processing == "experimental_scale") {
-    const float scale_factor = 0.1f;  // tweak if needed
-    std::vector<float> scaled(num_classes);
-    for (int i = 0; i < num_classes; ++i) {
-      scaled[i] = output_data[i] * scale_factor;
-    }
-
-    float max_scaled = *std::max_element(scaled.begin(), scaled.end());
-    std::vector<float> exp_vals(num_classes);
-    float sum = 0.0f;
-    for (int i = 0; i < num_classes; ++i) {
-      exp_vals[i] = expf(scaled[i] - max_scaled);
-      sum += exp_vals[i];
-    }
-
-    int exp_max_idx = 0;
-    float exp_max_val = 0.0f;
-    for (int i = 0; i < num_classes; ++i) {
-      float prob = exp_vals[i] / sum;
-      if (prob > exp_max_val) {
-        exp_max_val = prob;
-        exp_max_idx = i;
-      }
-    }
-
-    result.value = static_cast<float>(exp_max_idx) / scale_factor;
-    result.confidence = exp_max_val;
-    ESP_LOGD(TAG, "Experimental scale - Value: %.1f, Confidence: %.6f", result.value, result.confidence);
-
-  } else if (output_processing == "auto_detect") {
-    float min_val_ad = output_data[0];
-    float max_val_ad = output_data[0];
-    float sum_ad = 0.0f;
-    int non_zero_ad = 0;
-
-    for (int i = 0; i < num_classes; ++i) {
-      float v = output_data[i];
-      if (v < min_val_ad)
-        min_val_ad = v;
-      if (v > max_val_ad)
-        max_val_ad = v;
-      sum_ad += v;
-      if (std::fabs(v) > 1e-6f)
-        ++non_zero_ad;
-    }
-
-    bool looks_like_probs_ad = (min_val_ad >= 0.0f && max_val_ad <= 1.0f && std::fabs(sum_ad - 1.0f) <= 0.05f);
-
-    bool looks_like_one_hot_ad = (non_zero_ad == 1 && max_val_ad >= 0.5f);
-    bool looks_like_logits_ad = !looks_like_probs_ad && !looks_like_one_hot_ad;
-
-    ESP_LOGI(TAG, "AUTO-DETECT: min=%.3f max=%.3f sum=%.3f nz=%d => probs=%s one_hot=%s logits=%s", min_val_ad,
-             max_val_ad, sum_ad, non_zero_ad, looks_like_probs_ad ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"),
-             looks_like_one_hot_ad ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"),
-             looks_like_logits_ad ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
-
-    if (looks_like_probs_ad) {
-      int max_idx_ad = 0;
-      float max_prob_ad = output_data[0];
-      for (int i = 1; i < num_classes; ++i) {
-        if (output_data[i] > max_prob_ad) {
-          max_prob_ad = output_data[i];
-          max_idx_ad = i;
-        }
-      }
-      result.value = static_cast<float>(max_idx_ad) / scale_factor;
-      result.confidence = max_prob_ad;
-      ESP_LOGD(TAG, "Auto-detect (softmax): value=%.1f confidence=%.6f", result.value, result.confidence);
-    } else if (looks_like_one_hot_ad) {
-      int class_id_ad = 0;
-      for (int i = 0; i < num_classes; ++i) {
-        if (std::fabs(output_data[i]) > 0.5f) {
-          class_id_ad = i;
-          break;
-        }
-      }
-      result.value = static_cast<float>(class_id_ad) / scale_factor;
-      result.confidence = 1.0f;
-      ESP_LOGD(TAG, "Auto-detect (direct): value=%.1f confidence=1.0", result.value);
-    } else {
-      float max_logit_ad = *std::max_element(output_data, output_data + num_classes);
-      std::vector<float> exp_vals_ad(num_classes);
-      float exp_sum_ad = 0.0f;
-      for (int i = 0; i < num_classes; ++i) {
-        exp_vals_ad[i] = expf(output_data[i] - max_logit_ad);
-        exp_sum_ad += exp_vals_ad[i];
-      }
-
-      int max_idx_ad = 0;
-      float max_prob_ad = exp_vals_ad[0] / exp_sum_ad;
-      for (int i = 1; i < num_classes; ++i) {
-        float prob = exp_vals_ad[i] / exp_sum_ad;
-        if (prob > max_prob_ad) {
-          max_prob_ad = prob;
-          max_idx_ad = i;
-        }
-      }
-
-      result.value = static_cast<float>(max_idx_ad) / scale_factor;
-      result.confidence = max_prob_ad;
-      ESP_LOGD(TAG, "Auto-detect (logits): value=%.1f confidence=%.6f", result.value, result.confidence);
-    }
-
-  } else {
-    ESP_LOGE(TAG, "Unknown output processing method: %s", output_processing.c_str());
-
-    result.value = static_cast<float>(max_idx);
-    result.confidence = max_val_output;
-    ESP_LOGW(TAG, "Fallback to direct classification - Value: %.1f, Confidence: %.6f", result.value, result.confidence);
-  }
-
-  return result;
-}
-
-}  // namespace esphome::tflite_output_processor
 
 #endif  // USE_TFLITE_MICRO_HELPER
+
+}  // namespace esphome::tflite_output_processor
