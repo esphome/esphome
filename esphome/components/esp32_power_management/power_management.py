@@ -1,5 +1,6 @@
 import logging
 
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, power_management
 from esphome.components.esp32 import (
@@ -23,7 +24,14 @@ from esphome.components.openthread.const import CONF_POLL_PERIOD
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zigbee import DOMAIN as ZIGBEE_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPENTHREAD, CONF_PLATFORM
+from esphome.const import (
+    CONF_ID,
+    CONF_INPUT,
+    CONF_MODE,
+    CONF_OPENTHREAD,
+    CONF_PLATFORM,
+    PLATFORM_ESP32,
+)
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -189,7 +197,17 @@ async def to_code(config: ConfigType) -> None:
     )
     if config[CONF_POWER_DOWN_PERIPHERALS]:
         add_idf_sdkconfig_option("CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP", True)
-        add_idf_sdkconfig_option("CONFIG_PM_LIGHT_SLEEP_CALLBACKS", True)
+        if any(
+            pin_config.get(CONF_MODE, {}).get(CONF_INPUT, False)
+            for (
+                platform,
+                _,
+                _,
+            ), pin_users in pins.PIN_SCHEMA_REGISTRY.pins_used.items()
+            if platform == PLATFORM_ESP32
+            for _, _, pin_config in pin_users
+        ):
+            add_idf_sdkconfig_option("CONFIG_PM_LIGHT_SLEEP_CALLBACKS", True)
     if config[CONF_POWER_DOWN_FLASH]:
         add_idf_sdkconfig_option("CONFIG_ESP_SLEEP_POWER_DOWN_FLASH", True)
 

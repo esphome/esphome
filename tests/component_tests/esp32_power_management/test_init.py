@@ -6,7 +6,7 @@ from unittest import mock
 
 import pytest
 
-from esphome import config_validation as cv
+from esphome import config_validation as cv, pins
 from esphome.components.esp32 import (
     KEY_VARIANT,
     VARIANT_ESP32,
@@ -26,7 +26,14 @@ from esphome.components.esp32_power_management.power_management import (
     valid_min_frequencies,
 )
 from esphome.components.openthread.const import CONF_DEVICE_TYPE, CONF_POLL_PERIOD
-from esphome.const import CONF_OPENTHREAD, KEY_FRAMEWORK_VERSION, PlatformFramework
+from esphome.const import (
+    CONF_INPUT,
+    CONF_MODE,
+    CONF_OPENTHREAD,
+    KEY_FRAMEWORK_VERSION,
+    PLATFORM_ESP32,
+    PlatformFramework,
+)
 from esphome.core import CORE, TimePeriodMilliseconds
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
@@ -274,8 +281,8 @@ def test_rejects_power_down_flash_with_psram(
         )
 
 
-@pytest.fixture
-def sdkconfig_calls() -> dict[str, object]:
+@pytest.fixture(name="captured_sdkconfig_calls")
+def _captured_sdkconfig_calls_fixture() -> dict[str, object]:
     """Run to_code() without codegen and collect the sdkconfig options it sets."""
     calls: dict[str, object] = {}
     with (
@@ -349,7 +356,7 @@ NOT_SET = object()
 )
 async def test_to_code_sdkconfig(
     set_core_config: SetCoreConfigCallable,
-    sdkconfig_calls: dict[str, object],
+    captured_sdkconfig_calls: dict[str, object],
     core_config: ConfigType,
     light_sleep: bool,
     key: str,
@@ -358,4 +365,42 @@ async def test_to_code_sdkconfig(
     _set_variant(set_core_config, VARIANT_ESP32H2)
     CORE.config = core_config
     await to_code(CONFIG_SCHEMA({CONF_ENABLE_LIGHT_SLEEP: light_sleep}))
-    assert sdkconfig_calls.get(key, NOT_SET) is expected
+    assert captured_sdkconfig_calls.get(key, NOT_SET) is expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("provider", "mode", "expected"),
+    [
+        pytest.param(PLATFORM_ESP32, {CONF_INPUT: True}, True, id="internal-input"),
+        pytest.param(PLATFORM_ESP32, {"output": True}, False, id="internal-output"),
+        pytest.param("gpio_expander", {CONF_INPUT: True}, False, id="expander-input"),
+    ],
+)
+async def test_light_sleep_callbacks_require_internal_input_pin(
+    set_core_config: SetCoreConfigCallable,
+    captured_sdkconfig_calls: dict[str, object],
+    provider: str,
+    mode: dict[str, bool],
+    expected: bool,
+) -> None:
+    _set_variant(set_core_config, VARIANT_ESP32H2)
+    CORE.config = {}
+    with mock.patch.object(
+        pins.PIN_SCHEMA_REGISTRY,
+        "pins_used",
+        {
+            (provider, provider, 9): [([], None, {CONF_MODE: mode})],
+        },
+    ):
+        await to_code(
+            CONFIG_SCHEMA(
+                {
+                    CONF_ENABLE_LIGHT_SLEEP: True,
+                    CONF_POWER_DOWN_PERIPHERALS: True,
+                }
+            )
+        )
+    assert captured_sdkconfig_calls.get("CONFIG_PM_LIGHT_SLEEP_CALLBACKS", NOT_SET) is (
+        True if expected else NOT_SET
+    )
