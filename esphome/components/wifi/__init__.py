@@ -11,6 +11,7 @@ from esphome.components.esp32 import (
     get_esp32_variant,
     only_on_variant,
     request_wifi,
+    require_idf_version,
     require_mbedtls_tls,
     require_mbedtls_tls_extras,
 )
@@ -65,7 +66,6 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_USERNAME,
     PLACEHOLDER_WIFI_SSID,
-    Framework,
     Platform,
     PlatformFramework,
 )
@@ -224,8 +224,8 @@ WIFI_AP_MODE_WISP = "WISP"
 def _validate_ap_mode(value: str) -> str:
     value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
     if value == WIFI_AP_MODE_WISP:
-        # WISP mode routes through NAT, which only ESP-IDF provides
-        cv.only_with_framework(Framework.ESP_IDF)(value)
+        # The bridge is part of the ESP32 backend, on both of its frameworks
+        cv.only_on_esp32(value)
     return value
 
 
@@ -233,10 +233,7 @@ def _validate_dns_servers(value: list) -> list:
     if any(ip.is_unspecified for ip in value):
         raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
     if len(value) > 1:
-        cv.require_framework_version(
-            esp_idf=cv.Version(6, 0, 0),
-            extra_message="The access point offers a second DNS server from ESP-IDF 6.0",
-        )(value)
+        require_idf_version(cv.Version(6, 0, 0), "A second DNS server")(value)
     return value
 
 
@@ -645,7 +642,6 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     value = LEASE_CACHE_SCHEMA(value)
     if value[CONF_ENABLED]:
         cv.only_on_esp32(value)
-        cv.only_with_framework(Framework.ESP_IDF)(value)
         if CONF_STORAGE not in value:
             if not preferences.rtc_supported():
                 raise cv.Invalid(
