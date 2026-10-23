@@ -74,10 +74,7 @@ void SX127x::setup() {
 
 void SX127x::configure() {
   // toggle chip reset
-  this->rst_pin_->digital_write(false);
-  delayMicroseconds(1000);
-  this->rst_pin_->digital_write(true);
-  delayMicroseconds(10000);
+  pulse_reset(this->rst_pin_, 1, 10);
 
   // check silicon version to make sure hw is ok
   if (this->read_register_(REG_VERSION) != 0x12) {

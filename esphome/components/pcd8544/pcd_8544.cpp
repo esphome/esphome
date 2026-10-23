@@ -13,18 +13,7 @@ void PCD8544::setup_pins_() {
   this->dc_pin_->setup();
 }
 
-void PCD8544::init_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(1);
-    // Trigger Reset
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    // Wake up
-    this->reset_pin_->digital_write(true);
-  }
-}
+void PCD8544::init_reset_() { pulse_reset(this->reset_pin_, 10, 0, 1); }
 
 void PCD8544::initialize() {
   this->init_internal_(this->get_buffer_length_());

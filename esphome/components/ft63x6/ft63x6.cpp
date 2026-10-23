@@ -57,13 +57,7 @@ void FT63X6Touchscreen::setup() {
   this->write_byte(FT6X36_ADDR_TOUCHRATE_ACTIVE, 0x0E);
 }
 
-void FT63X6Touchscreen::hard_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-  }
-}
+void FT63X6Touchscreen::hard_reset_() { pulse_reset(this->reset_pin_, 10); }
 
 void FT63X6Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "FT63X6 Touchscreen:");

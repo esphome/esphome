@@ -33,14 +33,7 @@ void MipiRgb::setup_enables_() {
     }
     delay(10);
   }
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);
-    delay(5);
-    this->reset_pin_->digital_write(true);
-  }
+  pulse_reset(this->reset_pin_, 5, 0, 5);
 }
 
 #ifdef USE_SPI

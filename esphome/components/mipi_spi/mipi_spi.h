@@ -151,15 +151,8 @@ class MipiSpi : public display::Display,
       pin->setup();
       pin->digital_write(true);
     }
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->setup();
-      this->reset_pin_->digital_write(true);
-      delay(5);
-      this->reset_pin_->digital_write(false);
-      delay(5);
-      this->reset_pin_->digital_write(true);
-      // required delay after reset is already in the init sequence, don't duplicate
-    }
+    // required delay after reset is already in the init sequence, don't duplicate
+    pulse_reset(this->reset_pin_, 5, 0, 5);
 
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;

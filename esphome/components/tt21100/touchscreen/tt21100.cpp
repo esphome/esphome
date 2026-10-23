@@ -122,14 +122,7 @@ void TT21100Touchscreen::update_touches() {
   }
 }
 
-void TT21100Touchscreen::reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-    delay(10);
-  }
-}
+void TT21100Touchscreen::reset_() { pulse_reset(this->reset_pin_, 10, 10); }
 
 void TT21100Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "TT21100 Touchscreen:");

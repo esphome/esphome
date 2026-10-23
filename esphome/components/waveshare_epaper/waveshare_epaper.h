@@ -35,14 +35,7 @@ class WaveshareEPaperBase : public display::DisplayBuffer,
 
   void setup_pins_();
 
-  void reset_() {
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->digital_write(false);
-      delay(reset_duration_);  // NOLINT
-      this->reset_pin_->digital_write(true);
-      delay(20);
-    }
-  }
+  void reset_() { pulse_reset(this->reset_pin_, this->reset_duration_, 20); }
 
   virtual int get_width_controller() { return this->get_width_internal(); };
 
@@ -834,16 +827,7 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
 
   int get_height_internal() override;
 
-  void reset_() {
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->digital_write(true);
-      delay(200);  // NOLINT
-      this->reset_pin_->digital_write(false);
-      delay(5);
-      this->reset_pin_->digital_write(true);
-      delay(200);  // NOLINT
-    }
-  };
+  void reset_() { pulse_reset(this->reset_pin_, 5, 200, 200); };
 
   void init_display_();
 };
@@ -872,16 +856,7 @@ class WaveshareEPaper7P5InBV3BWR : public WaveshareEPaperBWR {
 
   int get_height_internal() override;
 
-  void reset_() {
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->digital_write(true);
-      delay(200);  // NOLINT
-      this->reset_pin_->digital_write(false);
-      delay(5);
-      this->reset_pin_->digital_write(true);
-      delay(200);  // NOLINT
-    }
-  };
+  void reset_() { pulse_reset(this->reset_pin_, 5, 200, 200); };
 
   void init_display_();
 };
@@ -943,16 +918,7 @@ class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {
   void dump_config() override;
 
  protected:
-  void reset_() {
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->digital_write(true);
-      delay(200);  // NOLINT
-      this->reset_pin_->digital_write(false);
-      delay(2);
-      this->reset_pin_->digital_write(true);
-      delay(20);
-    }
-  };
+  void reset_() { pulse_reset(this->reset_pin_, 2, 20, 200); };
 };
 
 class WaveshareEPaper7P5InV2P : public WaveshareEPaper {

@@ -321,18 +321,7 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 
-void ST7735::init_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(1);
-    // Trigger Reset
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    // Wake up
-    this->reset_pin_->digital_write(true);
-  }
-}
+void ST7735::init_reset_() { pulse_reset(this->reset_pin_, 10, 0, 1); }
 const char *ST7735::model_str_() {
   switch (this->model_) {
     case INITR_GREENTAB:

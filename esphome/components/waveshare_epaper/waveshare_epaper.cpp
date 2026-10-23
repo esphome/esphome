@@ -299,16 +299,7 @@ void WaveshareEPaper7C::send_buffers_() {
     App.feed_wdt();
   }
 }
-void WaveshareEPaper7C::reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(true);
-    delay(20);
-    this->reset_pin_->digital_write(false);
-    delay(1);
-    this->reset_pin_->digital_write(true);
-    delay(20);
-  }
-}
+void WaveshareEPaper7C::reset_() { pulse_reset(this->reset_pin_, 1, 20, 20); }
 
 void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
@@ -424,10 +415,7 @@ void WaveshareEPaperTypeA::initialize() {
 void WaveshareEPaperTypeA::init_display_() {
   if (this->model_ == TTGO_EPAPER_2_13_IN_B74 || this->model_ == WAVESHARE_EPAPER_2_13_IN_V2) {
     if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->digital_write(false);
-      delay(10);
-      this->reset_pin_->digital_write(true);
-      delay(10);
+      pulse_reset(this->reset_pin_, 10, 10);
       this->wait_until_idle_();
     }
 
@@ -1706,14 +1694,7 @@ void WaveshareEPaper2P9InV2R2::initialize() {
 
 WaveshareEPaper2P9InV2R2::WaveshareEPaper2P9InV2R2() { this->reset_duration_ = 10; }
 
-void WaveshareEPaper2P9InV2R2::reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(reset_duration_);  // NOLINT
-    this->reset_pin_->digital_write(true);
-    delay(reset_duration_);  // NOLINT
-  }
-}
+void WaveshareEPaper2P9InV2R2::reset_() { pulse_reset(this->reset_pin_, this->reset_duration_, this->reset_duration_); }
 
 void WaveshareEPaper2P9InV2R2::display() {
   if (!this->wait_until_idle_()) {
@@ -2218,15 +2199,7 @@ void GDEW0154M09::initialize() {
   this->clear_();
 }
 
-void GDEW0154M09::reset_() {
-  // RST is inverse from other einks in this project
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-    delay(10);
-  }
-}
+void GDEW0154M09::reset_() { pulse_reset(this->reset_pin_, 10, 10); }
 
 void GDEW0154M09::init_internal_() {
   this->reset_();
@@ -2363,14 +2336,7 @@ void GDEY042T81::initialize() {
 //  10 ms seems to work, so we use this
 GDEY042T81::GDEY042T81() { this->reset_duration_ = 10; }
 
-void GDEY042T81::reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(reset_duration_);  // NOLINT
-    this->reset_pin_->digital_write(true);
-    delay(reset_duration_);  // NOLINT
-  }
-}
+void GDEY042T81::reset_() { pulse_reset(this->reset_pin_, this->reset_duration_, this->reset_duration_); }
 
 void GDEY042T81::init_display_() {
   this->reset_();
@@ -2666,10 +2632,7 @@ void WaveshareEPaper4P2In::dump_config() {
 // ========================================================
 void WaveshareEPaper4P2InBV2::initialize() {
   // these exact timings are required for a proper reset/init
-  this->reset_pin_->digital_write(false);
-  delay(2);
-  this->reset_pin_->digital_write(true);
-  delay(200);  // NOLINT
+  pulse_reset(this->reset_pin_, 2, 200);
 
   // COMMAND POWER ON
   this->command(0x04);
@@ -2723,10 +2686,7 @@ void WaveshareEPaper4P2InBV2::dump_config() {
 // ========================================================
 void WaveshareEPaper4P2InBV2BWR::initialize() {
   // these exact timings are required for a proper reset/init
-  this->reset_pin_->digital_write(false);
-  delay(2);
-  this->reset_pin_->digital_write(true);
-  delay(200);  // NOLINT
+  pulse_reset(this->reset_pin_, 2, 200);
 
   // COMMAND POWER ON
   this->command(0x04);
@@ -3013,14 +2973,7 @@ void GDEY0583T81::deep_sleep() {
   this->is_deep_sleep_ = true;
 }
 
-void GDEY0583T81::reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    this->reset_pin_->digital_write(true);
-    delay(10);
-  }
-}
+void GDEY0583T81::reset_() { pulse_reset(this->reset_pin_, 10, 10); }
 
 // Initialize for full screen update in fast mode
 void GDEY0583T81::init_full_() {
@@ -4168,16 +4121,7 @@ bool WaveshareEPaper7P5InV2P::wait_until_idle_() {
   return true;
 }
 
-void WaveshareEPaper7P5InV2P::reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->digital_write(true);
-    delay(20);
-    this->reset_pin_->digital_write(false);
-    delay(2);
-    this->reset_pin_->digital_write(true);
-    delay(20);
-  }
-}
+void WaveshareEPaper7P5InV2P::reset_() { pulse_reset(this->reset_pin_, 2, 20, 20); }
 
 void WaveshareEPaper7P5InV2P::turn_on_display_() {
   this->command(0x12);

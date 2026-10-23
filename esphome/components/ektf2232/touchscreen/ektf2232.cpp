@@ -96,12 +96,7 @@ bool EKTF2232Touchscreen::get_power_state() {
   return (received[1] >> 3) & 1;
 }
 
-void EKTF2232Touchscreen::hard_reset_() {
-  this->reset_pin_->digital_write(false);
-  delay(15);
-  this->reset_pin_->digital_write(true);
-  delay(15);
-}
+void EKTF2232Touchscreen::hard_reset_() { pulse_reset(this->reset_pin_, 15, 15); }
 
 bool EKTF2232Touchscreen::soft_reset_() {
   auto err = this->write(SOFT_RESET_CMD, 4);
