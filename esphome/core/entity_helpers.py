@@ -607,7 +607,7 @@ class SubEntities:
             body = [call, apply_entity.publish]
         elif publish == "momentary":
             acknowledge, condition = apply_entity.momentary
-            body = [acknowledge, f"if ({condition}) {call}"]
+            body = [acknowledge, f"if ({condition}) {{ {call} }}"]
         else:
             body = [call]
         for name, decl in apply_entity.locals:

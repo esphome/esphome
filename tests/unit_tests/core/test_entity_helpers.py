@@ -1703,12 +1703,12 @@ async def test_sub_entities_apply_errors(
         (
             _HUB,
             "restart()",
-            "entity->publish_state(false);\nif (state) ::hub->restart();",
+            "entity->publish_state(false);\nif (state) { ::hub->restart(); }",
         ),
         (
             None,
             "restart::restart_device()",
-            "entity->publish_state(false);\nif (state) restart::restart_device();",
+            "entity->publish_state(false);\nif (state) { restart::restart_device(); }",
         ),
     ],
 )
