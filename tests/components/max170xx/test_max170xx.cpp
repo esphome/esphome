@@ -47,7 +47,7 @@ class RegisterBus final : public i2c::I2CBus {
   bool fail_writes{false};
 };
 
-class Gauge43 final : public MAX170xxComponent<false> {
+class Gauge43 final : public MAX170xxComponent<Model::MODEL_MAX17043> {
  public:
   void update() override {}
   using MAX170xxComponent::clear_wake_alert_;
@@ -57,7 +57,7 @@ class Gauge43 final : public MAX170xxComponent<false> {
   bool take_pending_clear() { return this->cancel_timeout(WAKE_ALERT_CLEAR_TIMEOUT_ID); }
 };
 
-class Gauge48 final : public MAX170xxComponent<true> {
+class Gauge48 final : public MAX170xxComponent<Model::MODEL_MAX17048> {
  public:
   void update() override {}
   using MAX170xxComponent::clear_wake_alert_;
@@ -102,12 +102,13 @@ TEST(MAX170xxTest, SilentBusAtSetupIsRetried) {
   EXPECT_TRUE(f.bus.has_write({0x0C, 0x971C}));
 }
 
-TEST(MAX170xxTest, WrongConfigFails) {
+TEST(MAX170xxTest, WrongConfigIsReset) {
   Fixture<Gauge48> f;
   f.bus.registers[REG_CONFIG] = 0x1234;
   f.gauge.setup();
-  EXPECT_TRUE(f.gauge.is_failed());
-  EXPECT_TRUE(f.bus.writes.empty());
+  EXPECT_FALSE(f.gauge.is_failed());
+  EXPECT_TRUE(f.gauge.configured_);
+  EXPECT_TRUE(f.bus.has_write({0x0C, 0x971C}));
 }
 
 TEST(MAX170xxTest, WriteBackFailureIsRetried) {
@@ -215,9 +216,8 @@ TEST(MAX170xxTest, SetupAfterSleepModeKeepsGaugeAsleep) {
 
 TEST(MAX170xxTest, SleepModeWhenFailedWritesNothing) {
   Fixture<Gauge48> f;
-  f.bus.registers[REG_CONFIG] = 0x1234;
-  f.gauge.setup();
-  f.bus.writes.clear();
+  f.bus.registers[REG_CONFIG] = 0x971C;
+  f.gauge.mark_failed();
   f.gauge.sleep_mode();
   EXPECT_TRUE(f.bus.writes.empty());
 }

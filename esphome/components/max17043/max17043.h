@@ -5,7 +5,7 @@
 
 namespace esphome::max17043 {
 
-class MAX17043Component final : public max170xx::MAX170xxComponent<false> {
+class MAX17043Component final : public max170xx::MAX170xxComponent<max170xx::Model::MODEL_MAX17043> {
  public:
   void dump_config() override;
   void update() override;

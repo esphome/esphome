@@ -32,8 +32,13 @@ static constexpr uint32_t WAKE_ALERT_CLEAR_TIMEOUT_ID = 0;
 // The gauge raises its false wake alert some time after the wake write; on hardware it rose 0.8 to 1.0 s later
 static constexpr uint32_t WAKE_ALERT_CLEAR_DELAY_MS = 2000;
 
-/// Defined in max170xx.cpp, which instantiates both families.
-template<bool MAX17048_FAMILY> class MAX170xxComponent : public PollingComponent, public i2c::I2CDevice {
+enum class Model : uint8_t {
+  MODEL_MAX17043,
+  MODEL_MAX17048,
+};
+
+/// Defined in max170xx.cpp, which instantiates both models.
+template<Model MODEL> class MAX170xxComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void sleep_mode();
@@ -50,7 +55,7 @@ template<bool MAX17048_FAMILY> class MAX170xxComponent : public PollingComponent
   bool configured_{false};
 };
 
-extern template class MAX170xxComponent<false>;
-extern template class MAX170xxComponent<true>;
+extern template class MAX170xxComponent<Model::MODEL_MAX17043>;
+extern template class MAX170xxComponent<Model::MODEL_MAX17048>;
 
 }  // namespace esphome::max170xx
