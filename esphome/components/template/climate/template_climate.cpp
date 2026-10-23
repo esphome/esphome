@@ -115,7 +115,7 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
 // so check here instead -- otherwise a typo is published as state the receiving end will reject.
 void TemplateClimate::set_mode(climate::ClimateMode mode) {
   if (!this->traits_.supports_mode(mode)) {
-    ESP_LOGW(TAG, "'%s' - Unsupported mode %u", this->get_name().c_str(), static_cast<unsigned>(mode));
+    ESP_LOGW(TAG, "'%s' - Unsupported mode %u", LOG_STR_ARG(this->get_log_name()), static_cast<unsigned>(mode));
     return;
   }
   this->mode = mode;
@@ -123,7 +123,8 @@ void TemplateClimate::set_mode(climate::ClimateMode mode) {
 
 void TemplateClimate::set_swing_mode(climate::ClimateSwingMode swing_mode) {
   if (!this->traits_.supports_swing_mode(swing_mode)) {
-    ESP_LOGW(TAG, "'%s' - Unsupported swing mode %u", this->get_name().c_str(), static_cast<unsigned>(swing_mode));
+    ESP_LOGW(TAG, "'%s' - Unsupported swing mode %u", LOG_STR_ARG(this->get_log_name()),
+             static_cast<unsigned>(swing_mode));
     return;
   }
   this->swing_mode = swing_mode;
@@ -131,7 +132,7 @@ void TemplateClimate::set_swing_mode(climate::ClimateSwingMode swing_mode) {
 
 void TemplateClimate::set_fan_mode(climate::ClimateFanMode fan_mode) {
   if (!this->traits_.supports_fan_mode(fan_mode)) {
-    ESP_LOGW(TAG, "'%s' - Unsupported fan mode %u", this->get_name().c_str(), static_cast<unsigned>(fan_mode));
+    ESP_LOGW(TAG, "'%s' - Unsupported fan mode %u", LOG_STR_ARG(this->get_log_name()), static_cast<unsigned>(fan_mode));
     return;
   }
   this->set_fan_mode_(fan_mode);
@@ -139,7 +140,7 @@ void TemplateClimate::set_fan_mode(climate::ClimateFanMode fan_mode) {
 
 void TemplateClimate::set_preset(climate::ClimatePreset preset) {
   if (!this->traits_.supports_preset(preset)) {
-    ESP_LOGW(TAG, "'%s' - Unsupported preset %u", this->get_name().c_str(), static_cast<unsigned>(preset));
+    ESP_LOGW(TAG, "'%s' - Unsupported preset %u", LOG_STR_ARG(this->get_log_name()), static_cast<unsigned>(preset));
     return;
   }
   this->set_preset_(preset);
@@ -147,7 +148,7 @@ void TemplateClimate::set_preset(climate::ClimatePreset preset) {
 
 void TemplateClimate::set_custom_fan_mode(StringRef mode) {
   if (this->find_custom_fan_mode_(mode.c_str(), mode.size()) == nullptr) {
-    ESP_LOGW(TAG, "'%s' - Unsupported custom fan mode '%s'", this->get_name().c_str(), mode.c_str());
+    ESP_LOGW(TAG, "'%s' - Unsupported custom fan mode '%s'", LOG_STR_ARG(this->get_log_name()), mode.c_str());
     return;
   }
   this->set_custom_fan_mode_(mode);
@@ -155,7 +156,7 @@ void TemplateClimate::set_custom_fan_mode(StringRef mode) {
 
 void TemplateClimate::set_custom_preset(StringRef preset) {
   if (this->find_custom_preset_(preset.c_str(), preset.size()) == nullptr) {
-    ESP_LOGW(TAG, "'%s' - Unsupported custom preset '%s'", this->get_name().c_str(), preset.c_str());
+    ESP_LOGW(TAG, "'%s' - Unsupported custom preset '%s'", LOG_STR_ARG(this->get_log_name()), preset.c_str());
     return;
   }
   this->set_custom_preset_(preset);

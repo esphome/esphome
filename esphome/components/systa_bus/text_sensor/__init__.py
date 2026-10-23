@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.const import CONF_ERROR_CODE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODEL
 from esphome.types import ConfigType
@@ -13,8 +14,6 @@ from .. import (
 )
 
 SystaSolarAquaTextSensor = systa_bus_ns.class_("SystaSolarAquaTextSensor", cg.Component)
-
-CONF_ERROR_CODE = "error_code"
 
 
 CONFIG_SCHEMA = cv.typed_schema(
