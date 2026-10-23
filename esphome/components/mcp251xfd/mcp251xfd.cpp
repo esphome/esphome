@@ -12,6 +12,22 @@ namespace esphome::mcp251xfd {
 
 ESPHOME_LOG_TAG(TAG, "mcp251xfd");
 
+namespace {
+
+uint8_t can_clock_to_mhz(CanClock clock) {
+  switch (clock) {
+    case CanClock::CAN_CLOCK_4MHZ:
+      return 4;
+    case CanClock::CAN_CLOCK_20MHZ:
+      return 20;
+    default:
+    case CanClock::CAN_CLOCK_40MHZ:
+      return 40;
+  }
+}
+
+}  // namespace
+
 void IRAM_ATTR MCP251XFD::gpio_intr(MCP251XFD *arg) { arg->enable_loop_soon_any_context(); }
 
 bool MCP251XFD::setup_internal() {
@@ -33,11 +49,20 @@ bool MCP251XFD::setup_internal() {
   this->write_register_(REG_NBTCFG, this->nominal_bit_timing_);
   this->write_register_(REG_DBTCFG, this->data_bit_timing_);
   this->write_register_(REG_TDC, this->transmitter_delay_compensation_);
-  uint32_t timing;
-  if (!this->read_register_(REG_NBTCFG, timing) || timing != this->nominal_bit_timing_ ||
-      !this->read_register_(REG_DBTCFG, timing) || timing != this->data_bit_timing_ ||
-      !this->read_register_(REG_TDC, timing) || timing != this->transmitter_delay_compensation_) {
-    ESP_LOGE(TAG, "Bit timing register verification failed");
+  bool timing_error = false;
+  if (uint32_t timing; !this->read_register_(REG_NBTCFG, timing) || timing != this->nominal_bit_timing_) {
+    ESP_LOGE(TAG, "Nominal Bit Timing register verification failed");
+    timing_error = true;
+  }
+  if (uint32_t timing; !this->read_register_(REG_DBTCFG, timing) || timing != this->data_bit_timing_) {
+    ESP_LOGE(TAG, "Data Bit Timing register verification failed");
+    timing_error = true;
+  }
+  if (uint32_t timing; !this->read_register_(REG_TDC, timing) || timing != this->transmitter_delay_compensation_) {
+    ESP_LOGE(TAG, "Transmitter Delay Compensation register verification failed");
+    timing_error = true;
+  }
+  if (timing_error) {
     return false;
   }
 
@@ -55,8 +80,13 @@ bool MCP251XFD::setup_internal() {
   this->write_register_(REG_MASK0, 0);
   this->write_byte_(REG_FLTCON, FILTER_ENABLE_RX_FIFO);
 
-  if (!this->set_mode_(this->mcp_mode_) || !this->wait_for_register_(REG_TX_FIFO_CON + 1, FIFO_RESET, 0) ||
-      !this->wait_for_register_(REG_RX_FIFO_CON + 1, FIFO_RESET, 0))
+  if (!this->set_mode_(this->mcp_mode_))
+    return false;
+
+  if (!this->wait_for_register_(REG_TX_FIFO_CON + 1, FIFO_RESET, 0))
+    return false;
+
+  if (!this->wait_for_register_(REG_RX_FIFO_CON + 1, FIFO_RESET, 0))
     return false;
 
   if (this->interrupt_pin_ != nullptr) {
@@ -78,24 +108,24 @@ void MCP251XFD::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 
-  [[maybe_unused]] const uint8_t clock_mhz = this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ    ? 4
-                                             : this->mcp_clock_ == CanClock::CAN_CLOCK_20MHZ ? 20
-                                                                                             : 40;
-  ESP_LOGCONFIG(TAG,
-                "  Oscillator: %u MHz\n  Mode: %u\n  Nominal Bit Timing: 0x%08" PRIX32
-                "\n  Data Bit Timing: 0x%08" PRIX32 "\n  Transmitter Delay Compensation: 0x%08" PRIX32,
-                clock_mhz, static_cast<uint8_t>(this->mcp_mode_), this->nominal_bit_timing_, this->data_bit_timing_,
-                this->transmitter_delay_compensation_);
+  [[maybe_unused]] const uint8_t clock_mhz = can_clock_to_mhz(this->mcp_clock_);
+  ESP_LOGCONFIG(TAG, "  Oscillator: %u MHz", clock_mhz);
+  ESP_LOGCONFIG(TAG, "  Mode: %u", static_cast<uint8_t>(this->mcp_mode_));
+  ESP_LOGCONFIG(TAG, "  Nominal Bit Timing: 0x%08" PRIX32, this->nominal_bit_timing_);
+  ESP_LOGCONFIG(TAG, "  Data Bit Timing: 0x%08" PRIX32, this->data_bit_timing_);
+  ESP_LOGCONFIG(TAG, "  Transmitter Delay Compensation: 0x%08" PRIX32, this->transmitter_delay_compensation_);
 }
 
 bool MCP251XFD::reset_() {
   if (!this->set_mode_(CanMode::CAN_MODE_CONFIGURATION))
     return false;
+
   this->enable();
   this->write_byte(INSTRUCTION_RESET);
   this->write_byte(0);
   this->disable();
   delay(10);
+
   return this->set_mode_(CanMode::CAN_MODE_CONFIGURATION);
 }
 
@@ -103,7 +133,7 @@ bool MCP251XFD::configure_clock_() {
   const bool use_pll = this->mcp_clock_ == CanClock::CAN_CLOCK_4MHZ;
   this->write_byte_(REG_OSC, use_pll ? OSC_PLL_ENABLE : 0);
   const uint8_t ready = OSC_READY | (use_pll ? OSC_PLL_READY : 0);
-  return this->wait_for_register_(REG_OSC + 1, ready, ready) && this->wait_for_register_(REG_OSC + 1, ready, ready);
+  return this->wait_for_register_(REG_OSC + 1, ready, ready);
 }
 
 bool MCP251XFD::wait_for_register_(uint16_t address, uint8_t mask, uint8_t expected) {
@@ -121,8 +151,9 @@ bool MCP251XFD::wait_for_register_(uint16_t address, uint8_t mask, uint8_t expec
 
 bool MCP251XFD::set_mode_(CanMode mode) {
   uint8_t control;
-  if (!this->read_registers_(REG_CON + 3, &control, 1))
+  if (!this->read_registers_(REG_CON + 3, &control, 1)) {
     return false;
+  }
   this->write_byte_(REG_CON + 3, (control & ~CON_MODE_MASK) | static_cast<uint8_t>(mode));
   return this->wait_for_register_(REG_CON + 2, CON_MODE_MASK << CON_MODE_SHIFT,
                                   static_cast<uint8_t>(mode) << CON_MODE_SHIFT);
@@ -204,6 +235,7 @@ bool MCP251XFD::read_fifo_address_(uint16_t reg, uint32_t start, uint32_t size, 
 canbus::Error MCP251XFD::send_message(canbus::CanFrame *frame) {
   if (this->is_failed() || this->mcp_mode_ == CanMode::CAN_MODE_LISTEN_ONLY)
     return canbus::ERROR_FAILTX;
+
   const uint8_t length = canbus::can_dlc_to_len(frame->can_data_length_code);
   if (length == canbus::CAN_INVALID_DLC || (!frame->fd && length > canbus::CAN_MAX_DATA_LENGTH) ||
       (frame->fd && (frame->remote_transmission_request || this->mcp_mode_ == CanMode::CAN_MODE_CLASSIC)) ||
