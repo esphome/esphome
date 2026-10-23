@@ -42,6 +42,9 @@ CONF_PACKET_INTERFACE = "packet_interface"
 for module_info in pkgutil.iter_modules(layers.__path__):
     importlib.import_module(f".layers.{module_info.name}", package=__package__)
 
+# The layer keys that each link class does itself, by class name
+_PROVIDED_LAYERS: dict[str, tuple[str, ...]] = {}
+
 LINK_LAYER_SCHEMAS = {
     cv.Optional(CONF_ADDRESSING): ADDRESSING.schema(),
     **stack_schema(),
@@ -50,6 +53,7 @@ LINK_LAYER_SCHEMAS = {
 __all__ = [
     "CONF_MAX_PACKET_SIZE",
     "CONF_PACKET_INTERFACE",
+    "interface_has_layer",
     "interface_layers",
     "PacketInterface",
     "final_validate_interface",
@@ -116,6 +120,16 @@ def interface_layers(interface_id: ID) -> ConfigType | None:
     return None
 
 
+def interface_has_layer(interface_id: ID, key: str) -> bool:
+    """During final validation, whether the packet interface with this id has the layer, configured or done by its link."""
+    interface = interface_layers(interface_id)
+    if interface is None:
+        return False
+    return key in interface or key in _PROVIDED_LAYERS.get(
+        str(interface[CONF_ID].type), ()
+    )
+
+
 def final_validate_interface(key: str) -> Callable[[ConfigType], ConfigType]:
     """Final validation for an application: a link with peers must be used through one of the peers."""
 
@@ -152,6 +166,8 @@ def packet_interface_schema(
     provides: tuple[str, ...] = (),
 ) -> cv.Schema:
     """Schema for a link platform; provides names the layer keys, such as reliability, that the link does itself."""
+    if provides:
+        _PROVIDED_LAYERS[str(class_)] = provides
     link_layers = {
         key: (
             cv.invalid(f"This link provides '{key}' itself, so it cannot be configured")
