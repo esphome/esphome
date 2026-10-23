@@ -17,7 +17,7 @@ void TuyaFan::setup() {
           this->speed = datapoint.value_enum + 1;
           this->publish_state();
         }
-      } else {
+      } else if (datapoint.type == TuyaDatapointType::INTEGER) {
         ESP_LOGV(TAG, "MCU reported speed of: %d", datapoint.value_int);
         this->speed = datapoint.value_int;
         this->publish_state();
@@ -106,7 +106,8 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (oscillating.has_value()) {
       if (this->oscillation_type_ == TuyaDatapointType::ENUM) {
         this->parent_->set_enum_datapoint_value(*osc_id, *oscillating);
-      } else if (this->oscillation_type_ == TuyaDatapointType::BOOLEAN) {
+      } else if (this->oscillation_type_ == TuyaDatapointType::BOOLEAN || optimistic) {
+        // Until the MCU reports the type, optimistic mode assumes a boolean datapoint
         this->parent_->set_boolean_datapoint_value(*osc_id, *oscillating);
       }
       if (optimistic) {
@@ -133,7 +134,8 @@ void TuyaFan::control(const fan::FanCall &call) {
     if (speed.has_value()) {
       if (this->speed_type_ == TuyaDatapointType::ENUM) {
         this->parent_->set_enum_datapoint_value(*spd_id, *speed - 1);
-      } else {
+      } else if (this->speed_type_ == TuyaDatapointType::INTEGER || optimistic) {
+        // Until the MCU reports the type, optimistic mode assumes an integer datapoint
         this->parent_->set_integer_datapoint_value(*spd_id, *speed);
       }
       if (optimistic) {
