@@ -12,8 +12,8 @@ enum SyslogFormat : uint8_t {
   SYSLOG_FORMAT_RFC5424,
 };
 
-/// Append \p len bytes of \p message to \p buf at \p pos, replacing every LOG_SECRET() region with
-/// "[redacted]". Returns the new position, capped at \p size like the other buf_append helpers.
+/// Append len bytes of message to buf at pos, replacing every LOG_SECRET() region with "[redacted]".
+/// Returns the new position, capped at size like the other buf_append helpers.
 size_t append_redacted_message(char *buf, size_t size, size_t pos, const char *message, size_t len);
 
 class Syslog final : public Component, public Parented<udp::UDPComponent> {
