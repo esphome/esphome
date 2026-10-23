@@ -55,6 +55,7 @@ static constexpr uint8_t PIN_MAX_UNCONFIRMED_SENDS = 2;
 // The attachment is polled every 4 s; the signal and operator queries only every 4th poll
 static constexpr uint32_t ATTACH_POLL_MS = 4000;
 static constexpr uint8_t ATTACH_DIAG_EVERY = 4;
+static constexpr int RADIO_STATE_RF_OFF = 4;  // CFUN=4: transmit and receive off, SIM still powered
 static constexpr uint8_t UART_EVENT_QUEUE_SIZE = 10;
 static constexpr uint32_t BAUD_PREF_HASH = 76007670UL;
 static constexpr uint32_t PIN_PREF_HASH = 76007671UL;
@@ -530,12 +531,8 @@ ModemState ModemComponent::handle_state_enabling_() {
   bool exited = true;
   switch (mode) {
     case modem_mode::CMUX_MANUAL_MODE:
-      // A data session survived the ESP reboot; PPP stops before the CMUX exit or esp_modem will not
-      // start it on the next connect. Without a session this waits up to 30 s for a PPP exit.
-      ESP_LOGD(TAG, "Modem warm reboot. Leaving the data session and CMUX");
-      if (!this->dce_->set_mode(modem_mode::CMUX_MANUAL_COMMAND)) {
-        ESP_LOGW(TAG, "Failed to stop the previous data session");
-      }
+      // A data session survived the ESP reboot; the radio off step below ends it
+      ESP_LOGD(TAG, "Modem warm reboot. Exiting CMUX");
       if (!this->dce_->set_mode(modem_mode::CMUX_MANUAL_EXIT)) {
         ESP_LOGW(TAG, "Failed to exit CMUX");
       }
@@ -611,16 +608,20 @@ ModemState ModemComponent::handle_state_enabling_() {
     return this->retry_(ModemState::MODEM_STATE_ENABLING);
   }
   this->probe_backoff_.store(0, std::memory_order_relaxed);
+  // esp_modem keeps the last line before OK as the reply, which can be the echoed command
+  if (this->dce_->set_echo(false) != command_result::OK) {
+    ESP_LOGW(TAG, "Failed to disable command echo");
+  }
 
   int radio_state = 0;
   if (this->dce_->get_radio_state(radio_state) != command_result::OK) {
     ESP_LOGW(TAG, "Failed to read the radio state; skipping the radio off step");
-  } else if (radio_state == 1) {
-    // On warm reboot, drop the previous network session first; a modem that refuses is used as it is
-    if (this->dce_->set_radio_state(0) == command_result::OK) {
-      return this->retry_(ModemState::MODEM_STATE_ENABLING);
+  } else if (radio_state != RADIO_STATE_RF_OFF) {
+    // Drops a session left by a warm reboot; unlike CFUN=0, which powers the SIM down on the SIM7600, CFUN=4
+    // keeps the SIM readable for the PIN and the APN. A modem that refuses is used as it is.
+    if (this->dce_->set_radio_state(RADIO_STATE_RF_OFF) != command_result::OK) {
+      ESP_LOGW(TAG, "Failed to turn the radio off");
     }
-    ESP_LOGW(TAG, "Failed to disconnect previous network session");
   }
 
   if (this->baud_rate_ != 0 && this->baud_rate_ != this->current_baud_rate_) {
@@ -688,23 +689,7 @@ ModemState ModemComponent::handle_state_connecting_() {
         return ModemState::MODEM_STATE_ENABLING;
       }
     }
-    // The APN has to be in the PDP context before the attachment; esp_modem only sends it when PPP starts
-    esp_modem::PdpContext pdp(this->apn_);
-    if (this->dce_->set_pdp_context(pdp) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to set the APN");
-      this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
-      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
-    }
-    if (this->dce_->set_radio_state(1) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to turn the radio on");
-      this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
-      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
-    }
-    this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;
-    this->attach_polls_ = 0;
-  }
-
-  if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON) {
+    // ENABLING left the radio at CFUN=4, where the SIM answers but the modem cannot attach yet
     switch (this->prepare_sim_()) {
       case SimResult::SIM_RESULT_READY:
         break;
@@ -721,10 +706,27 @@ ModemState ModemComponent::handle_state_connecting_() {
         this->target_state_.store(ModemState::MODEM_STATE_DISABLED);
         return ModemState::MODEM_STATE_DISCONNECTING;
     }
-    if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
-      ESP_LOGW(TAG, "Failed to request network attachment");
-      this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
+    // The APN has to be in the PDP context before the radio comes on and the modem attaches; esp_modem only
+    // sends it when PPP starts
+    esp_modem::PdpContext pdp(this->apn_);
+    if (this->dce_->set_pdp_context(pdp) != command_result::OK) {
+      ESP_LOGW(TAG, "Failed to set the APN");
+      this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+    }
+    if (this->dce_->set_radio_state(1) != command_result::OK) {
+      ESP_LOGW(TAG, "Failed to turn the radio on");
+      this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
+      return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+    }
+    this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;
+    this->attach_polls_ = 0;
+  }
+
+  if (this->connect_step_ == ConnectStep::CONNECT_STEP_RADIO_ON) {
+    // A modem still searching for a network refuses this; the attachment poll asks again
+    if (this->dce_->set_network_attachment_state(1) != command_result::OK) {
+      ESP_LOGD(TAG, "Network attachment request refused");
     }
     this->connect_step_ = ConnectStep::CONNECT_STEP_ATTACH_REQUESTED;
   }
@@ -745,6 +747,7 @@ ModemState ModemComponent::handle_state_connecting_() {
       this->dce_->get_network_system_mode(mode);
       ESP_LOGW(TAG, "Modem not attached yet: registration %d, network type %d, CSQ %d, BER %d", registration, mode,
                rssi, ber);
+      this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;  // request the attachment again
     }
     this->set_fault_(ModemFault::MODEM_FAULT_NOT_ATTACHED);
     return this->retry_(ModemState::MODEM_STATE_CONNECTING, ATTACH_POLL_MS);
@@ -894,7 +897,8 @@ SimResult ModemComponent::prepare_sim_() {
 #endif
   std::string output;
   if (this->dce_->at("AT+CPIN?", output, COMMAND_TIMEOUT_MS) != command_result::OK) {
-    ESP_LOGW(TAG, "Failed to check pin: %s", output.c_str());
+    // A SIM that is still starting answers with an error for a second or so
+    ESP_LOGD(TAG, "SIM status not readable yet: %s", output.c_str());
     this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
     return SimResult::SIM_RESULT_RETRY;
   }
@@ -902,6 +906,11 @@ SimResult ModemComponent::prepare_sim_() {
   StringRef status(output);
   if (status.starts_with(CPIN_PREFIX)) {
     status = StringRef(status.c_str() + sizeof(CPIN_PREFIX) - 1, status.size() - (sizeof(CPIN_PREFIX) - 1));
+  }
+  if (status.empty()) {
+    ESP_LOGD(TAG, "SIM status not reported yet");
+    this->set_fault_(ModemFault::MODEM_FAULT_SIM_NOT_READY);
+    return SimResult::SIM_RESULT_RETRY;
   }
   ESP_LOGD(TAG, "SIM: %s", status.c_str());
 
