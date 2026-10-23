@@ -62,12 +62,6 @@ enum SwitchSetting : uint8_t {
   SWITCH_COUNT,
 };
 
-enum ButtonAction : uint8_t {
-  BUTTON_RESTART,
-  BUTTON_FACTORY_RESET,
-  BUTTON_QUERY_PARAMS,
-};
-
 /// Module parameters; a write or read of each is one command. Pending work runs in this order.
 enum Param : uint8_t {
   PARAM_RUN_APP,
