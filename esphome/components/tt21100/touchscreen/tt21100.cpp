@@ -54,10 +54,7 @@ void TT21100Touchscreen::setup() {
   }
 
   // Perform reset if necessary
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_();
-  }
+  pulse_reset(this->reset_pin_, 10, 10);
 
   // Update display dimensions if they were updated during display setup
   if (this->display_ != nullptr) {
@@ -121,8 +118,6 @@ void TT21100Touchscreen::update_touches() {
     }
   }
 }
-
-void TT21100Touchscreen::reset_() { pulse_reset(this->reset_pin_, 10, 10); }
 
 void TT21100Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "TT21100 Touchscreen:");
