@@ -218,16 +218,8 @@ class ModemComponent : public Component {
     PENDING_ON_SYNC = 1 << 4,          // loop() wakes the task once on_sync ran
     PENDING_ON_CONNECT = 1 << 5,
     PENDING_ON_DISCONNECT = 1 << 6,
-#ifdef USE_MODEM_POLL
-    PENDING_POLL = 1 << 7,  // poll_result_ is ready to publish
-#endif
   };
 #ifdef USE_MODEM_POLL
-  enum PollState : uint8_t {
-    POLL_IDLE,
-    POLL_REQUESTED,  // set by the interval on the main loop
-    POLL_READY,      // poll_result_ written by the task; loop() publishes it and goes back to IDLE
-  };
   void poll_();
   void publish_poll_();
 #endif
@@ -299,7 +291,8 @@ class ModemComponent : public Component {
 #endif
 #ifdef USE_MODEM_POLL
   uint32_t update_interval_{0};
-  ModemPollResult poll_result_{};  // the task writes it while poll_state_ is REQUESTED, loop() reads it while READY
+  uint32_t next_poll_ms_{0};       // task only
+  ModemPollResult poll_result_{};  // the task writes it while poll_unpublished_ is clear, loop() reads it while set
 #endif
 #ifdef USE_MODEM_GNSS_SWITCH
   switch_::Switch *gnss_switch_{nullptr};
@@ -331,7 +324,8 @@ class ModemComponent : public Component {
   std::atomic<uint8_t> urc_pending_{0};
 #endif
 #ifdef USE_MODEM_POLL
-  std::atomic<PollState> poll_state_{POLL_IDLE};
+  // Set by the task with poll_result_; until loop() has published it, polls are skipped
+  std::atomic<uint8_t> poll_unpublished_{0};
 #endif
 #ifdef USE_MODEM_GNSS_POWER
   // set_gnss() writes both bits, every sync sets GNSS_DIRTY and the task clears it; on until the switch restores

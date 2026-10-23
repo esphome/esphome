@@ -267,8 +267,9 @@ void ModemComponent::loop() {
   }
 #endif
 #ifdef USE_MODEM_POLL
-  if (pending & PENDING_POLL) {
+  if (this->poll_unpublished_.load(std::memory_order_acquire)) {
     this->publish_poll_();
+    this->poll_unpublished_.store(0, std::memory_order_release);
   }
 #endif
 #ifdef USE_MODEM_URC
@@ -452,20 +453,7 @@ void ModemComponent::setup() {
 #endif
   if (!this->task_.create(ModemComponent::task_entry, "modem", TASK_STACK_SIZE, this, 1, false)) {
     this->fail_setup_(LOG_STR("Task creation failed"));
-    return;
   }
-#ifdef USE_MODEM_POLL
-  this->set_interval(this->update_interval_, [this]() {
-    // A poll that has not been published yet is not asked for again
-    PollState state = POLL_IDLE;
-    this->poll_state_.compare_exchange_strong(state, POLL_REQUESTED);
-    // The task polls only while connected, where it is parked; on its way there it picks the request up itself
-    if (state != POLL_READY && this->is_connected() &&
-        this->target_state_.load() == ModemState::MODEM_STATE_CONNECTED) {
-      this->wake_task_();
-    }
-  });
-#endif
 }
 
 void ModemComponent::dump_config() {
@@ -526,7 +514,7 @@ void ModemComponent::run_task_() {
       this->at_pending_.store(0, std::memory_order_release);
     }
 #endif
-    // Like send_at(), these go out between state steps
+    // Like send_at(), this goes out between state steps
 #ifdef USE_MODEM_GNSS_POWER
     // A modem that never answered has nothing to say
     if (this->modem_synced_) {
@@ -537,18 +525,29 @@ void ModemComponent::run_task_() {
       }
     }
 #endif
-#ifdef USE_MODEM_POLL
-    if (this->is_connected() && this->poll_state_.load(std::memory_order_acquire) == POLL_REQUESTED) {
-      this->poll_();
-      this->poll_state_.store(POLL_READY, std::memory_order_release);
-      this->hand_over_(PENDING_POLL);
-    }
-#endif
     this->step_delay_ms_ = 0;
     this->transition_to_(this->compute_next_state_());
     // Nothing to do while disabled or connected: enable(), disable() and the PPP events wake the task
     const bool parked = this->component_state_.load() == this->target_state_.load();
-    ulTaskNotifyTake(pdTRUE, parked ? portMAX_DELAY : pdMS_TO_TICKS(this->step_delay_ms_));
+    TickType_t wait = parked ? portMAX_DELAY : pdMS_TO_TICKS(this->step_delay_ms_);
+#ifdef USE_MODEM_POLL
+    // Like send_at(), the poll goes out between state steps; while connected the next poll ends the wait
+    if (parked && this->is_connected()) {
+      int32_t remaining = static_cast<int32_t>(this->next_poll_ms_ - millis());
+      if (remaining <= 0) {
+        // A result loop() has not published yet is not overwritten; that poll is skipped
+        if (!this->poll_unpublished_.load(std::memory_order_acquire)) {
+          this->poll_();
+          this->poll_unpublished_.store(1, std::memory_order_release);
+          this->enable_loop_soon_any_context();
+        }
+        this->next_poll_ms_ = millis() + this->update_interval_;
+        remaining = static_cast<int32_t>(this->update_interval_);
+      }
+      wait = pdMS_TO_TICKS(remaining);
+    }
+#endif
+    ulTaskNotifyTake(pdTRUE, wait);
   }
 }
 
@@ -927,6 +926,9 @@ void ModemComponent::transition_to_(ModemState next_state) {
     }
   } else if (next_state == ModemState::MODEM_STATE_CONNECTED) {
     this->hand_over_(PENDING_ON_CONNECT | PENDING_CONNECT_TIMEOUT);
+#ifdef USE_MODEM_POLL
+    this->next_poll_ms_ = millis();  // the first poll runs right after connecting
+#endif
   } else if (next_state == ModemState::MODEM_STATE_DISCONNECTING) {
     // The lost IP event can lag by minutes; a quick re-enable must wait for a fresh address
     this->got_ip_.store(0, std::memory_order_release);
@@ -1191,7 +1193,7 @@ static constexpr float BER_PERCENT[] = {0.14f, 0.28f, 0.57f, 1.13f, 2.26f, 4.53f
 #endif
 
 void ModemComponent::poll_() {
-  // The task owns poll_result_ while poll_state_ is REQUESTED
+  // The task owns poll_result_ while poll_unpublished_ is clear
   this->poll_result_ = {};
   ModemPollResult &result = this->poll_result_;
 #ifdef USE_MODEM_SIGNAL
@@ -1277,7 +1279,6 @@ void ModemComponent::publish_poll_() {
     this->network_type_text_sensor_->publish_state(name);
   }
 #endif
-  this->poll_state_.store(POLL_IDLE, std::memory_order_release);
 }
 #endif
 
