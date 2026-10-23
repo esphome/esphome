@@ -14,7 +14,8 @@ import importlib.metadata
 import json
 import logging
 from pathlib import Path
-from typing import Any
+import re
+from typing import Any, NamedTuple
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
@@ -43,6 +44,17 @@ ESPHOME_SUPPLIER = "Organization: Open Home Foundation"
 # PURL types esp-idf-sbom also derives itself; other hosts get no PURL
 _PURL_HOSTS = {"github.com": "github", "gitlab.com": "gitlab"}
 
+# scp-like SSH remote: [user@]host:path
+_SCP_URL_RE = re.compile(r"^(?:[^@/:]+@)?(?P<host>[^/:]+):(?P<path>[^/].*)$")
+
+
+class _Source(NamedTuple):
+    """Where ESPHome's code came from; None where that is not known."""
+
+    url: str | None
+    # Only set when the commit can be fetched exactly as it was built
+    commit: str | None
+
 
 def _is_remote_url(url: str | None) -> bool:
     """Mirror esp-idf-sbom's URL check, which rejects anything else."""
@@ -65,20 +77,53 @@ def _repo_purl(url: str, version: str, subpath: str | None = None) -> str | None
     return purl
 
 
-def _checkout_vcs(path: Path) -> tuple[str, str] | None:
-    """Return the remote URL and commit of the git checkout at ``path``, if it is one."""
+def _https_repo_url(url: str) -> str:
+    """Return the https form of a GitHub or GitLab SSH URL, else ``url`` unchanged.
+
+    esp-idf-sbom accepts only git/http/https URLs, and developer clones often use SSH.
+    """
+    if "://" in url:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("ssh", "git+ssh"):
+            return url
+        host, path = parsed.hostname or "", parsed.path
+    elif match := _SCP_URL_RE.match(url):
+        host, path = match["host"], match["path"]
+    else:
+        return url
+    if host not in _PURL_HOSTS:
+        return url
+    return f"https://{host}/{path.lstrip('/')}"
+
+
+def _checkout_vcs(path: Path) -> _Source | None:
+    """Describe the git checkout at ``path``; None if it is not a checkout."""
     if not (path / ".git").exists():
         return None
     try:
         commit = run_git_command(["git", "rev-parse", "HEAD"], git_dir=path)
         url = run_git_command(["git", "ls-remote", "--get-url"], git_dir=path)
+        modified = run_git_command(
+            ["git", "status", "--porcelain", "--untracked-files=no"], git_dir=path
+        )
+        pushed = run_git_command(
+            ["git", "branch", "--remotes", "--contains", "HEAD"], git_dir=path
+        )
     except GitException as err:
-        _LOGGER.debug("SBOM: cannot read git checkout %s: %s", path, err)
-        return None
-    return strip_url_credentials(url), commit
+        _LOGGER.warning(
+            "SBOM: cannot read the git checkout ESPHome runs from (%s), so its "
+            "source is left out: %s",
+            path,
+            err,
+        )
+        return _Source(None, None)
+    if modified or not pushed:
+        # A PURL would name code other than what was built, or that no one can fetch
+        return _Source(strip_url_credentials(url), None)
+    return _Source(strip_url_credentials(url), commit)
 
 
-def _esphome_vcs() -> tuple[str, str] | None:
+def _esphome_vcs() -> _Source | None:
     """Return the repository URL and commit ESPHome was installed from, if known.
 
     None means a plain package install, described by its release version.
@@ -101,7 +146,7 @@ def _esphome_vcs() -> tuple[str, str] | None:
     if not isinstance(url, str):
         return None
     if commit:
-        return strip_url_credentials(url), commit
+        return _Source(strip_url_credentials(url), commit)
     if "dir_info" in info and url.startswith("file:"):
         # An editable or local install may be a fork or a patched clone. The
         # Docker image's tree has no .git, so it keeps the release description.
@@ -137,11 +182,12 @@ def _external_manifest(source: ExternalSource, name: str) -> dict[str, Any]:
     commit = _source_commit(source)
     if commit:
         manifest["version"] = commit
-    if _is_remote_url(source.url):
-        manifest["repository"] = source.url
+    url = _https_repo_url(source.url)
+    if _is_remote_url(url):
+        manifest["repository"] = url
     if commit and source.repo_dir is not None:
         subpath = (source.components_dir / name).relative_to(source.repo_dir)
-        if purl := _repo_purl(source.url, commit, subpath.as_posix()):
+        if purl := _repo_purl(url, commit, subpath.as_posix()):
             manifest["purl"] = purl
     return manifest
 
@@ -189,13 +235,13 @@ def _esphome_manifest() -> dict[str, Any]:
         "supplier": ESPHOME_SUPPLIER,
         "license": ESPHOME_LICENSE,
     }
-    if (vcs := _esphome_vcs()) is not None:
-        # Installed from git, which may be a fork
-        url, commit = vcs
+    if (source := _esphome_vcs()) is not None:
+        # Installed from git, possibly a fork, or from a checkout
+        url = _https_repo_url(source.url) if source.url else None
         if _is_remote_url(url):
             manifest["repository"] = url
-        if purl := _repo_purl(url, commit):
-            manifest["purl"] = purl
+            if source.commit and (purl := _repo_purl(url, source.commit)):
+                manifest["purl"] = purl
     else:
         manifest["repository"] = ESPHOME_REPOSITORY
         if "dev" not in ESPHOME_VERSION:

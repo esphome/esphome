@@ -3,7 +3,6 @@
 from collections.abc import Generator
 import importlib.metadata
 import json
-import logging
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -137,7 +136,7 @@ def test_esphome_manifest_dev_commit(build_tree: Path) -> None:
         patch.object(
             sbom,
             "_esphome_vcs",
-            return_value=("https://github.com/esphome/esphome.git", "abc"),
+            return_value=sbom._Source("https://github.com/esphome/esphome.git", "abc"),
         ),
     ):
         sbom.write_manifests()
@@ -171,7 +170,7 @@ def test_esphome_manifest_fork(
     build_tree: Path, url: str, expected: dict[str, str]
 ) -> None:
     """A git install from a fork or a local checkout names that source, not upstream."""
-    with patch.object(sbom, "_esphome_vcs", return_value=(url, "abc")):
+    with patch.object(sbom, "_esphome_vcs", return_value=sbom._Source(url, "abc")):
         sbom.write_manifests()
     manifest = _read(build_tree / "src" / "sbom.yml")
     assert {k: manifest[k] for k in ("repository", "purl") if k in manifest} == expected
@@ -242,15 +241,46 @@ def test_external_components(build_tree: Path, tmp_path: Path) -> None:
 def test_external_component_unusual_url() -> None:
     """A URL esp-idf-sbom would reject is kept only in the description."""
     source = ExternalSource(
-        components_dir=Path("/x"), url="git@github.com:o/r.git", repo_dir=Path("/x")
+        components_dir=Path("/x"), url="git@example.com:o/r.git", repo_dir=Path("/x")
     )
     with patch.object(sbom, "run_git_command", return_value="abc"):
         manifest = sbom._external_manifest(source, "widget")
     assert manifest == {
         "name": "widget",
-        "description": "External component from git@github.com:o/r.git",
+        "description": "External component from git@example.com:o/r.git",
         "version": "abc",
     }
+
+
+def test_external_component_ssh_url(tmp_path: Path) -> None:
+    """An SSH GitHub URL keeps its repository and PURL in https form."""
+    source = ExternalSource(
+        components_dir=tmp_path / "components",
+        url="git@github.com:acme/parts.git",
+        repo_dir=tmp_path,
+    )
+    with patch.object(sbom, "run_git_command", return_value="abc"):
+        manifest = sbom._external_manifest(source, "widget")
+    assert manifest["repository"] == "https://github.com/acme/parts.git"
+    assert manifest["purl"] == "pkg:github/acme/parts@abc#components/widget"
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("git@github.com:o/r.git", "https://github.com/o/r.git"),
+        ("github.com:o/r", "https://github.com/o/r"),
+        ("ssh://git@gitlab.com:2222/o/r.git", "https://gitlab.com/o/r.git"),
+        ("git+ssh://git@github.com/o/r", "https://github.com/o/r"),
+        ("git@example.com:o/r.git", "git@example.com:o/r.git"),
+        ("ssh://git@example.com/o/r", "ssh://git@example.com/o/r"),
+        ("https://github.com/o/r", "https://github.com/o/r"),
+        ("/src/esphome", "/src/esphome"),
+        ("C:\\src\\esphome", "C:\\src\\esphome"),
+    ],
+)
+def test_https_repo_url(url: str, expected: str) -> None:
+    assert sbom._https_repo_url(url) == expected
 
 
 def test_esphome_commit_not_installed() -> None:
@@ -333,6 +363,8 @@ def test_esphome_vcs_editable_checkout(tmp_path: Path) -> None:
     outputs = {
         "rev-parse": "abc",
         "ls-remote": "https://user:token@github.com/someone/esphome.git",
+        "status": "",
+        "branch": "  origin/dev",
     }
     with (
         patch("importlib.metadata.distribution", return_value=dist),
@@ -356,18 +388,72 @@ def test_esphome_vcs_editable_without_git(tmp_path: Path) -> None:
     run_git.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    ("status", "branch"),
+    [(" M esphome/core/application.cpp", "  origin/dev"), ("", "")],
+    ids=["modified", "unpushed"],
+)
+def test_esphome_vcs_editable_not_exact(
+    tmp_path: Path, status: str, branch: str
+) -> None:
+    """Local edits or an unpushed commit keep the repository but drop the commit."""
+    (tmp_path / ".git").mkdir()
+    dist = MagicMock()
+    dist.read_text.return_value = _editable_direct_url(tmp_path)
+    outputs = {
+        "rev-parse": "abc",
+        "ls-remote": "git@github.com:someone/esphome.git",
+        "status": status,
+        "branch": branch,
+    }
+    with (
+        patch("importlib.metadata.distribution", return_value=dist),
+        patch.object(
+            sbom, "run_git_command", side_effect=lambda cmd, git_dir: outputs[cmd[1]]
+        ),
+    ):
+        assert sbom._esphome_vcs() == ("git@github.com:someone/esphome.git", None)
+
+
 def test_esphome_vcs_editable_git_error(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """An unreadable checkout is an unknown source, not the upstream release."""
     (tmp_path / ".git").mkdir()
     dist = MagicMock()
     dist.read_text.return_value = _editable_direct_url(tmp_path)
     with (
-        caplog.at_level(logging.DEBUG),
         patch("importlib.metadata.distribution", return_value=dist),
         patch.object(
             sbom, "run_git_command", side_effect=GitCommandError("broken repo")
         ),
     ):
-        assert sbom._esphome_vcs() is None
-    assert "cannot read git checkout" in caplog.text
+        assert sbom._esphome_vcs() == (None, None)
+    assert "cannot read the git checkout ESPHome runs from" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            sbom._Source("git@github.com:someone/esphome.git", "abc"),
+            {
+                "repository": "https://github.com/someone/esphome.git",
+                "purl": "pkg:github/someone/esphome@abc",
+            },
+        ),
+        (
+            sbom._Source("git@github.com:someone/esphome.git", None),
+            {"repository": "https://github.com/someone/esphome.git"},
+        ),
+        (sbom._Source(None, None), {}),
+    ],
+    ids=["ssh", "not-exact", "unknown"],
+)
+def test_esphome_manifest_checkout(
+    build_tree: Path, source: sbom._Source, expected: dict[str, str]
+) -> None:
+    with patch.object(sbom, "_esphome_vcs", return_value=source):
+        sbom.write_manifests()
+    manifest = _read(build_tree / "src" / "sbom.yml")
+    assert {k: manifest[k] for k in ("repository", "purl") if k in manifest} == expected
