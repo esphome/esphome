@@ -88,6 +88,25 @@ static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 // Model codes
 enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
 
+// Direction enums (used for default fixed vane positions)
+enum HorizontalDirections {
+  HORIZONTAL_DIRECTION_AUTO = GREE_HDIR_AUTO,
+  HORIZONTAL_DIRECTION_LEFT = GREE_HDIR_LEFT,
+  HORIZONTAL_DIRECTION_MLEFT = GREE_HDIR_MLEFT,
+  HORIZONTAL_DIRECTION_MIDDLE = GREE_HDIR_MIDDLE,
+  HORIZONTAL_DIRECTION_MRIGHT = GREE_HDIR_MRIGHT,
+  HORIZONTAL_DIRECTION_RIGHT = GREE_HDIR_RIGHT,
+};
+
+enum VerticalDirections {
+  VERTICAL_DIRECTION_AUTO = GREE_VDIR_AUTO,
+  VERTICAL_DIRECTION_UP = GREE_VDIR_UP,
+  VERTICAL_DIRECTION_MUP = GREE_VDIR_MUP,
+  VERTICAL_DIRECTION_MIDDLE = GREE_VDIR_MIDDLE,
+  VERTICAL_DIRECTION_MDOWN = GREE_VDIR_MDOWN,
+  VERTICAL_DIRECTION_DOWN = GREE_VDIR_DOWN,
+};
+
 class GreeClimate final : public climate_ir::ClimateIR {
  public:
   GreeClimate()
@@ -99,6 +118,12 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   void set_model(Model model);
   void set_mode_bit(uint8_t bit_mask, bool enabled);
+  void set_horizontal_default(HorizontalDirections horizontal_direction) {
+    this->default_horizontal_direction_ = horizontal_direction;
+  }
+  void set_vertical_default(VerticalDirections vertical_direction) {
+    this->default_vertical_direction_ = vertical_direction;
+  }
 
  protected:
   // Transmit via IR the state of this climate controller.
@@ -113,6 +138,9 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   Model model_{};
   uint8_t mode_bits_{GREE_MODE_BIT_LIGHT};  // The display light is on until a switch says otherwise
+
+  HorizontalDirections default_horizontal_direction_{HORIZONTAL_DIRECTION_AUTO};
+  VerticalDirections default_vertical_direction_{VERTICAL_DIRECTION_AUTO};
 };
 
 }  // namespace esphome::gree
