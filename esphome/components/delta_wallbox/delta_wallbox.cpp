@@ -64,6 +64,21 @@ static const LogString *delta_state_to_string(DeltaState state) {
   return DeltaStateStrings::get_log_str(static_cast<uint8_t>(state), DeltaStateStrings::LAST_INDEX);
 }
 
+// The function code a handshake step waits for; 0 where any frame is handled
+static uint8_t expected_function_code(DeltaState state) {
+  switch (state) {
+    case DeltaState::DELTA_STATE_IDLE:
+    case DeltaState::DELTA_STATE_HALTED:
+    case DeltaState::DELTA_STATE_CONNECTED:
+      return 0;
+    case DeltaState::DELTA_STATE_SEND_LOGIN_CREDENTIALS:
+    case DeltaState::DELTA_STATE_TIME_SYNC:
+      return FC_WRITE_MULTIPLE_REGISTERS;
+    default:
+      return FC_READ_HOLDING_REGISTERS;
+  }
+}
+
 // UUID references
 static const esp32_ble_tracker::ESPBTUUID SERVICE_UUID =
     esp32_ble_tracker::ESPBTUUID::from_raw("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
@@ -281,11 +296,20 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
   if (frame[1] & FC_EXCEPTION_FLAG) {
     ESP_LOGE(TAG, "Modbus exception received in state %s! Error code: 0x%02X",
              LOG_STR_ARG(delta_state_to_string(this->state_)), frame[2]);
-    // The charger refused a handshake step; sending the same request again would not change that
-    if (this->state_ != DeltaState::DELTA_STATE_CONNECTED && this->state_ != DeltaState::DELTA_STATE_IDLE &&
-        this->state_ != DeltaState::DELTA_STATE_HALTED) {
+    if (this->state_ == DeltaState::DELTA_STATE_TIME_SYNC) {
+      // The clock write is optional, so a charger that refuses it is used without it
+      ESP_LOGW(TAG, "Charger refused the clock sync; continuing without it");
+      this->advance_to_(DeltaState::DELTA_STATE_GET_CHARGER_FW_VERSION);
+    } else if (expected_function_code(this->state_) != 0) {
+      // The charger refused a handshake step; sending the same request again would not change that
       this->halt_("Modbus exception during login");
     }
+    return;
+  }
+  const uint8_t expected = expected_function_code(this->state_);
+  if (expected != 0 && frame[1] != expected) {
+    // A late answer to a retransmitted request; the pending one is answered or sent again by the timer
+    ESP_LOGD(TAG, "Ignoring func=0x%02X reply while waiting for 0x%02X", frame[1], expected);
     return;
   }
 
