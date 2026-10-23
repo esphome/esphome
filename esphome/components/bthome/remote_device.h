@@ -21,6 +21,8 @@ class RemoteDeviceBase {
  protected:
   virtual std::span<BTHomeRemoteObject *> get_handlers() = 0;
 
+  // Before address_, so on 32-bit targets it fills the padding after the vtable pointer.
+  uint32_t last_frame_ms_{0};
   uint64_t address_{0};
   // Payloads seen under the current packet ID, as hashes, for duplicate filtering.
   static constexpr size_t SEEN_PAYLOAD_SLOTS = 4;
@@ -29,7 +31,6 @@ class RemoteDeviceBase {
   // Without a packet ID, only a copy of the previous frame this close to it is a repeat.
   static constexpr uint32_t NO_PACKET_ID_REPEAT_MS = 1200;
   optional<uint8_t> last_packet_id_{};
-  uint32_t last_frame_ms_{0};
   std::array<uint32_t, SEEN_PAYLOAD_SLOTS> seen_payload_hashes_{};
   uint8_t seen_payload_count_{0};
   uint8_t next_seen_payload_{0};
