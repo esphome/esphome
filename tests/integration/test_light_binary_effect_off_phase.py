@@ -23,11 +23,11 @@ import asyncio
 import re
 from typing import Any
 
-from aioesphomeapi import EntityState, LightState
+from aioesphomeapi import LightState
 import pytest
 
 from .log_utils import LineWaiter
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 OUTPUT_PATTERN = re.compile(r"BINARY_OUTPUT:(YES|NO)")
@@ -46,7 +46,6 @@ async def test_light_binary_effect_off_phase(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """A strobe effect must drive a binary light's output both on and off."""
-    loop = asyncio.get_running_loop()
     waiter = LineWaiter()
 
     async with (
@@ -56,25 +55,15 @@ async def test_light_binary_effect_off_phase(
         entities, _ = await client.list_entities_services()
         light = require_entity(entities, "test_binary_light", exact=True)
 
-        state_futures: dict[int, asyncio.Future[LightState]] = {}
-
-        def on_state(state: EntityState) -> None:
-            if isinstance(state, LightState) and state.key in state_futures:
-                future = state_futures[state.key]
-                if not future.done():
-                    future.set_result(state)
-
         # ESPHome sends the current state of every entity right after connecting; drain
         # that initial burst so it can't be mistaken for the response to a command below.
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities)
 
-        async def send_and_wait(timeout: float = 5.0, **kwargs: Any) -> LightState:
-            """Send a light command and wait for the matching state response."""
-            state_futures[light.key] = loop.create_future()
+        async def send_and_wait(**kwargs: Any) -> LightState:
+            """Send a light command and return the light's next state."""
+            next_light = sub.waiter.next_state(light.key, LightState)
             client.light_command(key=light.key, **kwargs)
-            return await asyncio.wait_for(state_futures[light.key], timeout=timeout)
+            return await next_light
 
         # A plain turn-on must drive the output on -- brightness defaults to 100% and
         # must not be mistaken for a dark phase.
@@ -136,7 +125,6 @@ async def test_light_binary_zero_brightness_is_recoverable(
     no representable "on but dark" state. It must switch the output off and report the
     light as off, and a later plain turn-on must bring it back.
     """
-    loop = asyncio.get_running_loop()
     waiter = LineWaiter()
 
     async with (
@@ -146,22 +134,13 @@ async def test_light_binary_zero_brightness_is_recoverable(
         entities, _ = await client.list_entities_services()
         light = require_entity(entities, "test_binary_light", exact=True)
 
-        state_futures: dict[int, asyncio.Future[LightState]] = {}
+        sub = await subscribe_after_initial_states(client, entities)
 
-        def on_state(state: EntityState) -> None:
-            if isinstance(state, LightState) and state.key in state_futures:
-                future = state_futures[state.key]
-                if not future.done():
-                    future.set_result(state)
-
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        await initial_state_helper.wait_for_initial_states()
-
-        async def send_and_wait(timeout: float = 5.0, **kwargs: Any) -> LightState:
-            state_futures[light.key] = loop.create_future()
+        async def send_and_wait(**kwargs: Any) -> LightState:
+            """Send a light command and return the light's next state."""
+            next_light = sub.waiter.next_state(light.key, LightState)
             client.light_command(key=light.key, **kwargs)
-            return await asyncio.wait_for(state_futures[light.key], timeout=timeout)
+            return await next_light
 
         output = waiter.expect(OUTPUT_PATTERN)
         state = await send_and_wait(state=True)

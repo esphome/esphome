@@ -15,7 +15,11 @@ from aioesphomeapi import (
 import pytest
 
 from .log_utils import LineWaiter
-from .state_utils import InitialStateHelper, require_entity, require_only_entity
+from .state_utils import (
+    require_entity,
+    require_only_entity,
+    subscribe_after_initial_states,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -80,15 +84,11 @@ async def test_alarm_control_panel_state_transitions(
                 states_received.append(state.state)
                 state_event.set()
 
-        # Use InitialStateHelper to handle initial state broadcast
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
         # Wait for initial states from all entities
-        await initial_state_helper.wait_for_initial_states()
+        sub = await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         # Verify alarm panel started in DISARMED state
-        initial_alarm_state = initial_state_helper.initial_states.get(alarm_info.key)
+        initial_alarm_state = sub.initial_states.get(alarm_info.key)
         assert initial_alarm_state is not None, "No initial alarm state received"
         assert isinstance(initial_alarm_state, AlarmControlPanelEntityState)
         assert initial_alarm_state.state == AlarmControlPanelState.DISARMED
@@ -174,7 +174,7 @@ async def test_alarm_control_panel_state_transitions(
         )
         await wait_for_state(AlarmControlPanelState.DISARMED)
 
-        # Verify basic state sequence (initial DISARMED is handled by InitialStateHelper)
+        # Verify basic state sequence (initial DISARMED is swallowed on subscribe)
         expected_states = [
             AlarmControlPanelState.ARMING,  # Arm away
             AlarmControlPanelState.ARMED_AWAY,
