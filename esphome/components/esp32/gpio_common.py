@@ -1,8 +1,8 @@
 """Pin checks shared by the ESP32 variant validators."""
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
 import logging
+from types import MappingProxyType
 
 from esphome.components.const import CONF_HOLD_STATE
 import esphome.config_validation as cv
@@ -17,6 +17,8 @@ from esphome.pins import check_strapping_pin
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+
+_NO_PINS: Mapping[int, str] = MappingProxyType({})
 
 _INPUT_ONLY_REJECTED_MODES = (
     (CONF_OUTPUT, "does not support output pin mode."),
@@ -39,24 +41,49 @@ def unusable_errors(variant: str, pins: Iterable[int]) -> dict[int, str]:
     return {num: f"The pin GPIO{num} is not usable on {variant}s." for num in pins}
 
 
-@dataclass(frozen=True, kw_only=True)
 class ESP32PinSpec:
     """Pin facts of one ESP32 variant, with the two validators built from them.
 
     `error_pins` fail pin validation, which `ignore_pin_validation_error` bypasses;
     `fatal_pins` fail both validators, so the option cannot bypass them.
+    `input_only_label` is inserted after "GPIOn" in the input-only errors.
+    A plain class, not a dataclass: building a dataclass costs ~0.5 ms of import.
     """
 
-    max_pin: int
-    strapping_pins: frozenset[int]
-    usb_jtag_pins: frozenset[int] = frozenset()
-    error_pins: Mapping[int, str] = field(default_factory=dict)
-    fatal_pins: Mapping[int, str] = field(default_factory=dict)
-    warning_pins: Mapping[int, str] = field(default_factory=dict)
-    input_only_pins: frozenset[int] = frozenset()
-    # Inserted after "GPIOn" in the input-only errors, e.g. " (34-39)"
-    input_only_label: str = ""
-    no_hold_pins: frozenset[int] = frozenset()
+    __slots__ = (
+        "error_pins",
+        "fatal_pins",
+        "input_only_label",
+        "input_only_pins",
+        "max_pin",
+        "no_hold_pins",
+        "strapping_pins",
+        "usb_jtag_pins",
+        "warning_pins",
+    )
+
+    def __init__(
+        self,
+        *,
+        max_pin: int,
+        strapping_pins: frozenset[int],
+        usb_jtag_pins: frozenset[int] = frozenset(),
+        error_pins: Mapping[int, str] = _NO_PINS,
+        fatal_pins: Mapping[int, str] = _NO_PINS,
+        warning_pins: Mapping[int, str] = _NO_PINS,
+        input_only_pins: frozenset[int] = frozenset(),
+        input_only_label: str = "",
+        no_hold_pins: frozenset[int] = frozenset(),
+    ) -> None:
+        self.max_pin = max_pin
+        self.strapping_pins = strapping_pins
+        self.usb_jtag_pins = usb_jtag_pins
+        self.error_pins = error_pins
+        self.fatal_pins = fatal_pins
+        self.warning_pins = warning_pins
+        self.input_only_pins = input_only_pins
+        self.input_only_label = input_only_label
+        self.no_hold_pins = no_hold_pins
 
     def _check_pin_exists(self, num: int) -> None:
         if num < 0 or num > self.max_pin:
