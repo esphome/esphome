@@ -599,14 +599,16 @@ class SubEntities:
         if isinstance(parent, ID):
             parent = await get_variable(parent)
         apply_entity = self.apply_entity
-        body = [f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"]
+        call = f"{apply};" if parent is None else f"{parent_ref(parent)}->{apply};"
         if publish == "before":
-            body.insert(0, apply_entity.publish)
+            body = [apply_entity.publish, call]
         elif publish == "after":
-            body.append(apply_entity.publish)
+            body = [call, apply_entity.publish]
         elif publish == "momentary":
             acknowledge, condition = apply_entity.momentary
-            body = [acknowledge, f"if ({condition}) {body[0]}"]
+            body = [acknowledge, f"if ({condition}) {call}"]
+        else:
+            body = [call]
         for name, decl in apply_entity.locals:
             # Declared right before its first use, so calls keep their order.
             uses = (i for i, line in enumerate(body) if re.search(rf"\b{name}\b", line))
