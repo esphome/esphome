@@ -15,13 +15,19 @@ ESPHOME_LOG_TAG(TAG, "tflite_micro_runtime");
 void TFLiteMicroHelper::set_tensor_arena_size(size_t size) { this->tensor_arena_size_requested_ = size; }
 
 void TFLiteMicroHelper::set_model(const uint8_t *model_data, size_t model_size) {
+  if (this->state_.load() == LoadState::READY) {
+    // Swapping the buffer while the interpreter still uses the old one would leave
+    // the load silently not happening: load_model() keeps returning true.
+    ESP_LOGE(TAG, "set_model() while a model is loaded -- call unload_model() first");
+    return;
+  }
   this->model_data_ = model_data;
   this->model_length_ = model_size;
 }
 
 bool TFLiteMicroHelper::allocate_tensor_arena_() {
-  ESP_LOGI(TAG, "Allocating tensor arena: %zu bytes", this->tensor_arena_size_requested_);
-  this->tensor_arena_allocation_ = MemoryManager::allocate_tensor_arena(this->tensor_arena_size_requested_);
+  ESP_LOGI(TAG, "Allocating tensor arena: %zu bytes", this->tensor_arena_size_effective_);
+  this->tensor_arena_allocation_ = MemoryManager::allocate_tensor_arena(this->tensor_arena_size_effective_);
   if (!this->tensor_arena_allocation_) {
     ESP_LOGE(TAG, "Failed to allocate tensor arena");
     return false;
@@ -68,13 +74,9 @@ bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t 
     return false;
   }
   TfLiteTensor *input = this->model_handler_.input_tensor();
-  if (input->type == kTfLiteFloat32) {
-    memcpy(input->data.f, src_data, src_size);
-  } else if (input->type == kTfLiteInt8) {
-    memcpy(input->data.int8, src_data, src_size);
-  } else {
-    memcpy(input->data.uint8, src_data, src_size);
-  }
+  // data is a union, and validate_input_tensor_() checked both the type and the
+  // size, so one copy of the raw bytes is all any input type needs.
+  memcpy(input->data.raw, src_data, src_size);
   if (this->model_handler_.invoke() != kTfLiteOk) {
     ESP_LOGE(TAG, "Model invocation failed");
     return false;
@@ -84,10 +86,12 @@ bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t 
 
 ProcessedOutput TFLiteMicroHelper::run_inference(const uint8_t *src_data, size_t src_size) {
   if (!this->run_inference_on_buffer(src_data, src_size)) {
+    // The reason is already logged; there is no result to report.
     return {0.0f, 0.0f};
   }
   TfLiteTensor *output = this->model_handler_.output_tensor();
-  if (!output) {
+  if (output == nullptr) {
+    ESP_LOGE(TAG, "Model has no output tensor after a successful invocation");
     return {0.0f, 0.0f};
   }
   return this->model_handler_.process_output(output);
@@ -125,8 +129,11 @@ bool TFLiteMicroHelper::load_model() {
   LoadState expected = LoadState::UNLOADED;
   if (!this->state_.compare_exchange_strong(expected, LoadState::LOADING)) {
     if (this->state_.load() == LoadState::READY) {
-      ESP_LOGW(TAG, "load_model called while already loaded -- returning true");
-      return true;
+      // Returning true here reported success without loading anything, so a
+      // caller that swapped set_model() first kept the old model and never
+      // learned about it.
+      ESP_LOGE(TAG, "load_model called while a model is loaded -- call unload_model() first");
+      return false;
     }
     ESP_LOGE(TAG, "load_model called while another load is in progress");
     return false;
@@ -145,6 +152,11 @@ bool TFLiteMicroHelper::load_model() {
     return false;
   }
 
+  if (this->expected_crc32_ == 0) {
+    // 0 means "no checksum configured", which is what reset_config() leaves
+    // behind. Skipping the check is legitimate, but it must be visible.
+    ESP_LOGW(TAG, "No expected CRC32 configured -- skipping the integrity check");
+  }
   if (!this->model_handler_.verify_model_crc(this->model_data_, this->model_length_, this->expected_crc32_)) {
     ESP_LOGE(TAG, "Model CRC32 verification failed");
     stats.total_load_time_ms = millis() - stats.load_start_ms;
@@ -154,20 +166,18 @@ bool TFLiteMicroHelper::load_model() {
   }
 
   // E1: probe the actual required arena size (PSRAM-aware, replaces the old 1.5x
-  // ESP32-S3 cache bump). Falls back to the configured size if probing fails.
-  size_t probe_size = this->model_handler_.probe_arena_size(this->model_data_, this->tensor_arena_size_requested_);
-  if (probe_size > 0 && probe_size < this->tensor_arena_size_requested_) {
-    ESP_LOGI(TAG, "Probed arena size %zu bytes < configured %zu bytes -- using probed size", probe_size,
-             this->tensor_arena_size_requested_);
-    this->tensor_arena_size_requested_ = probe_size;
-  } else if (probe_size > 0 && probe_size > this->tensor_arena_size_requested_) {
-    ESP_LOGW(TAG, "Model needs %zu bytes > configured %zu bytes -- using probed size", probe_size,
-             this->tensor_arena_size_requested_);
-    this->tensor_arena_size_requested_ = probe_size;
-  } else if (probe_size == 0) {
+  // ESP32-S3 cache bump). The result is kept separately from the configured size:
+  // overwriting the configured value would lose the user's choice for the next
+  // load and report the probed size as if it had been requested.
+  this->tensor_arena_size_effective_ = this->tensor_arena_size_requested_;
+  const size_t probe_size =
+      this->model_handler_.probe_arena_size(this->model_data_, this->tensor_arena_size_requested_);
+  if (probe_size == 0) {
     ESP_LOGW(TAG, "Arena probe failed, using configured size: %zu bytes", this->tensor_arena_size_requested_);
   } else {
-    ESP_LOGI(TAG, "Probed size matches configured size: %zu bytes", this->tensor_arena_size_requested_);
+    ESP_LOGI(TAG, "Arena probe: %zu bytes needed, %zu bytes configured -- using %zu", probe_size,
+             this->tensor_arena_size_requested_, probe_size);
+    this->tensor_arena_size_effective_ = probe_size;
   }
   stats.parse_time_ms = millis() - stats.load_start_ms;
 
@@ -194,7 +204,10 @@ bool TFLiteMicroHelper::load_model() {
     return false;
   }
 
-  // Sync image config to ModelHandler for image models
+  // Sync image config to ModelHandler for image models, then check that the
+  // configured input matches the tensor the model was converted with: a mismatch
+  // would feed the model a differently shaped buffer and only show up as bad
+  // predictions.
   if (this->model_type_ == "image") {
     ImageModelConfig img_cfg;
     img_cfg.input_type = this->input_type_;
@@ -204,6 +217,22 @@ bool TFLiteMicroHelper::load_model() {
     img_cfg.normalize = this->normalize_;
     img_cfg.invert = this->invert_;
     this->model_handler_.set_image_config(img_cfg);
+
+    const int model_width = this->model_handler_.get_input_width();
+    const int model_height = this->model_handler_.get_input_height();
+    const int model_channels = this->model_handler_.get_input_channels();
+    if (model_width != this->input_width_ || model_height != this->input_height_ ||
+        model_channels != this->input_channels_) {
+      ESP_LOGE(TAG, "Configured input %dx%dx%d does not match the model's %dx%dx%d", this->input_width_,
+               this->input_height_, this->input_channels_, model_width, model_height, model_channels);
+      ESP_LOGE(TAG, "  Set input_width/input_height/input_channels, or supply the model's .txt report");
+      this->model_handler_.unload();
+      this->tensor_arena_allocation_.reset();
+      stats.total_load_time_ms = millis() - stats.load_start_ms;
+      this->last_load_stats_ = stats;
+      this->state_.store(LoadState::UNLOADED);
+      return false;
+    }
   }
 
   stats.success = true;
@@ -249,6 +278,7 @@ void TFLiteMicroHelper::reset_config() {
   this->model_data_ = nullptr;
   this->model_length_ = 0;
   this->tensor_arena_size_requested_ = tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE;
+  this->tensor_arena_size_effective_ = 0;
   this->expected_crc32_ = 0;
 
   this->model_type_ = "default";
@@ -256,13 +286,12 @@ void TFLiteMicroHelper::reset_config() {
   this->input_channels_ = 3;
   this->input_width_ = 32;
   this->input_height_ = 20;
-  this->output_processing_ = "direct_class";
+  this->output_processing_ = "argmax";
   this->scale_factor_ = 1.0f;
   this->input_order_ = "RGB";
   this->normalize_ = false;
   this->invert_ = false;
 
-  this->image_config_ = ImageModelConfig{};
   this->audio_config_ = AudioModelConfig{};
 }
 
@@ -310,9 +339,12 @@ void TFLiteMicroHelper::report_memory_status() {
 
   ESP_LOGD(TAG, "Heap status - Total free: %zu bytes, Largest block: %zu bytes", total_free, max_block);
 
-  if (max_block < this->tensor_arena_size_requested_) {
-    ESP_LOGW(TAG, "WARNING: Largest free block (%zu) < required arena size (%zu)", max_block,
-             this->tensor_arena_size_requested_);
+  // Compare against the size the last load actually used, which is what a reload
+  // has to allocate again.
+  const size_t needed = this->tensor_arena_size_effective_ > 0 ? this->tensor_arena_size_effective_
+                                                               : this->tensor_arena_size_requested_;
+  if (max_block < needed) {
+    ESP_LOGW(TAG, "WARNING: Largest free block (%zu) < arena size (%zu)", max_block, needed);
   }
 }
 

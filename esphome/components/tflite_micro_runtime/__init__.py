@@ -8,6 +8,7 @@ Model source resolution and metadata parsing live in the
 tflite_model_source component.
 """
 
+import logging
 from pathlib import Path
 import re
 import zlib
@@ -15,14 +16,20 @@ import zlib
 import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.tflite_model_source import (
-    _parse_audio_config,
     infer_model_config_from_filename,
+    parse_audio_txt_file,
     parse_model_txt_file,
     resolve_model_source,
+)
+from esphome.components.tflite_op_processor.op_manifest import (
+    build_selective_op_defines,
+    extract_model_ops,
+    parse_op_table,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG, CONF_ID, CONF_RAW_DATA_ID
 from esphome.core import CORE, HexInt
+from esphome.types import ConfigType
 
 from . import schema as _schema
 from .schema import (
@@ -44,9 +51,17 @@ from .schema import (
     TFLiteMicroHelper,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 CODEOWNERS = ["@nliaudat"]
 
 DOMAIN = "tflite_micro_runtime"
+
+# Operator slots kept when a model has no .txt report to count them from.
+_MAX_OPERATORS_FLOOR = 30
+
+# "Total operations: N" in a model's .txt report.
+_TOTAL_OPERATIONS_RE = re.compile(r"Total operations:\s+(\d+)")
 
 # Library-only sub-components carrying the split C++ sources of the former
 # monolithic component. Auto-loaded so users only configure tflite_micro_runtime.
@@ -64,8 +79,9 @@ CONFIG_SCHEMA = _schema.CONFIG_SCHEMA
 MULTI_CONF = _schema.MULTI_CONF
 DEPENDENCIES = _schema.DEPENDENCIES + ["tflite_model_source"]
 
-# Re-exported for consumers (meter_reader_tflite, micro_wake_word) which
-# reference the runtime class through this component.
+# Re-exported for consumers which reference the runtime class through this
+# component. Nothing in the tree calls load_model() yet, so a configuration that
+# is not paired with such a consumer embeds the model and does nothing else.
 __all__ = [
     "TFLiteMicroHelper",
     "CONFIG_SCHEMA",
@@ -74,90 +90,113 @@ __all__ = [
 ]
 
 
-async def to_code(config):
-    if CORE.target_platform == "esp32":
-        cg.add_define("USE_TFLITE_MICRO_HELPER")
-        model_type = config[CONF_MODEL_TYPE]
-        model_path, model_data = resolve_model_source(config)
-        # Compile-time operator support check: fail config generation (before
-        # compiling/flashing) when the model requires an operator the TFLM
-        # operator table cannot register. The device-side check remains the
-        # final safety net when no .txt report is available.
-        # The op-table lives in the tflite_op_processor sub-component; its
-        # module may not be importable here when external_components use a
-        # `components:` filter that omits it. Import lazily and degrade to the
-        # runtime check in ModelLoader instead of failing config generation.
-        try:
-            from esphome.components.tflite_op_processor.op_manifest import (
-                extract_model_ops,
-                parse_op_table,
-            )
-        except ImportError:
-            # Operator table not reachable at config-generation time; rely on
-            # the device-side operator check (ModelLoader) as safety net.
-            pass
-        else:
-            model_ops = extract_model_ops(model_path)
-            if model_ops:
-                supported_ops = parse_op_table().supported
-                unsupported_ops = sorted(model_ops - supported_ops)
-                if unsupported_ops:
-                    raise cv.Invalid(
-                        f"Model '{Path(model_path).name}' requires operator(s) "
-                        f"{', '.join(unsupported_ops)} which esp-tflite-micro 1.3.7 "
-                        f"does not support.\n"
-                        f"  Supported operators: {', '.join(sorted(supported_ops))}\n"
-                        f"  Re-export the model without the unsupported operator(s) "
-                        f"or choose a compatible model."
-                    )
-        var = cg.new_Pvariable(config[CONF_ID])
-        rhs = [HexInt(x) for x in model_data]
-        prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-        cg.add(var.set_model(prog_arr, len(model_data)))
-        # Per-instance CRC32 - MULTI_CONF safe, each TFLiteMicroHelper carries its own expected checksum
-        crc32_val = zlib.crc32(model_data) & 0xFFFFFFFF
-        cg.add(var.set_expected_crc32(crc32_val))
-        cg.add(var.set_model_type(model_type))
-        cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
-        cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
-        cg.add_build_flag("-DESP_NN")
-        cg.add_build_flag("-DOPTIMIZED_KERNEL=esp_nn")
-        # TFLITE_MICRO_MAX_OPERATORS is a process-global compile-time macro.
-        # With MULTI_CONF, emitting one value per instance would let the last one
-        # win. Compute the max across ALL configured models so every instance is
-        # safe, and emit the define only once for the whole build.
-        _add_max_operators_define()
-        if config.get(CONF_DEBUG, False):
-            cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
-            cg.add(var.set_debug(True))
-        if model_type == "image":
-            await _configure_image_model(config, var, model_path, model_data)
-        elif model_type == "audio":
-            await _configure_audio_model(config, var, model_path, model_data)
-        esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
-        esp32.add_idf_component(name="espressif/esp-nn", ref="1.2.3")
-        if model_type == "audio":
-            esp32.add_idf_component(
-                name="esphome/esp-micro-speech-features", ref="1.2.3"
-            )
+async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_TFLITE_MICRO_HELPER")
+    model_type = config[CONF_MODEL_TYPE]
+    model_path, model_data = resolve_model_source(config)
+    # Compile-time operator support check: fail config generation (before
+    # compiling/flashing) when the model requires an operator the TFLM operator
+    # table cannot register. The device-side check remains the final safety net
+    # when no .txt report is available.
+    _validate_model_operators(model_path)
+    var = cg.new_Pvariable(config[CONF_ID])
+    rhs = [HexInt(x) for x in model_data]
+    prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+    cg.add(var.set_model(prog_arr, len(model_data)))
+    # Per-instance CRC32 - MULTI_CONF safe, each TFLiteMicroHelper carries its own expected checksum
+    crc32_val = zlib.crc32(model_data) & 0xFFFFFFFF
+    cg.add(var.set_expected_crc32(crc32_val))
+    cg.add(var.set_model_type(model_type))
+    cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
+    cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
+    cg.add_build_flag("-DESP_NN")
+    cg.add_build_flag("-DOPTIMIZED_KERNEL=esp_nn")
+    # The operator defines are process-global compile-time macros, so they are
+    # computed across ALL configured models and emitted once for the whole build.
+    _add_operator_defines()
+    if config.get(CONF_DEBUG, False):
+        cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
+        cg.add(var.set_debug(True))
+    if model_type == "image":
+        await _configure_image_model(config, var, model_path, model_data)
+    elif model_type == "audio":
+        await _configure_audio_model(config, var, model_path, model_data)
+    esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.7")
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.2.3")
+    if model_type == "audio":
+        esp32.add_idf_component(name="esphome/esp-micro-speech-features", ref="1.2.3")
 
 
-def _add_max_operators_define():
-    """Emit TFLITE_MICRO_MAX_OPERATORS once for the whole build.
+def _validate_model_operators(model_path: Path) -> None:
+    """Reject a model whose operators the pinned TFLM cannot register.
+
+    A model without a .txt report cannot be checked here; the loader's
+    device-side check covers it at load time.
+    """
+    model_ops = extract_model_ops(model_path)
+    if model_ops is None:
+        _LOGGER.info(
+            "No operator report for model '%s'; the operator check runs on the device",
+            Path(model_path).name,
+        )
+        return
+    supported_ops = parse_op_table().supported
+    if unsupported_ops := sorted(model_ops - supported_ops):
+        raise cv.Invalid(
+            f"Model '{Path(model_path).name}' requires operator(s) "
+            f"{', '.join(unsupported_ops)} which esp-tflite-micro 1.3.7 "
+            f"does not support.\n"
+            f"  Supported operators: {', '.join(sorted(supported_ops))}\n"
+            f"  Re-export the model without the unsupported operator(s) "
+            f"or choose a compatible model."
+        )
+
+
+def _add_operator_defines() -> None:
+    """Emit the operator defines once for the whole build.
 
     ``cg.add_define()`` wraps the value in an expression object that compares by
     identity, so calling it from every to_code() invocation (MULTI_CONF) would
     write the same ``#define`` several times. Skip the call when the define is
     already queued; every invocation computes the same value anyway.
     """
-    if any(
-        define.name == "TFLITE_MICRO_MAX_OPERATORS" for define in CORE.defines
-    ):
+    if any(define.name == "TFLITE_MICRO_MAX_OPERATORS" for define in CORE.defines):
         return
     cg.add_define("TFLITE_MICRO_MAX_OPERATORS", _compute_max_operators())
+    if (selective := _selective_op_defines()) is None:
+        return
+    # One flag per operator table entry, so tflite_op_processor compiles in only
+    # the kernels these models need.
+    cg.add_define("USE_TFLITE_MICRO_SELECTIVE_OPS")
+    for suffix, enabled in selective.items():
+        cg.add_define(f"TFLM_OP_ENABLED_{suffix}", enabled)
 
 
-def _compute_max_operators():
+def _selective_op_defines() -> dict[str, int] | None:
+    """Return the per-operator flags, or None when every operator must stay in.
+
+    The kernels no model uses can be left out only when the operator set of every
+    configured model is known at config time. One model without a .txt report
+    keeps the whole table: a firmware missing the kernel that model needs would
+    fail at registration time on the device instead of at build time.
+    """
+    if CORE.config is None:
+        return None
+    ops: set[str] = set()
+    for entry in CORE.config.get(DOMAIN, []):
+        model_ops = extract_model_ops(resolve_model_source(entry)[0])
+        if model_ops is None:
+            _LOGGER.info(
+                "A configured model has no operator report, so every operator is compiled in"
+            )
+            return None
+        ops |= model_ops
+    if not ops:
+        return None
+    return build_selective_op_defines(ops)
+
+
+def _compute_max_operators() -> int:
     """Compute the single TFLITE_MICRO_MAX_OPERATORS value for the ENTIRE build.
 
     Defines are process-global. With MULTI_CONF each to_code() invocation would
@@ -165,42 +204,46 @@ def _compute_max_operators():
     earlier models with a too-small resolver.
     All invocations therefore compute the SAME max across every configured model.
 
-    Returns max(ops + 5) across all .txt reports, or 30 (the default) when no
-    .txt report provides a count.
+    Returns max(30, ops + 5) across all .txt reports. The floor is not optional: a
+    model whose report is missing would otherwise get whatever count the other
+    models produced, and its resolver would only fail at registration on the
+    device.
     """
     if CORE.config is None:
-        return 30
+        return _MAX_OPERATORS_FLOOR
     max_ops = 0
     for entry in CORE.config.get(DOMAIN, []):
-        try:
-            model_path, _ = resolve_model_source(entry)
-        except cv.Invalid:
+        model_path, _ = resolve_model_source(entry)
+        txt_path = Path(model_path).with_suffix(".txt")
+        if not txt_path.exists():
+            _LOGGER.info(
+                "No operator report for model '%s'; keeping %d operator slots",
+                Path(model_path).name,
+                _MAX_OPERATORS_FLOOR,
+            )
             continue
-        txt_path = str(Path(model_path).with_suffix(".txt"))
-        if not Path(txt_path).exists():
-            continue
-        with Path(txt_path).open(encoding="utf-8") as f:
-            txt_content = f.read()
-        ops_match = re.search(r"Total operations:\s+(\d+)", txt_content)
-        if ops_match:
+        txt_content = txt_path.read_text(encoding="utf-8")
+        if ops_match := _TOTAL_OPERATIONS_RE.search(txt_content):
             max_ops = max(max_ops, int(ops_match.group(1)) + 5)
-    return max_ops if max_ops > 0 else 30
+    return max(_MAX_OPERATORS_FLOOR, max_ops)
 
 
 async def _configure_image_model(entry, var, model_path, model_data):
     model_filename = Path(str(model_path).replace("\\", "/")).name
     auto_config = parse_model_txt_file(model_path)
-    if auto_config:
-        print(f"  Auto-detected image config from '{model_filename}.txt':")
-        for k, v in auto_config.items():
-            print(f"    {k}: {v}")
+    if auto_config is not None:
+        _LOGGER.info(
+            "Image configuration for '%s' from its .txt report: %s",
+            model_filename,
+            auto_config,
+        )
     else:
         auto_config = infer_model_config_from_filename(model_filename)
-        print(
-            f"  No .txt file found, using filename heuristics for '{model_filename}':"
+        _LOGGER.info(
+            "No usable .txt report for '%s'; using the filename conventions: %s",
+            model_filename,
+            auto_config,
         )
-        for k, v in auto_config.items():
-            print(f"    {k}: {v}")
     yaml_overrides = {}
     for yaml_key, auto_key in [
         (CONF_INPUT_TYPE, "input_type"),
@@ -221,9 +264,7 @@ async def _configure_image_model(entry, var, model_path, model_data):
     cg.add(var.set_input_channels(auto_config.get("input_channels", 3)))
     cg.add(var.set_input_width(auto_config.get("input_width", 32)))
     cg.add(var.set_input_height(auto_config.get("input_height", 20)))
-    cg.add(
-        var.set_output_processing(auto_config.get("output_processing", "direct_class"))
-    )
+    cg.add(var.set_output_processing(auto_config.get("output_processing", "argmax")))
     cg.add(var.set_scale_factor(auto_config.get("scale_factor", 1.0)))
     cg.add(var.set_input_order(auto_config.get("input_order", "RGB")))
     cg.add(var.set_normalize(auto_config.get("normalize", False)))
@@ -236,7 +277,16 @@ async def _configure_image_model(entry, var, model_path, model_data):
 
 async def _configure_audio_model(entry, var, model_path, model_data):
     cg.add_define("USE_TFLITE_STREAMING")
-    auto_config = _parse_audio_config(model_path) or {}
+    auto_config = parse_audio_txt_file(model_path)
+    if auto_config is None:
+        # Every audio parameter then comes from YAML or from the C++ defaults, and
+        # a streaming model whose window or feature count is wrong still builds.
+        _LOGGER.warning(
+            "No audio metadata for '%s'; the audio options come from the YAML "
+            "configuration or the C++ defaults",
+            Path(str(model_path).replace("\\", "/")).name,
+        )
+        auto_config = {}
     if CONF_TENSOR_ARENA_SIZE in entry:
         cg.add(var.set_tensor_arena_size(entry[CONF_TENSOR_ARENA_SIZE]))
     elif "tensor_arena_size" in auto_config:

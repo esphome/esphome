@@ -1,6 +1,7 @@
 # ESPHome build test: tflite_micro_runtime (both model types).
-# Audio model: remote http manifest.
-# Image model: remote .tflite (REDUCE_MIN op is registered through the
+# Audio model: remote http manifest (esphome org).
+# Image model: remote .tflite, pinned to a commit so a push to that repository
+# cannot change what ESPHome CI builds (REDUCE_MIN is registered through the
 # conditional/optional-add path of tflite_op_processor).
 psram:
   mode: quad
@@ -16,5 +17,5 @@ tflite_micro_runtime:
     debug: false
   - id: test_tflite_image
     model_type: image
-    model: https://raw.githubusercontent.com/nliaudat/esphome_ai_component/refs/heads/main/models/digit_recognizer_v24_quantized_integer_quant_uint8.tflite
+    model: https://raw.githubusercontent.com/nliaudat/esphome_ai_component/4ca8470aba1b226071bcc3258f3b95fab08895d6/models/digit_recognizer_v24_quantized_integer_quant_uint8.tflite
     debug: true

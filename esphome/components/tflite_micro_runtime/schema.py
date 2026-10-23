@@ -4,14 +4,7 @@ import esphome.codegen as cg
 from esphome.components.tflite_model_source.model_metadata import datasize_to_bytes
 from esphome.components.tflite_model_source.model_source import MODEL_SOURCE_SCHEMA
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_DEBUG,
-    CONF_INVERT,
-    CONF_MODEL,
-    CONF_RAW_DATA_ID,
-    KEY_CORE,
-)
-from esphome.core import CORE
+from esphome.const import CONF_DEBUG, CONF_INVERT, CONF_MODEL, CONF_RAW_DATA_ID
 
 CONF_MODEL_TYPE = "model_type"
 CONF_TENSOR_ARENA_SIZE = "tensor_arena_size"
@@ -33,6 +26,22 @@ CONF_FEATURE_COUNT = "feature_count"
 tflite_micro_runtime_ns = cg.esphome_ns.namespace("tflite_micro_runtime")
 TFLiteMicroHelper = tflite_micro_runtime_ns.class_("TFLiteMicroHelper")
 
+# tflite_output_processor implements these four modes. The names below them come
+# from the upstream project this component was ported from and map onto the mode
+# they actually behaved like, so an existing configuration still validates without
+# keeping five aliases in the C++ enum.
+OUTPUT_PROCESSING_MODES = {
+    "argmax": "argmax",
+    "softmax": "softmax",
+    "qat_quantized": "qat_quantized",
+    "auto_detect": "auto_detect",
+    "direct_class": "argmax",
+    "logits": "softmax",
+    "logits_jomjol": "softmax",
+    "softmax_jomjol": "softmax",
+    "experimental_scale": "softmax",
+}
+
 PER_MODEL_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(TFLiteMicroHelper),
@@ -51,18 +60,7 @@ PER_MODEL_SCHEMA = cv.Schema(
         cv.Optional(CONF_INPUT_WIDTH): cv.int_range(min=8, max=512),
         cv.Optional(CONF_INPUT_HEIGHT): cv.int_range(min=8, max=512),
         cv.Optional(CONF_OUTPUT_PROCESSING): cv.enum(
-            {
-                "direct_class": "direct_class",
-                "softmax": "softmax",
-                "argmax": "argmax",
-                "logits": "logits",
-                "qat_quantized": "qat_quantized",
-                "experimental_scale": "experimental_scale",
-                "logits_jomjol": "logits_jomjol",
-                "softmax_jomjol": "softmax_jomjol",
-                "auto_detect": "auto_detect",
-            },
-            lower=True,
+            OUTPUT_PROCESSING_MODES, lower=True
         ),
         cv.Optional(CONF_SCALE_FACTOR): cv.float_range(min=0.1, max=100.0),
         cv.Optional(CONF_INPUT_ORDER): cv.enum(
@@ -82,15 +80,8 @@ PER_MODEL_SCHEMA = cv.Schema(
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.All(PER_MODEL_SCHEMA, cv.only_on_esp32)
 
-DEPENDENCIES = (
-    [
-        "esp32",
-        "tflite_memory_handler",
-        "tflite_model_debug",
-        "tflite_model_loader",
-        "tflite_op_processor",
-        "tflite_output_processor",
-    ]
-    if CORE.data.get(KEY_CORE) is not None and CORE.target_platform == "esp32"
-    else []
-)
+# Static, not computed from CORE at import time: the module is imported once per
+# process, so a value derived from CORE there goes stale (and is order dependent)
+# in a long-running dashboard. CONFIG_SCHEMA already rejects every non-ESP32
+# target, and the siblings are auto-loaded, so only the platform is listed here.
+DEPENDENCIES = ["esp32"]

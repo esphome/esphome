@@ -18,10 +18,24 @@
 namespace esphome::tflite_micro_runtime {
 
 using tflite_memory_handler::MemoryManager;
-using tflite_model_loader::AudioModelConfig;
 using tflite_model_loader::ImageModelConfig;
 using tflite_model_loader::ModelConfig;
 using tflite_output_processor::ProcessedOutput;
+
+/**
+ * @struct AudioModelConfig
+ * @brief Audio (streaming) model parameters from the YAML configuration.
+ *
+ * TFLiteMicroHelper stores them so a consumer can read the validated values; the
+ * streaming runtime itself (resource variables, sliding window, stride) belongs
+ * to the consumer.
+ */
+struct AudioModelConfig {
+  uint8_t probability_cutoff{128};  // quantized 0-255 (from 0.0-1.0)
+  size_t sliding_window_size{10};
+  uint8_t features_step_size{20};  // ms between feature slices
+  size_t feature_count{40};        // Mel filterbank bins (e.g., PREPROCESSOR_FEATURE_SIZE)
+};
 
 /**
  * @struct ModelSpec
@@ -103,6 +117,9 @@ class TFLiteMicroHelper {
   void set_features_step_size(uint8_t ms);
   void set_feature_count(size_t n);
 
+  /// @brief Validated audio parameters, for the consumer that streams the input.
+  const AudioModelConfig &get_audio_config() const { return this->audio_config_; }
+
   // -- Model Integrity ------------------------------------------------
   void set_expected_crc32(uint32_t crc) { this->expected_crc32_ = crc; }
 
@@ -149,7 +166,10 @@ class TFLiteMicroHelper {
 
   // -- Memory ---------------------------------------------------------
   size_t get_arena_used_bytes() const { return this->model_handler_.get_arena_used_bytes(); }
+  /// @brief Tensor arena size requested by the configuration.
   size_t get_tensor_arena_size() const { return this->tensor_arena_size_requested_; }
+  /// @brief Tensor arena size the last load actually used, after probing.
+  size_t get_tensor_arena_size_effective() const { return this->tensor_arena_size_effective_; }
   size_t get_tensor_arena_size_actual() const { return this->tensor_arena_allocation_.actual_size; }
   size_t get_model_size_bytes() const { return this->model_length_; }
 
@@ -160,7 +180,7 @@ class TFLiteMicroHelper {
   // -- Load statistics -------------------------------------------------
   const LoadStats &get_last_load_stats() const { return this->last_load_stats_; }
 
-#ifdef DEBUG_TFLITE_MICRO_HELPER
+#ifdef USE_TFLITE_MODEL_DEBUG
   void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
     this->model_handler_.debug_test_parameters(zone_data);
   }
@@ -173,7 +193,7 @@ class TFLiteMicroHelper {
   int input_channels_{3};
   int input_width_{32};
   int input_height_{20};
-  std::string output_processing_{"direct_class"};
+  std::string output_processing_{"argmax"};
   float scale_factor_{1.0f};
   std::string input_order_{"RGB"};
   bool normalize_{false};
@@ -183,10 +203,10 @@ class TFLiteMicroHelper {
   // Model data (set via set_model)
   const uint8_t *model_data_{nullptr};
   size_t model_length_{0};
+  /// Configured size, kept as-is so a reload uses the same value.
   size_t tensor_arena_size_requested_{tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE};
-
-  // Image model config
-  ImageModelConfig image_config_;
+  /// Size the last load used after probing; 0 before the first load.
+  size_t tensor_arena_size_effective_{0};
 
   // Audio model config
   AudioModelConfig audio_config_;
