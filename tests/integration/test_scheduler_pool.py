@@ -7,7 +7,9 @@ import re
 
 import pytest
 
+from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -88,9 +90,7 @@ async def test_scheduler_pool(
         api_client_connected() as client,
     ):
         # Verify device is running
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "scheduler-pool-test"
+        await assert_device_name(client, "scheduler-pool-test")
 
         # Get list of services
         entities, services = await client.list_entities_services()
@@ -113,65 +113,59 @@ async def test_scheduler_pool(
 
         # Get service objects
         phase_services = {
-            num: next(s for s in services if s.name == f"run_phase_{num}")
-            for num in range(1, 8)
+            num: require_service(services, f"run_phase_{num}") for num in range(1, 8)
         }
-        complete_service = next(s for s in services if s.name == "run_complete")
+        complete_service = require_service(services, "run_complete")
 
-        try:
-            # Phase 1: Component lifecycle
-            await client.execute_service(phase_services[1], {})
-            await asyncio.wait_for(phase_futures[1], timeout=1.0)
-            await asyncio.sleep(0.05)  # Let timeouts complete
+        # Shown when a phase does not complete
+        pool = {
+            "phases_completed": lambda: [
+                n for n, fut in phase_futures.items() if fut.done()
+            ],
+            "reuse": lambda: pool_reuse_count,
+            "recycle": lambda: pool_recycle_count,
+            "pool_full": lambda: pool_full_count,
+            "new_alloc": lambda: new_alloc_count,
+            "logged": log_lines,
+        }
+        # Phase 1: Component lifecycle
+        await client.execute_service(phase_services[1], {})
+        await wait_or_fail(phase_futures[1], 1.0, "Phase 1 did not complete", **pool)
+        await asyncio.sleep(0.05)  # Let timeouts complete
 
-            # Phase 2: Sensor polling
-            await client.execute_service(phase_services[2], {})
-            await asyncio.wait_for(phase_futures[2], timeout=1.0)
-            await asyncio.sleep(0.1)  # Let intervals run a bit
+        # Phase 2: Sensor polling
+        await client.execute_service(phase_services[2], {})
+        await wait_or_fail(phase_futures[2], 1.0, "Phase 2 did not complete", **pool)
+        await asyncio.sleep(0.1)  # Let intervals run a bit
 
-            # Phase 3: Communication patterns
-            await client.execute_service(phase_services[3], {})
-            await asyncio.wait_for(phase_futures[3], timeout=1.0)
-            await asyncio.sleep(0.1)  # Let heartbeat run
+        # Phase 3: Communication patterns
+        await client.execute_service(phase_services[3], {})
+        await wait_or_fail(phase_futures[3], 1.0, "Phase 3 did not complete", **pool)
+        await asyncio.sleep(0.1)  # Let heartbeat run
 
-            # Phase 4: Defer patterns
-            await client.execute_service(phase_services[4], {})
-            await asyncio.wait_for(phase_futures[4], timeout=1.0)
-            await asyncio.sleep(0.2)  # Let everything settle and recycle
+        # Phase 4: Defer patterns
+        await client.execute_service(phase_services[4], {})
+        await wait_or_fail(phase_futures[4], 1.0, "Phase 4 did not complete", **pool)
+        await asyncio.sleep(0.2)  # Let everything settle and recycle
 
-            # Phase 5: Pool reuse verification
-            await client.execute_service(phase_services[5], {})
-            await asyncio.wait_for(phase_futures[5], timeout=1.0)
-            await asyncio.sleep(0.1)  # Let Phase 5 timeouts complete and recycle
+        # Phase 5: Pool reuse verification
+        await client.execute_service(phase_services[5], {})
+        await wait_or_fail(phase_futures[5], 1.0, "Phase 5 did not complete", **pool)
+        await asyncio.sleep(0.1)  # Let Phase 5 timeouts complete and recycle
 
-            # Phase 6: Full pool reuse verification
-            await client.execute_service(phase_services[6], {})
-            await asyncio.wait_for(phase_futures[6], timeout=1.0)
-            await asyncio.sleep(0.1)  # Let Phase 6 timeouts complete
+        # Phase 6: Full pool reuse verification
+        await client.execute_service(phase_services[6], {})
+        await wait_or_fail(phase_futures[6], 1.0, "Phase 6 did not complete", **pool)
+        await asyncio.sleep(0.1)  # Let Phase 6 timeouts complete
 
-            # Phase 7: Same-named defer optimization
-            await client.execute_service(phase_services[7], {})
-            await asyncio.wait_for(phase_futures[7], timeout=1.0)
-            await asyncio.sleep(0.05)  # Let the single defer execute
+        # Phase 7: Same-named defer optimization
+        await client.execute_service(phase_services[7], {})
+        await wait_or_fail(phase_futures[7], 1.0, "Phase 7 did not complete", **pool)
+        await asyncio.sleep(0.05)  # Let the single defer execute
 
-            # Complete test
-            await client.execute_service(complete_service, {})
-            await asyncio.wait_for(test_complete_future, timeout=0.5)
-
-        except TimeoutError as e:
-            # Print debug info if test times out
-            recent_logs = "\n".join(log_lines[-30:])
-            phases_completed = [num for num, fut in phase_futures.items() if fut.done()]
-            pytest.fail(
-                f"Test timed out waiting for phase/completion. Error: {e}\n"
-                f"  Phases completed: {phases_completed}\n"
-                f"  Pool stats:\n"
-                f"    Reuse count: {pool_reuse_count}\n"
-                f"    Recycle count: {pool_recycle_count}\n"
-                f"    Pool full count: {pool_full_count}\n"
-                f"    New alloc count: {new_alloc_count}\n"
-                f"Recent logs:\n{recent_logs}"
-            )
+        # Complete test
+        await client.execute_service(complete_service, {})
+        await wait_or_fail(test_complete_future, 0.5, "Test did not complete", **pool)
 
     # Verify all test phases ran
     for phase_num in range(1, 8):

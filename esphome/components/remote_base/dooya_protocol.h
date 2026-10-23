@@ -27,21 +27,4 @@ class DooyaProtocol : public RemoteProtocol<DooyaData> {
 
 DECLARE_REMOTE_PROTOCOL(Dooya)
 
-template<typename... Ts> class DooyaAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, id)
-  TEMPLATABLE_VALUE(uint8_t, channel)
-  TEMPLATABLE_VALUE(uint8_t, button)
-  TEMPLATABLE_VALUE(uint8_t, check)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    DooyaData data{};
-    data.id = this->id_.value(x...);
-    data.channel = this->channel_.value(x...);
-    data.button = this->button_.value(x...);
-    data.check = this->check_.value(x...);
-    DooyaProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base
