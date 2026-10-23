@@ -50,7 +50,7 @@ bool HmacSHA256::equals_bytes(const uint8_t *expected) {
 
 bool HmacSHA256::equals_hex(const char *expected) {
   uint8_t parsed[SHA256_DIGEST_SIZE];
-  if (!parse_hex(expected, parsed, SHA256_DIGEST_SIZE)) {
+  if (parse_hex(expected, SHA256_DIGEST_SIZE * 2, parsed, SHA256_DIGEST_SIZE) != SHA256_DIGEST_SIZE * 2) {
     return false;
   }
   return this->equals_bytes(parsed);
@@ -83,7 +83,7 @@ bool HmacSHA256::equals_bytes(const uint8_t *expected) {
 
 bool HmacSHA256::equals_hex(const char *expected) {
   uint8_t parsed[SHA256_DIGEST_SIZE];
-  if (!parse_hex(expected, parsed, SHA256_DIGEST_SIZE)) {
+  if (parse_hex(expected, SHA256_DIGEST_SIZE * 2, parsed, SHA256_DIGEST_SIZE) != SHA256_DIGEST_SIZE * 2) {
     return false;
   }
   return this->equals_bytes(parsed);
