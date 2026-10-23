@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_DISCOVERY, CONF_ID, CONF_TIME, CONF_TIME_ID
+from esphome.core import ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kokx"]
@@ -59,10 +60,16 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def register_duco_device(var: cg.MockObj, config: ConfigType) -> None:
-    """Register a polling entity of a platform and attach it to its hub."""
+_request_device_slot = cg.slot_counter("DUCO_DEVICE_COUNT")
+
+
+async def register_duco_device(var: cg.MockObj, config: ConfigType, hub_id: ID) -> None:
+    """Register a device that sends requests, and give it an open request slot on its hub."""
     await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_DUCO_ID])
+    hub = await cg.get_variable(hub_id)
+    await cg.register_parented(var, hub)
+    _request_device_slot(str(hub_id))
+    cg.add(hub.register_device(var))
 
 
 async def to_code(config: ConfigType) -> None:
@@ -71,8 +78,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (discovery := config.get(CONF_DISCOVERY)) is not None:
         discovery_var = cg.new_Pvariable(discovery[CONF_ID])
-        await cg.register_component(discovery_var, discovery)
-        await cg.register_parented(discovery_var, var)
+        await register_duco_device(discovery_var, discovery, config[CONF_ID])
 
     if (time_config := config.get(CONF_TIME)) is not None:
         clock = await cg.get_variable(time_config[CONF_TIME_ID])

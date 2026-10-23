@@ -1,8 +1,9 @@
 """Integration test for the Duco component against a model of the ventilation box.
 
 Every entity reads its value from the box, a select or number change reaches the box, the clock
-is sent and discovery reports the nodes. The CO2 answer holds an 0xAA byte, so the byte stuffing
-is exercised too.
+is sent and discovery reports the nodes. The CO2 answer holds an 0xAA byte and the status answer an
+escaped AA 55, so the byte stuffing is exercised too. Most entities do not poll: their values come
+from one burst of requests at boot, more than the hub could once keep open.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ EXPECTED_SENSORS = {
     "humidity": 54.32,
     "filter_remaining": 120.0,
     "flow_level": 45.0,
-    "time_remaining": 900.0,
+    "time_remaining": 21930.0,
     "bypass": 50.0,
     "temperature_oda": -3.5,
     "temperature_sup": 19.5,

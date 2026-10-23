@@ -27,6 +27,13 @@ struct DucoMessage {
 
 class DucoDevice;
 
+/// The open request of one device: the answer to it is function + 2 with the same message id.
+struct DucoPendingRequest {
+  DucoDevice *device;
+  uint8_t id;
+  uint8_t function;  // 0 while nothing is open
+};
+
 class Duco : public uart::UARTDevice, public Component {
  public:
   void loop() override;
@@ -34,27 +41,31 @@ class Duco : public uart::UARTDevice, public Component {
 
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
 
-  /// Send a request; its answer (function + 2 with the same message id) goes to device, or nowhere if nullptr.
-  uint8_t send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
+#ifdef DUCO_DEVICE_COUNT
+  void register_device(DucoDevice *device) { this->pending_.push_back({device, 0, 0}); }
+#endif
+
+  /// Send a request; its answer goes to device, or nowhere if nullptr. A device's new request replaces its
+  /// open one, so an answer is never lost to another device's traffic.
+  void send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data);
 
  protected:
   // The longest answer to a request sent here is 23 bytes (the serial number), the longest request 9
   static constexpr size_t MAX_FRAME_SIZE = 32;
   static constexpr size_t MAX_REQUEST_DATA = 9;
-  static constexpr uint8_t PENDING_SLOTS = 8;
 
   bool parse_byte_(uint8_t byte);
   void finalize_message_();
   uint8_t next_id_();
 
-  std::array<DucoDevice *, PENDING_SLOTS> pending_device_{};
-  std::array<uint8_t, PENDING_SLOTS> pending_id_{};
-  std::array<uint8_t, PENDING_SLOTS> pending_function_{};
+#ifdef DUCO_DEVICE_COUNT
+  StaticVector<DucoPendingRequest, DUCO_DEVICE_COUNT> pending_;
+#endif
   std::array<uint8_t, MAX_FRAME_SIZE> rx_buffer_{};
   uint32_t last_byte_{0};
   uint8_t rx_size_{0};
   uint8_t last_id_{10};
-  bool removed_last_{false};
+  bool escaped_{false};  // the last 0xAA was followed by a stuffing byte, so it starts no header
   bool disable_crc_{false};
 };
 
@@ -77,7 +88,6 @@ class DucoDiscovery : public DucoDevice {
 
   std::array<uint8_t, NODE_COUNT> node_types_{};  // 0 when no node answered at that address
   uint8_t next_node_{0};
-  uint8_t request_id_{0};
   uint8_t attempts_{0};
 };
 

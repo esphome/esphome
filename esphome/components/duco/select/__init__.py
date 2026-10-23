@@ -2,7 +2,13 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
-from .. import DUCO_COMPONENT_SCHEMA, DucoDevice, duco_ns, register_duco_device
+from .. import (
+    CONF_DUCO_ID,
+    DUCO_COMPONENT_SCHEMA,
+    DucoDevice,
+    duco_ns,
+    register_duco_device,
+)
 
 DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
@@ -36,4 +42,4 @@ CONFIG_SCHEMA = (
 
 async def to_code(config: ConfigType) -> None:
     var = await select.new_select(config, options=DUCO_MODE_OPTIONS)
-    await register_duco_device(var, config)
+    await register_duco_device(var, config, config[CONF_DUCO_ID])

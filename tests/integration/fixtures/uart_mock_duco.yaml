@@ -1,5 +1,22 @@
 esphome:
   name: uart-mock-duco
+  # More requests than the old fixed table held, all sent before the hub reads an answer
+  on_boot:
+    priority: -100
+    then:
+      - component.update: co2
+      - component.update: temperature
+      - component.update: humidity
+      - component.update: filter_remaining
+      - component.update: flow_level
+      - component.update: time_remaining
+      - component.update: bypass
+      - component.update: temperature_oda
+      - component.update: temperature_sup
+      - component.update: temperature_eta
+      - component.update: temperature_eha
+      - component.update: serial_number
+      - component.update: comfort_temperature
 
 host:
 api:
@@ -69,8 +86,8 @@ uart_mock:
                 std::vector<uint8_t> status(20, 0);
                 status[0] = mode;
                 status[2] = 45;
-                status[12] = 0x84;  // 900 s
-                status[13] = 0x03;
+                status[12] = 0xAA;  // 21930 s, sent as AA 01 55: an escaped header inside the data
+                status[13] = 0x55;
                 reply(0x0e, status);
               } else if (function == 0x0c && d[0] == 0x04) {
                 mode = d[2];
@@ -125,49 +142,62 @@ select:
 
 number:
   - platform: duco
+    id: comfort_temperature
     name: Comfort Temperature
-    update_interval: 1s
+    update_interval: never
 
 text_sensor:
   - platform: duco
+    id: serial_number
     name: Serial Number
-    update_interval: 1s
+    update_interval: never
 
 sensor:
   - platform: duco
     co2:
       - address: 3
+        id: co2
         name: CO2
-        update_interval: 1s
+        update_interval: never
     temperature:
       - address: 3
+        id: temperature
         name: Temperature
-        update_interval: 1s
+        update_interval: never
     humidity:
       - address: 3
+        id: humidity
         name: Humidity
-        update_interval: 1s
+        update_interval: never
     filter_remaining:
+      id: filter_remaining
       name: Filter Remaining
-      update_interval: 1s
+      update_interval: never
     flow_level:
+      id: flow_level
       name: Flow Level
-      update_interval: 1s
+      update_interval: never
     time_remaining:
+      id: time_remaining
       name: Time Remaining
-      update_interval: 1s
+      update_interval: never
     bypass:
+      id: bypass
       name: Bypass
-      update_interval: 1s
+      update_interval: never
     temperature_oda:
+      id: temperature_oda
       name: Temperature ODA
-      update_interval: 1s
+      update_interval: never
     temperature_sup:
+      id: temperature_sup
       name: Temperature SUP
-      update_interval: 1s
+      update_interval: never
     temperature_eta:
+      id: temperature_eta
       name: Temperature ETA
-      update_interval: 1s
+      update_interval: never
     temperature_eha:
+      id: temperature_eha
       name: Temperature EHA
-      update_interval: 1s
+      update_interval: never

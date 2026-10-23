@@ -46,16 +46,18 @@ bool Duco::parse_byte_(uint8_t byte) {
     return false;  // header of the next message
 
   if (at >= 2) {
-    if (prev == HEADER_START && byte == STUFFING && !this->removed_last_) {
-      this->removed_last_ = true;
-      return true;
-    }
-    this->removed_last_ = false;
-
-    if (at >= 3 && prev == HEADER_START && byte == HEADER_END) {
-      this->rx_size_--;  // drop the 0xAA of the header
-      this->finalize_message_();
-      return false;
+    const bool escaped = this->escaped_;
+    this->escaped_ = false;
+    if (prev == HEADER_START && !escaped) {
+      if (byte == STUFFING) {
+        this->escaped_ = true;
+        return true;
+      }
+      if (at >= 3 && byte == HEADER_END) {
+        this->rx_size_--;  // drop the 0xAA of the header
+        this->finalize_message_();
+        return false;
+      }
     }
   }
 
@@ -80,14 +82,17 @@ void Duco::finalize_message_() {
     ESP_LOGD(TAG, "CRC check failed, ignored: %04X != %04X", computed_crc, remote_crc);
   }
 
+#ifdef DUCO_DEVICE_COUNT
   // The box first acknowledges a request with function + 1, then answers with function + 2
   const DucoMessage message{raw[2], raw + 3, static_cast<uint8_t>(length - 2)};
-  const uint8_t slot = message.id % PENDING_SLOTS;
-  DucoDevice *device = this->pending_device_[slot];
-  if (device == nullptr || this->pending_id_[slot] != message.id || this->pending_function_[slot] + 2 != raw[1])
-    return;
-  this->pending_device_[slot] = nullptr;
-  device->receive_response(message);
+  for (auto &pending : this->pending_) {
+    if (pending.function != 0 && pending.id == message.id && pending.function + 2 == raw[1]) {
+      pending.function = 0;
+      pending.device->receive_response(message);
+      return;
+    }
+  }
+#endif
 }
 
 void Duco::dump_config() {
@@ -104,7 +109,7 @@ uint8_t Duco::next_id_() {
   return this->last_id_;
 }
 
-uint8_t Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data) {
+void Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<uint8_t> data) {
   const size_t size = std::min(data.size(), MAX_REQUEST_DATA);
   const uint8_t id = this->next_id_();
   uint8_t frame[5 + MAX_REQUEST_DATA + 2] = {HEADER_START, HEADER_END, static_cast<uint8_t>(size + 2), function, id};
@@ -115,14 +120,17 @@ uint8_t Duco::send(DucoDevice *device, uint8_t function, std::initializer_list<u
   this->write_array(frame, size + 7);
   this->flush();
 
-  // A request that was never answered gives up its slot to the one sent PENDING_SLOTS later
-  const uint8_t slot = id % PENDING_SLOTS;
-  this->pending_device_[slot] = device;
-  this->pending_id_[slot] = id;
-  this->pending_function_[slot] = function;
+#ifdef DUCO_DEVICE_COUNT
+  for (auto &pending : this->pending_) {
+    if (pending.device == device) {
+      pending.id = id;
+      pending.function = function;
+      break;
+    }
+  }
+#endif
 
   ESP_LOGV_HEX(TAG, frame + 2, size + 5, sizeof(frame), "Sent %s");
-  return id;
 }
 
 static const LogString *node_type_name(uint8_t type) {
@@ -166,12 +174,12 @@ void DucoDiscovery::request_next_node_() {
   // Without an answer by the next step the same node is asked again
   ESP_LOGD(TAG, "Discovering node %u", this->next_node_);
   this->attempts_++;
-  this->request_id_ = this->parent_->send(this, FUNCTION_NODE, {0x01, this->next_node_});
+  this->parent_->send(this, FUNCTION_NODE, {0x01, this->next_node_});
 }
 
 void DucoDiscovery::receive_response(const DucoMessage &message) {
-  // A late answer to an earlier attempt has a different id; it may belong to another node
-  if (message.id == this->request_id_ && message.size >= 1 && this->next_node_ < NODE_COUNT) {
+  // Only the latest attempt is open, so a late answer to an earlier one never arrives here
+  if (message.size >= 1 && this->next_node_ < NODE_COUNT) {
     this->node_types_[this->next_node_++] = message.data[0];
     this->attempts_ = 0;
   }

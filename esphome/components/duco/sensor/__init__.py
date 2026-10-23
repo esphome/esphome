@@ -1,4 +1,3 @@
-import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
@@ -18,7 +17,13 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_DUCO_ID, DUCO_COMPONENT_SCHEMA, DucoDevice, duco_ns
+from .. import (
+    CONF_DUCO_ID,
+    DUCO_COMPONENT_SCHEMA,
+    DucoDevice,
+    duco_ns,
+    register_duco_device,
+)
 
 DEPENDENCIES = ["duco"]
 CODEOWNERS = ["@kokx"]
@@ -141,12 +146,11 @@ CONFIG_SCHEMA = DUCO_COMPONENT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    sensors = sensor.sub_sensors(config, parent=config[CONF_DUCO_ID])
     for key, (reading, argument, _) in SENSORS.items():
         if (confs := config.get(key)) is None:
             continue
         for conf in confs if isinstance(confs, list) else [confs]:
-            var = await sensors.create(
-                conf, None, reading, conf.get(CONF_ADDRESS, argument)
+            var = await sensor.new_sensor(
+                conf, reading, conf.get(CONF_ADDRESS, argument)
             )
-            await cg.register_component(var, conf)
+            await register_duco_device(var, conf, config[CONF_DUCO_ID])
