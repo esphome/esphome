@@ -4,23 +4,21 @@
 
 #ifdef USE_TFLITE_MICRO_HELPER
 
-#include <memory>
 #include <cstdint>
-#include "esp_heap_caps.h"
+#include <memory>
+#include "esphome/core/helpers.h"
 
 namespace esphome::tflite_memory_handler {
 
 class MemoryManager {
  public:
   struct AllocationResult {
-    struct HeapCapsDeleter {
-      void operator()(uint8_t *p) const {
-        if (p)
-          heap_caps_free(p);
-      }
+    /// Frees the arena back to the heap it came from.
+    struct ArenaDeleter {
+      void operator()(uint8_t *p) const { RAMAllocator<uint8_t>().deallocate(p, 1); }
     };
 
-    std::unique_ptr<uint8_t[], HeapCapsDeleter> data;
+    std::unique_ptr<uint8_t[], ArenaDeleter> data;
     size_t actual_size{0};
 
     // Source of allocation for logging / diagnostics
