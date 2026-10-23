@@ -1,7 +1,7 @@
 display:
   - platform: hub75
     id: my_hub75
-    board: apollo-automation-rev6
+    board: apollo-automation-m1-rev6
     panel_width: 64
     panel_height: 64
     layout_rows: 1
