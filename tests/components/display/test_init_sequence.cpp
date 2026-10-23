@@ -78,4 +78,14 @@ TEST(InitSequenceReader, ShortArgsAreMalformed) {
   EXPECT_TRUE(reader.malformed());
 }
 
+TEST(InitSequenceReader, CountOverMaxIsMalformed) {
+  static const uint8_t SEQ[] = {10, 0xFF, 0x2A, 0x02, 0x00, 0xEF};
+  InitSequenceReader reader(SEQ, sizeof(SEQ));
+  InitSequenceEntry entry{};
+  ASSERT_TRUE(reader.next(entry, 1));
+  EXPECT_TRUE(entry.is_delay());
+  EXPECT_FALSE(reader.next(entry, 1));
+  EXPECT_TRUE(reader.malformed());
+}
+
 }  // namespace esphome::display::testing

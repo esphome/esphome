@@ -3,7 +3,7 @@
 
 namespace esphome::display {
 
-bool InitSequenceReader::next(InitSequenceEntry &entry) {
+bool InitSequenceReader::next(InitSequenceEntry &entry, uint8_t max_count) {
   if (this->index_ >= this->length_)
     return false;
   const size_t remaining = this->length_ - this->index_;
@@ -16,7 +16,7 @@ bool InitSequenceReader::next(InitSequenceEntry &entry) {
       this->index_ += 2;
       return true;
     }
-    if (remaining - 2 >= entry.count) {
+    if (entry.count <= max_count && remaining - 2 >= entry.count) {
       this->index_ += 2 + entry.count;
       return true;
     }
