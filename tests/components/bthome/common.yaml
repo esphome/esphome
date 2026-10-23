@@ -12,6 +12,25 @@ sensor:
     type: SIGNAL_STRENGTH
     name: "Remote Signal Strength"
 
+event:
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: BUTTON
+    name: "Remote Button"
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: BUTTON
+    index: 2
+    name: "Remote Button 2"
+    on_event:
+      - logger.log:
+          format: "Button 2: %s"
+          args: [event_type.c_str()]
+  - platform: bthome
+    source_id: bthome_remote_plain
+    type: DIMMER
+    name: "Remote Dimmer"
+
 bthome:
   remote_devices:
     - id: bthome_remote_plain

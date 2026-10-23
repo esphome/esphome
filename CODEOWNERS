@@ -114,6 +114,7 @@ esphome/components/bq27220/* @rggammon
 esphome/components/bq76972/* @limpkin
 esphome/components/bridge/* @kbx81
 esphome/components/bthome/* @jpeletier
+esphome/components/bthome/event/* @Bascht74 @jpeletier
 esphome/components/bthome/sensor/* @jpeletier
 esphome/components/bthome_mithermometer/* @nagyrobi
 esphome/components/button/* @esphome/core
