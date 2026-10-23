@@ -101,7 +101,8 @@ struct ModemPollResult {
   float accuracy{NAN};
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
-  static constexpr uint8_t NETWORK_MODE_NONE = 255;
+  static constexpr uint8_t NETWORK_MODE_NO_SERVICE = 0;
+  static constexpr uint8_t NETWORK_MODE_NONE = 255;  // no AT+CNSMOD answer; past the name table, so Unknown
   uint8_t network_mode{NETWORK_MODE_NONE};
 #endif
 };

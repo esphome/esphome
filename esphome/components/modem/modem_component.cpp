@@ -272,7 +272,7 @@ void ModemComponent::loop() {
     this->poll_unpublished_.store(0, std::memory_order_release);
     ModemPollResult lost{};
 #ifdef USE_MODEM_NETWORK_TYPE
-    lost.network_mode = 0;  // No service
+    lost.network_mode = ModemPollResult::NETWORK_MODE_NO_SERVICE;
 #endif
     this->publish_poll_(lost);
   } else if (this->poll_unpublished_.load(std::memory_order_acquire)) {
@@ -1198,6 +1198,8 @@ static void parse_gnss_info(char *info, ModemPollResult &result) {
 #ifdef USE_MODEM_SIGNAL
 // 3GPP TS 45.008 representative bit error rates for the RXQUAL classes AT+CSQ reports
 static constexpr float BER_PERCENT[] = {0.14f, 0.28f, 0.57f, 1.13f, 2.26f, 4.53f, 9.05f, 18.10f};
+static constexpr int CSQ_UNKNOWN = 99;  // AT+CSQ rssi or ber the modem cannot tell
+static constexpr int CSQ_RSSI_MAX = 31;
 #endif
 
 void ModemComponent::poll_() {
@@ -1205,9 +1207,9 @@ void ModemComponent::poll_() {
   this->poll_result_ = {};
   ModemPollResult &result = this->poll_result_;
 #ifdef USE_MODEM_SIGNAL
-  int rssi = 99, ber = 99;
+  int rssi = CSQ_UNKNOWN, ber = CSQ_UNKNOWN;
   if (this->dce_->get_signal_quality(rssi, ber) == command_result::OK) {
-    if (rssi <= 31) {
+    if (rssi <= CSQ_RSSI_MAX) {
       result.rssi = -113 + 2 * rssi;
     }
     if (ber < static_cast<int>(std::size(BER_PERCENT))) {
