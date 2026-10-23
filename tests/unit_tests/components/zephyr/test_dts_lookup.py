@@ -1374,9 +1374,7 @@ def test_validate_board_revision_returns_none_for_board_without_revisions(
 
 
 # ---------------------------------------------------------------------------
-# _find_cpp -- picks a preprocessor candidate that actually works, not just the
-# first one on PATH (macOS aliases cpp/gcc/cc to the same clang driver, whose
-# 'cpp' personality fails this exact invocation)
+# _find_cpp -- first candidate that passes the real command
 # ---------------------------------------------------------------------------
 
 
@@ -1430,6 +1428,26 @@ def test_find_cpp_caches_first_working_candidate(
     assert calls == ["/usr/bin/cpp"]
 
 
+def test_cpp_candidate_check_uses_real_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[list[str]] = []
+
+    def _fake_run(cmd: list[str], **kwargs: Any) -> SimpleNamespace:
+        seen.append(cmd)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(dts_lookup.subprocess, "run", _fake_run)
+
+    assert dts_lookup._cpp_candidate_works("/usr/bin/cpp")
+    assert "-nostdinc" in seen[0]
+    assert seen[0][-1].endswith(".dts")
+
+
+def test_cpp_candidate_check_missing_binary() -> None:
+    assert not dts_lookup._cpp_candidate_works("/nonexistent/cpp")
+
+
 # ---------------------------------------------------------------------------
 # _get_edt -- one warning naming why the devicetree couldn't be read
 # ---------------------------------------------------------------------------
@@ -1454,7 +1472,7 @@ def test_get_edt_warns_once_when_cpp_missing(
 
     warnings = [r for r in caplog.records if "Can't read board" in r.message]
     assert len(warnings) == 1
-    assert "C preprocessor 'cpp' not found" in warnings[0].message
+    assert "No working C preprocessor" in warnings[0].message
 
 
 def test_get_edt_warns_when_board_not_found(
