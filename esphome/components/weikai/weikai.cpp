@@ -394,9 +394,7 @@ bool WeikaiChannel::check_channel_down_() {
 }
 
 bool WeikaiChannel::peek_byte(uint8_t *buffer) {
-  if (this->receive_buffer_.empty())
-    xfer_fifo_to_buffer_();
-  if (this->receive_buffer_.empty())
+  if (this->receive_buffer_.empty() && this->xfer_fifo_to_buffer_() == 0)
     return false;
   *buffer = this->receive_buffer_.front();
   return true;
