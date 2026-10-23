@@ -6,8 +6,10 @@
 
 namespace esphome::bthome::client {
 
-class BTHomeEvent : public BTHomeRemoteObject, public esphome::event::Event {
+class BTHomeEvent final : public BTHomeRemoteObject, public esphome::event::Event {
  public:
+  // User provided, not "= default": `new(p) BTHomeEvent()` would zero-fill .bss that is already zero.
+  BTHomeEvent() {}
   /// Which object of this type in the payload, from 0: the button number minus one.
   void set_index(uint8_t index) { this->index_ = index; }
   bool process_object(const BTHomeObject &object) override;

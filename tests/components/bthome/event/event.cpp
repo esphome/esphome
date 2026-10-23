@@ -15,8 +15,22 @@ namespace {
 
 constexpr uint64_t BUTTON_MAC = 0x3C2EF5A1B2C3ULL;
 constexpr uint64_t OTHER_MAC = 0x112233445566ULL;
+
+// Device information byte: BTHome v2, trigger based, not encrypted.
+constexpr uint8_t HEADER = 0x44;
+// The same, with the device's MAC in front of the objects.
+constexpr uint8_t HEADER_WITH_MAC = 0x46;
+constexpr uint8_t PACKET_ID = 0x00;  // object type, followed by the counter
+constexpr uint8_t BUTTON = 0x3A;     // object type, followed by the event code
+constexpr uint8_t DIMMER = 0x3C;     // object type, followed by the event code and the steps
+constexpr uint8_t NO_EVENT = 0x00;
 constexpr uint8_t PRESS = 0x01;
 constexpr uint8_t DOUBLE_PRESS = 0x02;
+constexpr uint8_t HOLD = 0x80;
+constexpr uint8_t OLD_HOLD = 0xFE;           // Shelly BLU firmware before 1.0.20
+constexpr uint8_t NOT_A_BUTTON_CODE = 0x07;  // not in the BTHome button table
+constexpr uint8_t ROTATE_LEFT = 0x01;
+constexpr uint8_t ROTATE_RIGHT = 0x02;
 
 ble_device_base::ESPBTDevice make_device(uint64_t address) {
   uint8_t mac_lsb[MAC_ADDRESS_SIZE];
@@ -71,40 +85,41 @@ using Fired = std::vector<std::string>;
 TEST(BTHomeEvent, FiresOncePerPacketId) {
   RecordingEvent button(BTHomeObjectType::BUTTON_EVENT, 1);
   Remote<1> remote({&button});
-  remote.receive({0x44, 0x00, 0x01, 0x3A, PRESS});
-  remote.receive({0x44, 0x00, 0x01, 0x3A, PRESS});
-  remote.receive({0x44, 0x00, 0x02, 0x3A, DOUBLE_PRESS});
-  remote.receive({0x44, 0x00, 0x03, 0x3A, PRESS});
+  // Packet IDs 1, 1 again (a copy), 2 and 3.
+  remote.receive({HEADER, PACKET_ID, 1, BUTTON, PRESS});
+  remote.receive({HEADER, PACKET_ID, 1, BUTTON, PRESS});
+  remote.receive({HEADER, PACKET_ID, 2, BUTTON, DOUBLE_PRESS});
+  remote.receive({HEADER, PACKET_ID, 3, BUTTON, PRESS});
   EXPECT_EQ(button.fired, (Fired{"press", "double_press", "press"}));
 }
 
 TEST(BTHomeEvent, ComparesThePacketIdWithThePreviousAdvertisement) {
   RecordingEvent button(BTHomeObjectType::BUTTON_EVENT, 1);
   Remote<1> remote({&button});
-  remote.receive({0x44, 0x00, 0x05, 0x3A, PRESS});
-  remote.receive({0x44, 0x00, 0x06, 0x3A, DOUBLE_PRESS});
+  remote.receive({HEADER, PACKET_ID, 5, BUTTON, PRESS});
+  remote.receive({HEADER, PACKET_ID, 6, BUTTON, DOUBLE_PRESS});
   // The counter is back at 5 after another gesture. That is a new press.
-  remote.receive({0x44, 0x00, 0x05, 0x3A, PRESS});
+  remote.receive({HEADER, PACKET_ID, 5, BUTTON, PRESS});
   EXPECT_EQ(button.fired, (Fired{"press", "double_press", "press"}));
 }
 
 TEST(BTHomeEvent, SamePacketIdAfterAPauseIsNew) {
   RecordingEvent button(BTHomeObjectType::BUTTON_EVENT, 1);
   Remote<1> remote({&button});
-  remote.receive({0x44, 0x00, 0x07, 0x3A, PRESS}, 1000);
-  remote.receive({0x44, 0x00, 0x07, 0x3A, PRESS}, 1100);
-  // A restarted transmitter sends id 7 again, 4 s after the last copy.
-  remote.receive({0x44, 0x00, 0x07, 0x3A, PRESS}, 5100);
+  remote.receive({HEADER, PACKET_ID, 7, BUTTON, PRESS}, 1000);
+  remote.receive({HEADER, PACKET_ID, 7, BUTTON, PRESS}, 1100);
+  // A restarted transmitter sends packet ID 7 again, 5 s after the last copy (the hub forgets after 4 s).
+  remote.receive({HEADER, PACKET_ID, 7, BUTTON, PRESS}, 6100);
   EXPECT_EQ(button.fired, (Fired{"press", "press"}));
 }
 
 TEST(BTHomeEvent, DropsCopiesWithoutAPacketId) {
   RecordingEvent button(BTHomeObjectType::BUTTON_EVENT, 1);
   Remote<1> remote({&button});
-  remote.receive({0x44, 0x3A, PRESS}, 1000);
-  remote.receive({0x44, 0x3A, PRESS}, 1500);
-  // 1.2 s after the last copy the same press is a new one.
-  remote.receive({0x44, 0x3A, PRESS}, 2700);
+  remote.receive({HEADER, BUTTON, PRESS}, 1000);
+  remote.receive({HEADER, BUTTON, PRESS}, 1500);
+  // 1.5 s after the last copy (more than 1.2 s) the same press is a new one.
+  remote.receive({HEADER, BUTTON, PRESS}, 3000);
   EXPECT_EQ(button.fired, (Fired{"press", "press"}));
 }
 
@@ -112,8 +127,11 @@ TEST(BTHomeEvent, MatchesTheMacInThePayload) {
   RecordingEvent button(BTHomeObjectType::BUTTON_EVENT, 1);
   Remote<1> remote({&button});
   // BUTTON_MAC, least significant byte first, behind a changing radio address.
-  EXPECT_TRUE(remote.receive({0x46, 0xC3, 0xB2, 0xA1, 0xF5, 0x2E, 0x3C, 0x00, 0x01, 0x3A, PRESS}, 0, OTHER_MAC));
-  EXPECT_FALSE(remote.receive({0x46, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x00, 0x02, 0x3A, PRESS}, 0, OTHER_MAC));
+  EXPECT_TRUE(
+      remote.receive({HEADER_WITH_MAC, 0xC3, 0xB2, 0xA1, 0xF5, 0x2E, 0x3C, PACKET_ID, 1, BUTTON, PRESS}, 0, OTHER_MAC));
+  // OTHER_MAC in the payload: another device.
+  EXPECT_FALSE(
+      remote.receive({HEADER_WITH_MAC, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, PACKET_ID, 2, BUTTON, PRESS}, 0, OTHER_MAC));
   EXPECT_EQ(button.fired, (Fired{"press"}));
 }
 
@@ -121,9 +139,9 @@ TEST(BTHomeEvent, ReadsItsButtonAndTheHoldAlias) {
   RecordingEvent button2(BTHomeObjectType::BUTTON_EVENT, 2);
   Remote<1> remote({&button2});
   // Only button 1 is in this advertisement.
-  remote.receive({0x44, 0x00, 0x01, 0x3A, 0x80});
-  // Button 1 has no event, button 2 sends the old hold code 0xFE.
-  remote.receive({0x44, 0x00, 0x02, 0x3A, 0x00, 0x3A, 0xFE});
+  remote.receive({HEADER, PACKET_ID, 1, BUTTON, HOLD});
+  // Button 1 has no event, button 2 sends the old hold code.
+  remote.receive({HEADER, PACKET_ID, 2, BUTTON, NO_EVENT, BUTTON, OLD_HOLD});
   EXPECT_EQ(button2.fired, (Fired{"hold_press"}));
 }
 
@@ -132,7 +150,7 @@ TEST(BTHomeEvent, EachButtonGetsItsOwnObject) {
   RecordingEvent button2(BTHomeObjectType::BUTTON_EVENT, 2);
   RecordingEvent button1(BTHomeObjectType::BUTTON_EVENT, 1);
   Remote<2> remote({&button2, &button1});
-  remote.receive({0x44, 0x00, 0x01, 0x3A, PRESS, 0x3A, DOUBLE_PRESS});
+  remote.receive({HEADER, PACKET_ID, 1, BUTTON, PRESS, BUTTON, DOUBLE_PRESS});
   EXPECT_EQ(button1.fired, (Fired{"press"}));
   EXPECT_EQ(button2.fired, (Fired{"double_press"}));
 }
@@ -140,8 +158,8 @@ TEST(BTHomeEvent, EachButtonGetsItsOwnObject) {
 TEST(BTHomeEvent, IgnoresNoEventAndUnknownCodes) {
   RecordingEvent button(BTHomeObjectType::BUTTON_EVENT, 1);
   Remote<1> remote({&button});
-  remote.receive({0x44, 0x00, 0x01, 0x3A, 0x00});
-  remote.receive({0x44, 0x00, 0x02, 0x3A, 0x07});
+  remote.receive({HEADER, PACKET_ID, 1, BUTTON, NO_EVENT});
+  remote.receive({HEADER, PACKET_ID, 2, BUTTON, NOT_A_BUTTON_CODE});
   EXPECT_TRUE(button.fired.empty());
 }
 
@@ -149,8 +167,8 @@ TEST(BTHomeEvent, DimmerFiresTheRotation) {
   RecordingEvent dimmer(BTHomeObjectType::DIMMER_EVENT, 1);
   Remote<1> remote({&dimmer});
   // Rotate left by 3 steps, then right by 1 step.
-  remote.receive({0x44, 0x00, 0x01, 0x3C, 0x01, 0x03});
-  remote.receive({0x44, 0x00, 0x02, 0x3C, 0x02, 0x01});
+  remote.receive({HEADER, PACKET_ID, 1, DIMMER, ROTATE_LEFT, 3});
+  remote.receive({HEADER, PACKET_ID, 2, DIMMER, ROTATE_RIGHT, 1});
   EXPECT_EQ(dimmer.fired, (Fired{"rotate_left", "rotate_right"}));
 }
 
