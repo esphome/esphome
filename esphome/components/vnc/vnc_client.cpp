@@ -119,10 +119,12 @@ void VncClient::dump_config() {
                 "  Reconnect Interval: %" PRIu32 "ms\n"
                 "  Update Delay: %" PRIu32 "ms\n"
                 "  Max Update Delay: %" PRIu32 "ms\n"
-                "  Pixel Format: %s",
+                "  Pixel Format: %s\n"
+                "  Tile Cache: %u tiles",
                 this->link_.host(), this->link_.port(), this->link_.reconnect_interval(), this->update_delay_ms_,
                 this->max_update_delay_ms_,
-                LOG_STR_ARG(PixelFormatStrings::get_log_str(static_cast<uint8_t>(this->pixel_format_), 0)));
+                LOG_STR_ARG(PixelFormatStrings::get_log_str(static_cast<uint8_t>(this->pixel_format_), 0)),
+                this->hash_capacity_);
 #ifdef USE_VNC_AUTH
   ESP_LOGCONFIG(TAG, "  Password: %s", this->auth_key_ != nullptr ? LOG_STR_LITERAL("set") : LOG_STR_LITERAL("none"));
 #endif
@@ -289,6 +291,9 @@ void VncClient::reset_session_() {
   if (this->refresh_pending_ || this->frame_drawn_) {
     this->clear_tiles_();
   }
+  // Hextile colours carry from tile to tile; a new server must not inherit the last one's
+  std::memset(this->hex_bg_, 0, sizeof(this->hex_bg_));
+  std::memset(this->hex_fg_, 0, sizeof(this->hex_fg_));
   this->rx_pos_ = 0;
   this->rx_len_ = 0;
   this->rx_pending_ = false;
@@ -860,7 +865,7 @@ void VncClient::frame_done_() {
     }
     this->last_change_ms_ = now;
     this->refresh_pending_ = true;
-    ESP_LOGD(TAG, "Update: %" PRIu32 " bytes in %" PRIu32 "ms, %u tiles drawn",
+    ESP_LOGD(TAG, "Update: %" PRIu32 " bytes in %" PRIu32 "ms, %u hextile tiles drawn",
              this->rx_total_ - (this->rx_len_ - this->rx_pos_) - this->update_start_bytes_,
              millis() - this->update_start_ms_, this->drawn_tiles_);
   }
@@ -981,7 +986,10 @@ bool VncClient::start_session_(uint32_t now) {
   const auto rotation = static_cast<uint8_t>(this->display_->get_rotation() / 90);
   const bool rotated = rotation != this->hash_rotation_;
   this->hash_rotation_ = rotation;
-  if (static_cast<uint32_t>(cols) * rows > this->hash_capacity_) {
+  if (this->tile_hashes_ == nullptr) {
+    this->hash_cols_ = 0;
+    this->hash_rows_ = 0;
+  } else if (static_cast<uint32_t>(cols) * rows > this->hash_capacity_) {
     ESP_LOGW(TAG, "Screen has %u tiles, more than the %u cached; every tile is drawn", cols * rows,
              this->hash_capacity_);
     this->hash_cols_ = 0;
