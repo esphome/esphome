@@ -156,6 +156,12 @@ def _read_files_verbatim(entries: list[tuple[str, Path]]) -> list[tuple[str, byt
     return files
 
 
+class _IncludeName(str):
+    """An `!include` file name: scanned for secrets, never taken for the value it loads."""
+
+    __slots__ = ()
+
+
 def _iter_nodes(
     node: object, path: tuple[str, ...] = ()
 ) -> Generator[tuple[tuple[str, ...], object, bool]]:
@@ -173,7 +179,7 @@ def _iter_nodes(
     elif isinstance(node, (Extend, Remove)):
         yield path, node.value, False
     elif isinstance(node, yaml_util.IncludeFile):
-        yield path, str(node.file), False
+        yield path, _IncludeName(node.file), False
         if isinstance(node.condition, str):
             yield path, node.condition, False
         if node.vars:
@@ -322,7 +328,9 @@ def _check_sensitive_usage(
                 word in path[-1] for word in _CREDENTIAL_WORDS
             )
         return path[-1] in credential_keys and any(
-            p and any(_ends_with(sp, p) for sp in sensitive_paths) for p in merged
+            # One segment says nothing about where an `!include_dir_*` file lands
+            len(p) > 1 and any(_ends_with(sp, p) for sp in sensitive_paths)
+            for p in merged
         )
 
     def shown(path: tuple[str, ...]) -> str:
@@ -362,6 +370,7 @@ def _check_sensitive_usage(
                 unverified.append(f"{where} in {rel} (a URL with credentials)")
             elif (
                 not is_key
+                and not isinstance(node, _IncludeName)
                 and any(credential_path(prefix + path) for prefix in prefixes[rel])
                 and not (
                     _LITERAL_RE.search(text) is None

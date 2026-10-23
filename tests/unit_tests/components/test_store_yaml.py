@@ -640,6 +640,25 @@ def test_redacted_fails_closed(
         ),
         pytest.param(
             {
+                "entry.yaml": "api:\n  encryption:\n    key: !secret api_key\n",
+                "a.yaml": "platform: matrix_keypad\nkey: A\n",
+                "secrets.yaml": "api_key: SUPER_SECRET\n",
+            },
+            API_KEY,
+            {"a.yaml": "key: A"},
+            id="include_dir_fragment_key_is_not_the_encryption_key",
+        ),
+        pytest.param(
+            {
+                "entry.yaml": "wifi:\n  password: !include password.yaml\n",
+                "password.yaml": "hunter2\n",
+            },
+            WIFI_PW,
+            {"entry.yaml": "password: !include 'password.yaml'"},
+            id="credential_loaded_by_include",
+        ),
+        pytest.param(
+            {
                 "entry.yaml": _SECRET_VAR,
                 "wifi.yaml": "password: ${pw}\n",
                 "secrets.yaml": _WIFI_SECRET,
