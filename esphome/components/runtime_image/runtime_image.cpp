@@ -177,6 +177,16 @@ void RuntimeImage::map_chroma_key(Color &color) {
   }
 }
 
+#ifdef USE_LVGL
+lv_image_dsc_t *RuntimeImage::get_lv_image_dsc() {
+  if (this->data_start_ == nullptr && this->placeholder_ != nullptr) {
+    this->dsc_ = *this->placeholder_->get_lv_image_dsc();
+    return &this->dsc_;
+  }
+  return Image::get_lv_image_dsc();
+}
+#endif
+
 void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   if (this->data_start_) {
     // If we have a complete image, use the base class draw method
@@ -291,16 +301,8 @@ void RuntimeImage::release_buffer_() {
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
 #ifdef USE_LVGL
-    // A widget may still show this image, and LVGL warns on every draw of an image without data, so leave it a
-    // transparent pixel to draw until the next image is ready
-    static constexpr uint8_t TRANSPARENT_PIXEL = 0;
-    memset(&this->dsc_, 0, sizeof(this->dsc_));
-    this->dsc_.header.cf = LV_COLOR_FORMAT_A8;
-    this->dsc_.header.w = 1;
-    this->dsc_.header.h = 1;
-    this->dsc_.header.stride = 1;
-    this->dsc_.data_size = 1;
-    this->dsc_.data = &TRANSPARENT_PIXEL;
+    // A widget may still hold the descriptor
+    this->get_lv_image_dsc();
 #endif
   }
 }

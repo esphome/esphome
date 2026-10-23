@@ -41,6 +41,45 @@ TEST(RuntimeImageLvgl, ReleasedImageLeavesADrawableDescriptor) {
   lv_deinit();
 }
 
+// Before the first image is loaded, a widget gets a descriptor it can draw too
+TEST(RuntimeImageLvgl, UnloadedImageHasADrawableDescriptor) {
+  lv_init();
+  RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
+  lv_image_header_t header;
+  ASSERT_EQ(lv_image_decoder_get_info(img.get_lv_image_dsc(), &header), LV_RESULT_OK);
+  EXPECT_EQ(header.w, 1);
+  EXPECT_EQ(header.h, 1);
+  lv_deinit();
+}
+
+// With a placeholder, a widget shows it before the first image and while the next one loads
+TEST(RuntimeImageLvgl, PlaceholderIsShownWithoutAnImage) {
+  lv_init();
+  static constexpr uint8_t PLACEHOLDER_PIXELS[4 * 2 * 3] = {};
+  image::Image placeholder(PLACEHOLDER_PIXELS, 4, 2, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
+  RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE, &placeholder);
+  lv_image_dsc_t *dsc = img.get_lv_image_dsc();
+  EXPECT_EQ(dsc->data, PLACEHOLDER_PIXELS);
+  lv_image_header_t header;
+  ASSERT_EQ(lv_image_decoder_get_info(dsc, &header), LV_RESULT_OK);
+  EXPECT_EQ(header.w, 4);
+  EXPECT_EQ(header.h, 2);
+
+  std::vector<uint8_t> data(BMP_24BPP, BMP_24BPP + sizeof(BMP_24BPP));
+  ASSERT_TRUE(img.begin_decode(data.size()));
+  ASSERT_EQ(img.feed_data(data.data(), data.size()), static_cast<int>(data.size()));
+  ASSERT_TRUE(img.end_decode());
+  EXPECT_EQ(img.get_lv_image_dsc(), dsc);
+  EXPECT_EQ(dsc->data, img.get_data_start());
+  EXPECT_EQ(dsc->header.w, 3);
+
+  img.release();
+  EXPECT_EQ(dsc->data, PLACEHOLDER_PIXELS);
+  EXPECT_EQ(dsc->header.w, 4);
+  EXPECT_EQ(dsc->header.h, 2);
+  lv_deinit();
+}
+
 }  // namespace esphome::runtime_image::testing
 
 #endif  // USE_LVGL

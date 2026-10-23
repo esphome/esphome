@@ -54,6 +54,10 @@ class RuntimeImage : public image::Image {
   void map_chroma_key(Color &color);
   int get_buffer_width() const { return this->buffer_width_; }
   int get_buffer_height() const { return this->buffer_height_; }
+#ifdef USE_LVGL
+  /// Until an image is loaded, the placeholder's descriptor if there is one
+  lv_image_dsc_t *get_lv_image_dsc() override;
+#endif
 
   // Image drawing interface
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
