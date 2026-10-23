@@ -24,12 +24,16 @@ enum class BitOrder : uint8_t {
   BIT_ORDER_MSB_FIRST,
 };
 
-/// A bit is bit_mark followed by one_space or zero_space.
+/// A bit is a mark (one_mark or zero_mark, both bit_mark unless set) and a space (one_space or zero_space),
+/// mark first unless space_first.
 struct BitTimings {
-  uint32_t bit_mark;
+  uint32_t bit_mark{0};
   uint32_t one_space;
   uint32_t zero_space;
   BitOrder bit_order{BitOrder::BIT_ORDER_LSB_FIRST};
+  uint32_t one_mark{bit_mark};
+  uint32_t zero_mark{bit_mark};
+  bool space_first{false};
 };
 
 class RemoteTransmitData {
@@ -46,7 +50,13 @@ class RemoteTransmitData {
     for (size_t i = 0; i < len; i++) {
       for (uint8_t bit = 0; bit < 8; bit++) {
         const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
-        this->item(T.bit_mark, (bytes[i] & mask) ? T.one_space : T.zero_space);
+        const bool one = (bytes[i] & mask) != 0;
+        if constexpr (T.space_first) {
+          this->space(one ? T.one_space : T.zero_space);
+          this->mark(one ? T.one_mark : T.zero_mark);
+        } else {
+          this->item(one ? T.one_mark : T.zero_mark, one ? T.one_space : T.zero_space);
+        }
       }
     }
   }
@@ -105,9 +115,9 @@ class RemoteReceiveData {
       uint8_t byte = 0;
       for (uint8_t bit = 0; bit < 8; bit++) {
         const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
-        if (this->expect_item(T.bit_mark, T.one_space)) {
+        if (this->expect_bit_<T>(T.one_mark, T.one_space)) {
           byte |= mask;
-        } else if (!this->expect_item(T.bit_mark, T.zero_space)) {
+        } else if (!this->expect_bit_<T>(T.zero_mark, T.zero_space)) {
           return false;
         }
       }
@@ -126,6 +136,17 @@ class RemoteReceiveData {
   ToleranceMode get_tolerance_mode() { return this->tolerance_mode_; }
 
  protected:
+  /// One bit in T's order, consumed only when both its parts match.
+  template<BitTimings T> bool expect_bit_(uint32_t mark, uint32_t space) {
+    if constexpr (T.space_first) {
+      if (!this->peek_space(space) || !this->peek_mark(mark, 1))
+        return false;
+      this->advance(2);
+      return true;
+    } else {
+      return this->expect_item(mark, space);
+    }
+  }
   int32_t lower_bound_(uint32_t length) const {
     if (this->tolerance_mode_ == TOLERANCE_MODE_TIME) {
       return int32_t(length - this->tolerance_);
