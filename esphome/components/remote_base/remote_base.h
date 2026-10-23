@@ -110,20 +110,11 @@ class RemoteReceiveData {
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
   /// False at the first item matching neither space, leaving it unread.
-  template<BitTimings T> bool expect_bytes(uint8_t *out, size_t len) {
-    for (size_t i = 0; i < len; i++) {
-      uint8_t byte = 0;
-      for (uint8_t bit = 0; bit < 8; bit++) {
-        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
-        if (this->expect_bit_<T>(T.one_mark, T.one_space)) {
-          byte |= mask;
-        } else if (!this->expect_bit_<T>(T.zero_mark, T.zero_space)) {
-          return false;
-        }
-      }
-      out[i] = byte;
-    }
-    return true;
+  template<BitTimings T> bool expect_bytes(uint8_t *out, size_t len) { return this->expect_bytes_<T, false>(out, len); }
+  /// As expect_bytes, but the last bit is only its mark: its space runs into the gap after the frame.
+  template<BitTimings T> bool expect_bytes_last_mark(uint8_t *out, size_t len) {
+    static_assert(!T.space_first && T.one_mark != T.zero_mark, "the last bit must be told apart by its mark");
+    return this->expect_bytes_<T, true>(out, len);
   }
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
@@ -136,6 +127,27 @@ class RemoteReceiveData {
   ToleranceMode get_tolerance_mode() { return this->tolerance_mode_; }
 
  protected:
+  template<BitTimings T, bool LAST_MARK> bool expect_bytes_(uint8_t *out, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+      uint8_t byte = 0;
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        if (LAST_MARK && i + 1 == len && bit == 7) {
+          if (this->expect_mark(T.one_mark)) {
+            byte |= mask;
+          } else if (!this->expect_mark(T.zero_mark)) {
+            return false;
+          }
+        } else if (this->expect_bit_<T>(T.one_mark, T.one_space)) {
+          byte |= mask;
+        } else if (!this->expect_bit_<T>(T.zero_mark, T.zero_space)) {
+          return false;
+        }
+      }
+      out[i] = byte;
+    }
+    return true;
+  }
   /// One bit in T's order, consumed only when both its parts match.
   template<BitTimings T> bool expect_bit_(uint32_t mark, uint32_t space) {
     if constexpr (T.space_first) {

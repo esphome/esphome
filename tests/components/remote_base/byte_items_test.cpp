@@ -182,4 +182,31 @@ TEST(RemoteBaseByteItemsTest, SpaceFirstLeavesABitWithTheWrongMarkUnread) {
   EXPECT_EQ(rx.get_index(), 0u);
 }
 
+TEST(RemoteBaseByteItemsTest, LastMarkReadsAFrameWithoutItsFinalSpace) {
+  RemoteTransmitData tx;
+  tx.item_bytes<MARK_TIMINGS>(FRAME.data(), FRAME.size());
+  RawTimings timings = tx.get_data();
+  timings.pop_back();  // the last space runs into the gap
+  auto rx = receive(timings);
+  std::array<uint8_t, 4> out{};
+  EXPECT_FALSE(rx.expect_bytes<MARK_TIMINGS>(out.data(), out.size()));
+
+  auto last_mark_rx = receive(timings);
+  ASSERT_TRUE(last_mark_rx.expect_bytes_last_mark<MARK_TIMINGS>(out.data(), out.size()));
+  EXPECT_EQ(out, FRAME);
+  EXPECT_EQ(last_mark_rx.get_index(), timings.size());
+}
+
+TEST(RemoteBaseByteItemsTest, LastMarkRejectsAFinalMarkOfNeitherLength) {
+  RemoteTransmitData tx;
+  const uint8_t byte = 0x00;
+  tx.item_bytes<MARK_TIMINGS>(&byte, 1);
+  RawTimings timings = tx.get_data();
+  timings.pop_back();
+  timings.back() = 2000;
+  auto rx = receive(timings);
+  uint8_t out = 0;
+  EXPECT_FALSE(rx.expect_bytes_last_mark<MARK_TIMINGS>(&out, 1));
+}
+
 }  // namespace esphome::remote_base::testing
