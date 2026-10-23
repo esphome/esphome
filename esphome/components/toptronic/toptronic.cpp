@@ -1,5 +1,7 @@
 #include "toptronic.h"
 #include "esphome/core/log.h"
+#include <algorithm>
+#include <cmath>
 #include <array>
 #include <string>
 namespace esphome::toptronic {
@@ -57,32 +59,36 @@ template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
   return static_cast<T>(u);
 }
 static std::vector<uint8_t> float_to_bytes(float value, TypeName type) {
+  // Round before narrowing (a scaled 21.5 must not become 21.4) and clamp to the
+  // wire type so an out-of-range write cannot wrap to an unrelated value.
+  const int64_t rounded = static_cast<int64_t>(llroundf(value));
   switch (type) {
     case U8:
-      return {(uint8_t) value};
+      return {static_cast<uint8_t>(std::clamp<int64_t>(rounded, 0, UINT8_MAX))};
     case U16: {
-      uint16_t v = (uint16_t) value;
-      return {(uint8_t) (v >> 8), (uint8_t) v};
+      const auto v = static_cast<uint16_t>(std::clamp<int64_t>(rounded, 0, UINT16_MAX));
+      return {static_cast<uint8_t>(v >> 8), static_cast<uint8_t>(v)};
     }
     case U32: {
-      uint32_t v = (uint32_t) value;
-      return {(uint8_t) (v >> 24), (uint8_t) (v >> 16), (uint8_t) (v >> 8), (uint8_t) v};
+      const auto v = static_cast<uint32_t>(std::clamp<int64_t>(rounded, 0, UINT32_MAX));
+      return {static_cast<uint8_t>(v >> 24), static_cast<uint8_t>(v >> 16), static_cast<uint8_t>(v >> 8),
+              static_cast<uint8_t>(v)};
     }
     case S8:
-      return {(uint8_t) (int8_t) value};
+      return {static_cast<uint8_t>(static_cast<int8_t>(std::clamp<int64_t>(rounded, INT8_MIN, INT8_MAX)))};
     case S16: {
-      int16_t v = (int16_t) value;
-      return {(uint8_t) (v >> 8), (uint8_t) v};
+      const auto v = static_cast<int16_t>(std::clamp<int64_t>(rounded, INT16_MIN, INT16_MAX));
+      return {static_cast<uint8_t>(v >> 8), static_cast<uint8_t>(v)};
     }
     case S32: {
-      int32_t v = (int32_t) value;
-      return {(uint8_t) (v >> 24), (uint8_t) (v >> 16), (uint8_t) (v >> 8), (uint8_t) v};
+      const auto v = static_cast<int32_t>(std::clamp<int64_t>(rounded, INT32_MIN, INT32_MAX));
+      return {static_cast<uint8_t>(v >> 24), static_cast<uint8_t>(v >> 16), static_cast<uint8_t>(v >> 8),
+              static_cast<uint8_t>(v)};
     }
     case S64: {
-      int64_t v = (int64_t) value;
       std::array<uint8_t, 8> b{};
       for (size_t i = 0; i < 8; i++)
-        b[i] = (uint8_t) (v >> (8 * (7 - i)));
+        b[i] = static_cast<uint8_t>(rounded >> (8 * (7 - i)));
       return {b.begin(), b.end()};
     }
   }
