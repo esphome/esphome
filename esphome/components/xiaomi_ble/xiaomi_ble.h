@@ -42,8 +42,6 @@ struct XiaomiParseResult {
   optional<bool> has_motion;
   optional<bool> is_light;
   optional<bool> button_press;
-  bool has_data;        // 0x40
-  bool has_capability;  // 0x20
   bool has_encryption;  // 0x08
   int raw_offset;
 };
@@ -71,7 +69,6 @@ bool parse_xiaomi_message(const uint8_t *message, size_t size, XiaomiParseResult
 optional<XiaomiParseResult> parse_xiaomi_header(const uint8_t *raw, size_t size);
 /// Decrypts the payload of `raw` in place and clears its encryption flag.
 bool decrypt_xiaomi_payload(uint8_t *raw, size_t size, const uint8_t *bindkey, uint64_t address);
-void report_xiaomi_results(const XiaomiParseResult &result, const char *address);
 
 /// A Xiaomi MiBeacon device: matches its address, decodes each frame once and hands it to publish_result_().
 class XiaomiDevice : public ble_device_base::ESPBTDeviceListener {
@@ -99,6 +96,8 @@ class XiaomiEncryptedDevice : public XiaomiDevice {
   }
 
  protected:
+  void dump_bindkey_(const char *tag) const;
+
   uint8_t bindkey_[16]{};
 };
 

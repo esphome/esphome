@@ -177,16 +177,14 @@ optional<XiaomiParseResult> parse_xiaomi_header(const uint8_t *raw, size_t size)
     ESP_LOGVV(TAG, "parse_xiaomi_header(): service data too short (%u).", static_cast<unsigned>(size));
     return {};
   }
-  result.has_data = raw[0] & 0x40;
-  result.has_capability = raw[0] & 0x20;
   result.has_encryption = raw[0] & 0x08;
 
-  if (!result.has_data) {
+  if (!(raw[0] & 0x40)) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): service data has no DATA flag.");
     return {};
   }
 
-  result.raw_offset = result.has_capability ? 12 : 11;
+  result.raw_offset = (raw[0] & 0x20) ? 12 : 11;
 
   const uint16_t device_uuid = encode_uint16(raw[3], raw[2]);
 
@@ -374,7 +372,8 @@ bool decrypt_xiaomi_payload(uint8_t *raw, size_t size, const uint8_t *bindkey, u
   return true;
 }
 
-void report_xiaomi_results(const XiaomiParseResult &result, const char *address) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+static void report_xiaomi_results(const XiaomiParseResult &result, const char *address) {
   ESP_LOGD(TAG, "Got Xiaomi %s (%s):", result.name, address);
 
   if (result.temperature.has_value()) {
@@ -411,12 +410,11 @@ void report_xiaomi_results(const XiaomiParseResult &result, const char *address)
     ESP_LOGD(TAG, "  Button: %s", *result.button_press ? LOG_STR_LITERAL("pressed") : LOG_STR_LITERAL(""));
   }
 }
+#endif
 
 bool XiaomiDevice::parse_xiaomi_device_(const ble_device_base::ESPBTDevice &device, const uint8_t *bindkey) {
   if (device.address_uint64() != this->address_)
     return false;
-  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  const char *addr_str = device.address_str_to(addr_buf);
 
   bool success = false;
   for (const auto &service_data : device.get_service_datas()) {
@@ -424,18 +422,19 @@ bool XiaomiDevice::parse_xiaomi_device_(const ble_device_base::ESPBTDevice &devi
       continue;
     const uint8_t *raw = service_data.data.data();
     const size_t size = service_data.data.size();
+    // Devices repeat each frame many times; drop repeats before parsing the header
+    if (size >= 5 && this->last_frame_count_.has_value() && *this->last_frame_count_ == raw[4]) {
+      ESP_LOGVV(TAG, "Duplicate frame %u.", raw[4]);
+      continue;
+    }
     auto res = parse_xiaomi_header(raw, size);
     if (!res.has_value())
       continue;
-    if (this->last_frame_count_.has_value() && *this->last_frame_count_ == raw[4]) {
-      ESP_LOGVV(TAG, "%s: duplicate frame %u.", addr_str, raw[4]);
-      continue;
-    }
     // Decrypt a copy: the tracker hands the same service data to every listener
     uint8_t plaintext[XIAOMI_MAX_ENCRYPTED_FRAME_SIZE];
     if (res->has_encryption) {
       if (bindkey == nullptr) {
-        ESP_LOGVV(TAG, "%s: encrypted frame but no bindkey.", addr_str);
+        ESP_LOGVV(TAG, "Encrypted frame but no bindkey.");
         continue;
       }
       if (size > sizeof(plaintext))
@@ -449,11 +448,19 @@ bool XiaomiDevice::parse_xiaomi_device_(const ble_device_base::ESPBTDevice &devi
     this->last_frame_count_ = raw[4];
     if (!parse_xiaomi_message(raw, size, *res))
       continue;
-    report_xiaomi_results(*res, addr_str);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+    char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    report_xiaomi_results(*res, device.address_str_to(addr_buf));
+#endif
     this->publish_result_(*res);
     success = true;
   }
   return success;
+}
+
+void XiaomiEncryptedDevice::dump_bindkey_(const char *tag) const {
+  char bindkey_hex[format_hex_pretty_size(sizeof(this->bindkey_))];
+  ESP_LOGCONFIG(tag, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, sizeof(this->bindkey_), '.'));
 }
 
 void XiaomiEncryptedDevice::set_bindkey(const char *bindkey) {
