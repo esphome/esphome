@@ -65,9 +65,9 @@ static constexpr size_t HEX_PRETTY_BUFFER_SIZE = 3 * MAX_MESSAGE_BYTES;
 // Behavioral constants — named per §5.4 (no magic numbers).
 static constexpr uint32_t CANDUMP_MIN_LOG_GAP_MS = 33;    // min ms between candump log lines
 static constexpr uint32_t BURST_STALL_TIMEOUT_MS = 5000;  // refresh burst watchdog idle threshold
-// How often the refresh burst is driven. The main loop ticks every ~16 ms, so a
-// shorter timer cannot send GETs any faster than one per tick.
-static constexpr uint32_t REFRESH_DRIVE_INTERVAL_MS = 20;
+// Scheduler ids, numbered from 0 and unique within this component.
+static constexpr uint32_t BOOT_REFRESH_TIMEOUT_ID = 0;
+static constexpr uint32_t CLEANUP_INTERVAL_ID = 1;
 // The main loop's nominal period; the effective GET spacing never goes below it.
 static constexpr uint32_t LOOP_INTERVAL_MS = 16;
 
@@ -577,9 +577,6 @@ void TopTronic::update_all() {
 
   TT_LOGI("Refresh requested for device 0x%04X (%zu sensors) [paused=%d]", (unsigned) this->get_device_id(),
           sensor_count, (int) this->paused_);
-  // Kick the scheduler-driven drain so the burst starts promptly even if the
-  // hub's component loop() never runs.
-  this->set_timeout("refresh_drain", 1, [this]() { this->drain_refresh_burst(); });
 }
 
 // Refresh EVERY registered hub, staggering each hub's batch by REFRESH_STAGGER_MS
@@ -690,7 +687,7 @@ void TopTronic::setup() {
   // constructor registers it before App.setup() runs), so the first timer to
   // fire can fan out to all hubs safely.
   if (this->boot_refresh_delay_ms_ != 0) {
-    this->set_timeout("boot_refresh", this->boot_refresh_delay_ms_, []() {
+    this->set_timeout(BOOT_REFRESH_TIMEOUT_ID, this->boot_refresh_delay_ms_, []() {
       if (s_boot_refresh_fired)
         return;
       s_boot_refresh_fired = true;
@@ -698,10 +695,6 @@ void TopTronic::setup() {
         s_all_instances[0]->refresh_all();
     });
   }
-
-  // Pace the refresh burst. The loop ticks every ~16 ms, so a faster timer
-  // cannot send more often than one GET per tick.
-  this->set_interval("refresh_drain", REFRESH_DRIVE_INTERVAL_MS, [this]() { this->drain_refresh_burst(); });
 
 #ifdef USE_OTA_STATE_LISTENER
   ota::get_global_ota_callback()->add_global_state_listener(this);
@@ -720,7 +713,7 @@ void TopTronic::setup() {
   // Periodically evict stale multi-frame reassembly buffers so a lost fragment (or a
   // device going offline mid-message) cannot pin an entry forever. The map is tiny
   // (capped at max_pending_messages_), so the sweep runs on this coarse interval.
-  this->set_interval("cleanup", this->cleanup_interval_ms_, [this]() {
+  this->set_interval(CLEANUP_INTERVAL_ID, this->cleanup_interval_ms_, [this]() {
     const uint32_t now = millis();
     for (auto it = this->pending_messages_.begin(); it != this->pending_messages_.end();) {
       if (now - it->second.last_update_ms > this->max_pending_age_ms_) {
@@ -732,6 +725,12 @@ void TopTronic::setup() {
       }
     }
   });
+}
+
+void TopTronic::loop() {
+  // The component loop already runs every ~16 ms, so it drives the throttled
+  // refresh burst; a separate scheduler item would only duplicate the work.
+  this->drain_refresh_burst();
 }
 
 #ifdef USE_OTA_STATE_LISTENER
