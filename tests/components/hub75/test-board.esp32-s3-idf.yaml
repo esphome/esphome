@@ -1,6 +1,6 @@
 display:
   - platform: hub75
-    id: hub75_display_board
+    id: my_hub75
     board: adafruit-matrix-portal-s3
     panel_width: 64
     panel_height: 32
