@@ -2760,7 +2760,8 @@ def test_named_path_collapses_dotdot_lexically_on_windows(
     # Nested, so following the link (real) and collapsing `..` (tmp_path) differ
     (tmp_path / "link").symlink_to(tmp_path / "real" / "sub")
     path = tmp_path / "link" / ".." / "x.yaml"
-    assert yaml_util.named_path(path) == tmp_path.resolve() / "real" / "x.yaml"
+    if os.name != "nt":  # POSIX follows the link first
+        assert yaml_util.named_path(path) == tmp_path.resolve() / "real" / "x.yaml"
     # Only yaml_util sees Windows; pathlib keeps resolving with the real os
     monkeypatch.setattr(yaml_util, "os", SimpleNamespace(name="nt", path=os.path))
     assert yaml_util.named_path(path) == tmp_path.resolve() / "x.yaml"
