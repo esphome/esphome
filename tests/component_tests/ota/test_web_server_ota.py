@@ -70,20 +70,22 @@ def test_web_server_ota_without_web_server_fails() -> None:
     try:
         with pytest.raises(
             cv.Invalid,
-            match="web_server OTA platform requires the 'web_server:' or 'captive_portal:' component",
+            match="requires a component that starts the HTTP server: one of "
+            "'web_server:', 'captive_portal:', 'prometheus:'",
         ):
             _web_server_ota_final_validate(ota_config)
     finally:
         fv.full_config.reset(token)
 
 
-def test_web_server_ota_with_captive_portal_passes() -> None:
-    """Captive portal provides the HTTP server needed by web server OTA."""
+@pytest.mark.parametrize("provider", ["captive_portal", "prometheus"])
+def test_web_server_ota_with_other_http_server_provider_passes(provider: str) -> None:
+    """Any component that starts the shared HTTP server satisfies web server OTA."""
     ota_config = {
         CONF_PLATFORM: CONF_WEB_SERVER,
         CONF_ID: ID("ota_web", is_manual=False),
     }
-    token = fv.full_config.set({"captive_portal": {}, CONF_OTA: [ota_config]})
+    token = fv.full_config.set({provider: {}, CONF_OTA: [ota_config]})
     try:
         _web_server_ota_final_validate(ota_config)
     finally:

@@ -27,6 +27,10 @@ web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServerOTAComponent = web_server_ns.class_("WebServerOTAComponent", OTAComponent)
 
 
+# Components whose C++ calls WebServerBase::init() and so bring up the shared HTTP server
+_HTTP_SERVER_PROVIDERS = (DOMAIN, "captive_portal", "prometheus")
+
+
 def _web_server_ota_final_validate(config: ConfigType) -> None:
     """Require an HTTP server and merge multiple web_server OTA instances into one.
 
@@ -34,10 +38,10 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
     causing undefined behavior. Merge them into a single instance.
     """
     full_conf = fv.full_config.get()
-    if DOMAIN not in full_conf and "captive_portal" not in full_conf:
+    if not any(provider in full_conf for provider in _HTTP_SERVER_PROVIDERS):
         raise cv.Invalid(
-            "The web_server OTA platform requires the 'web_server:' or "
-            "'captive_portal:' component to be configured"
+            "The web_server OTA platform requires a component that starts the HTTP "
+            "server: one of " + ", ".join(f"'{p}:'" for p in _HTTP_SERVER_PROVIDERS)
         )
     ota_confs = full_conf.get(OTA_DOMAIN, [])
 
