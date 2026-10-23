@@ -134,7 +134,8 @@ def validate_bit_timing(config: ConfigType) -> ConfigType:
 
 
 def validate_mode_defaults(config: ConfigType) -> ConfigType:
-    """Classic-only mode cannot enable CAN FD send defaults."""
+    """Default NORMAL sends to FD and reject FD or BRS defaults in CLASSIC mode."""
+    config.setdefault(canbus.CONF_DEFAULT_FD, config[CONF_MODE] == "NORMAL")
     if config[CONF_MODE] == "CLASSIC" and (
         config[canbus.CONF_DEFAULT_FD] or config[canbus.CONF_DEFAULT_BIT_RATE_SWITCH]
     ):
@@ -156,7 +157,7 @@ CONFIG_SCHEMA = cv.All(
                 canbus.CAN_DATA_SPEEDS, upper=True
             ),
             cv.Optional(CONF_MODE, default="NORMAL"): cv.enum(MCP_MODE, upper=True),
-            cv.Optional(canbus.CONF_DEFAULT_FD, default=False): cv.boolean,
+            cv.Optional(canbus.CONF_DEFAULT_FD): cv.boolean,
             cv.Optional(canbus.CONF_DEFAULT_BIT_RATE_SWITCH, default=False): cv.boolean,
             cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
         }
