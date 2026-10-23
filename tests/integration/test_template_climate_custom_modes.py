@@ -6,13 +6,12 @@ the enum-based mode/preset fields, but for the custom string variants.
 
 from __future__ import annotations
 
-import asyncio
-
 import aioesphomeapi
 from aioesphomeapi import ButtonInfo, ClimateInfo
 import pytest
 
 from .host_prefs import clear_host_prefs
+from .log_utils import LineWaiter
 from .state_utils import (
     InitialStateHelper,
     require_entity,
@@ -33,14 +32,10 @@ async def test_template_climate_custom_modes(
     """Custom fan mode/preset: traits, on_control forwarding, and publish precedence."""
     clear_host_prefs(DEVICE_NAME)
 
-    log_lines: list[str] = []
-
-    def on_log_line(line: str) -> None:
-        if "on_control " in line:
-            log_lines.append(line)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
 
@@ -87,9 +82,11 @@ async def test_template_climate_custom_modes(
         state = await wait_for_climate_state()
         assert state.custom_preset == "power_save"
 
-        await asyncio.sleep(0.2)
-        assert any("on_control custom_fan_mode=turbo" in line for line in log_lines)
-        assert any("on_control custom_preset=power_save" in line for line in log_lines)
+        await waiter.wait_for_each(
+            "on_control custom_fan_mode=turbo",
+            "on_control custom_preset=power_save",
+            timeout=5.0,
+        )
 
         # The device's report is authoritative and overrides what was commanded above.
         client.button_command(report_button.key)

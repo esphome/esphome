@@ -7,13 +7,12 @@ proving the firing order is on_control, then control(), then on_state.
 
 from __future__ import annotations
 
-import asyncio
-
 import aioesphomeapi
 from aioesphomeapi import ClimateInfo, ClimateMode
 import pytest
 
 from .host_prefs import clear_host_prefs
+from .log_utils import LineWaiter
 from .state_utils import InitialStateHelper, require_only_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -29,14 +28,10 @@ async def test_template_climate_on_control_ordering(
     """on_control sees the requested value while the entity's own state is still the old one."""
     clear_host_prefs(DEVICE_NAME)
 
-    log_lines: list[str] = []
-
-    def on_log_line(line: str) -> None:
-        if "on_control " in line or "on_state " in line:
-            log_lines.append(line)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
 
@@ -60,19 +55,15 @@ async def test_template_climate_on_control_ordering(
         state = await wait_for_climate_state()
         assert state.mode == ClimateMode.HEAT
 
-        await asyncio.sleep(0.2)
-
         # on_control saw the new requested mode (3 == CLIMATE_MODE_HEAT) while the entity's own
         # state was still the old one (0 == CLIMATE_MODE_OFF) -- proving it fired before control().
-        assert any(
-            "on_control requested_mode=3 current_mode_before_apply=0" in line
-            for line in log_lines
+        await waiter.wait_for(
+            "on_control requested_mode=3 current_mode_before_apply=0", timeout=5.0
         )
         # on_state fired afterward, reporting the now-applied mode.
-        assert any("on_state mode=3" in line for line in log_lines)
+        await waiter.wait_for("on_state mode=3", timeout=5.0)
 
-        control_index = next(
-            i for i, line in enumerate(log_lines) if "on_control " in line
-        )
-        state_index = next(i for i, line in enumerate(log_lines) if "on_state " in line)
+        lines = waiter.lines
+        control_index = next(i for i, line in enumerate(lines) if "on_control " in line)
+        state_index = next(i for i, line in enumerate(lines) if "on_state " in line)
         assert control_index < state_index, "on_control must fire before on_state"
