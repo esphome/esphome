@@ -1,36 +1,18 @@
 import esphome.codegen as cg
 from esphome.components import event
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_DEVICE_CLASS,
-    CONF_INDEX,
-    CONF_SOURCE_ID,
-    CONF_TYPE,
-    DEVICE_CLASS_BUTTON,
-)
+from esphome.const import CONF_DEVICE_CLASS, CONF_INDEX, CONF_SOURCE_ID, CONF_TYPE
 from esphome.types import ConfigType
 
 from .. import BTHomeRemoteObject, RemoteDevice, add_handler, client_ns
-from ..bthome import (
-    BTHomeObjectType,
-    bthome_object_type_validator,
-    bthome_object_types,
-    object_types_by_name,
-)
+from ..bthome import bthome_object_type_validator, bthome_object_types
+from .object_types import EVENT_OBJECT_ALIASES, EVENT_OBJECT_TYPES
 
 CODEOWNERS = ["@jpeletier", "@Bascht74"]
 
 DEPENDENCIES = ["bthome", "event"]
 
 BTHomeEvent = client_ns.class_("BTHomeEvent", BTHomeRemoteObject, event.Event)
-
-EVENT_OBJECT_TYPES = object_types_by_name(
-    BTHomeObjectType(
-        object_id=0x3A, name="BUTTON_EVENT", device_class=DEVICE_CLASS_BUTTON
-    ),
-    BTHomeObjectType(object_id=0x3C, name="DIMMER_EVENT"),
-)
-EVENT_OBJECT_ALIASES = {"BUTTON": "BUTTON_EVENT", "DIMMER": "DIMMER_EVENT"}
 
 # The order is the one BTHomeEvent::process_object maps the event codes to.
 EVENT_TYPES = {
