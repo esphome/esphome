@@ -272,8 +272,7 @@ void EPaperBase::process_state_() {
         this->set_state_(EPaperState::IDLE);
         return;
       }
-      {
-        // A changed frame updates the stored hash; an unchanged partial update is skipped
+      if (this->is_using_partial_update_()) {
         const uint32_t frame_hash = this->buffer_hash_();
         if (this->update_count_ != 0 && this->shown_hash_valid_ && frame_hash == this->shown_hash_) {
           ESP_LOGD(TAG, "Frame unchanged, refresh skipped");
@@ -282,8 +281,9 @@ void EPaperBase::process_state_() {
           return;
         }
         this->shown_hash_ = frame_hash;
-        this->shown_hash_valid_ = true;
       }
+      // Valid again only once this frame is on the panel, so an abandoned update leaves nothing to match
+      this->shown_hash_valid_ = false;
       // A full update resets update_count_ to zero, so a non-zero count marks a partial one
       this->partial_ = this->update_count_ != 0;
       this->sent_count_ = 0;
@@ -301,6 +301,8 @@ void EPaperBase::process_state_() {
       }
       if (this->sent_.is_valid() && this->sent_count_ == this->sent_.size())
         this->sent_valid_ = true;
+      // Drawing during the chunked push can leave the panel showing neither the hashed frame nor the buffer
+      this->sent_hash_intact_ = this->is_using_partial_update_() && this->buffer_hash_() == this->shown_hash_;
       this->reset_bounds_();
       this->set_state_(EPaperState::POWER_ON);
       break;
@@ -322,6 +324,7 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
+      this->shown_hash_valid_ = this->sent_hash_intact_;
       this->status_clear_warning();
       this->set_state_(EPaperState::IDLE);
       ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);

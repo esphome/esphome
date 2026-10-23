@@ -41,7 +41,28 @@ template<typename Driver> class TestableDriver : public Driver {
     return pushed;
   }
 
+  /// A whole update whose frame is changed to `bytes` after it was hashed, before it is sent.
+  void run_update_changed_before_send(std::initializer_list<uint8_t> bytes) {
+    this->state_ = EPaperState::UPDATE;
+    while (this->state_ != EPaperState::TRANSFER_DATA)
+      this->process_state_();
+    size_t i = 0;
+    for (const uint8_t byte : bytes)
+      this->buffer_[i++] = byte;
+    while (this->state_ != EPaperState::IDLE)
+      this->process_state_();
+  }
+
+  /// An update given up on with the busy pin stuck, after its data was sent.
+  void run_update_abandoned() {
+    this->state_ = EPaperState::UPDATE;
+    while (this->state_ != EPaperState::POWER_OFF)
+      this->process_state_();
+    this->abandon_update_();
+  }
+
   uint8_t update_count() const { return this->update_count_; }
+  bool shown_hash_valid() const { return this->shown_hash_valid_; }
 
   RecordingPin dc;
 };
@@ -65,6 +86,40 @@ TEST(EPaperSkipUnchanged, SSD1683SkipsAnUnchangedFrame) {
   display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
   EXPECT_TRUE(display.run_update());
   EXPECT_EQ(bus.data[0x24], (Bytes{0x0F, 0xF0, 0x3C, 0x00}));
+}
+
+/// A frame drawn into while it was being sent is not trusted, so the frame it replaced is pushed again.
+TEST(EPaperSkipUnchanged, FrameChangedDuringThePushIsNotTrusted) {
+  TestableDriver<EPaperSSD1683> display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  EXPECT_TRUE(display.run_update());
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.run_update_changed_before_send({0x0F, 0xF0, 0x3C, 0xFF});
+  EXPECT_FALSE(display.shown_hash_valid());
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  EXPECT_TRUE(display.run_update()) << "frame that never reached the panel was skipped";
+}
+
+/// An abandoned update leaves no hash to match, since its frame may never have been shown.
+TEST(EPaperSkipUnchanged, AbandonedUpdateLeavesNoHash) {
+  TestableDriver<EPaperSSD1683> display(16, 2);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0xC3});
+  EXPECT_TRUE(display.run_update());
+  EXPECT_TRUE(display.shown_hash_valid());
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  display.run_update_abandoned();
+  EXPECT_FALSE(display.shown_hash_valid());
+
+  display.set_frame({0x0F, 0xF0, 0x3C, 0x00});
+  EXPECT_TRUE(display.run_update());
 }
 
 /// With every update a full one, nothing is ever skipped: a full refresh always redraws.
