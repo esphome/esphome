@@ -70,7 +70,7 @@ _validate_unique_type = fv.unique_platform_key(
     domain=SWITCH_DOMAIN,
     platform=DOMAIN,
     keys=(CONF_TYPE,),
-    message="Only one sendspin '{0}' switch is allowed",
+    message="Only one sendspin '{type}' switch is allowed",
 )
 
 
