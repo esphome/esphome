@@ -407,4 +407,19 @@ TEST_F(BTHomeDeviceTest, HandlerReturningFalseLeavesTheObjectToTheNextOne) {
   EXPECT_EQ(battery.processed_objects().size(), 1);
 }
 
+TEST_F(BTHomeDeviceTest, ValueThatComesBackWithoutPacketIdIsProcessed) {
+  // BATTERY_PCT without a packet ID, one frame every 500 ms: 97 %, 50 %, then 97 % again
+  const uint8_t full[] = {0x40, 0x01, 0x61};
+  const uint8_t half[] = {0x40, 0x01, 0x32};
+  receive_at(device_, full, sizeof(full), 1000);
+  receive_at(device_, half, sizeof(half), 1500);
+  receive_at(device_, full, sizeof(full), 2000);
+  // A copy of the last frame is still a repeat.
+  receive_at(device_, full, sizeof(full), 2500);
+
+  // 97 %, 50 %, 97 %: the battery is back at 97 %.
+  ASSERT_EQ(handler1_.processed_objects().size(), 3);
+  EXPECT_FLOAT_EQ(handler1_.processed_objects().back().value, 97.0f);
+}
+
 }  // namespace esphome::bthome::testing
