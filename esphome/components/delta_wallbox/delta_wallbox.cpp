@@ -38,7 +38,6 @@ static constexpr uint8_t MAX_PAIRING_ATTEMPTS = 5;
 static constexpr uint16_t PAIRING_STATUS_READY = 0x0007;
 static constexpr uint16_t PAIRING_STATUS_WAITING = 0x0008;
 static constexpr uint8_t LOGIN_ACCEPTED = 0x01;
-static constexpr uint8_t CHARGING_STATE_ACTIVE = 0x03;
 
 static constexpr uint8_t CMD_POLL_CHARGING[] = {0x01, 0x03, 0x01, 0x1B, 0x00, 0x09};
 static constexpr uint8_t CMD_GET_MODEL[] = {0x01, 0x03, 0x01, 0x85, 0x00, 0x0E};
@@ -460,8 +459,6 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           float energy_kwh = energy_raw / 1000.0f;
           float charging_minutes = hours * 60 + minutes;
 
-          this->is_charging_ = (state_byte == CHARGING_STATE_ACTIVE);
-
           if (this->power_sensor_ != nullptr)
             this->power_sensor_->publish_state(power_kw);
           if (this->energy_sensor_ != nullptr)
@@ -494,8 +491,6 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {
         // Confirmation frame of Start/Stop write actions
         ESP_LOGI(TAG, "Wallbox charging command successfully acknowledged.");
-        this->is_charging_ = this->pending_charging_state_;
-        this->has_pending_charging_action_ = false;
       }
       break;
     }
@@ -528,9 +523,6 @@ void DeltaWallbox::set_charging_state(bool state) {
     return;
   }
 
-  this->pending_charging_state_ = state;
-  this->has_pending_charging_action_ = true;
-
   if (state) {
     ESP_LOGI(TAG, "Sending remote START charging command...");
     this->send_frame_(CMD_START_CHARGING, sizeof(CMD_START_CHARGING));
@@ -544,8 +536,6 @@ void DeltaWallbox::set_charging_state(bool state) {
 void DeltaWallbox::start_charging() { this->set_charging_state(true); }
 
 void DeltaWallbox::stop_charging() { this->set_charging_state(false); }
-
-bool DeltaWallbox::is_charging() { return this->is_charging_; }
 
 void DeltaWallbox::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                        esp_ble_gattc_cb_param_t *param) {

@@ -66,11 +66,9 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   void set_bt_fw_version_sensor(text_sensor::TextSensor *s) { bt_fw_version_sensor_ = s; }
   void set_model_name_sensor(text_sensor::TextSensor *s) { model_name_sensor_ = s; }
   void set_error_code_sensor(text_sensor::TextSensor *s) { error_code_sensor_ = s; }
-  // Switch Interface
   void set_charging_state(bool state);
   void start_charging();
   void stop_charging();
-  bool is_charging();
 
   bool is_connected() {
     return this->node_state == esp32_ble_tracker::ClientState::ESTABLISHED &&
@@ -104,9 +102,6 @@ class DeltaWallbox : public esphome::ble_client::BLEClientNode, public PollingCo
   uint32_t last_tx_time_{0};
   uint8_t pairing_attempts_{0};
   bool pairing_in_progress_{false};
-  bool pending_charging_state_{false};
-  bool has_pending_charging_action_{false};
-  bool is_charging_{false};
 
   // Sensors
   sensor::Sensor *power_sensor_{nullptr};
