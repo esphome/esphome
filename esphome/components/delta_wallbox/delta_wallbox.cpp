@@ -54,6 +54,9 @@ static constexpr uint8_t CMD_GET_ERROR_CODE[] = {0x01, 0x03, 0x01, 0xB5, 0x00, 0
 static constexpr uint8_t CMD_START_CHARGING[] = {0x01, 0x06, 0x01, 0x02, 0x00, 0x01};
 static constexpr uint8_t CMD_STOP_CHARGING[] = {0x01, 0x06, 0x01, 0x03, 0x00, 0x01};
 
+static constexpr uint8_t REG_MAX_CURRENT_HI = 0x01;
+static constexpr uint8_t REG_MAX_CURRENT_LO = 0x12;
+
 // Indexed by DeltaState
 PROGMEM_STRING_TABLE(DeltaStateStrings, "CHECK_PAIRING", "CONNECTED", "GET_CHARGER_FW_VERSION", "GET_BT_FW_VERSION",
                      "GET_LOGIN_RESULT", "GET_LOGIN_RESULT0", "GET_LOGIN_ROLE", "GET_LOGIN_USER", "GET_MODEL",
@@ -471,11 +474,15 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->send_frame_(CMD_GET_MAX_CURRENT, sizeof(CMD_GET_MAX_CURRENT));
         } else if (byte_count == TWO_REGISTER_BYTE_COUNT) {
           // Parsing 0x0112 max output setting (2 registers)
-          uint32_t current_raw = (frame[3] << 24) | (frame[4] << 16) | (frame[5] << 8) | frame[6];
-          float amps = current_raw / 10.0f;
-          if (this->max_current_sensor_ != nullptr) {
+          //uint32_t current_raw = (frame[3] << 24) | (frame[4] << 16) | (frame[5] << 8) | frame[6];
+          //float amps = current_raw / 10.0f;
+          this->max_current_limit_ = frame[4];
+          this->min_current_limit_ = frame[6];
+          const float amps = frame[5];
+          if (this->max_current_sensor_ != nullptr)
             this->max_current_sensor_->publish_state(amps);
-          }
+          if (this->max_current_number_ != nullptr)
+            this->max_current_number_->publish_state(amps);
 
           // Poll the error code register every cycle
           this->send_frame_(CMD_GET_ERROR_CODE, sizeof(CMD_GET_ERROR_CODE));
@@ -488,8 +495,18 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
             this->error_code_text_sensor_->publish_state(hex_str);
         }
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {
+        const uint16_t register_addr = (static_cast<uint16_t>(frame[2]) << 8) | frame[3];
+        if (register_addr == 0x0112) {
+          const float accepted = frame[5];
+          ESP_LOGI(TAG, "Wallbox max current command acknowledged: %.0f A", accepted);
+          if (this->max_current_sensor_ != nullptr)
+            this->max_current_sensor_->publish_state(accepted);
+          if (this->max_current_number_ != nullptr)
+            this->max_current_number_->publish_state(accepted);
+        } else {
         // Confirmation frame of Start/Stop write actions
         ESP_LOGI(TAG, "Wallbox charging command successfully acknowledged.");
+        }
       }
       break;
     }
@@ -531,6 +548,20 @@ void DeltaWallbox::set_charging_state(bool state) {
     ESP_LOGI(TAG, "Sending remote STOP charging command...");
     this->send_frame_(CMD_STOP_CHARGING, sizeof(CMD_STOP_CHARGING));
   }
+}
+
+void DeltaWallbox::set_max_current(float current) {
+  if (!this->is_connected()) {
+    ESP_LOGW(TAG, "Cannot set maximum current while wallbox is not fully connected.");
+    return;
+  }
+  uint8_t requested = static_cast<uint8_t>(std::lround(current));
+  if (this->min_current_limit_ <= this->max_current_limit_) {
+    requested = std::clamp(requested, this->min_current_limit_, this->max_current_limit_);
+  }
+  ESP_LOGI(TAG, "Setting wallbox maximum current to %u A", requested);
+  const std::array<uint8_t, 6> body = {0x01, FC_WRITE_SINGLE_REGISTER, 0x01, 0x12, 0x00, requested};
+  this->send_frame_(body.data(), body.size());
 }
 
 void DeltaWallbox::start_charging() { this->set_charging_state(true); }
