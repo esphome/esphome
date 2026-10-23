@@ -1,5 +1,6 @@
 """Tests for the esp-idf-sbom manifests written into the build tree."""
 
+from collections.abc import Generator
 import importlib.metadata
 import json
 import logging
@@ -18,12 +19,14 @@ from esphome.git import GitCommandError
 
 
 @pytest.fixture(name="build_tree")
-def fixture_build_tree(tmp_path: Path) -> Path:
+def fixture_build_tree(tmp_path: Path) -> Generator[Path]:
     CORE.config_path = tmp_path / "test.yaml"
     CORE.build_path = tmp_path / "build"
     CORE.relative_src_path().mkdir(parents=True)
     CORE.config = {CONF_ESPHOME: {}}
-    return CORE.build_path
+    # Independent of how the test environment installed ESPHome
+    with patch.object(sbom, "_esphome_vcs", return_value=None):
+        yield CORE.build_path
 
 
 def _read(path: Path) -> dict:
