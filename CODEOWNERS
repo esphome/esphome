@@ -158,6 +158,7 @@ esphome/components/dashboard_import/* @esphome/core
 esphome/components/datetime/* @jesserockz @rfdarter
 esphome/components/debug/* @esphome/core
 esphome/components/delonghi/* @grob6000
+esphome/components/delta_wallbox/* @epicRE
 esphome/components/dew_point/* @CFlix
 esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
@@ -379,7 +380,8 @@ esphome/components/m5stack_8angle/* @rnauber
 esphome/components/mapping/* @clydebarrow
 esphome/components/matrix_keypad/* @ssieb
 esphome/components/max17043/* @blacknell
-esphome/components/max17048/* @B48D81EFCC
+esphome/components/max17048/* @B48D81EFCC @ryansch
+esphome/components/max170xx/* @ryansch
 esphome/components/max31865/* @DAVe3283
 esphome/components/max31888/* @JiriPrchal
 esphome/components/max44009/* @berfenger
@@ -434,6 +436,7 @@ esphome/components/modbus_controller/sensor/* @martgras
 esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/modbus_server/* @exciton
+esphome/components/modem/* @oarcher
 esphome/components/mopeka_ble/* @Fabian-Schmidt @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan
 esphome/components/mopeka_std_check/* @Fabian-Schmidt

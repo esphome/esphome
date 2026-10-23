@@ -1,4 +1,5 @@
 #include "mcp23x08_base.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mcp23x08_base {
@@ -78,11 +79,7 @@ void MCP23X08Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
     this->read_reg(reg_addr, &reg_value);
   }
 
-  if (pin_value) {
-    reg_value |= 1 << bit;
-  } else {
-    reg_value &= ~(1 << bit);
-  }
+  assign_bits(reg_value, 1 << bit, pin_value);
 
   this->write_reg(reg_addr, reg_value);
 
