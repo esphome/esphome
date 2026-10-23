@@ -258,3 +258,35 @@ def test_validated_config_round_trips_through_config_schema(variant: str) -> Non
     re_validated = CONFIG_SCHEMA(validated)
     assert re_validated[CONF_VARIANT] == variant
     assert set(re_validated) == set(validated)
+
+
+# ---------------------------------------------------------------------------
+# SIMG301 -- six301 SoC support first shipped in Zephyr 4.5.0-rc1
+# ---------------------------------------------------------------------------
+
+
+def _simg301_schema(framework: dict) -> dict:
+    from esphome.components.zephyr import CONFIG_SCHEMA  # noqa: PLC0415
+    from esphome.const import CONF_VARIANT, KEY_CORE  # noqa: PLC0415
+    from esphome.core import CORE  # noqa: PLC0415
+
+    CORE.data[KEY_CORE] = {}
+    return CONFIG_SCHEMA({CONF_VARIANT: "SIMG301", CONF_FRAMEWORK: framework})
+
+
+def test_simg301_defaults_to_a_version_with_six301_support() -> None:
+    from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION  # noqa: PLC0415
+    from esphome.core import CORE  # noqa: PLC0415
+
+    _simg301_schema({})
+    assert str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]) == "4.5.0-rc2"
+
+
+@pytest.mark.parametrize("version", ["4.5.0-rc1", "4.5.0", "4.5.1"])
+def test_simg301_accepts_4_5(version: str) -> None:
+    _simg301_schema({CONF_VERSION: version})
+
+
+def test_simg301_rejects_4_4_2() -> None:
+    with pytest.raises(cv.Invalid, match=r"requires zephyr >= 4\.5\.0"):
+        _simg301_schema({CONF_VERSION: "4.4.2"})

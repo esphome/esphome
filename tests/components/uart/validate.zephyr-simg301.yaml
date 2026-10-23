@@ -1,0 +1,7 @@
+uart:
+  # Custom pins inside EUSART0's PA0-PA8/PB0-PB3 reach.
+  - id: uart_id
+    port: UART0
+    tx_pin: 1
+    rx_pin: 17
+    baud_rate: 115200
