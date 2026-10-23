@@ -13,7 +13,7 @@ from typing import Any
 from aioesphomeapi import ColorMode, EntityState, LightInfo, LightState
 import pytest
 
-from .state_utils import InitialStateHelper
+from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -29,10 +29,8 @@ async def test_light_resume_effect(
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
-        light_resume = next(e for e in entities if e.object_id == "test_light_resume")
-        light_no_resume = next(
-            e for e in entities if e.object_id == "test_light_no_resume"
-        )
+        light_resume = require_entity(entities, "test_light_resume", exact=True)
+        light_no_resume = require_entity(entities, "test_light_no_resume", exact=True)
 
         state_futures: dict[int, asyncio.Future[LightState]] = {}
 

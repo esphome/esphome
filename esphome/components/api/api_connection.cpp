@@ -24,6 +24,7 @@
 #endif
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
+#include "esphome/core/device.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -485,13 +486,12 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
   msg.key = entity->get_object_id_hash();
 
   if (entity->has_own_name()) {
-    msg.name = entity->get_name();
+    msg.name = entity->get_name_progmem();
   }
 
   // Set common EntityBase properties
 #ifdef USE_ENTITY_ICON
-  char icon_buf[MAX_ICON_LENGTH];
-  msg.icon = StringRef(entity->get_icon_to(icon_buf));
+  msg.icon = entity->get_icon_progmem();
 #endif
   msg.disabled_by_default = entity->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
@@ -502,12 +502,11 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                      StringRef &device_class_field,
+                                                                      ProgmemStringRef &device_class_field,
                                                                       CalculateSizeFn size_fn,
                                                                       MessageEncodeFn encode_fn, APIConnection *conn,
                                                                       uint32_t remaining_size) {
-  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
-  device_class_field = StringRef(entity->get_device_class_to(dc_buf));
+  device_class_field = entity->get_device_class_progmem();
   return fill_and_encode_entity_info(entity, msg, size_fn, encode_fn, conn, remaining_size);
 }
 
@@ -555,6 +554,8 @@ uint16_t APIConnection::try_send_cover_info(EntityBase *entity, APIConnection *c
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
   msg.supports_stop = traits.get_supports_stop();
+  msg.supports_stop_tilt = traits.get_supports_stop_tilt();
+  msg.supports_toggle = traits.get_supports_toggle();
   return fill_and_encode_entity_info_with_device_class(cover, msg, msg.device_class, conn, remaining_size);
 }
 void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
@@ -565,6 +566,10 @@ void APIConnection::on_cover_command_request(const CoverCommandRequest &msg) {
     call.set_tilt(msg.tilt);
   if (msg.stop)
     call.set_command_stop();
+  if (msg.stop_tilt)
+    call.set_command_stop_tilt();
+  if (msg.toggle)
+    call.set_command_toggle();
   call.perform();
 }
 #endif
@@ -1126,6 +1131,7 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
     media_format.num_channels = supported_format.num_channels;
     media_format.purpose = static_cast<enums::MediaPlayerFormatPurpose>(supported_format.purpose);
     media_format.sample_bytes = supported_format.sample_bytes;
+    media_format.bitrate = supported_format.bitrate;
   }
   return fill_and_encode_entity_info(media_player, msg, conn, remaining_size);
 }
@@ -2057,6 +2063,7 @@ bool APIConnection::send_device_info_response_() {
     device_info.device_id = device->get_device_id();
     device_info.name = StringRef(device->get_name());
     device_info.area_id = device->get_area_id();
+    device_info.relation = static_cast<enums::DeviceRelation>(device->get_relation());
   }
 #endif
 #ifdef USE_AREAS
