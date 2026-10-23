@@ -19,13 +19,9 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
   const uint8_t *feed(uint8_t c) {
     pos_t pos = this->pos_;
     if (pos < HEADER_LEN && c != header_byte(pos)) {
-      if constexpr (HEADER_LEN > 1) {
-        // A later byte of the broken header, or c, may start the real one
-        this->buf_[pos] = c;
-        this->replay_(pos);
-      } else {
-        this->pos_ = 0;
-      }
+      // A later byte of the broken header, or c, may start the real one
+      this->buf_[pos] = c;
+      this->replay_(pos);
       return nullptr;
     }
     this->buf_[pos++] = c;
