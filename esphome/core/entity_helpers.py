@@ -552,7 +552,8 @@ class SubEntities:
         With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
         ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
         ``publish`` ("before"/"after") placing the domain's publish. ``publish="momentary"`` instead
-        acknowledges first (a switch publishes off) and runs ``apply`` only when turned on.
+        acknowledges first (a switch publishes off) and runs ``apply`` only when turned on. It is only for
+        legacy action switches; a new action entity is a button.
         """
         entity_id: ID = conf[CONF_ID]
         is_apply_class = self.apply_entity is not None and str(entity_id.type) == str(
