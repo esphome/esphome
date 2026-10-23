@@ -144,4 +144,8 @@ void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin);
 void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
 #endif
 
+/// Set up an active-low reset pin and pulse it: high for pre_high_ms (skipped when 0), low for low_ms,
+/// then high and wait settle_ms. Blocks for the whole sequence; does nothing when pin is null.
+void pulse_reset(GPIOPin *pin, uint32_t low_ms, uint32_t settle_ms = 0, uint32_t pre_high_ms = 0);
+
 }  // namespace esphome
