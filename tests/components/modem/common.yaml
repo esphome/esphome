@@ -1,0 +1,19 @@
+esphome:
+  on_boot:
+    priority: -100  # the modem is set up by then, so send_at reaches the DCE
+    then:
+      - modem.disable
+      - modem.enable
+      - if:
+          condition:
+            modem.enabled:
+          then:
+            modem.send_at: "AT+CGSN"
+          else:
+            modem.enable:
+      - if:
+          condition:
+            not:
+              modem.connected:
+          then:
+            logger.log: modem not connected
