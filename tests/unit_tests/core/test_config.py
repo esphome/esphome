@@ -31,6 +31,7 @@ from esphome.core.config import (
     CONF_RELATION,
     CONF_SUSPEND_LOOP,
     DEVICE_RELATIONS,
+    SBOM_SCHEMA,
     SHARED_DEVICE_RELATION_DEFINES,
     Area,
     make_app_name_cpp,
@@ -795,6 +796,40 @@ def test_includes_in_a_package_resolve_next_to_the_package(
     assert result is not None
     assert result[CONF_ESPHOME][CONF_INCLUDES] == [str(package_dir / "my_helper.h")]
     assert result[CONF_ESPHOME][CONF_INCLUDES_C] == [str(package_dir / "my_c_helper.h")]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"supplier": "Acme Corp", "contact": "psirt@acme.example"},
+        {"supplier": "Acme Corp", "url": "https://acme.example/security"},
+        {
+            "supplier": "Acme Corp",
+            "contact": "psirt@acme.example",
+            "url": "http://acme.example",
+        },
+    ],
+)
+def test_sbom_schema_valid(value: dict[str, str]) -> None:
+    assert SBOM_SCHEMA(value) == value
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        ({"supplier": "Acme Corp"}, "at least one of contact, url"),
+        ({"contact": "psirt@acme.example"}, "required key not provided"),
+        ({"supplier": "Acme (EU)", "contact": "a@b.c"}, "parentheses"),
+        ({"supplier": "Acme", "contact": "psirt"}, "email address"),
+        ({"supplier": "Acme", "contact": "a b@c.d"}, "email address"),
+        ({"supplier": "Acme", "url": "file:///security.txt"}, "http or https"),
+        ({"supplier": "Acme", "url": "acme.example"}, "URL scheme"),
+    ],
+)
+def test_sbom_schema_invalid(value: dict[str, str], match: str) -> None:
+    """Values esp-idf-sbom would abort on are rejected during validation."""
+    with pytest.raises(cv.Invalid, match=match):
+        SBOM_SCHEMA(value)
 
 
 def test_valid_project_name_valid() -> None:

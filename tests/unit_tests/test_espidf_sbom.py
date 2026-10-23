@@ -204,6 +204,49 @@ def test_project_manifest(build_tree: Path) -> None:
     assert not (build_tree / "sbom.yml").exists()
 
 
+def test_project_manifest_sbom(build_tree: Path) -> None:
+    """Product details become the supplier and the document's manufacturer."""
+    CORE.config[CONF_ESPHOME][CONF_PROJECT] = {
+        CONF_NAME: "acme.thermostat",
+        CONF_VERSION: "1.2.3",
+        "sbom": {
+            "supplier": "Acme Corp",
+            "contact": "psirt@acme.example",
+            "url": "https://acme.example/security",
+        },
+    }
+    sbom.write_manifests()
+    assert _read(build_tree / "sbom.yml") == {
+        "name": "acme.thermostat",
+        "version": "1.2.3",
+        "supplier": "Organization: Acme Corp (psirt@acme.example)",
+        "document": {
+            "manufacturer": {
+                "name": "Organization: Acme Corp",
+                "contact": "psirt@acme.example",
+                "url": "https://acme.example/security",
+            }
+        },
+    }
+
+
+def test_project_manifest_sbom_url_only(build_tree: Path) -> None:
+    CORE.config[CONF_ESPHOME][CONF_PROJECT] = {
+        CONF_NAME: "acme.thermostat",
+        CONF_VERSION: "1.2.3",
+        "sbom": {"supplier": "Acme Corp", "url": "https://acme.example"},
+    }
+    sbom.write_manifests()
+    manifest = _read(build_tree / "sbom.yml")
+    assert manifest["supplier"] == "Organization: Acme Corp"
+    assert manifest["document"] == {
+        "manufacturer": {
+            "name": "Organization: Acme Corp",
+            "url": "https://acme.example",
+        }
+    }
+
+
 def test_external_components(build_tree: Path, tmp_path: Path) -> None:
     """Each loaded external component becomes its own package inside src."""
     git_dir = tmp_path / "repo" / "components"
@@ -615,3 +658,18 @@ def test_checkout_vcs_pushed_check_failure_warns(
     with patch.object(sbom, "run_git_command", side_effect=_fake_git(outputs)):
         assert sbom._checkout_vcs(tmp_path)[1] is None
     assert "cannot check whether origin has HEAD" in caplog.text
+
+
+def test_project_manifest_sbom_contact_only(build_tree: Path) -> None:
+    CORE.config[CONF_ESPHOME][CONF_PROJECT] = {
+        CONF_NAME: "acme.thermostat",
+        CONF_VERSION: "1.2.3",
+        "sbom": {"supplier": "Acme Corp", "contact": "psirt@acme.example"},
+    }
+    sbom.write_manifests()
+    assert _read(build_tree / "sbom.yml")["document"] == {
+        "manufacturer": {
+            "name": "Organization: Acme Corp",
+            "contact": "psirt@acme.example",
+        }
+    }
