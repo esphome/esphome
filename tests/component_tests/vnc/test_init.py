@@ -1,6 +1,7 @@
 """Code generation and validation tests for the vnc component."""
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 import re
 
@@ -155,6 +156,25 @@ def config_error(
     return validate
 
 
+def _code_lines(main_cpp: str) -> str:
+    """main.cpp without the config dump comments, which never reach the firmware."""
+    return "\n".join(
+        line for line in main_cpp.splitlines() if not line.lstrip().startswith("//")
+    )
+
+
+def _auth_key(main_cpp: str) -> list[int]:
+    match = re.search(
+        r"static constexpr uint8_t \w+_auth_key\[\] PROGMEM = \{([^}]*)\};", main_cpp
+    )
+    assert match is not None
+    return [int(byte) for byte in match.group(1).split(",")]
+
+
+def _defines() -> set[str]:
+    return {define.name for define in CORE.defines}
+
+
 def test_it8951_owned_by_vnc(
     generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
 ) -> None:
@@ -261,6 +281,72 @@ vnc:
     assert re.search(r"vnc::VncClient\(epd, \w+\);", main_cpp)
     assert re.search(r"vnc::VncClient\(other, \w+\);", main_cpp)
     assert TEST_CARD not in main_cpp
+
+
+def test_no_password_no_auth(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
+) -> None:
+    main_cpp = generate_main(write_yaml(IT8951, VNC))
+
+    assert "USE_VNC_AUTH" not in _defines()
+    assert "auth_key" not in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("password", "key"),
+    [
+        ("secret12", [0xCE, 0xA6, 0xC6, 0x4E, 0xA6, 0x2E, 0x8C, 0x4C]),
+        ("Zq9", [0x5A, 0x8E, 0x9C, 0, 0, 0, 0, 0]),
+        ("secret1234", [0xCE, 0xA6, 0xC6, 0x4E, 0xA6, 0x2E, 0x8C, 0x4C]),
+    ],
+)
+def test_password_emits_bit_reversed_key(
+    password: str,
+    key: list[int],
+    generate_main: Callable[[str | Path], str],
+    write_yaml: Callable[..., Path],
+) -> None:
+    main_cpp = generate_main(
+        write_yaml(
+            IT8951, f"\nvnc:\n  - host: 192.168.1.20\n    password: {password}\n"
+        )
+    )
+
+    assert "USE_VNC_AUTH" in _defines()
+    assert _auth_key(main_cpp) == key
+    assert re.search(r"->set_auth_key\(\w+_auth_key\);", main_cpp)
+    code = _code_lines(main_cpp)
+    assert password not in code
+    assert password[:8] not in code
+
+
+def test_auth_key_name_does_not_clash_with_an_id(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[..., Path]
+) -> None:
+    main_cpp = generate_main(
+        write_yaml(
+            IT8951,
+            "\nvnc:\n  - id: remote\n    host: 192.168.1.20\n    password: secret\n",
+            "\nglobals:\n  - id: remote_auth_key\n    type: int\n",
+        )
+    )
+
+    assert re.search(r"remote->set_auth_key\(remote_auth_key_\w+\);", main_cpp)
+
+
+def test_long_password_warns(
+    generate_main: Callable[[str | Path], str],
+    write_yaml: Callable[..., Path],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        generate_main(
+            write_yaml(
+                IT8951, "\nvnc:\n  - host: 192.168.1.20\n    password: secret123\n"
+            )
+        )
+
+    assert caplog.text.count("only the first 8 are used") == 1
 
 
 def test_action_codegen(
@@ -408,6 +494,9 @@ display:
 @pytest.mark.parametrize(
     ("vnc_options", "error"),
     [
+        pytest.param(
+            '    password: ""\n', "The password must not be empty", id="empty"
+        ),
         pytest.param(
             "    reconnect_interval: 500ms\n",
             "value must be at least 1s",

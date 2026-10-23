@@ -4,6 +4,11 @@
 
 namespace esphome::vnc::testing {
 
+// The bit-reversed key codegen stores for the password "secret12".
+static const uint8_t SECRET12_KEY[8] = {0xCE, 0xA6, 0xC6, 0x4E, 0xA6, 0x2E, 0x8C, 0x4C};
+static const Bytes SECRET12_RESPONSE = {0xAD, 0xCD, 0x99, 0x7F, 0x8E, 0x16, 0xFE, 0xE5,
+                                        0x75, 0xE9, 0x73, 0xF9, 0x3C, 0x2B, 0x62, 0xB4};
+
 static Bytes running_tail(const Bytes &pixel_format, uint16_t w, uint16_t h) {
   return cat({pixel_format, set_encodings(), fbur(false, w, h)});
 }
@@ -27,6 +32,7 @@ TEST(VncHandshake, Rfb38NoneExactBytes) {
   // The first request covers only what the display can show.
   EXPECT_EQ(hex(s.take()), hex(running_tail(set_pixel_format_565(), 64, 40)));
   EXPECT_TRUE(s.client.is_connected());
+  EXPECT_EQ(s.client.sec_type(), 1);
   EXPECT_EQ(connects, 1);
 }
 
@@ -94,6 +100,7 @@ TEST(VncHandshake, Rfb33None) {
   s.deliver(Rfb().server_init(64, 48));
   EXPECT_EQ(hex(s.take()), hex(running_tail(set_pixel_format_565(), 64, 48)));
   EXPECT_TRUE(s.client.is_connected());
+  EXPECT_EQ(s.client.sec_type(), 1);
 }
 
 TEST(VncHandshake, Rfb33RefusalIsTransient) {
@@ -104,6 +111,19 @@ TEST(VncHandshake, Rfb33RefusalIsTransient) {
   EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
   EXPECT_EQ(s.client.hold_ms(), 5000u);
   EXPECT_FALSE(s.client.status_has_error());
+}
+
+TEST(VncHandshake, Rfb33VncAuth) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version("RFB 003.003\n").security_33(2).challenge());
+  // 3.3: the server picks the type, so the client sends no type byte.
+  EXPECT_EQ(hex(s.take()), hex(cat({version_reply('3'), SECRET12_RESPONSE})));
+  s.deliver(Rfb().security_result(0).server_init(64, 48));
+  EXPECT_EQ(hex(s.take()), hex(cat({{1}, running_tail(set_pixel_format_565(), 64, 48)})));
+  EXPECT_TRUE(s.client.is_connected());
 }
 
 TEST(VncHandshake, Rfb33PasswordWithoutKeyIsConfig) {
@@ -170,6 +190,32 @@ TEST_P(VncBadVersion, IsAConfigFailureHeldFor300s) {
 INSTANTIATE_TEST_SUITE_P(Versions, VncBadVersion,
                          ::testing::Values("HTTP/1.1 400", "RFB 002.000\n", "RFB 003,008\n", "RFB 0x3.008\n",
                                            "SSH-2.0-Open"));
+
+TEST(VncHandshake, VncAuthWithKey) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({2, 16}));
+  EXPECT_EQ(hex(s.take()), hex(cat({version_reply('8'), {2}})));
+  s.deliver(Rfb().challenge());
+  EXPECT_EQ(hex(s.take()), hex(SECRET12_RESPONSE));
+  s.deliver(Rfb().security_result(0));
+  EXPECT_EQ(hex(s.take()), hex({1}));
+  s.deliver(Rfb().server_init(64, 48));
+  EXPECT_EQ(hex(s.take()), hex(running_tail(set_pixel_format_565(), 64, 48)));
+  EXPECT_TRUE(s.client.is_connected());
+  EXPECT_EQ(s.client.sec_type(), 2);
+}
+
+TEST(VncHandshake, PicksNoneWhenListedFirstEvenWithKey) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({16, 1, 2}));
+  EXPECT_EQ(hex(s.take()), hex(cat({version_reply('8'), {1}})));
+}
 
 TEST(VncHandshake, PasswordRequiredWithoutKeyIsConfig) {
   FakeDisplay display(64, 48);
@@ -253,9 +299,148 @@ TEST(VncHandshake, FullSecurityListWithoutAUsableType) {
 TEST(VncHandshake, DumpConfig) {
   FakeDisplay display(64, 48);
   Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
   s.client.dump_config();
   s.client.set_pixel_format(VncPixelFormat::VNC_PIXEL_FORMAT_RGB332);
   s.client.dump_config();
+}
+
+TEST(VncHandshake, AuthFailureLatches) {
+  FakeDisplay display(64, 48);
+  Listener listener;
+  Session s(&display);
+  s.client.set_port(listener.port());
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({2, 16}).challenge().security_result(1).reason("Authentication failed"));
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+  EXPECT_TRUE(s.client.status_has_error());
+  EXPECT_TRUE(s.client.is_idle());
+  EXPECT_FALSE(s.client.link().connected());
+  // Even if something keeps calling loop(), the device never tries the wrong password again.
+  for (int i = 0; i < 600; i++) {
+    s.tick(1000);
+  }
+  EXPECT_EQ(listener.accepted(), 0);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+  EXPECT_FALSE(s.client.link().connecting());
+}
+
+TEST(VncHandshake, Rfb37AuthFailureLatchesWithoutReason) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version("RFB 003.007\n").security_list({2}).challenge().security_result(1));
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+}
+
+TEST(VncHandshake, EofInsideReasonAfterFailureStaysAuth) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge().security_result(1).u32(40).str("Authen"));
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_HANDSHAKE);
+  s.close_peer();
+  s.loop(2);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+}
+
+TEST(VncHandshake, EofBeforeReasonLengthAfterFailureStaysAuth) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge().security_result(1).u8(0));
+  s.close_peer();
+  s.loop(2);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+}
+
+TEST(VncHandshake, TimeoutInsideReasonAfterFailureStaysAuth) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge().security_result(1).u32(40).str("Au"));
+  s.tick(15000);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+}
+
+TEST(VncHandshake, EofAfterResponseHoldsThenLatches) {
+  FakeDisplay display(64, 48);
+  Listener listener;
+  Session s(&display);
+  s.client.set_port(listener.port());
+  s.client.set_auth_key(SECRET12_KEY);
+
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge());
+  EXPECT_EQ(hex(s.take()), hex(cat({version_reply('8'), {2}, SECRET12_RESPONSE})));
+  s.close_peer();
+  s.loop(2);
+  // The server may or may not have counted the attempt: wait a minute, then try once more.
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_EQ(s.client.hold_ms(), 60000u);
+  const uint32_t failed_at = now_ms();
+  while (now_ms() - failed_at < 59000) {
+    s.tick(1000);
+  }
+  EXPECT_EQ(listener.accepted(), 0);
+  set_now(failed_at + 60000);
+  EXPECT_TRUE(s.wait_until([&]() { return listener.accepted() == 1; }));
+
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge());
+  s.close_peer();
+  s.loop(2);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_AUTH_FAILED);
+}
+
+TEST(VncHandshake, SuccessClearsTheAmbiguousCount) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge());
+  s.close_peer();
+  s.loop(2);
+  ASSERT_TRUE(s.client.auth_retried());
+
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge().security_result(0).server_init(64, 48));
+  ASSERT_TRUE(s.client.is_connected());
+  EXPECT_FALSE(s.client.auth_retried());
+}
+
+TEST(VncHandshake, StallAfterResponseIsAmbiguous) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  const uint32_t start = now_ms();
+  s.deliver(Rfb().version().security_list({2}).challenge());
+  s.at(start + 14999);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_HANDSHAKE);
+  s.at(start + 15000);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_EQ(s.client.hold_ms(), 60000u);
+  EXPECT_FALSE(s.client.link().connected());
+}
+
+TEST(VncHandshake, AmbiguousHoldSurvivesANetworkDrop) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  const uint32_t start = now_ms();
+  s.deliver(Rfb().version().security_list({2}).challenge());
+  s.at(start + 15000);
+  ASSERT_EQ(s.client.hold_ms(), 60000u);
+  s.client.network_dropped();
+  s.tick(10);
+  EXPECT_EQ(s.client.hold_ms(), 60000u);
 }
 
 TEST(VncHandshake, HandshakeTimeout) {
@@ -274,15 +459,44 @@ TEST(VncHandshake, HandshakeTimeout) {
   EXPECT_FALSE(s.client.status_has_error());
 }
 
-TEST(VncHandshake, NoneSecurityFailureIsConfig) {
+TEST(VncHandshake, StaleSecurityTypeGivesConfigNotAuth) {
   FakeDisplay display(64, 48);
   Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({2, 16}).challenge().security_result(0).server_init(64, 48));
+  ASSERT_TRUE(s.client.is_connected());
+  ASSERT_EQ(s.client.sec_type(), 2);
+  s.close_peer();
+  s.loop(2);
+  ASSERT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
+
+  // The server dropped its password; a failed None handshake is not a wrong password.
   s.attach();
   s.deliver(Rfb().version().security_list({1, 16}));
   EXPECT_EQ(hex(s.take()), hex(cat({version_reply('8'), {1}})));
   s.deliver(Rfb().security_result(1).reason("Server is busy"));
   EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
   EXPECT_EQ(s.client.hold_ms(), 300000u);
+}
+
+TEST(VncHandshake, StaleSecurityTypeDoesNotMakeADropAmbiguous) {
+  FakeDisplay display(64, 48);
+  Session s(&display);
+  s.client.set_auth_key(SECRET12_KEY);
+  s.attach();
+  s.deliver(Rfb().version().security_list({2}).challenge().security_result(0).server_init(64, 48));
+  ASSERT_TRUE(s.client.is_connected());
+  s.close_peer();
+  s.loop(2);
+
+  s.attach();
+  s.deliver(Rfb().version().security_list({1}));
+  s.close_peer();
+  s.loop(2);
+  EXPECT_EQ(s.client.state(), VncState::VNC_STATE_IDLE);
+  EXPECT_FALSE(s.client.auth_retried());
+  EXPECT_NE(s.client.hold_ms(), 60000u);
 }
 
 TEST(VncHandshake, EmptyServerName) {

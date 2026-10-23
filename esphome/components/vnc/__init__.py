@@ -1,5 +1,7 @@
 """VNC (RFB) client that shows a remote screen on a display."""
 
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, network, socket
@@ -8,6 +10,7 @@ from esphome.components.const import (
     CONF_HOST,
     CONF_RECONNECT_INTERVAL,
 )
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -15,6 +18,7 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
+    CONF_PASSWORD,
     CONF_PLATFORM,
     CONF_PORT,
 )
@@ -27,9 +31,13 @@ AUTO_LOAD = ["socket"]
 DOMAIN = "vnc"
 MULTI_CONF = True
 
+_LOGGER = logging.getLogger(__name__)
+
 CONF_MAX_UPDATE_DELAY = "max_update_delay"
 CONF_UPDATE_DELAY = "update_delay"
 CONF_PIXEL_FORMAT = "pixel_format"
+
+VNC_PASSWORD_MAX_BYTES = 8
 
 vnc_ns = cg.esphome_ns.namespace("vnc")
 VncClient = vnc_ns.class_("VncClient", cg.Component)
@@ -47,6 +55,34 @@ UNSUPPORTED_DISPLAYS = dict.fromkeys(
 }
 
 
+def _warn_long_password(value: str) -> str:
+    if len(value.encode("utf-8")) > VNC_PASSWORD_MAX_BYTES:
+        _LOGGER.warning(
+            "VNC passwords are limited to %d bytes; only the first %d are used",
+            VNC_PASSWORD_MAX_BYTES,
+            VNC_PASSWORD_MAX_BYTES,
+        )
+    return value
+
+
+validate_password = cv.All(
+    cv.string_strict,
+    cv.Length(
+        min=1,
+        msg="The password must not be empty; leave it out for a server without one",
+    ),
+    _warn_long_password,
+)
+
+
+def vnc_auth_key(password: str) -> list[int]:
+    """The DES key for a VNC password: 8 bytes, zero padded, each byte bit-reversed."""
+    raw = password.encode("utf-8")[:VNC_PASSWORD_MAX_BYTES].ljust(
+        VNC_PASSWORD_MAX_BYTES, b"\0"
+    )
+    return [int(f"{byte:08b}"[::-1], 2) for byte in raw]
+
+
 def _register_writer(config: ConfigType) -> ConfigType:
     display.register_external_writer(config[CONF_DISPLAY_ID], DOMAIN)
     return config
@@ -59,6 +95,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(display.Display),
             cv.Required(CONF_HOST): socket.ipv4_host,
             cv.Optional(CONF_PORT, default=5900): cv.port,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
             cv.Optional(CONF_RECONNECT_INTERVAL, default="5s"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(min=cv.TimePeriod(seconds=1)),
@@ -119,6 +156,8 @@ def _final_validate(config: ConfigType) -> None:
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
+FILTER_SOURCE_FILES = filter_source_files_from_defines({"vnc_des.cpp": "USE_VNC_AUTH"})
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(CONF_ON_CONNECT, "add_on_connect_callback"),
     automation.CallbackAutomation(CONF_ON_DISCONNECT, "add_on_disconnect_callback"),
@@ -138,6 +177,14 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_update_delay(config[CONF_UPDATE_DELAY]))
     cg.add(var.set_max_update_delay(config[CONF_MAX_UPDATE_DELAY]))
     cg.add(var.set_pixel_format(config[CONF_PIXEL_FORMAT]))
+    if (password := config.get(CONF_PASSWORD)) is not None:
+        cg.add_define("USE_VNC_AUTH")
+        key = cg.shared_progmem_array(
+            f"{config[CONF_ID]}_auth_key",
+            cg.uint8,
+            cg.ArrayInitializer(*vnc_auth_key(password)),
+        )
+        cg.add(var.set_auth_key(key))
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
@@ -145,8 +192,11 @@ VNC_ID_SCHEMA = automation.maybe_simple_id(
     {cv.GenerateID(): cv.use_id(VncClient)},
 )
 
-automation.register_apply_action(
-    "vnc.refresh", VNC_ID_SCHEMA, automation.ApplyCall("refresh()")
-)
+for _name, _call in (
+    ("vnc.connect", "connect()"),
+    ("vnc.disconnect", "disconnect()"),
+    ("vnc.refresh", "refresh()"),
+):
+    automation.register_apply_action(_name, VNC_ID_SCHEMA, automation.ApplyCall(_call))
 
 automation.register_apply_condition("vnc.is_connected", VNC_ID_SCHEMA, "is_connected()")
