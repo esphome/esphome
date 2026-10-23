@@ -435,22 +435,22 @@ text_sensor:
     function_number: 0
     datapoint: 2051
     options:
-      - 'Off'
-      - Heating normal
-      - Heating comfort
-      - Heating eco
-      - Frost protection
-      - Holiday
-      - Party
-      - Cooling normal
-      - Cooling comfort
-      - Cooling eco
-      - FAULT
-      - Manual mode
-      - Protection cooling
-      - Cooling external/constant
-      - Heating external/constant
-      - SmartGrid priority
+      - Spento
+      - Riscaldamento normale
+      - Riscaldamento comfort
+      - Riscaldamento eco
+      - Protezione antigelo
+      - Vacanza
+      - Festa
+      - Raffreddamento normale
+      - Raffreddamento comfort
+      - Raffreddamento eco
+      - GUASTO
+      - Modo manuale
+      - Protezione raffreddamento
+      - Raffreddamento esterno/costante
+      - Riscaldamento esterno/costante
+      - "Priorit\xE0 SmartGrid"
     values:
       - 0
       - 1
@@ -475,22 +475,22 @@ text_sensor:
     function_number: 1
     datapoint: 2051
     options:
-      - 'Off'
-      - Heating normal
-      - Heating comfort
-      - Heating eco
-      - Frost protection
-      - Holiday
-      - Party
-      - Cooling normal
-      - Cooling comfort
-      - Cooling eco
-      - FAULT
-      - Manual mode
-      - Protection cooling
-      - Cooling external/constant
-      - Heating external/constant
-      - SmartGrid priority
+      - Spento
+      - Riscaldamento normale
+      - Riscaldamento comfort
+      - Riscaldamento eco
+      - Protezione antigelo
+      - Vacanza
+      - Festa
+      - Raffreddamento normale
+      - Raffreddamento comfort
+      - Raffreddamento eco
+      - GUASTO
+      - Modo manuale
+      - Protezione raffreddamento
+      - Raffreddamento esterno/costante
+      - Riscaldamento esterno/costante
+      - "Priorit\xE0 SmartGrid"
     values:
       - 0
       - 1
@@ -515,14 +515,14 @@ text_sensor:
     function_number: 0
     datapoint: 2052
     options:
-      - 'Off'
-      - Charging normal
-      - Charging comfort
-      - FAULT
-      - Draw-off
-      - Charging reduced
-      - SmartGrid priority
-      - SmartGrid forced
+      - Spento
+      - Carica normale
+      - Carica comfort
+      - GUASTO
+      - Prelievo
+      - Carica ridotta
+      - "Priorit\xE0 SmartGrid"
+      - Forzatura SmartGrid
     values:
       - 0
       - 1
@@ -539,28 +539,28 @@ text_sensor:
     function_number: 254
     datapoint: 34
     options:
-      - 'Off'
-      - Heating
-      - Active cooling
-      - Lockout
-      - DHW charging
-      - Frost protection
-      - WEZ temp too low
-      - Flow too high
-      - Defrost
-      - Passive cooling
-      - High pressure fault
-      - Low pressure fault
-      - Restart delay
-      - Utility block
-      - Pre-run
-      - After-run
+      - Spento
+      - Riscaldamento
+      - Raffreddamento attivo
+      - Blocco
+      - Carica ACS
+      - Protezione antigelo
+      - Temp. WEZ troppo bassa
+      - Portata troppo alta
+      - Sbrinamento
+      - Raffreddamento passivo
+      - Guasto alta pressione
+      - Guasto bassa pressione
+      - Ritardo riavvio
+      - Blocco tariffa
+      - Pre-marcia
+      - Post-marcia
       - MOP
-      - Defrost failed
-      - Condensate pump
-      - Inverter fault
-      - Oil preheat
-      - Cold start
+      - Sbrinamento fallito
+      - Pompa condensa
+      - Guasto inverter
+      - Preriscaldamento olio
+      - Avvio a freddo
     values:
       - 0
       - 1
@@ -591,10 +591,10 @@ text_sensor:
     function_number: 1
     datapoint: 9075
     options:
-      - Deakt.
-      - Automatik
-      - Heizen
-      - "K\xFChlen"
+      - Disattivato
+      - Automatico
+      - Riscaldamento
+      - Raffreddamento
     values:
       - 0
       - 1
@@ -607,8 +607,8 @@ text_sensor:
     function_number: 0
     datapoint: 22024
     options:
-      - closed
-      - open
+      - chiuso
+      - aperto
     values:
       - 0
       - 1
@@ -619,11 +619,11 @@ text_sensor:
     function_number: 0
     datapoint: 21090
     options:
-      - Normal
-      - Priority operation
-      - Locked
-      - Forced demand
-      - inactive
+      - Normale
+      - Funzionamento prioritario
+      - Bloccato
+      - Richiesta forzata
+      - inattivo
     values:
       - 0
       - 1
@@ -637,10 +637,10 @@ text_sensor:
     function_number: 0
     datapoint: 38012
     options:
-      - Normal
-      - Priority operation
-      - Locked
-      - Forced demand
+      - Normale
+      - Funzionamento prioritario
+      - Bloccato
+      - Richiesta forzata
     values:
       - 0
       - 1
@@ -653,10 +653,10 @@ text_sensor:
     function_number: 0
     datapoint: 38013
     options:
-      - 'Off'
-      - Input contacts
-      - System bus
-      - Power damped
+      - Spento
+      - "Contatti d'ingresso"
+      - Bus di sistema
+      - Potenza ridotta
     values:
       - 0
       - 1

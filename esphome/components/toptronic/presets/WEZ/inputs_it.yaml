@@ -287,10 +287,10 @@ select:
     function_number: 1
     datapoint: 9075
     options:
-      - Deakt.
-      - Automatik
-      - Heizen
-      - "K\xFChlen"
+      - Disattivato
+      - Automatico
+      - Riscaldamento
+      - Raffreddamento
     values:
       - 0
       - 1
@@ -303,10 +303,10 @@ select:
     function_number: 0
     datapoint: 38012
     options:
-      - Normal
-      - Priority operation
-      - Locked
-      - Forced demand
+      - Normale
+      - Funzionamento prioritario
+      - Bloccato
+      - Richiesta forzata
     values:
       - 0
       - 1
@@ -319,10 +319,10 @@ select:
     function_number: 0
     datapoint: 38013
     options:
-      - 'Off'
-      - Input contacts
-      - System bus
-      - Power damped
+      - Spento
+      - "Contatti d'ingresso"
+      - Bus di sistema
+      - Potenza ridotta
     values:
       - 0
       - 1

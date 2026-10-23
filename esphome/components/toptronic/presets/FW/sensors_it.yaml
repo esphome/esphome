@@ -3362,22 +3362,22 @@ text_sensor:
     function_number: 0
     datapoint: 2051
     options:
-      - 'Off'
-      - Heating normal
-      - Heating comfort
-      - Heating eco
-      - Frost protection
-      - Holiday
-      - Party
-      - Cooling normal
-      - Cooling comfort
-      - Cooling eco
-      - FAULT
-      - Manual mode
-      - Protection cooling
-      - Cooling external/constant
-      - Heating external/constant
-      - SmartGrid priority
+      - Spento
+      - Riscaldamento normale
+      - Riscaldamento comfort
+      - Riscaldamento eco
+      - Protezione antigelo
+      - Vacanza
+      - Festa
+      - Raffreddamento normale
+      - Raffreddamento comfort
+      - Raffreddamento eco
+      - GUASTO
+      - Modo manuale
+      - Protezione raffreddamento
+      - Raffreddamento esterno/costante
+      - Riscaldamento esterno/costante
+      - "Priorit\xE0 SmartGrid"
     values:
       - 0
       - 1
@@ -3402,22 +3402,22 @@ text_sensor:
     function_number: 1
     datapoint: 2051
     options:
-      - 'Off'
-      - Heating normal
-      - Heating comfort
-      - Heating eco
-      - Frost protection
-      - Holiday
-      - Party
-      - Cooling normal
-      - Cooling comfort
-      - Cooling eco
-      - FAULT
-      - Manual mode
-      - Protection cooling
-      - Cooling external/constant
-      - Heating external/constant
-      - SmartGrid priority
+      - Spento
+      - Riscaldamento normale
+      - Riscaldamento comfort
+      - Riscaldamento eco
+      - Protezione antigelo
+      - Vacanza
+      - Festa
+      - Raffreddamento normale
+      - Raffreddamento comfort
+      - Raffreddamento eco
+      - GUASTO
+      - Modo manuale
+      - Protezione raffreddamento
+      - Raffreddamento esterno/costante
+      - Riscaldamento esterno/costante
+      - "Priorit\xE0 SmartGrid"
     values:
       - 0
       - 1
@@ -3442,22 +3442,22 @@ text_sensor:
     function_number: 2
     datapoint: 2051
     options:
-      - 'Off'
-      - Heating normal
-      - Heating comfort
-      - Heating eco
-      - Frost protection
-      - Holiday
-      - Party
-      - Cooling normal
-      - Cooling comfort
-      - Cooling eco
-      - FAULT
-      - Manual mode
-      - Protection cooling
-      - Cooling external/constant
-      - Heating external/constant
-      - SmartGrid priority
+      - Spento
+      - Riscaldamento normale
+      - Riscaldamento comfort
+      - Riscaldamento eco
+      - Protezione antigelo
+      - Vacanza
+      - Festa
+      - Raffreddamento normale
+      - Raffreddamento comfort
+      - Raffreddamento eco
+      - GUASTO
+      - Modo manuale
+      - Protezione raffreddamento
+      - Raffreddamento esterno/costante
+      - Riscaldamento esterno/costante
+      - "Priorit\xE0 SmartGrid"
     values:
       - 0
       - 1
@@ -3482,22 +3482,22 @@ text_sensor:
     function_number: 3
     datapoint: 2051
     options:
-      - 'Off'
-      - Heating normal
-      - Heating comfort
-      - Heating eco
-      - Frost protection
-      - Holiday
-      - Party
-      - Cooling normal
-      - Cooling comfort
-      - Cooling eco
-      - FAULT
-      - Manual mode
-      - Protection cooling
-      - Cooling external/constant
-      - Heating external/constant
-      - SmartGrid priority
+      - Spento
+      - Riscaldamento normale
+      - Riscaldamento comfort
+      - Riscaldamento eco
+      - Protezione antigelo
+      - Vacanza
+      - Festa
+      - Raffreddamento normale
+      - Raffreddamento comfort
+      - Raffreddamento eco
+      - GUASTO
+      - Modo manuale
+      - Protezione raffreddamento
+      - Raffreddamento esterno/costante
+      - Riscaldamento esterno/costante
+      - "Priorit\xE0 SmartGrid"
     values:
       - 0
       - 1
@@ -3522,22 +3522,22 @@ text_sensor:
     function_number: 4
     datapoint: 2051
     options:
-      - 'Off'
-      - Heating normal
-      - Heating comfort
-      - Heating eco
-      - Frost protection
-      - Holiday
-      - Party
-      - Cooling normal
-      - Cooling comfort
-      - Cooling eco
-      - FAULT
-      - Manual mode
-      - Protection cooling
-      - Cooling external/constant
-      - Heating external/constant
-      - SmartGrid priority
+      - Spento
+      - Riscaldamento normale
+      - Riscaldamento comfort
+      - Riscaldamento eco
+      - Protezione antigelo
+      - Vacanza
+      - Festa
+      - Raffreddamento normale
+      - Raffreddamento comfort
+      - Raffreddamento eco
+      - GUASTO
+      - Modo manuale
+      - Protezione raffreddamento
+      - Raffreddamento esterno/costante
+      - Riscaldamento esterno/costante
+      - "Priorit\xE0 SmartGrid"
     values:
       - 0
       - 1
@@ -3562,14 +3562,14 @@ text_sensor:
     function_number: 0
     datapoint: 2052
     options:
-      - 'Off'
-      - Charging normal
-      - Charging comfort
-      - FAULT
-      - Draw-off
-      - Charging reduced
-      - SmartGrid priority
-      - SmartGrid forced
+      - Spento
+      - Carica normale
+      - Carica comfort
+      - GUASTO
+      - Prelievo
+      - Carica ridotta
+      - "Priorit\xE0 SmartGrid"
+      - Forzatura SmartGrid
     values:
       - 0
       - 1
@@ -3586,14 +3586,14 @@ text_sensor:
     function_number: 1
     datapoint: 2052
     options:
-      - 'Off'
-      - Charging normal
-      - Charging comfort
-      - FAULT
-      - Draw-off
-      - Charging reduced
-      - SmartGrid priority
-      - SmartGrid forced
+      - Spento
+      - Carica normale
+      - Carica comfort
+      - GUASTO
+      - Prelievo
+      - Carica ridotta
+      - "Priorit\xE0 SmartGrid"
+      - Forzatura SmartGrid
     values:
       - 0
       - 1
@@ -3610,14 +3610,14 @@ text_sensor:
     function_number: 2
     datapoint: 2052
     options:
-      - 'Off'
-      - Charging normal
-      - Charging comfort
-      - FAULT
-      - Draw-off
-      - Charging reduced
-      - SmartGrid priority
-      - SmartGrid forced
+      - Spento
+      - Carica normale
+      - Carica comfort
+      - GUASTO
+      - Prelievo
+      - Carica ridotta
+      - "Priorit\xE0 SmartGrid"
+      - Forzatura SmartGrid
     values:
       - 0
       - 1
@@ -3634,14 +3634,14 @@ text_sensor:
     function_number: 3
     datapoint: 2052
     options:
-      - 'Off'
-      - Charging normal
-      - Charging comfort
-      - FAULT
-      - Draw-off
-      - Charging reduced
-      - SmartGrid priority
-      - SmartGrid forced
+      - Spento
+      - Carica normale
+      - Carica comfort
+      - GUASTO
+      - Prelievo
+      - Carica ridotta
+      - "Priorit\xE0 SmartGrid"
+      - Forzatura SmartGrid
     values:
       - 0
       - 1
@@ -3658,14 +3658,14 @@ text_sensor:
     function_number: 4
     datapoint: 2052
     options:
-      - 'Off'
-      - Charging normal
-      - Charging comfort
-      - FAULT
-      - Draw-off
-      - Charging reduced
-      - SmartGrid priority
-      - SmartGrid forced
+      - Spento
+      - Carica normale
+      - Carica comfort
+      - GUASTO
+      - Prelievo
+      - Carica ridotta
+      - "Priorit\xE0 SmartGrid"
+      - Forzatura SmartGrid
     values:
       - 0
       - 1

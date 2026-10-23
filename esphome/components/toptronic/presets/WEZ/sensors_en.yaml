@@ -254,7 +254,7 @@ sensor:
     device_class: energy
     state_class: measurement
   - platform: toptronic
-    name: Smart-Grid (Offset) WW-Sollvalue
+    name: Smart-Grid (Offset) DHW setpoint
     device_type: WEZ
     function_group: 2
     function_number: 0
@@ -591,10 +591,10 @@ text_sensor:
     function_number: 1
     datapoint: 9075
     options:
-      - Deakt.
-      - Automatik
-      - Heizen
-      - "K\xFChlen"
+      - Deactivated
+      - Automatic
+      - Heating
+      - Cooling
     values:
       - 0
       - 1
