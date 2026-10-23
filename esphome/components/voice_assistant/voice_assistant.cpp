@@ -941,6 +941,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       } else if (this->state_ == State::AWAITING_RESPONSE) {
         // No TTS start event ("nevermind")
         this->set_state_(State::IDLE, State::IDLE);
+      } else if (this->desired_state_ == State::AWAITING_RESPONSE) {
+        // No TTS start event while the microphone is still stopping
+        this->set_state_after_mic_stop_(State::IDLE);
       }
       this->defer([this]() { this->end_trigger_.trigger(); });
       break;
