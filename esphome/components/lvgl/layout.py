@@ -4,6 +4,7 @@ import textwrap
 
 import esphome.config_validation as cv
 from esphome.const import CONF_HEIGHT, CONF_TYPE, CONF_WIDTH
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from .defines import (
     CONF_FLEX_ALIGN_CROSS,
@@ -69,14 +70,6 @@ FLEX_OBJ_SCHEMA = {
 }
 
 
-def flex_hv_schema(dir):
-    dir = CONF_HEIGHT if dir == "horizontal" else CONF_WIDTH
-    return {
-        cv.Optional(CONF_FLEX_GROW, default=1): cv.int_,
-        cv.Optional(dir, default="100%"): size,
-    }
-
-
 def grid_free_space(value):
     value = cv.Upper(value)
     if value.startswith("FR(") and value.endswith(")"):
@@ -111,6 +104,57 @@ GRID_CELL_SCHEMA = {
     cv.Optional(CONF_GRID_CELL_X_ALIGN): grid_alignments,
     cv.Optional(CONF_GRID_CELL_Y_ALIGN): grid_alignments,
 }
+
+
+GRID_LAYOUT_SCHEMA = {
+    cv.Required(CONF_TYPE): cv.one_of(TYPE_GRID, lower=True),
+    cv.Optional(CONF_GRID_ROWS): grid_dimension,
+    cv.Optional(CONF_GRID_COLUMNS): grid_dimension,
+    cv.Optional(CONF_GRID_COLUMN_ALIGN): grid_alignments,
+    cv.Optional(CONF_GRID_ROW_ALIGN): grid_alignments,
+    cv.Optional(CONF_PAD_ROW): padding,
+    cv.Optional(CONF_PAD_COLUMN): padding,
+    cv.Optional(CONF_MULTIPLE_WIDGETS_PER_CELL, default=False): cv.boolean,
+    cv.Optional(CONF_GRID_CELL_X_ALIGN): grid_alignments,
+    cv.Optional(CONF_GRID_CELL_Y_ALIGN): grid_alignments,
+}
+
+
+def grid_cell_schema(x_align, y_align) -> dict:
+    return {
+        cv.Optional(CONF_GRID_CELL_ROW_POS): cv.positive_int,
+        cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
+        cv.Optional(CONF_GRID_CELL_ROW_SPAN): cv.int_range(min=1),
+        cv.Optional(CONF_GRID_CELL_COLUMN_SPAN): cv.int_range(min=1),
+        cv.Optional(CONF_GRID_CELL_X_ALIGN, default=x_align): grid_alignments,
+        cv.Optional(CONF_GRID_CELL_Y_ALIGN, default=y_align): grid_alignments,
+    }
+
+
+# Every form a ``layout`` value can take, for the language-schema dumper
+LAYOUT_SCHEMA = cv.Any(
+    cv.string,
+    cv.typed_schema(
+        {TYPE_FLEX: FLEX_LAYOUT_SCHEMA, TYPE_GRID: GRID_LAYOUT_SCHEMA}, lower=True
+    ),
+)
+
+
+def layout_extract_schema() -> dict:
+    """The ``layout`` key and the child keys of a layout, for the language-schema dumper."""
+    return {
+        cv.Optional(CONF_LAYOUT): LAYOUT_SCHEMA,
+        **FLEX_OBJ_SCHEMA,
+        **grid_cell_schema(cv.UNDEFINED, cv.UNDEFINED),
+    }
+
+
+def flex_hv_schema(dir):
+    dir = CONF_HEIGHT if dir == "horizontal" else CONF_WIDTH
+    return {
+        cv.Optional(CONF_FLEX_GROW, default=1): cv.int_,
+        cv.Optional(dir, default="100%"): size,
+    }
 
 
 class Layout:
@@ -220,21 +264,7 @@ class GridLayout(Layout):
         layout = config.get(CONF_LAYOUT)
         if isinstance(layout, str):
             if GridLayout._match_shorthand(layout):
-                return (
-                    cv.string,
-                    {
-                        cv.Optional(CONF_GRID_CELL_ROW_POS): cv.positive_int,
-                        cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-                        cv.Optional(CONF_GRID_CELL_ROW_SPAN): cv.int_range(min=1),
-                        cv.Optional(CONF_GRID_CELL_COLUMN_SPAN): cv.int_range(min=1),
-                        cv.Optional(
-                            CONF_GRID_CELL_X_ALIGN, default="center"
-                        ): grid_alignments,
-                        cv.Optional(
-                            CONF_GRID_CELL_Y_ALIGN, default="center"
-                        ): grid_alignments,
-                    },
-                )
+                return cv.string, grid_cell_schema("center", "center")
             # Not a valid grid layout string
             return None, {}
 
@@ -248,28 +278,7 @@ class GridLayout(Layout):
         )
         x_align = layout.get(CONF_GRID_CELL_X_ALIGN, x_default)
         y_align = layout.get(CONF_GRID_CELL_Y_ALIGN, y_default)
-        return (
-            {
-                cv.Required(CONF_TYPE): cv.one_of(TYPE_GRID, lower=True),
-                cv.Optional(CONF_GRID_ROWS): grid_dimension,
-                cv.Optional(CONF_GRID_COLUMNS): grid_dimension,
-                cv.Optional(CONF_GRID_COLUMN_ALIGN): grid_alignments,
-                cv.Optional(CONF_GRID_ROW_ALIGN): grid_alignments,
-                cv.Optional(CONF_PAD_ROW): padding,
-                cv.Optional(CONF_PAD_COLUMN): padding,
-                cv.Optional(CONF_MULTIPLE_WIDGETS_PER_CELL, default=False): cv.boolean,
-                cv.Optional(CONF_GRID_CELL_X_ALIGN): grid_alignments,
-                cv.Optional(CONF_GRID_CELL_Y_ALIGN): grid_alignments,
-            },
-            {
-                cv.Optional(CONF_GRID_CELL_ROW_POS): cv.positive_int,
-                cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-                cv.Optional(CONF_GRID_CELL_ROW_SPAN): cv.int_range(min=1),
-                cv.Optional(CONF_GRID_CELL_COLUMN_SPAN): cv.int_range(min=1),
-                cv.Optional(CONF_GRID_CELL_X_ALIGN, default=x_align): grid_alignments,
-                cv.Optional(CONF_GRID_CELL_Y_ALIGN, default=y_align): grid_alignments,
-            },
-        )
+        return GRID_LAYOUT_SCHEMA, grid_cell_schema(x_align, y_align)
 
     def validate(self, config: dict):
         """
@@ -435,6 +444,7 @@ LAYOUT_UPDATE_SCHEMA = cv.Schema(
 )
 
 
+@schema_extractor("schema")
 def layout_validator(value):
     """
     Validate a ``layout:`` value for an update action. Only the layout options
@@ -442,6 +452,8 @@ def layout_validator(value):
     :param value: The value of the ``layout:`` key
     :return: The validated layout options dict
     """
+    if value is SCHEMA_EXTRACT:
+        return LAYOUT_UPDATE_SCHEMA
     result = LAYOUT_UPDATE_SCHEMA(value)
     if not result:
         raise cv.Invalid(

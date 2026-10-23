@@ -16,6 +16,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 ntc_ns = cg.esphome_ns.namespace("ntc")
@@ -87,15 +88,21 @@ def calc_b(value: ConfigType) -> tuple[float, float, float]:
     return a, b, c
 
 
+_B_CONSTANT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_B_CONSTANT): cv.float_,
+        cv.Required(CONF_REFERENCE_TEMPERATURE): cv.temperature,
+        cv.Required(CONF_REFERENCE_RESISTANCE): cv.resistance,
+    }
+)
+
+
+@schema_extractor("schema")
 def process_calibration(value: Any) -> ConfigType:
+    if value is SCHEMA_EXTRACT:
+        return _B_CONSTANT_SCHEMA
     if isinstance(value, dict):
-        value = cv.Schema(
-            {
-                cv.Required(CONF_B_CONSTANT): cv.float_,
-                cv.Required(CONF_REFERENCE_TEMPERATURE): cv.temperature,
-                cv.Required(CONF_REFERENCE_RESISTANCE): cv.resistance,
-            }
-        )(value)
+        value = _B_CONSTANT_SCHEMA(value)
         a, b, c = calc_b(value)
     elif isinstance(value, list):
         if len(value) != 3:

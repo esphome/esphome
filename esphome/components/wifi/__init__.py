@@ -77,6 +77,7 @@ from esphome.core import (
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from . import wpa2_eap
@@ -331,7 +332,10 @@ DPP_SCHEMA = cv.Schema(
 )
 
 
+@schema_extractor("schema")
 def _dpp_schema(value: ConfigType | None) -> ConfigType:
+    if value is SCHEMA_EXTRACT:
+        return DPP_SCHEMA
     # A bare `dpp:` takes every default
     return DPP_SCHEMA({} if value is None else value)
 
@@ -364,7 +368,10 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
 )
 
 
+@schema_extractor("schema")
 def wifi_network_ap(value):
+    if value is SCHEMA_EXTRACT:
+        return WIFI_NETWORK_AP
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
@@ -635,8 +642,11 @@ LEASE_CACHE_SCHEMA = cv.Schema(
 )
 
 
+@schema_extractor("schema")
 def _lease_cache_schema(value: Any) -> ConfigType:
     """Accept a plain boolean shorthand or a dict with enabled/storage/max_age keys."""
+    if value is SCHEMA_EXTRACT:
+        return LEASE_CACHE_SCHEMA
     if not isinstance(value, dict):
         value = {CONF_ENABLED: value}
     value = LEASE_CACHE_SCHEMA(value)

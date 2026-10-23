@@ -35,6 +35,7 @@ from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.espota2 import CONF_ALLOW_PLAINTEXT_UPLOAD, CONF_OLD_KEY
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from .. import DOMAIN
@@ -251,7 +252,10 @@ _ENCRYPTION_SCHEMA = ENCRYPTION_SCHEMA.extend(
 )
 
 
+@schema_extractor("schema")
 def _encryption_schema(config: ConfigType | None) -> ConfigType:
+    if config is SCHEMA_EXTRACT:
+        return _ENCRYPTION_SCHEMA
     # Only a bare `encryption:` block is keyless; `false` or a list must fail
     return _ENCRYPTION_SCHEMA({} if config is None else config)
 

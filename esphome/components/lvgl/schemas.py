@@ -58,6 +58,7 @@ from .layout import (
     GRID_CELL_SCHEMA,
     append_layout_schema,
     grid_alignments,
+    layout_extract_schema,
     layout_validator,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
@@ -111,11 +112,19 @@ MAPPING_IMAGE_SCHEMA = cv.Schema(
 )
 
 
+@schema_extractor("schema")
 def _validate_text(value):
     """
     Do some sanity checking of the format to get better error messages
     than using cv.Any
     """
+    if value is SCHEMA_EXTRACT:
+        return cv.Any(
+            cv.templatable(cv.string),
+            TIME_TEXT_SCHEMA,
+            MAPPING_TEXT_SCHEMA,
+            PRINTF_TEXT_SCHEMA,
+        )
     if value is None:
         raise cv.Invalid("No text specified")
     if isinstance(value, dict):
@@ -419,11 +428,21 @@ def part_dict(parts: tuple[str, ...] | list[str]) -> dict[Any, Any]:
     only the mapping; non-default extra/required and any _extra_schemas would
     be silently dropped.
     """
+    if EnableSchemaExtraction:
+        # The spread schemas are referenced instead, see _extract_extend
+        return {cv.Optional(part): STATE_SCHEMA for part in parts}
     return {
         **STATE_SCHEMA.schema,
         **FLAG_SCHEMA.schema,
         **{cv.Optional(part): STATE_SCHEMA for part in parts},
     }
+
+
+def _extract_extend(schema: cv.Schema) -> cv.Schema:
+    """Add the schemas part_dict spreads as extends, so the dumper names them."""
+    if EnableSchemaExtraction:
+        return schema.extend(STATE_SCHEMA).extend(FLAG_SCHEMA)
+    return schema
 
 
 def part_schema(parts: tuple[str, ...] | list[str]) -> cv.Schema:
@@ -432,7 +451,7 @@ def part_schema(parts: tuple[str, ...] | list[str]) -> cv.Schema:
     :param parts:  The parts to include
     :return: The schema
     """
-    return cv.Schema(part_dict(parts))
+    return _extract_extend(cv.Schema(part_dict(parts)))
 
 
 def _lazy_validate_automation(extra_schema: dict) -> Callable[[Any], Any]:
@@ -589,7 +608,7 @@ def obj_schema(widget_type: WidgetType) -> cv.Schema:
     cached = _OBJ_SCHEMA_CACHE.get(id(widget_type))
     if cached is not None and cached[0] is widget_type:
         return cached[1]
-    schema = cv.Schema(obj_dict(widget_type))
+    schema = _extract_extend(cv.Schema(obj_dict(widget_type)))
     _OBJ_SCHEMA_CACHE[id(widget_type)] = (widget_type, schema)
     return schema
 
@@ -614,8 +633,11 @@ def _build_theme_schema(
                 else {}
             ),
             **{
-                cv.Optional(name): cv.Schema(
-                    {**obj_dict(w), **FULL_STYLE_SCHEMA.schema}
+                cv.Optional(name): (
+                    # Referenced, not spread, so the dumper names FULL_STYLE_SCHEMA
+                    _extract_extend(cv.Schema(obj_dict(w))).extend(FULL_STYLE_SCHEMA)
+                    if EnableSchemaExtraction
+                    else cv.Schema({**obj_dict(w), **FULL_STYLE_SCHEMA.schema})
                 )
                 for name, w in widget_types
             },
@@ -651,12 +673,20 @@ def _reject_theme_styles_key(validated: dict) -> dict:
     return validated
 
 
+@schema_extractor("schema")
 def theme_schema(value: dict) -> dict:
+    if value is SCHEMA_EXTRACT:
+        return cv.Schema(
+            {cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean}
+        ).extend(
+            _build_theme_schema(tuple(WIDGET_TYPES.items()), include_dark_mode=False)
+        )
     return _reject_theme_styles_key(
         _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
     )
 
 
+@schema_extractor("schema")
 def theme_update_schema(value: dict) -> dict:
     """
     Schema for `lvgl.theme.update`: same shape as `theme:` minus `dark_mode`.
@@ -665,6 +695,8 @@ def theme_update_schema(value: dict) -> dict:
     exists for each -- even ones never mentioned under `theme:` -- and gets
     it attached to widgets at the same point real theme styles are.
     """
+    if value is SCHEMA_EXTRACT:
+        return _build_theme_schema(tuple(WIDGET_TYPES.items()), include_dark_mode=False)
     validated = _reject_theme_styles_key(
         _build_theme_schema(tuple(WIDGET_TYPES.items()), include_dark_mode=False)(value)
     )
@@ -777,7 +809,11 @@ def container_schema_value(widget_type: WidgetType, extras: Any = None) -> cv.Sc
     )
     if extras:
         schema = schema.extend(extras)
-    return schema.extend(widget_type.schema)
+    schema = schema.extend(widget_type.schema)
+    if EnableSchemaExtraction:
+        # Runtime adds layout keys per value in append_layout_schema
+        schema = schema.extend(layout_extract_schema())
+    return schema
 
 
 def container_schema(
@@ -805,7 +841,10 @@ def container_schema(
             cached_schema = container_schema_value(widget_type, extras)
         return cached_schema
 
+    @schema_extractor("schema")
     def validator(value: Any) -> Any:
+        if value is SCHEMA_EXTRACT:
+            return get_schema()
         value = value or {}
         return append_layout_schema(get_schema(), value)(value)
 
