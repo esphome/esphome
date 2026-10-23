@@ -80,8 +80,8 @@ MULTI_CONF = _schema.MULTI_CONF
 DEPENDENCIES = _schema.DEPENDENCIES + ["tflite_model_source"]
 
 # Re-exported for consumers which reference the runtime class through this
-# component. Nothing in the tree calls load_model() yet, so a configuration that
-# is not paired with such a consumer embeds the model and does nothing else.
+# component. The class is a Component on its own, so a configuration without such
+# a consumer still loads its model in setup() and reports it in dump_config().
 __all__ = [
     "TFLiteMicroHelper",
     "CONFIG_SCHEMA",
@@ -100,6 +100,9 @@ async def to_code(config: ConfigType) -> None:
     # when no .txt report is available.
     _validate_model_operators(model_path)
     var = cg.new_Pvariable(config[CONF_ID])
+    # Registers the helper with the App, which is what makes setup() (model load)
+    # and dump_config() run.
+    await cg.register_component(var, config)
     rhs = [HexInt(x) for x in model_data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     cg.add(var.set_model(prog_arr, len(model_data)))
@@ -115,6 +118,9 @@ async def to_code(config: ConfigType) -> None:
     # computed across ALL configured models and emitted once for the whole build.
     _add_operator_defines()
     if config.get(CONF_DEBUG, False):
+        # Build-wide macro: it only compiles in the heavy tflite_model_debug
+        # diagnostics, which stay off for an instance configured with debug: false.
+        # The per-instance verbose logging is the set_debug() call below.
         cg.add_define("DEBUG_TFLITE_MICRO_HELPER")
         cg.add(var.set_debug(True))
     if model_type == "image":
@@ -225,6 +231,13 @@ def _compute_max_operators() -> int:
         txt_content = txt_path.read_text(encoding="utf-8")
         if ops_match := _TOTAL_OPERATIONS_RE.search(txt_content):
             max_ops = max(max_ops, int(ops_match.group(1)) + 5)
+        else:
+            _LOGGER.warning(
+                "Operator report '%s' has no 'Total operations' line; keeping %d "
+                "operator slots",
+                txt_path.name,
+                _MAX_OPERATORS_FLOOR,
+            )
     return max(_MAX_OPERATORS_FLOOR, max_ops)
 
 

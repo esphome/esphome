@@ -24,7 +24,9 @@ CONF_FEATURES_STEP_SIZE = "features_step_size"
 CONF_FEATURE_COUNT = "feature_count"
 
 tflite_micro_runtime_ns = cg.esphome_ns.namespace("tflite_micro_runtime")
-TFLiteMicroHelper = tflite_micro_runtime_ns.class_("TFLiteMicroHelper")
+# A Component, so setup() loads the configured model and dump_config() reports it
+# at boot even when no consumer references the model.
+TFLiteMicroHelper = tflite_micro_runtime_ns.class_("TFLiteMicroHelper", cg.Component)
 
 # tflite_output_processor implements these four modes. The names below them come
 # from the upstream project this component was ported from and map onto the mode
@@ -78,7 +80,7 @@ PER_MODEL_SCHEMA = cv.Schema(
 
 
 MULTI_CONF = True
-CONFIG_SCHEMA = cv.All(PER_MODEL_SCHEMA, cv.only_on_esp32)
+CONFIG_SCHEMA = cv.All(PER_MODEL_SCHEMA.extend(cv.COMPONENT_SCHEMA), cv.only_on_esp32)
 
 # Static, not computed from CORE at import time: the module is imported once per
 # process, so a value derived from CORE there goes stale (and is order dependent)

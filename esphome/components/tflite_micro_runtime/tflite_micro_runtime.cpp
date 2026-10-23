@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include <cstdlib>
 #include <algorithm>
+#include <cinttypes>
 #include <cstring>
 #include <esp_heap_caps.h>
 
@@ -12,17 +13,74 @@ namespace esphome::tflite_micro_runtime {
 
 ESPHOME_LOG_TAG(TAG, "tflite_micro_runtime");
 
+namespace {
+
+/// The tensor type a configured input_type name denotes, or kTfLiteNoType when the
+/// name is not one this component maps (then no check is possible).
+TfLiteType configured_input_tensor_type(const std::string &name) {
+  if (name == "uint8")
+    return kTfLiteUInt8;
+  if (name == "int8")
+    return kTfLiteInt8;
+  if (name == "float32" || name == "float")
+    return kTfLiteFloat32;
+  return kTfLiteNoType;
+}
+
+const LogString *tensor_type_name(TfLiteType type) {
+  switch (type) {
+    case kTfLiteUInt8:
+      return LOG_STR("uint8");
+    case kTfLiteInt8:
+      return LOG_STR("int8");
+    case kTfLiteFloat32:
+      return LOG_STR("float32");
+    default:
+      return LOG_STR("unknown");
+  }
+}
+
+}  // namespace
+
+void TFLiteMicroHelper::setup() {
+  // The helper is usable without a consumer: load here so a configuration whose
+  // model has no other user still verifies the model, sizes the arena and reports
+  // it at boot instead of only embedding it.
+  if (!this->load_model())
+    this->mark_failed(LOG_STR("Model load failed"));
+}
+
+void TFLiteMicroHelper::dump_config() {
+  ESP_LOGCONFIG(TAG, "TFLite Micro Runtime:");
+  ESP_LOGCONFIG(TAG, "  Model type: %s", this->model_type_.c_str());
+  ESP_LOGCONFIG(TAG, "  Model size: %zu bytes", this->model_length_);
+  ESP_LOGCONFIG(TAG, "  Tensor arena: %zu bytes configured, %zu bytes used by the last load",
+                this->tensor_arena_size_requested_, this->tensor_arena_size_effective_);
+  if (!this->is_model_loaded()) {
+    ESP_LOGCONFIG(TAG, "  Model not loaded");
+    return;
+  }
+  const ModelSpec spec = this->get_model_spec();
+  if (this->model_type_ == "image") {
+    ESP_LOGCONFIG(TAG, "  Input: %dx%dx%d %s (%s)", spec.input_width, spec.input_height, spec.input_channels,
+                  this->input_type_.c_str(), this->input_order_.c_str());
+  }
+  ESP_LOGCONFIG(TAG, "  Tensor arena allocated: %zu bytes, %zu bytes in use", this->get_tensor_arena_size_actual(),
+                this->get_arena_used_bytes());
+}
+
 void TFLiteMicroHelper::set_tensor_arena_size(size_t size) { this->tensor_arena_size_requested_ = size; }
 
-void TFLiteMicroHelper::set_model(const uint8_t *model_data, size_t model_size) {
-  if (this->state_.load() == LoadState::READY) {
-    // Swapping the buffer while the interpreter still uses the old one would leave
-    // the load silently not happening: load_model() keeps returning true.
-    ESP_LOGE(TAG, "set_model() while a model is loaded -- call unload_model() first");
-    return;
+bool TFLiteMicroHelper::set_model(const uint8_t *model_data, size_t model_size) {
+  if (this->state_.load() != LoadState::UNLOADED) {
+    // READY: the interpreter still uses the old buffer, so a swap would leave the
+    // load silently not happening. LOADING: load_model() is reading it right now.
+    ESP_LOGE(TAG, "set_model() while a model is loaded or loading -- call unload_model() first");
+    return false;
   }
   this->model_data_ = model_data;
   this->model_length_ = model_size;
+  return true;
 }
 
 bool TFLiteMicroHelper::allocate_tensor_arena_() {
@@ -84,15 +142,24 @@ bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t 
   return true;
 }
 
-ProcessedOutput TFLiteMicroHelper::run_inference(const uint8_t *src_data, size_t src_size) {
+TfLiteStatus TFLiteMicroHelper::invoke() {
+  if (!this->is_model_loaded()) {
+    ESP_LOGE(TAG, "Cannot invoke -- model not loaded");
+    return kTfLiteError;
+  }
+  return this->model_handler_.invoke();
+}
+
+optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_data, size_t src_size) {
   if (!this->run_inference_on_buffer(src_data, src_size)) {
-    // The reason is already logged; there is no result to report.
-    return {0.0f, 0.0f};
+    // The reason is already logged. Returning a default ProcessedOutput here would
+    // look like a real class-0 result with zero confidence.
+    return nullopt;
   }
   TfLiteTensor *output = this->model_handler_.output_tensor();
   if (output == nullptr) {
     ESP_LOGE(TAG, "Model has no output tensor after a successful invocation");
-    return {0.0f, 0.0f};
+    return nullopt;
   }
   return this->model_handler_.process_output(output);
 }
@@ -128,7 +195,7 @@ bool TFLiteMicroHelper::load_model() {
   // LOADING -> READY at the very end on success.
   LoadState expected = LoadState::UNLOADED;
   if (!this->state_.compare_exchange_strong(expected, LoadState::LOADING)) {
-    if (this->state_.load() == LoadState::READY) {
+    if (expected == LoadState::READY) {
       // Returning true here reported success without loading anything, so a
       // caller that swapped set_model() first kept the old model and never
       // learned about it.
@@ -191,17 +258,23 @@ bool TFLiteMicroHelper::load_model() {
   }
   stats.arena_alloc_time_ms = millis() - arena_alloc_start;
 
-  ModelConfig config = this->build_config_();
-  if (!this->model_handler_.load_model_with_arena(this->model_data_, this->model_length_,
-                                                  this->tensor_arena_allocation_.data.get(),
-                                                  this->tensor_arena_allocation_.actual_size, config)) {
-    ESP_LOGE(TAG, "Failed to load model into interpreter");
+  // From here on the arena exists, so every failure has to release it and leave the
+  // helper UNLOADED; otherwise the next load_model() starts on a stale arena.
+  auto fail_load = [&]() {
     this->model_handler_.unload();
     this->tensor_arena_allocation_.reset();
     stats.total_load_time_ms = millis() - stats.load_start_ms;
     this->last_load_stats_ = stats;
     this->state_.store(LoadState::UNLOADED);
     return false;
+  };
+
+  ModelConfig config = this->build_config_();
+  if (!this->model_handler_.load_model_with_arena(this->model_data_, this->model_length_,
+                                                  this->tensor_arena_allocation_.data.get(),
+                                                  this->tensor_arena_allocation_.actual_size, config)) {
+    ESP_LOGE(TAG, "Failed to load model into interpreter");
+    return fail_load();
   }
 
   // Sync image config to ModelHandler for image models, then check that the
@@ -226,12 +299,19 @@ bool TFLiteMicroHelper::load_model() {
       ESP_LOGE(TAG, "Configured input %dx%dx%d does not match the model's %dx%dx%d", this->input_width_,
                this->input_height_, this->input_channels_, model_width, model_height, model_channels);
       ESP_LOGE(TAG, "  Set input_width/input_height/input_channels, or supply the model's .txt report");
-      this->model_handler_.unload();
-      this->tensor_arena_allocation_.reset();
-      stats.total_load_time_ms = millis() - stats.load_start_ms;
-      this->last_load_stats_ = stats;
-      this->state_.store(LoadState::UNLOADED);
-      return false;
+      return fail_load();
+    }
+
+    // The bytes handed to run_inference_on_buffer() are copied as-is, so a model
+    // whose tensor type differs from the configured one would reinterpret them
+    // silently and only show up as wrong predictions.
+    const TfLiteType expected_type = configured_input_tensor_type(this->input_type_);
+    const TfLiteTensor *input = this->model_handler_.input_tensor();
+    if (expected_type != kTfLiteNoType && input != nullptr && input->type != expected_type) {
+      ESP_LOGE(TAG, "Configured input_type '%s' does not match the model's %s input tensor", this->input_type_.c_str(),
+               LOG_STR_ARG(tensor_type_name(input->type)));
+      ESP_LOGE(TAG, "  Supply the model's .txt report, or set input_type to the tensor's type");
+      return fail_load();
     }
   }
 
@@ -241,23 +321,34 @@ bool TFLiteMicroHelper::load_model() {
 
   this->state_.store(LoadState::READY);
   ESP_LOGI(TAG, "Model loaded successfully");
-#ifdef DEBUG_TFLITE_MICRO_HELPER
-  ESP_LOGI(TAG, "Load stats: parse=%u ms, arena_alloc=%u ms, total=%u ms", stats.parse_time_ms,
-           stats.arena_alloc_time_ms, stats.total_load_time_ms);
-#endif
+  if (this->debug_) {
+    ESP_LOGI(TAG, "Load stats: parse=%" PRIu32 " ms, arena_alloc=%" PRIu32 " ms, total=%" PRIu32 " ms",
+             stats.parse_time_ms, stats.arena_alloc_time_ms, stats.total_load_time_ms);
+  }
   return true;
 }
 
 void TFLiteMicroHelper::unload_model(bool reset_config) {
+  // Only the owner of a completed load may unload. A load still in progress is
+  // reading these buffers, and letting it finish would store READY over an
+  // unloaded helper.
+  LoadState state = LoadState::READY;
+  if (!this->state_.compare_exchange_strong(state, LoadState::UNLOADED)) {
+    if (state == LoadState::UNLOADED) {
+      ESP_LOGD(TAG, "unload_model() while no model is loaded");
+    } else {
+      ESP_LOGE(TAG, "unload_model() while a model is loading -- not unloading");
+    }
+    return;
+  }
   ESP_LOGI(TAG, "Unloading model and freeing arena");
   this->model_handler_.unload();
 
   // The arena is owned here: load_model() hands it to the loader, which never frees it.
   this->tensor_arena_allocation_.reset();
 
-  // E3: reset runtime state (load state). Config fields (model data,
-  // size, CRC, input/audio config) are intentionally preserved by default: the
-  // consumer reload path (meter_reader_tflite::reload_resources) calls
+  // E3: config fields (model data, size, CRC, input/audio config) are preserved by
+  // default: the consumer reload path (meter_reader_tflite::reload_resources) calls
   // unload_model() then load_model() without re-issuing set_model()/
   // set_expected_crc32().
   //
@@ -268,8 +359,6 @@ void TFLiteMicroHelper::unload_model(bool reset_config) {
   if (reset_config) {
     this->reset_config();
   }
-
-  this->state_.store(LoadState::UNLOADED);
 }
 
 void TFLiteMicroHelper::reset_config() {
@@ -341,8 +430,8 @@ void TFLiteMicroHelper::report_memory_status() {
 
   // Compare against the size the last load actually used, which is what a reload
   // has to allocate again.
-  const size_t needed = this->tensor_arena_size_effective_ > 0 ? this->tensor_arena_size_effective_
-                                                               : this->tensor_arena_size_requested_;
+  const size_t needed =
+      this->tensor_arena_size_effective_ > 0 ? this->tensor_arena_size_effective_ : this->tensor_arena_size_requested_;
   if (max_block < needed) {
     ESP_LOGW(TAG, "WARNING: Largest free block (%zu) < arena size (%zu)", max_block, needed);
   }

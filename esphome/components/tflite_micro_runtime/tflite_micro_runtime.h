@@ -6,7 +6,10 @@
 
 #include "esphome/components/tflite_memory_handler/memory_manager.h"
 #include "esphome/components/tflite_model_loader/model_handler.h"
+#include "esphome/components/tflite_output_processor/output_processor.h"
+#include "esphome/core/component.h"
 #include "esphome/core/log.h"
+#include "esphome/core/optional.h"
 
 #include <atomic>
 
@@ -85,18 +88,33 @@ struct LoadStats {
  * Wraps model loading, tensor arena management, config building,
  * and inference invocation. Consumer components set config via setters
  * then call load_model() / run_inference().
+ *
+ * It is also a Component on its own, so a `tflite_micro_runtime` entry without a
+ * consumer still does something: setup() loads the configured model and
+ * dump_config() reports the model spec and the tensor arena usage at boot.
  */
-class TFLiteMicroHelper {
+class TFLiteMicroHelper : public Component {
  public:
   TFLiteMicroHelper() = default;
   ~TFLiteMicroHelper() = default;
 
+  // -- Component lifecycle --------------------------------------------
+  void setup() override;
+  void dump_config() override;
+
   // -- Common Model Config Setters -----------------------------------
   void set_model_type(const std::string &t) { this->model_type_ = t; }
   void set_tensor_arena_size(size_t size);
-  void set_model(const uint8_t *model_data, size_t model_size);
+  /// @brief Point the helper at the model data in flash.
+  /// @return false (logged) when a model is loaded or loading; call
+  ///   unload_model() first. True when the data was accepted.
+  bool set_model(const uint8_t *model_data, size_t model_size);
   void set_output_processing(const std::string &p) { this->output_processing_ = p; }
   void set_scale_factor(float f) { this->scale_factor_ = f; }
+  /// @brief Per-instance verbose logging (load timings, tensor details).
+  /// The build-wide DEBUG_TFLITE_MICRO_HELPER macro, emitted when any model sets
+  /// `debug: true`, only controls whether the heavy tflite_model_debug diagnostics
+  /// are compiled in; they are still off for instances where this is false.
   void set_debug(bool d) {
     this->debug_ = d;
     this->model_handler_.set_debug(d);
@@ -124,6 +142,10 @@ class TFLiteMicroHelper {
   void set_expected_crc32(uint32_t crc) { this->expected_crc32_ = crc; }
 
   // -- Lifecycle ------------------------------------------------------
+  /// @brief Load the model into the interpreter and allocate the tensor arena.
+  /// @return false (logged) when loading fails, and when a model is already
+  ///   loaded or loading -- call unload_model() first. setup() performs the
+  ///   load, so a consumer that finds is_model_loaded() true has nothing to do.
   bool load_model();
 
   /// @brief Unload the model and free the arena.
@@ -147,14 +169,26 @@ class TFLiteMicroHelper {
   bool is_model_loaded() const { return this->state_.load() == LoadState::READY; }
 
   // -- Inference ------------------------------------------------------
-  TfLiteStatus invoke() { return this->model_handler_.invoke(); }
+  /// @brief Run the model on whatever is in input_tensor().
+  /// @return kTfLiteError (logged) when no model is loaded.
+  TfLiteStatus invoke();
 
-  TfLiteTensor *input_tensor() { return this->model_handler_.input_tensor(); }
-  const TfLiteTensor *input_tensor() const { return this->model_handler_.input_tensor(); }
-  TfLiteTensor *output_tensor() { return this->model_handler_.output_tensor(); }
+  /// @brief Tensors of the loaded model; nullptr unless it is READY.
+  /// A partial or failed load leaves no valid tensors, so the state check lives
+  /// here instead of in every consumer.
+  TfLiteTensor *input_tensor() { return this->is_model_loaded() ? this->model_handler_.input_tensor() : nullptr; }
+  const TfLiteTensor *input_tensor() const {
+    return this->is_model_loaded() ? this->model_handler_.input_tensor() : nullptr;
+  }
+  TfLiteTensor *output_tensor() { return this->is_model_loaded() ? this->model_handler_.output_tensor() : nullptr; }
 
   bool run_inference_on_buffer(const uint8_t *src_data, size_t src_size);
-  ProcessedOutput run_inference(const uint8_t *src_data, size_t src_size);
+
+  /// @brief run_inference_on_buffer() plus output processing.
+  /// @return nullopt when the model is not loaded, the buffer does not match the
+  ///   input tensor, or the invocation fails. The reason is logged; a failed run
+  ///   is never reported as a reading.
+  optional<ProcessedOutput> run_inference(const uint8_t *src_data, size_t src_size);
 
   // -- Accessors -----------------------------------------------------
   ModelSpec get_model_spec() const;
@@ -180,7 +214,9 @@ class TFLiteMicroHelper {
   // -- Load statistics -------------------------------------------------
   const LoadStats &get_last_load_stats() const { return this->last_load_stats_; }
 
-#ifdef USE_TFLITE_MODEL_DEBUG
+#ifdef DEBUG_TFLITE_MICRO_HELPER
+  /// @brief Parameter sweep of the debug component, compiled in only when a
+  /// configured model sets `debug: true` (the macro is build-wide).
   void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
     this->model_handler_.debug_test_parameters(zone_data);
   }
