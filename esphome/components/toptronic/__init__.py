@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from enum import Enum
 import logging
 import pathlib
 
@@ -7,7 +6,8 @@ import yaml
 
 import esphome.codegen as cg
 from esphome.components import button as button_platform, ota
-from esphome.components.canbus import CanbusComponent
+from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
+from esphome.components.const import CONF_DEVICE_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
@@ -22,14 +22,15 @@ from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
+# button: the generated "Refresh all" button is always built
+AUTO_LOAD = ["button", "sensor"]
 CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["canbus"]
 DOMAIN = "toptronic"
-AUTO_LOAD = ["sensor", "number", "select", "text_sensor", "button", "switch"]
 MULTI_CONF = True
 
+
 CONF_TOPTRONIC_ID = "toptronic_id"
-CONF_CANBUS_ID = "canbus_id"
 CONF_DEVICE_ADDR = "device_addr"
 CONF_FUNCTION_GROUP = "function_group"
 CONF_FUNCTION_NUMBER = "function_number"
@@ -37,60 +38,40 @@ CONF_DATAPOINT = "datapoint"
 CONF_DECIMAL = "decimal"
 CONF_VALUES = "values"
 CONF_LANGUAGE = "language"
-CONF_BOOT_REFRESH_DELAY = "boot_refresh_delay"
 CONF_MAX_PENDING_MESSAGES = "max_pending_messages"
-CONF_MAX_PENDING_AGE = "max_pending_age"
-CONF_CLEANUP_INTERVAL = "cleanup_interval"
-CONF_MAX_REFRESH_PER_LOOP = "max_refresh_per_loop"
 CONF_MAX_FRAMES_PER_MESSAGE = "max_frames_per_message"
+CONF_MAX_PENDING_AGE = "max_pending_age"
+CONF_WRITE_MIN_INTERVAL = "write_min_interval"
+CONF_REJECT_WRITES_BEFORE_READ = "reject_writes_before_read"
+CONF_BOOT_REFRESH_DELAY = "boot_refresh_delay"
+CONF_MAX_REFRESH_PER_LOOP = "max_refresh_per_loop"
 CONF_REFRESH_GAP = "refresh_gap"
 CONF_MAX_REFRESH_RETRIES = "max_refresh_retries"
 CONF_REFRESH_RETRY_INTERVAL = "refresh_retry_interval"
-CONF_WRITE_MIN_INTERVAL = "write_min_interval"
-CONF_REJECT_WRITES_BEFORE_READ = "reject_writes_before_read"
 
 LANGS = ("de", "en", "fr", "it")
 
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
-
 TopTronicBase = toptronic.class_("TopTronicBase", cg.PollingComponent)
 
-# Auto-generated "Refresh all" button (one per build). press_action() calls the
-# parent hub's refresh_all(), which fans out to every registered hub.
-TopTronicRefreshButton = toptronic.class_(
-    "TopTronicRefreshButton",
-    button_platform.Button,
-    cg.Parented.template(TopTronicComponent),
-)
-
 TT_TYPE = toptronic.enum("TypeName")
-TT_TYPE_OPTIONS = {
-    "U8": TT_TYPE.U8,
-    "U16": TT_TYPE.U16,
-    "U32": TT_TYPE.U32,
-    "S8": TT_TYPE.S8,
-    "S16": TT_TYPE.S16,
-    "S32": TT_TYPE.S32,
-    "S64": TT_TYPE.S64,
+_TT_TYPES = ("U8", "U16", "U32", "S8", "S16", "S32", "S64")
+TT_TYPE_OPTIONS = {name: getattr(TT_TYPE, name) for name in _TT_TYPES}
+
+DEVICE_TYPES = {
+    "WEZ": 0,  # heat generator
+    "SOL": 64,  # solar module
+    "PS": 128,  # buffer storage tank
+    "FW": 192,  # district heating
+    "HK": 256,  # heating circuit
+    "MWA": 384,  # energy meter module
+    "GLT": 448,  # building management system
+    "HV": 512,  # HomeVent ventilation
+    "BM": 1024,  # control module (display)
+    "BD": 1024,  # alias of BM
+    "GW": 1153,  # Modbus/KNX gateway
 }
-
-
-class DeviceType(Enum):
-    WEZ = 0  # EN: Heat generator / FR: Générateur de chaleur / DE: Wärmeerzeuger
-    SOL = 64  # EN: Solar module / FR: Module solaire / DE: Solar
-    PS = 128  # EN: Buffer storage tank / FR: Ballon tampon / DE: Pufferspeicher
-    FW = 192  # EN: District heating / FR: Chauffage urbain / DE: Fernwärme
-    HK = 256  # EN: Heating circuit / FR: Circuit de chauffage / DE: Heizkreis
-    MWA = 384  # EN: Energy meter module / FR: Module de mesure d'énergie / DE: Messwertauswertung
-    GLT = 448  # EN: Building mgmt system (BMS) / FR: Gestion technique du bâtiment (GTB) / DE: Gebäudeleittechnik
-    HV = 512  # EN: HomeVent ventilation / FR: Ventilation HomeVent / DE: HomeVent
-    BM = 1024  # EN: Control module (Display) / FR: Module de commande (Écran) / DE: Bedienmodul
-    BD = BM  # EN: Control display (Alias) / FR: Écran de commande (Alias) / DE: Bediendisplay
-    GW = 1153  # EN: Gateway (Modbus/KNX) / FR: Passerelle (Modbus/KNX) / DE: Gateway
-
-
-_device_types = {name: t.value for name, t in DeviceType.__members__.items()}
 
 PRESETS_DIR = pathlib.Path(__file__).parent / "presets"
 _PRESETS_KEY = "toptronic_used_ids"
@@ -106,12 +87,8 @@ class TopTronicData:
     generated_entities: dict[str, list[tuple[str, ConfigType]]] = field(
         default_factory=dict
     )
-
-    # Validated build-wide "Refresh all" button config (built once, in
-    # FINAL_VALIDATE_SCHEMA, so its Component ID is recorded early enough to
-    # count into ESPHOME_COMPONENT_COUNT).
+    # Validated build-wide "Refresh all" button config, and whether a hub emitted it
     refresh_button: ConfigType | None = None
-    # True once the button has been emitted, so only the first hub generates it.
     refresh_button_generated: bool = False
 
 
@@ -137,18 +114,8 @@ def _shared_used_ids():
     return CORE.data[_PRESETS_KEY]
 
 
-def get_device_type(t: str) -> int:
-    if t not in _device_types:
-        raise ValueError(f'device type "{t}" not found')
-    return _device_types.get(t)
-
-
-def _validate_options_values_lengths(config):
-    """Validate that 'options' and 'values' lists have matching lengths (select/text_sensor).
-
-    Per instructions.md §7.3 these MUST match; a mismatch would otherwise surface as a
-    bare IndexError during code generation instead of a clean validation error.
-    """
+def _validate_options_values_lengths(config: ConfigType) -> ConfigType:
+    """Reject select/text_sensor configs whose 'options' and 'values' differ in length."""
     if len(config[CONF_OPTIONS]) != len(config[CONF_VALUES]):
         raise cv.Invalid(
             f"'options' length ({len(config[CONF_OPTIONS])}) must match "
@@ -167,54 +134,59 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 
 
 def config_schema_polling(update_interval: str = "30s"):
-    """Return CONFIG_SCHEMA_BASE extended with a configurable polling interval.
+    """Base schema plus a polling interval, for the read entities (sensor, text_sensor).
 
-    Read-only entities (sensor/text_sensor) poll the bus via their inherited
-    PollingComponent update() at this interval. Write-only entities (number,
-    select, button) use plain CONFIG_SCHEMA_BASE instead — they have no update
-    callback, so polling them every interval would only wake the scheduler for a
-    no-op. Without the polling schema, register_component() does not emit
-    set_update_interval(), leaving the PollingComponent default SCHEDULER_DONT_RUN.
+    Write entities use CONFIG_SCHEMA_BASE: they never poll.
     """
     return CONFIG_SCHEMA_BASE.extend(cv.polling_component_schema(update_interval))
 
 
+# Presets are optional: a device type without a preset directory can still be
+# used with hand-written entities.
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(TopTronicComponent),
         cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-        cv.Required("device_type"): cv.one_of(*DeviceType.__members__, upper=True),
-        cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
+        cv.Required(CONF_DEVICE_TYPE): cv.enum(DEVICE_TYPES, upper=True),
+        # Device types are 64 apart, so a larger address would alias the next type
+        cv.Required(CONF_DEVICE_ADDR): cv.int_range(min=0, max=63),
         cv.Optional(CONF_LANGUAGE, default="en"): cv.one_of(*LANGS, lower=True),
-        cv.Optional(
-            CONF_BOOT_REFRESH_DELAY, default="30s"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_MAX_PENDING_MESSAGES, default=32): cv.int_range(
-            min=1, max=512
-        ),
-        cv.Optional(
-            CONF_MAX_PENDING_AGE, default="5000ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_CLEANUP_INTERVAL, default="5000ms"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_MAX_REFRESH_PER_LOOP, default=8): cv.int_range(min=1, max=255),
+        # Each pending message is a fixed reassembly slot of max_frames_per_message * 7 bytes
+        cv.Optional(CONF_MAX_PENDING_MESSAGES, default=2): cv.int_range(min=1, max=16),
+        # The 5-bit frame count field allows at most 31 frames
         cv.Optional(CONF_MAX_FRAMES_PER_MESSAGE, default=8): cv.int_range(
             min=3, max=31
         ),
         cv.Optional(
+            CONF_MAX_PENDING_AGE, default="5000ms"
+        ): cv.positive_time_period_milliseconds,
+        # Minimum time between two writes to the same datapoint; 0 disables the limit
+        cv.Optional(
+            CONF_WRITE_MIN_INTERVAL, default="2s"
+        ): cv.positive_time_period_milliseconds,
+        # Refuse writes to a datapoint that has not answered a read since boot
+        cv.Optional(CONF_REJECT_WRITES_BEFORE_READ, default=True): cv.boolean,
+        # One-shot refresh of every hub after boot; 0s disables it
+        cv.Optional(
+            CONF_BOOT_REFRESH_DELAY, default="30s"
+        ): cv.positive_time_period_milliseconds,
+        # A refresh sends at most max_refresh_per_loop GETs per refresh_gap
+        cv.Optional(CONF_MAX_REFRESH_PER_LOOP, default=8): cv.int_range(min=1, max=255),
+        cv.Optional(
             CONF_REFRESH_GAP, default="50ms"
         ): cv.positive_time_period_milliseconds,
+        # How often an unanswered refresh GET is sent again, and after how long
         cv.Optional(CONF_MAX_REFRESH_RETRIES, default=1): cv.int_range(min=0, max=10),
         cv.Optional(
             CONF_REFRESH_RETRY_INTERVAL, default="200ms"
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(
-            CONF_WRITE_MIN_INTERVAL, default="2s"
-        ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_REJECT_WRITES_BEFORE_READ, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+# Reassembly storage is sized for the largest hub
+_request_slot = cg.slot_counter("TOPTRONIC_SLOTS")
+_request_frame = cg.slot_counter("TOPTRONIC_MAX_FRAMES")
+_request_hub = cg.slot_counter("TOPTRONIC_HUB_COUNT")
 
 
 def _final_validate(config: ConfigType) -> None:
@@ -328,16 +300,16 @@ def _register_preset_entities(config: ConfigType) -> None:
     same_type = [
         hub
         for hub in fv.full_config.get().get(DOMAIN) or []
-        if str(hub.get("device_type", "")).upper() == config["device_type"]
+        if str(hub.get(CONF_DEVICE_TYPE, "")).upper() == config[CONF_DEVICE_TYPE]
     ]
     prefix = (
-        f"{config['device_type']} {config[CONF_DEVICE_ADDR]}: "
+        f"{config[CONF_DEVICE_TYPE]} {config[CONF_DEVICE_ADDR]}: "
         if len(same_type) > 1
         else ""
     )
 
     for platform_name, entity_conf in _load_entities(
-        config["device_type"], config[CONF_LANGUAGE]
+        config[CONF_DEVICE_TYPE], config[CONF_LANGUAGE]
     ):
         if platform_name not in platforms:
             raise cv.Invalid(
@@ -346,7 +318,7 @@ def _register_preset_entities(config: ConfigType) -> None:
         if prefix and (name := entity_conf.get(CONF_NAME)) is not None:
             entity_conf[CONF_NAME] = f"{prefix}{name}"
         entity_conf.pop("platform", None)
-        entity_conf.pop("device_type", None)
+        entity_conf.pop(CONF_DEVICE_TYPE, None)
         entity_conf.pop(CONF_DEVICE_ADDR, None)
         hub_ref = config[CONF_ID].copy()
         hub_ref.is_declaration = False
@@ -375,19 +347,14 @@ async def _generate_entities(hub, config: ConfigType) -> None:
 
 
 def _register_refresh_button() -> None:
-    """Validate and register the build-wide 'Refresh all' button.
+    """Validate and register the build-wide "Refresh all" button.
 
-    Its Component ID must be recorded in CORE.component_ids during final
-    validation (same reason as the preset entities): ESPHOME_COMPONENT_COUNT is
-    emitted before any component to_code() runs, so a codegen-time
-    registration would be silently dropped from App::components_.
-
-    The validated config is stashed in CORE.data for to_code to generate.
+    Like the preset entities, its ID is resolved during final validation and
+    the validated config is stashed in CORE.data for to_code.
     """
     if (data := _get_data()).refresh_button is not None:
         return
-
-    cfg = button_platform.button_schema(TopTronicRefreshButton)(
+    cfg = button_platform.button_schema(button_platform.ApplyButton)(
         {
             CONF_NAME: "Refresh all",
             CONF_ICON: "mdi:refresh",
@@ -398,44 +365,39 @@ def _register_refresh_button() -> None:
     data.refresh_button = cfg
 
 
-async def _generate_refresh_button(hub_var) -> None:
-    """Emit the single build-wide 'Refresh all' button (once, on the first hub).
-
-    The on-press action is handled in C++ (TopTronicRefreshButton::press_action()
-    -> refresh_all()), so no lambda or hardcoded hub id is needed in YAML.
-    """
+async def _generate_refresh_button(hub) -> None:
+    """Emit the "Refresh all" button once, on the first hub; refresh_all() covers every hub."""
     data = _get_data()
     if (cfg := data.refresh_button) is None or data.refresh_button_generated:
         return
     data.refresh_button_generated = True
-    var = cg.new_Pvariable(cfg[CONF_ID])
-    cg.add(var.set_parent(hub_var))
-    await button_platform.register_button(var, cfg)
+    buttons = button_platform.sub_buttons({}, parent=hub)
+    await buttons.create(cfg, None, apply="refresh_all()")
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cbus = await cg.get_variable(config[CONF_CANBUS_ID])
-    var = cg.new_Pvariable(config[CONF_ID], cbus)
+    device_id = DEVICE_TYPES[config[CONF_DEVICE_TYPE]] | config[CONF_DEVICE_ADDR]
+    var = cg.new_Pvariable(config[CONF_ID], cbus, device_id)
     await cg.register_component(var, config)
-
-    # Pause CAN processing while an OTA update runs.
+    _request_hub()
+    # Pause bus traffic while an OTA update runs
     ota.request_ota_state_listeners()
-
-    device_type = get_device_type(config["device_type"])
-    cg.add(var.set_device_type(device_type))
-    cg.add(var.set_device_addr(config[CONF_DEVICE_ADDR]))
-    cg.add(var.set_boot_refresh_delay(config[CONF_BOOT_REFRESH_DELAY]))
-    cg.add(var.set_max_pending_messages(config[CONF_MAX_PENDING_MESSAGES]))
+    max_pending = config[CONF_MAX_PENDING_MESSAGES]
+    max_frames = config[CONF_MAX_FRAMES_PER_MESSAGE]
+    for _ in range(max_pending):
+        _request_slot(str(var))
+    for _ in range(max_frames):
+        _request_frame(str(var))
+    cg.add(var.set_max_pending_messages(max_pending))
+    cg.add(var.set_max_frames_per_message(max_frames))
     cg.add(var.set_max_pending_age_ms(config[CONF_MAX_PENDING_AGE]))
-    cg.add(var.set_cleanup_interval_ms(config[CONF_CLEANUP_INTERVAL]))
+    cg.add(var.set_write_min_interval_ms(config[CONF_WRITE_MIN_INTERVAL]))
+    cg.add(var.set_reject_writes_before_read(config[CONF_REJECT_WRITES_BEFORE_READ]))
+    cg.add(var.set_boot_refresh_delay_ms(config[CONF_BOOT_REFRESH_DELAY]))
     cg.add(var.set_max_refresh_per_loop(config[CONF_MAX_REFRESH_PER_LOOP]))
-    cg.add(var.set_max_frames_per_message(config[CONF_MAX_FRAMES_PER_MESSAGE]))
     cg.add(var.set_refresh_gap_ms(config[CONF_REFRESH_GAP]))
     cg.add(var.set_max_refresh_retries(config[CONF_MAX_REFRESH_RETRIES]))
     cg.add(var.set_refresh_retry_interval_ms(config[CONF_REFRESH_RETRY_INTERVAL]))
-    cg.add(var.set_write_min_interval(config[CONF_WRITE_MIN_INTERVAL]))
-    cg.add(var.set_reject_writes_before_read(config[CONF_REJECT_WRITES_BEFORE_READ]))
-
     await _generate_entities(var, config)
-
     await _generate_refresh_button(var)
