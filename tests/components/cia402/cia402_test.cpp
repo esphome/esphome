@@ -24,7 +24,7 @@ class ProbeDrive : public CiA402Drive {
 };
 
 class DriveTest : public ::testing::Test {
- protected:
+ public:
   MockCANbus bus;
   ProbeClient client{&bus};
   ProbeDrive drive{&client, 32};

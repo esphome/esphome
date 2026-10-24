@@ -81,7 +81,7 @@ bool CiA402Drive::fault_reset() {
   return true;
 }
 
-void CiA402Drive::append_profile_() {
+void CiA402Drive::append_profile() {
   this->write_(0x6081, this->profile_velocity_, 4);
   this->write_(0x6083, this->acceleration_, 4);
   this->write_(0x6084, this->deceleration_, 4);
@@ -93,7 +93,7 @@ void CiA402Drive::append_move_(int32_t position, bool relative) {
   this->read_(0x606C, 4, UINT32_MAX, 0);
   this->write_(0x6060, 1, 1);
   this->read_(0x6061, 1, 0xFF, 1, true);
-  this->append_profile_();
+  this->append_profile();
   this->write_(0x6040, 15, 2);
   this->read_(0x6041, 2, 0x1000, 0, true);
   if (relative)
@@ -165,7 +165,7 @@ void CiA402Drive::finish_(DriveResult result) {
   this->step_count_ = 0;
   this->step_index_ = 0;
   this->resetting_ = false;
-  if (this->sequence_finished_(result))
+  if (this->sequence_finished(result))
     this->result_callback_.call(result);
 }
 
@@ -245,7 +245,7 @@ void CiA402Drive::on_result(void *context, canopen::SDOResult result, uint32_t v
   static_cast<CiA402Drive *>(context)->process_result_(result, value, size);
 }
 
-void CiA402Drive::received_value_(uint16_t index, uint32_t value) {
+void CiA402Drive::received_value(uint16_t index, uint32_t value) {
   switch (index) {
     case 0x6041:
       this->statusword_ = value;
@@ -274,9 +274,10 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
     this->stopping_ = false;
     if (!success)
       this->status_set_warning();
-    if (this->notify_stop_)
+    if (this->notify_stop_) {
       this->result_callback_.call(success ? DriveResult::DRIVE_RESULT_SUCCESS
                                           : DriveResult::DRIVE_RESULT_COMMUNICATION_ERROR);
+    }
     return;
   }
   if (this->stopping_ || (sequence && !this->running_))
@@ -289,7 +290,7 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
     return;
   }
   if (step.kind != StepKind::STEP_KIND_WRITE)
-    this->received_value_(step.index, value);
+    this->received_value(step.index, value);
   if (!sequence || !this->running_ || this->stopping_)
     return;
   if (!this->resetting_ && step.index == 0x6041 && ((value & 8) || (this->mode_ == 6 && (value & 0x2000)))) {

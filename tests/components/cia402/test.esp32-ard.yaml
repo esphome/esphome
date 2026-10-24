@@ -2,6 +2,7 @@ canbus:
   - platform: esp32_can
     rx_pin: GPIO4
     tx_pin: GPIO5
+    id: cia402_test_bus
     can_id: 127
     bit_rate: 125kbps
 

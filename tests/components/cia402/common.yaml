@@ -1,7 +1,10 @@
 canopen:
-  id: canopen_hub
+  - canbus_id: cia402_test_bus
+    id: cia402_test_hub
+
 cia402:
-  id: drive
+  canopen_id: cia402_test_hub
+  id: cia402_test_drive
   node_id: 32
   profile_velocity: 1000
   acceleration: 2000
@@ -12,20 +15,20 @@ button:
   - platform: template
     name: Enable
     on_press:
-      - cia402.enable: drive
+      - cia402.enable: cia402_test_drive
   - platform: template
     name: Stop
     on_press:
-      - cia402.quick_stop: drive
+      - cia402.quick_stop: cia402_test_drive
   - platform: template
     name: Move
     on_press:
       - cia402.move_to:
-          id: drive
+          id: cia402_test_drive
           position: -100
   - platform: template
     name: Home
     on_press:
       - cia402.home:
-          id: drive
+          id: cia402_test_drive
           method: 35

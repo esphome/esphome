@@ -24,6 +24,7 @@ CODEOWNERS = ["@kj4dxk"]
 DEPENDENCIES = ["canopen"]
 DOMAIN = "cia402"
 MULTI_CONF = True
+MULTI_CONF_NO_DEFAULT = True
 
 CONF_OPERATION_TIMEOUT = "operation_timeout"
 CONF_HEARTBEAT_TIMEOUT = "heartbeat_timeout"

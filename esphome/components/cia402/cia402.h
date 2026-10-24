@@ -71,9 +71,9 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   void append_(const Step &step);
   void append_move_(int32_t position, bool relative);
   void append_home_(int8_t method, int32_t offset);
-  virtual void append_profile_();
-  virtual bool sequence_finished_(DriveResult result) { return true; }
-  virtual void received_value_(uint16_t index, uint32_t value);
+  virtual void append_profile();
+  virtual bool sequence_finished(DriveResult result) { return true; }
+  virtual void received_value(uint16_t index, uint32_t value);
   bool request_stop_(uint16_t controlword);
   void finish_(DriveResult result);
   void fail_(DriveResult result);
