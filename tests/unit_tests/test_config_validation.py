@@ -70,9 +70,11 @@ from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.util import Registry
 from esphome.yaml_util import (
     ESPHomeDataBase,
+    Sensitive,
     SensitiveHexInt,
     SensitiveInt,
     SensitiveStr,
+    dump,
     load_yaml,
     make_data_base,
     parse_yaml,
@@ -202,6 +204,17 @@ def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
     assert isinstance(result, SensitiveStr)
     assert isinstance(result, str)
     assert result == "hunter2"
+
+
+def test_sensitive__marks_a_lambda_without_changing_its_value() -> None:
+    """A lambda credential is marked so store_yaml can find it; dumps still see a lambda."""
+    result = cv.sensitive(cv.templatable(cv.string))(Lambda("return id(pw).state;"))
+
+    assert isinstance(result, Lambda)
+    assert isinstance(result, Sensitive)
+    assert (
+        dump({"password": result}) == "password: !lambda |-\n  return id(pw).state;\n"
+    )
 
 
 @pytest.mark.parametrize(
