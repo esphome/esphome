@@ -122,6 +122,17 @@ binary_sensor:
             hidden: false
         - lvgl.page.update:
             id: page1
+        - lvgl.tabview.update:
+            id: tabview_id
+            hidden: false
+        - lvgl.tileview.update:
+            id: tileview_id
+            hidden: false
+        - lvgl.menu.update:
+            id: settings_menu
+            hidden: false
+        - lvgl.canvas.update:
+            id: canvas_id
             hidden: false
         - if:
             condition:
