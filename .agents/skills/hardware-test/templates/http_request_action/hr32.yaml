@@ -1,0 +1,6 @@
+substitutions: {name: hr32pr, bufsize: "32768"}
+esp32:
+  board: esp32dev
+  framework: {type: esp-idf}
+logger:
+packages: {hr: !include hr-common.yaml}

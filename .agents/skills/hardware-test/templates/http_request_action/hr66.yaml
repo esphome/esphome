@@ -1,0 +1,7 @@
+substitutions: {name: hr66pr, bufsize: "8192"}
+esp8266:
+  board: d1_mini
+logger:
+packages: {hr: !include hr-common.yaml}
+http_request:
+  verify_ssl: false

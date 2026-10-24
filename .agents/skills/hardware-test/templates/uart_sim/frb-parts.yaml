@@ -1,0 +1,113 @@
+esphome:
+  on_boot:
+    priority: 200
+    then:
+      - lambda: |-
+          sim::loopback(id(u_s));
+          sim::loopback(id(u_f));
+
+globals:
+  - id: f_stream
+    type: bool
+    initial_value: "true"
+
+uart:
+  - id: u_s
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    baud_rate: 9600
+  - id: u_f
+    tx_pin: GPIO32
+    rx_pin: GPIO33
+    baud_rate: 2400
+    parity: EVEN
+
+sensor:
+  - platform: sm300d2
+    id: sm
+    uart_id: u_s
+    update_interval: never
+    co2:
+      name: SM CO2
+    temperature:
+      name: SM Temperature
+  - platform: ufm01
+    temperature:
+      name: UFM Temperature
+    accumulated_flow:
+      name: UFM Accumulated Flow
+
+ufm01:
+  id: ufm
+  uart_id: u_f
+
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: return id(f_stream);
+          then:
+            - lambda: id(u_f).write_array(sim::ufm01(0x21, 0x50).data(), 32);
+
+script:
+  - id: sm_update
+    then:
+      - delay: 100ms
+      - lambda: |-
+          uint32_t t0 = micros();
+          id(sm).update();
+          ESP_LOGI("sim", "sm300d2 update() took %u us", (unsigned) (micros() - t0));
+
+button:
+  - platform: template
+    name: S Good
+    on_press:
+      - lambda: sim::send(id(u_s), "S Good co2 600 23.4", sim::sm300d2(600, 23, 4));
+      - script.execute: sm_update
+  - platform: template
+    name: S Empty Update
+    on_press:
+      - script.execute: sm_update
+  - platform: template
+    name: S Wrong Second Header
+    on_press:
+      - lambda: sim::send(id(u_s), "S 3C 05 then co2 700", sim::cat({0x3C, 0x05}, sim::sm300d2(700, 24, 0)));
+      - script.execute: sm_update
+  - platform: template
+    name: S Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_s), "S garbage then co2 800", sim::cat({0x01, 0x3C, 0x99}, sim::sm300d2(800, 25, 0)));
+      - script.execute: sm_update
+  - platform: template
+    name: S Cut Frame
+    on_press:
+      - lambda: sim::send(id(u_s), "S first 10 bytes of co2 900", sim::part(sim::sm300d2(900, 26, 0), 0, 10));
+      - script.execute: sm_update
+  - platform: template
+    name: S Two Frames
+    on_press:
+      - lambda: sim::send(id(u_s), "S co2 1001 then 1002", sim::cat(sim::sm300d2(1001, 27, 0), sim::sm300d2(1002, 28, 0)));
+      - script.execute: sm_update
+      - delay: 1s
+      - script.execute: sm_update
+  - platform: template
+    name: S Bad Checksum
+    on_press:
+      - lambda: |-
+          auto f = sim::sm300d2(1100, 29, 0);
+          f[16] += 0x11;
+          sim::send(id(u_s), "S bad checksum co2 1100", f);
+      - script.execute: sm_update
+  - platform: template
+    name: F Cut Then Frame
+    on_press:
+      - lambda: sim::send(id(u_f), "F 3C 32 00 00 then 33.33", sim::cat({0x3C, 0x32, 0x00, 0x00}, sim::ufm01(0x33, 0x33)));
+  - platform: template
+    name: F Bad Checksum Then Frame
+    on_press:
+      - lambda: sim::send(id(u_f), "F bad checksum 66.66 then 44.44", sim::cat(sim::ufm01(0x66, 0x66, true), sim::ufm01(0x44, 0x44)));
+  - platform: template
+    name: F Garbage Then Frame
+    on_press:
+      - lambda: sim::send(id(u_f), "F garbage then 55.55", sim::cat({0x16, 0x3C, 0x00}, sim::ufm01(0x55, 0x55)));

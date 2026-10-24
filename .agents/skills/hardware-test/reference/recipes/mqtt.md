@@ -51,3 +51,15 @@ context rejects a CA that lacks a `keyUsage` extension (`CA cert does not includ
 on the device accepts it, which is why the test CA carries `basicConstraints` and `keyUsage`. A broker kill shows as one
 `Last esp-tls error: 0x8008` on every build, TLS or not. Results:
 https://github.com/esphome/esphome/pull/14318#issuecomment-6311863827
+
+## MAC suffix topics (#9315)
+
+`scripts/mqtt/mac_suffix/run.sh X BUILD` flashes variant X (a defaults, b custom `topic_prefix`, c explicit topics,
+d no suffix) of BUILD (`pr` or `base`) on an ESP32 and a D1 mini, records the broker with
+`mosquitto_sub -F '@H:@M:@S r=%r %t %p'`, presses Restart through the `cmd_t` found in the discovery payloads, then
+holds both chips in the bootloader for 40 s (`esptool --after no-reset chip-id`) so the broker sends the will; a
+plain reset only gives "session taken over" and no will. The two boards' configs live in separate folders because
+variants a to c share a `name` (the MAC suffix tells them apart), and the same name in one folder shares a build
+directory. A D1 mini CH340 can garble the serial capture after an RTS reset, so read its topics from the broker.
+`esphome logs --device MQTT` on a current tree needs paho-mqtt 2.x; an older venv with 1.6.1 fails, so use a venv
+made from the tree's requirements.txt. A Restart press never delivered the shutdown message on any build tested.

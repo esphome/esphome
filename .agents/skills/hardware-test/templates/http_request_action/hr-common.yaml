@@ -1,0 +1,159 @@
+# Package for the http_request action test (esphome#21486). Needs substitutions: name, bufsize.
+esphome:
+  name: ${name}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+  actions:
+    - action: req_get
+      variables:
+        url: string
+      then:
+        - lambda: 'id(max_gap) = 0; id(t_start) = millis(); id(tag)++; ESP_LOGI("hrt", "START %d %s %s", id(tag), "GET", url.c_str());'
+        - http_request.get:
+            url: !lambda return url;
+            capture_response: true
+            max_response_buffer_size: ${bufsize}
+            on_response:
+              then:
+                - lambda: |-
+                    uint32_t sum = 0;
+                    for (char c : body) sum += (uint8_t) c;
+                    ESP_LOGI("hrt", "RESULT %d status=%d len=%u sum=%u took=%u maxgap=%u head=%.20s", id(tag),
+                             response->status_code, (unsigned) body.size(), (unsigned) sum,
+                             (unsigned) (millis() - id(t_start)), (unsigned) std::max<uint32_t>(id(max_gap), millis() - id(last_tick)), body.c_str());
+            on_error:
+              then:
+                - lambda: 'ESP_LOGI("hrt", "RESULT %d error took=%u maxgap=%u", id(tag), (unsigned) (millis() - id(t_start)), (unsigned) std::max<uint32_t>(id(max_gap), millis() - id(last_tick)));'
+        - lambda: 'ESP_LOGI("hrt", "CHAIN %d after send", id(tag));'
+    - action: req_post
+      variables:
+        url: string
+        payload: string
+      then:
+        - lambda: 'id(max_gap) = 0; id(t_start) = millis(); id(tag)++; ESP_LOGI("hrt", "START %d %s %s", id(tag), "POST", url.c_str());'
+        - http_request.post:
+            url: !lambda return url;
+            body: !lambda return payload;
+            capture_response: true
+            max_response_buffer_size: ${bufsize}
+            on_response:
+              then:
+                - lambda: |-
+                    uint32_t sum = 0;
+                    for (char c : body) sum += (uint8_t) c;
+                    ESP_LOGI("hrt", "RESULT %d status=%d len=%u sum=%u took=%u maxgap=%u head=%.20s", id(tag),
+                             response->status_code, (unsigned) body.size(), (unsigned) sum,
+                             (unsigned) (millis() - id(t_start)), (unsigned) std::max<uint32_t>(id(max_gap), millis() - id(last_tick)), body.c_str());
+            on_error:
+              then:
+                - lambda: 'ESP_LOGI("hrt", "RESULT %d error took=%u maxgap=%u", id(tag), (unsigned) (millis() - id(t_start)), (unsigned) std::max<uint32_t>(id(max_gap), millis() - id(last_tick)));'
+        - lambda: 'ESP_LOGI("hrt", "CHAIN %d after send", id(tag));'
+    - action: burst
+      variables:
+        url: string
+        count: int
+      then:
+        - lambda: 'id(max_gap) = 0; id(t_start) = millis(); ESP_LOGI("hrt", "BURST %d", count);'
+        - repeat:
+            count: !lambda return count;
+            then:
+              - script.execute:
+                  id: burst_script
+                  url: !lambda return url;
+    - action: cancel
+      variables:
+        url: string
+      then:
+        - lambda: 'id(max_gap) = 0; id(t_start) = millis(); ESP_LOGI("hrt", "CANCEL start");'
+        - script.execute:
+            id: single_script
+            url: !lambda return url;
+        - delay: 300ms
+        - script.execute:
+            id: single_script
+            url: !lambda return url;
+        - delay: 300ms
+        - script.stop: single_script
+        - lambda: 'ESP_LOGI("hrt", "CANCEL stopped running=%d", id(single_script).is_running());'
+        - delay: 4s
+        - lambda: 'ESP_LOGI("hrt", "CANCEL done maxgap=%u", (unsigned) std::max<uint32_t>(id(max_gap), millis() - id(last_tick)));'
+
+    - action: reboot_during
+      variables:
+        url: string
+      then:
+        - lambda: 'ESP_LOGI("hrt", "REBOOT_DURING start");'
+        - script.execute:
+            id: single_script
+            url: !lambda return url;
+        - script.execute:
+            id: burst_script
+            url: !lambda return url;
+        - delay: 500ms
+        - lambda: 'ESP_LOGI("hrt", "REBOOT_DURING rebooting"); App.safe_reboot();'
+
+script:
+  - id: burst_script
+    mode: parallel
+    max_runs: 10
+    parameters:
+      url: string
+    then:
+      - http_request.get:
+          url: !lambda return url;
+          capture_response: true
+          max_response_buffer_size: 256
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("hrt", "BURSTRESP status=%d len=%u took=%u maxgap=%u", response->status_code, (unsigned) body.size(), (unsigned) (millis() - id(t_start)), (unsigned) std::max<uint32_t>(id(max_gap), millis() - id(last_tick)));'
+          on_error:
+            then:
+              - lambda: 'ESP_LOGI("hrt", "BURSTERR took=%u", (unsigned) (millis() - id(t_start)));'
+  - id: single_script
+    parameters:
+      url: string
+    then:
+      - lambda: 'ESP_LOGI("hrt", "SINGLE begin");'
+      - http_request.get:
+          url: !lambda return url;
+          capture_response: true
+          max_response_buffer_size: 256
+          on_response:
+            then:
+              - lambda: 'ESP_LOGI("hrt", "SINGLERESP status=%d took=%u", response->status_code, (unsigned) (millis() - id(t_start)));'
+      - lambda: 'ESP_LOGI("hrt", "SINGLE end");'
+
+http_request:
+  timeout: 8s
+
+globals:
+  - id: max_gap
+    type: uint32_t
+    initial_value: "0"
+  - id: last_tick
+    type: uint32_t
+    initial_value: "0"
+  - id: t_start
+    type: uint32_t
+    initial_value: "0"
+  - id: tag
+    type: int
+    initial_value: "0"
+
+interval:
+  - interval: 1ms
+    then:
+      - lambda: |-
+          const uint32_t now = millis();
+          if (id(last_tick) != 0 && now - id(last_tick) > id(max_gap))
+            id(max_gap) = now - id(last_tick);
+          id(last_tick) = now;
+
+ota:
+  - platform: esphome

@@ -108,6 +108,33 @@ async def respond(path: str, req: bytes, w: asyncio.StreamWriter) -> str:
     if name == "huge":  # claims 20 MB so the JPEG buffer resize fails
         w.write(headers(ctype, [b"Content-Length: 20000000"]) + body)
         return f"claims 20000000, sent {len(body)} bytes"
+    if name.startswith("half_"):  # the first half of a file, Content-Length matching
+        data = (WWW / (name[5:] + "." + ext)).read_bytes()
+        cut = data[: len(data) // 2]
+        w.write(headers(ctype, [b"Content-Length: %d" % len(cut)]) + cut)
+        return f"half {len(cut)} of {len(data)} bytes"
+    if name.startswith("noclen_"):  # a file without Content-Length, delimited by close
+        data = (WWW / (name[7:] + "." + ext)).read_bytes()
+        w.write(headers(ctype, []) + data)
+        return f"no content-length, full {len(data)} bytes"
+    if name.startswith("chunked_"):  # a file in 1 KB chunks
+        data = (WWW / (name[8:] + "." + ext)).read_bytes()
+        w.write(headers(ctype, [b"Transfer-Encoding: chunked"]) + chunked(data, 1024))
+        return f"chunked full {len(data)} bytes"
+    if name.startswith(
+        "stall_"
+    ):  # claims the full length, sends a third, holds the socket
+        data = (WWW / (name[6:] + "." + ext)).read_bytes()
+        part = data[: len(data) // 3]
+        w.write(headers(ctype, [b"Content-Length: %d" % len(data)]) + part)
+        await w.drain()
+        await asyncio.sleep(40)
+        return f"stalled after {len(part)} of {len(data)} bytes"
+    file = WWW / path.lstrip("/")
+    if file.is_file():
+        data = file.read_bytes()
+        w.write(headers(ctype, [b"Content-Length: %d" % len(data), *tag]) + data)
+        return f"file {file.name} {len(data)} bytes"
     w.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
     return "404"
 

@@ -16,3 +16,21 @@ update state (latest version, summary). The ESP8266 Arduino client gets `Error r
 quarter of the fetches from this Python server on every build, so count checks against the base before blaming a
 PR. `http_request` on the ESP8266 needs `verify_ssl: false` even for plain http URLs.
 Results: https://github.com/esphome/esphome/pull/21373#issuecomment-6337544933
+
+## Non-blocking request actions (#21486)
+
+`scripts/http_request/hsrv.py PORT` serves `/fast`, `/slow?d=S`, `/big` and `/chunked` (`n` bytes at `rate` B/s,
+deterministic bytes `(i*7+3)&0xFF`), `/post` (echoes length and byte sum), `/redirect` and `/hang`.
+`templates/http_request_action/hr-common.yaml` (substitutions `name`, `bufsize`; per-board files `hr32.yaml` and
+`hr66.yaml`) has API actions `req_get`, `req_post`, `burst` (N runs of a `mode: parallel` script on one action),
+`cancel` (`mode: single` script run twice, then `script.stop`) and `reboot_during`, and logs
+`RESULT n status len sum took maxgap`, where maxgap is the longest main loop gap during the request (an
+`interval: 1ms` lambda plus the time since its last pass, so a fully blocking request counts too). Drive with
+`scripts/http_request/hrdrive.py IP http://HOST:PORT LABEL [https]` (`ONLY=case,case` and `ROUNDS=n` env; the
+`cross` case runs two actions on one component). `burstonly.py IP URL N` checks concurrency against the server's
+completion times, `reboottest.py IP URL` times `App.safe_reboot()` with requests in flight, `updcheck.py IP LABEL N`
+runs N update checks over the API (for real device configs that use `update: platform: http_request`) and
+`otadrive.py` triggers `ota.http_request.flash` (the API variable is `sum`; `md5` is a reserved variable name).
+`execute_service` must be awaited on current aioesphomeapi or nothing is sent. Keep the ESP32 `bufsize` at 32 KB or
+less: the action copies the body into a `std::string` while the buffer is still held, and 80 KB aborts with out of
+memory on dev and on the PR alike. `http_request` refuses BK72xx and RTL87xx at validation.
