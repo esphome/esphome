@@ -26,8 +26,6 @@ class M5Stack8AngleLightOutput final : public light::AddressableLight, public Pa
   void clear_effect_data() override { memset(this->effect_data_, 0x00, M5STACK_8ANGLE_NUM_LEDS); };
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override;
-
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
 };

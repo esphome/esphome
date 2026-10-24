@@ -5,15 +5,13 @@
 
 namespace esphome::light {
 
-int32_t interpret_index(int32_t index, int32_t size);
-
 class AddressableLight;
 class ESPRangeIterator;
 
 /**
  * A half-open range of LEDs, inclusive of the begin index and exclusive of the end index, using zero-based numbering.
  */
-class ESPRangeView : public ESPColorSettable {
+class ESPRangeView final : public ESPColorSettable {
  public:
   ESPRangeView(AddressableLight *parent, int32_t begin, int32_t end)
       : parent_(parent), begin_(begin), end_(end < begin ? begin : end) {}
@@ -24,8 +22,7 @@ class ESPRangeView : public ESPColorSettable {
   ESPRangeIterator begin();
   ESPRangeIterator end();
 
-  void set(const Color &color) override;
-  void set(const ESPHSVColor &color) { this->set(color.to_rgb()); }
+  void set(Color color) override;
   void set_red(uint8_t red) override;
   void set_green(uint8_t green) override;
   void set_blue(uint8_t blue) override;
@@ -37,22 +34,24 @@ class ESPRangeView : public ESPColorSettable {
   void lighten(uint8_t delta) override;
   void darken(uint8_t delta) override;
 
-  ESPRangeView &operator=(const Color &rhs) {
-    this->set(rhs);
+  inline ESPRangeView &operator=(Color color) {
+    this->set(color);
     return *this;
   }
-  ESPRangeView &operator=(const ESPColorView &rhs) {
-    this->set(rhs.get());
+  inline ESPRangeView &operator=(ESPHSVColor hsv_color) {
+    this->set_hsv(hsv_color);
     return *this;
   }
-  ESPRangeView &operator=(const ESPHSVColor &rhs) {
-    this->set_hsv(rhs);
+  inline ESPRangeView &operator=(const ESPColorView &color_view) {
+    this->set(color_view.get());
     return *this;
   }
   ESPRangeView &operator=(const ESPRangeView &rhs);
 
  protected:
   friend ESPRangeIterator;
+
+  inline int32_t interpret_index_(int32_t index) const { return index < 0 ? this->size() + index : index; }
 
   AddressableLight *parent_;
   int32_t begin_;

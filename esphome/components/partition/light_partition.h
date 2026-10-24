@@ -33,12 +33,14 @@ class AddressableSegment {
 
 class PartitionLightOutput final : public light::AddressableLight {
  public:
-  explicit PartitionLightOutput(std::vector<AddressableSegment> segments) : segments_(std::move(segments)) {
+  explicit PartitionLightOutput(std::vector<AddressableSegment> segments)
+      : segments_(std::move(segments)), internal_accessor_(this) {
     int32_t off = 0;
     for (auto &seg : this->segments_) {
       seg.set_dst_offset(off);
       off += seg.get_size();
     }
+    this->accessor_ = &internal_accessor_;
   }
   int32_t size() const override {
     auto &last_seg = this->segments_[this->segments_.size() - 1];
@@ -58,44 +60,75 @@ class PartitionLightOutput final : public light::AddressableLight {
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    uint32_t lo = 0;
-    uint32_t hi = this->segments_.size() - 1;
-    while (lo < hi) {
-      uint32_t mid = (lo + hi) / 2;
-      int32_t begin = this->segments_[mid].get_dst_offset();
-      int32_t end = begin + this->segments_[mid].get_size();
-      if (index < begin) {
-        hi = mid - 1;
-      } else if (index >= end) {
-        lo = mid + 1;
-      } else {
-        lo = hi = mid;
-      }
-    }
-    auto &seg = this->segments_[lo];
-    // offset within the segment
-    int32_t seg_off = index - seg.get_dst_offset();
-    // offset within the src
-    int32_t src_off;
-    if (seg.is_reversed()) {
-      src_off = seg.get_src_offset() + seg.get_size() - seg_off - 1;
-    } else {
-      src_off = seg.get_src_offset() + seg_off;
-    }
+  class PartitionColorAccessor final : public light::ESPColorAccessor {
+   public:
+    PartitionColorAccessor(const PartitionLightOutput *parent) : parent_(parent) {}
 
-    auto view = (*seg.get_src())[src_off];
-#ifdef USE_LIGHT_POWER_ESTIMATION
-    // Writes go through the strip's power factor; a partition has no limit of its own. A view kept alive
-    // across two strips with different limits carries the factor of the strip fetched last.
-    const_cast<light::ESPColorCorrection &>(this->correction_)
-        .set_power_brightness(view.get_color_correction()->get_power_brightness());
+    Color get(int32_t index) const override {
+      return this->get_color_correction_()->color_uncorrect(this->get_raw(index));
+    }
+    Color get_raw(int32_t index) const override { return this->get_color_view_(index).get_raw(); }
+    uint8_t get_red(int32_t index) const override {
+      return this->get_color_correction_()->color_uncorrect_red(this->get_raw(index).red);
+    }
+    uint8_t get_green(int32_t index) const override {
+      return this->get_color_correction_()->color_uncorrect_green(this->get_raw(index).green);
+    }
+    uint8_t get_blue(int32_t index) const override {
+      return this->get_color_correction_()->color_uncorrect_blue(this->get_raw(index).blue);
+    }
+    uint8_t get_white(int32_t index) const override {
+      return this->get_color_correction_()->color_uncorrect_white(this->get_raw(index).white);
+    }
+    uint8_t get_effect_data(int32_t index) const override { return this->get_color_view_(index).get_effect_data(); }
+
+    void set(int32_t index, Color color) override {
+      this->set_raw(index, this->get_color_correction_()->color_correct(color));
+    }
+    void set_raw(int32_t index, Color raw_color) override { this->get_color_view_(index).set_raw(raw_color); }
+    void set_red(int32_t index, uint8_t red) override {
+      light::ESPColorView view = this->get_color_view_(index);
+      Color raw_color = view.get_raw();
+      raw_color.red = this->get_color_correction_()->color_correct_red(red);
+      view.set_raw(raw_color);
+    }
+    void set_green(int32_t index, uint8_t green) override {
+      light::ESPColorView view = this->get_color_view_(index);
+      Color raw_color = view.get_raw();
+      raw_color.green = this->get_color_correction_()->color_correct_green(green);
+      view.set_raw(raw_color);
+    }
+    void set_blue(int32_t index, uint8_t blue) override {
+      light::ESPColorView view = this->get_color_view_(index);
+      Color raw_color = view.get_raw();
+      raw_color.blue = this->get_color_correction_()->color_correct_blue(blue);
+      view.set_raw(raw_color);
+    }
+    void set_white(int32_t index, uint8_t white) override {
+      light::ESPColorView view = this->get_color_view_(index);
+      Color raw_color = view.get_raw();
+      raw_color.white = this->get_color_correction_()->color_correct_white(white);
+      view.set_raw(raw_color);
+    }
+    void set_effect_data(int32_t index, uint8_t value) override { this->get_color_view_(index).set_effect_data(value); }
+
+#if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
+    const light::ESPColorCorrection *get_color_correction_internal() const override {  // NOLINT
+      return this->get_color_correction_();
+    }
 #endif
-    view.raw_set_color_correction(&this->correction_);
-    return view;
-  }
+
+   protected:
+    inline const light::ESPColorCorrection *get_color_correction_() const { return &this->parent_->correction_; }
+    inline light::ESPColorView get_color_view_(int32_t index) const { return this->parent_->get_color_view_(index); }
+
+    const PartitionLightOutput *const parent_;
+  };
+
+  light::ESPColorView get_color_view_(int32_t index) const;
 
   std::vector<AddressableSegment> segments_;
+  PartitionColorAccessor internal_accessor_;
 };
 
 }  // namespace esphome::partition

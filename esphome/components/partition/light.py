@@ -100,6 +100,8 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_LIGHT_PARTITION")
+
     segments = []
     for conf in config[CONF_SEGMENTS]:
         if CONF_SINGLE_LIGHT_ID in conf:

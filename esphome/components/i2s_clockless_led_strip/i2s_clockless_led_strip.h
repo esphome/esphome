@@ -44,9 +44,6 @@ class I2SClocklessLedStrip final : public light::AddressableLight {
   uint8_t *effect_data_() const {
     return this->color_data_ == nullptr ? nullptr : this->color_data_ + this->color_data_bytes_;
   }
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    return this->channel_colors_.view(this->color_data_, this->effect_data_(), index, &this->correction_);
-  }
 
   const size_t color_data_bytes_;
   uint8_t *color_data_{nullptr};

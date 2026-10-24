@@ -15,7 +15,13 @@ namespace esphome::mock_addressable_light {
 class MockAddressableLight : public light::AddressableLight {
  public:
   explicit MockAddressableLight(uint16_t num_leds)
-      : num_leds_(num_leds), buf_(new uint8_t[num_leds * 4]()), effect_data_(new uint8_t[num_leds]()) {}
+      : num_leds_(num_leds),
+        buf_(new uint8_t[num_leds * 4]()),
+        effect_data_(new uint8_t[num_leds]()),
+        internal_accessor_(this->buf_.get(), this->effect_data_.get(),
+                           light::ChannelColors{.r = 0, .g = 1, .b = 2, .w = 3}, &this->correction_) {
+    this->accessor_ = &internal_accessor_;
+  }
 
   void setup() override {}
   void write_state(light::LightState *state) override {}
@@ -38,15 +44,10 @@ class MockAddressableLight : public light::AddressableLight {
   uint8_t get_raw_white(uint16_t index) const { return this->buf_[index * 4 + 3]; }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    size_t pos = index * 4;
-    return {this->buf_.get() + pos + 0, this->buf_.get() + pos + 1,       this->buf_.get() + pos + 2,
-            this->buf_.get() + pos + 3, this->effect_data_.get() + index, &this->correction_};
-  }
-
   uint16_t num_leds_;
   std::unique_ptr<uint8_t[]> buf_;
   std::unique_ptr<uint8_t[]> effect_data_;
+  light::CorrectedBufferColorAccessor internal_accessor_;
 };
 
 }  // namespace esphome::mock_addressable_light

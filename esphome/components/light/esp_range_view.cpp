@@ -3,18 +3,11 @@
 
 namespace esphome::light {
 
-int32_t HOT interpret_index(int32_t index, int32_t size) {
-  if (index < 0)
-    return size + index;
-  return index;
-}
-
 ESPColorView ESPRangeView::operator[](int32_t index) const {
-  index = interpret_index(index, this->size()) + this->begin_;
-  return (*this->parent_)[index];
+  return (*this->parent_)[this->interpret_index_(index) + this->begin_];
 }
 
-void ESPRangeView::set(const Color &color) {
+void ESPRangeView::set(Color color) {
   for (int32_t i = this->begin_; i < this->end_; i++) {
     (*this->parent_)[i] = color;
   }
