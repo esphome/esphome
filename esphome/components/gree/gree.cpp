@@ -3,13 +3,15 @@
 
 namespace esphome::gree {
 
-#ifdef ESPHOME_LOG_TAG
-ESPHOME_LOG_TAG(TAG, "gree.climate");
-#elif defined(USE_ESP8266)
-static const char TAG[] PROGMEM = "gree.climate";
+// ESPHome 2026.10.0-dev predates ESPHOME_LOG_TAG; keep the same flash-backed layout.
+#ifndef ESPHOME_LOG_TAG
+#ifdef USE_ESP8266
+#define ESPHOME_LOG_TAG(name, tag) static const char name[] PROGMEM = tag
 #else
-static constexpr const char *const TAG = "gree.climate";
+#define ESPHOME_LOG_TAG(name, tag) static constexpr const char *const name = tag
 #endif
+#endif
+ESPHOME_LOG_TAG(TAG, "gree.climate");
 
 static constexpr uint8_t GREE_MODE_MASK = 0x07;
 static constexpr uint8_t GREE_POWER_MASK = 0x08;
