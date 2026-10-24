@@ -59,6 +59,8 @@ async def rebooted(c: APIClient, reboot: int) -> bool:
     while time.monotonic() < end:
         try:
             await asyncio.wait_for(c.device_info(), 1.0)
+        except TimeoutError:
+            continue  # a slow reply is not a reboot; only a closed connection counts
         except Exception:  # noqa: BLE001
             return True
         await asyncio.sleep(0.2)

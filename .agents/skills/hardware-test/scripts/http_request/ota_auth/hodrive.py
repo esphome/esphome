@@ -82,9 +82,14 @@ async def flash_ok(c, s, name, args):
         and c._connection.is_connected
     ):  # noqa: SLF001
         await asyncio.sleep(0.5)
-    ok = any(
+    # a good flash needs both the device's own success line and the connection dropping for the reboot
+    dropped = c._connection is None or not c._connection.is_connected  # noqa: SLF001
+    logged = any(
         re.search(r"(?i)update complete|rebooting|successful", x) for x in lines[start:]
     )
+    if not dropped:
+        out(f"{name}: the device never dropped the connection within 120 s")
+    ok = logged and dropped
     await c.disconnect()
     await asyncio.sleep(5)
     c, s = await connect()

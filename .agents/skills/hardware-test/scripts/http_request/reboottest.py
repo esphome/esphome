@@ -35,6 +35,8 @@ async def main():
         try:
             await asyncio.wait_for(c.device_info(), 1.0)
             await asyncio.sleep(0.2)
+        except TimeoutError:
+            continue  # a slow reply is not a reboot; only a closed connection counts
         except Exception:  # noqa: BLE001
             dropped = True
             print(f"{time.monotonic() - t0:7.2f} API connection gone", flush=True)

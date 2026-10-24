@@ -34,7 +34,10 @@ ROUNDS = int(os.environ.get("ROUNDS", "2"))
 EXTRAS = not ONLY
 
 
-async def main():
+timeouts: list[str] = []
+
+
+async def main() -> int:
     c = aioesphomeapi.APIClient(IP, 6053, None)
     await c.connect(login=True)
     _, services = await c.list_entities_services()
@@ -63,6 +66,7 @@ async def main():
         while not done():
             if time.monotonic() >= end:
                 print(f"{LABEL} {what} TIMEOUT", flush=True)
+                timeouts.append(what)
                 return
             await asyncio.sleep(0.2)
 
@@ -116,6 +120,9 @@ async def main():
         )
         await asyncio.sleep(2)
     await c.disconnect()
+    if timeouts:
+        print(f"{LABEL} TIMEOUTS: {', '.join(timeouts)}", flush=True)
+    return 1 if timeouts else 0
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))

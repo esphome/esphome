@@ -8,9 +8,12 @@ SC=${SC:?set SC}; HOST=${HOST_IP:?set HOST_IP}
 if [ "$B" = 32 ]; then P=${P32:?set P32}; else P=${P66:?set P66}; fi
 OUT=$D/out-$V-$B; rm -rf "$OUT"; mkdir -p "$OUT"
 pkill -f "[s]erial_capture.py $P"
+(cd "$T" && $PY -m esphome compile "$D/$V/$B/$N.yaml" > "$OUT/compile.log" 2>&1) || { echo "compile failed"; exit 1; }
 (cd "$T" && $PY -m esphome upload "$D/$V/$B/$N.yaml" --device "$P" > "$OUT/upload.log" 2>&1) || { echo "upload failed"; exit 1; }
-IMG=$(find "$D/$V/$B/.esphome" "$T/.esphome" -path "*$N*" \( -name firmware.ota.bin -o -name firmware.bin \) 2>/dev/null | grep -v bootloader | head -1)
-[ -f "$IMG" ] || { echo "no image for $N"; exit 1; }
+# the exact image of this config, just compiled, never one found elsewhere
+if [ "$B" = 32 ]; then IMG=$D/$V/$B/.esphome/build/$N/build/firmware.ota.bin
+else IMG=$D/$V/$B/.esphome/build/$N/.pioenvs/$N/firmware.bin; fi
+[ -f "$IMG" ] || { echo "no image for $N at $IMG"; exit 1; }
 echo "image $IMG"
 W=$OUT/www; mkdir -p "$W/auth"; cp "$IMG" "$W/fw.bin"; cp "$IMG" "$W/auth/fw.bin"
 $PY -c "import hashlib,sys;print(hashlib.md5(open(sys.argv[1],'rb').read()).hexdigest())" "$IMG" > "$W/fw.md5"
