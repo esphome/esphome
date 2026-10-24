@@ -13,13 +13,12 @@ gc9503v.extend(
     # The SPI pins are shared with RGB data pins, so the panel must be initialised
     # before the RGB peripheral takes those pins over.
     init_before_rgb=True,
-    # Match the vendor init: no software reset (there is no reset pin on this board) and a 10MHz SPI clock.
-    no_swreset=True,
+    reset_pin={"number": 41, "allow_other_uses": True},
     data_rate="10MHz",
     cs_pin=38,
     de_pin=40,
     hsync_pin=42,
-    vsync_pin=41,
+    vsync_pin={"number": 41, "allow_other_uses": True},
     pclk_pin=39,
     pclk_frequency="15MHz",
     pclk_inverted=True,
