@@ -107,7 +107,7 @@ class SX126x final : public Component,
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
-  static void IRAM_ATTR gpio_intr(SX126x *arg);
+  static void gpio_intr(SX126x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_packet_params_(uint8_t payload_length);

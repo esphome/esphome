@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_ETHERNET,
     CONF_OPENTHREAD,
     CONF_PORT,
+    CONF_PRIORITY,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
@@ -668,6 +669,8 @@ class EsphomeCore:
         self.main_statements: list[Statement] = []
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements: list[Statement] = []
+        # Generated code emitted after the user includes, so it can use what they declare
+        self.global_statements_after_includes: list[Statement] = []
         # A map of platformio libraries to add to the project (shortname: (name, version, repository))
         self.platformio_libraries: dict[str, Library] = {}
         # A set of build flags to set in the platformio project
@@ -738,6 +741,7 @@ class EsphomeCore:
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
+        self.global_statements_after_includes = []
         self.platformio_libraries = {}
         self.build_flags = set()
         self.cmake_args = {}
@@ -774,7 +778,13 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+        # Matches network::get_use_address_to(), with modem and ethernet never both present
+        # (CONFLICTS_WITH); a wifi-first priority list lifts wifi, the rule that emits
+        # USE_NETWORK_PRIMARY_INTERFACE_WIFI in network/__init__.py
+        priority = self.config.get("network", {}).get(CONF_PRIORITY, [])
+        wifi_first = bool(priority) and priority[0]["interface"] == CONF_WIFI
+        first = (CONF_WIFI, "modem") if wifi_first else ("modem", CONF_WIFI)
+        for network_type in (*first, CONF_ETHERNET, CONF_OPENTHREAD):
             if network_type in self.config:
                 return self.config[network_type][CONF_USE_ADDRESS]
 
@@ -1055,8 +1065,8 @@ class EsphomeCore:
         except RuntimeError as e:
             raise EsphomeError(str(e)) from e
 
-    def add(self, expression, prepend=False) -> "Statement":
-        """Add an expression or statement to the main setup() block."""
+    @staticmethod
+    def _as_statement(expression) -> "Statement":
         from esphome.cpp_generator import Expression, Statement, statement
 
         if isinstance(expression, Expression):
@@ -1065,7 +1075,11 @@ class EsphomeCore:
             raise ValueError(
                 f"Add '{expression}' must be expression or statement, not {type(expression)}"
             )
+        return expression
 
+    def add(self, expression, prepend=False) -> "Statement":
+        """Add an expression or statement to the main setup() block."""
+        expression = self._as_statement(expression)
         if prepend:
             self.main_statements.insert(0, expression)
         else:
@@ -1074,19 +1088,19 @@ class EsphomeCore:
         return expression
 
     def add_global(self, expression, prepend=False) -> "Statement":
-        from esphome.cpp_generator import Expression, Statement, statement
-
-        if isinstance(expression, Expression):
-            expression = statement(expression)
-        if not isinstance(expression, Statement):
-            raise ValueError(
-                f"Add '{expression}' must be expression or statement, not {type(expression)}"
-            )
+        expression = self._as_statement(expression)
         if prepend:
             self.global_statements.insert(0, expression)
         else:
             self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
+        return expression
+
+    def add_global_after_includes(self, expression) -> "Statement":
+        """Add a global after the user includes, for generated code that may use them."""
+        expression = self._as_statement(expression)
+        self.global_statements_after_includes.append(expression)
+        _LOGGER.debug("Adding global after includes: %s", expression)
         return expression
 
     def add_library(self, library: Library):
@@ -1268,7 +1282,7 @@ class EsphomeCore:
         from esphome.cpp_generator import statement
 
         global_code = []
-        for exp in self.global_statements:
+        for exp in (*self.global_statements, *self.global_statements_after_includes):
             text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)
