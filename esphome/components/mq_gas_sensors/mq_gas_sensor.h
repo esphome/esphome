@@ -21,6 +21,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// Lowest averaged analog output that is still a measurement rather than a
   /// missing signal (open circuit, absent supply, or a failed conversion).
   static constexpr float MIN_VALID_VOLTAGE = 0.01f;
+  /// A saturated sensor drives its output to the supply, which can sit a few
+  /// percent above `vcc:`. Within this band it is the top of the measuring range.
+  static constexpr float SATURATION_TOLERANCE = 0.05f;
 
   explicit MQGasSensor(voltage_sampler::VoltageSampler *source) : source_(source) {}
 
@@ -108,11 +111,14 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_rejected_nonfinite_{0};
   uint32_t calibration_rejected_rs_{0};
   float calibration_sum_{0.0f};
-  bool warned_no_r0_{false};
   /// One flag per fault kind, so each is reported once - and again when it recurs
   /// after the wiring read as expected in between.
   bool warned_low_voltage_{false};
   bool warned_high_voltage_{false};
+  /// One line when the curve cannot evaluate the ratio, and one when the published
+  /// value is the top of the range rather than a measurement there.
+  bool warned_curve_failure_{false};
+  bool warned_over_range_{false};
 };
 
 }  // namespace esphome::mq_gas_sensors

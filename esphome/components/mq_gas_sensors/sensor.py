@@ -61,7 +61,11 @@ def validate_sensor_type(value: str) -> str:
 
 
 def validate_gas(value: str) -> str:
-    return normalize_gas(value)
+    if not (gas := normalize_gas(value)):
+        raise cv.Invalid(
+            "gas must not be empty - omit it to use the default gas of the type"
+        )
+    return gas
 
 
 CALIBRATION_SCHEMA = cv.Schema(
@@ -93,11 +97,16 @@ def _resolve_sensor(config: ConfigType) -> ResolvedSensor:
 
 
 def _validate_config(config: ConfigType) -> ConfigType:
-    """Enforce the type/gas combination at compile time."""
+    """Enforce the type/gas combination and the clean-air ratio at compile time."""
     try:
-        _resolve_sensor(config)
+        resolved = _resolve_sensor(config)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
+
+    if config.get(CONF_CALIBRATION) is not None and resolved.ratio_in_clean_air <= 0.0:
+        raise cv.Invalid(
+            f"{resolved.label} has no published RS/R0 in clean air - set '{CONF_RATIO_IN_CLEAN_AIR}:'"
+        )
 
     return config
 
