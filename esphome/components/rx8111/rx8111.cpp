@@ -9,6 +9,8 @@ ESPHOME_LOG_TAG(TAG, "rx8111");
 
 // Indexed by the TSEL value stored in timer_clock_
 PROGMEM_STRING_TABLE(TimerClockNames, "4096 Hz", "64 Hz", "1 Hz", "1/60 Hz");
+PROGMEM_STRING_TABLE(FoutNames, "32768 Hz", "1024 Hz", "1 Hz", "off");
+PROGMEM_STRING_TABLE(EvinPullNames, "none", "pullup_500k", "pullup_1m", "pullup_10m", "pulldown_500k");
 
 static constexpr uint8_t RX8111_REG_SEC = 0x10;
 static constexpr uint8_t RX8111_REG_MIN_ALARM = 0x17;
@@ -257,18 +259,16 @@ void RX8111Component::dump_config() {
                   ONOFF(this->battery_charging_));
   }
   if (this->fout_configured_) {
-    ESP_LOGCONFIG(TAG, "  FOUT: %s",
-                  this->fout_frequency_ == 0   ? LOG_STR_LITERAL("32768 Hz")
-                  : this->fout_frequency_ == 1 ? LOG_STR_LITERAL("1024 Hz")
-                  : this->fout_frequency_ == 2 ? LOG_STR_LITERAL("1 Hz")
-                                               : LOG_STR_LITERAL("off"));
+    ESP_LOGCONFIG(TAG, "  FOUT: %s", LOG_STR_ARG(FoutNames::get_log_str(this->fout_frequency_, FoutNames::LAST_INDEX)));
   }
   if (this->event_configured_) {
     ESP_LOGCONFIG(TAG, "  EVIN interrupt: %s", ONOFF(this->event_enabled_));
     if (this->event_enabled_) {
-      ESP_LOGCONFIG(TAG, "    EVIN: %s, filter: %u, pull bits: 0x%02X",
-                    (this->evin_settings_ & 0x80) ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"),
-                    (this->evin_settings_ >> 5) & 3, this->evin_settings_ & 0x1C);
+      ESP_LOGCONFIG(
+          TAG, "    EVIN: %s, filter: %u, pull: %s",
+          (this->evin_settings_ & 0x80) ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"),
+          (this->evin_settings_ >> 5) & 3,
+          LOG_STR_ARG(EvinPullNames::get_log_str((this->evin_settings_ >> 2) & 7, EvinPullNames::LAST_INDEX)));
     }
   }
   ESP_LOGCONFIG(TAG,
