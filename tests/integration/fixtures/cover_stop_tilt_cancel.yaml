@@ -1,0 +1,28 @@
+esphome:
+  name: cover-stop-tilt-cancel-test
+host:
+api:
+logger:
+  level: DEBUG
+
+cover:
+  - platform: template
+    name: "Test Cover"
+    id: test_cover
+    optimistic: true
+    tilt_action:
+      - delay: 1s
+      - cover.template.publish:
+          id: test_cover
+          tilt: 0.9
+    stop_tilt_action:
+      - delay: 1s
+      - cover.template.publish:
+          id: test_cover
+          tilt: 0.4
+
+button:
+  - platform: template
+    name: "Stop Tilt"
+    on_press:
+      - cover.stop_tilt: test_cover
