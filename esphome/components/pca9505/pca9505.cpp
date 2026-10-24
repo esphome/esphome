@@ -1,4 +1,5 @@
 #include "pca9505.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pca9505 {
@@ -18,7 +19,7 @@ void PCA9505Component::setup() {
   // Test to see if device exists
   if (!this->read_bank_(0)) {
     ESP_LOGE(TAG, "PCA9505 not detected at 0x%02X", this->address_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -65,9 +66,6 @@ void PCA9505Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCA9505:");
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 bool PCA9505Component::digital_read_hw(uint8_t pin) { return this->read_bank_(pin / 8); }
@@ -77,11 +75,7 @@ bool PCA9505Component::digital_read_cache(uint8_t pin) { return this->input_[pin
 void PCA9505Component::digital_write_hw(uint8_t pin, bool value) {
   const uint8_t bank = pin / 8;
   const uint8_t mask = 1 << (pin % 8);
-  if (value) {
-    this->output_[bank] |= mask;
-  } else {
-    this->output_[bank] &= ~mask;
-  }
+  assign_bits(this->output_[bank], mask, value);
   this->write_bank_(OUTPUT_REG, bank, this->output_[bank]);
 }
 
@@ -112,24 +106,16 @@ bool PCA9505Component::read_bank_(uint8_t bank) {
   if (this->is_failed())
     return false;
 
-  if (this->read_register(INPUT_REG + bank, &this->input_[bank], 1) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR("Failed to read input register"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->read_register(INPUT_REG + bank, &this->input_[bank], 1) == i2c::ERROR_OK,
+                                  LOG_STR("Failed to read input register"));
 }
 
 bool PCA9505Component::write_bank_(uint8_t reg, uint8_t bank, uint8_t value) {
   if (this->is_failed())
     return false;
 
-  if (this->write_register(reg + bank, &value, 1) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR("Failed to write register"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write_register(reg + bank, &value, 1) == i2c::ERROR_OK,
+                                  LOG_STR("Failed to write register"));
 }
 
 bool PCA9505Component::write_all_banks_(uint8_t reg, uint8_t value) {
@@ -140,26 +126,12 @@ bool PCA9505Component::write_all_banks_(uint8_t reg, uint8_t value) {
   for (uint8_t &bank : values) {
     bank = value;
   }
-  if (this->write_register(reg | AUTO_INCREMENT, values, sizeof(values)) != i2c::ERROR_OK) {
-    this->status_set_warning(LOG_STR("Failed to write register"));
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_result(this->write_register(reg | AUTO_INCREMENT, values, sizeof(values)) == i2c::ERROR_OK,
+                                  LOG_STR("Failed to write register"));
 }
 
 float PCA9505Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PCA9505GPIOPin::setup() { this->pin_mode(this->flags_); }
-
-void PCA9505GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
-
-bool PCA9505GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-
-void PCA9505GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-
-size_t PCA9505GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return buf_append_printf(buffer, len, 0, "%u via PCA9505", this->pin_);
-}
-
 }  // namespace esphome::pca9505
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::pca9505::PCA9505Component, "%u via PCA9505")

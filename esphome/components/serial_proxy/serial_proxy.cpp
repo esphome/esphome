@@ -18,6 +18,10 @@
 #include "esphome/components/usb_uart/usb_uart.h"
 #endif
 
+#ifdef USE_SERIAL_PROXY_HOST_UART
+#include "esphome/components/uart/uart_component_host.h"
+#endif
+
 namespace esphome::serial_proxy {
 
 ESPHOME_LOG_TAG(TAG, "serial_proxy");
@@ -216,10 +220,9 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
     ESP_LOGW(TAG, "Invalid parity: %u (must be 0-2)", parity);
     return SerialProxyResult::SERIAL_PROXY_RESULT_INVALID_ARGUMENT;
   }
-  if (flow_control) {
-    ESP_LOGW(TAG, "Hardware flow control requested but is not yet supported");
-    return SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED;
-  }
+  // The API carries only RTS/CTS, as CRTSCTS does
+  const uart::UARTFlowControl uart_flow_control =
+      flow_control ? uart::UART_FLOW_CONTROL_RTS_CTS : uart::UART_FLOW_CONTROL_NONE;
 
   // Skip a no-op reconfigure. Clients routinely re-send identical settings on every
   // port open, and on a USB UART each apply is a CDC SET_LINE_CODING control transfer.
@@ -231,7 +234,8 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
       uart::UART_CONFIG_PARITY_ODD,
   };
   if (uart_comp->get_baud_rate() == baudrate && uart_comp->get_stop_bits() == stop_bits &&
-      uart_comp->get_data_bits() == data_size && uart_comp->get_parity() == PARITY_MAP[parity]) {
+      uart_comp->get_data_bits() == data_size && uart_comp->get_parity() == PARITY_MAP[parity] &&
+      uart_comp->get_flow_control() == uart_flow_control) {
     ESP_LOGV(TAG, "Settings unchanged, skipping reconfigure [%" PRIu32 "]", this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
   }
@@ -242,6 +246,7 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
   uart_comp->set_data_bits(data_size);
 
   uart_comp->set_parity(PARITY_MAP[parity]);
+  uart_comp->set_flow_control(uart_flow_control);
 
   // load_settings() is available on ESP8266 and ESP32 platforms
 #if defined(USE_ESP8266) || defined(USE_ESP32)
@@ -379,6 +384,19 @@ SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection
   const bool dtr = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_DTR) != 0;
   ESP_LOGV(TAG, "Setting modem pins [%" PRIu32 "]: RTS=%s, DTR=%s", this->instance_index_, ONOFF(rts), ONOFF(dtr));
 
+  // The UART goes first, so a failure leaves every line as it was. A line with a GPIO pin keeps
+  // the UART's current state; with both on GPIO there is nothing to send
+  bool applied = true;
+  if (this->rts_pin_ == nullptr || this->dtr_pin_ == nullptr) {
+    this->with_modem_uart_([this, dtr, rts, &applied](auto *uart) {
+      applied = uart->set_modem_control(this->dtr_pin_ != nullptr ? uart->get_dtr() : dtr,
+                                        this->rts_pin_ != nullptr ? uart->get_rts() : rts);
+    });
+  }
+  if (!applied) {
+    ESP_LOGW(TAG, "Modem pins did not reach the UART on serial proxy [%" PRIu32 "]", this->instance_index_);
+    return SerialProxyResult::SERIAL_PROXY_RESULT_ERROR;
+  }
   if (this->rts_pin_ != nullptr) {
     this->rts_state_ = rts;
     this->rts_pin_->digital_write(rts);
@@ -418,6 +436,8 @@ void SerialProxy::fill_identity_([[maybe_unused]] IdentityScratch &scratch, api:
     msg.usb.product_id = scratch.product_id;
     msg.usb.bcd_device = scratch.bcd_device;
     msg.usb.interface_number = this->usb_channel_->get_interface_number();
+    msg.usb.interface_class = this->usb_channel_->get_interface_class();
+    msg.usb.port_number = this->usb_channel_->get_port_number();
     msg.manufacturer = StringRef(scratch.manufacturer);
     msg.product = StringRef(scratch.product);
     msg.serial_number = StringRef(scratch.serial_number);
@@ -453,8 +473,16 @@ void SerialProxy::on_usb_connection_changed_(bool connected) {
 #endif
 
 uint32_t SerialProxy::get_modem_pins() const {
-  return (this->rts_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
-         (this->dtr_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
+  bool rts = this->rts_state_;
+  bool dtr = this->dtr_state_;
+  this->with_modem_uart_([this, &rts, &dtr](auto *uart) {
+    if (this->rts_pin_ == nullptr)
+      rts = uart->get_rts();
+    if (this->dtr_pin_ == nullptr)
+      dtr = uart->get_dtr();
+  });
+  return (rts ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+         (dtr ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
 }
 
 SerialProxyResult SerialProxy::flush_port(api::APIConnection *api_connection) {

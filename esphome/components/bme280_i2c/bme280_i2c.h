@@ -12,7 +12,7 @@ class BME280I2CComponent final : public esphome::bme280_base::BME280Component, p
   bool read_byte(uint8_t a_register, uint8_t *data) override;
   bool write_byte(uint8_t a_register, uint8_t data) override;
   bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
-  bool read_byte_16(uint8_t a_register, uint16_t *data) override;
+  bool read_byte_16_le(uint8_t a_register, uint16_t *data) override;
   void dump_config() override;
 };
 

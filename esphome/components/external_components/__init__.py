@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,33 @@ from esphome.core import CORE, TimePeriodSeconds
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "external_components"
+
+
+@dataclass
+class ExternalSource:
+    """Origin of the components found in one source's components directory."""
+
+    components_dir: Path
+    url: str | None = None
+    ref: str | None = None
+    # Root of the git checkout holding components_dir
+    repo_dir: Path | None = None
+
+
+@dataclass
+class ExternalComponentsData:
+    sources: list[ExternalSource] = field(default_factory=list)
+
+
+def _get_data() -> ExternalComponentsData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = ExternalComponentsData()
+    return CORE.data[DOMAIN]
+
+
+def get_sources() -> list[ExternalSource]:
+    """Return the sources processed for this configuration."""
+    return _get_data().sources
 
 
 CONFIG_SCHEMA = cv.ensure_list(
@@ -67,6 +95,15 @@ def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> P
             "Could not find components folder for source. Please check the source contains a 'components' or 'esphome/components' folder"
         )
 
+    get_sources().append(
+        ExternalSource(
+            components_dir=components_dir,
+            # Ends up in SBOMs that are shared outside
+            url=git.strip_url_credentials(config[CONF_URL]),
+            ref=config.get(CONF_REF),
+            repo_dir=repo_dir,
+        )
+    )
     return components_dir
 
 
@@ -106,6 +143,7 @@ def _process_single_config(config: dict[str, Any]) -> None:
             )
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
+        get_sources().append(ExternalSource(components_dir=components_dir))
     else:
         raise NotImplementedError
 
