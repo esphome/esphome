@@ -214,6 +214,8 @@ class WidgetType:
         :param w: The widget to update
         :param config: The configuration for the update
         """
+        if not self.modify_schema.schema:
+            return
         await self.to_code(w, config)
 
     async def obj_creator(self, parent: MockObj, config: dict):
