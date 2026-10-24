@@ -1,0 +1,69 @@
+"""Stream one microphone source as raw PCM over the shared web server."""
+
+import re
+
+import esphome.codegen as cg
+from esphome.components import microphone, web_server_base
+from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_MICROPHONE
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@mbrudka"]
+DEPENDENCIES = ["microphone", "web_server"]
+DOMAIN = "microphone_http_stream"
+
+CONF_SOURCE = "source"
+CONF_STREAM_ID = "stream_id"
+_STREAM_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
+
+microphone_http_stream_ns = cg.esphome_ns.namespace(DOMAIN)
+MicrophoneHttpStream = microphone_http_stream_ns.class_(
+    "MicrophoneHttpStream", cg.Component
+)
+
+
+def validate_stream_id(value: str) -> str:
+    value = cv.string_strict(value)
+    if not _STREAM_ID_RE.fullmatch(value):
+        raise cv.Invalid(
+            "stream_id must be 1-32 lowercase ASCII letters, digits, _ or -, starting with a letter"
+        )
+    return value
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MicrophoneHttpStream),
+            cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
+                web_server_base.WebServerBase
+            ),
+            cv.Required(CONF_STREAM_ID): validate_stream_id,
+            cv.Required(CONF_SOURCE): microphone.microphone_source_schema(
+                min_bits_per_sample=16,
+                max_bits_per_sample=16,
+                min_channels=1,
+                max_channels=1,
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_on_esp32,
+)
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SOURCE): microphone.final_validate_microphone_source_schema(
+            DOMAIN
+        ),
+    },
+    extra=cv.ALLOW_EXTRA,
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    source = await microphone.microphone_source_to_code(config[CONF_SOURCE])
+    mic = await cg.get_variable(config[CONF_SOURCE][CONF_MICROPHONE])
+    base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
+    var = cg.new_Pvariable(config[CONF_ID], source, mic, base, config[CONF_STREAM_ID])
+    await cg.register_component(var, config)
