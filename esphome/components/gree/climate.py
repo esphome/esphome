@@ -12,9 +12,17 @@ AUTO_LOAD = ["climate_ir"]
 GreeClimate = gree_ns.class_("GreeClimate", climate_ir.ClimateIR)
 
 Model = gree_ns.enum("Model")
-MODELS = Model.options(
-    "generic", "yan", "yaa", "yac", "yac1fb9", "yb1fa", "yx1ff", "yag", prefix="GREE_"
-)
+# Explicit enum mapping also works with ESPHome versions predating Model.options().
+MODELS = {
+    "generic": Model.GREE_GENERIC,
+    "yan": Model.GREE_YAN,
+    "yaa": Model.GREE_YAA,
+    "yac": Model.GREE_YAC,
+    "yac1fb9": Model.GREE_YAC1FB9,
+    "yb1fa": Model.GREE_YB1FA,
+    "yx1ff": Model.GREE_YX1FF,
+    "yag": Model.GREE_YAG,
+}
 
 CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
     {
