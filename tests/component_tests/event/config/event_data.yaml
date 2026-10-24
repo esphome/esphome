@@ -1,0 +1,43 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+logger:
+
+event:
+  - platform: template
+    id: dimmer
+    name: Dimmer
+    event_types: [press, rotate_left, rotate_right]
+    variables:
+      number_of_presses:
+        type: int
+        event_types: [press]
+      steps:
+        type: int
+        event_types: [rotate_left, rotate_right]
+      speed: float
+      long_press: bool
+    on_event:
+      - logger.log:
+          format: "%d steps"
+          args: [(int) steps]
+
+button:
+  - platform: template
+    name: Turn
+    on_press:
+      - event.trigger:
+          id: dimmer
+          event_type: rotate_left
+          data:
+            steps: 3
+            speed: 0.5
+      - event.trigger:
+          id: dimmer
+          event_type: !lambda return "press";
+          data:
+            number_of_presses: !lambda return 2;
+            long_press: true
