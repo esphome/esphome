@@ -21,7 +21,9 @@ void CiA402Drive::dump_config() {
 }
 
 bool CiA402Drive::operational_(uint32_t now) const {
-  return this->heartbeat_seen_ && static_cast<int32_t>(now - this->last_heartbeat_ms_) < static_cast<int32_t>(this->heartbeat_timeout_ms_) && this->get_nmt_state() == 5;
+  return this->heartbeat_seen_ &&
+         static_cast<int32_t>(now - this->last_heartbeat_ms_) < static_cast<int32_t>(this->heartbeat_timeout_ms_) &&
+         this->get_nmt_state() == 5;
 }
 
 bool CiA402Drive::begin_() {
@@ -183,7 +185,8 @@ void CiA402Drive::update() {
 
 void CiA402Drive::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  if (this->running_ && (!this->operational_(now) || static_cast<int32_t>(now - this->started_ms_) >= static_cast<int32_t>(this->operation_timeout_ms_)))
+  if (this->running_ && (!this->operational_(now) || static_cast<int32_t>(now - this->started_ms_) >=
+                                                         static_cast<int32_t>(this->operation_timeout_ms_)))
     this->fail_(DriveResult::DRIVE_RESULT_TIMEOUT);
   if (this->pending_)
     return;
@@ -206,9 +209,18 @@ void CiA402Drive::loop() {
     uint16_t index = 0x6041;
     uint8_t size = 2;
     switch (this->poll_index_) {
-      case 1: index = 0x6061; size = 1; break;
-      case 2: index = 0x6064; size = 4; break;
-      case 3: index = 0x606C; size = 4; break;
+      case 1:
+        index = 0x6061;
+        size = 1;
+        break;
+      case 2:
+        index = 0x6064;
+        size = 4;
+        break;
+      case 3:
+        index = 0x606C;
+        size = 4;
+        break;
     }
     this->send_step_({0, 0, index, 0, size, StepKind::STEP_KIND_READ});
     this->poll_index_ = (this->poll_index_ + 1) % 4;
@@ -223,8 +235,8 @@ void CiA402Drive::send_step_(const Step &step) {
   this->pending_ = true;
   this->last_request_ms_ = App.get_loop_component_start_time();
   const bool accepted = step.kind == StepKind::STEP_KIND_WRITE
-      ? this->write_sdo(step.index, step.subindex, step.value, step.size, on_result, this)
-      : this->read_sdo(step.index, step.subindex, on_result, this);
+                            ? this->write_sdo(step.index, step.subindex, step.value, step.size, on_result, this)
+                            : this->read_sdo(step.index, step.subindex, on_result, this);
   if (!accepted)
     this->process_result_(canopen::SDOResult::SDO_RESULT_REJECTED, 0, 0);
 }
@@ -235,10 +247,18 @@ void CiA402Drive::on_result(void *context, canopen::SDOResult result, uint32_t v
 
 void CiA402Drive::received_value_(uint16_t index, uint32_t value) {
   switch (index) {
-    case 0x6041: this->statusword_ = value; break;
-    case 0x6061: this->mode_ = sign_extend<8>(value); break;
-    case 0x6064: this->position_ = sign_extend<32>(value); break;
-    case 0x606C: this->velocity_ = sign_extend<32>(value); break;
+    case 0x6041:
+      this->statusword_ = value;
+      break;
+    case 0x6061:
+      this->mode_ = sign_extend<8>(value);
+      break;
+    case 0x6064:
+      this->position_ = sign_extend<32>(value);
+      break;
+    case 0x606C:
+      this->velocity_ = sign_extend<32>(value);
+      break;
   }
   this->value_callback_.call(index, value);
 }
@@ -255,7 +275,8 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
     if (!success)
       this->status_set_warning();
     if (this->notify_stop_)
-      this->result_callback_.call(success ? DriveResult::DRIVE_RESULT_SUCCESS : DriveResult::DRIVE_RESULT_COMMUNICATION_ERROR);
+      this->result_callback_.call(success ? DriveResult::DRIVE_RESULT_SUCCESS
+                                          : DriveResult::DRIVE_RESULT_COMMUNICATION_ERROR);
     return;
   }
   if (this->stopping_ || (sequence && !this->running_))

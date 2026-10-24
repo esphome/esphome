@@ -50,7 +50,13 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   }
 
  protected:
-  enum class StepKind : uint8_t { STEP_KIND_WRITE, STEP_KIND_READ, STEP_KIND_CHECK, STEP_KIND_WAIT, STEP_KIND_RELATIVE };
+  enum class StepKind : uint8_t {
+    STEP_KIND_WRITE,
+    STEP_KIND_READ,
+    STEP_KIND_CHECK,
+    STEP_KIND_WAIT,
+    STEP_KIND_RELATIVE
+  };
   struct Step {
     uint32_t value;
     uint32_t mask;
