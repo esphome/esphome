@@ -196,3 +196,17 @@ def test_in_tree_dumpers_live_in_flash(
     assert not re.search(r"new\(\w+\) remote_base::\w+Dumper\(\);", main_cpp)
     # A dumper that gains a member must fail the build, not fault on the device
     assert "static_assert(sizeof(remote_base::NECDumper) == sizeof(void *)" in main_cpp
+
+
+def test_a_dumper_id_works_in_lambdas_and_cannot_collide(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A user type_id is usable from a lambda, and a config id cannot take the flash storage name."""
+    main_cpp = generate_main(component_config_path("receiver_dumper_type_id.yaml"))
+    assert "const_cast<remote_base::NECDumper *>(&my_nec__flash_" in main_cpp
+    assert "->is_secondary()" in main_cpp
+    assert re.search(
+        r"static constexpr remote_base::NECDumper my_nec__flash_\w+ PROGMEM\{\};",
+        main_cpp,
+    )

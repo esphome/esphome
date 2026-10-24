@@ -273,7 +273,10 @@ def register_trigger(name, type, data_type):
 
 def _new_flash_dumper(dumper_id: ID) -> cg.RawExpression:
     """Place a stateless dumper in flash; the receiver only ever calls it."""
-    storage = f"{dumper_id.id}__flash"
+    # A generated name a config id cannot take; registered so later globals avoid it too
+    storage_id = cg.unique_global_id(f"{dumper_id.id}__flash", dumper_id.type)
+    storage = storage_id.id
+    CORE.register_variable(storage_id, cg.MockObj(storage))
     CORE.add_global_after_includes(
         cg.RawStatement(
             f"static_assert(sizeof({dumper_id.type}) == sizeof(void *) && "
@@ -284,10 +287,10 @@ def _new_flash_dumper(dumper_id: ID) -> cg.RawExpression:
     CORE.add_global_after_includes(
         cg.RawStatement(f"static constexpr {dumper_id.type} {storage} PROGMEM{{}};")
     )
-    # A constant address, so it can sit in a receiver's flash dumper table
-    var = cg.RawExpression(f"const_cast<{dumper_id.type} *>(&{storage})")
-    CORE.register_variable(dumper_id, var)
-    return var
+    # A constant address for the receiver's flash table; lambdas get a pointer-like object
+    address = f"const_cast<{dumper_id.type} *>(&{storage})"
+    CORE.register_variable(dumper_id, cg.MockObj(address, "->"))
+    return cg.RawExpression(address)
 
 
 def register_dumper(name, type, schema=None):
