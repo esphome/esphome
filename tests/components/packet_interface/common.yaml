@@ -9,9 +9,15 @@ packet_interface:
   - platform: uart
     id: packet_interface_uart
     max_packet_size: 256
+    reliability:
+      timeout: 300ms
+      ack_delay: 50ms
+      max_queue_length: 3
+      max_retries: 4
   - platform: udp
     id: packet_interface_network
     udp_id: packet_interface_udp
+    reliability:
 
 sensor:
   - platform: template
