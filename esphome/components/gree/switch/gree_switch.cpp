@@ -3,7 +3,13 @@
 
 namespace esphome::gree {
 
+#ifdef ESPHOME_LOG_TAG
 ESPHOME_LOG_TAG(TAG, "gree.switch");
+#elif defined(USE_ESP8266)
+static const char TAG[] PROGMEM = "gree.switch";
+#else
+static constexpr const char *const TAG = "gree.switch";
+#endif
 
 void GreeFeatureSwitch::setup() {
   if (this->parent_->supports_feature_state_rx()) {
