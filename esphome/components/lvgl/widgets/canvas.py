@@ -272,7 +272,7 @@ def _draw_line(layer, dsc, points):
             **DRAW_SCHEMA,
             cv.Required(CONF_WIDTH): cv.templatable(cv.int_),
             cv.Required(CONF_HEIGHT): cv.templatable(cv.int_),
-            **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
+            **{cv.Optional(prop): validator for prop, validator in RECT_PROPS.items()},
         }
     ),
     synchronous=True,
@@ -479,7 +479,7 @@ async def canvas_draw_line(config, action_id, template_arg, args):
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
-            **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
+            **{cv.Optional(prop): validator for prop, validator in RECT_PROPS.items()},
         },
     ).add_extra(_validate_points),
     synchronous=True,
