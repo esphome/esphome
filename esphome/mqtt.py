@@ -396,7 +396,9 @@ def show_logs(
     password: str | None = None,
     client_id: str | None = None,
 ) -> int:
-    if topic is not None:
+    # A topic given on the command line is followed as written
+    topic_from_cli = topic is not None
+    if topic_from_cli:
         pass  # already have topic
     elif CONF_MQTT in config:
         conf = config[CONF_MQTT]
@@ -437,7 +439,7 @@ def show_logs(
             return None
         return re.compile(rf"({re.escape(name)}-[0-9a-f]{{6}})/{kind}")
 
-    log_pattern = suffixed(topic, "debug")
+    log_pattern = None if topic_from_cli else suffixed(topic, "debug")
     birth_pattern = suffixed(birth_topic, "status")
     _LOGGER.info(
         "Starting log output from %s",

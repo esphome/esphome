@@ -200,6 +200,19 @@ def test_show_logs_keeps_custom_topics_with_mac_suffix(
 
 
 @patch("esphome.mqtt.initialize")
+def test_show_logs_follows_a_command_line_topic_as_written(
+    mock_initialize: MagicMock,
+) -> None:
+    """A --topic override is not expanded to the MAC-suffixed topics."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+
+    show_logs(config, topic="test-device/debug")
+
+    assert mock_initialize.call_args.args[1] == ["test-device/debug"]
+
+
+@patch("esphome.mqtt.initialize")
 def test_show_logs_keeps_written_out_topics_under_a_custom_prefix(
     mock_initialize: MagicMock,
 ) -> None:
