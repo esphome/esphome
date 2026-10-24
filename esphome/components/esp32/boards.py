@@ -9,6 +9,7 @@ from .const import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 )
 
 STANDARD_BOARDS = {
@@ -22,6 +23,7 @@ STANDARD_BOARDS = {
     VARIANT_ESP32P4: "esp32-p4_r3-evboard",
     VARIANT_ESP32S2: "esp32-s2-kaluga-1",
     VARIANT_ESP32S3: "esp32-s3-devkitc-1",
+    VARIANT_ESP32S31: "esp32-s31-coreboard-1",
 }
 
 ESP32_BASE_PINS = {
@@ -1881,6 +1883,10 @@ BOARDS = {
     "esp32-s3-fh4r2": {
         "name": "Espressif ESP32-S3-FH4R2 (4 MB QD, 2MB PSRAM)",
         "variant": VARIANT_ESP32S3,
+    },
+    "esp32-s31-coreboard-1": {
+        "name": "Espressif ESP32-S31-Function-CoreBoard-1 (16 MB Flash Quad, 16 MB PSRAM Octal)",
+        "variant": VARIANT_ESP32S31,
     },
     "esp32-solo1": {
         "name": "Espressif Generic ESP32-solo1 4M Flash",
