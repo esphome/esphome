@@ -362,25 +362,25 @@ void RX8111Component::write_time() {
   time::encode_bcd_calendar<time::EPSON_BCD_CALENDAR>(now, buf);
   this->cancel_timeout(RX8111_WRITE_RECOVERY_ID);
   this->time_write_invalid_ = true;
-  this->calendar_written_ = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
+  const bool calendar_written = this->write_bytes(RX8111_REG_SEC, buf, sizeof(buf));
   // Always try to restart the counter, even after a failed calendar write.
-  if (!this->finish_time_write_())
+  if (!this->finish_time_write_(calendar_written))
     return;
   ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
            now.minute, now.second);
 }
 
-bool RX8111Component::finish_time_write_() {
+bool RX8111Component::finish_time_write_(bool calendar_written) {
   // A deferred restart releases STOP only. Its frozen snapshot must not become trusted.
   // A failed flag cleanup also requires a fresh trusted write.
   if (!this->set_stop_bit_(false) ||
-      (this->calendar_written_ && !this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS))) {
+      (calendar_written && !this->write_byte(RX8111_REG_FLAG, RX8111_KEEP_EVENT_FLAGS))) {
     this->set_warning_(WARN_WRITE_TIME, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    this->calendar_written_ = false;
-    this->set_timeout(RX8111_WRITE_RECOVERY_ID, this->boot_retry_delay_ms_, [this]() { this->finish_time_write_(); });
+    this->set_timeout(RX8111_WRITE_RECOVERY_ID, this->boot_retry_delay_ms_,
+                      [this]() { this->finish_time_write_(false); });
     return false;
   }
-  if (!this->calendar_written_) {
+  if (!calendar_written) {
     this->set_warning_(WARN_WRITE_TIME, LOG_STR("RTC write incomplete; write trusted time again"));
     return false;
   }

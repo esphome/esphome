@@ -88,7 +88,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   };
 
   bool set_stop_bit_(bool stop);
-  bool finish_time_write_();
+  bool finish_time_write_(bool calendar_written);
   bool read_calendar_(ESPTime &rtc_time);
   void set_warning_(uint16_t bit, const LogString *message);
   void clear_warning_(uint16_t bit);
@@ -129,7 +129,6 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   uint8_t alarm_hour_{ALARM_FIELD_UNSET};
   uint8_t alarm_weekday_{ALARM_FIELD_UNSET};
   uint8_t alarm_day_{ALARM_FIELD_UNSET};
-  bool calendar_written_ : 1 {false};
   bool time_write_invalid_ : 1 {false};
   bool battery_configured_ : 1 {false};
   bool battery_backup_ : 1 {false};
