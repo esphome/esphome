@@ -21,6 +21,7 @@ pkill -f "[f]wsrv.py"; $PY "$D/fwsrv.py" "$W" 8093 > "$OUT/server.txt" 2>&1 & SR
 for i in $(seq 60); do IP=$(grep -a -o 'IP Address: [0-9.]*' "$OUT/serial.txt" | tail -1 | cut -d' ' -f3); [ -z "$IP" ] && IP=$(python3 -c "import socket;print(socket.gethostbyname('$N.local'))" 2>/dev/null); [ -n "$IP" ] && break; sleep 2; done
 [ -n "$IP" ] || { echo "device not found"; exit 1; }
 echo "device up"
-$PY "$D/hodrive.py" "$IP" "http://$HOST:8093" "$W/fw.md5" > "$OUT/drive.txt" 2>&1
+$PY "$D/hodrive.py" "$IP" "http://$HOST:8093" "$W/fw.md5" > "$OUT/drive.txt" 2>&1; RC=$?
 kill $SRV; pkill -f "[s]erial_capture.py $P"
-grep RESULT "$OUT/drive.txt"; grep -c . "$OUT/server.txt"
+grep -E 'RESULT|SUMMARY|never came back' "$OUT/drive.txt"; echo "server requests: $(grep -c . "$OUT/server.txt")"
+exit $RC

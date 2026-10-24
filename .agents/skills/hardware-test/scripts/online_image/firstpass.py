@@ -4,6 +4,7 @@ The component warning prints only on a new maximum, so a fresh boot per image gi
 """
 
 import asyncio
+import contextlib
 import re
 import sys
 import time
@@ -51,12 +52,30 @@ async def connect() -> tuple[APIClient, dict, int]:
     return c, {s.name: s for s in services if isinstance(s, UserService)}, reboot
 
 
-async def main() -> None:
+async def rebooted(c: APIClient, reboot: int) -> bool:
+    """Press Reboot and wait up to 15 s for the API connection to drop."""
+    c.button_command(reboot)
+    end = time.monotonic() + 15
+    while time.monotonic() < end:
+        try:
+            await asyncio.wait_for(c.device_info(), 1.0)
+        except Exception:  # noqa: BLE001
+            return True
+        await asyncio.sleep(0.2)
+    return False
+
+
+async def main() -> int:
+    failed = []
     for img in IMAGES:
         c, actions, reboot = await connect()
-        c.button_command(reboot)
-        await asyncio.sleep(1)
-        await c.disconnect()
+        ok = await rebooted(c, reboot)
+        with contextlib.suppress(Exception):
+            await c.disconnect()
+        if not ok:
+            print(f"{LABEL} {img:22} SKIPPED: no reboot within 15 s", flush=True)
+            failed.append(img)
+            continue
         await asyncio.sleep(8)
         c, actions, reboot = await connect()
         lines: list[str] = []
@@ -81,7 +100,12 @@ async def main() -> None:
             f"{LABEL} {img:22} {outcome or 'none':9} {took:5.1f}s longest pass {max(passes) if passes else '<50'} ms {passes}",
             flush=True,
         )
+        if outcome is None:
+            failed.append(img)
         await c.disconnect()
+    if failed:
+        print(f"{LABEL} no result for: {', '.join(failed)}", flush=True)
+    return 1 if failed else 0
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))

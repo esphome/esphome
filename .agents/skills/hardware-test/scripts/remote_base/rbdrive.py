@@ -63,5 +63,7 @@ async def main() -> None:
         ):
             print("  ", x[:160])
 
+    return 0 if complete == N else 1
 
-asyncio.run(main())
+
+sys.exit(asyncio.run(main()))

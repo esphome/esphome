@@ -17,6 +17,7 @@ SUM = (
 )
 T0 = time.monotonic()
 lines: list[str] = []
+failed: list[str] = []
 
 
 def out(s: str) -> None:
@@ -24,11 +25,19 @@ def out(s: str) -> None:
 
 
 async def connect() -> tuple[aioesphomeapi.APIClient, dict]:
+    last: Exception | None = None
     for _ in range(90):
         c = aioesphomeapi.APIClient(IP, 6053, None)
         try:
             await c.connect(login=True)
-        except Exception:  # noqa: BLE001
+        except (
+            aioesphomeapi.InvalidAuthAPIError,
+            aioesphomeapi.InvalidEncryptionKeyAPIError,
+            aioesphomeapi.RequiresEncryptionAPIError,
+        ):
+            raise  # a key or password problem never fixes itself
+        except Exception as exc:  # noqa: BLE001
+            last = exc
             await asyncio.sleep(2)
             continue
         i = await c.device_info()
@@ -43,7 +52,7 @@ async def connect() -> tuple[aioesphomeapi.APIClient, dict]:
 
         c.subscribe_logs(on_log, log_level=aioesphomeapi.LogLevel.LOG_LEVEL_DEBUG)
         return c, {x.name: x for x in svcs}
-    raise SystemExit("device never came back")
+    raise SystemExit(f"device never came back (last error {last!r})")
 
 
 async def case(c, s, name, args, want, timeout=60.0):
@@ -57,6 +66,7 @@ async def case(c, s, name, args, want, timeout=60.0):
             return True
         await asyncio.sleep(0.2)
     out(f"RESULT {name} FAIL (no '{want}')")
+    failed.append(name)
     return False
 
 
@@ -79,6 +89,8 @@ async def flash_ok(c, s, name, args):
     await asyncio.sleep(5)
     c, s = await connect()
     out(f"RESULT {name} {'PASS' if ok else 'FAIL'}")
+    if not ok:
+        failed.append(name)
     return c, s
 
 
@@ -118,6 +130,10 @@ async def main():
     c, s = await flash_ok(c, s, "fl_md5", {"url": u, "sum": SUM})
     await case(c, s, "getters", {}, r"computed='' expected=''")
     await c.disconnect()
+    out(
+        f"SUMMARY {'all cases passed' if not failed else 'FAILED: ' + ', '.join(failed)}"
+    )
+    return 1 if failed else 0
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))

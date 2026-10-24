@@ -14,6 +14,8 @@ $PY "$SC" "$P" 150 "$OUT/serial.txt" --reset > /dev/null 2>&1 & CAP=$!
 trap 'kill $CAP 2>/dev/null' EXIT
 for i in $(seq 60); do IP=$(grep -a -o 'IP Address: [0-9.]*' "$OUT/serial.txt" 2>/dev/null | tail -1 | cut -d' ' -f3); [ -z "$IP" ] && IP=$(python3 -c "import socket;print(socket.gethostbyname('$NAME.local'))" 2>/dev/null); [ -n "$IP" ] && break; sleep 2; done
 [ -n "$IP" ] || { echo "device not found"; exit 1; }
-$PY "$R/rbdrive.py" "$IP" "$N" > "$OUT/drive.txt" 2>&1
+$PY "$R/rbdrive.py" "$IP" "$N" > "$OUT/drive.txt" 2>&1; RC=$?
 pkill -f "[s]erial_capture.py $P"
-cat "$OUT/drive.txt"; echo "serial: $(grep -a -c 'ext dumper register called' "$OUT/serial.txt") register calls, $(grep -a -c 'No dumper slot' "$OUT/serial.txt") rejected, $(grep -a -c -i 'guru\|panic\|exception\|rst cause' "$OUT/serial.txt") crash lines"
+CRASH=$(grep -a -c -i 'guru\|panic\|exception\|rst cause' "$OUT/serial.txt")
+cat "$OUT/drive.txt"; echo "serial: $(grep -a -c 'ext dumper register called' "$OUT/serial.txt") register calls, $(grep -a -c 'No dumper slot' "$OUT/serial.txt") rejected, $CRASH crash lines"
+[ "$RC" = 0 ] && [ "$CRASH" = 0 ]

@@ -18,17 +18,18 @@ $PY $SC $P32 170 $OUT/s32.txt --reset > /dev/null 2>&1 &
 $PY $SC $P66 170 $OUT/s66.txt > /dev/null 2>&1 &
 sleep 60
 TOPICS=$(grep "homeassistant/button/" $OUT/broker.txt | grep "\"name\":\"mq${X}" | grep -o '"cmd_t":"[^"]*"' | cut -d'"' -f4 | sort -u)
-[ "$(echo "$TOPICS" | grep -c .)" -ge 2 ] || echo "ERROR: expected a Restart command topic per board, found: ${TOPICS:-none}"
+ERR=0
+[ "$(echo "$TOPICS" | grep -c .)" -ge 2 ] || { echo "ERROR: expected a Restart command topic per board, found: ${TOPICS:-none}"; ERR=1; }
 for t in $TOPICS; do
-  mosquitto_pub -h 127.0.0.1 -t "$t" -m PRESS && echo "$(date +%T) press $t" || echo "$(date +%T) ERROR: publish to $t failed"
+  mosquitto_pub -h 127.0.0.1 -t "$t" -m PRESS && echo "$(date +%T) press $t" || { echo "$(date +%T) ERROR: publish to $t failed"; ERR=1; }
 done
 sleep 45
 pkill -f "[s]erial_capture.py $P32"; pkill -f "[s]erial_capture.py $P66"; sleep 1
 echo "$(date +%T) hold both in the bootloader for 40 s (will test)"
 $PY -m esptool --port $P32 --after no-reset chip-id > $OUT/hold32.log 2>&1 & H32=$!
 $PY -m esptool --port $P66 --after no-reset chip-id > $OUT/hold66.log 2>&1 & H66=$!
-wait $H32 || echo "ERROR: ESP32 not held in the bootloader, no will expected (see $OUT/hold32.log)"
-wait $H66 || echo "ERROR: ESP8266 not held in the bootloader, no will expected (see $OUT/hold66.log)"
+wait $H32 || { echo "ERROR: ESP32 not held in the bootloader, no will expected (see $OUT/hold32.log)"; ERR=1; }
+wait $H66 || { echo "ERROR: ESP8266 not held in the bootloader, no will expected (see $OUT/hold66.log)"; ERR=1; }
 sleep 40
 echo "$(date +%T) release both"
 $PY $SC $P32 40 $OUT/s32b.txt --reset > /dev/null 2>&1 &
@@ -39,3 +40,4 @@ for f in s32 s66; do echo "== $f"; grep -a -E "Topic Prefix|Log Topic|Availabili
 echo "== broker (excluding discovery and entity state)"
 grep -v -E " homeassistant/| [^ ]*/(sensor|button|binary_sensor)/| esphome/discover/" $OUT/broker.txt | awk '$3 ~ /(debug|log)$/ { if (seen[$3]++) next; print $1, $2, $3, "(log lines:", "see file)"; next } { print }' | head -40
 echo "== log line counts per topic"; awk '$3 ~ /(debug|log)$/ {c[$3]++} END {for (t in c) print t, c[t]}' $OUT/broker.txt
+exit $ERR
