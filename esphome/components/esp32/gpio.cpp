@@ -22,6 +22,10 @@
 #define RTCIO_NEED_MAPPING 1  // NOLINT
 #endif
 
+#if defined(USE_ESP32_VARIANT_ESP32) || (SOC_RTCIO_PIN_COUNT > 0 && defined(USE_GPIO_HOLD))
+#define ISR_PIN_USE_RTC 1  // NOLINT
+#endif
+
 namespace esphome {
 namespace esp32 {
 
@@ -54,7 +58,7 @@ struct ISRPinArg {
 #ifdef USE_GPIO_HOLD
   bool hold;
 #endif
-#if defined(USE_ESP32_VARIANT_ESP32) || (SOC_RTCIO_PIN_COUNT > 0 && defined(USE_GPIO_HOLD))
+#ifdef ISR_PIN_USE_RTC
   bool use_rtc;
 #ifdef RTCIO_NEED_MAPPING
   int rtc_pin;
@@ -72,8 +76,7 @@ static inline void refresh_hold(const ESP32InternalGPIOPin &pin) {
 static inline void IRAM_ATTR isr_refresh_hold(const ISRPinArg *arg) {
   if (!arg->hold)
     return;
-#if (defined(USE_ESP32_VARIANT_ESP32) || (SOC_RTCIO_PIN_COUNT > 0 && defined(USE_GPIO_HOLD))) && \
-    defined(SOC_RTCIO_HOLD_SUPPORTED)
+#if defined(ISR_PIN_USE_RTC) && defined(SOC_RTCIO_HOLD_SUPPORTED)
   if (arg->use_rtc) {
 #ifdef RTCIO_NEED_MAPPING
     rtcio_hal_hold_disable(arg->rtc_pin);
@@ -98,7 +101,7 @@ ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
 #ifdef USE_GPIO_HOLD
   arg->hold = this->get_hold();
 #endif
-#if defined(USE_ESP32_VARIANT_ESP32) || (SOC_RTCIO_PIN_COUNT > 0 && defined(USE_GPIO_HOLD))
+#ifdef ISR_PIN_USE_RTC
   arg->use_rtc = rtc_gpio_is_valid_gpio(this->get_pin_num());
 #ifdef RTCIO_NEED_MAPPING
   if (arg->use_rtc)
