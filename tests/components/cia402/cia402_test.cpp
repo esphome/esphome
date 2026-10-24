@@ -185,14 +185,11 @@ TEST_F(DriveTest, RelativeOverflowNeverWritesTarget) {
     }
     if (object == 0x6041) {
       reply(status, 2);
-    }
-    else if (object == 0x6061) {
+    } else if (object == 0x6061) {
       reply(1, 1);
-    }
-    else if (object == 0x6064) {
+    } else if (object == 0x6064) {
       reply(INT32_MAX, 4);
-    }
-    else {
+    } else {
       reply(0, 4);
     }
   }
@@ -226,11 +223,9 @@ TEST_F(DriveTest, ProfilePositionCompletesAcknowledgementHandshake) {
       reply(status, 2);
     else if (object == 0x6061) {
       reply(1, 1);
-    }
-    else if (object == 0x6064) {
+    } else if (object == 0x6064) {
       reply(static_cast<uint32_t>(-100), 4);
-    }
-    else {
+    } else {
       reply(0, 4);
     }
   }
@@ -258,17 +253,13 @@ TEST_F(DriveTest, RelativeLimitRejectionNeverWritesTarget) {
     EXPECT_NE(object, 0x607A);
     if (frame.data[0] != 0x40) {
       reply();
-    }
-    else if (object == 0x6041) {
+    } else if (object == 0x6041) {
       reply(0x27, 2);
-    }
-    else if (object == 0x6061) {
+    } else if (object == 0x6061) {
       reply(1, 1);
-    }
-    else if (object == 0x6064) {
+    } else if (object == 0x6064) {
       reply(90, 4);
-    }
-    else {
+    } else {
       reply(0, 4);
     }
   }
