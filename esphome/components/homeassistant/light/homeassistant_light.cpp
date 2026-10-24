@@ -203,12 +203,8 @@ void HomeassistantLight::on_report_(bool changed) {
       this->cancel_timeout(ECHO_TIMEOUT_ID);
     }
     // Noted as the report arrives, not when the deferred apply runs: a call read from the same loop
-    // pass before this report is older than it, one read after it is newer and must not pass for
-    // the transition the report is held for
-    this->report_in_transition_ = this->state_->is_transitioning();
-    if (this->report_in_transition_) {
-      this->held_hash_ = state_hash(this->state_->remote_values);
-    }
+    // pass before this report is older than it, one read after it is newer
+    this->state_->clear_called();
   }
   this->schedule_apply_();
 }
@@ -257,8 +253,9 @@ void HomeassistantLight::apply_imported_() {
   }
   if (!this->state_->set_external_state(values)) {
     // A report that changed something during a transition or flash is applied once it ends, in
-    // place of the values it ends at; a trait or a repeated report has nothing newer to say
-    if (this->report_in_transition_) {
+    // place of the values it ends at, unless a call came after the report; a trait or a repeated
+    // report has nothing newer to say
+    if (this->state_->is_transitioning() && !this->state_->called_since_clear()) {
       this->report_held_ = true;
       return;
     }
@@ -268,18 +265,7 @@ void HomeassistantLight::apply_imported_() {
     ESP_LOGD(TAG, "'%s': Report dropped, a local change is on its way", this->entity_id_);
     return;
   }
-  this->report_in_transition_ = false;
   ESP_LOGV(TAG, "'%s': Took over the state reported by Home Assistant", this->entity_id_);
-}
-
-uint32_t HomeassistantLight::state_hash(const LightColorValues &values) {
-  uint32_t hash = fnv1a_hash_extend(FNV1_OFFSET_BASIS, static_cast<uint8_t>(values.get_color_mode()));
-  for (const float channel :
-       {values.get_state(), values.get_brightness(), values.get_color_brightness(), values.get_red(),
-        values.get_green(), values.get_blue(), values.get_white(), values.get_cold_white(), values.get_warm_white()}) {
-    hash = fnv1a_hash_extend(hash, to_uint8_scale(channel));
-  }
-  return fnv1a_hash_extend(hash, static_cast<uint16_t>(values.get_color_temperature()));  // mireds exceed a byte
 }
 
 void HomeassistantLight::update_state(LightState *state) {
@@ -291,11 +277,10 @@ void HomeassistantLight::update_state(LightState *state) {
     }
     this->initial_seen_ = true;
   }
-  // A call without a transition replaces whatever ran, so a report held for it, or still waiting to
-  // be applied, is older than the call
-  if (!state->is_transitioning()) {
+  // Every call that changes the light reaches here within a loop pass (a new transformer's first
+  // apply() or set_immediately_()), and a call since the held report was read is newer than it
+  if (this->report_held_ && state->called_since_clear()) {
     this->report_held_ = false;
-    this->report_in_transition_ = false;
   }
 }
 
@@ -338,11 +323,7 @@ void HomeassistantLight::write_state(LightState *state) {
     return;
   }
   if (state->is_transitioning()) {
-    // A transition or flash runs here alone; Home Assistant gets the state it ends at. A call that
-    // replaces the transition a report was held for retargets it and is newer than the report
-    if (this->report_held_ && state_hash(state->remote_values) != this->held_hash_) {
-      this->report_held_ = false;
-    }
+    // A transition or flash runs here alone; Home Assistant gets the state it ends at
     this->transitioned_ = true;
     return;
   }
@@ -350,7 +331,6 @@ void HomeassistantLight::write_state(LightState *state) {
   const bool transitioned = this->transitioned_;
   this->report_held_ = false;
   this->transitioned_ = false;
-  this->report_in_transition_ = false;  // this change is newer than any report so far, held or dropped
   // Home Assistant changed meanwhile; its report is newer than what the transition ends at or
   // what the flash goes back to
   if (held) {

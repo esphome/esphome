@@ -5,6 +5,7 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components.esp32 import (
     KEY_BOARD,
+    KEY_IDF_VERSION,
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32S3,
@@ -35,11 +36,17 @@ def _stage(
     platform_framework: PlatformFramework,
     variant: str,
     version: cv.Version,
+    idf: cv.Version | None = None,
 ) -> None:
+    """``idf`` is the ESP-IDF underneath an Arduino ``version``; an ESP-IDF build is its own."""
     set_core_config(
         platform_framework,
         core_data={KEY_FRAMEWORK_VERSION: version},
-        platform_data={KEY_BOARD: "test-board", KEY_VARIANT: variant},
+        platform_data={
+            KEY_BOARD: "test-board",
+            KEY_VARIANT: variant,
+            KEY_IDF_VERSION: idf or version,
+        },
     )
     CORE.loaded_integrations.add("psram")
 
@@ -74,17 +81,46 @@ def test_psram_dma_accepts_esp32s31(
     assert config[CONF_PSRAM_DMA] is True
 
 
-def test_psram_dma_rejects_arduino(
+def test_psram_dma_accepts_arduino_on_idf_5_5_3(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The ESP-IDF underneath an Arduino build is what counts; 3.3.7 is the first on 5.5.3."""
+    _stage(
+        set_core_config,
+        PlatformFramework.ESP32_ARDUINO,
+        VARIANT_ESP32S3,
+        cv.Version(3, 3, 7),
+        idf=cv.Version(5, 5, 3),
+    )
+
+    config = _schema()({CONF_PSRAM_DMA: True})
+
+    assert config[CONF_PSRAM_DMA] is True
+
+
+def test_psram_dma_rejects_other_platforms(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """No ESP32 state to read a version from: the platform check comes first."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    CORE.loaded_integrations.add("psram")
+
+    with pytest.raises(cv.Invalid, match="only available on"):
+        _schema()({CONF_PSRAM_DMA: True})
+
+
+def test_psram_dma_rejects_older_arduino(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     _stage(
         set_core_config,
         PlatformFramework.ESP32_ARDUINO,
         VARIANT_ESP32S3,
-        cv.Version(5, 5, 3),
+        cv.Version(3, 3, 6),
+        idf=cv.Version(5, 5, 2),
     )
 
-    with pytest.raises(cv.Invalid, match="only available with framework"):
+    with pytest.raises(cv.Invalid, match="requires ESP-IDF 5.5.3"):
         _schema()({CONF_PSRAM_DMA: True})
 
 
@@ -127,7 +163,7 @@ def test_psram_dma_rejects_older_idf(
         cv.Version(5, 5, 2),
     )
 
-    with pytest.raises(cv.Invalid, match="requires at least framework version 5.5.3"):
+    with pytest.raises(cv.Invalid, match="requires ESP-IDF 5.5.3"):
         _schema()({CONF_PSRAM_DMA: True})
 
 
