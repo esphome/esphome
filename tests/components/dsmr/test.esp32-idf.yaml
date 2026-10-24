@@ -3,11 +3,11 @@ substitutions:
 
 packages:
   uart: !include ../../test_build_components/common/uart/esp32-idf.yaml
-
-<<: !include common.yaml
+  dsmr: !include common.yaml
 
 sensor:
   - platform: dsmr
+    dsmr_id: dsmr_instance
     energy_delivered_lux:
       name: "Energy Consumed Luxembourg. OBIS: 1-0:1.8.0"
     energy_delivered_tariff1:
@@ -75,6 +75,7 @@ sensor:
 
 text_sensor:
   - platform: dsmr
+    dsmr_id: dsmr_instance
     identification:
       name: "DSMR Identification"
     p1_version:

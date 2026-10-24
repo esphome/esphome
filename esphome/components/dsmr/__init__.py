@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import logging
 
 from esphome import pins
@@ -11,6 +12,7 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
     CONF_UART_ID,
 )
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -36,6 +38,49 @@ CONF_REQUEST_PIN = "request_pin"
 
 dsmr_ns = cg.esphome_ns.namespace("dsmr")
 Dsmr = dsmr_ns.class_("Dsmr", cg.Component, uart.UARTDevice)
+
+MBUS_ID_KEYS = (CONF_GAS_MBUS_ID, CONF_WATER_MBUS_ID, CONF_THERMAL_MBUS_ID)
+
+
+@dataclass
+class DsmrData:
+    # dicts used as ordered sets, so the generated field order is stable
+    sensors: dict[str, None] = field(default_factory=dict)
+    text_sensors: dict[str, None] = field(default_factory=dict)
+
+
+def _get_data() -> DsmrData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = DsmrData()
+        CORE.add_job(_emit_field_lists)
+    return CORE.data[DOMAIN]
+
+
+def register_sensor_field(key: str) -> None:
+    _get_data().sensors[key] = None
+
+
+def register_text_sensor_field(key: str) -> None:
+    _get_data().text_sensors[key] = None
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _emit_field_lists() -> None:
+    # All instances share one parsed data type, so it holds the fields of every
+    # sensor and text sensor configured on any instance.
+    data = _get_data()
+    if data.sensors:
+        cg.add_define("DSMR_SENSOR_LIST_DEFINED")
+        cg.add_define(
+            "DSMR_SENSOR_LIST(F, sep)",
+            cg.RawExpression(" sep ".join(f"F({key})" for key in data.sensors)),
+        )
+    if data.text_sensors:
+        cg.add_define("DSMR_TEXT_SENSOR_LIST_DEFINED")
+        cg.add_define(
+            "DSMR_TEXT_SENSOR_LIST(F, sep)",
+            cg.RawExpression(" sep ".join(f"F({key})" for key in data.text_sensors)),
+        )
 
 
 CONFIG_SCHEMA = cv.All(
@@ -92,6 +137,13 @@ async def to_code(config: ConfigType) -> None:
 
 def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
+
+    # The M-Bus ids are compile-time constants of the parser library, shared by all instances
+    for key in MBUS_ID_KEYS:
+        if any(conf[key] != config[key] for conf in full_config[DOMAIN]):
+            raise cv.Invalid(
+                f"All '{DOMAIN}' instances must use the same '{key}'", path=[key]
+            )
 
     for uart_conf in full_config[UART_DOMAIN]:
         if uart_conf[CONF_ID] == config[CONF_UART_ID]:

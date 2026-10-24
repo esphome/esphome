@@ -29,7 +29,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import CONF_DSMR_ID, Dsmr
+from . import CONF_DSMR_ID, Dsmr, register_sensor_field
 
 AUTO_LOAD = ["dsmr"]
 UNIT_GIGA_JOULE = "GJ"
@@ -984,7 +984,6 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DSMR_ID])
 
-    sensors = []
     for key, conf in config.items():
         if not isinstance(conf, dict):
             continue
@@ -992,10 +991,4 @@ async def to_code(config: ConfigType) -> None:
         if id and id.type == sensor.Sensor:
             sens = await sensor.new_sensor(conf)
             cg.add(getattr(hub, f"set_{key}")(sens))
-            sensors.append(f"F({key})")
-
-    if sensors:
-        cg.add_define("DSMR_SENSOR_LIST_DEFINED")
-        cg.add_define(
-            "DSMR_SENSOR_LIST(F, sep)", cg.RawExpression(" sep ".join(sensors))
-        )
+            register_sensor_field(key)

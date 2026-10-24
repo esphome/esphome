@@ -3,11 +3,11 @@ substitutions:
 
 packages:
   uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
-
-<<: !include common.yaml
+  dsmr: !include common.yaml
 
 text_sensor:
   - platform: dsmr
+    dsmr_id: dsmr_instance
     identification:
       name: "DSMR Identification"
     p1_version:
