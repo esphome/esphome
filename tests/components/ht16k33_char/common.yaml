@@ -1,0 +1,15 @@
+display:
+  - platform: ht16k33_char
+    device: ADAFRUIT_7_SEG_.56IN
+    address: 0x70
+    intensity: 10
+    max_buffer_length: 12
+    secondary_displays:
+      - address: 0x71
+    add_characters:
+      "°": 0x63
+      "r": 0x50
+      "Y": 0
+    lambda: |-
+      it.print("12:34");
+      it.printf(5, "%d°", 21);
