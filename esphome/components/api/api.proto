@@ -431,7 +431,6 @@ message DeviceCapabilitiesResponse {
       [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
   WizardCapabilities wizard = 5 [(field_ifdef) = "USE_API_WIZARD"];
   SendspinCapabilities sendspin = 6 [(field_ifdef) = "USE_SENDSPIN"];
-  // 7 is store_yaml, already in a released aioesphomeapi
   CrashReportCapabilities crash_report = 8 [(field_ifdef) = "USE_CRASH_REPORT"];
 }
 
@@ -565,9 +564,6 @@ enum CrashReason {
   CRASH_REASON_SOFT_WATCHDOG = 5;
   CRASH_REASON_HARDWARE_WATCHDOG = 6;   // Nothing but the reason is recorded
 }
-
-// Message ids 161 and 162 are GetYamlRequest and GetYamlResponse (store_yaml), already in a
-// released aioesphomeapi.
 
 // Asks for the crash recorded on the previous boot. Clients send it when
 // DeviceCapabilitiesResponse.crash_report.flags has CRASH_REPORT_FLAG_PRESENT set.
