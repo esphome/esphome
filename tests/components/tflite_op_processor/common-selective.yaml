@@ -1,0 +1,31 @@
+tflite_op_processor:
+  # Only these kernels are compiled in; every other operator is left out.
+  operators:
+    - SOFTMAX
+    - REDUCE_MIN
+
+esphome:
+  on_boot:
+    - lambda: |-
+        // Compile-time check of the selective branch: the two listed operators
+        // are in, ADD is out.
+        // In the selective build the flags are global #defines from defines.h,
+        // so they have to be spelled unqualified here.
+        using esphome::tflite_op_processor::OpResolverManager;
+        static_assert(TFLM_OP_ENABLED_SOFTMAX == 1);
+        static_assert(TFLM_OP_ENABLED_REDUCE_MIN == 1);
+        static_assert(TFLM_OP_ENABLED_ADD == 0);
+
+        tflite::MicroMutableOpResolver<2> resolver;
+        const std::set<tflite::BuiltinOperator> required{
+            tflite::BuiltinOperator_SOFTMAX,
+            tflite::BuiltinOperator_REDUCE_MIN,
+        };
+        const bool registered = OpResolverManager::register_ops(resolver, required, "tflite_op_processor");
+
+        // An operator that was compiled out must be reported, not registered.
+        const std::set<tflite::BuiltinOperator> excluded{tflite::BuiltinOperator_ADD};
+        const bool rejected = !OpResolverManager::register_ops(resolver, excluded, "tflite_op_processor");
+
+        ESP_LOGI("tflite_op_processor", "selective: registered=%s excluded_rejected=%s",
+                 registered ? "ok" : "failed", rejected ? "ok" : "failed");
