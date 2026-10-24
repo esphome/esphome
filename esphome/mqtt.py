@@ -459,8 +459,8 @@ def show_logs(
                 if msg.topic == birth_topic and not mac_suffix:
                     request_crash_log(client)
             elif (match := birth_pattern.fullmatch(msg.topic)) and (
-                # Replaying clears the stored crash, so only ask boards whose logs are shown
-                log_pattern or mqtt.topic_matches_sub(topic, f"{match[1]}/debug")
+                # Replaying clears the stored crash, so with a --topic only ask the boards it shows
+                not topic_from_cli or mqtt.topic_matches_sub(topic, f"{match[1]}/debug")
             ):
                 request_crash_log(client, f"esphome/logs/{match[1]}")
         # The birth topic may sit inside the log subscription, so print by what was asked for

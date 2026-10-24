@@ -200,6 +200,33 @@ def test_show_logs_keeps_custom_topics_with_mac_suffix(
 
 
 @patch("esphome.mqtt.initialize")
+def test_show_logs_asks_every_board_sharing_a_custom_log_topic(
+    mock_initialize: MagicMock,
+) -> None:
+    """Every board logs to the custom topic, so each one's birth message asks for its crash log."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+    config[CONF_MQTT][CONF_LOG_TOPIC] = {CONF_TOPIC: "custom/debug"}
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config)
+
+    assert mock_initialize.call_args.args[1] == ["custom/debug", "+/status"]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    on_message(
+        client, None, MagicMock(topic="test-device-a1b2c3/status", payload=b"online")
+    )
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device-a1b2c3", None, retain=False
+    )
+
+
+@patch("esphome.mqtt.initialize")
 def test_show_logs_follows_a_command_line_topic_as_written(
     mock_initialize: MagicMock,
 ) -> None:
