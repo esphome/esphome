@@ -4,6 +4,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_NOISE_STREAM
+#include "esphome/components/noise/noise_stream.h"
+#endif
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -25,9 +28,13 @@ class UartTcp final : public Component, public uart::UARTDevice {
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
   void set_reconnect_interval(uint32_t ms) { this->link_.set_reconnect_interval(ms); }
+#ifdef USE_NOISE_STREAM
+  void set_noise_stream(noise::NoiseStream *stream) { this->noise_ = stream; }
+#endif
 #ifdef USE_BINARY_SENSOR
   void set_connected_sensor(binary_sensor::BinarySensor *sensor) { this->connected_sensor_ = sensor; }
 #endif
+  void set_timeout(uint32_t ms) { this->link_.set_idle_timeout(ms); }
 #ifdef USE_SENSOR
   void set_disconnects_sensor(sensor::Sensor *sensor) { this->disconnects_sensor_ = sensor; }
 #endif
@@ -45,7 +52,25 @@ class UartTcp final : public Component, public uart::UARTDevice {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
  protected:
-  void sync_link_();
+  /// The link is up and, with encryption, its session is secure.
+  bool link_up_() {
+#ifdef USE_NOISE_STREAM
+    if (this->noise_ != nullptr) {
+      return this->noise_->up(this->link_);
+    }
+#endif
+    return this->link_.connected();
+  }
+  /// Send what is queued; true once the link's buffer is empty.
+  ESPHOME_ALWAYS_INLINE bool flush_link_() {
+#ifdef USE_NOISE_STREAM
+    if (this->noise_ != nullptr) {
+      return this->noise_->flush(this->link_);
+    }
+#endif
+    return this->link_.flush_tx();
+  }
+  void sync_link_(bool up);
   void read_socket_();
   void read_uart_();
   void discard_uart_();
@@ -57,6 +82,9 @@ class UartTcp final : public Component, public uart::UARTDevice {
   socket::TcpClientLink link_;
 #ifdef USE_SOCKET_TCP_LISTENER
   socket::TcpListener listener_;
+#endif
+#ifdef USE_NOISE_STREAM
+  noise::NoiseStream *noise_{nullptr};
 #endif
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *connected_sensor_{nullptr};
