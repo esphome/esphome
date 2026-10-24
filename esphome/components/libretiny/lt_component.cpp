@@ -46,7 +46,7 @@ void LTComponent::dump_config() {
     }
   }
   if (found == 0) {
-    ESP_LOGE(TAG, "No RF calibration found; Wi-Fi will not work properly");
+    ESP_LOGE(TAG, "No RF calibration found; Wi-Fi may be unreliable. Check that board: matches this module");
   } else if (found != FLASH_CALIBRATION_OFFSET) {
     ESP_LOGE(TAG,
              "board: layout wrong for this module, RF calibration is at 0x%06" PRIX32 " not 0x%06" PRIX32
