@@ -81,6 +81,10 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// missing signal (open circuit, absent supply, or a failed conversion).
   static constexpr float MIN_VALID_VOLTAGE = 0.01f;
 
+  /// A saturated sensor drives its output to the supply, which can sit a few
+  /// percent above `vcc:`. Within this band it is the top of the measuring range.
+  static constexpr float SATURATION_TOLERANCE = 0.05f;
+
   /// Minimum interval between two *per-update* (`LOG_SEVERITY_DEBUG`) messages
   /// mirrored to `log_sensor_`. The sensor may poll at 1 Hz, and a text state
   /// per second would flood the Home Assistant recorder - calibration messages,
@@ -138,6 +142,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void refresh_status_warning_();
   /// End a ratio fault that a valid reading supersedes.
   void clear_ratio_warning_();
+  /// Warn once when the published value is the top of the range rather than a
+  /// measurement there, so a ceiling does not pass for a real reading.
+  void warn_ceiling_(float ppm);
 
   StringRef type_{StringRef::from_lit("MQ")};
   StringRef gas_{StringRef::from_lit("CUSTOM")};
@@ -181,9 +188,11 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_rejected_nonfinite_{0};
   uint32_t calibration_rejected_rs_{0};
   float calibration_sum_{0.0f};
+  /// Windows in which the sampler answered only part of the conversions: a
+  /// degrading sampler that never fails outright.
+  uint32_t calibration_partial_{0};
   /// The first rejected calibration sample was logged (debug only).
   bool calibration_rejection_logged_{false};
-  bool warned_no_r0_{false};
   /// One flag per fault kind, so each is reported once - and again when the
   /// fault changes.
   bool warned_sampler_failure_{false};
@@ -191,6 +200,10 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   bool warned_high_voltage_{false};
   /// A reading the curve cannot evaluate while the wiring itself is fine.
   bool warned_unusable_ratio_{false};
+  /// The last window had conversions the sampler could not complete.
+  bool warned_partial_window_{false};
+  /// The published value is the top of the range, by saturation or by clamp.
+  bool warned_over_range_{false};
   /// True while a voltage fault is the reason the status warning is up, so a
   /// reading that turns good again clears that warning and no other.
   bool wiring_warning_{false};
@@ -200,6 +213,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   float sensor_voltage_{0.0f};
   float rs_{0.0f};
   float ratio_{0.0f};
+  /// Usable conversions of the last sampling window, so a partially answered
+  /// window is visible instead of a silently shorter average.
+  uint8_t sample_count_{0};
 
 #ifdef USE_MQ_GAS_SENSORS_LOG_SENSOR
   text_sensor::TextSensor *log_sensor_{nullptr};

@@ -12,12 +12,6 @@ namespace esphome::mq_gas_sensors {
 
 ESPHOME_LOG_TAG(TAG, "mq_gas_sensors");
 
-/// A sensor whose resistance collapses drives its analog output to its supply, and
-/// the supply rail can sit this much above the configured `vcc:` (a 5.1 V USB rail
-/// against the default 5.0 V). A reading within the tolerance is the top of the
-/// measuring range; above it the reading cannot come from the configured sensor.
-static constexpr float SATURATION_TOLERANCE = 0.05f;
-
 /// Human readable name of a `mqmath::RegressionMethod` value.
 static const LogString *regression_method_name(uint8_t method) {
   if (method == mqmath::REGRESSION_LINEAR)
@@ -101,27 +95,11 @@ void MQGasSensor::log_reading_(float ppm) {
 void MQGasSensor::setup() {
   if (this->r0_configured_) {
     this->log_message_(LOG_SEVERITY_INFO, LOG_STR("using the R0 from the configuration (%.4f kOhm)"), this->r0_);
-  }
-
-  if (this->calibration_enabled_) {
-    if (this->has_r0()) {
-      this->log_message_(LOG_SEVERITY_INFO, LOG_STR("R0 already known (%.4f kOhm) - automatic calibration skipped"),
-                         this->r0_);
-    } else {
-      this->calibration_pending_ = true;
-      this->set_timeout(CALIBRATION_START_ID, this->calibration_delay_, [this]() { this->begin_calibration_(); });
-      this->log_message_(LOG_SEVERITY_INFO,
-                         LOG_STR("R0 calibration in %" PRIu32 " s - the sensor must be in clean air"),
-                         this->calibration_delay_ / 1000);
-    }
-  } else if (!this->has_r0()) {
-    // No R0 will ever appear in this configuration, so the component is degraded for
-    // its whole life: keep the status warning up, not only the log line.
-    this->r0_warning_ = LOG_STR("no R0 available - set 'r0:' or 'calibration:' in the configuration");
-    this->status_set_warning(this->r0_warning_);
-    this->log_message_(
-        LOG_SEVERITY_WARN,
-        LOG_STR("no R0 available, set 'r0:' or 'calibration:' - the PPM value stays unknown until then"));
+  } else if (this->calibration_enabled_) {
+    this->calibration_pending_ = true;
+    this->set_timeout(CALIBRATION_START_ID, this->calibration_delay_, [this]() { this->begin_calibration_(); });
+    this->log_message_(LOG_SEVERITY_INFO, LOG_STR("R0 calibration in %" PRIu32 " s - the sensor must be in clean air"),
+                       this->calibration_delay_ / 1000);
   }
 
   this->disable_loop();
@@ -150,7 +128,7 @@ void MQGasSensor::dump_config() {
 
 float MQGasSensor::sample_voltage_() {
   float sum = 0.0f;
-  uint8_t count = 0;
+  this->sample_count_ = 0;
   for (uint8_t i = 0; i < this->samples_; i++) {
     const float sample = this->source_->sample();
     // A conversion the sampler could not complete is not a measurement: drop it
@@ -158,11 +136,11 @@ float MQGasSensor::sample_voltage_() {
     if (!std::isfinite(sample))
       continue;
     sum += sample;
-    count++;
+    this->sample_count_++;
   }
-  if (count == 0)
+  if (this->sample_count_ == 0)
     return NAN;
-  return (sum / static_cast<float>(count)) * this->voltage_multiplier_;
+  return (sum / static_cast<float>(this->sample_count_)) * this->voltage_multiplier_;
 }
 
 float MQGasSensor::current_rs_() const { return mqmath::rs_from_voltage(this->sensor_voltage_, this->vcc_, this->rl_); }
@@ -231,6 +209,18 @@ void MQGasSensor::update() {
     this->publish_state(NAN);
     return;
   }
+  if (this->sample_count_ < this->samples_) {
+    // A sampler that answers only part of the window is degrading without failing
+    // outright; the average still uses what came back, so say so once.
+    if (!this->warned_partial_window_) {
+      this->warned_partial_window_ = true;
+      this->log_message_(LOG_SEVERITY_WARN,
+                         LOG_STR("only %u of %u conversions returned a reading - check the sampler (I2C bus, ADC)"),
+                         static_cast<unsigned>(this->sample_count_), static_cast<unsigned>(this->samples_));
+    }
+  } else {
+    this->warned_partial_window_ = false;
+  }
   if (!this->voltage_usable_(this->sensor_voltage_)) {
     if (!this->warned_low_voltage_) {
       this->warned_low_voltage_ = true;
@@ -283,14 +273,9 @@ void MQGasSensor::update() {
   }
 
   if (!this->has_r0()) {
-    if (!this->warned_no_r0_) {
-      this->warned_no_r0_ = true;
-      this->log_message_(LOG_SEVERITY_WARN, LOG_STR("R0 unknown - %s"),
-                         this->calibration_enabled_
-                             ? LOG_STR_LITERAL("the clean-air calibration did not complete, check the AO wiring and "
-                                               "the supply")
-                             : LOG_STR_LITERAL("set 'r0:' or 'calibration:' in the configuration"));
-    }
+    // Exactly one of `r0:` and `calibration:` is configured, so an unknown R0 here
+    // is a boot calibration that has not succeeded; `finish_calibration_()` logged
+    // the cause and raised the warning.
     // The voltage and RS are real readings even without R0, so the diagnostics
     // that show the wiring keep working; the ratio and the ppm need R0 and stay
     // unknown until it is known. At the supply rail RS has collapsed, so the same 0
@@ -311,6 +296,7 @@ void MQGasSensor::update() {
     // A ratio fault from an earlier update is over: this is a valid reading.
     this->clear_ratio_warning_();
     this->log_reading_(this->max_ppm_);
+    this->warn_ceiling_(this->max_ppm_);
     this->log_message_(LOG_SEVERITY_DEBUG,
                        LOG_STR("V=%.4f V is at the supply - the sensor is saturated, reporting the top of the range"),
                        this->sensor_voltage_);
@@ -344,6 +330,7 @@ void MQGasSensor::update() {
     return;
   }
   this->clear_ratio_warning_();
+  this->warn_ceiling_(ppm);
 
   this->log_reading_(ppm);
   this->log_message_(LOG_SEVERITY_DEBUG, LOG_STR("V=%.4f V, RS=%.4f kOhm, ratio=%.4f -> %.1f ppm"),
@@ -371,6 +358,18 @@ void MQGasSensor::clear_ratio_warning_() {
     return;
   this->warned_unusable_ratio_ = false;
   this->refresh_status_warning_();
+}
+
+void MQGasSensor::warn_ceiling_(float ppm) {
+  // The value is clamped to the range and a saturated sensor reports its ceiling, so
+  // say so once: neither may pass for a measurement at that value.
+  const bool at_ceiling = ppm >= this->max_ppm_;
+  if (at_ceiling == this->warned_over_range_)
+    return;
+  this->warned_over_range_ = at_ceiling;
+  if (at_ceiling)
+    this->log_message_(LOG_SEVERITY_WARN, LOG_STR("V=%.4f V is beyond %.1f ppm - reporting the top of the range"),
+                       this->sensor_voltage_, this->max_ppm_);
 }
 
 void MQGasSensor::set_calibration(uint32_t delay, uint32_t samples, uint32_t sample_interval) {
@@ -402,6 +401,7 @@ void MQGasSensor::begin_calibration_() {
   this->calibration_rejected_high_ = 0;
   this->calibration_rejected_nonfinite_ = 0;
   this->calibration_rejected_rs_ = 0;
+  this->calibration_partial_ = 0;
   this->calibration_sum_ = 0.0f;
   this->calibration_rejection_logged_ = false;
   this->enable_loop();
@@ -416,6 +416,11 @@ void MQGasSensor::process_calibration_() {
   this->calibration_attempts_++;
 
   const float voltage = this->sample_voltage_();
+  // A window the sampler answered only in part is a second, quieter shape of the
+  // same fault the rejection counts name: count it so the failure message can
+  // point at the sampler instead of only at the wiring.
+  if (this->sample_count_ < this->samples_)
+    this->calibration_partial_++;
   bool rejected = false;
   if (!std::isfinite(voltage)) {
     this->calibration_rejected_nonfinite_++;
@@ -462,12 +467,13 @@ void MQGasSensor::finish_calibration_() {
   if (valid < required) {
     // Name the reason each rejected sample failed, so a wrong `vcc:` is not
     // mistaken for a wiring fault just because the generic message says so.
-    this->log_message_(
-        LOG_SEVERITY_ERROR,
-        LOG_STR("calibration failed, %" PRIu32 " of %" PRIu32 " valid RS: %" PRIu32 " below %.2f V, %" PRIu32
-                " at/above vcc, %" PRIu32 " non-finite, %" PRIu32 " bad RS - check AO wiring and supply"),
-        valid, attempts, this->calibration_rejected_low_, MIN_VALID_VOLTAGE, this->calibration_rejected_high_,
-        this->calibration_rejected_nonfinite_, this->calibration_rejected_rs_);
+    this->log_message_(LOG_SEVERITY_ERROR,
+                       LOG_STR("calibration failed, %" PRIu32 " of %" PRIu32 " valid RS: %" PRIu32
+                               " below %.2f V, %" PRIu32 " at/above vcc, %" PRIu32 " non-finite, %" PRIu32
+                               " bad RS, %" PRIu32 " partial windows - check AO wiring and supply"),
+                       valid, attempts, this->calibration_rejected_low_, MIN_VALID_VOLTAGE,
+                       this->calibration_rejected_high_, this->calibration_rejected_nonfinite_,
+                       this->calibration_rejected_rs_, this->calibration_partial_);
     this->r0_warning_ = LOG_STR("clean-air calibration failed");
     this->status_set_warning(this->r0_warning_);
     return;
