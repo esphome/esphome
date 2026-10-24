@@ -3,12 +3,14 @@ wifi:
   password: password1
 
 udp:
-  listen_address: 239.0.60.53
-  addresses: ["239.0.60.53"]
+  - id: transport_udp_component
+    listen_address: 239.0.60.53
+    addresses: ["239.0.60.53"]
 
 packet_transport:
   - platform: udp
     id: transport_udp
+    udp_id: transport_udp_component
     update_interval: 5s
     encryption: "our key goes here"
     rolling_code_enable: true
