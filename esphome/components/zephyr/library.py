@@ -42,10 +42,11 @@ ZEPHYR_FRAMEWORK = "zephyr"
 # flags, so the module points at an empty Kconfig of its own instead.
 MODULE_KCONFIG = "zephyr/Kconfig.esphome"
 
-# Set by the project CMakeLists to the project-wide -D and -W flags. The modules
-# sit in a cache shared between projects, so they read the flags from this
-# variable rather than holding them.
-COMPILE_OPTIONS_VAR = "ESPHOME_LIBRARY_COMPILE_OPTIONS"
+# Set by the project CMakeLists to the project-wide -D flags. The modules sit in a
+# cache shared between projects, so they read the flags from this variable rather
+# than holding them. -W flags are left out: a target's own options come before the
+# warning flags it inherits from zephyr_interface, so they would have no effect.
+DEFINES_VAR = "ESPHOME_LIBRARY_DEFINES"
 
 
 def _escape(p: PathType) -> str:
@@ -148,11 +149,11 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
             *[f"  {_escape(f)}" for f in build_flags],
             ")",
         ]
-    # Project-wide flags such as LVGL's -DLV_CONF_PATH, as PlatformIO and
+    # Project-wide defines such as LVGL's -DLV_CONF_PATH, as PlatformIO and
     # ESP-IDF builds pass them to libraries too
     lines += [
-        f"if(DEFINED {COMPILE_OPTIONS_VAR})",
-        f"  zephyr_library_compile_options(${{{COMPILE_OPTIONS_VAR}}})",
+        f"if(DEFINED {DEFINES_VAR})",
+        f"  zephyr_library_compile_options(${{{DEFINES_VAR}}})",
         "endif()",
     ]
     # Best-effort link wiring; most Zephyr-portable libraries don't need it.

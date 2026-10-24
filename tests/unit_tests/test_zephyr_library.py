@@ -41,8 +41,8 @@ def test_generate_cmakelists_txt_basic(tmp_path):
 
     assert "zephyr_library_named(mylib)" in out
     assert (
-        "if(DEFINED ESPHOME_LIBRARY_COMPILE_OPTIONS)\n"
-        "  zephyr_library_compile_options(${ESPHOME_LIBRARY_COMPILE_OPTIONS})\n"
+        "if(DEFINED ESPHOME_LIBRARY_DEFINES)\n"
+        "  zephyr_library_compile_options(${ESPHOME_LIBRARY_DEFINES})\n"
         "endif()"
     ) in out
     assert "zephyr_library_sources(" in out
