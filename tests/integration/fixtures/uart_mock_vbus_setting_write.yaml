@@ -1,0 +1,173 @@
+esphome:
+  name: uart-mock-vbus-setting-write
+host:
+api:
+logger:
+  level: DEBUG
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+globals:
+  - id: pump_limit
+    type: int
+    initial_value: "35"
+  - id: display_language_raw
+    type: int
+    initial_value: "4"
+uart:
+  baud_rate: 9600
+  port: /dev/null
+uart_mock:
+  id: mock_uart
+  baud_rate: 9600
+  auto_start: false
+  on_tx:
+    - lambda: ESP_LOGI("vbus.wire_test", "%s", format_hex_pretty(data).c_str());
+    - if:
+        condition:
+          lambda: return data[6] == 0 && (data[7] == 3 || data[7] == 2);
+        then:
+          - delay: 25ms
+          - lambda: |-
+              const uint16_t index = uint16_t(data[8] | ((data[14] & 1u) << 7)) |
+                  (uint16_t(data[9] | ((data[14] & 2u) << 6)) << 8);
+              if (data[7] == 2) {
+                uint32_t written = 0;
+                for (size_t i = 0; i < 4; ++i)
+                  written |= uint32_t(data[10 + i] | (((data[14] >> (2 + i)) & 1u) << 7)) << (8 * i);
+                if (index == 48) id(pump_limit) = written;
+                if (index == 55) id(display_language_raw) = written;
+              }
+              const auto spec = vbus::cs_plus::find_setting(index);
+              if (!spec) return;
+              int32_t value = spec->minimum;
+              switch (index) {
+                case 1: value = 1; break;
+                case 10: value = 0; break;
+                case 48: value = id(pump_limit); break;
+                case 50: value = 65; break;
+                case 55: value = id(display_language_raw); break;
+                case 81: value = 1; break;
+                case 90: value = 1; break;
+                case 385: value = 100; break;
+                case 401: value = 40; break;
+                case 411: value = 120; break;
+                case 12549: value = 2; break;
+                default: break;
+              }
+              const uint32_t raw = static_cast<uint32_t>(value);
+              std::vector<uint8_t> response{0xaa, 0x20, 0, 0x11, 0x22, 0x20, 0, 1,
+                  uint8_t(index), uint8_t(index >> 8), uint8_t(raw), uint8_t(raw >> 8),
+                  uint8_t(raw >> 16), uint8_t(raw >> 24), 0, 0};
+              for (size_t i = 0; i < 6; ++i) {
+                response[14] |= (response[8 + i] >> 7) << i;
+                response[8 + i] &= 0x7f;
+              }
+              uint8_t checksum = 0x7f;
+              for (size_t i = 1; i < 15; ++i) checksum = (checksum - response[i]) & 0x7f;
+              response[15] = checksum;
+              id(mock_uart).inject_to_rx_buffer(response);
+    - if:
+        condition:
+          lambda: return data[6] == 0 && data[7] == 6;
+        then:
+          - delay: 25ms
+          - uart_mock.inject_rx:
+              id: mock_uart
+              data: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x10, 0x00, 0x01, 0x0A, 0x21, 0x7B, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x01, 0x09, 0x00, 0x00, 0x00, 0x75, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x6F, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F]
+          - delay: 500ms
+          - uart_mock.inject_rx:
+              id: mock_uart
+              data: [0xAA, 0, 0, 0x11, 0x22, 0x20, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0x27]
+vbus:
+  id: bus
+  uart_id: mock_uart
+  rx_diagnostics: true
+  transmit:
+    destination: 0x2211
+    transactions:
+      controller:
+        id: controller
+        model: deltasol_cs_plus
+        update_interval: never
+        writes:
+          require_write_arm: false
+          on_setting_result:
+            - lambda: ESP_LOGI("vbus.write_test", "%u %u %u %u", value_id, unsigned(status), id(controller).writes_sent(), id(controller).writes_verified());
+        on_snapshot:
+          - lambda: |-
+              int32_t scheme = -1, unit = -1, language = -1;
+              id(controller).get_value(1, scheme);
+              id(controller).get_value(10, unit);
+              id(controller).get_value(55, language);
+              ESP_LOGI("vbus.snapshot_test", "%u %u %u %u %d %d %d", id(controller).completed_scans(),
+                  id(controller).request_count(), id(controller).group_count(), id(controller).release_count(),
+                  scheme, unit, language);
+sensor:
+  - platform: template
+    name: Packet Errors
+    accuracy_decimals: 0
+    update_interval: 100ms
+    lambda: return id(bus).get_packet_error_count();
+    filters:
+      - delta: 0.5
+  - platform: template
+    name: Scan Status
+    accuracy_decimals: 0
+    update_interval: 100ms
+    lambda: return static_cast<unsigned>(id(controller).scan_status());
+    filters:
+      - delta: 0.5
+  - platform: vbus
+    model: deltasol_cs_plus
+    vbus_id: bus
+    temperature_1:
+      name: Controller RX
+button:
+  - platform: template
+    name: Inject Corrupt Packet
+    on_press:
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x10, 0x00, 0x01, 0x00, 0x2A]
+  - platform: template
+    name: Start Scenario
+    on_press:
+      - lambda: id(mock_uart).start_scenario();
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0x10, 0x00, 0x11, 0x22, 0x10, 0x00, 0x01, 0x0A, 0x21, 0x7B, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x01, 0x09, 0x00, 0x00, 0x00, 0x75, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F, 0x6F, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7F]
+      - delay: 100ms
+      - vbus.scan_controller:
+          id: controller
+      - delay: 100ms
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0xAA, 0, 0, 0x11, 0x22, 0x20, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0x27]
+  - platform: template
+    name: Set Pump Limit
+    on_press:
+      - vbus.set_setting:
+          id: controller
+          value_id: 48
+          value: 60
+number:
+  - platform: vbus
+    controller_id: controller
+    parameter: min_pump_speed_1
+    name: Minimum Pump Speed
+  - platform: vbus
+    controller_id: controller
+    parameter: delta_temperature_1_on
+    name: Switch On Temperature Difference
+    unit_of_measurement: K
+select:
+  - platform: vbus
+    controller_id: controller
+    parameter: display_language
+    name: Display Language
+  - platform: vbus
+    controller_id: controller
+    parameter: flow_sensor_type
+    name: Flow Sensor Type
