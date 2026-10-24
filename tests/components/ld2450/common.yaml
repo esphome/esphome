@@ -131,12 +131,20 @@ text_sensor:
     target_1:
       direction:
         name: Target-1 Direction
+      xy:
+        name: Target-1 XY
     target_2:
       direction:
         name: Target-2 Direction
+      xy:
+        name: Target-2 XY
+        throttle: 200ms
     target_3:
       direction:
         name: Target-3 Direction
+      xy:
+        name: Target-3 XY
+        throttle: 0s
 
 number:
   - platform: ld2450

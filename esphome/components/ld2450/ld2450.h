@@ -79,6 +79,21 @@ struct ZoneOfNumbers {
 };
 #endif
 
+#ifdef USE_LD2450_TARGET_XY
+/// Publishes a target's position as "x,y" text, so both values always come from the same radar frame.
+struct TargetXY {
+  text_sensor::TextSensor *sensor{nullptr};
+  uint32_t throttle_ms{0};      // Minimum time between published positions
+  uint32_t last_publish_ms{0};  // When the sensor was last published, valid when published is set
+  int16_t x{0};                 // Latest position, or (0, 0) when no target is tracked
+  int16_t y{0};
+  bool has_input{false};  // A frame has been seen, so x, y and tracked are valid
+  bool tracked{false};    // A target is tracked in the latest frame
+  bool pending{false};    // The latest position is waiting for the throttle
+  bool published{false};
+};
+#endif
+
 class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(moving_target)
@@ -127,6 +142,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   void set_direction_text_sensor(uint8_t target, text_sensor::TextSensor *s);
 #endif
+#ifdef USE_LD2450_TARGET_XY
+  void set_target_xy_text_sensor(uint8_t target, text_sensor::TextSensor *s, uint32_t throttle_ms);
+#endif
 #ifdef USE_NUMBER
   void set_zone_coordinate(number::Number *n);
   void set_zone_numbers(uint8_t zone, number::Number *x1, number::Number *y1, number::Number *x2, number::Number *y2);
@@ -169,6 +187,10 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
+#ifdef USE_LD2450_TARGET_XY
+  void update_target_xy_(uint8_t target, bool tracked, int16_t x, int16_t y);
+  void publish_target_xy_(TargetXY &xy, uint32_t now);
+#endif
   void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
@@ -205,6 +227,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
+#endif
+#ifdef USE_LD2450_TARGET_XY
+  std::array<TargetXY, MAX_TARGETS> target_xy_{};
 #endif
 
 #ifdef LD2450_POLYGON_ZONE_COUNT
