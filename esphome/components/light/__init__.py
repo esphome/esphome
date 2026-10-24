@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_COLOR_CORRECT,
     CONF_DEFAULT_TRANSITION_LENGTH,
+    CONF_EFFECT,
     CONF_EFFECTS,
     CONF_ENTITY_CATEGORY,
     CONF_FLASH_TRANSITION_LENGTH,
@@ -31,17 +32,26 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_RESTORE_STATE,
     CONF_RGB_ORDER,
+    CONF_STATE,
     CONF_TRIGGER_ID,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    EsphomeError,
+    HexInt,
+    coroutine_with_priority,
+)
 from esphome.core.entity_helpers import (
+    RESTORE_STATE_NONE,
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -56,7 +66,6 @@ from .effects import (
 )
 from .restore_state import (
     LEGACY_RESTORE_MODES,
-    RESTORE_STATE_NONE,
     RESTORE_STATE_SCHEMA,
     _build_state_lambda,
     _initial_state_overridden_by_legacy_mode,
@@ -70,6 +79,8 @@ from .types import (  # noqa: F401
     AddressableLightState,
     ChannelColors,
     ColorMode,
+    GammaTable,
+    LightEffect,
     LightOutput,
     LightState,
     LightStateRTCState,
@@ -85,6 +96,27 @@ CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
 DOMAIN = "light"
+CONF_GAMMA_TABLE_ID = "gamma_table_id"
+CONF_RESUME_EFFECT = "resume_effect"
+
+CONF_POWER_ESTIMATION = "power_estimation"
+CONF_MA_PER_LED_RED = "ma_per_led_red"
+CONF_MA_PER_LED_GREEN = "ma_per_led_green"
+CONF_MA_PER_LED_BLUE = "ma_per_led_blue"
+CONF_MA_PER_LED_WHITE = "ma_per_led_white"
+CONF_IDLE_MA_PER_LED = "idle_ma_per_led"
+CONF_MAX_CURRENT_MA = "max_current_ma"
+
+POWER_ESTIMATION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_MA_PER_LED_RED, default=20.0): cv.positive_float,
+        cv.Optional(CONF_MA_PER_LED_GREEN, default=20.0): cv.positive_float,
+        cv.Optional(CONF_MA_PER_LED_BLUE, default=20.0): cv.positive_float,
+        cv.Optional(CONF_MA_PER_LED_WHITE, default=20.0): cv.positive_float,
+        cv.Optional(CONF_IDLE_MA_PER_LED, default=1.0): cv.positive_float,
+        cv.Optional(CONF_MAX_CURRENT_MA): cv.positive_not_null_float,
+    }
+)
 
 
 @dataclass
@@ -140,26 +172,39 @@ def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
     return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
 
 
-def _get_or_create_gamma_table(gamma_correct):
+def gamma_table_initializer(gamma_correct: float) -> str:
+    """C++ initializer for a light::GammaTable: the lookup table, then gamma * 100."""
+    lut = ", ".join(f"0x{int(v):04X}" for v in generate_gamma_table(gamma_correct))
+    # gamma_x100 is a uint16_t; platforms that redefine gamma_correct leave it unbounded, so saturate here
+    return f"{{{{{lut}}}, {min(0xFFFF, round(gamma_correct * 100))}}}"
+
+
+def _get_or_create_gamma_table(gamma_correct: float, table_id: ID) -> cg.RawExpression:
     data = _get_data()
     if gamma_correct in data.gamma_tables:
         return data.gamma_tables[gamma_correct]
 
-    forward = generate_gamma_table(gamma_correct)
-
-    gamma_str = f"{gamma_correct}".replace(".", "_")
-    fwd_id = ID(f"gamma_{gamma_str}_fwd", is_declaration=True, type=cg.uint16)
-    fwd_arr = cg.progmem_array(fwd_id, forward)
-    data.gamma_tables[gamma_correct] = fwd_arr
-    return fwd_arr
+    # table_id is generated and resolved against every declared ID, so it can't collide with a
+    # YAML ID; lights sharing a gamma reuse the first light's table.
+    cg.add(
+        cg.RawStatement(
+            f"static constexpr light::GammaTable {table_id} PROGMEM = "
+            f"{gamma_table_initializer(gamma_correct)};"
+        )
+    )
+    table = cg.RawExpression(f"&{table_id}")
+    data.gamma_tables[gamma_correct] = table
+    return table
 
 
 def find_effect_index(effects: list, effect_name: str) -> int | None:
     """Find the 1-based index of an effect by name (case-insensitive).
 
-    Returns the 1-based index if found, or None if not found.
+    Returns 0 for "None" (no effect), the 1-based index if found, or None if not found.
     """
     effect_name_lower = effect_name.lower()
+    if effect_name_lower == "none":
+        return 0
     for i, effect_conf in enumerate(effects):
         key = next(iter(effect_conf))
         if effect_conf[key][CONF_NAME].lower() == effect_name_lower:
@@ -173,6 +218,14 @@ def available_effects_str(effects: list) -> str:
         effect_conf[next(iter(effect_conf))][CONF_NAME] for effect_conf in effects
     ]
     return ", ".join(f"'{name}'" for name in available) if available else "none"
+
+
+def effect_not_found_message(effect_name: str, effects: list, light: str) -> str:
+    """Return the error for an effect name that `light` (e.g. "this light") lacks."""
+    return (
+        f"Effect '{effect_name}' not found for {light}. "
+        f"Available effects: {available_effects_str(effects)}"
+    )
 
 
 # Accepted values of the deprecated `rgb_order` key.
@@ -282,9 +335,12 @@ def _final_validate(config: ConfigType) -> None:
     platform entries across the file, not a single light's own config.
     """
     for light_config in config:
+        initial_state = light_config.get(CONF_INITIAL_STATE) or {}
+        cold_boot_state = initial_state.get(CONF_STATE, False)
         restore_mode = light_config.get(CONF_RESTORE_MODE)
         if restore_mode is not None:
             legacy = LEGACY_RESTORE_MODES[restore_mode]
+            cold_boot_state = legacy.cold_boot_state
             if _initial_state_overridden_by_legacy_mode(
                 legacy, light_config.get(CONF_INITIAL_STATE)
             ):
@@ -296,6 +352,19 @@ def _final_validate(config: ConfigType) -> None:
                     restore_mode,
                     "ON" if legacy.cold_boot_state else "OFF",
                 )
+        effect_name = initial_state.get(CONF_EFFECT, "none")
+        if (
+            effect_name.lower() != "none"
+            and not cold_boot_state
+            and not light_config.get(CONF_RESUME_EFFECT)
+        ):
+            _LOGGER.warning(
+                "[%s] 'initial_state: effect: %s' does not start at boot because the "
+                "light boots OFF; add 'resume_effect: true' to start it at the first "
+                "turn-on",
+                light_config.get(CONF_NAME) or light_config[CONF_ID],
+                effect_name,
+            )
 
     data = _get_data()
     if not data.effect_refs and not data.effect_cycle_refs:
@@ -321,9 +390,9 @@ def _final_validate(config: ConfigType) -> None:
 
         if find_effect_index(effects, ref.effect_name) is None:
             raise cv.FinalExternalInvalid(
-                f"Effect '{ref.effect_name}' not found for light "
-                f"'{ref.light_id}'. "
-                f"Available effects: {available_effects_str(effects)}",
+                effect_not_found_message(
+                    ref.effect_name, effects, f"light '{ref.light_id}'"
+                ),
                 path=[cv.ROOT_CONFIG_PATH] + ref.component_path,
             )
 
@@ -351,12 +420,20 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 DEFAULT_FLASH_TRANSITION_LENGTH = "0s"
 CONF_TRANSITION_STATE_PUBLISH_INTERVAL = "transition_state_publish_interval"
 
+# `effect` stays out of LIGHT_STATE_SCHEMA: light.control defines it templatable and transformer-exclusive
+INITIAL_STATE_SCHEMA = LIGHT_STATE_SCHEMA.extend(
+    {
+        cv.Optional(CONF_EFFECT): cv.string,
+    }
+)
+
 LIGHT_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(LightState),
+            cv.GenerateID(CONF_GAMMA_TABLE_ID): cv.declare_id(GammaTable),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTJSONLightComponent
             ),
@@ -379,12 +456,42 @@ LIGHT_SCHEMA = (
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LightStateTrigger),
                 }
             ),
-            cv.Optional(CONF_INITIAL_STATE): LIGHT_STATE_SCHEMA,
+            cv.Optional(CONF_INITIAL_STATE): INITIAL_STATE_SCHEMA,
+            cv.Optional(CONF_RESUME_EFFECT, default=False): cv.boolean,
         }
     )
 )
 
 LIGHT_SCHEMA.add_extra(entity_duplicate_validator("light"))
+
+
+def _validate_initial_state_effect(config: ConfigType) -> ConfigType:
+    """Check that `initial_state: effect` names an effect of this light."""
+    initial_state = config.get(CONF_INITIAL_STATE) or {}
+    if (effect_name := initial_state.get(CONF_EFFECT)) is not None:
+        effects = config.get(CONF_EFFECTS, [])
+        if find_effect_index(effects, effect_name) is None:
+            raise cv.Invalid(
+                effect_not_found_message(effect_name, effects, "this light"),
+                path=[CONF_INITIAL_STATE, CONF_EFFECT],
+            )
+    return config
+
+
+LIGHT_SCHEMA.add_extra(_validate_initial_state_effect)
+
+
+def _initial_effect_index(config: ConfigType) -> int:
+    """Resolve `initial_state: effect` to its effect index, 0 when not set."""
+    effect_name = (config.get(CONF_INITIAL_STATE) or {}).get(CONF_EFFECT, "none")
+    effects = config.get(CONF_EFFECTS, [])
+    if (index := find_effect_index(effects, effect_name)) is not None:
+        return index
+    # Safety net for a light whose schema skipped _validate_initial_state_effect
+    raise EsphomeError(
+        effect_not_found_message(effect_name, effects, f"light '{config[CONF_ID]}'")
+    )
+
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend(
     {
@@ -429,6 +536,7 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend(
             [cv.percentage], cv.Length(min=3, max=4)
         ),
         cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
+        cv.Optional(CONF_POWER_ESTIMATION): POWER_ESTIMATION_SCHEMA,
     }
 )
 
@@ -503,13 +611,29 @@ def validate_color_temperature_channels(value):
     return value
 
 
+def _effects_table(effects: list[MockObj]) -> MockObj:
+    """Emit the flash table of a light's effect pointers; each must be a static address."""
+    return cg.shared_progmem_array(
+        "light_effects",
+        LightEffect.operator("ptr"),
+        cg.ArrayInitializer(*effects),
+        share=False,
+        constexpr=False,
+    )
+
+
 @setup_entity("light")
 async def setup_light_core_(light_var, config, output_var):
     # All 8 legacy restore_mode values, and the restore_state key, are just different
     # ways to build the same state callback and save_enabled flag that LightState's
     # runtime actually understands.
     initial_state_config = config.get(CONF_INITIAL_STATE)
-    initial_statements = await _initial_state_statements(initial_state_config)
+    initial_statements = await _initial_state_statements(
+        initial_state_config, _initial_effect_index(config)
+    )
+    if config[CONF_RESUME_EFFECT]:
+        cg.add_define("USE_LIGHT_RESUME_EFFECT")
+        cg.add(light_var.set_resume_effect(True))
 
     restore_mode = config.get(CONF_RESTORE_MODE)
     restore_state_config = config.get(CONF_RESTORE_STATE)
@@ -553,21 +677,21 @@ async def setup_light_core_(light_var, config, output_var):
     ) is not None and flash_transition_length != cv.time_period(
         DEFAULT_FLASH_TRANSITION_LENGTH
     ):
+        cg.add_define("USE_LIGHT_FLASH_TRANSITION_LENGTH")
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
     # Setting an interval opts this light in and compiles the feature in
     if (interval := config.get(CONF_TRANSITION_STATE_PUBLISH_INTERVAL)) is not None:
         cg.add(light_var.set_transition_state_publish_interval(interval))
         cg.add_define("USE_LIGHT_TRANSITION_PUBLISH_INTERVAL")
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
-        cg.add(light_var.set_gamma_correct(gamma_correct))
-        fwd_arr = _get_or_create_gamma_table(gamma_correct)
+        fwd_arr = _get_or_create_gamma_table(gamma_correct, config[CONF_GAMMA_TABLE_ID])
         cg.add(light_var.set_gamma_table(fwd_arr))
         cg.add_define("USE_LIGHT_GAMMA_LUT")
     effects = await cg.build_registry_list(
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
     if effects:
-        cg.add(light_var.add_effects(effects))
+        cg.add(light_var.add_effects(_effects_table(effects), len(effects)))
 
     for conf in config.get(CONF_ON_TURN_ON, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], light_var)
@@ -582,9 +706,21 @@ async def setup_light_core_(light_var, config, output_var):
     if (color_correct := config.get(CONF_COLOR_CORRECT)) is not None:
         cg.add(output_var.set_correction(*color_correct))
 
-    if (power_supply_id := config.get(CONF_POWER_SUPPLY)) is not None:
-        var_ = await cg.get_variable(power_supply_id)
-        cg.add(output_var.set_power_supply(var_))
+    await cg.add_variable(output_var.set_power_supply, config.get(CONF_POWER_SUPPLY))
+
+    if (power_estimation := config.get(CONF_POWER_ESTIMATION)) is not None:
+        cg.add_define("USE_LIGHT_POWER_ESTIMATION")
+        cg.add(
+            output_var.set_power_estimation(
+                power_estimation[CONF_MA_PER_LED_RED],
+                power_estimation[CONF_MA_PER_LED_GREEN],
+                power_estimation[CONF_MA_PER_LED_BLUE],
+                power_estimation[CONF_MA_PER_LED_WHITE],
+                power_estimation[CONF_IDLE_MA_PER_LED],
+            )
+        )
+        if (max_current_ma := power_estimation.get(CONF_MAX_CURRENT_MA)) is not None:
+            cg.add(output_var.set_max_current_ma(max_current_ma))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, light_var)

@@ -3,7 +3,6 @@ from logging import getLogger
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_ON_STATE_CHANGE
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
@@ -29,7 +28,6 @@ from esphome.const import (
     CONF_STATE,
     CONF_TIMING,
     CONF_TRIGGER_ID,
-    CONF_WEB_SERVER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
     DEVICE_CLASS_CARBON_MONOXIDE,
@@ -61,17 +59,25 @@ from esphome.const import (
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
+    lazy_load_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+
+DEFAULT_INVALID_COOLDOWN_MS = (
+    1000  # Keep in sync with invalid_cooldown_ in automation.h
+)
 DEVICE_CLASSES = [
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
@@ -104,6 +110,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VIBRATION,
     DEVICE_CLASS_WINDOW,
 ]
+DOMAIN = "binary_sensor"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -128,10 +135,9 @@ ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.templa
 DoubleClickTrigger = binary_sensor_ns.class_(
     "DoubleClickTrigger", automation.Trigger.template()
 )
-MultiClickTriggerBase = binary_sensor_ns.class_(
-    "MultiClickTriggerBase", automation.Trigger.template(), cg.Component
+MultiClickTrigger = binary_sensor_ns.class_(
+    "MultiClickTrigger", automation.Trigger.template(), cg.Component
 )
-MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
 
@@ -427,14 +433,14 @@ def validate_publish_initial_state(value):
 
 
 _BINARY_SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(zigbee.BINARY_SENSOR_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(BinarySensor),
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
-                mqtt.MQTTBinarySensorComponent
+                mqtt_component_class("MQTTBinarySensorComponent")
             ),
             cv.Exclusive(
                 CONF_PUBLISH_INITIAL_STATE, CONF_TRIGGER_ON_INITIAL_STATE
@@ -489,7 +495,8 @@ _BINARY_SENSOR_SCHEMA = (
                         cv.Length(min=1, max=255),
                     ),
                     cv.Optional(
-                        CONF_INVALID_COOLDOWN, default="1s"
+                        CONF_INVALID_COOLDOWN,
+                        default=f"{DEFAULT_INVALID_COOLDOWN_MS}ms",
                     ): cv.positive_time_period_milliseconds,
                 }
             ),
@@ -501,7 +508,7 @@ _BINARY_SENSOR_SCHEMA = (
 
 
 _BINARY_SENSOR_SCHEMA.add_extra(entity_duplicate_validator("binary_sensor"))
-_BINARY_SENSOR_SCHEMA.add_extra(zigbee.validate_binary_sensor)
+_BINARY_SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_binary_sensor"))
 
 
 def binary_sensor_schema(
@@ -583,11 +590,14 @@ async def _build_binary_sensor_automations(var, config):
             )
             for tim in conf[CONF_TIMING]
         ]
-        trigger = cg.new_Pvariable(
-            conf[CONF_TRIGGER_ID], cg.TemplateArguments(len(timings)), var, timings
+        table = cg.shared_progmem_array(
+            "multi_click_timing", MultiClickTriggerEvent, cg.ArrayInitializer(*timings)
         )
-        if CONF_INVALID_COOLDOWN in conf:
-            cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, table, len(timings))
+        if (
+            cooldown := conf[CONF_INVALID_COOLDOWN]
+        ).total_milliseconds != DEFAULT_INVALID_COOLDOWN_MS:
+            cg.add(trigger.set_invalid_cooldown(cooldown))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
 
@@ -604,18 +614,17 @@ async def setup_binary_sensor_core_(var, config):
     if filters_config := config.get(CONF_FILTERS):
         cg.add_define("USE_BINARY_SENSOR_FILTER")
         filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
-        cg.add(var.add_filters(filters))
+        for filter_ in filters:
+            cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_binary_sensor_automations, var, config)
 
-    if mqtt_id := config.get(CONF_MQTT_ID):
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    if "zigbee" in CORE.loaded_integrations:
+        from esphome.components import zigbee
 
-    await zigbee.setup_binary_sensor(var, config)
+        await zigbee.setup_binary_sensor(var, config)
 
 
 async def register_binary_sensor(var, config):
@@ -630,6 +639,13 @@ async def new_binary_sensor(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_binary_sensor(var, config)
     return var
+
+
+def sub_binary_sensors(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_binary_sensor."""
+    return SubEntities(new_binary_sensor, config, parent)
 
 
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id(

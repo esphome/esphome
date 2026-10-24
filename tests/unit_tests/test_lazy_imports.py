@@ -19,6 +19,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 # Modules that must only load for the commands that actually use them
 # (compile/config validation, shell completion), never from a bare
 # ``import esphome.__main__``.
@@ -34,7 +36,12 @@ HEAVY_MODULES = (
 
 # Everything the storage fast path must keep out of sys.modules; the
 # existence guard and the leak check must watch the same list.
-FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + ("esphome.components.esp32",)
+FAST_PATH_HEAVY_MODULES = HEAVY_MODULES + (
+    "esphome.components.esp32",
+    # A native backend module resolves artifact paths on this path; its
+    # framework half pulls in the whole package-download stack
+    "esphome.platformio.registry",
+)
 
 # Heavy only for modules that must not know about the API transport;
 # in the existence guard so a rename can't silently no-op its check.
@@ -175,6 +182,29 @@ def test_esptool_upload_fast_path_does_not_import_heavy_modules(
     )
 
 
+def test_native_upload_fast_path_does_not_import_heavy_modules(
+    fixture_path: Path,
+    probe_env: dict[str, str],
+) -> None:
+    """The native-toolchain serial upload dispatches through a
+    toolchain-keyed backend table; resolving the flash image must not drag
+    in the esp32 or esp8266 component package or the validation stack.
+    """
+    leaked = _leaked_from_fixture(
+        fixture_path,
+        probe_env,
+        "native_upload_fast_path.py",
+        # The cache-hit modules guard the espidf toolchain import chain:
+        # a top-level yaml import there would tax every upload subprocess.
+        extra=("esphome.components.esp8266", *CACHE_HIT_HEAVY_MODULES),
+    )
+    assert not leaked, (
+        f"native upload_using_esptool pulls in heavy modules: {leaked}. "
+        "The upload fast path skips validation; importing a platform "
+        "component package executes its codegen module by design."
+    )
+
+
 def test_api_client_does_not_import_heavy_modules() -> None:
     """``esphome.api_client`` is on the logs fast path and must stay light.
 
@@ -187,6 +217,41 @@ def test_api_client_does_not_import_heavy_modules() -> None:
         f"esphome.api_client imports heavy modules at top level: {leaked}. "
         "The logs fast path skips validation; importing the validation "
         "stack anyway defeats the validated-config cache."
+    )
+
+
+@pytest.mark.parametrize("component", ["binary_sensor", "sensor"])
+def test_entity_component_does_not_import_integrations(component: str) -> None:
+    """An entity component must not drag in its optional integrations.
+
+    The mqtt/web_server/zigbee schema fragments live in
+    ``esphome.core.entity_helpers``; the integration packages (and the
+    esp32/logger chains mqtt and zigbee pull in) must only load when the
+    user's config actually uses them.
+    """
+    allowed = (
+        "esphome.components",
+        f"esphome.components.{component}",
+        "esphome.components.const",
+    )
+    check = (
+        f"import sys; import esphome.components.{component}; "
+        f"leaked = [m for m in sys.modules "
+        f"if m.startswith('esphome.components') and m not in {allowed!r}]; "
+        "print(','.join(leaked))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", check],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    leaked = result.stdout.strip()
+    assert not leaked, (
+        f"esphome.components.{component} imports integration packages at "
+        f"top level: {leaked}. Keep the shared schema fragments in "
+        "esphome.core.entity_helpers and import the integration inside "
+        "to_code instead."
     )
 
 

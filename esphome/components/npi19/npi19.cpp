@@ -5,7 +5,7 @@
 
 namespace esphome::npi19 {
 
-static const char *const TAG = "npi19";
+ESPHOME_LOG_TAG(TAG, "npi19");
 
 static const uint8_t READ_COMMAND = 0xAC;
 

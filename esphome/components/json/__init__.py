@@ -4,6 +4,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "json"
 json_ns = cg.esphome_ns.namespace("json")
 
 CONFIG_SCHEMA = cv.All(
@@ -21,3 +22,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add_library("bblanchon/ArduinoJson", "7.4.3")
     cg.add_define("USE_JSON")
     cg.add_global(json_ns.using)
+
+
+def enable_arena() -> None:
+    """Compile JsonArena and the allocator constructor of JsonBuilder; only the consumers that build
+    documents in a stack arena pay for them."""
+    cg.add_define("USE_JSON_ARENA")

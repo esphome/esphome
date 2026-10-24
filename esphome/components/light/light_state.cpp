@@ -11,7 +11,7 @@
 
 namespace esphome::light {
 
-static const char *const TAG = "light";
+ESPHOME_LOG_TAG(TAG, "light");
 
 // Colour modes are bitmasks of capabilities. A mode the light doesn't support may be a bare set of
 // required capabilities (see restore_state.py's colour mode inference): use the first supported
@@ -83,21 +83,32 @@ void LightState::setup() {
   call.set_color_temperature_if_supported(recovered.color_temp);
   call.set_cold_white_if_supported(recovered.cold_white);
   call.set_warm_white_if_supported(recovered.warm_white);
-  if (recovered.effect != 0) {
+  if (recovered.state && recovered.effect != 0) {
     call.set_effect(recovered.effect);
   } else {
+#ifdef USE_LIGHT_RESUME_EFFECT
+    // An off light cannot start its effect now; keep it for the first turn-on instead
+    this->previous_effect_index_ = recovered.effect;
+#endif  // USE_LIGHT_RESUME_EFFECT
     call.set_transition_length_if_supported(0);
   }
   call.perform();
 }
 void LightState::dump_config() {
-  ESP_LOGCONFIG(TAG, "Light '%s'", this->get_name().c_str());
+  ESP_LOGCONFIG(TAG, "Light '%s'", LOG_STR_ARG(this->get_log_name()));
   auto traits = this->get_traits();
   if (traits.supports_color_capability(ColorCapability::BRIGHTNESS)) {
+#ifdef USE_LIGHT_GAMMA_LUT
+    // Read the stored gamma * 100 directly so dump_config does not pull in get_gamma_correct()
+    const unsigned gamma_x100 =
+        this->gamma_table_ != nullptr ? progmem_read_uint16(&this->gamma_table_->gamma_x100) : 0;
+#else
+    const unsigned gamma_x100 = 0;
+#endif
     ESP_LOGCONFIG(TAG,
                   "  Default Transition Length: %.1fs\n"
-                  "  Gamma Correct: %.2f",
-                  this->default_transition_length_ / 1e3f, this->gamma_correct_);
+                  "  Gamma Correct: %u.%02u",
+                  this->default_transition_length_ / 1e3f, gamma_x100 / 100, gamma_x100 % 100);
 #ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
     // The define is build wide; only lights that set the option have an interval
     if (this->transition_state_publish_interval_ != 0) {
@@ -114,6 +125,11 @@ void LightState::dump_config() {
   }
 }
 void LightState::loop() {
+  this->apply_effect_and_transformer_();
+  this->write_if_pending_();
+}
+
+void LightState::apply_effect_and_transformer_() {
   // Apply effect (if any)
   auto *effect = this->get_active_effect_();
   if (effect != nullptr) {
@@ -164,14 +180,38 @@ void LightState::loop() {
       this->disable_loop_if_idle_();
     }
   }
+}
 
-  // Write state to the light
+void LightState::write_if_pending_() {
   if (this->next_write_) {
     this->next_write_ = false;
     this->output_->write_state(this);
     // Disable loop if idle (no transformer and no effect)
     this->disable_loop_if_idle_();
   }
+}
+
+bool LightState::set_external_state(const LightColorValues &values) {
+  // Either would write its own values over the reported ones
+  if (this->next_write_ || this->transformer_ != nullptr) {
+    return false;
+  }
+  const bool had_effect = this->active_effect_index_ != 0;
+  this->stop_effect_();  // schedules no write, unlike a call that sets effect 0
+  if (!had_effect && values == this->remote_values && values == this->current_values) {
+    return true;  // nothing new to tell
+  }
+  this->current_values = values;
+  this->remote_values = values;
+  // Reached at once, as after an instant call, and told before the publish like there: an
+  // automation run by the publish may change the light again, and its own call reports that
+  if (this->target_state_reached_listeners_) {
+    for (auto *listener : *this->target_state_reached_listeners_) {
+      listener->on_light_target_state_reached();
+    }
+  }
+  this->publish_state();
+  return true;
 }
 
 void LightState::publish_state() {
@@ -186,8 +226,6 @@ void LightState::publish_state() {
 }
 
 LightOutput *LightState::get_output() const { return this->output_; }
-
-static constexpr auto EFFECT_NONE_REF = StringRef::from_lit("None");
 
 StringRef LightState::get_effect_name() {
   if (this->active_effect_index_ > 0) {
@@ -207,11 +245,6 @@ void LightState::add_target_state_reached_listener(LightTargetStateReachedListen
     this->target_state_reached_listeners_ = make_unique<std::vector<LightTargetStateReachedListener *>>();
   }
   this->target_state_reached_listeners_->push_back(listener);
-}
-
-void LightState::add_effects(const std::initializer_list<LightEffect *> &effects) {
-  // Called once from Python codegen during setup with all effects from YAML config
-  this->effects_ = effects;
 }
 
 void LightState::current_values_as_brightness(float *brightness) {
@@ -296,6 +329,14 @@ void LightState::current_values_as_ct(float *color_temperature, float *white_bri
   *white_brightness = this->gamma_correct_lut(*white_brightness);
 }
 
+float LightState::get_gamma_correct() const {
+#ifdef USE_LIGHT_GAMMA_LUT
+  if (this->gamma_table_ != nullptr)
+    return progmem_read_uint16(&this->gamma_table_->gamma_x100) * 0.01f;
+#endif  // USE_LIGHT_GAMMA_LUT
+  return 0.0f;
+}
+
 #ifdef USE_LIGHT_GAMMA_LUT
 float LightState::gamma_correct_lut(float value) const {
   if (value <= 0.0f)
@@ -307,10 +348,10 @@ float LightState::gamma_correct_lut(float value) const {
   float scaled = value * 255.0f;
   auto idx = static_cast<uint8_t>(scaled);
   if (idx >= 255)
-    return progmem_read_uint16(&this->gamma_table_[255]) / 65535.0f;
+    return progmem_read_uint16(&this->gamma_table_->lut[255]) / 65535.0f;
   float frac = scaled - idx;
-  float a = progmem_read_uint16(&this->gamma_table_[idx]);
-  float b = progmem_read_uint16(&this->gamma_table_[idx + 1]);
+  float a = progmem_read_uint16(&this->gamma_table_->lut[idx]);
+  float b = progmem_read_uint16(&this->gamma_table_->lut[idx + 1]);
   return (a + frac * (b - a)) / 65535.0f;
 }
 float LightState::gamma_uncorrect_lut(float value) const {
@@ -321,12 +362,12 @@ float LightState::gamma_uncorrect_lut(float value) const {
   if (this->gamma_table_ == nullptr)
     return value;
   uint16_t target = static_cast<uint16_t>(value * 65535.0f);
-  uint8_t lo = gamma_table_reverse_search(this->gamma_table_, target);
+  uint8_t lo = gamma_table_reverse_search(this->gamma_table_->lut, target);
   if (lo >= 255)
     return 1.0f;
   // Interpolate between lo and lo+1
-  uint16_t a = progmem_read_uint16(&this->gamma_table_[lo]);
-  uint16_t b = progmem_read_uint16(&this->gamma_table_[lo + 1]);
+  uint16_t a = progmem_read_uint16(&this->gamma_table_->lut[lo]);
+  uint16_t b = progmem_read_uint16(&this->gamma_table_->lut[lo + 1]);
   if (b == a)
     return lo / 255.0f;
   float frac = static_cast<float>(target - a) / static_cast<float>(b - a);
@@ -339,7 +380,7 @@ void LightState::start_effect_(uint32_t effect_index) {
   if (effect_index == 0)
     return;
 
-  this->active_effect_index_ = effect_index;
+  this->active_effect_index_ = static_cast<uint16_t>(effect_index);
   auto *effect = this->get_active_effect_();
   effect->start_internal();
   // Enable loop while effect is active
@@ -435,7 +476,7 @@ void LightState::save_remote_values_() {
   saved.color_temp = this->remote_values.get_color_temperature();
   saved.cold_white = this->remote_values.get_cold_white();
   saved.warm_white = this->remote_values.get_warm_white();
-  saved.effect = this->active_effect_index_;
+  saved.effect = static_cast<uint32_t>(this->active_effect_index_);  // the saved layout stays uint32_t
   this->rtc_.save(&saved);
 }
 

@@ -15,42 +15,37 @@ from esphome.const import (
     CONF_OPERATION,
     CONF_OPTION,
     CONF_OPTIONS,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
+    ApplyEntity,
+    SubEntities,
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass, TemplateArguments
+from esphome.cpp_generator import MockObj, MockObjClass, TemplateArguments
 from esphome.cpp_types import global_ns
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "select"
 IS_PLATFORM_COMPONENT = True
 
 select_ns = cg.esphome_ns.namespace("select")
 Select = select_ns.class_("Select", cg.EntityBase)
 SelectPtr = Select.operator("ptr")
-
-# Triggers
-SelectStateTrigger = select_ns.class_(
-    "SelectStateTrigger",
-    automation.Trigger.template(cg.StringRef, cg.size_t),
-)
+ApplySelect = select_ns.class_("ApplySelect", Select)
 
 # Conditions
 SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
 
 # Enums
 SelectOperation = select_ns.enum("SelectOperation")
-SELECT_OPERATION_OPTIONS = {
-    "NEXT": SelectOperation.SELECT_OP_NEXT,
-    "PREVIOUS": SelectOperation.SELECT_OP_PREVIOUS,
-    "FIRST": SelectOperation.SELECT_OP_FIRST,
-    "LAST": SelectOperation.SELECT_OP_LAST,
-}
+SELECT_OPERATION_OPTIONS = SelectOperation.options(
+    "NEXT", "PREVIOUS", "FIRST", "LAST", prefix="SELECT_OP_"
+)
 
 
 _SELECT_SCHEMA = (
@@ -60,11 +55,7 @@ _SELECT_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
             cv.GenerateID(): cv.declare_id(Select),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(),
         }
     )
 )
@@ -93,12 +84,21 @@ def select_schema(
 
 @setup_entity("select")
 async def setup_select_core_(var, config, *, options: list[str]):
-    cg.add(var.traits.set_options(options))
+    if options:
+        table = cg.shared_progmem_array("select_options", cg.const_char_ptr, options)
+        cg.add(var.traits.set_options_static(table, len(options)))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.StringRef, "x"), (cg.size_t, "i")], conf
+        # The callback carries the index; the automation gets the option text as well.
+        parent = automation.parent_ref(var)
+        index = cg.RawExpression("index")
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.StringRef, "x"), (cg.size_t, "i")],
+            conf,
+            params=[(cg.size_t, "index")],
+            forward=[cg.StringRef(parent.option_at(index)), index],
         )
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
@@ -121,6 +121,21 @@ async def new_select(config, *args, options: list[str]):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_select(var, config, options=options)
     return var
+
+
+APPLY_ENTITY = ApplyEntity(
+    ApplySelect,
+    ((SelectPtr, "entity"), (cg.size_t, "index")),
+    "entity->publish_state(index);",
+    (("option", "const char *option = entity->option_at(index);"),),
+)
+
+
+def sub_selects(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_select; ``apply`` statements can use ``entity``, ``index`` and ``option``."""
+    return SubEntities(new_select, config, parent, APPLY_ENTITY)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
@@ -178,14 +193,8 @@ automation.register_apply_action(
 async def select_is_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     if options := config.get(CONF_OPTIONS):
-        # List of constant options
-        # Create a constexpr and pass that with a template length
-        arr_id = ID(
-            f"{condition_id}_data",
-            is_declaration=True,
-            type=global_ns.namespace("constexpr char * const"),
-        )
-        arg = cg.static_const_array(arr_id, cg.ArrayInitializer(*options))
+        # Shared flash table of option pointers, length passed as a template argument
+        arg = cg.shared_progmem_array("select_is_options", cg.const_char_ptr, options)
         template_arg = TemplateArguments(len(options), *template_arg)
     else:
         # Lambda

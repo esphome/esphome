@@ -4,7 +4,7 @@
 
 namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann_hcp.binary_sensor";
+ESPHOME_LOG_TAG(TAG, "hoermann_hcp.binary_sensor");
 
 void HoermannHcpConnectedBinarySensor::setup() {
   // Publishing unconditionally is deliberate: the base class dedupes, and filters need every input to drive

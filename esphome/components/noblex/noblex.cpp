@@ -4,7 +4,7 @@
 
 namespace esphome::noblex {
 
-static const char *const TAG = "noblex.climate";
+ESPHOME_LOG_TAG(TAG, "noblex.climate");
 
 const uint16_t NOBLEX_HEADER_MARK = 9000;
 const uint16_t NOBLEX_HEADER_SPACE = 4500;
@@ -253,6 +253,8 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
         break;
       case IRNoblexMode::IR_NOBLEX_MODE_HEAT:
         this->mode = climate::CLIMATE_MODE_HEAT;
+        break;
+      default:
         break;
     }
   }
