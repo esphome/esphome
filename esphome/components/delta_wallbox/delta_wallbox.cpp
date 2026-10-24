@@ -483,7 +483,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         } else if (byte_count == TWO_REGISTER_BYTE_COUNT) {
           // Parsing 0x0112 max output setting (2 registers)
           // Device-confirmed: frame[4] is the configured max (write target), frame[5] the active limit
-          this->max_current_limit_ = frame[4]; 
+          this->max_current_limit_ = frame[4];
           if (this->max_current_sensor_ != nullptr)
             this->max_current_sensor_->publish_state(frame[5]);
           if (this->max_current_number_ != nullptr)
