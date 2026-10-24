@@ -1,4 +1,5 @@
 #include "vbus.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
@@ -10,6 +11,10 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 
 // Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
+static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
+
+// Bound per-loop work; sustained 9600-baud traffic needs a loop at least every 66 ms.
+static constexpr size_t VBUS_MAX_BYTES_PER_LOOP = 64;
 
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
 
@@ -28,7 +33,19 @@ static bool checksum(const uint8_t *data, int start, int count) {
 }
 
 void VBus::loop() {
-  this->read_available([this](uint8_t c) {
+  const uint32_t now = App.get_loop_component_start_time();
+  const size_t available = this->available();
+  if (available == 0) {
+    // Preserve queued bytes even if a delayed loop would otherwise exceed the timeout.
+    if (this->state_ != 0 && now - this->last_rx_ms_ >= VBUS_RX_IDLE_TIMEOUT_MS) {
+      this->state_ = 0;
+      this->buffer_.clear();
+    }
+    return;
+  }
+
+  auto on_byte = [this, now](uint8_t c) {
+    this->last_rx_ms_ = now;
     if (c == 0xaa) {
       this->state_ = 1;
       this->buffer_.clear();
@@ -43,6 +60,8 @@ void VBus::loop() {
 
     if (this->state_ == 1) {
       this->buffer_.push_back(c);
+      if (this->buffer_.size() < 7)
+        return;
       if (this->buffer_.size() == 7) {
         this->protocol_ = this->buffer_[4];
         this->source_ = (this->buffer_[3] << 8) + this->buffer_[2];
@@ -109,7 +128,8 @@ void VBus::loop() {
       this->state_ = 0;
       return;
     }
-  });
+  };
+  this->read_available(on_byte, std::min(available, VBUS_MAX_BYTES_PER_LOOP));
 }
 
 void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message) {
