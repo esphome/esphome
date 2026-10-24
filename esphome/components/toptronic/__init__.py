@@ -28,7 +28,6 @@ CONF_VALUES = "values"
 CONF_MAX_PENDING_MESSAGES = "max_pending_messages"
 CONF_MAX_FRAMES_PER_MESSAGE = "max_frames_per_message"
 CONF_MAX_PENDING_AGE = "max_pending_age"
-CONF_CLEANUP_INTERVAL = "cleanup_interval"
 
 toptronic = cg.esphome_ns.namespace("toptronic")
 TopTronicComponent = toptronic.class_("TopTronic", cg.Component)
@@ -130,9 +129,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_MAX_PENDING_AGE, default="5000ms"
         ): cv.positive_time_period_milliseconds,
-        # Stale slots are reclaimed when the next message needs one, so no periodic sweep runs;
-        # the key is accepted and has no effect
-        cv.Optional(CONF_CLEANUP_INTERVAL): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

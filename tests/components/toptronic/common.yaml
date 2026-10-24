@@ -14,7 +14,6 @@ toptronic:
     max_pending_messages: 3
     max_frames_per_message: 8
     max_pending_age: 6s
-    cleanup_interval: 9s
 
 sensor:
   - platform: toptronic
