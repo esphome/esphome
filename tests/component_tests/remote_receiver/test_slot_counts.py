@@ -177,4 +177,4 @@ def test_add_dumper_after_the_tables_were_emitted_raises() -> None:
         with pytest.raises(ValueError, match="already emitted"):
             remote_base.add_dumper(MockObj("rcvr", "->"), MockObj("dumper", "->"))
     finally:
-        CORE.data.pop(f"{remote_base.DOMAIN}_dumpers")
+        CORE.data.pop(remote_base.DOMAIN)

@@ -144,7 +144,7 @@ class _DumperTables:
 
 
 def _get_dumper_tables() -> _DumperTables:
-    return CORE.data.setdefault(f"{DOMAIN}_dumpers", _DumperTables())
+    return CORE.data.setdefault(DOMAIN, _DumperTables())
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
