@@ -90,50 +90,42 @@ FRAME_SIZES = {
     "QSXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
 }
 ESP32CameraPixelFormat = esp32_camera_ns.enum("ESP32CameraPixelFormat")
-PIXEL_FORMATS = {
-    "RGB565": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB565,
-    "YUV422": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_YUV422,
-    "YUV420": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_YUV420,
-    "GRAYSCALE": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_GRAYSCALE,
-    "JPEG": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_JPEG,
-    "RGB888": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB888,
-    "RAW": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RAW,
-    "RGB444": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB444,
-    "RGB555": ESP32CameraPixelFormat.ESP32_PIXEL_FORMAT_RGB555,
-}
+PIXEL_FORMATS = ESP32CameraPixelFormat.options(
+    "RGB565",
+    "YUV422",
+    "YUV420",
+    "GRAYSCALE",
+    "JPEG",
+    "RGB888",
+    "RAW",
+    "RGB444",
+    "RGB555",
+    prefix="ESP32_PIXEL_FORMAT_",
+)
 ESP32GainControlMode = esp32_camera_ns.enum("ESP32GainControlMode")
 ENUM_GAIN_CONTROL_MODE = {
     "MANUAL": ESP32GainControlMode.ESP32_GC_MODE_MANU,
     "AUTO": ESP32GainControlMode.ESP32_GC_MODE_AUTO,
 }
 ESP32AgcGainCeiling = esp32_camera_ns.enum("ESP32AgcGainCeiling")
-ENUM_GAIN_CEILING = {
-    "2X": ESP32AgcGainCeiling.ESP32_GAINCEILING_2X,
-    "4X": ESP32AgcGainCeiling.ESP32_GAINCEILING_4X,
-    "8X": ESP32AgcGainCeiling.ESP32_GAINCEILING_8X,
-    "16X": ESP32AgcGainCeiling.ESP32_GAINCEILING_16X,
-    "32X": ESP32AgcGainCeiling.ESP32_GAINCEILING_32X,
-    "64X": ESP32AgcGainCeiling.ESP32_GAINCEILING_64X,
-    "128X": ESP32AgcGainCeiling.ESP32_GAINCEILING_128X,
-}
+ENUM_GAIN_CEILING = ESP32AgcGainCeiling.options(
+    "2X", "4X", "8X", "16X", "32X", "64X", "128X", prefix="ESP32_GAINCEILING_"
+)
 ESP32WhiteBalanceMode = esp32_camera_ns.enum("ESP32WhiteBalanceMode")
-ENUM_WB_MODE = {
-    "AUTO": ESP32WhiteBalanceMode.ESP32_WB_MODE_AUTO,
-    "SUNNY": ESP32WhiteBalanceMode.ESP32_WB_MODE_SUNNY,
-    "CLOUDY": ESP32WhiteBalanceMode.ESP32_WB_MODE_CLOUDY,
-    "OFFICE": ESP32WhiteBalanceMode.ESP32_WB_MODE_OFFICE,
-    "HOME": ESP32WhiteBalanceMode.ESP32_WB_MODE_HOME,
-}
+ENUM_WB_MODE = ESP32WhiteBalanceMode.options(
+    "AUTO", "SUNNY", "CLOUDY", "OFFICE", "HOME", prefix="ESP32_WB_MODE_"
+)
 ESP32SpecialEffect = esp32_camera_ns.enum("ESP32SpecialEffect")
-ENUM_SPECIAL_EFFECT = {
-    "NONE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_NONE,
-    "NEGATIVE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_NEGATIVE,
-    "GRAYSCALE": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_GRAYSCALE,
-    "RED_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_RED_TINT,
-    "GREEN_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_GREEN_TINT,
-    "BLUE_TINT": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_BLUE_TINT,
-    "SEPIA": ESP32SpecialEffect.ESP32_SPECIAL_EFFECT_SEPIA,
-}
+ENUM_SPECIAL_EFFECT = ESP32SpecialEffect.options(
+    "NONE",
+    "NEGATIVE",
+    "GRAYSCALE",
+    "RED_TINT",
+    "GREEN_TINT",
+    "BLUE_TINT",
+    "SEPIA",
+    prefix="ESP32_SPECIAL_EFFECT_",
+)
 
 camera_fb_location_t = cg.global_ns.enum("camera_fb_location_t")
 ENUM_FB_LOCATION = {
@@ -384,8 +376,7 @@ async def to_code(config: ConfigType) -> None:
     extclk = config[CONF_EXTERNAL_CLOCK]
     cg.add(var.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))
     if i2c_id := config.get(CONF_I2C_ID):
-        i2c_hub = await cg.get_variable(i2c_id)
-        cg.add(var.set_i2c_id(i2c_hub))
+        await cg.add_variable(var.set_i2c_id, i2c_id)
     else:
         i2c_pins = config[CONF_I2C_PINS]
         cg.add(var.set_i2c_pins(i2c_pins[CONF_SDA], i2c_pins[CONF_SCL]))

@@ -1,13 +1,15 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
+from esphome.components.nrf52.boards import MCUMGR_OTA_BOOTLOADERS
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
     HexValue,
-    zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_claim_cdc_acm,
     zephyr_data,
 )
 from esphome.components.zephyr.const import (
@@ -31,7 +33,10 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@tomaszduda23"]
 DEPENDENCIES = ["zephyr"]
@@ -102,7 +107,7 @@ def _validate_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
         return
-    if bootloader not in BOOTLOADER_CONFIG:
+    if bootloader not in MCUMGR_OTA_BOOTLOADERS:
         raise cv.Invalid(f"{bootloader} does not support OTA")
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver < cv.Version(2, 9, 2):
@@ -114,6 +119,17 @@ def _validate_bootloader(config: ConfigType) -> None:
 def _final_validate(config: ConfigType) -> None:
     _validate_ble_server(config)
     _validate_bootloader(config)
+    if "zephyr_coredump" in fv.full_config.get():
+        _LOGGER.warning(
+            "zephyr_coredump moves the OTA image slots. A device that already runs mcumgr OTA "
+            "needs one flash over USB after enabling or disabling it; an OTA update alone leaves "
+            "the installed MCUboot with the old slot layout"
+        )
+    if (uart := config[CONF_TRANSPORT].get(CONF_HARDWARE_UART)) is not None:
+        cdc_id = UARTS[uart][1]
+        if cdc_id >= 0:
+            # SMP frames are marked, so log text from the logger on the same port is skipped
+            zephyr_claim_cdc_acm(cdc_id, "zephyr_mcumgr", allow_write_only=True)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -160,11 +176,7 @@ async def to_code(config: ConfigType) -> None:
         request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
     if CONF_HARDWARE_UART in transport:
         zephyr_add_prj_conf("SERIAL", True)
-        uart = UARTS[transport[CONF_HARDWARE_UART]]
-        uart_name = uart[0]
-        cdc_id = uart[1]
-        if cdc_id >= 0:
-            zephyr_add_cdc_acm(config, cdc_id)
+        uart_name = UARTS[transport[CONF_HARDWARE_UART]][0]
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)
@@ -209,17 +221,18 @@ async def to_code(config: ConfigType) -> None:
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:
-        # Derive partition addresses from the SoftDevice and bootloader sections
-        # registered with the Partition Manager (moved in testing mode) so that
-        # the DTS flash map matches what it produces:
-        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
+        # Derive partition addresses from the sections registered with the
+        # Partition Manager (moved in testing mode) so that the DTS flash map
+        # matches what it produces:
+        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1,
+        #   which ends at the lowest section reserved above (bootloader, coredump).
         sections = zephyr_data()[KEY_PM_STATIC]
         mcuboot_size = 0x9000
-        sd_end = next(s.address + s.size for s in sections if "SoftDevice" in s.name)
-        bl_start = next(s.address for s in sections if "Adafruit" in s.name)
+        sd_end = next(s.end_address for s in sections if "SoftDevice" in s.name)
+        top = min(s.address for s in sections if s.address >= sd_end)
         slot0_start = sd_end + mcuboot_size
         # Align slot size down to a 4 KB sector boundary
-        slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
+        slot_size = ((top - slot0_start) // 2 // 0x1000) * 0x1000
         slot1_start = slot0_start + slot_size
 
         def _mcuboot_partition_overlay() -> str:

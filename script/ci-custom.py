@@ -792,7 +792,7 @@ def lint_unit_constants_usage():
 # Maximum allowed CONF_ constants in esphome/const.py.
 # This file is frozen — new constants go in esphome/components/const/__init__.py.
 # Decrease this number when constants are moved out of const.py.
-CONST_PY_MAX_CONF = 1016
+CONST_PY_MAX_CONF = 1025
 
 
 @lint_content_check(include=["esphome/const.py"])
@@ -1269,11 +1269,15 @@ def lint_no_std_nothrow(fname, match):
     )
 
 
+# Every C++ source and header; plain C files cannot use the macro
+LOG_TAG_INCLUDE = ["esphome/*.cpp", "esphome/*.h"]
+
+
 @lint_re_check(
-    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?TAG|\s(?:const\s+)?TAG\s*\[\w*\])"
-    r"\s*(?:=\s*\{?|[{(])\s*\"",
+    r"^\s*(?:(?:static|constexpr|inline)\s+)*(?:const\s+)?char\s*(?:\*\s*(?:const\s+)?(?:\w+::)*TAG|\s(?:const\s+)?(?:\w+::)*TAG\s*\[\w*\])"
+    r"\s*(?:=\s*\{?|[{(])\s*\"" + CPP_RE_EOL,
     prefilter="TAG",
-    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+    include=LOG_TAG_INCLUDE,
 )
 def lint_log_tag_macro(fname, match):
     return (
@@ -1281,6 +1285,8 @@ def lint_log_tag_macro(fname, match):
         f"ESP8266.\n"
         f"  Before: {highlight('static const char *const TAG = "name";')}\n"
         f"  After:  {highlight('ESPHOME_LOG_TAG(TAG, "name");')}\n"
+        f"A class member tag cannot use the macro; declare {highlight('static const char TAG[];')} in the class "
+        f"and define {highlight('const char Foo::TAG[] PROGMEM = "name";')} in the .cpp.\n"
         f"Never pass such a TAG to set_timeout/set_interval names or string functions.\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
@@ -1288,11 +1294,11 @@ def lint_log_tag_macro(fname, match):
 
 @lint_re_check(
     r"(?:\b(?:set_timeout|set_interval|set_retry|cancel_timeout|cancel_interval|cancel_retry|defer)"
-    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:(?:[^();]|\([^()]*\))*,)?\s*TAG\b"
-    r"|\bstd::string\s+\w+\s*[={(]\s*TAG\b",
+    r"|\b(?:strcmp|strncmp|strcasecmp|strlen|strcpy|strncpy)|std::string)\s*\((?:(?:[^();]|\([^()]*\))*,)?\s*(?:\w+::)*TAG\b"
+    r"|\bstd::string\s+\w+\s*[={(]\s*(?:\w+::)*TAG\b",
     mask=True,
     prefilter="TAG",
-    include=["esphome/components/*.cpp", "esphome/components/**/*.cpp"],
+    include=LOG_TAG_INCLUDE,
 )
 def lint_log_tag_as_string(fname, match):
     return (

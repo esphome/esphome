@@ -21,16 +21,6 @@ class ENS160Component : public PollingComponent, public sensor::Sensor {
  protected:
   void send_env_data_();
 
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    INVALID_ID,
-    VALIDITY_INVALID,
-    READ_FAILED,
-    WRITE_FAILED,
-    STD_OPMODE_FAILED,
-  } error_code_{NONE};
-
   enum ValidityFlag {
     NORMAL_OPERATION = 0,
     WARMING_UP,

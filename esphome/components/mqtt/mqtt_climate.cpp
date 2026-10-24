@@ -209,7 +209,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
 }
 void MQTTClimateComponent::setup() {
   auto traits = this->device_->get_traits();
-  this->subscribe(this->get_mode_command_topic(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->get_mode_command_topic_source(), [this](const std::string &topic, const std::string &payload) {
     auto call = this->device_->make_call();
     call.set_mode(payload);
     call.perform();
@@ -217,7 +217,7 @@ void MQTTClimateComponent::setup() {
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                climate::CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    this->subscribe(this->get_target_temperature_low_command_topic(),
+    this->subscribe(this->get_target_temperature_low_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
@@ -228,7 +228,7 @@ void MQTTClimateComponent::setup() {
                       call.set_target_temperature_low(*val);
                       call.perform();
                     });
-    this->subscribe(this->get_target_temperature_high_command_topic(),
+    this->subscribe(this->get_target_temperature_high_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
@@ -240,7 +240,7 @@ void MQTTClimateComponent::setup() {
                       call.perform();
                     });
   } else {
-    this->subscribe(this->get_target_temperature_command_topic(),
+    this->subscribe(this->get_target_temperature_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
@@ -254,7 +254,7 @@ void MQTTClimateComponent::setup() {
   }
 
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
-    this->subscribe(this->get_target_humidity_command_topic(),
+    this->subscribe(this->get_target_humidity_command_topic_source(),
                     [this](const std::string &topic, const std::string &payload) {
                       auto val = parse_number<float>(payload);
                       if (!val.has_value()) {
@@ -268,27 +268,30 @@ void MQTTClimateComponent::setup() {
   }
 
   if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
-    this->subscribe(this->get_preset_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto call = this->device_->make_call();
-      call.set_preset(payload);
-      call.perform();
-    });
+    this->subscribe(this->get_preset_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto call = this->device_->make_call();
+                      call.set_preset(payload);
+                      call.perform();
+                    });
   }
 
   if (traits.get_supports_fan_modes()) {
-    this->subscribe(this->get_fan_mode_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto call = this->device_->make_call();
-      call.set_fan_mode(payload);
-      call.perform();
-    });
+    this->subscribe(this->get_fan_mode_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto call = this->device_->make_call();
+                      call.set_fan_mode(payload);
+                      call.perform();
+                    });
   }
 
   if (traits.get_supports_swing_modes()) {
-    this->subscribe(this->get_swing_mode_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto call = this->device_->make_call();
-      call.set_swing_mode(payload);
-      call.perform();
-    });
+    this->subscribe(this->get_swing_mode_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto call = this->device_->make_call();
+                      call.set_swing_mode(payload);
+                      call.perform();
+                    });
   }
 
   this->device_->add_on_state_callback([this](Climate & /*unused*/) { this->publish_state_(); });
