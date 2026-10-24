@@ -30,6 +30,7 @@ from esphome.components.image import (
     get_image_metadata,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
+from esphome.components.zephyr import zephyr_add_prj_conf_min
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -371,6 +372,10 @@ async def to_code(configs):
     else:
         df.add_define("LV_DRAW_BUF_ALIGN", "1")
         cg.add_library("lvgl/lvgl", LVGL_VERSION)
+        if CORE.using_zephyr:
+            # LVGL draws from the main thread, and its 2 KB default overflows while
+            # rendering; this matches the loop task stack on ESP32
+            zephyr_add_prj_conf_min("MAIN_STACK_SIZE", 8192)
     df.add_define("LV_DRAW_BUF_STRIDE_ALIGN", "1")
     df.add_define("LV_USE_DRAW_SW", "1")
     # LVGL 9.6 rejects 0 here unless tiled rendering is disabled
