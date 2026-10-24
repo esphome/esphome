@@ -1,0 +1,6 @@
+packages:
+  tflite_memory_handler: !include common.yaml
+
+# config-only test: arena_location picks the heap the tensor arena comes from.
+tflite_memory_handler:
+  arena_location: psram

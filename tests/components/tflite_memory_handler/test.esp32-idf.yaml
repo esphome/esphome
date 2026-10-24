@@ -1,0 +1,2 @@
+packages:
+  tflite_memory_handler: !include common.yaml
