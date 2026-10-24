@@ -127,7 +127,7 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Check if an image is currently loaded.
    */
-  bool is_loaded() const { return this->buffer_ != nullptr; }
+  bool is_loaded() const { return this->buffer_ != nullptr || this->front_buffer_ != nullptr; }
 
   /**
    * @brief Get the image format.
@@ -142,6 +142,14 @@ class RuntimeImage : public image::Image {
    * warm so the next decode can reuse it without churning the heap.
    */
   void release();
+
+  /**
+   * @brief End a decode that will not be finished.
+   *
+   * With double buffering the image on show stays and the buffer decoded into is kept for the next
+   * decode. Otherwise the same as release(), since the image on show was being decoded over.
+   */
+  void abort_decode();
 
   /**
    * @brief Decode into a buffer the caller owns, instead of one allocated here.
@@ -166,6 +174,8 @@ class RuntimeImage : public image::Image {
    * A null buffer or dimensions the image cannot decode at are refused, leaving the image with
    * no buffer at all.
    *
+   * Refused when double buffering is on.
+   *
    * @param buffer Memory for a picture of the given size, at least get_buffer_size() bytes.
    * @param width Width of the buffer in pixels.
    * @param height Height of the buffer in pixels.
@@ -188,6 +198,13 @@ class RuntimeImage : public image::Image {
    */
   void set_progressive_display(bool progressive) { this->progressive_display_ = progressive; }
 
+  /**
+   * @brief Set whether to decode into a second buffer, keeping the image on show until the new one is complete.
+   *
+   * Both buffers are kept, so a new image of the same size allocates nothing. Ignored with progressive display.
+   */
+  void set_double_buffer(bool double_buffer) { this->double_buffer_ = double_buffer; }
+
  protected:
   /**
    * @brief Resize the image buffer to the requested dimensions.
@@ -204,6 +221,8 @@ class RuntimeImage : public image::Image {
    * This is safe to call from within the decoder (e.g., during resize).
    */
   void release_buffer_();
+
+  bool is_double_buffered_() const { return this->double_buffer_ && !this->progressive_display_; }
 
   /// Bring the LVGL descriptor up to date after the image shown changed, and give it again to the widgets showing it
   void refresh_lvgl_();
@@ -222,6 +241,8 @@ class RuntimeImage : public image::Image {
 
   // Memory management
   uint8_t *buffer_{nullptr};
+  /// With double buffering, the buffer on show, width_ by height_. buffer_ is then the one decoded into
+  uint8_t *front_buffer_{nullptr};
 
   // Decoder management
   std::unique_ptr<ImageDecoder> decoder_{nullptr};
@@ -258,6 +279,7 @@ class RuntimeImage : public image::Image {
 
   // Configuration
   bool progressive_display_{false};
+  bool double_buffer_{false};
   /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
   bool external_buffer_{false};
 #ifdef USE_LVGL_IMAGE

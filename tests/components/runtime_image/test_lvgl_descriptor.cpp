@@ -182,6 +182,27 @@ TEST_F(RuntimeImageLvglWidget, WidgetGivenAnotherImageIsLeftAlone) {
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 3);
 }
 
+// With double buffering the widget shows the old image while the new one decodes, then the new one at its size
+TEST_F(RuntimeImageLvglWidget, DoubleBufferedWidgetKeepsTheImageWhileDecoding) {
+  RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
+  img.set_double_buffer(true);
+  load(img);
+  this->set_src(&img);
+  const void *first = static_cast<const lv_image_dsc_t *>(lv_image_get_src(this->widget_))->data;
+
+  std::vector<uint8_t> data(BMP_24BPP, BMP_24BPP + sizeof(BMP_24BPP));
+  ASSERT_TRUE(img.begin_decode(data.size()));
+  ASSERT_EQ(img.feed_data(data.data(), data.size()), static_cast<int>(data.size()));
+  EXPECT_EQ(static_cast<const lv_image_dsc_t *>(lv_image_get_src(this->widget_))->data, first);
+  EXPECT_EQ(lv_image_get_src_width(this->widget_), 3);
+  this->draw();
+
+  ASSERT_TRUE(img.end_decode());
+  EXPECT_NE(static_cast<const lv_image_dsc_t *>(lv_image_get_src(this->widget_))->data, first);
+  EXPECT_EQ(lv_image_get_src_width(this->widget_), 3);
+  this->draw();
+}
+
 TEST_F(RuntimeImageLvglWidget, DeletedWidgetIsForgotten) {
   RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
   load(img);

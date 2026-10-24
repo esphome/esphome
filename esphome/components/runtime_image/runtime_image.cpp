@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <utility>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -315,7 +316,16 @@ bool RuntimeImage::end_decode() {
   }
 
   // Finalize the image for display
-  if (!this->progressive_display_) {
+  if (this->is_double_buffered_()) {
+    if (this->buffer_ != nullptr) {
+      // Show the new image, and decode into the old one's buffer next time
+      std::swap(this->front_buffer_, this->buffer_);
+      std::swap(this->width_, this->buffer_width_);
+      std::swap(this->height_, this->buffer_height_);
+      this->data_start_ = this->front_buffer_;
+      this->refresh_lvgl_();
+    }
+  } else if (!this->progressive_display_) {
     // Only now make the image visible
     this->width_ = this->buffer_width_;
     this->height_ = this->buffer_height_;
@@ -337,8 +347,27 @@ bool RuntimeImage::decoder_knows_end() const { return this->is_decoding() && thi
 
 void RuntimeImage::release() {
   this->release_buffer_();
+  if (this->front_buffer_) {
+    RAMAllocator<uint8_t> allocator;
+    allocator.deallocate(this->front_buffer_, this->get_buffer_size(this->width_, this->height_));
+    this->front_buffer_ = nullptr;
+    this->data_start_ = nullptr;
+    this->width_ = 0;
+    this->height_ = 0;
+    this->refresh_lvgl_();
+  }
   // End any active decode session; decoders free the format-specific working buffers
   // they can (PNG), while the decoder object itself is kept warm for the next decode.
+  if (this->decoder_) {
+    this->decoder_->reset();
+  }
+}
+
+void RuntimeImage::abort_decode() {
+  if (!this->is_double_buffered_()) {
+    this->release();
+    return;
+  }
   if (this->decoder_) {
     this->decoder_->reset();
   }
@@ -355,17 +384,25 @@ void RuntimeImage::release_buffer_() {
       RAMAllocator<uint8_t> allocator;
       allocator.deallocate(this->buffer_, this->get_buffer_size(this->buffer_width_, this->buffer_height_));
     }
+    const bool shown = this->data_start_ == this->buffer_;
     this->buffer_ = nullptr;
-    this->data_start_ = nullptr;
-    this->width_ = 0;
-    this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
-    this->refresh_lvgl_();
+    // With double buffering the buffer decoded into is not the one on show
+    if (shown) {
+      this->data_start_ = nullptr;
+      this->width_ = 0;
+      this->height_ = 0;
+      this->refresh_lvgl_();
+    }
   }
 }
 
 bool RuntimeImage::set_external_buffer(uint8_t *buffer, int width, int height) {
+  if (this->double_buffer_) {
+    ESP_LOGE(TAG, "An external buffer cannot be double buffered");
+    return false;
+  }
   this->release_buffer_();
   if (buffer == nullptr || this->get_buffer_size(width, height) == 0) {
     // Keep the released state rather than remembering a buffer that cannot be decoded into: an
