@@ -98,12 +98,16 @@ void MQTTClientComponent::setup() {
 
   if (this->is_discovery_ip_enabled()) {
     this->subscribe(
-        "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
-        2);
+        static_topic("esphome/discover"),
+        [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
 
-    // Format topic on stack - subscribe() copies it
-    char ping_topic[ESPHOME_TOPIC_BUFFER_SIZE];
-    format_esphome_topic(ping_topic, "ping");
+    static_assert(sizeof("esphome/ping/") + ESPHOME_DEVICE_NAME_MAX_LEN <= MQTT_DEFAULT_TOPIC_MAX_LEN);
+    MQTTTopicSource ping_topic{[](const void *, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) {
+                                 size_t len = buf_append_printf(buf.data(), buf.size(), 0, "esphome/ping/%s",
+                                                                App.get_name().c_str());
+                                 return StringRef(buf.data(), len);
+                               },
+                               nullptr};
     this->subscribe(
         ping_topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
   }
@@ -479,6 +483,12 @@ bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
   }
   return ret != 0;
 }
+// Out of line so the topic buffer is not part of loop()'s stack frame
+__attribute__((noinline)) bool MQTTClientComponent::subscribe_topic_(const MQTTTopicSource &topic, uint8_t qos) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->subscribe_(topic.build(buf).c_str(), qos);
+}
+
 void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   if (sub->subscribed)
     return;
@@ -487,7 +497,7 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   bool do_resub = sub->resubscribe_timeout == 0 || now - sub->resubscribe_timeout > 1000;
 
   if (do_resub) {
-    sub->subscribed = this->subscribe_(sub->topic.c_str(), sub->qos);
+    sub->subscribed = this->subscribe_topic_(sub->topic, sub->qos);
     sub->resubscribe_timeout = now;
   }
 }
@@ -510,18 +520,55 @@ void MQTTClientComponent::handle_crash_log_request_(const std::string &topic, co
 }
 #endif
 
-void MQTTClientComponent::add_subscription_(std::string &&topic, mqtt_subscription_callback_t callback, bool boxed,
+static StringRef static_topic_builder(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN>) {
+  return StringRef(static_cast<const char *>(context));
+}
+// Same as static_topic_builder, but a distinct function so its address marks the topics to free
+static StringRef copied_topic_builder(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN>) {
+  return StringRef(static_cast<const char *>(context));
+}
+
+MQTTTopicSource static_topic(const char *topic) { return {static_topic_builder, topic}; }
+
+static_assert(MQTT_DEFAULT_TOPIC_MAX_LEN == 248, "update MQTT_DEFAULT_TOPIC_MAX_LEN in mqtt/__init__.py");
+
+#ifdef USE_ESP8266
+// mqtt/__init__.py picks this source only for topics that fit
+static StringRef progmem_topic_builder(const void *context, std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) {
+  size_t len = buf_append_str_p(buf.data(), buf.size(), 0, static_cast<const char *>(context));
+  return StringRef(buf.data(), len);
+}
+
+MQTTTopicSource progmem_topic(ProgmemStr topic) {
+  return {progmem_topic_builder, reinterpret_cast<const char *>(topic)};
+}
+#endif
+
+MQTTTopicSource MQTTClientComponent::copy_topic(StringRef topic) {
+  char *copy = new char[topic.size() + 1];  // NOLINT(cppcoreguidelines-owning-memory)
+  memcpy(copy, topic.c_str(), topic.size());
+  copy[topic.size()] = '\0';
+  return {copied_topic_builder, copy};
+}
+
+void MQTTClientComponent::add_subscription_(MQTTTopicSource topic, mqtt_subscription_callback_t callback, bool boxed,
                                             uint8_t qos) {
   auto &subscription = this->subscriptions_.emplace_back(MQTTSubscription{
-      .topic = std::move(topic),
+      .topic = topic,
+      .callback = callback,
+      .resubscribe_timeout = 0,
       .qos = qos,
       .subscribed = false,
       .boxed = boxed,
       .removed = false,
-      .callback = callback,
-      .resubscribe_timeout = 0,
   });
   this->resubscribe_subscription_(&subscription);
+}
+
+// Out of line so the topic buffer is not part of unsubscribe()'s stack frame
+__attribute__((noinline)) static bool topic_equals(const MQTTTopicSource &source, const std::string &topic) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return source.build(buf) == topic;
 }
 
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
@@ -536,7 +583,7 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
   }
 
   for (auto &subscription : this->subscriptions_) {
-    if (subscription.topic == topic)
+    if (topic_equals(subscription.topic, topic))
       subscription.removed = true;
   }
   // A callback may be running; the outermost dispatch erases them once it returns.
@@ -553,6 +600,8 @@ void MQTTClientComponent::erase_removed_subscriptions_() {
     if (it->removed) {
       if (it->boxed)
         it->callback.free_boxed();
+      if (it->topic.builder == copied_topic_builder)
+        delete[] static_cast<const char *>(it->topic.context);  // NOLINT(cppcoreguidelines-owning-memory)
       it = this->subscriptions_.erase(it);
     } else {
       ++it;
@@ -629,6 +678,12 @@ void MQTTClientComponent::disable() {
   this->on_shutdown();
 }
 
+// Out of line so the topic buffer is off the stack while the matched callback runs
+__attribute__((noinline)) static bool topic_matches(const char *message, const MQTTTopicSource &topic) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return topic_match(message, topic.build(buf).c_str());
+}
+
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
 #ifdef USE_ESP8266
   // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
@@ -662,7 +717,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
     const size_t count = this->subscriptions_.size();
     for (size_t i = 0; i < count; i++) {
       const auto &subscription = this->subscriptions_[i];
-      if (!subscription.removed && topic_match(topic.c_str(), subscription.topic.c_str()))
+      if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
         subscription.callback.call(topic, payload);
     }
     this->dispatching_ = was_dispatching;
@@ -682,14 +737,7 @@ void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { th
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix) {
-  if (App.is_name_add_mac_suffix_enabled() && (topic_prefix == check_topic_prefix)) {
-    char buf[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
-    this->topic_prefix_ = str_sanitize_to(buf, App.get_name().c_str());
-  } else {
-    this->topic_prefix_ = topic_prefix;
-  }
-}
+void MQTTClientComponent::set_topic_prefix(std::string topic_prefix) { this->topic_prefix_ = std::move(topic_prefix); }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
