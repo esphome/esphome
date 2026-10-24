@@ -4,8 +4,10 @@ import asyncio
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -16,27 +18,13 @@ async def test_scheduler_defer_cancels_regular(
 ) -> None:
     """Test that set_timeout(name, 0) cancels a previously scheduled set_timeout(name, delay)."""
 
-    # Create a future to signal test completion
-    loop = asyncio.get_running_loop()
-    test_complete_future: asyncio.Future[None] = loop.create_future()
+    waiter = LineWaiter()
 
-    # Track log messages
-    log_messages: list[str] = []
-    error_detected = False
-
-    def on_log_line(line: str) -> None:
-        nonlocal error_detected
-        if "TEST" in line:
-            log_messages.append(line)
-
-        if "ERROR: Regular timeout executed" in line:
-            error_detected = True
-
-        if "Test complete" in line and not test_complete_future.done():
-            test_complete_future.set_result(None)
+    def log_messages() -> list[str]:
+        return [line for line in waiter.lines if "TEST" in line]
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify we can connect
@@ -53,30 +41,33 @@ async def test_scheduler_defer_cancels_regular(
         # Execute the test
         await client.execute_service(test_service, {})
 
-        # Wait for test completion
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(f"Test timed out. Log messages: {log_messages}")
+        await wait_or_fail(
+            waiter.wait_for("Test complete", timeout=20.0),
+            5.0,
+            "Test timed out",
+            log_messages=log_messages,
+        )
 
-        # Verify results
-        assert not error_detected, (
-            f"Regular timeout should have been cancelled but it executed! Logs: {log_messages}"
+        messages = log_messages()
+        assert not any(
+            "ERROR: Regular timeout executed" in line for line in waiter.lines
+        ), (
+            f"Regular timeout should have been cancelled but it executed! Logs: {messages}"
         )
 
         # Verify the deferred timeout executed
-        assert any(
-            "SUCCESS: Deferred timeout executed" in msg for msg in log_messages
-        ), f"Deferred timeout should have executed. Logs: {log_messages}"
+        assert any("SUCCESS: Deferred timeout executed" in msg for msg in messages), (
+            f"Deferred timeout should have executed. Logs: {messages}"
+        )
 
         # Verify the expected sequence of events
         assert any(
-            "Starting defer cancels regular timeout test" in msg for msg in log_messages
+            "Starting defer cancels regular timeout test" in msg for msg in messages
         )
         assert any(
-            "Scheduled regular timeout with 100ms delay" in msg for msg in log_messages
+            "Scheduled regular timeout with 100ms delay" in msg for msg in messages
         )
         assert any(
             "Scheduled deferred timeout - should cancel regular timeout" in msg
-            for msg in log_messages
+            for msg in messages
         )

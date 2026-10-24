@@ -8,6 +8,12 @@ esphome:
           message: https://www.home-assistant.io/tag/pulse
           include_android_app_record: false
       - tag.set_write_mode: nfcc_pn7160_i2c
+      - if:
+          condition:
+            pn7160.is_writing:
+              id: nfcc_pn7160_i2c
+          then:
+            - logger.log: Writing
       - tag.set_emulation_message:
           message: https://www.home-assistant.io/tag/pulse
           include_android_app_record: false
@@ -16,7 +22,7 @@ esphome:
       - tag.polling_off: nfcc_pn7160_i2c
       - tag.polling_on: nfcc_pn7160_i2c
 
-pn7150_i2c:
+pn7160_i2c:
   id: nfcc_pn7160_i2c
   i2c_id: i2c_bus
   irq_pin: ${irq_pin}

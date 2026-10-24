@@ -1,13 +1,18 @@
+from collections.abc import Iterator
+
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import logger, socket
+from esphome.components import logger, network, socket
+from esphome.components.const import CONF_VERIFY_SSL
 from esphome.components.esp32 import (
     add_idf_component,
+    allow_insecure_tls,
     idf_version,
     include_builtin_idf_component,
     request_tls,
     require_certificate_bundle,
 )
+from esphome.config import iter_ids
 from esphome.config_helpers import (
     filter_source_files_from_defines,
     filter_source_files_from_platform,
@@ -24,6 +29,8 @@ from esphome.const import (
     CONF_CLIENT_ID,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
+    CONF_DEVICE_ID,
+    CONF_DEVICES,
     CONF_DISCOVER_IP,
     CONF_DISCOVERY,
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
@@ -31,10 +38,17 @@ from esphome.const import (
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
     CONF_ENABLE_ON_BOOT,
+    CONF_ESPHOME,
     CONF_ID,
+    CONF_INTERNAL,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
+    CONF_MODE_COMMAND_TOPIC,
+    CONF_MQTT,
+    CONF_MQTT_ID,
+    CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_JSON_MESSAGE,
@@ -43,6 +57,7 @@ from esphome.const import (
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
+    CONF_PLATFORM,
     CONF_PORT,
     CONF_PUBLISH_NAN_AS_NONE,
     CONF_QOS,
@@ -52,6 +67,9 @@ from esphome.const import (
     CONF_SKIP_CERT_CN_CHECK,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
+    CONF_TARGET_TEMPERATURE_COMMAND_TOPIC,
+    CONF_TARGET_TEMPERATURE_HIGH_COMMAND_TOPIC,
+    CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_USE_ABBREVIATIONS,
@@ -66,6 +84,9 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
+import esphome.final_validate as fv
+from esphome.helpers import sanitize, snake_case
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
@@ -78,6 +99,7 @@ def AUTO_LOAD():
     return ["json"]
 
 
+CONF_TLS = "tls"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
 CONF_TRANSPORT = "transport"
@@ -129,28 +151,76 @@ MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 
-MQTTAlarmControlPanelComponent = mqtt_ns.class_(
-    "MQTTAlarmControlPanelComponent", MQTTComponent
+# A topic the firmware builds from a suffix, unless the config key replaces the whole topic
+_Topic = tuple[str, str]
+# The firmware subscribes to exactly one of these alternatives, chosen by entity traits
+_Subscription = tuple[tuple[_Topic, ...], ...]
+# The subscriptions each entity MQTT class always makes, keyed by class: component type,
+# then the subscriptions
+_COMMAND_TOPICS: dict[str, tuple[str, tuple[_Subscription, ...]]] = {}
+
+
+def _single_topic(suffix: str, custom_key: str) -> _Subscription:
+    return (((suffix, custom_key),),)
+
+
+_COMMAND = _single_topic("command", CONF_COMMAND_TOPIC)
+
+
+def _entity_class(
+    name: str,
+    component_type: str | None = None,
+    subscriptions: tuple[_Subscription, ...] = (_COMMAND,),
+) -> MockObjClass:
+    """Declare an entity MQTT class; a component_type means it subscribes to command topics."""
+    cls = mqtt_ns.class_(name, MQTTComponent)
+    if component_type is not None:
+        _COMMAND_TOPICS[str(cls)] = (component_type, subscriptions)
+    return cls
+
+
+MQTTAlarmControlPanelComponent = _entity_class(
+    "MQTTAlarmControlPanelComponent", "alarm_control_panel"
 )
-MQTTBinarySensorComponent = mqtt_ns.class_("MQTTBinarySensorComponent", MQTTComponent)
-MQTTClimateComponent = mqtt_ns.class_("MQTTClimateComponent", MQTTComponent)
-MQTTCoverComponent = mqtt_ns.class_("MQTTCoverComponent", MQTTComponent)
-MQTTFanComponent = mqtt_ns.class_("MQTTFanComponent", MQTTComponent)
-MQTTJSONLightComponent = mqtt_ns.class_("MQTTJSONLightComponent", MQTTComponent)
-MQTTSensorComponent = mqtt_ns.class_("MQTTSensorComponent", MQTTComponent)
-MQTTSwitchComponent = mqtt_ns.class_("MQTTSwitchComponent", MQTTComponent)
-MQTTTextSensor = mqtt_ns.class_("MQTTTextSensor", MQTTComponent)
-MQTTNumberComponent = mqtt_ns.class_("MQTTNumberComponent", MQTTComponent)
-MQTTDateComponent = mqtt_ns.class_("MQTTDateComponent", MQTTComponent)
-MQTTTimeComponent = mqtt_ns.class_("MQTTTimeComponent", MQTTComponent)
-MQTTDateTimeComponent = mqtt_ns.class_("MQTTDateTimeComponent", MQTTComponent)
-MQTTTextComponent = mqtt_ns.class_("MQTTTextComponent", MQTTComponent)
-MQTTSelectComponent = mqtt_ns.class_("MQTTSelectComponent", MQTTComponent)
-MQTTButtonComponent = mqtt_ns.class_("MQTTButtonComponent", MQTTComponent)
-MQTTLockComponent = mqtt_ns.class_("MQTTLockComponent", MQTTComponent)
-MQTTEventComponent = mqtt_ns.class_("MQTTEventComponent", MQTTComponent)
-MQTTUpdateComponent = mqtt_ns.class_("MQTTUpdateComponent", MQTTComponent)
-MQTTValveComponent = mqtt_ns.class_("MQTTValveComponent", MQTTComponent)
+MQTTBinarySensorComponent = _entity_class("MQTTBinarySensorComponent")
+MQTTClimateComponent = _entity_class(
+    "MQTTClimateComponent",
+    "climate",
+    (
+        _single_topic("mode/command", CONF_MODE_COMMAND_TOPIC),
+        # One target temperature topic, or the _low and _high pair on two-point devices
+        (
+            (("target_temperature/command", CONF_TARGET_TEMPERATURE_COMMAND_TOPIC),),
+            (
+                (
+                    "target_temperature_low/command",
+                    CONF_TARGET_TEMPERATURE_LOW_COMMAND_TOPIC,
+                ),
+                (
+                    "target_temperature_high/command",
+                    CONF_TARGET_TEMPERATURE_HIGH_COMMAND_TOPIC,
+                ),
+            ),
+        ),
+    ),
+)
+MQTTCoverComponent = _entity_class("MQTTCoverComponent", "cover")
+MQTTFanComponent = _entity_class("MQTTFanComponent", "fan")
+MQTTJSONLightComponent = _entity_class("MQTTJSONLightComponent", "light")
+MQTTSensorComponent = _entity_class("MQTTSensorComponent")
+MQTTSwitchComponent = _entity_class("MQTTSwitchComponent", "switch")
+MQTTTextSensor = _entity_class("MQTTTextSensor")
+MQTTNumberComponent = _entity_class("MQTTNumberComponent", "number")
+MQTTDateComponent = _entity_class("MQTTDateComponent", "date")
+MQTTTimeComponent = _entity_class("MQTTTimeComponent", "time")
+MQTTDateTimeComponent = _entity_class("MQTTDateTimeComponent", "datetime")
+MQTTTextComponent = _entity_class("MQTTTextComponent", "text")
+MQTTSelectComponent = _entity_class("MQTTSelectComponent", "select")
+MQTTButtonComponent = _entity_class("MQTTButtonComponent", "button")
+MQTTLockComponent = _entity_class("MQTTLockComponent", "lock")
+MQTTEventComponent = _entity_class("MQTTEventComponent")
+MQTTUpdateComponent = _entity_class("MQTTUpdateComponent", "update")
+MQTTValveComponent = _entity_class("MQTTValveComponent", "valve")
 
 MQTTDiscoveryUniqueIdGenerator = mqtt_ns.enum("MQTTDiscoveryUniqueIdGenerator")
 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS = {
@@ -186,26 +256,8 @@ def _validate_transport(value: str) -> str:
 
 
 def validate_config(value):
-    transport = value.get(CONF_TRANSPORT)
-    # A certificate with plain ws is almost certainly a typo for wss
-    if transport == MQTT_TRANSPORT_WS and (
-        CONF_CERTIFICATE_AUTHORITY in value or CONF_CLIENT_CERTIFICATE in value
-    ):
-        raise cv.Invalid(
-            "transport 'ws' is unencrypted; remove the certificate options "
-            "or switch to transport 'wss'"
-        )
-    # TLS runs only with a CA or over wss, so a client certificate needs one of them
     if (
-        CONF_CLIENT_CERTIFICATE in value
-        and CONF_CERTIFICATE_AUTHORITY not in value
-        and transport != MQTT_TRANSPORT_WSS
-    ):
-        raise cv.Invalid(
-            "'client_certificate' requires 'certificate_authority' or transport 'wss'"
-        )
-    if (
-        transport not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
+        value.get(CONF_TRANSPORT) not in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS)
         and CONF_WS_PATH in value
     ):
         raise cv.Invalid(
@@ -259,6 +311,47 @@ def validate_config(value):
     return out
 
 
+# Keys that only make sense over TLS; any of them switches it on
+TLS_IMPLYING_KEYS = frozenset(
+    {CONF_CERTIFICATE_AUTHORITY, CONF_VERIFY_SSL, CONF_CLIENT_CERTIFICATE}
+)
+
+
+def _derive_tls(config: ConfigType) -> ConfigType:
+    """Derive ``tls`` from the certificate options and the transport, reject contradictions, pick the port."""
+    # skip_cert_cn_check has a default on ESP32, so its value decides, not its presence
+    if config.get(CONF_VERIFY_SSL) is False and config.get(CONF_SKIP_CERT_CN_CHECK):
+        raise cv.Invalid(
+            "'skip_cert_cn_check' has no effect when 'verify_ssl' is false."
+        )
+    transport = config.get(CONF_TRANSPORT)
+    if (
+        config.keys() & TLS_IMPLYING_KEYS
+        or config.get(CONF_SKIP_CERT_CN_CHECK)
+        or transport == MQTT_TRANSPORT_WSS
+    ):
+        if config.get(CONF_TLS) is False:
+            raise cv.Invalid(
+                "'tls' cannot be false when a certificate, 'verify_ssl', "
+                "'skip_cert_cn_check' or transport 'wss' is set."
+            )
+        config[CONF_TLS] = True
+    # TLS with plain ws is almost certainly a typo for wss
+    if transport == MQTT_TRANSPORT_WS and config.get(CONF_TLS):
+        raise cv.Invalid(
+            "transport 'ws' is unencrypted; remove the TLS options "
+            "or switch to transport 'wss'"
+        )
+    config.setdefault(CONF_PORT, 8883 if config.get(CONF_TLS) else 1883)
+    return config
+
+
+_validate_tls = cv.All(
+    cv.only_when(CONF_CERTIFICATE_AUTHORITY, CONF_VERIFY_SSL, False, negate=True),
+    _derive_tls,
+)
+
+
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
     # MQTT needs 1 socket for the broker connection
@@ -282,7 +375,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(MQTTClientComponent),
             cv.Required(CONF_BROKER): cv.string_strict,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_PORT, default=1883): cv.port,
+            cv.Optional(CONF_PORT): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.sensitive(),
             cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
@@ -294,6 +387,8 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            cv.Optional(CONF_TLS): cv.All(cv.boolean, cv.only_on_esp32),
+            cv.Optional(CONF_VERIFY_SSL): cv.All(cv.boolean, cv.only_on_esp32),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
                 cv.string, cv.only_on_esp32
             ),
@@ -355,6 +450,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
+    _validate_tls,
     cv.only_on(
         [
             PLATFORM_BK72XX,
@@ -365,7 +461,139 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
     _consume_mqtt_sockets,
+    network.require_ipv4(CONF_MQTT),
 )
+
+# AsyncMqttClient, the ESP8266 and LibreTiny backend, drops any inbound message whose
+# topic is longer than this many bytes (its default maxTopicLength)
+ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN = 128
+# Keep in sync with OBJECT_ID_MAX_LEN in esphome/core/entity_base.h
+OBJECT_ID_MAX_LEN = 128
+# name_add_mac_suffix appends "-" plus 6 hex digits to the name at runtime
+MAC_SUFFIX = "-xxxxxx"
+
+
+def _entity_object_id(
+    config: ConfigType, mac_suffix: bool, devices: dict[str, str]
+) -> str:
+    """Build the object id the way EntityBase::write_object_id_to() does."""
+    # The name falls back the way EntityBase::configure_entity_() does
+    name = config.get(CONF_NAME) or ""
+    if not name:
+        if (device := config.get(CONF_DEVICE_ID)) is not None:
+            name = devices[device.id]
+        elif mac_suffix:
+            # Only the friendly name gains the MAC suffix, and an empty one stays empty
+            name = f"{CORE.friendly_name}{MAC_SUFFIX}" if CORE.friendly_name else ""
+        else:
+            name = CORE.friendly_name or CORE.name
+    # The firmware sanitizes each UTF-8 byte to one character and caps the result
+    raw = name.encode()[: OBJECT_ID_MAX_LEN - 1]
+    return sanitize(snake_case(raw.decode("ascii", "replace")))
+
+
+def _entity_topic(
+    config: ConfigType, default_topic: str, suffix: str, custom_key: str
+) -> str | None:
+    """Return the topic an entity subscribes to, or None when only known at runtime."""
+    custom = config.get(custom_key)
+    # An empty specialized topic falls back to the default (MQTT_COMPONENT_CUSTOM_TOPIC_)
+    # while an empty command_topic stays empty
+    if custom == "" and custom_key != CONF_COMMAND_TOPIC:
+        custom = None
+    if custom is not None:
+        # A lambda topic is only known at runtime
+        return custom if isinstance(custom, str) else None
+    return f"{default_topic}/{suffix}" if default_topic else None
+
+
+def _entity_subscriptions(
+    config: ConfigType, topic_prefix: str, mac_suffix: bool, devices: dict[str, str]
+) -> Iterator[tuple[tuple[str, ...], ...]]:
+    """Yield the subscriptions an entity's MQTT component always makes, as known topics."""
+    component_type, subscriptions = _COMMAND_TOPICS[str(config[CONF_MQTT_ID].type)]
+    # Mirrors MQTTComponent::compute_is_internal_(): internal components never subscribe
+    if CONF_STATE_TOPIC in config:
+        internal = config[CONF_STATE_TOPIC] == ""
+    elif CONF_COMMAND_TOPIC in config:
+        internal = config[CONF_COMMAND_TOPIC] == ""
+    else:
+        internal = not topic_prefix or config.get(CONF_INTERNAL, False)
+    if internal:
+        return
+    default_topic = ""
+    if topic_prefix:
+        object_id = _entity_object_id(config, mac_suffix, devices)
+        default_topic = f"{topic_prefix}/{component_type}/{object_id}"
+    for subscription in subscriptions:
+        yield tuple(
+            tuple(
+                topic
+                for suffix, custom_key in alternative
+                if (topic := _entity_topic(config, default_topic, suffix, custom_key))
+                is not None
+            )
+            for alternative in subscription
+        )
+
+
+def _subscriptions(config: ConfigType) -> Iterator[tuple[tuple[str, ...], ...]]:
+    """Yield every subscription known at build time, as alternatives of topics."""
+    full_config = fv.full_config.get()
+    esphome_config = full_config[CONF_ESPHOME]
+    mac_suffix = esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
+    devices = {
+        device[CONF_ID].id: device[CONF_NAME]
+        for device in esphome_config.get(CONF_DEVICES, [])
+    }
+    topic_prefix = config[CONF_TOPIC_PREFIX]
+    if mac_suffix and topic_prefix == CORE.name:
+        topic_prefix += MAC_SUFFIX
+    # Entities can sit at any depth (a platform can declare its own switches), so find them by mqtt_id
+    for id_, path in iter_ids(full_config):
+        if path[-1] != CONF_MQTT_ID or str(id_.type) not in _COMMAND_TOPICS:
+            continue
+        entity = full_config
+        for key in path[:-1]:
+            entity = entity[key]
+        yield from _entity_subscriptions(entity, topic_prefix, mac_suffix, devices)
+    for key in (CONF_ON_MESSAGE, CONF_ON_JSON_MESSAGE):
+        for trigger in config.get(key, []):
+            yield ((trigger[CONF_TOPIC],),)
+    for domain in ("sensor", "text_sensor"):
+        for entity in full_config.get(domain) or []:
+            if entity[CONF_PLATFORM] == "mqtt_subscribe":
+                yield ((entity[CONF_TOPIC],),)
+
+
+def _too_long(topic: str) -> bool:
+    # A wildcard filter matches topics of any length, so only literals are checked
+    if "+" in topic or "#" in topic:
+        return False
+    return len(topic.encode()) > ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN
+
+
+def _validate_topic_lengths(config: ConfigType) -> ConfigType:
+    """Reject topics that the ESP8266 and LibreTiny MQTT client would silently drop."""
+    if not (CORE.is_esp8266 or CORE.is_libretiny):
+        return config
+    for subscription in _subscriptions(config):
+        # The config cannot tell which alternative the firmware picks, so only a
+        # subscription that is too long whichever way is rejected
+        too_long = [
+            next((topic for topic in alternative if _too_long(topic)), None)
+            for alternative in subscription
+        ]
+        if all(too_long):
+            topic = too_long[0]
+            raise cv.Invalid(
+                f"MQTT topic '{topic}' is {len(topic.encode())} bytes; the MQTT client "
+                f"on this platform drops topics longer than {ASYNC_MQTT_CLIENT_MAX_TOPIC_LEN}"
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _validate_topic_lengths
 
 
 def exp_mqtt_message(config):
@@ -495,21 +723,28 @@ async def to_code(config):
 
     # esp-idf only
     transport = config.get(CONF_TRANSPORT)
-    ca = cg.add_optional(var.set_ca_certificate, config.get(CONF_CERTIFICATE_AUTHORITY))
-    if ca is not None or transport == MQTT_TRANSPORT_WSS:
-        cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+    if config.get(CONF_TLS):
+        cg.add_define("USE_MQTT_TLS")
         if (client_certificate := config.get(CONF_CLIENT_CERTIFICATE)) is not None:
             cg.add(var.set_cl_certificate(client_certificate))
             cg.add(var.set_cl_key(config[CONF_CLIENT_CERTIFICATE_KEY]))
+        if config.get(CONF_SKIP_CERT_CN_CHECK):
+            cg.add(var.set_skip_cert_cn_check(True))
+        # Trust source: none, the given CA, or the certificate bundle
+        if config.get(CONF_VERIFY_SSL) is False:
+            cg.add_define("USE_MQTT_TLS_INSECURE")
+            allow_insecure_tls()
+        elif (ca := config.get(CONF_CERTIFICATE_AUTHORITY)) is not None:
+            cg.add(var.set_ca_certificate(ca))
+        else:
+            cg.add_define("USE_MQTT_CERT_BUNDLE")
+            require_certificate_bundle()
 
     if CORE.is_esp32:
         if transport != MQTT_TRANSPORT_TCP:
             cg.add(var.set_transport(transport))
         if transport in (MQTT_TRANSPORT_WS, MQTT_TRANSPORT_WSS):
             cg.add(var.set_ws_path(config.get(CONF_WS_PATH, DEFAULT_WS_PATH)))
-        # wss without an explicit CA verifies the broker against the bundled roots
-        if transport == MQTT_TRANSPORT_WSS and ca is None:
-            require_certificate_bundle()
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
