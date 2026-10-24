@@ -86,12 +86,11 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
-from esphome.helpers import (
-    MQTT_DEFAULT_TOPIC_SUFFIXES,
-    mqtt_per_board_suffix,
-    mqtt_prefix_gets_mac_suffix,
-    sanitize,
-    snake_case,
+from esphome.helpers import sanitize, snake_case
+from esphome.helpers.mqtt import (
+    DEFAULT_TOPIC_SUFFIXES,
+    per_board_suffix,
+    prefix_gets_mac_suffix,
 )
 from esphome.types import ConfigType
 
@@ -318,7 +317,7 @@ def validate_config(value):
             {}
             if topic_prefix == ""
             else {
-                CONF_TOPIC: f"{topic_prefix}{MQTT_DEFAULT_TOPIC_SUFFIXES[key]}",
+                CONF_TOPIC: f"{topic_prefix}{DEFAULT_TOPIC_SUFFIXES[key]}",
                 **extra,
                 CONF_QOS: 0,
                 CONF_RETAIN: True,
@@ -563,7 +562,7 @@ def _subscriptions(config: ConfigType) -> Iterator[tuple[tuple[str, ...], ...]]:
         for device in esphome_config.get(CONF_DEVICES, [])
     }
     topic_prefix = config[CONF_TOPIC_PREFIX]
-    if mqtt_prefix_gets_mac_suffix(topic_prefix, esphome_config):
+    if prefix_gets_mac_suffix(topic_prefix, CORE.name, mac_suffix):
         topic_prefix += MAC_SUFFIX
     # Entities can sit at any depth (a platform can declare its own switches), so find them by mqtt_id
     for id_, path in iter_ids(full_config):
@@ -706,8 +705,8 @@ async def to_code(config):
     topic_prefix = config[CONF_TOPIC_PREFIX]
     # The MAC suffix is only known at runtime, so the prefix and the topics defaulted from it
     # are built from App.get_name(); topics written out by hand stay literal
-    esphome_config = CORE.config[CONF_ESPHOME]
-    mac_prefix = mqtt_prefix_gets_mac_suffix(topic_prefix, esphome_config)
+    mac_suffix = CORE.config[CONF_ESPHOME].get(CONF_NAME_ADD_MAC_SUFFIX, False)
+    mac_prefix = prefix_gets_mac_suffix(topic_prefix, CORE.name, mac_suffix)
     cg.add(var.set_topic_prefix(cg.App.get_name() if mac_prefix else topic_prefix))
 
     if config[CONF_USE_ABBREVIATIONS]:
@@ -720,7 +719,7 @@ async def to_code(config):
             continue
         topic = (
             cg.App.get_name() + suffix
-            if (suffix := mqtt_per_board_suffix(config, esphome_config, key))
+            if (suffix := per_board_suffix(config, key, CORE.name, mac_suffix))
             else None
         )
         cg.add(set_message(exp_mqtt_message(message, topic)))

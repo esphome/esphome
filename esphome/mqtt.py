@@ -35,7 +35,8 @@ from esphome.const import (
     CONF_USERNAME,
 )
 from esphome.core import EsphomeError
-from esphome.helpers import get_int_env, get_str_env, mqtt_per_board_suffix
+from esphome.helpers import get_int_env, get_str_env
+from esphome.helpers.mqtt import per_board_suffix
 from esphome.types import ConfigType
 from esphome.util import safe_print
 
@@ -435,7 +436,7 @@ def show_logs(
     def per_board(present: str | None, key: str) -> re.Pattern[str] | None:
         # Topics the firmware builds from <name>-<mac>, which the CLI cannot know
         if present is None or not (
-            suffix := mqtt_per_board_suffix(mqtt_conf, esphome_conf, key)
+            suffix := per_board_suffix(mqtt_conf, key, name, mac_suffix)
         ):
             return None
         return re.compile(rf"({re.escape(name)}-[0-9a-f]{{6}}){re.escape(suffix)}")
