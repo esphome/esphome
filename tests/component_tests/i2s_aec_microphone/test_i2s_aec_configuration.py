@@ -1,4 +1,4 @@
-"""Validate the hardware and audio format required by the I2S AEC adapter."""
+"""Validate the hardware and audio format required by the I2S AEC microphone."""
 
 from pathlib import Path
 
