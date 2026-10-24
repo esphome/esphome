@@ -10,6 +10,7 @@
 #include "esp_sleep.h"
 #include "esp_pm.h"
 #include "driver/rtc_io.h"
+#include "esp_private/io_mux.h"
 #include "hal/gpio_hal.h"
 #include "soc/soc_caps.h"
 #include "soc/gpio_periph.h"
@@ -120,6 +121,23 @@ static IRAM_ATTR esp_err_t light_sleep_enter_cb(int64_t, void *) {
       return ret;
     }
     func_arg->level = level;
+  }
+  portEXIT_CRITICAL(&wakeup_args_mux);
+  return ESP_OK;
+}
+
+static IRAM_ATTR esp_err_t light_sleep_exit_cb(int64_t, void *) {
+  portENTER_CRITICAL(&wakeup_args_mux);
+  for (ISRFuncArg *func_arg = wakeup_args; func_arg != nullptr; func_arg = func_arg->next) {
+    rtcio_hal_hold_disable(func_arg->rtc_pin);
+    rtcio_hal_function_select(func_arg->rtc_pin, RTCIO_LL_FUNC_DIGITAL);
+#if SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
+    // Disable any configuration of the RTC IO that may affect the GPIO behavior
+    rtcio_hal_set_direction(func_arg->rtc_pin, RTC_GPIO_MODE_DISABLED);
+#endif
+#if SOC_LP_IO_CLOCK_IS_INDEPENDENT
+    io_mux_force_disable_lp_io_clock(func_arg->pin);
+#endif
   }
   portEXIT_CRITICAL(&wakeup_args_mux);
   return ESP_OK;
@@ -374,6 +392,13 @@ void ESP32InternalGPIOPin::setup() {
 }
 
 void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
+#if defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP) && defined(SOC_RTCIO_WAKE_SUPPORTED)
+  // in case ext1 wakeup was used normal gpio mode needs to be re-enabled
+  if (rtc_gpio_is_valid_gpio(this->get_pin_num())) {
+    rtc_gpio_deinit(this->get_pin_num());
+    rtc_gpio_hold_dis(this->get_pin_num());
+  }
+#endif
   // can't call gpio_config here because that logs in esp-idf which may cause issues
   gpio_set_direction(this->get_pin_num(), flags_to_mode(flags));
   gpio_pull_mode_t pull_mode = GPIO_FLOATING;
@@ -441,6 +466,26 @@ void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+#if defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP) && defined(SOC_RTCIO_WAKE_SUPPORTED)
+  // in case ext1 wakeup was used normal gpio mode needs to be re-enabled
+  if (arg->use_rtc) {
+#ifdef RTCIO_NEED_MAPPING
+    gpio_num_t pin = arg->rtc_pin;
+#else
+    gpio_num_t pin = arg->pin;
+#endif
+    rtcio_hal_hold_disable(pin);
+    rtcio_hal_function_select(pin, RTCIO_LL_FUNC_DIGITAL);
+#if SOC_RTCIO_INPUT_OUTPUT_SUPPORTED
+    // Disable any configuration of the RTC IO that may affect the GPIO behavior
+    rtcio_hal_set_direction(pin, RTC_GPIO_MODE_DISABLED);
+#endif
+#if SOC_LP_IO_CLOCK_IS_INDEPENDENT
+    io_mux_force_disable_lp_io_clock(pin);
+#endif
+  }
+#endif
+
   gpio::Flags diff = (gpio::Flags) (flags ^ arg->flags);
   if (diff & gpio::FLAG_OUTPUT) {
     if (flags & gpio::FLAG_OUTPUT) {
