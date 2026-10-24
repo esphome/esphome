@@ -49,11 +49,18 @@ async def main():
     c.subscribe_states(on_state)
     c.subscribe_logs(on_log, log_level=aioesphomeapi.LogLevel.LOG_LEVEL_DEBUG)
     await asyncio.sleep(3)
+    missing = []
     for i in range(N):
         print(f"{LABEL} {time.monotonic() - t0:7.2f} CHECK {i + 1}", flush=True)
+        before = len(states)
         c.update_command(upd.key, aioesphomeapi.UpdateCommand.CHECK)
         await asyncio.sleep(25)
+        if not any(not st.in_progress for st in states[before:]):
+            print(f"{LABEL} CHECK {i + 1} got no finished update state", flush=True)
+            missing.append(i + 1)
     await c.disconnect()
+    print(f"{LABEL} {N - len(missing)} of {N} checks reported a state", flush=True)
+    return 1 if missing else 0
 
 
-asyncio.run(main())
+sys.exit(asyncio.run(main()))
