@@ -11,9 +11,11 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/preferences.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+#include "esphome/core/preferences.h"
+#endif
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -385,12 +387,8 @@ class MQTTClientComponent final : public Component {
   void add_subscription_(MQTTTopicSource topic, mqtt_subscription_callback_t callback, bool boxed, uint8_t qos);
   void resubscribe_subscriptions_();
 #ifdef USE_MQTT_SESSION_PERSISTENCE
-  void persist_subscription_(uint32_t hash);
-  void remove_persisted_subscription_(uint32_t hash);
-  void prune_persisted_subscriptions_();
-#ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
-  void save_persisted_subscriptions_();
-#endif
+  uint32_t subscriptions_fingerprint_();
+  void save_subscriptions_fingerprint_();
 #endif
 
   MQTTCredentials credentials_;
@@ -447,13 +445,12 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
-  bool session_present_{false};
-  bool on_connect_received_{false};
 #ifdef USE_MQTT_SESSION_PERSISTENCE
-  bool persisted_subscriptions_dirty_{false};
-#ifndef USE_MQTT_SESSION_PERSISTENCE_RTC
-  ESPPreferenceObject persisted_subscriptions_pref_;
-#endif
+  bool session_present_{false};
+  /// Fingerprint of the subscriptions made at the last connect, and the one saved in flash
+  uint32_t connect_fingerprint_{0};
+  uint32_t stored_fingerprint_{0};
+  ESPPreferenceObject fingerprint_pref_;
 #endif
 };
 
