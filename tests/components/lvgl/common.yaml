@@ -114,18 +114,6 @@ binary_sensor:
         - lvgl.led.update:
             id: lv_led
             brightness: 50%
-        - lvgl.tabview.update:
-            id: tabview_id
-            hidden: false
-        - lvgl.tileview.update:
-            id: tileview_id
-            hidden: false
-        - lvgl.menu.update:
-            id: settings_menu
-            hidden: false
-        - lvgl.canvas.update:
-            id: canvas_id
-            hidden: false
         - lvgl.buttonmatrix.update:
             id: b_matrix
             hidden: false
