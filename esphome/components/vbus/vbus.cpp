@@ -11,6 +11,9 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 // Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 
+// Bound per-loop work; sustained 9600-baud traffic needs a loop at least every 66 ms.
+static constexpr size_t VBUS_MAX_BYTES_PER_LOOP = 64;
+
 void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
 
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
@@ -28,7 +31,7 @@ static bool checksum(const uint8_t *data, int start, int count) {
 }
 
 void VBus::loop() {
-  this->read_available([this](uint8_t c) {
+  auto on_byte = [this](uint8_t c) {
     if (c == 0xaa) {
       this->state_ = 1;
       this->buffer_.clear();
@@ -109,7 +112,8 @@ void VBus::loop() {
       this->state_ = 0;
       return;
     }
-  });
+  };
+  this->read_available(on_byte, std::min(this->available(), VBUS_MAX_BYTES_PER_LOOP));
 }
 
 void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message) {
