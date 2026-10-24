@@ -459,7 +459,7 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         if (byte_count == CHARGING_INFO_BYTE_COUNT) {
           // Parsing 0x011B charging info (9 registers)
           uint64_t power_raw = std::min<uint64_t>(read_be(&frame[3], 7), 999900);
-          uint64_t energy_raw = std::min<uint64_t>(read_be(&frame[10], 4), 100000);
+          uint64_t energy_raw = read_be(&frame[10], 4);
           uint8_t hours = std::min<uint8_t>(frame[14], 99);
           uint8_t minutes = std::min<uint8_t>(frame[15], 59);
           uint8_t seconds = std::min<uint8_t>(frame[16], 59);
@@ -482,8 +482,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->send_frame_(CMD_GET_MAX_CURRENT, sizeof(CMD_GET_MAX_CURRENT));
         } else if (byte_count == TWO_REGISTER_BYTE_COUNT) {
           // Parsing 0x0112 max output setting (2 registers)
-          this->max_current_limit_ = frame[4];
-          this->max_current_cap_ = frame[6];
+          // Device-confirmed: frame[4] is the configured max (write target), frame[5] the active limit
+          this->max_current_limit_ = frame[4]; 
           if (this->max_current_sensor_ != nullptr)
             this->max_current_sensor_->publish_state(frame[5]);
           if (this->max_current_number_ != nullptr)
@@ -522,6 +522,7 @@ void DeltaWallbox::reset_state_() {
   this->cancel_timeout(RETRANSMIT_TIMEOUT_ID);
   this->rx_len_ = 0;
   this->state_ = DeltaState::DELTA_STATE_IDLE;
+  this->max_current_limit_ = 0;  // refuse writes until the next 0x0112 read
   this->pairing_attempts_ = 0;
   this->pairing_in_progress_ = false;
   this->status_set_warning();
