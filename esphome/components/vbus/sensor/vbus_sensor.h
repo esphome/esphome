@@ -221,6 +221,21 @@ class DeltaSolBS2Sensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
+#ifdef USE_VBUS_POLLING
+class VBusP2Sensor final : public sensor::Sensor, public Component {
+ public:
+  VBusP2Sensor(VBusPolling *polling, uint16_t value_id, bool is_signed)
+      : polling_(polling), value_id_(value_id), is_signed_(is_signed) {}
+  void setup() override;
+  void dump_config() override;
+
+ protected:
+  VBusPolling *polling_;
+  uint16_t value_id_;
+  bool is_signed_;
+};
+#endif
+
 class VBusCustomSubSensor;
 
 class VBusCustomSensor : public VBusListener, public Component {
