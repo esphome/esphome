@@ -219,7 +219,7 @@ async def test_perform_update_opcode_sequence(fast_dfu: pytest.MonkeyPatch) -> N
 async def test_perform_update_reports_failure(fast_dfu: pytest.MonkeyPatch) -> None:
     client = _FakeBleClient(status=0x04)
 
-    with pytest.raises(EsphomeError, match="DFU start failed"):
+    with pytest.raises(EsphomeError, match="DFU start .* rejected"):
         await dfu._perform_update(client, b"\x00" * 4, b"\x01")
 
     assert client.control_point_ops()[-1] == dfu._OP_RESET
@@ -231,7 +231,10 @@ async def test_perform_update_reports_failure(fast_dfu: pytest.MonkeyPatch) -> N
     [
         (None, "timed out waiting for the response to opcode 0x04"),
         ((dfu._OP_START_DFU, dfu._RESPONSE_SUCCESS), "expected 0x04"),
-        ((dfu._OP_VALIDATE, 0x06), "DFU validation failed with status 0x06"),
+        (
+            (dfu._OP_VALIDATE, 0x06),
+            r"DFU validation \(opcode 0x04\) rejected .* status 0x06 \(operation failed\)",
+        ),
     ],
 )
 async def test_expect_success_failures(
@@ -516,17 +519,46 @@ async def test_dfu_upload_retries(
     async def _attempt(address: str, image: bytes, init_packet: bytes) -> None:
         calls.append(address)
         if len(calls) <= failures:
-            raise EsphomeError("DFU upload failed with status 0x04")
+            raise EsphomeError("DFU failed: link lost")
 
     monkeypatch.setattr(dfu, "_dfu_attempt", _attempt)
 
     if failures < dfu._ATTEMPTS:
         await dfu.dfu_upload("AA:BB:CC:DD:EE:FF", package)
     else:
-        with pytest.raises(EsphomeError, match="DFU upload failed"):
+        with pytest.raises(EsphomeError, match="link lost"):
             await dfu.dfu_upload("AA:BB:CC:DD:EE:FF", package)
 
     assert calls == ["AA:BB:CC:DD:EE:FF"] * dfu._ATTEMPTS
+
+
+@pytest.mark.asyncio
+async def test_dfu_upload_does_not_retry_rejections(
+    fast_dfu: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A status rejection from the bootloader is raised at once, not retried."""
+    fast_dfu.setattr(dfu, "_RETRY_DELAY", 0)
+    package = _write_package(tmp_path)
+
+    class _Client(_FakeBleClient, _ConnectClient):
+        def __init__(self) -> None:
+            _FakeBleClient.__init__(self, status=0x05)
+            _ConnectClient.__init__(self)
+            self.sessions = 0
+
+        async def start_notify(self, characteristic: str, handler) -> None:
+            self.sessions += 1
+            await super().start_notify(characteristic, handler)
+
+    client = _Client()
+    _use_client(fast_dfu, client)
+
+    with pytest.raises(
+        EsphomeError, match=r"DFU start \(opcode 0x01\) .* status 0x05 \(CRC error\)"
+    ):
+        await dfu.dfu_upload("AA:BB:CC:DD:EE:FF", package)
+
+    assert client.sessions == 1
 
 
 @pytest.mark.asyncio

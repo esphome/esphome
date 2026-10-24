@@ -54,6 +54,13 @@ _OP_PACKET_RECEIPT_NOTIF = 0x11
 
 _UPLOAD_MODE_APPLICATION = 0x04
 _RESPONSE_SUCCESS = 0x01
+_RESPONSE_STATUS_NAMES = {
+    0x02: "invalid state",
+    0x03: "not supported",
+    0x04: "data size exceeds limit",
+    0x05: "CRC error",
+    0x06: "operation failed",
+}
 
 # The bootloader runs out of memory when more than 8 packets are unacknowledged.
 _PRN = 8
@@ -78,6 +85,10 @@ BOOTLOADER_HINT = (
     "address + 1; pass that address with --device (on macOS, the UUID of the "
     "DFU device)."
 )
+
+
+class _DfuRejectedError(EsphomeError):
+    """The bootloader answered with a failure status; retrying will not help."""
 
 
 class _DfuSession:
@@ -116,7 +127,11 @@ class _DfuSession:
                 f"expected {request_op:#04x}"
             )
         if status != _RESPONSE_SUCCESS:
-            raise EsphomeError(f"DFU {step} failed with status {status:#04x}")
+            name = _RESPONSE_STATUS_NAMES.get(status, "unknown")
+            raise _DfuRejectedError(
+                f"DFU {step} (opcode {request_op:#04x}) rejected by the bootloader "
+                f"with status {status:#04x} ({name})"
+            )
 
     async def wait_for_receipts(self, count: int) -> None:
         """Wait until ``count`` packet receipts have arrived in total."""
@@ -369,6 +384,8 @@ async def dfu_upload(address: str, firmware: Path) -> None:
         )
         try:
             await _dfu_attempt(address, image, init_packet)
+        except _DfuRejectedError:
+            raise
         except EsphomeError as err:
             if attempt == _ATTEMPTS:
                 raise

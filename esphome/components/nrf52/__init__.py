@@ -375,8 +375,12 @@ def _final_validate(config):
         config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
         or "zephyr_mcumgr" in CORE.loaded_integrations
     )
-    rollback_requested = advanced.setdefault(CONF_ENABLE_OTA_ROLLBACK, mcuboot)
-    if rollback_requested:
+    if advanced.get(CONF_ENABLE_OTA_ROLLBACK) and not mcuboot:
+        raise cv.Invalid(
+            f"'{CONF_ENABLE_OTA_ROLLBACK}' requires MCUboot, which the "
+            f"'{config[KEY_BOOTLOADER]}' bootloader does not have"
+        )
+    if advanced.setdefault(CONF_ENABLE_OTA_ROLLBACK, mcuboot):
         # "disabled: false" means safe mode *is* enabled.
         safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
         safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
@@ -390,11 +394,6 @@ def _final_validate(config):
                 )
             # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
-        elif not mcuboot:
-            raise cv.Invalid(
-                f"'{CONF_ENABLE_OTA_ROLLBACK}' requires MCUboot, which the "
-                f"'{config[KEY_BOOTLOADER]}' bootloader does not have"
-            )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

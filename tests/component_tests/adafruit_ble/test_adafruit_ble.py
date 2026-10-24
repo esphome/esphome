@@ -97,9 +97,17 @@ def test_rejects_triggers_that_never_fire(key: str) -> None:
         schema({key: [{"then": []}]})
 
 
+@pytest.mark.parametrize(
+    "drop",
+    [None, CONF_SAFE_MODE, CONF_OTA],
+    ids=["ota_and_safe_mode", "without_safe_mode", "without_ota"],
+)
 def test_rollback_rejected_when_enabled_by_user(
-    adafruit_ble_ota_full_config: None,
+    adafruit_ble_ota_full_config: None, drop: str | None
 ) -> None:
+    """An explicit request without MCUboot fails whatever else is configured."""
+    if drop is not None:
+        del fv.full_config.get()[drop]
     CORE.toolchain = Toolchain.SDK_NRF
     CORE.loaded_integrations = {"adafruit_ble"}
     config = deepcopy(NRF52_CONFIG)
@@ -121,3 +129,16 @@ def test_rollback_default_follows_mcuboot(
     config = deepcopy(NRF52_CONFIG)
     nrf52_final_validate(config)
     assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is expected
+
+
+def test_rollback_default_off_quietly_without_safe_mode(
+    adafruit_ble_ota_full_config: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    del fv.full_config.get()[CONF_SAFE_MODE]
+    CORE.toolchain = Toolchain.SDK_NRF
+    CORE.loaded_integrations = {"adafruit_ble"}
+    config = deepcopy(NRF52_CONFIG)
+    with caplog.at_level(logging.WARNING):
+        nrf52_final_validate(config)
+    assert config[CONF_FRAMEWORK][CONF_ADVANCED][CONF_ENABLE_OTA_ROLLBACK] is False
+    assert "rollback" not in caplog.text
