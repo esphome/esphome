@@ -80,10 +80,13 @@ TEST(ConstVector, CopyFromItsOwnStorage) {
 
 TEST(ConstVector, AppendCopiesTheTableAndTheExtrasIntoOneOwnedArray) {
   static constexpr const char *const EXTRA[] = {"d", "e"};
+  ProbeVector empty;
+  empty.append_copy(EXTRA, 1);
+  EXPECT_TRUE(empty.owned());
+  ASSERT_EQ(empty.size(), 1U);
+  EXPECT_STREQ(empty[0], "d");
+
   ProbeVector list;
-  list.append_copy(EXTRA, 1);  // onto an empty list
-  EXPECT_TRUE(list.owned());
-  EXPECT_EQ(list.size(), 1U);
   list.assign_static(TABLE, 3);
   list.append_copy(EXTRA, 2);
   EXPECT_TRUE(list.owned());
@@ -95,6 +98,18 @@ TEST(ConstVector, AppendCopiesTheTableAndTheExtrasIntoOneOwnedArray) {
   list.append_copy(EXTRA, 1);  // frees the previous owned array
   EXPECT_EQ(list.size(), 6U);
   EXPECT_STREQ(list[5], "d");
+}
+
+TEST(ConstVector, PrependPutsTheExtrasInFront) {
+  static constexpr const char *const EXTRA[] = {"d", "e"};
+  ProbeVector list;
+  list.assign_static(TABLE, 3);
+  list.append_copy(EXTRA, 1);
+  list.prepend_copy(EXTRA + 1, 1);  // frees the previous owned array
+  ASSERT_EQ(list.size(), 5U);
+  EXPECT_STREQ(list[0], "e");
+  EXPECT_TRUE(std::equal(TABLE, TABLE + 3, list.begin() + 1));
+  EXPECT_STREQ(list[4], "d");
 }
 
 TEST(ConstVector, PlainViewHasNoOwnershipCost) {
