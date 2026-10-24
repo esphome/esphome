@@ -75,7 +75,20 @@ class I2SAudioComponent final : public Component {
     this->tx_sent_callback_context_.store(context, std::memory_order_release);
     this->tx_sent_callback_.store(callback, std::memory_order_release);
   }
-  bool is_keep_tx_active() const { return this->keep_tx_active_; }
+  bool IRAM_ATTR is_keep_tx_active() const { return this->keep_tx_active_; }
+#ifdef USE_I2S_AUDIO_TX_DMA_OBSERVER
+  using TxDmaObserver = void (*)(const uint8_t *data, size_t bytes, void *context);
+  void set_tx_dma_observer(TxDmaObserver observer, void *context) {
+    this->tx_dma_observer_context_.store(context, std::memory_order_release);
+    this->tx_dma_observer_.store(observer, std::memory_order_release);
+  }
+  void IRAM_ATTR notify_tx_dma_sent(const i2s_event_data_t *event) {
+    const auto observer = this->tx_dma_observer_.load(std::memory_order_acquire);
+    if (observer != nullptr && event->dma_buf != nullptr && event->size != 0)
+      observer(static_cast<const uint8_t *>(event->dma_buf), event->size,
+               this->tx_dma_observer_context_.load(std::memory_order_acquire));
+  }
+#endif
   void setup() override;
 
   void set_audio_in(I2SAudioIn *audio_in) { this->audio_in_ = audio_in; }
@@ -86,7 +99,7 @@ class I2SAudioComponent final : public Component {
   }
 
   /// @brief True when a microphone and a speaker share this bus at the same time.
-  bool is_full_duplex() const { return this->audio_in_ != nullptr && this->audio_out_ != nullptr; }
+  bool IRAM_ATTR is_full_duplex() const { return this->audio_in_ != nullptr && this->audio_out_ != nullptr; }
 
   /// @brief Enables the full duplex RX channel. Main loop only.
   /// @return The enabled RX handle, or nullptr if the channel pair is unavailable
@@ -155,6 +168,10 @@ class I2SAudioComponent final : public Component {
   std::atomic<bool> continuous_tx_running_{false};
   std::atomic<TxSentCallback> tx_sent_callback_{nullptr};
   std::atomic<void *> tx_sent_callback_context_{nullptr};
+#ifdef USE_I2S_AUDIO_TX_DMA_OBSERVER
+  std::atomic<TxDmaObserver> tx_dma_observer_{nullptr};
+  std::atomic<void *> tx_dma_observer_context_{nullptr};
+#endif
 #endif
   int mclk_pin_{I2S_GPIO_UNUSED};
   int bclk_pin_{I2S_GPIO_UNUSED};

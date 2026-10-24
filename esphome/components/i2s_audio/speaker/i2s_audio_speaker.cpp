@@ -395,6 +395,12 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
 
   I2SAudioSpeakerBase *this_speaker = (I2SAudioSpeakerBase *) user_ctx;
 
+#ifdef USE_I2S_AUDIO_TX_DMA_OBSERVER
+  // With continuous TX, the bus callback has already observed this DMA block.
+  if (this_speaker->parent_->is_full_duplex() && !this_speaker->parent_->is_keep_tx_active())
+    this_speaker->parent_->notify_tx_dma_sent(event);
+#endif
+
   if (xQueueIsQueueFullFromISR(this_speaker->i2s_event_queue_)) {
     // Queue is full, so discard the oldest event. The lockstep queues are now desynced; the task resyncs them.
     int64_t dummy;

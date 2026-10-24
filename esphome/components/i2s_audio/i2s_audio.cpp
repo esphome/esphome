@@ -119,6 +119,9 @@ bool I2SAudioComponent::start_idle_tx_() {
 
 bool IRAM_ATTR I2SAudioComponent::on_bus_tx_sent(i2s_chan_handle_t handle, i2s_event_data_t *event, void *context) {
   auto *self = static_cast<I2SAudioComponent *>(context);
+#ifdef USE_I2S_AUDIO_TX_DMA_OBSERVER
+  self->notify_tx_dma_sent(event);
+#endif
   const auto callback = self->tx_sent_callback_.load(std::memory_order_acquire);
   auto *const callback_context = self->tx_sent_callback_context_.load(std::memory_order_acquire);
   if (callback != nullptr && callback_context != nullptr)
