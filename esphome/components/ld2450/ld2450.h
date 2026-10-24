@@ -55,6 +55,23 @@ enum Direction : uint8_t {
   DIRECTION_UNDEFINED = 4,
 };
 
+enum BaudRate : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8
+};
+
+enum ZoneType : uint8_t {
+  ZONE_DISABLED = 0,
+  ZONE_DETECTION = 1,
+  ZONE_FILTER = 2,
+};
+
 // Target coordinate struct
 struct Target {
   int16_t x;
@@ -121,7 +138,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void set_bluetooth(bool enable);
   void set_multi_target(bool enable);
   void set_baud_rate(const char *state);
+  void set_baud_rate(BaudRate rate);
   void set_zone_type(const char *state);
+  void set_zone_type(ZoneType type);
   void publish_zone_type();
   void factory_reset();
 #ifdef USE_TEXT_SENSOR

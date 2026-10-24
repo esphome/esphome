@@ -30,6 +30,7 @@ class TestableLD2450 : public LD2450Component {
   using LD2450Component::buffer_pos_;
   using LD2450Component::readline_;
   using LD2450Component::zone_config_;
+  using LD2450Component::zone_type_;
 
   void feed(const std::vector<uint8_t> &data) {
     for (uint8_t byte : data) {
