@@ -32,6 +32,12 @@ import pytest
             id="explicit topics stay literal",
         ),
         pytest.param(
+            "mac_suffix_default_written_out.yaml",
+            ('(App.get_name() + "/status")', '(App.get_name() + "/debug")'),
+            ('"test-device/status"', '"test-device/debug"'),
+            id="topics written out as the default follow the MAC suffix",
+        ),
+        pytest.param(
             "mac_suffix_custom_prefix.yaml",
             ('set_topic_prefix("custom")', '"custom/status"', '"custom/debug"'),
             ("App.get_name()",),

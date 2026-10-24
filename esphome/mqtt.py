@@ -415,8 +415,6 @@ def show_logs(
     else:
         _LOGGER.error("MQTT isn't setup, can't start MQTT logs")
         return 1
-    _LOGGER.info("Starting log output from %s", topic)
-
     name = config[CONF_ESPHOME][CONF_NAME]
     logs_topic = f"esphome/logs/{name}"
     # Ask when the retained birth message reports online: a request sent while the device is down is
@@ -437,6 +435,12 @@ def show_logs(
 
     log_pattern = suffixed(topic, "debug")
     birth_pattern = suffixed(birth_topic, "status")
+    _LOGGER.info(
+        "Starting log output from %s",
+        f"{name}-<mac>/debug of every device built from this config"
+        if log_pattern
+        else topic,
+    )
 
     def request_crash_log(client: mqtt.Client, logs_topic: str = logs_topic) -> None:
         _LOGGER.debug("Requesting the crash log via topic: %s", logs_topic)
@@ -451,13 +455,15 @@ def show_logs(
             elif match := birth_pattern.fullmatch(msg.topic):
                 request_crash_log(client, f"esphome/logs/{match[1]}")
         # The birth topic may sit inside the log subscription, so print by what was asked for
-        if (
-            log_pattern.fullmatch(msg.topic)
-            if log_pattern
-            else mqtt.topic_matches_sub(topic, msg.topic)
-        ):
-            time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
-            safe_print(time_ + payload)
+        if log_pattern:
+            # Several boards can run this config, so name the one that logged
+            if not (match := log_pattern.fullmatch(msg.topic)):
+                return
+            payload = f"[{match[1]}]{payload}"
+        elif not mqtt.topic_matches_sub(topic, msg.topic):
+            return
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
+        safe_print(time_ + payload)
 
     def on_connect(
         client: mqtt.Client,

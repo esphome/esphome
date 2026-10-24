@@ -177,7 +177,7 @@ def test_show_logs_follows_the_mac_suffix_of_default_topics(
     on_message(
         client, None, MagicMock(topic="test-device-a1b2c3/debug", payload=b"[I]: hi")
     )
-    assert mock_print.call_args.args[0].endswith("[I]: hi")
+    assert mock_print.call_args.args[0].endswith("[test-device-a1b2c3][I]: hi")
 
 
 @patch("esphome.mqtt.initialize")
