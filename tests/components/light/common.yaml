@@ -116,6 +116,35 @@ esphome:
       - light.control:
           id: test_monochromatic_light
           state: on
+      - light.turn_on:
+          id: test_rgbww_light
+          color_mode: RGB_COLD_WARM_WHITE
+          color_brightness: 80%
+          cold_white: 60%
+          warm_white: 40%
+      - light.turn_on:
+          id: test_rgbww_light
+          color_mode: COLD_WARM_WHITE
+          cold_white: !lambda return 0.3f;
+          warm_white: !lambda return 0.7f;
+          color_brightness: !lambda return 0.5f;
+      - light.control:
+          id: test_rgbww_light
+          state: !lambda return true;
+      - light.control:
+          id: test_rgbw_light
+          color_mode: RGB_WHITE
+          brightness: 70%
+          red: 10%
+          green: 20%
+          blue: 30%
+          white: 50%
+          color_brightness: 60%
+          transition_length: 400ms
+      - light.control:
+          id: test_rgbw_light
+          white: !lambda return 0.4f;
+          brightness: !lambda return 0.9f;
       # flash_length and a turn_off with its own transition
       - light.turn_on:
           id: test_rgb_light
@@ -200,6 +229,15 @@ esphome:
       - light.addressable_set:
           id: test_addressable_transition
           color: 0x223344
+      - light.addressable_set:
+          id: test_addressable_transition
+          range_from: !lambda return 1;
+          range_to: !lambda return 3;
+          red: !lambda return 0.5f;
+          green: !lambda return 0.25f;
+          blue: !lambda return 0.75f;
+          color_brightness: 50%
+          white: 20%
 
 # Exercise light actions inside a trigger with non-empty Ts (number on_value
 # passes float).
