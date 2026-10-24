@@ -391,8 +391,8 @@ class HttpRequestComponent : public Component {
   void on_safe_shutdown() override;
   void on_shutdown() override;
 
-  /// For HttpRequestSendAction: queue a request and take ownership of it. Requests run one at a time, in order;
-  /// one that can start at once is started here.
+  /// For HttpRequestSendAction: queue a request and take ownership of it. Requests start in order, up to
+  /// max_concurrent_requests at a time; one that can start at once is started here.
   void submit(PendingRequest *request);
   /// For HttpRequestSendAction: drop the requests of a stopped action without firing their triggers.
   void cancel(void *owner);
@@ -409,6 +409,7 @@ class HttpRequestComponent : public Component {
   }
   void set_follow_redirects(bool follow_redirects) { this->follow_redirects_ = follow_redirects; }
   void set_redirect_limit(uint16_t limit) { this->redirect_limit_ = limit; }
+  void set_max_concurrent_requests(uint8_t max_concurrent) { this->max_concurrent_ = max_concurrent; }
 
   std::shared_ptr<HttpContainer> get(const char *url) { return this->start(url, "GET", "", std::vector<Header>{}); }
   std::shared_ptr<HttpContainer> get(const char *url, const std::vector<Header> &request_headers) {
@@ -568,7 +569,7 @@ class HttpRequestComponent : public Component {
                                                  uint32_t timeout_ms) = 0;
   /// Longest time one loop() pass spends reading a response body
   static constexpr uint32_t READ_BUDGET_MS = 10;
-  /// Requests that wait behind the one in progress; more are dropped with on_error
+  /// Requests that wait for a free slot; more are dropped with on_error
   static constexpr uint8_t MAX_QUEUED = 4;
 
   bool process_();
@@ -583,10 +584,11 @@ class HttpRequestComponent : public Component {
   uint16_t redirect_limit_{};
   uint32_t timeout_{4500};
   uint32_t watchdog_timeout_{0};
-  // Oldest first; only the first live request runs
+  // Oldest first; the first max_concurrent_ live requests run
   PendingRequest *requests_{nullptr};
   // Depth of calls that hold request pointers; finished and cancelled requests are freed when it returns to 0
   uint8_t busy_{0};
+  uint8_t max_concurrent_{1};
   bool shutting_down_{false};
 };
 

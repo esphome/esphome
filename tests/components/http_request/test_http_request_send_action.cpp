@@ -574,4 +574,37 @@ TEST_F(HttpRequestSendActionTest, SafeShutdownSendsOnlyTheShutdownRequests) {
   EXPECT_EQ(this->next_count_, 1);
 }
 
+TEST_F(HttpRequestSendActionTest, MaxConcurrentRequestsRunTogether) {
+  this->http_.set_max_concurrent_requests(2);
+  this->trigger_.trigger();
+  this->trigger_.trigger();
+  this->trigger_.trigger();
+  EXPECT_EQ(this->http_.begins, 2);
+
+  // Both finish on the third pass; the third request takes a free slot on the next
+  this->loop_();
+  this->loop_();
+  this->loop_();
+  EXPECT_EQ(this->responses_, 2);
+  EXPECT_EQ(this->http_.begins, 2);
+  this->loop_();
+  EXPECT_EQ(this->http_.begins, 3);
+
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 3);
+  EXPECT_EQ(this->next_count_, 3);
+}
+
+TEST_F(HttpRequestSendActionTest, MaxConcurrentRequestsKeepsTheQueueLimit) {
+  this->http_.set_max_concurrent_requests(2);
+  for (int i = 0; i != 8; i++)
+    this->trigger_.trigger();
+  // Two running, four waiting, two dropped
+  EXPECT_EQ(this->http_.begins, 2);
+  EXPECT_EQ(this->errors_, 2);
+  this->run_until_idle_();
+  EXPECT_EQ(this->responses_, 6);
+  EXPECT_EQ(this->next_count_, 8);
+}
+
 }  // namespace esphome::http_request::testing

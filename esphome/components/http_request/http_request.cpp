@@ -16,8 +16,10 @@ void HttpRequestComponent::dump_config() {
                 "  Timeout: %" PRIu32 "ms\n"
                 "  User-Agent: %s\n"
                 "  Follow redirects: %s\n"
-                "  Redirect limit: %d",
-                this->timeout_, this->useragent_, YESNO(this->follow_redirects_), this->redirect_limit_);
+                "  Redirect limit: %d\n"
+                "  Max concurrent requests: %u",
+                this->timeout_, this->useragent_, YESNO(this->follow_redirects_), this->redirect_limit_,
+                this->max_concurrent_);
   if (this->watchdog_timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  Watchdog Timeout: %" PRIu32 "ms", this->watchdog_timeout_);
   }
@@ -70,16 +72,18 @@ void HttpRequestComponent::on_shutdown() {
 
 void HttpRequestComponent::submit(PendingRequest *request) {
   this->busy_++;
-  bool ahead = false;
+  uint8_t running = 0;
   uint8_t waiting = 0;
   PendingRequest **link = &this->requests_;
   for (; *link != nullptr; link = &(*link)->next) {
     const PendingRequest *other = *link;
     if (other->finished || other->cancelled)
       continue;
-    ahead = true;
-    if (other->container == nullptr)
+    if (other->container == nullptr) {
       waiting++;
+    } else {
+      running++;
+    }
   }
   *link = request;
   this->enable_loop();
@@ -87,7 +91,7 @@ void HttpRequestComponent::submit(PendingRequest *request) {
     ESP_LOGW(TAG, "Too many requests waiting; request dropped");
     request->failed = true;
     this->finish_(request);
-  } else if (!ahead) {
+  } else if (waiting == 0 && running < this->max_concurrent_) {
     // Start at once; one that cannot start is reported at once
     this->begin_request_(request);
     if (request->failed)
@@ -114,10 +118,12 @@ void HttpRequestComponent::cancel(void *owner) {
 
 bool HttpRequestComponent::process_() {
   this->busy_++;
-  PendingRequest *request = this->requests_;
-  while (request != nullptr && (request->finished || request->cancelled))
-    request = request->next;
-  if (request != nullptr) {
+  // The first max_concurrent_ live requests run; a request finished here frees its slot on the next pass
+  uint8_t slots = this->max_concurrent_;
+  for (PendingRequest *request = this->requests_; request != nullptr && slots != 0; request = request->next) {
+    if (request->finished || request->cancelled)
+      continue;
+    slots--;
     if (request->container == nullptr)
       this->begin_request_(request);
     if (!request->cancelled && (request->failed || this->advance_(request)))
