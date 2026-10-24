@@ -52,7 +52,7 @@ RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Tra
 RuntimeImage::~RuntimeImage() {
 #ifdef USE_LVGL_IMAGE
   for (lv_obj_t *obj : this->lvgl_widgets_)
-    lv_obj_remove_event_cb_with_user_data(obj, lvgl_widget_deleted_, this);
+    lv_obj_remove_event_cb_with_user_data(obj, lvgl_widget_deleted, this);
   this->lvgl_widgets_.clear();
 #endif
   this->release();
@@ -198,10 +198,10 @@ void RuntimeImage::add_lvgl_widget(lv_obj_t *obj) {
   if (std::find(this->lvgl_widgets_.begin(), this->lvgl_widgets_.end(), obj) != this->lvgl_widgets_.end())
     return;
   this->lvgl_widgets_.push_back(obj);
-  lv_obj_add_event_cb(obj, lvgl_widget_deleted_, LV_EVENT_DELETE, this);
+  lv_obj_add_event_cb(obj, lvgl_widget_deleted, LV_EVENT_DELETE, this);
 }
 
-void RuntimeImage::lvgl_widget_deleted_(lv_event_t *event) {
+void RuntimeImage::lvgl_widget_deleted(lv_event_t *event) {
   auto *image = static_cast<RuntimeImage *>(lv_event_get_user_data(event));
   auto &widgets = image->lvgl_widgets_;
   widgets.erase(std::remove(widgets.begin(), widgets.end(), lv_event_get_target_obj(event)), widgets.end());
@@ -221,7 +221,7 @@ void RuntimeImage::refresh_lvgl_() {
       ::lv_image_set_src(obj, dsc);
       i++;
     } else {
-      lv_obj_remove_event_cb_with_user_data(obj, lvgl_widget_deleted_, this);
+      lv_obj_remove_event_cb_with_user_data(obj, lvgl_widget_deleted, this);
       widgets.erase(widgets.begin() + i);
     }
   }

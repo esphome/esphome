@@ -283,7 +283,7 @@ class RuntimeImage : public image::Image {
   /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
   bool external_buffer_{false};
 #ifdef USE_LVGL_IMAGE
-  static void lvgl_widget_deleted_(lv_event_t *event);
+  static void lvgl_widget_deleted(lv_event_t *event);
   /// Widgets given this image. One moved to another image is dropped at the next refresh
   std::vector<lv_obj_t *> lvgl_widgets_;
 #endif

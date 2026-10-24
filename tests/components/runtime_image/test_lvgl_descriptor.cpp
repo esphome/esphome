@@ -102,7 +102,7 @@ class RuntimeImageLvglWidget : public ::testing::Test {
   void TearDown() override { lv_deinit(); }
 
   // What the lvgl component's lv_image_set_src() overload does
-  void set_src(image::Image *image) {
+  void set_src_(image::Image *image) {
     ::lv_image_set_src(this->widget_, image->get_lv_image_dsc());
     image->add_lvgl_widget(this->widget_);
   }
@@ -115,7 +115,7 @@ class RuntimeImageLvglWidget : public ::testing::Test {
   }
 
   // Redraw the widget, as something drawn over it would make LVGL do during a load
-  void draw() {
+  void draw_() {
     lv_obj_invalidate(this->widget_);
     lv_refr_now(this->display_);
   }
@@ -129,22 +129,22 @@ class RuntimeImageLvglWidget : public ::testing::Test {
 // The image gives the widget its source again whenever what it shows changes size.
 TEST_F(RuntimeImageLvglWidget, WidgetFollowsTheImageSize) {
   RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
-  this->set_src(&img);
+  this->set_src_(&img);
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 1);
 
   load(img);
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 3);
   EXPECT_EQ(lv_image_get_src_height(this->widget_), 2);
-  this->draw();
+  this->draw_();
 
   img.release();
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 1);
   EXPECT_EQ(lv_image_get_src_height(this->widget_), 1);
-  this->draw();
+  this->draw_();
 
   load(img);
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 3);
-  this->draw();
+  this->draw_();
 }
 
 // The placeholder is smaller than the image, and on the heap, so drawing it at the image's size trips ASan
@@ -153,13 +153,13 @@ TEST_F(RuntimeImageLvglWidget, WidgetFollowsThePlaceholderSize) {
   image::Image placeholder(placeholder_pixels.data(), 2, 1, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
   RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE, &placeholder);
   load(img);
-  this->set_src(&img);
-  this->draw();
+  this->set_src_(&img);
+  this->draw_();
 
   img.release();
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 2);
   EXPECT_EQ(lv_image_get_src_height(this->widget_), 1);
-  this->draw();
+  this->draw_();
 }
 
 // A widget given another image is left alone, however many times it was given this one
@@ -168,16 +168,16 @@ TEST_F(RuntimeImageLvglWidget, WidgetGivenAnotherImageIsLeftAlone) {
   image::Image other(OTHER_PIXELS, 4, 5, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
   RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
   load(img);
-  this->set_src(&img);
-  this->set_src(&img);
-  this->set_src(&other);
+  this->set_src_(&img);
+  this->set_src_(&img);
+  this->set_src_(&other);
 
   img.release();
   EXPECT_EQ(lv_image_get_src(this->widget_), other.get_lv_image_dsc());
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 4);
 
   // Given back, it is followed again
-  this->set_src(&img);
+  this->set_src_(&img);
   load(img);
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 3);
 }
@@ -187,7 +187,7 @@ TEST_F(RuntimeImageLvglWidget, DoubleBufferedWidgetKeepsTheImageWhileDecoding) {
   RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
   img.set_double_buffer(true);
   load(img);
-  this->set_src(&img);
+  this->set_src_(&img);
   const void *first = static_cast<const lv_image_dsc_t *>(lv_image_get_src(this->widget_))->data;
 
   std::vector<uint8_t> data(BMP_24BPP, BMP_24BPP + sizeof(BMP_24BPP));
@@ -195,18 +195,18 @@ TEST_F(RuntimeImageLvglWidget, DoubleBufferedWidgetKeepsTheImageWhileDecoding) {
   ASSERT_EQ(img.feed_data(data.data(), data.size()), static_cast<int>(data.size()));
   EXPECT_EQ(static_cast<const lv_image_dsc_t *>(lv_image_get_src(this->widget_))->data, first);
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 3);
-  this->draw();
+  this->draw_();
 
   ASSERT_TRUE(img.end_decode());
   EXPECT_NE(static_cast<const lv_image_dsc_t *>(lv_image_get_src(this->widget_))->data, first);
   EXPECT_EQ(lv_image_get_src_width(this->widget_), 3);
-  this->draw();
+  this->draw_();
 }
 
 TEST_F(RuntimeImageLvglWidget, DeletedWidgetIsForgotten) {
   RuntimeImage img(BMP, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE);
   load(img);
-  this->set_src(&img);
+  this->set_src_(&img);
   lv_obj_delete(this->widget_);
   img.release();
 }
