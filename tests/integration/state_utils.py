@@ -595,8 +595,8 @@ class SensorStateCollector:
 class SensorTracker:
     """Data-driven sensor state tracker with expected-value futures.
 
-    Tracks sensor and binary sensor state updates and resolves futures when
-    they report specific expected values. Eliminates per-sensor future
+    Tracks sensor, binary sensor and text sensor state updates and resolves
+    futures when they report specific expected values. Eliminates per-sensor future
     boilerplate.
 
     Usage::
@@ -638,7 +638,7 @@ class SensorTracker:
                 connect-time states so they cannot satisfy a later phase.
         """
         if (
-            not isinstance(state, (SensorState, BinarySensorState))
+            not isinstance(state, (SensorState, BinarySensorState, TextSensorState))
             or state.missing_state
         ):
             return
