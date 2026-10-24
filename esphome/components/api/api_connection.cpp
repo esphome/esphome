@@ -2168,7 +2168,6 @@ void APIConnection::on_crash_report_request() {
     this->on_fatal_error();
     return;
   }
-  // Dropped only once queued, so a failed send leaves it for the next request
   if (resp.flags & CRASH_REPORT_FLAG_PRESENT)
     crash_report_clear();
 }

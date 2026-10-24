@@ -521,9 +521,7 @@ def test_crash_report_response_fields_keep_their_wire_numbers() -> None:
 
 
 def test_crash_report_rpc_requires_authentication() -> None:
-    """Backtraces reveal the firmware layout, so the rpc must not set
-    `needs_authentication` and inherits the default of true.
-    """
+    """The rpc inherits the default of needs_authentication = true."""
     body = _extract_rpc_body(PROTO_TEXT, "crash_report")
     assert "needs_authentication" not in body
 

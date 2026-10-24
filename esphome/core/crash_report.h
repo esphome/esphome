@@ -9,10 +9,10 @@
 
 namespace esphome {
 
-/// Most backtrace addresses a crash report holds for each core
+/// Per core
 static constexpr uint8_t CRASH_REPORT_MAX_BACKTRACE = 16;
 
-/// Bits of CrashReport::flags; the values match the CrashReportFlag enum in api.proto
+/// Values match api.proto
 enum CrashReportFlag : uint8_t {
   CRASH_REPORT_FLAG_NONE = 0,
   CRASH_REPORT_FLAG_PRESENT = 1 << 0,
@@ -21,7 +21,7 @@ enum CrashReportFlag : uint8_t {
   CRASH_REPORT_FLAG_FAULT_ADDRESS = 1 << 3,
 };
 
-/// The values match the CrashReason enum in api.proto
+/// Values match api.proto
 enum class CrashReason : uint8_t {
   CRASH_REASON_UNKNOWN = 0,
   CRASH_REASON_EXCEPTION = 1,
@@ -32,7 +32,6 @@ enum class CrashReason : uint8_t {
   CRASH_REASON_HARDWARE_WATCHDOG = 6,
 };
 
-/// The crash recorded on the previous boot, in a form shared by all platforms
 struct CrashReport {
   uint8_t flags{CRASH_REPORT_FLAG_NONE};
   CrashReason reason{CrashReason::CRASH_REASON_UNKNOWN};
@@ -47,11 +46,10 @@ struct CrashReport {
   std::array<uint32_t, CRASH_REPORT_MAX_BACKTRACE> other_core_backtrace{};
 };
 
-/// Fill out with the crash recorded on the previous boot; returns false when there is none or it was already read.
-/// Implemented by each platform's crash handler.
+/// The previous boot's crash; false when there is none or it was read. Implemented per platform.
 bool crash_report_get(CrashReport &out);
 
-/// Mark the report as read: crash_report_get() returns false for it from now on, and it does not survive a reboot.
+/// Mark the report read; it also no longer survives a reboot.
 void crash_report_clear();
 
 }  // namespace esphome

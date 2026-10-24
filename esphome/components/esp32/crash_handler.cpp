@@ -491,10 +491,10 @@ namespace esphome {
 
 static_assert(MAX_BACKTRACE <= CRASH_REPORT_MAX_BACKTRACE, "Crash report backtrace too small for the record");
 
-// Set once a client has read the report; the record itself stays valid for log replay this boot.
+// The record itself stays valid for log replay this boot
 static bool s_report_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-// Same RISC-V filtering as log_backtrace(); a foreign build's addresses are copied unfiltered.
+// Filtered as in log_backtrace()
 static uint8_t copy_backtrace(const uint32_t *addrs, uint8_t count, [[maybe_unused]] uint8_t reg_frame_count,
                               [[maybe_unused]] bool filter, uint32_t *out) {
   uint8_t out_count = 0;
@@ -533,7 +533,7 @@ bool crash_report_get(CrashReport &out) {
   out.crashed_core = s_raw_crash_data.crashed_core;
   out.pc = s_raw_crash_data.pc;
   out.build_time = s_raw_crash_data.build_time;
-  // A pseudo cause is an IDF panic reason, not the CPU's cause register
+  // A pseudo cause is an IDF panic reason
   if (s_raw_crash_data.exception != PANIC_EXCEPTION_ABORT && s_raw_crash_data.exception != PANIC_EXCEPTION_TWDT &&
       !s_raw_crash_data.pseudo_excause && esp32::cause_slot_was_written()) {
     out.flags |= CRASH_REPORT_FLAG_CAUSE;

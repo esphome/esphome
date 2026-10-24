@@ -136,14 +136,13 @@ namespace esphome {
 
 static_assert(MAX_BACKTRACE + 1 <= CRASH_REPORT_MAX_BACKTRACE, "Crash report backtrace too small for the record");
 
-// The scratch registers are already cleared at boot, so a read report is only hidden
 static bool s_report_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool crash_report_get(CrashReport &out) {
   if (s_report_read || !rp2::crash_handler_has_data())
     return false;
   out = {};
-  // Captured by the HardFault handler, which reboots straight back into the same build
+  // Never survives into another build
   out.flags = CRASH_REPORT_FLAG_PRESENT | CRASH_REPORT_FLAG_BUILD_MATCHES;
   out.reason = CrashReason::CRASH_REASON_EXCEPTION;
   out.pc = rp2::s_crash_data.pc;

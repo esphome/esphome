@@ -416,7 +416,7 @@ message SendspinCapabilities {
 }
 
 message CrashReportCapabilities {
-  // Bitmask of CrashReportFlag; PRESENT means a CrashReportRequest returns a report (since API 1.20)
+  // Bitmask of CrashReportFlag
   uint32 flags = 1;
 }
 
@@ -549,27 +549,23 @@ message SubscribeStatesRequest {
 
 enum CrashReportFlag {
   CRASH_REPORT_FLAG_NONE = 0;
-  CRASH_REPORT_FLAG_PRESENT = 1;        // A crash was recorded on the previous boot and has not been read
-  CRASH_REPORT_FLAG_BUILD_MATCHES = 2;  // The running firmware recorded it, so its ELF decodes the addresses
-  CRASH_REPORT_FLAG_CAUSE = 4;          // cause holds the CPU's exception cause register
-  CRASH_REPORT_FLAG_FAULT_ADDRESS = 8;  // fault_address holds the memory address that faulted
+  CRASH_REPORT_FLAG_PRESENT = 1;        // Stored and not yet read
+  CRASH_REPORT_FLAG_BUILD_MATCHES = 2;  // Recorded by the running firmware
+  CRASH_REPORT_FLAG_CAUSE = 4;          // cause is valid
+  CRASH_REPORT_FLAG_FAULT_ADDRESS = 8;  // fault_address is valid
 }
 
 enum CrashReason {
   CRASH_REASON_UNKNOWN = 0;
-  CRASH_REASON_EXCEPTION = 1;           // A CPU exception, such as an invalid memory access
-  CRASH_REASON_ABORT = 2;               // abort() was called, for example by a failed assertion
+  CRASH_REASON_EXCEPTION = 1;
+  CRASH_REASON_ABORT = 2;
   CRASH_REASON_TASK_WATCHDOG = 3;
   CRASH_REASON_INTERRUPT_WATCHDOG = 4;
   CRASH_REASON_SOFT_WATCHDOG = 5;
-  CRASH_REASON_HARDWARE_WATCHDOG = 6;   // Nothing but the reason is recorded
+  CRASH_REASON_HARDWARE_WATCHDOG = 6;  // Only the reason is recorded
 }
 
-// Asks for the crash recorded on the previous boot. Clients send it when
-// DeviceCapabilitiesResponse.crash_report.flags has CRASH_REPORT_FLAG_PRESENT set.
-//
-// The device answers once with the report and then drops it: later requests, from
-// this client or any other, get a response with flags set to CRASH_REPORT_FLAG_NONE.
+// Send only when crash_report.flags has PRESENT. The report is dropped once sent.
 message CrashReportRequest {
   option (id) = 163;
   option (source) = SOURCE_CLIENT;
@@ -577,15 +573,12 @@ message CrashReportRequest {
   // Empty
 }
 
-// The addresses are raw: decode them with addr2line against the ELF of the build that
-// recorded them, which is the running build when CRASH_REPORT_FLAG_BUILD_MATCHES is set.
-// build_time identifies that build; it is 0 on platforms that do not record it.
 message CrashReportResponse {
   option (id) = 164;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_CRASH_REPORT";
 
-  uint32 flags = 1;  // Bitmask of CrashReportFlag; NONE when there is no report
+  uint32 flags = 1;  // Bitmask of CrashReportFlag
   CrashReason reason = 2;
   uint32 pc = 3;
   repeated uint32 backtrace = 4 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
@@ -593,7 +586,7 @@ message CrashReportResponse {
   uint32 fault_address = 6;
   uint32 build_time = 7;
   uint32 crashed_core = 8;
-  // The backtrace of the core that did not crash, on chips with two cores
+  // Dual-core chips only
   repeated uint32 other_core_backtrace = 9 [(fixed_array_with_length_define) = "CRASH_REPORT_MAX_BACKTRACE"];
 }
 

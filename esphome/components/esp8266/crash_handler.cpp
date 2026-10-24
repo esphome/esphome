@@ -211,17 +211,16 @@ namespace esphome {
 
 static_assert(MAX_BACKTRACE <= CRASH_REPORT_MAX_BACKTRACE, "Crash report backtrace too small for the record");
 
-// resetInfo and the RTC record last until the next reset, so a read report is only hidden
 static bool s_report_read = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool crash_report_get(CrashReport &out) {
   if (s_report_read || !esp8266::crash_handler_has_data())
     return false;
   out = {};
-  // The record is replaced or ignored on the next reset, so it always belongs to the running build
+  // Never survives into another build
   out.flags = CRASH_REPORT_FLAG_PRESENT | CRASH_REPORT_FLAG_BUILD_MATCHES;
   if (resetInfo.reason == REASON_WDT_RST) {
-    // No crash state is recorded for a hardware WDT reset; see crash_handler_log()
+    // Nothing else is recorded for a hardware WDT reset
     out.reason = CrashReason::CRASH_REASON_HARDWARE_WATCHDOG;
     return true;
   }
