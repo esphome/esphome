@@ -1,5 +1,6 @@
-"""bk72xx_ble refuses a beken-bdk override older than 3.0.78: with BLE compiled in,
-an older BDK can crash at boot or erase the bootloader."""
+"""bk72xx_ble refuses a beken-bdk override outside 3.0.78 and later 3.0.x releases:
+an older BDK can crash at boot or erase the bootloader with BLE compiled in, and
+LibreTiny only builds the 3.0 line."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -13,15 +14,17 @@ from esphome.core import CORE
 
 
 @pytest.mark.parametrize(
-    "value", [None, "3.0.78", "3.0.80", "3.1.0", "https://github.com/x/bdk#3.0.78"]
+    "value", [None, "3.0.78", "3.0.80", "https://github.com/x/bdk#3.0.78"]
 )
 def test_new_enough_versions_pass(value: str | None) -> None:
     check_bdk_version(value)
 
 
-@pytest.mark.parametrize("value", ["3.0.33", "3.0.77", "2021.06.07", "main"])
-def test_older_or_unknown_versions_fail(value: str) -> None:
-    with pytest.raises(cv.Invalid, match="3.0.78 or newer"):
+@pytest.mark.parametrize(
+    "value", ["3.0.33", "3.0.77", "3.1.0", "4.0.0", "2021.06.07", "main"]
+)
+def test_other_versions_fail(value: str) -> None:
+    with pytest.raises(cv.Invalid, match="3.0.78 or a newer 3.0.x"):
         check_bdk_version(value)
 
 
@@ -31,7 +34,7 @@ def test_old_override_fails_validation(
 ) -> None:
     CORE.config_path = component_config_path("test_bdk_too_old.yaml")
     assert read_config({}) is None
-    assert "3.0.78 or newer" in capsys.readouterr().out
+    assert "3.0.78 or a newer 3.0.x" in capsys.readouterr().out
 
 
 def test_newer_override_builds(
