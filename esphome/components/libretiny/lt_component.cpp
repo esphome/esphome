@@ -34,23 +34,21 @@ void LTComponent::dump_config() {
 #endif
 
 #if defined(USE_BK72XX) && defined(USE_WIFI) && defined(FLASH_CALIBRATION_OFFSET)
-  // The SDK reads the RF calibration from the layout's calibration partition and silently runs without it, so a
-  // board: whose layout does not match the module scans no networks and starts an AP nobody sees.
-  static constexpr uint8_t RF_CAL_MAGIC[4] = {'T', 'L', 'V', 0};
-  static constexpr uint32_t RF_CAL_OFFSETS[] = {0x1D0000, 0x1E0000, 0x1E3000};
-  uint8_t magic[sizeof(RF_CAL_MAGIC)];
-  if (lt_flash_read(FLASH_CALIBRATION_OFFSET, magic, sizeof(magic)) == sizeof(magic) &&
-      memcmp(magic, RF_CAL_MAGIC, sizeof(magic)) != 0) {
-    ESP_LOGE(TAG,
-             "No RF calibration at 0x%06" PRIX32 "; board: does not match this module's flash layout and Wi-Fi "
-             "will not work properly. Set board: to the module's own board and flash over serial",
-             (uint32_t) FLASH_CALIBRATION_OFFSET);
-    for (uint32_t offset : RF_CAL_OFFSETS) {
-      if (offset != FLASH_CALIBRATION_OFFSET && lt_flash_read(offset, magic, sizeof(magic)) == sizeof(magic) &&
-          memcmp(magic, RF_CAL_MAGIC, sizeof(magic)) == 0) {
-        ESP_LOGE(TAG, "RF calibration found at 0x%06" PRIX32 "; pick a board whose layout puts it there", offset);
-      }
+  // The SDK silently runs the radio uncalibrated when the layout's calibration partition lacks the TLV table.
+  static constexpr uint32_t RF_CAL_OFFSETS[] = {FLASH_CALIBRATION_OFFSET, 0x1D0000, 0x1E0000, 0x1E3000};
+  uint32_t found = 0;
+  for (uint32_t offset : RF_CAL_OFFSETS) {
+    uint32_t magic;
+    if (lt_flash_read(offset, (uint8_t *) &magic, sizeof(magic)) == sizeof(magic) && magic == 0x00564C54) {  // "TLV"
+      found = offset;
+      break;
     }
+  }
+  if (found != FLASH_CALIBRATION_OFFSET) {
+    ESP_LOGE(TAG,
+             "board: layout wrong for this module, RF calibration is at 0x%06" PRIX32 " not 0x%06" PRIX32
+             "; reflash over serial",
+             found, (uint32_t) FLASH_CALIBRATION_OFFSET);
   }
 #endif
 
