@@ -14,10 +14,20 @@ packet_interface:
       ack_delay: 50ms
       max_queue_length: 3
       max_retries: 4
+    encryption:
+      key: Johnny Cash
+      rolling_code_enable: true
+    session:
+      keep_alive: 5s
+      timeout: 12s
+      binary_sensor:
+        name: UART session
   - platform: udp
     id: packet_interface_network
     udp_id: packet_interface_udp
+    encryption: Johnny Cash
     reliability:
+    session:
 
 sensor:
   - platform: template

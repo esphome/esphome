@@ -10,7 +10,14 @@ from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
 
 from . import layers
-from .layers import PacketInterface, build_stack, packet_interface_ns, stack_schema
+from .layers import (
+    PacketInterface,
+    build_stack,
+    check_session,
+    packet_interface_ns,
+    stack_auto_load,
+    stack_schema,
+)
 
 CODEOWNERS = ["@clydebarrow"]
 DOMAIN = "packet_interface"
@@ -34,21 +41,43 @@ __all__ = [
 ]
 
 
+def AUTO_LOAD(config: list[ConfigType] | None = None) -> list[str]:
+    """Load only what the configured layers use.
+
+    Without a config, as tooling that lists dependencies calls it, everything a layer could load.
+    """
+    if config is None:
+        return ["binary_sensor", "xxtea"]
+    loads: set[str] = set()
+    for interface in config:
+        loads |= stack_auto_load(interface)
+    return sorted(loads)
+
+
+def _validate_layers(config: ConfigType) -> ConfigType:
+    check_session(config)
+    return config
+
+
 def packet_interface_schema(
     class_: MockObjClass,
     default_max_packet_size: int,
     max_packet_size_limit: int = 4096,
 ) -> cv.Schema:
     """Schema for a link platform, with the layers that can be stacked on it."""
-    return cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(class_),
-            cv.Optional(
-                CONF_MAX_PACKET_SIZE, default=default_max_packet_size
-            ): cv.int_range(16, max_packet_size_limit),
-            **LINK_LAYER_SCHEMAS,
-        }
-    ).extend(cv.COMPONENT_SCHEMA)
+    return (
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.declare_id(class_),
+                cv.Optional(
+                    CONF_MAX_PACKET_SIZE, default=default_max_packet_size
+                ): cv.int_range(16, max_packet_size_limit),
+                **LINK_LAYER_SCHEMAS,
+            }
+        )
+        .extend(cv.COMPONENT_SCHEMA)
+        .add_extra(_validate_layers)
+    )
 
 
 async def new_packet_interface(config: ConfigType, *args: Any) -> MockObj:
