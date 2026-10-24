@@ -414,6 +414,7 @@ esphome/components/mics_5524/* @nliaudat
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
 esphome/components/midea_portasplit/* @Fexiven
+esphome/components/mipi_csi/* @Horstexplorer
 esphome/components/mipi_dsi/* @clydebarrow
 esphome/components/mipi_rgb/* @clydebarrow
 esphome/components/mipi_spi/* @clydebarrow

@@ -1,0 +1,25 @@
+psram:
+  speed: 100MHz
+
+mipi_csi:
+  name: MIPI CSI Camera
+  sensor: SC2336
+  resolution: 1280x720
+  pixel_format: RGB565
+  jpeg_quality: 50
+  framerate: 10 fps
+  idle_framerate: 0.1 fps
+  sccb_frequency: 100kHz
+  frame_buffer_count: 2
+  horizontal_flip: false
+  vertical_flip: true
+  reset_pin: GPIO21
+  power_pin: GPIO22
+  on_stream_start:
+    - logger.log: Stream started
+  on_stream_stop:
+    - logger.log: Stream stopped
+  on_image:
+    - logger.log:
+        format: "Got a %u byte image"
+        args: [image.length]
