@@ -54,7 +54,7 @@ https://github.com/esphome/esphome/pull/14318#issuecomment-6311863827
 
 ## MAC suffix topics (#9315)
 
-`scripts/mqtt/mac_suffix/run.sh X BUILD` flashes variant X (a defaults, b custom `topic_prefix`, c explicit topics,
+`scripts/mqtt/mac_suffix/run.sh X BUILD` compiles (from `TREE`) and flashes variant X (a defaults, b custom `topic_prefix`, c explicit topics,
 d no suffix) of BUILD (`pr` or `base`) on an ESP32 and a D1 mini, records the broker with
 `mosquitto_sub -F '@H:@M:@S r=%r %t %p'`, presses Restart through the `cmd_t` found in the discovery payloads, then
 holds both chips in the bootloader for 40 s (`esptool --after no-reset chip-id`) so the broker sends the will; a
@@ -68,7 +68,7 @@ made from the tree's requirements.txt. A Restart press never delivered the shutd
 
 `scripts/mqtt/shutdown/`: `sd-common.yaml` sets birth/will/shutdown payloads `hello`/`dead`/`bye` so the shutdown
 message and the will cannot be confused, and takes `restart`, `disable` and `sleep` on `<name>/cmd`.
-`sdrun.sh V N` (`TREE`, `P32` and `P66` in the environment) flashes the ESP32 and D1 mini, restarts each N times, disables MQTT once and deep sleeps the ESP32 three
+`sdrun.sh V N` (`TREE`, `P32` and `P66` in the environment) compiles and flashes the ESP32 and D1 mini, restarts each N times, disables MQTT once and deep sleeps the ESP32 three
 times (never the D1 mini: without the GPIO16 to RST wire it never wakes); `match.py OUT` counts a `bye` within 5 s of
 each command. Dev: ESP32 0/10 restarts, D1 mini 1 to 3/10. Put the broker address (`broker_ip`) in the secrets.yaml next to
 the included package, and quote `"${name}/status"` inside flow mappings.

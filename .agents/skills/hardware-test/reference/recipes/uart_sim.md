@@ -15,5 +15,5 @@ packages; copy them with a different name (`frabase` and so on) for the base bui
 - Polled readers: run `update()` from a script and log `micros()` around it to measure blocking
   (sm300d2 on dev blocks about 104 ms on an empty buffer).
 - The logger stays on UART0, so three builds cover five components. Drive with `scripts/uart_sim/frdrive.py HOST
-  LOG press:NAME sel:NAME=OPT num:NAME=V wait:S`, or `scripts/uart_sim/run.sh NAME TREE SECONDS OPS...` (flash,
-  capture, drive; `PORT` and `SC` in the environment).
+  LOG press:NAME sel:NAME=OPT num:NAME=V wait:S`, or `scripts/uart_sim/run.sh NAME TREE SECONDS OPS...` (build
+  and flash from TREE with `esphome run --no-logs`, capture, drive; `PORT` and `SC` in the environment).

@@ -6,7 +6,7 @@
 `register_dumper()` standing in for an external component), `rb-txscript.yaml` (14 `remote_transmitter.transmit_*`
 frames with `tx <proto>` log markers), `rb32.tmpl` and `rb66.tmpl` (`@V@` is the build label).
 `scripts/remote_base/run.sh LABEL B N` (`TREE`, `P32` or `P66`, `SC` in the environment) writes the run file from the
-template, flashes it, finds the IP and runs `rbdrive.py IP N`, which segments the API log by the
+template, builds and flashes it from `TREE` (`esphome run --no-logs`), finds the IP and runs `rbdrive.py IP N`, which segments the API log by the
 markers and prints what each sent frame decoded as.
 
 - ESP32: `remote_transmitter` and two `remote_receiver`s on the same GPIO (`allow_other_uses`), carrier 100%, no
