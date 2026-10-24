@@ -1,7 +1,7 @@
 #pragma once
-#ifdef USE_ESP32
-#include "esphome/core/component.h"
+
 #include "esphome/components/canbus/canbus.h"
+#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -15,18 +15,26 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+
+#include <array>
 #include <map>
-#include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
+
 namespace esphome::toptronic {
+
 class TopTronic;
 enum TypeName { U8, U16, U32, S8, S16, S32, S64 };  // value encoding of a datapoint
 enum SensorType { SENSOR, TEXTSENSOR };             // downcast discriminator (no dynamic_cast in ESPHome builds)
-uint32_t build_can_id(uint16_t sender_id, uint16_t receiver_mask);
-std::vector<uint8_t> build_get_request(uint8_t function_group, uint8_t function_number, uint32_t datapoint);
-std::vector<uint8_t> build_set_request(uint8_t function_group, uint8_t function_number, uint32_t datapoint,
-                                       const std::vector<uint8_t> &value);
+
+static constexpr size_t GET_REQUEST_LEN = 6;
+using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
+// A SET is the GET header with the SET command and a value of up to 8 bytes appended
+static constexpr size_t MAX_SET_VALUE_LEN = 8;
+static constexpr size_t MAX_SET_REQUEST_LEN = GET_REQUEST_LEN + MAX_SET_VALUE_LEN;
+using SetRequest = std::array<uint8_t, MAX_SET_REQUEST_LEN>;
+
 // Shared entity base. update() fires the GET wired up by the hub; SET entities never poll.
 class TopTronicBase : public PollingComponent {
  public:
@@ -34,22 +42,26 @@ class TopTronicBase : public PollingComponent {
   void set_function_number(uint8_t function_number) { this->function_number_ = function_number; }
   void set_datapoint(uint16_t datapoint) { this->datapoint_ = datapoint; }
   uint32_t get_id();  // fg | fn << 8 | datapoint << 16; hub map key
-  const std::vector<uint8_t> &get_request_data();
+  const GetRequest &get_request_data() const { return this->request_data_; }
   void cache_request_data();
   virtual SensorType type() = 0;
   void update() override;
   void add_on_update_callback(std::function<void()> &&callback);
-  void add_on_set_callback(std::function<void(const std::vector<uint8_t> &)> &&callback);
+  void add_on_set_callback(std::function<void(const uint8_t *, size_t)> &&callback);
   virtual const LogString *get_log_name() const = 0;
 
  protected:
   uint8_t function_group_;
   uint8_t function_number_;
   uint16_t datapoint_;
-  std::vector<uint8_t> request_data_;  // GET payload, built once at setup
+  GetRequest request_data_{};  // GET payload, built once at setup
   CallbackManager<void()> update_callback_;
-  CallbackManager<void(const std::vector<uint8_t> &)> set_callback_;
+  /// Builds the SET request for value (scaled, rounded and clamped to type) and hands it to the hub
+  void send_set_(float value, TypeName type);
+
+  CallbackManager<void(const uint8_t *, size_t)> set_callback_;
 };
+
 #ifdef USE_SENSOR
 class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
  public:
@@ -114,6 +126,7 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
   TypeName type_{U8};
 };
 #endif
+
 class TopTronicDevice {
  public:
   std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() { return this->sensors_; }
@@ -123,37 +136,54 @@ class TopTronicDevice {
   std::unordered_map<uint32_t, TopTronicBase *> sensors_;
   std::unordered_map<uint32_t, TopTronicBase *> inputs_;
 };
+
 class TopTronic : public Component {
  public:
-  explicit TopTronic(canbus::Canbus *canbus);
+  TopTronic(canbus::Canbus *canbus, uint16_t device_id);
+
   void add_sensor(TopTronicBase *sensor);
   void add_input(TopTronicBase *input);
-  void parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, bool remote_transmission_request);
   void register_sensor_callbacks();
   void register_input_callbacks();
   void update_all();  // GET for every sensor, same path as the polling scheduler
-  void set_device_type(uint16_t device_type) { this->device_type_ = device_type; }
-  void set_device_addr(uint8_t device_addr) { this->device_addr_ = device_addr; }
-  uint16_t get_device_id() const { return this->device_type_ | this->device_addr_; }
   void setup() override;
   void dump_config() override;
 
  protected:
-  struct PendingMessage {
-    std::vector<uint8_t> data;
-    uint8_t remaining_frames{0};
-    uint32_t last_update_ms{0};
+  // The 5-bit frame count field caps a message at 31 frames of up to 7 payload bytes
+  static constexpr size_t MAX_FRAMES_PER_MESSAGE = 31;
+  static constexpr size_t MAX_CONT_FRAME_PAYLOAD = 7;
+  static constexpr size_t MAX_MESSAGE_LEN = MAX_FRAMES_PER_MESSAGE * MAX_CONT_FRAME_PAYLOAD;
+  static_assert(MAX_MESSAGE_LEN <= UINT8_MAX, "Slot::len is a uint8_t");
+  static constexpr uint32_t MAX_PENDING_AGE_MS = 5000;
+  // One sender answers requests one after another; a second slot covers an abandoned message
+  static constexpr size_t NUM_SLOTS = 2;
+
+  struct Slot {
+    uint32_t last_update_ms;
+    uint8_t len;
+    uint8_t tag;
+    uint8_t remaining;  // continuation frames still expected, 0 when free
+    uint8_t data[MAX_MESSAGE_LEN];
+
+    bool is_live(uint32_t now) const {
+      return this->remaining != 0 && now - this->last_update_ms <= MAX_PENDING_AGE_MS;
+    }
   };
-  TopTronicDevice *get_or_create_device_(uint32_t device_id);
+
+  /// Sends a request, split into a start frame and continuation frames when it does not fit in one
+  static void send_frames(canbus::Canbus *canbus, uint32_t can_id, const uint8_t *data, size_t len);
+  /// Feeds one frame from this device into reassembly. Returns true and points msg/len at the payload when
+  /// a message is complete (CRC already checked and stripped); the pointer is valid until the next frame.
+  bool parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, const uint8_t **msg, size_t *len);
+  void interpret_message_(const uint8_t *data, size_t len);
   void link_inputs_();
-  TopTronicBase *get_sensor_(uint32_t device_id, uint32_t sensor_id);
-  void interpret_message_(const uint8_t *data, size_t len, uint32_t can_id);
-  bool owns_device_(uint32_t device_id) const { return this->devices_.contains(device_id); }
+  TopTronicBase *get_sensor_(uint32_t sensor_id);
+
   canbus::Canbus *canbus_;
-  std::unordered_map<uint32_t, std::unique_ptr<TopTronicDevice>> devices_;
-  std::unordered_map<uint32_t, PendingMessage> pending_messages_;
-  uint16_t device_type_{0};
-  uint8_t device_addr_{0};
+  TopTronicDevice device_;
+  std::array<Slot, NUM_SLOTS> slots_{};
+  uint16_t device_id_;
 };
+
 }  // namespace esphome::toptronic
-#endif  // USE_ESP32
