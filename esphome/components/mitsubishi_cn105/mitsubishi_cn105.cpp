@@ -25,6 +25,15 @@ static constexpr uint8_t PACKET_TYPE_STATUS_REQUEST = 0x42;
 static constexpr uint8_t PACKET_TYPE_STATUS_RESPONSE = 0x62;
 static constexpr uint8_t STATUS_MSG_SETTINGS = 0x02;
 static constexpr uint8_t STATUS_MSG_TELEMETRY = 0x03;
+// Input power and cumulative energy. Same packet the external CN105 component calls "status".
+static constexpr uint8_t STATUS_MSG_ENERGY = 0x06;
+
+static bool reading_changed(float previous, float current) {
+  if (std::isnan(previous) || std::isnan(current)) {
+    return std::isnan(previous) != std::isnan(current);
+  }
+  return previous != current;
+}
 
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_REQUEST = 0x41;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_RESPONSE = 0x61;
@@ -156,9 +165,7 @@ void MitsubishiCN105::did_transition_(State to) {
       // deferring transmission to a later loop iteration; some units might not respond if a request is sent
       // immediately after a response, causing the request to time out.
       const bool should_apply_pending_settings = this->pending_updates_.any() && this->is_status_initialized();
-      if (!should_apply_pending_settings && this->current_status_msg_type_ == STATUS_MSG_SETTINGS &&
-          this->should_request_telemetry_()) {
-        this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
+      if (!should_apply_pending_settings && this->schedule_followup_status_request_()) {
         this->set_state_(State::DEFERRED_STATUS_REQUEST);
       } else {
         this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
@@ -204,6 +211,31 @@ bool MitsubishiCN105::should_request_telemetry_() const {
   }
 
   return (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
+}
+
+bool MitsubishiCN105::should_request_energy_() const {
+  if (!this->energy_polling_enabled_) {
+    return false;
+  }
+
+  const uint32_t interval =
+      this->is_telemetry_polling_enabled() ? this->telemetry_request_min_interval_ms_ : this->update_interval_ms_;
+  if (!this->last_energy_update_ms_.has_value()) {
+    return true;
+  }
+  return (get_loop_time_ms() - *this->last_energy_update_ms_) >= interval;
+}
+
+bool MitsubishiCN105::schedule_followup_status_request_() {
+  if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_telemetry_()) {
+    this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
+    return true;
+  }
+  if (this->current_status_msg_type_ != STATUS_MSG_ENERGY && this->should_request_energy_()) {
+    this->current_status_msg_type_ = STATUS_MSG_ENERGY;
+    return true;
+  }
+  return false;
 }
 
 void MitsubishiCN105::send_packet_(std::span<const uint8_t> packet) {
@@ -259,6 +291,11 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 
   if (this->is_telemetry_polling_enabled()) {
     changed |= previous.room_temperature != this->status_.room_temperature;
+    changed |= reading_changed(previous.outside_air_temperature, this->status_.outside_air_temperature);
+  }
+  if (this->energy_polling_enabled_) {
+    changed |= reading_changed(previous.input_power, this->status_.input_power);
+    changed |= reading_changed(previous.energy, this->status_.energy);
   }
 
   return changed && this->is_status_initialized();
@@ -280,6 +317,14 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
         return false;
       }
       this->last_telemetry_update_ms_ = get_loop_time_ms();
+      return true;
+
+    case STATUS_MSG_ENERGY:
+      if (!decoder.decode_energy(this->status_)) {
+        ESP_LOGVV(TAG, "RX energy payload too short");
+        return false;
+      }
+      this->last_energy_update_ms_ = get_loop_time_ms();
       return true;
 
     default:

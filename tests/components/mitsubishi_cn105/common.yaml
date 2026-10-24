@@ -21,6 +21,18 @@ select:
     mitsubishi_cn105_id: ac
     vertical_vane_direction:
       name: "Vertical Vane"
+    horizontal_vane_direction:
+      name: "Horizontal Vane"
+
+sensor:
+  - platform: mitsubishi_cn105
+    mitsubishi_cn105_id: ac
+    outside_air_temperature:
+      name: "Outside Air Temperature"
+    input_power:
+      name: "Input Power"
+    energy:
+      name: "Energy"
 
 esphome:
   on_boot:

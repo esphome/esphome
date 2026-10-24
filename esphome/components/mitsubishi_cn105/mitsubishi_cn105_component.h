@@ -90,6 +90,7 @@ class MitsubishiCN105Component final : public Component, public uart::UARTDevice
 
   void set_update_interval(uint32_t ms) { this->hp_.set_update_interval(ms); }
   void set_telemetry_request_min_interval(uint32_t ms) { this->hp_.set_telemetry_request_min_interval(ms); }
+  void set_energy_polling_enabled(bool enabled) { this->hp_.set_energy_polling_enabled(enabled); }
   void set_use_fahrenheit(bool value) { this->temperature_mapping_.set_use_fahrenheit(value); }
 
   void set_remote_temperature(float temperature) { this->hp_.set_remote_temperature(temperature); }

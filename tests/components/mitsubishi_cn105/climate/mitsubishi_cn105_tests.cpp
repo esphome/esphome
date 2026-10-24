@@ -654,4 +654,70 @@ TEST(MitsubishiCN105Tests, SetMaxRemoteRoomTemp) {
   EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::REMOTE_TEMPERATURE));
 }
 
+TEST(MitsubishiCN105Tests, DecodeOutsideAirTemperature) {
+  MitsubishiCN105TestsContext ctx;
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x07, 0x03, 0x00, 0x00, 0x06, 0x00, 0x9E, 0x00, 0xBF});
+  ctx.sut.update();
+
+  EXPECT_EQ(ctx.sut.status().room_temperature, 16.0f);
+  EXPECT_EQ(ctx.sut.status().outside_air_temperature, 15.0f);
+}
+
+TEST(MitsubishiCN105Tests, OutsideAirIdleSentinelIsNan) {
+  MitsubishiCN105TestsContext ctx;
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x07, 0x03, 0x00, 0x00, 0x06, 0x00, 0x01, 0x00, 0x5C});
+  ctx.sut.update();
+
+  EXPECT_EQ(ctx.sut.status().room_temperature, 16.0f);
+  EXPECT_THAT(ctx.sut.status().outside_air_temperature, ::testing::IsNan());
+}
+
+TEST(MitsubishiCN105Tests, DecodeInputPowerAndEnergy) {
+  MitsubishiCN105TestsContext ctx;
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x04, 0x00, 0xFB, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00, 0x00, 0x16});
+  ctx.sut.update();
+
+  EXPECT_EQ(ctx.sut.status().input_power, 4.0f);
+  EXPECT_FLOAT_EQ(ctx.sut.status().energy, 25.1f);
+}
+
+TEST(MitsubishiCN105Tests, RequestsEnergyPacketAfterTelemetry) {
+  MitsubishiCN105TestsContext ctx;
+  ctx.sut.set_energy_polling_enabled(true);
+  ctx.sut.initialize();
+  ctx.uart.tx.clear();
+
+  ctx.uart.push_rx({0xFC, 0x7A, 0x01, 0x30, 0x00, 0x55});
+  ctx.sut.set_current_time(200);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.sut.set_current_time(201);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.uart.tx.clear();
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x08, 0x07,
+                    0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3C});
+  ctx.sut.set_current_time(300);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.sut.set_current_time(301);
+  ASSERT_FALSE(ctx.sut.update());
+  ctx.uart.tx.clear();
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x0B, 0x00, 0x00,
+                    0xAA, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA5});
+  ctx.sut.set_current_time(400);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.status().room_temperature, 21.0f);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::DEFERRED_STATUS_REQUEST);
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  ctx.sut.set_current_time(401);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x42, 0x01, 0x30, 0x10, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x77));
+}
+
 }  // namespace esphome::mitsubishi_cn105::testing

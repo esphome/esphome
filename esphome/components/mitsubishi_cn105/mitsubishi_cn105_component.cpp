@@ -16,6 +16,7 @@ void MitsubishiCN105Component::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Telemetry polling: DISABLED");
   }
+  ESP_LOGCONFIG(TAG, "  Energy polling: %s", this->hp_.is_energy_polling_enabled() ? "YES" : "NO");
   ESP_LOGCONFIG(TAG,
                 "  Update interval: %" PRIu32 " ms\n"
                 "  UART: baud_rate=%" PRIu32 " data_bits=%u parity=%s stop_bits=%u",

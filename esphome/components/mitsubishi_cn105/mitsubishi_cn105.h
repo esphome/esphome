@@ -57,6 +57,12 @@ class MitsubishiCN105 {
   struct Status {
     float target_temperature{NAN};
     float room_temperature{NAN};
+    // Outdoor-unit air temperature from the room-temperature packet. NAN when the unit
+    // does not report one (including the -63.5 °C idle sentinel).
+    float outside_air_temperature{NAN};
+    // Instantaneous input power (W) and cumulative energy (kWh) from the 0x06 status packet.
+    float input_power{NAN};
+    float energy{NAN};
     bool power_on{false};
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
@@ -77,6 +83,10 @@ class MitsubishiCN105 {
   void set_telemetry_request_min_interval(uint32_t interval_ms) {
     this->telemetry_request_min_interval_ms_ = interval_ms;
   }
+
+  // Poll the 0x06 status packet for input power and cumulative energy.
+  void set_energy_polling_enabled(bool enabled) { this->energy_polling_enabled_ = enabled; }
+  bool is_energy_polling_enabled() const { return this->energy_polling_enabled_; }
 
   const Status &status() const { return this->status_; }
   bool is_status_initialized() const {
@@ -162,6 +172,10 @@ class MitsubishiCN105 {
   void send_packet_(std::span<const uint8_t> packet);
   void update_status_();
   bool should_request_telemetry_() const;
+  bool should_request_energy_() const;
+  // Queue the next 0x03 or 0x06 read before waiting for update_interval. Returns true when a
+  // follow-up request was scheduled.
+  bool schedule_followup_status_request_();
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
@@ -178,6 +192,8 @@ class MitsubishiCN105 {
   // omitted. Remove legacy note in 2027.2.0.
   uint32_t telemetry_request_min_interval_ms_{60000};
   std::optional<uint32_t> last_telemetry_update_ms_;
+  std::optional<uint32_t> last_energy_update_ms_;
+  bool energy_polling_enabled_{false};
   Status status_{};
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;

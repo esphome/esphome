@@ -15,6 +15,7 @@ from .. import (
 DEPENDENCIES = ["mitsubishi_cn105"]
 
 CONF_VERTICAL_VANE_DIRECTION = "vertical_vane_direction"
+CONF_HORIZONTAL_VANE_DIRECTION = "horizontal_vane_direction"
 
 MitsubishiCN105VerticalVaneDirectionSelect = mitsubishi_ns.class_(
     "MitsubishiCN105VerticalVaneDirectionSelect",
@@ -23,11 +24,26 @@ MitsubishiCN105VerticalVaneDirectionSelect = mitsubishi_ns.class_(
     cg.Parented.template(MitsubishiCN105Component),
 )
 
+MitsubishiCN105HorizontalVaneDirectionSelect = mitsubishi_ns.class_(
+    "MitsubishiCN105HorizontalVaneDirectionSelect",
+    select.Select,
+    cg.Component,
+    cg.Parented.template(MitsubishiCN105Component),
+)
+
+# Order must match VALUES in select/mitsubishi_cn105_vane_select_horizontal.cpp.
+# Labels match the echavet CN105 wide-vane select: far left through swing.
+HORIZONTAL_VANE_DIRECTIONS = ["←←", "←", "|", "→", "→→", "←→", "Swing"]
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VERTICAL_VANE_DIRECTION): select.select_schema(
             MitsubishiCN105VerticalVaneDirectionSelect,
             icon="mdi:arrow-up-down",
+        ),
+        cv.Optional(CONF_HORIZONTAL_VANE_DIRECTION): select.select_schema(
+            MitsubishiCN105HorizontalVaneDirectionSelect,
+            icon="mdi:arrow-left-right",
         ),
     }
 ).extend(MITSUBISHI_CN105_DEVICE_SCHEMA)
@@ -41,5 +57,14 @@ async def to_code(config: ConfigType) -> None:
             var,
             vertical_vane_direction,
             options=[direction.capitalize() for direction in VERTICAL_VANE_DIRECTIONS],
+        )
+        await register_mitsubishi_cn105_device(var, config)
+    if horizontal_vane_direction := config.get(CONF_HORIZONTAL_VANE_DIRECTION):
+        var = cg.new_Pvariable(horizontal_vane_direction[CONF_ID])
+        await cg.register_component(var, horizontal_vane_direction)
+        await select.register_select(
+            var,
+            horizontal_vane_direction,
+            options=HORIZONTAL_VANE_DIRECTIONS,
         )
         await register_mitsubishi_cn105_device(var, config)

@@ -83,6 +83,11 @@ struct Property {
 
       static void decode(Status &status, const uint8_t *payload, const PropertyContext &ctx) {
         status.room_temperature = Temperature::decode(payload[2], payload[5], 10);
+        // CN105 data[5] (payload[4]) is the outdoor-unit temperature in half degrees.
+        // 0x00 and 0x01 are "not reported"; 0x01 is the -63.5 °C idle sentinel.
+        const uint8_t outside_air = payload[4];
+        status.outside_air_temperature =
+            outside_air > 1 ? (static_cast<int>(outside_air) - 128) / 2.0f : std::numeric_limits<float>::quiet_NaN();
       }
     };
 
@@ -251,6 +256,18 @@ struct Property {
         return false;
       }
       this->decode_<Temperature::Room>(status);
+      return true;
+    }
+
+    // 0x06 status packet. payload is CN105 data[] with the message-type byte removed, so
+    // input power is data[5..6] and cumulative energy (0.1 kWh units) is data[7..8].
+    bool ESPHOME_ALWAYS_INLINE decode_energy(Status &status) {
+      if (this->payload.size() <= 7) {
+        return false;
+      }
+      const uint8_t *bytes = this->payload.data();
+      status.input_power = static_cast<float>((static_cast<uint16_t>(bytes[4]) << 8) | bytes[5]);
+      status.energy = static_cast<float>((static_cast<uint16_t>(bytes[6]) << 8) | bytes[7]) / 10.0f;
       return true;
     }
 
