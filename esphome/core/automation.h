@@ -24,30 +24,38 @@ template<typename T, typename... X> class TemplatableFn {
 
   // Exact return type match — direct function pointer storage
   // constexpr so codegen can place arrays of these in flash.
-  template<typename F> constexpr TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
+  template<typename F>
+  constexpr TemplatableFn(F f)
+    requires std::convertible_to<F, T (*)(X...)>
+      : f_(f) {}
 
   // Convertible return type (e.g., int -> uint8_t) — casting trampoline.
   // Stateless lambdas are default-constructible in C++20, so F{} recreates the lambda inside
   // the trampoline without capturing. This compiles to the same code as a direct call + cast.
   // Deprecated: codegen should use the correct output type to avoid the trampoline.
   template<typename F>
-      [[deprecated("Lambda return type does not match TemplatableFn<T> — use the correct type in "
-                   "codegen")]] TemplatableFn(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
-      std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
-          &&std::default_initializable<F> : f_([](X... x) -> T { return static_cast<T>(F{}(x...)); }) {}
+  [[deprecated("Lambda return type does not match TemplatableFn<T> — use the correct type in "
+               "codegen")]] TemplatableFn(F)
+    requires(!std::convertible_to<F, T (*)(X...)>) && std::invocable<F, X...> &&
+            std::convertible_to<std::invoke_result_t<F, X...>, T> && std::is_empty_v<F> && std::default_initializable<F>
+      : f_([](X... x) -> T { return static_cast<T>(F{}(x...)); }) {}
 
   // Reject any callable that didn't match the above (stateful lambdas or inconvertible return types)
   template<typename F>
-  TemplatableFn(F) requires std::invocable<F, X...> &&
-      (!std::convertible_to<F, T (*)(X...)>) &&(!std::is_empty_v<F> ||
-                                                !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
-                                                !std::default_initializable<F>) = delete;
+  TemplatableFn(F)
+    requires std::invocable<F, X...> && (!std::convertible_to<F, T (*)(X...)>) &&
+                 (!std::is_empty_v<F> || !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
+                  !std::default_initializable<F>)
+  = delete;
 
   // Reject raw (non-callable) values with a helpful diagnostic pointing at the Python-side fix.
   // TemplatableFn stores only a function pointer (4 bytes), so constants must be wrapped in a
   // stateless lambda by codegen. External components hitting this error should use
   // `cg.templatable(value, args, type)` in their Python __init__.py before passing to the setter.
-  template<typename V> TemplatableFn(V) requires(!std::invocable<V, X...>) && (!std::convertible_to<V, T (*)(X...)>) {
+  template<typename V>
+  TemplatableFn(V)
+    requires(!std::invocable<V, X...>) && (!std::convertible_to<V, T (*)(X...)>)
+  {
     static_assert(sizeof(V) == 0, "Missing cg.templatable(...) in Python codegen for this TEMPLATABLE_VALUE "
                                   "field. The wrapper was always required; it worked by accident because the old "
                                   "TemplatableValue implicitly converted raw constants. TemplatableFn cannot. See "
@@ -163,30 +171,38 @@ template<typename T, typename... X> class TemplatableValue {
   TemplatableValue(std::nullptr_t) = delete;
 
   // Accept raw constants
-  template<typename V> TemplatableValue(V value) requires(!std::invocable<V, X...>) : tag_(VALUE) {
+  template<typename V>
+  TemplatableValue(V value)
+    requires(!std::invocable<V, X...>)
+      : tag_(VALUE) {
     new (&this->storage_.value_) T(static_cast<T>(std::move(value)));
   }
 
   // Accept stateless lambdas (convertible to function pointer)
-  template<typename F> TemplatableValue(F f) requires std::convertible_to<F, T (*)(X...)> : tag_(FN) {
+  template<typename F>
+  TemplatableValue(F f)
+    requires std::convertible_to<F, T (*)(X...)>
+      : tag_(FN) {
     this->storage_.f_ = f;
   }
 
   // Convertible return type (e.g., int -> uint8_t) — casting trampoline
   template<typename F>
-      [[deprecated("Lambda return type does not match TemplatableValue<T> — use the correct type in "
-                   "codegen")]] TemplatableValue(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
-      std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
-          &&std::default_initializable<F> : tag_(FN) {
+  [[deprecated("Lambda return type does not match TemplatableValue<T> — use the correct type in "
+               "codegen")]] TemplatableValue(F)
+    requires(!std::convertible_to<F, T (*)(X...)>) && std::invocable<F, X...> &&
+            std::convertible_to<std::invoke_result_t<F, X...>, T> && std::is_empty_v<F> && std::default_initializable<F>
+      : tag_(FN) {
     this->storage_.f_ = [](X... x) -> T { return static_cast<T>(F{}(x...)); };
   }
 
   // Reject any callable that didn't match the above
   template<typename F>
-  TemplatableValue(F) requires std::invocable<F, X...> &&
-      (!std::convertible_to<F, T (*)(X...)>) &&(!std::is_empty_v<F> ||
-                                                !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
-                                                !std::default_initializable<F>) = delete;
+  TemplatableValue(F)
+    requires std::invocable<F, X...> && (!std::convertible_to<F, T (*)(X...)>) &&
+                 (!std::is_empty_v<F> || !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
+                  !std::default_initializable<F>)
+  = delete;
 
   TemplatableValue(const TemplatableValue &other) : tag_(other.tag_) {
     if (this->tag_ == VALUE) {
@@ -297,20 +313,25 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   }
 #endif
 
-  template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
+  template<typename F>
+  TemplatableValue(F value)
+    requires(!std::invocable<F, X...>)
+      : type_(VALUE) {
     this->value_ = new std::string(std::move(value));
   }
 
   // For stateless lambdas (convertible to function pointer): use function pointer
   template<typename F>
-  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, std::string (*)(X...)>
+  TemplatableValue(F f)
+    requires std::invocable<F, X...> && std::convertible_to<F, std::string (*)(X...)>
       : type_(STATELESS_LAMBDA) {
     this->stateless_f_ = f;  // Implicit conversion to function pointer
   }
 
   // For stateful lambdas (not convertible to function pointer): use std::function
   template<typename F>
-  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, std::string (*)(X...)>)
+  TemplatableValue(F f)
+    requires std::invocable<F, X...> && (!std::convertible_to<F, std::string (*)(X...)>)
       : type_(LAMBDA) {
     this->f_ = new std::function<std::string(X...)>(std::move(f));
   }
@@ -371,6 +392,8 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   }
 
   bool has_value() const { return this->type_ != NONE; }
+  /// Whether the value comes from a lambda, so it may differ between reads.
+  bool is_lambda() const { return this->type_ == LAMBDA || this->type_ == STATELESS_LAMBDA; }
 
   std::string value(X... x) const {
     switch (this->type_) {

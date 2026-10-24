@@ -596,14 +596,18 @@ void USBUartComponent::start_config_(ConfigMode mode) {
   this->cfg_step_ = 0;
   this->cfg_ok_ = true;
   this->cfg_in_flight_ = false;
-  this->cfg_done_.store(false);
+  this->cfg_done_.store(0);
   this->cfg_active_ = true;
   this->enable_loop();
 }
 
 void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
-                                        const std::vector<uint8_t> &data) {
-  this->cfg_done_.store(false);
+                                        const std::vector<uint8_t> &data, uint8_t *dest) {
+  this->cfg_done_.store(0);
+  // Members, not captures: a lambda holding more than `this` outgrows std::function's inline
+  // storage and would allocate on every step
+  this->cfg_read_dest_ = dest;
+  this->cfg_read_len_ = data.size();
   // The completion callback runs in the USB-task context: it only records the result and
   // wakes the loop. The next transfer is issued from run_config_machine_() on the loop thread.
   bool submitted = this->control_transfer(
@@ -612,11 +616,22 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
         this->cfg_ok_ = status.success;
         if (!status.success) {
           ESP_LOGW(TAG, "Config control transfer failed: %s", esp_err_to_name(status.error_code));
-        } else if (status.data_len > 0) {
-          memcpy(this->cfg_response_, status.data, std::min<size_t>(status.data_len, sizeof(this->cfg_response_)));
+        } else {
+          // The buffer and its length both start with the setup packet
+          const uint8_t *payload = status.data + usb_host::SETUP_PACKET_SIZE;
+          const size_t received =
+              status.data_len > usb_host::SETUP_PACKET_SIZE ? status.data_len - usb_host::SETUP_PACKET_SIZE : 0;
+          if (this->cfg_read_dest_ == nullptr) {
+            memcpy(this->cfg_response_, payload, std::min(received, sizeof(this->cfg_response_)));
+          } else if (received == this->cfg_read_len_) {
+            memcpy(this->cfg_read_dest_, payload, received);
+          } else {
+            ESP_LOGW(TAG, "Config read returned %zu of %zu bytes", received, this->cfg_read_len_);
+            this->cfg_ok_ = false;
+          }
         }
-        // Release: publishes cfg_ok_/cfg_response_ before the loop observes cfg_done_.
-        this->cfg_done_.store(true, std::memory_order_release);
+        // Release: publishes cfg_ok_ and the reply before the loop observes cfg_done_.
+        this->cfg_done_.store(1, std::memory_order_release);
         this->enable_loop_soon_any_context();
         App.wake_loop_threadsafe();
       },
@@ -626,7 +641,7 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
     // a failed completion here so the state machine advances/aborts instead of hanging.
     ESP_LOGW(TAG, "Config control transfer submit failed");
     this->cfg_ok_ = false;
-    this->cfg_done_.store(true, std::memory_order_release);
+    this->cfg_done_.store(1, std::memory_order_release);
   }
 }
 
@@ -639,7 +654,7 @@ bool USBUartComponent::run_config_machine_() {
     if (!this->cfg_done_.load(std::memory_order_acquire))
       return false;  // still waiting; the callback will re-wake the loop (no busy spin)
     this->cfg_in_flight_ = false;
-    this->cfg_done_.store(false);
+    this->cfg_done_.store(0);
     this->cfg_step_++;
   }
 

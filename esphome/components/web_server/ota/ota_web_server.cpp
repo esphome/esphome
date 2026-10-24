@@ -28,7 +28,7 @@ class OTARequestHandler : public AsyncWebHandler {
   bool canHandle(AsyncWebServerRequest *request) const override {
     if (request->method() != HTTP_POST)
       return false;
-      // Check if this is an OTA update request
+    // Check if this is an OTA update request
 #ifdef USE_ESP32
     char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
     bool is_ota_request = request->url_to(url_buf) == "/update";
