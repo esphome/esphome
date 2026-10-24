@@ -6,6 +6,15 @@
 
 namespace esphome::runtime_image {
 
+/// The first of `target` pixels that pixel n of `source` paints, rounded up: ceil(n * target / source). The spans of
+/// neighbouring pixels meet without overlapping, so a shrunk image paints each target pixel once.
+inline int scale_boundary(int n, int source, int target) {
+  if (source <= 0)
+    return 0;
+  return static_cast<int>((static_cast<uint32_t>(n) * static_cast<uint32_t>(target) + source - 1) /
+                          static_cast<uint32_t>(source));
+}
+
 enum DecodeError : int {
   DECODE_ERROR_INVALID_TYPE = -1,
   DECODE_ERROR_UNSUPPORTED_FORMAT = -2,
@@ -83,8 +92,8 @@ class ImageDecoder {
     this->expected_size_ = 0;
     this->decoded_bytes_ = 0;
     this->size_valid_ = true;
-    this->x_scale_ = 1.0;
-    this->y_scale_ = 1.0;
+    this->draw_width_ = 0;
+    this->draw_height_ = 0;
   }
 
   /**
@@ -184,8 +193,9 @@ class ImageDecoder {
   uint8_t *image_buffer_() const;
   bool image_is_big_endian_() const;
 
-  double x_scale_ = 1.0;
-  double y_scale_ = 1.0;
+  // Size of the image as the decoder draws it, which draw() spreads over the buffer
+  int draw_width_ = 0;
+  int draw_height_ = 0;
   RuntimeImage *image_;
   size_t expected_size_ = 0;  // Expected data size (0 if unknown)
   size_t decoded_bytes_ = 0;  // Bytes processed so far
