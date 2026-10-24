@@ -143,6 +143,8 @@ def _i2c_pin_number(value: Any) -> Any:
 
 def validate_config(config: ConfigType) -> ConfigType:
     if CORE.is_libretiny:
+        if int(config[CONF_FREQUENCY]) < 1:
+            raise cv.Invalid("The frequency must be at least 1Hz", [CONF_FREQUENCY])
         # no default pins on LibreTiny, the bus is bit-banged on any two GPIOs
         for key in (CONF_SDA, CONF_SCL):
             if key not in config:

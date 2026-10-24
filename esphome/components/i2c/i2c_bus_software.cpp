@@ -84,6 +84,9 @@ ErrorCode SoftwareI2CBus::switch_frequency(uint32_t frequency) {
 
 bool SoftwareI2CBus::recover_() {
   this->scl_timed_out_ = false;
+  // A device may still be stretching the clock, give SCL the configured time to rise before looking at SDA
+  release_line(this->scl_pin_);
+  this->release_scl_();
   // A device that was interrupted in the middle of a transfer can hold SDA low; clock it out.
   for (uint8_t i = 0; i < RECOVERY_CLOCK_PULSES && !this->sda_pin_->digital_read(); i++) {
     pull_line_low(this->scl_pin_);
@@ -224,7 +227,7 @@ ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buff
     for (size_t i = 0; err == ERROR_OK && i < write_count; i++) {
       if (!this->write_byte_(write_buffer[i])) {
         ESP_LOGVV(TAG, "TX of byte %u to 0x%02X not acknowledged", (unsigned) i, address);
-        err = ERROR_UNKNOWN;
+        err = ERROR_NOT_ACKNOWLEDGED;
       }
     }
   }
