@@ -88,6 +88,12 @@ voice_assistant:
     - logger.log: "TTS stream start"
   on_tts_stream_end:
     - logger.log: "TTS stream end"
+  on_idle:
+    - logger.log: "Voice assistant idle"
+  on_client_connected:
+    - logger.log: "Voice assistant client connected"
+  on_client_disconnected:
+    - logger.log: "Voice assistant client disconnected"
   on_error:
     - logger.log:
         format: "Voice assistant error - code %s, message: %s"
