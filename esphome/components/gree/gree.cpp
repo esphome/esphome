@@ -8,6 +8,9 @@ namespace esphome::gree {
 
 ESPHOME_LOG_TAG(TAG, "gree.climate");
 
+static constexpr remote_base::BitTimings GREE_BIT_TIMINGS{
+    .bit_mark = GREE_BIT_MARK, .one_space = GREE_ONE_SPACE, .zero_space = GREE_ZERO_SPACE};
+
 void GreeClimate::set_model(Model model) {
   if (model == GREE_YAN || model == GREE_YX1FF) {
     // These models only expose vertical swing; horizontal swing is not encoded on the wire.
@@ -123,35 +126,14 @@ void GreeClimate::transmit_state() {
   const uint32_t header_space = long_gaps ? GREE_YAC1FB9_HEADER_SPACE : GREE_HEADER_SPACE;
   const uint32_t message_space = long_gaps ? GREE_YAC1FB9_MESSAGE_SPACE : GREE_MESSAGE_SPACE;
   auto encode = [&](const uint8_t *state) {
-    data->mark(GREE_HEADER_MARK);
-    data->space(header_space);
-
-    for (int i = 0; i < 4; i++) {
-      for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-        data->mark(GREE_BIT_MARK);
-        bool bit = state[i] & mask;
-        data->space(bit ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
-      }
-    }
-
-    data->mark(GREE_BIT_MARK);
-    data->space(GREE_ZERO_SPACE);
-    data->mark(GREE_BIT_MARK);
-    data->space(GREE_ONE_SPACE);
-    data->mark(GREE_BIT_MARK);
-    data->space(GREE_ZERO_SPACE);
-
-    data->mark(GREE_BIT_MARK);
-    data->space(message_space);
-
-    for (int i = 4; i < 8; i++) {
-      for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-        data->mark(GREE_BIT_MARK);
-        bool bit = state[i] & mask;
-        data->space(bit ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
-      }
-    }
-
+    data->item(GREE_HEADER_MARK, header_space);
+    data->item_bytes<GREE_BIT_TIMINGS>(state, 4);
+    // Fixed 010 between the two halves, then the message gap
+    data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
+    data->item(GREE_BIT_MARK, GREE_ONE_SPACE);
+    data->item(GREE_BIT_MARK, GREE_ZERO_SPACE);
+    data->item(GREE_BIT_MARK, message_space);
+    data->item_bytes<GREE_BIT_TIMINGS>(state + 4, 4);
     data->mark(GREE_BIT_MARK);
   };
 
