@@ -23,8 +23,15 @@ static char *wizard_input_other() {
   return buffer;
 }
 
+static constexpr size_t CALENDARS_SIZE = 64;
+static char *wizard_input_calendars() {
+  static char buffer[CALENDARS_SIZE] = "";
+  return buffer;
+}
+
 static constexpr uint32_t WEATHER_KEY = 0x0a0b0c0d;
 static constexpr uint32_t OTHER_KEY = 0x11223344;
+static constexpr uint32_t CALENDARS_KEY = 0x55667788;
 
 // The same shapes the generated code emits. The data is 200 bytes (API_WIZARD_DATA_SIZE), so its length takes two
 // bytes as a varint.
@@ -43,6 +50,7 @@ const uint8_t API_WIZARD_DATA[API_WIZARD_DATA_SIZE] = {
 const WizardInputEntry API_WIZARD_INPUTS[API_WIZARD_INPUT_COUNT] = {
     {WEATHER_KEY, wizard_input_weather()},
     {OTHER_KEY, wizard_input_other()},
+    {CALENDARS_KEY, wizard_input_calendars(), CALENDARS_SIZE},
 };
 
 using Bytes = std::vector<uint8_t>;
@@ -68,7 +76,7 @@ TEST(DeviceWizard, ResponseSendsTheDataUnchanged) {
   Bytes expected{0x0a, 0xc8, 0x01};
   expected.insert(expected.end(), API_WIZARD_DATA, API_WIZARD_DATA + API_WIZARD_DATA_SIZE);
 
-  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &wizard_encode_response), expected);
+  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg), expected);
 }
 
 TEST(DeviceWizard, ShortDataHasAOneByteLength) {
@@ -77,13 +85,13 @@ TEST(DeviceWizard, ShortDataHasAOneByteLength) {
   resp.data_len = 3;
 
   Bytes expected{0x0a, 0x03, API_WIZARD_DATA[0], API_WIZARD_DATA[1], API_WIZARD_DATA[2]};
-  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &wizard_encode_response), expected);
+  EXPECT_EQ(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg), expected);
 }
 
 TEST(DeviceWizard, NoDataEncodesNothing) {
   DeviceWizardResponse resp;
   EXPECT_EQ(resp.calculate_size(), 0u);
-  EXPECT_TRUE(encode(resp, &DeviceWizardResponse::calc_size_msg, &wizard_encode_response).empty());
+  EXPECT_TRUE(encode(resp, &DeviceWizardResponse::calc_size_msg, &DeviceWizardResponse::encode_msg).empty());
 }
 
 TEST(DeviceWizard, CapabilitiesAnnounceTheWizard) {
@@ -142,6 +150,71 @@ TEST(DeviceWizard, StandaloneInputReadsTheBufferTheWizardWrites) {
   ASSERT_EQ(set_input(OTHER_KEY, "weather.home"), wizard_input_other());
   EXPECT_TRUE(input.has_entity_id());
   EXPECT_EQ(input.entity_id(), "weather.home");
+}
+
+TEST(DeviceWizard, MultipleInputStoresTheList) {
+  EXPECT_EQ(set_input(CALENDARS_KEY, "calendar.a,calendar.b"), wizard_input_calendars());
+  EXPECT_STREQ(wizard_input_calendars(), "calendar.a,calendar.b");
+  // One id is a list of one
+  EXPECT_EQ(set_input(CALENDARS_KEY, "calendar.c"), wizard_input_calendars());
+  EXPECT_STREQ(wizard_input_calendars(), "calendar.c");
+}
+
+TEST(DeviceWizard, MultipleInputStoresTheListWithoutSpaces) {
+  EXPECT_EQ(set_input(CALENDARS_KEY, "calendar.a , calendar.b"), wizard_input_calendars());
+  EXPECT_STREQ(wizard_input_calendars(), "calendar.a,calendar.b");
+  EXPECT_EQ(set_input(CALENDARS_KEY, "  calendar.a  ,  calendar.b  ,calendar.c "), wizard_input_calendars());
+  EXPECT_STREQ(wizard_input_calendars(), "calendar.a,calendar.b,calendar.c");
+}
+
+TEST(DeviceWizard, MultipleInputIgnoresTheWholeRequestForABadEntry) {
+  ASSERT_EQ(set_input(CALENDARS_KEY, "calendar.keep"), wizard_input_calendars());
+  EXPECT_EQ(set_input(CALENDARS_KEY, "calendar.a,nodot"), nullptr);
+  EXPECT_EQ(set_input(CALENDARS_KEY, "calendar.a,,calendar.b"), nullptr);
+  EXPECT_EQ(set_input(CALENDARS_KEY, "calendar.a,"), nullptr);
+  EXPECT_EQ(set_input(CALENDARS_KEY, ",calendar.a"), nullptr);
+  EXPECT_EQ(set_input(CALENDARS_KEY, " "), nullptr);
+  EXPECT_EQ(set_input(CALENDARS_KEY, ""), nullptr);
+  EXPECT_STREQ(wizard_input_calendars(), "calendar.keep");
+}
+
+TEST(DeviceWizard, MultipleInputIsLimitedByItsBuffer) {
+  // Pad the last id so the list fills the buffer
+  std::string fits = "calendar.a,calendar.b,calendar." + std::string(CALENDARS_SIZE - 1 - 31, 'x');
+  ASSERT_EQ(fits.size(), CALENDARS_SIZE - 1);
+  EXPECT_EQ(set_input(CALENDARS_KEY, fits.c_str()), wizard_input_calendars());
+  EXPECT_EQ(std::string(wizard_input_calendars()), fits);
+
+  std::string too_long = fits + "x";
+  EXPECT_EQ(set_input(CALENDARS_KEY, too_long.c_str()), nullptr);
+  EXPECT_EQ(std::string(wizard_input_calendars()), fits);
+  // Spaces do not count towards the limit
+  std::string spaced = fits;
+  spaced.replace(spaced.find(','), 1, " , ");
+  EXPECT_EQ(set_input(CALENDARS_KEY, spaced.c_str()), wizard_input_calendars());
+  EXPECT_EQ(std::string(wizard_input_calendars()), fits);
+}
+
+TEST(DeviceWizard, MultipleInputHelpersWalkTheList) {
+  strcpy(wizard_input_calendars(), "");
+  WizardInput input(wizard_input_calendars());
+  EXPECT_EQ(input.entity_id_count(), 0u);
+  std::vector<std::string> seen;
+  input.for_each_entity_id([&seen](StringRef id) { seen.push_back(id.str()); });
+  EXPECT_TRUE(seen.empty());
+
+  ASSERT_EQ(set_input(CALENDARS_KEY, "calendar.a"), wizard_input_calendars());
+  EXPECT_EQ(input.entity_id_count(), 1u);
+  input.for_each_entity_id([&seen](StringRef id) { seen.push_back(id.str()); });
+  EXPECT_EQ(seen, (std::vector<std::string>{"calendar.a"}));
+
+  seen.clear();
+  ASSERT_EQ(set_input(CALENDARS_KEY, "calendar.a, calendar.b,calendar.c"), wizard_input_calendars());
+  EXPECT_EQ(input.entity_id_count(), 3u);
+  input.for_each_entity_id([&seen](StringRef id) { seen.push_back(id.str()); });
+  EXPECT_EQ(seen, (std::vector<std::string>{"calendar.a", "calendar.b", "calendar.c"}));
+  // The raw list is what homeassistant.action data receives
+  EXPECT_EQ(input.entity_id(), "calendar.a,calendar.b,calendar.c");
 }
 
 }  // namespace esphome::api

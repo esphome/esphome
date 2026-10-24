@@ -1,3 +1,6 @@
+from collections.abc import Coroutine
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -22,6 +25,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
+DOMAIN = "ble_client"
 
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 CONF_ON_NOTIFY = "on_notify"
@@ -168,6 +172,13 @@ BLE_CLIENT_SCHEMA = cv.Schema(
 async def register_ble_node(var, config):
     parent = await cg.get_variable(config[CONF_BLE_CLIENT_ID])
     cg.add(parent.register_ble_node(var))
+
+
+def new_ble_node_component(
+    config: ConfigType, *args: Any
+) -> Coroutine[Any, Any, cg.MockObj]:
+    """Construct, register and attach to the BLE client; args go to the constructor."""
+    return cg.new_bus_component(register_ble_node, config, *args)
 
 
 BLE_WRITE_ACTION_SCHEMA = cv.Schema(

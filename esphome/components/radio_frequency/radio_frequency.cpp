@@ -6,14 +6,14 @@
 
 namespace esphome::radio_frequency {
 
-static const char *const TAG = "radio_frequency";
+ESPHOME_LOG_TAG(TAG, "radio_frequency");
 
 void RadioFrequency::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Radio Frequency '%s'\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
-                this->get_name().c_str(), YESNO(this->get_supports_transmitter()),
+                LOG_STR_ARG(this->get_log_name()), YESNO(this->get_supports_transmitter()),
                 YESNO(this->get_supports_receiver()));
   if (this->traits_.get_frequency_min_hz() > 0) {
     if (this->traits_.get_frequency_min_hz() == this->traits_.get_frequency_max_hz()) {

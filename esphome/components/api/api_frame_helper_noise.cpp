@@ -22,7 +22,7 @@ using noise::noise_err_to_logstr;
 static_assert(MAX_HANDSHAKE_SIZE == noise::MAX_HANDSHAKE_SIZE,
               "api and noise component handshake size limits must match");
 
-static const char *const TAG = "api.noise";
+ESPHOME_LOG_TAG(TAG, "api.noise");
 static constexpr char PROLOGUE_INIT[] PROGMEM = "NoiseAPIInit";
 static constexpr size_t PROLOGUE_INIT_LEN = 12;  // strlen("NoiseAPIInit")
 

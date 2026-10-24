@@ -16,6 +16,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@lygris", "@gabest11"]
 DEPENDENCIES = ["spi"]
+DOMAIN = "cc1101"
 MULTI_CONF = True
 
 ns = cg.esphome_ns.namespace("cc1101")
@@ -66,41 +67,30 @@ CONF_GDO0_PIN = "gdo0_pin"
 
 # Enums
 SyncMode = ns.enum("SyncMode", True)
-SYNC_MODE = {
-    "None": SyncMode.SYNC_MODE_NONE,
-    "15/16": SyncMode.SYNC_MODE_15_16,
-    "16/16": SyncMode.SYNC_MODE_16_16,
-    "30/32": SyncMode.SYNC_MODE_30_32,
-}
+SYNC_MODE = SyncMode.options("None", "15/16", "16/16", "30/32", prefix="SYNC_MODE_")
 
 Modulation = ns.enum("Modulation", True)
-MODULATION = {
-    "2-FSK": Modulation.MODULATION_2_FSK,
-    "GFSK": Modulation.MODULATION_GFSK,
-    "ASK/OOK": Modulation.MODULATION_ASK_OOK,
-    "4-FSK": Modulation.MODULATION_4_FSK,
-    "MSK": Modulation.MODULATION_MSK,
-}
+MODULATION = Modulation.options(
+    "2-FSK", "GFSK", "ASK/OOK", "4-FSK", "MSK", prefix="MODULATION_"
+)
 
 RxAttenuation = ns.enum("RxAttenuation", True)
-RX_ATTENUATION = {
-    "0dB": RxAttenuation.RX_ATTENUATION_0DB,
-    "6dB": RxAttenuation.RX_ATTENUATION_6DB,
-    "12dB": RxAttenuation.RX_ATTENUATION_12DB,
-    "18dB": RxAttenuation.RX_ATTENUATION_18DB,
-}
+RX_ATTENUATION = RxAttenuation.options(
+    "0dB", "6dB", "12dB", "18dB", prefix="RX_ATTENUATION_"
+)
 
 MagnTarget = ns.enum("MagnTarget", True)
-MAGN_TARGET = {
-    "24dB": MagnTarget.MAGN_TARGET_24DB,
-    "27dB": MagnTarget.MAGN_TARGET_27DB,
-    "30dB": MagnTarget.MAGN_TARGET_30DB,
-    "33dB": MagnTarget.MAGN_TARGET_33DB,
-    "36dB": MagnTarget.MAGN_TARGET_36DB,
-    "38dB": MagnTarget.MAGN_TARGET_38DB,
-    "40dB": MagnTarget.MAGN_TARGET_40DB,
-    "42dB": MagnTarget.MAGN_TARGET_42DB,
-}
+MAGN_TARGET = MagnTarget.options(
+    "24dB",
+    "27dB",
+    "30dB",
+    "33dB",
+    "36dB",
+    "38dB",
+    "40dB",
+    "42dB",
+    prefix="MAGN_TARGET_",
+)
 
 MaxLnaGain = ns.enum("MaxLnaGain", True)
 MAX_LNA_GAIN = {
@@ -139,20 +129,14 @@ FILTER_LENGTH_FSK_MSK = {
 }
 
 FilterLengthAskOok = ns.enum("FilterLengthAskOok", True)
-FILTER_LENGTH_ASK_OOK = {
-    "4dB": FilterLengthAskOok.FILTER_LENGTH_4DB,
-    "8dB": FilterLengthAskOok.FILTER_LENGTH_8DB,
-    "12dB": FilterLengthAskOok.FILTER_LENGTH_12DB,
-    "16dB": FilterLengthAskOok.FILTER_LENGTH_16DB,
-}
+FILTER_LENGTH_ASK_OOK = FilterLengthAskOok.options(
+    "4dB", "8dB", "12dB", "16dB", prefix="FILTER_LENGTH_"
+)
 
 Freeze = ns.enum("Freeze", True)
-FREEZE = {
-    "Default": Freeze.FREEZE_DEFAULT,
-    "On Sync": Freeze.FREEZE_ON_SYNC,
-    "Analog Only": Freeze.FREEZE_ANALOG_ONLY,
-    "Analog And Digital": Freeze.FREEZE_ANALOG_AND_DIGITAL,
-}
+FREEZE = Freeze.options(
+    "Default", "On Sync", "Analog Only", "Analog And Digital", prefix="FREEZE_"
+)
 
 WaitTime = ns.enum("WaitTime", True)
 WAIT_TIME = {
@@ -163,34 +147,16 @@ WAIT_TIME = {
 }
 
 HystLevel = ns.enum("HystLevel", True)
-HYST_LEVEL = {
-    "None": HystLevel.HYST_LEVEL_NONE,
-    "Low": HystLevel.HYST_LEVEL_LOW,
-    "Medium": HystLevel.HYST_LEVEL_MEDIUM,
-    "High": HystLevel.HYST_LEVEL_HIGH,
-}
+HYST_LEVEL = HystLevel.options("None", "Low", "Medium", "High", prefix="HYST_LEVEL_")
 
 FocLimit = ns.enum("FocLimit", True)
-FOC_LIMIT = {
-    "Disabled": FocLimit.FOC_LIMIT_DISABLED,
-    "BW/8": FocLimit.FOC_LIMIT_BW_8,
-    "BW/4": FocLimit.FOC_LIMIT_BW_4,
-    "BW/2": FocLimit.FOC_LIMIT_BW_2,
-}
+FOC_LIMIT = FocLimit.options("Disabled", "BW/8", "BW/4", "BW/2", prefix="FOC_LIMIT_")
 
 FocPreK = ns.enum("FocPreK", True)
-FOC_PRE_K = {
-    "K": FocPreK.FOC_PRE_K_K,
-    "2K": FocPreK.FOC_PRE_K_2K,
-    "3K": FocPreK.FOC_PRE_K_3K,
-    "4K": FocPreK.FOC_PRE_K_4K,
-}
+FOC_PRE_K = FocPreK.options("K", "2K", "3K", "4K", prefix="FOC_PRE_K_")
 
 FocPostK = ns.enum("FocPostK", True)
-FOC_POST_K = {
-    "Same": FocPostK.FOC_POST_K_SAME,
-    "K/2": FocPostK.FOC_POST_K_K_2,
-}
+FOC_POST_K = FocPostK.options("Same", "K/2", prefix="FOC_POST_K_")
 
 BsLimit = ns.enum("BsLimit", True)
 BS_LIMIT = {
@@ -201,32 +167,16 @@ BS_LIMIT = {
 }
 
 BsPreKi = ns.enum("BsPreKi", True)
-BS_PRE_KI = {
-    "KI": BsPreKi.BS_PRE_KI_KI,
-    "2KI": BsPreKi.BS_PRE_KI_2KI,
-    "3KI": BsPreKi.BS_PRE_KI_3KI,
-    "4KI": BsPreKi.BS_PRE_KI_4KI,
-}
+BS_PRE_KI = BsPreKi.options("KI", "2KI", "3KI", "4KI", prefix="BS_PRE_KI_")
 
 BsPreKp = ns.enum("BsPreKp", True)
-BS_PRE_KP = {
-    "KP": BsPreKp.BS_PRE_KP_KP,
-    "2KP": BsPreKp.BS_PRE_KP_2KP,
-    "3KP": BsPreKp.BS_PRE_KP_3KP,
-    "4KP": BsPreKp.BS_PRE_KP_4KP,
-}
+BS_PRE_KP = BsPreKp.options("KP", "2KP", "3KP", "4KP", prefix="BS_PRE_KP_")
 
 BsPostKi = ns.enum("BsPostKi", True)
-BS_POST_KI = {
-    "Same": BsPostKi.BS_POST_KI_SAME,
-    "KI/2": BsPostKi.BS_POST_KI_KI_2,
-}
+BS_POST_KI = BsPostKi.options("Same", "KI/2", prefix="BS_POST_KI_")
 
 BsPostKp = ns.enum("BsPostKp", True)
-BS_POST_KP = {
-    "Same": BsPostKp.BS_POST_KP_SAME,
-    "KP": BsPostKp.BS_POST_KP_KP,
-}
+BS_POST_KP = BsPostKp.options("Same", "KP", prefix="BS_POST_KP_")
 
 # Optional settings to generate setter calls for
 CONFIG_MAP = {
@@ -324,18 +274,14 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
 
     for opt in CONFIG_MAP:
         key = opt.schema
         if key in config:
             cg.add(getattr(var, f"set_{key}")(config[key]))
 
-    if CONF_GDO0_PIN in config:
-        gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
-        cg.add(var.set_gdo0_pin(gdo0_pin))
+    await cg.add_pin(var.set_gdo0_pin, config.get(CONF_GDO0_PIN))
     if CONF_ON_PACKET in config:
         await automation.build_automation(
             var.get_packet_trigger(),
@@ -348,11 +294,6 @@ async def to_code(config):
             config[CONF_ON_PACKET],
         )
 
-
-# Actions
-SendPacketAction = ns.class_(
-    "SendPacketAction", automation.Action, cg.Parented.template(CC1101Component)
-)
 
 CC1101_ACTION_SCHEMA = cv.Schema(
     maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(CC1101Component)})
@@ -392,23 +333,11 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "cc1101.send_packet",
-    SendPacketAction,
     SEND_PACKET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})"),
 )
-async def send_packet_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA],
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "cc1101_data",
-    )
-    return var
 
 
 _CONFIG_VALIDATORS = {opt.schema: validator for opt, validator in CONFIG_MAP.items()}

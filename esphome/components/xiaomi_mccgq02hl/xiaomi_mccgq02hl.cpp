@@ -7,7 +7,7 @@
 
 namespace esphome::xiaomi_mccgq02hl {
 
-static const char *const TAG = "xiaomi_mccgq02hl";
+ESPHOME_LOG_TAG(TAG, "xiaomi_mccgq02hl");
 
 static constexpr uint16_t PRODUCT_ID = 0x098b;
 
@@ -60,7 +60,7 @@ bool XiaomiMCCGQ02HL::parse_device(const ble_device_base::ESPBTDevice &device) {
     if (!this->parse_service_data_(service_data.data, reading))
       continue;
 
-    ESP_LOGD(TAG, "%s: open=%s light=%s battery=%s", this->get_name().c_str(),
+    ESP_LOGD(TAG, "%s: open=%s light=%s battery=%s", LOG_STR_ARG(this->get_log_name()),
              reading.open.has_value() ? (*reading.open ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"))
                                       : LOG_STR_LITERAL("-"),
              reading.light.has_value() ? (*reading.light ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"))

@@ -4,23 +4,23 @@
 
 namespace esphome::sx1509 {
 
-static const char *const TAG = "sx1509";
+ESPHOME_LOG_TAG(TAG, "sx1509");
 
 void SX1509Component::setup() {
   ESP_LOGV(TAG, "  Resetting devices");
   if (!this->write_byte(REG_RESET, 0x12)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   this->write_byte(REG_RESET, 0x34);
 
   uint16_t data;
   if (!this->read_byte_16(REG_INTERRUPT_MASK_A, &data)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (data != 0xFF00) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unexpected reset value"));
     return;
   }
   clock_(INTERNAL_CLOCK_2MHZ);
@@ -31,9 +31,6 @@ void SX1509Component::setup() {
 
 void SX1509Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SX1509:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setting up SX1509 failed!");
-  }
   LOG_I2C_DEVICE(this);
 }
 
@@ -95,20 +92,9 @@ void SX1509Component::digital_write_hw(uint8_t pin, bool bit_value) {
     // If the pin is an output, write high/low
     uint16_t temp_reg_data = 0;
     this->read_byte_16(REG_DATA_B, &temp_reg_data);
-    if (bit_value) {
-      output_state_ |= (1 << pin);  // set bit in shadow register
-    } else {
-      output_state_ &= ~(1 << pin);  // reset bit shadow register
-    }
-    for (uint16_t b = 0x8000; b; b >>= 1) {
-      if ((~ddr_mask_) & b) {  // transfer bits of outputs, but don't mess with inputs
-        if (output_state_ & b) {
-          temp_reg_data |= b;
-        } else {
-          temp_reg_data &= ~b;
-        }
-      }
-    }
+    assign_bits(this->output_state_, 1 << pin, bit_value);
+    // Outputs take the shadow state, inputs keep what was read
+    temp_reg_data = (temp_reg_data & this->ddr_mask_) | (this->output_state_ & ~this->ddr_mask_);
     this->write_byte_16(REG_DATA_B, temp_reg_data);
   }
 }
@@ -151,20 +137,12 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 
     // Pullup
     this->read_byte_16(REG_PULL_UP_B, &temp_word);
-    if (flags & gpio::FLAG_PULLUP) {
-      temp_word |= (1 << pin);
-    } else {
-      temp_word &= ~(1 << pin);
-    }
+    assign_bits(temp_word, 1 << pin, flags & gpio::FLAG_PULLUP);
     this->write_byte_16(REG_PULL_UP_B, temp_word);
 
     // Pulldown
     this->read_byte_16(REG_PULL_DOWN_B, &temp_word);
-    if (flags & gpio::FLAG_PULLDOWN) {
-      temp_word |= (1 << pin);
-    } else {
-      temp_word &= ~(1 << pin);
-    }
+    assign_bits(temp_word, 1 << pin, flags & gpio::FLAG_PULLDOWN);
     this->write_byte_16(REG_PULL_DOWN_B, temp_word);
 
     // Set direction to input
@@ -315,3 +293,5 @@ void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8
 }
 
 }  // namespace esphome::sx1509
+
+ESPHOME_EXPANDER_PIN_SUMMARY(esphome::sx1509::SX1509Component, "%u via sx1509")

@@ -16,6 +16,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@OttoWinter"]
+DOMAIN = "sun"
 sun_ns = cg.esphome_ns.namespace("sun")
 
 Sun = sun_ns.class_("Sun")
@@ -117,8 +118,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    time_ = await cg.get_variable(config[CONF_TIME_ID])
-    cg.add(var.set_time(time_))
+    await cg.add_variable(var.set_time, config[CONF_TIME_ID])
     cg.add(var.set_latitude(config[CONF_LATITUDE]))
     cg.add(var.set_longitude(config[CONF_LONGITUDE]))
 

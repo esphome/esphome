@@ -16,6 +16,7 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["ln882x"]
 CODEOWNERS = ["@Bl00d-B0b"]
+DOMAIN = "ln882h_ble"
 
 ln882h_ble_ns = cg.esphome_ns.namespace("ln882h_ble")
 LN882HBLE = ln882h_ble_ns.class_("LN882HBLE", cg.Component)

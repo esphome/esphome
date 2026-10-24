@@ -23,27 +23,23 @@ namespace esphome::epaper_spi {
 class EPaperSSD1677 : public EPaperMono {
  public:
   EPaperSSD1677(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-                size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY)
-      : EPaperMono(name, width, height, init_sequence, init_sequence_length, display_type) {}
-
-  void setup() override;
+                size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY, uint8_t bits_per_pixel = 1)
+      : EPaperMono(name, width, height, init_sequence, init_sequence_length, display_type, bits_per_pixel) {}
 
  protected:
-  // Allocates the comparison frame when partial updates are enabled. Separate from setup() so it
-  // can run without a bus.
-  void init_comparison_frame_();
+  // Reads the previous frame to copy it into the other RAM bank on a full refresh
+  bool needs_previous_frame() const override { return true; }
+  // Allocates the comparison frame as setup() would, for tests that run without a bus.
+  void init_comparison_frame_() { this->init_sent_frame_(this->sent_frame_length()); }
+  size_t sent_frame_length() const override { return this->plane_row_length_() * this->height_; }
   // Bytes in one row of a RAM plane: 8 pixels per byte, whatever the buffer holds.
   size_t plane_row_length_() const { return (this->width_ + 7) / 8; }
-  // Whether the buffer already holds the frame as a RAM plane does, so it can be sent as it is.
-  // A subclass with a deeper buffer returns false and overrides plane_row().
-  virtual bool buffer_is_plane() const { return true; }
   // Row y of the frame as a RAM plane holds it, 1 bit per pixel with 1 = white.
   virtual void plane_row(size_t y, uint8_t *out);
   bool reset() override;
   bool transfer_data() override;
 
-  split_buffer::SplitBuffer sent_{};  // the frame last sent to 0x24, i.e. what the panel shows
-  uint8_t plane_{0};                  // 0 while sending 0x26, 1 while sending 0x24
+  uint8_t plane_{0};  // 0 while sending 0x26, 1 while sending 0x24
 };
 
 }  // namespace esphome::epaper_spi

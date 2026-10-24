@@ -10,7 +10,7 @@ namespace esphome::nfc {
 
 class NdefRecordText : public NdefRecord {
  public:
-  NdefRecordText(){};
+  NdefRecordText() {};
   NdefRecordText(const std::vector<uint8_t> &payload);
   NdefRecordText(const std::string &language_code, const std::string &text) {
     this->tnf_ = TNF_WELL_KNOWN;

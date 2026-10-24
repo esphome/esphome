@@ -1,6 +1,7 @@
 import sys
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAC_ADDRESS,
@@ -22,6 +23,7 @@ from .gpio import host_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 AUTO_LOAD = ["network", "preferences"]
+DOMAIN = "host"
 IS_TARGET_PLATFORM = True
 
 
@@ -43,6 +45,7 @@ CONFIG_SCHEMA = cv.All(
     # is no PlatformIO backend, so a CLI --toolchain must name this one
     cv.resolve_toolchain("host", (Toolchain.HOST,), Toolchain.HOST),
     set_core_data,
+    network.require_ipv4(PLATFORM_HOST),
 )
 
 
