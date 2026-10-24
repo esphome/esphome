@@ -149,10 +149,10 @@ template<typename T, bool Owning = false> class ConstVector {
 
 /// Owning variant: a codegen table that outlives it, or a heap copy of a runtime list it owns.
 /// Ownership is the top bit of the size; it is not copyable, so a copy can never outlive the owner.
-/// Elements must be whole words so ESP8266 can read a codegen table from flash.
+/// Elements must be whole words: on ESP8266, iterating or indexing a codegen table reads them straight from flash.
 template<typename T> class ConstVector<T, true> {
   static_assert(std::is_trivially_copyable_v<T> && sizeof(T) % sizeof(uint32_t) == 0,
-                "ConstVector elements must be whole words so ESP8266 can read them from flash");
+                "ConstVector elements must be whole words so ESP8266 can index them in flash");
 
  public:
   using value_type = T;
