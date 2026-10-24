@@ -50,7 +50,7 @@ TEST(AS7341Test, ReadChannelsDecodesLowByteFirst) {
 
   std::array<uint16_t, 2 * NUM_ADC_CHANNELS> data{};
   ASSERT_TRUE(sensor.read_channels(data.data()));
-  for (uint8_t i = 0; i < data.size(); i++)
+  for (size_t i = 0; i < data.size(); i++)
     EXPECT_EQ(data[i], 0x1234 + i % NUM_ADC_CHANNELS) << "value " << unsigned(i);
 }
 
