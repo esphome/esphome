@@ -11,20 +11,10 @@ void Pipsolar::setup() {
   this->command_start_millis_ = 0;
 }
 
-void Pipsolar::empty_uart_buffer_() {
-  uint8_t buf[64];
-  size_t avail;
-  while ((avail = this->available()) > 0) {
-    if (!this->read_array(buf, std::min(avail, sizeof(buf)))) {
-      break;
-    }
-  }
-}
-
 void Pipsolar::loop() {
   // Read message
   if (this->state_ == STATE_IDLE) {
-    this->empty_uart_buffer_();
+    this->discard_available();
 
     if (this->send_next_command_()) {
       // command sent
@@ -111,7 +101,7 @@ void Pipsolar::loop() {
         // make sure data and null terminator fit in buffer
         if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
           this->read_pos_ = 0;
-          this->empty_uart_buffer_();
+          this->discard_available();
           ESP_LOGW(TAG, "response data too long, discarding.");
           done = true;
           break;
@@ -122,7 +112,7 @@ void Pipsolar::loop() {
         // end of answer
         if (byte == 0x0D) {
           this->read_buffer_[this->read_pos_] = 0;
-          this->empty_uart_buffer_();
+          this->discard_available();
           if (this->state_ == STATE_POLL) {
             this->state_ = STATE_POLL_COMPLETE;
           }
@@ -173,14 +163,14 @@ uint8_t Pipsolar::check_incoming_crc_() {
   uint16_t crc16;
   crc16 = this->pipsolar_crc_(read_buffer_, read_pos_ - 3);
   if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
-      ((uint8_t) ((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
+      ((uint8_t) ((crc16) & 0xff)) == read_buffer_[read_pos_ - 2]) {
     ESP_LOGD(TAG, "CRC OK");
     read_buffer_[read_pos_ - 1] = 0;
     read_buffer_[read_pos_ - 2] = 0;
     read_buffer_[read_pos_ - 3] = 0;
     return 1;
   }
-  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", ((uint8_t) ((crc16) >> 8)), ((uint8_t) ((crc16) &0xff)),
+  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", ((uint8_t) ((crc16) >> 8)), ((uint8_t) ((crc16) & 0xff)),
            read_buffer_[read_pos_ - 3], read_buffer_[read_pos_ - 2]);
   return 0;
 }
@@ -202,13 +192,13 @@ bool Pipsolar::send_next_command_() {
     }
     this->state_ = STATE_COMMAND;
     this->command_start_millis_ = millis();
-    this->empty_uart_buffer_();
+    this->discard_available();
     this->read_pos_ = 0;
     crc16 = this->pipsolar_crc_(byte_command, length);
     this->write_str(command);
     // checksum
-    this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
-    this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
+    this->write(((uint8_t) ((crc16) >> 8)));    // highbyte
+    this->write(((uint8_t) ((crc16) & 0xff)));  // lowbyte
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending command from queue: %s with length %d", command, length);
@@ -231,15 +221,15 @@ bool Pipsolar::send_next_poll_() {
     }
     this->state_ = STATE_POLL;
     this->command_start_millis_ = millis();
-    this->empty_uart_buffer_();
+    this->discard_available();
     this->read_pos_ = 0;
     crc16 = this->pipsolar_crc_(this->enabled_polling_commands_[this->last_polling_command_].command,
                                 this->enabled_polling_commands_[this->last_polling_command_].length);
     this->write_array(this->enabled_polling_commands_[this->last_polling_command_].command,
                       this->enabled_polling_commands_[this->last_polling_command_].length);
     // checksum
-    this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
-    this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
+    this->write(((uint8_t) ((crc16) >> 8)));    // highbyte
+    this->write(((uint8_t) ((crc16) & 0xff)));  // lowbyte
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending polling command: %s with length %d",
@@ -665,6 +655,8 @@ void Pipsolar::handle_qpiws_(const char *message) {
       case 35:
         this->publish_binary_sensor_(enabled, this->warning_battery_equalization_);
         value_warnings_present |= enabled.value_or(false);
+        break;
+      default:
         break;
     }
   }
