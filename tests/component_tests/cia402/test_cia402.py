@@ -21,6 +21,10 @@ BASE = {
         ("deceleration", 0),
         ("heartbeat_timeout", "0ms"),
         ("operation_timeout", "0ms"),
+        ("quick_stop_deceleration", 0),
+        ("homing_fast_velocity", -1),
+        ("homing_slow_velocity", 0),
+        ("homing_acceleration", 0),
     ],
 )
 def test_reject_invalid_drive(key: str, value: object) -> None:
@@ -34,11 +38,31 @@ def test_signed_position() -> None:
         MOVE_SCHEMA({"position": 2147483648})
 
 
-def test_duplicate_owner_across_layers() -> None:
+def test_duplicate_owner() -> None:
     node = {"canopen_id": "bus", "node_id": 32}
-    token = fv.full_config.set({"cia402": [node], "tmcm1240": [node]})
+    token = fv.full_config.set({"cia402": [node, node]})
     try:
         with pytest.raises(cv.Invalid, match="Only one"):
             validate_node_owner(node)
     finally:
         fv.full_config.reset(token)
+
+
+@pytest.mark.parametrize(
+    "limits",
+    [
+        {"min_position": 0},
+        {"max_position": 100},
+        {"min_position": 100, "max_position": 0},
+        {"min_position": -2147483649, "max_position": 0},
+    ],
+)
+def test_invalid_limits(limits: dict) -> None:
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({**BASE, **limits})
+
+
+def test_signed_limits() -> None:
+    config = CONFIG_SCHEMA({**BASE, "min_position": -100, "max_position": 100})
+    assert config["min_position"] == -100
+    assert config["max_position"] == 100

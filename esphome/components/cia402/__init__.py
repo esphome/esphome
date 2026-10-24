@@ -30,6 +30,12 @@ CONF_OPERATION_TIMEOUT = "operation_timeout"
 CONF_HEARTBEAT_TIMEOUT = "heartbeat_timeout"
 CONF_PROFILE_VELOCITY = "profile_velocity"
 CONF_ON_RESULT = "on_result"
+CONF_QUICK_STOP_DECELERATION = "quick_stop_deceleration"
+CONF_HOMING_FAST_VELOCITY = "homing_fast_velocity"
+CONF_HOMING_SLOW_VELOCITY = "homing_slow_velocity"
+CONF_HOMING_ACCELERATION = "homing_acceleration"
+CONF_MIN_POSITION = "min_position"
+CONF_MAX_POSITION = "max_position"
 
 cia402_ns = cg.esphome_ns.namespace(DOMAIN)
 CiA402Drive = cia402_ns.class_("CiA402Drive", cg.PollingComponent, CANopenNode)
@@ -48,16 +54,35 @@ DRIVE_SCHEMA = cv.Schema(
         cv.Required(CONF_PROFILE_VELOCITY): cv.int_range(min=1, max=0x7FFFFFFF),
         cv.Required(CONF_ACCELERATION): cv.int_range(min=1, max=0x7FFFFFFF),
         cv.Required(CONF_DECELERATION): cv.int_range(min=1, max=0x7FFFFFFF),
+        cv.Optional(CONF_QUICK_STOP_DECELERATION): cv.int_range(min=1, max=0x7FFFFFFF),
+        cv.Optional(CONF_HOMING_FAST_VELOCITY): cv.int_range(min=1, max=0x7FFFFFFF),
+        cv.Optional(CONF_HOMING_SLOW_VELOCITY): cv.int_range(min=1, max=0x7FFFFFFF),
+        cv.Optional(CONF_HOMING_ACCELERATION): cv.int_range(min=1, max=0x7FFFFFFF),
+        cv.Optional(CONF_MIN_POSITION): cv.int_range(min=-0x80000000, max=0x7FFFFFFF),
+        cv.Optional(CONF_MAX_POSITION): cv.int_range(min=-0x80000000, max=0x7FFFFFFF),
         cv.Optional(CONF_ON_RESULT): automation.validate_automation({}),
     }
 ).extend(cv.polling_component_schema("500ms"))
 
-CONFIG_SCHEMA = DRIVE_SCHEMA.extend({cv.GenerateID(): cv.declare_id(CiA402Drive)})
+
+def validate_limits(config: ConfigType) -> ConfigType:
+    if (CONF_MIN_POSITION in config) != (CONF_MAX_POSITION in config):
+        raise cv.Invalid("min_position and max_position must be configured together")
+    if config.get(CONF_MIN_POSITION, 0) > config.get(CONF_MAX_POSITION, 0):
+        raise cv.Invalid("min_position must not exceed max_position")
+    return config
 
 
-def validate_node_owner(config: ConfigType) -> ConfigType:
+CONFIG_SCHEMA = cv.All(
+    DRIVE_SCHEMA.extend({cv.GenerateID(): cv.declare_id(CiA402Drive)}), validate_limits
+)
+
+
+def validate_node_owner(
+    config: ConfigType, domains: tuple[str, ...] = (DOMAIN,)
+) -> ConfigType:
     full = fv.full_config.get()
-    nodes = [node for domain in (DOMAIN, "tmcm1240") for node in full.get(domain, [])]
+    nodes = [node for domain in domains for node in full.get(domain, [])]
     if (
         sum(
             node[CONF_CANOPEN_ID] == config[CONF_CANOPEN_ID]
@@ -80,6 +105,18 @@ async def register_drive(var: MockObj, config: ConfigType) -> None:
     cg.add(var.set_profile_velocity(config[CONF_PROFILE_VELOCITY]))
     cg.add(var.set_acceleration(config[CONF_ACCELERATION]))
     cg.add(var.set_deceleration(config[CONF_DECELERATION]))
+    cg.add_optional(
+        var.set_quick_stop_deceleration, config.get(CONF_QUICK_STOP_DECELERATION)
+    )
+    cg.add_optional(var.set_homing_fast_velocity, config.get(CONF_HOMING_FAST_VELOCITY))
+    cg.add_optional(var.set_homing_slow_velocity, config.get(CONF_HOMING_SLOW_VELOCITY))
+    cg.add_optional(var.set_homing_acceleration, config.get(CONF_HOMING_ACCELERATION))
+    if CONF_MIN_POSITION in config:
+        cg.add(
+            var.set_position_limits(
+                config[CONF_MIN_POSITION], config[CONF_MAX_POSITION]
+            )
+        )
     for conf in config.get(CONF_ON_RESULT, []):
         await automation.build_callback_automation(
             var, "add_on_result_callback", [(DriveResult, "result")], conf
@@ -93,7 +130,16 @@ async def to_code(config: ConfigType) -> None:
 
 
 ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(CiA402Drive)})
-for action in ("enable", "disable", "halt", "quick_stop", "fault_reset"):
+for action in (
+    "enable",
+    "disable",
+    "halt",
+    "controlled_stop",
+    "quick_stop",
+    "fault_reset",
+    "zero_position",
+    "apply_configuration",
+):
     automation.register_apply_action(
         f"cia402.{action}",
         cv.maybe_simple_value(ACTION_SCHEMA, key=CONF_ID),

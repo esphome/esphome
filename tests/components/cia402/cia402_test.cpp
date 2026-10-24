@@ -232,4 +232,145 @@ TEST_F(DriveTest, ProfilePositionCompletesAcknowledgementHandshake) {
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_SUCCESS);
 }
 
+TEST_F(DriveTest, AbsoluteLimitRejectionSendsNoTraffic) {
+  drive.set_position_limits(-100, 100);
+  EXPECT_FALSE(drive.move_to(101));
+  EXPECT_FALSE(drive.move_to(-101));
+  EXPECT_TRUE(bus.sent.empty());
+  ASSERT_EQ(results.size(), 2);
+  EXPECT_EQ(results.back(), DriveResult::DRIVE_RESULT_REJECTED);
+}
+
+TEST_F(DriveTest, RelativeLimitRejectionNeverWritesTarget) {
+  drive.set_position_limits(-100, 100);
+  ASSERT_TRUE(drive.move_by(20));
+  for (unsigned i = 0; i < 30 && results.empty(); i++) {
+    const auto frame = next();
+    const auto object = index(frame);
+    EXPECT_NE(object, 0x607A);
+    if (frame.data[0] != 0x40)
+      reply();
+    else if (object == 0x6041)
+      reply(0x27, 2);
+    else if (object == 0x6061)
+      reply(1, 1);
+    else if (object == 0x6064)
+      reply(90, 4);
+    else
+      reply(0, 4);
+  }
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_REJECTED);
+}
+
+TEST_F(DriveTest, ConfigurationUsesIndependentQuickStopAndSignedLimits) {
+  drive.set_quick_stop_deceleration(3000);
+  drive.set_position_limits(-100, 100);
+  ASSERT_TRUE(drive.apply_configuration());
+  EXPECT_EQ(index(next()), 0x6041);
+  reply(0x40);
+  EXPECT_EQ(index(next()), 0x606C);
+  reply(0, 4);
+  for (const auto object : {0x6081, 0x6083, 0x6084, 0x6085, 0x607D, 0x607D}) {
+    const auto frame = next();
+    ASSERT_EQ(index(frame), object);
+    const auto value = encode_uint32(frame.data[7], frame.data[6], frame.data[5], frame.data[4]);
+    if (object == 0x6085)
+      EXPECT_EQ(value, 3000);
+    if (object == 0x607D)
+      EXPECT_EQ(value, frame.data[3] == 1 ? static_cast<uint32_t>(-100) : 100);
+    reply();
+  }
+  drive.tick();
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_SUCCESS);
+}
+
+TEST_F(DriveTest, ConfigurationIsRejectedWhileMoving) {
+  ASSERT_TRUE(drive.apply_configuration());
+  next();
+  reply(0x27);
+  next();
+  reply(10, 4);
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_REJECTED);
+  EXPECT_EQ(index(next()), 0x6040);  // Quick stop, never write profile settings.
+}
+
+TEST_F(DriveTest, HomingUsesIndependentSpeedsAndWaitsForAttainment) {
+  drive.set_homing_fast_velocity(500);
+  drive.set_homing_slow_velocity(100);
+  drive.set_homing_acceleration(2000);
+  ASSERT_TRUE(drive.home(17, -25));
+  uint16_t status = 0x27;
+  bool started = false;
+  unsigned speeds = 0;
+  for (unsigned i = 0; i < 35 && results.empty(); i++) {
+    const auto frame = next();
+    const auto object = index(frame);
+    const auto value = encode_uint32(frame.data[7], frame.data[6], frame.data[5], frame.data[4]);
+    if (frame.data[0] != 0x40) {
+      if (object == 0x6099) {
+        EXPECT_EQ(value, frame.data[3] == 1 ? 500 : 100);
+        speeds++;
+      }
+      if (object == 0x609A)
+        EXPECT_EQ(value, 2000);
+      if (object == 0x607C)
+        EXPECT_EQ(value, static_cast<uint32_t>(-25));
+      if (object == 0x6040 && value == 31)
+        started = true;
+      reply();
+    } else if (object == 0x6041) {
+      reply(status, 2);
+      if (started) {
+        EXPECT_TRUE(results.empty());
+        status = 0x1427;
+      }
+    } else if (object == 0x6061)
+      reply(6, 1);
+    else
+      reply(0, 4);
+  }
+  EXPECT_EQ(speeds, 2);
+  EXPECT_TRUE(started);
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_SUCCESS);
+}
+
+TEST_F(DriveTest, ZeroPositionUsesHomingRatherThanWritingActualPosition) {
+  ASSERT_TRUE(drive.zero_position());
+  bool method_seen = false;
+  for (unsigned i = 0; i < 12 && !method_seen; i++) {
+    const auto frame = next();
+    const auto object = index(frame);
+    EXPECT_NE(object, 0x6063);
+    if (frame.data[0] != 0x40) {
+      if (object == 0x6098) {
+        EXPECT_EQ(frame.data[4], 35);
+        method_seen = true;
+      }
+      reply();
+    } else if (object == 0x6041)
+      reply(0x27, 2);
+    else if (object == 0x6061)
+      reply(6, 1);
+    else
+      reply(0, 4);
+  }
+  EXPECT_TRUE(method_seen);
+}
+
+TEST(DriveStateTest, IgnoresUnrelatedStatuswordBits) {
+  EXPECT_EQ(CiA402Drive::state_from_statusword(0x1427), DriveState::DRIVE_STATE_OPERATION_ENABLED);
+  EXPECT_EQ(CiA402Drive::state_from_statusword(0x440), DriveState::DRIVE_STATE_SWITCH_ON_DISABLED);
+  EXPECT_EQ(CiA402Drive::state_from_statusword(0x421), DriveState::DRIVE_STATE_READY_TO_SWITCH_ON);
+  EXPECT_EQ(CiA402Drive::state_from_statusword(0x423), DriveState::DRIVE_STATE_SWITCHED_ON);
+  EXPECT_EQ(CiA402Drive::state_from_statusword(7), DriveState::DRIVE_STATE_QUICK_STOP_ACTIVE);
+  EXPECT_EQ(CiA402Drive::state_from_statusword(0x80F), DriveState::DRIVE_STATE_FAULT_REACTION_ACTIVE);
+  EXPECT_EQ(CiA402Drive::state_from_statusword(0x808), DriveState::DRIVE_STATE_FAULT);
+  EXPECT_EQ(CiA402Drive::state_from_statusword(0), DriveState::DRIVE_STATE_NOT_READY);
+  EXPECT_EQ(CiA402Drive::state_from_statusword(0x6F), DriveState::DRIVE_STATE_UNKNOWN);
+}
+
 }  // namespace esphome::cia402::testing
