@@ -26,10 +26,12 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_NAME,
     CONF_PROJECT,
+    CONF_URL,
     CONF_VERSION,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
+from esphome.core.config import CONF_CONTACT, CONF_SBOM, CONF_SUPPLIER
 from esphome.git import GitException, run_git_command, strip_url_credentials
 from esphome.helpers import get_bool_env, write_file_if_changed
 
@@ -214,7 +216,23 @@ def _esphome_vcs() -> _Source | None:
 def _project_manifest() -> dict[str, Any] | None:
     if (project := CORE.config[CONF_ESPHOME].get(CONF_PROJECT)) is None:
         return None
-    return {"name": project[CONF_NAME], "version": project[CONF_VERSION]}
+    manifest: dict[str, Any] = {
+        "name": project[CONF_NAME],
+        "version": project[CONF_VERSION],
+    }
+    if (sbom := project.get(CONF_SBOM)) is None:
+        return manifest
+    organization = f"Organization: {sbom[CONF_SUPPLIER]}"
+    contact = sbom.get(CONF_CONTACT)
+    manifest["supplier"] = f"{organization} ({contact})" if contact else organization
+    # The manufacturer is the vulnerability contact for the SBOM document
+    manufacturer = {"name": organization}
+    if contact:
+        manufacturer["contact"] = contact
+    if url := sbom.get(CONF_URL):
+        manufacturer["url"] = url
+    manifest["document"] = {"manufacturer": manufacturer}
+    return manifest
 
 
 def _source_commit(source: ExternalSource) -> str | None:
