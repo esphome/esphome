@@ -142,12 +142,8 @@ void M5StackUnitBldc::update() {
       ok = false;
     } else if (status != this->last_status_) {
       this->last_status_ = status;
-      char text[MotorStatusStrings::MAX_LENGTH + 1];
-      ESPHOME_strncpy_P(
-          text,
-          reinterpret_cast<ESPHOME_PGM_P>(MotorStatusStrings::get_progmem_str(status, MotorStatusStrings::LAST_INDEX)),
-          sizeof(text));
-      this->status_text_sensor_->publish_state(text);
+      this->status_text_sensor_->publish_state(
+          MotorStatusStrings::get_progmem_str(status, MotorStatusStrings::LAST_INDEX));
     }
   }
 #endif
