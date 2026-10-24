@@ -46,9 +46,9 @@ void TextSensor::publish_state(const char *state, size_t len) {
 
 #ifdef USE_ESP8266
 void TextSensor::publish_state(ProgmemStr state) {
-  char buf[PROGMEM_STATE_MAX_LENGTH + 1];
+  char buf[64];
   strncpy_P(buf, reinterpret_cast<PGM_P>(state), sizeof(buf));
-  buf[PROGMEM_STATE_MAX_LENGTH] = '\0';
+  buf[sizeof(buf) - 1] = '\0';
   this->publish_state(buf);
 }
 #endif
