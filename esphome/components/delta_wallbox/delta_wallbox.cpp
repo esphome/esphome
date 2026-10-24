@@ -564,8 +564,12 @@ void DeltaWallbox::set_max_current(float current) {
     ESP_LOGW(TAG, "Requested %ld A exceeds wallbox limit %u A; using %u A", rounded, upper, upper);
   }
   ESP_LOGI(TAG, "Setting wallbox maximum current to %u A", requested);
-  const std::array<uint8_t, 6> body = {0x01, FC_WRITE_SINGLE_REGISTER, static_cast<uint8_t>(REG_MAX_CURRENT >> 8),
-                                       static_cast<uint8_t>(REG_MAX_CURRENT & 0xFF), 0x00, requested};
+  const std::array<uint8_t, 6> body = {0x01,
+                                       FC_WRITE_SINGLE_REGISTER,
+                                       static_cast<uint8_t>(REG_MAX_CURRENT >> 8),
+                                       static_cast<uint8_t>(REG_MAX_CURRENT & 0xFF),
+                                       0x00,
+                                       requested};
   this->send_frame_(body.data(), body.size());
 }
 
