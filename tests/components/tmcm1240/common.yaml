@@ -12,19 +12,11 @@ tmcm1240:
   standby_current: 0.1925
   stallguard_threshold: 8
   stallguard_min_velocity: 56441
-  homing_velocity: 60472
-  homing_backoff: 40315
-  homing_travel: 383000
-  homing_margin: 4031
 button:
   - platform: template
     name: Configure
     on_press:
       - tmcm1240.apply_configuration: tmcm1240_test_drive
-  - platform: template
-    name: Home
-    on_press:
-      - tmcm1240.sensorless_home: tmcm1240_test_drive
   - platform: template
     name: Enable
     on_press:

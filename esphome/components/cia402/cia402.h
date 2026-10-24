@@ -6,6 +6,18 @@
 
 namespace esphome::cia402 {
 
+enum class DriveState : uint8_t {
+  DRIVE_STATE_UNKNOWN,
+  DRIVE_STATE_NOT_READY,
+  DRIVE_STATE_SWITCH_ON_DISABLED,
+  DRIVE_STATE_READY_TO_SWITCH_ON,
+  DRIVE_STATE_SWITCHED_ON,
+  DRIVE_STATE_OPERATION_ENABLED,
+  DRIVE_STATE_QUICK_STOP_ACTIVE,
+  DRIVE_STATE_FAULT_REACTION_ACTIVE,
+  DRIVE_STATE_FAULT,
+};
+
 enum class DriveResult : uint8_t {
   DRIVE_RESULT_SUCCESS,
   DRIVE_RESULT_REJECTED,
@@ -31,7 +43,11 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   bool fault_reset();
   bool move_to(int32_t position);
   bool move_by(int32_t distance);
-  bool home(int8_t method, int32_t offset);
+  bool apply_configuration();
+  bool controlled_stop() { return this->halt(); }
+  static DriveState state_from_statusword(uint16_t value);
+  DriveState get_state() const { return state_from_statusword(this->statusword_); }
+  bool is_target_reached() const { return (this->statusword_ & 0x400) != 0; }
   bool busy() const { return this->running_ || this->stopping_; }
   uint16_t get_statusword() const { return this->statusword_; }
   int32_t get_position() const { return this->position_; }
@@ -42,6 +58,12 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   void set_profile_velocity(uint32_t value) { this->profile_velocity_ = value; }
   void set_acceleration(uint32_t value) { this->acceleration_ = value; }
   void set_deceleration(uint32_t value) { this->deceleration_ = value; }
+  void set_quick_stop_deceleration(uint32_t value) { this->quick_stop_deceleration_ = value; }
+  void set_position_limits(int32_t minimum, int32_t maximum) {
+    this->min_position_ = minimum;
+    this->max_position_ = maximum;
+    this->position_limits_ = true;
+  }
   template<typename F> void add_on_result_callback(F &&callback) {
     this->result_callback_.add(std::forward<F>(callback));
   }
@@ -70,9 +92,8 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   void read_(uint16_t index, uint8_t size, uint32_t mask = 0, uint32_t value = 0, bool wait = false);
   void append_(const Step &step);
   void append_move_(int32_t position, bool relative);
-  void append_home_(int8_t method, int32_t offset);
   virtual void append_profile();
-  virtual bool sequence_finished(DriveResult result) { return true; }
+  bool position_allowed_(int64_t position) const;
   virtual void received_value(uint16_t index, uint32_t value);
   bool request_stop_(uint16_t controlword);
   void finish_(DriveResult result);
@@ -92,6 +113,9 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   uint32_t profile_velocity_{1000};
   uint32_t acceleration_{1000};
   uint32_t deceleration_{1000};
+  uint32_t quick_stop_deceleration_{0};
+  int32_t min_position_{INT32_MIN};
+  int32_t max_position_{INT32_MAX};
   uint32_t started_ms_{0};
   uint32_t last_request_ms_{0};
   int32_t position_{0};
@@ -110,6 +134,7 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   bool stopping_{false};
   bool poll_due_{false};
   bool resetting_{false};
+  bool position_limits_{false};
 };
 
 }  // namespace esphome::cia402

@@ -12,10 +12,6 @@ BASE = {
     "standby_current": 0.1925,
     "stallguard_threshold": 8,
     "stallguard_min_velocity": 2800,
-    "homing_velocity": 3000,
-    "homing_backoff": 2000,
-    "homing_travel": 19000,
-    "homing_margin": 200,
 }
 
 
@@ -29,10 +25,6 @@ BASE = {
         ("standby_current", 0.5),
         ("stallguard_threshold", -64),
         ("stallguard_threshold", 64),
-        ("stallguard_min_velocity", 3000),
-        ("homing_backoff", 0),
-        ("homing_travel", 200),
-        ("homing_margin", 19000),
     ],
 )
 def test_invalid_settings(key: str, value: object) -> None:

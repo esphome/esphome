@@ -6,6 +6,33 @@ namespace esphome::cia402 {
 
 ESPHOME_LOG_TAG(TAG, "cia402");
 
+DriveState CiA402Drive::state_from_statusword(uint16_t value) {
+  switch (value & 0x4F) {
+    case 0:
+      return DriveState::DRIVE_STATE_NOT_READY;
+    case 0x40:
+      return DriveState::DRIVE_STATE_SWITCH_ON_DISABLED;
+    case 0x0F:
+      return DriveState::DRIVE_STATE_FAULT_REACTION_ACTIVE;
+    case 8:
+      return DriveState::DRIVE_STATE_FAULT;
+    default:
+      break;
+  }
+  switch (value & 0x6F) {
+    case 0x21:
+      return DriveState::DRIVE_STATE_READY_TO_SWITCH_ON;
+    case 0x23:
+      return DriveState::DRIVE_STATE_SWITCHED_ON;
+    case 0x27:
+      return DriveState::DRIVE_STATE_OPERATION_ENABLED;
+    case 7:
+      return DriveState::DRIVE_STATE_QUICK_STOP_ACTIVE;
+    default:
+      return DriveState::DRIVE_STATE_UNKNOWN;
+  }
+}
+
 void CiA402Drive::setup() {
   this->setup_canopen();
   this->add_on_emcy_callback([this](const canopen::Emergency &emergency) {
@@ -85,7 +112,25 @@ void CiA402Drive::append_profile() {
   this->write_(0x6081, this->profile_velocity_, 4);
   this->write_(0x6083, this->acceleration_, 4);
   this->write_(0x6084, this->deceleration_, 4);
-  this->write_(0x6085, this->deceleration_, 4);
+  this->write_(0x6085, this->quick_stop_deceleration_ ? this->quick_stop_deceleration_ : this->deceleration_, 4);
+  if (this->position_limits_) {
+    this->write_(0x607D, static_cast<uint32_t>(this->min_position_), 4, 1);
+    this->write_(0x607D, static_cast<uint32_t>(this->max_position_), 4, 2);
+  }
+}
+
+bool CiA402Drive::apply_configuration() {
+  if (!this->begin_())
+    return false;
+  this->read_(0x6041, 2, 8, 0);
+  this->read_(0x606C, 4, UINT32_MAX, 0);
+  this->append_profile();
+  return true;
+}
+
+bool CiA402Drive::position_allowed_(int64_t position) const {
+  return this->min_position_ <= this->max_position_ && position >= this->min_position_ &&
+         position <= this->max_position_;
 }
 
 void CiA402Drive::append_move_(int32_t position, bool relative) {
@@ -108,6 +153,10 @@ void CiA402Drive::append_move_(int32_t position, bool relative) {
 }
 
 bool CiA402Drive::move_to(int32_t position) {
+  if (!this->position_allowed_(position)) {
+    this->result_callback_.call(DriveResult::DRIVE_RESULT_REJECTED);
+    return false;
+  }
   if (!this->begin_())
     return false;
   this->append_move_(position, false);
@@ -118,30 +167,6 @@ bool CiA402Drive::move_by(int32_t distance) {
   if (!this->begin_())
     return false;
   this->append_move_(distance, true);
-  return true;
-}
-
-void CiA402Drive::append_home_(int8_t method, int32_t offset) {
-  this->read_(0x6041, 2, 0x6F, 0x27);
-  this->read_(0x606C, 4, UINT32_MAX, 0);
-  this->write_(0x6060, 6, 1);
-  this->read_(0x6061, 1, 0xFF, 6, true);
-  this->write_(0x6098, static_cast<uint8_t>(method), 1);
-  this->write_(0x607C, static_cast<uint32_t>(offset), 4);
-  this->write_(0x6099, this->profile_velocity_, 4, 1);
-  this->write_(0x6099, this->profile_velocity_, 4, 2);
-  this->write_(0x609A, this->acceleration_, 4);
-  this->write_(0x6040, 15, 2);
-  this->write_(0x6040, 31, 2);
-  this->read_(0x6041, 2, 0x3400, 0x1400, true);
-  this->write_(0x6040, 15, 2);
-  this->read_(0x6064, 4);
-}
-
-bool CiA402Drive::home(int8_t method, int32_t offset) {
-  if (!this->begin_())
-    return false;
-  this->append_home_(method, offset);
   return true;
 }
 
@@ -165,8 +190,7 @@ void CiA402Drive::finish_(DriveResult result) {
   this->step_count_ = 0;
   this->step_index_ = 0;
   this->resetting_ = false;
-  if (this->sequence_finished(result))
-    this->result_callback_.call(result);
+  this->result_callback_.call(result);
 }
 
 void CiA402Drive::fail_(DriveResult result) {
@@ -297,7 +321,7 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
     this->received_value(step.index, value);
   if (!sequence || !this->running_ || this->stopping_)
     return;
-  if (!this->resetting_ && step.index == 0x6041 && ((value & 8) || (this->mode_ == 6 && (value & 0x2000)))) {
+  if (!this->resetting_ && step.index == 0x6041 && (value & 8)) {
     this->fail_(DriveResult::DRIVE_RESULT_FAULT);
     return;
   }
@@ -309,7 +333,7 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
   }
   if (step.kind == StepKind::STEP_KIND_RELATIVE) {
     const int64_t target = static_cast<int64_t>(sign_extend<32>(value)) + sign_extend<32>(step.value);
-    if (target < INT32_MIN || target > INT32_MAX) {
+    if (!this->position_allowed_(target)) {
       this->fail_(DriveResult::DRIVE_RESULT_REJECTED);
       return;
     }

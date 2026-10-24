@@ -18,10 +18,6 @@ class ProbeMotor : public TMCM1240 {
     this->set_standby_current(0.1925f);
     this->set_stallguard_threshold(8);
     this->set_stallguard_min_velocity(2800);
-    this->set_homing_velocity(3000);
-    this->set_homing_backoff(2000);
-    this->set_homing_travel(19000);
-    this->set_homing_margin(200);
   }
   void tick() {
     LoopBlockingGuard guard(nullptr, nullptr, millis());
@@ -38,11 +34,6 @@ class MotorTest : public ::testing::Test {
   std::map<uint16_t, uint32_t> objects{{0x6041, 0x27}, {0x6064, 10000}, {0x606C, 0}};
   std::vector<cia402::DriveResult> results;
   size_t processed{0};
-  unsigned seek_samples{0};
-  unsigned zero_writes{0};
-  bool seek{false};
-  bool fault_on_seek{false};
-  bool reach_limit{false};
   void SetUp() override {
     motor.ready();
     motor.add_on_result_callback([this](cia402::DriveResult result) { results.push_back(result); });
@@ -56,35 +47,10 @@ class MotorTest : public ::testing::Test {
     const uint16_t index = frame.data[1] | (frame.data[2] << 8);
     uint32_t value = encode_uint32(frame.data[7], frame.data[6], frame.data[5], frame.data[4]);
     const bool read = frame.data[0] == 0x40;
-    if (!read) {
+    if (!read)
       objects[index] = value;
-      if (index == 0x6060)
-        objects[0x6061] = value;
-      if (index == 0x6098)
-        zero_writes++;
-      if (index == 0x6040) {
-        if (value == 0x3F) {
-          seek = sign_extend<32>(objects[0x607A]) < sign_extend<32>(objects[0x6064]);
-          objects[0x6041] = 0x1027;
-          if (!seek)
-            objects[0x6064] = objects[0x607A];
-        } else if (value == 15) {
-          objects[0x6041] = seek ? 0x27 : 0x427;
-        } else if (value == 31 && objects[0x6061] == 6) {
-          objects[0x6041] = 0x1427;
-          objects[0x6064] = 0;
-        }
-      }
-    } else {
-      if (seek && index == 0x606C && objects[0x6061] == 1) {
-        seek_samples++;
-        objects[0x606C] = seek_samples == 1 ? static_cast<uint32_t>(-3000) : 0;
-        objects[0x6064] = reach_limit ? objects[0x607A] : 1000;
-        if (fault_on_seek)
-          objects[0x2102] = 4;
-      }
+    else
       value = objects[index];
-    }
     const uint8_t size =
         index == 0x6041 ? 2 : (index == 0x6061 || index == 0x2102 || index == 0x209E || index == 0x20A7 ? 1 : 4);
     const uint8_t command = read ? 0x43 | ((4 - size) << 2) : 0x60;
@@ -113,45 +79,6 @@ TEST_F(MotorTest, AppliesVolatileSettingsWithoutSavingOrEnabling) {
   EXPECT_EQ(objects[0x20A7], 1);
   EXPECT_EQ(objects.count(0x1010), 0);
   EXPECT_EQ(objects.count(0x6040), 0);
-}
-
-TEST_F(MotorTest, HomesOnlyAfterBackoffMotionAndRepeatedEarlyStop) {
-  ASSERT_TRUE(motor.sensorless_home());
-  run();
-  EXPECT_TRUE(motor.is_homed());
-  EXPECT_EQ(zero_writes, 1);
-  EXPECT_GE(seek_samples, 3);
-  ASSERT_EQ(results.size(), 1);
-  EXPECT_EQ(results[0], cia402::DriveResult::DRIVE_RESULT_SUCCESS);
-}
-
-TEST_F(MotorTest, DriverFaultNeverAssignsZero) {
-  fault_on_seek = true;
-  ASSERT_TRUE(motor.sensorless_home());
-  run();
-  EXPECT_FALSE(motor.is_homed());
-  EXPECT_EQ(zero_writes, 0);
-  ASSERT_EQ(results.size(), 1);
-  EXPECT_EQ(results[0], cia402::DriveResult::DRIVE_RESULT_FAULT);
-}
-
-TEST_F(MotorTest, TravelLimitNeverAssignsZero) {
-  reach_limit = true;
-  ASSERT_TRUE(motor.sensorless_home());
-  run();
-  EXPECT_FALSE(motor.is_homed());
-  EXPECT_EQ(zero_writes, 0);
-}
-
-TEST_F(MotorTest, CancellationNeverAssignsZero) {
-  ASSERT_TRUE(motor.sensorless_home());
-  for (unsigned i = 0; i < 100 && !seek; i++)
-    step();
-  motor.quick_stop();
-  run();
-  EXPECT_FALSE(motor.is_homed());
-  EXPECT_FALSE(motor.is_homing());
-  EXPECT_EQ(zero_writes, 0);
 }
 
 }  // namespace esphome::tmcm1240::testing

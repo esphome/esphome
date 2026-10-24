@@ -18,25 +18,17 @@ CONF_RUN_CURRENT = "run_current"
 CONF_STANDBY_CURRENT = "standby_current"
 CONF_STALLGUARD_THRESHOLD = "stallguard_threshold"
 CONF_STALLGUARD_MIN_VELOCITY = "stallguard_min_velocity"
-CONF_HOMING_VELOCITY = "homing_velocity"
-CONF_HOMING_BACKOFF = "homing_backoff"
-CONF_HOMING_TRAVEL = "homing_travel"
-CONF_HOMING_MARGIN = "homing_margin"
 
 tmcm1240_ns = cg.esphome_ns.namespace(DOMAIN)
 TMCM1240 = tmcm1240_ns.class_("TMCM1240", cia402.CiA402Drive)
 COUNTS = cv.int_range(min=1, max=0x7FFFFFFF)
 
 
-def validate_homing(config: ConfigType) -> ConfigType:
+def validate_currents(config: ConfigType) -> ConfigType:
     if not all(
         math.isfinite(config[key]) for key in (CONF_RUN_CURRENT, CONF_STANDBY_CURRENT)
     ):
         raise cv.Invalid("Motor currents must be finite")
-    if config[CONF_HOMING_VELOCITY] <= config[CONF_STALLGUARD_MIN_VELOCITY]:
-        raise cv.Invalid("homing_velocity must exceed stallguard_min_velocity")
-    if config[CONF_HOMING_MARGIN] >= config[CONF_HOMING_TRAVEL]:
-        raise cv.Invalid("homing_margin must be less than homing_travel")
     if config[CONF_STANDBY_CURRENT] > config[CONF_RUN_CURRENT]:
         raise cv.Invalid("standby_current must not exceed run_current")
     return config
@@ -50,15 +42,18 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_STANDBY_CURRENT): cv.float_range(min=0.072, max=2.0),
             cv.Required(CONF_STALLGUARD_THRESHOLD): cv.int_range(min=-63, max=63),
             cv.Required(CONF_STALLGUARD_MIN_VELOCITY): COUNTS,
-            cv.Required(CONF_HOMING_VELOCITY): COUNTS,
-            cv.Required(CONF_HOMING_BACKOFF): COUNTS,
-            cv.Required(CONF_HOMING_TRAVEL): COUNTS,
-            cv.Required(CONF_HOMING_MARGIN): COUNTS,
         }
     ),
-    validate_homing,
+    validate_currents,
+    cia402.validate_limits,
 )
-FINAL_VALIDATE_SCHEMA = cia402.validate_node_owner
+
+
+def validate_node_owner(config: ConfigType) -> ConfigType:
+    return cia402.validate_node_owner(config, ("cia402", "tmcm1240"))
+
+
+FINAL_VALIDATE_SCHEMA = validate_node_owner
 
 
 async def to_code(config: ConfigType) -> None:
@@ -69,18 +64,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_standby_current(config[CONF_STANDBY_CURRENT]))
     cg.add(var.set_stallguard_threshold(config[CONF_STALLGUARD_THRESHOLD]))
     cg.add(var.set_stallguard_min_velocity(config[CONF_STALLGUARD_MIN_VELOCITY]))
-    cg.add(var.set_homing_velocity(config[CONF_HOMING_VELOCITY]))
-    cg.add(var.set_homing_backoff(config[CONF_HOMING_BACKOFF]))
-    cg.add(var.set_homing_travel(config[CONF_HOMING_TRAVEL]))
-    cg.add(var.set_homing_margin(config[CONF_HOMING_MARGIN]))
 
 
 ACTION_SCHEMA = cv.maybe_simple_value(
     cv.Schema({cv.GenerateID(): cv.use_id(TMCM1240)}), key=CONF_ID
 )
-for action in ("apply_configuration", "sensorless_home"):
-    automation.register_apply_action(
-        f"tmcm1240.{action}", ACTION_SCHEMA, automation.ApplyCall(f"{action}()")
-    )
-automation.register_apply_condition("tmcm1240.is_homed", ACTION_SCHEMA, "is_homed()")
-automation.register_apply_condition("tmcm1240.is_homing", ACTION_SCHEMA, "is_homing()")
+automation.register_apply_action(
+    "tmcm1240.apply_configuration",
+    ACTION_SCHEMA,
+    automation.ApplyCall("apply_configuration()"),
+)
