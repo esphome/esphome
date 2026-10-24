@@ -1,6 +1,7 @@
 #ifdef USE_LIBRETINY
 
 #include "i2c_bus_software.h"
+#include <cinttypes>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -42,8 +43,8 @@ void SoftwareI2CBus::dump_config() {
   LOG_PIN("  SDA Pin: ", this->sda_pin_);
   LOG_PIN("  SCL Pin: ", this->scl_pin_);
   ESP_LOGCONFIG(TAG,
-                "  Frequency: %u Hz\n"
-                "  Clock stretch timeout: %u us",
+                "  Frequency: %" PRIu32 " Hz\n"
+                "  Clock stretch timeout: %" PRIu32 " us",
                 this->frequency_, this->timeout_);
   if (this->recovered_) {
     ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
@@ -193,7 +194,7 @@ ErrorCode SoftwareI2CBus::write_readv(uint8_t address, const uint8_t *write_buff
   this->stop_();
 
   if (this->scl_timed_out_) {
-    ESP_LOGVV(TAG, "SCL held low by 0x%02X for more than %u us", address, this->timeout_);
+    ESP_LOGVV(TAG, "SCL held low by 0x%02X for more than %" PRIu32 " us", address, this->timeout_);
     this->recover_();
     return ERROR_TIMEOUT;
   }
