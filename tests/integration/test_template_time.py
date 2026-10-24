@@ -4,11 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from .state_utils import (
-    SensorTracker,
-    build_key_to_entity_mapping,
-    subscribe_after_initial_states,
-)
+from .state_utils import SensorTracker, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # Timestamps are exposed as text sensors (rather than 32-bit float sensor states,
@@ -31,9 +27,7 @@ async def test_template_time(
         entities, _ = await client.list_entities_services()
 
         tracker = SensorTracker(list(EXPECTED_STATES))
-        tracker.key_to_sensor = build_key_to_entity_mapping(
-            entities, list(EXPECTED_STATES)
-        )
+        tracker.map_entities(entities)
         futures = tracker.expect_all(EXPECTED_STATES)
         await subscribe_after_initial_states(
             client, entities, on_state=tracker.on_state
