@@ -21,7 +21,6 @@ extern "C" {
 #include "lwip/apps/sntp.h"
 #include "lwip/netif.h"  // struct netif
 #include <AddrList.h>
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
 #if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
 #include <ESP8266WiFi.h>
@@ -29,7 +28,6 @@ extern "C" {
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
 #define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
-#endif
 #endif
 }
 
@@ -42,7 +40,7 @@ extern "C" {
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_esp8266";
+ESPHOME_LOG_TAG(TAG, "wifi_esp8266");
 
 enum class ESP8266WiFiSTAState : uint8_t {
   IDLE,             // Not connecting
@@ -136,10 +134,21 @@ bool WiFiComponent::wifi_apply_power_save_() {
   https://github.com/d-a-v/Arduino/blob/0e7d21e17144cfc5f53c016191daca8723e89ee8/libraries/ESP8266WiFi/src/ESP8266WiFiSTA.cpp#L251
  */
 #undef netif_set_addr  // need to call lwIP-v1.4 netif_set_addr()
+#undef netif_set_down  // need to call lwIP-v1.4 netif_set_down()
 extern "C" {
 struct netif *eagle_lwip_getif(int netif_index);
 void netif_set_addr(struct netif *netif, const ip4_addr_t *ip, const ip4_addr_t *netmask, const ip4_addr_t *gw);
+void netif_set_down(struct netif *netif);
 };
+
+// The SDK can free its WiFi connection node before taking the STA netif down, letting lwIP
+// timers (e.g. IGMP reports armed by mDNS) transmit into the dead driver and crash in
+// cnx_node_search; taking the netif down first makes the glue drop such frames (#18308).
+static void sta_netif_down() {
+  struct netif *iface = eagle_lwip_getif(STATION_IF);
+  if (iface != nullptr)
+    netif_set_down(iface);
+}
 #endif
 
 bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
@@ -174,7 +183,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   wifi_get_ip_info(STATION_IF, &previp);
 #endif
 
-  struct ip_info info {};
+  struct ip_info info{};
   info.ip = manual_ip->static_ip;
   info.gw = manual_ip->gateway;
   info.netmask = manual_ip->subnet;
@@ -220,7 +229,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   uint8_t index = 0;
   // addrList enumerates all lwIP netifs, including the SoftAP / fallback hotspot. Filter out
   // the AP address so the STA address is reported as the device IP (see issue #17181).
-  struct ip_info ap_ip {};
+  struct ip_info ap_ip{};
   wifi_get_ip_info(SOFTAP_IF, &ap_ip);
   network::IPAddress ap_address(&ap_ip.ip);
   bool filter_ap = ap_address.is_set();
@@ -262,7 +271,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   this->wifi_disconnect_();
 
-  struct station_config conf {};
+  struct station_config conf{};
   memset(&conf, 0, sizeof(conf));
   if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "SSID too long");
@@ -282,7 +291,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     conf.bssid_set = 0;
   }
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   if (ap.password_.empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
@@ -299,7 +307,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     }
   }
   conf.threshold.rssi = -127;
-#endif
 
   ETS_UART_INTR_DISABLE();
   bool ret = wifi_station_set_config_current(&conf);
@@ -369,17 +376,17 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   this->wifi_apply_hostname_();
 
-  // Reset flags, do this _before_ wifi_station_connect as the callback method
-  // may be called from wifi_station_connect
-  this->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::CONNECTING);
-
   ETS_UART_INTR_DISABLE();
   ret = wifi_station_connect();
   ETS_UART_INTR_ENABLE();
   if (!ret) {
     ESP_LOGV(TAG, "wifi_station_connect failed");
+    this->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_FAILED);
     return false;
   }
+  // Reset after, not before: wifi_station_connect() synchronously reports the attempt it replaces as failed
+  this->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::CONNECTING);
+  this->error_from_callback_ = false;
 
 #if USE_NETWORK_IPV6
   bool connected = false;
@@ -516,13 +523,16 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                  (const char *) it.ssid);
         global_wifi_component->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_NOT_FOUND);
       } else {
-        char bssid_s[18];
+        char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(it.bssid, bssid_s);
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                  (const char *) it.ssid, bssid_s, LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
         global_wifi_component->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_FAILED);
       }
       global_wifi_component->error_from_callback_ = true;
+#if LWIP_VERSION_MAJOR != 1
+      sta_netif_down();
+#endif
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       global_wifi_component->pending_.disconnect = true;
 #endif
@@ -536,6 +546,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
+#if LWIP_VERSION_MAJOR != 1
+        sta_netif_down();
+#endif
         wifi_station_disconnect();
         global_wifi_component->error_from_callback_ = true;
       }
@@ -559,6 +572,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_STACONNECTED: {
+#ifdef USE_WIFI_AP
+      global_wifi_component->ap_clients_++;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_connected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -568,6 +584,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_STADISCONNECTED: {
+#ifdef USE_WIFI_AP
+      if (global_wifi_component->ap_clients_ > 0)
+        global_wifi_component->ap_clients_--;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_disconnected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -585,7 +605,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 #endif
       break;
     }
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
     case EVENT_OPMODE_CHANGED: {
       auto it = event->event_info.opmode_changed;
       ESP_LOGV(TAG, "Changed Mode old=%s new=%s", LOG_STR_ARG(get_op_mode_str(it.old_opmode)),
@@ -603,7 +622,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 #endif
       break;
     }
-#endif
     default:
       break;
   }
@@ -682,13 +700,12 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   // (e.g., roaming scan completed just before unexpected disconnect)
   this->scan_done_ = false;
 
-  struct scan_config config {};
+  struct scan_config config{};
   memset(&config, 0, sizeof(config));
   config.ssid = nullptr;
   config.bssid = nullptr;
   config.channel = 0;
   config.show_hidden = 1;
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   config.scan_type = passive ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
   // Use shorter dwell times for roaming scans - we only need to detect strong
   // nearby APs, not do a thorough survey. This also reduces off-channel time
@@ -700,14 +717,13 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   static constexpr uint32_t SCAN_ACTIVE_MAX_DEFAULT_MS = 500;
   static constexpr uint32_t SCAN_ACTIVE_MIN_ROAMING_MS = 100;
   static constexpr uint32_t SCAN_ACTIVE_MAX_ROAMING_MS = 300;
-  bool roaming = this->roaming_state_ == RoamingState::SCANNING;
+  bool roaming = this->is_roaming_scan_active();
   if (passive) {
     config.scan_time.passive = roaming ? SCAN_PASSIVE_ROAMING_MS : SCAN_PASSIVE_DEFAULT_MS;
   } else {
     config.scan_time.active.min = roaming ? SCAN_ACTIVE_MIN_ROAMING_MS : SCAN_ACTIVE_MIN_DEFAULT_MS;
     config.scan_time.active.max = roaming ? SCAN_ACTIVE_MAX_ROAMING_MS : SCAN_ACTIVE_MAX_DEFAULT_MS;
   }
-#endif
   bool ret = wifi_station_scan(&config, &WiFiComponent::s_wifi_scan_done_callback);
   if (!ret) {
     ESP_LOGV(TAG, "wifi_station_scan failed");
@@ -719,8 +735,12 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 bool WiFiComponent::wifi_disconnect_() {
   bool ret = true;
   // Only call disconnect if interface is up
-  if (wifi_get_opmode() & WIFI_STA)
+  if (wifi_get_opmode() & WIFI_STA) {
+#if LWIP_VERSION_MAJOR != 1
+    sta_netif_down();
+#endif
     ret = wifi_station_disconnect();
+  }
   station_config conf{};
   memset(&conf, 0, sizeof(conf));
   ETS_UART_INTR_DISABLE();
@@ -760,7 +780,11 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     }
   }
 
-  this->scan_result_.init(count);  // Exact allocation
+  if (!this->scan_result_.try_init(count)) {
+    ESP_LOGW(TAG, "No memory for %zu scan results", count);
+    this->scan_done_ = true;
+    return;
+  }
 
   // Second pass: store matching networks
   for (bss_info *it = head; it != nullptr; it = STAILQ_NEXT(it, next)) {
@@ -787,7 +811,7 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   if (!this->wifi_mode_({}, true))
     return false;
 
-  struct ip_info info {};
+  struct ip_info info{};
   if (manual_ip.has_value()) {
     info.ip = manual_ip->static_ip;
     info.gw = manual_ip->gateway;
@@ -809,11 +833,11 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
+#if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
   dhcpSoftAP.begin(&info);
 #endif
 
-  struct dhcps_lease lease {};
+  struct dhcps_lease lease{};
   lease.enable = true;
   network::IPAddress start_address = network::IPAddress(&info.ip);
   start_address += 99;
@@ -860,7 +884,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
 
-  struct softap_config conf {};
+  struct softap_config conf{};
   if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "AP SSID too long");
     return false;
@@ -909,7 +933,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
-  struct ip_info ip {};
+  struct ip_info ip{};
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return network::IPAddress(&ip.ip);
 }
@@ -917,24 +941,14 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
-  struct station_config conf {};
+  struct station_config conf{};
   if (wifi_station_get_config(&conf)) {
     std::copy_n(conf.bssid, bssid.size(), bssid.begin());
   }
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid() {
-  struct station_config conf {};
-  if (!wifi_station_get_config(&conf)) {
-    return "";
-  }
-  // conf.ssid is uint8[32], not null-terminated if full
-  auto *ssid_s = reinterpret_cast<const char *>(conf.ssid);
-  size_t len = strnlen(ssid_s, sizeof(conf.ssid));
-  return {ssid_s, len};
-}
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
-  struct station_config conf {};
+  struct station_config conf{};
   if (!wifi_station_get_config(&conf)) {
     buffer[0] = '\0';
     return buffer.data();
@@ -954,12 +968,12 @@ int8_t WiFiComponent::wifi_rssi() {
 }
 int32_t WiFiComponent::get_wifi_channel() { return wifi_get_channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() {
-  struct ip_info ip {};
+  struct ip_info ip{};
   wifi_get_ip_info(STATION_IF, &ip);
   return network::IPAddress(&ip.netmask);
 }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() {
-  struct ip_info ip {};
+  struct ip_info ip{};
   wifi_get_ip_info(STATION_IF, &ip);
   return network::IPAddress(&ip.gw);
 }

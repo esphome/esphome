@@ -1,10 +1,11 @@
 import logging
 import math
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_B_CONSTANT
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -37,14 +38,17 @@ from esphome.const import (
     CONF_REFERENCE_TEMPERATURE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
+    CONF_SENSOR_ID,
     CONF_STATE_CLASS,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_OFFSET,
     CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
+    CONF_TYPE_ID,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_USE_FAHRENHEIT,
     CONF_VALUE,
-    CONF_WEB_SERVER,
     CONF_WINDOW_SIZE,
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -110,10 +114,20 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    Lambda,
+    coroutine_with_priority,
+    entity_helpers,
+)
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
+    SubEntities,
     entity_duplicate_validator,
+    lazy_load_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -121,9 +135,11 @@ from esphome.core.entity_helpers import (
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "sensor"
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
@@ -218,6 +234,13 @@ def validate_send_first_at(value):
 FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 
+# Default for streamed readings (radar sensors): hold the last value for a second so a dropped
+# frame doesn't read as absence, then rate limit. Codegen turns the pair into one TimeoutThrottleFilter.
+TIMEOUT_THROTTLE_FILTERS = [
+    {"timeout": {"timeout": cv.TimePeriod(milliseconds=1000), "value": "last"}},
+    {"throttle_with_priority": cv.TimePeriod(milliseconds=1000)},
+]
+
 
 def validate_datapoint(value):
     if isinstance(value, dict):
@@ -255,7 +278,6 @@ SensorPtr = Sensor.operator("ptr")
 ValueRangeTrigger = sensor_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
-SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 
 # Filters
 Filter = sensor_ns.class_("Filter")
@@ -290,6 +312,7 @@ ThrottleWithPriorityNanFilter = sensor_ns.class_(
 TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
 TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
 TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
+TimeoutThrottleFilter = sensor_ns.class_("TimeoutThrottleFilter", TimeoutFilterLast)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
@@ -297,6 +320,7 @@ OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
 ToNTCTemperatureFilter = sensor_ns.class_("ToNTCTemperatureFilter", Filter)
+RHCorrectionFilter = sensor_ns.class_("RHCorrectionFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
@@ -314,12 +338,14 @@ validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(zigbee.SENSOR_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_SENSOR_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTSensorComponent")
+            ),
             cv.GenerateID(): cv.declare_id(Sensor),
             cv.Optional(
                 CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
@@ -343,7 +369,9 @@ _SENSOR_SCHEMA = (
                 cv.requires_component("mqtt"),
                 cv.Any(None, cv.positive_time_period_milliseconds),
             ),
-            cv.Optional(CONF_FILTERS): validate_filters,
+            cv.Optional(
+                CONF_FILTERS, visibility=cv.Visibility.ADVANCED
+            ): validate_filters,
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
@@ -359,7 +387,7 @@ _SENSOR_SCHEMA = (
 )
 
 _SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
-_SENSOR_SCHEMA.add_extra(zigbee.validate_sensor)
+_SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 
 
 def sensor_schema(
@@ -406,16 +434,30 @@ async def multiply_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, template_)
 
 
+TemplatableFloat = cg.esphome_ns.class_("TemplatableFn").template(cg.float_)
+
+
+async def _value_list_table(values: list[Any]) -> MockObj:
+    """PROGMEM value table, ended by an empty entry so filters store no count."""
+    fns = [await cg.templatable(x, [], cg.float_) for x in values]
+    # Identical lambdas (e.g. a YAML anchor) may keep static state, so only constants share.
+    return cg.shared_progmem_array(
+        "sensor_value_list",
+        TemplatableFloat,
+        [*fns, TemplatableFloat()],
+        share=not any(isinstance(v, Lambda) for v in values),
+    )
+
+
 @FILTER_REGISTRY.register(
     "filter_out",
     FilterOutValueFilter,
     cv.Any(cv.templatable(cv.float_), [cv.templatable(cv.float_)]),
 )
-async def filter_out_filter_to_code(config, filter_id):
+async def filter_out_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     if not isinstance(config, list):
         config = [config]
-    template_ = [await cg.templatable(x, [], cg.float_) for x in config]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(template_)), template_)
+    return cg.new_Pvariable(filter_id, await _value_list_table(config))
 
 
 QUANTILE_SCHEMA = cv.All(
@@ -657,7 +699,7 @@ async def delta_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
 async def or_filter_to_code(config, filter_id):
     filters = await build_filters(config)
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(filters)), filters)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(filters)), *filters)
 
 
 @FILTER_REGISTRY.register(
@@ -678,12 +720,20 @@ THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
 )
 
 
+def _is_nan_only(values: Any) -> bool:
+    if not isinstance(values, list):
+        values = [values]
+    return bool(values) and all(isinstance(v, float) and math.isnan(v) for v in values)
+
+
 @FILTER_REGISTRY.register(
     "throttle_with_priority",
     ThrottleWithPriorityFilter,
     THROTTLE_WITH_PRIORITY_SCHEMA,
 )
-async def throttle_with_priority_filter_to_code(config, filter_id):
+async def throttle_with_priority_filter_to_code(
+    config: ConfigType, filter_id: ID
+) -> MockObj:
     values = config[CONF_VALUE]
     if not isinstance(values, list):
         values = [values]
@@ -691,14 +741,12 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
     # omits `value:`) to avoid the TemplatableFn<float> array + NaN lambda the
     # generic ValueListFilter path requires. Behavior is identical: NaN sensor
     # readings always bypass the throttle.
-    if values and all(isinstance(v, float) and math.isnan(v) for v in values):
+    if _is_nan_only(values):
         filter_id = filter_id.copy()
         filter_id.type = ThrottleWithPriorityNanFilter
         return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
-    template_ = [await cg.templatable(x, [], cg.float_) for x in values]
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(template_)), config[CONF_TIMEOUT], template_
-    )
+    table = await _value_list_table(values)
+    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], table)
 
 
 HEARTBEAT_SCHEMA = cv.Schema(
@@ -785,6 +833,9 @@ def validate_calibrate_linear(config):
     return config
 
 
+LINEAR_SEGMENT = cg.std_ns.class_("array").template(cg.float_, 3)
+
+
 @FILTER_REGISTRY.register(
     "calibrate_linear",
     CalibrateLinearFilter,
@@ -811,9 +862,11 @@ async def calibrate_linear_filter_to_code(config, filter_id):
         linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
-    return cg.new_Pvariable(
-        filter_id, cg.TemplateArguments(len(linear_functions)), linear_functions
+    # The last segment always has a NaN boundary, so the filter needs no count.
+    table = cg.shared_progmem_array(
+        "sensor_calibrate_linear", LINEAR_SEGMENT, linear_functions
     )
+    return cg.new_Pvariable(filter_id, table)
 
 
 CONF_DEGREE = "degree"
@@ -851,7 +904,11 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(res)), res)
+    # The first entry holds the coefficient count, so the filter needs no count field.
+    table = cg.shared_progmem_array(
+        "sensor_calibrate_polynomial", cg.float_, [float(len(res)), *res]
+    )
+    return cg.new_Pvariable(filter_id, table)
 
 
 def validate_clamp(config):
@@ -936,6 +993,43 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
+def _timeout_throttle_period(
+    first: ConfigType, second: ConfigType
+) -> cv.TimePeriod | None:
+    """Period of a `timeout` (value `last`) directly followed by a NaN only `throttle_with_priority`."""
+    timeout = first.get("timeout")
+    throttle = second.get("throttle_with_priority")
+    if not isinstance(timeout, dict) or not isinstance(throttle, dict):
+        return None
+    if timeout[CONF_VALUE] != "last" or timeout[CONF_TIMEOUT] != throttle[CONF_TIMEOUT]:
+        return None
+    if not _is_nan_only(throttle[CONF_VALUE]):
+        return None
+    return timeout[CONF_TIMEOUT]
+
+
+async def _build_chain_filters(config: list[ConfigType]) -> list:
+    """Like build_filters, but merges the radar `timeout` + `throttle_with_priority` pair into one filter."""
+    filters = []
+    i = 0
+    while i < len(config):
+        if (
+            i + 1 < len(config)
+            and (period := _timeout_throttle_period(config[i], config[i + 1]))
+            is not None
+        ):
+            filter_id = config[i][CONF_TYPE_ID].copy()
+            filter_id.type = TimeoutThrottleFilter
+            var = cg.new_Pvariable(filter_id, period)
+            await cg.register_component(var, {})
+            filters.append(var)
+            i += 2
+            continue
+        filters.append(await cg.build_registry_entry(FILTER_REGISTRY, config[i]))
+        i += 1
+    return filters
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_VALUE, "add_on_state_callback", [(float, "x")]
@@ -965,36 +1059,33 @@ async def _build_sensor_automations(var, config):
 async def setup_sensor_core_(var, config):
     setup_device_class(config)
     setup_unit_of_measurement(config)
-    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
-        cg.add(var.set_state_class(state_class))
-    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
-        cg.add(var.set_accuracy_decimals(accuracy_decimals))
+    cg.add_optional(var.set_state_class, config.get(CONF_STATE_CLASS))
+    cg.add_optional(var.set_accuracy_decimals, config.get(CONF_ACCURACY_DECIMALS))
     # Only set force_update if True (default is False)
     if config[CONF_FORCE_UPDATE]:
         cg.add(var.set_force_update(True))
     if config.get(CONF_FILTERS):  # must exist and not be empty
         cg.add_define("USE_SENSOR_FILTER")
-        filters = await build_filters(config[CONF_FILTERS])
-        cg.add(var.set_filters(filters))
+        filters = await _build_chain_filters(config[CONF_FILTERS])
+        for filter_ in filters:
+            cg.add(var.add_filter(filter_))
 
     CORE.add_job(_build_sensor_automations, var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None and (
+        (expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED))
+        is not cv.UNDEFINED
+    ):
+        if expire_after is None:
+            cg.add(mqtt_.disable_expire_after())
+        else:
+            cg.add(mqtt_.set_expire_after(expire_after))
 
-        if (
-            expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED)
-        ) is not cv.UNDEFINED:
-            if expire_after is None:
-                cg.add(mqtt_.disable_expire_after())
-            else:
-                cg.add(mqtt_.set_expire_after(expire_after))
+    if "zigbee" in CORE.loaded_integrations:
+        from esphome.components import zigbee
 
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
-
-    await zigbee.setup_sensor(var, config)
+        await zigbee.setup_sensor(var, config)
 
 
 async def register_sensor(var, config):
@@ -1009,6 +1100,13 @@ async def new_sensor(config, *args):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_sensor(var, config)
     return var
+
+
+def sub_sensors(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_sensor."""
+    return SubEntities(new_sensor, config, parent)
 
 
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
@@ -1028,10 +1126,8 @@ async def sensor_in_range_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(condition_id, template_arg, paren)
 
-    if (above := config.get(CONF_ABOVE)) is not None:
-        cg.add(var.set_min(above))
-    if (below := config.get(CONF_BELOW)) is not None:
-        cg.add(var.set_max(below))
+    cg.add_optional(var.set_min, config.get(CONF_ABOVE))
+    cg.add_optional(var.set_max, config.get(CONF_BELOW))
 
     return var
 
@@ -1196,6 +1292,23 @@ async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
     )
 
 
+@FILTER_REGISTRY.register(
+    "rh_correction",
+    RHCorrectionFilter,
+    cv.Schema(
+        {
+            cv.Required(CONF_TEMPERATURE_OFFSET): cv.templatable(cv.float_),
+            cv.Required(CONF_SENSOR_ID): cv.use_id(Sensor),
+            cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
+        }
+    ),
+)
+async def rh_correction_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
+    sensor = await cg.get_variable(config[CONF_SENSOR_ID])
+    offset = await cg.templatable(config[CONF_TEMPERATURE_OFFSET], [], cg.float_)
+    return cg.new_Pvariable(filter_id, offset, sensor, config[CONF_USE_FAHRENHEIT])
+
+
 def _mean(xs):
     return sum(xs) / len(xs)
 
@@ -1303,3 +1416,8 @@ def _lstsq(a, b):
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(sensor_ns.using)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"filter.cpp": "USE_SENSOR_FILTER"}
+)

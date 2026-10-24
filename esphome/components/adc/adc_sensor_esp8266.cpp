@@ -13,7 +13,7 @@ ADC_MODE(ADC_VCC)
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc.esp8266";
+ESPHOME_LOG_TAG(TAG, "adc");
 
 void ADCSensor::setup() {
 #ifndef USE_ADC_SENSOR_VCC

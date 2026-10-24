@@ -1,12 +1,12 @@
 import glob
 import hashlib
 import json
-import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
+from esphome.components import esp32 as esp32_module
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
@@ -16,21 +16,26 @@ from esphome.const import (
 )
 from esphome.core import CORE, Library
 from esphome.espidf.component import (
+    _emit_idf_component,
+    _remove_stale_sbom_yml,
     generate_cmakelists_txt,
     generate_idf_component_yml,
     generate_idf_components,
+    generate_sbom_yml,
 )
 import esphome.platformio.library
 from esphome.platformio.library import (
+    ESPHOME_DATA_KEY,
+    ESPHOME_DATA_LINK_FLAGS_KEY,
     ConvertedLibrary as IDFComponent,
     GitSource,
     URLSource,
     _node_key,
-    _normalize_dependencies,
-    _parse_library_json,
-    _parse_library_properties,
     _resolve_registry_version,
     collect_filtered_files,
+    normalize_dependencies,
+    parse_library_json,
+    parse_library_properties,
     split_list_by_condition,
 )
 
@@ -155,6 +160,62 @@ def test_generate_cmakelists_txt_basic(tmp_component):
     assert "main.c" in content
 
 
+def test_generate_cmakelists_txt_external_source_uses_absolute_paths(
+    tmp_component, tmp_path
+):
+    # A local library's sources live outside the component dir (source_path),
+    # so SRCS and INCLUDE_DIRS must be emitted as absolute paths into it.
+    source = tmp_path / "user_lib"
+    (source / "src").mkdir(parents=True)
+    (source / "include").mkdir()
+    (source / "src" / "thing.cpp").write_text("int t;")
+    tmp_component.source_path = source
+    tmp_component.data = {}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    abs_src = str((source / "src" / "thing.cpp").resolve()).replace("\\", "/")
+    abs_inc = str((source / "include").resolve()).replace("\\", "/")
+    assert abs_src in content
+    assert abs_inc in content
+    # Nothing was copied into the component dir.
+    assert not (tmp_component.path / "src").exists()
+
+
+def test_generate_cmakelists_txt_external_source_absolutises_link_dirs(
+    tmp_component, tmp_path
+):
+    # A local library's relative -L path must be made absolute against its own
+    # directory so it resolves from the component cache dir.
+    source = tmp_path / "user_lib"
+    (source / "src").mkdir(parents=True)
+    (source / "src" / "thing.cpp").write_text("int t;")
+    (source / "libs").mkdir()
+    tmp_component.source_path = source
+    tmp_component.data = {"build": {"flags": ["-Llibs"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    abs_lib = str((source / "libs").resolve()).replace("\\", "/")
+    assert "target_link_directories" in content
+    assert abs_lib in content
+
+
+def test_generate_cmakelists_txt_external_source_root_srcdir(tmp_component, tmp_path):
+    # An external source with files at its root (no src/ or include/ dir):
+    # the src-dir search falls through to "." and the missing include dirs are
+    # filtered out.
+    source = tmp_path / "flat_lib"
+    source.mkdir()
+    (source / "thing.cpp").write_text("int t;")
+    tmp_component.source_path = source
+    tmp_component.data = {}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert str((source / "thing.cpp").resolve()).replace("\\", "/") in content
+
+
 def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
     src_dir = tmp_component.path / "src"
     src_dir.mkdir()
@@ -195,6 +256,20 @@ target_link_libraries(${COMPONENT_LIB} INTERFACE
     )
 
 
+def test_generate_cmakelists_txt_optimisation_flags_are_private(
+    tmp_component: IDFComponent,
+) -> None:
+    # A library built with -O2 must not change how the components that use it are compiled
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {"build": {"flags": ["-O2", "-DTEST"]}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert 'target_compile_options(${COMPONENT_LIB} PUBLIC\n  "-DTEST"\n)' in content
+    assert 'target_compile_options(${COMPONENT_LIB} PRIVATE\n  "-O2"\n)' in content
+
+
 def test_generate_cmakelists_txt_uses_forward_slashes_on_windows(
     tmp_component, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -233,6 +308,38 @@ def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
     content = generate_cmakelists_txt(tmp_component)
     assert '"-include cp_custom_alloc.h"' not in content
     assert '  "-include"\n  "cp_custom_alloc.h"\n' in content
+
+
+def test_generate_cmakelists_txt_escapes_embedded_quotes(tmp_component):
+    """A define value carrying a literal quote survives into CMake as an
+    escaped quote, not a prematurely-terminated string."""
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    # shlex keeps the backslash-escaped quotes as literal characters
+    tmp_component.data = {"build": {"flags": ['-DMSG=\\"hi\\"']}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert '"-DMSG=\\"hi\\""' in content
+
+
+def test_generate_cmakelists_txt_extra_script_link_flags(tmp_component):
+    """Captured extra-script LINKFLAGS come out as target_link_options, not
+    compile options where they would be silently ineffective."""
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+
+    tmp_component.data = {
+        ESPHOME_DATA_KEY: {ESPHOME_DATA_LINK_FLAGS_KEY: ["-Wl,--gc-sections"]}
+    }
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert (
+        'target_link_options(${COMPONENT_LIB} INTERFACE\n  "-Wl,--gc-sections"\n)'
+        in content
+    )
+    assert "target_compile_options" not in content
 
 
 def test_generate_cmakelists_txt_space_separated_classified_flags(tmp_component):
@@ -276,11 +383,73 @@ def test_generate_cmakelists_txt_references_project_managed_components_variable(
     assert "${ESPHOME_PROJECT_MANAGED_COMPONENTS}" in content
 
 
+def test_generate_cmakelists_txt_uses_declared_src_dir(
+    tmp_component: IDFComponent,
+) -> None:
+    """A library.json srcDir is used as is instead of probing src/Src/."""
+    lib_dir = tmp_component.path / "lib"
+    lib_dir.mkdir()
+    (lib_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {"build": {"srcDir": "lib"}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert "SRCS" in content
+    assert "main.c" in content
+    assert "INCLUDE_DIRS" in content
+
+
+def test_generate_cmakelists_txt_without_include_dirs(
+    tmp_component: IDFComponent,
+) -> None:
+    """No INCLUDE_DIRS line when none of the include directories exist."""
+    tmp_component.data = {"build": {"srcDir": "missing"}}
+
+    content = generate_cmakelists_txt(tmp_component)
+
+    assert "INCLUDE_DIRS" not in content
+
+
+def test_generate_idf_component_yml_with_several_dependencies(
+    tmp_component: IDFComponent, tmp_path: Path
+) -> None:
+    """Every dependency lands under one shared dependencies section."""
+    deps = []
+    for name in ("dep_a", "dep_b"):
+        dep = IDFComponent(name, "1.0", source=URLSource("http://dummy.com"))
+        dep.path = tmp_path / name
+        deps.append(dep)
+    tmp_component.dependencies = deps
+    tmp_component.data = {}
+
+    result = generate_idf_component_yml(tmp_component)
+
+    assert result == (
+        "dependencies:\n"
+        "  dep_a:\n"
+        f"    override_path: {deps[0].path}\n"
+        "  dep_b:\n"
+        f"    override_path: {deps[1].path}\n"
+    )
+
+
 def test_generate_idf_component_yml_basic(tmp_component):
     tmp_component.data = {"description": "test", "repository": {"url": "http://aaa"}}
     result = generate_idf_component_yml(tmp_component)
 
     assert result == "description: test\nrepository: http://aaa\n"
+
+
+def test_generate_idf_component_yml_tolerates_malformed_metadata(tmp_component):
+    """A string repository is the URL itself; junk shapes drop instead of
+    crashing on a third-party manifest."""
+    tmp_component.data = {"description": "test", "repository": "http://aaa"}
+    assert (
+        generate_idf_component_yml(tmp_component)
+        == "description: test\nrepository: http://aaa\n"
+    )
+    tmp_component.data = {"description": {"en": "x"}, "repository": 123}
+    assert generate_idf_component_yml(tmp_component) == "{}\n"
 
 
 def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
@@ -313,133 +482,11 @@ def test_generate_idf_component_yml_missing_path_raises(tmp_component):
         generate_idf_component_yml(tmp_component)
 
 
-def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
-    from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
-
-    (tmp_path / "src" / "esp32").mkdir(parents=True)
-    script = tmp_path / "extra_script.py"
-    script.write_text(
-        "Import('env')\n"
-        "mcu = env.get('BOARD_MCU')\n"
-        "env.Append(\n"
-        "    LIBPATH=[join('src', mcu)],\n"
-        "    LIBS=['algobsec'],\n"
-        "    CPPDEFINES=['FOO', ('BAR', '1')],\n"
-        "    LINKFLAGS=['-Wl,--gc-sections'],\n"
-        ")\n"
-    )
-    # The script uses bare ``join`` (PIO's extra-scripts run inside SCons
-    # where this is in scope). Inject it via the script header so the
-    # shim's exec namespace can resolve it.
-    script.write_text("from os.path import join\n" + script.read_text())
-
-    result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
-
-    assert result.libpath == [str(Path("src") / "esp32")]
-    assert result.libs == ["algobsec"]
-    assert ("BAR", "1") in result.cppdefines
-    assert "FOO" in result.cppdefines
-    assert result.linkflags == ["-Wl,--gc-sections"]
-
-    flags = captured_as_build_flags(result, library_dir=tmp_path)
-    sep = os.sep
-    assert f"-Lsrc{sep}esp32" in flags
-    assert "-lalgobsec" in flags
-    assert "-DFOO" in flags
-    assert "-DBAR=1" in flags
-    assert "-Wl,--gc-sections" in flags
-
-
-def test_extra_script_libpath_relative_resolves_against_library_dir(
-    tmp_path, monkeypatch
-):
-    """Relative LIBPATH entries must resolve against ``library_dir``, not the
-    caller's CWD (the shim restores CWD before ``captured_as_build_flags``
-    runs)."""
-    from esphome.espidf.extra_script import ExtraScriptResult, captured_as_build_flags
-
-    (tmp_path / "lib" / "esp32").mkdir(parents=True)
-    elsewhere = tmp_path.parent / "not_the_library_dir"
-    elsewhere.mkdir(exist_ok=True)
-    monkeypatch.chdir(elsewhere)
-
-    result = ExtraScriptResult(libpath=["lib/esp32"])
-    flags = captured_as_build_flags(result, library_dir=tmp_path)
-
-    sep = os.sep
-    assert flags == [f"-Llib{sep}esp32"]
-
-
-def test_extra_script_libpath_absolute_outside_library_dir(tmp_path):
-    from esphome.espidf.extra_script import ExtraScriptResult, captured_as_build_flags
-
-    outside = tmp_path.parent / "system_lib"
-    outside.mkdir(exist_ok=True)
-    result = ExtraScriptResult(libpath=[str(outside)])
-
-    flags = captured_as_build_flags(result, library_dir=tmp_path)
-    assert flags == [f"-L{outside.resolve()}"]
-
-
-def test_extra_script_failure_returns_empty_result(tmp_path, caplog):
-    from esphome.espidf.extra_script import run_extra_script
-
-    script = tmp_path / "broken.py"
-    script.write_text("raise RuntimeError('boom')\n")
-
-    with caplog.at_level("WARNING"):
-        result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
-
-    assert result.libpath == []
-    assert result.libs == []
-    assert "broken.py" in caplog.text
-
-
-def test_apply_extra_script_path_traversal_is_rejected(tmp_path):
-    from esphome.espidf.component import _apply_extra_script
-
-    library_dir = tmp_path / "lib"
-    library_dir.mkdir()
-    outside = tmp_path / "evil.py"
-    outside.write_text("env.Append(LIBS=['pwned'])\n")
-
-    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
-    c.path = library_dir
-    c.data = {"build": {"extraScript": "../evil.py"}}
-
-    _apply_extra_script(c)
-
-    # Nothing was folded into flags: the traversal was rejected before
-    # the script could run.
-    assert "flags" not in c.data["build"]
-
-
-def test_apply_extra_script_merges_into_existing_flags(tmp_path, monkeypatch):
-    from esphome.components import esp32 as esp32_module
-
-    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
-
-    from esphome.espidf.component import _apply_extra_script
-
-    (tmp_path / "src").mkdir()
-    script = tmp_path / "extra.py"
-    script.write_text("env.Append(LIBS=['algobsec'])\n")
-
-    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
-    c.path = tmp_path
-    c.data = {"build": {"extraScript": "extra.py", "flags": ["-DEXISTING"]}}
-
-    _apply_extra_script(c)
-
-    assert "-DEXISTING" in c.data["build"]["flags"]
-    assert "-lalgobsec" in c.data["build"]["flags"]
-
-
 def test_parse_library_json(tmp_path):
     f = tmp_path / "library.json"
     f.write_text(json.dumps({"name": "test"}))
 
-    result = _parse_library_json(f)
+    result = parse_library_json(f)
     assert result["name"] == "test"
 
 
@@ -454,7 +501,7 @@ empty=
 """
     )
 
-    result = _parse_library_properties(f)
+    result = parse_library_properties(f)
 
     assert result["name"] == "Test"
     assert result["version"] == "1.0"
@@ -462,70 +509,66 @@ empty=
 
 
 def test_node_key_git_with_ref():
-    key, is_git, locator = _node_key(
+    key, kind, locator = _node_key(
         "name", None, "https://github.com/foo/bar.git#v1.2.3"
     )
     assert key == "foo/bar"
-    assert is_git is True
+    assert kind == "git"
     assert locator == ("https://github.com/foo/bar.git", "v1.2.3")
 
 
 def test_node_key_git_branch_ref():
-    key, is_git, locator = _node_key(
+    key, kind, locator = _node_key(
         "name", None, "https://github.com/foo/bar.git#some-branch"
     )
-    assert (key, is_git, locator[1]) == ("foo/bar", True, "some-branch")
+    assert (key, kind, locator[1]) == ("foo/bar", "git", "some-branch")
 
 
 def test_node_key_git_no_ref():
-    _key, is_git, locator = _node_key("name", None, "https://github.com/foo/bar.git")
-    assert is_git is True
+    _key, kind, locator = _node_key("name", None, "https://github.com/foo/bar.git")
+    assert kind == "git"
     assert locator == ("https://github.com/foo/bar.git", None)
 
 
 def test_node_key_url_in_name_is_git():
     # add_library("https://github.com/x/y", None): PlatformIO accepted a bare
     # git URL as the library name, so the converter must too.
-    key, is_git, locator = _node_key(
-        "https://github.com/pstolarz/OneWireNg", None, None
-    )
+    key, kind, locator = _node_key("https://github.com/pstolarz/OneWireNg", None, None)
     assert key == "pstolarz/OneWireNg"
-    assert is_git is True
+    assert kind == "git"
     assert locator == ("https://github.com/pstolarz/OneWireNg", None)
 
 
 def test_node_key_url_in_name_with_ref():
-    key, is_git, locator = _node_key(
-        "https://github.com/foo/bar.git#v1.2.3", None, None
-    )
-    assert (key, is_git, locator) == (
+    key, kind, locator = _node_key("https://github.com/foo/bar.git#v1.2.3", None, None)
+    assert (key, kind, locator) == (
         "foo/bar",
-        True,
+        "git",
         ("https://github.com/foo/bar.git", "v1.2.3"),
     )
 
 
 def test_node_key_url_in_name_git_plus_prefix():
-    key, is_git, locator = _node_key("git+https://github.com/foo/bar", None, None)
-    assert (key, is_git, locator) == (
+    key, kind, locator = _node_key("git+https://github.com/foo/bar", None, None)
+    assert (key, kind, locator) == (
         "foo/bar",
-        True,
+        "git",
         ("https://github.com/foo/bar", None),
     )
 
 
 def test_node_key_git_plus_prefix_in_repository():
-    _key, is_git, locator = _node_key("name", None, "git+https://github.com/foo/bar")
-    assert (is_git, locator) == (True, ("https://github.com/foo/bar", None))
+    _key, kind, locator = _node_key("name", None, "git+https://github.com/foo/bar")
+    assert (kind, locator) == ("git", ("https://github.com/foo/bar", None))
 
 
 def test_node_key_custom_name_equals_url_is_git():
-    key, is_git, locator = _node_key(
+    key, kind, locator = _node_key(
         "OneWireNg=https://github.com/pstolarz/OneWireNg", None, None
     )
-    assert (key, is_git, locator) == (
+    assert (key, kind, locator) == (
         "pstolarz/OneWireNg",
-        True,
+        "git",
         ("https://github.com/pstolarz/OneWireNg", None),
     )
 
@@ -533,12 +576,68 @@ def test_node_key_custom_name_equals_url_is_git():
 def test_node_key_url_in_name_with_query_containing_equals():
     # A bare URL whose query string contains ``=`` must not be split by the
     # CustomName=URL handling.
-    key, is_git, locator = _node_key("https://host/x/y.git?ref=main", None, None)
-    assert (key, is_git, locator) == (
+    key, kind, locator = _node_key("https://host/x/y.git?ref=main", None, None)
+    assert (key, kind, locator) == (
         "x/y",
-        True,
+        "git",
         ("https://host/x/y.git?ref=main", None),
     )
+
+
+def test_node_key_file_url_in_repository_is_local():
+    # A plain file:// entry (PlatformIO's spelling for a local library folder)
+    # resolves as a local directory, keeping the custom name as the key. The
+    # path is the OS-native form of the URL (backslashes on Windows).
+    key, kind, (path, ref) = _node_key(
+        "TeslaBLE", None, "file:///config/esphome/lib_dev"
+    )
+    assert (key, kind, ref) == ("TeslaBLE", "local", None)
+    assert Path(path) == Path("/config/esphome/lib_dev")
+
+
+def test_node_key_bare_file_url_is_local_named_for_dir():
+    # Without a custom name the directory's own name becomes the key.
+    key, kind, (path, ref) = _node_key(None, None, "file:///opt/mylib")
+    assert (key, kind, ref) == ("mylib", "local", None)
+    assert Path(path) == Path("/opt/mylib")
+
+
+def test_node_key_custom_name_equals_file_url_is_local():
+    key, kind, (path, ref) = _node_key("Foo=file:///opt/mylib", None, None)
+    assert (key, kind, ref) == ("Foo", "local", None)
+    assert Path(path) == Path("/opt/mylib")
+
+
+def test_node_key_file_url_localhost_host_is_local():
+    # A localhost host is ignored; only the path identifies the directory.
+    key, kind, (path, ref) = _node_key(None, None, "file://localhost/opt/mylib")
+    assert (key, kind, ref) == ("mylib", "local", None)
+    assert Path(path) == Path("/opt/mylib")
+
+
+@pytest.mark.parametrize(
+    "url", ["file://server/share/lib", "file://lib_dev", "file://../mylib"]
+)
+def test_node_key_file_url_with_host_rejected(url: str) -> None:
+    # A real host, or a relative path whose first segment parses as the host,
+    # is rejected rather than silently resolved to the wrong directory.
+    with pytest.raises(RuntimeError, match="Unsupported host in file://"):
+        _node_key(None, None, url)
+
+
+@pytest.mark.parametrize("url", ["file:lib_dev", "file:./lib", "file:///"])
+def test_node_key_file_url_must_be_absolute(url: str) -> None:
+    # A relative path (no host, e.g. file:lib_dev) or a bare root (file:///)
+    # is rejected rather than resolved against the cwd or yielding an empty name.
+    with pytest.raises(RuntimeError, match="must be an absolute"):
+        _node_key(None, None, url)
+
+
+def test_node_key_git_plus_file_url_stays_git():
+    # git+file:// is an explicit local git repo, not a plain directory.
+    _key, kind, locator = _node_key("X", None, "git+file:///srv/foo.git")
+    assert kind == "git"
+    assert locator == ("file:///srv/foo.git", None)
 
 
 @pytest.mark.parametrize("name", ["http://[::1", "CustomName=http://[::1"])
@@ -550,44 +649,44 @@ def test_node_key_malformed_url_in_name_raises(name: str) -> None:
 
 
 def test_node_key_name_with_equals_but_no_url_is_registry():
-    key, is_git, locator = _node_key("FOO=BAR", "1.0", None)
-    assert (key, is_git, locator) == ("FOO=BAR", False, (None, "FOO=BAR"))
+    key, kind, locator = _node_key("FOO=BAR", "1.0", None)
+    assert (key, kind, locator) == ("FOO=BAR", "registry", (None, "FOO=BAR"))
 
 
 def test_node_key_version_url_still_ignored_when_name_plain():
     # A version that is a URL is handled by the dependency walk, not here;
     # a plain name must stay a registry spec regardless of version shape.
-    key, is_git, _locator = _node_key("bar", "https://github.com/foo/bar", None)
-    assert (key, is_git) == ("bar", False)
+    key, kind, _locator = _node_key("bar", "https://github.com/foo/bar", None)
+    assert (key, kind) == ("bar", "registry")
 
 
 def test_node_key_registry_owner_name():
-    key, is_git, locator = _node_key("foo/bar", "^1.0.0", None)
-    assert (key, is_git, locator) == ("foo/bar", False, ("foo", "bar"))
+    key, kind, locator = _node_key("foo/bar", "^1.0.0", None)
+    assert (key, kind, locator) == ("foo/bar", "registry", ("foo", "bar"))
 
 
 def test_node_key_registry_bare_name():
-    key, is_git, locator = _node_key("bar", "1.0", None)
-    assert (key, is_git, locator) == ("bar", False, (None, "bar"))
+    key, kind, locator = _node_key("bar", "1.0", None)
+    assert (key, kind, locator) == ("bar", "registry", (None, "bar"))
 
 
 def test_normalize_dependencies_none():
-    assert _normalize_dependencies(None) == []
+    assert normalize_dependencies(None) == []
 
 
 def test_normalize_dependencies_list_form():
     deps = [{"name": "foo", "version": "1.0"}]
-    assert _normalize_dependencies(deps) == [{"name": "foo", "version": "1.0"}]
+    assert normalize_dependencies(deps) == [{"name": "foo", "version": "1.0"}]
 
 
 def test_normalize_dependencies_dict_form():
-    out = _normalize_dependencies({"nanopb/Nanopb": "^0.4.91", "BareName": "1.2.3"})
+    out = normalize_dependencies({"nanopb/Nanopb": "^0.4.91", "BareName": "1.2.3"})
     assert {"name": "Nanopb", "owner": "nanopb", "version": "^0.4.91"} in out
     assert {"name": "BareName", "owner": None, "version": "1.2.3"} in out
 
 
 def test_normalize_dependencies_dict_form_nested_spec():
-    out = _normalize_dependencies(
+    out = normalize_dependencies(
         {"nanopb/Nanopb": {"version": "^0.4.91", "platforms": "espidf"}}
     )
     assert out == [
@@ -627,7 +726,7 @@ def _patch_registry(monkeypatch, versions):
 
 def test_resolve_registry_version_intersects_constraints(monkeypatch):
     _patch_registry(monkeypatch, ["1.10018.1", "1.10021.0", "1.10021.1"])
-    owner, name, version, url = _resolve_registry_version(
+    owner, name, version, url, _size = _resolve_registry_version(
         "esphome", "libsodium", {"==1.10021.0", "^1.10018.1"}
     )
     assert (owner, name, version) == ("esphome", "libsodium", "1.10021.0")
@@ -636,7 +735,9 @@ def test_resolve_registry_version_intersects_constraints(monkeypatch):
 
 def test_resolve_registry_version_picks_highest_satisfying(monkeypatch):
     _patch_registry(monkeypatch, ["1.0.0", "1.5.0", "2.0.0"])
-    _owner, _name, version, _url = _resolve_registry_version("o", "p", {"^1.0.0"})
+    _owner, _name, version, _url, _size = _resolve_registry_version(
+        "o", "p", {"^1.0.0"}
+    )
     assert version == "1.5.0"
 
 
@@ -686,7 +787,7 @@ def test_generate_idf_components_dedupes_shared_dependency(
         resolve_calls.append(pkgname)
         captured[f"{owner}/{pkgname}"] = set(requirements)
         version = "1.10021.0" if pkgname == "C" else "1.0.0"
-        return owner, pkgname, version, f"http://x/{pkgname}.tar.gz"
+        return owner, pkgname, version, f"http://x/{pkgname}.tar.gz", None
 
     monkeypatch.setattr(
         esphome.platformio.library, "_resolve_registry_version", fake_resolve
@@ -745,7 +846,7 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
 
     def fake_resolve(owner, pkgname, requirements):
         resolve_calls.append(pkgname)
-        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz"
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
 
     monkeypatch.setattr(
         esphome.platformio.library, "_resolve_registry_version", fake_resolve
@@ -766,6 +867,112 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
     # lib_ignore changes the generated wiring, so the cache path is salted to
     # keep this conversion separate from ones with a different lib_ignore.
     assert download_salts == [hashlib.sha256(b"b,c").hexdigest()[:8]]
+
+
+def test_generate_idf_components_managed_filters_top_level_and_dependencies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # managed (e.g. noise-c/libsodium already declared via add_idf_component)
+    # must drop B at the top level and C when discovered as a dependency of A,
+    # exactly like lib_ignore -- neither may be resolved, downloaded, or wired
+    # into a manifest.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [
+                {"owner": "esphome", "name": "C", "version": "==1.10021.0"}
+            ],
+        },
+        "esphome/B": {"name": "B"},
+    }
+
+    download_salts: list[str] = []
+
+    def fake_download(self, force=False, salt="", namespace=""):
+        download_salts.append(salt)
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+
+    resolve_calls: list[str] = []
+
+    def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+
+    monkeypatch.setattr(
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
+    )
+
+    top = generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)],
+        managed={"esphome/B", "esphome/C"},
+    )
+
+    assert [c.name for c in top] == ["esphome/A"]
+    # Managed libraries were never resolved (and therefore never downloaded).
+    assert resolve_calls == ["A"]
+    # The managed dependency is not wired into A's manifest.
+    assert top[0].dependencies == []
+    # managed changes the generated wiring just like lib_ignore, so the cache
+    # path is salted the same way.
+    assert download_salts == [hashlib.sha256(b"b,c").hexdigest()[:8]]
+
+
+def test_generate_idf_components_lib_ignore_and_managed_combine_into_salt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # lib_ignore and managed both contribute to the same exclusion set, so a
+    # config using both gets a salt reflecting the union of the two sources
+    # rather than either alone.
+    manifests = {
+        "esphome/A": {"name": "A"},
+        "esphome/D": {"name": "D"},
+        "esphome/E": {"name": "E"},
+    }
+
+    download_salts: list[str] = []
+
+    def fake_download(self, force=False, salt="", namespace=""):
+        download_salts.append(salt)
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+
+    resolve_calls: list[str] = []
+
+    def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
+
+    monkeypatch.setattr(
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
+    )
+    monkeypatch.setattr(CORE, "platformio_options", {"lib_ignore": ["D"]})
+
+    top = generate_idf_components(
+        [
+            Library("esphome/A", "1.0.0", None),
+            Library("esphome/D", "1.0.0", None),
+            Library("esphome/E", "1.0.0", None),
+        ],
+        managed={"esphome/E"},
+    )
+
+    assert [c.name for c in top] == ["esphome/A"]
+    assert resolve_calls == ["A"]
+    # The salt reflects BOTH lib_ignore's "D" and managed's "E" together.
+    assert download_salts == [hashlib.sha256(b"d,e").hexdigest()[:8]]
 
 
 def test_generate_idf_components_handles_dependency_cycle(
@@ -801,6 +1008,7 @@ def test_generate_idf_components_handles_dependency_cycle(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -858,6 +1066,7 @@ def test_generate_idf_components_git_overrides_registry_warns(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -894,6 +1103,7 @@ def test_generate_idf_components_missing_manifest_raises(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -938,6 +1148,7 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -971,6 +1182,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -1007,6 +1219,7 @@ def test_generate_idf_components_incompatible_dependency_skipped(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -1082,3 +1295,143 @@ def test_idf_component_download_passes_salt() -> None:
         "owner/name", force=True, salt="abcd1234", namespace="idf"
     )
     assert c.path == Path("/converted/owner/name")
+
+
+def test_emit_idf_component_wires_esp32_target(tmp_path, monkeypatch):
+    """Emitting a component resolves the esp32 variant into the shared
+    extraScript helper."""
+
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=[env.get('BOARD_MCU')])\n")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+    _emit_idf_component(c)
+    assert c.data["build"]["flags"] == ["-lesp32"]
+
+
+def test_generate_sbom_yml(tmp_component):
+    """The manifest carries the library's own name and version."""
+    tmp_component.data = {"name": "Lib", "version": "2.1.0", "license": "MIT"}
+    assert generate_sbom_yml(tmp_component) == (
+        "# Generated by ESPHome\nname: Lib\nversion: 2.1.0\n"
+    )
+
+    tmp_component.data = {"version": "2.1.0"}
+    assert generate_sbom_yml(tmp_component) == (
+        "# Generated by ESPHome\nname: owner/name\nversion: 2.1.0\n"
+    )
+
+    tmp_component.data = {"name": "Lib"}
+    assert generate_sbom_yml(tmp_component) is None
+
+
+def test_emit_idf_component_writes_sbom_yml(tmp_path, monkeypatch):
+    """ESPHome's own sbom.yml follows the library version and is removed without one."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    sbom_yml = tmp_path / "sbom.yml"
+
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    _emit_idf_component(c)
+    assert sbom_yml.read_text().endswith("version: 2.1.0\n")
+
+    # A refreshed git library updates library.json in place
+    c.data = {"name": "Lib", "version": "2.2.0"}
+    _emit_idf_component(c)
+    assert sbom_yml.read_text().endswith("version: 2.2.0\n")
+
+    c.data = {"name": "Lib"}
+    _emit_idf_component(c)
+    assert not sbom_yml.exists()
+
+
+def test_emit_idf_component_keeps_shipped_sbom_yml(tmp_path, monkeypatch):
+    """A library's own sbom.yml wins; a local library's is copied to its build dir."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    (tmp_path / "sbom.yml").write_text("name: shipped\n")
+    _emit_idf_component(c)
+    assert (tmp_path / "sbom.yml").read_text() == "name: shipped\n"
+
+    local = tmp_path / "local"
+    (local / "src").mkdir(parents=True)
+    (local / "sbom.yml").write_text("name: local\n")
+    build = tmp_path / "build"
+    build.mkdir()
+    c.path = build
+    c.source_path = local
+    _emit_idf_component(c)
+    assert (build / "sbom.yml").read_text() == "name: local\n"
+
+
+def test_emit_idf_component_sbom_yml_error_does_not_fail(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+):
+    """A library manifest that cannot be read is logged, not fatal."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "sbom.yml").write_bytes(b"\xff\xfe not utf-8")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    _emit_idf_component(c)
+    assert "could not write sbom.yml for owner/name" in caplog.text
+
+
+def test_emit_idf_component_sbom_yml_error_removes_generated(tmp_path, monkeypatch):
+    """After a failure, ESPHome's own stale sbom.yml is removed."""
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+    local = tmp_path / "local"
+    (local / "src").mkdir(parents=True)
+    (local / "sbom.yml").write_bytes(b"\xff\xfe not utf-8")
+    build = tmp_path / "build"
+    build.mkdir()
+    (build / "sbom.yml").write_text("# Generated by ESPHome\nname: Lib\nversion: 1.0\n")
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = build
+    c.source_path = local
+    c.data = {"name": "Lib", "version": "2.1.0"}
+    _emit_idf_component(c)
+    assert not (build / "sbom.yml").exists()
+
+    # A local library's build dir is ESPHome's, so an earlier copy goes too
+    (build / "sbom.yml").write_text("name: copied\n")
+    _emit_idf_component(c)
+    assert not (build / "sbom.yml").exists()
+
+
+@pytest.mark.parametrize(
+    ("content", "removed"),
+    [("name: shipped\n", False), ("# Generated by ESPHome\nname: Lib\n", True)],
+    ids=["shipped", "generated"],
+)
+def test_remove_stale_sbom_yml_in_library_dir(
+    tmp_component, content: str, removed: bool
+) -> None:
+    """Where the library's own files live, only ESPHome's generated file is removed."""
+    (tmp_component.path / "sbom.yml").write_text(content)
+    _remove_stale_sbom_yml(tmp_component)
+    assert (tmp_component.path / "sbom.yml").exists() is not removed
+
+
+def test_build_flags_dangling_flag_does_not_cross_entries(
+    tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Each entry is lexed independently, as ParseFlags does: a dangling -I ending one
+    entry warns instead of absorbing the next entry's first token."""
+    (tmp_path / "src").mkdir()
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"flags": ["-Wall -I", "-DFOO=1"]}}
+    content = generate_cmakelists_txt(c)
+    assert "FOO=1" in content
+    assert "-I-DFOO" not in content
+    assert "Ignoring trailing '-I'" in caplog.text

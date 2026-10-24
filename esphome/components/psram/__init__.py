@@ -115,7 +115,11 @@ def request_external_task_stack() -> None:
     ``to_code`` when the option is enabled. The sdkconfig option only permits external
     stacks; it does not move any stack into PSRAM on its own, so it stays opt-in per task.
     """
-    add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
+    # Renamed in ESP-IDF 5.4; the old name is still mapped there, but each configure reports it
+    if idf_version() >= cv.Version(5, 4, 0):
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM", True)
+    else:
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
 
 
 def validate_task_stack_in_psram(value: Any) -> bool:
@@ -129,7 +133,7 @@ def validate_task_stack_in_psram(value: Any) -> bool:
     return value
 
 
-def validate_psram_mode(config):
+def validate_psram_mode(config: ConfigType) -> ConfigType:
     esp32_config = fv.full_config.get()[PLATFORM_ESP32]
     if config[CONF_SPEED] == "120MHZ":
         if esp32_config[CONF_CPU_FREQUENCY] != "240MHZ":
@@ -203,7 +207,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _store_psram_guaranteed(config):
+def _store_psram_guaranteed(config: ConfigType) -> ConfigType:
     """Store PSRAM guaranteed status in CORE.data for other components.
 
     PSRAM is "guaranteed" when it will fail if not found, ensuring safe use
@@ -220,7 +224,7 @@ def _store_psram_guaranteed(config):
 FINAL_VALIDATE_SCHEMA = cv.All(validate_psram_mode, _store_psram_guaranteed)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if config[CONF_DISABLED]:
         return
     if CORE.using_arduino:

@@ -1,0 +1,23 @@
+# External RSA signing mode with a declared trusted-key list enables ESPHome's
+# own multi-key OTA signature verifier (USE_OTA_SIGNED_VERIFICATION_MULTI_KEY),
+# which accepts an image whose signature block matches one of the compiled-in
+# trusted keys. wifi + ota pull in the ota component so CI actually compiles that
+# verifier; allow_partition_access exercises the bootloader-update path too.
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      signed_ota_verification:
+        verification_keys:
+          - ../../components/esp32/dummy_signing_key.pem
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome
+    allow_partition_access: true
+
+<<: !include common.yaml

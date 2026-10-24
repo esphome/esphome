@@ -1,4 +1,4 @@
-#if defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -127,6 +127,19 @@ ClimateTraits AirConditioner::traits() {
   return traits;
 }
 
+#ifdef USE_REMOTE_TRANSMITTER
+static const LogString *display_control_str(DisplayControl control) {
+  switch (control) {
+    case DisplayControl::DISPLAY_CONTROL_UART:
+      return LOG_STR("UART");
+    case DisplayControl::DISPLAY_CONTROL_IR:
+      return LOG_STR("IR");
+    default:
+      return LOG_STR("AUTO");
+  }
+}
+#endif
+
 void AirConditioner::dump_config() {
   ESP_LOGCONFIG(Constants::TAG,
                 "MideaDongle:\n"
@@ -135,7 +148,10 @@ void AirConditioner::dump_config() {
                 "  [x] Request attempts: %d",
                 this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
 #ifdef USE_REMOTE_TRANSMITTER
-  ESP_LOGCONFIG(Constants::TAG, "  [x] Using RemoteTransmitter");
+  ESP_LOGCONFIG(Constants::TAG,
+                "  [x] Using RemoteTransmitter\n"
+                "  [x] Display control: %s",
+                LOG_STR_ARG(display_control_str(this->display_control_)));
 #endif
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK) {
     this->base_.getCapabilities().dump();
@@ -157,9 +173,8 @@ void AirConditioner::do_follow_me(float temperature, bool use_fahrenheit, bool b
     return;
   }
 
-  // Round and convert temperature to long, then clamp and convert it to uint8_t
-  uint8_t temp_uint8 =
-      static_cast<uint8_t>(esphome::clamp<long>(std::lroundf(temperature), 0L, static_cast<long>(UINT8_MAX)));
+  // Clamp to the uint8_t range before rounding so lroundf never sees an out-of-range value
+  uint8_t temp_uint8 = static_cast<uint8_t>(std::lroundf(esphome::clamp(temperature, 0.0f, 255.0f)));
 
   char temp_symbol = use_fahrenheit ? 'F' : 'C';
   ESP_LOGD(Constants::TAG, "Follow me action called with temperature: %.5f °%c, rounded to: %u °%c", temperature,
@@ -183,18 +198,22 @@ void AirConditioner::do_swing_step() {
 }
 
 void AirConditioner::do_display_toggle() {
-  if (this->base_.getCapabilities().supportLightControl()) {
-    this->base_.displayToggle();
-  } else {
 #ifdef USE_REMOTE_TRANSMITTER
+  // AUTO uses IR unless the appliance reports light control over UART. Without a transmitter
+  // built in, every setting sends the UART request: Mundoclima, Rotenso and others accept it
+  // without advertising it in the 0xB5 capabilities report.
+  const bool use_ir = this->display_control_ == DisplayControl::DISPLAY_CONTROL_IR ||
+                      (this->display_control_ == DisplayControl::DISPLAY_CONTROL_AUTO &&
+                       !this->base_.getCapabilities().supportLightControl());
+  if (use_ir) {
     IrSpecialData data(0x08);
     this->transmitter_.transmit(data);
-#else
-    ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
-#endif
+    return;
   }
+#endif
+  this->base_.displayToggle();
 }
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

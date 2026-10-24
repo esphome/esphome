@@ -16,8 +16,8 @@ class SplitBuffer {
   SplitBuffer() = default;
   ~SplitBuffer();
 
-  // Initialize the buffer with the desired total length
-  bool init(size_t total_length);
+  // Initialize the buffer with the desired total length; no sub-buffer will be larger than `max_buffer_size`
+  bool init(size_t total_length, size_t max_buffer_size = SIZE_MAX);
 
   // Free all allocated buffers
   void free();
@@ -26,6 +26,13 @@ class SplitBuffer {
   uint8_t &operator[](size_t index);
   const uint8_t &operator[](size_t index) const;
   void fill(uint8_t value) const;
+
+  // Pointer to the byte at `index`; `length` is set to how many bytes are contiguous from there.
+  // Returns nullptr with `length` 0 if `index` is out of range.
+  const uint8_t *get_span(size_t index, size_t &length) const;
+  uint8_t *get_span(size_t index, size_t &length);
+  // Copy `length` bytes from `data` into the buffer starting at `index`; bytes past the end are dropped.
+  void write(size_t index, const uint8_t *data, size_t length);
 
   // Get the total length
   size_t size() const { return this->total_length_; }

@@ -6,13 +6,13 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
     CONF_ENABLE_PIN,
-    CONF_ID,
     CONF_INPUT,
-    CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OUTPUT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@remcom"]
 DEPENDENCIES = ["i2c"]
@@ -50,7 +50,7 @@ PCM5122_CHANNEL_MIX_ENUM = {
 _validate_bits = cv.float_with_unit("bits", "bit")
 
 
-def _validate_volume_range(config):
+def _validate_volume_range(config: ConfigType) -> ConfigType:
     if config[CONF_VOLUME_MIN_DB] >= config[CONF_VOLUME_MAX_DB]:
         raise cv.Invalid(f"{CONF_VOLUME_MIN_DB} must be less than {CONF_VOLUME_MAX_DB}")
     return config
@@ -90,15 +90,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _validate_pin_mode(value):
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output, not both")
-    return value
-
-
-def _validate_pin(value):
+def _validate_pin(value: ConfigType) -> ConfigType:
     if value[CONF_MODE][CONF_INPUT] and value[CONF_NUMBER] == 6:
         raise cv.Invalid("GPIO6 cannot be used as input on the PCM5122")
     return value
@@ -109,7 +101,7 @@ PIN_SCHEMA = cv.All(
         PCM5122GPIOPin,
         cv.int_range(min=3, max=6),
         modes=[CONF_INPUT, CONF_OUTPUT],
-        mode_validator=_validate_pin_mode,
+        mode_validator=pins.gpio_validate_input_xor_output,
     ).extend(
         {
             cv.Required(CONF_PCM5122): cv.use_id(PCM5122),
@@ -120,26 +112,16 @@ PIN_SCHEMA = cv.All(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_PCM5122, PIN_SCHEMA)
-async def pcm5122_pin_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_parented(var, config[CONF_PCM5122])
-
-    cg.add(var.set_pin(config[CONF_NUMBER]))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
-    cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    return var
+async def pcm5122_pin_to_code(config: ConfigType) -> MockObj:
+    return await pins.new_parented_pin(config, CONF_PCM5122)
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
     cg.add(var.set_analog_gain(config[CONF_ANALOG_GAIN]))
     cg.add(var.set_channel_mix(config[CONF_CHANNEL_MIX]))
     cg.add(var.set_volume_min_db(config[CONF_VOLUME_MIN_DB]))
     cg.add(var.set_volume_max_db(config[CONF_VOLUME_MAX_DB]))
-    if enable_pin_config := config.get(CONF_ENABLE_PIN):
-        enable_pin = await cg.gpio_pin_expression(enable_pin_config)
-        cg.add(var.set_enable_pin(enable_pin))
+    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))

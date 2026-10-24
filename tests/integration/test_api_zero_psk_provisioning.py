@@ -10,34 +10,40 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import socket
 
 from aioesphomeapi import InvalidEncryptionKeyAPIError, RequiresEncryptionAPIError
 import pytest
 
-from .types import APIClientConnectedFactory, RunCompiledFunction
+from .conftest import run_binary_and_wait_for_port
+from .const import KEY_ACTIVATION_DELAY, LOCALHOST, PROVISIONING_PSK, ZERO_PSK
+from .state_utils import assert_device_name
+from .types import (
+    APIClientConnectedFactory,
+    CompileFunction,
+    ConfigWriter,
+    RunCompiledFunction,
+)
 
-# The well-known provisioning PSK: base64 of 32 zero bytes
-ZERO_PSK = base64.b64encode(bytes(32)).decode()
-# A real key to provision
-NEW_KEY = base64.b64encode(b"n" * 32)
-# Time for the device to activate a newly saved key (100ms timer plus margin)
-KEY_ACTIVATION_DELAY = 0.5
-
-
-@pytest.fixture(autouse=True)
-def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    """Keep host preferences per-test so every run starts unprovisioned."""
-    monkeypatch.setenv("ESPHOME_PREFDIR", str(tmp_path / "prefs"))
+NEW_KEY = PROVISIONING_PSK
 
 
 @pytest.mark.asyncio
 async def test_api_zero_psk_provisioning(
     yaml_config: str,
-    run_compiled: RunCompiledFunction,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Exercise the reject paths, then provision a key over the zero-PSK channel."""
-    async with run_compiled(yaml_config):
+    """Exercise the reject paths, provision a key over the zero-PSK channel,
+    and check the key comes back from preferences on the next boot."""
+    port, port_socket = reserved_tcp_port
+    config_path = await write_yaml_config(yaml_config)
+    binary_path = await compile_esphome(config_path)
+    port_socket.close()
+
+    async with run_binary_and_wait_for_port(binary_path, LOCALHOST, port):
         # --- Pre-provisioning reject paths (device state is unchanged) ---
 
         # A wrong (non-zero) PSK fails against the zero provisioning PSK
@@ -71,8 +77,7 @@ async def test_api_zero_psk_provisioning(
         # The unprovisioned device accepts the all-zeros PSK; the handshake's
         # ephemeral-ephemeral DH encrypts everything that follows
         async with api_client_connected(noise_psk=ZERO_PSK) as client:
-            device_info = await client.device_info()
-            assert device_info.name == "zero-psk-provision-test"
+            device_info = await assert_device_name(client, "zero-psk-provision-test")
             assert device_info.api_encryption_supported is True
             assert device_info.api_encryption_provisionable is True
 
@@ -83,8 +88,7 @@ async def test_api_zero_psk_provisioning(
 
         # The new key now works, and the device is no longer provisionable
         async with api_client_connected(noise_psk=NEW_KEY.decode()) as client:
-            device_info = await client.device_info()
-            assert device_info.name == "zero-psk-provision-test"
+            device_info = await assert_device_name(client, "zero-psk-provision-test")
             assert device_info.api_encryption_provisionable is False
 
         # The zero PSK no longer works
@@ -97,6 +101,19 @@ async def test_api_zero_psk_provisioning(
             async with api_client_connected(timeout=5) as client:
                 await client.device_info()
 
+    # The key is loaded from preferences on the next boot
+    lines: list[str] = []
+    async with run_binary_and_wait_for_port(
+        binary_path, LOCALHOST, port, line_callback=lines.append
+    ):
+        async with api_client_connected(noise_psk=NEW_KEY.decode()) as client:
+            device_info = await client.device_info()
+            assert device_info.api_encryption_provisionable is False
+        with pytest.raises(InvalidEncryptionKeyAPIError):
+            async with api_client_connected(noise_psk=ZERO_PSK, timeout=5) as client:
+                await client.device_info()
+    assert any("Loaded saved Noise PSK" in line for line in lines)
+
 
 @pytest.mark.asyncio
 async def test_api_zero_psk_provisioning_plaintext(
@@ -108,8 +125,7 @@ async def test_api_zero_psk_provisioning_plaintext(
     log_lines: list[str] = []
     async with run_compiled(yaml_config, line_callback=log_lines.append):
         async with api_client_connected() as client:
-            device_info = await client.device_info()
-            assert device_info.name == "zero-psk-plaintext-test"
+            await assert_device_name(client, "zero-psk-plaintext-test")
 
             assert await client.noise_encryption_set_key(NEW_KEY) is True
 
@@ -120,7 +136,7 @@ async def test_api_zero_psk_provisioning_plaintext(
 
         # The new key works; the zero PSK does not
         async with api_client_connected(noise_psk=NEW_KEY.decode()) as client:
-            assert (await client.device_info()).name == "zero-psk-plaintext-test"
+            await assert_device_name(client, "zero-psk-plaintext-test")
 
         with pytest.raises(InvalidEncryptionKeyAPIError):
             async with api_client_connected(noise_psk=ZERO_PSK, timeout=5) as client:

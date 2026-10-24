@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import logging
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -18,6 +19,8 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import boards
 from .const import KEY_BOARD, KEY_ESP8266, KEY_PIN_INITIAL_STATES, esp8266_ns
@@ -27,7 +30,7 @@ _LOGGER = logging.getLogger(__name__)
 ESP8266GPIOPin = esp8266_ns.class_("ESP8266GPIOPin", cg.InternalGPIOPin)
 
 
-def _lookup_pin(value):
+def _lookup_pin(value: str) -> int:
     board = CORE.data[KEY_ESP8266][KEY_BOARD]
     board_pins = boards.ESP8266_BOARD_PINS.get(board, {})
 
@@ -42,7 +45,7 @@ def _lookup_pin(value):
     raise cv.Invalid(f"Cannot resolve pin name '{value}' for board {board}.")
 
 
-def _translate_pin(value):
+def _translate_pin(value: Any) -> int:
     if isinstance(value, dict) or value is None:
         raise cv.Invalid(
             "This variable only supports pin numbers, not full pin schemas "
@@ -69,7 +72,7 @@ _ESP_SDIO_PINS = {
 }
 
 
-def validate_gpio_pin(value):
+def validate_gpio_pin(value: Any) -> int:
     value = _translate_pin(value)
     if value < 0 or value > 17:
         raise cv.Invalid(f"ESP8266: Invalid pin number: {value}")
@@ -86,7 +89,7 @@ def validate_gpio_pin(value):
     return value
 
 
-def validate_supports(value):
+def validate_supports(value: ConfigType) -> ConfigType:
     num = value[CONF_NUMBER]
     mode = value[CONF_MODE]
     is_input = mode[CONF_INPUT]
@@ -160,7 +163,7 @@ class PinInitialState:
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(PLATFORM_ESP8266, ESP8266_PIN_SCHEMA)
-async def esp8266_pin_to_code(config):
+async def esp8266_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     mode = config[CONF_MODE]
@@ -192,7 +195,7 @@ async def esp8266_pin_to_code(config):
 
 
 @coroutine_with_priority(CoroPriority.WORKAROUNDS)
-async def add_pin_initial_states_array():
+async def add_pin_initial_states_array() -> None:
     # Add includes at the very end, so that they override everything
     initial_states: list[PinInitialState] = CORE.data[KEY_ESP8266][
         KEY_PIN_INITIAL_STATES

@@ -69,7 +69,7 @@ class BME280Component : public PollingComponent {
   /// Set the oversampling value for the humidity sensor. Default is 16x.
   void set_humidity_oversampling(BME280Oversampling humidity_over_sampling);
   /// Set the IIR Filter used to increase accuracy, defaults to no IIR Filter.
-  void set_iir_filter(BME280IIRFilter iir_filter);
+  void set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -91,7 +91,7 @@ class BME280Component : public PollingComponent {
   virtual bool read_byte(uint8_t a_register, uint8_t *data) = 0;
   virtual bool write_byte(uint8_t a_register, uint8_t data) = 0;
   virtual bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
-  virtual bool read_byte_16(uint8_t a_register, uint16_t *data) = 0;
+  virtual bool read_byte_16_le(uint8_t a_register, uint16_t *data) = 0;
 
   BME280CalibrationData calibration_;
   BME280Oversampling temperature_oversampling_{BME280_OVERSAMPLING_16X};
@@ -101,11 +101,6 @@ class BME280Component : public PollingComponent {
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
-  enum ErrorCode {
-    NONE = 0,
-    COMMUNICATION_FAILED,
-    WRONG_CHIP_ID,
-  } error_code_{NONE};
 };
 
 }  // namespace esphome::bme280_base

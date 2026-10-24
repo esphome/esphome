@@ -1,7 +1,7 @@
 #include "runtime_image.h"
 #include "image_decoder.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -16,10 +16,13 @@
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include "png_decoder.h"
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+#include "qoi_decoder.h"
+#endif
 
 namespace esphome::runtime_image {
 
-static const char *const TAG = "runtime_image";
+ESPHOME_LOG_TAG(TAG, "runtime_image");
 
 // Widest supported format is 4 bytes/pixel, so 32767 * 32767 * 4 still fits a 32-bit size_t
 static constexpr int MAX_IMAGE_DIMENSION = 32767;
@@ -39,12 +42,11 @@ inline bool is_color_on(const Color &color) {
 
 RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Transparency transparency,
                            image::Image *placeholder, bool is_big_endian, int fixed_width, int fixed_height)
-    : Image(nullptr, 0, 0, type, transparency),
+    : Image(nullptr, 0, 0, type, transparency, is_big_endian),
       format_(format),
       fixed_width_(fixed_width),
       fixed_height_(fixed_height),
-      placeholder_(placeholder),
-      is_big_endian_(is_big_endian) {}
+      placeholder_(placeholder) {}
 
 RuntimeImage::~RuntimeImage() { this->release(); }
 
@@ -90,16 +92,30 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       auto on = is_color_on(color);
       if (this->has_transparency() && color.w < 0x80)
         on = false;
-      if (on) {
-        this->buffer_[pos] |= bitno;
-      } else {
-        this->buffer_[pos] &= ~bitno;
-      }
+      assign_bits(this->buffer_[pos], bitno, on);
+      break;
+    }
+    case image::IMAGE_TYPE_RGB111: {
+      uint8_t bits = (color.r >> 7) << 2 | (color.g >> 7) << 1 | (color.b >> 7);
+      if (this->bpp_ == 4)
+        bits = bits << 1 | (color.w >> 7);
+      const uint32_t stride = (this->buffer_width_ * this->bpp_ + 7u) / 8u;
+      const uint32_t bitpos = y * stride * 8 + x * this->bpp_;
+      uint8_t *byte = this->buffer_ + bitpos / 8;
+      // Place the pixel in a 16-bit window so it may straddle two bytes.
+      const uint8_t shift = 16 - this->bpp_ - bitpos % 8;
+      const uint16_t mask = ((1u << this->bpp_) - 1) << shift;
+      const uint16_t value = bits << shift;
+      byte[0] = (byte[0] & ~(mask >> 8)) | (value >> 8);
+      if (mask & 0xFF)
+        byte[1] = (byte[1] & ~(mask & 0xFF)) | (value & 0xFF);
       break;
     }
     case image::IMAGE_TYPE_GRAYSCALE: {
       uint32_t pos = this->get_position_(x, y);
-      auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
+      // 0.2125, 0.7154 and 0.0721 in 1/256ths, summing to 256 so white stays 255. Integer maths: the S3 has no
+      // double FPU
+      auto gray = static_cast<uint8_t>((54 * color.r + 183 * color.g + 19 * color.b) >> 8);
       if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
         if (gray == 1) {
           gray = 0;
@@ -119,7 +135,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
       uint16_t rgb565 = display::ColorUtil::color_to_565(mapped_color);
-      if (this->is_big_endian_) {
+      if (this->big_endian_) {
         this->buffer_[pos + 0] = static_cast<uint8_t>((rgb565 >> 8) & 0xFF);
         this->buffer_[pos + 1] = static_cast<uint8_t>(rgb565 & 0xFF);
       } else {
@@ -171,34 +187,45 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
   // If no image is loaded and no placeholder, nothing to draw
 }
 
-bool RuntimeImage::begin_decode(size_t expected_size) {
-  if (this->decoder_) {
+bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
+  if (this->is_decoding()) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
   }
 
-  this->decoder_ = this->create_decoder_();
-  if (!this->decoder_) {
-    ESP_LOGE(TAG, "Failed to create decoder for format %d", this->format_);
-    return false;
+  if (format == AUTO && this->format_ != AUTO) {
+    // Fall back to the configured format before the reuse check below
+    format = this->format_;
   }
 
-  this->total_size_ = expected_size;
+  // An idle decoder for a different format cannot be reused
+  if (this->decoder_ != nullptr && this->decoder_->get_format() != format) {
+    ESP_LOGD(TAG, "Decoder format mismatch: current: %s, new: %s",
+             LOG_STR_ARG(get_format_name(this->decoder_->get_format())), LOG_STR_ARG(get_format_name(format)));
+    this->decoder_ = nullptr;
+  }
+
+  if (!this->decoder_) {
+    this->decoder_ = this->create_decoder_(format);
+    if (!this->decoder_) {
+      ESP_LOGE(TAG, "Failed to create decoder for format %s", LOG_STR_ARG(get_format_name(format)));
+      return false;
+    }
+  }
+
   this->decoded_bytes_ = 0;
 
-  // Initialize decoder
   int result = this->decoder_->prepare(expected_size);
   if (result < 0) {
     ESP_LOGE(TAG, "Failed to prepare decoder: %d", result);
-    this->decoder_ = nullptr;
+    this->decoder_ = nullptr;  // If prepare fails, a full reset is needed
     return false;
   }
-
   return true;
 }
 
 int RuntimeImage::feed_data(uint8_t *data, size_t len) {
-  if (!this->decoder_) {
+  if (!this->is_decoding()) {
     ESP_LOGE(TAG, "No decoder initialized");
     return -1;
   }
@@ -211,8 +238,27 @@ int RuntimeImage::feed_data(uint8_t *data, size_t len) {
   return consumed;
 }
 
+int RuntimeImage::begin_source(DecodeSource *source) {
+  if (!this->decoder_supports_source()) {
+    ESP_LOGE(TAG, "Decoder cannot read a source");
+    return DECODE_ERROR_UNSUPPORTED_FORMAT;
+  }
+  return this->decoder_->begin_source(source);
+}
+
+int RuntimeImage::decode_step() {
+  if (!this->is_decoding()) {
+    ESP_LOGE(TAG, "No decoder initialized");
+    return DECODE_ERROR_INVALID_TYPE;
+  }
+  const int result = this->decoder_->decode_step();
+  if (result == DECODE_STEP_DONE)
+    this->decoded_bytes_ = this->decoder_->get_decoded_bytes();
+  return result;
+}
+
 bool RuntimeImage::end_decode() {
-  if (!this->decoder_) {
+  if (!this->is_decoding()) {
     return false;
   }
 
@@ -224,26 +270,25 @@ bool RuntimeImage::end_decode() {
     this->data_start_ = this->buffer_;
   }
 
-  // Clean up decoder
-  this->decoder_ = nullptr;
+  // End the session; the decoder object stays warm so the next decode can
+  // reuse it (and its buffers) without churning the heap.
+  this->decoder_->reset();
 
   ESP_LOGD(TAG, "Decoding complete: %dx%d, %zu bytes", this->width_, this->height_, this->decoded_bytes_);
   return true;
 }
 
-bool RuntimeImage::is_decode_finished() const {
-  if (!this->decoder_) {
-    return false;
-  }
-  return this->decoder_->is_finished();
-}
+bool RuntimeImage::is_decode_finished() const { return this->is_decoding() && this->decoder_->is_finished(); }
+
+bool RuntimeImage::decoder_knows_end() const { return this->is_decoding() && this->decoder_->knows_end(); }
 
 void RuntimeImage::release() {
   this->release_buffer_();
-  // Reset decoder separately — release() can be called from within the decoder
-  // (via set_size -> resize -> resize_buffer_), so we must not destroy the decoder here.
-  // The decoder lifecycle is managed by begin_decode()/end_decode().
-  this->decoder_ = nullptr;
+  // End any active decode session; decoders free the format-specific working buffers
+  // they can (PNG), while the decoder object itself is kept warm for the next decode.
+  if (this->decoder_) {
+    this->decoder_->reset();
+  }
 }
 
 void RuntimeImage::release_buffer_() {
@@ -347,8 +392,9 @@ size_t RuntimeImage::get_buffer_size(int width, int height) const {
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
 
-std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_() {
-  switch (this->format_) {
+std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) {
+  ESP_LOGV(TAG, "Creating decoder for format %s", LOG_STR_ARG(get_format_name(format)));
+  switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case BMP:
       return make_unique<BmpDecoder>(this);
@@ -361,8 +407,15 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_() {
     case PNG:
       return make_unique<PngDecoder>(this);
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+    case QOI:
+      return make_unique<QoiDecoder>(this);
+#endif
+    case AUTO:
+      ESP_LOGE(TAG, "Image format could not be determined; set `format:` explicitly in the configuration");
+      return nullptr;
     default:
-      ESP_LOGE(TAG, "Unsupported image format: %d", this->format_);
+      ESP_LOGE(TAG, "Unsupported image format: %s", LOG_STR_ARG(get_format_name(format)));
       return nullptr;
   }
 }

@@ -34,10 +34,10 @@ enum OpMode : uint8_t {
 
 class LD2420Listener {
  public:
-  virtual void on_presence(bool presence){};
-  virtual void on_distance(uint16_t distance){};
-  virtual void on_energy(uint16_t *sensor_energy, size_t size){};
-  virtual void on_fw_version(std::string &fw){};
+  virtual void on_presence(bool presence) {};
+  virtual void on_distance(uint16_t distance) {};
+  virtual void on_energy(uint16_t *sensor_energy, size_t size) {};
+  virtual void on_fw_version(std::string &fw) {};
 };
 
 class LD2420Component final : public Component, public uart::UARTDevice {
@@ -89,6 +89,8 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void publish_gate_still_threshold(uint8_t gate) {
     this->gate_still_threshold_numbers_[0]->publish_state(this->new_config.still_thresh[gate]);
   };
+  // Stores a threshold number's value for its gate, or for the selected gate with gate_select
+  void set_gate_threshold_value(number::Number *n, float value);
   void init_gate_config_numbers();
   void refresh_gate_config_numbers();
 #endif
@@ -105,10 +107,9 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void apply_config_action();
   void factory_reset_action();
   void revert_config_action();
-  float get_setup_priority() const override;
   int send_cmd_from_array(CmdFrameT cmd_frame);
   void report_gate_data();
-  void handle_cmd_error(uint8_t error);
+  void handle_cmd_error(uint16_t error);
   void set_operating_mode(const char *state);
   void auto_calibrate_sensitivity();
   void update_radar_data(uint16_t const *gate_energy, uint8_t sample_number);

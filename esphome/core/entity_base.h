@@ -31,6 +31,11 @@ static constexpr size_t ESPHOME_DEVICE_NAME_MAX_LEN = 31;
 // esphome/core/config.py
 static constexpr size_t ESPHOME_FRIENDLY_NAME_MAX_LEN = 120;
 
+// Maximum entity name length - keep in sync with NAME_MAX_LENGTH in esphome/config_validation.py
+static constexpr size_t ESPHOME_ENTITY_NAME_MAX_LEN = 120;
+
+static constexpr size_t ENTITY_NAME_BUF_SIZE = ESPHOME_ENTITY_NAME_MAX_LEN + 1;
+
 // Maximum domain length (longest: "alarm_control_panel" = 19)
 static constexpr size_t ESPHOME_DOMAIN_MAX_LEN = 20;
 
@@ -67,8 +72,32 @@ static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-  // Get the name of this Entity
-  const StringRef &get_name() const { return this->name_; }
+#ifdef USE_ESP8266
+  /// The name is in flash here; the first call makes a RAM copy that is kept for the life of the device.
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
+  const StringRef &get_name() const;
+  /// Get the name of this Entity, copied out of flash into buffer.
+  StringRef get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> buffer) const {
+    return StringRef(buffer.data(), this->write_name_to(buffer.data(), buffer.size()));
+  }
+#else
+  // Remove before 2027.5.0
+  ESPDEPRECATED("Use get_name_to() or get_log_name() instead. Will be removed in ESPHome 2027.5.0", "2026.11.0")
+  const StringRef &get_name() const { return this->name_.ram_ref(); }
+  const StringRef &get_name_to(std::span<char, ENTITY_NAME_BUF_SIZE> /*buffer*/) const { return this->name_.ram_ref(); }
+#endif
+
+  bool name_equals(const StringRef &other) const { return this->name_.equals(other); }
+
+  /// The name as stored, for consumers that read flash themselves (e.g. API progmem fields).
+  const ProgmemStringRef &get_name_progmem() const { return this->name_; }
+
+  /// Copy the name into buf (null terminated), returns its length.
+  size_t write_name_to(char *buf, size_t buf_size) const { return this->name_.write_to(buf, buf_size); }
+
+  /// Get the name for a "%s" log argument (LOG_STR_ARG).
+  const LogString *get_log_name() const { return reinterpret_cast<const LogString *>(this->name_.progmem_ptr()); }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -88,13 +117,26 @@ class EntityBase {
   // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
 
-  // Deprecated: Calling set_internal() at runtime is undefined behavior. Components and clients
-  // are NOT notified of the change, the flag may have already been read during setup, and there
-  // is NO guarantee any consumer will observe the new value. Use the 'internal:' YAML key instead.
-  ESPDEPRECATED("set_internal() is undefined behavior at runtime — components and Home Assistant are NOT "
-                "notified. Use the 'internal:' YAML key instead. Will be removed in 2027.3.0.",
-                "2026.3.0")
-  void set_internal(bool internal) { this->flags_.internal = internal; }
+  // Set whether this Entity should be hidden outside ESPHome. Prefer the 'internal:' YAML key
+  // whenever possible: it is guaranteed and has none of the limitations below. Use this only when
+  // the decision can only be made at boot. Must be called before MQTT and the API read the flag:
+  // from on_boot at the default priority, or a setup() that runs above setup_priority::AFTER_WIFI.
+  // If the answer comes from a device handshake, hold setup with can_proceed() until it arrives.
+  // Calls after setup finishes are undefined behavior: the flag is still written and an error is
+  // logged, and from 2027.3.0 the call will be ignored.
+  //
+  // Known limitations. Not bugs, so no issue reports please; a PR that removes one with no RAM
+  // or performance cost would be considered.
+  // - No consumer is notified of a change, so the flag can only be decided once per boot.
+  // - The guard is coarse: a call from a priority below AFTER_WIFI (an on_boot with a low priority,
+  //   or a setup() at LATE) still passes, but the API camera listener is already registered, MQTT
+  //   (AFTER_CONNECTION) has cached the flag, and an API client that connected while setup was
+  //   stalled on a slow component has already listed the entities, so they keep the old value.
+  // - Un-hiding an entity declared 'internal: true' in YAML skips the duplicate name check that
+  //   codegen runs for exposed entities, so a name collision can surface at runtime. Entities with
+  //   only an 'id:' are forced internal and use the id as their name.
+  // - Zigbee codegen skips YAML internal entities entirely, so un-hiding cannot add them to Zigbee.
+  void set_internal(bool internal);
 
   // Check if this object is declared to be disabled by default.
   // That means that when the device gets added to Home Assistant (or other clients) it should
@@ -108,60 +150,18 @@ class EntityBase {
   // On non-ESP8266: returns pointer to PROGMEM string directly (buffer unused).
   // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
   const char *get_device_class_to(std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const;
+  /// The device class as stored (in flash on ESP8266), for consumers that read flash themselves.
+  ProgmemStringRef get_device_class_progmem() const;
 
-#ifdef USE_ESP8266
-  // On ESP8266, rodata is RAM. Device classes are in PROGMEM and cannot be accessed
-  // directly as const char*. Use get_device_class_to() with a stack buffer instead.
-  template<typename T = int> StringRef get_device_class_ref() const {
-    static_assert(sizeof(T) == 0, "get_device_class_ref() unavailable on ESP8266 (rodata is RAM). "
-                                  "Use get_device_class_to() with a stack buffer.");
-    return StringRef("");
-  }
-  template<typename T = int> std::string get_device_class() const {
-    static_assert(sizeof(T) == 0, "get_device_class() unavailable on ESP8266 (rodata is RAM). "
-                                  "Use get_device_class_to() with a stack buffer.");
-    return "";
-  }
-#else
-  // Deprecated: use get_device_class_to() instead. Device classes are in PROGMEM.
-  ESPDEPRECATED("Use get_device_class_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
-  StringRef get_device_class_ref() const;
-  ESPDEPRECATED("Use get_device_class_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
-  std::string get_device_class() const;
-#endif
   // Get unit of measurement as StringRef (from packed index)
   StringRef get_unit_of_measurement_ref() const;
-  /// Get the unit of measurement as std::string (deprecated, prefer get_unit_of_measurement_ref())
-  ESPDEPRECATED("Use get_unit_of_measurement_ref() instead for better performance (avoids string copy). Will be "
-                "removed in ESPHome 2026.9.0",
-                "2026.3.0")
-  std::string get_unit_of_measurement() const;
 
   // Get this entity's icon into a stack buffer.
   // On ESP32: returns pointer to PROGMEM string directly (buffer unused).
   // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
   const char *get_icon_to(std::span<char, MAX_ICON_LENGTH> buffer) const;
-
-#ifdef USE_ESP8266
-  // On ESP8266, rodata is RAM. Icons are in PROGMEM and cannot be accessed
-  // directly as const char*. Use get_icon_to() with a stack buffer instead.
-  template<typename T = int> StringRef get_icon_ref() const {
-    static_assert(sizeof(T) == 0,
-                  "get_icon_ref() unavailable on ESP8266 (rodata is RAM). Use get_icon_to() with a stack buffer.");
-    return StringRef("");
-  }
-  template<typename T = int> std::string get_icon() const {
-    static_assert(sizeof(T) == 0,
-                  "get_icon() unavailable on ESP8266 (rodata is RAM). Use get_icon_to() with a stack buffer.");
-    return "";
-  }
-#else
-  // Deprecated: use get_icon_to() instead. Icons are in PROGMEM.
-  ESPDEPRECATED("Use get_icon_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
-  StringRef get_icon_ref() const;
-  ESPDEPRECATED("Use get_icon_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
-  std::string get_icon() const;
-#endif
+  /// The icon as stored (in flash on ESP8266), for consumers that read flash themselves.
+  ProgmemStringRef get_icon_progmem() const;
 
 #ifdef USE_DEVICES
   // Get this entity's device id
@@ -223,6 +223,12 @@ class EntityBase {
     return this->make_entity_preference_(sizeof(T), version);
   }
 
+  /// As make_entity_preference(), stored in flash or RTC memory where the backend supports the choice.
+  template<typename T> ESPPreferenceObject make_entity_preference(uint32_t version, bool in_flash) {
+    static_assert(std::is_trivially_copyable<T>::value, "T must be trivially copyable");
+    return this->make_entity_preference_(sizeof(T), version, in_flash);
+  }
+
  protected:
   friend void ::setup();
   friend void ::original_setup();
@@ -239,13 +245,13 @@ class EntityBase {
   void set_device_(Device *device) { this->device_ = device; }
 #endif
 
-  /// Non-template helper for make_entity_preference() to avoid code bloat.
-  /// When preference hash algorithm changes, migration logic goes here.
+  /// Non-template helpers for make_entity_preference() to avoid code bloat.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);
+  ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version, bool in_flash);
+  /// Key for both helpers; preference hash migration goes here.
+  uint32_t entity_preference_key_(uint32_t version);
 
-  void calc_object_id_();
-
-  StringRef name_;
+  ProgmemStringRef name_;
   uint32_t object_id_hash_{};
 #ifdef USE_DEVICES
   Device *device_{};
@@ -271,6 +277,9 @@ class EntityBase {
   uint8_t icon_idx_{};
 #endif
 };
+
+/// Log "<prefix><type> '<name>'" for a dump_config header; returns false when obj is null.
+bool log_entity_header(const char *tag, const char *prefix, const char *type, const EntityBase *obj);
 
 /// Log entity icon if set (for use in dump_config)
 #ifdef USE_ENTITY_ICON

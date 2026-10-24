@@ -12,6 +12,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,13 +45,11 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    trigger = await cg.gpio_pin_expression(config[CONF_TRIGGER_PIN])
-    cg.add(var.set_trigger_pin(trigger))
-    echo = await cg.gpio_pin_expression(config[CONF_ECHO_PIN])
-    cg.add(var.set_echo_pin(echo))
+    await cg.add_pin(var.set_trigger_pin, config[CONF_TRIGGER_PIN])
+    await cg.add_pin(var.set_echo_pin, config[CONF_ECHO_PIN])
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT] / (0.000343 / 2)))
     cg.add(var.set_pulse_time_us(config[CONF_PULSE_TIME]))

@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
@@ -19,6 +20,7 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_WIDTH,
 )
+from esphome.types import ConfigType
 
 from . import st7789v_ns
 
@@ -38,7 +40,9 @@ MODEL_PRESETS = "model_presets"
 REQUIRE_PS = "require_ps"
 
 
-def model_spec(require_ps=False, presets=None):
+def model_spec(
+    require_ps: bool = False, presets: dict[str, Any] | None = None
+) -> dict[str, Any]:
     if presets is None:
         presets = {}
     return {MODEL_PRESETS: presets, REQUIRE_PS: require_ps}
@@ -119,7 +123,7 @@ MODELS = {
 }
 
 
-def validate_st7789v(config):
+def validate_st7789v(config: ConfigType) -> ConfigType:
     model_data = MODELS[config[CONF_MODEL]]
     presets = model_data[MODEL_PRESETS]
     for key, value in presets.items():
@@ -178,9 +182,11 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.5.0
     LOGGER.warning(
-        "The 'st7789v' component is deprecated, it is recommended to use 'mipi_spi' instead."
+        "The 'st7789v' component is deprecated and will be removed in ESPHome 2027.5.0, "
+        "migrate to 'mipi_spi' instead."
     )
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)

@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 // MideaUART
 #include <Appliance/AirConditioner/AirConditioner.h>
@@ -21,12 +21,20 @@ using climate::ClimateModeMask;
 using climate::ClimateSwingModeMask;
 using climate::ClimatePresetMask;
 
+// How the display toggle reaches the appliance; the AUTO rules are in do_display_toggle()
+enum class DisplayControl : uint8_t {
+  DISPLAY_CONTROL_UART,  // always the UART request
+  DISPLAY_CONTROL_AUTO,  // UART when the appliance reports it or no transmitter is built in, else IR
+  DISPLAY_CONTROL_IR,    // always the IR remote, needs a transmitter
+};
+
 class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditioner>, public climate::Climate {
  public:
   void dump_config() override;
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }
   void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = sensor; }
   void set_power_sensor(Sensor *sensor) { this->power_sensor_ = sensor; }
+  void set_display_control(DisplayControl control) { this->display_control_ = control; }
   void on_status_change() override;
 
   /* ############### */
@@ -44,8 +52,6 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
-  void set_custom_presets(std::initializer_list<const char *> presets) { this->set_supported_custom_presets(presets); }
-  void set_custom_fan_modes(std::initializer_list<const char *> modes) { this->set_supported_custom_fan_modes(modes); }
 
  protected:
   void control(const ClimateCall &call) override;
@@ -54,6 +60,7 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   ClimateSwingModeMask supported_swing_modes_{};
   ClimatePresetMask supported_presets_{};
   bool frost_protection_set_{false};
+  DisplayControl display_control_{DisplayControl::DISPLAY_CONTROL_AUTO};
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
@@ -61,4 +68,4 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF
