@@ -1,0 +1,168 @@
+ld6004:
+  id: ld6004_radar
+
+button:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    apply_area:
+      name: LD6004 Apply Area
+    auto_interference:
+      name: LD6004 Auto Interference
+    get_areas:
+      name: LD6004 Get Areas
+    clear_interference:
+      name: LD6004 Clear Interference
+    reset_detection_area:
+      name: LD6004 Reset Detection
+    get_delay:
+      name: LD6004 Get Delay
+    get_sensitivity:
+      name: LD6004 Get Sensitivity
+    get_trigger_speed:
+      name: LD6004 Get Trigger Speed
+    get_z_range:
+      name: LD6004 Get Z Range
+    get_installation:
+      name: LD6004 Get Installation
+    get_low_power_mode:
+      name: LD6004 Get Low Power Mode
+    get_low_power_sleep_time:
+      name: LD6004 Get Low Power Sleep
+    reset_unattended:
+      name: LD6004 Reset Unattended
+    clear_dwell:
+      name: LD6004 Clear Dwell
+
+select:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    sensitivity:
+      name: LD6004 Sensitivity
+    trigger_speed:
+      name: LD6004 Trigger Speed
+    installation_mode:
+      name: LD6004 Installation
+    area_id:
+      name: LD6004 Area ID
+    work_mode:
+      name: LD6004 Work Mode Select
+    p20_mode:
+      name: LD6004 P20 Mode
+
+number:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    hold_delay:
+      name: LD6004 Hold Delay
+    z_min:
+      name: LD6004 Z Min
+    z_max:
+      name: LD6004 Z Max
+    low_power_sleep_time:
+      name: LD6004 Low Power Sleep
+    dwell_lifetime:
+      name: LD6004 Dwell Lifetime
+    output_interval:
+      name: LD6004 Output Interval
+    area_config:
+      x_min:
+        name: LD6004 Area X Min
+      x_max:
+        name: LD6004 Area X Max
+      y_min:
+        name: LD6004 Area Y Min
+      y_max:
+        name: LD6004 Area Y Max
+      z_min:
+        name: LD6004 Area Z Min
+      z_max:
+        name: LD6004 Area Z Max
+
+text_sensor:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    work_mode:
+      name: LD6004 Work Mode
+    ota_version:
+      name: LD6004 OTA Version
+
+binary_sensor:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    target:
+      name: LD6004 Presence
+    target_1:
+      name: LD6004 Target 1
+    target_3:
+      name: LD6004 Target 3
+    detection_area_0:
+      name: LD6004 Detection Area 0
+
+sensor:
+  - platform: ld6004
+    ld6004_id: ld6004_radar
+    target_count:
+      name: LD6004 Target Count
+    point_count:
+      name: LD6004 Point Count
+    target_1:
+      x:
+        name: LD6004 Target-1 X
+      y:
+        name: LD6004 Target-1 Y
+      z:
+        name: LD6004 Target-1 Z
+      doppler_index:
+        name: LD6004 Target-1 Dop
+      cluster_id:
+        name: LD6004 Target-1 Cluster
+    target_3:
+      x:
+        name: LD6004 Target-3 X
+      y:
+        name: LD6004 Target-3 Y
+      z:
+        name: LD6004 Target-3 Z
+      doppler_index:
+        name: LD6004 Target-3 Dop
+      cluster_id:
+        name: LD6004 Target-3 Cluster
+    interference_area_0:
+      x_min:
+        name: LD6004 Interference-0 X Min
+      x_max:
+        name: LD6004 Interference-0 X Max
+      y_min:
+        name: LD6004 Interference-0 Y Min
+      y_max:
+        name: LD6004 Interference-0 Y Max
+      z_min:
+        name: LD6004 Interference-0 Z Min
+      z_max:
+        name: LD6004 Interference-0 Z Max
+    detection_area_0:
+      x_min:
+        name: LD6004 Detection-0 X Min
+      x_max:
+        name: LD6004 Detection-0 X Max
+      y_min:
+        name: LD6004 Detection-0 Y Min
+      y_max:
+        name: LD6004 Detection-0 Y Max
+      z_min:
+        name: LD6004 Detection-0 Z Min
+      z_max:
+        name: LD6004 Detection-0 Z Max
+    dwell_area_3:
+      x_min:
+        name: LD6004 Dwell-3 X Min
+      x_max:
+        name: LD6004 Dwell-3 X Max
+      y_min:
+        name: LD6004 Dwell-3 Y Min
+      y_max:
+        name: LD6004 Dwell-3 Y Max
+      z_min:
+        name: LD6004 Dwell-3 Z Min
+      z_max:
+        name: LD6004 Dwell-3 Z Max
