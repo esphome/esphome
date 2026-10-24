@@ -101,8 +101,9 @@ def check_bdk_version(value: str | None) -> None:
     """Reject a beken-bdk override older than the release the BLE stack needs."""
     if value is None:
         return
-    # LibreTiny only builds 3.0.x releases; the 2021.06.07 tag is the pre 3.0 SDK
-    match = re.search(r"(\d+)\.(\d+)\.(\d+)", str(value))
+    # LibreTiny appends the value to the package URL as a git ref and only builds
+    # 3.0.x releases; the 2021.06.07 tag is the pre 3.0 SDK
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", str(value))
     if match is not None:
         version = tuple(int(g) for g in match.groups())
         if version[:2] == MIN_BDK_VERSION[:2] and version >= MIN_BDK_VERSION:

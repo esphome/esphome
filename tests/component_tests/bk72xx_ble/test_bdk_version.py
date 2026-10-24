@@ -13,15 +13,22 @@ import esphome.config_validation as cv
 from esphome.core import CORE
 
 
-@pytest.mark.parametrize(
-    "value", [None, "3.0.78", "3.0.80", "https://github.com/x/bdk#3.0.78"]
-)
+@pytest.mark.parametrize("value", [None, "3.0.78", "v3.0.78", "3.0.80"])
 def test_new_enough_versions_pass(value: str | None) -> None:
     check_bdk_version(value)
 
 
 @pytest.mark.parametrize(
-    "value", ["3.0.33", "3.0.77", "3.1.0", "4.0.0", "2021.06.07", "main"]
+    "value",
+    [
+        "3.0.33",
+        "3.0.77",
+        "3.1.0",
+        "4.0.0",
+        "2021.06.07",
+        "main",
+        "https://github.com/x/bdk#3.0.78",
+    ],
 )
 def test_other_versions_fail(value: str) -> None:
     with pytest.raises(cv.Invalid, match="3.0.78 or a newer 3.0.x"):
