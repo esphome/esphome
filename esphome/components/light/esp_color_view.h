@@ -217,7 +217,8 @@ class ESPColorView final : public ESPColorSettable {
     return *this;
   }
   inline ESPColorView &operator=(const ESPColorView &color_view) {
-    this->set(color_view.get());
+    if (this != &color_view)
+      this->set(color_view.get());
     return *this;
   }
 

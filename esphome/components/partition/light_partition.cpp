@@ -32,12 +32,12 @@ light::ESPColorView PartitionLightOutput::get_color_view_(int32_t index) const {
   }
 
   const auto color_view = (*seg.get_src())[src_off];
-#ifdef USE_LIGHT_POWER_ESTIMATION
+#if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
   // A partition has no power limit of its own so it adopts the power brightness of the underlying segment.
   // PartitionColorAccessor calls this method to access one LED, applies color correction if needed, then
   // discards the view.  This method won't be called again until the next access thus the power brightness
   // that is set here is guaranteed to be valid for the entire lifetime of the view that is returned.
-  const light::ESPColorCorrection *color_view_correction = color_view.get_color_correction_internal();
+  const light::ESPColorCorrection *color_view_correction = color_view.get_color_correction_internal();  // NOLINT
   const_cast<light::ESPColorCorrection &>(this->correction_)
       .set_power_brightness(color_view_correction ? color_view_correction->get_power_brightness() : 255);
 #endif
