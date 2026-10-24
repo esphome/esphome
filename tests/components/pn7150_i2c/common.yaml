@@ -33,5 +33,7 @@ pn7150_i2c:
     - logger.log: "Tag"
   on_tag_removed:
     - logger.log: "Tag removed"
+  on_finished_write:
+    - logger.log: Tag write finished
   on_emulated_tag_scan:
     - logger.log: "Tag emulated"
