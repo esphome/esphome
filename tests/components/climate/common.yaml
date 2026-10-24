@@ -100,6 +100,14 @@ button:
           id: climate_test_thermostat
           custom_fan_mode: !lambda return "quiet";
           custom_preset: !lambda return "Default";
+  # Inlined lambdas returning a StringRef, the shape an api action string variable takes (issue #21327)
+  - platform: template
+    name: "Climate Control StringRef Lambdas"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          custom_fan_mode: !lambda return id(climate_test_thermostat).get_custom_fan_mode();
+          custom_preset: !lambda return id(climate_test_thermostat).get_custom_preset();
 
 # Exercise climate.control inside a trigger with non-empty Ts (number on_value
 # passes float).

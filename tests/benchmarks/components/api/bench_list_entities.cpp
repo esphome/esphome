@@ -16,16 +16,16 @@ static ListEntitiesSensorResponse make_sensor_response() {
   ListEntitiesSensorResponse msg;
   msg.object_id = StringRef::from_lit("living_room_temperature");
   msg.key = 0x12345678;
-  msg.name = StringRef::from_lit("Living Room Temperature");
+  msg.name = ProgmemStringRef(StringRef::from_lit("Living Room Temperature"));
 #ifdef USE_ENTITY_ICON
-  msg.icon = StringRef::from_lit("mdi:thermometer");
+  msg.icon = ProgmemStringRef::from_lit("mdi:thermometer");
 #endif
   msg.entity_category = enums::ENTITY_CATEGORY_NONE;
   msg.disabled_by_default = false;
   msg.unit_of_measurement = StringRef::from_lit("°C");
   msg.accuracy_decimals = 1;
   msg.force_update = false;
-  msg.device_class = StringRef::from_lit("temperature");
+  msg.device_class = ProgmemStringRef::from_lit("temperature");
   msg.state_class = enums::STATE_CLASS_MEASUREMENT;
 #ifdef USE_DEVICES
   msg.device_id = 1;
@@ -87,13 +87,13 @@ static ListEntitiesBinarySensorResponse make_binary_sensor_response() {
   ListEntitiesBinarySensorResponse msg;
   msg.object_id = StringRef::from_lit("front_door_contact");
   msg.key = 0xAABBCCDD;
-  msg.name = StringRef::from_lit("Front Door Contact");
+  msg.name = ProgmemStringRef(StringRef::from_lit("Front Door Contact"));
 #ifdef USE_ENTITY_ICON
-  msg.icon = StringRef::from_lit("mdi:door");
+  msg.icon = ProgmemStringRef::from_lit("mdi:door");
 #endif
   msg.entity_category = enums::ENTITY_CATEGORY_NONE;
   msg.disabled_by_default = false;
-  msg.device_class = StringRef::from_lit("door");
+  msg.device_class = ProgmemStringRef::from_lit("door");
   msg.is_status_binary_sensor = false;
 #ifdef USE_DEVICES
   msg.device_id = 2;
@@ -176,9 +176,9 @@ static ListEntitiesLightResponse make_light_response() {
   ListEntitiesLightResponse msg;
   msg.object_id = StringRef::from_lit("kitchen_ceiling_light");
   msg.key = 0x55667788;
-  msg.name = StringRef::from_lit("Kitchen Ceiling Light");
+  msg.name = ProgmemStringRef(StringRef::from_lit("Kitchen Ceiling Light"));
 #ifdef USE_ENTITY_ICON
-  msg.icon = StringRef::from_lit("mdi:ceiling-light");
+  msg.icon = ProgmemStringRef::from_lit("mdi:ceiling-light");
 #endif
   msg.entity_category = enums::ENTITY_CATEGORY_NONE;
   msg.disabled_by_default = false;

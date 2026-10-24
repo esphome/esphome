@@ -61,6 +61,8 @@ void Kuntze::on_read_holding_registers(uint16_t start_address, std::span<const u
       if (this->oci_sensor_ != nullptr)
         this->oci_sensor_->publish_state(value);
       break;
+    default:
+      break;
   }
 }
 
