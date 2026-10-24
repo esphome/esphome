@@ -82,9 +82,10 @@ class HitachiClimate final : public climate_ir::ClimateIR {
  public:
   HitachiClimate()
       : climate_ir::ClimateIR(HITACHI_AC344_TEMP_MIN, HITACHI_AC344_TEMP_MAX, 1.0F, true, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL}) {}
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_QUIET, climate::CLIMATE_FAN_LOW,
+                               climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                               climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
   bool get_mildew_proof() const;
   /// Mildew proof keeps the fan running after power off to dry the unit
   void set_mildew_proof(bool on);
@@ -115,13 +116,10 @@ class HitachiClimate final : public climate_ir::ClimateIR {
   void set_temp_(uint8_t celsius, bool set_previous = true);
   uint8_t get_fan_();
   void set_fan_(uint8_t speed);
-  void set_swing_v_toggle_(bool on);
-  bool get_swing_v_toggle_();
   void set_swing_v_(bool on);
   bool get_swing_v_();
   void set_swing_h_(uint8_t position);
   uint8_t get_swing_h_();
-  uint8_t get_button_();
   void set_button_(uint8_t button);
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
