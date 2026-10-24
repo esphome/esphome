@@ -25,7 +25,9 @@
 #define RTCIO_NEED_MAPPING 1  // NOLINT
 #endif
 
-#if defined(USE_ESP32_VARIANT_ESP32) || (SOC_RTCIO_PIN_COUNT > 0 && defined(USE_GPIO_HOLD))
+// Need use_rtc variable for: esp32, rtc capable + hold enabled, or rtc wake capable + peripheral powerdown
+#if defined(USE_ESP32_VARIANT_ESP32) || (SOC_RTCIO_PIN_COUNT > 0 && defined(USE_GPIO_HOLD)) || \
+    (defined(SOC_RTCIO_WAKE_SUPPORTED) && defined(CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP))
 #define ISR_PIN_USE_RTC 1  // NOLINT
 #endif
 
@@ -296,7 +298,7 @@ void ESP32InternalGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gp
     func_args->rtc_pin = -1;
 #if SOC_RTCIO_WAKE_SUPPORTED
     if (rtc_gpio_is_valid_gpio(func_args->pin)) {
-#if defined(USE_ESP32_VARIANT_ESP32)
+#if defined(RTCIO_NEED_MAPPING)
       func_args->rtc_pin = rtc_io_number_get(func_args->pin);
 #else
       func_args->rtc_pin = func_args->pin;
