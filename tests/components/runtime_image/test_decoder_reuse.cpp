@@ -476,7 +476,7 @@ TEST(RuntimeImageDecoder, JpegDecodesToScaledRgb) {
 static uint16_t scaled_boundary(int n, int source, int target) { return (n * target + source - 1) / source; }
 
 // Every target pixel of a PNG drawn at a size that is not a whole multiple: enlarged with spans 1 or 2 pixels wide, and
-// shrunk with spans of 0, 1 or 2 pixels
+// shrunk with spans of 0 or 1 pixels
 TEST(RuntimeImageDecoder, ScaledPngPaintsEachSourcePixelOverItsSpan) {
   // A fixed size keeps the aspect ratio, so both are square
   for (auto [width, height] : {std::pair{6, 6}, std::pair{3, 3}}) {
