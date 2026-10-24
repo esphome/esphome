@@ -160,9 +160,10 @@ void MQGasSensor::update() {
   const bool at_ceiling = ppm >= this->max_ppm_;
   if (at_ceiling != this->warned_over_range_) {
     this->warned_over_range_ = at_ceiling;
-    if (at_ceiling)
+    if (at_ceiling) {
       ESP_LOGW(TAG, "'%s %s': V=%.4f V is beyond %.1f ppm - reporting the top of the range", this->type_.c_str(),
                this->gas_.c_str(), voltage, this->max_ppm_);
+    }
   }
 
   ESP_LOGD(TAG, "'%s %s': V=%.4f V, RS=%.4f kOhm, ratio=%.4f -> %.1f ppm", this->type_.c_str(), this->gas_.c_str(),
