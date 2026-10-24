@@ -162,6 +162,14 @@ void HitachiClimate::publish_mildew_proof_() {
 
 void HitachiClimate::setup() {
   climate_ir::ClimateIR::setup();
+#ifdef USE_SWITCH
+  // The restored setting rides along with the next frame; nothing is sent at boot
+  if (this->mildew_proof_switch_ != nullptr) {
+    if (auto initial = this->mildew_proof_switch_->get_initial_state_with_restore_mode()) {
+      assign_bits(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], 1 << HITACHI_AC344_MILDEWPROOF_OFFSET, *initial);
+    }
+  }
+#endif
   this->publish_mildew_proof_();
 }
 

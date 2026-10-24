@@ -16,7 +16,7 @@ CONFIG_SCHEMA = cv.Schema(
             switch.ApplySwitch,
             icon="mdi:shield-check-outline",
             entity_category=ENTITY_CATEGORY_CONFIG,
-            default_restore_mode="DISABLED",
+            default_restore_mode="RESTORE_DEFAULT_OFF",
         ),
     }
 )
