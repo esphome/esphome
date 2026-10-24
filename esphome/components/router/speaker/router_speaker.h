@@ -14,8 +14,6 @@ namespace esphome::router {
 
 class Router final : public Component, public speaker::Speaker {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   void setup() override;
   void loop() override;
   void dump_config() override;

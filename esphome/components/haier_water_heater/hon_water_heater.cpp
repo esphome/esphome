@@ -46,10 +46,7 @@ void HonWaterHeater::send_frame_(FrameType type, const uint8_t *payload, size_t 
   const size_t length = encode_frame(type, payload, size, wire);
   if (length == 0)
     return;
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex[format_hex_pretty_size(sizeof(wire))];
-  ESP_LOGV(TAG, "TX type=%02X: %s", static_cast<uint8_t>(type), format_hex_pretty_to(hex, wire, length));
-#endif
+  ESP_LOGV_HEX(TAG, wire, length, sizeof(wire), "TX type=%02X: %s", static_cast<uint8_t>(type));
   this->write_array(wire, length);
 }
 
@@ -221,11 +218,8 @@ void HonWaterHeater::confirm_control_(const Status &status) {
 void HonWaterHeater::process_frame_() {
   const uint8_t *frame = this->parser_.data();
   const auto type = static_cast<FrameType>(frame[FRAME_TYPE_OFFSET]);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex[format_hex_pretty_size(MAX_STORED_FRAME)];
-  ESP_LOGV(TAG, "RX decoded type=%02X flags=%02X: %s", static_cast<uint8_t>(type), frame[FRAME_FLAGS_OFFSET],
-           format_hex_pretty_to(hex, frame, this->parser_.stored_size()));
-#endif
+  ESP_LOGV_HEX(TAG, frame, this->parser_.stored_size(), MAX_STORED_FRAME, "RX decoded type=%02X flags=%02X: %s",
+               static_cast<uint8_t>(type), frame[FRAME_FLAGS_OFFSET]);
   this->handle_frame_type_(type);
 
   Status status{};

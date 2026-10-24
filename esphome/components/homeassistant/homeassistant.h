@@ -7,6 +7,10 @@
 
 namespace esphome::homeassistant {
 
+/// True for what Home Assistant reports when there is no value: "None" for an attribute that is not
+/// set, "unavailable" and "unknown" for the state of an entity that is not ready
+bool is_unset(StringRef value);
+
 /// Emit the UTF-8 encoding of a code point. Rejects NUL, which would end the item early.
 template<typename C> bool emit_utf8(uint32_t code_point, C &on_char) {
   if (code_point == 0 || code_point > 0x10FFFF)

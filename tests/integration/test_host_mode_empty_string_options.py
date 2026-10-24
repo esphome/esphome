@@ -7,7 +7,9 @@ import asyncio
 from aioesphomeapi import EntityState, SelectInfo
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -26,9 +28,7 @@ async def test_host_mode_empty_string_options(
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
         # Verify we can get device info
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "host-empty-string-test"
+        await assert_device_name(client, "host-empty-string-test")
 
         # Get list of entities - this will encode ListEntitiesSelectResponse messages
         # with empty string options that would trigger the bug
@@ -111,13 +111,13 @@ async def test_host_mode_empty_string_options(
         client.subscribe_states(on_state)
 
         # Wait for initial states with timeout
-        try:
-            await asyncio.wait_for(states_received_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Did not receive states for all select entities. "
-                f"Expected keys: {expected_select_keys}, Received: {received_select_keys}"
-            )
+        await wait_or_fail(
+            states_received_future,
+            5.0,
+            "Did not receive states for all select entities",
+            expected_select_keys=expected_select_keys,
+            received_select_keys=received_select_keys,
+        )
 
         # Verify we received states for all select entities
         assert empty_first.key in states

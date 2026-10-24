@@ -23,7 +23,6 @@ AS5600Sensor = as5600_ns.class_("AS5600Sensor", sensor.Sensor, cg.PollingCompone
 CONF_RAW_POSITION = "raw_position"
 CONF_SLOW_FILTER = "slow_filter"
 CONF_FAST_FILTER = "fast_filter"
-CONF_PWM_FREQUENCY = "pwm_frequency"
 CONF_BURN_COUNT = "burn_count"
 CONF_START_POSITION = "start_position"
 CONF_END_POSITION = "end_position"

@@ -3,5 +3,6 @@ esphome:
   devices:
     - id: test_device
       name: Test Device
+      relation: via
 
 host:
