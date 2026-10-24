@@ -1,8 +1,11 @@
 #pragma once
 
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
 
 #include <array>
 
@@ -19,9 +22,11 @@ class BQ76972Component final : public PollingComponent, public i2c::I2CDevice {
 
   void set_crc_mode(bool crc_mode) { this->crc_mode_ = crc_mode; }
   void set_reg_disable(bool reg_disable) { this->reg_disable_ = reg_disable; }
+#ifdef USE_SENSOR
   void set_stack_voltage_sensor(sensor::Sensor *s) { this->stack_voltage_sensor_ = s; }
   void set_cell_sensor(sensor::Sensor *s, size_t index) { this->cell_sensors_[index] = s; }
   void set_temperature_sensor(sensor::Sensor *s, size_t index) { this->temperature_sensors_[index] = s; }
+#endif
 
   void program_i2c_address(uint8_t address);
 
@@ -43,9 +48,11 @@ class BQ76972Component final : public PollingComponent, public i2c::I2CDevice {
   bool reg_disable_{false};
   bool crc_mode_{false};
 
+#ifdef USE_SENSOR
   sensor::Sensor *stack_voltage_sensor_{nullptr};
   std::array<sensor::Sensor *, BQ76972_NUM_CELLS> cell_sensors_{};
   std::array<sensor::Sensor *, BQ76972_NUM_TEMPERATURES> temperature_sensors_{};
+#endif
 };
 
 }  // namespace esphome::bq76972

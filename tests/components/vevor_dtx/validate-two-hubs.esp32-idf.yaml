@@ -1,0 +1,21 @@
+packages:
+  remote_receiver: !include ../../test_build_components/common/remote_receiver/esp32-idf.yaml
+
+# Two stations on one receiver, each with its own hub
+vevor_dtx:
+  - id: roof_station
+    receiver_id: rcvr
+    station_id: 0x1234
+  - id: garden_station
+    receiver_id: rcvr
+    station_id: 0x5678
+
+sensor:
+  - platform: vevor_dtx
+    vevor_dtx_id: roof_station
+    temperature:
+      name: Roof Temperature
+  - platform: vevor_dtx
+    vevor_dtx_id: garden_station
+    temperature:
+      name: Garden Temperature

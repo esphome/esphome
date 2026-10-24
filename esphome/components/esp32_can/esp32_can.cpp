@@ -7,7 +7,7 @@
 // WORKAROUND, because CAN_IO_UNUSED is just defined as (-1) in this version
 // of the framework which does not work with -fpermissive
 #undef CAN_IO_UNUSED
-#define CAN_IO_UNUSED ((gpio_num_t) -1)
+#define CAN_IO_UNUSED (static_cast<gpio_num_t>(-1))
 
 namespace esphome::esp32_can {
 
@@ -79,10 +79,13 @@ bool ESP32Can::setup_internal() {
   }
 
   // Select TWAI mode based on configuration
-  twai_mode_t twai_mode = (this->mode_ == CAN_MODE_LISTEN_ONLY) ? TWAI_MODE_LISTEN_ONLY : TWAI_MODE_NORMAL;
-
+  twai_mode_t twai_mode = TWAI_MODE_NORMAL;
   if (this->mode_ == CAN_MODE_LISTEN_ONLY) {
+    twai_mode = TWAI_MODE_LISTEN_ONLY;
     ESP_LOGI(TAG, "CAN bus configured in LISTEN_ONLY mode (passive, no ACKs)");
+  } else if (this->mode_ == CAN_MODE_NO_ACK) {
+    twai_mode = TWAI_MODE_NO_ACK;
+    ESP_LOGI(TAG, "CAN bus configured in NO_ACK mode (transmit without requiring ACK)");
   }
 
   twai_general_config_t g_config =

@@ -112,6 +112,22 @@ def test_idedata_cc_path(setup_core: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("raw_data", "expected"),
+    [
+        pytest.param(
+            {"defines": ["USE_ESP32", "FOO=1"]}, ["USE_ESP32", "FOO=1"], id="set"
+        ),
+        pytest.param({}, [], id="missing"),
+    ],
+)
+def test_idedata_defines(raw_data: dict[str, list[str]], expected: list[str]) -> None:
+    """IDEData.defines returns the defines, or an empty list when absent."""
+    idedata = toolchain.IDEData({"prog_path": "/path/to/firmware.elf", **raw_data})
+
+    assert idedata.defines == expected
+
+
 def test_flash_image_dataclass() -> None:
     """Test FlashImage dataclass stores path and offset correctly."""
     image = FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
@@ -758,6 +774,17 @@ def test_copy_ccache_script(setup_core: Path) -> None:
     assert dest.read_text() == source.read_text()
 
 
+def test_copy_pch_script(setup_core: Path) -> None:
+    """The shared PCH pre-script is copied into the build dir."""
+    CORE.build_path = setup_core / "build" / "test"
+
+    toolchain.copy_pch_script()
+
+    dest = setup_core / "build" / "test" / "pch.py"
+    source = Path(toolchain.__file__).parent / "pch.py.script"
+    assert dest.read_text() == source.read_text()
+
+
 class _FakeSConsEnv(dict):
     """Just enough of a SCons construction environment for ccache.py."""
 
@@ -1012,6 +1039,20 @@ def test_run_platformio_cli_run_builds_command(
 
     mock_run_platformio_cli.assert_called_once_with(
         "run", "-d", CORE.build_path, "-v", "extra", "args"
+    )
+
+
+def test_run_platformio_cli_run_without_verbose(
+    setup_core: Path, mock_run_platformio_cli: Mock
+) -> None:
+    """Without verbose, no -v flag is passed to PlatformIO."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    mock_run_platformio_cli.return_value = 0
+
+    toolchain.run_platformio_cli_run({"name": "test"}, False, "extra")
+
+    mock_run_platformio_cli.assert_called_once_with(
+        "run", "-d", CORE.build_path, "extra"
     )
 
 

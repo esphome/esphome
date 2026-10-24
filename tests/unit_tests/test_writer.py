@@ -5,10 +5,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import logging
 import os
 from pathlib import Path
 import re
 import stat
+import subprocess
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -22,7 +24,9 @@ from esphome.const import (
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
 )
-from esphome.core import EsphomeError
+from esphome.core import DocumentLocation, EsphomeError, line_directive
+from esphome.cpp_generator import LambdaExpression
+from esphome.helpers import indent
 from esphome.storage_json import StorageJSON
 from esphome.writer import (
     CPP_AUTO_GENERATE_BEGIN,
@@ -30,6 +34,7 @@ from esphome.writer import (
     CPP_INCLUDE_BEGIN,
     CPP_INCLUDE_END,
     GITIGNORE_CONTENT,
+    check_build_tree_not_tracked,
     clean_all,
     clean_build,
     clean_cmake_cache,
@@ -872,6 +877,244 @@ def test_write_gitignore_skips_existing_file(
     assert gitignore_path.read_text() == existing_content
 
 
+@patch("esphome.writer.subprocess.run")
+def test_check_build_tree_not_tracked_silent_in_ci(
+    mock_run: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CI builds fixture configs, not a user's repo -- skip the git spawn entirely."""
+    monkeypatch.setenv("CI", "true")
+
+    check_build_tree_not_tracked()
+
+    mock_run.assert_not_called()
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_warns_when_tracked(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked warns when the build dir is tracked by git."""
+    monkeypatch.delenv("CI", raising=False)
+    data_dir = tmp_path / ".esphome"
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = data_dir
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout=b".esphome/build/node/main.cpp\0.esphome/node.json\0",
+        stderr=b"",
+    )
+
+    with (
+        patch.dict(os.environ, {"GIT_DIR": "/somewhere/else/.git"}),
+        caplog.at_level("WARNING"),
+    ):
+        check_build_tree_not_tracked()
+
+    assert "is tracked by git" in caplog.text
+    assert "2 files" in caplog.text
+    assert "secrets" in caplog.text
+    assert ".gitkeep" in caplog.text
+    # The remediation command must use the absolute path so it also works
+    # when pasted from the repository root of a nested config layout.
+    assert f"git rm -r --cached {data_dir}" in caplog.text
+
+    mock_run.assert_called_once()
+    args, kwargs = mock_run.call_args
+    assert args[0] == ["git", "ls-files", "-z", "--", ".esphome"]
+    assert kwargs["cwd"] == tmp_path
+    assert kwargs["capture_output"] is True
+    assert kwargs["check"] is False
+    assert kwargs["timeout"] == 5
+    # Repo-scoping env vars must be stripped so a hook/CI wrapper can't
+    # redirect this read-only query to a different repository.
+    assert "GIT_DIR" not in kwargs["env"]
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_gitkeep_present(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked is skipped when .gitkeep opts in."""
+    monkeypatch.delenv("CI", raising=False)
+    data_dir = tmp_path / ".esphome"
+    data_dir.mkdir()
+    (data_dir / ".gitkeep").touch()
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = data_dir
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    mock_run.assert_not_called()
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_untracked(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked stays silent when nothing is tracked."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_outside_git_repo(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked stays silent when not inside a git repo."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(
+        returncode=128, stdout=b"", stderr=b"fatal: not a git repository\n"
+    )
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_on_failure_without_stderr(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-zero exit with no stderr must not raise trying to log the reason."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.return_value = MagicMock(returncode=1, stdout=b"", stderr=b"")
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    assert "tracked by git" not in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_git_missing(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked stays silent when git isn't installed."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.side_effect = FileNotFoundError()
+
+    with caplog.at_level("DEBUG"):
+        check_build_tree_not_tracked()
+
+    assert caplog.text == ""
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_on_other_os_error(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A non-executable git on PATH (PermissionError) must not abort the build."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.side_effect = PermissionError("git is not executable")
+
+    with caplog.at_level("DEBUG"):
+        check_build_tree_not_tracked()
+
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert "Could not check whether" in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_on_timeout(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hung git process must not block the build indefinitely."""
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path
+    mock_core.data_dir = tmp_path / ".esphome"
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=5)
+
+    with caplog.at_level("DEBUG"):
+        check_build_tree_not_tracked()
+
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert "Could not check whether" in caplog.text
+
+
+@patch("esphome.writer.subprocess.run")
+@patch("esphome.writer.CORE")
+def test_check_build_tree_not_tracked_silent_when_data_dir_outside_config_dir(
+    mock_core: MagicMock,
+    mock_run: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_build_tree_not_tracked skips the check for an external data dir.
+
+    Covers the Home Assistant add-on (/data) and ESPHOME_DATA_DIR cases, where
+    the build directory can't be part of the config's git repository.
+    """
+    monkeypatch.delenv("CI", raising=False)
+    mock_core.config_dir = tmp_path / "config"
+    mock_core.data_dir = tmp_path / "data"
+
+    with caplog.at_level("WARNING"):
+        check_build_tree_not_tracked()
+
+    mock_run.assert_not_called()
+    assert "tracked by git" not in caplog.text
+
+
 @patch("esphome.writer.write_file_if_changed")  # Mock to capture output
 @patch("esphome.writer.copy_src_tree")  # Keep this mock as it's complex
 @patch("esphome.writer.CORE")
@@ -963,6 +1206,32 @@ def test_write_cpp_creates_new_file(
     assert "void loop()" in written_content
     assert "App.setup();" in written_content
     assert "App.loop();" in written_content
+
+
+@pytest.mark.usefixtures("mock_copy_src_tree")
+@patch("esphome.writer.write_file_if_changed")
+@patch("esphome.writer.CORE")
+def test_write_cpp_resets_line_after_lambda(
+    mock_core: MagicMock,
+    mock_write_file: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The code after a YAML lambda is reported against main.cpp again."""
+    main_cpp = tmp_path / "main.cpp"
+    mock_core.relative_src_path.return_value = main_cpp
+    mock_core.cpp_global_section = ""
+    lambda_ = LambdaExpression(
+        ("foo();",), (), source=DocumentLocation("test.yaml", 4, 0)
+    )
+
+    write_cpp(indent(f"bar({lambda_});\nbaz();") + "\n")
+
+    lines = mock_write_file.call_args[0][1].split("\n")
+    closing = lines.index("  });")
+    assert lines[closing - 3].strip() == '#line 5 "test.yaml"'
+    # The directive names the line after it, which is closing + 1 (1-based)
+    assert lines[closing - 1].strip() == line_directive(str(main_cpp), closing + 1)
+    assert lines[closing + 1] == "  baz();"
 
 
 @pytest.mark.usefixtures("mock_copy_src_tree")
@@ -1345,6 +1614,7 @@ def test_clean_all(
     build_dir2.mkdir()
     (build_dir1 / "dummy.txt").write_text("x")
     (build_dir2 / "dummy.txt").write_text("x")
+    (build_dir1 / ".gitkeep").touch()
 
     # Create PlatformIO directories
     pio_cache = tmp_path / "pio_cache"
@@ -1387,6 +1657,10 @@ def test_clean_all(
     # Verify that files in .esphome were removed
     assert not (build_dir1 / "dummy.txt").exists()
     assert not (build_dir2 / "dummy.txt").exists()
+
+    # .gitkeep is the opt-out check_build_tree_not_tracked() advertises; it
+    # must survive clean-all or the warning comes right back on next compile.
+    assert (build_dir1 / ".gitkeep").exists()
     assert not pio_cache.exists()
     assert not pio_packages.exists()
     assert not pio_platforms.exists()
@@ -1916,6 +2190,7 @@ def test_generate_build_info_data_h_format() -> None:
 
     assert "#pragma once" in result
     assert "extern const uint32_t ESPHOME_CONFIG_HASH;" in result
+    assert "extern const uint32_t ESPHOME_CONFIG_VERSION_HASH;" in result
     assert "extern const time_t ESPHOME_BUILD_TIME;" in result
     assert "extern const size_t ESPHOME_COMMENT_SIZE;" in result
     assert "extern const char ESPHOME_BUILD_TIME_STR[]" in result
@@ -1930,6 +2205,13 @@ def test_generate_build_info_data_h_esp8266_progmem() -> None:
     assert "#ifdef USE_ESP8266" in result
     assert "#include <pgmspace.h>" in result
     assert "PROGMEM" in result
+
+
+def test_generate_build_info_data_cpp_config_version_hash() -> None:
+    """The config version hash is folded from the config hash and ESPHOME_VERSION."""
+    result = generate_build_info_data_cpp(0x12345678, 1700000000, "", "")
+    assert "fnv1a_hash_extend(0x12345678U, ESPHOME_VERSION);" in result
+    assert "ESPHOME_CONFIG_VERSION_HASH = CONFIG_VERSION_HASH;" in result
 
 
 def test_generate_build_info_data_cpp_format() -> None:
@@ -2556,3 +2838,312 @@ def test_build_info_stale_branches(
     elif isinstance(content, str) and content != "ABSENT":
         info.write_text(content)
     assert _build_info_stale(h, cpp, info, 1) is expected, case
+
+
+def test_get_flags_unions_component_flags() -> None:
+    """get_flags merges the flag set from every component with the key."""
+    from esphome.writer import get_flags
+
+    comp_a = MagicMock()
+    comp_a.build_flags.return_value = {"-DA"}
+    comp_b = MagicMock()
+    comp_b.build_flags.return_value = {"-DB", "-DA"}
+    with (
+        patch("esphome.writer.CORE"),
+        patch(
+            "esphome.writer.iter_component_configs",
+            return_value=[("a", comp_a, {"x": 1}), ("b", comp_b, {})],
+        ),
+    ):
+        assert get_flags("build_flags") == {"-DA", "-DB"}
+
+    comp_a.build_flags.assert_called_once_with({"x": 1})
+
+
+def test_get_include_text_collects_component_includes() -> None:
+    """get_include_text handles missing, callable, list and empty includes."""
+    from esphome.writer import get_include_text
+
+    no_includes = MagicMock(spec=[])
+    callable_includes = MagicMock()
+    callable_includes.includes = lambda conf: f'#include "{conf["name"]}.h"'
+    none_includes = MagicMock()
+    none_includes.includes = None
+    list_includes = MagicMock()
+    list_includes.includes = ['#include "one.h"', '#include "two.h"']
+    empty_includes = MagicMock()
+    empty_includes.includes = ""
+    configs = [
+        ("a", no_includes, {}),
+        ("b", callable_includes, {"name": "dyn"}),
+        ("c", none_includes, {}),
+        ("d", list_includes, {}),
+        ("e", empty_includes, {}),
+    ]
+    with (
+        patch("esphome.writer.CORE"),
+        patch("esphome.writer.iter_component_configs", return_value=configs),
+    ):
+        text = get_include_text()
+
+    assert text == (
+        '#include "esphome.h"\nusing namespace esphome;\n'
+        '#include "dyn.h"\n'
+        '#include "one.h"\n#include "two.h"\n'
+    )
+
+
+def test_replace_file_content() -> None:
+    """replace_file_content substitutes per line and reports the count."""
+    from esphome.writer import replace_file_content
+
+    new, count = replace_file_content("a=1\nb=2\na=3\n", r"^a=\d", "a=0")
+    assert new == "a=0\nb=2\na=0\n"
+    assert count == 2
+
+
+@patch("esphome.writer.save_compiled_config")
+@patch("esphome.writer.clean_build")
+@patch("esphome.writer.StorageJSON")
+@patch("esphome.writer.storage_path")
+@patch("esphome.writer.CORE")
+def test_update_storage_json_unchanged_does_nothing(
+    mock_core: MagicMock,
+    mock_storage_path: MagicMock,
+    mock_storage_json_class: MagicMock,
+    mock_clean_build: MagicMock,
+    mock_save_compiled_config: MagicMock,
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """With no config to cache and identical storage, nothing is written."""
+    mock_core.config = None
+    mock_storage_path.return_value = "/test/path"
+    old_storage = create_storage(loaded_integrations=["api"])
+    new_storage = create_storage(loaded_integrations=["api"])
+    new_storage.save = MagicMock()
+    mock_storage_json_class.load.return_value = old_storage
+    mock_storage_json_class.from_esphome_core.return_value = new_storage
+
+    update_storage_json()
+
+    mock_save_compiled_config.assert_not_called()
+    mock_clean_build.assert_not_called()
+    new_storage.save.assert_not_called()
+
+
+@patch("esphome.writer.clean_cmake_cache")
+@patch("esphome.writer.clean_build")
+@patch("esphome.writer.StorageJSON")
+@patch("esphome.writer.storage_path")
+@patch("esphome.writer.CORE")
+def test_update_storage_json_cleans_cmake_cache_when_integrations_added(
+    mock_core: MagicMock,
+    mock_storage_path: MagicMock,
+    mock_storage_json_class: MagicMock,
+    mock_clean_build: MagicMock,
+    mock_clean_cmake_cache: MagicMock,
+    create_storage: Callable[..., StorageJSON],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Adding an integration on ESP32 cleans only the cmake cache."""
+    mock_core.config = None
+    mock_storage_path.return_value = "/test/path"
+    old_storage = create_storage(
+        loaded_integrations=["api"], core_platform=PLATFORM_ESP32
+    )
+    new_storage = create_storage(
+        loaded_integrations=["api", "wifi"], core_platform=PLATFORM_ESP32
+    )
+    new_storage.save = MagicMock()
+    mock_storage_json_class.load.return_value = old_storage
+    mock_storage_json_class.from_esphome_core.return_value = new_storage
+
+    with caplog.at_level("INFO"):
+        update_storage_json()
+
+    mock_clean_build.assert_not_called()
+    mock_clean_cmake_cache.assert_called_once_with()
+    assert "Integrations changed, cleaning cmake cache..." in caplog.text
+    new_storage.save.assert_called_once_with("/test/path")
+
+
+def test_find_begin_end_errors() -> None:
+    """find_begin_end rejects a missing begin and duplicate end markers."""
+    from esphome.writer import find_begin_end
+
+    with pytest.raises(EsphomeError, match="Could not find auto generated code begin"):
+        find_begin_end("no markers", "BEGIN", "END")
+
+    with pytest.raises(EsphomeError, match="Found multiple auto generate code endings"):
+        find_begin_end("BEGIN x END y END", "BEGIN", "END")
+
+    assert find_begin_end("pre BEGIN x END post", "BEGIN", "END") == ("pre ", " post")
+
+
+def _setup_copy_src_core(mock_core: MagicMock, tmp_path: Path) -> Path:
+    """Point a mocked CORE at tmp_path trees for copy_src_tree; return src dir."""
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = ""
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    return src_path
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+def test_copy_src_tree_skips_unchanged_non_source_resource(
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """A non-source resource is ignored by the tree walk and copied only once."""
+    src_path = _setup_copy_src_core(mock_core, tmp_path)
+    resource_src = tmp_path / "data.txt"
+    resource_src.write_text("payload")
+
+    @contextmanager
+    def _path() -> Any:
+        yield resource_src
+
+    resource = MagicMock()
+    resource.package = "esphome.components.foo"
+    resource.resource = "data.txt"
+    resource.path = _path
+    component = MagicMock()
+    component.resources = [resource]
+    mock_iter_components.return_value = [("foo", component)]
+
+    with patch("esphome.writer.importlib.import_module", side_effect=AttributeError):
+        copy_src_tree()
+        copy_src_tree()
+
+    copied = src_path / "esphome" / "components" / "foo" / "data.txt"
+    assert copied.read_text() == "payload"
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+def test_copy_src_tree_calls_platform_copy_files(
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """The target platform module's copy_files hook is invoked."""
+    _setup_copy_src_core(mock_core, tmp_path)
+    mock_iter_components.return_value = []
+
+    with patch("esphome.writer.importlib.import_module") as mock_import:
+        copy_src_tree()
+
+    mock_import.assert_called_once_with("esphome.components.test_platform")
+    mock_import.return_value.copy_files.assert_called_once_with()
+
+
+def test_generate_version_h_rejects_unparseable_version() -> None:
+    """An unparseable version string raises a clear error."""
+    from esphome.writer import generate_version_h
+
+    with (
+        patch("esphome.writer.__version__", "not-a-version"),
+        pytest.raises(EsphomeError, match="Could not parse version not-a-version"),
+    ):
+        generate_version_h()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_full_without_build_path(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """full=True with no build path set only clears the idedata caches."""
+    mock_core.build_path = None
+    mock_core.name = "test"
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
+    idedata_cache = tmp_path / "idedata" / "test.json"
+    idedata_cache.parent.mkdir()
+    idedata_cache.write_text("{}")
+
+    clean_build(clear_pio_cache=False, full=True)
+
+    assert not idedata_cache.exists()
+
+
+@pytest.mark.parametrize(
+    "yaml_text",
+    ["- just\n- a list\n", "esphome: not-a-dict\n"],
+)
+def test_get_custom_build_dir_ignores_non_mapping(
+    tmp_path: Path, yaml_text: str
+) -> None:
+    """YAML that is not a mapping, or has a non-mapping esphome key, has no build dir."""
+    from esphome.writer import _get_custom_build_dir
+
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text(yaml_text)
+
+    assert _get_custom_build_dir(yaml_file, tmp_path / ".esphome") is None
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_includes_ha_addon_and_data_dir_env(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """clean_all cleans the add-on data dir and ESPHOME_DATA_DIR when set."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    env_data = tmp_path / "env_data"
+    env_data.mkdir()
+    (env_data / "leftover.txt").write_text("x")
+
+    real_is_dir = Path.is_dir
+
+    def _is_dir(self: Path) -> bool:
+        # Never touch a real /data on the machine running the tests
+        return False if self == Path("/data") else real_is_dir(self)
+
+    with (
+        patch("esphome.writer.is_ha_addon", return_value=True),
+        patch.object(Path, "is_dir", _is_dir),
+        patch.dict(os.environ, {"ESPHOME_DATA_DIR": str(env_data)}),
+    ):
+        clean_all([str(config_dir)])
+
+    assert env_data.exists()
+    assert not (env_data / "leftover.txt").exists()
+
+
+@patch("esphome.writer.clean_cmake_cache")
+@patch("esphome.writer.clean_build")
+@patch("esphome.writer.StorageJSON")
+@patch("esphome.writer.storage_path")
+@patch("esphome.writer.CORE")
+def test_update_storage_json_saves_without_cleaning_for_minor_change(
+    mock_core: MagicMock,
+    mock_storage_path: MagicMock,
+    mock_storage_json_class: MagicMock,
+    mock_clean_build: MagicMock,
+    mock_clean_cmake_cache: MagicMock,
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """A change that needs no cleaning is saved without any clean."""
+    mock_core.config = None
+    mock_storage_path.return_value = "/test/path"
+    old_storage = create_storage(friendly_name="Old")
+    new_storage = create_storage(friendly_name="New")
+    new_storage.save = MagicMock()
+    mock_storage_json_class.load.return_value = old_storage
+    mock_storage_json_class.from_esphome_core.return_value = new_storage
+
+    update_storage_json()
+
+    mock_clean_build.assert_not_called()
+    mock_clean_cmake_cache.assert_not_called()
+    new_storage.save.assert_called_once_with("/test/path")
