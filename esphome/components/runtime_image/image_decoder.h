@@ -2,6 +2,7 @@
 #include <cstdint>
 
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 #include "image_format.h"
 
 namespace esphome::runtime_image {
@@ -99,6 +100,7 @@ class ImageDecoder {
     this->size_valid_ = true;
     this->draw_width_ = 0;
     this->draw_height_ = 0;
+    this->direct_rgb565_ = false;
   }
 
   /**
@@ -193,7 +195,20 @@ class ImageDecoder {
   /// Whether is_finished() can tell a complete image from a cut-off one
   virtual bool knows_end() const { return this->expected_size_ > 0; }
 
+  /// The image is opaque RGB565, so draw() writes it straight into the buffer
+  bool uses_direct_rgb565() const { return this->direct_rgb565_; }
+
  protected:
+  /// Resize the image for a width x height source, without preparing to draw. prepare_draw_() must follow.
+  bool resize_image_(int width, int height);
+  /**
+   * Draw a source of width x height over the whole buffer from now on. For an opaque RGB565 image this builds the
+   * tables of where each source column and row lands; without the memory for them it draws pixel by pixel instead.
+   */
+  void prepare_draw_(int width, int height);
+  /// Paint a block of source pixels in one color straight into the buffer. Only while uses_direct_rgb565().
+  void draw_rgb565_(int x, int y, int w, int h, uint16_t rgb565);
+
   /// The image's pixel buffer, for decoders that write their output straight into it
   uint8_t *image_buffer_() const;
   bool image_is_big_endian_() const;
@@ -201,12 +216,16 @@ class ImageDecoder {
   // Size of the image as the decoder draws it, which draw() spreads over the buffer
   int draw_width_ = 0;
   int draw_height_ = 0;
+  // Boundary n is the first buffer column, or row, that source column, or row, n paints
+  FixedVector<uint16_t> x_boundaries_{};
+  FixedVector<uint16_t> y_boundaries_{};
   RuntimeImage *image_;
   size_t expected_size_ = 0;  // Expected data size (0 if unknown)
   size_t decoded_bytes_ = 0;  // Bytes processed so far
   const ImageFormat format_;
   bool active_ = false;     // A decoding session is in progress
   bool size_valid_ = true;  // Last set_size() result; draw() no-ops while false
+  bool direct_rgb565_ = false;
 };
 
 }  // namespace esphome::runtime_image
