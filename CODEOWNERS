@@ -409,6 +409,7 @@ esphome/components/media_source/* @kahrendt
 esphome/components/micro_wake_word/* @jesserockz @kahrendt
 esphome/components/micronova/* @edenhaus @jorre05
 esphome/components/microphone/* @jesserockz @kahrendt
+esphome/components/microphone_http_stream/* @mbrudka
 esphome/components/mics_4514/* @jesserockz
 esphome/components/mics_5524/* @nliaudat
 esphome/components/midea/* @dudanov
