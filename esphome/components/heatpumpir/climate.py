@@ -3,6 +3,7 @@ from esphome.components import climate_ir
 from esphome.components.const import CONF_HORIZONTAL_DEFAULT, CONF_VERTICAL_DEFAULT
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_LIGHT,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
     CONF_PROTOCOL,
@@ -87,6 +88,18 @@ VERTICAL_DIRECTIONS = VerticalDirections.options(
     "auto", "up", "mup", "middle", "mdown", "down", prefix="VERTICAL_DIRECTION_"
 )
 
+LIGHT_CAPABLE_PROTOCOLS = {"greeyap", "vaillantvai8"}
+
+
+def _validate_light_supported_protocols(config):
+    protocol = str(config[CONF_PROTOCOL])
+    if CONF_LIGHT in config and protocol not in LIGHT_CAPABLE_PROTOCOLS:
+        supported = ", ".join(sorted(LIGHT_CAPABLE_PROTOCOLS))
+        raise cv.Invalid(
+            f"{CONF_LIGHT} is only configurable for protocols {supported} in heatpumpir"
+        )
+    return config
+
 
 def _default_visual(config: ConfigType) -> ConfigType:
     # Seed the visual min/max from the required min/max_temperature so the entity
@@ -107,8 +120,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_VERTICAL_DEFAULT): cv.enum(VERTICAL_DIRECTIONS),
             cv.Required(CONF_MIN_TEMPERATURE): cv.temperature,
             cv.Required(CONF_MAX_TEMPERATURE): cv.temperature,
+            cv.Optional(CONF_LIGHT): cv.boolean,
         }
     ),
+    _validate_light_supported_protocols,
     cv.Any(cv.only_with_arduino, cv.only_on_esp32),
     _default_visual,
 )
@@ -121,6 +136,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
+
+    if str(config[CONF_PROTOCOL]) in LIGHT_CAPABLE_PROTOCOLS:
+        cg.add_define("USE_HEATPUMPIR_LIGHT")
+        cg.add(var.set_light(config.get(CONF_LIGHT, True)))
 
     cg.add_library("tonia/HeatpumpIR", "1.0.42")
     if CORE.is_libretiny or CORE.is_esp32:
