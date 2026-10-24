@@ -1,7 +1,6 @@
 #ifdef USE_LIBRETINY
 
 #include "i2c_bus_software.h"
-#include <Arduino.h>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -11,14 +10,14 @@ ESPHOME_LOG_TAG(TAG, "i2c.software");
 
 // Maximum bytes to log in hex format (truncates larger transfers)
 static constexpr size_t I2C_MAX_LOG_BYTES = 32;
-// Clock pulses used to free a slave that is holding SDA low
+// Clock pulses used to free a device that is holding SDA low
 static constexpr uint8_t RECOVERY_CLOCK_PULSES = 9;
 
 // A line is released by switching the pin to input with pull-up and pulled low by driving it as output.
-static inline void release_line(uint8_t pin) { pinMode(pin, INPUT_PULLUP); }
-static inline void pull_line_low(uint8_t pin) {
-  digitalWrite(pin, LOW);
-  pinMode(pin, OUTPUT);
+static inline void release_line(InternalGPIOPin *pin) { pin->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
+static inline void pull_line_low(InternalGPIOPin *pin) {
+  pin->digital_write(false);
+  pin->pin_mode(gpio::FLAG_OUTPUT);
 }
 
 void SoftwareI2CBus::setup() {
@@ -26,6 +25,8 @@ void SoftwareI2CBus::setup() {
   this->half_period_us_ = this->frequency_ != 0 ? (500000 + this->frequency_ - 1) / this->frequency_ : 5;
   if (this->half_period_us_ == 0)
     this->half_period_us_ = 1;
+  this->sda_pin_->setup();
+  this->scl_pin_->setup();
   release_line(this->sda_pin_);
   release_line(this->scl_pin_);
   this->recover_();
@@ -37,13 +38,13 @@ void SoftwareI2CBus::setup() {
 }
 
 void SoftwareI2CBus::dump_config() {
+  ESP_LOGCONFIG(TAG, "I2C Bus (software):");
+  LOG_PIN("  SDA Pin: ", this->sda_pin_);
+  LOG_PIN("  SCL Pin: ", this->scl_pin_);
   ESP_LOGCONFIG(TAG,
-                "I2C Bus (software):\n"
-                "  SDA Pin: GPIO%u\n"
-                "  SCL Pin: GPIO%u\n"
                 "  Frequency: %u Hz\n"
                 "  Clock stretch timeout: %u us",
-                this->sda_pin_, this->scl_pin_, this->frequency_, this->timeout_);
+                this->frequency_, this->timeout_);
   if (this->recovered_) {
     ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
   }
@@ -64,25 +65,25 @@ void SoftwareI2CBus::dump_config() {
 }
 
 void SoftwareI2CBus::recover_() {
-  // A slave that was interrupted in the middle of a transfer can hold SDA low; clock it out.
-  for (uint8_t i = 0; i < RECOVERY_CLOCK_PULSES && digitalRead(this->sda_pin_) == LOW; i++) {
+  // A device that was interrupted in the middle of a transfer can hold SDA low; clock it out.
+  for (uint8_t i = 0; i < RECOVERY_CLOCK_PULSES && !this->sda_pin_->digital_read(); i++) {
     pull_line_low(this->scl_pin_);
     delayMicroseconds(this->half_period_us_);
     release_line(this->scl_pin_);
     delayMicroseconds(this->half_period_us_);
     this->recovered_ = true;
   }
-  if (digitalRead(this->sda_pin_) == LOW) {
+  if (!this->sda_pin_->digital_read()) {
     ESP_LOGW(TAG, "SDA is held low");
     this->recovered_ = false;
   }
 }
 
-// Release SCL and wait for it to go high, a slave may stretch the clock.
+// Release SCL and wait for it to go high, a device may stretch the clock.
 bool SoftwareI2CBus::release_scl_() {
   release_line(this->scl_pin_);
   uint32_t start = micros();
-  while (digitalRead(this->scl_pin_) == LOW) {
+  while (!this->scl_pin_->digital_read()) {
     if (micros() - start > this->timeout_) {
       this->scl_timed_out_ = true;
       return false;
@@ -111,7 +112,7 @@ void SoftwareI2CBus::stop_() {
   delayMicroseconds(this->half_period_us_);
 }
 
-/// Shift out one byte, returns true if the slave acknowledged it.
+/// Shift out one byte, returns true if the device acknowledged it.
 bool SoftwareI2CBus::write_byte_(uint8_t data) {
   for (uint8_t mask = 0x80; mask != 0; mask >>= 1) {
     if (data & mask) {
@@ -128,7 +129,7 @@ bool SoftwareI2CBus::write_byte_(uint8_t data) {
   delayMicroseconds(this->half_period_us_);
   this->release_scl_();
   delayMicroseconds(this->half_period_us_);
-  bool ack = digitalRead(this->sda_pin_) == LOW;
+  bool ack = !this->sda_pin_->digital_read();
   pull_line_low(this->scl_pin_);
   return ack;
 }
@@ -140,7 +141,7 @@ uint8_t SoftwareI2CBus::read_byte_(bool ack) {
     delayMicroseconds(this->half_period_us_);
     this->release_scl_();
     delayMicroseconds(this->half_period_us_);
-    data = (data << 1) | (digitalRead(this->sda_pin_) == HIGH ? 1 : 0);
+    data = (data << 1) | (this->sda_pin_->digital_read() ? 1 : 0);
     pull_line_low(this->scl_pin_);
   }
   if (ack) {

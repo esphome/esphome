@@ -3,11 +3,12 @@
 #ifdef USE_LIBRETINY
 
 #include "esphome/core/component.h"
+#include "esphome/core/gpio.h"
 #include "i2c_bus.h"
 
 namespace esphome::i2c {
 
-/// Bit-banged I2C master for LibreTiny chips without an Arduino Wire implementation (BK72xx).
+/// Bit-banged I2C controller for LibreTiny chips without an Arduino Wire implementation (BK72xx).
 /// SDA and SCL can be any two GPIO pins; both lines are driven open-drain style (pulled low or released),
 /// so the bus needs pull-ups (the internal pull-up is enabled while released).
 class SoftwareI2CBus final : public I2CBus, public Component {
@@ -19,10 +20,10 @@ class SoftwareI2CBus final : public I2CBus, public Component {
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   void set_scan(bool scan) { this->scan_ = scan; }
-  void set_sda_pin(uint8_t sda_pin) { this->sda_pin_ = sda_pin; }
-  void set_scl_pin(uint8_t scl_pin) { this->scl_pin_ = scl_pin; }
+  void set_sda_pin(InternalGPIOPin *sda_pin) { this->sda_pin_ = sda_pin; }
+  void set_scl_pin(InternalGPIOPin *scl_pin) { this->scl_pin_ = scl_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
-  /// Maximum time in microseconds a slave may hold SCL low (clock stretching).
+  /// Maximum time in microseconds a device may hold SCL low (clock stretching).
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
 
  protected:
@@ -33,8 +34,8 @@ class SoftwareI2CBus final : public I2CBus, public Component {
   bool write_byte_(uint8_t data);
   uint8_t read_byte_(bool ack);
 
-  uint8_t sda_pin_;
-  uint8_t scl_pin_;
+  InternalGPIOPin *sda_pin_{nullptr};
+  InternalGPIOPin *scl_pin_{nullptr};
   uint32_t frequency_;
   uint32_t timeout_{1000};
   uint32_t half_period_us_{5};

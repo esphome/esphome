@@ -132,11 +132,11 @@ def _rp2040_i2c_controller(pin: int) -> int:
     return (pin // 2) % 2
 
 
-def _i2c_pin_number(value: Any) -> int:
-    # LibreTiny only accepts pin modes it can set up; the software bus switches
-    # the pins between input with pull-up and output at runtime.
+def _i2c_pin_number(value: Any) -> Any:
+    # The software bus on LibreTiny drives the pins through the GPIO pin objects and
+    # switches them between input with pull-up and output at runtime.
     if CORE.is_libretiny:
-        return pins.internal_gpio_input_pullup_pin_number(value)
+        return pins.internal_gpio_input_pullup_pin_schema(value)
     return pins.internal_gpio_pin_number(value)
 
 
@@ -366,8 +366,8 @@ async def to_code(config: ConfigType) -> None:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
 
-        cg.add(var.set_sda_pin(config[CONF_SDA]))
-        cg.add(var.set_scl_pin(config[CONF_SCL]))
+        cg.add(var.set_sda_pin(await cg.gpio_pin_expression(config[CONF_SDA])))
+        cg.add(var.set_scl_pin(await cg.gpio_pin_expression(config[CONF_SCL])))
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
         if CONF_TIMEOUT in config:
