@@ -188,7 +188,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ131": {
         "label": "MQ-131",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": 15.0,  # RatioMQ131CleanAir of the reference examples
         "primary_gas": "O3",
         "max_ppm": 10.0,  # datasheet range is given in ppb (10 - 1000 ppb)
         "gases": {  # ozone
@@ -198,7 +198,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ135": {
         "label": "MQ-135",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": 3.6,  # RatioMQ135CleanAir of the reference examples
         "primary_gas": "NH3",
         "max_ppm": 10000.0,
         "gases": {  # air quality
@@ -210,7 +210,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ137": {
         "label": "MQ-137",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "NH3",
         "max_ppm": 500.0,  # datasheet: 5 - 500 ppm NH3
         "gases": {  # ammonia
@@ -220,7 +220,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ138": {
         "label": "MQ-138",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "TOLUENE",
         "max_ppm": 1000.0,  # datasheet: 5 - 1000 ppm VOC
         "gases": {  # VOC / organic solvents
@@ -232,7 +232,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ136": {
         "label": "MQ-136",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 200.0,  # datasheet: 1 - 200 ppm H2S
         "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
@@ -240,7 +240,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ214": {
         "label": "MQ-214",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 10000.0,  # natural gas / methane
         "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
@@ -248,7 +248,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ303A": {
         "label": "MQ-303A",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm alcohol
         "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
@@ -256,7 +256,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ309A": {
         "label": "MQ-309A",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm CO
         "gases": {},  # no published coefficients - set coefficient_a:/coefficient_b: in the YAML
@@ -264,7 +264,7 @@ SENSOR_TYPES: dict[str, dict] = {
     CUSTOM_TYPE: {
         "label": "CUSTOM",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 10000.0,
         "gases": {},  # set coefficient_a:/coefficient_b: in the YAML
@@ -299,7 +299,8 @@ def resolve_sensor(
 ) -> ResolvedSensor:
     """Merge the built-in curve of `type_key` / `gas` with explicit YAML overrides.
 
-    Raises :class:`ValueError` for an unknown type/gas or a missing coefficient.
+    Raises :class:`ValueError` for an unknown type/gas, a missing coefficient, a
+    one-sided coefficient override or a regression method without its own pair.
     """
     if type_key not in SENSOR_TYPES:
         raise ValueError(
@@ -309,7 +310,10 @@ def resolve_sensor(
     definition = SENSOR_TYPES[type_key]
     gases: dict = definition["gases"]
 
-    gas_key = normalize_gas(gas) if gas else definition["primary_gas"]
+    gas_key = normalize_gas(gas) if gas is not None else definition["primary_gas"]
+    # A user supplied pair defines its own curve; the built-in pair only applies
+    # when neither coefficient is written.
+    supplied_curve = a is not None and b is not None
 
     if gases:
         if gas_key not in gases:
@@ -317,18 +321,36 @@ def resolve_sensor(
                 f"{definition['label']} has no curve for gas '{gas_key}', "
                 f"available gases: {', '.join(sorted(gases))}"
             )
-        curve_a, curve_b = gases[gas_key]
-        if a is None:
-            a = curve_a
-        if b is None:
-            b = curve_b
+        if (a is None) != (b is None):
+            raise ValueError(
+                f"set both 'coefficient_a:' and 'coefficient_b:' for "
+                f"{definition['label']} or neither - one of them combined with the "
+                f"built-in pair is a curve nobody fitted"
+            )
+        if not supplied_curve:
+            a, b = gases[gas_key]
     else:
         gas_key = gas_key or "CUSTOM"
-        if a is None or b is None:
+        if not supplied_curve:
             raise ValueError(
                 f"{definition['label']} has no built-in coefficients, "
                 f"set both 'coefficient_a:' and 'coefficient_b:' in the configuration"
             )
+
+    if method is not None and method != definition["method"] and not supplied_curve:
+        raise ValueError(
+            f"the coefficients of {definition['label']} are fitted for the "
+            f"{definition['method']} curve - set both 'coefficient_a:' and "
+            f"'coefficient_b:' to use 'regression_method: {method}'"
+        )
+
+    # 0.0 means the type has no published clean-air ratio: only a boot
+    # calibration needs one, and `sensor.py` rejects that without an override.
+    ratio = (
+        definition["ratio_in_clean_air"]
+        if ratio_in_clean_air is None
+        else ratio_in_clean_air
+    )
 
     return ResolvedSensor(
         type_key=type_key,
@@ -337,11 +359,7 @@ def resolve_sensor(
         method=method or definition["method"],
         a=_clamp_coefficient(float(a), MQ_MAX_A, "coefficient_a"),
         b=_clamp_coefficient(float(b), MQ_MAX_B, "coefficient_b"),
-        ratio_in_clean_air=float(
-            definition["ratio_in_clean_air"]
-            if ratio_in_clean_air is None
-            else ratio_in_clean_air
-        ),
+        ratio_in_clean_air=0.0 if ratio is None else float(ratio),
         rl=float(10.0 if rl is None else rl),
         vcc=float(5.0 if vcc is None else vcc),
         min_ppm=float(0.0 if min_ppm is None else min_ppm),
