@@ -20,18 +20,19 @@ template<typename... Ts> class SDOWriteAction : public Action<Ts...> {
 
   void play(const Ts &...x) override {
     if (!this->parent_->write_sdo(this->node_, this->index_, this->subindex_, this->value_.value(x...), this->size_,
-                                  SDOWriteAction::on_result_, this)) {
+                                  SDOWriteAction::on_result, this)) {
       this->error_callback_.call(SDOResult::SDO_RESULT_REJECTED, 0);
     }
   }
 
  protected:
-  static void on_result_(void *context, SDOResult result, uint32_t value, uint8_t size) {
+  static void on_result(void *context, SDOResult result, uint32_t value, uint8_t size) {
     auto *action = static_cast<SDOWriteAction *>(context);
-    if (result == SDOResult::SDO_RESULT_SUCCESS)
+    if (result == SDOResult::SDO_RESULT_SUCCESS) {
       action->success_callback_.call();
-    else
+    } else {
       action->error_callback_.call(result, value);
+    }
   }
 
   CANopenComponent *parent_;

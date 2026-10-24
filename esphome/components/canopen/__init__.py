@@ -2,7 +2,15 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import canbus
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INDEX, CONF_ON_ERROR, CONF_SIZE, CONF_VALUE
+from esphome.const import (
+    CONF_COMMAND,
+    CONF_ID,
+    CONF_INDEX,
+    CONF_ON_ERROR,
+    CONF_ON_SUCCESS,
+    CONF_SIZE,
+    CONF_VALUE,
+)
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
@@ -13,10 +21,8 @@ DEPENDENCIES = ["canbus"]
 DOMAIN = "canopen"
 MULTI_CONF = True
 
-CONF_ON_SUCCESS = "on_success"
 CONF_ON_HEARTBEAT = "on_heartbeat"
 CONF_ON_EMCY = "on_emcy"
-CONF_COMMAND = "command"
 
 CONF_CANOPEN_ID = "canopen_id"
 CONF_NODE_ID = "node_id"

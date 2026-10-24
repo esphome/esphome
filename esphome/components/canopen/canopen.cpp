@@ -48,8 +48,9 @@ bool CANopenComponent::send_nmt(uint8_t node, NMTCommand command) {
   }
   const uint8_t data[]{static_cast<uint8_t>(command), node};
   const bool sent = this->bus_->send_data(0, false, false, data, sizeof(data)) == canbus::ERROR_OK;
-  if (!sent)
+  if (!sent) {
     ESP_LOGW(TAG, "Node %u NMT send failed", node);
+  }
   return sent;
 }
 
