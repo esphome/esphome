@@ -1,0 +1,43 @@
+canopen:
+  - id: tmcm1240_test_hub
+    canbus_id: tmcm1240_test_bus
+tmcm1240:
+  canopen_id: tmcm1240_test_hub
+  id: tmcm1240_test_drive
+  node_id: 32
+  profile_velocity: 120945
+  acceleration: 10078740
+  deceleration: 10078740
+  run_current: 0.385
+  standby_current: 0.1925
+  stallguard_threshold: 8
+  stallguard_min_velocity: 56441
+  homing_velocity: 60472
+  homing_backoff: 40315
+  homing_travel: 383000
+  homing_margin: 4031
+button:
+  - platform: template
+    name: Configure
+    on_press:
+      - tmcm1240.apply_configuration: tmcm1240_test_drive
+  - platform: template
+    name: Home
+    on_press:
+      - tmcm1240.sensorless_home: tmcm1240_test_drive
+  - platform: template
+    name: Enable
+    on_press:
+      - cia402.enable: tmcm1240_test_drive
+  - platform: template
+    name: Stop
+    on_press:
+      - cia402.quick_stop: tmcm1240_test_drive
+
+sensor:
+  - platform: tmcm1240
+    name: Load
+    type: STALLGUARD_LOAD
+  - platform: tmcm1240
+    name: Driver flags
+    type: DRIVER_ERROR_FLAGS
