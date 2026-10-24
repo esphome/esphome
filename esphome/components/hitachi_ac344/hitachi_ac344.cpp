@@ -129,17 +129,47 @@ static bool swing_vertical(climate::ClimateSwingMode mode) {
   return mode == climate::CLIMATE_SWING_VERTICAL || mode == climate::CLIMATE_SWING_BOTH;
 }
 
+bool HitachiClimate::get_mildew_proof() const {
+  return GETBIT8(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], HITACHI_AC344_MILDEWPROOF_OFFSET);
+}
+
+void HitachiClimate::set_mildew_proof(bool on) {
+  // A repeated write resends the frame, so a missed burst can be retried
+  assign_bits(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], 1 << HITACHI_AC344_MILDEWPROOF_OFFSET, on);
+  this->transmit_state_(HITACHI_AC344_BUTTON_MILDEWPROOF);
+  this->publish_mildew_proof_();
+}
+
+void HitachiClimate::publish_mildew_proof_() {
+#ifdef USE_SWITCH
+  if (this->mildew_proof_switch_ != nullptr)
+    this->mildew_proof_switch_->publish_state(this->get_mildew_proof());
+#endif
+}
+
 void HitachiClimate::setup() {
-  // Seed the tracked vertical swing before the base publishes the restored state; an on_state automation may
-  // transmit from that callback
+  // Seed the frame before the base publishes the restored state; an on_state automation may transmit from that
+  // callback. Nothing is sent at boot, the restored settings ride along with the next frame.
   auto restore = this->restore_state_();
   if (restore.has_value()) {
     set_swing_v_(swing_vertical(restore->swing_mode));
   }
+#ifdef USE_SWITCH
+  // The restored value is the switch state, which an inverted switch flips relative to the frame bit
+  if (this->mildew_proof_switch_ != nullptr) {
+    if (auto initial = this->mildew_proof_switch_->get_initial_state_with_restore_mode()) {
+      assign_bits(this->remote_state_[HITACHI_AC344_MILDEWPROOF_BYTE], 1 << HITACHI_AC344_MILDEWPROOF_OFFSET,
+                  *initial != this->mildew_proof_switch_->is_inverted());
+    }
+  }
+#endif
   this->setup_(restore);
+  this->publish_mildew_proof_();
 }
 
-void HitachiClimate::transmit_state() {
+void HitachiClimate::transmit_state() { this->transmit_state_(HITACHI_AC344_BUTTON_POWER); }
+
+void HitachiClimate::transmit_state_(uint8_t button) {
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       set_mode_(HITACHI_AC344_MODE_COOL);
@@ -189,9 +219,13 @@ void HitachiClimate::transmit_state() {
       this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL || this->swing_mode == climate::CLIMATE_SWING_BOTH;
   set_swing_h_(swing_h ? HITACHI_AC344_SWINGH_AUTO : HITACHI_AC344_SWINGH_MIDDLE);
   // The unit ignores the swing bit and toggles on the swing button, so only a vertical swing change presses it;
-  // everything else is a power press, as the remote does
-  set_button_(swing_v != get_swing_v_() ? HITACHI_AC344_BUTTON_SWINGV : HITACHI_AC344_BUTTON_POWER);
+  // everything else sends the given button
+  set_button_(swing_v != get_swing_v_() ? HITACHI_AC344_BUTTON_SWINGV : button);
   set_swing_v_(swing_v);
+
+  // The remote sends this when powering off with mildew proof on
+  if (this->mode == climate::CLIMATE_MODE_OFF && this->get_mildew_proof())
+    remote_state_[9] = 0xA5;
 
   invert_byte_pairs(remote_state_ + 3, HITACHI_AC344_STATE_LENGTH - 3);
 
@@ -341,6 +375,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Copy first so an on_state automation transmits from the received frame
   memcpy(remote_state_, recv_state, HITACHI_AC344_STATE_LENGTH);
   this->publish_state();
+  this->publish_mildew_proof_();
 
   return true;
 }
