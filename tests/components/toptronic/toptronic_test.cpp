@@ -10,9 +10,9 @@ namespace esphome::toptronic::testing {
 
 namespace {
 
-static constexpr uint32_t START_ID = 0x1Fu << 24;
-static constexpr uint32_t CONT_ID = 0x10u << 24;
-static constexpr uint8_t TAG = 0x2A;
+constexpr uint32_t START_ID = 0x1Fu << 24;
+constexpr uint32_t CONT_ID = 0x10u << 24;
+constexpr uint8_t TAG = 0x2A;
 
 class NullCanbus : public canbus::Canbus {
  public:
@@ -52,7 +52,7 @@ class TestableTopTronic : public TopTronic {
 
 class TopTronicTest : public ::testing::Test {
  protected:
-  void set_now(uint32_t now) {
+  void set_now_(uint32_t now) {
     this->now_ = now;
     LoopBlockingGuard{nullptr, nullptr, now};
   }
@@ -84,18 +84,18 @@ class TopTronicTest : public ::testing::Test {
   uint32_t now_{1000};
 };
 
-static const std::vector<uint8_t> MESSAGE{0x42, 0x01, 0x02, 0x00, 0x10, 0xAA, 0xBB, 0xCC, 0xDD};
+const std::vector<uint8_t> MESSAGE{0x42, 0x01, 0x02, 0x00, 0x10, 0xAA, 0xBB, 0xCC, 0xDD};
 
 }  // namespace
 
 TEST_F(TopTronicTest, SingleFrameMessageIsPassedThrough) {
-  this->set_now(1000);
+  this->set_now_(1000);
   EXPECT_EQ(this->hub_.feed(START_ID, {0x00, 0x42, 0x01, 0x02, 0x00, 0x10, 0x07}),
             (std::vector<uint8_t>{0x42, 0x01, 0x02, 0x00, 0x10, 0x07}));
 }
 
 TEST_F(TopTronicTest, MultiFrameMessageWithValidCrcCompletes) {
-  this->set_now(1000);
+  this->set_now_(1000);
   auto frames = split(MESSAGE);
   ASSERT_EQ(frames.size(), 2u);
   EXPECT_TRUE(this->hub_.feed(START_ID, frames[0]).empty());
@@ -105,7 +105,7 @@ TEST_F(TopTronicTest, MultiFrameMessageWithValidCrcCompletes) {
 }
 
 TEST_F(TopTronicTest, BadCrcIsDroppedAndFreesTheSlot) {
-  this->set_now(1000);
+  this->set_now_(1000);
   auto frames = split(MESSAGE, false);
   EXPECT_TRUE(this->hub_.feed(START_ID, frames[0]).empty());
   EXPECT_TRUE(this->hub_.feed(CONT_ID, frames[1]).empty());
@@ -113,10 +113,10 @@ TEST_F(TopTronicTest, BadCrcIsDroppedAndFreesTheSlot) {
 }
 
 TEST_F(TopTronicTest, StaleSlotIsNotCompletedAndIsReclaimed) {
-  this->set_now(1000);
+  this->set_now_(1000);
   auto frames = split(MESSAGE);
   EXPECT_TRUE(this->hub_.feed(START_ID, frames[0]).empty());
-  this->set_now(7000);
+  this->set_now_(7000);
   EXPECT_TRUE(this->hub_.feed(CONT_ID, frames[1]).empty());
   EXPECT_EQ(this->hub_.live_slots(7000), 0u);
   // A fresh start with the same tag reuses the reclaimed slot and completes
@@ -125,10 +125,10 @@ TEST_F(TopTronicTest, StaleSlotIsNotCompletedAndIsReclaimed) {
 }
 
 TEST_F(TopTronicTest, OldestSlotIsEvictedWhenAllAreBusy) {
-  this->set_now(1000);
+  this->set_now_(1000);
   for (uint8_t tag : {1, 2, 3}) {
     EXPECT_TRUE(this->hub_.feed(START_ID, {3 << 3, tag, 0x42}).empty());
-    this->set_now(this->now_ + 10);
+    this->set_now_(this->now_ + 10);
   }
   // Tag 1 was the oldest, so its continuation no longer matches a slot; tag 2 still does
   EXPECT_TRUE(this->hub_.feed(CONT_ID, {1, 0x00}).empty());
@@ -138,7 +138,7 @@ TEST_F(TopTronicTest, OldestSlotIsEvictedWhenAllAreBusy) {
 }
 
 TEST_F(TopTronicTest, FramesBeyondTheBufferAreDropped) {
-  this->set_now(1000);
+  this->set_now_(1000);
   // 31 frames announced, but oversized frames overflow the buffer before the count runs out
   EXPECT_TRUE(this->hub_.feed(START_ID, {31 << 3, TAG, 0x42}).empty());
   std::vector<uint8_t> big(100, 0x55);
@@ -150,7 +150,7 @@ TEST_F(TopTronicTest, FramesBeyondTheBufferAreDropped) {
 }
 
 TEST_F(TopTronicTest, FrameCountOfOneIsRejected) {
-  this->set_now(1000);
+  this->set_now_(1000);
   EXPECT_TRUE(this->hub_.feed(START_ID, {1 << 3, TAG, 0x42}).empty());
   EXPECT_EQ(this->hub_.live_slots(1000), 0u);
 }

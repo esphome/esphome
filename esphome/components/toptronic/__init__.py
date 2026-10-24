@@ -5,6 +5,7 @@ import yaml
 
 import esphome.codegen as cg
 from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
+from esphome.components.const import CONF_DEVICE_TYPE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE, ID
@@ -19,7 +20,6 @@ MULTI_CONF = True
 
 CONF_TOPTRONIC_ID = "toptronic_id"
 CONF_DEVICE_ADDR = "device_addr"
-CONF_DEVICE_TYPE = "device_type"
 CONF_FUNCTION_GROUP = "function_group"
 CONF_FUNCTION_NUMBER = "function_number"
 CONF_DATAPOINT = "datapoint"
