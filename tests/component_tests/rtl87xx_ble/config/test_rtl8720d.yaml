@@ -1,0 +1,16 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+esphome:
+  name: rtl-gate-8720d
+
+rtl87xx:
+  board: bw16
+  # The stock releases have no realtek-ambd yet; any non-stock source passes
+  # the framework guard (codegen tests never fetch the framework).
+  framework:
+    version: 1.13.0
+    source: https://github.com/libretiny-eu/libretiny.git#ambd
+
+rtl87xx_ble:
