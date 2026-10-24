@@ -1,2 +1,3 @@
 packages:
+  uart: !include ../../test_build_components/common/uart_2x/esp32-idf.yaml
   dlms_meter: !include multi.yaml
