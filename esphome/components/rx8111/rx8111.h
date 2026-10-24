@@ -98,7 +98,7 @@ class RX8111Component final : public time::RealTimeClock, public i2c::I2CDevice 
   void boot_config_result_(BootFeature feature, bool success);
   bool watching_() const {
     return this->alarm_armed_ || this->timer_enabled_ || this->timer_retained_event_pending_ ||
-           (this->event_enabled_ && !this->event_callbacks_.empty());
+           (this->event_enabled_ && !this->event_boot_pending_ && !this->event_callbacks_.empty());
   }
   void configure_boot_event_();
   bool configure_event_();

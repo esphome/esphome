@@ -210,6 +210,48 @@ TEST_F(RX8111Test, EventExtensionFailureRetriesBeforeEnablingInterrupt) {
   EXPECT_EQ(this->bus_.regs[CONTROL] & 0x04, 0x04);
 }
 
+TEST_F(RX8111Test, ExhaustedEventStartupRetriesDoNotKeepPollingFlags) {
+  this->rtc_.set_event_config(0);
+  unsigned callbacks = 0;
+  this->rtc_.add_on_event_callback([&callbacks]() { callbacks++; });
+  this->bus_.fail_write = EVIN;
+  this->rtc_.setup();
+  EXPECT_FALSE(this->polling_started_());
+  this->advance_retry_();
+  this->advance_retry_();
+  EXPECT_TRUE(this->event_warning_());
+  this->bus_.fail_write = -1;
+  this->bus_.regs[FLAG] = 0x04;
+  const auto reads = this->bus_.flag_reads;
+  for (unsigned i = 0; i < 5; i++) {
+    this->advance_retry_();
+    this->poll_();
+  }
+  EXPECT_EQ(this->bus_.flag_reads, reads);
+  EXPECT_EQ(callbacks, 0);
+  EXPECT_FALSE(this->polling_started_());
+  EXPECT_TRUE(this->event_warning_());
+}
+
+TEST_F(RX8111Test, FailedEventStartupDoesNotStopTimerPolling) {
+  this->rtc_.set_event_config(0);
+  this->rtc_.add_on_event_callback([]() { FAIL() << "EVIN configuration never succeeded"; });
+  this->rtc_.set_timer_count(2);
+  this->rtc_.set_timer_configured(true);
+  this->rtc_.set_timer_enabled(true);
+  unsigned callbacks = 0;
+  this->rtc_.add_on_timer_callback([&callbacks]() { callbacks++; });
+  this->bus_.fail_write = EVIN;
+  this->rtc_.setup();
+  this->advance_retry_();
+  this->advance_retry_();
+  EXPECT_TRUE(this->polling_started_());
+  this->bus_.regs[FLAG] = 0x14;
+  this->poll_();
+  EXPECT_EQ(callbacks, 1);
+  EXPECT_TRUE(this->event_warning_());
+}
+
 TEST_F(RX8111Test, ClearEventFlagPreservesOtherFlagsAndRetriesAfterFailure) {
   this->bus_.regs[FLAG] = 0x1C;
   this->bus_.fail_write = FLAG;
