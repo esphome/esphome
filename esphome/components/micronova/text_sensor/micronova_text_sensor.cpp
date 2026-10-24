@@ -20,11 +20,8 @@ void MicroNovaTextSensor::process_value_from_stove(int value_from_stove) {
   }
 
   // Values past the table read as "Undefined alarm"
-  const ProgmemStr name =
-      StoveStateStrings::get_progmem_str(static_cast<uint8_t>(value_from_stove), StoveStateStrings::LAST_INDEX);
-  char text[StoveStateStrings::MAX_LENGTH + 1];
-  ESPHOME_strncpy_P(text, reinterpret_cast<ESPHOME_PGM_P>(name), sizeof(text));
-  this->publish_state(text);
+  this->publish_state(
+      StoveStateStrings::get_progmem_str(static_cast<uint8_t>(value_from_stove), StoveStateStrings::LAST_INDEX));
 }
 
 }  // namespace esphome::micronova
