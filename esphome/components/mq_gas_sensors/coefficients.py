@@ -301,7 +301,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ131": {
         "label": "MQ-131",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": 15.0,  # RatioMQ131CleanAir of the reference examples
         "primary_gas": "O3",
         "max_ppm": 10.0,  # datasheet range is given in ppb (10 - 1000 ppb)
         "gases": {  # ozone
@@ -311,7 +311,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ135": {
         "label": "MQ-135",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": 3.6,  # RatioMQ135CleanAir of the reference examples
         "primary_gas": "NH3",
         "max_ppm": 10000.0,
         "gases": {  # air quality: NH3 / H2 / toluene (verified linear fits)
@@ -323,7 +323,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ136": {
         "label": "MQ-136",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 200.0,  # datasheet: 1 - 200 ppm H2S
         "heater_note": "MQ-136 needs a 2-phase heater (5V pre-heat, then 1.5V)",
@@ -332,7 +332,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ137": {
         "label": "MQ-137",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "NH3",
         "max_ppm": 500.0,  # datasheet: 5 - 500 ppm NH3
         "gases": {  # ammonia
@@ -342,7 +342,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ138": {
         "label": "MQ-138",
         "method": "linear",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "TOLUENE",
         "max_ppm": 1000.0,  # datasheet: 5 - 1000 ppm VOC
         "gases": {  # VOC / organic solvents
@@ -354,7 +354,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ214": {
         "label": "MQ-214",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 10000.0,  # natural gas / methane
         "gases": {},  # no published coefficients - set a: / b: in the YAML
@@ -362,7 +362,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ303A": {
         "label": "MQ-303A",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm alcohol
         "heater_note": "MQ-303A drives an internal heater and needs 5V +/- 0.1V",
@@ -371,7 +371,7 @@ SENSOR_TYPES: dict[str, dict] = {
     "MQ309A": {
         "label": "MQ-309A",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm CO
         "heater_note": "MQ-309A needs a 2-phase heater (1.5V low / 5V high cycle)",
@@ -380,7 +380,7 @@ SENSOR_TYPES: dict[str, dict] = {
     CUSTOM_TYPE: {
         "label": "CUSTOM",
         "method": "exponential",
-        "ratio_in_clean_air": 1.0,
+        "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 10000.0,
         "gases": {},  # set a: / b: (and optionally ratio_in_clean_air:) in the YAML
@@ -420,8 +420,9 @@ def resolve_sensor(
     alternative curves define `a` / `b` / the regression method themselves, so
     combining them with explicit `a:` / `b:` is rejected.
 
-    Raises :class:`ValueError` for an unknown type/gas, a missing coefficient or
-    an unavailable curve variant.
+    Raises :class:`ValueError` for an unknown type/gas, a missing coefficient, a
+    one-sided coefficient override, a regression method without its own pair, or an
+    unavailable curve variant.
     """
     if type_key not in SENSOR_TYPES:
         raise ValueError(
@@ -431,7 +432,10 @@ def resolve_sensor(
     definition = SENSOR_TYPES[type_key]
     gases: dict = definition["gases"]
 
-    gas_key = normalize_gas(gas) if gas else definition["primary_gas"]
+    gas_key = normalize_gas(gas) if gas is not None else definition["primary_gas"]
+    # A user supplied pair defines its own curve; the built-in pair only applies
+    # when neither coefficient is written.
+    supplied_curve = a is not None and b is not None
 
     explicit_settings = a is not None or b is not None or method is not None
 
@@ -441,20 +445,35 @@ def resolve_sensor(
                 f"{definition['label']} has no curve for gas '{gas_key}', "
                 f"available gases: {', '.join(sorted(gases))}"
             )
-        curve_a, curve_b = gases[gas_key]
-        if a is None:
-            a = curve_a
-        if b is None:
-            b = curve_b
+        if (a is None) != (b is None):
+            raise ValueError(
+                f"set both 'coefficient_a:' and 'coefficient_b:' for "
+                f"{definition['label']} or neither - one of them combined with the "
+                f"built-in pair is a curve nobody fitted"
+            )
+        if not supplied_curve:
+            a, b = gases[gas_key]
     else:
         gas_key = gas_key or "CUSTOM"
-        if a is None or b is None:
+        if not supplied_curve:
             raise ValueError(
                 f"{definition['label']} has no built-in coefficients, "
                 f"set both 'coefficient_a:' and 'coefficient_b:' in the configuration"
             )
 
     resolved_method = method or definition["method"]
+
+    if (
+        curve == CURVE_STANDARD
+        and method is not None
+        and method != definition["method"]
+        and not supplied_curve
+    ):
+        raise ValueError(
+            f"the coefficients of {definition['label']} are fitted for the "
+            f"{definition['method']} curve - set both 'coefficient_a:' and "
+            f"'coefficient_b:' to use 'regression_method: {method}'"
+        )
 
     if curve != CURVE_STANDARD:
         variants = CURVE_VARIANTS.get((type_key, gas_key), {})
@@ -471,6 +490,14 @@ def resolve_sensor(
             )
         a, b, resolved_method = variants[curve]
 
+    # 0.0 means the type has no published clean-air ratio: only a boot
+    # calibration needs one, and `sensor.py` rejects that without an override.
+    ratio = (
+        definition["ratio_in_clean_air"]
+        if ratio_in_clean_air is None
+        else ratio_in_clean_air
+    )
+
     return ResolvedSensor(
         type_key=type_key,
         label=definition["label"],
@@ -478,11 +505,7 @@ def resolve_sensor(
         method=resolved_method,
         a=_clamp_coefficient(float(a), MQ_MAX_A, "coefficient_a"),
         b=_clamp_coefficient(float(b), MQ_MAX_B, "coefficient_b"),
-        ratio_in_clean_air=float(
-            definition["ratio_in_clean_air"]
-            if ratio_in_clean_air is None
-            else ratio_in_clean_air
-        ),
+        ratio_in_clean_air=0.0 if ratio is None else float(ratio),
         rl=float(10.0 if rl is None else rl),
         vcc=float(5.0 if vcc is None else vcc),
         min_ppm=float(0.0 if min_ppm is None else min_ppm),

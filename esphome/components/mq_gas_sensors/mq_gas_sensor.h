@@ -180,8 +180,12 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// Clear the status warning a fault just ended, or restate the warning that is
   /// still current - the status slot holds one warning only.
   void update_status_();
-  /// End a ratio fault that a valid reading supersedes.
-  void clear_ratio_warning_();
+  /// End the faults a valid reading supersedes: a ratio fault, and a failed
+  /// recalibration whose warning only concerned that attempt.
+  void clear_reading_warnings_();
+  /// Warn once when the published value is the top of the range rather than a
+  /// measurement there, so a ceiling does not pass for a real reading.
+  void warn_ceiling_(float ppm);
 
   StringRef type_{StringRef::from_lit("MQ")};
   StringRef gas_{StringRef::from_lit("CUSTOM")};
@@ -241,6 +245,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_rejected_high_{0};
   uint32_t calibration_rejected_nonfinite_{0};
   uint32_t calibration_rejected_rs_{0};
+  /// Windows in which the sampler answered only part of the conversions: a
+  /// degrading sampler that never fails outright.
+  uint32_t calibration_partial_{0};
   float calibration_sum_{0.0f};
   /// Smallest and largest clean-air sample of the run; a wide spread means the
   /// sensor was not settled, see `calibration_is_stable()`.
@@ -265,8 +272,15 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// could not be stored): it is restated when another warning that took the slot
   /// clears.
   const LogString *r0_warning_{nullptr};
+  /// The R0 warning reports a failed manual recalibration while a usable R0 is
+  /// still in use, so the next valid reading ends it.
+  bool r0_warning_clears_on_reading_{false};
   /// A reading the curve cannot evaluate while the wiring itself is fine.
   bool warned_unusable_ratio_{false};
+  /// The last window had conversions the sampler could not complete.
+  bool warned_partial_window_{false};
+  /// The published value is the top of the range, by saturation or by clamp.
+  bool warned_over_range_{false};
   /// The temperature/humidity sources cannot provide a usable correction.
   bool correction_degraded_{false};
   bool warned_correction_{false};
@@ -276,6 +290,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   float rs_{0.0f};
   float ratio_{0.0f};
   float correction_{1.0f};
+  /// Usable conversions of the last sampling window, so a partially answered
+  /// window is visible instead of a silently shorter average.
+  uint8_t sample_count_{0};
 
 #ifdef USE_MQ_GAS_SENSORS_LOG_SENSOR
   text_sensor::TextSensor *log_sensor_{nullptr};
