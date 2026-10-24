@@ -565,6 +565,8 @@ TEST_F(HttpRequestSendActionTest, SafeShutdownSendsOnlyTheShutdownRequests) {
   EXPECT_EQ(this->http_.containers[0]->ends, 1);
   EXPECT_EQ(this->responses_, 0);
   EXPECT_EQ(this->errors_, 0);
+  // Stopped like script.stop, so a mode single script could run it again from on_shutdown
+  EXPECT_FALSE(this->automation_.is_running());
 
   this->trigger_.trigger();
   EXPECT_EQ(this->responses_, 1);

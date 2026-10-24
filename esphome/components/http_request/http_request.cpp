@@ -57,8 +57,20 @@ void HttpRequestComponent::on_safe_shutdown() {
   // Called before any on_shutdown(). Drop the requests already made, so that they do not hold up the reboot;
   // only the ones that on_shutdown automations make are sent.
   this->shutting_down_ = true;
-  for (PendingRequest *request = this->requests_; request != nullptr; request = request->next)
+  this->busy_++;
+  unsigned dropped = 0;
+  for (PendingRequest *request = this->requests_; request != nullptr; request = request->next) {
+    if (request->finished || request->cancelled)
+      continue;
+    dropped++;
     request->cancelled = true;
+    // As script.stop would, so that a script that was waiting for it can run again from on_shutdown
+    request->handler(request, RequestEvent::REQUEST_EVENT_ABANDON);
+  }
+  this->busy_--;
+  if (dropped != 0) {
+    ESP_LOGW(TAG, "Shutting down; %u requests dropped", dropped);
+  }
   if (this->busy_ == 0)
     this->remove_dead_();
 }

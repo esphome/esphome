@@ -352,6 +352,7 @@ enum class RequestEvent : uint8_t {
   REQUEST_EVENT_START,    ///< Build the request and call begin()
   REQUEST_EVENT_FINISH,   ///< Fire the triggers and continue the action chain
   REQUEST_EVENT_DESTROY,  ///< Free the request
+  REQUEST_EVENT_ABANDON,  ///< Dropped at shutdown: stop the action, so that it can run again
 };
 
 /// A request from an HttpRequestSendAction, run from HttpRequestComponent::loop().
@@ -657,6 +658,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
         break;
       case RequestEvent::REQUEST_EVENT_DESTROY:
         delete self;  // NOLINT(cppcoreguidelines-owning-memory)
+        break;
+      case RequestEvent::REQUEST_EVENT_ABANDON:
+        action->stop_complex();
         break;
     }
   }
