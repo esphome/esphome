@@ -104,6 +104,24 @@ TEST_F(HitachiSwingTest, ReceivedFrameResyncsTheVerticalSwingState) {
   EXPECT_EQ(this->button_after_swing_(climate::CLIMATE_SWING_OFF), HITACHI_AC344_BUTTON_SWINGV);
 }
 
+TEST_F(HitachiSwingTest, QuietFanUsesTheMinimumSpeedBothWays) {
+  auto call = this->climate_.make_call();
+  call.set_fan_mode(climate::CLIMATE_FAN_QUIET);
+  call.perform();
+  EXPECT_EQ(this->frame_byte_(HITACHI_AC344_FAN_BYTE) >> 4, HITACHI_AC344_FAN_MIN);
+
+  std::array<uint8_t, HITACHI_AC344_STATE_LENGTH> frame{};
+  frame[HITACHI_AC344_POWER_BYTE] = HITACHI_AC344_POWER_ON;
+  frame[HITACHI_AC344_MODE_BYTE] = HITACHI_AC344_MODE_COOL | (HITACHI_AC344_FAN_HIGH << 4);
+  frame[HITACHI_AC344_TEMP_BYTE] = 24 << HITACHI_AC344_TEMP_OFFSET;
+  frame[HITACHI_AC344_SWINGH_BYTE] = HITACHI_AC344_SWINGH_MIDDLE;
+  this->receive_(frame);
+  EXPECT_EQ(this->climate_.fan_mode, climate::CLIMATE_FAN_HIGH);
+  frame[HITACHI_AC344_MODE_BYTE] = HITACHI_AC344_MODE_COOL | (HITACHI_AC344_FAN_MIN << 4);
+  this->receive_(frame);
+  EXPECT_EQ(this->climate_.fan_mode, climate::CLIMATE_FAN_QUIET);
+}
+
 TEST_F(HitachiSwingTest, RestoredVerticalSwingSeedsTheTrackedState) {
   static_cast<Component &>(this->climate_).setup();
   EXPECT_EQ(this->button_after_swing_(climate::CLIMATE_SWING_VERTICAL), HITACHI_AC344_BUTTON_SWINGV);
