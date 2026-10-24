@@ -565,12 +565,12 @@ void DeltaWallbox::set_max_current(float current) {
   }
   const int32_t rounded = std::lround(current);
   if (rounded < 1) {
-    ESP_LOGW(TAG, "Rejecting maximum current %d A", rounded);
+    ESP_LOGW(TAG, "Rejecting maximum current %d A", static_cast<int>(rounded));
     return;
   }
   const uint8_t requested = static_cast<uint8_t>(std::min<int32_t>(rounded, upper));
   if (rounded > upper) {
-    ESP_LOGW(TAG, "Requested %d A exceeds wallbox limit %u A; using %u A", rounded, upper, upper);
+    ESP_LOGW(TAG, "Requested %d A exceeds wallbox limit %u A; using %u A", static_cast<int>(rounded), upper, upper);
   }
   ESP_LOGI(TAG, "Setting wallbox maximum current to %u A", requested);
   const std::array<uint8_t, 6> body = {0x01,
