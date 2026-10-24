@@ -23,7 +23,8 @@ OtaHttpRequestComponent::Request &OtaHttpRequestComponent::get_request_() {
 
 void OtaHttpRequestComponent::set_md5_url(const std::string &url) {
   if (!this->validate_url_(url)) {
-    this->get_request_().md5_url.clear();  // URL was not valid; prevent flashing until it is
+    if (this->request_ != nullptr)
+      this->request_->md5_url.clear();  // URL was not valid; prevent flashing until it is
     return;
   }
   Request &request = this->get_request_();
@@ -33,7 +34,8 @@ void OtaHttpRequestComponent::set_md5_url(const std::string &url) {
 
 void OtaHttpRequestComponent::set_url(const std::string &url) {
   if (!this->validate_url_(url)) {
-    this->get_request_().url.clear();  // URL was not valid; prevent flashing until it is
+    if (this->request_ != nullptr)
+      this->request_->url.clear();  // URL was not valid; prevent flashing until it is
     return;
   }
   this->get_request_().url = url;
