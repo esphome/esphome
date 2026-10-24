@@ -7,7 +7,6 @@
 
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/whirlpool/whirlpool.h"
-#include "esphome/core/preferences.h"
 
 namespace esphome::whirlpool::testing {
 
@@ -122,9 +121,6 @@ struct Fixture {
   WhirlpoolClimate climate;
 
   explicit Fixture(Model model) {
-    // Every fixture shares one preference key, so clear what an earlier test saved or setup restores it
-    if (global_preferences != nullptr)
-      global_preferences->reset();
     this->climate.set_model(model);
     this->climate.set_transmitter(&this->transmitter);
     this->climate.setup();

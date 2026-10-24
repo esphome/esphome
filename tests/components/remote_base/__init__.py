@@ -12,6 +12,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             "haier",
             "mirage",
             "aeha",
+            "aok",
             "keeloq",
             "nexus",
             "ira211",

@@ -94,24 +94,14 @@ def _esp32_config_schema() -> cv.All:
     CONNECTION_SCHEMA = bluetooth_connection.hub_connection_schema(PLATFORM_ESP32)
 
     def validate_connections(config: ConfigType) -> ConfigType:
-        if CONF_CONNECTIONS in config:
-            if not config[CONF_ACTIVE]:
-                raise cv.Invalid(
-                    "Connections can only be used if the proxy is set to active"
-                )
-        elif config[CONF_ACTIVE]:
-            connection_slots: int = config[CONF_CONNECTION_SLOTS]
-            esp32_ble.consume_connection_slots(connection_slots, "bluetooth_proxy")(
-                config
-            )
-
-            return {
-                **config,
-                CONF_CONNECTIONS: [
-                    CONNECTION_SCHEMA({}) for _ in range(connection_slots)
-                ],
-            }
-        return config
+        if CONF_CONNECTIONS in config or not config[CONF_ACTIVE]:
+            return config
+        connection_slots: int = config[CONF_CONNECTION_SLOTS]
+        esp32_ble.consume_connection_slots(connection_slots, "bluetooth_proxy")(config)
+        return {
+            **config,
+            CONF_CONNECTIONS: [CONNECTION_SCHEMA({}) for _ in range(connection_slots)],
+        }
 
     return cv.All(
         (
@@ -136,6 +126,7 @@ def _esp32_config_schema() -> cv.All:
             .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
             .extend(cv.COMPONENT_SCHEMA)
         ),
+        cv.only_when(CONF_CONNECTIONS, CONF_ACTIVE, True),
         validate_connections,
     )
 
@@ -372,8 +363,7 @@ async def _to_code_esp32(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
-    tracker = await cg.get_variable(config[esp32_ble_tracker.CONF_ESP32_BLE_ID])
-    cg.add(var.set_ble_hub(tracker))
+    await cg.add_variable(var.set_ble_hub, config[esp32_ble_tracker.CONF_ESP32_BLE_ID])
 
     # Compiles the scanner-state push slot into the tracker and the matching
     # registration into the proxy; the other hubs are polled instead.
@@ -390,8 +380,7 @@ async def _to_code_ble_hub(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
-    hub = await cg.get_variable(config[ble_device_base.CONF_BLE_HUB_ID])
-    cg.add(var.set_ble_hub(hub))
+    await cg.add_variable(var.set_ble_hub, config[ble_device_base.CONF_BLE_HUB_ID])
 
     await _connections_to_code(var, config)
 
