@@ -21,7 +21,7 @@
 
 namespace esphome::xiaomi_ble {
 
-static const char *const TAG = "xiaomi_ble";
+ESPHOME_LOG_TAG(TAG, "xiaomi_ble");
 
 // Maximum bytes to log in very verbose hex output (covers largest packet of ~24 bytes)
 static constexpr size_t XIAOMI_MAX_LOG_BYTES = 32;
@@ -38,12 +38,12 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
   }
   // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
   else if ((value_type == 0x1004) && (value_length == 2)) {
-    const int16_t temperature = encode_uint16(data[1], data[0]);
+    const int16_t temperature = encode_value_le<int16_t>(data);
     result.temperature = temperature / 10.0f;
   }
   // humidity, 2 bytes, 16-bit signed integer (LE), 0.1 %
   else if ((value_type == 0x1006) && (value_length == 2)) {
-    const int16_t humidity = encode_uint16(data[1], data[0]);
+    const int16_t humidity = encode_value_le<int16_t>(data);
     result.humidity = humidity / 10.0f;
   }
   // illuminance (+ motion), 3 bytes, 24-bit unsigned integer (LE), 1 lx
@@ -69,8 +69,8 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
   }
   // temperature + humidity, 4 bytes, 16-bit signed integer (LE) each, 0.1 °C, 0.1 %
   else if ((value_type == 0x100D) && (value_length == 4)) {
-    const int16_t temperature = encode_uint16(data[1], data[0]);
-    const int16_t humidity = encode_uint16(data[3], data[2]);
+    const int16_t temperature = encode_value_le<int16_t>(data);
+    const int16_t humidity = encode_value_le<int16_t>(&data[2]);
     result.temperature = temperature / 10.0f;
     result.humidity = humidity / 10.0f;
   }
@@ -286,10 +286,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const ble_device_base::ServiceDa
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address) {
   if ((raw.size() != 19) && ((raw.size() < 22) || (raw.size() > 24))) {
     ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): data packet has wrong size (%d)!", raw.size());
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-    char hex_buf[format_hex_pretty_size(XIAOMI_MAX_LOG_BYTES)];
-#endif
-    ESP_LOGVV(TAG, "  Packet : %s", format_hex_pretty_to(hex_buf, raw.data(), raw.size()));
+    ESP_LOGVV_HEX(TAG, raw.data(), raw.size(), XIAOMI_MAX_LOG_BYTES, "  Packet : %s");
     return false;
   }
 

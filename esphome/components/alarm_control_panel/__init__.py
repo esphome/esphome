@@ -21,6 +21,7 @@ from esphome.core.entity_helpers import (
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@grahambrown11", "@hwstar"]
+DOMAIN = "alarm_control_panel"
 IS_PLATFORM_COMPONENT = True
 
 CONF_ON_TRIGGERED = "on_triggered"
@@ -92,15 +93,17 @@ def alarm_control_panel_schema(
 ALARM_CONTROL_PANEL_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(AlarmControlPanel),
+    }
+)
+
+ALARM_CONTROL_PANEL_CODE_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(AlarmControlPanel),
         cv.Optional(CONF_CODE): cv.templatable(cv.string),
     }
 )
 
-ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(AlarmControlPanel),
-    }
-)
+ALARM_CONTROL_PANEL_CONDITION_SCHEMA = ALARM_CONTROL_PANEL_ACTION_SCHEMA
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -193,7 +196,7 @@ for _name, _arm in (
 ):
     automation.register_apply_action(
         _name,
-        ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+        ALARM_CONTROL_PANEL_CODE_ACTION_SCHEMA,
         automation.ApplyCall(_arm),
         automation.ApplyField(CONF_CODE, "set_code", cg.std_string),
         call="make_call",

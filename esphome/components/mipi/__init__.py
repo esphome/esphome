@@ -35,6 +35,8 @@ from esphome.const import (
 from esphome.core import CORE, TimePeriod
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
+DOMAIN = "mipi"
+
 LOGGER = cv.logging.getLogger(__name__)
 
 CONF_TRANSFORMS = "transforms"
@@ -233,7 +235,7 @@ def map_sequence(value):
             cv.Range(TimePeriod(milliseconds=1), TimePeriod(milliseconds=255)),
         )(value)
         return DELAY_FLAG, delay_value.total_milliseconds
-    value = cv.All(cv.ensure_list(cv.int_range(0, 255)), cv.Length(1, 254))(value)
+    value = cv.All(cv.ensure_list(cv.uint8_t), cv.Length(1, 254))(value)
     return tuple(value)
 
 
@@ -648,7 +650,10 @@ class DriverChip:
             sequence.append((INVON,))
         else:
             sequence.append((INVOFF,))
-        if brightness := config.get(CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS)):
+        brightness = config.get(
+            CONF_BRIGHTNESS, self.get_default(CONF_BRIGHTNESS, None)
+        )
+        if brightness is not None:
             sequence.append((BRIGHTNESS, brightness))
         # Add a SLPOUT command if required.
         if not self.skip_command("SLPOUT"):

@@ -8,7 +8,7 @@
 
 namespace esphome::pn71xx {
 
-static const char *const TAG = "pn71xx.mifare_classic";
+ESPHOME_LOG_TAG(TAG, "pn71xx.mifare_classic");
 
 uint8_t PN71xx::read_mifare_classic_tag_(nfc::NfcTag &tag) {
   uint8_t current_block = 4;

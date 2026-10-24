@@ -7,7 +7,7 @@
 
 namespace esphome::rf_bridge {
 
-static const char *const TAG = "rf_bridge";
+ESPHOME_LOG_TAG(TAG, "rf_bridge");
 
 void RFBridgeComponent::ack_() {
   ESP_LOGV(TAG, "Sending ACK");
@@ -56,10 +56,10 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
         return true;
 
       RFBridgeData data;
-      data.sync = (raw[2] << 8) | raw[3];
-      data.low = (raw[4] << 8) | raw[5];
-      data.high = (raw[6] << 8) | raw[7];
-      data.code = (raw[8] << 16) | (raw[9] << 8) | raw[10];
+      data.sync = encode_uint16(raw[2], raw[3]);
+      data.low = encode_uint16(raw[4], raw[5]);
+      data.high = encode_uint16(raw[6], raw[7]);
+      data.code = encode_uint24(raw[8], raw[9], raw[10]);
 
       if (action == RF_CODE_LEARN_OK) {
         ESP_LOGD(TAG, "Learning success");
@@ -147,7 +147,7 @@ void RFBridgeComponent::finish_bucket_frame_() {
       buckets--;
     }
     if ((i < 3) || (buckets % 2) || (i == at - 1)) {
-      str += " ";
+      str += ' ';
     }
   }
   ESP_LOGI(TAG, "Received RFBridge Bucket: %s", str.c_str());

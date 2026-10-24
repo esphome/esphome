@@ -149,7 +149,7 @@ BENCHMARK(Decode_SerialProxyWriteRequest);
 // --- InfraredRFReceiveEvent encode (100 sint32 timings) +
 //     InfraredRFTransmitRawTimingsRequest decode (hand-built wire bytes) ---
 
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
+#ifdef USE_IR_RF
 
 // Mark/space pairs simulating a typical RC-5 / NEC capture (100 timings).
 static std::vector<int32_t> make_ir_timings_100() {
@@ -275,6 +275,6 @@ static void Decode_InfraredRFTransmitRawTimingsRequest(benchmark::State &state) 
 }
 BENCHMARK(Decode_InfraredRFTransmitRawTimingsRequest);
 
-#endif  // USE_IR_RF || USE_RADIO_FREQUENCY
+#endif  // USE_IR_RF
 
 }  // namespace esphome::api::benchmarks

@@ -1,10 +1,11 @@
 #include "sx126x.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sx126x {
 
-static const char *const TAG = "sx126x";
+ESPHOME_LOG_TAG(TAG, "sx126x");
 static const uint16_t RAMP[8] = {10, 20, 40, 80, 200, 800, 1700, 3400};
 static const uint32_t BW_HZ[31] = {4800,  5800,  7300,  9700,   11700,  14600,  19500,  23400,  29300,  39000,  46900,
                                    58600, 78200, 93800, 117300, 156200, 187200, 234300, 312000, 373600, 467000, 7810,
@@ -42,13 +43,13 @@ uint8_t SX126x::read_fifo_(uint8_t offset, std::vector<uint8_t> &packet) {
   return status;
 }
 
-void SX126x::write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet) {
+void SX126x::write_fifo_(uint8_t offset, const uint8_t *data, size_t len) {
   this->enable();
   this->wait_busy_();
   this->transfer_byte(RADIO_WRITE_BUFFER);
   this->transfer_byte(offset);
-  for (const uint8_t &byte : packet) {
-    this->transfer_byte(byte);
+  for (size_t i = 0; i < len; i++) {
+    this->transfer_byte(data[i]);
   }
   this->disable();
   delayMicroseconds(SWITCHING_DELAY_US);
@@ -163,7 +164,7 @@ void SX126x::configure() {
   this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, sizeof(this->version_));
   this->version_[sizeof(this->version_) - 1] = '\0';
   if (strncmp(this->version_, "SX126", 5) != 0 && strncmp(this->version_, "LLCC68", 6) != 0) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unsupported chip version"));
     return;
   }
 
@@ -184,7 +185,7 @@ void SX126x::configure() {
 
   // configure pa
   int8_t pa_power = this->pa_power_;
-  if (this->hw_version_ == "sx1261") {
+  if (this->sx1261_) {
     // the following values were taken from section 13.1.14.1 table 13-21
     // in rev 2.1 of the datasheet
     if (pa_power == 15) {
@@ -280,7 +281,7 @@ size_t SX126x::get_max_packet_size() {
   if (this->payload_length_ > 0) {
     return this->payload_length_;
   }
-  return 255;
+  return SX126X_MAX_PACKET_SIZE;
 }
 
 void SX126x::set_packet_params_(uint8_t payload_length) {
@@ -312,12 +313,17 @@ void SX126x::set_packet_params_(uint8_t payload_length) {
   }
 }
 
-SX126xError SX126x::transmit_packet(const std::vector<uint8_t> &packet) {
-  if (this->payload_length_ > 0 && this->payload_length_ != packet.size()) {
+SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
+  // Callers such as a template number's on_value can run before setup() or after a failed setup
+  if (!this->is_ready()) {
+    ESP_LOGW(TAG, "Radio not ready, packet dropped");
+    return SX126xError::SX126X_ERROR_NOT_READY;
+  }
+  if (this->payload_length_ > 0 && this->payload_length_ != len) {
     ESP_LOGE(TAG, "Packet size does not match config");
     return SX126xError::INVALID_PARAMS;
   }
-  if (packet.empty() || packet.size() > this->get_max_packet_size()) {
+  if (len == 0 || len > this->get_max_packet_size()) {
     ESP_LOGE(TAG, "Packet size out of range");
     return SX126xError::INVALID_PARAMS;
   }
@@ -325,14 +331,15 @@ SX126xError SX126x::transmit_packet(const std::vector<uint8_t> &packet) {
   SX126xError ret = SX126xError::NONE;
   this->set_mode_standby(STDBY_XOSC);
   if (this->payload_length_ == 0) {
-    this->set_packet_params_(packet.size());
+    this->set_packet_params_(len);
   }
-  this->write_fifo_(0x00, packet);
+  this->write_fifo_(0x00, data, len);
   this->set_mode_tx();
 
   // wait until transmit completes, typically the delay will be less than 100 ms
   uint32_t start = millis();
   while (!this->dio1_pin_->digital_read()) {
+    App.feed_wdt();
     if (millis() - start > TRANSMIT_TIMEOUT_MS) {
       ESP_LOGE(TAG, "Transmit packet failure");
       ret = SX126xError::TIMEOUT;
@@ -487,8 +494,7 @@ void SX126x::wait_busy_() {
   uint32_t start = millis();
   while (this->busy_pin_->digital_read()) {
     if (millis() - start > BUSY_TIMEOUT_MS) {
-      ESP_LOGE(TAG, "Wait busy timeout");
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Wait busy timeout"));
       break;
     }
   }
@@ -554,9 +560,6 @@ void SX126x::dump_config() {
   ESP_LOGCONFIG(TAG, "  Whitening Enable: %s", TRUEFALSE(this->whitening_enable_));
   if (this->whitening_enable_) {
     ESP_LOGCONFIG(TAG, "  Whitening Initial: 0x%03x", this->whitening_initial_);
-  }
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Configuring SX126x failed");
   }
 }
 
