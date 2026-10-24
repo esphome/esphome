@@ -93,15 +93,17 @@ def alarm_control_panel_schema(
 ALARM_CONTROL_PANEL_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(AlarmControlPanel),
+    }
+)
+
+ALARM_CONTROL_PANEL_CODE_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(AlarmControlPanel),
         cv.Optional(CONF_CODE): cv.templatable(cv.string),
     }
 )
 
-ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(AlarmControlPanel),
-    }
-)
+ALARM_CONTROL_PANEL_CONDITION_SCHEMA = ALARM_CONTROL_PANEL_ACTION_SCHEMA
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -194,7 +196,7 @@ for _name, _arm in (
 ):
     automation.register_apply_action(
         _name,
-        ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+        ALARM_CONTROL_PANEL_CODE_ACTION_SCHEMA,
         automation.ApplyCall(_arm),
         automation.ApplyField(CONF_CODE, "set_code", cg.std_string),
         call="make_call",

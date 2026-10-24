@@ -1,0 +1,5 @@
+substitutions:
+  pin: GPIO2
+
+packages:
+  addressable_light: !include common.yaml

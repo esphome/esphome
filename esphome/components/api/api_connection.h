@@ -472,15 +472,15 @@ class APIConnection final : public APIServerConnectionBase {
 
   // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
-                                                                StringRef &device_class_field, CalculateSizeFn size_fn,
-                                                                MessageEncodeFn encode_fn, APIConnection *conn,
-                                                                uint32_t remaining_size);
+                                                                ProgmemStringRef &device_class_field,
+                                                                CalculateSizeFn size_fn, MessageEncodeFn encode_fn,
+                                                                APIConnection *conn, uint32_t remaining_size);
 
   // Thin template wrapper
   template<typename T>
   static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
-                                                                StringRef &device_class_field, APIConnection *conn,
-                                                                uint32_t remaining_size) {
+                                                                ProgmemStringRef &device_class_field,
+                                                                APIConnection *conn, uint32_t remaining_size) {
     return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &T::calc_size_msg,
                                                          &T::encode_msg, conn, remaining_size);
   }

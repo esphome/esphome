@@ -10,6 +10,7 @@ import time
 from aioesphomeapi import EntityState, TextSensorState
 import pytest
 
+from .state_utils import assert_device_name, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -22,9 +23,7 @@ async def test_build_info(
 ) -> None:
     """Test that build_info values are sane."""
     async with run_compiled(yaml_config), api_client_connected() as client:
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "build-info-test"
+        device_info = await assert_device_name(client, "build-info-test")
 
         # Verify compilation_time from device_info is present and parseable
         # The format is ISO 8601 with timezone: "YYYY-MM-DD HH:MM:SS +ZZZZ"
@@ -39,19 +38,11 @@ async def test_build_info(
         entities, _ = await client.list_entities_services()
 
         # Find our text sensors by object_id
-        config_hash_entity = next(
-            (e for e in entities if e.object_id == "config_hash"), None
+        config_hash_entity = require_entity(entities, "config_hash", exact=True)
+        build_time_entity = require_entity(entities, "build_time", exact=True)
+        build_time_str_entity = require_entity(
+            entities, "build_time_string", exact=True
         )
-        build_time_entity = next(
-            (e for e in entities if e.object_id == "build_time"), None
-        )
-        build_time_str_entity = next(
-            (e for e in entities if e.object_id == "build_time_string"), None
-        )
-
-        assert config_hash_entity is not None, "Config Hash sensor not found"
-        assert build_time_entity is not None, "Build Time sensor not found"
-        assert build_time_str_entity is not None, "Build Time String sensor not found"
 
         # Wait for all three text sensors to have valid states
         loop = asyncio.get_running_loop()
