@@ -36,7 +36,7 @@ from esphome.const import (
 )
 from esphome.core import EsphomeError
 from esphome.helpers import get_int_env, get_str_env
-from esphome.helpers.mqtt import per_board_suffix
+from esphome.mqtt_topics import per_board_suffix
 from esphome.types import ConfigType
 from esphome.util import safe_print
 

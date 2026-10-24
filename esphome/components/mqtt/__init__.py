@@ -87,7 +87,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 from esphome.helpers import sanitize, snake_case
-from esphome.helpers.mqtt import (
+from esphome.mqtt_topics import (
     DEFAULT_TOPIC_SUFFIXES,
     per_board_suffix,
     prefix_gets_mac_suffix,
