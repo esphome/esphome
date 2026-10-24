@@ -222,7 +222,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     auto msg_id = static_cast<uint16_t>(static_cast<esp_mqtt_event_t *>(event_data)->msg_id);
     instance->acked_msg_id_.store(msg_id);
     if (msg_id == instance->tracked_msg_id_.load())
-      instance->tracked_acked_.store(true);
+      instance->tracked_acked_.store(1);
   }
   // queue event to decouple processing from ESP-IDF MQTT task to main loop
   auto *event = instance->mqtt_event_pool_.allocate();
@@ -241,7 +241,7 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
 }
 
 bool MQTTBackendESP32::publish_tracked(const MQTTMessage &message) {
-  this->tracked_acked_.store(false, std::memory_order_relaxed);
+  this->tracked_acked_.store(0, std::memory_order_relaxed);
   // Sent directly even with idf_send_async, so the message id is known here
   int msg_id = esp_mqtt_client_publish(this->handler_.get(), message.topic.c_str(), message.payload.c_str(),
                                        message.payload.length(), std::max<uint8_t>(message.qos, 1), message.retain);
@@ -250,7 +250,7 @@ bool MQTTBackendESP32::publish_tracked(const MQTTMessage &message) {
   this->tracked_msg_id_.store(static_cast<uint16_t>(msg_id));
   // The confirmation may have arrived before the store above
   if (this->acked_msg_id_.load() == msg_id)
-    this->tracked_acked_.store(true);
+    this->tracked_acked_.store(1);
   return true;
 }
 

@@ -213,7 +213,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   }
   using MQTTBackend::publish;
   bool publish_tracked(const MQTTMessage &message) final;
-  bool publish_acknowledged() const final { return this->tracked_acked_.load(std::memory_order_acquire); }
+  bool publish_acknowledged() const final { return this->tracked_acked_.load(std::memory_order_acquire) != 0; }
 
   void loop() final;
 
@@ -292,7 +292,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // confirmed id in case the confirmation beat its store. Packet ids are never 0.
   std::atomic<uint16_t> tracked_msg_id_{0};
   std::atomic<uint16_t> acked_msg_id_{0};
-  std::atomic<bool> tracked_acked_{false};
+  // uint8_t, not bool: GCC on Xtensa emits an out-of-line call for atomic<bool>
+  std::atomic<uint8_t> tracked_acked_{0};
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
   // buffer that holds N-1 elements (one slot distinguishes full from empty).
   // This guarantees allocate() returns nullptr before push() can fail, which:
