@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -54,8 +55,7 @@ static constexpr uint8_t CMD_GET_ERROR_CODE[] = {0x01, 0x03, 0x01, 0xB5, 0x00, 0
 static constexpr uint8_t CMD_START_CHARGING[] = {0x01, 0x06, 0x01, 0x02, 0x00, 0x01};
 static constexpr uint8_t CMD_STOP_CHARGING[] = {0x01, 0x06, 0x01, 0x03, 0x00, 0x01};
 
-static constexpr uint8_t REG_MAX_CURRENT_HI = 0x01;
-static constexpr uint8_t REG_MAX_CURRENT_LO = 0x12;
+static constexpr uint16_t REG_MAX_CURRENT = 0x0112;
 
 // Indexed by DeltaState
 PROGMEM_STRING_TABLE(DeltaStateStrings, "CHECK_PAIRING", "CONNECTED", "GET_CHARGER_FW_VERSION", "GET_BT_FW_VERSION",
@@ -474,15 +474,12 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
           this->send_frame_(CMD_GET_MAX_CURRENT, sizeof(CMD_GET_MAX_CURRENT));
         } else if (byte_count == TWO_REGISTER_BYTE_COUNT) {
           // Parsing 0x0112 max output setting (2 registers)
-          // uint32_t current_raw = (frame[3] << 24) | (frame[4] << 16) | (frame[5] << 8) | frame[6];
-          // float amps = current_raw / 10.0f;
           this->max_current_limit_ = frame[4];
-          this->min_current_limit_ = frame[6];
-          const float amps = frame[5];
+          this->max_current_cap_ = frame[6];
           if (this->max_current_sensor_ != nullptr)
-            this->max_current_sensor_->publish_state(amps);
+            this->max_current_sensor_->publish_state(frame[5]);
           if (this->max_current_number_ != nullptr)
-            this->max_current_number_->publish_state(amps);
+            this->max_current_number_->publish_state(frame[5]);
 
           // Poll the error code register every cycle
           this->send_frame_(CMD_GET_ERROR_CODE, sizeof(CMD_GET_ERROR_CODE));
@@ -496,13 +493,10 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         }
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {
         const uint16_t register_addr = (static_cast<uint16_t>(frame[2]) << 8) | frame[3];
-        if (register_addr == 0x0112) {
-          const float accepted = frame[5];
-          ESP_LOGI(TAG, "Wallbox max current command acknowledged: %.0f A", accepted);
-          if (this->max_current_sensor_ != nullptr)
-            this->max_current_sensor_->publish_state(accepted);
+        if (register_addr == REG_MAX_CURRENT) {
+          ESP_LOGI(TAG, "Wallbox max current command acknowledged: %u A", frame[5]);
           if (this->max_current_number_ != nullptr)
-            this->max_current_number_->publish_state(accepted);
+            this->max_current_number_->publish_state(frame[5]);
         } else {
           // Confirmation frame of Start/Stop write actions
           ESP_LOGI(TAG, "Wallbox charging command successfully acknowledged.");
@@ -555,12 +549,23 @@ void DeltaWallbox::set_max_current(float current) {
     ESP_LOGW(TAG, "Cannot set maximum current while wallbox is not fully connected.");
     return;
   }
-  uint8_t requested = static_cast<uint8_t>(std::lround(current));
-  if (this->min_current_limit_ <= this->max_current_limit_) {
-    requested = std::clamp(requested, this->min_current_limit_, this->max_current_limit_);
+  const uint8_t upper = this->max_current_limit_;
+  if (upper == 0) {
+    ESP_LOGW(TAG, "Wallbox current limit not read yet; refusing to set %.0f A", current);
+    return;
+  }
+  const long rounded = std::lround(current);
+  if (rounded < 1) {
+    ESP_LOGW(TAG, "Rejecting maximum current %ld A", rounded);
+    return;
+  }
+  const uint8_t requested = static_cast<uint8_t>(std::min<long>(rounded, upper));
+  if (rounded > upper) {
+    ESP_LOGW(TAG, "Requested %ld A exceeds wallbox limit %u A; using %u A", rounded, upper, upper);
   }
   ESP_LOGI(TAG, "Setting wallbox maximum current to %u A", requested);
-  const std::array<uint8_t, 6> body = {0x01, FC_WRITE_SINGLE_REGISTER, 0x01, 0x12, 0x00, requested};
+  const std::array<uint8_t, 6> body = {0x01, FC_WRITE_SINGLE_REGISTER, static_cast<uint8_t>(REG_MAX_CURRENT >> 8),
+                                       static_cast<uint8_t>(REG_MAX_CURRENT & 0xFF), 0x00, requested};
   this->send_frame_(body.data(), body.size());
 }
 
