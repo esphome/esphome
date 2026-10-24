@@ -107,11 +107,6 @@ async def to_code(config: ConfigType) -> None:
     # so this =1 is the single CFG_SUPPORT_BLE define emitted.
     cg.add_platformio_option("custom_options.sys_config#h", ["CFG_SUPPORT_BLE=1"])
 
-    # The BDK release the BLE 5.x stack is validated against; older ones have a
-    # different BLE layout and can crash at boot with CFG_SUPPORT_BLE=1. The
-    # libretiny platform already builds BK7231N and BK7238 with it.
-    cg.add_platformio_option("custom_versions.beken-bdk", "3.0.78")
-
     # The BDK exposes the controller's BLE address as `common_default_bdaddr` on
     # BK7231N, but NOT on BK7238 (its BLE stack has no such symbol; the address is
     # derived from the WiFi MAC instead — the BDK's own fallback). Tell the C++
