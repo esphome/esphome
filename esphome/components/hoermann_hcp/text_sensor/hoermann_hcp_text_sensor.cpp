@@ -1,7 +1,5 @@
 #include "hoermann_hcp_text_sensor.h"
 
-#include <cstring>
-
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
