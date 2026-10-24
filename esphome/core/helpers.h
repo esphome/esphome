@@ -177,6 +177,17 @@ template<typename T> class ConstVector<T, true> {
     this->data_ = data;
     this->size_ = size;
   }
+  /// Appends count elements into one new heap array this owns; the current list and extra may be codegen tables in
+  /// flash.
+  void append_copy(const T *extra, size_t count) {
+    const size_t size = this->size();
+    auto *table = new T[size + count];  // NOLINT(cppcoreguidelines-owning-memory)
+    copy_words_(this->data_, size, table);
+    copy_words_(extra, count, table + size);
+    this->release_();
+    this->data_ = table;
+    this->size_ = (size + count) | OWNED_BIT;
+  }
   /// Copies the list into a heap array this owns, freeing a previous owned copy.
   void assign_copy(const T *data, size_t size) {
     auto *table = new T[size];  // NOLINT(cppcoreguidelines-owning-memory)
@@ -192,6 +203,13 @@ template<typename T> class ConstVector<T, true> {
   void release_() {
     if (this->size_ & OWNED_BIT)
       delete[] this->data_;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+  // Word loads through volatile, so the loop never becomes a memcpy that reads ESP8266 flash byte by byte
+  static void copy_words_(const T *src, size_t count, T *dst) {
+    auto *from = reinterpret_cast<const volatile uint32_t *>(src);
+    auto *to = reinterpret_cast<uint32_t *>(dst);
+    for (size_t i = 0; i < count * sizeof(T) / sizeof(uint32_t); i++)
+      to[i] = from[i];
   }
 
   const T *data_{nullptr};

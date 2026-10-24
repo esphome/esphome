@@ -78,6 +78,25 @@ TEST(ConstVector, CopyFromItsOwnStorage) {
   EXPECT_STREQ(list[2], "c");
 }
 
+TEST(ConstVector, AppendCopiesTheTableAndTheExtrasIntoOneOwnedArray) {
+  static constexpr const char *const EXTRA[] = {"d", "e"};
+  ProbeVector list;
+  list.append_copy(EXTRA, 1);  // onto an empty list
+  EXPECT_TRUE(list.owned());
+  EXPECT_EQ(list.size(), 1U);
+  list.assign_static(TABLE, 3);
+  list.append_copy(EXTRA, 2);
+  EXPECT_TRUE(list.owned());
+  EXPECT_NE(list.data(), TABLE);
+  ASSERT_EQ(list.size(), 5U);
+  EXPECT_TRUE(std::equal(TABLE, TABLE + 3, list.begin()));
+  EXPECT_STREQ(list[3], "d");
+  EXPECT_STREQ(list[4], "e");
+  list.append_copy(EXTRA, 1);  // frees the previous owned array
+  EXPECT_EQ(list.size(), 6U);
+  EXPECT_STREQ(list[5], "d");
+}
+
 TEST(ConstVector, PlainViewHasNoOwnershipCost) {
   static_assert(std::is_trivially_copyable_v<ConstVector<const char *>>);
   static_assert(std::is_trivially_destructible_v<ConstVector<const char *>>);
