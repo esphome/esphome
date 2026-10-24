@@ -1,3 +1,4 @@
+import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import CONF_MAX_CURRENT, ENTITY_CATEGORY_CONFIG, UNIT_AMPERE
@@ -21,13 +22,13 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    hub = await cg.get_variable(config[CONF_DELTA_WALLBOX_ID])
     numbers = number.sub_numbers(config, parent=config[CONF_DELTA_WALLBOX_ID])
     await numbers(
         CONF_MAX_CURRENT,
-        None,
+        hub.set_max_current_number,
         min_value=6,
         max_value=32,
         step=1,
         apply="set_max_current(value)",
-        publish="after",
     )
