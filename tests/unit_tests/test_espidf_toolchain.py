@@ -16,6 +16,7 @@ import pytest
 from esphome.components.esp32.const import (
     KEY_ESP32,
     KEY_FLASH_SIZE,
+    KEY_IDF_EXTRA_TARGETS,
     KEY_IDF_VERSION,
     KEY_VARIANT,
 )
@@ -98,6 +99,28 @@ def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("CI", "true")
     CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
     assert toolchain._get_configured_targets() is None
+
+
+def test_get_configured_targets_with_extra_targets(monkeypatch: pytest.MonkeyPatch):
+    """Targets requested by components follow the variant's own, sorted."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data[KEY_ESP32] = {
+        KEY_VARIANT: "ESP32S3",
+        KEY_IDF_EXTRA_TARGETS: {"esp32c6", "esp32c3"},
+    }
+    assert toolchain._get_configured_targets() == ["esp32s3", "esp32c3", "esp32c6"]
+
+
+def test_add_idf_install_target_records_extra_target(monkeypatch: pytest.MonkeyPatch):
+    """add_idf_install_target feeds the extra target into the install list."""
+    from esphome.components.esp32 import add_idf_install_target
+
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3", KEY_IDF_EXTRA_TARGETS: set()}
+    add_idf_install_target("esp32c3")
+    add_idf_install_target("esp32c3")
+    assert CORE.data[KEY_ESP32][KEY_IDF_EXTRA_TARGETS] == {"esp32c3"}
+    assert toolchain._get_configured_targets() == ["esp32s3", "esp32c3"]
 
 
 @pytest.fixture(autouse=True)
@@ -1275,11 +1298,11 @@ def test_run_compile_stops_on_ninja_failure(setup_core: Path) -> None:
 
 @pytest.mark.parametrize("memory_ld_rc", [0, 3])
 def test_run_compile_testing_mode_builds_memory_ld_first(
-    setup_core: Path, memory_ld_rc: int
+    setup_core: Path, memory_ld_rc: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Testing mode builds and patches memory.ld before the main build."""
     _setup_build(setup_core)
-    CORE.testing_mode = True
+    monkeypatch.setattr(CORE, "testing_mode", True)  # CORE.reset() does not clear it
     targets: list[tuple[str, ...]] = []
 
     def record(*run_targets: str, **kwargs: object) -> int:

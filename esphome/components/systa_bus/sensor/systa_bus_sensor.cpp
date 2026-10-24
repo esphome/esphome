@@ -7,7 +7,7 @@ namespace esphome::systa_bus {
 ESPHOME_LOG_TAG(TAG, "systa_bus.sensor");
 
 static int16_t get_i16be(std::span<const uint8_t> message, size_t start) {
-  return static_cast<int16_t>(encode_uint16(message[start], message[start + 1]));
+  return encode_value<int16_t>(&message[start]);
 }
 
 void SystaSolarAquaSensor::dump_config() {
