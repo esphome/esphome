@@ -76,6 +76,22 @@ class RuntimeImage : public image::Image {
    */
   int feed_data(uint8_t *data, size_t len);
 
+  /// Whether the active decoder can read a DecodeSource itself (see begin_source()).
+  bool decoder_supports_source() const { return this->is_decoding() && this->decoder_->supports_source(); }
+
+  /**
+   * @brief Decode from a source the decoder reads itself, in place of feed_data().
+   *
+   * Call after begin_decode() when decoder_supports_source() is true, once the image headers can be read from the
+   * source, then call decode_step() until it
+   * returns DECODE_STEP_DONE, and finish with end_decode().
+   * @return 0 on success, or a DecodeError value.
+   */
+  int begin_source(DecodeSource *source);
+
+  /// Decode a little more from the source; see ImageDecoder::decode_step().
+  int decode_step();
+
   /**
    * @brief Complete the decoding process.
    *
@@ -95,6 +111,9 @@ class RuntimeImage : public image::Image {
    * which handles both known-size and chunked transfer cases.
    */
   bool is_decode_finished() const;
+
+  /// True while decoding and the decoder can tell a complete image from a cut-off one
+  bool decoder_knows_end() const;
 
   /**
    * @brief Check if an image is currently loaded.

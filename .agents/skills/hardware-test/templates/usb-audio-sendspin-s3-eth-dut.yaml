@@ -1,0 +1,76 @@
+# Music Assistant target: the plain USB audio template plus the CAST-1 style sendspin wiring (resampler speakers
+# into a mixer whose inputs never time out, speaker_source media player, sendspin hub and sources).
+packages:
+  base: !include usb-audio-waveshare-s3-eth-dut.yaml
+
+# Logs over the API only: a DEBUG line per report would saturate UART0 and trip the task watchdog.
+logger:
+  baud_rate: 0
+
+speaker:
+  - id: !extend usb_speaker
+    buffer_size: 28800
+    write_timeout: 50ms
+  - platform: mixer
+    id: mixer_speaker_id
+    output_speaker: usb_speaker
+    num_channels: 2
+    task_stack_in_psram: true
+    source_speakers:
+      - id: announcement_mixer_input
+        timeout: never
+      - id: media_mixer_input
+        timeout: never
+  - platform: resampler
+    id: announcement_resampling_speaker
+    output_speaker: announcement_mixer_input
+    sample_rate: 48000
+    bits_per_sample: 16
+  - platform: resampler
+    id: media_resampling_speaker
+    output_speaker: media_mixer_input
+    sample_rate: 48000
+    bits_per_sample: 16
+
+sendspin:
+  id: sendspin_hub
+  # PSRAM stack skews time sync; keep internal
+  task_stack_in_psram: false
+  manufacturer: Waveshare
+  model: ESP32-S3-ETH USB audio
+  firmware_version: "0.1"
+  unpaired_access: true
+
+media_source:
+  - platform: sendspin
+    id: sendspin_source
+  - platform: audio_http
+    id: http_media_source
+    buffer_size: 500000
+  - platform: audio_http
+    id: http_announcement_source
+    buffer_size: 250000
+
+media_player:
+  - platform: sendspin
+    id: sendspin_group_media_player
+    name: Sendspin Player
+  - platform: speaker_source
+    id: external_media_player
+    name: Player
+    volume_increment: 0.05
+    announcement_pipeline:
+      format: FLAC
+      num_channels: 1
+      sample_rate: 48000
+      speaker: announcement_resampling_speaker
+      sources:
+        - http_announcement_source
+    media_pipeline:
+      speaker: media_resampling_speaker
+      format: FLAC
+      num_channels: 2
+      sample_rate: 48000
+      sources:
+        - sendspin_source
+        - http_media_source

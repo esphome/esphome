@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_SOURCE,
     KEY_ESP32,
     KEY_FLASH_SIZE,
+    KEY_IDF_EXTRA_TARGETS,
     KEY_IDF_VERSION,
     KEY_VARIANT,
 )
@@ -86,8 +87,14 @@ def _get_configured_targets() -> list[str] | None:
     """
     if os.environ.get("CI"):
         return None
-    variant = CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT)
-    return [variant_to_idf_target(variant)] if variant else None
+    esp32_data = CORE.data.get(KEY_ESP32, {})
+    variant = esp32_data.get(KEY_VARIANT)
+    if not variant:
+        return None
+    # Components may ask for another chip's tools (add_idf_install_target),
+    # e.g. the RISC-V compiler for ULP programs on an Xtensa variant.
+    extra = esp32_data.get(KEY_IDF_EXTRA_TARGETS, ())
+    return [variant_to_idf_target(variant), *sorted(extra)]
 
 
 def _get_esphome_esp_idf_paths(

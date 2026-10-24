@@ -138,8 +138,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_sensor(sens))
+    await cg.add_variable(var.set_sensor, config[CONF_SENSOR])
     calib = config[CONF_CALIBRATION]
     cg.add(var.set_a(calib[CONF_A]))
     cg.add(var.set_b(calib[CONF_B]))

@@ -148,9 +148,7 @@ async def setup_datetime_core_(var: MockObj, config: ConfigType) -> None:
             forward=[automation.parent_ref(var).state_as_esptime()],
         )
 
-    if CONF_TIME_ID in config:
-        rtc = await cg.get_variable(config[CONF_TIME_ID])
-        cg.add(var.set_rtc(rtc))
+    await cg.add_variable(var.set_rtc, config.get(CONF_TIME_ID))
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])

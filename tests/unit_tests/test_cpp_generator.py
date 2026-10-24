@@ -866,7 +866,8 @@ class TestSharedProgmemArray:
         c = cg.shared_progmem_array("table", ct.uint8, [4])
         assert a is b
         assert str(a) != str(c)
-        assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
+        late = CORE.global_statements_after_includes
+        assert sum("PROGMEM" in str(st) for st in late) == 2
         assert not any("PROGMEM" in str(st) for st in CORE.main_statements)
 
     def test_share_false_always_emits_a_new_array(self) -> None:
@@ -874,7 +875,8 @@ class TestSharedProgmemArray:
         a = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
         b = cg.shared_progmem_array("table", ct.uint8, [1], share=False)
         assert str(a) != str(b)
-        assert sum("PROGMEM" in str(st) for st in CORE.global_statements) == 2
+        late = CORE.global_statements_after_includes
+        assert sum("PROGMEM" in str(st) for st in late) == 2
 
     def test_is_static_pointer_only_for_placement_new(self) -> None:
         CORE.config = {}
@@ -910,7 +912,9 @@ class TestSharedProgmemArray:
         CORE.config = {}
         cg.shared_progmem_array("table", ct.uint8, [1], constexpr=False)
         (statement,) = (
-            str(st) for st in CORE.global_statements if "PROGMEM" in str(st)
+            str(st)
+            for st in CORE.global_statements_after_includes
+            if "PROGMEM" in str(st)
         )
         assert statement.startswith(
             "ESPHOME_FLASH_CONSTINIT static uint8_t const table[] PROGMEM = {1}"
@@ -948,7 +952,7 @@ class TestProgmemString:
         assert a is b
         assert str(a) == "progmem_str"
         assert str(c) == "progmem_str_2"
-        assert [str(st) for st in CORE.global_statements] == [
+        assert [str(st) for st in CORE.global_statements_after_includes] == [
             'static constexpr char progmem_str[] PROGMEM = "level";',
             'static constexpr char progmem_str_2[] PROGMEM = "say \\042hi\\042";',
         ]
@@ -957,6 +961,7 @@ class TestProgmemString:
         self._set_platform(PLATFORM_ESP32)
         assert str(cg.shared_progmem_string('say "hi"')) == '"say \\042hi\\042"'
         assert not CORE.global_statements
+        assert not CORE.global_statements_after_includes
 
 
 def test_extern_progmem_array_is_an_externally_linked_global() -> None:
@@ -965,3 +970,55 @@ def test_extern_progmem_array_is_an_externally_linked_global() -> None:
     assert [str(st) for st in CORE.global_statements if "PROGMEM" in str(st)] == [
         "const uint8_t esphome::api::API_TABLE[] PROGMEM = {1, 2};"
     ]
+
+
+def test_static_function_declares_early_and_defines_after_includes() -> None:
+    fn = cg.static_function("esphome__act__fn", ct.void, [(ct.int32, "x")], ["return;"])
+    assert str(fn) == "esphome__act__fn"
+    assert [str(st) for st in CORE.global_statements] == [
+        "static void esphome__act__fn(int32_t x);"
+    ]
+    assert [str(st) for st in CORE.global_statements_after_includes] == [
+        "static void esphome__act__fn(int32_t x) {\n  return;\n}"
+    ]
+
+
+def test_add_global_after_includes_rejects_non_statements() -> None:
+    with pytest.raises(ValueError, match="must be expression or statement"):
+        CORE.add_global_after_includes("not a statement")
+
+
+class TestEnumOptions:
+    def test_class_enum_with_prefix(self) -> None:
+        mode = cg.MockObj("esphome::foo", "::").enum("Mode", is_class=True)
+        options = mode.options("fast", "slow-ish", "2.5x", prefix="MODE_")
+        assert list(options) == ["fast", "slow-ish", "2.5x"]
+        assert {k: str(v) for k, v in options.items()} == {
+            "fast": "esphome::foo::Mode::MODE_FAST",
+            "slow-ish": "esphome::foo::Mode::MODE_SLOW_ISH",
+            "2.5x": "esphome::foo::Mode::MODE_2_5X",
+        }
+
+    def test_matches_attribute_access(self) -> None:
+        mode = cg.MockObj("esphome::foo", "::").enum("Mode")
+        options = mode.options("LOW", "HIGH")
+        assert str(options["LOW"]) == str(mode.LOW) == "esphome::foo::LOW"
+        assert str(options["HIGH"]) == str(mode.HIGH)
+
+    def test_result_works_with_cv_enum(self) -> None:
+        mode = cg.MockObj("esphome::foo", "::").enum("Mode", is_class=True)
+        options = mode.options("on", "off", prefix="MODE_")
+        validator = cv.enum(options, lower=True)
+        assert str(validator("ON").enum_value) == "esphome::foo::Mode::MODE_ON"
+        assert validator(cv.SCHEMA_EXTRACT) is options
+
+    @pytest.mark.parametrize(
+        "names",
+        [("OFF", "OFF"), ("slow-ish", "slow_ish"), ("2.5x", "2_5X")],
+    )
+    def test_names_must_map_to_distinct_enumerators(
+        self, names: tuple[str, ...]
+    ) -> None:
+        mode = cg.MockObj("esphome::foo", "::").enum("Mode")
+        with pytest.raises(ValueError, match="distinct enumerators"):
+            mode.options(*names)
