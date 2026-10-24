@@ -1,0 +1,51 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/nrf52.yaml
+
+font:
+  - file: "$component_dir/roboto.ttf"
+    id: nrf52_font
+    size: 18
+
+image:
+  - platform: file
+    file: $component_dir/logo-text.svg
+    id: nrf52_logo
+    type: RGB565
+    transparency: alpha_channel
+    resize: 100x30
+
+display:
+  - platform: mipi_spi
+    id: nrf52_display
+    spi_id: spi_bus
+    model: CUSTOM
+    data_rate: 8MHz
+    cs_pin: P0.28
+    dc_pin: P0.29
+    reset_pin: P1.03
+    dimensions:
+      width: 172
+      height: 320
+      offset_width: 34
+    init_sequence:
+      - [0x11]
+      - delay 120ms
+
+lvgl:
+  displays: nrf52_display
+  buffer_size: 12%
+  widgets:
+    - image:
+        src: nrf52_logo
+        align: TOP_MID
+    - label:
+        id: nrf52_label
+        align: CENTER
+        text_font: nrf52_font
+        text: "Hello"
+    - obj:
+        align: BOTTOM_MID
+        width: 24
+        height: 24
+        radius: 12
+        bg_color: 0x3C3C3C
