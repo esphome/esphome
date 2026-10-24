@@ -40,8 +40,12 @@ static constexpr uint32_t GREE_YAC_HEADER_SPACE = 3000;
 static constexpr uint32_t GREE_YAC_BIT_MARK = 650;
 
 // Timing specific to YAC1FB9
+// Also used by YAW1F
 static constexpr uint32_t GREE_YAC1FB9_HEADER_SPACE = 4500;
 static constexpr uint32_t GREE_YAC1FB9_MESSAGE_SPACE = 19980;
+
+// YAW1F: every command is followed by a second 8-byte message after this gap
+static constexpr uint32_t GREE_YAW1F_FOLLOWUP_SPACE = 40000;
 
 // State Frame size
 static constexpr uint8_t GREE_STATE_FRAME_SIZE = 8;
@@ -86,7 +90,7 @@ static constexpr uint8_t GREE_MODE_BIT_HEALTH = 0x40;
 static constexpr uint8_t GREE_MODE_BIT_XFAN = 0x80;
 
 // Model codes
-enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG };
+enum Model : uint8_t { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC, GREE_YAC1FB9, GREE_YX1FF, GREE_YAG, GREE_YAW1F };
 
 class GreeClimate final : public climate_ir::ClimateIR {
  public:
