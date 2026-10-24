@@ -18,8 +18,7 @@ class DeviceDecoders {
  public:
   static bool decode_bool(const std::string &value) {
     std::string decoded = value;
-    std::transform(decoded.begin(), decoded.end(), decoded.begin(),
-                   [](unsigned char ch) { return std::tolower(ch); });
+    std::transform(decoded.begin(), decoded.end(), decoded.begin(), [](unsigned char ch) { return std::tolower(ch); });
     return decoded == "01" || decoded == "true" || decoded == "1" || decoded == "on";
   }
   static std::string decode_str(const std::string &value) { return value; }
