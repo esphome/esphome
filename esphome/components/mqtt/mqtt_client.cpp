@@ -565,6 +565,12 @@ void MQTTClientComponent::add_subscription_(MQTTTopicSource topic, mqtt_subscrip
   this->resubscribe_subscription_(&subscription);
 }
 
+// Out of line so the topic buffer is not part of unsubscribe()'s stack frame
+__attribute__((noinline)) static bool topic_equals(const MQTTTopicSource &source, const std::string &topic) {
+  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return source.build(buf) == topic;
+}
+
 void MQTTClientComponent::unsubscribe(const std::string &topic) {
   bool ret = this->mqtt_backend_.unsubscribe(topic.c_str());
   yield();
@@ -576,9 +582,8 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
     this->status_momentary_warning(1000);
   }
 
-  char buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   for (auto &subscription : this->subscriptions_) {
-    if (subscription.topic.build(buf) == topic)
+    if (topic_equals(subscription.topic, topic))
       subscription.removed = true;
   }
   // A callback may be running; the outermost dispatch erases them once it returns.
