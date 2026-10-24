@@ -63,8 +63,6 @@ class MQTTBackend {
   virtual bool subscribe(const char *topic, uint8_t qos) = 0;
   virtual bool unsubscribe(const char *topic) = 0;
   virtual bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) = 0;
-  /// Whether everything given to publish() has reached the network stack, so a disconnect does not drop it.
-  virtual bool flushed() const { return true; }
 
   virtual bool publish(const MQTTMessage &message) {
     return publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,

@@ -29,7 +29,8 @@ namespace esphome::mqtt {
 
 ESPHOME_LOG_TAG(TAG, "mqtt");
 
-// Time the network stack gets to send the shutdown message before the disconnect
+// Best effort: how long the disconnect waits so the shutdown message can leave. Kept short on purpose so a
+// reboot or sleep is never held up for long.
 static constexpr uint32_t SHUTDOWN_FLUSH_MS = 100;
 
 // Maximum number of MQTT component resends per loop iteration.
@@ -806,9 +807,9 @@ void MQTTClientComponent::on_shutdown() {
 }
 
 bool MQTTClientComponent::teardown() {
-  // A disconnect drops what has not gone out yet; the core gives up waiting after its teardown timeout
+  // A disconnect drops what has not gone out yet
   if (this->shutdown_message_sent_ && this->mqtt_backend_.connected() &&
-      (!this->mqtt_backend_.flushed() || millis() - this->shutdown_start_ < SHUTDOWN_FLUSH_MS))
+      millis() - this->shutdown_start_ < SHUTDOWN_FLUSH_MS)
     return false;
   this->mqtt_backend_.disconnect();
   return true;

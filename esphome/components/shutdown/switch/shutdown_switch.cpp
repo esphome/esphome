@@ -24,6 +24,8 @@ void ShutdownSwitch::write_state(bool state) {
     delay(100);  // NOLINT
 
     App.run_safe_shutdown_hooks();
+    App.teardown_components(TEARDOWN_TIMEOUT_REBOOT_MS);
+    App.run_powerdown_hooks();
 #ifdef USE_ESP8266
     ESP.deepSleep(0);  // NOLINT(readability-static-accessed-through-instance)
 #endif

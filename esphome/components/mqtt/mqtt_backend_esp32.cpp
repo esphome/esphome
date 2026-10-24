@@ -239,7 +239,6 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
   while (true) {
     // Wait for notification indefinitely
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    this_mqtt->sending_.store(true, std::memory_order_release);
 
     // Process all queued items
     struct QueueElement *elem;
@@ -266,7 +265,6 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
       }
       this_mqtt->mqtt_outbound_pool_.release(elem);
     }
-    this_mqtt->sending_.store(false, std::memory_order_release);
   }
 }
 
