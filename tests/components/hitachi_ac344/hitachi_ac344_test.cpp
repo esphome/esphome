@@ -104,4 +104,19 @@ TEST_F(HitachiSwingTest, ReceivedFrameResyncsTheVerticalSwingState) {
   EXPECT_EQ(this->button_after_swing_(climate::CLIMATE_SWING_OFF), HITACHI_AC344_BUTTON_SWINGV);
 }
 
+TEST_F(HitachiSwingTest, RestoredVerticalSwingSeedsTheTrackedState) {
+  static_cast<Component &>(this->climate_).setup();
+  EXPECT_EQ(this->button_after_swing_(climate::CLIMATE_SWING_VERTICAL), HITACHI_AC344_BUTTON_SWINGV);
+
+  // After a reboot the unit still swings vertically, so a temperature change must not press the swing button.
+  HitachiClimate rebooted;
+  rebooted.set_transmitter(&this->transmitter_);
+  static_cast<Component &>(rebooted).setup();
+  EXPECT_EQ(rebooted.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+  auto call = rebooted.make_call();
+  call.set_target_temperature(22);
+  call.perform();
+  EXPECT_EQ(this->frame_byte_(HITACHI_AC344_BUTTON_BYTE), HITACHI_AC344_BUTTON_POWER);
+}
+
 }  // namespace esphome::hitachi_ac344::testing

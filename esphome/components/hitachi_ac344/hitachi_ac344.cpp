@@ -132,10 +132,11 @@ static bool swing_vertical(climate::ClimateSwingMode mode) {
 void HitachiClimate::setup() {
   // Seed the tracked vertical swing before the base publishes the restored state; an on_state automation may
   // transmit from that callback
-  if (auto restore = this->restore_state_()) {
+  auto restore = this->restore_state_();
+  if (restore.has_value()) {
     set_swing_v_(swing_vertical(restore->swing_mode));
   }
-  climate_ir::ClimateIR::setup();
+  this->setup_(restore);
 }
 
 void HitachiClimate::transmit_state() {
