@@ -7,9 +7,11 @@ esphome:
   devices:
     - id: living_room
       name: Living Room
+      relation: via
     - id: bedroom
       name: Bedroom
       area_id: upstairs
+      relation: via
 
 mqtt:
   sub_device_topics: true
