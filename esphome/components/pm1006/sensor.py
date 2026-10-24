@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_PM_2_5,
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_PM25,
@@ -58,9 +57,7 @@ FINAL_VALIDATE_SCHEMA = validate_interval_uart
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)

@@ -111,7 +111,7 @@ class CC1101Component final : public Component,
 
   // GDO pin for packet reception
   InternalGPIOPin *gdo0_pin_{nullptr};
-  static void IRAM_ATTR gpio_intr(CC1101Component *arg);
+  static void gpio_intr(CC1101Component *arg);
 
   // Packet handling
   void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
@@ -147,15 +147,6 @@ class CC1101Component final : public Component,
   void enter_idle_();
   bool enter_rx_();
   bool enter_tx_();
-};
-
-// Action Wrappers
-template<typename... Ts> class SendPacketAction final : public Action<Ts...>, public Parented<CC1101Component> {
-  TEMPLATABLE_BYTES(data)
-
-  void play(const Ts &...x) override {
-    this->data_.visit([this](const uint8_t *data, size_t len) { this->parent_->transmit_packet(data, len); }, x...);
-  }
 };
 
 }  // namespace esphome::cc1101

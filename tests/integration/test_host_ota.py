@@ -11,9 +11,12 @@ import asyncio
 import base64
 from collections.abc import Generator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import functools
+import logging
 from pathlib import Path
+import re
+import shutil
 import socket
 import zlib
 
@@ -31,10 +34,71 @@ from .const import (
     ZERO_PSK,
 )
 from .host_prefs import force_safe_mode
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, CompileFunction, ConfigWriter
+
+_LOGGER = logging.getLogger(__name__)
 
 DEVICE_NAME = "host-ota-test"
 API_KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+
+
+_REAL_COMPRESS = zlib.compress
+
+
+def _corrupt_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
+    """Reserved block type in the first header: rejected by the decoder on
+    every build, unlike a flipped data bit that may only fail the MD5."""
+    out = bytearray(_REAL_COMPRESS(data, *args, **kwargs))
+    out[0] |= 0x06
+    return bytes(out)
+
+
+@contextmanager
+def _udp_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    force: bool = True,
+    loss: float = 0.0,
+    blocked: bool = False,
+) -> Generator[list[bool]]:
+    """Force the UDP data phase (unless force is False) and drop datagrams both
+    ways; yields one entry per upload, True when it used UDP."""
+    import random
+
+    rng = random.Random(1)
+    used: list[bool] = []
+    real_start = espota2._start_udp
+    real_send = espota2.UdpChannel._send
+    real_ack = espota2.UdpChannel._handle_ack
+
+    def start(*args: object) -> espota2.UdpChannel | None:
+        channel = real_start(*args)
+        used.append(channel is not None)
+        return channel
+
+    def send(self: espota2.UdpChannel, *args: object) -> None:
+        if not blocked and rng.random() >= loss:
+            real_send(self, *args)
+
+    def ack(self: espota2.UdpChannel, data: bytes) -> None:
+        if rng.random() >= loss:
+            real_ack(self, data)
+
+    with monkeypatch.context() as m:
+        # Loopback answers in about a millisecond; resend lost datagrams
+        # sooner so the loss runs do not dominate the test time
+        m.setattr(espota2, "UDP_RESEND_INITIAL", 0.05)
+        m.setattr(espota2, "UDP_RESEND_MIN", 0.02)
+        if force:
+            m.setattr(espota2, "UDP_SLOW_EXCHANGE", -1.0)
+        if blocked:
+            # Nothing answers, so do not wait the full probe
+            m.setattr(espota2, "UDP_PROBE_TIMEOUT", 1.0)
+        m.setattr(espota2, "_start_udp", start)
+        m.setattr(espota2.UdpChannel, "_send", send)
+        m.setattr(espota2.UdpChannel, "_handle_ack", ack)
+        yield used
 
 
 @contextmanager
@@ -88,7 +152,23 @@ async def _build(
         binary_path = await compile_esphome(config_path)
         api_socket.close()
         ota_socket.close()
-    return api_port, ota_port, binary_path
+    return api_port, ota_port, await _strip_debug(binary_path)
+
+
+async def _strip_debug(binary_path: Path) -> Path:
+    """The fixtures build with -g; every upload sends the image, so drop the
+    debug info (GNU and Apple strip both take -S)."""
+    if (strip := shutil.which("strip")) is None:
+        _LOGGER.warning(
+            "strip not found; uploading the unstripped binary, which is much slower"
+        )
+        return binary_path
+    stripped = binary_path.with_name(f"{binary_path.name}.stripped")
+    proc = await asyncio.create_subprocess_exec(
+        strip, "-S", "-o", str(stripped), str(binary_path)
+    )
+    assert await proc.wait() == 0, "strip failed"
+    return stripped
 
 
 async def _run_ota(
@@ -114,6 +194,11 @@ async def _run_ota(
     return rc
 
 
+REBOOTED = "Rebooting safely"
+INFLATED = re.compile(r"Inflated .* bytes from ")
+CORRUPT_STREAM = re.compile(r"Inflate err|Inflate overrun|End update err")
+
+
 @dataclass
 class _Device:
     """A running host binary and the checks every successful OTA repeats:
@@ -123,24 +208,21 @@ class _Device:
     ota_port: int
     binary_path: Path
     proc: asyncio.subprocess.Process | None = None
-    reboots: int = 0
-    inflates: int = 0
-
-    def __post_init__(self) -> None:
-        self._rebooted = asyncio.Event()
+    waiter: LineWaiter = field(default_factory=LineWaiter)
 
     def on_log(self, line: str) -> None:
-        if "Rebooting safely" in line:
-            self.reboots += 1
-            self._rebooted.set()
-        if "Inflated " in line and " bytes from " in line:
-            self.inflates += 1
+        self.waiter.callback(line)
+
+    @property
+    def reboots(self) -> int:
+        return self.waiter.count(REBOOTED)
+
+    @property
+    def inflates(self) -> int:
+        return self.waiter.count(INFLATED)
 
     async def wait_reboot(self, count: int, timeout: float = 10.0) -> None:
-        async with asyncio.timeout(timeout):
-            while self.reboots < count:
-                self._rebooted.clear()
-                await self._rebooted.wait()
+        await self.waiter.wait_count(REBOOTED, count, timeout, "device did not reboot")
 
     async def ota(
         self,
@@ -220,26 +302,20 @@ async def test_host_ota_self_update(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    staged = asyncio.Event()
-
-    def on_log(line: str) -> None:
-        if "OTA staged at" in line:
-            staged.set()
-        dev.on_log(line)
-
-    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (
+        proc,
+        _lines,
+    ):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info_before = await client.device_info()
-            assert info_before.name == DEVICE_NAME
+            info_before = await assert_device_name(client, DEVICE_NAME)
 
         await dev.ota(None, None, "espota2 reported failure")
-        assert staged.is_set()
+        assert dev.waiter.count("OTA staged at")
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info_after = await client.device_info()
-            assert info_after.name == info_before.name
+            await assert_device_name(client, info_before.name)
 
         # Second OTA: catches FD_CLOEXEC regressions (EADDRINUSE on rebind).
         await dev.ota(None, None, "second OTA failed -- listener leaked across execv")
@@ -260,32 +336,15 @@ async def test_host_ota_deflate(
             yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
         )
     )
-    errors: list[str] = []
-
-    def on_log(line: str) -> None:
-        # A corrupt stream is caught by the decoder, by the size check or by
-        # the MD5 at the end, depending on where the damage lands
-        if any(
-            text in line
-            for text in ("Inflate err", "Inflate overrun", "End update err")
-        ):
-            errors.append(line)
-        dev.on_log(line)
-
-    real_compress = zlib.compress
-
-    def corrupt_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
-        # Reserved block type in the first header: rejected by the decoder on
-        # every build, unlike a flipped data bit that may only fail the MD5
-        out = bytearray(real_compress(data, *args, **kwargs))
-        out[0] |= 0x06
-        return bytes(out)
 
     def overlong_compress(data: bytes, *args: object, **kwargs: object) -> bytes:
         """A stream that inflates past the size the client announced."""
-        return real_compress(data + bytes(8192), *args, **kwargs)
+        return _REAL_COMPRESS(data + bytes(8192), *args, **kwargs)
 
-    async with run_binary(dev.binary_path, line_callback=on_log) as (proc, _lines):
+    async with run_binary(dev.binary_path, line_callback=dev.on_log) as (
+        proc,
+        _lines,
+    ):
         dev.proc = proc
         await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
 
@@ -301,22 +360,49 @@ async def test_host_ota_deflate(
 
         # A corrupt stream fails the upload and leaves the device running
         with monkeypatch.context() as m:
-            m.setattr(zlib, "compress", corrupt_compress)
+            m.setattr(zlib, "compress", _corrupt_compress)
             await dev.refused_ota(None, None, "corrupt deflate stream was accepted")
-        assert errors, "device did not report the corrupt stream"
+        # A corrupt stream is caught by the decoder, by the size check or by
+        # the MD5 at the end, depending on where the damage lands
+        assert dev.waiter.count(CORRUPT_STREAM), (
+            "device did not report the corrupt stream"
+        )
 
         # So does a stream that inflates past the announced image size
-        errors.clear()
+        overruns = dev.waiter.count("Inflate overrun")
         with monkeypatch.context() as m:
             m.setattr(zlib, "compress", overlong_compress)
             await dev.refused_ota(None, None, "overlong deflate stream was accepted")
-        assert any("Inflate overrun" in line for line in errors), (
+        assert dev.waiter.count("Inflate overrun") > overruns, (
             "device wrote past the announced size"
         )
 
         # and it still takes a good upload afterwards
         await dev.ota(None, None, "upload after a rejected stream failed")
         assert dev.inflates == 2
+
+        # Localhost is clean, so the client stays on TCP
+        with _udp_mode(monkeypatch, force=False) as used:
+            await dev.ota(None, None, "TCP upload failed")
+        assert used == [False], "a clean link asked for UDP"
+
+        # A lossy link moves the data phase to UDP and completes through loss
+        with _udp_mode(monkeypatch, loss=0.2) as used:
+            await dev.ota(None, None, "UDP upload with loss failed")
+        assert used == [True], "the upload did not use UDP"
+        assert dev.inflates == 4
+
+        # Blocked UDP falls back to TCP
+        with _udp_mode(monkeypatch, blocked=True) as used:
+            await dev.ota(None, None, "fallback to TCP failed")
+        assert used == [False], "blocked UDP did not fall back to TCP"
+
+        # A device error mid upload surfaces at once, not as a 160 s timeout
+        with _udp_mode(monkeypatch) as used, monkeypatch.context() as m:
+            m.setattr(zlib, "compress", _corrupt_compress)
+            async with asyncio.timeout(30):
+                await dev.refused_ota(None, None, "corrupt stream over UDP accepted")
+        assert used == [True]
 
 
 @pytest.mark.asyncio
@@ -325,6 +411,7 @@ async def test_host_ota_encrypted(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A client that leaves right after the handshake, as a key probe does,
     is a clean close, not an OTA error; a plaintext upload is refused; an
@@ -348,6 +435,10 @@ async def test_host_ota_encrypted(
             None, None, "plaintext upload to an encrypted device must fail"
         )
         await dev.ota(None, API_KEY, "encrypted OTA reported failure")
+        # Noise frames ride the UDP stream unchanged, through loss
+        with _udp_mode(monkeypatch, loss=0.2) as used:
+            await dev.ota(None, API_KEY, "encrypted UDP upload failed")
+        assert used == [True]
 
 
 @pytest.mark.asyncio
@@ -531,5 +622,4 @@ async def test_host_ota_rejects_garbage(
         assert proc.pid == pid_before
 
         async with wait_and_connect_api_client(port=dev.api_port) as client:
-            info = await client.device_info()
-            assert info.name == DEVICE_NAME
+            await assert_device_name(client, DEVICE_NAME)

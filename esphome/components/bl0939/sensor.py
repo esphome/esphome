@@ -2,8 +2,8 @@ import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_INTERNAL_TEMPERATURE,
+    CONF_MODE,
     CONF_VOLTAGE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
@@ -33,11 +33,21 @@ CONF_ENERGY_TOTAL = "energy_total"
 
 bl0939_ns = cg.esphome_ns.namespace("bl0939")
 BL0939 = bl0939_ns.class_("BL0939", cg.PollingComponent, uart.UARTDevice)
+BL0939Mode = bl0939_ns.enum("BL0939Mode", is_class=True)
+MODE_OPTIONS = BL0939Mode.options(
+    "direct", "current_transformer", prefix="BL0939_MODE_"
+)
+# Must match the mode_ member initializer in bl0939.h; set_mode() is skipped
+# when the config already equals it.
+DEFAULT_MODE = "direct"
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BL0939),
+            cv.Optional(CONF_MODE, default=DEFAULT_MODE): cv.enum(
+                MODE_OPTIONS, lower=True
+            ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
@@ -101,9 +111,10 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
+
+    if (mode := config[CONF_MODE]) != DEFAULT_MODE:
+        cg.add(var.set_mode(mode))
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

@@ -52,8 +52,7 @@ async def to_code(config):
     var = await select.new_select(config, options=list(options_map.values()))
     await cg.register_component(var, config)
     cg.add(var.set_select_mappings(list(options_map.keys())))
-    parent = await cg.get_variable(config[CONF_TUYA_ID])
-    cg.add(var.set_tuya_parent(parent))
+    await cg.add_variable(var.set_tuya_parent, config[CONF_TUYA_ID])
     if (enum_datapoint := config.get(CONF_ENUM_DATAPOINT, None)) is not None:
         cg.add(var.set_select_id(enum_datapoint, False))
     if (int_datapoint := config.get(CONF_INT_DATAPOINT, None)) is not None:
