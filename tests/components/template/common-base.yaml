@@ -447,7 +447,6 @@ cover:
       - cover.control:
           id: template_cover_actions
           stop_tilt: true
-      # state, and the templatable flags as lambdas
       - cover.control:
           id: template_cover_actions
           state: CLOSED

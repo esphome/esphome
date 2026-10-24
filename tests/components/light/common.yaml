@@ -116,7 +116,6 @@ esphome:
       - light.control:
           id: test_monochromatic_light
           state: on
-      # White channel fields and color_mode, as literals and as lambdas
       - light.turn_on:
           id: test_rgbww_light
           color_mode: RGB_COLD_WARM_WHITE
