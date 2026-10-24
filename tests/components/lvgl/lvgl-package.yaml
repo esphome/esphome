@@ -41,6 +41,10 @@ script:
           id: test_list_id
           label:
             text: row
+      - lvgl.list.add:
+          id: test_list_id
+          checkbox:
+            text: list checkbox
 
 esphome:
   on_boot:
@@ -107,12 +111,24 @@ lvgl:
         id: meter_arc_indicator
         start_value: 0
         end_value: 180
+    - lvgl.indicator.update:
+        id: meter_arc_indicator
+        value: 90
+        opa: 50%
     - lvgl.animation.start:
         id:
           - anim_slide
           - anim_color
         duration: 3s
         loop: true
+    - lvgl.animation.start:
+        id: anim_slide
+        start_delay: 250ms
+    - lvgl.update:
+        disp_bg_color: 0x101010
+        disp_bg_opa: 80%
+    - lvgl.update:
+        disp_bg_image: cat_image
   on_invalidate_area:
     logger.log: Invalidate area
   on_resolution_change:
@@ -684,8 +700,11 @@ lvgl:
             on_long_press:
               lvgl.matrix.button.update:
                 id: [button_a, button_e, button_c]
+                width: 2
+                selected: true
                 control:
                   disabled: true
+                  checkable: true
             on_click:
               logger.log:
                 format: "matrix button clicked: %d, is button_a = %u"
@@ -1064,6 +1083,13 @@ lvgl:
                   outline_width: 4
                   outline_pad: 4
                   outline_opa: cover
+              - lvgl.canvas.draw_rectangle:
+                  x: 10
+                  y: 10
+                  width: !lambda return 120;
+                  height: !lambda return 80;
+                  shadow_ofs_x: 3
+                  shadow_ofs_y: 3
               - lvgl.canvas.set_pixels:
                   color: red
                   points:
@@ -1097,6 +1123,12 @@ lvgl:
                   text: Canvas Text
                   align: center
                   max_width: 150
+              - lvgl.canvas.draw_text:
+                  x: 20
+                  y: 150
+                  font: montserrat_18
+                  text: Lambda Width
+                  max_width: !lambda return 120;
               - lvgl.canvas.draw_image:
                   src: cat_image
                   x: 100
@@ -1108,6 +1140,27 @@ lvgl:
                   skew_y: 5
                   pivot_x: 25
                   pivot_y: 25
+              - lvgl.canvas.draw_image:
+                  src: cat_image
+                  x: 50
+                  y: 50
+                  angle: 45
+                  scale: 1.5
+                  opa: 70%
+                  recolor: red
+                  recolor_opa: 30%
+              - lvgl.canvas.draw_image:
+                  src: cat_image
+                  x: 60
+                  y: 60
+                  zoom: 2.0
+              - lvgl.canvas.draw_line:
+                  color: green
+                  width: 2
+                  opa: 60%
+                  points:
+                    - 10,10
+                    - 90,90
               - lvgl.canvas.draw_line:
                   color: blue
                   width: 4
@@ -1332,6 +1385,12 @@ lvgl:
                     column: 1
                     text: !lambda return str_sprintf("%.1f", (float) rand() / RAND_MAX * 100);
                     merge_right: false
+                - lvgl.table.cell.update:
+                    id: table_id
+                    row: 0
+                    column: 1
+                    text: cropped
+                    text_crop: true
                 - lvgl.table.update:
                     id: table_id
                     selected_row: !lambda return (int) ((float) rand() / RAND_MAX * 2);
@@ -1363,6 +1422,9 @@ lvgl:
                     - 180, 60
                     - 240, 10
               - lvgl.page.next:
+              - lvgl.page.next:
+                  animation: move_left
+                  time: 200ms
         - switch:
             align: right_mid
         - checkbox:
