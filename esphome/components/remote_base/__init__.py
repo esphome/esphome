@@ -273,8 +273,9 @@ def _new_flash_dumper(dumper_id: ID) -> cg.RawExpression:
     storage = f"{dumper_id.id}__flash"
     CORE.add_global_after_includes(
         cg.RawStatement(
-            f"static_assert(sizeof({dumper_id.type}) == sizeof(void *), "
-            '"a dumper kept in flash must have no data members");'
+            f"static_assert(sizeof({dumper_id.type}) == sizeof(void *) && "
+            f"std::is_trivially_destructible_v<{dumper_id.type}>, "
+            '"a dumper kept in flash must have no data members or destructor");'
         )
     )
     CORE.add_global_after_includes(
