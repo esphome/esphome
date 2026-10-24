@@ -1,7 +1,15 @@
+from collections.abc import Callable
+
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
-from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
+from esphome.components.uart import (
+    CONF_DEBUG_PREFIX,
+    CONF_FLUSH_TIMEOUT,
+    UARTComponent,
+    UARTParityOptions,
+    mark_unclocked,
+)
 from esphome.components.usb_host import (
     get_max_packet_size,
     register_usb_client,
@@ -39,7 +47,6 @@ def is_usb_uart_channel(uart_id: ID, full_config: ConfigType) -> bool:
     )
 
 
-UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
     "NONE": UARTParityOptions.UART_CONFIG_PARITY_NONE,
     "EVEN": UARTParityOptions.UART_CONFIG_PARITY_EVEN,
@@ -49,11 +56,9 @@ UART_PARITY_OPTIONS = {
 }
 
 UARTStopBitsOptions = usb_uart_ns.enum("UARTStopBitsOptions")
-UART_STOP_BITS_OPTIONS = {
-    "1": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_1,
-    "1.5": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_1_5,
-    "2": UARTStopBitsOptions.UART_CONFIG_STOP_BITS_2,
-}
+UART_STOP_BITS_OPTIONS = UARTStopBitsOptions.options(
+    "1", "1.5", "2", prefix="UART_CONFIG_STOP_BITS_"
+)
 
 DEFAULT_BAUD_RATE = 9600
 CONF_CLAIM_COMM_INTERFACE = "claim_comm_interface"
@@ -151,6 +156,19 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
 )
 
 
+def _channel_limit(type_: Type) -> Callable[[list], list]:
+    """Check the channel count against the type's limit, which depends on the target."""
+
+    def validator(value: list) -> list:
+        if len(value) > (limit := type_.max_channels):
+            raise cv.Invalid(
+                f"Device type {type_.name} supports a maximum of {limit} channels"
+            )
+        return value
+
+    return validator
+
+
 def channel_schema(type_: "Type") -> cv.Schema:
     schema = cv.Schema(
         {
@@ -158,7 +176,9 @@ def channel_schema(type_: "Type") -> cv.Schema:
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.All(
+                                cv.declare_id(USBUartChannel), mark_unclocked
+                            ),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
@@ -187,10 +207,7 @@ def channel_schema(type_: "Type") -> cv.Schema:
                         }
                     )
                 ),
-                cv.Length(
-                    max=type_.max_channels,
-                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
-                ),
+                _channel_limit(type_),
             ),
         }
     )

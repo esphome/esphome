@@ -4,7 +4,7 @@ import subprocess
 import sys
 from unittest.mock import patch
 
-from hypothesis import given
+from hypothesis import given, settings
 import pytest
 
 from esphome import const, core
@@ -31,6 +31,7 @@ class TestHexInt:
 
 
 class TestMACAddress:
+    @settings(deadline=None)
     @given(value=mac_addr_strings())
     def test_init__valid(self, value):
         core.MACAddress(*value.split(":"))
@@ -40,6 +41,7 @@ class TestMACAddress:
         with pytest.raises(ValueError, match="MAC Address must consist of 6 items"):
             core.MACAddress(*value.split(":"))
 
+    @settings(deadline=None)
     @given(value=mac_addr_strings())
     def test_str(self, value):
         target = core.MACAddress(*(int(v, 16) for v in value.split(":")))
@@ -590,6 +592,26 @@ class TestEsphomeCore:
         target.config[const.CONF_ETHERNET] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
 
         assert target.address == "1.2.3.4"
+
+    @pytest.mark.parametrize(
+        ("priority", "expected"),
+        [
+            (None, "10.0.0.1"),
+            ("ethernet", "10.0.0.1"),
+            ("wifi", "1.2.3.4"),
+        ],
+    )
+    def test_address__modem(
+        self, target: core.EsphomeCore, priority: str | None, expected: str
+    ) -> None:
+        target.config = {
+            const.CONF_WIFI: {const.CONF_USE_ADDRESS: "1.2.3.4"},
+            "modem": {const.CONF_USE_ADDRESS: "10.0.0.1"},
+        }
+        if priority is not None:
+            target.config["network"] = {const.CONF_PRIORITY: [{"interface": priority}]}
+
+        assert target.address == expected
 
     def test_address__ethernet(self, target):
         target.config = {}

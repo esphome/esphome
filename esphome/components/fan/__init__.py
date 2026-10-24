@@ -37,6 +37,7 @@ from esphome.core.entity_helpers import (
     queue_entity_register,
     setup_entity,
 )
+from esphome.cpp_generator import MockObj
 
 DOMAIN = "fan"
 IS_PLATFORM_COMPONENT = True
@@ -45,28 +46,22 @@ fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
-FAN_DIRECTION_ENUM = {
-    "FORWARD": FanDirection.FORWARD,
-    "REVERSE": FanDirection.REVERSE,
-}
+FAN_DIRECTION_ENUM = FanDirection.options("FORWARD", "REVERSE")
 
 FanRestoreMode = fan_ns.enum("FanRestoreMode", is_class=True)
-RESTORE_MODES = {
-    "NO_RESTORE": FanRestoreMode.NO_RESTORE,
-    "ALWAYS_OFF": FanRestoreMode.ALWAYS_OFF,
-    "ALWAYS_ON": FanRestoreMode.ALWAYS_ON,
-    "RESTORE_DEFAULT_OFF": FanRestoreMode.RESTORE_DEFAULT_OFF,
-    "RESTORE_DEFAULT_ON": FanRestoreMode.RESTORE_DEFAULT_ON,
-    "RESTORE_INVERTED_DEFAULT_OFF": FanRestoreMode.RESTORE_INVERTED_DEFAULT_OFF,
-    "RESTORE_INVERTED_DEFAULT_ON": FanRestoreMode.RESTORE_INVERTED_DEFAULT_ON,
-}
+RESTORE_MODES = FanRestoreMode.options(
+    "NO_RESTORE",
+    "ALWAYS_OFF",
+    "ALWAYS_ON",
+    "RESTORE_DEFAULT_OFF",
+    "RESTORE_DEFAULT_ON",
+    "RESTORE_INVERTED_DEFAULT_OFF",
+    "RESTORE_INVERTED_DEFAULT_ON",
+)
 
 # Actions
 CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
 
-FanStateTrigger = fan_ns.class_(
-    "FanStateTrigger", automation.Trigger.template(Fan.operator("ptr"))
-)
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
 FanDirectionSetTrigger = fan_ns.class_(
@@ -115,11 +110,7 @@ _FAN_SCHEMA = (
             cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
             ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation(),
             cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FanTurnOnTrigger),
@@ -221,6 +212,26 @@ def validate_preset_modes(value):
     return value
 
 
+def set_preset_modes(var: MockObj, preset_modes: list[str]) -> None:
+    """Point the fan at a shared flash table of preset modes."""
+    if preset_modes:
+        table = cg.shared_progmem_array(
+            "fan_preset_modes", cg.const_char_ptr, preset_modes
+        )
+        cg.add(var.set_supported_preset_modes_static(table, len(preset_modes)))
+
+
+# The edge and set triggers keep their classes; each tracks the previous value.
+_TRIGGER_AUTOMATIONS = (
+    (CONF_ON_TURN_ON, []),
+    (CONF_ON_TURN_OFF, []),
+    (CONF_ON_DIRECTION_SET, [(FanDirection, "x")]),
+    (CONF_ON_OSCILLATING_SET, [(cg.bool_, "x")]),
+    (CONF_ON_SPEED_SET, [(cg.int_, "x")]),
+    (CONF_ON_PRESET_SET, [(cg.StringRef, "x")]),
+)
+
+
 @setup_entity("fan")
 async def setup_fan_core_(var, config):
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
@@ -266,26 +277,10 @@ async def setup_fan_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
     for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(Fan.operator("ptr"), "x")], conf)
-    for conf in config.get(CONF_ON_TURN_ON, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_OFF, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_DIRECTION_SET, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(FanDirection, "x")], conf)
-    for conf in config.get(CONF_ON_OSCILLATING_SET, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.bool_, "x")], conf)
-    for conf in config.get(CONF_ON_SPEED_SET, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.int_, "x")], conf)
-    for conf in config.get(CONF_ON_PRESET_SET, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.StringRef, "x")], conf)
+        await automation.build_parent_callback_automation(
+            var, "add_on_state_callback", (Fan.operator("ptr"), "x"), conf
+        )
+    await automation.build_trigger_automations(var, config, _TRIGGER_AUTOMATIONS)
 
 
 async def register_fan(var, config):

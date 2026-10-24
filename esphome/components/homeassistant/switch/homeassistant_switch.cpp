@@ -1,6 +1,7 @@
 #include "homeassistant_switch.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
@@ -42,26 +43,23 @@ void HomeassistantSwitch::write_state(bool state) {
 
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(this->get_log_name()));
     return;
   }
 #endif
 
-  static constexpr auto SERVICE_ON = StringRef::from_lit("homeassistant.turn_on");
-  static constexpr auto SERVICE_OFF = StringRef::from_lit("homeassistant.turn_off");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
+  // In flash on the ESP8266 and encoded from there
+  static const char SERVICE_ON[] PROGMEM = "homeassistant.turn_on";
+  static const char SERVICE_OFF[] PROGMEM = "homeassistant.turn_off";
+  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
 
   api::HomeassistantActionRequest resp;
-  if (state) {
-    resp.service = SERVICE_ON;
-  } else {
-    resp.service = SERVICE_OFF;
-  }
+  resp.service = state ? ProgmemStringRef::from_lit(SERVICE_ON) : ProgmemStringRef::from_lit(SERVICE_OFF);
 
   resp.data.init(1);
   auto &entity_id_kv = resp.data.emplace_back();
-  entity_id_kv.key = ENTITY_ID_KEY;
-  entity_id_kv.value = StringRef(this->entity_id_);
+  entity_id_kv.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
+  entity_id_kv.value = ProgmemStringRef(StringRef(this->entity_id_));
 
   api::global_api_server->send_homeassistant_action(resp);
 }

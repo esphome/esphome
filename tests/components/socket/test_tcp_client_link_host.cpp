@@ -102,6 +102,19 @@ TEST_F(TcpClientLinkClock, PendingConnectTimesOutIntoBackoff) {
   EXPECT_TRUE(this->link_.in_backoff());
 }
 
+TEST_F(TcpClientLinkClock, ConnectingUntilThePendingAttemptEnds) {
+  this->link_.begin("link_test");
+  EXPECT_FALSE(this->link_.connecting());
+  this->set_pending_socket();
+  this->link_.note_attempt();
+  this->link_.poll();
+  EXPECT_TRUE(this->link_.connecting());
+  set_loop_time(1000 + 10000);
+  this->link_.poll();
+  EXPECT_FALSE(this->link_.connecting());
+  EXPECT_FALSE(this->link_.connected());
+}
+
 TEST_F(TcpClientLinkClock, ConnectTimeoutFollowsALongerInterval) {
   this->link_.set_reconnect_interval(20000);
   this->link_.begin("link_test");
@@ -136,7 +149,7 @@ TEST_F(TcpClientLinkClock, RefusedConnectBacksOff) {
   // A loopback port that was just free refuses the connect.
   int probe = ::socket(AF_INET, SOCK_STREAM, 0);
   ASSERT_GE(probe, 0);
-  struct sockaddr_in addr {};
+  struct sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   socklen_t len = sizeof(addr);
@@ -151,9 +164,7 @@ TEST_F(TcpClientLinkClock, RefusedConnectBacksOff) {
   this->link_.poll();
   if (this->link_.has_socket()) {
     // Wait for the stack to finish the connect, then let poll() read the result.
-    struct pollfd pfd {
-      this->link_.fd(), POLLOUT, 0
-    };
+    struct pollfd pfd{this->link_.fd(), POLLOUT, 0};
     ASSERT_EQ(::poll(&pfd, 1, 1000), 1);
     this->link_.poll();
   }
@@ -177,6 +188,7 @@ TEST_F(TcpClientLinkClock, BackoffSpansAMillisWrap) {
 TEST(TcpClientLink, AdoptedSocketFlushesQueuedBytes) {
   LinkPeer p;
   ASSERT_TRUE(p.link_.connected());
+  EXPECT_FALSE(p.link_.connecting());
   EXPECT_EQ(p.link_.queue(reinterpret_cast<const uint8_t *>("ping"), 4), 4u);
   EXPECT_TRUE(p.link_.flush_tx());
   char buf[8];

@@ -31,13 +31,7 @@ static const LogString *detection_range_to_log_string(MHZ19DetectionRange range)
 }
 #endif
 
-uint8_t mhz19_checksum(const uint8_t *command) {
-  uint8_t sum = 0;
-  for (uint8_t i = 1; i < MHZ19_REQUEST_LENGTH; i++) {
-    sum += command[i];
-  }
-  return 0xFF - sum + 0x01;
-}
+uint8_t mhz19_checksum(const uint8_t *command) { return -sum_bytes(command + 1, MHZ19_REQUEST_LENGTH - 1); }
 
 void MHZ19Component::setup() {
   if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
@@ -72,13 +66,11 @@ void MHZ19Component::update() {
   }
 
   uint8_t checksum = mhz19_checksum(response);
-  if (response[8] != checksum) {
+  if (!this->status_comm_result(response[8] == checksum)) {
     ESP_LOGW(TAG, "MHZ19 Checksum doesn't match: 0x%02X!=0x%02X", response[8], checksum);
-    this->status_set_warning();
     return;
   }
 
-  this->status_clear_warning();
   const uint16_t ppm = (uint16_t(response[2]) << 8) | response[3];
   const int temp = int(response[4]) - 40;
   const uint8_t status = response[5];
@@ -126,9 +118,7 @@ void MHZ19Component::range_set(MHZ19DetectionRange detection_range) {
 }
 
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
-  // Empty RX Buffer
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write_array(command, MHZ19_REQUEST_LENGTH);
   this->write_byte(mhz19_checksum(command));
   this->flush();

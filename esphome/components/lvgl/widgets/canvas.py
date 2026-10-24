@@ -99,7 +99,7 @@ class CanvasType(WidgetType):
         if config[CONF_TRANSPARENT]:
             color_format = "LV_COLOR_FORMAT_ARGB8888"
         else:
-            color_format = "LV_COLOR_FORMAT_NATIVE"
+            color_format = "LV_COLOR_FORMAT_RGB565"
 
         # LVGL 9.4: LV_CANVAS_BUF_SIZE(width, height, bits_per_pixel, stride)
         # stride is 0 for default (width * bytes_per_pixel)

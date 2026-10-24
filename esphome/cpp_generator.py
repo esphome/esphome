@@ -8,6 +8,7 @@ from typing import Any
 from esphome.core import (
     CORE,
     ID,
+    LINE_DIRECTIVE_RESET,
     Define,
     EnumValue,
     EsphomeError,
@@ -214,9 +215,13 @@ class LambdaExpression(Expression):
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
         cpp += " {\n"
+        body = f"{self.content}\n"
         if self.source is not None:
-            cpp += f"{self.source.as_line_directive}\n"
-        cpp += f"{self.content}\n}}"
+            body = f"{self.source.as_line_directive}\n{body}"
+        # A #line in the body, the source's or lvgl's own marks, needs the reset after it
+        if "#line " in body:
+            body += f"{LINE_DIRECTIVE_RESET}\n"
+        cpp += f"{body}}}"
         return indent_all_but_first_and_last(cpp)
 
     @property
@@ -479,6 +484,17 @@ def progmem_array(id_, rhs) -> "MockObj":
     return obj
 
 
+def unique_global_id(name: str, type_: "MockObjClass") -> ID:
+    """A declaration ID for a generated global, unique against config ids, variables and reserved names."""
+    from esphome.config import iter_ids
+    from esphome.config_validation import RESERVED_IDS
+
+    used = {str(i) for i, _ in iter_ids(CORE.config)}
+    used |= {str(i) for i in CORE.variables}
+    used |= set(RESERVED_IDS) | CORE.loaded_integrations
+    return ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
+
+
 class ExternProgmemAssignmentExpression(ProgmemAssignmentExpression):
     __slots__ = ()
 
@@ -512,9 +528,6 @@ def shared_progmem_array(
     ``constexpr=False`` is for tables of generated object pointers: each top level variable
     element must pass ``is_static_pointer`` or ``EsphomeError`` is raised.
     """
-    from esphome.config import iter_ids
-    from esphome.config_validation import RESERVED_IDS
-
     arrays: dict[str, MockObj] = CORE.data.setdefault("shared_progmem_array", {})
     rhs = safe_exp(rhs)
     if not constexpr and isinstance(rhs, ArrayInitializer):
@@ -527,17 +540,29 @@ def shared_progmem_array(
     key = f"{type_} {rhs} {constexpr}"
     if share and (array := arrays.get(key)) is not None:
         return array
-    used = {str(i) for i, _ in iter_ids(CORE.config)}
-    used |= {str(i) for i in CORE.variables}
-    used |= set(RESERVED_IDS) | CORE.loaded_integrations
-    id_ = ID(ensure_unique_string(name, used), is_declaration=True, type=type_)
-    # Global, so any scope can use it; anything a lambda references is already declared.
-    CORE.add_global(ProgmemAssignmentExpression(type_, id_, rhs, constexpr))
+    id_ = unique_global_id(name, type_)
+    # After the user includes, so a lambda in the table can use what their headers declare.
+    CORE.add_global_after_includes(
+        ProgmemAssignmentExpression(type_, id_, rhs, constexpr)
+    )
     array = MockObj(id_, ".")
     CORE.register_variable(id_, array)
     if share:
         arrays[key] = array
     return array
+
+
+def shared_progmem_string(value: str) -> Expression:
+    """Return a string that stays in flash: one shared PROGMEM array per text on ESP8266.
+
+    Other platforms keep string literals in flash already, so they get the plain literal.
+    """
+    from esphome.cpp_types import char
+
+    text = StringLiteral(value)
+    if CORE.is_esp8266:
+        return shared_progmem_array("progmem_str", char, text)
+    return text
 
 
 def static_const_array(id_, rhs) -> "MockObj":
@@ -771,15 +796,16 @@ def static_function(
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
 
-    Every id the body names must already be declared, which holds when the statements were
-    rendered through ``get_variable`` or ``process_lambda``.
+    The declaration goes with the other globals, so a template argument can name the function
+    at once; the body goes after the user includes, where every id and everything those
+    headers declare is in scope.
     """
-    params = ParameterListExpression(*parameters)
-    add_global(
-        RawStatement(
-            f"static {safe_exp(return_type)} {name}({params}) {{\n"
-            f"{indent(chr(10).join(body))}\n}}"
-        )
+    signature = (
+        f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
+    )
+    add_global(RawStatement(f"{signature};"))
+    add_global_after_includes(
+        RawStatement(f"{signature} {{\n{indent(chr(10).join(body))}\n}}")
     )
     return RawExpression(name)
 
@@ -796,6 +822,13 @@ def add(expression: Expression | Statement, prepend: bool = False):
 def add_global(expression: SafeExpType | Statement, prepend: bool = False):
     """Add an expression to the codegen global storage (above setup())."""
     CORE.add_global(expression, prepend)
+
+
+def add_global_after_includes(expression: SafeExpType | Statement):
+    """Add a global after the user's ``includes:`` headers, for generated code whose
+    lambdas may use what those headers declare.
+    """
+    CORE.add_global_after_includes(expression)
 
 
 def add_library(name: str, version: str | None, repository: str | None = None):
@@ -933,8 +966,7 @@ async def process_lambda(
         parts[i * 3 + 2] = ""
 
     if isinstance(value, ESPHomeDataBase) and value.esp_range is not None:
-        location = value.esp_range.start_mark
-        location.line += value.content_offset
+        location = value.content_start
     else:
         location = None
     return LambdaExpression(parts, parameters, capture, return_type, location)
@@ -1253,6 +1285,9 @@ class MockObj(Expression):
         return MockObj(op)
 
 
+_ENUM_NON_ALNUM = re.compile(r"[^A-Za-z0-9]")
+
+
 class MockObjEnum(MockObj):
     def __init__(self, *args, **kwargs):
         self._enum = kwargs.pop("enum")
@@ -1271,6 +1306,17 @@ class MockObjEnum(MockObj):
 
     def __repr__(self):
         return f"MockObj<{str(self.base)}>"
+
+    def options(self, *names: str, prefix: str = "") -> dict[str, "MockObj"]:
+        """Map option names to prefix + NAME enumerators (non-alphanumerics become "_"), for cv.enum."""
+        enumerators = {
+            name: prefix + _ENUM_NON_ALNUM.sub("_", name).upper() for name in names
+        }
+        if len(set(enumerators.values())) != len(names):
+            raise ValueError(f"Option names must map to distinct enumerators: {names}")
+        return {
+            name: getattr(self, enumerator) for name, enumerator in enumerators.items()
+        }
 
 
 class MockObjClass(MockObj):

@@ -1,0 +1,74 @@
+sensor:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    name: DS3231 Temperature
+    update_interval: never
+
+binary_sensor:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    alarm_1:
+      name: DS3231 Alarm 1
+    alarm_2:
+      name: DS3231 Alarm 2
+    oscillator_stopped:
+      name: DS3231 Oscillator Stopped
+
+time:
+  - platform: ds3231
+    id: ds3231_time
+    ds3231_id: ds3231_component
+    update_interval: never
+
+interval:
+  - interval: 60s
+    then:
+      - ds3231.force_temperature_conversion: ds3231_component
+
+button:
+  - platform: template
+    name: DS3231 Actions
+    on_press:
+      - ds3231.write_time:
+          id: ds3231_time
+      - ds3231.read_time: ds3231_time
+      - ds3231.set_alarm_1:
+          id: ds3231_component
+          mode: daily
+          hour: 7
+          minute: 30
+          second: 15
+      - ds3231.set_alarm_1:
+          mode: every_second
+          enabled: false
+      - ds3231.set_alarm_1:
+          mode: monthly
+          day_of_month: 15
+          hour: !lambda return 12;
+      - ds3231.set_alarm_2:
+          mode: weekly
+          day_of_week: 2
+          hour: 6
+          minute: !lambda return 45;
+      - ds3231.set_alarm_2:
+          mode: every_minute
+      - ds3231.enable_alarm:
+          alarm: 1
+      - ds3231.disable_alarm:
+          alarm: 2
+      - ds3231.clear_alarm:
+          alarm: !lambda return 1;
+      - if:
+          condition:
+            ds3231.is_alarm_triggered:
+              alarm: 2
+          then:
+            - ds3231.clear_alarm:
+                alarm: 2
+      - ds3231.enable_square_wave:
+          frequency: 1Hz
+      - ds3231.disable_square_wave: ds3231_component
+      - ds3231.set_32khz_output:
+          state: true
+      - ds3231.set_aging_offset:
+          offset: !lambda return 3;
