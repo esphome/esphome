@@ -111,6 +111,8 @@ def _direct_url(url: str | None, commit: str | None) -> str:
         ),
         (json.dumps([]), (None, None)),
         ("not json", (None, None)),
+        ("", (None, None)),
+        ("  \n", (None, None)),
         # No direct_url.json: installed from a package index
         (None, None),
     ],
@@ -481,7 +483,7 @@ def test_checkout_vcs_tracked_remote(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     [
-        # Detached HEAD: falls back to origin
+        # A branch that tracks nothing: falls back to origin
         (
             {"config --get branch.dev.remote": GitCommandError("unset")},
             ("https://github.com/someone/esphome.git", "abc"),
@@ -494,7 +496,7 @@ def test_checkout_vcs_tracked_remote(tmp_path: Path) -> None:
             ("https://github.com/someone/esphome.git", None),
         ),
     ],
-    ids=["detached", "no-remote", "pushed-check-fails"],
+    ids=["untracked-branch", "no-remote", "pushed-check-fails"],
 )
 def test_checkout_vcs_remote_fallbacks(
     tmp_path: Path, overrides: dict[str, str | Exception], expected: tuple
@@ -506,16 +508,32 @@ def test_checkout_vcs_remote_fallbacks(
         assert sbom._checkout_vcs(tmp_path) == expected
 
 
-def test_esphome_vcs_editable_without_git(tmp_path: Path) -> None:
-    """A local tree without .git, like the Docker image's, keeps the release description."""
+@pytest.mark.parametrize(
+    ("docker", "expected"),
+    [("true", None), (None, (None, None))],
+    ids=["docker", "other"],
+)
+def test_esphome_vcs_editable_without_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    docker: str | None,
+    expected: tuple | None,
+) -> None:
+    """Only the official image's tree without .git keeps the release description."""
+    if docker is None:
+        monkeypatch.delenv("ESPHOME_IS_DOCKER_IMAGE", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_IS_DOCKER_IMAGE", docker)
     dist = MagicMock()
     dist.read_text.return_value = _editable_direct_url(tmp_path)
     with (
         patch("importlib.metadata.distribution", return_value=dist),
         patch.object(sbom, "run_git_command") as run_git,
     ):
-        assert sbom._esphome_vcs() is None
+        assert sbom._esphome_vcs() == expected
     run_git.assert_not_called()
+    assert ("local folder without git" in caplog.text) is (docker is None)
 
 
 @pytest.mark.parametrize(
@@ -673,3 +691,15 @@ def test_checkout_vcs_pushed_check_failure_warns(
     with patch.object(sbom, "run_git_command", side_effect=_fake_git(outputs)):
         assert sbom._checkout_vcs(tmp_path)[1] is None
     assert "cannot check whether origin has HEAD" in caplog.text
+
+
+def test_checkout_remote_detached(tmp_path: Path) -> None:
+    """A detached HEAD uses origin without looking up a tracked remote."""
+    outputs = _checkout_outputs()
+    outputs["rev-parse --abbrev-ref HEAD"] = "HEAD"
+    with patch.object(sbom, "run_git_command", side_effect=_fake_git(outputs)) as run:
+        assert sbom._checkout_remote(tmp_path) == (
+            "origin",
+            "https://user:token@github.com/someone/esphome.git",
+        )
+    assert not any(call.args[0][1] == "config" for call in run.call_args_list)

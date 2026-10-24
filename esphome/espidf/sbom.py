@@ -33,7 +33,7 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.core.config import CONF_CONTACT, CONF_SBOM, CONF_SUPPLIER
 from esphome.git import GitException, run_git_command, strip_url_credentials
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import get_bool_env, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,16 +101,18 @@ def _https_repo_url(url: str) -> str:
 
 def _checkout_remote(path: Path) -> tuple[str, str] | None:
     """Return the name and URL of the remote the branch tracks (else origin), if any."""
+    remote = "origin"
     try:
         branch = run_git_command(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"], git_dir=path
         )
-        remote = run_git_command(
-            ["git", "config", "--get", f"branch.{branch}.remote"], git_dir=path
-        )
-    except GitException:
-        # Detached HEAD or a branch that tracks nothing
-        remote = "origin"
+        if branch != "HEAD":  # HEAD means detached, which tracks nothing
+            remote = run_git_command(
+                ["git", "config", "--get", f"branch.{branch}.remote"], git_dir=path
+            )
+    except GitException as err:
+        # Usually a branch that tracks nothing
+        _LOGGER.debug("SBOM: no tracked remote in %s, using origin: %s", path, err)
     try:
         return remote, run_git_command(
             ["git", "remote", "get-url", remote], git_dir=path
@@ -182,8 +184,10 @@ def _esphome_vcs() -> _Source | None:
         )
     except importlib.metadata.PackageNotFoundError:
         return None
-    if not direct_url:
+    if direct_url is None:
         return None
+    if not direct_url.strip():
+        return _unknown_install("empty direct_url.json")
     # Not installed from a package index, so the release version alone may not
     # describe it. The raw file is never logged: its URL can hold a token.
     try:
@@ -197,9 +201,15 @@ def _esphome_vcs() -> _Source | None:
     if commit:
         return _Source(strip_url_credentials(url), commit)
     if "dir_info" in info and url.startswith("file:"):
-        # An editable or local install may be a fork or a patched clone. The
-        # Docker image's tree has no .git, so it keeps the release description.
-        return _checkout_vcs(Path(url2pathname(urlparse(url).path)))
+        # An editable or local install may be a fork or a patched clone
+        if (
+            source := _checkout_vcs(Path(url2pathname(urlparse(url).path)))
+        ) is not None:
+            return source
+        # The official image's tree has no .git and is the release it was built from
+        if get_bool_env("ESPHOME_IS_DOCKER_IMAGE"):
+            return None
+        return _unknown_install("local folder without git")
     return _unknown_install("not a git or local folder install")
 
 
