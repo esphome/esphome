@@ -1,4 +1,5 @@
 #include "epaper_waveshare_bwr.h"
+#include "esphome/core/helpers.h"
 
 #include <algorithm>
 
@@ -20,7 +21,7 @@ static BwrState color_to_bwr(Color color) {
   return BwrState::BWR_BLACK;
 }
 
-// UC8179 3-color display buffer layout:
+// 3-color display buffer layout (UC8179 and UC8151D):
 // - 1 bit per pixel, 8 pixels per byte
 // - Buffer first half: Black/White plane (1=black, 0=white)
 // - Buffer second half: Red plane (1=red, 0=white)
@@ -36,17 +37,9 @@ void EPaperWaveshareBWR::draw_pixel_at(int x, int y, Color color) {
 
   const auto bwr = color_to_bwr(color);
 
-  if (bwr == BwrState::BWR_BLACK) {
-    this->buffer_[pos] |= bit;
-  } else {
-    this->buffer_[pos] &= ~bit;
-  }
+  assign_bits(this->buffer_[pos], bit, bwr == BwrState::BWR_BLACK);
 
-  if (bwr == BwrState::BWR_RED) {
-    this->buffer_[red_offset + pos] |= bit;
-  } else {
-    this->buffer_[red_offset + pos] &= ~bit;
-  }
+  assign_bits(this->buffer_[red_offset + pos], bit, bwr == BwrState::BWR_RED);
 }
 
 void EPaperWaveshareBWR::fill_buffer(Color color) {
@@ -79,7 +72,7 @@ bool HOT EPaperWaveshareBWR::transfer_data() {
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
 
   // Phase 1: send Black/White plane (first half) via command 0x10 (DTM1)
-  // UC8179 DTM1 (0x10): inverted to get 0=black, 1=white
+  // DTM1 (0x10): inverted to get 0=black, 1=white
   if (this->current_data_index_ < half_buffer) {
     if (this->current_data_index_ == 0) {
       this->command(0x10);  // DATA START TRANSMISSION 1 (black channel)
@@ -101,7 +94,7 @@ bool HOT EPaperWaveshareBWR::transfer_data() {
   }
 
   // Phase 2: send Red plane (second half) via command 0x13 (DTM2)
-  // UC8179 DTM2 (0x13): 1=red, 0=white
+  // DTM2 (0x13): 1=red, 0=white; on the UC8151D this relies on the 0x50 value in uc8151.py
   if (this->current_data_index_ < buffer_length) {
     if (this->current_data_index_ == half_buffer) {
       this->command(0x13);  // DATA START TRANSMISSION 2 (red channel)
@@ -127,8 +120,7 @@ bool HOT EPaperWaveshareBWR::transfer_data() {
 }
 
 void EPaperWaveshareBWR::power_on() {
-  this->cmd_data(0x01, {0x07, 0x17, 0x3F, 0x3F});  // POWER SETTING
-  this->command(0x04);                             // POWER ON
+  this->command(0x04);  // POWER ON
 }
 
 void EPaperWaveshareBWR::refresh_screen(bool /*partial*/) {

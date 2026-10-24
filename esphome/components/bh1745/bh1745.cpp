@@ -63,15 +63,8 @@ static float calculate_cct(uint16_t red, uint16_t green, uint16_t blue, bool low
 }
 
 void BH1745Component::setup() {
-  uint8_t manufacturer_id;
-  if (!this->read_byte(REG_MANUFACTURER_ID, &manufacturer_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->check_chip_id(this, REG_MANUFACTURER_ID, MANUFACTURER_ID))
     return;
-  }
-  if (manufacturer_id != MANUFACTURER_ID) {
-    this->mark_failed(LOG_STR("Wrong manufacturer ID"));
-    return;
-  }
   uint8_t system_control;
   if (!this->read_byte(REG_SYSTEM_CONTROL, &system_control) ||
       (system_control & SYSTEM_CONTROL_PART_ID_MASK) != PART_ID) {
@@ -140,18 +133,14 @@ void BH1745Component::update() {
   if ((mode_control2 & MODE_CONTROL2_VALID) == 0)
     return;
 
-  uint8_t buffer[BH1745_CHANNELS * 2];
-  if (!this->read_bytes(REG_RED_DATA_LSB, buffer, sizeof(buffer))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  uint16_t buffer[BH1745_CHANNELS];
+  if (!this->status_comm_result(this->read_bytes_16_le(REG_RED_DATA_LSB, buffer, BH1745_CHANNELS)))
     return;
-  }
-  this->status_clear_warning();
 
-  // Each channel is sent low byte first.
-  const uint16_t red = encode_uint16(buffer[1], buffer[0]);
-  const uint16_t green = encode_uint16(buffer[3], buffer[2]);
-  const uint16_t blue = encode_uint16(buffer[5], buffer[4]);
-  const uint16_t clear = encode_uint16(buffer[7], buffer[6]);
+  const uint16_t red = buffer[0];
+  const uint16_t green = buffer[1];
+  const uint16_t blue = buffer[2];
+  const uint16_t clear = buffer[3];
   ESP_LOGV(TAG, "Red: %u, Green: %u, Blue: %u, Clear: %u", red, green, blue, clear);
 
   if (this->red_counts_sensor_ != nullptr)

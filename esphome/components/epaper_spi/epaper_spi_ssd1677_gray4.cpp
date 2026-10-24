@@ -55,7 +55,7 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
     if (first_pass) {
       // With partial updates enabled the window follows the changed area, but the four-level
       // refresh drives every pixel from both planes, and the reset before it does not keep RAM.
-      this->mark_all_dirty_();
+      this->set_full_bounds_();
       this->set_window();
     }
     this->command(first_pass ? 0x24 : 0x26);
@@ -71,14 +71,14 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
     const size_t src_row = this->current_data_index_ * this->row_width_ + this->x_low_ / 4;
-    for (size_t i = 0; i != plane_row_length; i++) {
-      const uint8_t plane = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
-      // The OTP grayscale waveform treats data as inverted relative to monochrome
-      bytes_to_send[i] = (uint8_t) ~plane;
-      // What the next partial update compares against: the high bits, as a black-and-white frame.
-      if (first_pass && this->sent_.is_valid())
-        this->sent_[this->current_data_index_ * plane_row_length + i] = plane;
-    }
+    for (size_t i = 0; i != plane_row_length; i++)
+      bytes_to_send[i] = plane_byte(this->buffer_[src_row + 2 * i], this->buffer_[src_row + 2 * i + 1], first_pass);
+    // What the next partial update compares against: the high bits, as a black-and-white frame.
+    if (first_pass)
+      this->record_sent_(this->current_data_index_ * plane_row_length, bytes_to_send, plane_row_length);
+    // The OTP grayscale waveform treats data as inverted relative to monochrome
+    for (size_t i = 0; i != plane_row_length; i++)
+      bytes_to_send[i] = (uint8_t) ~bytes_to_send[i];
     ++this->current_data_index_;
     this->write_array(bytes_to_send, plane_row_length);
     if (millis() - start_time > MAX_TRANSFER_TIME) {

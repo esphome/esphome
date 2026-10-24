@@ -117,9 +117,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
@@ -136,8 +134,7 @@ async def to_code(config: ConfigType) -> None:
     if CONF_AUTO_CLEANING_INTERVAL in config:
         cg.add(var.set_auto_cleaning_interval(config[CONF_AUTO_CLEANING_INTERVAL]))
 
-    if CONF_IDLE_INTERVAL in config:
-        cg.add(var.set_idle_interval(config[CONF_IDLE_INTERVAL]))
+    cg.add_optional(var.set_idle_interval, config.get(CONF_IDLE_INTERVAL))
 
 
 SPS30_ACTION_SCHEMA = maybe_simple_id(

@@ -62,7 +62,8 @@ void BluedroidGattClient::loop() {
     auto ret = esp_ble_gattc_app_register(this->app_id);
     if (ret) {
       ESP_LOGE(TAG, "gattc app register failed: app_id=%d code=%d", this->app_id, ret);
-      this->mark_failed();
+      this->mark_failed(
+          LOG_STR("Registration failed; if the error was ESP_GATT_NO_RESOURCES, reduce the connection slots"));
     }
     // Do not wait for REG_EVT; connect() rejects until it lands.
     this->set_idle_();
@@ -108,12 +109,7 @@ void BluedroidGattClient::ble_before_disabled_event_handler() {
   this->enable_loop();
 }
 
-void BluedroidGattClient::dump_config() {
-  ESP_LOGCONFIG(TAG, "Bluedroid GATT client %d", this->connection_index_);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Registration failed; if the error was ESP_GATT_NO_RESOURCES, reduce the connection slots");
-  }
-}
+void BluedroidGattClient::dump_config() { ESP_LOGCONFIG(TAG, "Bluedroid GATT client %d", this->connection_index_); }
 
 // ---- contract ops ----
 
@@ -272,6 +268,7 @@ int BluedroidGattClient::discover_services() {
     case SearchState::REPORT_PENDING:
       return 0;  // One completion is already owed to this claimant.
     case SearchState::NONE:
+    default:
       break;
   }
   int err = this->check_and_log_error_("esp_ble_gattc_search_service",
@@ -680,7 +677,8 @@ bool BluedroidGattClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         this->gattc_if_ = esp_gattc_if;
       } else {
         ESP_LOGE(TAG, "[%d] gattc app registration failed, status=%d", this->connection_index_, param->reg.status);
-        this->mark_failed();
+        this->mark_failed(
+            LOG_STR("Registration failed; if the error was ESP_GATT_NO_RESOURCES, reduce the connection slots"));
       }
       break;
     }
