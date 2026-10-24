@@ -293,21 +293,16 @@ bool RX8111Component::read_calendar_(ESPTime &rtc_time) {
     this->set_warning_(WARN_CALENDAR, LOG_STR("RTC write incomplete; write trusted time again"));
     return false;
   }
-  uint8_t control;
-  if (!this->read_byte(RX8111_REG_CONTROL, &control)) {
+  uint8_t regs[2];  // Adjacent FLAG and CONTROL registers.
+  if (!this->read_bytes(RX8111_REG_FLAG, regs, sizeof(regs))) {
     this->set_warning_(WARN_CALENDAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
-  if (control & RX8111_CTRL_STOP) {
+  if (regs[1] & RX8111_CTRL_STOP) {
     this->set_warning_(WARN_CALENDAR, LOG_STR("RTC counter stopped; not synchronizing"));
     return false;
   }
-  uint8_t flags;
-  if (!this->read_byte(RX8111_REG_FLAG, &flags)) {
-    this->set_warning_(WARN_CALENDAR, LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return false;
-  }
-  if (flags & (RX8111_FLAG_VLF | RX8111_FLAG_XST | RX8111_FLAG_POR)) {
+  if (regs[0] & (RX8111_FLAG_VLF | RX8111_FLAG_XST | RX8111_FLAG_POR)) {
     ESP_LOGW(TAG, "RTC time invalidated by power loss or oscillator stop; write trusted time");
     this->set_warning_(WARN_CALENDAR, LOG_STR("RTC time invalidated; write trusted time"));
     return false;

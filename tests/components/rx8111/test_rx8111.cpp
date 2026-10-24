@@ -2,6 +2,7 @@
 
 #include <array>
 #include <ctime>
+#include <utility>
 #include <vector>
 
 #include "esphome/components/rx8111/rx8111.h"
@@ -28,6 +29,7 @@ class RegisterBus final : public i2c::I2CBus {
  public:
   std::array<uint8_t, 256> regs{};
   std::vector<uint8_t> writes;
+  std::vector<std::pair<uint8_t, size_t>> reads;
   int fail_read{-1};
   int fail_read_once{-1};
   int fail_write{-1};
@@ -44,11 +46,12 @@ class RegisterBus final : public i2c::I2CBus {
       return i2c::ERROR_TIMEOUT;
     const uint8_t reg = out[0];
     if (in_size > 0) {
+      this->reads.emplace_back(reg, in_size);
       if (reg == FLAG)
         this->flag_reads++;
-      if (reg == this->fail_read)
+      if (this->fail_read >= reg && this->fail_read < reg + in_size)
         return i2c::ERROR_TIMEOUT;
-      if (reg == this->fail_read_once) {
+      if (this->fail_read_once >= reg && this->fail_read_once < reg + in_size) {
         this->fail_read_once = -1;
         return i2c::ERROR_TIMEOUT;
       }
@@ -578,6 +581,26 @@ TEST_F(RX8111Test, RejectsInvalidFlagsBCDWeekdayAndCalendar) {
   EXPECT_EQ(this->syncs_, 1);
   EXPECT_TRUE(this->rtc_.status_has_warning());
   this->bus_.regs[SEC] = 0x00;
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 2);
+  EXPECT_FALSE(this->rtc_.status_has_warning());
+}
+
+TEST_F(RX8111Test, CalendarReadCombinesFlagAndControlAndRejectsReadFailures) {
+  this->rtc_.write_time();
+  this->bus_.reads.clear();
+  this->rtc_.read_time();
+  EXPECT_EQ(this->syncs_, 1);
+  EXPECT_EQ(this->bus_.reads, (std::vector<std::pair<uint8_t, size_t>>{{FLAG, 2}, {SEC, 7}}));
+  for (const uint8_t failed_register : {FLAG, CONTROL}) {
+    this->bus_.reads.clear();
+    this->bus_.fail_read = failed_register;
+    this->rtc_.read_time();
+    EXPECT_EQ(this->syncs_, 1);
+    EXPECT_TRUE(this->rtc_.status_has_warning());
+    EXPECT_EQ(this->bus_.reads, (std::vector<std::pair<uint8_t, size_t>>{{FLAG, 2}}));
+  }
+  this->bus_.fail_read = -1;
   this->rtc_.read_time();
   EXPECT_EQ(this->syncs_, 2);
   EXPECT_FALSE(this->rtc_.status_has_warning());
