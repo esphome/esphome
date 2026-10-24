@@ -9,6 +9,8 @@ import pathlib
 import re
 import sys
 import time
+import urllib.error
+import urllib.request
 
 from aioesphomeapi import APIClient, LogLevel, SensorInfo, SensorState, UserService
 
@@ -137,7 +139,38 @@ CASE_SETS = {
 CASES = CASE_SETS[os.environ.get("CASES", "png")]
 
 
+def missing_base_files() -> list[str]:
+    """Base files behind prefixed cases that the server would answer with 404.
+
+    A 404 ends as a download error on the device, which would pass the half_ and stall_ cases untested.
+    """
+    builtin = {"chunked_cut", "closed_early", "large_header"}
+    missing = []
+    for _, _, path, _ in CASES:
+        stem = path.rsplit(".", 1)[0]
+        prefix, _, rest = path.partition("_")
+        if (
+            stem in builtin
+            or prefix not in ("half", "noclen", "chunked", "stall")
+            or not rest
+        ):
+            continue
+        try:
+            with urllib.request.urlopen(f"{BASE}/{rest}", timeout=10):
+                pass
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                missing.append(rest)
+    return sorted(set(missing))
+
+
 async def main() -> int:
+    if missing := missing_base_files():
+        print(
+            f"server has no {', '.join(missing)}; run the image generators first",
+            flush=True,
+        )
+        return 2
     c = APIClient(HOST, 6053, None, noise_psk=KEY)
     await c.connect(login=True)
     ents, services = await c.list_entities_services()
