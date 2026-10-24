@@ -12,6 +12,8 @@ import contextlib
 
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
 
@@ -33,19 +35,9 @@ async def test_socket_tcp_client_link(
     second_echoed: list[bytes] = []
     echo_done = asyncio.Event()
     reconnected = asyncio.Event()
-    link_down = asyncio.Event()
-    second_link_up = asyncio.Event()
-    link_up_count = 0
+    waiter = LineWaiter()
+    link_down = waiter.expect("Link down")
     writers: list[asyncio.StreamWriter] = []
-
-    def on_log_line(line: str) -> None:
-        nonlocal link_up_count
-        if "Link up" in line:
-            link_up_count += 1
-            if link_up_count >= 2:
-                second_link_up.set()
-        elif "Link down" in line:
-            link_down.set()
 
     async def handle(
         reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -75,22 +67,18 @@ async def test_socket_tcp_client_link(
     server = await asyncio.start_server(handle, "127.0.0.1", server_port)
     try:
         async with (
-            run_compiled(yaml_config, line_callback=on_log_line),
+            run_compiled(yaml_config, line_callback=waiter.callback),
             api_client_connected() as client,
         ):
-            device_info = await client.device_info()
-            assert device_info is not None
-            assert device_info.name == "socket-tcp-client-link-test"
+            await assert_device_name(client, "socket-tcp-client-link-test")
 
             await wait_or_fail(echo_done, 15.0, "Link never connected or echoed")
             assert echoed and echoed[0] == PAYLOAD, "Echo payload mismatch"
 
-            await wait_or_fail(link_down, 15.0, "Link never reported the drop")
-            try:
-                await asyncio.wait_for(reconnected.wait(), timeout=15.0)
-                await asyncio.wait_for(second_link_up.wait(), timeout=15.0)
-            except TimeoutError:
-                pytest.fail("Link did not reconnect after the server dropped it")
+            await waiter.wait(link_down, 15.0, "Link never reported the drop")
+            msg = "Link did not reconnect after the server dropped it"
+            await wait_or_fail(reconnected, 15.0, msg)
+            await waiter.wait_count("Link up", 2, 15.0, msg)
             assert second_echoed == [SECOND_PAYLOAD], (
                 "Second session echo wrong; stale bytes from the first session?"
             )

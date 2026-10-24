@@ -1,5 +1,6 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 #include <algorithm>
 
@@ -8,26 +9,25 @@ namespace esphome::gree {
 ESPHOME_LOG_TAG(TAG, "gree.climate");
 
 void GreeClimate::set_model(Model model) {
-  if (model == GREE_YAN) {
-    // YAN only has a vertical vane; the horizontal swing IR bytes are not defined for this model.
+  if (model == GREE_YAN || model == GREE_YX1FF) {
+    // These models only expose vertical swing; horizontal swing is not encoded on the wire.
     this->swing_modes_.erase(climate::CLIMATE_SWING_HORIZONTAL);
     this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
   }
   if (model == GREE_YX1FF) {
-    this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);   // YX1FF 4 speed
-    this->presets_.insert(climate::CLIMATE_PRESET_NONE);   // YX1FF sleep mode
-    this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);  // YX1FF sleep mode
+    this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);  // YX1FF 4 speed
+  }
+  // Models with a sleep preset
+  if (model == GREE_YX1FF || model == GREE_YAC1FB9) {
+    this->presets_.insert(climate::CLIMATE_PRESET_NONE);
+    this->presets_.insert(climate::CLIMATE_PRESET_SLEEP);
   }
 
   this->model_ = model;
 }
 
 void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
-  if (enabled) {
-    this->mode_bits_ |= bit_mask;
-  } else {
-    this->mode_bits_ &= ~bit_mask;
-  }
+  assign_bits(this->mode_bits_, bit_mask, enabled);
   this->transmit_state();
 }
 
@@ -49,6 +49,17 @@ void GreeClimate::transmit_state() {
     remote_state[2] = 0x60;
     remote_state[3] = 0x50;
     remote_state[4] = this->vertical_swing_();
+
+    if (model == GREE_YX1FF) {
+      // ModelA is set only when powered on.
+      if (this->mode == climate::CLIMATE_MODE_OFF)
+        remote_state[2] &= ~0x40;
+      // YX1FF needs the swing flag as well as its own vane-position value
+      if (this->vertical_swing_() == GREE_VDIR_SWING) {
+        remote_state[0] |= (1 << 6);
+        remote_state[4] = GREE_YX1FF_VANE_SWING;
+      }
+    }
   }
 
   if (yag_layout) {
@@ -58,6 +69,9 @@ void GreeClimate::transmit_state() {
       remote_state[0] |= (1 << 6);
     }
   }
+
+  if (model == GREE_YAC)
+    remote_state[4] = this->vertical_swing_();
 
   if (model == GREE_YAC || yag_layout) {
     remote_state[4] |= (this->horizontal_swing_() << 4);
@@ -81,17 +95,17 @@ void GreeClimate::transmit_state() {
   }
 
   if (model == GREE_YX1FF) {
-    if (this->fan_speed_() == GREE_FAN_TURBO) {
+    if (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO) == climate::CLIMATE_FAN_HIGH) {
       remote_state[2] |= GREE_FAN_TURBO_BIT;
-    }
-
-    if (this->preset_() == GREE_PRESET_SLEEP) {
-      remote_state[0] |= GREE_PRESET_SLEEP_BIT;
     }
   }
 
+  if (this->preset_() == GREE_PRESET_SLEEP) {
+    remote_state[0] |= GREE_PRESET_SLEEP_BIT;
+  }
+
   // Calculate the checksum
-  if (model == GREE_YAN || model == GREE_YX1FF) {
+  if (model == GREE_YAN) {
     remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
   } else {
     remote_state[7] =
@@ -194,9 +208,9 @@ uint8_t GreeClimate::fan_speed_() {
       case climate::CLIMATE_FAN_LOW:
         return GREE_FAN_2;
       case climate::CLIMATE_FAN_MEDIUM:
-        return GREE_FAN_3;
       case climate::CLIMATE_FAN_HIGH:
-        return GREE_FAN_TURBO;
+        // HIGH additionally sets the separate Turbo bit in byte 2.
+        return GREE_FAN_3;
       case climate::CLIMATE_FAN_AUTO:
       default:
         return GREE_FAN_AUTO;
@@ -241,8 +255,8 @@ uint8_t GreeClimate::temperature_() {
 }
 
 uint8_t GreeClimate::preset_() {
-  // YX1FF has sleep preset
-  if (this->model_ == GREE_YX1FF) {
+  // YX1FF and YAC1FB9 have sleep preset
+  if (this->model_ == GREE_YX1FF || this->model_ == GREE_YAC1FB9) {
     switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
       case climate::CLIMATE_PRESET_NONE:
         return GREE_PRESET_NONE;

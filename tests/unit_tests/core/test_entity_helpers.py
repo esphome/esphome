@@ -1,16 +1,22 @@
 """Test get_base_entity_object_id function matches C++ behavior."""
 
 from collections.abc import Callable, Generator
+import logging
 from pathlib import Path
 import re
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
+from esphome import final_validate as fv
 import esphome.codegen as cg
 from esphome.components import button, number, select, switch
+from esphome.config import Config
+import esphome.config_validation as cv
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_CLUSTER,
     CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
@@ -18,21 +24,28 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MQTT_ID,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_WEB_SERVER,
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
+    _check_report_deprecation,
     _register_string,
     _setup_entity_impl,
     entity_duplicate_validator,
     finalize_entity_strings,
     get_base_entity_object_id,
+    inherit_property_from,
+    lazy_load_validator,
+    mqtt_component_class,
     register_device_class,
     register_icon,
     register_unit_of_measurement,
     setup_device_class,
     setup_entity,
+    setup_entity_integrations,
     setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj, MockObjClass, RawExpression
@@ -40,11 +53,8 @@ from esphome.helpers import fnv1_hash, sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting names from configure_entity_/set_name calls
-# Matches: .configure_entity_("name", ...) or .set_name("name", ...)
-ENTITY_NAME_PATTERN = re.compile(
-    r'\.(?:configure_entity_|set_name)\(["\']([^"\']*)["\']'
-)
+# Extracts the name from .configure_entity_(ESPHOME_PSTR("name"), ...)
+ENTITY_NAME_PATTERN = re.compile(r'\.configure_entity_\(ESPHOME_PSTR\("([^"]*)"')
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -1078,6 +1088,8 @@ async def test_finalize_no_flags(setup_test_environment: list[str]) -> None:
     packed = _extract_packed_value(added_expressions)
     assert packed == 0
     assert "//" not in added_expressions[0]
+    # Names go through ESPHOME_PSTR so they stay in flash on ESP8266
+    assert 'ESPHOME_PSTR("Test")' in added_expressions[0]
 
 
 @pytest.mark.asyncio
@@ -1240,6 +1252,111 @@ async def test_finalize_comment_sanitization(
     assert "INJECTED_CODE" in comment_line  # still visible but safe in comment
 
 
+@pytest.mark.parametrize(
+    ("value", "warns"),
+    [
+        ("coordinator", True),
+        ("enable", False),
+        ("force", False),
+        ("default", False),
+    ],
+)
+def test_check_report_deprecation(
+    value: str, warns: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Deprecated zigbee report options warn; the value always passes through."""
+    with caplog.at_level(logging.WARNING):
+        assert _check_report_deprecation(value) == value
+    assert ("deprecated" in caplog.text) is warns
+
+
+def test_lazy_load_validator_defers_import() -> None:
+    """The validator no-ops without importing unless the component is loaded."""
+    validator = lazy_load_validator("zigbee", "validate_binary_sensor")
+    config = {CONF_NAME: "test"}
+
+    with (
+        patch.object(CORE, "loaded_integrations", set()),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+    ):
+        assert validator(config) is config
+        import_mock.assert_not_called()
+
+        CORE.loaded_integrations.add("zigbee")
+        delegate = import_mock.return_value.validate_binary_sensor
+        delegate.return_value = {CONF_NAME: "validated"}
+        assert validator(config) == {CONF_NAME: "validated"}
+        import_mock.assert_called_once_with("esphome.components.zigbee")
+        delegate.assert_called_once_with(config)
+
+
+def test_lazy_load_validator_rejects_unknown_component() -> None:
+    """A typo in the component name fails at schema construction."""
+    with pytest.raises(ValueError, match="no_such_component"):
+        lazy_load_validator("no_such_component", "validate_binary_sensor")
+
+
+def test_lazy_load_validator_names_missing_hook() -> None:
+    """A missing hook raises a clear error naming the component and hook."""
+    validator = lazy_load_validator("zigbee", "no_such_hook")
+
+    with (
+        patch.object(CORE, "loaded_integrations", {"zigbee"}),
+        patch("esphome.core.entity_helpers.import_module") as import_mock,
+        pytest.raises(ValueError, match="no_such_hook"),
+    ):
+        del import_mock.return_value.no_such_hook
+        validator({})
+
+
+def test_integration_class_handles_match_owning_definitions() -> None:
+    """The cheap class handles must stay string-equal to the integrations'
+    own declarations, or use_id/declare_id resolution silently drifts."""
+    from esphome.components import mqtt, web_server
+    from esphome.components.zigbee import zigbee_zephyr
+    from esphome.components.zigbee.const import ZigbeeComponent
+
+    mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
+    assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
+    assert mqtt_handle.inherits_from(mqtt.MQTTComponent)
+    assert mqtt.MQTTBinarySensorComponent.inherits_from(entity_helpers._MQTTComponent)
+
+    assert str(entity_helpers._WebServer) == str(web_server.WebServer)
+    assert entity_helpers._WebServer.inherits_from(web_server.WebServer)
+    assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
+
+    assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
+    for (
+        _conf_key,
+        class_name,
+        _cluster_options,
+    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
+        owning = getattr(zigbee_zephyr, class_name)
+        assert str(owning) == f"zigbee::{class_name}"
+
+
+def test_zigbee_entity_schema_cluster_options() -> None:
+    """The cluster key only exists for esp32 + zigbee and is limited to the
+    platform's options, with the first option as its default."""
+    schema = entity_helpers.ZIGBEE_BINARY_SENSOR_SCHEMA
+
+    with patch.object(CORE, "loaded_integrations", set()):
+        assert schema({}) == {}
+        with pytest.raises(Invalid, match="requires component zigbee"):
+            schema({CONF_CLUSTER: "generic"})
+
+    with patch.object(CORE, "loaded_integrations", {"esp32", "zigbee"}):
+        assert schema({}) == {CONF_CLUSTER: "generic"}
+        assert schema({CONF_CLUSTER: "Device_Class"}) == {CONF_CLUSTER: "device_class"}
+        with pytest.raises(Invalid, match="Unknown value 'on_off'"):
+            schema({CONF_CLUSTER: "on_off"})
+
+    with patch.object(CORE, "loaded_integrations", {"nrf52", "zigbee"}):
+        assert CONF_CLUSTER not in schema({})
+        with pytest.raises(Invalid, match="requires component esp32"):
+            schema({CONF_CLUSTER: "generic"})
+
+
 @pytest.mark.asyncio
 async def test_sub_entities_creates_and_sets(
     monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
@@ -1297,6 +1414,45 @@ async def test_sub_entities_without_parent(
 
     assert await sub("child", hub.set_child) is not None
     assert setup_test_environment == ["hub->set_child(child)"]
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_integrations_registers_mqtt_and_web_server(
+    monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
+) -> None:
+    """Both integrations are wired up and the mqtt companion is returned."""
+    from esphome.components import mqtt, web_server
+
+    calls: list[tuple[str, Any]] = []
+
+    async def register_mqtt_component(var: MockObj, config: dict[str, Any]) -> None:
+        calls.append(("mqtt", var))
+
+    async def add_entity_config(var: MockObj, config: dict[str, Any]) -> None:
+        calls.append(("web_server", config))
+
+    monkeypatch.setattr(mqtt, "register_mqtt_component", register_mqtt_component)
+    monkeypatch.setattr(web_server, "add_entity_config", add_entity_config)
+    config = {
+        CONF_MQTT_ID: ID(
+            "mqtt_switch", is_declaration=True, type=MockObj("MQTTSwitch")
+        ),
+        CONF_WEB_SERVER: {"sorting_weight": 1.0},
+    }
+
+    mqtt_ = await setup_entity_integrations(MockObj("switch_1"), config)
+
+    assert mqtt_ is not None
+    assert calls == [("mqtt", mqtt_), ("web_server", {"sorting_weight": 1.0})]
+
+
+@pytest.mark.asyncio
+async def test_setup_entity_integrations_without_integrations(
+    setup_test_environment: list[str],
+) -> None:
+    """Without mqtt_id or web_server config nothing is registered."""
+    assert await setup_entity_integrations(MockObj("switch_1"), {}) is None
+    assert setup_test_environment == []
 
 
 @pytest.fixture
@@ -1534,13 +1690,87 @@ async def test_sub_entities_apply_errors(
 
 
 @pytest.mark.asyncio
-async def test_sub_entities_apply_needs_parent(
+async def test_sub_entities_apply_without_parent_needs_namespaced_call(
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+) -> None:
+    """A hub method with no parent bound fails in Python, not as an undeclared name in C++."""
+    calls: list[tuple[Any, ...]] = []
+    conf = _apply_conf("k_id", _BUTTON_APPLY.cls)
+    sub = _apply_sub(calls, {"k": conf}, _BUTTON_APPLY, parent=None)
+    with pytest.raises(ValueError, match="namespaced free function"):
+        await sub("k", None, apply="restart()")
+    assert calls == []
+    assert apply_functions == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("apply_entity", "type_", "publish", "params", "body"),
+    [
+        (
+            _BUTTON_APPLY,
+            _BUTTON_APPLY.cls,
+            None,
+            "button::Button * entity",
+            "restart::restart_device();",
+        ),
+        (
+            _SWITCH_APPLY,
+            _APPLY_SWITCH_CLS,
+            "after",
+            "switch_::Switch * entity, bool state",
+            "restart::restart_device();\nentity->publish_state(state);",
+        ),
+    ],
+)
+async def test_sub_entities_apply_without_parent(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+    apply_entity: entity_helpers.ApplyEntity,
+    type_: MockObjClass,
+    publish: str | None,
+    params: str,
+    body: str,
+) -> None:
+    """Without a parent the statement runs as written, with no parent lookup or deref."""
+
+    async def fail(*args: Any) -> None:
+        raise AssertionError("must not be called")
+
+    monkeypatch.setattr(entity_helpers.cg, "register_parented", fail)
+    monkeypatch.setattr(entity_helpers, "get_variable", fail)
+    calls: list[tuple[Any, ...]] = []
+    sub = _apply_sub(calls, {}, apply_entity, parent=None)
+    var = await sub.create(
+        _apply_conf("rst", type_),
+        None,
+        apply="restart::restart_device()",
+        publish=publish,
+    )
+    assert str(var) == "rst"
+    assert calls == [("rst", "<esphome__rst__fn>")]
+    assert apply_functions == [("esphome__rst__fn", params, body)]
+    assert setup_test_environment == []
+
+
+@pytest.mark.asyncio
+async def test_sub_entities_apply_without_parent_shares_equal_functions(
     setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
 ) -> None:
+    """Parentless entities with the same statement share one function."""
     calls: list[tuple[Any, ...]] = []
-    sub = _apply_sub(calls, {"k": _apply_conf("k_id")}, parent=None)
-    with pytest.raises(ValueError, match="needs a parent"):
-        await sub("k", None, apply="x()")
+    sub = _apply_sub(calls, {}, _BUTTON_APPLY, parent=None)
+    for name in ("a_btn", "b_btn"):
+        await sub.create(_apply_conf(name, _BUTTON_APPLY.cls), None, apply="x::go()")
+    await sub.create(_apply_conf("c_btn", _BUTTON_APPLY.cls), None, apply="x::stop()")
+    assert calls == [
+        ("a_btn", "<esphome__a_btn__fn>"),
+        ("b_btn", "<esphome__a_btn__fn>"),
+        ("c_btn", "<esphome__c_btn__fn>"),
+    ]
+    assert [body for _, _, body in apply_functions] == ["x::go();", "x::stop();"]
 
 
 @pytest.mark.parametrize(
@@ -1608,3 +1838,87 @@ async def test_sub_entities_create_from_whole_config(
     assert str(var) == "rf_sw"
     assert calls == [("rf_sw", "<esphome__rf_sw__fn>")]
     assert setup_test_environment == ["hub->set_rf_switch(rf_sw)"]
+
+
+def test_entity_duplicate_validator_without_name() -> None:
+    """A config with no name is returned untouched and not tracked."""
+    validator = entity_duplicate_validator("sensor")
+    config = {CONF_ID: "no_name"}
+
+    assert validator(config) is config
+    assert not CORE.unique_ids
+
+
+def test_entity_duplicate_validator_testing_mode_allows_duplicates() -> None:
+    validator = entity_duplicate_validator("sensor")
+    config = {CONF_NAME: "Temperature"}
+    validator(dict(config))
+    CORE.testing_mode = True
+    try:
+        assert validator(dict(config)) == config
+    finally:
+        CORE.testing_mode = False
+
+
+def _inherit_config() -> tuple[Config, ID, dict[str, Any]]:
+    parent_id = ID("parent", is_declaration=True)
+    child_id = ID("child", is_declaration=True)
+    parent = {CONF_ID: parent_id, CONF_ICON: "mdi:parent"}
+    child = {CONF_ID: child_id, "source": ID("parent"), "inner": {"x": 1}}
+    config = Config()
+    config["sensor"] = [parent, child]
+    config.declare_ids.append((parent_id, ["sensor", 0, CONF_ID]))
+    config.declare_ids.append((child_id, ["sensor", 1, CONF_ID]))
+    return config, child_id, child
+
+
+def test_inherit_property_from_path_inherits_value() -> None:
+    config, child_id, child = _inherit_config()
+    validator = inherit_property_from(["inner", CONF_ICON], "source")
+    token = fv.full_config.set(config)
+    try:
+        assert validator(child) is child
+    finally:
+        fv.full_config.reset(token)
+
+    assert config["sensor"][1]["inner"][CONF_ICON] == "mdi:parent"
+
+
+def test_inherit_property_from_path_missing_is_ignored() -> None:
+    config, _, child = _inherit_config()
+    validator = inherit_property_from(["absent", CONF_ICON], "source")
+    token = fv.full_config.set(config)
+    try:
+        assert validator(child) is child
+    finally:
+        fv.full_config.reset(token)
+
+    assert "absent" not in config["sensor"][1]
+
+
+_RESTORE_FIELDS = cv.Schema({cv.Optional("state", default="KEEP"): cv.string})
+
+
+def test_restore_state_schema_shorthands() -> None:
+    validate = entity_helpers.restore_state_schema(
+        _RESTORE_FIELDS, {"state": "INITIAL"}
+    )
+    assert validate(" all ") == {"state": "KEEP"}
+    assert validate("None") == {"state": "INITIAL"}
+    assert validate({"state": "INVERT"}) == {"state": "INVERT"}
+    with pytest.raises(Invalid, match="expected 'all', 'none' or a mapping"):
+        validate("everything")
+
+
+def test_restore_state_schema_keeps_a_keyword_for_none() -> None:
+    validate = entity_helpers.restore_state_schema(
+        _RESTORE_FIELDS, entity_helpers.RESTORE_STATE_NONE
+    )
+    assert validate("none") == entity_helpers.RESTORE_STATE_NONE
+
+
+def test_restore_state_keyword() -> None:
+    keywords = (entity_helpers.RESTORE_STATE_KEEP, entity_helpers.RESTORE_STATE_INVERT)
+    assert entity_helpers.restore_state_keyword(" invert ", keywords) == "INVERT"
+    assert entity_helpers.restore_state_keyword("INITIAL", keywords) is None
+    assert entity_helpers.restore_state_keyword(True, keywords) is None
