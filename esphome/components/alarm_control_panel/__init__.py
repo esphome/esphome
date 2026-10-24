@@ -97,11 +97,12 @@ ALARM_CONTROL_PANEL_ACTION_SCHEMA = maybe_simple_id(
     }
 )
 
-ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
+ALARM_CONTROL_PANEL_ID_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(AlarmControlPanel),
     }
 )
+ALARM_CONTROL_PANEL_CONDITION_SCHEMA = ALARM_CONTROL_PANEL_ID_SCHEMA
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -207,7 +208,7 @@ for _name, _call in (
 ):
     automation.register_apply_action(
         _name,
-        ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+        ALARM_CONTROL_PANEL_ID_SCHEMA,
         automation.ApplyCall(_call),
         call="make_call",
     )
