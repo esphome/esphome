@@ -33,7 +33,11 @@ from esphome.components.esp32 import (
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
 from esphome.components.network import add_use_address, request_ipv4_off, require_ipv6
 from esphome.components.nrf52.framework import include_west_project
-from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_framework_type
+from esphome.components.zephyr import (
+    zephyr_add_prj_conf,
+    zephyr_framework_type,
+    zephyr_raise_prj_conf_min,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -587,8 +591,7 @@ async def to_code(config: ConfigType) -> None:
         )
     add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
-    if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
-        cg.add(ot.set_poll_period(poll_period))
+    cg.add_optional(ot.set_poll_period, config.get(CONF_POLL_PERIOD))
 
     if not border_router:
         mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
@@ -596,8 +599,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(srp.set_mdns(mdns_component))
         await cg.register_component(srp, config)
 
-    if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
-        cg.add(ot.set_output_power(output_power))
+    cg.add_optional(ot.set_output_power, config.get(CONF_OUTPUT_POWER))
 
     if CORE.is_esp32:
         set_sdkconfig_options(config)
@@ -641,7 +643,7 @@ async def to_code(config: ConfigType) -> None:
         # Without SLAAC the device never forms an OMR (Off-Mesh-Routable) address, so
         # SRP's auto-registered host resolves by name but every address lookup times out.
         zephyr_add_prj_conf("OPENTHREAD_SLAAC", True)
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+        zephyr_raise_prj_conf_min("MAIN_STACK_SIZE", 4096)
 
         if not CORE.is_nrf52:
             # Mirror `zephyr: log_level:` into OpenThread's own log verbosity -- a separate

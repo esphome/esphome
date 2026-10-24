@@ -50,6 +50,10 @@ void MQTTCoverComponent::setup() {
   }
   if (traits.get_supports_tilt()) {
     this->subscribe(this->get_tilt_command_topic(), [this](const std::string &topic, const std::string &payload) {
+      if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("STOP")) == 0) {
+        this->cover_->make_call().set_command_stop_tilt().perform();
+        return;
+      }
       auto value = parse_number<float>(payload);
       if (!value.has_value()) {
         ESP_LOGW(TAG, "Invalid tilt value: '%s'", payload.c_str());
@@ -63,7 +67,6 @@ void MQTTCoverComponent::setup() {
 }
 
 void MQTTCoverComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT cover '%s':", this->cover_->get_name().c_str());
   auto traits = this->cover_->get_traits();
   bool has_command_topic = traits.get_supports_position() || !traits.get_supports_tilt();
   LOG_MQTT_COMPONENT(true, has_command_topic);

@@ -11,12 +11,21 @@ from esphome.components.nrf52 import (
     set_core_data,
 )
 from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
-from esphome.components.nrf52.const import BOOTLOADER_NRF
-from esphome.components.zephyr.const import KEY_PM_STATIC, KEY_ZEPHYR
+from esphome.components.nrf52.const import (
+    BOOTLOADER_ADAFRUIT,
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+    BOOTLOADER_NRF,
+)
+from esphome.components.zephyr.const import (
+    BOOTLOADER_MCUBOOT,
+    KEY_BOOTLOADER,
+    KEY_PM_STATIC,
+    KEY_ZEPHYR,
+)
 from esphome.components.zephyr_mcumgr.ota import _validate_bootloader
 from esphome.config import path_context
 import esphome.config_validation as cv
-from esphome.const import CONF_INVERTED, CONF_NUMBER, KEY_CORE, Toolchain
+from esphome.const import CONF_BOARD, CONF_INVERTED, CONF_NUMBER, KEY_CORE, Toolchain
 from esphome.core import CORE
 
 
@@ -35,6 +44,28 @@ def test_dongle_defaults_to_nrf_bootloader() -> None:
 def test_dongle_rejects_foreign_bootloader() -> None:
     with pytest.raises(cv.Invalid, match="nrf52840dongle does not support"):
         _detect_bootloader({"board": "nrf52840dongle", "bootloader": "mcuboot"})
+
+
+def test_detect_bootloader_picks_first_known_bootloader_for_bare_board() -> None:
+    config = _detect_bootloader({CONF_BOARD: "xiao_ble"})
+    assert config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT_NRF52_SD140_V7
+
+
+def test_detect_bootloader_defaults_to_mcuboot_for_unknown_board() -> None:
+    config = _detect_bootloader({CONF_BOARD: "some_unknown_board"})
+    assert config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+
+
+def test_detect_bootloader_accepts_explicit_supported_choice() -> None:
+    config = _detect_bootloader(
+        {CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT}
+    )
+    assert config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT
+
+
+def test_detect_bootloader_rejects_unsupported_explicit_choice() -> None:
+    with pytest.raises(cv.Invalid, match="does not support"):
+        _detect_bootloader({CONF_BOARD: "xiao_ble", KEY_BOOTLOADER: BOOTLOADER_MCUBOOT})
 
 
 def _dongle_core_data() -> None:

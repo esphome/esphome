@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#if defined(USE_ZEPHYR) && !defined(USE_NRF52)
+#ifdef USE_ZEPHYR
 #include "spi_zephyr.h"
 #endif
 
@@ -24,6 +24,9 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
     ESP_LOGE(TAG, "Device already registered");
     return this->devices_[device];
   }
+  if (this->spi_bus_ == nullptr) {
+    return SPIDelegate::NULL_DELEGATE;  // the bus failed in setup(); the device stays not ready
+  }
   SPIDelegate *delegate =
       this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin, release_device, write_only);  // NOLINT
   this->devices_[device] = delegate;
@@ -31,6 +34,9 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIB
 }
 
 void SPIComponent::unregister_device(SPIClient *device) {
+  if (this->spi_bus_ == nullptr) {
+    return;  // nothing was registered on a failed bus
+  }
   if (!this->devices_.contains(device)) {
     esph_log_e(TAG, "Device not registered");
     return;
@@ -45,8 +51,7 @@ void SPIComponent::setup() {
   if (this->sdi_pin_ == nullptr)
     this->sdi_pin_ = NullPin::NULL_PIN;
   if (this->using_hw_) {
-    // Zephyr's hardware SPI clock line comes from board devicetree pinctrl, not a
-    // GPIOPin, so clk_pin_ may legitimately be null there.
+    // On platform: zephyr the board pinctrl may supply the clock pin.
 #if !defined(USE_ZEPHYR) || defined(USE_NRF52)
     if (this->clk_pin_ == nullptr) {
       ESP_LOGE(TAG, "No clock pin");
@@ -81,6 +86,9 @@ void SPIComponent::dump_config() {
   LOG_PIN("  SDO Pin: ", this->sdo_pin_);
   for (size_t i = 0; i != this->data_pins_.size(); i++) {
     ESP_LOGCONFIG(TAG, "  Data pin %zu: GPIO%d", i, this->data_pins_[i]);
+  }
+  if (this->spi_bus_ == nullptr) {
+    return;
   }
   if (this->spi_bus_->is_hw()) {
     ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", this->interface_name_);
@@ -130,11 +138,11 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   return out_data;
 }
 
-#if defined(USE_ZEPHYR) && !defined(USE_NRF52)
+#if defined(USE_ZEPHYR)
 
 SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
                               const std::vector<uint8_t> &data_pins) {
-  if (interface == nullptr || !device_is_ready(interface)) {
+  if (!device_is_ready(interface)) {
     ESP_LOGE(TAG, "SPI device is not ready");
     return nullptr;
   }
@@ -142,7 +150,7 @@ SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo
 }
 
 #elif !defined(USE_ESP32) && !defined(USE_ARDUINO)
-// Stub for unsupported platforms (host, nrf52, etc.) - hardware SPI is unavailable
+// Stub for unsupported platforms (host, etc.) - hardware SPI is unavailable
 SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
                               const std::vector<uint8_t> &data_pins) {
   return nullptr;

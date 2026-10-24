@@ -117,9 +117,8 @@ struct IPAddress {
   IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
 #if defined(CONFIG_NET_IPV4)
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
-    struct in_addr addr4 {
-      .s_addr = htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth)
-    };
+    struct in_addr addr4{
+        .s_addr = htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth)};
     net_ipv6_addr_create_v4_mapped(&addr4, &ip_addr_);
   }
 #endif /* CONFIG_NET_IPV4 */
@@ -148,7 +147,7 @@ struct IPAddress {
   bool is_multicast() const {
 #if defined(CONFIG_NET_IPV4)
     if (net_ipv6_addr_is_v4_mapped(&ip_addr_)) {
-      struct in_addr addr4 {};
+      struct in_addr addr4{};
       addr4.s_addr = ip_addr_.s6_addr32[3];
       return net_ipv4_is_addr_mcast(&addr4);
     }
@@ -158,7 +157,7 @@ struct IPAddress {
   char *str_to(char *buf) const {
 #if defined(CONFIG_NET_IPV4)
     if (this->is_ip4()) {
-      struct in_addr addr4 {};
+      struct in_addr addr4{};
       addr4.s_addr = ip_addr_.s6_addr32[3];
       if (inet_ntop(AF_INET, &addr4, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
         buf[0] = '\0';
@@ -172,9 +171,7 @@ struct IPAddress {
   bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
 
-#else  // only CONFIG_NET_IPV4 branch
-  // enable_ipv6: false -- plain in_addr, not the IPv6-only in6_addr container the branch above
-  // uses for the dual-stack (V4-mapped) and IPv6-only cases.
+#else  // IPv4 only (enable_ipv6: false)
   IPAddress() { ip_addr_.s_addr = 0; }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     this->ip_addr_.s_addr =

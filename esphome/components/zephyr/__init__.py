@@ -49,6 +49,7 @@ from .const import (
     CONF_BOARD_SOURCE,
     CONF_CDC_ACM,
     CONF_KCONFIG_OPTIONS,
+    CONF_MAIN_STACK_SIZE,
     CONF_MODULES,
     CONF_NINJA_VERSION,
     CONF_OVERLAYS,
@@ -370,6 +371,16 @@ def zephyr_add_prj_conf(
         prj_conf[name] = (value, required)
 
 
+def zephyr_raise_prj_conf_min(name: str, minimum: int, image: str = "") -> None:
+    """Raise an integer prj conf value to at least `minimum`; never lowers it."""
+    if not name.startswith("CONFIG_"):
+        name = "CONFIG_" + name
+    prj_conf = zephyr_data()[KEY_PRJ_CONF].setdefault(image, {})
+    value, required = prj_conf.get(name, (0, True))
+    if value < minimum:
+        prj_conf[name] = (minimum, required)
+
+
 def zephyr_set_prj_conf_override(
     name: str, value: PrjConfValueType, image: str = ""
 ) -> None:
@@ -606,6 +617,9 @@ def zephyr_family_uart_drivers() -> frozenset[str]:
 
 def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
+    # Zephyr's base warnings include -Wdouble-promotion, which every float passed to a log call
+    # trips; the promotion is how variadic arguments work, so the warning only adds noise
+    cg.add_build_flag("-Wno-double-promotion")
     cg.add_define("USE_NATIVE_64BIT_TIME")
     # The settings subsystem finds stored preferences by key, so key migration is possible
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
@@ -643,10 +657,8 @@ def zephyr_to_code(config: ConfigType) -> None:
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
     # platform: nrf52 keeps upstream's sizes.
-    if zephyr_variant() is None:
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
-    else:
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096, required=False)
+    _main_stack_to_code(config)
+    if zephyr_variant() is not None:
         zephyr_add_prj_conf("SYSTEM_WORKQUEUE_STACK_SIZE", 2048, required=False)
     if CONF_WIFI in CORE.config:
         # Doubles Zephyr's default stack size for WiFi's dynamically-spawned worker
@@ -690,10 +702,23 @@ def zephyr_to_code(config: ConfigType) -> None:
     CORE.add_job(_cdc_acm_to_code, config)
 
 
+def _main_stack_to_code(config: ConfigType) -> None:
+    # platform: nrf52 keeps upstream's size
+    if zephyr_variant() is None:
+        zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
+        return
+    # Espressif matches platform: esp32's 8192 loop task; UDP OTA overflows 4096
+    default_stack = 8192 if zephyr_variant_family() == "esp32" else 4096
+    zephyr_add_prj_conf(
+        "MAIN_STACK_SIZE",
+        config.get(CONF_ADVANCED, {}).get(CONF_MAIN_STACK_SIZE, default_stack),
+        required=False,
+    )
+
+
 def _watchdog_to_code(config: ConfigType) -> None:
-    # zephyr_variant() is None for platform: nrf52, which manages its own watchdog
-    # setup separately (nrf52/__init__.py) but defines the same consumer macro.
-    # native_sim has no real watchdog hardware.
+    # platform: nrf52 (no variant) sets up its own watchdog in nrf52/__init__.py;
+    # native_sim has no watchdog hardware.
     if zephyr_variant() is not None and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
         timeout_ms = int(config[CONF_WATCHDOG_TIMEOUT].total_milliseconds)
         # 0 disables the watchdog: forced off so a board defconfig can't build a driver that

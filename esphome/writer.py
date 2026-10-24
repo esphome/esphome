@@ -267,12 +267,6 @@ def copy_src_tree():
     for t in ignore_targets:
         source_files_copy.pop(t, None)
 
-    # Files to exclude from sources_changed tracking (generated files)
-    generated_files = {
-        Path("esphome/core/build_info_data.h"),
-        Path("esphome/core/build_info_data.cpp"),
-    }
-
     sources_changed = False
     for fname in walk_files(CORE.relative_src_path("esphome")):
         p = Path(fname)
@@ -287,13 +281,12 @@ def copy_src_tree():
         if target not in source_files_copy:
             # Source file removed, delete target
             p.unlink()
-            if target not in generated_files:
-                _LOGGER.debug("Source removed: %s", target)
-                sources_changed = True
+            _LOGGER.debug("Source removed: %s", target)
+            sources_changed = True
         else:
             src_file = source_files_copy.pop(target)
             with src_file.path() as src_path:
-                if copy_file_if_changed(src_path, p) and target not in generated_files:
+                if copy_file_if_changed(src_path, p):
                     _LOGGER.debug("Source changed: %s", target)
                     sources_changed = True
 
@@ -301,10 +294,7 @@ def copy_src_tree():
     for target, src_file in source_files_copy.items():
         dst_path = CORE.relative_src_path(*target.parts)
         with src_file.path() as src_path:
-            if (
-                copy_file_if_changed(src_path, dst_path)
-                and target not in generated_files
-            ):
+            if copy_file_if_changed(src_path, dst_path):
                 _LOGGER.debug("Source added: %s", target)
                 sources_changed = True
 
@@ -472,6 +462,7 @@ def generate_build_info_data_h() -> str:
 
 namespace esphome {
 extern const uint32_t ESPHOME_CONFIG_HASH;
+extern const uint32_t ESPHOME_CONFIG_VERSION_HASH;
 extern const time_t ESPHOME_BUILD_TIME;
 extern const size_t ESPHOME_COMMENT_SIZE;
 #ifdef USE_ESP8266
@@ -500,9 +491,14 @@ def generate_build_info_data_cpp(
     comment_size = len(comment.encode("utf-8")) + 1  # +1 for NUL
     return f"""// Auto-generated build_info data
 #include "esphome/core/build_info_data.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/version.h"
 
 namespace esphome {{
 const uint32_t ESPHOME_CONFIG_HASH = 0x{config_hash:08x}U;  // NOLINT
+// Folded at compile time, so the version string is not kept in RAM
+static constexpr uint32_t CONFIG_VERSION_HASH = fnv1a_hash_extend(0x{config_hash:08x}U, ESPHOME_VERSION);
+const uint32_t ESPHOME_CONFIG_VERSION_HASH = CONFIG_VERSION_HASH;  // NOLINT
 const time_t ESPHOME_BUILD_TIME = {build_time};  // NOLINT
 const size_t ESPHOME_COMMENT_SIZE = {comment_size};  // NOLINT
 #ifdef USE_ESP8266

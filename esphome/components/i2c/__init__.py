@@ -29,6 +29,7 @@ from esphome.components.esp32.gpio_esp32_c6 import esp32_c6_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_p4 import esp32_p4_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_s31 import esp32_s31_validate_lp_i2c
 from esphome.components.zephyr import (
+    zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_data,
     zephyr_setup_i2c_pinctrl,
@@ -390,7 +391,7 @@ async def to_code(config: ConfigType) -> None:
     elif CORE.using_zephyr:
         from pathlib import Path
 
-        from esphome.components.zephyr import add_extra_build_file, zephyr_add_overlay
+        from esphome.components.zephyr import add_extra_build_file
         from esphome.components.zephyr.dts_lookup import resolve_zephyr_bus
 
         zephyr_add_prj_conf("I2C", True)
@@ -426,8 +427,7 @@ async def to_code(config: ConfigType) -> None:
             sda, scl = "emulated", "emulated"
         else:
             if CORE.is_nrf52 and CONF_DTS_NODE_OVERRIDE not in config:
-                # nrf52's PlatformIO build never has a dts_base_path, so DTS
-                # auto-detection can't succeed -- match dev's original default.
+                # platform: nrf52 has no DTS to search; keep upstream's default.
                 i2c = "i2c1" if board == "xiao_ble" else "i2c0"
             else:
                 i2c = resolve_zephyr_bus(
@@ -449,11 +449,9 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_linux_bus(device))
 
         cg.add(var.set_sda_pin(sda))
-        if CONF_SDA_PULLUP_ENABLED in config:
-            cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+        cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
         cg.add(var.set_scl_pin(scl))
-        if CONF_SCL_PULLUP_ENABLED in config:
-            cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+        cg.add_optional(var.set_scl_pullup_enabled, config.get(CONF_SCL_PULLUP_ENABLED))
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
@@ -492,11 +490,9 @@ async def to_code(config: ConfigType) -> None:
         await cg.register_component(var, config)
 
         cg.add(var.set_sda_pin(config[CONF_SDA]))
-        if CONF_SDA_PULLUP_ENABLED in config:
-            cg.add(var.set_sda_pullup_enabled(config[CONF_SDA_PULLUP_ENABLED]))
+        cg.add_optional(var.set_sda_pullup_enabled, config.get(CONF_SDA_PULLUP_ENABLED))
         cg.add(var.set_scl_pin(config[CONF_SCL]))
-        if CONF_SCL_PULLUP_ENABLED in config:
-            cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
+        cg.add_optional(var.set_scl_pullup_enabled, config.get(CONF_SCL_PULLUP_ENABLED))
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
@@ -616,7 +612,6 @@ _platform_filter = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        # Remove NRF52_ZEPHYR when platform: nrf52 deprecation is complete.
         "i2c_bus_zephyr.cpp": {
             PlatformFramework.NRF52_ZEPHYR,
             PlatformFramework.ZEPHYR_ZEPHYR,

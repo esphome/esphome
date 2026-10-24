@@ -632,32 +632,43 @@ async def to_code(config: ConfigType) -> None:
             )
         add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", tcp_send_buffer)
 
-    if CORE.is_nrf52 or (
-        CORE.is_zephyr and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM
-    ):
+    if CORE.is_nrf52:
         zephyr_add_prj_conf("NETWORKING", True)
         zephyr_add_prj_conf("NET_IPV4", enable_ipv4)
         zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
-        if CORE.is_nrf52:
-            # NCS replaces mbedTLS with PSA/Oberon crypto and has no legacy mbedtls_md5()
-            # symbol that Zephyr's RFC 6528 TCP ISN generator links against. Disable it so
-            # TCP links; Zephyr falls back to sys_rand32_get() for the ISN instead.
-            zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
-        else:
-            # Needed for inet_ntop()/inet_pton() (ip_address.h's str_to()) -- setting
-            # POSIX_NETWORKING directly doesn't work, its menu is hidden until POSIX_API
-            # selects POSIX_SYSTEM_INTERFACES.
-            zephyr_add_prj_conf("POSIX_API", True)
         zephyr_add_prj_conf("NET_TCP", True)
         zephyr_add_prj_conf("NET_UDP", True)
-        # TODO: revisit these sizes for `enable_high_performance:`, which currently has
-        # no effect on Zephyr/nrf52.
-        #
-        # Zephyr's defaults are tiny (~2 KB TX, barely one fragmented IPv6 packet) -- the
-        # ESPHome API entity-sync burst overruns that instantly (ENOBUFS, dropped
-        # connection). Give Zephyr TCP window headroom equivalent to ESP32's lwIP config.
-        # WiFi gets a larger window matching ESP-IDF's stock lwIP default (real MTU
-        # doesn't need Thread's 1280-byte-constrained sizing).
+        # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto and does not provide the
+        # legacy mbedtls_md5() symbol that Zephyr's RFC 6528 TCP ISN generator links against
+        # (selecting MBEDTLS_MAC_MD5_ENABLED does not bring in the legacy C API here). Disable it so
+        # TCP links; Zephyr falls back to sys_rand32_get() for the ISN (randomized, but not the
+        # RFC 6528 keyed hash).
+        zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
+        # Enlarge the Zephyr network buffer pool and TCP windows for the Thread path.
+        # Zephyr's defaults are tiny: NET_BUF_TX_COUNT=16 * NET_BUF_DATA_SIZE=128 is only
+        # ~2 KB of TX data -- barely one 1280-byte IPv6 packet once 6LoWPAN fragments it.
+        # The ESPHome API entity-sync burst overruns that instantly, so socket writes fail
+        # with ENOBUFS ("Buffer full") and the connection is dropped. ESP32 sidesteps this
+        # by enlarging the lwIP TCP window (CONFIG_LWIP_TCP_* above); give Zephyr the
+        # equivalent headroom, sized to RAM and the Thread 1280-byte MTU (not ESP32's 64 KB).
+        # The bounded send window also provides flow control so TCP stops queueing past
+        # what the buffer pool can hold instead of erroring.
+        zephyr_add_prj_conf("NET_PKT_RX_COUNT", 24)
+        zephyr_add_prj_conf("NET_PKT_TX_COUNT", 24)
+        zephyr_add_prj_conf("NET_BUF_RX_COUNT", 48)
+        zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
+        zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
+        zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
+    elif CORE.is_zephyr and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
+        zephyr_add_prj_conf("NETWORKING", True)
+        zephyr_add_prj_conf("NET_IPV4", enable_ipv4)
+        zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
+        # For inet_ntop()/inet_pton(); POSIX_NETWORKING cannot be set on its own.
+        zephyr_add_prj_conf("POSIX_API", True)
+        zephyr_add_prj_conf("NET_TCP", True)
+        zephyr_add_prj_conf("NET_UDP", True)
+        # Zephyr's default buffers are too small for the API's first burst of entities.
+        # TODO: enable_high_performance has no effect on Zephyr yet.
         if CONF_WIFI in CORE.config:
             zephyr_add_prj_conf("NET_PKT_RX_COUNT", 64)
             zephyr_add_prj_conf("NET_PKT_TX_COUNT", 64)
@@ -673,8 +684,7 @@ async def to_code(config: ConfigType) -> None:
             zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
             zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
         zephyr_configure_net_contexts()
-        # 16+16+16: IDF's LWIP_MAX_ACTIVE_TCP+LISTENING_TCP+UDP_PCBS, three separate
-        # pools summed since Zephyr merges them into one shared NET_MAX_CONN.
+        # Sum of ESP-IDF's three separate lwIP limits (16 TCP, 16 listen, 16 UDP).
         zephyr_add_prj_conf("NET_MAX_CONN", 48)
 
     cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
@@ -694,10 +704,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
         if CORE.is_rp2:
             cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
-    if enable_ipv6 and (
-        CORE.is_nrf52
-        or (CORE.is_zephyr and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM)
-    ):
+    if enable_ipv6 and CORE.is_zephyr and zephyr_variant() != ZEPHYR_VARIANT_NATIVE_SIM:
         ipv6_addr_floor = 6 if "openthread" in CORE.config else 2
         zephyr_add_prj_conf(
             "NET_IF_UNICAST_IPV6_ADDR_COUNT",

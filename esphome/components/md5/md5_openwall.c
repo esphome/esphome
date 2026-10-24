@@ -43,6 +43,7 @@
  * The HAVE_OPENSSL fallback to OpenSSL's MD5 was removed.
  */
 
+// clang-format off
 #include "esphome/core/defines.h"
 #if defined(USE_MD5) && defined(USE_ZEPHYR)
 
@@ -288,3 +289,4 @@ void md5_openwall_final(unsigned char *result, Md5OpenwallContext *ctx) {
 }
 
 #endif
+// clang-format on

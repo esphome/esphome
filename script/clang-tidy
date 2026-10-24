@@ -319,21 +319,15 @@ def run_tidy(
         disabled_checks = []
         if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx", "nrf52")):
             # MMIO peripheral access on these bare-metal platforms is all
-            # fixed-address.
-            disabled_checks.append("-clang-analyzer-core.FixedAddressDereference")
+            # fixed-address. clang-tidy 23 moved the checker under optin.
+            disabled_checks += [
+                "-clang-analyzer-core.FixedAddressDereference",
+                "-clang-analyzer-optin.core.FixedAddressDereference",
+            ]
         if args.environment.startswith("host"):
             # glibc's assert() expands to a call the check mistakes for a
             # constant condition.
             disabled_checks += ["-misc-static-assert", "-cert-dcl03-c"]
-        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx", "host")):
-            # bugprone-pointer-arithmetic-on-polymorphic-object (and its
-            # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
-            # recursion on lvgl_esphome.h under the RP2 defines and on the
-            # all-include file under the host defines.
-            disabled_checks += [
-                "-bugprone-pointer-arithmetic-on-polymorphic-object",
-                "-cert-ctr56-cpp",
-            ]
         if os.path.normpath(path) in ANALYZER_SKIPPED_FILES:
             disabled_checks.append("-clang-analyzer-*")
         if disabled_checks:
@@ -523,7 +517,7 @@ def main():
     failed_files = []
     timings = []
     try:
-        executable = get_binary("clang-tidy", 22)
+        executable = get_binary("clang-tidy", 23)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
@@ -571,13 +565,13 @@ def main():
         try:
             try:
                 subprocess.call(
-                    ["clang-apply-replacements-22", tmpdir], close_fds=False
+                    ["clang-apply-replacements-23", tmpdir], close_fds=False
                 )
             except FileNotFoundError:
                 subprocess.call(["clang-apply-replacements", tmpdir], close_fds=False)
         except FileNotFoundError:
             print(
-                "Error please install clang-apply-replacements-22 or clang-apply-replacements.\n",
+                "Error please install clang-apply-replacements-23 or clang-apply-replacements.\n",
                 file=sys.stderr,
             )
         except:

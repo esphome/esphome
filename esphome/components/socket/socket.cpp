@@ -25,7 +25,6 @@
 
 namespace esphome::socket {
 
-#ifndef USE_LWIP_FAST_SELECT
 #ifdef USE_HOST
 // Host: ready when the wake select() loop has flagged this fd (or it isn't monitored).
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wake_fd_ready(fd); }
@@ -41,7 +40,6 @@ bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wa
 // the loop can sleep between packets on battery/OpenThread targets.
 bool socket_ready_fd(int /*fd*/, bool /*loop_monitored*/) { return true; }
 #endif
-#endif  // USE_LWIP_FAST_SELECT
 
 // Platform-specific inet_ntop wrappers
 #if USE_NETWORK_IPV4
@@ -251,7 +249,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
     errno = EAFNOSUPPORT;
     return false;
 #else
-    struct in_addr ipv4mc {};
+    struct in_addr ipv4mc{};
 #if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
     if (zsock_inet_pton(AF_INET, ip_address, &ipv4mc) != 1) {
 #else
@@ -263,11 +261,11 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
 #if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
     // Zephyr's setsockopt(IP_ADD_MEMBERSHIP) requires exactly sizeof(struct ip_mreqn); it has
     // no plain "struct ip_mreq" at all (unlike POSIX/lwIP).
-    struct ip_mreqn imreq {};
+    struct ip_mreqn imreq{};
     imreq.imr_address.s_addr = ESPHOME_INADDR_ANY;
     imreq.imr_ifindex = 0;
 #else
-    struct ip_mreq imreq {};
+    struct ip_mreq imreq{};
     imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
 #endif
     imreq.imr_multiaddr = ipv4mc;
@@ -281,7 +279,7 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
 #endif  // USE_NETWORK_IPV4
   }
 #ifdef USE_SOCKET_IPV6
-  struct ipv6_mreq imreq6 {};
+  struct ipv6_mreq imreq6{};
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 #if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
   if (zsock_inet_pton(AF_INET6, ip_address, &imreq6.ipv6mr_multiaddr) != 1) {
@@ -337,10 +335,10 @@ bool join_multicast_group(UDPSocket *sock, const char *ip_address, uint32_t *if_
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #if USE_NETWORK_IPV6
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
-#if (defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM) && !defined(IPV6_MULTICAST_IF)) || \
-    defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  // NCS 2.9.2's Zephyr and upstream lwIP (LibreTiny) have no IPV6_MULTICAST_IF; outgoing
-  // multicast follows the default netif.
+#if defined(USE_NRF52) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || \
+    (defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM) && !defined(IPV6_MULTICAST_IF))
+  // Upstream lwIP (Zephyr's fork, LibreTiny) has no IPV6_MULTICAST_IF; outgoing
+  // multicast follows the default netif. Zephyr gains ZSOCK_IPV6_MULTICAST_IF in NCS 3.4.0.
   (void) sock;
   (void) if_index_in;
   return true;
@@ -376,7 +374,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 #if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
-    // native_sim excluded: it links the host's real libc, so it uses inet_pton below like host.
+    // Zephyr BSD sockets: use native address conversion
     if (zsock_inet_pton(AF_INET6, ip_address, &server->sin6_addr) != 1) {
       errno = EINVAL;
       return 0;
@@ -409,7 +407,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   memset(server, 0, sizeof(sockaddr_in));
   server->sin_family = AF_INET;
 #if defined(USE_ZEPHYR) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
-  // native_sim excluded: it links the host's real libc, so it uses inet_addr below like host.
+  // Zephyr BSD sockets: use native address conversion
   if (zsock_inet_pton(AF_INET, ip_address, &server->sin_addr) != 1) {
     errno = EINVAL;
     return 0;

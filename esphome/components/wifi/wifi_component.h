@@ -16,6 +16,7 @@
 #endif
 #include "esphome/core/string_ref.h"
 
+#include <algorithm>
 #include <atomic>
 #include <limits>
 #include <span>
@@ -826,13 +827,8 @@ class WiFiComponent final : public Component {
   }
 
   bool all_networks_hidden_() const {
-    if (this->sta_.empty())
-      return false;
-    for (const auto &ap : this->sta_) {
-      if (!ap.get_hidden())
-        return false;
-    }
-    return true;
+    return !this->sta_.empty() &&
+           std::all_of(this->sta_.begin(), this->sta_.end(), [](const WiFiAP &ap) { return ap.get_hidden(); });
   }
 
   bool wifi_loop_();

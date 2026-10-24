@@ -7,6 +7,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components import deep_sleep
+from esphome.components.zephyr.variants import VARIANTS
 from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
 from esphome.core import CORE
 
@@ -142,7 +143,7 @@ def test_deep_sleep_bk72xx_wakeup_pin_mode_without_wakeup_pin_rejected(
     set_core_config(PlatformFramework.BK72XX_ARDUINO)
     config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
     with pytest.raises(cv.Invalid, match="requires 'wakeup_pin'"):
-        deep_sleep.validate_config(config)
+        deep_sleep.CONFIG_SCHEMA(config)
 
 
 def test_deep_sleep_esp32_wakeup_pin_mode_without_wakeup_pin_rejected(
@@ -152,7 +153,7 @@ def test_deep_sleep_esp32_wakeup_pin_mode_without_wakeup_pin_rejected(
     set_core_config(PlatformFramework.ESP32_IDF)
     config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
     with pytest.raises(cv.Invalid, match="requires 'wakeup_pin'"):
-        deep_sleep.validate_config(config)
+        deep_sleep.CONFIG_SCHEMA(config)
 
 
 @pytest.mark.parametrize(
@@ -221,7 +222,9 @@ def test_deep_sleep_esp32_wakeup_pin_mode_at_both_levels_rejected(
     assert exc.value.path == [CONF_WAKEUP_PIN, 0, deep_sleep.CONF_WAKEUP_PIN_MODE]
 
 
-def test_deep_sleep_zephyr_wakeup_pin(generate_main) -> None:
+def test_deep_sleep_zephyr_wakeup_pin(
+    generate_main: Callable[[str | Path], str],
+) -> None:
     """platform: zephyr arms the pin before sys_poweroff() and keeps the mode."""
     main_cpp = generate_main(
         "tests/component_tests/deep_sleep/test_deep_sleep_zephyr_wakeup_pin.yaml"
@@ -230,3 +233,45 @@ def test_deep_sleep_zephyr_wakeup_pin(generate_main) -> None:
     assert "deep_sleep_deepsleepcomponent_id->set_wakeup_pin(" in main_cpp
     assert "set_wakeup_pin_mode(deep_sleep::WAKEUP_PIN_MODE_INVERT_WAKEUP)" in main_cpp
     assert any(d.name == "USE_DEEP_SLEEP_ZEPHYR_WAKEUP_PIN" for d in CORE.defines)
+
+
+def _set_zephyr_variant(set_core_config: SetCoreConfigCallable, variant: str) -> None:
+    set_core_config(
+        PlatformFramework.ZEPHYR_ZEPHYR,
+        platform_data={"variant": variant, "family": VARIANTS[variant].family},
+    )
+
+
+@pytest.mark.parametrize(
+    "variant", ["EFR32MG24", "SIWX917", "RP2040", "RP2350", "RA4M1", "NATIVESIM"]
+)
+def test_deep_sleep_zephyr_rejected_without_poweroff(
+    set_core_config: SetCoreConfigCallable, variant: str
+) -> None:
+    _set_zephyr_variant(set_core_config, variant)
+    with pytest.raises(cv.Invalid, match="deep_sleep is not supported"):
+        deep_sleep.validate_config({})
+
+
+@pytest.mark.parametrize("variant", ["ESP32C6", "NRF52", "STM32F4"])
+def test_deep_sleep_zephyr_allowed_with_poweroff(
+    set_core_config: SetCoreConfigCallable, variant: str
+) -> None:
+    _set_zephyr_variant(set_core_config, variant)
+    assert deep_sleep.validate_config({}) == {}
+
+
+_POWEROFF_FAMILIES = {"esp32", "nordic", "stm32"}
+
+
+@pytest.mark.parametrize("variant", sorted(VARIANTS))
+def test_deep_sleep_zephyr_verdict_follows_the_family_for_every_variant(
+    set_core_config: SetCoreConfigCallable, variant: str
+) -> None:
+    """A new variant must land on the right side of the family rule, not go untested."""
+    _set_zephyr_variant(set_core_config, variant)
+    if VARIANTS[variant].family in _POWEROFF_FAMILIES:
+        assert deep_sleep.validate_config({}) == {}
+    else:
+        with pytest.raises(cv.Invalid, match="deep_sleep is not supported"):
+            deep_sleep.validate_config({})

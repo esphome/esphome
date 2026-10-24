@@ -93,13 +93,15 @@ ESP-IDF OTA image: `.esphome/build/<name>/build/firmware.ota.bin`. LibreTiny OTA
 - `ports.py`: list ports with VID:PID, product, serial and a board guess; `--wait VID[:PID]`,
   `--product NAME`, `--serial SN` (one specific board, whatever path it comes back under) and
   `--serial-of PORT` (the serial number behind a path).
-- `serial_capture.py PORT SECONDS OUT [--baud] [--released] [--reset] [--append]`: bounded timestamped
-  capture, ANSI stripped, `LOG_SECRET` text written as `<secret>`, reopens a vanished port, exits at the
+- `serial_capture.py PORT SECONDS OUT [--baud] [--released] [--reset] [--append] [--ms]`: bounded timestamped
+  capture (`--ms` adds milliseconds for timing work), ANSI stripped, `LOG_SECRET` text written as `<secret>`, reopens a vanished port, exits at the
   deadline. OUT is truncated unless `--append` is given, so counts over it cover one run.
 - `flash_rtl87xx_kit.py`: ltchiptool wrapper for the BW15 kit whose CH340 drives CEN (RTS) and the boot
   strap (DTR). `flash read` needs the family `realtek-ambz2`; `flash write` does not.
 - `flash_bk72xx.py`: ltchiptool wrapper for BK72xx boards whose RTS drives CEN. It misses the link now
   and then; retry up to three times.
+- `api_button.py HOST KEY list|press NAME [...]`: list a device's template buttons or press them over the API; the
+  recipes drive their test configs with it.
 - `wifisave_hammer.sh KIND DUT_PORT DUT_YAML DUT_TREE CLIENT_PORT CLIENT_YAML CLIENT_TREE [SETTLE]`:
   the fallback AP plus captive portal hammer end to end (compile, flash, capture, counts) with the
   templates below. KIND is `esp`, `pico`, `bw15` or `bk`. It ends with `RESULT PASS` (exit 0),
@@ -113,7 +115,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 (host driver, Zephyr driver probe), `rtsp_server/` (protocol client, raw rate reader, measurement set,
 API image grab), `cse7766/` (API observer with ping), `zephyr_coredump/` (reader flow, decode with the
 Zephyr tools), `libretiny_prefs/` (rtc preference harness header), `libretiny_crash/` (BK72xx crash probe header and
-capture decoder).
+capture decoder), `api_outgoing/` (wake cycle and Wi-Fi drop timing readers), `ld2450/` (zone number driver, loopback harness driver with number and binary sensor states and TX frame summarizer), `api/` (raw plaintext native API client for user defined actions), `dfrobot_sen0395/` (API driver and case runner), `homeassistant_light/` (direct bulb driver, held-report case driver), `usb_audio/` (URL player), `speaker_media_player/` (API player driver, pipeline task case runner), `web_server/` (SSE client, request mix, SSE and HTTPD case runners), `mqtt/` (broker config with TLS, client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner, flash-and-drive runner, CLI TLS check without a board), `udp/` (datagram recorder, `udp.write` payload checker and case driver), `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a comparer).
 
 ## Templates in `$SKILL/templates`
 
@@ -125,11 +127,19 @@ capture decoder).
 - Per-topic device configs, each described in `reference/recipes/<component>.md`: `online-image-dut.yaml`,
   `usb-cdc-acm-dongle-dut.yaml`, `nrf52-preferences-dut.yaml`, `rtsp-waveshare-s3-eth-dut.yaml`,
   `waveshare-s3-eth-camdiag.yaml`, `s31-cse7766-dut.yaml`, `nrf52-coredump-crash-dut.yaml`,
-  `bk72xx-rtc-prefs-dut.yaml`, `bk72xx-crash-probe-dut.yaml`, `dut-ap-only-wipe-once-bk72xx.yaml`.
+  `bk72xx-rtc-prefs-dut.yaml`, `bk72xx-crash-probe-dut.yaml`, `dut-ap-only-wipe-once-bk72xx.yaml`,
+  `homeassistant-light-dut.yaml`, `deep-sleep-outgoing-dut.yaml`, `outgoing-wifi-drop-dut.yaml`,
+  `globals-storage-dut.yaml`, `usb-audio-waveshare-s3-eth-dut.yaml`, `usb-audio-sendspin-s3-eth-dut.yaml`,
+  `cast-pro-1-sendspin-control.yaml`, `aux-2-preprod-stock-dut.yaml`, `aux-2-preprod-usb-audio-dut.yaml`,
+  `dfrobot-sen0395-dut.yaml`, `aux-2-preprod-speaker-player-dut.yaml`, `web-server-sse-dut.yaml`,
+  `mqtt-transport-dut.yaml`, `mqtt-tls-dut.yaml`, `udp-write-dut.yaml`, `entity-icon-dut.yaml`.
 
 ## When something looks wrong
 
 - A capture stopped early or a line is missing: check the timestamps before trusting it.
+- A script that pipes into `tee` never ends although its work is done: a background command written as
+  `(cd dir && server & echo $!)` backgrounds the whole `cd && server` list, so a shell stays behind holding the
+  pipe open and `$!` is that shell, not the server. Write `(cd dir && exec server > out 2>&1 < /dev/null) &`.
 - The client never joins the AP: another board may still run an AP with the same SSID, or the device
   booted with saved credentials because the name was reused. One AP device at a time on the bench.
 - Builds come out byte-identical between branches: the wrong tree was imported (rule 3). The reverse
@@ -139,6 +149,10 @@ capture decoder).
   preference and repeat it in a periodic alive line, as `scripts/libretiny_prefs/ltprefs.hpp` does.
 - Multicast from the host never arrives on some access points: test it device to device. Broadcast
   is lossy under Wi-Fi power save, unicast is not. Throttle UDP floods to a fixed packet rate.
+- The merge base comes from a freshly fetched `origin/dev`; a stale local `dev` puts dependency bumps into the
+  PR diff and builds the control from the wrong commit.
+- A `.local` name can stop resolving in the middle of a run; keep the address from the boot log and drive by it.
+- `wc -l` pads its count on macOS, so `tail -n +$n0` needs `$((n0+0))` or an arithmetic expansion.
 - `api:` reboots a board after 15 min without a client: `reboot_timeout: 0s` on `api:` and `mqtt:` for
   soak tests.
 

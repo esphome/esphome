@@ -21,7 +21,13 @@ from aioesphomeapi import (
 import pytest
 
 from .host_prefs import clear_host_prefs
-from .state_utils import InitialStateHelper, require_entity, wait_for_state
+from .log_utils import LineWaiter
+from .state_utils import (
+    InitialStateHelper,
+    require_entity,
+    require_only_entity,
+    wait_for_state,
+)
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 DEVICE_NAME = "tmpl-clim-nonopt"
@@ -36,15 +42,11 @@ async def test_template_climate_nonoptimistic(
     """Nonoptimistic: a command doesn't change state until explicitly published."""
     clear_host_prefs(DEVICE_NAME)
 
-    log_lines: list[str] = []
+    waiter = LineWaiter()
     state_updates: list[aioesphomeapi.ClimateState] = []
 
-    def on_log_line(line: str) -> None:
-        if "on_control " in line:
-            log_lines.append(line)
-
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
 
@@ -54,19 +56,14 @@ async def test_template_climate_nonoptimistic(
 
         entities, _ = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
-        climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) == 1, "Expected exactly 1 climate entity"
-        test_climate = climate_infos[0]
+        test_climate = require_only_entity(entities, ClimateInfo)
 
         confirm_button = require_entity(
             entities, "simulate_device_confirmation", ButtonInfo
         )
 
         client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+        await initial_state_helper.wait_for_initial_states()
 
         initial = initial_state_helper.initial_states.get(test_climate.key)
         assert initial is not None, "No initial climate state received"
@@ -84,13 +81,14 @@ async def test_template_climate_nonoptimistic(
             preset=ClimatePreset.AWAY,
         )
         await asyncio.sleep(0.3)
-        assert any(
-            "on_control mode=3" in line for line in log_lines
-        )  # CLIMATE_MODE_HEAT
-        assert any("on_control target_temperature=22.5" in line for line in log_lines)
-        assert any("on_control fan_mode=" in line for line in log_lines)
-        assert any("on_control swing_mode=" in line for line in log_lines)
-        assert any("on_control preset=" in line for line in log_lines)
+        await waiter.wait_for_each(
+            "on_control mode=3",  # CLIMATE_MODE_HEAT
+            "on_control target_temperature=22.5",
+            "on_control fan_mode=",
+            "on_control swing_mode=",
+            "on_control preset=",
+            timeout=5.0,
+        )
         assert not state_updates, (
             "optimistic: false must not publish a state until climate.template.publish reports it"
         )

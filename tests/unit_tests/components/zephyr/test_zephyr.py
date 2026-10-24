@@ -14,6 +14,7 @@ from esphome.components.zephyr import (
     _MODULE_SCHEMA,
     ZephyrData,
     _cdc_acm_add_ports,
+    _main_stack_to_code,
     _remove_stale_image_files,
     _resolve_board_source,
     _resolve_shield_source,
@@ -35,6 +36,7 @@ from esphome.components.zephyr import (
     zephyr_cdc_acm_label,
     zephyr_claim_cdc_acm,
     zephyr_only_on_variant,
+    zephyr_raise_prj_conf_min,
     zephyr_set_module_override,
     zephyr_setup_i2c_pinctrl,
     zephyr_setup_spi_pinctrl,
@@ -1767,6 +1769,57 @@ def test_watchdog_to_code_skips_native_sim() -> None:
     _watchdog_to_code({})
     assert "CONFIG_WATCHDOG" not in CORE.data[KEY_ZEPHYR]["prj_conf"].get("", {})
     assert not _defined("USE_WATCHDOG")
+
+
+def _stack() -> tuple:
+    return CORE.data[KEY_ZEPHYR]["prj_conf"][""]["CONFIG_MAIN_STACK_SIZE"]
+
+
+@pytest.mark.parametrize(
+    ("variant", "advanced", "expected"),
+    [
+        ("ESP32C3", {}, 8192),
+        ("ESP32H2", {}, 8192),
+        ("NRF54L15", {}, 4096),
+        ("ESP32C3", {"main_stack_size": 6144}, 6144),
+        ("NRF54L15", {"main_stack_size": 8192}, 8192),
+        (None, {}, 2048),
+    ],
+)
+def test_main_stack_to_code(variant: str | None, advanced: dict, expected: int) -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant=variant)
+    _main_stack_to_code({"advanced": advanced})
+    assert _stack() == (expected, False)
+
+
+def test_variant_config_schema_rejects_main_stack_size_below_4096() -> None:
+    _init_variant_schema_core()
+    with pytest.raises(cv.Invalid, match="main_stack_size"):
+        _variant_config_schema(
+            {"variant": "ESP32C3", "advanced": {"main_stack_size": 2048}}
+        )
+
+
+def test_zephyr_raise_prj_conf_min_sets_missing_value() -> None:
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    zephyr_raise_prj_conf_min("MAIN_STACK_SIZE", 4096)
+    assert _stack() == (4096, True)
+
+
+def test_zephyr_raise_prj_conf_min_raises_low_value() -> None:
+    # platform: nrf52 with OpenThread: 2048 -> 4096
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data()
+    zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
+    zephyr_raise_prj_conf_min("MAIN_STACK_SIZE", 4096)
+    assert _stack() == (4096, False)
+
+
+def test_zephyr_raise_prj_conf_min_never_lowers() -> None:
+    # ESP32-H2 with OpenThread keeps 8192
+    CORE.data[KEY_ZEPHYR] = empty_zephyr_data(variant="ESP32H2")
+    _main_stack_to_code({"advanced": {}})
+    zephyr_raise_prj_conf_min("MAIN_STACK_SIZE", 4096)
+    assert _stack() == (8192, False)
 
 
 def _nrf52_advanced(**advanced: object) -> dict:

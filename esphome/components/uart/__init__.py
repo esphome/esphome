@@ -133,8 +133,6 @@ HOST_BAUD_RATES = [
 ]
 
 UARTDevice = uart_ns.class_("UARTDevice")
-UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
-UARTEmulatorPushRxAction = uart_ns.class_("UARTEmulatorPushRxAction", automation.Action)
 UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component, automation.Action)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
@@ -195,9 +193,7 @@ def validate_zephyr_config(config):
         from esphome.components.zephyr import zephyr_variant  # noqa: PLC0415
         from esphome.components.zephyr.variants import VARIANTS  # noqa: PLC0415
 
-        # esp32-family UART TX/RX are GPIO-matrix-routed (like I2C SDA/SCL), so a custom
-        # pinctrl overlay can point them at any pin. Other variants have no equivalent
-        # mechanism wired up yet, so their uart_valid_pins is empty.
+        # Only esp32-family UART pins go through the GPIO matrix and can use any pin.
         variant = zephyr_variant()
         variant_info = VARIANTS.get(variant)
         valid_pins = variant_info.uart_valid_pins if variant_info is not None else {}
@@ -276,12 +272,7 @@ CONF_RESPONSES = "responses"
 
 
 def _normalize_trigger_bytes(value):
-    """Normalize a trigger/response byte value to a flat list of ints.
-
-    - string -> UTF-8 encoded bytes
-    - scalar int -> single-byte list
-    - list of ints -> as-is
-    """
+    """Return a string, int or list of ints as a list of byte values."""
     if isinstance(value, str):
         return list(value.encode("utf-8"))
     if isinstance(value, int):
@@ -292,12 +283,7 @@ def _normalize_trigger_bytes(value):
 
 
 def _normalize_response_value(value):
-    """Normalize a responses: map value to a list of byte-list entries.
-
-    A value that is a string/int/flat list of ints is one static response. A
-    value that is a list whose items are themselves strings or lists of ints
-    is a cycling sequence, one entry per item.
-    """
+    """Return a responses: value as a list of entries; a list of strings or lists cycles."""
     if isinstance(value, list) and value and isinstance(value[0], (str, list)):
         return [_normalize_trigger_bytes(entry) for entry in value]
     return [_normalize_trigger_bytes(value)]
@@ -557,9 +543,7 @@ async def to_code(config):
 
             zephyr_add_prj_conf("SERIAL", True)
             zephyr_add_prj_conf("RING_BUFFER", True)
-            # setup() unconditionally uses uart_irq_callback_user_data_set()/
-            # uart_irq_rx_enable() for RX -- without this, those become no-ops and RX
-            # silently never arrives.
+            # setup() uses the IRQ API for RX; without this, RX silently never arrives.
             zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
             # Required for uart_configure()
             zephyr_add_prj_conf("UART_USE_RUNTIME_CONFIGURE", True)
@@ -619,14 +603,11 @@ async def to_code(config):
         zephyr_add_prj_conf("RING_BUFFER", True)
         zephyr_add_prj_conf("EMUL", True)
         zephyr_add_prj_conf("UART_EMUL", True)
-        # setup() unconditionally uses uart_irq_callback_user_data_set()/
-        # uart_irq_rx_enable() for RX -- without this, those become no-ops and RX
-        # silently never arrives.
+        # setup() uses the IRQ API for RX; without this, RX silently never arrives.
         zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
         cg.add_define("USE_ZEPHYR_UART_EMULATION")
 
-        # Node label must be unique per `uart: emulation:` block -- ESPHome IDs are
-        # unique and identifier-safe, so they double as a safe DT label suffix.
+        # ESPHome ids are unique and identifier-safe, so they make unique DT labels.
         emul_label = f"esphome_uart_emul_{config[CONF_ID].id}"
         zephyr_add_overlay(
             f"/ {{ {emul_label}: {emul_label} {{"
@@ -689,10 +670,8 @@ async def to_code(config):
             )
         cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
-        if CONF_FLUSH_TIMEOUT in config:
-            cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
-        if (tx_buffer_size := config.get(CONF_TX_BUFFER_SIZE)) is not None:
-            cg.add(var.set_tx_buffer_size(tx_buffer_size))
+        cg.add_optional(var.set_flush_timeout, config.get(CONF_FLUSH_TIMEOUT))
+        cg.add_optional(var.set_tx_buffer_size, config.get(CONF_TX_BUFFER_SIZE))
         # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
         if (clock_source := config.get(CONF_CLOCK_SOURCE, "DEFAULT")) != "DEFAULT":
             cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
@@ -901,9 +880,8 @@ def _uart_write_id(value: Any) -> ID:
     return cv.use_id(UARTComponent)(value)
 
 
-@automation.register_action(
+automation.register_apply_action(
     "uart.write",
-    UARTWriteAction,
     cv.maybe_simple_value(
         {
             cv.GenerateID(): _uart_write_id,
@@ -911,23 +889,11 @@ def _uart_write_id(value: Any) -> ID:
         },
         key=CONF_DATA,
     ),
-    synchronous=True,
+    # A constant stays in flash: write_array_progmem copies it out in chunks on ESP8266
+    automation.ApplyBytes(
+        CONF_DATA, "write_array({})", progmem_target="write_array_progmem({})"
+    ),
 )
-async def uart_write_to_code(config, action_id, template_arg, args):
-    # `id:` may target either the UART bus (write out TX, the common case) or a
-    # ZephyrUartEmulator (inject directly into the device's RX path, scenario 2 of
-    # uart: emulation:) -- which id it resolved to picks which C++ action class backs it.
-    # `config[CONF_ID].type` is only the asserted marker type from use_id(); the actual
-    # declared type lives on the already-registered variable's declaration id.
-    target = await cg.get_variable(config[CONF_ID])
-    if str(target.base.type) == str(ZephyrUartEmulator):
-        action_id.type = UARTEmulatorPushRxAction
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA], args, var.set_data_template, var.set_data_static, "uart_data"
-    )
-    return var
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

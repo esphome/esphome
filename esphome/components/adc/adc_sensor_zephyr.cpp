@@ -128,6 +128,8 @@ static const LogString *input_to_str(uint8_t input) {
       return LOG_STR("VDD");
     case NRF_SAADC_INPUT_VDDHDIV5:
       return LOG_STR("VDDHDIV5");
+    default:
+      break;
   }
   return LOG_STR("undefined input");
 }

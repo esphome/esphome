@@ -18,9 +18,11 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
     only_on_variant,
+    require_idf_version,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zephyr import (
+    zephyr_add_overlay,
     zephyr_add_prj_conf,
     zephyr_data,
     zephyr_setup_spi_pinctrl,
@@ -54,6 +56,7 @@ from esphome.const import (
     KEY_VARIANT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_ZEPHYR,
     PlatformFramework,
@@ -75,8 +78,16 @@ SPIMode = spi_ns.enum("SPIMode")
 PLATFORM_SPI_CLOCKS = {
     PLATFORM_ESP8266: 40e6,
     PLATFORM_ESP32: 80e6,
+    # nRF52 exposes spi2 (SPIM2), whose documented max data rate is 8 MHz;
+    # the 16/32 MHz "fast" rates are only available on the separate SPIM3
+    # peripheral, which isn't used here.
+    PLATFORM_NRF52: 8e6,
     PLATFORM_RP2: 62.5e6,
 }
+
+# SPIM2 only implements these discrete clock steps - unlike the other platforms
+# it does not derive an arbitrary rate from a divisor of its max clock.
+PLATFORM_NRF52_SPI_RATES = (125e3, 250e3, 500e3, 1e6, 2e6, 4e6, 8e6)
 
 MAX_DATA_RATE_ERROR = 0.05  # Max allowable actual data rate difference from requested
 
@@ -104,20 +115,15 @@ def _render_hz(value: float) -> str:
     return formatted + unit
 
 
-# Sanity ceiling only, used when the target platform's achievable SPI rate isn't
-# modeled (see _frequency_validator's Zephyr branch below).
+# Zephyr rates are not modelled per variant yet, so only a sanity ceiling applies
 _ZEPHYR_SPI_SANITY_MAX_HZ = 80e6
 
 
 def _frequency_validator(value: Any) -> float:
-    value = cv.frequency(value)
-    if value < 1000:
-        raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
     if CORE.is_zephyr:
-        # Zephyr's actually-achievable SPI rate depends on the variant's clock tree
-        # and driver (e.g. nRF52 SPIM only has discrete steps; STM32 derives from APB
-        # prescalers) -- not modeled per-family here yet, so only sanity-bound the
-        # request instead of asserting a specific divisor grid we haven't verified.
+        value = cv.frequency(value)
+        if value < 1000:
+            raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
         if value > _ZEPHYR_SPI_SANITY_MAX_HZ:
             raise cv.Invalid(
                 f"The configured SPI data rate ({_render_hz(value)}) exceeds the sanity "
@@ -126,10 +132,16 @@ def _frequency_validator(value: Any) -> float:
         return value
     platform = get_target_platform()
     frequency = PLATFORM_SPI_CLOCKS[platform]
+    value = cv.frequency(value)
     if value > frequency:
         raise cv.Invalid(
             f"The configured SPI data rate ({_render_hz(value)}) exceeds the maximum for this platform ({_render_hz(frequency)})"
         )
+    if value < 1000:
+        raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
+    if platform == PLATFORM_NRF52:
+        # The step check needs the device's bus, which is only known in final validation
+        return value
     divisor = round(frequency / value)
     actual = frequency / divisor
     error = abs(actual - value) / value
@@ -180,8 +192,7 @@ def _validate_psram_dma(value: Any) -> bool:
     if not value:
         return value
     return cv.All(
-        cv.only_on_esp32,
-        cv.only_with_framework("esp-idf"),
+        require_idf_version(cv.Version(5, 5, 3), "psram_dma"),
         only_on_variant(
             supported=[
                 VARIANT_ESP32C5,
@@ -192,7 +203,6 @@ def _validate_psram_dma(value: Any) -> bool:
             ],
             msg_prefix="PSRAM DMA",
         ),
-        cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
         cv.requires_component(PSRAM_DOMAIN),
     )(value)
 
@@ -242,6 +252,8 @@ def get_hw_interface_list() -> list[list[str]]:
         return [["spi", "spi2"], ["spi3"]]
     if target_platform == PLATFORM_RP2:
         return [["spi"], ["spi1"]]
+    if target_platform == PLATFORM_NRF52:
+        return [["spi", "spi2"]]
     return []
 
 
@@ -259,8 +271,7 @@ def one_of_interface_validator(additional_values: list[str] | None = None) -> An
 
     def validator(value: Any) -> str:
         if CORE.is_zephyr:
-            # Zephyr's real bus list isn't known until fetch_board_dts() runs in
-            # to_code() -- validated for real by resolve_zephyr_bus() there instead.
+            # Checked against the board DTS by resolve_zephyr_bus() in to_code()
             return normalize_dts_label(cv.string(value))
         return cv.one_of(
             *sum(get_hw_interface_list(), additional_values),
@@ -312,6 +323,14 @@ def validate_hw_pins(spi: ConfigType, index: int = -1) -> bool:
     if target_platform == PLATFORM_ESP32:
         return clk_pin_no >= 0
 
+    if target_platform == PLATFORM_NRF52:
+        # Expander pin numbers would be mapped into NRF_PSEL and route the bus to the wrong pads
+        return all(
+            pins.PIN_SCHEMA_REGISTRY.get_key(spi[key]) == PLATFORM_NRF52
+            for key in (CONF_CLK_PIN, CONF_MOSI_PIN, CONF_MISO_PIN)
+            if key in spi
+        )
+
     if target_platform == PLATFORM_RP2:
         if index == -1:
             matches = list(
@@ -357,9 +376,7 @@ def _validate_zephyr_spi_pins(
 
 
 def _validate_clk_pin_required(value: ConfigType) -> ConfigType:
-    """clk_pin is optional on Zephyr hardware SPI -- the board's real pinctrl
-    entry already picks a default clock pin; other platforms have no such
-    default, so clk_pin stays mandatory for them."""
+    """clk_pin is optional on Zephyr hardware SPI, where the board's pinctrl supplies a default."""
     if CONF_CLK_PIN in value or (
         CORE.is_zephyr and value[CONF_INTERFACE] != "software"
     ):
@@ -371,9 +388,8 @@ def validate_spi_config(config: list[ConfigType]) -> list[ConfigType]:
     if CORE.is_zephyr:
         from esphome.components.zephyr.variants import VARIANTS  # noqa: PLC0415
 
-        # A board's DTS may enable more than one SPI peripheral even though only one
-        # spi: entry is allowed -- interface: <bus label> (e.g. "spi3") picks a
-        # specific one; "hardware"/"any" defer to auto-detection in to_code().
+        # interface: <bus label> picks one of the board's SPI buses; "hardware" and
+        # "any" are resolved from the board DTS in to_code().
         variant = zephyr_variant()
         variant_info = VARIANTS.get(variant)
         valid_pins = variant_info.spi_valid_pins if variant_info is not None else {}
@@ -436,6 +452,8 @@ def get_spi_interface(index: int) -> str:
     # Arduino code follows
     if platform == PLATFORM_RP2:
         return ["&SPI", "&SPI1"][index]
+    if platform == PLATFORM_NRF52:
+        return "DEVICE_DT_GET(DT_NODELABEL(spi2))"
     if index == 0:
         return "&SPI"
     return "new SPIClass(HSPI)"
@@ -461,14 +479,20 @@ SPI_SINGLE_SCHEMA = cv.All(
     ),
     _validate_clk_pin_required,
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2, PLATFORM_ZEPHYR]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_NRF52,
+            PLATFORM_RP2,
+            PLATFORM_ZEPHYR,
+        ]
+    ),
 )
 
 
-# esp32-family Zephyr variants whose SPI pinctrl generation quad's WP/HD lines are
-# implemented for (see zephyr_setup_spi_pinctrl()'s esp32 branch). No zephyr variant
-# has octal's D4-D7 signals available (verified: absent even on esp32s3's own
-# gpio-sigmap.h), so octal stays esp-idf-only.
+# Zephyr variants with quad WP/HD pinctrl support (zephyr_setup_spi_pinctrl()). No
+# Zephyr variant exposes octal's D4-D7 signals, so octal stays ESP-IDF only.
 _ZEPHYR_QUAD_VARIANTS = (
     ZEPHYR_VARIANT_ESP32,
     ZEPHYR_VARIANT_ESP32_C3,
@@ -537,9 +561,47 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _add_nrf52_spi2_overlay(spi: ConfigType) -> None:
+    """Route SPIM2 to the configured pins; a board file may leave spi2 on the legacy non-DMA driver."""
+    zephyr_add_prj_conf("SPI", True)
+    signals = [("SCK", spi[CONF_CLK_PIN])]
+    if (mosi := spi.get(CONF_MOSI_PIN)) is not None:
+        signals.append(("MOSI", mosi))
+    if (miso := spi.get(CONF_MISO_PIN)) is not None:
+        signals.append(("MISO", miso))
+    psels = ", ".join(
+        f"<NRF_PSEL(SPIM_{signal}, {pin[CONF_NUMBER] // 32}, {pin[CONF_NUMBER] % 32})>"
+        for signal, pin in signals
+    )
+    zephyr_add_overlay(
+        f"""
+            &pinctrl {{
+                spi2_default: spi2_default {{
+                    group1 {{
+                        psels = {psels};
+                    }};
+                }};
+                spi2_sleep: spi2_sleep {{
+                    group1 {{
+                        psels = {psels};
+                        low-power-enable;
+                    }};
+                }};
+            }};
+            &spi2 {{
+                compatible = "nordic,nrf-spim";
+                status = "okay";
+                pinctrl-0 = <&spi2_default>;
+                pinctrl-1 = <&spi2_sleep>;
+                pinctrl-names = "default", "sleep";
+                overrun-character = <0>;
+            }};
+        """
+    )
+
+
 def _zephyr_setup_spi(spi, resolved_buses: set[str]) -> tuple[str, str]:
-    """Resolve and enable the Zephyr SPI bus node for `spi`, returning the C++
-    expression for its `const device *` and the bus's DTS node label."""
+    """Enable the Zephyr SPI bus for `spi`; return its device expression and DTS label."""
     zephyr_add_prj_conf("SPI", True)
     board = zephyr_data()[KEY_BOARD]
     interface = spi[CONF_INTERFACE]
@@ -589,9 +651,13 @@ async def to_code(configs: list[ConfigType]) -> None:
                 interface, bus_label = _zephyr_setup_spi(spi, resolved_zephyr_buses)
                 cg.add(var.set_interface(cg.RawExpression(interface)))
                 cg.add(var.set_interface_name(bus_label))
+                continue
+            interface = get_spi_interface(index)
+            cg.add(var.set_interface(cg.RawExpression(interface)))
+            if CORE.using_zephyr:
+                _add_nrf52_spi2_overlay(spi)
+                cg.add(var.set_interface_name("spi2"))
             else:
-                interface = get_spi_interface(index)
-                cg.add(var.set_interface(cg.RawExpression(interface)))
                 cg.add(
                     var.set_interface_name(
                         re.sub(r"\W", "", interface.replace("new SPIClass", ""))
@@ -693,20 +759,45 @@ def _walk_config(value: Any, path: tuple[Any, ...] = ()):
             yield from _walk_config(child, (*path, index))
 
 
+def _validate_nrf52_hw_data_rate(value: float) -> None:
+    lowest = PLATFORM_NRF52_SPI_RATES[0]
+    if value < lowest:
+        raise cv.Invalid(
+            f"The configured SPI data rate ({_render_hz(value)}) is below {_render_hz(lowest)}, "
+            "the lowest rate of the nRF52 hardware SPI interface"
+        )
+    # The SPIM driver runs at the highest step not above the request
+    actual = max(rate for rate in PLATFORM_NRF52_SPI_RATES if rate <= value)
+    if abs(actual - value) / value > MAX_DATA_RATE_ERROR:
+        raise cv.Invalid(
+            f"The configured SPI data rate ({_render_hz(value)}) is not available for this chip - closest is {_render_hz(actual)}"
+        )
+
+
 def _final_validate(config: Any) -> Any:
     buses = config if isinstance(config, list) else [config]
     software_bus_ids = {
         bus[CONF_ID] for bus in buses if CONF_INTERFACE_INDEX not in bus
     }
-    if not software_bus_ids:
+    nrf52_hw_bus_ids = (
+        {bus[CONF_ID] for bus in buses if CONF_INTERFACE_INDEX in bus}
+        if get_target_platform() == PLATFORM_NRF52
+        else set()
+    )
+    if not software_bus_ids and not nrf52_hw_bus_ids:
         return config
     for candidate, path in _walk_config(fv.full_config.get()):
-        if (
-            candidate.get(CONF_PSRAM_DMA)
-            and candidate.get(CONF_SPI_ID) in software_bus_ids
-        ):
+        if (spi_id := candidate.get(CONF_SPI_ID)) is None:
+            continue
+        if candidate.get(CONF_PSRAM_DMA) and spi_id in software_bus_ids:
             with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path, CONF_PSRAM_DMA]):
                 raise cv.Invalid("psram_dma requires a hardware SPI interface")
+        if (
+            spi_id in nrf52_hw_bus_ids
+            and (data_rate := candidate.get(CONF_DATA_RATE)) is not None
+        ):
+            with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path, CONF_DATA_RATE]):
+                _validate_nrf52_hw_data_rate(data_rate)
     return config
 
 
@@ -726,8 +817,9 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        # NRF52_ZEPHYR (platform: nrf52) deliberately excluded -- that platform's SPI
-        # story is a separate, out-of-scope effort; only platform: zephyr gets this.
-        "spi_zephyr.cpp": {PlatformFramework.ZEPHYR_ZEPHYR},
+        "spi_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+            PlatformFramework.ZEPHYR_ZEPHYR,
+        },
     }
 )

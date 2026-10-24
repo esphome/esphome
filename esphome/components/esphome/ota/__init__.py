@@ -285,6 +285,9 @@ def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     # OTA needs 1 listening socket. The active transfer connection during an update
     # uses a TCP PCB from the general pool, covered by MIN_TCP_SOCKETS headroom.
     socket.consume_sockets(1, "ota", socket.SocketType.TCP_LISTEN)(config)
+    if CORE.is_zephyr:
+        # The UDP data phase opens a datagram socket for the session
+        socket.consume_sockets(1, "ota", socket.SocketType.UDP)(config)
     return config
 
 
