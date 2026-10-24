@@ -356,7 +356,47 @@ async def test_connect_maps_errors(
     _use_client(monkeypatch, _ConnectClient(connect_error=error))
 
     with pytest.raises(EsphomeError, match=match):
-        await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FF")
+        async with dfu._connect("AA:BB:CC:DD:EE:FF"):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_finds_device_left_in_bootloader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed upload can leave the device in its bootloader at the next address."""
+    _use_client(
+        monkeypatch,
+        _ConnectClient(connect_error=dfu.BleakDeviceNotFoundError("AA:BB:CC:DD:EE:FE")),
+    )
+    monkeypatch.setattr(
+        dfu.BleakScanner,
+        "find_device_by_filter",
+        _advertising(
+            ("11:22:33:44:55:66", [dfu.DFU_SERVICE_UUID]),
+            ("AA:BB:CC:DD:EE:FF", [dfu.DFU_SERVICE_UUID]),
+        ),
+    )
+
+    assert await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FE") == "AA:BB:CC:DD:EE:FF"
+
+
+@pytest.mark.asyncio
+async def test_enter_dfu_mode_not_found_anywhere(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_client(
+        monkeypatch,
+        _ConnectClient(connect_error=dfu.BleakDeviceNotFoundError("AA:BB:CC:DD:EE:FE")),
+    )
+    monkeypatch.setattr(
+        dfu.BleakScanner,
+        "find_device_by_filter",
+        _advertising(("11:22:33:44:55:66", [dfu.DFU_SERVICE_UUID])),
+    )
+
+    with pytest.raises(EsphomeError, match="11:22:33:44:55:66. Pass the right one"):
+        await dfu.enter_dfu_mode("AA:BB:CC:DD:EE:FE")
 
 
 @pytest.mark.asyncio

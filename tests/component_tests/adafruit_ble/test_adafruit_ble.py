@@ -2,12 +2,13 @@
 
 from collections.abc import Callable, Generator
 from copy import deepcopy
+import logging
 from pathlib import Path
 
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.adafruit_ble.ota import _final_validate
+from esphome.components.adafruit_ble.ota import CONFIG_SCHEMA, _final_validate
 from esphome.components.nrf52 import _final_validate as nrf52_final_validate
 from esphome.components.nrf52.const import BOOTLOADER_ADAFRUIT_NRF52_SD140_V6
 from esphome.components.zephyr.const import (
@@ -66,6 +67,34 @@ def test_requires_adafruit_bootloader() -> None:
     CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}
     with pytest.raises(cv.Invalid, match="requires an Adafruit bootloader"):
         _final_validate({})
+
+
+@pytest.mark.parametrize(
+    ("server", "warned"),
+    [
+        ({}, True),
+        ({"on_numeric_comparison_request": [{"then": []}]}, False),
+    ],
+    ids=["no_pairing", "pairing"],
+)
+def test_warns_about_open_trigger_without_pairing(
+    adafruit_ble_ota_full_config: None,
+    caplog: pytest.LogCaptureFixture,
+    server: dict,
+    warned: bool,
+) -> None:
+    CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_SD140_V6}
+    fv.full_config.get()["zephyr_ble_server"] = server
+    with caplog.at_level(logging.WARNING):
+        _final_validate({})
+    assert ("without pairing" in caplog.text) is warned
+
+
+@pytest.mark.parametrize("key", ["on_progress", "on_end", "on_error", "on_abort"])
+def test_rejects_triggers_that_never_fire(key: str) -> None:
+    schema = CONFIG_SCHEMA.validators[0]  # Skips the framework check
+    with pytest.raises(cv.Invalid, match=f"'{key}' never fires"):
+        schema({key: [{"then": []}]})
 
 
 def test_rollback_rejected_when_enabled_by_user(

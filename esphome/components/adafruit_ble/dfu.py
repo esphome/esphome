@@ -161,6 +161,10 @@ def _load_firmware(firmware: Path) -> tuple[bytes, bytes]:
     return image, init_packet
 
 
+class _DeviceNotFoundError(EsphomeError):
+    """The device did not answer at the address it was asked for."""
+
+
 def _raise_if_not_paired(address: str, err: Exception) -> None:
     if isinstance(err, BleakDBusError) and "NotPermitted" in err.dbus_error:
         raise EsphomeError(
@@ -174,7 +178,7 @@ async def _connect(address: str) -> AsyncIterator[BleakClient]:
     try:
         await client.connect()
     except BleakDeviceNotFoundError as err:
-        raise EsphomeError(f"Device {address} was not found") from err
+        raise _DeviceNotFoundError(f"Device {address} was not found") from err
     except (BleakError, OSError) as err:
         _raise_if_not_paired(address, err)
         raise EsphomeError(f"Could not connect to {address}: {err}") from err
@@ -188,28 +192,33 @@ async def _connect(address: str) -> AsyncIterator[BleakClient]:
 async def enter_dfu_mode(address: str) -> str:
     """Return the address of the bootloader in DFU mode.
 
-    A running application is first asked to reboot into the bootloader.
+    A running application is first asked to reboot into the bootloader. A
+    device that is not found may still be in its bootloader from a failed
+    upload, which can advertise one address above the application.
     """
-    async with _connect(address) as client:
-        services = {str(service.uuid).lower() for service in client.services}
-        if DFU_SERVICE_UUID in services:
-            return address
-        if TRIGGER_SERVICE_UUID not in services:
-            raise EsphomeError(
-                f"{address} does not offer an OTA service. Put the device into DFU "
-                "mode and try again."
-            )
-        _LOGGER.info("Requesting DFU mode from %s...", address)
-        try:
-            await client.write_gatt_char(
-                TRIGGER_CHARACTERISTIC_UUID, TRIGGER_MAGIC, response=True
-            )
-        except (BleakError, OSError) as err:
-            _raise_if_not_paired(address, err)
-            # The application reboots as soon as the write is handled, so a
-            # disconnect while waiting for the response is expected. Windows
-            # reports that as a cancelled operation (OSError), not a BleakError.
-            _LOGGER.debug("DFU mode request ended with %s", err)
+    try:
+        async with _connect(address) as client:
+            services = {str(service.uuid).lower() for service in client.services}
+            if DFU_SERVICE_UUID in services:
+                return address
+            if TRIGGER_SERVICE_UUID not in services:
+                raise EsphomeError(
+                    f"{address} does not offer an OTA service. Put the device "
+                    "into DFU mode and try again."
+                )
+            _LOGGER.info("Requesting DFU mode from %s...", address)
+            try:
+                await client.write_gatt_char(
+                    TRIGGER_CHARACTERISTIC_UUID, TRIGGER_MAGIC, response=True
+                )
+            except (BleakError, OSError) as err:
+                _raise_if_not_paired(address, err)
+                # The application reboots as soon as the write is handled, so a
+                # disconnect while waiting for the response is expected. Windows
+                # reports that as a cancelled operation (OSError), not a BleakError.
+                _LOGGER.debug("DFU mode request ended with %s", err)
+    except _DeviceNotFoundError:
+        _LOGGER.info("%s was not found, looking for its DFU bootloader", address)
     return await find_dfu_bootloader(address)
 
 

@@ -9,7 +9,10 @@ namespace esphome::adafruit_ble {
 // hosts the BLE trigger service defined in ota_adafruit_ble.cpp.
 class OTAComponent : public ota::OTAComponent {
  public:
+  OTAComponent();
   void dump_config() override;
+  // Called from the Bluetooth thread when the trigger is written
+  void request_dfu_mode();
 };
 
 }  // namespace esphome::adafruit_ble

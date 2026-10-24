@@ -27,6 +27,8 @@ static constexpr uint16_t DFU_TRIGGER_PERM = BT_GATT_PERM_WRITE_AUTHEN;
 static constexpr uint16_t DFU_TRIGGER_PERM = BT_GATT_PERM_WRITE;
 #endif
 
+static OTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 static ssize_t dfu_trigger_write(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len,
                                  uint16_t offset, uint8_t flags) {
   if (offset != 0) {
@@ -35,11 +37,7 @@ static ssize_t dfu_trigger_write(struct bt_conn *conn, const struct bt_gatt_attr
   if (len != sizeof(DFU_TRIGGER_MAGIC) || memcmp(buf, DFU_TRIGGER_MAGIC, sizeof(DFU_TRIGGER_MAGIC)) != 0) {
     return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
   }
-  ESP_LOGI(TAG, "DFU mode requested, restarting into the bootloader");
-  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_POWER is MMIO at a fixed address
-  NRF_POWER->GPREGRET = DFU_GPREGRET_OTA;
-  arch_feed_wdt();
-  App.reboot();
+  global_ota_component->request_dfu_mode();
   return len;
 }
 
@@ -50,6 +48,21 @@ BT_GATT_SERVICE_DEFINE(  // NOLINT
                                                                    0x2c3d4e5f6071))),
     BT_GATT_CHARACTERISTIC(BT_UUID_DECLARE_128(BT_UUID_128_ENCODE(0xe5b10002, 0x9c3a, 0x4f5d, 0x8a1b, 0x2c3d4e5f6071)),
                            BT_GATT_CHRC_WRITE, DFU_TRIGGER_PERM, nullptr, dfu_trigger_write, nullptr));
+
+OTAComponent::OTAComponent() { global_ota_component = this; }
+
+void OTAComponent::request_dfu_mode() {
+  // Restart from the main loop, so the OTA listeners run there and the write is answered first
+  this->defer([this]() {
+    ESP_LOGI(TAG, "DFU mode requested, restarting into the bootloader");
+#ifdef USE_OTA_STATE_LISTENER
+    this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
+#endif
+    // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_POWER is MMIO at a fixed address
+    NRF_POWER->GPREGRET = DFU_GPREGRET_OTA;
+    App.reboot();
+  });
+}
 
 void OTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Over-The-Air Updates:\n"
