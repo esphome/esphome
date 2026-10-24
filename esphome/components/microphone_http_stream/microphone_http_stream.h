@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP32
+
 #include "esphome/components/microphone/microphone.h"
 #include "esphome/components/microphone/microphone_source.h"
 #include "esphome/components/web_server_base/web_server_base.h"
@@ -77,7 +81,7 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
     std::atomic<bool> abort{false};
   };
 
-  static void send_task_(void *arg);
+  static void send_task(void *arg);
   void run_send_task_(ClientSlot *client);
   void on_audio_(const std::vector<uint8_t> &data);
   void fail_request_(AsyncWebServerRequest *request, const char *message);
@@ -98,3 +102,5 @@ class MicrophoneHttpStream final : public Component, public AsyncWebHandler {
 };
 
 }  // namespace esphome::microphone_http_stream
+
+#endif  // USE_ESP32

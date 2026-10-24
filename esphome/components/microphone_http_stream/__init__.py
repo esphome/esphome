@@ -6,14 +6,13 @@ import esphome.codegen as cg
 from esphome.components import microphone, web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MICROPHONE
+from esphome.const import CONF_ID, CONF_MICROPHONE, CONF_SOURCE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mbrudka"]
 DEPENDENCIES = ["microphone", "web_server"]
 DOMAIN = "microphone_http_stream"
 
-CONF_SOURCE = "source"
 CONF_STREAM_ID = "stream_id"
 CONF_MAX_CLIENTS = "max_clients"
 _STREAM_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")

@@ -1,5 +1,7 @@
 #include "microphone_http_stream.h"
 
+#ifdef USE_ESP32
+
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -139,7 +141,7 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
     this->fail_request_(request, "Cannot start asynchronous HTTP response");
     return;
   }
-  if (xTaskCreate(&MicrophoneHttpStream::send_task_, "mic_http_send", SEND_TASK_STACK_SIZE, client, 2, nullptr) !=
+  if (xTaskCreate(&MicrophoneHttpStream::send_task, "mic_http_send", SEND_TASK_STACK_SIZE, client, 2, nullptr) !=
       pdPASS) {
     httpd_resp_set_status(client->async_request, "503 Service Unavailable");
     httpd_resp_send(client->async_request, "Cannot create stream task", HTTPD_RESP_USE_STRLEN);
@@ -247,7 +249,7 @@ void MicrophoneHttpStream::on_audio_(const std::vector<uint8_t> &data) {
   }
 }
 
-void MicrophoneHttpStream::send_task_(void *arg) {
+void MicrophoneHttpStream::send_task(void *arg) {
   auto *client = static_cast<ClientSlot *>(arg);
   client->owner->run_send_task_(client);
   vTaskDelete(nullptr);
@@ -287,17 +289,19 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
       const uint32_t send_start_ms = millis();
       const auto result = httpd_resp_send_chunk(request, reinterpret_cast<const char *>(chunk), amount);
       const uint32_t send_ms = millis() - send_start_ms;
-      if (send_ms > client->max_send_ms.load())
+      if (send_ms > client->max_send_ms.load()) {
         client->max_send_ms.store(send_ms);
+      }
       if (result != ESP_OK) {
         send_errno = errno;
         ESP_LOGW(TAG, "Client %u HTTP send failed: %d errno=%d", client->index, result, send_errno);
         StopReason expected = StopReason::STOP_REASON_NONE;
         StopReason failure_reason = StopReason::STOP_REASON_SEND_FAILED;
-        if (send_errno == ECONNRESET || send_errno == EPIPE || send_errno == ENOTCONN)
+        if (send_errno == ECONNRESET || send_errno == EPIPE || send_errno == ENOTCONN) {
           failure_reason = StopReason::STOP_REASON_PEER_CLOSED;
-        else if (send_errno == EAGAIN || send_errno == EWOULDBLOCK)
+        } else if (send_errno == EAGAIN || send_errno == EWOULDBLOCK) {
           failure_reason = StopReason::STOP_REASON_SEND_TIMEOUT;
+        }
         client->stop_reason.compare_exchange_strong(expected, failure_reason);
         send_ok = false;
         break;
@@ -359,3 +363,5 @@ void MicrophoneHttpStream::run_send_task_(ClientSlot *client) {
 }
 
 }  // namespace esphome::microphone_http_stream
+
+#endif  // USE_ESP32
