@@ -42,11 +42,10 @@ namespace esphome::mqtt {
 static constexpr size_t MQTT_COMPONENT_TYPE_MAX_LEN = 20;
 static constexpr size_t MQTT_SUFFIX_MAX_LEN = 32;
 static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python: cv.Length(max=64)
-#ifdef USE_MQTT_SUB_DEVICE_TOPICS
-// The sanitized sub-device name and its separator, added to the topics of an
-// entity on a sub-device so that equally named entities on different
-// sub-devices do not share a topic.
-static constexpr size_t MQTT_SUB_DEVICE_SEGMENT_MAX_LEN = ESPHOME_FRIENDLY_NAME_MAX_LEN + 1;
+#if defined(USE_MQTT_SUB_DEVICE_TOPICS) && defined(USE_DEVICES)
+// Longest sanitized sub-device name in the config (set by codegen) plus its separator
+static_assert(MQTT_SUB_DEVICE_NAME_MAX_LEN <= ESPHOME_FRIENDLY_NAME_MAX_LEN, "sub-device name too long");
+static constexpr size_t MQTT_SUB_DEVICE_SEGMENT_MAX_LEN = MQTT_SUB_DEVICE_NAME_MAX_LEN + 1;
 #else
 static constexpr size_t MQTT_SUB_DEVICE_SEGMENT_MAX_LEN = 0;
 #endif

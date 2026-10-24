@@ -11,6 +11,7 @@ from esphome.components import mqtt
 from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DEVICE_ID,
     CONF_DEVICES,
     CONF_DISCOVERY,
     CONF_ESPHOME,
@@ -21,17 +22,20 @@ from esphome.const import (
     CONF_STATE_TOPIC,
     CONF_TOPIC_PREFIX,
 )
-from esphome.core import CORE, ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
-from esphome.helpers import fnv1_hash
 
 DEVICES = {"living_room": "Living Room", "bedroom": "Bedroom"}
+MQTT_CLASSES: dict[str, MockObjClass] = {
+    "sensor": mqtt.MQTTSensorComponent,
+    "binary_sensor": mqtt.MQTTBinarySensorComponent,
+    "text_sensor": mqtt.MQTTTextSensor,
+}
 
 
 @pytest.fixture(autouse=True)
 def full_config() -> Generator[Config]:
-    original = CORE.unique_ids
-    CORE.unique_ids = {}
     config = Config()
     config[CONF_ESPHOME] = {CONF_DEVICES: []}
     token = fv.full_config.set(config)
@@ -39,7 +43,6 @@ def full_config() -> Generator[Config]:
         _add_device(device_id, name)
     yield config
     fv.full_config.reset(token)
-    CORE.unique_ids = original
 
 
 def _add_device(device_id: str, name: str) -> None:
@@ -50,24 +53,15 @@ def _add_device(device_id: str, name: str) -> None:
 def _add(
     device_id: str, platform: str, name: str, mqtt: bool = True, **mqtt_options
 ) -> None:
-    config = fv.full_config.get()
-    entities = config.setdefault(platform, [])
-    entity_id = ID(f"{platform}_{len(CORE.unique_ids)}")
+    entities = fv.full_config.get().setdefault(platform, [])
+    entity_id = ID(f"{platform}_{len(entities)}")
     entity = {CONF_ID: entity_id, CONF_NAME: name, **mqtt_options}
-    if (
-        mqtt
-    ):  # set by cv.OnlyWith(CONF_MQTT_ID, "mqtt") on platforms with an MQTT component
-        entity[CONF_MQTT_ID] = ID(f"{entity_id.id}_mqtt")
+    if device_id:
+        entity[CONF_DEVICE_ID] = ID(device_id)
+    # Set by cv.OnlyWith(CONF_MQTT_ID, "mqtt") on platforms with an MQTT component
+    if mqtt:
+        entity[CONF_MQTT_ID] = ID(f"{entity_id.id}_mqtt", type=MQTT_CLASSES[platform])
     entities.append(entity)
-    config.declare_ids.append((entity_id, [platform, len(entities) - 1, CONF_ID]))
-    object_id = name.lower().replace(" ", "_")
-    CORE.unique_ids[(device_id, platform, fnv1_hash(object_id))] = {
-        "name": name,
-        "device_id": device_id,
-        "platform": platform,
-        "entity_id": entity_id.id,
-        "component": platform,
-    }
 
 
 def _config(
@@ -210,8 +204,24 @@ def test_internal_entities_are_left_out() -> None:
     mqtt._final_validate(_config(sub_device_topics=True))
 
 
-def test_an_entity_whose_config_is_not_found_is_left_out() -> None:
-    _add("bedroom", "sensor", "Temperature")
-    _add("", "sensor", "Bedroom Temperature")
-    fv.full_config.get().declare_ids.pop()  # its id no longer leads to a config
-    mqtt._final_validate(_config(sub_device_topics=True))
+def test_text_sensors_are_keyed_as_mqtt_sensors() -> None:
+    # A text sensor publishes as an MQTT sensor; a binary sensor does not
+    _add("living_room", "text_sensor", "Status")
+    _add("bedroom", "sensor", "Status")
+    _add("", "binary_sensor", "Status")
+    assert mqtt._shared_mqtt_ids(_config()) == [
+        (
+            "default topic and discovery id",
+            [
+                "sensor 'Status' on device 'bedroom'",
+                "sensor 'Status' on device 'living_room'",
+            ],
+        )
+    ]
+
+
+def test_nothing_shared_without_sub_devices(full_config: Config) -> None:
+    full_config[CONF_ESPHOME][CONF_DEVICES].clear()
+    _add("", "sensor", "Temperature")
+    _add("", "sensor", "Temperature")
+    assert mqtt._shared_mqtt_ids(_config()) == []

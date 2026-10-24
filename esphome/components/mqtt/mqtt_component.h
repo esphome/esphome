@@ -25,10 +25,12 @@ class MQTTComponent;  // Forward declaration
 
 // Validated in Python: cv.Length(max=64), DISCOVERY_PREFIX_MAX_LEN in mqtt/__init__.py
 static constexpr size_t MQTT_DISCOVERY_PREFIX_MAX_LEN = 64;
-// Format: prefix + "/" + type + "/" + name + "/" + object_id + "/config" + null
+// [sub_device + "_"] + object_id
+static constexpr size_t MQTT_DISCOVERY_OBJECT_ID_MAX_LEN = MQTT_SUB_DEVICE_SEGMENT_MAX_LEN + OBJECT_ID_MAX_LEN;
+// Format: prefix + "/" + type + "/" + name + "/" + discovery object_id + "/config" + null
 static constexpr size_t MQTT_DISCOVERY_TOPIC_MAX_LEN = MQTT_DISCOVERY_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN +
                                                        1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 +
-                                                       MQTT_SUB_DEVICE_SEGMENT_MAX_LEN + OBJECT_ID_MAX_LEN + 7 + 1;
+                                                       MQTT_DISCOVERY_OBJECT_ID_MAX_LEN + 7 + 1;
 
 void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, bool command_topic);
 
@@ -283,7 +285,11 @@ class MQTTComponent : public Component {
 
   /// Helper method to get the discovery topic for this component into a buffer.
   StringRef get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
-                                    const MQTTDiscoveryInfo &discovery_info) const;
+                                    const MQTTDiscoveryInfo &discovery_info, StringRef object_id) const;
+
+  /// Write "<sub_device>_<object_id>" (the object id alone on the main device); sets the sub-device part's length.
+  StringRef get_discovery_object_id_to_(std::span<char, MQTT_DISCOVERY_OBJECT_ID_MAX_LEN> buf,
+                                        size_t &sub_device_len) const;
 
   /** Get this components state/command/... topic into a buffer.
    *
@@ -294,14 +300,12 @@ class MQTTComponent : public Component {
   StringRef get_default_topic_for_to_(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf, const char *suffix,
                                       size_t suffix_len) const;
 
-  /** Write the sanitized name of the sub-device this entity is on into `buf` (not terminated).
-   *
-   * Only with `sub_device_topics` enabled (USE_MQTT_SUB_DEVICE_TOPICS); otherwise, or for an entity
-   * on the main device, nothing is written.
-   * @param buf At least ESPHOME_FRIENDLY_NAME_MAX_LEN bytes.
-   * @return The number of characters written, 0 for none.
-   */
+  /// Write the sanitized sub-device name (not terminated) and return its length, 0 on the main device.
+#if defined(USE_MQTT_SUB_DEVICE_TOPICS) && defined(USE_DEVICES)
   size_t write_sub_device_segment_to_(char *buf) const;
+#else
+  size_t write_sub_device_segment_to_(char * /*buf*/) const { return 0; }
+#endif
 
   /** Get this components state/command/... topic (allocates std::string).
    *
