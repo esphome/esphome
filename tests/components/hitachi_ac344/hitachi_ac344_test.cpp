@@ -104,6 +104,14 @@ TEST_F(HitachiSwingTest, ReceivedFrameResyncsTheVerticalSwingState) {
   EXPECT_EQ(this->button_after_swing_(climate::CLIMATE_SWING_OFF), HITACHI_AC344_BUTTON_SWINGV);
 }
 
+TEST_F(HitachiSwingTest, MildewProofSendsItsOwnButtonAndKeepsTheSwingState) {
+  EXPECT_EQ(this->button_after_swing_(climate::CLIMATE_SWING_VERTICAL), HITACHI_AC344_BUTTON_SWINGV);
+  this->climate_.set_mildew_proof(true);
+  EXPECT_EQ(this->frame_byte_(HITACHI_AC344_BUTTON_BYTE), HITACHI_AC344_BUTTON_MILDEWPROOF);
+  EXPECT_TRUE(this->climate_.get_mildew_proof());
+  EXPECT_EQ(this->button_after_swing_(climate::CLIMATE_SWING_VERTICAL), HITACHI_AC344_BUTTON_POWER);
+}
+
 TEST_F(HitachiSwingTest, QuietFanUsesTheMinimumSpeedBothWays) {
   auto call = this->climate_.make_call();
   call.set_fan_mode(climate::CLIMATE_FAN_QUIET);
