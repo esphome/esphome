@@ -34,6 +34,8 @@ class PZEMAC final : public PollingComponent, public modbus::ModbusClientDevice 
   sensor::Sensor *energy_sensor_{nullptr};
   sensor::Sensor *frequency_sensor_{nullptr};
   sensor::Sensor *power_factor_sensor_{nullptr};
+
+  uint32_t last_update_time_{0};
 };
 
 }  // namespace esphome::pzemac
