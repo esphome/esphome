@@ -1,23 +1,27 @@
 canopen:
-  id: canopen_hub
-  response_timeout: 250ms
-  on_heartbeat:
-    - lambda: ESP_LOGI("canopen.test", "Node %u state %u", node_id, state);
-  on_emcy:
-    - lambda: ESP_LOGW("canopen.test", "Node %u EMCY %u", node_id, emergency.error_code);
+  - canbus_id: canopen_test_bus
+    id: canopen_test_hub
+    response_timeout: 250ms
+    on_heartbeat:
+      - lambda: ESP_LOGI("canopen.test", "Node %u state %u", node_id, state);
+    on_emcy:
+      - lambda: ESP_LOGW("canopen.test", "Node %u EMCY %u", node_id, emergency.error_code);
 
 sensor:
   - platform: canopen
+    canopen_id: canopen_test_hub
     name: CANopen position
     node_id: 32
     index: 0x6064
     value_type: INT32
   - platform: canopen
+    canopen_id: canopen_test_hub
     name: CANopen statusword
     node_id: 33
     index: 0x6041
     value_type: UINT16
   - platform: canopen
+    canopen_id: canopen_test_hub
     name: CANopen temperature
     node_id: 33
     index: 0x2000
@@ -28,10 +32,11 @@ interval:
   - interval: 60s
     then:
       - canopen.nmt:
+          id: canopen_test_hub
           node_id: 32
           command: START
       - canopen.sdo_write:
-          id: canopen_hub
+          id: canopen_test_hub
           node_id: 32
           index: 0x2000
           subindex: 1
@@ -44,7 +49,7 @@ interval:
                 ESP_LOGW("canopen.test", "Write failed: %u, abort: %u", static_cast<unsigned>(result),
                          static_cast<unsigned>(abort_code));
       - canopen.sdo_write:
-          id: canopen_hub
+          id: canopen_test_hub
           node_id: 33
           index: 0x2001
           size: 4
