@@ -4,6 +4,7 @@
 #ifdef USE_MQTT
 #ifdef USE_ESP32
 
+#include <atomic>
 #include <string>
 #include <cstring>
 #include <mqtt_client.h>
@@ -211,6 +212,9 @@ class MQTTBackendESP32 final : public MQTTBackend {
 #endif
   }
   using MQTTBackend::publish;
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  bool flushed() const final { return !this->sending_.load(std::memory_order_acquire) && this->mqtt_queue_.empty(); }
+#endif
 
   void loop() final;
 
@@ -273,6 +277,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   EventPool<struct QueueElement, MQTT_QUEUE_LENGTH - 1> mqtt_outbound_pool_;
   NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
   TaskHandle_t task_handle_{nullptr};
+  // Set while the task works through the queue, so flushed() also covers the item it popped last
+  std::atomic<bool> sending_{false};
   bool enqueue_(MqttQueueTypeT type, const char *topic, int qos = 0, bool retain = false, const char *payload = NULL,
                 size_t len = 0);
 #endif

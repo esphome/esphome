@@ -330,6 +330,7 @@ class MQTTClientComponent final : public Component {
   void disable();
 
   void on_shutdown() override;
+  bool teardown() override;
 
   void set_broker_address(const std::string &address) { this->credentials_.address = address; }
   void set_broker_port(uint16_t port) { this->credentials_.port = port; }
@@ -431,6 +432,7 @@ class MQTTClientComponent final : public Component {
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
+  uint32_t shutdown_start_{0};
   optional<MQTTClientDisconnectReason> disconnect_reason_{};
   CallbackManager<MQTTBackend::on_disconnect_callback_t> on_disconnect_;
 
