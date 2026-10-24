@@ -812,25 +812,27 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
 #endif  // USE_WIFI_AP
 
-#if defined(USE_LN882X) || defined(USE_BK72XX)
+#ifdef USE_LN882X
 void WiFiComponent::on_powerdown() {
   // Leave the AP so it no longer holds the association when we come back.
-#ifdef USE_LN882X
   if (WiFi.status() != WL_CONNECTED)  // associated, even before DHCP has finished
     return;
-#else
-  // BK72xx reports WL_CONNECTED only once it has an IP; joining or associated is WL_SCAN_COMPLETED
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  wifi_sta_disconnect();  // not WiFi.disconnect(): it frees the SSID its event handlers read
+  delay(100);             // NOLINT: once per reboot or deep sleep, lets the deauth go out
+}
+#endif
+
+#ifdef USE_BK72XX
+void WiFiComponent::on_powerdown() {
+  // Leave the AP so it no longer holds the association when we come back.
+  // Beken reports WL_CONNECTED only once it has an IP; joining or associated is WL_SCAN_COMPLETED
   const WiFiStatus status = WiFi.status();
   if (status != WL_CONNECTED && status != WL_SCAN_COMPLETED)
     return;
-#endif
   ESP_LOGD(TAG, "Disconnecting before powerdown");
-#ifdef USE_LN882X
-  wifi_sta_disconnect();  // not WiFi.disconnect(): it frees the SSID its event handlers read
-#else
   wlan_sta_disconnect();  // not WiFi.disconnect(): it only reports a lost link and sends no deauth
-#endif
-  delay(100);  // NOLINT: once per reboot or deep sleep, lets the deauth go out
+  delay(100);             // NOLINT: once per reboot or deep sleep, lets the deauth go out
 }
 #endif
 
